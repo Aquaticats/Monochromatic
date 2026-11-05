@@ -28,7 +28,7 @@ use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_object::{ObjectKind, from_hex, name_length};
 use crate::repo_read_odb::ObjectDatabase;
 use crate::repo_read_tree::{MODE_GITLINK, is_tree_mode, parse_tree};
-use crate::service_protocol::CommitRequest;
+use crate::service_protocol::{Change, CommitRequest};
 use crate::transaction_phase::{Phase, PhaseMarkerError, reach_transaction_phase};
 use std::collections::HashSet;
 use std::path::Path;
@@ -44,6 +44,22 @@ static STAGED_REACHED: AtomicU64 = AtomicU64::new(0);
 static PREPARED_REACHED: AtomicU64 = AtomicU64::new(0);
 
 /// What:
+///  Whether an event says the content to check was removed: an engine failure that the content is unavailable, naming a missing object.
+/// Why:
+///  `content_was_removed` asks it of every event of a check.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isRemovedContent = (event: PolicyEvent) => event.code === 'content-unavailable' && event.message.startsWith(OBJECT_MISSING_PREFIX);
+/// ```
+fn is_removed_content(event: &PolicyEvent) -> bool {
+    return matches!(
+        event,
+        PolicyEvent::EngineFailure { code: EngineFailureCode::ContentUnavailable, message, .. } if message.starts_with(OBJECT_MISSING_PREFIX)
+    );
+}
+
+/// What:
 ///  Whether a policy run stopped because an object it had to read is missing from the repository.
 /// Why:
 ///   That is the instant a pruning `git gc` is seen from the policies; preparing the commit again writes the content anew.
@@ -54,12 +70,7 @@ static PREPARED_REACHED: AtomicU64 = AtomicU64::new(0);
 /// events.some((event) => event.type === 'engine-failure' && event.message.startsWith(OBJECT_MISSING_PREFIX))
 /// ```
 pub fn content_was_removed(events: &[PolicyEvent]) -> bool {
-    return events.iter().any(|event| {
-        return matches!(
-            event,
-            PolicyEvent::EngineFailure { code: EngineFailureCode::ContentUnavailable, message, .. } if message.starts_with(OBJECT_MISSING_PREFIX)
-        );
-    });
+    return events.iter().any(is_removed_content);
 }
 
 /// How many tree entries (and trees) the walk of one batch examines before it stops asking and leaves the rest to Git.
@@ -108,7 +119,13 @@ struct ClosureWalk {
 /// walkTrees(roots, { shared: true, budget }).some((entry) => !objectStore.has(entry.id))
 /// ```
 fn walk_tree_closures(database: &ObjectDatabase, roots: &[&str], format: ObjectFormat, budget: usize) -> ClosureWalk {
-    let mut pending: Vec<Vec<u8>> = roots.iter().filter_map(|root| { return from_hex(root.as_bytes(), format); }).collect();
+    // A root that is not an object name of the repository's format is left out.
+    let mut pending: Vec<Vec<u8>> = Vec::new();
+    for root in roots {
+        if let Some(bytes) = from_hex(root.as_bytes(), format) {
+            pending.push(bytes);
+        }
+    }
     let mut visited: HashSet<Vec<u8>> = HashSet::new();
     let mut examined: usize = 0;
     while let Some(name) = pending.pop() {
@@ -174,7 +191,7 @@ pub fn prepared_content_missing(common_dir: &Path, objects_dir: &Path, object_fo
     let named = request
         .changes
         .iter()
-        .filter_map(|change| { return change.blob.as_deref(); })
+        .filter_map(blob_of_change)
         .chain(request.tree.as_deref())
         .chain(request.commit.as_deref());
     for name in named {
@@ -183,7 +200,36 @@ pub fn prepared_content_missing(common_dir: &Path, objects_dir: &Path, object_fo
             Some(_) | None => {}
         }
     }
-    return request.tree.as_deref().is_some_and(|tree| { return tree_closures_missing(&database, &[tree], format); });
+    return match request.tree.as_deref() {
+        Some(tree) => tree_closures_missing(&database, &[tree], format),
+        None => false,
+    };
+}
+
+/// What:
+///  The blob a change names, nothing for a deletion.
+/// Why:
+///  The objects a request depends on are its blobs, its tree and its commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const blobOfChange = (change: Change) => change.blob ?? undefined;
+/// ```
+fn blob_of_change(change: &Change) -> Option<&str> {
+    return change.blob.as_deref();
+}
+
+/// What:
+///  Whether the loose object file of a name is in the objects directory.
+/// Why:
+///  A loose object needs no reader of the object store; only the others are looked up in the packs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isLoose = (objects: string, name: string) => name.length > 2 && existsSync(join(objects, name.slice(0, 2), name.slice(2)))
+/// ```
+fn is_loose(objects: &std::path::Path, name: &str) -> bool {
+    return name.len() > 2 && objects.join(&name[..2]).join(&name[2..]).is_file();
 }
 
 /// What:
@@ -199,22 +245,33 @@ pub fn prepared_content_missing(common_dir: &Path, objects_dir: &Path, object_fo
 /// requests.flatMap(namesOf).some((name) => !loose(name) && !(await packs()).has(name))
 /// ```
 pub fn batch_content_missing(common_dir: &Path, requests: &[&CommitRequest]) -> bool {
-    let names: Vec<&str> = requests
-        .iter()
-        .flat_map(|request| {
-            return request.changes.iter().filter_map(|change| { return change.blob.as_deref(); }).chain(request.tree.as_deref()).chain(request.commit.as_deref());
-        })
-        .collect();
+    let mut names: Vec<&str> = Vec::new();
+    for request in requests {
+        names.extend(request.changes.iter().filter_map(blob_of_change).chain(request.tree.as_deref()).chain(request.commit.as_deref()));
+    }
     let objects: std::path::PathBuf = common_dir.join("objects");
-    let is_loose = |name: &str| -> bool { return name.len() > 2 && objects.join(&name[..2]).join(&name[2..]).is_file(); };
-    let absent: Vec<&str> = names.into_iter().filter(|name| { return !is_loose(name); }).collect();
+    let mut absent: Vec<&str> = Vec::new();
+    for name in names {
+        if !is_loose(objects.as_path(), name) {
+            absent.push(name);
+        }
+    }
     // An embedded tree is walked whether or not its own object is loose, so a request with one always needs the reader.
-    let trees: Vec<&str> = requests.iter().filter_map(|request| { return request.tree.as_deref(); }).collect();
+    let mut trees: Vec<&str> = Vec::new();
+    for request in requests {
+        if let Some(tree) = request.tree.as_deref() {
+            trees.push(tree);
+        }
+    }
     let Some(sample) = absent.first().or(trees.first()) else { return false };
     let format: ObjectFormat = if sample.len() == ObjectFormat::Sha256.hex_length() { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
     let Some(database) = ObjectDatabase::open(common_dir, None, format) else { return false };
-    if absent.iter().any(|name| { return from_hex(name.as_bytes(), format).is_some_and(|bytes| { return !database.contains(bytes.as_slice()); }); }) {
-        return true;
+    for name in &absent {
+        if let Some(bytes) = from_hex(name.as_bytes(), format)
+            && !database.contains(bytes.as_slice())
+        {
+            return true;
+        }
     }
     return tree_closures_missing(&database, &trees, format);
 }

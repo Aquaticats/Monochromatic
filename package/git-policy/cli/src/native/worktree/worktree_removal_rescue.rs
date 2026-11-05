@@ -67,14 +67,23 @@ enum Removal {
 /// The files of a directory, or none when it cannot be read.
 fn files_of(directory: &Path) -> Vec<PathBuf> {
     let Ok(listing) = std::fs::read_dir(directory) else { return Vec::new() };
-    let mut paths: Vec<PathBuf> = listing.flatten().map(|entry| { return entry.path(); }).filter(|path| { return path.is_file(); }).collect();
+    let mut paths: Vec<PathBuf> = Vec::new();
+    for entry in listing.flatten() {
+        let path: PathBuf = entry.path();
+        if path.is_file() {
+            paths.push(path);
+        }
+    }
     paths.sort();
     return paths;
 }
 
 /// The name of a file as text.
 fn name_of(path: &Path) -> String {
-    return path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default();
+    return match path.file_name() {
+        Some(name) => name.to_string_lossy().into_owned(),
+        None => String::new(),
+    };
 }
 
 /// Writes a file into a snapshot unless a file of that name is already there, which an earlier snapshot of the same worktree
@@ -103,12 +112,15 @@ fn copy_into(directory: &Path, name: &str, source: &Path) -> std::io::Result<boo
 ///  carries its generation and clock reading, so the id is the part before them.
 fn push_record_names(work_directory: &Path) -> Vec<String> {
     let prefix: String = format!("{}-", WorkKind::Push.name());
-    let mut names: Vec<String> = [PENDING, CLAIMED, RECOVERING]
-        .into_iter()
-        .flat_map(|state| { return files_of(work_directory.join(state).as_path()); })
-        .map(|path| { return id_of_entry(name_of(path.as_path()).as_str()).to_owned(); })
-        .filter(|name| { return name.starts_with(prefix.as_str()); })
-        .collect();
+    let mut names: Vec<String> = Vec::new();
+    for state in [PENDING, CLAIMED, RECOVERING] {
+        for path in files_of(work_directory.join(state).as_path()) {
+            let name: String = id_of_entry(name_of(path.as_path()).as_str()).to_owned();
+            if name.starts_with(prefix.as_str()) {
+                names.push(name);
+            }
+        }
+    }
     names.sort();
     names.dedup();
     return names;
@@ -148,7 +160,10 @@ fn locate_push_record(work_directory: &Path, name: &str) -> std::io::Result<Opti
 
 /// Records, in the snapshot, that this process took it and so may be about to remove the worktree.
 fn register_attempt(snapshot: &Path) -> std::io::Result<()> {
-    let identity: String = current_birth_identity().map_err(|error| { return std::io::Error::other(error.to_string()); })?;
+    let identity: String = match current_birth_identity() {
+        Ok(found) => found,
+        Err(error) => return Err(std::io::Error::other(error.to_string())),
+    };
     let directory: PathBuf = snapshot.join(ATTEMPTS);
     create_private_directory_all(directory.as_path())?;
     // The file is named by this process's number, so no other live process owns it: one left by an earlier process of the
@@ -172,22 +187,31 @@ fn register_attempt(snapshot: &Path) -> std::io::Result<()> {
 /// await attemptsMayBeRunning(snapshot)
 /// ```
 fn attempt_may_be_running(snapshot: &Path) -> bool {
-    return files_of(snapshot.join(ATTEMPTS).as_path()).iter().any(|path| {
-        let Ok(pid) = name_of(path.as_path()).parse::<i64>() else { return false };
-        let Ok(recorded) = std::fs::read_to_string(path) else { return true };
-        if recorded.is_empty() {
-            // Being written.
+    // The loop stops at the first attempt that may be running, as `any` did.
+    for path in files_of(snapshot.join(ATTEMPTS).as_path()) {
+        if attempt_file_may_be_running(path.as_path()) {
             return true;
         }
-        return match process_birth_identity(pid) {
-            Ok(Some(now)) => now == recorded,
-            Ok(None) => false,
-            Err(error) => {
-                warn(TAG, format!("the process {pid} of a worktree removal cannot be inspected: {error}").as_str());
-                true
-            }
-        };
-    });
+    }
+    return false;
+}
+
+/// Whether the command that wrote one attempt file may still be running; a file that cannot be understood counts as running.
+fn attempt_file_may_be_running(path: &Path) -> bool {
+    let Ok(pid) = name_of(path).parse::<i64>() else { return false };
+    let Ok(recorded) = std::fs::read_to_string(path) else { return true };
+    if recorded.is_empty() {
+        // Being written.
+        return true;
+    }
+    return match process_birth_identity(pid) {
+        Ok(Some(now)) => now == recorded,
+        Ok(None) => false,
+        Err(error) => {
+            warn(TAG, format!("the process {pid} of a worktree removal cannot be inspected: {error}").as_str());
+            true
+        }
+    };
 }
 
 /// Whether the checkout a registered worktree's Git directory names is still there; nothing when the Git directory does not say.
@@ -269,8 +293,10 @@ pub fn snapshot_linked_worktrees(common_dir: &Path) -> Vec<String> {
             for name in &pushes {
                 match locate_push_record(work_directory.as_path(), name.as_str()) {
                     Ok(Some((state, bytes))) => {
-                        let copied: std::io::Result<()> = create_private_directory_all(snapshot.join(WORK).as_path())
-                            .and_then(|()| { return save_once(snapshot.join(WORK).join(format!("{state}-{name}")).as_path(), bytes.as_slice()); });
+                        let copied: std::io::Result<()> = match create_private_directory_all(snapshot.join(WORK).as_path()) {
+                            Ok(()) => save_once(snapshot.join(WORK).join(format!("{state}-{name}")).as_path(), bytes.as_slice()),
+                            Err(error) => Err(error),
+                        };
                         if let Err(error) = copied {
                             failures.push(format!("the push record {name} could not be copied ({error})"));
                         }

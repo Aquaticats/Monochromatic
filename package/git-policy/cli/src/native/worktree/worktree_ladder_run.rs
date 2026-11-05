@@ -15,7 +15,7 @@
 //! const result = await ladder.finish(git, runGit);
 //! ```
 
-use crate::add_timing::{note as note_timing, step as timed};
+use crate::add_timing::{begin_step, end_step, note as note_timing};
 use crate::diagnostic_log::{debug, warn};
 use crate::fs_btrfs_ioctl::subvolume_destroy_at;
 use crate::transaction_git::GitContext;
@@ -88,6 +88,34 @@ pub struct LadderResult {
 }
 
 /// What:
+///  Log why Git, and not a snapshot or clones, checks the worktree out.
+/// Why:
+///   One log line carries both refusals, so a person reading the log sees why the cheap rungs were not used.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// debug(`${plan.destination}: Git checks the worktree out (${reason}; snapshot: ${snapshotRefusal}; clone: ${cloneRefusal})`)
+/// ```
+fn log_git_checkout(plan: &AddPlan, reason: &str, snapshot_refusal: &Option<String>, clone_refusal: &Option<String>) {
+    debug(TAG, format!("{}: Git checks the worktree out ({reason}; snapshot: {snapshot_refusal:?}; clone: {clone_refusal:?})", plan.destination.display()).as_str());
+}
+
+/// What:
+///  The identity of what the stage's name leads to now, or nothing when its parent cannot be opened or the name cannot be looked up.
+/// Why:
+///   Discarding a stage checks that the name still holds the object this process made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// identityAt(openRoot(parent(stage)), basename(stage)) ?? undefined
+/// ```
+fn identity_of_stage_name(stage: &Path) -> Option<crate::fs_beneath::ObjectId> {
+    let parent: &Path = stage.parent()?;
+    let held: std::fs::File = crate::fs_beneath::open_root(parent).ok()?;
+    return crate::fs_beneath::identity_at(&held, stage.file_name()?).ok();
+}
+
+/// What:
 ///  Choose the rung for one invocation and prepare it: a snapshot source and the claim on its stage, a clone source, or an
 ///  empty subvolume at the destination for Git to fill; with the sentence that says why it is not the snapshot, when it is not.
 /// Why:
@@ -99,27 +127,49 @@ pub struct LadderResult {
 /// function chooseRung(plan: AddPlan, context: GitContext, identity: WorktreeIdentity): { rung: Rung; slow?: SlowRoute };
 /// ```
 fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity) -> (Rung, Option<SlowRoute>) {
-    let snapshot_refusal: Option<String> = timed("refusals", || { return snapshot_refusal(identity, plan); });
-    let clone_refusal: Option<String> = timed("refusals", || { return clone_refusal(identity, plan); });
-    let reasons = |reason: &str| { debug(TAG, format!("{}: Git checks the worktree out ({reason}; snapshot: {snapshot_refusal:?}; clone: {clone_refusal:?})", plan.destination.display()).as_str()); };
+    let refusals_entered: bool = begin_step("refusals");
+    let snapshot_refusal: Option<String> = snapshot_refusal(identity, plan);
+    end_step(refusals_entered);
+    let refusals_again_entered: bool = begin_step("refusals");
+    let clone_refusal: Option<String> = clone_refusal(identity, plan);
+    end_step(refusals_again_entered);
     // The cheap refusal comes first in the sentence: it is the structural one, which no commit or wait removes.
-    let cheap: Option<SlowRoute> = snapshot_refusal.as_deref().and_then(|reason: &str| { return explain_cheap_refusal(identity, reason); });
+    let cheap: Option<SlowRoute> = match snapshot_refusal.as_deref() {
+        Some(reason) => explain_cheap_refusal(identity, reason),
+        None => None,
+    };
     if snapshot_refusal.is_some() && clone_refusal.is_some() {
-        reasons("neither a snapshot nor clones apply");
+        log_git_checkout(plan, "neither a snapshot nor clones apply", &snapshot_refusal, &clone_refusal);
         return (Rung::Git(prepare_subvolume_destination(plan)), cheap);
     }
-    let source: SnapshotSource = match timed("checkSource", || { return source_or_dirty(context, identity); }) {
+    let check_source_entered: bool = begin_step("checkSource");
+    let check_source_outcome = source_or_dirty(context, identity);
+    end_step(check_source_entered);
+    let source: SnapshotSource = match check_source_outcome {
         Ok(found) => found,
         Err(refusal) => {
-            reasons(refusal.reason.as_str());
-            let slow: Option<SlowRoute> = cheap.or_else(|| { return explain_refusal(context, identity, &refusal); });
+            log_git_checkout(plan, refusal.reason.as_str(), &snapshot_refusal, &clone_refusal);
+            // The explanation is made only when no cheap one was found, as `or_else` did.
+            let slow: Option<SlowRoute> = match cheap {
+                Some(structural) => Some(structural),
+                None => explain_refusal(context, identity, &refusal),
+            };
             return (Rung::Git(prepare_subvolume_destination(plan)), slow);
         }
     };
-    let snapshot_blocked: Option<String> = snapshot_refusal.clone().or_else(|| { return snapshot_blocker(&source); });
-    let mut slow: Option<SlowRoute> = cheap.or_else(|| { return snapshot_blocked.as_deref().map(explain_unsupported); });
+    let snapshot_blocked: Option<String> = match snapshot_refusal.clone() {
+        Some(reason) => Some(reason),
+        None => snapshot_blocker(&source),
+    };
+    let mut slow: Option<SlowRoute> = match cheap {
+        Some(structural) => Some(structural),
+        None => snapshot_blocked.as_deref().map(explain_unsupported),
+    };
     if snapshot_blocked.is_none() {
-        match timed("claimStage", || { return claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path()); }) {
+        let claim_stage_entered: bool = begin_step("claimStage");
+        let claim_stage_outcome = claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path());
+        end_step(claim_stage_entered);
+        match claim_stage_outcome {
             Ok(claim) => return (Rung::Snapshot(Box::new(source), claim), None),
             Err(error) => {
                 debug(TAG, format!("the stage cannot be claimed ({}); no snapshot", error.0).as_str());
@@ -132,12 +182,15 @@ fn choose_rung(plan: &AddPlan, context: &GitContext, identity: &WorktreeIdentity
     // Clones copy the tracked files of a source the checks proved clean; a source with changes is only ever snapshotted.
     if clone_refusal.is_none() && source.dirty.is_none() {
         // The record comes first: without it a killed add could not be removed, so the rung is not tried.
-        match timed("claimStage", || { return claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path()); }) {
+        let claim_stage_again_entered: bool = begin_step("claimStage");
+        let claim_stage_again_outcome = claim_stage_for_add(source.common_dir.as_path(), plan.destination.as_path());
+        end_step(claim_stage_again_entered);
+        match claim_stage_again_outcome {
             Ok(claim) => return (Rung::Clone(Box::new(source), prepare_subvolume_destination(plan), claim), slow),
             Err(error) => debug(TAG, format!("the add cannot be recorded ({}); no clones", error.0).as_str()),
         }
     }
-    reasons("no rung applies");
+    log_git_checkout(plan, "no rung applies", &snapshot_refusal, &clone_refusal);
     return (Rung::Git(prepare_subvolume_destination(plan)), slow);
 }
 
@@ -185,7 +238,7 @@ pub(crate) fn discard_stage(stage: &Path, made: Option<crate::fs_beneath::Object
         warn(TAG, format!("the stage {} was not identified and is left in place", stage.display()).as_str());
         return;
     };
-    let current = stage.parent().and_then(|parent: &Path| { return crate::fs_beneath::open_root(parent).ok(); }).and_then(|held: std::fs::File| { return crate::fs_beneath::identity_at(&held, stage.file_name()?).ok(); });
+    let current = identity_of_stage_name(stage);
     if current.is_none() {
         return;
     }

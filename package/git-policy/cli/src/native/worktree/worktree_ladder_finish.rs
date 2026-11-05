@@ -16,7 +16,7 @@
 //! const result = await ladder.finish({ git, runGit, context, out });
 //! ```
 
-use crate::add_timing::step as timed;
+use crate::add_timing::{begin_step, end_step};
 use crate::diagnostic_log::{debug, warn};
 use crate::fs_beneath::ObjectId;
 use crate::transaction_git::GitContext;
@@ -74,8 +74,14 @@ impl From<PlaceError> for Ended {
 /// ```
 fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, run_git: &mut GitRunner, context: &GitContext) -> Result<String, Ended> {
     verify_association(bound)?;
-    let target: Target = timed("prepareTarget", || { return prepare_target(source, plan, context, bound); })?;
-    let trash: Option<TrashManifest> = match timed("takeSnapshot", || { return take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice()); }) {
+    let prepare_target_entered: bool = begin_step("prepareTarget");
+    let prepare_target_outcome = prepare_target(source, plan, context, bound);
+    end_step(prepare_target_entered);
+    let target: Target = prepare_target_outcome?;
+    let take_snapshot_entered: bool = begin_step("takeSnapshot");
+    let take_snapshot_outcome = take_snapshot(source, plan, stage, &bound.admin, target.pointer.as_slice());
+    end_step(take_snapshot_entered);
+    let trash: Option<TrashManifest> = match take_snapshot_outcome {
         Ok(taken) => {
             *made = Some(taken.stage);
             taken.trash
@@ -87,23 +93,58 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     };
     verify_association(bound)?;
     if source.dirty.is_some() {
-        timed("restoreDirty", || { return restore_dirty(source, &target, stage, run_git, context); })?;
+        let restore_dirty_entered: bool = begin_step("restoreDirty");
+        let restore_dirty_outcome = restore_dirty(source, &target, stage, run_git, context);
+        end_step(restore_dirty_entered);
+        restore_dirty_outcome?;
     } else {
-        timed("applyDifference", || { return apply_difference(source, &target, stage, run_git); })?;
+        let apply_difference_entered: bool = begin_step("applyDifference");
+        let apply_difference_outcome = apply_difference(source, &target, stage, run_git);
+        end_step(apply_difference_entered);
+        apply_difference_outcome?;
     }
-    let mode: u32 = std::fs::metadata(source.root.as_path()).map_err(|error| { return format!("the source's root is unreadable ({error})"); })?.mode() & 0o7777;
-    timed("exchange", || { return put_in_place(stage, plan.destination.as_path(), mode, bound.binding.destination_id); })?;
-    for note in timed("settleDisplaced", || { return settle_displaced(stage, plan.destination.as_path(), bound.binding.destination_id, target.pointer.as_slice()); }) {
+    let root_metadata = match std::fs::metadata(source.root.as_path()) {
+        Ok(found) => found,
+        Err(error) => return Err(Ended::from(format!("the source's root is unreadable ({error})"))),
+    };
+    let mode: u32 = root_metadata.mode() & 0o7777;
+    let exchange_entered: bool = begin_step("exchange");
+    let exchange_outcome = put_in_place(stage, plan.destination.as_path(), mode, bound.binding.destination_id);
+    end_step(exchange_entered);
+    exchange_outcome?;
+    let settle_displaced_entered: bool = begin_step("settleDisplaced");
+    let settle_displaced_outcome = settle_displaced(stage, plan.destination.as_path(), bound.binding.destination_id, target.pointer.as_slice());
+    end_step(settle_displaced_entered);
+    for note in settle_displaced_outcome {
         warn(TAG, format!("cli-git: {note}").as_str());
     }
     // What a snapshot of the main checkout set aside is emptied by the service; nothing is set aside for a linked worktree. The
     //  worktree is in place and complete, so a trash that cannot be emptied is reported and never fails the add.
     //  `--quiet` silences the progress lines of the hand-over; a failure is still reported below.
     let mut notices: Box<dyn std::io::Write> = if plan.quiet { Box::new(std::io::sink()) } else { Box::new(std::io::stderr()) };
-    if let Err(reason) = timed("disposeTrash", || { return dispose_pending_trash(context, plan.destination.as_path(), target.admin.as_path(), trash.as_ref(), &mut notices); }) {
+    let dispose_trash_entered: bool = begin_step("disposeTrash");
+    let dispose_trash_outcome = dispose_pending_trash(context, plan.destination.as_path(), target.admin.as_path(), trash.as_ref(), &mut notices);
+    end_step(dispose_trash_entered);
+    if let Err(reason) = dispose_trash_outcome {
         warn(TAG, format!("cli-git: {reason}").as_str());
     }
     return Ok(target.line);
+}
+
+/// What:
+///  The paths the source has changed since its last commit, when there are any.
+/// Why:
+///   A snapshot carries the source's uncommitted state, so the person is told which of it was left out of the new worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// source.dirty?.hasChanges() ? source.dirty : undefined
+/// ```
+fn changes_left_out(source: &SnapshotSource) -> Option<&ChangedPaths> {
+    return match source.dirty.as_ref() {
+        Some(found) if found.has_changes() => Some(found),
+        _ => None,
+    };
 }
 
 /// What:
@@ -120,7 +161,10 @@ fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git:
     verify_association(bound)?;
     let target: Target = prepare_target(source, plan, context, bound)?;
     let cloned: Cloned = clone_tracked_files(source, &bound.destination, &bound.admin)?;
-    let applied: Result<(), String> = verify_association(bound).and_then(|()| { return apply_difference(source, &target, plan.destination.as_path(), run_git); });
+    let applied: Result<(), String> = match verify_association(bound) {
+        Ok(()) => apply_difference(source, &target, plan.destination.as_path(), run_git),
+        Err(reason) => Err(reason),
+    };
     if let Err(reason) = applied {
         warn(TAG, format!("cli-git: {}", leftover_report(cloned.created(), plan.destination.as_path())).as_str());
         return Err(reason);
@@ -192,7 +236,9 @@ fn report_incomplete(plan: &AddPlan) {
 /// await markComplete(claim);
 /// ```
 fn mark_complete(claim: &StageClaim, swapped: bool) {
-    let marked: Result<(), WorktreeCopyError> = timed("markComplete", || { return if swapped { claim.mark_complete_unsynced() } else { claim.mark_complete() }; });
+    let mark_complete_entered: bool = begin_step("markComplete");
+    let marked: Result<(), WorktreeCopyError> = if swapped { claim.mark_complete_unsynced() } else { claim.mark_complete() };
+    end_step(mark_complete_entered);
     if let Err(error) = marked {
         warn(TAG, format!("the completion of the add could not be recorded ({}); a later command may report it as interrupted although it is whole", error.0).as_str());
     }
@@ -228,8 +274,14 @@ fn complete_like_git(plan: &AddPlan, claim: &StageClaim, bound: &Bound, run_git:
 /// const bound = await bind(claim, source, plan); // throws a reason
 /// ```
 fn bind(claim: &StageClaim, source: &SnapshotSource, plan: &AddPlan) -> Result<Bound, String> {
-    let bound: Bound = timed("bindRegistration", || { return bind_registration(source.common_dir.as_path(), plan.destination.as_path()); })?;
-    if let Err(error) = timed("recordBinding", || { return claim.record_binding(&bound.binding); }) {
+    let bind_registration_entered: bool = begin_step("bindRegistration");
+    let bind_registration_outcome = bind_registration(source.common_dir.as_path(), plan.destination.as_path());
+    end_step(bind_registration_entered);
+    let bound: Bound = bind_registration_outcome?;
+    let record_binding_entered: bool = begin_step("recordBinding");
+    let record_binding_outcome = claim.record_binding(&bound.binding);
+    end_step(record_binding_entered);
+    if let Err(error) = record_binding_outcome {
         warn(TAG, format!("the binding of the add could not be recorded ({}); an interruption will be reported by path only", error.0).as_str());
     }
     return Ok(bound);
@@ -304,11 +356,11 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
             // A snapshot of the main checkout prints no copy summary, so it says what it did, on standard error; `--quiet` stays silent.
             if source.git_dir == source.common_dir && !plan.quiet {
                 let _noted = std::io::stderr().write_all(crate::worktree_trash::MAIN_SNAPSHOT_NOTE.as_bytes());
-                if let Some(changed) = source.dirty.as_ref().filter(|found: &&ChangedPaths| { return found.has_changes(); }) {
+                if let Some(changed) = changes_left_out(source) {
                     let _left_out = std::io::stderr().write_all(left_out_note(changed).as_bytes());
                 }
             }
-            if let Some(changed) = source.dirty.as_ref().filter(|found: &&ChangedPaths| { return found.has_changes(); }) {
+            if let Some(changed) = changes_left_out(source) {
                 record_left_out(plan.destination.as_path(), changed);
             }
             LadderResult { git: GitStatus { code: Some(0) }, carried: Some(plan.destination.clone()) }
@@ -329,7 +381,9 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
 
 /// Release the claim on a stage name, saying so when that fails; flushing nothing when a subvolume was swapped into place.
 fn release_claim(claim: StageClaim, swapped: bool) {
-    let released: Result<(), WorktreeCopyError> = timed("releaseClaim", || { return if swapped { claim.release_unsynced() } else { claim.release() }; });
+    let release_claim_entered: bool = begin_step("releaseClaim");
+    let released: Result<(), WorktreeCopyError> = if swapped { claim.release_unsynced() } else { claim.release() };
+    end_step(release_claim_entered);
     if let Err(error) = released {
         warn(TAG, format!("the stage claim could not be released ({})", error.0).as_str());
     }

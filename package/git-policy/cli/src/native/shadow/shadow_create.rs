@@ -142,7 +142,7 @@ fn init_with_git(
     ];
     let mut init: GitRequest = GitRequest::new(layout.common_dir.as_path(), &arguments);
     init.without_prefix = true;
-    init.unset = REPOSITORY_REDIRECT_VARIABLES.iter().map(|name| { return OsString::from(*name); }).collect();
+    init.unset = REPOSITORY_REDIRECT_VARIABLES.iter().copied().map(OsString::from).collect();
     let mut attempt: u32 = 1;
     loop {
         let outcome = run_git(context, &init);
@@ -204,6 +204,33 @@ fn discard_partial_shadow(shadow: &Path) -> Result<(), GitFailure> {
 }
 
 /// What:
+///  Turn the result of a filesystem step on the shadow into a Git failure that names the verb and the shadow:
+///  `<verb> <shadow> failed: <error>`.
+///  `std::io::Result<T>` is "the value, or an input/output error".
+/// Why:
+///   Several steps of the creation report their failure this way, and a named function stands where a closure that built
+///  that text stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function stepFailure<T>(attempt: () => T, verb: string, shadow: string): T; // throws GitFailure(`${verb} ${shadow} failed: ${error}`)
+/// ```
+fn step_failure<T>(result: std::io::Result<T>, verb: &str, shadow: &Path) -> Result<T, GitFailure> {
+    return match result {
+        Ok(value) => Ok(value),
+        Err(error) => Err(GitFailure(format!("{verb} {} failed: {error}", shadow.display()))),
+    };
+}
+
+/// The same for a step that is named by a phrase and not by a verb and the shadow: `<phrase> failed: <error>`.
+fn named_step_failure<T>(result: std::io::Result<T>, phrase: &str) -> Result<T, GitFailure> {
+    return match result {
+        Ok(value) => Ok(value),
+        Err(error) => Err(GitFailure(format!("{phrase} failed: {error}"))),
+    };
+}
+
+/// What:
 ///  Creates the shadow repository of one published transaction.
 /// Why:
 ///   Every step runs before any native Git command reads the shadow,
@@ -221,8 +248,7 @@ pub fn create_shadow_repository(
     transaction_directory: &Path,
 ) -> Result<PathBuf, GitFailure> {
     let shadow: PathBuf = shadow_repository_path(capture.layout.common_dir.as_path(), transaction_id);
-    create_parent(shadow.as_path())
-        .map_err(|error| { return GitFailure(format!("creating {} failed: {error}", shadow.display())); })?;
+    step_failure(create_parent(shadow.as_path()), "creating", shadow.as_path())?;
     create_shadow_repository_at(context, cwd, capture, shadow.as_path(), transaction_directory)?;
     return Ok(shadow);
 }
@@ -274,26 +300,30 @@ pub fn create_shadow_repository_carrying(
         // The reftable backend's tables are Git's to create, so this one case still starts `git init`.
         init_with_git(context, layout, shadow)?;
     } else {
-        create_shadow_skeleton(shadow)
-            .map_err(|error| { return GitFailure(format!("creating {} failed: {error}", shadow.display())); })?;
+        step_failure(create_shadow_skeleton(shadow), "creating", shadow)?;
     }
-    set_private_directory_mode(shadow)
-        .map_err(|error| { return GitFailure(format!("protecting {} failed: {error}", shadow.display())); })?;
+    step_failure(set_private_directory_mode(shadow), "protecting", shadow)?;
     let format = match layout.config_snapshot.as_ref().and_then(repository_format_from_snapshot) {
         Some(from_snapshot) => from_snapshot,
         None => read_repository_format(context, layout.common_dir.as_path())?,
     };
     let config_text: String =
         format_shadow_config(&format, layout.common_dir.as_path(), layout.repository_root.as_path());
-    overwrite_private(shadow.join("config").as_path(), config_text.as_bytes())
-        .map_err(|error| { return GitFailure(format!("writing the shadow config failed: {error}")); })?;
-    overwrite_private(
-        shadow.join("objects").join("info").join("alternates").as_path(),
-        format!("{}\n", layout.object_directory.display()).as_bytes(),
-    )
-    .map_err(|error| { return GitFailure(format!("writing the shadow alternates failed: {error}")); })?;
-    link_shadow_entries(shadow, layout.common_dir.as_path(), layout.git_dir.as_path())
-        .map_err(|error| { return GitFailure(format!("linking the shadow entries failed: {error}")); })?;
+    named_step_failure(
+        overwrite_private(shadow.join("config").as_path(), config_text.as_bytes()),
+        "writing the shadow config",
+    )?;
+    named_step_failure(
+        overwrite_private(
+            shadow.join("objects").join("info").join("alternates").as_path(),
+            format!("{}\n", layout.object_directory.display()).as_bytes(),
+        ),
+        "writing the shadow alternates",
+    )?;
+    named_step_failure(
+        link_shadow_entries(shadow, layout.common_dir.as_path(), layout.git_dir.as_path()),
+        "linking the shadow entries",
+    )?;
     if carry_conclusion {
         copy_conclusion_state(
             context,

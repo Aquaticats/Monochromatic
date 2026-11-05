@@ -189,7 +189,7 @@ fn failed_installation_never_stays_pending() {
     let pending: PendingJournal =
         create_journal(common.as_path(), destination.as_path(), &snapshot).expect("journal");
     let staged: StagedSnapshot = snapshot.clone();
-    let outcome: Outcome = complete_journal(pending, &|_intended| return Ok(staged.clone()))
+    let outcome: Outcome = complete_journal(pending, &SnapshotSource::Staged(&staged))
         .expect("journal fault-free");
     match outcome {
         Outcome::Ended(failure) => assert!(
@@ -253,14 +253,10 @@ fn interrupted_installation_resumes_from_its_log() {
         .expect("pending")
         .remove(0);
     let stage_root: PathBuf = PathBuf::from(resumable.journal.stage_root.as_str());
-    let outcome: Outcome = complete_journal(resumable, &|intended| {
-        return snapshot_from_journal(
-            &read_pending_journals(common.as_path())
-                .expect("pending")
-                .remove(0),
-            intended,
-        );
-    })
+    let rebuilt_from: PendingJournal = read_pending_journals(common.as_path())
+        .expect("pending")
+        .remove(0);
+    let outcome: Outcome = complete_journal(resumable, &SnapshotSource::FromJournal(&rebuilt_from))
     .expect("completed");
     match outcome {
         // The claimed directory counts as created by the interrupted owner, so all four selected entries are counted.

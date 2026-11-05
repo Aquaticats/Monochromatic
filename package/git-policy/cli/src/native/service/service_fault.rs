@@ -28,7 +28,7 @@ pub const FAULT_POINTS: [&str; 5] = ["after-objects", "after-intent", "after-ref
 pub fn reach(point: &str) {
     #[cfg(test)]
     hooks::run(point);
-    if std::env::var(FAULT_VARIABLE).is_ok_and(|armed| { return armed == point; }) {
+    if matches!(std::env::var(FAULT_VARIABLE), Ok(armed) if armed == point) {
         crate::service_log!("test fault at {point}");
         #[cfg(unix)]
         // SAFETY: `kill` takes no pointers; the process ends itself.
@@ -80,6 +80,19 @@ pub fn fails(point: &str) -> bool {
 pub const QUEUED_DIRECTORY_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_QUEUED_DIRECTORY";
 
 /// What:
+///  A character as one that may sit in a file name: ASCII letters and digits stay, anything else becomes an underscore.
+/// Why:
+///  `queued` names a marker file after a request identity, which must not name a path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fileNameCharacter = (c: string) => /[A-Za-z0-9]/.test(c) ? c : '_';
+/// ```
+fn file_name_character(character: char) -> char {
+    return if character.is_ascii_alphanumeric() { character } else { '_' };
+}
+
+/// What:
 ///  Leaves a file named for request `id` in the directory the variable names, when it is armed.
 /// Why:
 ///   A control that sends requests in a set order needs to know that the service holds one before it sends the next; a pause
@@ -92,7 +105,7 @@ pub const QUEUED_DIRECTORY_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_QUEUED_DI
 /// ```
 pub fn queued(id: &str) {
     let Some(directory) = std::env::var_os(QUEUED_DIRECTORY_VARIABLE) else { return };
-    let name: String = id.chars().map(|character| { return if character.is_ascii_alphanumeric() { character } else { '_' }; }).collect();
+    let name: String = id.chars().map(file_name_character).collect();
     let path: std::path::PathBuf = std::path::Path::new(&directory).join(format!("queued-{name}"));
     if let Err(error) = std::fs::write(&path, b"") {
         crate::service_warn!("cannot leave the queued-request file {}: {error}", path.display());
@@ -113,7 +126,10 @@ pub const FIRST_BATCH_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_FIRST_BATCH";
 /// const pinned = Number(process.env.CLI_GIT_TEST_ONLY_SERVICE_FIRST_BATCH) // undefined when unset or not a number
 /// ```
 pub fn pinned_first_batch() -> Option<u64> {
-    return std::env::var(FIRST_BATCH_VARIABLE).ok().and_then(|text| { return text.parse::<u64>().ok(); });
+    return match std::env::var(FIRST_BATCH_VARIABLE) {
+        Ok(text) => text.parse::<u64>().ok(),
+        Err(_unset) => None,
+    };
 }
 
 /// Hooks a control sets to run its own code at a point of a landing, on the thread that reaches the point; never part of the

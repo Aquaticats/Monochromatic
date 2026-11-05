@@ -2,6 +2,7 @@
 //!  named in the skip, and the index lock held only from the proving pass to the end of the index rewrite.
 
 use super::*;
+use crate::subvolume_lock::acquire;
 use crate::subvolume_test_support::{PlainPlatform, backdate, checkout_with_worktree};
 use crate::test_support::{git, remove};
 use crate::worktree_convert_journal::CLAIM_PREFIX;

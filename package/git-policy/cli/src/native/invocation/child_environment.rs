@@ -317,7 +317,11 @@ pub fn child_environment_overlay(
     let mut overlay: Vec<(OsString, OsString)> = lockfile_pid_overlay(environment);
     // A command the wrapper runs for itself, in process, names the variables its Git children must get this way.
     for (name, value) in environment {
-        if let Some(child_name) = name.to_str().and_then(|text| { return text.strip_prefix(CHILD_SET_PREFIX); }) {
+        // A name that is not valid text never carries the prefix.
+        let Some(text) = name.to_str() else {
+            continue;
+        };
+        if let Some(child_name) = text.strip_prefix(CHILD_SET_PREFIX) {
             overlay.push((OsString::from(child_name), value.clone()));
         }
     }
@@ -349,9 +353,13 @@ pub fn environment_with_overlay(
     // `mut` lets the overlay entries be appended after the surviving caller entries.
     let mut result: Vec<(OsString, OsString)> = Vec::with_capacity(environment.len() + overlay.len());
     for (name, value) in environment {
-        let replaced: bool = overlay.iter().any(|(overlaid, _value)| {
-            return overlaid == name;
-        });
+        let mut replaced: bool = false;
+        for (overlaid, _value) in overlay {
+            if overlaid == name {
+                replaced = true;
+                break;
+            }
+        }
         if !replaced {
             result.push((name.clone(), value.clone()));
         }

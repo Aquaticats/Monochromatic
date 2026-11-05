@@ -35,18 +35,24 @@ pub fn remove_tree(path: &Path) -> std::io::Result<()> {
     if !metadata.is_dir() {
         return std::fs::remove_file(path);
     }
-    let name: &std::ffi::OsStr = path.file_name().ok_or_else(|| { return std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{} has no last component to remove", path.display())); })?;
-    let parent_path: &Path = path.parent().filter(|parent: &&Path| { return !parent.as_os_str().is_empty(); }).unwrap_or_else(|| { return Path::new("."); });
+    let Some(name) = path.file_name() else {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{} has no last component to remove", path.display())));
+    };
+    let parent_path: &Path = match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        _ => Path::new("."),
+    };
     let parent: std::fs::File = std::fs::File::open(parent_path)?;
-    let top: std::fs::File = open_directory_widening(&parent, name).map_err(|error: std::io::Error| {
-        if error.raw_os_error() == Some(libc::EXDEV) {
-            return std::io::Error::new(
+    let top: std::fs::File = match open_directory_widening(&parent, name) {
+        Ok(opened) => opened,
+        Err(error) if error.raw_os_error() == Some(libc::EXDEV) => {
+            return Err(std::io::Error::new(
                 std::io::ErrorKind::CrossesDevices,
                 format!("{} is a mount point, so its content is not part of any tree to remove; unmount it first (`umount {}`)", path.display(), path.display()),
-            );
+            ));
         }
-        return error;
-    })?;
+        Err(error) => return Err(error),
+    };
     verify_below(&top, path)?;
     empty_directory(&top, path)?;
     drop(top);

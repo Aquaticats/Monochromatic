@@ -45,15 +45,31 @@ const TAG: &str = "cli-git";
 /// ({ ...environment, CLI_GIT_STACKED_PUSH: '1' })
 /// ```
 fn marked_environment(environment: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
-    let mut marked: Vec<(OsString, OsString)> = environment
-        .iter()
-        .filter(|(name, _)| {
-            return name.as_os_str() != STACKED_PUSH_MARKER;
-        })
-        .cloned()
-        .collect();
+    let mut marked: Vec<(OsString, OsString)> = Vec::new();
+    for pair in environment {
+        if pair.0.as_os_str() != STACKED_PUSH_MARKER {
+            marked.push(pair.clone());
+        }
+    }
     marked.push((OsString::from(STACKED_PUSH_MARKER), OsString::from("1")));
     return marked;
+}
+
+/// Write `text` to standard error; a failed write is ignored because nowhere is left to report it.
+fn write_to_standard_error(text: &str) {
+    // Terminal output error: nowhere is left to report a failed diagnostic write.
+    let _written = std::io::stderr().write_all(text.as_bytes());
+}
+
+/// The status of a forwarded run: the child's own code, or the code of the failure after its message is written.
+fn status_of_forwarded(run: ForwardedRun) -> i32 {
+    return match run {
+        ForwardedRun::Ran(code) => code,
+        ForwardedRun::Failed { stderr, code } => {
+            write_to_standard_error(stderr.as_str());
+            code
+        }
+    };
 }
 
 /// What:
@@ -69,44 +85,32 @@ fn marked_environment(environment: &[(OsString, OsString)]) -> Vec<(OsString, Os
 fn run_planned(action: Action) -> i32 {
     // Git and its hooks see the marker, as they did when the merge push was a separate process.
     let marker = (OsString::from(STACKED_PUSH_MARKER), OsString::from("1"));
-    let write_stderr = |text: &str| {
-        // Terminal output error: nowhere is left to report a failed diagnostic write.
-        let _written = std::io::stderr().write_all(text.as_bytes());
-    };
-    let ran = |run: ForwardedRun| -> i32 {
-        return match run {
-            ForwardedRun::Ran(code) => code,
-            ForwardedRun::Failed { stderr, code } => {
-                write_stderr(stderr.as_str());
-                code
-            }
-        };
-    };
+
     match action {
         Action::Forward { real_git, arguments, mut overlay, stderr } => {
-            write_stderr(stderr.as_str());
+            write_to_standard_error(stderr.as_str());
             overlay.push(marker);
-            return ran(run_forwarded_git(real_git.as_path(), arguments.as_slice(), overlay.as_slice(), None));
+            return status_of_forwarded(run_forwarded_git(real_git.as_path(), arguments.as_slice(), overlay.as_slice(), None));
         }
         Action::ForwardSettled { real_git, arguments, mut overlay, copy, stderr } => {
-            write_stderr(stderr.as_str());
+            write_to_standard_error(stderr.as_str());
             overlay.push(marker);
-            return ran(run_forwarded_git(real_git.as_path(), arguments.as_slice(), overlay.as_slice(), Some(&*copy)));
+            return status_of_forwarded(run_forwarded_git(real_git.as_path(), arguments.as_slice(), overlay.as_slice(), Some(&*copy)));
         }
         Action::ForwardPush { mut forward, stderr } => {
-            write_stderr(stderr.as_str());
+            write_to_standard_error(stderr.as_str());
             forward.overlay.push(marker);
             return run_stacked_push(&forward);
         }
         Action::Exit { code, stdout, stderr } => {
             // Terminal output error: the exit status carries the result.
             let _written = std::io::stdout().write_all(stdout.as_bytes());
-            write_stderr(stderr.as_str());
+            write_to_standard_error(stderr.as_str());
             return code;
         }
         other => {
             debug(TAG, format!("a merge push planned an action it cannot run: {other:?}").as_str());
-            write_stderr("cli-git: the merge push could not be planned; nothing was pushed.\n");
+            write_to_standard_error("cli-git: the merge push could not be planned; nothing was pushed.\n");
             return ENGINE_FAILURE_EXIT_CODE;
         }
     }

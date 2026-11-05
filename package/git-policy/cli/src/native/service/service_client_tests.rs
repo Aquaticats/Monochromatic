@@ -1,5 +1,6 @@
 //! Controls for the client's wait bounds and for how it reads the lines the service sends.
 
+use crate::service_protocol::{PROTOCOL_VERSION, RELEASE, decode_service};
 use super::*;
 use crate::service_protocol::{HEARTBEAT_EVERY, HEARTBEAT_SILENCE, encode_service};
 

@@ -1,0 +1,128 @@
+//! What:
+//!  How a watched step may be ended and the errors that say it was: the bound a step runs under, the error of a step ended at
+//!  its ceiling, the error of a step left running, and the text that names them.
+//! Why:
+//!  `child_watch.rs` runs the watched steps; callers and tests only need these names to tell the endings apart, and they do
+//!  not use the running code, so they sit in a file of their own and `child_watch.rs` re-exports them.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! class CeilingReached extends Error {} class NotKnown extends Error {}
+//! const isNotKnown = (error: Error): boolean => error instanceof NotKnown;
+//! ```
+
+use crate::output_capture::Capture;
+use std::process::Output;
+use std::time::Duration;
+
+/// What:
+///  How long a watched step is waited for, and what happens at the end.
+/// Why:
+///   A step that can be run twice is ended at a ceiling (owner, 2026-11-03: "nothing should ever wait forever or indefinitely"). A
+///  write in place that cannot be run twice is never ended (owner, 2026-11-04: "Never cut a branch write (Recommended)"): the
+///  command that started it returns at its own bound plus a short extra wait with an error that says the result is not known,
+///  and the step is left running (owner, commit protocol revision 12, "Short extra wait (Recommended)"); only the commit service's
+///  landing thread, whose clients are told through the protocol, waits for it without a bound.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type StepBound = { kind: 'end-at'; ms } | { kind: 'leave-running'; afterMs; extraMs } | { kind: 'unbounded' };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StepBound {
+    /// The step is ended, with its whole process tree, when it has run this long, whatever it shows.
+    EndAt(Duration),
+    /// The command stops waiting `after` plus `extra` after the step began and returns an error saying the result is not known;
+    ///  the step is left running and reaped when it ends.
+    LeaveRunning {
+        /// The command's own bound.
+        after: Duration,
+        /// The short extra wait for the write the step started.
+        extra: Duration,
+    },
+    /// The step is waited for as long as it lives.
+    Unbounded,
+}
+
+/// The error of a step ended at its ceiling, which tells it apart from a step ended for being quiet: a step that may be run again
+///  is run again after the second and not after the first.
+#[derive(Debug)]
+pub struct CeilingReached(
+    /// The sentence that names the step and the ceiling.
+    pub String,
+);
+
+impl std::fmt::Display for CeilingReached {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return formatter.write_str(self.0.as_str());
+    }
+}
+
+impl std::error::Error for CeilingReached {}
+
+/// The output of a step that ended: its status and what it wrote to the captured files.
+pub(crate) fn output_of(status: std::process::ExitStatus, captured: Option<&Capture>) -> Output {
+    let Some(files) = captured else {
+        return Output { status, stdout: Vec::new(), stderr: Vec::new() };
+    };
+    let shown: crate::output_capture::Captured = files.snapshot(crate::output_capture::STEP_OUTPUT_LIMIT);
+    let mut stderr: Vec<u8> = shown.stderr;
+    for note in &shown.notes {
+        stderr.extend_from_slice(format!("\ncli-git: {note}\n").as_bytes());
+    }
+    // Read once, and a descendant that keeps the files open must not keep the pages of what was read.
+    files.discard();
+    return Output { status, stdout: shown.stdout, stderr };
+}
+
+/// What:
+///  The sentence for a step left running: what it was, how long it was waited for, and what to check.
+/// Why:
+///   The owner's rule for a write the command started and cannot confirm (commit protocol revision 12, "Short extra wait"): exit
+///  non-zero saying the result is not known and what to look at. The step is a write in place, so the repository is what to check.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${waitingFor} was still running ${after + extra} seconds after it began, and was left running ...`
+/// ```
+pub fn not_known_text(waiting_for: &str, after: Duration, extra: Duration) -> String {
+    return format!(
+        "{waiting_for} was still running {} seconds after it began (its bound of {} seconds and {} more for the write it started), so it \
+         was left running and not ended: it is not known whether it finished. Check what it changes with `git status` and `git log -1`, \
+         look at the process with `ps` and at the disk it writes to, and run the command again if it did not finish.",
+        after.saturating_add(extra).as_secs(),
+        after.as_secs(),
+        extra.as_secs()
+    );
+}
+
+/// The error of a step left running: the command stopped waiting for it, so it is not known whether it finished.
+#[derive(Debug)]
+pub struct NotKnown(
+    /// The sentence that names the step, how long it was waited for, and what to check.
+    pub String,
+);
+
+impl std::fmt::Display for NotKnown {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return formatter.write_str(self.0.as_str());
+    }
+}
+
+impl std::error::Error for NotKnown {}
+
+/// Whether `error` is the error of a step left running because the command stopped waiting for it.
+pub fn is_not_known(error: &std::io::Error) -> bool {
+    return match error.get_ref() {
+        Some(inner) => inner.is::<NotKnown>(),
+        None => false,
+    };
+}
+
+/// Whether `error` is the error of a step ended at its ceiling.
+pub fn is_ceiling(error: &std::io::Error) -> bool {
+    return match error.get_ref() {
+        Some(inner) => inner.is::<CeilingReached>(),
+        None => false,
+    };
+}

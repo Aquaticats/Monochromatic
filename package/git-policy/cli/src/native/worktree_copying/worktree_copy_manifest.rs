@@ -13,10 +13,10 @@
 //! await applyEntryModes({ root: stageRoot, entries });
 //! ```
 
-use crate::worktree_copy_error::raw_failure;
+use crate::worktree_copy_error::raw_failure_of;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
 use crate::worktree_copy_prune::Prune;
-use crate::worktree_copy_selection::{filesystem_path, js_order};
+use crate::worktree_copy_selection::{by_js_order, filesystem_path};
 use crate::json_record::quote;
 use std::path::{Path, PathBuf};
 
@@ -230,15 +230,11 @@ pub fn collect_pruned_manifest(
     }
     let mut entries: Vec<WorktreeCopyEntry> = Vec::new();
     while let Some(item) = pending.pop() {
-        if excluded_roots
-            .iter()
-            .any(|excluded| return item.filesystem_path.starts_with(excluded.as_path()))
-            || prune.skips_path(item.relative_path.as_str())
-        {
+        if lies_within_any(item.filesystem_path.as_path(), excluded_roots) || prune.skips_path(item.relative_path.as_str()) {
             continue;
         }
         let metadata: std::fs::Metadata = std::fs::symlink_metadata(item.filesystem_path.as_path())
-            .map_err(|error| return raw_failure(&error))?;
+            .map_err(raw_failure_of)?;
         let kind: EntryKind = entry_kind(metadata.file_type(), item.filesystem_path.as_path())?;
         if !readable_by_user(item.filesystem_path.as_path(), kind) {
             unreadable.push(item.relative_path.clone());
@@ -254,9 +250,9 @@ pub fn collect_pruned_manifest(
         }
         let mut names: Vec<String> = Vec::new();
         for listed in std::fs::read_dir(item.filesystem_path.as_path())
-            .map_err(|error| return raw_failure(&error))?
+            .map_err(raw_failure_of)?
         {
-            let child: std::fs::DirEntry = listed.map_err(|error| return raw_failure(&error))?;
+            let child: std::fs::DirEntry = listed.map_err(raw_failure_of)?;
             names.push(child.file_name().to_string_lossy().into_owned());
         }
         // A directory that is a checkout of its own is left out whole, with no entry of its own.
@@ -268,7 +264,7 @@ pub fn collect_pruned_manifest(
             mode: retained_mode(&metadata),
             relative_path: item.relative_path.clone(),
         });
-        names.sort_by(|left, right| return js_order(left, right));
+        names.sort_by(by_js_order);
         for name in names.iter().rev() {
             let child_relative: String = format!("{}/{name}", item.relative_path);
             pending.push(WalkItem {
@@ -338,6 +334,40 @@ pub fn stamp_of(_metadata: &std::fs::Metadata) -> Option<FileStamp> {
 }
 
 /// What:
+///  Whether a path is at or below any of the roots.
+/// Why:
+///   Excluded roots, such as registered worktrees and the stage, are never walked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// roots.some((root) => path.startsWith(root))
+/// ```
+fn lies_within_any(path: &Path, roots: &[PathBuf]) -> bool {
+    for root in roots {
+        if path.starts_with(root.as_path()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Give one staged entry the mode its manifest entry recorded.
+/// Why:
+///   Modes are applied after the content so a restrictive mode cannot stop the copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmodSync(join(root, entry.relativePath), entry.mode)
+/// ```
+#[cfg(unix)]
+fn set_entry_mode(root: &Path, entry: &WorktreeCopyEntry) -> Result<(), WorktreeCopyError> {
+    use std::os::unix::fs::PermissionsExt;
+    let path: PathBuf = filesystem_path(root, entry.relative_path.as_str())?;
+    return std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(entry.mode)).map_err(raw_failure_of);
+}
+
+/// What:
 ///  Applies each staged entry's retained mode, files first and then directories deepest first.
 /// Why:
 ///   A restrictive directory mode would block changes to its children, so directories change last.
@@ -351,18 +381,16 @@ pub fn apply_entry_modes(
     root: &Path,
     entries: &[WorktreeCopyEntry],
 ) -> Result<(), WorktreeCopyError> {
-    use std::os::unix::fs::PermissionsExt;
-    let files = entries
-        .iter()
-        .filter(|entry| return entry.kind == EntryKind::File);
-    let directories = entries
-        .iter()
-        .rev()
-        .filter(|entry| return entry.kind == EntryKind::Directory);
-    for entry in files.chain(directories) {
-        let path: PathBuf = filesystem_path(root, entry.relative_path.as_str())?;
-        std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(entry.mode))
-            .map_err(|error| return raw_failure(&error))?;
+    // Files first, in manifest order; then directories, deepest first, so a directory is made restrictive after its content.
+    for entry in entries {
+        if entry.kind == EntryKind::File {
+            set_entry_mode(root, entry)?;
+        }
+    }
+    for entry in entries.iter().rev() {
+        if entry.kind == EntryKind::Directory {
+            set_entry_mode(root, entry)?;
+        }
     }
     return Ok(());
 }

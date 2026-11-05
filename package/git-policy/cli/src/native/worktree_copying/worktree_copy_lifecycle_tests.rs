@@ -288,7 +288,7 @@ fn non_worktree_command_runs_without_settlement() {
 
 /// A staged journal of a registered worktree, written for `owner`, as a copy that stopped after staging leaves it.
 #[cfg(unix)]
-fn journal_for(main: &Path, common: &Path, destination: &Path, owner: &crate::worktree_copy_owner::CopyOwner) -> crate::worktree_copy_journal::PendingJournal {
+fn journal_for(main: &Path, common: &Path, destination: &Path, owner: &crate::worktree_copy_owner::CopyOwner) -> crate::worktree_copy_journal_encoding_and_validation::PendingJournal {
     use crate::worktree_copy_selection::CopySelection;
     use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
     let snapshot = stage_ignored_snapshot(

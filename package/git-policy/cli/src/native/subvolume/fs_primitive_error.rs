@@ -97,8 +97,10 @@ impl std::error::Error for PrimitiveError {}
 /// function cPath(operation: string, path: string): Buffer { if (path.includes('\0')) throw new PrimitiveError(operation, path, EINVAL); return Buffer.from(path + '\0'); }
 /// ```
 pub fn c_path(operation: &'static str, path: &Path) -> Result<CString, PrimitiveError> {
-    return CString::new(path.as_os_str().as_bytes())
-        .map_err(|_| { return PrimitiveError { operation, path: path.to_path_buf(), errno: libc::EINVAL }; });
+    return match CString::new(path.as_os_str().as_bytes()) {
+        Ok(text) => Ok(text),
+        Err(_) => Err(PrimitiveError { operation, path: path.to_path_buf(), errno: libc::EINVAL }),
+    };
 }
 
 /// Primitive error controls stay out of the release executable.

@@ -78,9 +78,12 @@ impl Phase {
 
     /// The phase a journal line names.
     fn parse(text: &str) -> Option<Phase> {
-        return [Phase::Started, Phase::Creating, Phase::Synced, Phase::Exchanged, Phase::Refreshed, Phase::Removed]
-            .into_iter()
-            .find(|phase: &Phase| { return phase.name() == text; });
+        for phase in [Phase::Started, Phase::Creating, Phase::Synced, Phase::Exchanged, Phase::Refreshed, Phase::Removed] {
+            if phase.name() == text {
+                return Some(phase);
+            }
+        }
+        return None;
     }
 }
 
@@ -111,9 +114,91 @@ pub struct Journal {
     pub new_identity: Option<ObjectId>,
 }
 
+/// What:
+///  The error of a conversion journal whose text has a shape this command does not know.
+/// Why:
+///   Every field that is missing or unreadable is the same refusal, and nothing was changed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// new JournalError('the conversion journal has a shape this command does not know; nothing was changed')
+/// ```
+fn unknown_shape() -> MigrateError {
+    return MigrateError::Journal(String::from("the conversion journal has a shape this command does not know; nothing was changed"));
+}
+
+/// What:
+///  The value of the first line `<name>=<value>` of a journal's text, if any line has that name.
+/// Why:
+///   The journal is a list of `name=value` lines in no fixed order, and a field is looked up by name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// text.split('\n').map((line) => line.startsWith(`${name}=`) ? line.slice(name.length + 1) : undefined).find((value) => value !== undefined)
+/// ```
+fn field_of(text: &str, name: &str) -> Option<String> {
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix(name)
+            && let Some(value) = rest.strip_prefix('=')
+        {
+            return Some(String::from(value));
+        }
+    }
+    return None;
+}
+
+/// What:
+///  A field's digits read as a number, or nothing when they are not one.
+/// Why:
+///   The old device and inode of a journal written before identities carried a birth time are plain decimal fields.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Number.parseInt(digits, 10)
+/// ```
+fn number_from_digits<Number: std::str::FromStr>(digits: String) -> Option<Number> {
+    return digits.parse().ok();
+}
+
+/// What:
+///  Make the directory's own entry durable by syncing a handle on it.
+/// Why:
+///   A rename or a link is only as durable as the directory that holds it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await (await open(admin)).sync()
+/// ```
+fn sync_directory_of(admin: &Path) -> std::io::Result<()> {
+    return match std::fs::File::open(admin) {
+        Ok(directory) => directory.sync_all(),
+        Err(error) => Err(error),
+    };
+}
+
+/// What:
+///  An input or output outcome with its failure turned into a conversion error that names the action and the path.
+/// Why:
+///   Many steps of the conversion report the same way, and a named function replaces a closure at each.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ioStep<T>(outcome: () => T, action: string, path: string): T { try { return outcome(); } catch (error) { throw migrateIo(action, path, error); } }
+/// ```
+pub fn io_step<T>(outcome: std::io::Result<T>, action: &str, path: &Path) -> Result<T, MigrateError> {
+    return match outcome {
+        Ok(value) => Ok(value),
+        Err(error) => Err(MigrateError::io(action, path, &error)),
+    };
+}
+
 /// The lowercase hexadecimal form of some bytes.
 fn hex(bytes: &[u8]) -> String {
-    return bytes.iter().map(|byte: &u8| { return format!("{byte:02x}"); }).collect();
+    let mut spelled: String = String::new();
+    for byte in bytes {
+        spelled.push_str(format!("{byte:02x}").as_str());
+    }
+    return spelled;
 }
 
 /// The bytes a hexadecimal string names.
@@ -121,12 +206,23 @@ fn unhex(text: &str) -> Option<Vec<u8>> {
     if text.len() % 2 != 0 {
         return None;
     }
-    return (0..text.len()).step_by(2).map(|at: usize| { return u8::from_str_radix(text.get(at..at + 2)?, 16).ok(); }).collect();
+    // The first pair that is not hexadecimal ends the decoding with nothing, as collecting into an `Option` did.
+    let mut bytes: Vec<u8> = Vec::new();
+    let mut at: usize = 0;
+    while at < text.len() {
+        let pair: &str = text.get(at..at + 2)?;
+        bytes.push(u8::from_str_radix(pair, 16).ok()?);
+        at += 2;
+    }
+    return Some(bytes);
 }
 
 /// A name for a temporary file that no other file has: this process and the clock make it, and the creation is exclusive.
 fn temporary_name() -> String {
-    let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed: std::time::Duration| { return elapsed.as_nanos(); });
+    let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(elapsed) => elapsed.as_nanos(),
+        Err(_before_epoch) => 0,
+    };
     return format!("{JOURNAL_NAME}.tmp.{}.{nanos}", std::process::id());
 }
 
@@ -140,37 +236,38 @@ impl Journal {
             hex(self.path.as_slice()),
             self.old_identity.encode(),
             hex(self.git_file.as_slice()),
-            self.new_identity.map_or_else(|| { return String::from("-"); }, |identity: ObjectId| { return identity.encode(); })
+            match self.new_identity {
+                Some(identity) => identity.encode(),
+                None => String::from("-"),
+            }
         );
     }
 
     /// The journal a text describes.
     fn decode(text: &str) -> Result<Journal, MigrateError> {
-        let bad = || { return MigrateError::Journal(String::from("the conversion journal has a shape this command does not know; nothing was changed")); };
         let mut lines = text.lines();
         if lines.next() != Some(JOURNAL_HEADER) {
-            return Err(bad());
+            return Err(unknown_shape());
         }
-        let field = |name: &str| -> Option<String> { return text.lines().find_map(|line: &str| { return line.strip_prefix(name).and_then(|rest: &str| { return rest.strip_prefix('='); }).map(String::from); }); };
-        let new_identity: Option<ObjectId> = match field("new_identity").as_deref() {
+        let new_identity: Option<ObjectId> = match field_of(text, "new_identity").as_deref() {
             None | Some("-") => None,
-            Some(encoded) => Some(ObjectId::decode(encoded).ok_or_else(bad)?),
+            Some(encoded) => Some(ObjectId::decode(encoded).ok_or_else(unknown_shape)?),
         };
         // A journal written before the birth time was recorded names the old root by device and inode alone.
-        let old_identity: ObjectId = match field("old_identity") {
-            Some(encoded) => ObjectId::decode(encoded.as_str()).ok_or_else(bad)?,
+        let old_identity: ObjectId = match field_of(text, "old_identity") {
+            Some(encoded) => ObjectId::decode(encoded.as_str()).ok_or_else(unknown_shape)?,
             None => ObjectId {
-                device: field("old_device").and_then(|digits: String| { return digits.parse().ok(); }).ok_or_else(bad)?,
-                inode: field("old_inode").and_then(|digits: String| { return digits.parse().ok(); }).ok_or_else(bad)?,
+                device: field_of(text, "old_device").and_then(number_from_digits).ok_or_else(unknown_shape)?,
+                inode: field_of(text, "old_inode").and_then(number_from_digits).ok_or_else(unknown_shape)?,
                 birth: None,
             },
         };
         return Ok(Journal {
-            phase: Phase::parse(field("phase").ok_or_else(bad)?.as_str()).ok_or_else(bad)?,
-            token: field("token").ok_or_else(bad)?,
-            path: unhex(field("path").ok_or_else(bad)?.as_str()).ok_or_else(bad)?,
+            phase: Phase::parse(field_of(text, "phase").ok_or_else(unknown_shape)?.as_str()).ok_or_else(unknown_shape)?,
+            token: field_of(text, "token").ok_or_else(unknown_shape)?,
+            path: unhex(field_of(text, "path").ok_or_else(unknown_shape)?.as_str()).ok_or_else(unknown_shape)?,
             old_identity,
-            git_file: unhex(field("git_file").ok_or_else(bad)?.as_str()).ok_or_else(bad)?,
+            git_file: unhex(field_of(text, "git_file").ok_or_else(unknown_shape)?.as_str()).ok_or_else(unknown_shape)?,
             new_identity,
         });
     }
@@ -179,7 +276,10 @@ impl Journal {
     fn write_temporary(&self, admin: &Path) -> std::io::Result<PathBuf> {
         let temporary: PathBuf = admin.join(temporary_name());
         let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&temporary)?;
-        let written: std::io::Result<()> = file.write_all(self.encode().as_bytes()).and_then(|()| { return file.sync_all(); });
+        let written: std::io::Result<()> = match file.write_all(self.encode().as_bytes()) {
+            Ok(()) => file.sync_all(),
+            Err(error) => Err(error),
+        };
         if let Err(error) = written {
             let _removed: std::io::Result<()> = std::fs::remove_file(&temporary);
             return Err(error);
@@ -190,29 +290,33 @@ impl Journal {
     /// Replace the journal with this one: written beside it, synchronized, renamed into place.
     pub fn save(&self, admin: &Path) -> Result<(), MigrateError> {
         let target: PathBuf = admin.join(JOURNAL_NAME);
-        let written: std::io::Result<()> = (|| {
-            let temporary: PathBuf = self.write_temporary(admin)?;
-            if let Err(error) = std::fs::rename(&temporary, &target) {
-                let _removed: std::io::Result<()> = std::fs::remove_file(&temporary);
-                return Err(error);
-            }
-            return std::fs::File::open(admin).and_then(|directory: std::fs::File| { return directory.sync_all(); });
-        })();
-        return written.map_err(|error: std::io::Error| { return MigrateError::io("write the conversion journal", target.as_path(), &error); });
+        return io_step(self.write_and_publish(admin, target.as_path()), "write the conversion journal", target.as_path());
+    }
+
+    /// Write the journal to a temporary file, rename it over `target` and make the directory durable.
+    fn write_and_publish(&self, admin: &Path, target: &Path) -> std::io::Result<()> {
+        let temporary: PathBuf = self.write_temporary(admin)?;
+        if let Err(error) = std::fs::rename(&temporary, target) {
+            let _removed: std::io::Result<()> = std::fs::remove_file(&temporary);
+            return Err(error);
+        }
+        return sync_directory_of(admin);
     }
 
     /// Make this the journal of a conversion that has none: it fails when any journal exists, so a journal another command
     ///  made is never replaced.
     pub fn create_new(&self, admin: &Path) -> Result<(), MigrateError> {
         let target: PathBuf = admin.join(JOURNAL_NAME);
-        let written: std::io::Result<()> = (|| {
-            let temporary: PathBuf = self.write_temporary(admin)?;
-            let linked: std::io::Result<()> = std::fs::hard_link(&temporary, &target);
-            let _removed: std::io::Result<()> = std::fs::remove_file(&temporary);
-            linked?;
-            return std::fs::File::open(admin).and_then(|directory: std::fs::File| { return directory.sync_all(); });
-        })();
-        return written.map_err(|error: std::io::Error| { return MigrateError::io("create the conversion journal", target.as_path(), &error); });
+        return io_step(self.write_and_link(admin, target.as_path()), "create the conversion journal", target.as_path());
+    }
+
+    /// Write the journal to a temporary file, link it at `target` only if nothing is there and make the directory durable.
+    fn write_and_link(&self, admin: &Path, target: &Path) -> std::io::Result<()> {
+        let temporary: PathBuf = self.write_temporary(admin)?;
+        let linked: std::io::Result<()> = std::fs::hard_link(&temporary, target);
+        let _removed: std::io::Result<()> = std::fs::remove_file(&temporary);
+        linked?;
+        return sync_directory_of(admin);
     }
 
     /// The journal of an administrative directory, if one exists.
@@ -252,7 +356,10 @@ pub fn read_plain_file(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
 
 /// The text of the plain file at `path`, read like `read_plain_file`.
 pub fn read_plain_text(path: &Path) -> std::io::Result<String> {
-    return String::from_utf8(read_plain_file(path, SMALL_FILE_LIMIT)?).map_err(|_error| { return std::io::Error::new(std::io::ErrorKind::InvalidData, "it is not text"); });
+    return match String::from_utf8(read_plain_file(path, SMALL_FILE_LIMIT)?) {
+        Ok(text) => Ok(text),
+        Err(_not_text) => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "it is not text")),
+    };
 }
 
 /// Whether `found` is the object the journal recorded as `recorded`: the same device and inode and, when a birth time was
@@ -282,7 +389,7 @@ pub fn legacy_lock_is_held(admin: &Path) -> Result<bool, MigrateError> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
         Err(error) => return Err(MigrateError::io("open the conversion lock an older release left", path.as_path(), &error)),
     };
-    let plain: bool = file.metadata().map_err(|error: std::io::Error| { return MigrateError::io("examine the conversion lock an older release left", path.as_path(), &error); })?.file_type().is_file();
+    let plain: bool = io_step(file.metadata(), "examine the conversion lock an older release left", path.as_path())?.file_type().is_file();
     if !plain {
         return Ok(false);
     }

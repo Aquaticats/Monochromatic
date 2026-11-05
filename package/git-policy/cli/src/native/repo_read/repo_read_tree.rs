@@ -13,6 +13,7 @@
 
 #![cfg(unix)]
 
+use crate::index_byte_search::first_index_of_byte;
 use crate::repo_read_object::{ObjectKind, name_length};
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_odb::ObjectDatabase;
@@ -58,7 +59,7 @@ pub fn parse_tree(bytes: &[u8], hash_length: usize) -> Option<Vec<TreeEntry>> {
     let mut entries: Vec<TreeEntry> = Vec::new();
     let mut cursor: usize = 0;
     while cursor < bytes.len() {
-        let space: usize = cursor + bytes[cursor..].iter().position(|byte| { return *byte == b' '; })?;
+        let space: usize = cursor + first_index_of_byte(&bytes[cursor..], b' ')?;
         let mode_text: &str = std::str::from_utf8(&bytes[cursor..space]).ok()?;
         // Git writes `40000` for a directory and no leading zero for any mode; other spellings are left to Git.
         if mode_text.is_empty() || mode_text.starts_with('0') {
@@ -69,7 +70,7 @@ pub fn parse_tree(bytes: &[u8], hash_length: usize) -> Option<Vec<TreeEntry>> {
         if !matches!(mode, 0o100_644 | 0o100_755 | 0o120_000 | 0o160_000 | MODE_TREE) {
             return None;
         }
-        let nul: usize = space + 1 + bytes[space + 1..].iter().position(|byte| { return *byte == 0; })?;
+        let nul: usize = space + 1 + first_index_of_byte(&bytes[space + 1..], 0)?;
         let name: Vec<u8> = bytes[space + 1..nul].to_vec();
         if name.is_empty() || name.contains(&b'/') {
             return None;
@@ -135,6 +136,20 @@ fn walk(
     return Some(());
 }
 
+/// The entries of the tree object `name`, or nothing when the object is missing, is not a tree or does not parse.
+fn tree_entries_named(database: &ObjectDatabase, name: &[u8], format: ObjectFormat) -> Option<Vec<TreeEntry>> {
+    let object = database.read(name)?;
+    if object.kind != ObjectKind::Tree {
+        return None;
+    }
+    return parse_tree(object.bytes.as_slice(), name_length(format));
+}
+
+/// Whether `byte` is a newline.
+fn is_newline(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
 /// What:
 ///  The flat list of a tree, shared with every other question this process asked about the same tree.
 /// Why:
@@ -147,20 +162,26 @@ fn walk(
 /// ```
 pub fn flatten_tree_shared(database: &ObjectDatabase, tree: &[u8], format: ObjectFormat) -> Option<Rc<Vec<FlatEntry>>> {
     let key: Vec<u8> = tree.to_vec();
-    let kept: Option<Rc<Vec<FlatEntry>>> = SHARED_LISTS.with(|lists| {
-        return lists.borrow().iter().find(|(name, _)| { return *name == key; }).map(|(_, list)| { return Rc::clone(list); });
-    });
+    // The thread's lists are taken out for the look and put back, because a `thread_local` can lend them only to a closure.
+    let held: Vec<(Vec<u8>, Rc<Vec<FlatEntry>>)> = SHARED_LISTS.take();
+    let mut kept: Option<Rc<Vec<FlatEntry>>> = None;
+    for (name, list) in &held {
+        if *name == key {
+            kept = Some(Rc::clone(list));
+            break;
+        }
+    }
+    SHARED_LISTS.set(held);
     if let Some(found) = kept {
         return Some(found);
     }
     let listed: Rc<Vec<FlatEntry>> = Rc::new(flatten_tree(database, tree, format)?);
-    SHARED_LISTS.with(|lists| {
-        let mut held = lists.borrow_mut();
-        if held.len() >= SHARED_LIST_LIMIT {
-            held.remove(0);
-        }
-        held.push((key, Rc::clone(&listed)));
-    });
+    let mut kept_lists: Vec<(Vec<u8>, Rc<Vec<FlatEntry>>)> = SHARED_LISTS.take();
+    if kept_lists.len() >= SHARED_LIST_LIMIT {
+        kept_lists.remove(0);
+    }
+    kept_lists.push((key, Rc::clone(&listed)));
+    SHARED_LISTS.set(kept_lists);
     return Some(listed);
 }
 
@@ -228,15 +249,8 @@ fn walk_pair(
         return None;
     }
     let (before, after) = flats;
-    let entries_of = |name: &[u8]| -> Option<Vec<TreeEntry>> {
-        let object = database.read(name)?;
-        if object.kind != ObjectKind::Tree {
-            return None;
-        }
-        return parse_tree(object.bytes.as_slice(), name_length(format));
-    };
-    let old_entries: Vec<TreeEntry> = entries_of(trees.0)?;
-    let new_entries: Vec<TreeEntry> = entries_of(trees.1)?;
+    let old_entries: Vec<TreeEntry> = tree_entries_named(database, trees.0, format)?;
+    let new_entries: Vec<TreeEntry> = tree_entries_named(database, trees.1, format)?;
     let (mut left, mut right): (usize, usize) = (0, 0);
     while left < old_entries.len() || right < new_entries.len() {
         let order = match (old_entries.get(left), new_entries.get(right)) {
@@ -300,11 +314,18 @@ pub struct CommitFields {
 /// function parseCommit(bytes: Uint8Array, format): CommitFields | undefined;
 /// ```
 pub fn parse_commit(bytes: &[u8], format: ObjectFormat) -> Option<CommitFields> {
-    let split: usize = bytes.windows(2).position(|pair| { return pair == b"\n\n"; })?;
+    let mut blank_line_at: Option<usize> = None;
+    for (position, pair) in bytes.windows(2).enumerate() {
+        if pair == b"\n\n" {
+            blank_line_at = Some(position);
+            break;
+        }
+    }
+    let split: usize = blank_line_at?;
     let header: &[u8] = &bytes[..split];
     let mut tree: Option<Vec<u8>> = None;
     let mut parents: Vec<Vec<u8>> = Vec::new();
-    for (index, line) in header.split(|byte| { return *byte == b'\n'; }).enumerate() {
+    for (index, line) in header.split(is_newline).enumerate() {
         if let Some(text) = line.strip_prefix(b"tree ") {
             if index != 0 {
                 return None;
@@ -335,7 +356,7 @@ pub fn subject_of(message: &[u8]) -> Option<Vec<u8>> {
     }
     let mut subject: Vec<u8> = Vec::new();
     let mut started: bool = false;
-    for line in message.split(|byte| { return *byte == b'\n'; }) {
+    for line in message.split(is_newline) {
         let trimmed: &[u8] = line.trim_ascii_end();
         let blank: bool = trimmed.is_empty();
         if blank && !started {

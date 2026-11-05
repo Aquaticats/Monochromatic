@@ -24,7 +24,7 @@ use crate::child_environment::environment_value;
 /// How a child ended, as a status.
 use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
 /// The texts, the program lookup and the plan.
-use crate::lfs_pre_push::{failed_message, find_program, missing_program_message};
+use crate::lfs_pre_push::{environment_config_count, failed_message, find_program, missing_program_message};
 /// Hides the credentials in a URL of relayed text.
 use crate::lfs_output_mask::{mask_userinfo, mask_userinfo_text};
 use crate::lfs_upload_plan::UploadPlan;
@@ -92,13 +92,7 @@ pub fn prefix_variables(global_prefix: &[OsString], environment: &[(OsString, Os
             }
         }
     }
-    let existing: usize = environment_value(environment, "GIT_CONFIG_COUNT")
-        .and_then(|value| {
-            return value.to_str().and_then(|count| {
-                return count.parse::<usize>().ok();
-            });
-        })
-        .unwrap_or(0);
+    let existing: usize = environment_config_count(environment);
     if !pairs.is_empty() {
         variables.push((OsString::from("GIT_CONFIG_COUNT"), OsString::from((existing + pairs.len()).to_string())));
     }
@@ -136,12 +130,14 @@ fn run_with_captured_stderr(
     command: &mut Command,
     environment: &[(OsString, OsString)],
 ) -> Result<(ChildOutcome, Vec<u8>), CaptureError> {
-    let mut captured: std::fs::File = scratch_file(environment).map_err(|error| {
-        return CaptureError::Scratch(error.to_string());
-    })?;
-    let for_child: std::fs::File = captured.try_clone().map_err(|error| {
-        return CaptureError::Scratch(error.to_string());
-    })?;
+    let mut captured: std::fs::File = match scratch_file(environment) {
+        Ok(file) => file,
+        Err(error) => return Err(CaptureError::Scratch(error.to_string())),
+    };
+    let for_child: std::fs::File = match captured.try_clone() {
+        Ok(file) => file,
+        Err(error) => return Err(CaptureError::Scratch(error.to_string())),
+    };
     command.stderr(Stdio::from(for_child));
     let outcome: std::io::Result<ChildOutcome> = match SignalGuard::install() {
         Ok(guard) => guard.run_child(command),
@@ -151,14 +147,15 @@ fn run_with_captured_stderr(
         return Err(CaptureError::Start);
     };
     let mut bytes: Vec<u8> = Vec::new();
-    captured
-        .seek(SeekFrom::Start(0))
-        .and_then(|_| {
-            return captured.by_ref().take(MAX_RELAYED_BYTES).read_to_end(&mut bytes);
-        })
-        .map_err(|error| {
-            return CaptureError::Scratch(error.to_string());
-        })?;
+    // The file is read only after the seek to its start succeeded, as `.and_then(...)` ran the read.
+    let rewound: std::io::Result<u64> = captured.seek(SeekFrom::Start(0));
+    let read: std::io::Result<usize> = match rewound {
+        Ok(_) => captured.by_ref().take(MAX_RELAYED_BYTES).read_to_end(&mut bytes),
+        Err(error) => Err(error),
+    };
+    if let Err(error) = read {
+        return Err(CaptureError::Scratch(error.to_string()));
+    }
     return Ok((ended, mask_userinfo(bytes.as_slice())));
 }
 
@@ -205,41 +202,43 @@ pub fn run_upload_interactive(
     // A server error (an HTTP 5xx answer of the LFS server) is not run again here: it is outside our control, like a network that
     //  is down, and the commit service's push retry plan tries the push again by itself (pick 12 of
     //  `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the owner's delegation). A typed push ends and says so.
-    for arguments in plan.remotes.iter().flat_map(|remote| { return plan.runs(remote.as_os_str()); }) {
-        let mut command: Command = Command::new(&program);
-        command
-            .current_dir(directory)
-            .args(arguments.as_slice())
-            .env("PATH", path_with_real_git_first(environment, real_git));
-        for (name, value) in prefix_variables(global_prefix, environment).into_iter().chain(overlay.iter().cloned()) {
-            command.env(name, value);
-        }
-        let (ended, relayed): (ChildOutcome, Vec<u8>) = match run_with_captured_stderr(&mut command, environment) {
-            Ok(finished) => finished,
-            Err(CaptureError::Scratch(why)) => {
-                // Terminal output error: the exit status already carries the refusal.
-                let _written = diagnostics.write_all(capture_failed_message(why.as_str()).as_bytes());
-                return Some(1);
+    for remote in &plan.remotes {
+        for arguments in plan.runs(remote.as_os_str()) {
+            let mut command: Command = Command::new(&program);
+            command
+                .current_dir(directory)
+                .args(arguments.as_slice())
+                .env("PATH", path_with_real_git_first(environment, real_git));
+            for (name, value) in prefix_variables(global_prefix, environment).into_iter().chain(overlay.iter().cloned()) {
+                command.env(name, value);
             }
-            Err(CaptureError::Start) => {
-                // Terminal output error: see above.
-                let _written = diagnostics.write_all(missing_program_message().as_bytes());
-                return Some(1);
+            let (ended, relayed): (ChildOutcome, Vec<u8>) = match run_with_captured_stderr(&mut command, environment) {
+                Ok(finished) => finished,
+                Err(CaptureError::Scratch(why)) => {
+                    // Terminal output error: the exit status already carries the refusal.
+                    let _written = diagnostics.write_all(capture_failed_message(why.as_str()).as_bytes());
+                    return Some(1);
+                }
+                Err(CaptureError::Start) => {
+                    // Terminal output error: see above.
+                    let _written = diagnostics.write_all(missing_program_message().as_bytes());
+                    return Some(1);
+                }
+            };
+            // Terminal output error: the program's own words are advisory; the exit status carries the result.
+            let _relayed = diagnostics.write_all(relayed.as_slice());
+            let code: i32 = exit_code(ended);
+            if code == 0 {
+                continue;
             }
-        };
-        // Terminal output error: the program's own words are advisory; the exit status carries the result.
-        let _relayed = diagnostics.write_all(relayed.as_slice());
-        let code: i32 = exit_code(ended);
-        if code == 0 {
-            continue;
+            let description: String = match ended {
+                ChildOutcome::Exited(status) => format!("exited with status {status}"),
+                ChildOutcome::Signaled(signal) => format!("was ended by signal {signal}"),
+            };
+            // Terminal output error: see above.
+            let _written = diagnostics.write_all(failed_message(description.as_str()).as_bytes());
+            return Some(code);
         }
-        let description: String = match ended {
-            ChildOutcome::Exited(status) => format!("exited with status {status}"),
-            ChildOutcome::Signaled(signal) => format!("was ended by signal {signal}"),
-        };
-        // Terminal output error: see above.
-        let _written = diagnostics.write_all(failed_message(description.as_str()).as_bytes());
-        return Some(code);
     }
     return None;
 }
@@ -281,29 +280,32 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
     };
     // A server error is not run again here, for the reason given in `run_upload_interactive`: the service's push retry plan
     //  tries the push again by itself.
-    for arguments in plan.remotes.iter().flat_map(|remote| { return plan.runs(remote.as_os_str()); }) {
-        let mut command: Command = Command::new(&program);
-        command
-            .current_dir(&git.cwd)
-            .env_clear()
-            .envs(git.environment.iter().map(|(name, value)| {
-                return (name, value);
-            }))
-            .env("PATH", path_with_real_git_first(git.environment.as_slice(), git.real_git.as_path()))
-            .args(arguments.as_slice());
-        let attempt: PushAttempt =
-            match run_bounded_push(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
-                Ok(finished) => finished,
-                Err(SingleFlightError::Start(_)) => {
-                    return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
-                }
-                Err(other) => return Err(other),
-            };
-        if attempt.exit_code == 0 {
-            continue;
+    for remote in &plan.remotes {
+        for arguments in plan.runs(remote.as_os_str()) {
+            let mut command: Command = Command::new(&program);
+            command
+                .current_dir(&git.cwd)
+                .env_clear();
+            for (name, value) in &git.environment {
+                command.env(name, value);
+            }
+            command
+                .env("PATH", path_with_real_git_first(git.environment.as_slice(), git.real_git.as_path()))
+                .args(arguments.as_slice());
+            let attempt: PushAttempt =
+                match run_bounded_push(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
+                    Ok(finished) => finished,
+                    Err(SingleFlightError::Start(_)) => {
+                        return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
+                    }
+                    Err(other) => return Err(other),
+                };
+            if attempt.exit_code == 0 {
+                continue;
+            }
+            let shown: String = mask_userinfo_text(attempt.output.as_str());
+            return Ok(Some(explained(PushAttempt { exit_code: attempt.exit_code, output: shown })));
         }
-        let shown: String = mask_userinfo_text(attempt.output.as_str());
-        return Ok(Some(explained(PushAttempt { exit_code: attempt.exit_code, output: shown })));
     }
     return Ok(None);
 }

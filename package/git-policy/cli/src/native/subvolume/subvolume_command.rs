@@ -41,7 +41,10 @@ pub const REFUSED_EXIT_CODE: i32 = 1;
 /// function mainCheckoutRoot(start: string): string; // throws with the reason
 /// ```
 pub fn main_checkout_root(start: &Path) -> Result<PathBuf, String> {
-    let real: PathBuf = std::fs::canonicalize(start).map_err(|error: std::io::Error| { return format!("cannot resolve {}: {error}", start.display()); })?;
+    let real: PathBuf = match std::fs::canonicalize(start) {
+        Ok(resolved) => resolved,
+        Err(error) => return Err(format!("cannot resolve {}: {error}", start.display())),
+    };
     let mut directory: PathBuf = real.clone();
     loop {
         let dot_git: PathBuf = directory.join(".git");
@@ -60,19 +63,36 @@ pub fn main_checkout_root(start: &Path) -> Result<PathBuf, String> {
 
 /// Read a linked worktree's gitfile and return the main checkout it belongs to.
 fn common_root_of_gitfile(gitfile: &Path) -> Result<PathBuf, String> {
-    let text: String = std::fs::read_to_string(gitfile).map_err(|error: std::io::Error| { return format!("cannot read {}: {error}", gitfile.display()); })?;
+    let text: String = match std::fs::read_to_string(gitfile) {
+        Ok(read) => read,
+        Err(error) => return Err(format!("cannot read {}: {error}", gitfile.display())),
+    };
     let Some(named) = text.trim().strip_prefix("gitdir:") else {
         return Err(format!("{} is not a gitfile (no `gitdir:` line)", gitfile.display()));
     };
     let base: &Path = gitfile.parent().unwrap_or(Path::new("/"));
     let admin: PathBuf = base.join(named.trim());
-    let common_text: String = std::fs::read_to_string(admin.join("commondir"))
-        .map_err(|_| { return format!("{} is not a linked worktree's gitfile ({} has no commondir), so this is not a main checkout or a linked worktree of one", gitfile.display(), admin.display()); })?;
-    let common: PathBuf = std::fs::canonicalize(admin.join(common_text.trim())).map_err(|error: std::io::Error| { return format!("cannot resolve the common directory: {error}"); })?;
-    if common.file_name().is_none_or(|name: &std::ffi::OsStr| { return name != ".git"; }) {
+    let common_text: String = match std::fs::read_to_string(admin.join("commondir")) {
+        Ok(read) => read,
+        Err(_) => return Err(format!("{} is not a linked worktree's gitfile ({} has no commondir), so this is not a main checkout or a linked worktree of one", gitfile.display(), admin.display())),
+    };
+    let common: PathBuf = match std::fs::canonicalize(admin.join(common_text.trim())) {
+        Ok(resolved) => resolved,
+        Err(error) => return Err(format!("cannot resolve the common directory: {error}")),
+    };
+    if common.file_name() != Some(std::ffi::OsStr::new(".git")) {
         return Err(format!("the common directory {} is not named .git, so the repository has no main checkout directory to convert", common.display()));
     }
-    return common.parent().map(Path::to_path_buf).ok_or_else(|| { return String::from("the common directory has no parent"); });
+    return match common.parent() {
+        Some(parent) => Ok(parent.to_path_buf()),
+        None => Err(String::from("the common directory has no parent")),
+    };
+}
+
+/// Write one line to standard error; a failed write is ignored, as the command's report must not fail on a closed terminal.
+fn say_on_standard_error(text: &str) {
+    let mut stderr = std::io::stderr().lock();
+    let _written = writeln!(stderr, "{text}");
 }
 
 /// Write the refusals in plain words.
@@ -99,7 +119,10 @@ pub fn execute(platform: &dyn Platform, arguments: &MigrateArguments, root: &Pat
     match outcome {
         Ok(code) => return code,
         Err(error) => {
-            let journal: String = layout_of(root).map(|layout| { return layout.journal_path.display().to_string(); }).unwrap_or_default();
+            let journal: String = match layout_of(root) {
+                Some(layout) => layout.journal_path.display().to_string(),
+                None => String::new(),
+            };
             say(format!("git cli-git migrate-to-subvolume: failed: {error}").as_str());
             say(format!("The journal {journal} records the steps that finished. Run the command again to resume from there, or add --rollback to restore the original directory.").as_str());
             return ENGINE_FAILURE_EXIT_CODE;
@@ -175,11 +198,7 @@ pub fn migrate_action(arguments: &MigrateArguments, cwd: &Path) -> Action {
             };
         }
     };
-    let mut say = |text: &str| {
-        let mut stderr = std::io::stderr().lock();
-        let _written = writeln!(stderr, "{text}");
-    };
-    let code: i32 = execute(&LinuxPlatform::default(), arguments, root.as_path(), &Interrupt::never(), &mut say);
+    let code: i32 = execute(&LinuxPlatform::default(), arguments, root.as_path(), &Interrupt::never(), &mut say_on_standard_error);
     return Action::Exit { code, stdout: String::new(), stderr: String::new() };
 }
 

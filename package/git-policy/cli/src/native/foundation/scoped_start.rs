@@ -66,6 +66,22 @@ impl<T> Started<'_, T> {
 }
 
 /// What:
+///  Takes the closure out of its shared slot, whether or not a panic poisoned the slot's lock.
+/// Why:
+///  Whichever of the new thread and the starting thread gets here first runs the closure; the other finds `None`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function takeClosure<F>(slot: { value: F | undefined }): F | undefined { const taken = slot.value; slot.value = undefined; return taken; }
+/// ```
+fn take_closure<F>(slot: &Mutex<Option<F>>) -> Option<F> {
+    return match slot.lock() {
+        Ok(mut guard) => guard.take(),
+        Err(poisoned) => poisoned.into_inner().take(),
+    };
+}
+
+/// What:
 ///  Run `work` on a new thread of `scope`, or here when the thread cannot start.
 /// Why:
 ///   See the module comment. A panic of the closure run here is caught and handed to `join`, as a panic on a thread would be.
@@ -74,6 +90,13 @@ impl<T> Started<'_, T> {
 /// ```ts
 /// const started = startOrRun(scope, () => work());
 /// ```
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "`Builder::spawn_scoped` accepts only a callable, and it must carry the slot that holds the closure the caller handed over"
+    )
+)]
 pub fn start_or_run<'scope, 'env, T, F>(scope: &'scope Scope<'scope, 'env>, work: F) -> Started<'scope, T>
 where
     F: FnOnce() -> T + Send + 'scope,
@@ -81,16 +104,20 @@ where
 {
     let slot: Arc<Mutex<Option<F>>> = Arc::new(Mutex::new(Some(work)));
     let theirs: Arc<Mutex<Option<F>>> = Arc::clone(&slot);
-    let outcome: std::io::Result<ScopedJoinHandle<'scope, T>> = starts().and_then(|()| {
-        return std::thread::Builder::new().spawn_scoped(scope, move || {
-            let taken: Option<F> = theirs.lock().map_or_else(|poisoned| { return poisoned.into_inner().take(); }, |mut guard| { return guard.take(); });
-            return taken.map(|closure| { return closure(); }).unwrap_or_else(|| { panic!("the closure of a started thread was taken by the thread that started it"); });
-        });
-    });
+    let outcome: std::io::Result<ScopedJoinHandle<'scope, T>> = match starts() {
+        Ok(()) => std::thread::Builder::new().spawn_scoped(scope, move || {
+            let taken: Option<F> = take_closure(&theirs);
+            return match taken {
+                Some(closure) => closure(),
+                None => panic!("the closure of a started thread was taken by the thread that started it"),
+            };
+        }),
+        Err(error) => Err(error),
+    };
     return match outcome {
         Ok(handle) => Started::Thread(handle),
         Err(_refused) => {
-            let taken: Option<F> = slot.lock().map_or_else(|poisoned| { return poisoned.into_inner().take(); }, |mut guard| { return guard.take(); });
+            let taken: Option<F> = take_closure(&slot);
             match taken {
                 Some(closure) => Started::Inline(std::panic::catch_unwind(std::panic::AssertUnwindSafe(closure))),
                 None => Started::Inline(Err(Box::new("the closure of a thread that did not start was already taken"))),

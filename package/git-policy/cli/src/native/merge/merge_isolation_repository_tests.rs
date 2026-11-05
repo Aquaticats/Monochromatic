@@ -2,6 +2,10 @@
 //! the first decisions of an attempt. Each runs real Git in a disposable repository.
 
 use super::*;
+use crate::forwarded_command::ResolvedCommand;
+use crate::merge_isolation_journal::{MergeIntent, write_merge_intent};
+use crate::transaction_owner::current_transaction_owner;
+use std::ffi::OsString;
 use crate::forwarded_command::Route;
 use crate::test_support::{REAL_GIT, fixture, git, git_context, git_text, isolated_overlay, remove, repository};
 use crate::worktree_identity::resolve_worktree_identity;

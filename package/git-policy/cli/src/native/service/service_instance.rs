@@ -46,7 +46,11 @@ const FNV_PRIME: u128 = 0x0000_0000_0100_0000_0000_0000_0000_013b;
 /// ```
 pub fn instance_of(git_dir: &Path) -> String {
     use std::os::unix::ffi::OsStrExt;
-    let real: PathBuf = std::fs::canonicalize(git_dir).unwrap_or_else(|_| { return git_dir.to_path_buf(); });
+    // A directory that cannot be resolved is named as given.
+    let real: PathBuf = match std::fs::canonicalize(git_dir) {
+        Ok(resolved) => resolved,
+        Err(_unresolvable) => git_dir.to_path_buf(),
+    };
     let mut hash: u128 = FNV_OFFSET;
     for byte in real.as_os_str().as_bytes() {
         hash ^= u128::from(*byte);

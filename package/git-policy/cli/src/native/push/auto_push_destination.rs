@@ -17,8 +17,8 @@
 
 use crate::auto_push_single_flight::{PushGit, SingleFlightError, run_query};
 use crate::config_snapshot::{ConfigSnapshot, Lookup};
-use std::collections::BTreeMap;
 use std::ffi::OsString;
+use crate::auto_push_refspec_judging::{Judged, judge, parse_refspec};
 
 /// Start of every note this module words, so the terminal filter keeps it and a person sees which tool spoke.
 const NOTE_PREFIX: &str = "cli-git: auto-push: ";
@@ -102,16 +102,17 @@ fn argv(parts: &[&str]) -> Vec<OsString> {
 /// snapshot.entries.filter((entry) => entry.key === key).map((entry) => entry.value ?? '')
 /// ```
 fn values_of(snapshot: &ConfigSnapshot, key: &str) -> Vec<String> {
-    return snapshot
-        .entries()
-        .iter()
-        .filter(|entry| {
-            return entry.key == key;
-        })
-        .map(|entry| {
-            return entry.value.as_deref().map(|bytes| { return String::from_utf8_lossy(bytes).into_owned(); }).unwrap_or_default();
-        })
-        .collect();
+    let mut values: Vec<String> = Vec::new();
+    for entry in snapshot.entries() {
+        if entry.key != key {
+            continue;
+        }
+        values.push(match entry.value.as_deref() {
+            Some(bytes) => String::from_utf8_lossy(bytes).into_owned(),
+            None => String::new(),
+        });
+    }
+    return values;
 }
 
 /// The last value of `key`, empty when it is not set.
@@ -142,14 +143,15 @@ fn read_push_settings(git: &PushGit, branch_ref: &str) -> Result<Option<PushSett
     };
     let arguments = argv(&["config", "--list", "-z", "--show-scope"]);
     let listing = run_query(git, &arguments)?;
-    let unreadable = |stderr: String| -> SingleFlightError {
-        return SingleFlightError::Git { arguments: String::from("config --list -z --show-scope"), code: listing.code, stderr };
-    };
     if listing.code != Some(0) {
-        return Err(unreadable(String::from_utf8_lossy(&listing.stderr).into_owned()));
+        return Err(SingleFlightError::Git { arguments: String::from("config --list -z --show-scope"), code: listing.code, stderr: String::from_utf8_lossy(&listing.stderr).into_owned() });
     }
     let Some(snapshot) = ConfigSnapshot::parse(&listing.stdout, true) else {
-        return Err(unreadable(String::from("the listing is not in the shape `scope NUL key LF value NUL`")));
+        return Err(SingleFlightError::Git {
+            arguments: String::from("config --list -z --show-scope"),
+            code: listing.code,
+            stderr: String::from("the listing is not in the shape `scope NUL key LF value NUL`"),
+        });
     };
     let tracked_remote = last_of(&snapshot, &format!("branch.{name}.remote"));
     let mut push_remote = last_of(&snapshot, &format!("branch.{name}.pushremote"));
@@ -203,6 +205,34 @@ enum ByMode {
     Refused(NamedPush),
 }
 
+/// The target when the push goes to the branch's upstream: refused when the push remote is not the tracked remote or the
+/// branch has not exactly one `merge` value that names a branch.
+fn upstream_target(settings: &PushSettings, triangular: bool, mode_name: &str) -> ByMode {
+    let branch = settings.branch.as_str();
+    if triangular {
+        return ByMode::Refused(skip(branch, &format!(
+            "`push.default` is `{mode_name}` but its push remote `{}` is not the remote it tracks (`{}`), so Git refuses to say which \
+             branch to update. Set `push.default` to `simple` or `current`, or push it with `git push {} {branch}`.",
+            settings.push_remote, settings.tracked_remote, settings.push_remote
+        )));
+    }
+    let [merge] = settings.merges.as_slice() else {
+        return ByMode::Refused(skip(branch, &format!(
+            "`branch.{branch}.merge` has {} values and `push.default` is `{}`, so Git refuses to pick one upstream branch (\"multiple upstream \
+             branches, refusing to push\"). Keep one `branch.{branch}.merge` value, or set `push.default` to `current`.",
+            settings.merges.len(),
+            if mode_name.is_empty() { "simple" } else { mode_name }
+        )));
+    };
+    if !merge.starts_with("refs/heads/") || merge == "refs/heads/" {
+        return ByMode::Refused(skip(branch, &format!(
+            "it tracks `{merge}`, which is not a branch under `refs/heads`. Push it yourself with `git push {} {branch}`.",
+            settings.push_remote
+        )));
+    }
+    return ByMode::Target(merge.clone());
+}
+
 /// What:
 ///  The ref `push.default` sends the branch to, or why Git sends it nowhere.
 /// Why:
@@ -220,35 +250,11 @@ fn by_mode(branch_ref: &str, settings: &PushSettings) -> ByMode {
     let branch = settings.branch.as_str();
     let mode = settings.mode.as_str();
     let triangular = settings.push_remote != settings.tracked_remote;
-    let upstream = |mode_name: &str| -> ByMode {
-        if triangular {
-            return ByMode::Refused(skip(branch, &format!(
-                "`push.default` is `{mode_name}` but its push remote `{}` is not the remote it tracks (`{}`), so Git refuses to say which \
-                 branch to update. Set `push.default` to `simple` or `current`, or push it with `git push {} {branch}`.",
-                settings.push_remote, settings.tracked_remote, settings.push_remote
-            )));
-        }
-        let [merge] = settings.merges.as_slice() else {
-            return ByMode::Refused(skip(branch, &format!(
-                "`branch.{branch}.merge` has {} values and `push.default` is `{}`, so Git refuses to pick one upstream branch (\"multiple upstream \
-                 branches, refusing to push\"). Keep one `branch.{branch}.merge` value, or set `push.default` to `current`.",
-                settings.merges.len(),
-                if mode_name.is_empty() { "simple" } else { mode_name }
-            )));
-        };
-        if !merge.starts_with("refs/heads/") || merge == "refs/heads/" {
-            return ByMode::Refused(skip(branch, &format!(
-                "it tracks `{merge}`, which is not a branch under `refs/heads`. Push it yourself with `git push {} {branch}`.",
-                settings.push_remote
-            )));
-        }
-        return ByMode::Target(merge.clone());
-    };
     return match mode {
         "current" => ByMode::Target(branch_ref.to_owned()),
         "" | "simple" if triangular => ByMode::Target(branch_ref.to_owned()),
-        "" | "simple" => upstream(""),
-        "upstream" | "tracking" => upstream(mode),
+        "" | "simple" => upstream_target(settings, triangular, ""),
+        "upstream" | "tracking" => upstream_target(settings, triangular, mode),
         "matching" => ByMode::Matching,
         "nothing" => ByMode::Refused(skip(branch, &format!(
             "`push.default` is `nothing`, so Git pushes no branch without a refspec. Set `push.default` to `simple` or `current`, or push it \
@@ -320,151 +326,6 @@ pub fn named_push(git: &PushGit, branch_ref: &str) -> Result<NamedPush, SingleFl
     });
 }
 
-/// One `remote.<name>.push` refspec this module interprets.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Refspec = { negative: boolean; source: string; destination?: string; pattern: boolean };
-/// ```
-struct Refspec {
-    /// A `^` refspec: it removes matching destinations.
-    negative: bool,
-    /// The local side.
-    source: String,
-    /// The remote side; the source when absent.
-    destination: Option<String>,
-    /// Whether the sides hold one `*`.
-    pattern: bool,
-}
-
-/// What:
-///  Read a configured push refspec, or nothing when it is a form this module does not interpret.
-/// Why:
-///   Only full ref names and one `*` per side are interpreted; `HEAD`, short names, object names, deletions and the
-///  `:` of matching depend on more than the local ref names, so they are never guessed at.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function parseRefspec(text: string): Refspec | undefined;
-/// ```
-fn parse_refspec(text: &str) -> Option<Refspec> {
-    let stars = |side: &str| -> usize { return side.matches('*').count(); };
-    if let Some(source) = text.strip_prefix('^') {
-        let negative_ok = source.starts_with("refs/") && !source.contains(':') && stars(source) <= 1;
-        return negative_ok.then(|| { return Refspec { negative: true, source: source.to_owned(), destination: None, pattern: stars(source) == 1 }; });
-    }
-    let spec = text.strip_prefix('+').unwrap_or(text);
-    let (source, destination) = match spec.split_once(':') {
-        Some((source, destination)) => (source, Some(destination)),
-        None => (spec, None),
-    };
-    if !source.starts_with("refs/") || destination.is_some_and(|side| { return !side.starts_with("refs/"); }) {
-        return None;
-    }
-    let pattern = stars(source) == 1;
-    let sides_agree = stars(source) == destination.map_or(stars(source), stars);
-    if stars(source) > 1 || !sides_agree {
-        return None;
-    }
-    return Some(Refspec { negative: false, source: source.to_owned(), destination: destination.map(str::to_owned), pattern });
-}
-
-/// The text a `*` pattern captured in `name`, or nothing when `name` does not match.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function capture(pattern: string, name: string): string | undefined;
-/// ```
-fn capture<'a>(pattern: &str, name: &'a str) -> Option<&'a str> {
-    let (prefix, suffix) = pattern.split_once('*')?;
-    let middle = name.strip_prefix(prefix)?.strip_suffix(suffix)?;
-    return Some(middle);
-}
-
-/// Whether a negative refspec removes the remote ref `name`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function excludes(negative: Refspec, name: string): boolean;
-/// ```
-fn excludes(negative: &Refspec, name: &str) -> bool {
-    if negative.pattern {
-        return capture(&negative.source, name).is_some();
-    }
-    return negative.source == name;
-}
-
-/// What the configured push refspecs make of one branch.
-#[derive(Debug, Eq, PartialEq)]
-enum Judged {
-    /// The refs on the remote that receive the branch, possibly none.
-    Targets(Vec<String>),
-    /// Git refuses the whole push; the sentence says why.
-    Refused(String),
-    /// A refspec of a form not interpreted; its text.
-    Unjudged(String),
-}
-
-/// What:
-///  Apply the configured push refspecs to the local refs the way Git's `match_push_refs` does, and report where the branch goes.
-/// Why:
-///   Git matches every explicit refspec first (a source that is not a local ref, or two sources for one destination, fail
-///  the whole push), then lets each local ref take the first matching pattern unless an earlier pairing already took its
-///  destination, then drops the destinations a negative refspec names.
-///  The `%(push:remoteref)` atom of `git for-each-ref` maps one branch alone, so it misses all three and cannot be used.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function judge({ branchRef, refspecs, localRefs }): Judged;
-/// ```
-fn judge(branch_ref: &str, remote: &str, refspecs: &[String], local_refs: &[String]) -> Judged {
-    let mut items: Vec<Refspec> = Vec::new();
-    for text in refspecs {
-        match parse_refspec(text) {
-            Some(item) => items.push(item),
-            None => return Judged::Unjudged(text.clone()),
-        }
-    }
-    let mut taken: BTreeMap<String, String> = BTreeMap::new();
-    for item in items.iter().filter(|item| { return !item.negative && !item.pattern; }) {
-        if !local_refs.contains(&item.source) {
-            return Judged::Refused(format!(
-                "`remote.{remote}.push` names `{}`, which is not a ref here, and Git refuses to push anything while it is not.",
-                item.source
-            ));
-        }
-        let destination: String = item.destination.clone().unwrap_or_else(|| { return item.source.clone(); });
-        if let Some(earlier) = taken.insert(destination.clone(), item.source.clone()) {
-            return Judged::Refused(format!(
-                "`remote.{remote}.push` sends both `{earlier}` and `{}` to `{destination}`, and Git refuses that (\"receives from more than one src\").",
-                item.source
-            ));
-        }
-    }
-    let mut sorted: Vec<&String> = local_refs.iter().collect();
-    sorted.sort();
-    for name in sorted {
-        let mapped = items.iter().filter(|item| { return !item.negative && item.pattern; }).find_map(|item| {
-            let middle = capture(&item.source, name)?;
-            let side: &str = item.destination.as_deref().unwrap_or(item.source.as_str());
-            return Some(side.replacen('*', middle, 1));
-        });
-        if let Some(destination) = mapped {
-            taken.entry(destination).or_insert_with(|| { return name.clone(); });
-        }
-    }
-    for negative in items.iter().filter(|item| { return item.negative; }) {
-        taken.retain(|destination, _| { return !excludes(negative, destination); });
-    }
-    return Judged::Targets(
-        taken
-            .into_iter()
-            .filter(|(_, source)| { return source == branch_ref; })
-            .map(|(destination, _)| { return destination; })
-            .collect(),
-    );
-}
-
 /// What:
 ///  The destinations of the configured push refspecs for the branch, or the note for why there are none.
 /// Why:
@@ -477,11 +338,14 @@ fn judge(branch_ref: &str, remote: &str, refspecs: &[String], local_refs: &[Stri
 fn named_by_refspecs(git: &PushGit, branch_ref: &str, settings: &PushSettings) -> Result<NamedPush, SingleFlightError> {
     let branch = settings.branch.as_str();
     let remote = settings.push_remote.as_str();
-    let mut patterns: Vec<String> = settings
-        .refspecs
-        .iter()
-        .filter_map(|text| { return parse_refspec(text).filter(|item| { return !item.negative; }).map(|item| { return item.source; }); })
-        .collect();
+    let mut patterns: Vec<String> = Vec::new();
+    for text in &settings.refspecs {
+        if let Some(item) = parse_refspec(text)
+            && !item.negative
+        {
+            patterns.push(item.source);
+        }
+    }
     patterns.sort();
     patterns.dedup();
     let mut query: Vec<&str> = vec!["for-each-ref", "--format=%(refname)"];

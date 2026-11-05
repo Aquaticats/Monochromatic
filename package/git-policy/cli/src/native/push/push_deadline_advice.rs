@@ -11,7 +11,7 @@
 //! const advice = inService ? 'run `systemctl --user set-environment ...` and then `systemctl --user restart ...`' : 'set VARIABLE';
 //! ```
 
-use crate::bounded_push::PUSH_DEADLINE_VARIABLE;
+use crate::push_deadline_and_patience_settings::PUSH_DEADLINE_VARIABLE;
 use crate::service_messages::RESTART_COMMAND;
 use std::sync::atomic::{AtomicBool, Ordering};
 

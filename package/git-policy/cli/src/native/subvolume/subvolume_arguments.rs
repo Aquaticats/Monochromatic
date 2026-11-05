@@ -110,7 +110,9 @@ pub fn parse_migrate_arguments(arguments: &[OsString]) -> Result<MigrateArgument
     };
     let (mut rollback, mut remove_old, mut migrate_switch): (bool, bool, bool) = (false, false, false);
     for token in arguments {
-        let text: &str = token.to_str().ok_or_else(|| { return String::from("an argument is not valid UTF-8 text; the options are ASCII"); })?;
+        let Some(text) = token.to_str() else {
+            return Err(String::from("an argument is not valid UTF-8 text; the options are ASCII"));
+        };
         match text {
             "--dry-run" => parsed.dry_run = true,
             "--rollback" => rollback = true,

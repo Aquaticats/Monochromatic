@@ -148,12 +148,10 @@ pub fn git_command(git: &PushGit, arguments: &[OsString]) -> Command {
 /// { ...command, cwd: git.cwd, env: git.environment }
 /// ```
 fn in_push_environment(mut command: Command, git: &PushGit) -> Command {
-    command
-        .current_dir(&git.cwd)
-        .env_clear()
-        .envs(git.environment.iter().map(|pair| {
-            return (&pair.0, &pair.1);
-        }));
+    command.current_dir(&git.cwd).env_clear();
+    for pair in &git.environment {
+        command.env(&pair.0, &pair.1);
+    }
     return command;
 }
 
@@ -164,13 +162,11 @@ fn in_push_environment(mut command: Command, git: &PushGit) -> Command {
 /// args.join(' ')
 /// ```
 fn describe_arguments(arguments: &[OsString]) -> String {
-    return arguments
-        .iter()
-        .map(|argument| {
-            return argument.to_string_lossy().into_owned();
-        })
-        .collect::<Vec<String>>()
-        .join(" ");
+    let mut shown: Vec<String> = Vec::new();
+    for argument in arguments {
+        shown.push(argument.to_string_lossy().into_owned());
+    }
+    return shown.join(" ");
 }
 
 /// What:

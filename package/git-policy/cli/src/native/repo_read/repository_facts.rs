@@ -120,13 +120,23 @@ pub trait RepositoryFacts {
     /// A provider that has neither answers nothing.
     fn known_common_dir(&mut self) -> Option<PathBuf> {
         let asked: Option<Result<RepositoryLocation, String>> = self.asked_location();
-        return asked.and_then(Result::ok).and_then(|found| { return common_directory(&found.identity).map(Path::to_path_buf); });
+        if let Some(Ok(found)) = asked
+            && let Some(directory) = common_directory(&found.identity)
+        {
+            return Some(directory.to_path_buf());
+        }
+        return None;
     }
     /// The invocation's own Git directory (the worktree's, which holds its work records and notices) when it is known without
     ///  starting Git: from the location already asked, or from the file system. A provider that has neither answers nothing.
     fn known_git_dir(&mut self) -> Option<PathBuf> {
         let asked: Option<Result<RepositoryLocation, String>> = self.asked_location();
-        return asked.and_then(Result::ok).and_then(|found| { return git_directory(&found.identity).map(Path::to_path_buf); });
+        if let Some(Ok(found)) = asked
+            && let Some(directory) = git_directory(&found.identity)
+        {
+            return Some(directory.to_path_buf());
+        }
+        return None;
     }
     /// Real Git,
     ///  the child environment and the invocation's global options,
@@ -374,14 +384,16 @@ impl RepositoryFacts for GitFacts {
             return common_directory(&found.identity).map(Path::to_path_buf);
         }
         // A plain layout is read from the file system; a layout the reader declines is not worth a Git process here.
-        return self.layout().map(|found| { return found.common_dir.clone(); });
+        let found = self.layout()?;
+        return Some(found.common_dir.clone());
     }
 
     fn known_git_dir(&mut self) -> Option<PathBuf> {
         if let Some(Ok(found)) = &self.location {
             return git_directory(&found.identity).map(Path::to_path_buf);
         }
-        return self.layout().map(|found| { return found.git_dir.clone(); });
+        let found = self.layout()?;
+        return Some(found.git_dir.clone());
     }
 
     fn transaction_context(&self) -> GitContext {

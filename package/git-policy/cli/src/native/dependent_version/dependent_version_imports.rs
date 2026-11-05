@@ -48,10 +48,21 @@ fn is_identifier_byte(byte: u8) -> bool {
 /// function skipWhitespaceBackwards({ text, end }): number;
 /// ```
 fn skip_whitespace_backwards(text: &[u8], end: usize) -> usize {
-    return text[..end]
-        .iter()
-        .rposition(|byte: &u8| return !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
-        .map_or(0, |index: usize| return index + 1);
+    return match text[..end].iter().rposition(is_not_whitespace_byte) {
+        Some(index) => index + 1,
+        None => 0,
+    };
+}
+
+/// What: Whether one byte is something other than a space, tab, carriage return or line feed.
+/// Why:  `rposition` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNotWhitespaceByte = (byte: number) => ![0x20, 0x09, 0x0d, 0x0a].includes(byte);
+/// ```
+fn is_not_whitespace_byte(byte: &u8) -> bool {
+    return !matches!(byte, b' ' | b'\t' | b'\r' | b'\n');
 }
 
 /// What: Whether one of the keywords ends exactly at `end`, with no identifier byte before
@@ -63,16 +74,24 @@ fn skip_whitespace_backwards(text: &[u8], end: usize) -> usize {
 /// function endsWithKeyword({ text, end, keywords }): boolean;
 /// ```
 fn ends_with_keyword(text: &[u8], end: usize, keywords: &[&[u8]]) -> bool {
-    return keywords.iter().any(|keyword: &&[u8]| {
+    for keyword in keywords {
         let Some(start) = end.checked_sub(keyword.len()) else {
-            return false;
+            continue;
         };
-        let before: Option<&u8> = start
-            .checked_sub(1)
-            .and_then(|index: usize| return text.get(index));
-        return text[start..end] == **keyword
-            && !before.is_some_and(|byte: &u8| return is_identifier_byte(*byte));
-    });
+        let before: Option<&u8> = match start.checked_sub(1) {
+            Some(index) => text.get(index),
+            None => None,
+        };
+        let identifier_before: bool = match before {
+            Some(byte) => is_identifier_byte(*byte),
+            None => false,
+        };
+        // The first keyword that ends here settles it, as `any` stopped at the first match.
+        if text[start..end] == **keyword && !identifier_before {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What: Whether the string literal opening at `quote_index` is in specifier position.
@@ -113,18 +132,21 @@ fn is_specifier_position(text: &[u8], quote_index: usize) -> bool {
 /// ```
 pub fn imports_package(source_text: &str, package_name: &str) -> bool {
     let text: &[u8] = source_text.as_bytes();
-    return source_text
-        .match_indices(package_name)
-        .any(|(index, _): (usize, &str)| {
-            let Some(quote_index) = index.checked_sub(1) else {
-                return false;
-            };
-            let quote: u8 = text[quote_index];
-            let following: Option<&u8> = text.get(index + package_name.len());
-            return matches!(quote, b'\'' | b'"' | b'`')
-                && (following == Some(&quote) || following == Some(&b'/'))
-                && is_specifier_position(text, quote_index);
-        });
+    for (index, _) in source_text.match_indices(package_name) {
+        let Some(quote_index) = index.checked_sub(1) else {
+            continue;
+        };
+        let quote: u8 = text[quote_index];
+        let following: Option<&u8> = text.get(index + package_name.len());
+        // The first occurrence in specifier position settles it, as `any` stopped at the first match.
+        if matches!(quote, b'\'' | b'"' | b'`')
+            && (following == Some(&quote) || following == Some(&b'/'))
+            && is_specifier_position(text, quote_index)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// Specifier detection, including every case of the incumbent's unit tests.

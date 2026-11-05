@@ -94,7 +94,14 @@ pub fn parse_convert_arguments(rest: &[std::ffi::OsString]) -> Result<ConvertArg
         };
         match word {
             "--jobs" => {
-                let value: &str = tokens.next().and_then(|next: &std::ffi::OsString| { return next.to_str(); }).ok_or_else(|| { return String::from("--jobs needs a count, as in --jobs 4"); })?;
+                // The word after `--jobs`, as text; a missing word and a word that is not text are the same refusal.
+                let next_text: Option<&str> = match tokens.next() {
+                    Some(next) => next.to_str(),
+                    None => None,
+                };
+                let Some(value) = next_text else {
+                    return Err(String::from("--jobs needs a count, as in --jobs 4"));
+                };
                 parsed.jobs = Some(parse_jobs(value)?);
             }
             other if other.starts_with("--jobs=") => parsed.jobs = Some(parse_jobs(&other["--jobs=".len()..])?),
@@ -136,8 +143,15 @@ pub fn selects_attribute_source(globals: &[std::ffi::OsString]) -> bool {
         if text.starts_with("--attr-source") || text.starts_with("--config-env=attr.tree") {
             return true;
         }
-        if text == "-c" && words.next().is_some_and(|value: &std::ffi::OsString| { return value.to_string_lossy().to_lowercase().starts_with("attr.tree"); }) {
-            return true;
+        if text == "-c" {
+            // The value is read only after a `-c`, as the short-circuit of `&&` did.
+            let names_tree: bool = match words.next() {
+                Some(value) => value.to_string_lossy().to_lowercase().starts_with("attr.tree"),
+                None => false,
+            };
+            if names_tree {
+                return true;
+            }
         }
     }
     return false;

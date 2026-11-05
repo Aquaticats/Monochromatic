@@ -78,6 +78,20 @@ pub fn raw_failure(cause: &dyn std::fmt::Display) -> WorktreeCopyError {
 }
 
 /// What:
+///  The same as `raw_failure`, for a cause passed by value, so it can stand where a function path is wanted.
+/// Why:
+///   `map_err` hands its function the error by value; this lets `.map_err(raw_failure_of)` replace a closure that only
+///  borrowed the error to call `raw_failure`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rawFailureOf = (cause: unknown) => rawFailure(cause);
+/// ```
+pub fn raw_failure_of<Cause: std::fmt::Display>(cause: Cause) -> WorktreeCopyError {
+    return raw_failure(&cause);
+}
+
+/// What:
 ///  Whether a failure is raw text that an enclosing wrapper still has to word.
 /// Why:
 ///   The incumbent wraps only failures that are not already its own `WorktreeCopyError`, and cli-git's own messages always start with its prefix.

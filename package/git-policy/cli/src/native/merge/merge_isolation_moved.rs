@@ -21,7 +21,7 @@ use crate::merge_isolation_changes::{Change, WorktreeState, parse_raw_changes, w
 /// The intent record.
 use crate::merge_isolation_journal::MergeIntent;
 /// The shared steps of recovery.
-use crate::merge_isolation_recovery::{
+use crate::merge_isolation_recovery_steps::{
     MergeRecoveryAction, RecoveryPlace, Standing, index_holds_the_merge, install_entries, merge_changes, remove_record,
     standing,
 };
@@ -54,8 +54,15 @@ pub(crate) fn settle_moved_branch(
     for change in &changes {
         states.push(worktree_state(&place.git, root, change.path.as_slice()).map_err(RecoveryError)?);
     }
-    let began: bool = index_holds_the_merge(place, root, intent.old_oid.as_str(), changes.as_slice())?
-        || changes.iter().zip(states.iter()).any(|(change, state)| { return standing(change, state) == Standing::New; });
+    let mut worktree_began: bool = false;
+    for (change, state) in changes.iter().zip(states.iter()) {
+        if standing(change, state) == Standing::New {
+            worktree_began = true;
+            break;
+        }
+    }
+    // The index is read first and the worktree standings only decide when it holds nothing of the merge, as `||` ran.
+    let began: bool = index_holds_the_merge(place, root, intent.old_oid.as_str(), changes.as_slice())? || worktree_began;
     if !began {
         remove_record(record)?;
         return Ok(MergeRecoveryAction::BranchMoved);
@@ -65,14 +72,24 @@ pub(crate) fn settle_moved_branch(
         root,
         &["diff-tree", "-r", "-z", "--raw", "--no-renames", "--no-abbrev", intent.new_oid.as_str(), moved_to],
     );
-    let output = run_git_checked(&place.git, &request).map_err(|error| { return RecoveryError(error.to_string()); })?;
+    let output = match run_git_checked(&place.git, &request) {
+        Ok(done) => done,
+        Err(error) => return Err(RecoveryError(error.to_string())),
+    };
     let beyond: Vec<Change> = parse_raw_changes(output.stdout.as_slice()).map_err(RecoveryError)?;
     let mut ends: Vec<Change> = Vec::with_capacity(changes.len());
     for change in &changes {
-        let (mode, oid): (String, String) = beyond
-            .iter()
-            .find(|moved| { return moved.path == change.path; })
-            .map_or_else(|| { return (change.new_mode.clone(), change.new_oid.clone()); }, |moved| { return (moved.new_mode.clone(), moved.new_oid.clone()); });
+        let mut moved_entry: Option<&Change> = None;
+        for moved in &beyond {
+            if moved.path == change.path {
+                moved_entry = Some(moved);
+                break;
+            }
+        }
+        let (mode, oid): (String, String) = match moved_entry {
+            Some(moved) => (moved.new_mode.clone(), moved.new_oid.clone()),
+            None => (change.new_mode.clone(), change.new_oid.clone()),
+        };
         ends.push(Change {
             path: change.path.clone(),
             old_mode: change.new_mode.clone(),

@@ -3,6 +3,7 @@
 //!  and every layout it must not guess is declined.
 
 use super::*;
+use crate::repo_read_layout_environment_rules::ENV_CONFIG_ENTRY_LIMIT;
 use crate::test_support::{fixture, git, git_output, remove, repository};
 use std::os::unix::ffi::OsStringExt;
 

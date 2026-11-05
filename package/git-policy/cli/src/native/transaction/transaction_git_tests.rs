@@ -684,7 +684,7 @@ fn a_step_that_cannot_run_twice_is_left_running_by_a_command_and_waited_for_by_t
     assert_eq!(leaves, StepBound::LeaveRunning { after: shortened, extra: crate::wait_ceilings::SHORT_EXTRA_WAIT });
     // The landing thread is the one that has a record of what it is inside.
     let board = crate::service_busy::LandingBoard::new(fixture("transaction-git-landing-thread").join("journal"), Duration::from_secs(60));
-    crate::service_busy::use_on_this_thread(board);
+    crate::service_busy_step_record_on_this_thread::use_on_this_thread(board);
     assert_eq!(step_bound(&reference), StepBound::Unbounded);
     assert_eq!(step_bound(&GitRequest::new(Path::new("/repo"), &["rev-parse", "HEAD"])), StepBound::EndAt(PLUMBING_STEP_CEILING));
 }
@@ -937,7 +937,7 @@ fn a_side_ref_write_that_hangs_on_the_landing_thread_is_left_running_after_a_bou
     let landing = std::thread::Builder::new().spawn(move || {
         STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(400))); });
         EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(400))); });
-        crate::service_busy::use_on_this_thread(crate::service_busy::LandingBoard::new(journal, Duration::from_secs(60)));
+        crate::service_busy_step_record_on_this_thread::use_on_this_thread(crate::service_busy::LandingBoard::new(journal, Duration::from_secs(60)));
         let side: GitRequest = GitRequest::new(work_root.as_path(), &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", "refs/worktree/cli-git-service/7"]);
         let branch: GitRequest = GitRequest::new(work_root.as_path(), &["update-ref", "--stdin"]);
         assert_eq!(step_bound(&branch), StepBound::Unbounded, "the branch write is waited for on the landing thread");

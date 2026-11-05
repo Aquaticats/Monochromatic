@@ -138,7 +138,11 @@ pub fn run_again_within(
             }
         };
         let mut said: Vec<u8> = Vec::new();
-        let read_back = file.seek(SeekFrom::Start(0)).and_then(|_| { return file.read_to_end(&mut said); });
+        // The output is read back only when the file could be rewound.
+        let read_back: std::io::Result<usize> = match file.seek(SeekFrom::Start(0)) {
+            Ok(_start) => file.read_to_end(&mut said),
+            Err(error) => Err(error),
+        };
         let lost_to_service: bool = code == DIE_STATUS
             && read_back.is_ok()
             && String::from_utf8_lossy(said.as_slice()).contains(LOCK_REFUSAL)
@@ -148,7 +152,9 @@ pub fn run_again_within(
             continue;
         }
         // A closed terminal is not a reason to stop the command the person asked for.
-        let _shown = shown.write_all(said.as_slice()).and_then(|()| { return shown.flush(); });
+        if shown.write_all(said.as_slice()).is_ok() {
+            let _flushed = shown.flush();
+        }
         return ForwardedRun::Ran(code);
     }
     return ForwardedRun::Ran(DIE_STATUS);

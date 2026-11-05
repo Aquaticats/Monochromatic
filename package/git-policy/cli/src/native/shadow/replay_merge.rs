@@ -107,9 +107,12 @@ pub fn merge_replay_tree(
     let probing = ContextRunner { context, cwd: worktree_root, without_prefix: true, object_directory: None, environment: Vec::new() };
     let probe = AttributeProbe { directory: worktree_root, global_prefix: &[], variables: variables.as_slice(), runner: &probing };
     request.environment.extend(attribute_tree_variables(current, &probe));
-    let output = run_git(context, &request).map_err(|error| {
-        return ReplayMergeError::Git(GitFailure(format!("git merge-tree could not start: {error}")));
-    })?;
+    let output = match run_git(context, &request) {
+        Ok(done) => done,
+        Err(error) => {
+            return Err(ReplayMergeError::Git(GitFailure(format!("git merge-tree could not start: {error}"))));
+        }
+    };
     let code: Option<i32> = output.code;
     if code != Some(0) && code != Some(MERGE_CONFLICT_EXIT) {
         return Err(ReplayMergeError::Git(GitFailure(format!(
@@ -123,7 +126,10 @@ pub fn merge_replay_tree(
     if code == Some(0) {
         return Ok(ReplayMerge::Merged { tree_oid });
     }
-    let mut paths: Vec<Vec<u8>> = conflicts.iter().map(|conflict| { return conflict.path.clone(); }).collect();
+    let mut paths: Vec<Vec<u8>> = Vec::new();
+    for conflict in &conflicts {
+        paths.push(conflict.path.clone());
+    }
     paths.sort();
     paths.dedup();
     return Ok(ReplayMerge::Conflict { paths, tree_oid, conflicts });

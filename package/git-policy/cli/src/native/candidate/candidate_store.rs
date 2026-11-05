@@ -29,14 +29,10 @@ use crate::candidate_reader::{ObjectReader, start_object_reader};
 use crate::candidate_record::{CandidateRecord, parse_raw_records};
 /// Import the stage-record parser of `git ls-files --stage`.
 use crate::candidate_stage::{StageRecord, parse_stage_records};
-/// Import the tree-record parser of `git ls-tree -r`.
-use crate::candidate_tree::{TreeRecord, parse_tree_records};
 /// Import the version types and builder.
 use crate::candidate_version::{Candidate, CandidateSource, CandidateVersion, build_version};
 /// Import the captured-query runner and its line helper.
 use crate::git_metadata::{MetadataOutput, run_metadata_git, strip_git_line};
-/// `HashSet<T>` is an unordered collection of distinct values with constant-time membership tests.
-use std::collections::HashSet;
 /// `OsString` is owned operating-system text of raw OS bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
@@ -103,26 +99,6 @@ pub struct CandidateStore {
 }
 
 /// What:
-///  The last commit any store listed with its files, kept for the rest of the process.
-/// Why:
-///   See `CandidateStore::commit_tree_records`. One entry bounds the memory to one commit's listing, and a commit's listing is
-///  the same whichever store asks, so no store has to be told about another.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// let lastListed: { commit: ObjectId; records: TreeRecord[] } | undefined;
-/// ```
-static LISTED: std::sync::Mutex<Option<(ObjectId, std::sync::Arc<Vec<TreeRecord>>)>> = std::sync::Mutex::new(None);
-
-/// The most commits one `git rev-list` receives.
-///  `usize` is the type of counts; 2,048 object names stay far below any argument limit.
-///  Exempt from a citation under `LQM` (class: chunk size): it splits one command into several starts of the same
-///  command, so the result is the same and only the number of starts changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
-///  open to the owner's veto.
-const COMMIT_CHUNK_SIZE: usize = crate::candidate_prediction::PATHSPEC_CHUNK_SIZE;
-
-/// What:
 ///  Build the failure of a listing command that could not be started or exited unsuccessfully.
 /// Why:
 ///   The message names the Git operation,
@@ -132,7 +108,7 @@ const COMMIT_CHUNK_SIZE: usize = crate::candidate_prediction::PATHSPEC_CHUNK_SIZ
 /// ```ts
 /// function listingFailure(failure: CandidateFailure, operation: string, detail: string): CandidateError;
 /// ```
-fn listing_failure(failure: CandidateFailure, operation: &str, detail: &str) -> CandidateError {
+pub(crate) fn listing_failure(failure: CandidateFailure, operation: &str, detail: &str) -> CandidateError {
     return CandidateError::new(
         failure,
         format!("cli-git could not list candidate files: git {operation} {detail}").as_str(),
@@ -210,7 +186,7 @@ impl CandidateStore {
     /// ```ts
     /// const baseline = recorded ?? await headCommit();
     /// ```
-    fn baseline_commit(&mut self) -> Result<Option<ObjectId>, CandidateError> {
+    pub(crate) fn baseline_commit(&mut self) -> Result<Option<ObjectId>, CandidateError> {
         if let Some(recorded) = &self.baseline {
             return Ok(recorded.clone());
         }
@@ -264,7 +240,7 @@ impl CandidateStore {
     /// ```ts
     /// async #runListing(operation: string, args: string[]): Promise<Buffer>
     /// ```
-    fn run_listing(
+    pub(crate) fn run_listing(
         &self,
         operation: &str,
         command: &[OsString],
@@ -392,7 +368,7 @@ impl CandidateStore {
     /// ```ts
     /// async #listCommitted(commit: ObjectId): Promise<Buffer>
     /// ```
-    fn list_committed(&self, commit: &ObjectId) -> Result<Vec<u8>, CandidateError> {
+    pub(crate) fn list_committed(&self, commit: &ObjectId) -> Result<Vec<u8>, CandidateError> {
         return self.run_listing(
             "diff-tree",
             &[
@@ -503,72 +479,6 @@ impl CandidateStore {
         return parse_raw_records(output.as_slice());
     }
 
-    /// What: Every file of the `HEAD` commit with its mode and object; nothing when the
-    ///       branch has no commit yet.
-    /// Why:  A policy that compares the candidate state with `HEAD` reads `HEAD`'s copy of
-    ///       a file without naming the path in an object request, and learns its mode.
-    ///       `--full-tree` lists from the top level whatever directory Git runs in.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// async headTreeRecords(): Promise<TreeRecord[]>
-    /// ```
-    pub fn head_tree_records(&mut self) -> Result<Vec<TreeRecord>, CandidateError> {
-        let Some(head) = self.baseline_commit()? else {
-            return Ok(Vec::new());
-        };
-        return self.commit_tree_records(&head);
-    }
-
-    /// What: Every file of one commit with its mode and object.
-    /// Why:  Policies that compare candidates with the parents of a commit read each parent's files
-    ///       the way they read `HEAD`'s. `--full-tree` lists from the top level whatever directory
-    ///       Git runs in.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// async commitTreeRecords(commit: ObjectId): Promise<TreeRecord[]>
-    /// ```
-    pub fn commit_tree_records(
-        &mut self,
-        commit: &ObjectId,
-    ) -> Result<Vec<TreeRecord>, CandidateError> {
-        // What:  `LISTED` holds the last listing of any store in this process, keyed by the commit it listed.
-        // Why:   A commit's name fixes its tree, so the listing of one commit never changes; the policies before a commit and
-        //        the gate after it list the same base commit with two stores, and each listing starts Git over every tree of a
-        //        repository with tens of thousands of files.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // if (lastListed?.commit === commit) return lastListed.records;
-        // ```
-        if let Some((listed, records)) = LISTED.lock().ok().and_then(|held| { return held.clone(); })
-            && listed == *commit
-        {
-            return Ok(records.as_ref().clone());
-        }
-        let records: Vec<TreeRecord> = self.list_commit_tree(commit)?;
-        if let Ok(mut held) = LISTED.lock() {
-            *held = Some((commit.clone(), std::sync::Arc::new(records.clone())));
-        }
-        return Ok(records);
-    }
-
-    /// The listing of one commit's files by Git, as `commit_tree_records` asks for it when it has no answer kept.
-    fn list_commit_tree(&mut self, commit: &ObjectId) -> Result<Vec<TreeRecord>, CandidateError> {
-        let output: Vec<u8> = self.run_listing(
-            "ls-tree",
-            &[
-                OsString::from("ls-tree"),
-                OsString::from("-r"),
-                OsString::from("-z"),
-                OsString::from("--full-tree"),
-                OsString::from(commit.as_str()),
-            ],
-        )?;
-        return parse_tree_records(output.as_slice());
-    }
-
     /// What: The commit the "against `HEAD`" listings compare with: the recorded base or the commit
     ///       `HEAD` names now; nothing when the branch has no commit yet.
     /// Why:  A policy that skips content the baseline already holds names the commit in its log
@@ -580,53 +490,6 @@ impl CandidateStore {
     /// ```
     pub fn baseline_reference(&mut self) -> Result<Option<ObjectId>, CandidateError> {
         return self.baseline_commit();
-    }
-
-    /// What: The parents of these commits that are not among the commits themselves, each once, in
-    ///       the order of the commits and then of their parents.
-    /// Why:  A pushed commit's parent that is also pushed is new to the remote, so only the parents
-    ///       outside the given commits count as already published. One `rev-list` answers 2,048
-    ///       commits, so the process count does not grow with the commits.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// async parentsOutside(commits: ObjectId[]): Promise<ObjectId[]>
-    /// ```
-    pub fn parents_outside(
-        &mut self,
-        commits: &[ObjectId],
-    ) -> Result<Vec<ObjectId>, CandidateError> {
-        // Membership tests stay constant-time however many commits a push carries.
-        let given: HashSet<&ObjectId> = commits.iter().collect();
-        let mut seen: HashSet<ObjectId> = HashSet::new();
-        let mut outside: Vec<ObjectId> = Vec::new();
-        for chunk in commits.chunks(COMMIT_CHUNK_SIZE) {
-            let mut command: Vec<OsString> = vec![
-                OsString::from("rev-list"),
-                OsString::from("--no-walk=unsorted"),
-                OsString::from("--parents"),
-            ];
-            for commit in chunk {
-                command.push(OsString::from(commit.as_str()));
-            }
-            let output: Vec<u8> = self.run_listing("rev-list", command.as_slice())?;
-            for line in output.split(|byte| { return *byte == b'\n'; }) {
-                // The first name of a line is the commit itself; the rest are its parents.
-                for name in line.split(|byte| { return *byte == b' '; }).skip(1) {
-                    let Some(parent) = parse_object_id(name) else {
-                        return Err(listing_failure(
-                            CandidateFailure::ListingMalformed,
-                            "rev-list",
-                            "printed a parent that is not an object name.",
-                        ));
-                    };
-                    if !given.contains(&parent) && seen.insert(parent.clone()) {
-                        outside.push(parent);
-                    }
-                }
-            }
-        }
-        return Ok(outside);
     }
 
     /// What: A version of the current generation built from records the caller derived.
@@ -641,52 +504,6 @@ impl CandidateStore {
     /// ```
     pub fn derived_version(&mut self, records: Vec<CandidateRecord>) -> Rc<CandidateVersion> {
         return Rc::new(build_version(self.generation, records));
-    }
-
-    /// What:
-    ///  The records of one commit's own delta, each against every parent (or the empty tree for a root commit).
-    /// Why:
-    ///   A pushed commit's changes are the content a manual-push scan reads; the listing is the one the
-    ///  landed-delta source already uses.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// committedRecords(commit: ObjectId): CandidateRecord[]
-    /// ```
-    pub fn committed_records(
-        &mut self,
-        commit: &ObjectId,
-    ) -> Result<Vec<CandidateRecord>, CandidateError> {
-        let output: Vec<u8> = self.list_committed(commit)?;
-        return parse_raw_records(output.as_slice());
-    }
-
-    /// What:
-    ///  Every blob entry of one tree, as records that add each path.
-    /// Why:
-    ///   A push with no known published base scans the pushed tip's whole tree.
-    ///   Submodule entries are not listed: their content is a commit name, which no content policy reads.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// treeRecords(tree: ObjectId): CandidateRecord[] // ls-tree -r, every blob as added
-    /// ```
-    pub fn tree_records(
-        &mut self,
-        tree: &ObjectId,
-    ) -> Result<Vec<CandidateRecord>, CandidateError> {
-        let listing: Vec<u8> = self.run_listing(
-            "ls-tree",
-            &[
-                OsString::from("ls-tree"),
-                OsString::from("--full-tree"),
-                OsString::from("-r"),
-                OsString::from("-z"),
-                OsString::from(tree.as_str()),
-            ],
-        )?;
-        let raw: Vec<u8> = added_raw_from_ls_tree(listing.as_slice())?;
-        return parse_raw_records(raw.as_slice());
     }
 
     /// What:
@@ -776,52 +593,6 @@ mod baseline_tests;
 #[path = "candidate_store_failure_tests.rs"]
 mod failure_tests;
 
-/// What:
-///  Turn NUL-separated `ls-tree -r -z` records into raw diff records that add each blob.
-/// Why:
-///   The record parser is the one the diff listings use, so tree entries follow the same path and mode rules.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function addedRawFromLsTree(output: Uint8Array): Uint8Array;
-/// ```
-fn added_raw_from_ls_tree(output: &[u8]) -> Result<Vec<u8>, CandidateError> {
-    let mut raw: Vec<u8> = Vec::new();
-    for record in output
-        .split(|byte| {
-            return *byte == 0;
-        })
-        .filter(|record| {
-            return !record.is_empty();
-        })
-    {
-        let Some(tab) = record.iter().position(|byte| { return *byte == b'\t'; }) else {
-            return Err(CandidateError::new(
-                crate::candidate_error::CandidateFailure::ListingMalformed,
-                "cli-git could not list the pushed tree: an entry lacks its path separator.",
-            ));
-        };
-        // The mode, type and object name are ASCII; the path stays the exact bytes Git printed.
-        let metadata = String::from_utf8_lossy(&record[..tab]);
-        let path: &[u8] = &record[tab + 1..];
-        let fields: Vec<&str> = metadata.split(' ').collect();
-        if fields.len() != 3 {
-            return Err(CandidateError::new(
-                crate::candidate_error::CandidateFailure::ListingMalformed,
-                "cli-git could not list the pushed tree: an entry lacks its mode, type or object name.",
-            ));
-        }
-        if fields[1] != "blob" {
-            continue;
-        }
-        let zeros = "0".repeat(fields[2].len());
-        raw.extend_from_slice(format!(":000000 {} {zeros} {} A", fields[0], fields[2]).as_bytes());
-        raw.push(0);
-        raw.extend_from_slice(path);
-        raw.push(0);
-    }
-    return Ok(raw);
-}
 /// The `HEAD` tree listing.
 #[cfg(test)]
 #[path = "candidate_store_tree_tests.rs"]

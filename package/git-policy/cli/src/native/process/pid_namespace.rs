@@ -48,9 +48,9 @@ pub const FOREIGN_OWNER_PATIENCE: Duration = Duration::from_secs(2 * LOCK_CEILIN
 pub fn current_pid_namespace() -> Option<String> {
     #[cfg(target_os = "linux")]
     {
-        return std::fs::read_link("/proc/self/ns/pid")
-            .ok()
-            .and_then(|target| { return target.into_os_string().into_string().ok(); });
+        // `?` in an `Option` function returns `None` early, where the old `.ok().and_then(..)` chain produced `None` too.
+        let target: std::path::PathBuf = std::fs::read_link("/proc/self/ns/pid").ok()?;
+        return target.into_os_string().into_string().ok();
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -86,7 +86,8 @@ pub fn is_other_namespace(recorded: Option<&str>, current: Option<&str>) -> bool
 /// Date.now() - statSync(recordPath).mtimeMs
 /// ```
 pub fn foreign_record_age(record_path: &Path) -> Option<Duration> {
-    let modified: SystemTime = std::fs::metadata(record_path).and_then(|metadata| { return metadata.modified(); }).ok()?;
+    let metadata: std::fs::Metadata = std::fs::metadata(record_path).ok()?;
+    let modified: SystemTime = metadata.modified().ok()?;
     return SystemTime::now().duration_since(modified).ok();
 }
 

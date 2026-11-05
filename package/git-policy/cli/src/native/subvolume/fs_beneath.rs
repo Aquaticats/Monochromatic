@@ -92,13 +92,21 @@ pub fn plain_components(relative: &Path) -> std::io::Result<Vec<OsString>> {
     return Ok(names);
 }
 
+/// A NUL-terminated copy of `bytes`, or an invalid-input error saying `what` holds a NUL byte.
+fn c_string_of(bytes: &[u8], what: &str) -> std::io::Result<CString> {
+    return match CString::new(bytes) {
+        Ok(text) => Ok(text),
+        Err(_error) => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{what} holds a NUL byte"))),
+    };
+}
+
 /// A NUL-terminated copy of one name, refused when it is empty, `.`, `..`, holds a slash or a NUL byte.
 fn name_of(name: &OsStr) -> std::io::Result<CString> {
     let bytes: &[u8] = name.as_bytes();
     if bytes.is_empty() || bytes == b"." || bytes == b".." || bytes.contains(&b'/') {
         return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "a name must be one plain component"));
     }
-    return CString::new(bytes).map_err(|_error| { return std::io::Error::new(std::io::ErrorKind::InvalidInput, "a name holds a NUL byte"); });
+    return c_string_of(bytes, "a name");
 }
 
 /// Turn a C result that is `-1` on failure into the thread's error.
@@ -132,7 +140,7 @@ pub fn open_root(path: &Path) -> std::io::Result<File> {
     if !path.is_absolute() {
         return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{} is not absolute", path.display())));
     }
-    let name = CString::new(path.as_os_str().as_bytes()).map_err(|_error| { return std::io::Error::new(std::io::ErrorKind::InvalidInput, "a path holds a NUL byte"); })?;
+    let name = c_string_of(path.as_os_str().as_bytes(), "a path")?;
     // SAFETY: `name` is a NUL-terminated string that outlives the call.
     let descriptor: libc::c_int = checked(unsafe { libc::open(name.as_ptr(), libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC) })?;
     // SAFETY: `open` returned a new descriptor that nothing else owns.
@@ -200,7 +208,7 @@ pub fn make_directory_at(dir: &File, name: &OsStr, mode: u32) -> std::io::Result
 /// Create the link `name` in `dir` pointing at `target`.
 pub fn symlink_at(target: &Path, dir: &File, name: &OsStr) -> std::io::Result<()> {
     let c_name = name_of(name)?;
-    let c_target = CString::new(target.as_os_str().as_bytes()).map_err(|_error| { return std::io::Error::new(std::io::ErrorKind::InvalidInput, "a link target holds a NUL byte"); })?;
+    let c_target = c_string_of(target.as_os_str().as_bytes(), "a link target")?;
     // SAFETY: both strings outlive the call and `dir` is an open descriptor.
     checked(unsafe { libc::symlinkat(c_target.as_ptr(), dir.as_raw_fd(), c_name.as_ptr()) })?;
     return Ok(());
@@ -353,7 +361,7 @@ pub fn remove_if_identical(dir: &File, name: &OsStr, expected: ObjectId) -> std:
 /// ```
 pub fn link_open_file_at(source: &File, dir: &File, name: &OsStr) -> std::io::Result<()> {
     let c_name = name_of(name)?;
-    let through = CString::new(handle_path(source).as_os_str().as_bytes()).map_err(|_error| { return std::io::Error::new(std::io::ErrorKind::InvalidInput, "a path holds a NUL byte"); })?;
+    let through = c_string_of(handle_path(source).as_os_str().as_bytes(), "a path")?;
     // SAFETY: both strings outlive the call, `dir` is an open descriptor, and `AT_SYMLINK_FOLLOW` makes the link to the file
     // the descriptor's magic link names.
     checked(unsafe { libc::linkat(libc::AT_FDCWD, through.as_ptr(), dir.as_raw_fd(), c_name.as_ptr(), libc::AT_SYMLINK_FOLLOW) })?;

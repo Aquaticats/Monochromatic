@@ -4,6 +4,7 @@
 #![cfg(unix)]
 
 use super::*;
+use crate::wait_progress::Cadence;
 use crate::test_support::{ActionSink, SharedSink};
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;

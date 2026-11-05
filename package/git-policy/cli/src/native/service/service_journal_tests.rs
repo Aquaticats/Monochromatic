@@ -1,6 +1,7 @@
 //! Controls for the service journal: an intent survives a write and a read, the restart decision follows the branch,
 //!  and a damaged or temporary file is never an intent.
 
+use crate::service_protocol::Cleanup;
 use super::*;
 use crate::test_support::{fixture, remove};
 

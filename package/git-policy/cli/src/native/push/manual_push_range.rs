@@ -87,26 +87,26 @@ pub fn run_git_bytes(
         })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = command.spawn_retrying().map_err(|error| {
-        return range_error(ManualPushCause::GitNotStarted, format!("git could not be started: {error}"));
-    })?;
+    let mut child = match command.spawn_retrying() {
+        Ok(started) => started,
+        Err(error) => return Err(range_error(ManualPushCause::GitNotStarted, format!("git could not be started: {error}"))),
+    };
     if let (Some(text), Some(mut stdin)) = (input, child.stdin.take()) {
         // A Git exit before reading the whole input surfaces through its status, so the write error is ignored here.
         let _written = stdin.write_all(text.as_bytes());
     }
-    let output = child.wait_with_output().map_err(|error| {
-        return range_error(ManualPushCause::GitSilent, format!("git did not finish: {error}"));
-    })?;
+    let output = match child.wait_with_output() {
+        Ok(finished) => finished,
+        Err(error) => return Err(range_error(ManualPushCause::GitSilent, format!("git did not finish: {error}"))),
+    };
     if !output.status.success() {
+        let mut shown: Vec<String> = Vec::new();
+        for argument in arguments {
+            shown.push(argument.to_string_lossy().into_owned());
+        }
         return Err(range_error(ManualPushCause::ContentMissing, format!(
             "git {} failed: {}",
-            arguments
-                .iter()
-                .map(|argument| {
-                    return argument.to_string_lossy().into_owned();
-                })
-                .collect::<Vec<String>>()
-                .join(" "),
+            shown.join(" "),
             String::from_utf8_lossy(&output.stderr).trim_end()
         )));
     }
@@ -120,13 +120,13 @@ pub fn run_git_bytes(
 /// text.split('\n').filter((line) => line.length > 0)
 /// ```
 fn lines_of(bytes: &[u8]) -> Vec<String> {
-    return String::from_utf8_lossy(bytes)
-        .split('\n')
-        .filter(|line| {
-            return !line.is_empty();
-        })
-        .map(str::to_owned)
-        .collect();
+    let mut lines: Vec<String> = Vec::new();
+    for line in String::from_utf8_lossy(bytes).split('\n') {
+        if !line.is_empty() {
+            lines.push(line.to_owned());
+        }
+    }
+    return lines;
 }
 
 /// What:
@@ -149,12 +149,10 @@ pub fn peel_commits(
     if unique.is_empty() {
         return Ok(BTreeMap::new());
     }
-    let input: String = unique
-        .iter()
-        .map(|oid| {
-            return format!("{oid}^{{}}\n");
-        })
-        .collect();
+    let mut input: String = String::new();
+    for oid in &unique {
+        input.push_str(format!("{oid}^{{}}\n").as_str());
+    }
     let arguments: Vec<OsString> = ["cat-file", "--batch-check=%(objectname) %(objecttype)"]
         .iter()
         .map(OsString::from)
@@ -246,12 +244,10 @@ pub fn published_tips(
 ) -> BTreeMap<String, Vec<String>> {
     let mut tips: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for update in updates {
-        let entry = tips.entry(update.remote_name.clone()).or_insert_with(|| {
-            return tracking
-                .get(&update.remote_name)
-                .cloned()
-                .unwrap_or_default();
-        });
+        let entry = match tips.entry(update.remote_name.clone()) {
+            std::collections::btree_map::Entry::Occupied(present) => present.into_mut(),
+            std::collections::btree_map::Entry::Vacant(absent) => absent.insert(tracking.get(&update.remote_name).cloned().unwrap_or_default()),
+        };
         if let Some(prior) = update.remote_oid.as_ref()
             && let Some(commit) = prior_commits.get(prior)
             && !entry.contains(commit)

@@ -38,6 +38,41 @@ pub struct NewSpan {
 }
 
 /// What:
+///  Whether one of the extended header lines is exactly `rename`.
+///  `&[&str]` borrows a list of borrowed lines.
+/// Why:
+///   `section_is_for` asks it of the lines after a section header, and a loop with an early return stands where
+///  a closure given to `any` stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const listsRenameTo = (extended: string[], rename: string) => extended.includes(rename);
+/// ```
+fn lists_rename_to(extended: &[&str], rename: &str) -> bool {
+    for line in extended {
+        if *line == rename {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Whether a patch line starts a hunk or starts the next file section.
+///  `&&str` is a borrow of an element of a list of borrowed lines, as `position` hands it over.
+/// Why:
+///   The extended header lines of a section end at the first such line, and `position` takes this function by path
+///  where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isHunkOrSectionLine = (line: string) => line.startsWith(HUNK_PREFIX) || line.startsWith(SECTION_PREFIX);
+/// ```
+fn is_hunk_or_section_line(line: &&str) -> bool {
+    return line.starts_with(HUNK_PREFIX) || line.starts_with(SECTION_PREFIX);
+}
+
+/// What:
 ///  Whether `header` and the extended lines after it describe `name` as the section's new path: either both sides
 ///  name it, or a `rename to` line does.
 /// Why:
@@ -49,7 +84,7 @@ pub struct NewSpan {
 /// ```
 fn section_is_for(header: &str, extended: &[&str], name: &str) -> bool {
     let rename: String = format!("rename to {name}");
-    return header == format!("{SECTION_PREFIX}a/{name} b/{name}") || extended.iter().any(|line| return *line == rename);
+    return header == format!("{SECTION_PREFIX}a/{name} b/{name}") || lists_rename_to(extended, &rename);
 }
 
 /// What:
@@ -91,10 +126,10 @@ pub fn new_spans(patch_lines: &[&str], name: &str) -> Vec<NewSpan> {
         if !header.starts_with(SECTION_PREFIX) {
             continue;
         }
-        let first_hunk: usize = patch_lines[index..]
-            .iter()
-            .position(|line| return line.starts_with(HUNK_PREFIX) || line.starts_with(SECTION_PREFIX))
-            .map_or(patch_lines.len(), |offset| return index + offset);
+        let first_hunk: usize = match patch_lines[index..].iter().position(is_hunk_or_section_line) {
+            Some(offset) => index + offset,
+            None => patch_lines.len(),
+        };
         let matches: bool = section_is_for(header, &patch_lines[index..first_hunk], name);
         index = first_hunk;
         if matches {

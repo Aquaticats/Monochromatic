@@ -13,6 +13,7 @@
 //! ```
 
 /// The `TREE` (cache-tree) extension, which names the tree each valid directory of the index hashes to.
+use crate::index_byte_search::first_index_of_byte;
 use crate::index_cache_tree::CacheTree;
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_object::name_length;
@@ -63,7 +64,8 @@ fn be32(bytes: &[u8], at: usize) -> Option<u32> {
 /// function parseIndex(bytes: Uint8Array, format: ObjectFormat): IndexEntry[] | undefined;
 /// ```
 pub fn parse_index(bytes: &[u8], format: ObjectFormat) -> Option<Vec<IndexEntry>> {
-    return parse_index_with_tree(bytes, format).map(|parsed| { return parsed.entries; });
+    let parsed = parse_index_with_tree(bytes, format)?;
+    return Some(parsed.entries);
 }
 
 /// The entries of an index file and its cache-tree extension.
@@ -127,13 +129,13 @@ pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<Parse
                 strip = strip.checked_add(1)?.checked_shl(7)? | usize::from(byte & 0x7f);
             }
             let keep: usize = previous.len().checked_sub(strip)?;
-            let terminator: usize = bytes.get(cursor..end)?.iter().position(|stored| { return *stored == 0; })?;
+            let terminator: usize = first_index_of_byte(bytes.get(cursor..end)?, 0)?;
             let mut joined: Vec<u8> = previous[..keep].to_vec();
             joined.extend_from_slice(&bytes[cursor..cursor + terminator]);
             path = joined;
             at = cursor + terminator + 1;
         } else {
-            let terminator: usize = bytes.get(name_start..end)?.iter().position(|byte| { return *byte == 0; })?;
+            let terminator: usize = first_index_of_byte(bytes.get(name_start..end)?, 0)?;
             path = bytes[name_start..name_start + terminator].to_vec();
             at = at.checked_add((head + terminator + 8) & !7)?;
         }
@@ -147,8 +149,10 @@ pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<Parse
         let stage: u8 = ((flags >> 12) & 3) as u8;
         entries.push(IndexEntry { path, mode, id, stage, extended });
     }
-    if entries.windows(2).any(|pair| { return (pair[0].path.as_slice(), pair[0].stage) >= (pair[1].path.as_slice(), pair[1].stage); }) {
-        return None;
+    for pair in entries.windows(2) {
+        if (pair[0].path.as_slice(), pair[0].stage) >= (pair[1].path.as_slice(), pair[1].stage) {
+            return None;
+        }
     }
     let mut tree: Option<CacheTree> = None;
     while at < end {
@@ -161,7 +165,10 @@ pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<Parse
         let body_at: usize = at.checked_add(8)?;
         if signature == b"TREE" {
             // An extension that does not read as Git writes it is dropped by Git too, so the comparison goes without it.
-            tree = bytes.get(body_at..body_at.checked_add(size)?).and_then(|body| { return CacheTree::read(body, hash_length); });
+            tree = match bytes.get(body_at..body_at.checked_add(size)?) {
+                Some(body) => CacheTree::read(body, hash_length),
+                None => None,
+            };
         }
         at = body_at.checked_add(size)?;
     }

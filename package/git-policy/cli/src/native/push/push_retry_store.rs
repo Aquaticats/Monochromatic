@@ -63,13 +63,25 @@ fn encode(plan: &StoredPlan) -> String {
 
 /// The plan a file's text holds, or why it holds none.
 fn decode(text: &str) -> Result<StoredPlan, String> {
-    let value: Value = serde_json::from_str(text).map_err(|error| { return format!("the plan is not JSON: {error}"); })?;
+    let value: Value = match serde_json::from_str(text) {
+        Ok(parsed) => parsed,
+        Err(error) => return Err(format!("the plan is not JSON: {error}")),
+    };
     if value.get("v").and_then(Value::as_u64) != Some(PLAN_VERSION) {
         return Err(String::from("the plan has an unsupported version"));
     }
-    let attempt: u32 = value.get("attempt").and_then(Value::as_u64).and_then(|number| { return u32::try_from(number).ok(); }).ok_or_else(|| { return String::from("the plan has no try number"); })?;
-    let git_dir: &str = value.get("gitDir").and_then(Value::as_str).ok_or_else(|| { return String::from("the plan names no Git directory"); })?;
-    let item_text: &str = value.get("item").and_then(Value::as_str).ok_or_else(|| { return String::from("the plan holds no push item"); })?;
+    let Some(number) = value.get("attempt").and_then(Value::as_u64) else {
+        return Err(String::from("the plan has no try number"));
+    };
+    let Ok(attempt) = u32::try_from(number) else {
+        return Err(String::from("the plan has no try number"));
+    };
+    let Some(git_dir) = value.get("gitDir").and_then(Value::as_str) else {
+        return Err(String::from("the plan names no Git directory"));
+    };
+    let Some(item_text) = value.get("item").and_then(Value::as_str) else {
+        return Err(String::from("the plan holds no push item"));
+    };
     let item: WorkItem = WorkItem::decode(item_text)?;
     return Ok(StoredPlan { git_dir: PathBuf::from(git_dir), item, attempt });
 }
@@ -84,7 +96,9 @@ fn decode(text: &str) -> Result<StoredPlan, String> {
 /// await writeExclusive(join(dir, name(plan)), encode(plan)); await removeOthersOfBranch(dir, plan);
 /// ```
 pub fn save(directory: &Path, plan: &StoredPlan) -> Result<(), String> {
-    create_private_directory_all(directory).map_err(|error| { return format!("creating the plan directory failed: {error}"); })?;
+    if let Err(error) = create_private_directory_all(directory) {
+        return Err(format!("creating the plan directory failed: {error}"));
+    }
     let name: String = plan_name(plan);
     match write_private_file_unsynced(directory.join(name.as_str()).as_path(), encode(plan).as_bytes()) {
         Ok(()) => {}
@@ -113,6 +127,11 @@ fn remove_files_of(directory: &Path, key: &str, keep: Option<&str>) {
     }
 }
 
+/// Order two stored plans with the one written later first; equal times keep their order (the sort is stable).
+fn newest_first(left: &(SystemTime, StoredPlan), right: &(SystemTime, StoredPlan)) -> std::cmp::Ordering {
+    return right.0.cmp(&left.0);
+}
+
 /// What:
 ///  Reads every plan in the directory, one per branch, the newest file winning; a file that holds no plan is said and removed.
 /// Why:
@@ -128,11 +147,18 @@ pub fn load(directory: &Path) -> Vec<StoredPlan> {
     let mut found: Vec<(SystemTime, StoredPlan)> = Vec::new();
     for entry in listing.flatten() {
         let path: PathBuf = entry.path();
-        if path.extension().and_then(|extension| { return extension.to_str(); }) != Some(PLAN_EXTENSION) {
+        if path.extension().and_then(std::ffi::OsStr::to_str) != Some(PLAN_EXTENSION) {
             continue;
         }
-        let written: SystemTime = entry.metadata().and_then(|meta| { return meta.modified(); }).unwrap_or(SystemTime::UNIX_EPOCH);
-        match std::fs::read_to_string(path.as_path()).map_err(|error| { return error.to_string(); }).and_then(|text| { return decode(text.as_str()); }) {
+        let written: SystemTime = match entry.metadata() {
+            Ok(meta) => meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
+            Err(_) => SystemTime::UNIX_EPOCH,
+        };
+        let decoded: Result<StoredPlan, String> = match std::fs::read_to_string(path.as_path()) {
+            Ok(text) => decode(text.as_str()),
+            Err(error) => Err(error.to_string()),
+        };
+        match decoded {
             Ok(plan) => found.push((written, plan)),
             Err(reason) => {
                 crate::service_warn!("the retry plan file {} holds no plan and is removed: {reason}", path.display());
@@ -140,11 +166,17 @@ pub fn load(directory: &Path) -> Vec<StoredPlan> {
             }
         }
     }
-    found.sort_by_key(|(written, _)| { return std::cmp::Reverse(*written); });
+    found.sort_by(newest_first);
     let mut plans: Vec<StoredPlan> = Vec::new();
     for (_, plan) in found {
-        let same_branch = |kept: &StoredPlan| { return kept.git_dir == plan.git_dir && kept.item.branch_ref == plan.item.branch_ref; };
-        if !plans.iter().any(same_branch) {
+        let mut already: bool = false;
+        for kept in &plans {
+            if kept.git_dir == plan.git_dir && kept.item.branch_ref == plan.item.branch_ref {
+                already = true;
+                break;
+            }
+        }
+        if !already {
             plans.push(plan);
         }
     }

@@ -101,14 +101,29 @@ pub enum Plan {
 /// if (names.every((name) => name === logRelative)) return silent; if (codeFiles.length === 0) return noCode;
 /// ```
 pub fn plan_for(names: &[String]) -> Plan {
-    if names.iter().all(|name| return name == TRACKED_LOG_RELATIVE) {
+    let mut only_the_log: bool = true;
+    for name in names {
+        if name != TRACKED_LOG_RELATIVE {
+            only_the_log = false;
+            break;
+        }
+    }
+    if only_the_log {
         return Plan::Silent;
     }
-    let code_files: Vec<String> = names
-        .iter()
-        .filter(|name| return CODE_SUFFIXES.iter().any(|suffix| return name.ends_with(suffix)))
-        .cloned()
-        .collect();
+    let mut code_files: Vec<String> = Vec::new();
+    for name in names {
+        let mut is_code: bool = false;
+        for suffix in CODE_SUFFIXES {
+            if name.ends_with(suffix) {
+                is_code = true;
+                break;
+            }
+        }
+        if is_code {
+            code_files.push(name.clone());
+        }
+    }
     if code_files.is_empty() {
         return Plan::NoCode;
     }
@@ -177,8 +192,20 @@ pub struct ReviewInput {
 fn excerpt(name: &str, content: &str, spans: &[NewSpan]) -> (Vec<String>, i64) {
     let file_lines: Vec<&str> = content.split('\n').collect();
     let total: i64 = i64::try_from(file_lines.len()).unwrap_or(i64::MAX);
-    let first_changed: Option<i64> = spans.iter().map(|span| return i64::try_from(span.first).unwrap_or(i64::MAX)).min();
-    let last_changed: Option<i64> = spans.iter().map(|span| return i64::try_from(span.last).unwrap_or(i64::MAX)).max();
+    let mut first_changed: Option<i64> = None;
+    let mut last_changed: Option<i64> = None;
+    for span in spans {
+        let first: i64 = i64::try_from(span.first).unwrap_or(i64::MAX);
+        let last: i64 = i64::try_from(span.last).unwrap_or(i64::MAX);
+        first_changed = match first_changed {
+            Some(known) => Some(known.min(first)),
+            None => Some(first),
+        };
+        last_changed = match last_changed {
+            Some(known) => Some(known.max(last)),
+            None => Some(last),
+        };
+    }
     let (from, to) = match (first_changed, last_changed) {
         (Some(first), Some(last)) => (1.max(first.saturating_sub(EXCERPT_CONTEXT)), total.min(last.saturating_add(EXCERPT_CONTEXT))),
         _ => (1, total.min(HEAD_WINDOW)),

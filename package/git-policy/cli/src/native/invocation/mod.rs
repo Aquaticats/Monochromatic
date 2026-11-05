@@ -31,6 +31,15 @@ pub mod effective_target;
 /// The per-invocation decision the thin executable performs.
 pub mod entry;
 
+/// Plans what a forwarded Git command does: plain forward, settled worktree copy, or index-writer coordination.
+pub mod entry_forward_action_planning;
+
+/// Turns a plain forward of a push into a stacked or LFS-uploading push, with the notices a forward owes.
+pub mod entry_push_stacking_and_lfs_upload;
+
+/// Runs coordinated and settled forwards and writes to the standard streams.
+pub mod entry_run_forwarded_actions;
+
 /// Spellings of the wrapper-only escape hatches shared by several modules.
 pub mod escape_hatch;
 
@@ -46,6 +55,12 @@ pub mod global_arguments;
 ///  retired commands,
 ///  and direct `check`/`fix`.
 pub mod management;
+
+/// The direct `cli-git` commands that run in this process, with their refusals.
+pub mod management_direct_commands;
+
+/// Which repository the service commands mean.
+pub mod management_service_repository_selection;
 
 /// The `git cli-git` argument grammar.
 pub mod management_arguments;
@@ -88,6 +103,9 @@ pub mod git_builtins;
 /// The lifecycle of one wrapped Git command,
 ///  from refusals to forwarding.
 pub mod wrapped_command;
+
+/// The steps of a wrapped command beside its guarded stages: escape-hatch record, push failure notices, snapshots, manual push.
+pub mod wrapped_command_notices_snapshots_and_manual_push;
 
 /// Every real-Git start of the wrapper carries `core.hooksPath` pointing at a directory that never exists.
 pub mod hooks_off;

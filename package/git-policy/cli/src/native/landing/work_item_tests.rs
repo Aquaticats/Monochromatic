@@ -1,6 +1,8 @@
 //! Controls for the work-item record: idempotent enqueue, exclusive claims, lease expiry on the right clock, recovery that
 //! cannot take another instance's claim, and refusal of bad records.
 
+use crate::work_item_recovery::{Recovered, next_claim_expiry, requeue_expired, requeue_expired_reporting};
+use crate::work_item_state_directories_and_claim_names::NAME_SEPARATOR;
 use super::*;
 use crate::test_support::{fixture, remove};
 use crate::work_item_recovery::{STRAY_TEMPORARY_AGE, TEMPORARY_SUFFIX, requeue_with};

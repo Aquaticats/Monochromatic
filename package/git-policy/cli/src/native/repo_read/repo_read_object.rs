@@ -9,6 +9,7 @@
 //! type RawObject = { kind: 'commit' | 'tree' | 'blob' | 'tag'; bytes: Uint8Array };
 //! ```
 
+use crate::index_byte_search::first_index_of_byte;
 use crate::repo_read_layout::ObjectFormat;
 use miniz_oxide::inflate::TINFLStatus;
 use miniz_oxide::inflate::core::{DecompressorOxide, decompress, inflate_flags};
@@ -85,18 +86,25 @@ pub fn from_hex(text: &[u8], format: ObjectFormat) -> Option<Vec<u8>> {
     if text.len() != format.hex_length() {
         return None;
     }
-    let digit = |byte: u8| -> Option<u8> {
-        return match byte {
-            b'0'..=b'9' => Some(byte - b'0'),
-            b'a'..=b'f' => Some(byte - b'a' + 10),
-            _ => None,
-        };
-    };
     let mut name: Vec<u8> = Vec::with_capacity(text.len() / 2);
     for pair in text.chunks(2) {
-        name.push(digit(pair[0])? << 4 | digit(pair[1])?);
+        name.push(hex_digit_value(pair[0])? << 4 | hex_digit_value(pair[1])?);
     }
     return Some(name);
+}
+
+/// Whether `byte` is an ASCII decimal digit.
+fn is_digit_byte(byte: u8) -> bool {
+    return byte.is_ascii_digit();
+}
+
+/// The value of one lower-case hexadecimal digit, or nothing for any other byte.
+fn hex_digit_value(byte: u8) -> Option<u8> {
+    return match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        _ => None,
+    };
 }
 
 /// The most compressed bytes of one stream the inflater looks at; a longer stream is left to Git.
@@ -163,12 +171,12 @@ pub fn parse_loose(file_bytes: &[u8]) -> Option<RawObject> {
     if consumed != file_bytes.len() {
         return None;
     }
-    let nul: usize = whole.iter().position(|byte| { return *byte == 0; })?;
+    let nul: usize = first_index_of_byte(&whole, 0)?;
     let header: &[u8] = &whole[..nul];
-    let space: usize = header.iter().position(|byte| { return *byte == b' '; })?;
+    let space: usize = first_index_of_byte(header, b' ')?;
     let kind: ObjectKind = ObjectKind::from_word(&header[..space])?;
     let size_text: &str = std::str::from_utf8(&header[space + 1..]).ok()?;
-    if size_text.is_empty() || (size_text.len() > 1 && size_text.starts_with('0')) || !size_text.bytes().all(|byte| { return byte.is_ascii_digit(); }) {
+    if size_text.is_empty() || (size_text.len() > 1 && size_text.starts_with('0')) || !size_text.bytes().all(is_digit_byte) {
         return None;
     }
     let size: usize = size_text.parse::<usize>().ok()?;

@@ -110,7 +110,12 @@ pub fn clean_reason(said: &str) -> String {
     let masked: String = mask_userinfo_text(said);
     let mut kept: Vec<String> = Vec::new();
     for line in masked.lines() {
-        let plain: String = line.chars().filter(|character| { return *character == '\t' || !character.is_control(); }).collect();
+        let mut plain: String = String::new();
+        for character in line.chars() {
+            if character == '\t' || !character.is_control() {
+                plain.push(character);
+            }
+        }
         let trimmed: &str = plain.trim_end();
         if !trimmed.is_empty() {
             kept.push(trimmed.to_string());
@@ -144,7 +149,7 @@ fn worded(branch_ref: &str, shown: &str, reason: &str) -> String {
     let detail: String = if reason.is_empty() {
         NO_REASON.to_string()
     } else {
-        format!("Git said:\n{}", reason.lines().map(|line| { return format!("    {line}"); }).collect::<Vec<String>>().join("\n"))
+        format!("Git said:\n{}", indented(reason))
     };
     return format!(
         "The backup push of branch {branch} failed for commit {shown}, so that commit exists only on this computer for now. \
@@ -185,7 +190,7 @@ fn worded_skipped(branch_ref: &str, shown: &str, reason: &str) -> String {
     let detail: String = if reason.is_empty() {
         String::from("The commit service gave no reason.")
     } else {
-        format!("The commit service said:\n{}", reason.lines().map(|line| { return format!("    {line}"); }).collect::<Vec<String>>().join("\n"))
+        format!("The commit service said:\n{}", indented(reason))
     };
     return format!(
         "The backup push of branch {branch} for commit {shown} was not made, so that commit exists only on this computer for now. \
@@ -208,11 +213,16 @@ fn worded_skipped(branch_ref: &str, shown: &str, reason: &str) -> String {
 /// ```
 pub fn record_push_skip(git_dir: &Path, branch_ref: &str, commit: &str, said: &str) -> Result<(), String> {
     let directory: PathBuf = notice_directory(git_dir);
-    create_private_directory_all(directory.as_path()).map_err(|error| { return format!("creating the notice directory failed: {error}"); })?;
+    if let Err(error) = create_private_directory_all(directory.as_path()) {
+        return Err(format!("creating the notice directory failed: {error}"));
+    }
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
     let _removed = std::fs::remove_file(path.as_path());
     let text: String = format!("{SKIPPED_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
-    return write_private_file_unsynced(path.as_path(), text.as_bytes()).map_err(|error| { return format!("writing the notice failed: {error}"); });
+    return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(format!("writing the notice failed: {error}")),
+    };
 }
 
 /// What:
@@ -227,12 +237,17 @@ pub fn record_push_skip(git_dir: &Path, branch_ref: &str, commit: &str, said: &s
 /// ```
 pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, said: &str) -> Result<(), String> {
     let directory: PathBuf = notice_directory(git_dir);
-    create_private_directory_all(directory.as_path()).map_err(|error| { return format!("creating the notice directory failed: {error}"); })?;
+    if let Err(error) = create_private_directory_all(directory.as_path()) {
+        return Err(format!("creating the notice directory failed: {error}"));
+    }
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
     // A repeat of the same failure replaces its record.
     let _removed = std::fs::remove_file(path.as_path());
     let text: String = format!("{RECORD_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
-    return write_private_file_unsynced(path.as_path(), text.as_bytes()).map_err(|error| { return format!("writing the notice failed: {error}"); });
+    return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(format!("writing the notice failed: {error}")),
+    };
 }
 
 /// What:
@@ -261,7 +276,9 @@ fn worded_lost(branch_ref: &str, shown: &str) -> String {
 /// ```
 pub fn record_lost_push(common_dir: &Path, branch_ref: &str, commit: &str) -> Result<(), String> {
     let directory: PathBuf = common_dir.join(ORPHAN_NOTICE_DIRECTORY);
-    create_private_directory_all(directory.as_path()).map_err(|error| { return format!("creating the notice directory failed: {error}"); })?;
+    if let Err(error) = create_private_directory_all(directory.as_path()) {
+        return Err(format!("creating the notice directory failed: {error}"));
+    }
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
     if path.exists() {
         return Ok(());
@@ -331,7 +348,13 @@ pub fn clear_push_failures_before(git_dir: &Path, branch_ref: &str, cutoff: std:
     let Ok(listing) = std::fs::read_dir(notice_directory(git_dir)) else { return };
     let prefix: String = branch_prefix(branch_ref);
     for entry in listing.flatten() {
-        let older: bool = entry.metadata().and_then(|meta| { return meta.modified(); }).is_ok_and(|written| { return written <= cutoff; });
+        let older: bool = match entry.metadata() {
+            Ok(meta) => match meta.modified() {
+                Ok(written) => written <= cutoff,
+                Err(_) => false,
+            },
+            Err(_) => false,
+        };
         if older && entry.file_name().to_string_lossy().starts_with(prefix.as_str()) {
             let _removed = std::fs::remove_file(entry.path());
         }
@@ -360,7 +383,10 @@ pub struct Worktrees {
 pub fn branch_of_head(git_dir: &Path) -> Option<String> {
     let text: String = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
     let target: &str = text.lines().next()?.strip_prefix("ref: ")?.trim();
-    return target.starts_with("refs/heads/").then(|| { return target.to_string(); });
+    if target.starts_with("refs/heads/") {
+        return Some(target.to_string());
+    }
+    return None;
 }
 
 /// What:
@@ -384,7 +410,15 @@ pub fn checked_out_branches(common_dir: &Path) -> Vec<String> {
 
 /// Whether a record of `branch_ref` is for the asking worktree: it has the branch checked out, or no worktree has.
 fn is_for(worktrees: &Worktrees, branch_ref: &str) -> bool {
-    return worktrees.here.as_deref() == Some(branch_ref) || !worktrees.all.iter().any(|held| { return held == branch_ref; });
+    if worktrees.here.as_deref() == Some(branch_ref) {
+        return true;
+    }
+    for held in &worktrees.all {
+        if held == branch_ref {
+            return false;
+        }
+    }
+    return true;
 }
 
 /// What:
@@ -419,7 +453,10 @@ pub fn take_orphaned_failures(common_dir: &Path, abbreviate: &dyn Fn(&str) -> St
 /// Reads and removes the records in one directory that are for the asking worktree, oldest name first.
 fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn Fn(&str) -> String) -> Vec<String> {
     let Ok(listing) = std::fs::read_dir(directory) else { return Vec::new() };
-    let mut paths: Vec<PathBuf> = listing.flatten().map(|entry| { return entry.path(); }).collect();
+    let mut paths: Vec<PathBuf> = Vec::new();
+    for entry in listing.flatten() {
+        paths.push(entry.path());
+    }
     paths.sort();
     let mut texts: Vec<String> = Vec::new();
     for path in paths {
@@ -455,7 +492,21 @@ fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
 /// const texts = await takePushFailures(gitDir)
 /// ```
 pub fn take_push_failures(git_dir: &Path) -> Vec<String> {
-    return take_push_failures_for(git_dir, None, &|commit| { return commit.to_string(); });
+    return take_push_failures_for(git_dir, None, &full_commit_name);
+}
+
+/// A commit name as it is, for the callers that show commits in full.
+fn full_commit_name(commit: &str) -> String {
+    return commit.to_string();
+}
+
+/// The lines of `reason`, each with four spaces in front, joined by newlines.
+fn indented(reason: &str) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    for line in reason.lines() {
+        lines.push(format!("    {line}"));
+    }
+    return lines.join("\n");
 }
 
 /// Commands that a program reads the output of, or that carry a protocol on their streams.

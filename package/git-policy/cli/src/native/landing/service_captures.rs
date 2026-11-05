@@ -78,7 +78,10 @@ impl CaptureMemory {
     /// memory.remembered(commonDir, worktree)
     /// ```
     pub fn remembered(&self, common_dir: &Path, worktree: &Path) -> Vec<LandedCapture> {
-        return self.by_worktree.get(&(common_dir.to_path_buf(), worktree.to_path_buf())).map(|entries| { return entries.iter().cloned().collect(); }).unwrap_or_default();
+        return match self.by_worktree.get(&(common_dir.to_path_buf(), worktree.to_path_buf())) {
+            Some(entries) => entries.iter().cloned().collect(),
+            None => Vec::new(),
+        };
     }
 }
 

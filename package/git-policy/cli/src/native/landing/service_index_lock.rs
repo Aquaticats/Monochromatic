@@ -66,7 +66,15 @@ pub(crate) fn notice_every() -> Duration {
 /// Why:
 ///   Zero would repeat the holder's line without a pause.
 pub(crate) fn notice_interval(setting: Option<&str>) -> Duration {
-    return setting.and_then(|text| { return text.trim().parse::<u64>().ok(); }).filter(|seconds| { return *seconds > 0; }).map_or(NOTICE_EVERY, Duration::from_secs);
+    // A setting that is missing, is not a number or is zero leaves the default.
+    let seconds: Option<u64> = match setting {
+        Some(text) => text.trim().parse::<u64>().ok(),
+        None => None,
+    };
+    return match seconds {
+        Some(found) if found > 0 => Duration::from_secs(found),
+        _ => NOTICE_EVERY,
+    };
 }
 
 /// What the wait tells the clients of the batch.
@@ -275,10 +283,13 @@ fn acquire_placing(
             let staged_result = stage_marker_synced(platform.sync, &lock, seq, marker.as_str());
             notes.staging += staging_began.elapsed();
             notes.stage_kind = "cold";
-            let (staged, held) = staged_result.map_err(|error| {
-                log_placement_failure(&lock, &error);
-                return LockFailure { code: crate::service_land_follow::storage_failure(&error) };
-            })?;
+            let (staged, held) = match staged_result {
+                Ok(made) => made,
+                Err(error) => {
+                    log_placement_failure(&lock, &error);
+                    return Err(LockFailure { code: crate::service_land_follow::storage_failure(&error) });
+                }
+            };
             (marker, staged, held)
         }
     };

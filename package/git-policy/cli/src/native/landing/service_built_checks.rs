@@ -17,7 +17,7 @@
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
 use crate::repo_read_odb::ObjectDatabase;
-use crate::repo_read_tree::{MODE_GITLINK, TreeEntry, is_tree_mode, parse_commit, parse_tree};
+use crate::repo_read_tree::{CommitFields, MODE_GITLINK, TreeEntry, is_tree_mode, parse_commit, parse_tree};
 use crate::config_snapshot::ConfigSnapshot;
 use crate::transaction_git::GitContext;
 use std::collections::HashMap;
@@ -76,6 +76,55 @@ fn history_is_rewritten(common_dir: &Path) -> bool {
 }
 
 /// What:
+///  Whether the overlay of the landing's Git context sets a variable of this name.
+/// Why:
+///  `history_is_plain` counts a variable the overlay sets the same as one the environment sets.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// git.overlay.some(([key]) => key === name)
+/// ```
+fn overlay_sets(git: &GitContext, name: &str) -> bool {
+    for (key, _value) in git.overlay.iter() {
+        if key.to_string_lossy() == name {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Whether a global option of the invocation switches replacement objects off or changes where they are read.
+/// Why:
+///  `history_is_plain` refuses a prefix with `--no-replace-objects`, `--replace-refs` or `core.useReplaceRefs`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const changesReplacements = (word: string) => { const t = word.toLowerCase(); return t === '--no-replace-objects' || t.startsWith('--replace-refs') || t.includes('core.usereplacerefs'); };
+/// ```
+fn changes_replacements(word: &std::ffi::OsString) -> bool {
+    let text = word.to_string_lossy().to_ascii_lowercase();
+    return text == "--no-replace-objects" || text.starts_with("--replace-refs") || text.contains("core.usereplacerefs");
+}
+
+/// What:
+///  The parents of a commit as hexadecimal names.
+/// Why:
+///  The built commit carries its parents the way Git prints them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// parents.map((parent) => toHex(parent))
+/// ```
+fn hex_of_parents(parents: &[Vec<u8>]) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for parent in parents {
+        names.push(to_hex(parent.as_slice()));
+    }
+    return names;
+}
+
+/// What:
 ///  Whether Git, started the way the landing starts it, shows the history the commit objects say.
 /// Why:
 ///   The checks of a commit Git built are answered from the object store only then. Git reads its history from the files at the
@@ -94,15 +143,22 @@ pub fn history_is_plain(common_dir: &Path, git: &GitContext, snapshot: Option<&C
     if history_is_rewritten(common_dir) {
         return false;
     }
-    let overlay_sets = |name: &str| -> bool { return git.overlay.iter().any(|(key, _)| { return key.to_string_lossy() == name; }); };
-    if HISTORY_VARIABLES.iter().any(|name| { return std::env::var_os(name).is_some() || overlay_sets(name); }) {
+    // A variable of the environment or of the overlay that names another place for Git's history is "not plain".
+    for name in HISTORY_VARIABLES {
+        if std::env::var_os(name).is_some() || overlay_sets(git, name) {
+            return false;
+        }
+    }
+    let prefix_changes_replacements: bool = git.global_prefix.iter().any(changes_replacements);
+    if prefix_changes_replacements {
         return false;
     }
-    let prefix_changes_replacements = git.global_prefix.iter().any(|word| {
-        let text = word.to_string_lossy().to_ascii_lowercase();
-        return text == "--no-replace-objects" || text.starts_with("--replace-refs") || text.contains("core.usereplacerefs");
-    });
-    return !prefix_changes_replacements && !read.entries().iter().any(|entry| { return entry.key == "core.usereplacerefs"; });
+    for entry in read.entries().iter() {
+        if entry.key == "core.usereplacerefs" {
+            return false;
+        }
+    }
+    return true;
 }
 
 /// What:
@@ -126,7 +182,7 @@ pub fn read_commit(common_dir: &Path, built: &str) -> Option<BuiltCommit> {
         return None;
     }
     let fields = parse_commit(object.bytes.as_slice(), format)?;
-    return Some(BuiltCommit { name: from_hex(built.as_bytes(), format)?, parents: fields.parents.iter().map(|parent| { return to_hex(parent.as_slice()); }).collect(), tree: fields.tree });
+    return Some(BuiltCommit { name: from_hex(built.as_bytes(), format)?, parents: hex_of_parents(&fields.parents), tree: fields.tree });
 }
 
 /// What the walk found.
@@ -168,7 +224,11 @@ impl Proof<'_> {
             return Found::Unproven;
         }
         let Some(wanted) = self.entries(new) else { return Found::Unproven };
-        let before: Vec<TreeEntry> = old.and_then(|name| { return self.entries(name); }).unwrap_or_default();
+        // A directory that is not named, or cannot be read, has no entries to compare with.
+        let before: Vec<TreeEntry> = match old {
+            Some(name) => self.entries(name).unwrap_or_default(),
+            None => Vec::new(),
+        };
         // Both directories are paid for from the budget: a wide one is bounded by its width, whatever the other holds.
         let cost: usize = wanted.len().saturating_add(before.len());
         if cost > self.budget {
@@ -179,17 +239,20 @@ impl Proof<'_> {
         //  two directories and not with their product.
         let mut by_name: HashMap<&[u8], &TreeEntry> = HashMap::with_capacity(before.len());
         for candidate in &before {
-            NAME_STEPS.with(|steps| { steps.set(steps.get() + 1); });
+            NAME_STEPS.set(NAME_STEPS.get() + 1);
             by_name.insert(candidate.name.as_slice(), candidate);
         }
         for entry in wanted {
-            NAME_STEPS.with(|steps| { steps.set(steps.get() + 1); });
+            NAME_STEPS.set(NAME_STEPS.get() + 1);
             let same_name: Option<&&TreeEntry> = by_name.get(entry.name.as_slice());
-            if same_name.is_some_and(|candidate| { return candidate.id == entry.id && candidate.mode == entry.mode; }) || entry.mode == MODE_GITLINK {
+            if matches!(same_name, Some(candidate) if candidate.id == entry.id && candidate.mode == entry.mode) || entry.mode == MODE_GITLINK {
                 continue;
             }
             if is_tree_mode(entry.mode) {
-                let below: Option<&[u8]> = same_name.filter(|candidate| { return is_tree_mode(candidate.mode); }).map(|candidate| { return candidate.id.as_slice(); });
+                let below: Option<&[u8]> = match same_name {
+                    Some(candidate) if is_tree_mode(candidate.mode) => Some(candidate.id.as_slice()),
+                    _ => None,
+                };
                 if self.tree(entry.id.as_slice(), below, depth + 1) == Found::Unproven {
                     return Found::Unproven;
                 }
@@ -222,7 +285,9 @@ pub fn adds_only_present_objects(common_dir: &Path, built: &BuiltCommit, tip: &s
     let Some(database) = ObjectDatabase::open(common_dir, None, format) else { return false };
     let Some(tip_bytes) = from_hex(tip.as_bytes(), format) else { return false };
     let Some(tip_object) = database.read(tip_bytes.as_slice()) else { return false };
-    let Some(tip_fields) = (tip_object.kind == ObjectKind::Commit).then(|| { return parse_commit(tip_object.bytes.as_slice(), format); }).flatten() else { return false };
+    // Only a commit has fields to read.
+    let tip_fields_read: Option<CommitFields> = if tip_object.kind == ObjectKind::Commit { parse_commit(tip_object.bytes.as_slice(), format) } else { None };
+    let Some(tip_fields) = tip_fields_read else { return false };
     // The commit was read before the objects were checked, and an object can go in between: it is looked up again here.
     if !database.contains(built.name.as_slice()) {
         return false;

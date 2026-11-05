@@ -5,7 +5,9 @@ use super::*;
 use crate::test_support::executable;
 use crate::package_repair_report::{Outcome, Tool};
 use crate::test_support::{SharedSink, fixture, git_context, remove};
+use std::ffi::OsString;
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// The arguments of a command line as the wrapper receives them.
 fn words(values: &[&str]) -> Vec<OsString> {

@@ -17,9 +17,9 @@
 
 use crate::iso_time::{format_iso_milliseconds, now_iso};
 use crate::subvolume_error::MigrateError;
+use crate::subvolume_file_write_steps::{sync_directory_to_disk, write_all_then_sync};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
-use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
@@ -50,11 +50,42 @@ fn is_leftover_name(candidate: &[u8], journal_name: &[u8]) -> bool {
         return true;
     }
     let Some(numbers) = rest.strip_prefix(b".") else { return false };
-    let mut parts = numbers.split(|byte: &u8| { return *byte == b'.'; });
-    let numeric = |part: Option<&[u8]>| -> bool { return part.is_some_and(|digits: &[u8]| { return !digits.is_empty() && digits.iter().all(u8::is_ascii_digit); }); };
+    let mut parts = numbers.split(is_dot);
     let process: Option<&[u8]> = parts.next();
     let clock: Option<&[u8]> = parts.next();
-    return numeric(process) && numeric(clock) && parts.next().is_none();
+    return is_number(process) && is_number(clock) && parts.next().is_none();
+}
+
+/// Whether `byte` is a dot, the separator inside the numbers of a temporary name.
+fn is_dot(byte: &u8) -> bool {
+    return *byte == b'.';
+}
+
+/// Whether the part exists and is a non-empty run of ASCII digits.
+fn is_number(part: Option<&[u8]>) -> bool {
+    return match part {
+        Some(digits) => !digits.is_empty() && digits.iter().all(u8::is_ascii_digit),
+        None => false,
+    };
+}
+
+/// The error for a journal file that cannot be understood: it says what is wrong with the file at `path`.
+fn broken_journal(path: &Path, why: &str) -> MigrateError {
+    return MigrateError::Journal(format!("the journal {} {why}; read it, and delete it only if no migration is in progress", path.display()));
+}
+
+/// Write `bytes` to a new file at `sibling`, rename it over `target`, and make the rename durable with the directory that holds the new name.
+fn write_and_rename(sibling: &Path, target: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    write_exclusively(sibling, bytes)?;
+    if let Err(error) = std::fs::rename(sibling, target) {
+        let _removed: std::io::Result<()> = std::fs::remove_file(sibling);
+        return Err(error);
+    }
+    // The rename is made durable with the directory that holds the new name.
+    return match target.parent() {
+        Some(directory) => sync_directory_to_disk(directory),
+        None => Ok(()),
+    };
 }
 
 /// What:
@@ -69,7 +100,7 @@ fn is_leftover_name(candidate: &[u8], journal_name: &[u8]) -> bool {
 /// ```
 fn write_exclusively(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(PRIVATE_FILE_MODE).open(path)?;
-    let written: std::io::Result<()> = file.write_all(bytes).and_then(|()| { return file.sync_all(); });
+    let written: std::io::Result<()> = write_all_then_sync(&mut file, bytes);
     if let Err(error) = written {
         let _removed: std::io::Result<()> = std::fs::remove_file(path);
         return Err(error);
@@ -120,17 +151,26 @@ impl Journal {
             }
             Err(error) => return Err(MigrateError::io("read the journal", path, &error)),
         };
-        let broken = |why: &str| { return MigrateError::Journal(format!("the journal {} {why}; read it, and delete it only if no migration is in progress", path.display())); };
-        let value: Value = serde_json::from_str(text.as_str()).map_err(|error: serde_json::Error| { return broken(format!("is not valid JSON ({error})").as_str()); })?;
+        let value: Value = match serde_json::from_str(text.as_str()) {
+            Ok(parsed) => parsed,
+            Err(error) => return Err(broken_journal(path, format!("is not valid JSON ({error})").as_str())),
+        };
         if value.get("schema").and_then(Value::as_u64) != Some(SCHEMA) {
-            return Err(broken("has an unknown schema version"));
+            return Err(broken_journal(path, "has an unknown schema version"));
         }
-        let started: String = value.get("started").and_then(Value::as_str).ok_or_else(|| { return broken("has no start time"); })?.to_string();
-        let steps: &Map<String, Value> = value.get("steps").and_then(Value::as_object).ok_or_else(|| { return broken("has no steps"); })?;
+        let Some(started_text) = value.get("started").and_then(Value::as_str) else {
+            return Err(broken_journal(path, "has no start time"));
+        };
+        let started: String = started_text.to_string();
+        let Some(steps) = value.get("steps").and_then(Value::as_object) else {
+            return Err(broken_journal(path, "has no steps"));
+        };
         let mut states: BTreeMap<String, String> = BTreeMap::new();
         let mut times: BTreeMap<String, i64> = BTreeMap::new();
         for (name, record) in steps {
-            let state: &str = record.get("state").and_then(Value::as_str).ok_or_else(|| { return broken("has a step without a state"); })?;
+            let Some(state) = record.get("state").and_then(Value::as_str) else {
+                return Err(broken_journal(path, "has a step without a state"));
+            };
             states.insert(name.clone(), state.to_string());
             if let Some(milliseconds) = record.get("epoch_ms").and_then(Value::as_i64) {
                 times.insert(name.clone(), milliseconds);
@@ -157,7 +197,8 @@ impl Journal {
     /// The time, in whole seconds after the epoch, at which the step got its current state; nothing for a step with no
     ///  record or a record written without a time.
     pub fn seconds_of(&self, step: &str) -> Option<i64> {
-        return self.times.get(step).map(|milliseconds: &i64| { return milliseconds.div_euclid(1000); });
+        let milliseconds: &i64 = self.times.get(step)?;
+        return Some(milliseconds.div_euclid(1000));
     }
 
     /// The recorded state of a step, if any.
@@ -188,9 +229,10 @@ impl Journal {
     /// ```
     pub fn mark(&mut self, step: &str, state: &str) -> Result<(), MigrateError> {
         self.states.insert(step.to_string(), state.to_string());
-        let now: i64 = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |elapsed: std::time::Duration| { return i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX); });
+        let now: i64 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+            Ok(elapsed) => i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX),
+            Err(_) => 0,
+        };
         self.times.insert(step.to_string(), now);
         let mut steps: Map<String, Value> = Map::new();
         for (name, recorded) in &self.states {
@@ -207,19 +249,8 @@ impl Journal {
         document.insert(String::from("steps"), Value::Object(steps));
         let text: String = serde_json::to_string_pretty(&Value::Object(document)).unwrap_or_default();
         let sibling_path: PathBuf = self.temporary_path();
-        let write = || -> std::io::Result<()> {
-            write_exclusively(sibling_path.as_path(), text.as_bytes())?;
-            if let Err(error) = std::fs::rename(&sibling_path, &self.path) {
-                let _removed: std::io::Result<()> = std::fs::remove_file(&sibling_path);
-                return Err(error);
-            }
-            // The rename is made durable with the directory that holds the new name.
-            return match self.path.parent() {
-                Some(directory) => std::fs::File::open(directory).and_then(|held: std::fs::File| { return held.sync_all(); }),
-                None => Ok(()),
-            };
-        };
-        write().map_err(|error: std::io::Error| { return MigrateError::io("write the journal", self.path.as_path(), &error); })?;
+        let written: std::io::Result<()> = write_and_rename(sibling_path.as_path(), self.path.as_path(), text.as_bytes());
+        MigrateError::from_io_result(written, "write the journal", self.path.as_path())?;
         self.persisted = true;
         self.remove_leftovers();
         return Ok(());
@@ -228,7 +259,10 @@ impl Journal {
     /// A name for this write's temporary file that no other file has: this process and the clock make it, and the
     ///  creation is exclusive.
     fn temporary_path(&self) -> PathBuf {
-        let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed: std::time::Duration| { return elapsed.as_nanos(); });
+        let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+            Ok(elapsed) => elapsed.as_nanos(),
+            Err(_) => 0,
+        };
         let mut name: std::ffi::OsString = self.path.as_os_str().to_os_string();
         name.push(format!("{TEMPORARY_SUFFIX}.{}.{nanos}", std::process::id()));
         return PathBuf::from(name);
@@ -249,7 +283,10 @@ impl Journal {
             if !is_leftover_name(name.as_encoded_bytes(), journal_name.as_encoded_bytes()) {
                 continue;
             }
-            let is_plain_file: bool = item.file_type().is_ok_and(|kind: std::fs::FileType| { return kind.is_file(); });
+            let is_plain_file: bool = match item.file_type() {
+                Ok(kind) => kind.is_file(),
+                Err(_) => false,
+            };
             if is_plain_file {
                 let _removed: std::io::Result<()> = std::fs::remove_file(item.path());
             }

@@ -231,8 +231,10 @@ fn fill_name<const N: usize>(buffer: &mut [u8; N], name: &OsStr, operation: &'st
 /// const fd = await open(directory, 'r');
 /// ```
 fn open_directory(directory: &Path, operation: &'static str) -> Result<File, PrimitiveError> {
-    return File::open(directory)
-        .map_err(|error| { return PrimitiveError { operation, path: directory.to_path_buf(), errno: error.raw_os_error().unwrap_or(0) }; });
+    return match File::open(directory) {
+        Ok(file) => Ok(file),
+        Err(error) => Err(PrimitiveError { operation, path: directory.to_path_buf(), errno: error.raw_os_error().unwrap_or(0) }),
+    };
 }
 
 /// What:
@@ -395,9 +397,12 @@ pub fn snapshot_destroy_in(parent: &File, name: &OsStr, parent_path: &Path) -> R
 /// const [parent, name] = [dirname(path), basename(path)];
 /// ```
 pub fn split_parent(path: &Path, operation: &'static str) -> Result<(std::path::PathBuf, std::ffi::OsString), PrimitiveError> {
-    let refused = || { return PrimitiveError { operation, path: path.to_path_buf(), errno: libc::EINVAL }; };
-    let name: &OsStr = path.file_name().ok_or_else(refused)?;
-    let parent: &Path = path.parent().ok_or_else(refused)?;
+    let Some(name) = path.file_name() else {
+        return Err(PrimitiveError { operation, path: path.to_path_buf(), errno: libc::EINVAL });
+    };
+    let Some(parent) = path.parent() else {
+        return Err(PrimitiveError { operation, path: path.to_path_buf(), errno: libc::EINVAL });
+    };
     let parent_path: std::path::PathBuf = if parent.as_os_str().is_empty() { std::path::PathBuf::from(".") } else { parent.to_path_buf() };
     return Ok((parent_path, name.to_os_string()));
 }

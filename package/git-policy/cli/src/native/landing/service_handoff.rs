@@ -41,6 +41,19 @@ pub struct ServiceHandoff {
 pub const HANDED_OVER: [WorkKind; 2] = [WorkKind::Push, WorkKind::Maintenance];
 
 /// What:
+///  The value of an environment variable, nothing when it is unset or not text.
+/// Why:
+///  `hand_over` reads the review key from the process environment through it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const environmentVariable = (name: string) => process.env[name];
+/// ```
+fn environment_variable(name: &str) -> Option<String> {
+    return std::env::var(name).ok();
+}
+
+/// What:
 ///  Writes the work records for a landed commit and wakes the service.
 /// Why:
 ///   The records are written before the message is sent, so a service that wakes always finds them; records that were
@@ -51,7 +64,7 @@ pub const HANDED_OVER: [WorkKind; 2] = [WorkKind::Push, WorkKind::Maintenance];
 /// await handOver(handoff, landed)
 /// ```
 pub fn hand_over(handoff: &ServiceHandoff, landed: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
-    let key: Option<ReviewKey> = key_from_environment(&|name| { return std::env::var(name).ok(); });
+    let key: Option<ReviewKey> = key_from_environment(&environment_variable);
     return hand_over_with_key(handoff, landed, key.as_ref(), notices);
 }
 

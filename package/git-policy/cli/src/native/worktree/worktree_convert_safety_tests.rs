@@ -3,6 +3,9 @@
 //!  failed index refresh.
 
 use super::*;
+use crate::fs_beneath::{identity_at, open_root};
+use crate::worktree_convert_journal::is_recorded_object;
+use crate::worktree_convert_remove::{Removal, remove_recorded_old_tree};
 use crate::subvolume_test_support::{PlainPlatform, backdate, checkout_with_worktree};
 use crate::test_support::{git, remove};
 use crate::worktree_convert_journal::Phase as JournalPhase;

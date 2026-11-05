@@ -13,6 +13,7 @@
 //! const plan = parseAddPlan(['-C', 'repo', 'worktree', 'add', '-b', 'topic', '../topic'], 1, cwd); // undefined: plain Git
 //! ```
 
+use crate::worktree_add_plan_path_questions::{is_slash, is_symbolic_link, names_parent_directory, nearest_existing_ancestor};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
@@ -65,7 +66,7 @@ pub fn start_directory(global_prefix: &[OsString], current: &Path) -> Option<Pat
         let bytes: &[u8] = token.as_encoded_bytes();
         if bytes == b"-C" {
             let target: &OsString = tokens.next()?;
-            if Path::new(target).components().any(|part| { return part == std::path::Component::ParentDir; }) {
+            if names_parent_directory(Path::new(target)) {
                 return None;
             }
             if !target.is_empty() {
@@ -76,6 +77,44 @@ pub fn start_directory(global_prefix: &[OsString], current: &Path) -> Option<Pat
         }
     }
     return Some(start);
+}
+
+/// What:
+///  Whether a global option word is a valued global in its attached form, `<name>=<value>`.
+/// Why:
+///   Such a word carries its value, so the word after it is not a value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// COPY_VALUED_GLOBALS.some((name) => word.startsWith(`${name}=`))
+/// ```
+fn is_valued_global_with_equals(word: &[u8]) -> bool {
+    for name in COPY_VALUED_GLOBALS {
+        if let Some(rest) = word.strip_prefix(*name)
+            && rest.first() == Some(&b'=')
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  The option of the table whose one-letter spelling is `letter`, if any.
+/// Why:
+///   Bundled short options are read letter by letter.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ADD_OPTIONS.find((candidate) => candidate.short === letter)
+/// ```
+fn option_for_short_letter(letter: u8) -> Option<&'static AddOption> {
+    for candidate in ADD_OPTIONS {
+        if candidate.short == Some(letter) {
+            return Some(candidate);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -95,7 +134,7 @@ fn recorded_destination(start: &Path, operand: &OsStr) -> Option<PathBuf> {
     while let Some(rest) = trimmed.strip_suffix(b"/") {
         trimmed = rest;
     }
-    let last: &[u8] = trimmed.rsplit(|byte| { return *byte == b'/'; }).next()?;
+    let last: &[u8] = trimmed.rsplit(is_slash).next()?;
     if last.is_empty() || last == b"." || last == b".." {
         return None;
     }
@@ -104,7 +143,7 @@ fn recorded_destination(start: &Path, operand: &OsStr) -> Option<PathBuf> {
     let recorded: PathBuf = parent.join(OsStr::from_bytes(last));
     // Git records the resolved path of a destination that is a link, so the directory Git fills and the path the ladder
     // would swap differ: decline, and let Git run alone.
-    if std::fs::symlink_metadata(recorded.as_path()).is_ok_and(|found: std::fs::Metadata| { return found.file_type().is_symlink(); }) {
+    if is_symbolic_link(recorded.as_path()) {
         return None;
     }
     return Some(recorded);
@@ -243,8 +282,7 @@ pub fn copy_start_directory(global_prefix: &[OsString], current: &Path) -> Optio
             }
         } else if COPY_SEPARATE_VALUE_GLOBALS.contains(&bytes) || COPY_VALUED_GLOBALS.contains(&bytes) {
             tokens.next()?;
-        } else if COPY_VALUED_GLOBALS.iter().any(|name| { return bytes.strip_prefix(*name).is_some_and(|rest| { return rest.first() == Some(&b'='); }); })
-            || bytes.starts_with(b"--exec-path=")
+        } else if is_valued_global_with_equals(bytes) || bytes.starts_with(b"--exec-path=")
         {
             continue;
         } else if !COPY_NEUTRAL_GLOBALS.contains(&bytes) {
@@ -387,7 +425,7 @@ fn copy_add_operands(region: &[OsString]) -> Option<Vec<&OsString>> {
             // Bundled short options: flags stand alone, and `b` or `B` takes the rest of the token or the next token.
             let letters: &[u8] = &bytes[1..];
             for (position, letter) in letters.iter().enumerate() {
-                let option: &AddOption = ADD_OPTIONS.iter().find(|candidate| { return candidate.short == Some(*letter); })?;
+                let option: &AddOption = option_for_short_letter(*letter)?;
                 if option.takes == Takes::Required {
                     if position + 1 == letters.len() {
                         tokens.next()?;
@@ -418,15 +456,15 @@ fn creating_destination(start: &Path, operand: &OsStr) -> Option<PathBuf> {
     while let Some(rest) = trimmed.strip_suffix(b"/") {
         trimmed = rest;
     }
-    let last: &[u8] = trimmed.rsplit(|byte| { return *byte == b'/'; }).next()?;
+    let last: &[u8] = trimmed.rsplit(is_slash).next()?;
     if last.is_empty() || last == b"." || last == b".." {
         return None;
     }
     let joined: PathBuf = start.join(OsStr::from_bytes(trimmed));
-    if std::fs::symlink_metadata(joined.as_path()).is_ok_and(|found: std::fs::Metadata| { return found.file_type().is_symlink(); }) {
+    if is_symbolic_link(joined.as_path()) {
         return None;
     }
-    let existing: &Path = joined.ancestors().find(|ancestor| { return ancestor.exists(); })?;
+    let existing: &Path = nearest_existing_ancestor(joined.as_path())?;
     let mut resolved: PathBuf = std::fs::canonicalize(existing).ok()?;
     for part in joined.strip_prefix(existing).ok()?.components() {
         match part {

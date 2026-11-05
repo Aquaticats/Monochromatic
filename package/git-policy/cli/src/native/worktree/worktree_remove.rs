@@ -31,6 +31,7 @@ use crate::fs_mount_options::read_mount_facts;
 use crate::subvolume_remove_walk::{empty_directory, verify_below};
 use crate::transaction_git::GitContext;
 use crate::worktree_clean::check_clean;
+use crate::worktree_path_failure_message::path_failure;
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_remove_registry::{Registration, registration_of};
 use std::ffi::OsString;
@@ -178,11 +179,17 @@ impl RemoveOperations for LinuxOperations {
     }
 
     fn removal_allowed(&self, path: &Path) -> bool {
-        return read_mount_facts(path).ok().flatten().is_some_and(|facts| { return facts.has_option(REMOVAL_OPTION); });
+        return match read_mount_facts(path) {
+            Ok(Some(facts)) => facts.has_option(REMOVAL_OPTION),
+            _ => false,
+        };
     }
 
     fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, common_dir: &Path) -> Result<(), String> {
-        return check_clean(request.context, request.plan.target.as_path(), admin, common_dir).map(drop).map_err(|refusal| { return refusal.reason; });
+        return match check_clean(request.context, request.plan.target.as_path(), admin, common_dir) {
+            Ok(_proof) => Ok(()),
+            Err(refusal) => Err(refusal.reason),
+        };
     }
 
     fn destroy(&self, held: &Held) -> Result<(), String> {
@@ -201,7 +208,10 @@ impl RemoveOperations for LinuxOperations {
             }
             Err(error) => return Err(error.to_string()),
         }
-        return snapshot_destroy_in(&held.parent, held.name.as_os_str(), held.parent_path.as_path()).map_err(|error| { return error.to_string(); });
+        return match snapshot_destroy_in(&held.parent, held.name.as_os_str(), held.parent_path.as_path()) {
+            Ok(()) => Ok(()),
+            Err(error) => Err(error.to_string()),
+        };
     }
 }
 
@@ -214,19 +224,40 @@ impl RemoveOperations for LinuxOperations {
 /// ```ts
 /// async function hold(target: string, registration: Registration): Promise<Held>; // throws the reason
 /// ```
+/// A step of holding the worktree's directories with its failure worded as a refusal to open `what` at `path` without
+///  following a link.
+fn refused<T>(outcome: std::io::Result<T>, what: &str, path: &Path) -> Result<T, String> {
+    return match outcome {
+        Ok(value) => Ok(value),
+        Err(error) => Err(format!("{what} {} cannot be opened without following a link ({error})", path.display())),
+    };
+}
+
+/// A read of a held object's identity with its failure worded as the identity of `target` being unreadable.
+fn identity_unreadable<T>(outcome: std::io::Result<T>, target: &Path) -> Result<T, String> {
+    return match outcome {
+        Ok(value) => Ok(value),
+        Err(error) => Err(format!("the identity of {} cannot be read ({error})", target.display())),
+    };
+}
+
 fn hold(target: &Path, registration: &Registration) -> Result<Held, String> {
-    let parent_path: PathBuf = target.parent().ok_or_else(|| { return format!("{} has no parent directory", target.display()); })?.to_path_buf();
-    let name: OsString = target.file_name().ok_or_else(|| { return format!("{} has no last component", target.display()); })?.to_os_string();
-    let refused = |what: &str, path: &Path, error: std::io::Error| -> String { return format!("{what} {} cannot be opened without following a link ({error})", path.display()); };
-    let parent: File = open_root(parent_path.as_path()).map_err(|error: std::io::Error| { return refused("the directory", parent_path.as_path(), error); })?;
-    let held_target: File = open_directory_at(&parent, name.as_os_str()).map_err(|error: std::io::Error| { return refused("the worktree", target, error); })?;
-    let worktrees: File = open_root(registration.worktrees.as_path()).map_err(|error: std::io::Error| { return refused("the directory", registration.worktrees.as_path(), error); })?;
-    let admin: File = open_directory_at(&worktrees, registration.id.as_os_str()).map_err(|error: std::io::Error| { return refused("the registration", registration.admin.as_path(), error); })?;
-    let identity_error = |error: std::io::Error| -> String { return format!("the identity of {} cannot be read ({error})", target.display()); };
+    let Some(parent_of_target) = target.parent() else {
+        return Err(format!("{} has no parent directory", target.display()));
+    };
+    let parent_path: PathBuf = parent_of_target.to_path_buf();
+    let Some(last_component) = target.file_name() else {
+        return Err(format!("{} has no last component", target.display()));
+    };
+    let name: OsString = last_component.to_os_string();
+    let parent: File = refused(open_root(parent_path.as_path()), "the directory", parent_path.as_path())?;
+    let held_target: File = refused(open_directory_at(&parent, name.as_os_str()), "the worktree", target)?;
+    let worktrees: File = refused(open_root(registration.worktrees.as_path()), "the directory", registration.worktrees.as_path())?;
+    let admin: File = refused(open_directory_at(&worktrees, registration.id.as_os_str()), "the registration", registration.admin.as_path())?;
     return Ok(Held {
-        identity: identity_of(&held_target).map_err(identity_error)?,
-        parent_identity: identity_of(&parent).map_err(identity_error)?,
-        admin_identity: identity_of(&admin).map_err(identity_error)?,
+        identity: identity_unreadable(identity_of(&held_target), target)?,
+        parent_identity: identity_unreadable(identity_of(&parent), target)?,
+        admin_identity: identity_unreadable(identity_of(&admin), target)?,
         parent,
         parent_path,
         name,
@@ -251,19 +282,19 @@ fn confirm(held: &Held, registration: &Registration) -> Result<(), String> {
     if lock_state(handle_path(&held.admin).as_path())? {
         return Err(format!("{} was locked after it was proven clean", shown.display()));
     }
-    let named_now: ObjectId = identity_at(&held.parent, held.name.as_os_str()).map_err(|error: std::io::Error| { return format!("{} cannot be looked up again ({error})", shown.display()); })?;
+    let named_now: ObjectId = path_failure(identity_at(&held.parent, held.name.as_os_str()), shown.as_path(), "cannot be looked up again")?;
     if named_now != held.identity {
         return Err(format!("{} is not the directory that was proven clean any more", shown.display()));
     }
-    let parent_now: File = open_root(held.parent_path.as_path()).map_err(|error: std::io::Error| { return format!("{} cannot be opened again without following a link ({error})", held.parent_path.display()); })?;
-    if identity_of(&parent_now).map_err(|error: std::io::Error| { return format!("{} cannot be looked up again ({error})", held.parent_path.display()); })? != held.parent_identity {
+    let parent_now: File = path_failure(open_root(held.parent_path.as_path()), held.parent_path.as_path(), "cannot be opened again without following a link")?;
+    if path_failure(identity_of(&parent_now), held.parent_path.as_path(), "cannot be looked up again")? != held.parent_identity {
         return Err(format!("{} is not the directory that held the worktree any more", held.parent_path.display()));
     }
-    let admin_now: ObjectId = identity_at(&held.worktrees, registration.id.as_os_str()).map_err(|error: std::io::Error| { return format!("{} cannot be looked up again ({error})", registration.admin.display()); })?;
+    let admin_now: ObjectId = path_failure(identity_at(&held.worktrees, registration.id.as_os_str()), registration.admin.as_path(), "cannot be looked up again")?;
     if admin_now != held.admin_identity {
         return Err(format!("{} is not the registration that was proven any more", registration.admin.display()));
     }
-    let recorded: Vec<u8> = read_held_file(held, "gitdir").map_err(|error: std::io::Error| { return format!("{} cannot be read again ({error})", registration.admin.join("gitdir").display()); })?;
+    let recorded: Vec<u8> = path_failure(read_held_file(held, "gitdir"), registration.admin.join("gitdir").as_path(), "cannot be read again")?;
     if recorded != registration.gitdir_text {
         return Err(format!("{} changed after it was proven", registration.admin.join("gitdir").display()));
     }
@@ -280,7 +311,11 @@ fn read_held_file(held: &Held, name: &str) -> std::io::Result<Vec<u8>> {
 
 /// The command that forgets a registration whose directory is gone, aimed at the repository of `common_dir`.
 fn prune_command(common_dir: &Path) -> String {
-    return match common_dir.to_str().and_then(|text: &str| { return text.strip_suffix("/.git"); }) {
+    let main_checkout: Option<&str> = match common_dir.to_str() {
+        Some(text) => text.strip_suffix("/.git"),
+        None => None,
+    };
+    return match main_checkout {
         Some(main) => format!("git -C {main} worktree prune"),
         None => format!("git --git-dir={} worktree prune", common_dir.display()),
     };
@@ -324,31 +359,37 @@ fn incomplete_report(target: &Path, registration: &Registration, common_dir: &Pa
 /// ```ts
 /// async function finish(held: Held, registration: Registration, request: RemoveRequest): Promise<RemoveOutcome>;
 /// ```
+/// The outcome of a removal whose subvolume is gone but whose registration could not be cleared: the report is also logged.
+fn incomplete(registration: &Registration, request: &RemoveRequest<'_>, reason: String) -> RemoveOutcome {
+    let report: String = incomplete_report(request.plan.target.as_path(), registration, request.common_dir, reason.as_str());
+    warn(TAG, report.as_str());
+    return RemoveOutcome::Incomplete(report);
+}
+
 fn finish(held: &Held, registration: &Registration, request: &RemoveRequest<'_>) -> RemoveOutcome {
     let target: &Path = request.plan.target.as_path();
-    let incomplete = |reason: String| -> RemoveOutcome {
-        let report: String = incomplete_report(target, registration, request.common_dir, reason.as_str());
-        warn(TAG, report.as_str());
-        return RemoveOutcome::Incomplete(report);
-    };
     match identity_at(&held.worktrees, registration.id.as_os_str()) {
         Ok(found) if found == held.admin_identity => {}
-        Ok(_other) => return incomplete(String::from("another registration took its place while the worktree was being removed, and it was left untouched")),
+        Ok(_other) => return incomplete(registration, request, String::from("another registration took its place while the worktree was being removed, and it was left untouched")),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             debug(TAG, format!("the registration {} is already gone", registration.admin.display()).as_str());
             return RemoveOutcome::Removed;
         }
-        Err(error) => return incomplete(format!("it cannot be looked up ({error})")),
+        Err(error) => return incomplete(registration, request, format!("it cannot be looked up ({error})")),
     }
     let admin: File = match held.admin.try_clone() {
         Ok(admin) => admin,
-        Err(error) => return incomplete(format!("its directory cannot be used ({error})")),
+        Err(error) => return incomplete(registration, request, format!("its directory cannot be used ({error})")),
     };
-    if let Err(error) = verify_below(&admin, registration.admin.as_path()).and_then(|()| { return empty_directory(&admin, registration.admin.as_path()); }) {
-        return incomplete(format!("its content cannot be removed ({error})"));
+    let emptied = match verify_below(&admin, registration.admin.as_path()) {
+        Ok(()) => empty_directory(&admin, registration.admin.as_path()),
+        Err(error) => Err(error),
+    };
+    if let Err(error) = emptied {
+        return incomplete(registration, request, format!("its content cannot be removed ({error})"));
     }
     if let Err(error) = remove_at(&held.worktrees, registration.id.as_os_str(), true) {
-        return incomplete(format!("the directory cannot be removed from {} ({error})", registration.worktrees.display()));
+        return incomplete(registration, request, format!("the directory cannot be removed from {} ({error})", registration.worktrees.display()));
     }
     // Git removes the `worktrees` directory when the last registration goes; a directory that still holds others stays.
     let _kept = std::fs::remove_dir(registration.worktrees.as_path());

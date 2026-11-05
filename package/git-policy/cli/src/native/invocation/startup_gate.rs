@@ -118,7 +118,14 @@ pub fn shell_word(path: &Path) -> String {
 /// ```
 pub fn registry_note(registry: &Path) -> Option<String> {
     let entries: std::fs::ReadDir = std::fs::read_dir(registry).ok()?;
-    let left: bool = entries.flatten().any(|entry| { return is_canonical_uuid(entry.file_name().to_string_lossy().as_ref()); });
+    // The first leftover record decides it; an entry that cannot be read is skipped by `flatten`.
+    let mut left: bool = false;
+    for entry in entries.flatten() {
+        if is_canonical_uuid(entry.file_name().to_string_lossy().as_ref()) {
+            left = true;
+            break;
+        }
+    }
     if !left {
         return None;
     }

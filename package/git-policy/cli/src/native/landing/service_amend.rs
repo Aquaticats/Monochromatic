@@ -89,7 +89,10 @@ pub fn parse_stored_commit(raw: &str) -> Option<StoredCommit> {
 
 /// The text of a Git query that must succeed for the line to be covered.
 fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<String>, TransactionStop> {
-    let output = run_git(context, &GitRequest::new(cwd, arguments)).map_err(|error| { return failed(format!("reading the commit to amend failed: {error:?}")); })?;
+    let output = match run_git(context, &GitRequest::new(cwd, arguments)) {
+        Ok(finished) => finished,
+        Err(error) => return Err(failed(format!("reading the commit to amend failed: {error:?}"))),
+    };
     return Ok(if output.code == Some(0) { String::from_utf8(output.stdout).ok() } else { None });
 }
 
@@ -149,8 +152,11 @@ pub fn amended_author(context: &GitContext, cwd: &Path, source: &AmendSource, pa
     let Some((name, email, date)) = split_author(source.author.as_str()) else { return Ok(None) };
     let mut parts: Vec<(&'static str, String)> = vec![("GIT_AUTHOR_NAME", name), ("GIT_AUTHOR_EMAIL", email), ("GIT_AUTHOR_DATE", date)];
     for (key, value) in replaced {
-        if let Some(slot) = parts.iter_mut().find(|(existing, _)| { return *existing == key; }) {
-            slot.1 = value;
+        for slot in parts.iter_mut() {
+            if slot.0 == key {
+                slot.1 = value;
+                break;
+            }
         }
     }
     return identity(context, cwd, "GIT_AUTHOR_IDENT", parts.as_slice());

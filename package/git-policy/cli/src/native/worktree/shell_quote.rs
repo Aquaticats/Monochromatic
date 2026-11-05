@@ -44,6 +44,24 @@ fn ansi_character(character: char) -> String {
 }
 
 /// What:
+///  Whether every byte of a value is one a shell reads back unquoted.
+/// Why:
+///   A value of only bare bytes needs no quotes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// bytes.every((byte) => isBare(byte))
+/// ```
+fn all_bare(value: &[u8]) -> bool {
+    for byte in value {
+        if !is_bare(*byte) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
 ///  Quote bytes so a POSIX shell (bash, zsh or ksh for the `$'...'` form) reads them back as one word.
 ///  `&[u8]` is a borrowed byte view; a path's bytes come from `OsStrExt::as_bytes`.
 /// Why:
@@ -57,8 +75,8 @@ pub fn shell_quote(value: &[u8]) -> String {
     if value.is_empty() {
         return String::from("''");
     }
-    if value.iter().all(|byte: &u8| { return is_bare(*byte); }) {
-        return value.iter().map(|byte: &u8| { return char::from(*byte); }).collect();
+    if all_bare(value) {
+        return value.iter().copied().map(char::from).collect();
     }
     let mut spelled: String = String::new();
     let mut needs_ansi: bool = false;

@@ -23,6 +23,7 @@
 
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::parallel_runner::{Event, OrderedRun, run_ordered};
+pub use crate::subvolume_index_install_into_new_worktree::{InstallSeams, install_index_in, install_index_in_with};
 use crate::subvolume_index::{IndexOutcome, RewriteContext, StatFields, StoredStat, rewrite_index_stat_with};
 use crate::subvolume_lock::is_ours;
 use std::ffi::OsStr;
@@ -70,9 +71,17 @@ pub fn linked_worktrees_inside(root: &Path) -> Vec<LinkedWorktree> {
             found.push(LinkedWorktree { admin_directory: name.path(), worktree: worktree.to_path_buf() });
         }
     }
-    found.sort_by(|left: &LinkedWorktree, right: &LinkedWorktree| { return left.worktree.cmp(&right.worktree); });
+    found.sort_by(by_worktree_path);
     return found;
 }
+
+/// Order two linked worktrees by their path.
+fn by_worktree_path(left: &LinkedWorktree, right: &LinkedWorktree) -> std::cmp::Ordering {
+    return left.worktree.cmp(&right.worktree);
+}
+
+/// The call the refresh makes at its seam when no control wants one: none.
+fn do_nothing() {}
 
 /// What:
 ///  What `lstat` of `tree/path` reports now, in index units, or nothing for a file that cannot be examined.
@@ -178,7 +187,7 @@ pub(crate) fn matches_stored(now: &StatFields, stored: &StoredStat) -> bool {
 /// function refreshIndexFileWith(indexPath: string, tree: string, options: RefreshOptions): string;
 /// ```
 pub fn refresh_index_file_with(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>) -> String {
-    return refresh_index_file_seamed(index_path, tree, options, &mut || {});
+    return refresh_index_file_seamed(index_path, tree, options, &mut do_nothing);
 }
 
 /// `refresh_index_file_with` with a call at the moment right after the rewrite, before the lock is looked at again, where a
@@ -209,7 +218,7 @@ pub struct RefreshReport {
 
 /// `refresh_index_file_with` that says how it ended, so a caller that must not go on after a failed refresh can stop.
 pub fn refresh_index_file_report(index_path: &Path, tree: &Path, options: &RefreshOptions<'_>) -> RefreshReport {
-    return refresh_index_file_report_seamed(index_path, tree, options, &mut || {});
+    return refresh_index_file_report_seamed(index_path, tree, options, &mut do_nothing);
 }
 
 /// `refresh_index_file_report` with a call at the moment right after the rewrite.
@@ -274,19 +283,13 @@ fn rewrite_under_lock(index_path: &Path, tree: &Path, options: &RefreshOptions<'
 fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&Path; 3], options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>) -> (String, RefreshStatus) {
     let [index_path, tree, lock_path]: [&Path; 3] = paths;
     let context: RewriteContext = RewriteContext { hash_length: options.hash_length, index_mtime };
-    let outcome: IndexOutcome = rewrite_index_stat_with(
-        bytes,
-        &context,
-        &mut |path: &[u8]| { return stat_fields(tree, path); },
-        &mut |path: &[u8], stored: &StoredStat| {
-            if options.references.is_empty() {
-                return true;
-            }
-            return options.references.iter().any(|reference: &PathBuf| {
-                return stat_fields(reference.as_path(), path).is_some_and(|now: StatFields| { return matches_stored(&now, stored); });
-            });
-        },
-    );
+    // The stat lookup keeps `tree` for the rewrite, which takes a callback that carries state (`&mut dyn FnMut`).
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the rewrite's callback parameter is a state-carrying dyn FnMut that tests and other folders also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
+    let mut lookup = |path: &[u8]| { return stat_fields(tree, path); };
+    // The check keeps `options` for the rewrite, in the same kind of callback parameter.
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the rewrite's callback parameter is a state-carrying dyn FnMut that tests and other folders also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
+    let mut agrees = |path: &[u8], stored: &StoredStat| { return agrees_with_a_reference(options.references, path, stored); };
+    let outcome: IndexOutcome = rewrite_index_stat_with(bytes, &context, &mut lookup, &mut agrees);
     let (rewritten, updated, total): (Vec<u8>, usize, usize) = match outcome {
         IndexOutcome::Rewritten { bytes: new_bytes, updated, total } => (new_bytes, updated, total),
         IndexOutcome::Skipped(reason) => return (format!("skipped ({reason})"), RefreshStatus::Skipped),
@@ -294,13 +297,35 @@ fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&P
     // With its own lock the new index is written into the lock file and the lock is renamed over the index, as Git does.
     // Under a held lock the lock stays, and a sibling file is renamed over the index instead.
     let installed: std::io::Result<()> = match lock_file {
-        Some(file) => file.write_all(rewritten.as_slice()).and_then(|()| { return file.sync_all(); }).and_then(|()| { return std::fs::rename(lock_path, index_path); }),
+        Some(file) => write_sync_rename(file, rewritten.as_slice(), lock_path, index_path),
         None => stage_and_replace(index_path, rewritten.as_slice()),
     };
     if let Err(error) = installed {
         return (format!("skipped (cannot install the new index: {error})"), RefreshStatus::Skipped);
     }
     return (format!("{updated} of {total} entries refreshed"), RefreshStatus::Refreshed);
+}
+
+/// Whether some reference tree has the file `path` as the entry `stored` records; with no reference tree, every entry agrees.
+fn agrees_with_a_reference(references: &[PathBuf], path: &[u8], stored: &StoredStat) -> bool {
+    if references.is_empty() {
+        return true;
+    }
+    for reference in references {
+        if let Some(now) = stat_fields(reference.as_path(), path)
+            && matches_stored(&now, stored)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Write `bytes` into `file`, flush it to disk, then rename `from` over `to`; each step runs only if the one before it worked.
+fn write_sync_rename(file: &mut std::fs::File, bytes: &[u8], from: &Path, to: &Path) -> std::io::Result<()> {
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    return std::fs::rename(from, to);
 }
 
 /// What:
@@ -320,87 +345,23 @@ fn stage_and_replace(index_path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     sibling_name.push(".cli-git-new");
     let sibling: PathBuf = PathBuf::from(sibling_name);
     let mut staged: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).open(&sibling)?;
-    let written: std::io::Result<()> = staged.write_all(bytes).and_then(|()| { return staged.sync_all(); }).and_then(|()| {
-        let named = std::fs::symlink_metadata(&sibling)?;
-        let own = staged.metadata()?;
-        if named.dev() != own.dev() || named.ino() != own.ino() {
-            return Err(std::io::Error::other("the staging file was replaced while the index was written"));
-        }
-        return std::fs::rename(&sibling, index_path);
-    });
+    let written: std::io::Result<()> = write_sync_and_rename_if_same(&mut staged, bytes, sibling.as_path(), index_path);
     if written.is_err() {
         remove_if_same_file(sibling.as_path(), &staged);
     }
     return written;
 }
 
-/// What:
-///  Install `seed` as the index of the new worktree whose administrative directory is the open handle `admin`, with the stat
-///  fields of `stats` for the entries it knows, and nothing for the others.
-/// Why:
-///   The index of a new worktree must never be written in place and never replace one that exists: `index.lock` is created
-///  first (exclusively), the absence of an index is checked under it, the finished index is written into the lock, and
-///  that open file is linked under the name of the index without replacing anything; the lock name is released afterwards
-///  only if it still holds that file, because once it is released it is another Git process's to take. The stat fields come from the objects the caller made, so an entry whose file was
-///  replaced afterwards no longer matches its inode and Git hashes it. Everything is done through the handle.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// installIndexIn(admin, seed, stats, hashLength); // throws a reason
-/// ```
-pub fn install_index_in(admin: &std::fs::File, seed: &[u8], stats: &mut dyn FnMut(&[u8]) -> Option<StatFields>, hash_length: usize) -> Result<String, String> {
-    return install_index_in_with(admin, seed, stats, hash_length, &mut InstallSeams { before_publish: &mut || {}, after_publish: &mut || {} });
-}
-
-/// The moments of an index install at which the controls move the tree.
-pub struct InstallSeams<'a> {
-    /// Called after the index was written into the lock and before it is linked under its name.
-    pub before_publish: &'a mut dyn FnMut(),
-    /// Called right after the index got its name and before the lock is released.
-    pub after_publish: &'a mut dyn FnMut(),
-}
-
-/// `install_index_in` with the moments at which a control may move the tree.
-pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn FnMut(&[u8]) -> Option<StatFields>, hash_length: usize, seams: &mut InstallSeams<'_>) -> Result<String, String> {
-    use crate::fs_beneath::{create_file_at, entry_metadata_at, identity_of, link_open_file_at};
-    let lock: &OsStr = OsStr::new("index.lock");
-    let index: &OsStr = OsStr::new("index");
-    let mut created: std::fs::File = match create_file_at(admin, lock, 0o600) {
-        Ok(opened) => opened,
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Err(String::from("index.lock exists: a Git command is running there")),
-        Err(error) => return Err(format!("the lock cannot be created ({error})")),
-    };
-    let ours = identity_of(&created).map_err(|error| { return format!("the lock cannot be examined ({error})"); })?;
-    // Before the publication the lock is ours to remove, but only if the name still holds the file made here.
-    let give_up = |reason: String| -> Result<String, String> {
-        let _kept = crate::fs_beneath::remove_if_identical(admin, lock, ours);
-        return Err(reason);
-    };
-    match entry_metadata_at(admin, index) {
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return give_up(format!("the index cannot be examined ({error})")),
-        Ok(_) => return give_up(String::from("an index appeared in the new worktree while it was made")),
+/// Write `bytes` into `staged`, flush it, and rename `sibling` over `index_path` only while `sibling` still names `staged`.
+fn write_sync_and_rename_if_same(staged: &mut std::fs::File, bytes: &[u8], sibling: &Path, index_path: &Path) -> std::io::Result<()> {
+    staged.write_all(bytes)?;
+    staged.sync_all()?;
+    let named = std::fs::symlink_metadata(sibling)?;
+    let own = staged.metadata()?;
+    if named.dev() != own.dev() || named.ino() != own.ino() {
+        return Err(std::io::Error::other("the staging file was replaced while the index was written"));
     }
-    let now: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
-    let context: RewriteContext = RewriteContext { hash_length: Some(hash_length), index_mtime: Some((now.as_secs() as u32, now.subsec_nanos())) };
-    let (rewritten, updated, total): (Vec<u8>, usize, usize) = match rewrite_index_stat_with(seed, &context, stats, &mut |_path: &[u8], _stored: &StoredStat| { return true; }) {
-        IndexOutcome::Rewritten { bytes, updated, total } => (bytes, updated, total),
-        IndexOutcome::Skipped(reason) => return give_up(format!("the index cannot be refreshed ({reason})")),
-    };
-    if let Err(error) = created.write_all(rewritten.as_slice()).and_then(|()| { return created.sync_all(); }) {
-        return give_up(format!("the new index cannot be written ({error})"));
-    }
-    (seams.before_publish)();
-    // The open file is linked under the name of the index, which fails if the name exists: what is published is the file
-    // written here, whatever the lock name refers to by now. The lock stays until the index has its name.
-    if let Err(error) = link_open_file_at(&created, admin, index) {
-        return give_up(format!("the new index cannot be put in place ({error})"));
-    }
-    (seams.after_publish)();
-    // The lock name and the index are the same file now; the lock is released only if the name still holds it, so the lock
-    // of the next Git command is never removed.
-    let _released = crate::fs_beneath::remove_if_identical(admin, lock, ours);
-    return Ok(format!("{updated} of {total} entries refreshed"));
+    return std::fs::rename(sibling, index_path);
 }
 
 /// What:
@@ -446,7 +407,10 @@ pub fn repository_hash_length(git_directory: &Path) -> Option<usize> {
     for raw in text.lines() {
         let line: &str = raw.trim();
         if let Some(header) = line.strip_prefix('[') {
-            in_extensions = header.split(']').next().is_some_and(|name: &str| { return name.trim().eq_ignore_ascii_case("extensions"); });
+            in_extensions = match header.split(']').next() {
+                Some(name) => name.trim().eq_ignore_ascii_case("extensions"),
+                None => false,
+            };
             continue;
         }
         if !in_extensions {
@@ -539,26 +503,45 @@ pub fn refresh_all_indexes_with(request: &AllIndexes<'_>, say: &mut dyn FnMut(&s
         targets.push(IndexTarget {
             index: linked.admin_directory.join("index"),
             tree: linked.worktree.clone(),
-            references: references.iter().map(|reference: &PathBuf| { return reference.join(relative); }).collect(),
+            references: joined_below(references, relative),
         });
     }
-    let largest: u64 = targets.iter().map(|target: &IndexTarget| { return std::fs::metadata(&target.index).map_or(0, |found: std::fs::Metadata| { return found.len(); }); }).max().unwrap_or(0);
+    let mut largest: u64 = 0;
+    for target in &targets {
+        let size: u64 = match std::fs::metadata(&target.index) {
+            Ok(found) => found.len(),
+            Err(_) => 0,
+        };
+        largest = largest.max(size);
+    }
     let workers: usize = worker_budget(&BudgetRequest { items: targets.len(), per_item_memory: largest.saturating_mul(INDEX_REWRITE_COPIES), ceiling: None, cap: None, host });
-    let lanes: Vec<Vec<usize>> = (0..targets.len()).map(|index: usize| { return vec![index]; }).collect();
-    run_ordered(OrderedRun {
-        items: targets.as_slice(),
-        lanes: lanes.as_slice(),
-        workers,
-        work: &|_index: usize, target: &IndexTarget, _worker_say: &mut dyn FnMut(&str)| {
-            return rewrite(target.index.as_path(), target.tree.as_path(), &RefreshOptions { lock, references: target.references.as_slice(), hash_length });
-        },
-        on_event: &mut |event: Event<'_, String>| {
-            if let Event::End(index, line) = event {
-                say(format!("index {}: {line}", targets[index].index.display()).as_str());
-            }
-        },
-    });
+    let mut lanes: Vec<Vec<usize>> = Vec::new();
+    for index in 0..targets.len() {
+        lanes.push(vec![index]);
+    }
+    // The pool calls this on a worker thread for each index; it carries the lock, the rewrite and the hash length.
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's work parameter is a state-carrying callback; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
+    let work = |_index: usize, target: &IndexTarget, _worker_say: &mut dyn FnMut(&str)| {
+        return rewrite(target.index.as_path(), target.tree.as_path(), &RefreshOptions { lock, references: target.references.as_slice(), hash_length });
+    };
+    // The pool calls this as each index ends, in index order; it carries `say` and the target list.
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's event parameter is a state-carrying callback; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
+    let mut on_event = |event: Event<'_, String>| {
+        if let Event::End(index, line) = event {
+            say(format!("index {}: {line}", targets[index].index.display()).as_str());
+        }
+    };
+    run_ordered(OrderedRun { items: targets.as_slice(), lanes: lanes.as_slice(), workers, work: &work, on_event: &mut on_event });
     return targets.len();
+}
+
+/// Each reference tree path joined with `relative`, in order.
+fn joined_below(references: &[PathBuf], relative: &Path) -> Vec<PathBuf> {
+    let mut joined: Vec<PathBuf> = Vec::new();
+    for reference in references {
+        joined.push(reference.join(relative));
+    }
+    return joined;
 }
 
 /// Index file controls stay out of the release executable.

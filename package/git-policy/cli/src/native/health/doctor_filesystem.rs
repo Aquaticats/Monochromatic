@@ -147,14 +147,21 @@ pub fn kernel_value(raw: &str) -> String {
 /// const rootflags = (cmdline: string) => words(cmdline).map(unwrap).filter((w) => w.startsWith('rootflags=')).map((w) => w.slice(10));
 /// ```
 pub fn parse_rootflags(command_line: &str) -> Vec<String> {
-    return command_line_words(command_line)
-        .into_iter()
-        .filter_map(|word: &str| {
-            let unwrapped: &str = word.strip_prefix('"').and_then(|inner: &str| { return inner.strip_suffix('"'); }).filter(|inner: &&str| { return !inner.is_empty(); }).unwrap_or(word);
-            return unwrapped.strip_prefix("rootflags=");
-        })
-        .map(str::to_string)
-        .collect();
+    let mut flags: Vec<String> = Vec::new();
+    for word in command_line_words(command_line) {
+        // A quoted word is read without its quotes, unless nothing would be left of it.
+        let unwrapped: &str = match word.strip_prefix('"') {
+            Some(inner) => match inner.strip_suffix('"') {
+                Some(unquoted) if !unquoted.is_empty() => unquoted,
+                _ => word,
+            },
+            None => word,
+        };
+        if let Some(flag) = unwrapped.strip_prefix("rootflags=") {
+            flags.push(flag.to_string());
+        }
+    }
+    return flags;
 }
 
 /// What:
@@ -169,11 +176,15 @@ pub fn parse_rootflags(command_line: &str) -> Vec<String> {
 pub fn gather_facts(root: &Path) -> Option<FilesystemFacts> {
     let kind: FilesystemKind = filesystem_kind(root).ok()?;
     let root_is_subvolume: bool = kind == FilesystemKind::Btrfs && is_subvolume_root(root).unwrap_or(false);
-    let mount: Option<MountSummary> = read_mount_facts(root).ok().flatten().map(|facts| {
-        return MountSummary { has_removal_option: facts.has_option(REMOVAL_OPTION), source: facts.source.clone(), mount_point: facts.mount_point };
-    });
+    let mount: Option<MountSummary> = match read_mount_facts(root).ok().flatten() {
+        Some(facts) => Some(MountSummary { has_removal_option: facts.has_option(REMOVAL_OPTION), source: facts.source.clone(), mount_point: facts.mount_point }),
+        None => None,
+    };
     let ostree_booted: bool = Path::new(OSTREE_BOOTED_PATH).exists();
-    let root_source: Option<String> = read_mount_facts(Path::new(if ostree_booted { SYSROOT_PATH } else { "/" })).ok().flatten().map(|facts| { return facts.source; });
+    let root_source: Option<String> = match read_mount_facts(Path::new(if ostree_booted { SYSROOT_PATH } else { "/" })).ok().flatten() {
+        Some(facts) => Some(facts.source),
+        None => None,
+    };
     let command_line: String = std::fs::read_to_string(CMDLINE_PATH).unwrap_or_default();
     return Some(FilesystemFacts {
         root: root.to_path_buf(),
@@ -212,10 +223,20 @@ fn with_removal_option(raw: &str) -> String {
     return format!("{raw},{REMOVAL_OPTION}");
 }
 
+/// Whether a comma-separated mount option list names the removal option as one of its words.
+fn lists_removal_option(options: &str) -> bool {
+    for option in options.split(',') {
+        if option == REMOVAL_OPTION {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// The persistent way to set the option on an ostree host, for the filesystem the kernel command line configures.
 fn kernel_argument_lines(facts: &FilesystemFacts) -> Vec<String> {
     return match facts.kernel_rootflags.as_slice() {
-        [old] if kernel_value(old).split(',').any(|option: &str| { return option == REMOVAL_OPTION; }) => vec![format!(
+        [old] if lists_removal_option(&kernel_value(old)) => vec![format!(
             "  Kept across boots: the running kernel command line already lists `{REMOVAL_OPTION}` in `rootflags=`, so a mount that lacks it was made before that; reboot, and compare with the output of `rpm-ostree kargs`."
         )],
         [old] => vec![
@@ -307,11 +328,18 @@ pub fn render_section(facts: &FilesystemFacts) -> String {
 /// const section = hostSection(commonGitDirectory);
 /// ```
 pub fn host_section(common_directory: &Path) -> String {
-    if common_directory.file_name().is_none_or(|name: &std::ffi::OsStr| { return name != ".git"; }) {
+    let is_git_directory: bool = match common_directory.file_name() {
+        Some(name) => name == ".git",
+        None => false,
+    };
+    if !is_git_directory {
         return String::new();
     }
     let Some(root) = common_directory.parent() else { return String::new() };
-    return gather_facts(root).map(|facts: FilesystemFacts| { return render_section(&facts); }).unwrap_or_default();
+    return match gather_facts(root) {
+        Some(facts) => render_section(&facts),
+        None => String::new(),
+    };
 }
 
 /// Filesystem section controls stay out of the release executable.

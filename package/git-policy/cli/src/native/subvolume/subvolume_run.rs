@@ -64,7 +64,15 @@ impl Run<'_> {
     ) -> Result<Run<'a>, MigrateError> {
         let journal: Journal = Journal::load(layout.journal_path.as_path())?;
         let unreadable: BTreeSet<PathBuf> = match std::fs::read_to_string(&layout.unreadable_path) {
-            Ok(text) => text.lines().filter(|line: &&str| { return !line.is_empty(); }).map(PathBuf::from).collect(),
+            Ok(text) => {
+                let mut listed: BTreeSet<PathBuf> = BTreeSet::new();
+                for line in text.lines() {
+                    if !line.is_empty() {
+                        listed.insert(PathBuf::from(line));
+                    }
+                }
+                listed
+            }
             // Only a missing list means "no unreadable files were recorded"; a list that exists and cannot be read is
             // the safeguard failing, and counting it as empty would let the deletion unlink files that exist only there.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => BTreeSet::new(),
@@ -185,9 +193,7 @@ impl Run<'_> {
             text.push_str(path.to_string_lossy().as_ref());
             text.push('\n');
         }
-        return std::fs::write(&self.layout.unreadable_path, text).map_err(|error: std::io::Error| {
-            return MigrateError::io("write the list of unreadable files", self.layout.unreadable_path.as_path(), &error);
-        });
+        return MigrateError::from_io_result(std::fs::write(&self.layout.unreadable_path, text), "write the list of unreadable files", self.layout.unreadable_path.as_path());
     }
 
     /// Stop here when the control asked for a simulated kill at this point.

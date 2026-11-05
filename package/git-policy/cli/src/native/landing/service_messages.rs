@@ -200,14 +200,20 @@ pub fn render(failure: &ClientFailure) -> String {
             "This commit waited {minutes} minutes for the commit service and was withdrawn, so it will not land later by itself.{} \
              Your staged changes and your worktree are as they were. Run the commit again; if the service is stuck, look at why with \
              `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`. {NOTHING_CHANGED}",
-            blocker.as_ref().map_or_else(String::new, |text| { return format!(" It was waiting for: {text}."); })
+            match blocker.as_ref() {
+                Some(text) => format!(" It was waiting for: {text}."),
+                None => String::new(),
+            }
         ),
         ClientFailure::WithdrawalUnconfirmed { blocker } => format!(
             "This commit waited for the commit service until the longest wait the wrapper allows, and the service did not confirm \
              that it withdrew it, so it is not known whether the commit was made.{} Run `{}` to see whether it was made, and `{}` to \
              see what is still staged. If it was not made, run the commit again; if the service is stuck, look at why with \
              `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`.",
-            blocker.as_ref().map_or_else(String::new, |text| { return format!(" The service had said: {}", text.trim()); }),
+            match blocker.as_ref() {
+                Some(text) => format!(" The service had said: {}", text.trim()),
+                None => String::new(),
+            },
             CHECK_COMMANDS[0], CHECK_COMMANDS[1]
         ),
         ClientFailure::StepTooSlow => format!(

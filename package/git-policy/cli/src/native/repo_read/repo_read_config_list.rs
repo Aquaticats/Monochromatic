@@ -13,7 +13,7 @@
 //! const entries = listConfig({ commonDir, gitDir, scope, variables }); // undefined: ask Git
 //! ```
 
-use crate::repo_read_config_scan::{ScopeEnvironment, include_target, is_include_key, read_following};
+use crate::repo_read_config_scan::{ScopeEnvironment, include_target, is_include_key, last_variable, read_following};
 use crate::repo_read_config_text::{ConfigEntry, last_entry, parse_bool, parse_config_text};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -58,6 +58,19 @@ fn add_file(path: &Path, scope: &'static str, home: Option<&Path>, depth: usize,
     return Some(());
 }
 
+/// Whether a section or key name is made only of letters, digits and `-`, and is not empty.
+fn is_plain_key_part(text: &str) -> bool {
+    if text.is_empty() {
+        return false;
+    }
+    for byte in text.bytes() {
+        if !(byte.is_ascii_alphanumeric() || byte == b'-') {
+            return false;
+        }
+    }
+    return true;
+}
+
 /// The canonical spelling of a key given in the environment: lower-case section and variable name, subsection kept.
 fn canonical_key(key: &str) -> Option<String> {
     let (section, rest) = key.split_once('.')?;
@@ -65,8 +78,11 @@ fn canonical_key(key: &str) -> Option<String> {
         Some((subsection, name)) => (Some(subsection), name),
         None => (None, rest),
     };
-    let plain = |text: &str| -> bool { return !text.is_empty() && text.bytes().all(|byte| { return byte.is_ascii_alphanumeric() || byte == b'-'; }); };
-    if !plain(section) || !plain(name) || !name.as_bytes()[0].is_ascii_alphabetic() || middle.is_some_and(|text| { return text.contains('\n'); }) {
+    let middle_has_newline: bool = match middle {
+        Some(text) => text.contains('\n'),
+        None => false,
+    };
+    if !is_plain_key_part(section) || !is_plain_key_part(name) || !name.as_bytes()[0].is_ascii_alphabetic() || middle_has_newline {
         return None;
     }
     return Some(match middle {
@@ -77,13 +93,10 @@ fn canonical_key(key: &str) -> Option<String> {
 
 /// Append the `GIT_CONFIG_COUNT` entries of `variables` under the scope `command`.
 fn add_environment(variables: &[(OsString, OsString)], listed: &mut Vec<ListedEntry>) -> Option<()> {
-    let find = |name: &str| -> Option<OsString> {
-        return variables.iter().rev().find(|(candidate, _)| { return candidate == name; }).map(|(_, value)| { return value.clone(); });
-    };
-    if find("GIT_CONFIG_PARAMETERS").is_some() {
+    if last_variable(variables, "GIT_CONFIG_PARAMETERS").is_some() {
         return None;
     }
-    let Some(count_text) = find("GIT_CONFIG_COUNT") else {
+    let Some(count_text) = last_variable(variables, "GIT_CONFIG_COUNT") else {
         return Some(());
     };
     let count: u64 = crate::child_environment::parse_config_count(count_text.as_os_str())?;
@@ -91,8 +104,8 @@ fn add_environment(variables: &[(OsString, OsString)], listed: &mut Vec<ListedEn
         return None;
     }
     for index in 0..count {
-        let key: OsString = find(format!("GIT_CONFIG_KEY_{index}").as_str())?;
-        let value: OsString = find(format!("GIT_CONFIG_VALUE_{index}").as_str())?;
+        let key: OsString = last_variable(variables, format!("GIT_CONFIG_KEY_{index}").as_str())?;
+        let value: OsString = last_variable(variables, format!("GIT_CONFIG_VALUE_{index}").as_str())?;
         let entry: ConfigEntry = ConfigEntry { key: canonical_key(key.to_str()?)?, value: Some(value.as_encoded_bytes().to_vec()) };
         listed.push(ListedEntry { scope: "command", entry });
     }
@@ -119,7 +132,10 @@ pub fn list_config(common_dir: &Path, git_dir: &Path, scope: &ScopeEnvironment, 
     let start: usize = listed.len();
     let common_file: PathBuf = common_dir.join("config");
     add_file(common_file.as_path(), "local", scope.home.as_deref(), 0, &mut listed)?;
-    let local: Vec<ConfigEntry> = listed[start..].iter().map(|item| { return item.entry.clone(); }).collect();
+    let mut local: Vec<ConfigEntry> = Vec::new();
+    for item in &listed[start..] {
+        local.push(item.entry.clone());
+    }
     // Git reads the extension from the common file alone (an included file's entry is listed but not honored), so an
     // entry only an include supplies is left to Git.
     let direct_text: Vec<u8> = read_following(common_file.as_path())??;

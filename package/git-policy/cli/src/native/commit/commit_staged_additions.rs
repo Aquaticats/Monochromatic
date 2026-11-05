@@ -88,6 +88,34 @@ pub fn staged_additions_selected(
 }
 
 /// What:
+///  Whether one byte is the NUL byte that ends each field of a `-z` listing.
+///  `&u8` borrows the byte, as `split` hands it over.
+/// Why:
+///   `split` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNulByte = (byte: number) => byte === 0;
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  The failure for a `git diff-index` record that cannot be read as an addition.
+/// Why:
+///   Four checks of `parse_raw_additions` refuse with the same failure, and a named function stands where a closure
+///  that built it stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unreadableRecord = () => new GitFailure('git diff-index returned a record that could not be read.');
+/// ```
+fn unreadable_record() -> GitFailure {
+    return GitFailure(String::from("git diff-index returned a record that could not be read."));
+}
+
+/// What:
 ///  Reads the NUL-separated raw records of `git diff-index --raw -z`: a `:old new oldoid newoid status` line, then
 ///  the path.
 /// Why:
@@ -98,15 +126,24 @@ pub fn staged_additions_selected(
 /// for (const [meta, path] of pairs(output.split('\0'))) { ... }
 /// ```
 fn parse_raw_additions(stdout: &[u8]) -> Result<Vec<StagedAddition>, GitFailure> {
-    let mut fields = stdout.split(|byte| { return *byte == 0; }).filter(|field| { return !field.is_empty(); });
+    let mut kept_fields: Vec<&[u8]> = Vec::new();
+    for field in stdout.split(is_nul_byte) {
+        if !field.is_empty() {
+            kept_fields.push(field);
+        }
+    }
+    let mut fields = kept_fields.into_iter();
     let mut additions: Vec<StagedAddition> = Vec::new();
     while let Some(meta) = fields.next() {
-        let unreadable = || { return GitFailure(String::from("git diff-index returned a record that could not be read.")); };
-        let path: &[u8] = fields.next().ok_or_else(unreadable)?;
-        let text: &str = std::str::from_utf8(meta).map_err(|_| { return unreadable(); })?;
+        let Some(path) = fields.next() else {
+            return Err(unreadable_record());
+        };
+        let Ok(text) = std::str::from_utf8(meta) else {
+            return Err(unreadable_record());
+        };
         let columns: Vec<&str> = text.trim_start_matches(':').split(' ').collect();
         if columns.len() != 5 || columns[4] != "A" {
-            return Err(unreadable());
+            return Err(unreadable_record());
         }
         additions.push(StagedAddition {
             mode: String::from(columns[1]),
@@ -163,9 +200,22 @@ pub fn carry_additions(
 /// ```
 pub fn pathspecs_of_file(bytes: &[u8], nul_separated: bool) -> Option<Vec<OsString>> {
     let separator: u8 = if nul_separated { 0 } else { b'\n' };
-    let mut records: Vec<&[u8]> = bytes.split(|byte| { return *byte == separator; }).collect();
+    let mut records: Vec<&[u8]> = Vec::new();
+    // Every separator ends a piece and the rest after the last one is a piece too, as `split` yields them.
+    let mut piece_start: usize = 0;
+    for (position, byte) in bytes.iter().enumerate() {
+        if *byte == separator {
+            records.push(&bytes[piece_start..position]);
+            piece_start = position + 1;
+        }
+    }
+    records.push(&bytes[piece_start..]);
     // A terminator after the last element leaves one empty piece.
-    if records.last().is_some_and(|last| { return last.is_empty(); }) {
+    let ends_with_empty_piece: bool = match records.last() {
+        Some(last) => last.is_empty(),
+        None => false,
+    };
+    if ends_with_empty_piece {
         records.pop();
     }
     let mut pathspecs: Vec<OsString> = Vec::new();
@@ -221,8 +271,10 @@ fn unquote_c_style(quoted: &[u8]) -> Option<Vec<u8>> {
             b'\\' | b'"' => bytes.push(escape),
             b'0'..=b'3' => {
                 let digits: &[u8] = inner.get(position..position + 2)?;
-                if !digits.iter().all(|digit| { return (b'0'..=b'7').contains(digit); }) {
-                    return None;
+                for digit in digits {
+                    if !(b'0'..=b'7').contains(digit) {
+                        return None;
+                    }
                 }
                 let value: u32 = u32::from(escape - b'0') * 64
                     + u32::from(digits[0] - b'0') * 8

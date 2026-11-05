@@ -60,22 +60,33 @@ pub struct AttributeProbe<'a> {
 /// ```
 fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String>> {
     let scope: ScopeEnvironment = ScopeEnvironment::from_variables(probe.variables);
-    let listed = read_layout_after_success_with(probe.directory, probe.variables, &scope)
-        .and_then(|layout| { return list_config(layout.common_dir.as_path(), layout.git_dir.as_path(), &scope, probe.variables); });
+    let listed = match read_layout_after_success_with(probe.directory, probe.variables, &scope) {
+        Some(layout) => list_config(layout.common_dir.as_path(), layout.git_dir.as_path(), &scope, probe.variables),
+        None => None,
+    };
     if let Some(entries) = listed {
-        return Some(
-            entries
-                .iter()
-                .rev()
-                .find(|item| { return item.entry.key == ATTRIBUTE_TREE_KEY; })
-                .and_then(|item| { return item.entry.value.as_deref().and_then(|bytes| { return std::str::from_utf8(bytes).ok().map(str::to_owned); }); })
-                .filter(|value| { return !value.is_empty(); }),
-        );
+        // The last entry of the key is the value Git uses; empty text and bytes that are not text count as no value.
+        let mut value: Option<String> = None;
+        for item in entries.iter().rev() {
+            if item.entry.key == ATTRIBUTE_TREE_KEY {
+                if let Some(bytes) = item.entry.value.as_deref()
+                    && let Ok(text) = std::str::from_utf8(bytes)
+                    && !text.is_empty()
+                {
+                    value = Some(text.to_owned());
+                }
+                break;
+            }
+        }
+        return Some(value);
     }
     debug(TAG, "the in-process readers decline the repository, so Git is asked for attr.tree");
     let reply = probe.runner.run(&["config", "--get", ATTRIBUTE_TREE_KEY], None, None).ok()?;
     return match reply.code {
-        Some(0) => Some(Some(String::from_utf8_lossy(&reply.stdout).trim().to_owned()).filter(|value| { return !value.is_empty(); })),
+        Some(0) => {
+            let text: String = String::from_utf8_lossy(&reply.stdout).trim().to_owned();
+            Some(if text.is_empty() { None } else { Some(text) })
+        }
         Some(1) => Some(None),
         _ => None,
     };
@@ -96,11 +107,17 @@ fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String
 /// function attributeTreeVariables(tip: string, probe: AttributeProbe): [string, string][];
 /// ```
 pub fn attribute_tree_variables(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(OsString, OsString)> {
-    if probe.variables.iter().any(|(name, _)| { return name == ATTRIBUTE_SOURCE_VARIABLE; }) {
-        return Vec::new();
+    for (name, _value) in probe.variables {
+        if name == ATTRIBUTE_SOURCE_VARIABLE {
+            return Vec::new();
+        }
     }
-    if probe.global_prefix.iter().any(|token| { return token.to_str().is_some_and(|text| { return text == "--attr-source" || text.starts_with("--attr-source="); }); }) {
-        return Vec::new();
+    for token in probe.global_prefix {
+        if let Some(text) = token.to_str()
+            && (text == "--attr-source" || text.starts_with("--attr-source="))
+        {
+            return Vec::new();
+        }
     }
     let Some(configured) = configured_attribute_tree(probe) else {
         debug(TAG, "attr.tree cannot be read, so no attribute tree is named");
@@ -108,7 +125,10 @@ pub fn attribute_tree_variables(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(O
     };
     if let Some(value) = configured {
         let spec: String = format!("{value}^{{tree}}");
-        let resolves: bool = probe.runner.run(&["rev-parse", "--verify", "--quiet", spec.as_str()], None, None).is_ok_and(|reply| { return reply.code == Some(0); });
+        let resolves: bool = match probe.runner.run(&["rev-parse", "--verify", "--quiet", spec.as_str()], None, None) {
+            Ok(reply) => reply.code == Some(0),
+            Err(_) => false,
+        };
         if resolves {
             return Vec::new();
         }
@@ -183,7 +203,10 @@ pub fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str, confl
         }
     };
     let index = scratch.join(format!("second-pass-{name}.index"));
-    let files: Vec<(&[u8], u32, &str)> = merged.iter().zip(oids.iter()).map(|(file, oid)| { return (file.path.as_slice(), file.mode, oid.as_str()); }).collect();
+    let mut files: Vec<(&[u8], u32, &str)> = Vec::new();
+    for (file, oid) in merged.iter().zip(oids.iter()) {
+        files.push((file.path.as_slice(), file.mode, oid.as_str()));
+    }
     let rewritten: Result<String, String> = tree_with_files(runner, tree, files.as_slice(), index.as_path());
     if let Err(error) = std::fs::remove_file(index.as_path()) {
         debug(TAG, format!("the scratch index could not be removed ({error}); the repository scratch sweep collects it").as_str());
@@ -216,7 +239,11 @@ fn left_words(why: &Left) -> String {
 /// const lines = merged.flatMap((file) => reportLines(prefix, file));
 /// ```
 pub fn report(prefix: &str, merged: &[Merged]) -> Vec<String> {
-    return merged.iter().flat_map(|file| { return report_lines(prefix, file); }).collect();
+    let mut lines: Vec<String> = Vec::new();
+    for file in merged {
+        lines.extend(report_lines(prefix, file));
+    }
+    return lines;
 }
 
 /// What:

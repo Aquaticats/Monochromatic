@@ -88,10 +88,17 @@ fn is_configuration_query(arguments: &[OsString]) -> bool {
     if layout.outcome != GlobalOutcome::Command || arguments[layout.prefix_len] != "config" {
         return false;
     }
-    let opens_editor: bool = arguments[layout.prefix_len + 1..]
-        .iter()
-        .take_while(|token| { return *token != "--"; })
-        .any(|token| { return token == "--edit" || token == "-e"; });
+    // Words after `--` are paths, so the scan stops there; the first editor option found answers it.
+    let mut opens_editor: bool = false;
+    for token in &arguments[layout.prefix_len + 1..] {
+        if *token == "--" {
+            break;
+        }
+        if token == "--edit" || token == "-e" {
+            opens_editor = true;
+            break;
+        }
+    }
     return !opens_editor;
 }
 

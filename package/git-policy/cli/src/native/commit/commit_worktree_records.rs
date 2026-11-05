@@ -53,6 +53,34 @@ fn blob_id(context: &GitContext, cwd: &Path, bytes: &[u8]) -> Result<String, Git
 }
 
 /// What:
+///  Whether one byte is the NUL byte that ends each record of a `-z` listing.
+///  `&u8` borrows the byte, as `split` hands it over.
+/// Why:
+///   `split` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNulByte = (byte: number) => byte === 0;
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  Whether one byte is the tab that separates the stage columns from the path in `git ls-files -s`.
+///  `&u8` borrows the byte, as `position` hands it over.
+/// Why:
+///   `position` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isTabByte = (byte: number) => byte === '\t'.charCodeAt(0);
+/// ```
+fn is_tab_byte(byte: &u8) -> bool {
+    return *byte == b'\t';
+}
+
+/// What:
 ///  The settled mode and object of one path in the private index, or nothing when it has no stage-zero entry.
 /// Why:
 ///   A correction counts only while the settled entry still has the ordinary mode of the original.
@@ -74,8 +102,8 @@ pub fn settled_entry(
     request.without_prefix = true;
     request.index = Some(index.to_path_buf());
     let output: GitOutput = run_git_checked(context, &request)?;
-    for record in output.stdout.split(|byte| { return *byte == 0; }) {
-        let Some(tab) = record.iter().position(|byte| { return *byte == b'\t'; }) else {
+    for record in output.stdout.split(is_nul_byte) {
+        let Some(tab) = record.iter().position(is_tab_byte) else {
             continue;
         };
         let metadata: String = String::from_utf8_lossy(&record[..tab]).into_owned();

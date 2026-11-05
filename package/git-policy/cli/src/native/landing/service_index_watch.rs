@@ -46,6 +46,50 @@ pub struct Watch {
 }
 
 /// What:
+///  A native-endian 32-bit field of an inotify event, `offset` bytes into the event that starts at `at`.
+/// Why:
+///  `parse_events` reads the mask and the name length of each event of a buffer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fieldAt = (buffer: Buffer, at: number, offset: number) => buffer.readUInt32LE(at + offset);
+/// ```
+#[cfg(target_os = "linux")]
+fn field_at(buffer: &[u8], at: usize, offset: usize) -> u32 {
+    let mut bytes: [u8; 4] = [0; 4];
+    bytes.copy_from_slice(&buffer[at + offset..at + offset + 4]);
+    return u32::from_ne_bytes(bytes);
+}
+
+/// What:
+///  Whether a byte is the NUL that ends the name of an inotify event.
+/// Why:
+///  `parse_events` cuts the name at the first NUL.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isZeroByte = (byte: number) => byte === 0;
+/// ```
+#[cfg(target_os = "linux")]
+fn is_zero_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  Whether an inotify event says the watch is over: the file system was unmounted, the watch was removed, or the watched file moved.
+/// Why:
+///  `events_end_watch` asks it of every event of a buffer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const endsTheWatch = ([mask]) => (mask & (IN_UNMOUNT | IN_IGNORED | IN_MOVE_SELF)) !== 0;
+/// ```
+#[cfg(target_os = "linux")]
+fn ends_the_watch(event: &(u32, &[u8])) -> bool {
+    return event.0 & (libc::IN_UNMOUNT | libc::IN_IGNORED | libc::IN_MOVE_SELF) != 0;
+}
+
+/// What:
 ///  The events of an inotify read as their masks and names.
 /// Why:
 ///   Bytes are parsed,
@@ -63,16 +107,11 @@ fn parse_events(buffer: &[u8]) -> Vec<(u32, &[u8])> {
     let mut events: Vec<(u32, &[u8])> = Vec::new();
     let mut at: usize = 0;
     while at + header <= buffer.len() {
-        let field = |offset: usize| -> u32 {
-            let mut bytes: [u8; 4] = [0; 4];
-            bytes.copy_from_slice(&buffer[at + offset..at + offset + 4]);
-            return u32::from_ne_bytes(bytes);
-        };
-        let length: usize = usize::try_from(field(12)).unwrap_or(usize::MAX);
+        let length: usize = usize::try_from(field_at(buffer, at, 12)).unwrap_or(usize::MAX);
         let start: usize = at + header;
         let end: usize = start.saturating_add(length).min(buffer.len());
-        let name: &[u8] = buffer[start..end].split(|byte| { return *byte == 0; }).next().unwrap_or(&[]);
-        events.push((field(4), name));
+        let name: &[u8] = buffer[start..end].split(is_zero_byte).next().unwrap_or(&[]);
+        events.push((field_at(buffer, at, 4), name));
         at = start.saturating_add(length);
     }
     return events;
@@ -96,7 +135,7 @@ fn parse_events(buffer: &[u8]) -> Vec<(u32, &[u8])> {
 /// ```
 #[cfg(target_os = "linux")]
 pub fn events_end_watch(buffer: &[u8]) -> bool {
-    return parse_events(buffer).iter().any(|(mask, _)| { return mask & (libc::IN_UNMOUNT | libc::IN_IGNORED | libc::IN_MOVE_SELF) != 0; });
+    return parse_events(buffer).iter().any(ends_the_watch);
 }
 
 /// What:
@@ -118,8 +157,15 @@ pub fn events_end_watch(buffer: &[u8]) -> bool {
 /// ```
 #[cfg(target_os = "linux")]
 pub fn events_name(buffer: &[u8], wanted: &[u8]) -> bool {
-    return events_end_watch(buffer)
-        || parse_events(buffer).iter().any(|(mask, name)| { return mask & libc::IN_Q_OVERFLOW != 0 || *name == wanted; });
+    if events_end_watch(buffer) {
+        return true;
+    }
+    for (mask, name) in parse_events(buffer) {
+        if mask & libc::IN_Q_OVERFLOW != 0 || name == wanted {
+            return true;
+        }
+    }
+    return false;
 }
 
 #[cfg(target_os = "linux")]

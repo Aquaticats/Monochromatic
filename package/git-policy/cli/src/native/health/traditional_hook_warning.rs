@@ -73,10 +73,10 @@ pub fn is_wrapper_hooks_path(value: &str) -> bool {
     if !is_canonical_uuid(identifier) {
         return false;
     }
-    return shadow
-        .parent()
-        .and_then(Path::file_name)
-        .is_some_and(|root| { return root == SHADOW_ROOT_NAME; });
+    return match shadow.parent().and_then(Path::file_name) {
+        Some(root) => root == SHADOW_ROOT_NAME,
+        None => false,
+    };
 }
 
 /// What:
@@ -90,11 +90,14 @@ pub fn is_wrapper_hooks_path(value: &str) -> bool {
 /// snapshot.entries.findLast((entry) => entry.key === 'core.hookspath')?.value;
 /// ```
 pub fn configured_hooks_path(snapshot: &ConfigSnapshot) -> Option<String> {
-    let entry = snapshot
-        .entries()
-        .iter()
-        .rev()
-        .find(|candidate| { return candidate.key == HOOKS_PATH_KEY; })?;
+    let mut last_entry = None;
+    for candidate in snapshot.entries().iter().rev() {
+        if candidate.key == HOOKS_PATH_KEY {
+            last_entry = Some(candidate);
+            break;
+        }
+    }
+    let entry = last_entry?;
     let bytes: &[u8] = entry.value.as_deref()?;
     if bytes.is_empty() {
         return None;
@@ -147,7 +150,12 @@ pub fn warn_traditional_hooks(snapshot: Option<&ConfigSnapshot>, stream: &mut im
     let Some(line) = traditional_hooks_warning(snapshot) else {
         return;
     };
-    if let Err(error) = stream.write_all(line.as_bytes()).and_then(|()| { return stream.flush(); }) {
+    // The stream is flushed only after the line was written, as `.and_then(...)` ran it.
+    let written: std::io::Result<()> = match stream.write_all(line.as_bytes()) {
+        Ok(()) => stream.flush(),
+        Err(error) => Err(error),
+    };
+    if let Err(error) = written {
         debug(TAG, format!("the warning could not be written: {error}").as_str());
     }
 }

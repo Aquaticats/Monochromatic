@@ -76,8 +76,15 @@ pub struct ReviewOptions {
 /// const logPath = process.env.SHADOW_REVIEW_LOG ?? `${commonDir}/cli-git/standards-review-shadow.md`;
 /// ```
 pub fn options_from_environment(common_dir: &Path, variable: &dyn Fn(&str) -> Option<String>) -> ReviewOptions {
-    let log_path: PathBuf = variable(LOG_VARIABLE).map_or_else(|| return shared_log_path(common_dir), PathBuf::from);
-    let api_key: Option<String> = variable(KEY_VARIABLES[0]).or_else(|| return variable(KEY_VARIABLES[1]));
+    let log_path: PathBuf = match variable(LOG_VARIABLE) {
+        Some(configured) => PathBuf::from(configured),
+        None => shared_log_path(common_dir),
+    };
+    // The second variable is read only when the first is unset, as `.or_else(...)` did.
+    let api_key: Option<String> = match variable(KEY_VARIABLES[0]) {
+        Some(key) => Some(key),
+        None => variable(KEY_VARIABLES[1]),
+    };
     return ReviewOptions { log_path, api_key, endpoint: String::from(ENDPOINT), quiet_window: SCRIPT_QUIET_WINDOW, call_ceiling: crate::wait_ceilings::REVIEW_CALL_CEILING, trusted_pem: None };
 }
 
@@ -120,6 +127,20 @@ pub enum ReviewOutcome {
 }
 
 /// What:
+///  The verdict of a gateway step that failed: no top choice, and the message in the outcome line.
+/// Why:
+///   `ask_gateway` reports every failure (no key, no reply, an unreadable reply) the same way, and a named function
+///  stands where a closure that built this verdict stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lunaFailed = (message: string) => ({ top: '', outcome: `Luna failed: ${message}` });
+/// ```
+fn luna_failed(message: String) -> Judged {
+    return Judged { top: String::new(), outcome: format!("Luna failed: {message}") };
+}
+
+/// What:
 ///  The gateway step: the verdict, or the failure message, and the elapsed milliseconds.
 /// Why:
 ///   A missing credential fails before any connection, as in the script.
@@ -129,16 +150,19 @@ pub enum ReviewOutcome {
 /// try { ...fetch... } catch (error) { lunaOutcome = 'Luna failed: ' + message }
 /// ```
 fn ask_gateway(input: &ReviewInput, options: &ReviewOptions) -> Judged {
-    let failed = |message: String| return Judged { top: String::new(), outcome: format!("Luna failed: {message}") };
     let key: &str = options.api_key.as_deref().unwrap_or("");
     if key.is_empty() {
-        return failed(String::from(NO_KEY_MESSAGE));
+        return luna_failed(String::from(NO_KEY_MESSAGE));
     }
     let gateway: Gateway = Gateway { url: options.endpoint.as_str(), api_key: key, quiet_window: options.quiet_window, ceiling: options.call_ceiling, trusted_pem: options.trusted_pem.as_deref() };
     let reply: Result<Reply, String> = post_decision(&gateway, request_body(input.model_input.as_str()).as_str());
-    return match reply.and_then(|answer| return read_answer(answer.status, answer.body.as_str())) {
+    let read: Result<Judged, String> = match reply {
+        Ok(answer) => read_answer(answer.status, answer.body.as_str()),
+        Err(message) => Err(message),
+    };
+    return match read {
         Ok(judged) => judged,
-        Err(message) => failed(message),
+        Err(message) => luna_failed(message),
     };
 }
 
@@ -289,7 +313,10 @@ impl Containment {
             return None;
         }
         let generation: u64 = (seen >> 2) + 1;
-        return self.state.compare_exchange(seen, (generation << 2) | RUNNING, Ordering::SeqCst, Ordering::SeqCst).ok().map(|_| { return generation; });
+        return match self.state.compare_exchange(seen, (generation << 2) | RUNNING, Ordering::SeqCst, Ordering::SeqCst) {
+            Ok(_) => Some(generation),
+            Err(_) => None,
+        };
     }
 
     /// Move job `generation` from `from` to `to`; false when the state is not that job's in that status any more.

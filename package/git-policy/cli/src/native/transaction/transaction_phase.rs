@@ -139,8 +139,15 @@ pub struct PhaseSignalError {
 /// Message text naming the variable, the quoted value and the accepted forms.
 impl std::fmt::Display for PhaseSignalError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let quoted: String = json_string(self.value.as_str()).unwrap_or_else(|_| format!("{:?}", self.value));
-        let phases: Vec<&str> = TRANSACTION_TEST_PHASES.iter().map(|phase| { return phase.name(); }).collect();
+        // A value that cannot be quoted as JSON text is shown in Rust's debug quoting.
+        let quoted: String = match json_string(self.value.as_str()) {
+            Ok(text) => text,
+            Err(_unquotable) => format!("{:?}", self.value),
+        };
+        let mut phases: Vec<&str> = Vec::new();
+        for phase in TRANSACTION_TEST_PHASES.iter() {
+            phases.push(phase.name());
+        }
         return write!(
             formatter,
             "{PHASE_SIGNAL_VARIABLE}={quoted} is not <phase>:kill[:<absolute directory>] or <phase>:pause:<absolute directory> with a phase among {}.",
@@ -183,6 +190,32 @@ impl std::fmt::Display for PhaseMarkerError {
 impl std::error::Error for PhaseMarkerError {}
 
 /// What:
+///  An operating-system string as text, with bytes that are not valid text replaced.
+/// Why:
+///  `reach_transaction_phase` reads the marker variable with it, so an odd byte reaches the parser as a replacement character.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lossyText = (text: Buffer): string => text.toString('utf8');
+/// ```
+fn lossy_text(text: std::ffi::OsString) -> String {
+    return text.to_string_lossy().into_owned();
+}
+
+/// What:
+///  The refusal for a marker value that does not parse, carrying the value as read.
+/// Why:
+///  `parse_phase_signal` refuses at several points, and each refusal is the same error.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusalOf = (value: string) => new PhaseSignalError(value);
+/// ```
+fn refusal_of(value: &str) -> PhaseSignalError {
+    return PhaseSignalError { value: value.to_string() };
+}
+
+/// What:
 ///  Parses the marker variable.
 /// Why:
 ///   The phase must match exactly, the action must be `kill` or `pause`,
@@ -194,35 +227,34 @@ impl std::error::Error for PhaseMarkerError {}
 /// parsePhaseSignal(value);
 /// ```
 pub fn parse_phase_signal(value: &str) -> Result<PhaseSignal, PhaseSignalError> {
-    let refusal = || {
-        return PhaseSignalError {
-            value: value.to_string(),
-        };
-    };
     let Some(phase_end) = value.find(':') else {
-        return Err(refusal());
+        return Err(refusal_of(value));
     };
     let rest: &str = &value[phase_end + 1..];
     let (action_text, directory_text) = match rest.find(':') {
         Some(action_end) => (&rest[..action_end], &rest[action_end + 1..]),
         None => (rest, ""),
     };
-    let Some(phase) = TRANSACTION_TEST_PHASES
-        .iter()
-        .copied()
-        .find(|candidate| { return candidate.name() == &value[..phase_end]; })
-    else {
-        return Err(refusal());
+    // The first phase whose name is the text before the first colon.
+    let mut found: Option<Phase> = None;
+    for candidate in TRANSACTION_TEST_PHASES.iter().copied() {
+        if candidate.name() == &value[..phase_end] {
+            found = Some(candidate);
+            break;
+        }
+    }
+    let Some(phase) = found else {
+        return Err(refusal_of(value));
     };
     let action: PhaseAction = match action_text {
         "kill" => PhaseAction::Kill,
         "pause" => PhaseAction::Pause,
-        _ => return Err(refusal()),
+        _ => return Err(refusal_of(value)),
     };
     if (action == PhaseAction::Pause && directory_text.is_empty())
         || (!directory_text.is_empty() && !Path::new(directory_text).is_absolute())
     {
-        return Err(refusal());
+        return Err(refusal_of(value));
     }
     return Ok(PhaseSignal {
         phase,
@@ -331,8 +363,10 @@ pub(crate) fn reach_with_value(
     phase: Phase,
     occurrence: Option<u64>,
 ) -> Result<(), PhaseMarkerError> {
-    let Some(armed) = value.filter(|text| { return !text.is_empty(); }) else {
-        return Ok(());
+    // An empty value arms nothing.
+    let armed: &str = match value {
+        Some(text) if !text.is_empty() => text,
+        _ => return Ok(()),
     };
     let signal: PhaseSignal = parse_phase_signal(armed).map_err(PhaseMarkerError::Malformed)?;
     if signal.phase != phase {
@@ -369,7 +403,7 @@ pub(crate) fn reach_with_value(
 /// await reachTransactionPhase({ phase: 'merge-intent' });
 /// ```
 pub fn reach_transaction_phase(phase: Phase, occurrence: Option<u64>) -> Result<(), PhaseMarkerError> {
-    let value: Option<String> = std::env::var_os(PHASE_SIGNAL_VARIABLE).map(|text: std::ffi::OsString| { return text.to_string_lossy().into_owned(); });
+    let value: Option<String> = std::env::var_os(PHASE_SIGNAL_VARIABLE).map(lossy_text);
     return reach_with_value(value.as_deref(), phase, occurrence);
 }
 

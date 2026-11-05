@@ -50,6 +50,17 @@ const SOURCE_EXTENSIONS: &[&[u8]] = &[
 /// ```
 const TEST_MARKER: &[u8] = b".test.";
 
+/// What: Whether one byte is the path separator `/`. `&u8` borrows the byte, as `split` hands it over.
+/// Why:  `split` and `rsplit` take this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isSlashByte = (byte: number) => byte === '/'.charCodeAt(0);
+/// ```
+fn is_slash_byte(byte: &u8) -> bool {
+    return *byte == b'/';
+}
+
 /// What: Whether a path is `package/<category>/<name>/package.json`. `.split(...)` yields the
 ///       `/`-separated segments; `Vec<&[u8]>` collects borrowed views of them.
 /// Why:  Only such a manifest is a workspace package; the incumbent's candidate test and
@@ -60,7 +71,7 @@ const TEST_MARKER: &[u8] = b".test.";
 /// const segments = path.split('/'); return segments.length === 4 && segments[0] === 'package' && segments[3] === 'package.json';
 /// ```
 pub fn is_workspace_manifest_path(path: &[u8]) -> bool {
-    let segments: Vec<&[u8]> = path.split(|byte: &u8| return *byte == b'/').collect();
+    let segments: Vec<&[u8]> = path.split(is_slash_byte).collect();
     // `matches!` tests a value against a pattern; the slice pattern names all four segments.
     return matches!(segments.as_slice(), [b"package", _, _, b"package.json"]);
 }
@@ -96,16 +107,24 @@ pub fn is_non_test_source_path(directory: &[u8], path: &[u8]) -> bool {
     }
     // `.rsplit(...)` yields segments from the end, so its first item is the file name.
     let name: &[u8] = path
-        .rsplit(|byte: &u8| return *byte == b'/')
+        .rsplit(is_slash_byte)
         .next()
         .unwrap_or(path);
-    let has_extension: bool = SOURCE_EXTENSIONS
-        .iter()
-        .any(|extension: &&[u8]| return name.ends_with(extension));
+    let mut has_extension: bool = false;
+    for extension in SOURCE_EXTENSIONS {
+        if name.ends_with(extension) {
+            has_extension = true;
+            break;
+        }
+    }
     // `.windows(n)` yields every run of `n` consecutive bytes.
-    let is_test: bool = name
-        .windows(TEST_MARKER.len())
-        .any(|window: &[u8]| return window == TEST_MARKER);
+    let mut is_test: bool = false;
+    for window in name.windows(TEST_MARKER.len()) {
+        if window == TEST_MARKER {
+            is_test = true;
+            break;
+        }
+    }
     return has_extension && !is_test;
 }
 

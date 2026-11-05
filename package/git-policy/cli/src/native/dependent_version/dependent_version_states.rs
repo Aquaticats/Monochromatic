@@ -138,13 +138,13 @@ fn manifest_state(manifest: RawManifest) -> Result<ManifestState, PolicyIncomple
 /// states.filter(s => s.baseVersion !== undefined && s.current.version !== s.baseVersion).map(s => s.current.name);
 /// ```
 pub fn bumped_names(states: &[ManifestState]) -> Vec<String> {
-    return states
-        .iter()
-        .filter(|state: &&ManifestState| {
-            return state.base_version.is_some() && state.facts.version != state.base_version;
-        })
-        .map(|state: &ManifestState| return state.facts.name.clone())
-        .collect();
+    let mut names: Vec<String> = Vec::new();
+    for state in states {
+        if state.base_version.is_some() && state.facts.version != state.base_version {
+            names.push(state.facts.name.clone());
+        }
+    }
+    return names;
 }
 
 /// What: The first pair of manifests, in order, that declare the same package name.
@@ -158,10 +158,14 @@ pub fn bumped_names(states: &[ManifestState]) -> Vec<String> {
 pub fn duplicate_name(states: &[ManifestState]) -> Option<PolicyIncomplete> {
     for (index, later) in states.iter().enumerate() {
         // `&states[..index]` borrows every state before this one.
-        if let Some(earlier) = states[..index]
-            .iter()
-            .find(|state: &&ManifestState| return state.facts.name == later.facts.name)
-        {
+        let mut first_owner: Option<&ManifestState> = None;
+        for state in &states[..index] {
+            if state.facts.name == later.facts.name {
+                first_owner = Some(state);
+                break;
+            }
+        }
+        if let Some(earlier) = first_owner {
             return Some(PolicyIncomplete::DuplicateName {
                 name: later.facts.name.clone(),
                 first: earlier.path.clone(),

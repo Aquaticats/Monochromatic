@@ -41,7 +41,7 @@ pub fn describe_merge_source(reference: &str, full_name: &str, oid: &str) -> Opt
     }
     if full_name.is_empty()
         && !reference.is_empty()
-        && reference.bytes().all(|byte| { return byte.is_ascii_hexdigit(); })
+        && reference.as_bytes().iter().all(u8::is_ascii_hexdigit)
     {
         return Some(format!("{oid}\t\tcommit '{reference}'\n"));
     }
@@ -66,7 +66,7 @@ pub fn fetch_head_merge_heads(text: &str) -> Vec<String> {
     for line in text.lines() {
         // A name is as long as the hash: 40 hexadecimal digits for SHA-1, 64 for SHA-256.
         let Some((name, rest)) = line.split_once('\t') else { continue };
-        let is_name: bool = (name.len() == 40 || name.len() == 64) && name.bytes().all(|byte| { return byte.is_ascii_hexdigit(); });
+        let is_name: bool = (name.len() == 40 || name.len() == 64) && name.as_bytes().iter().all(u8::is_ascii_hexdigit);
         // Two tabs mean the head is for merging; a word after the first tab (`not-for-merge`) means it is not.
         if is_name && rest.starts_with('\t') {
             heads.push(String::from(name));
@@ -98,7 +98,10 @@ pub fn default_merge_message(
     }
     let mut request: GitRequest = GitRequest::new(std::path::Path::new("."), &arguments);
     request.input = Some(description.as_bytes().to_vec());
-    let output = run_git_checked(context, &request).map_err(|error| { return error.to_string(); })?;
+    let output = match run_git_checked(context, &request) {
+        Ok(done) => done,
+        Err(error) => return Err(error.to_string()),
+    };
     return Ok(output.stdout);
 }
 
@@ -116,7 +119,10 @@ pub fn default_merge_message(
 pub fn clean_message(context: &GitContext, message: &[u8]) -> Result<Vec<u8>, String> {
     let mut request: GitRequest = GitRequest::new(std::path::Path::new("."), &["stripspace"]);
     request.input = Some(message.to_vec());
-    let output = run_git_checked(context, &request).map_err(|error| { return error.to_string(); })?;
+    let output = match run_git_checked(context, &request) {
+        Ok(done) => done,
+        Err(error) => return Err(error.to_string()),
+    };
     return Ok(output.stdout);
 }
 

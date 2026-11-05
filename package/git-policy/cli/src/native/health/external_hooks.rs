@@ -61,7 +61,10 @@ pub struct ConfiguredHook {
 /// new TextDecoder().decode(bytes)
 /// ```
 fn lossy(value: Option<&Vec<u8>>) -> String {
-    return value.map(|bytes| { return String::from_utf8_lossy(bytes.as_slice()).into_owned(); }).unwrap_or_default();
+    return match value {
+        Some(bytes) => String::from_utf8_lossy(bytes.as_slice()).into_owned(),
+        None => String::new(),
+    };
 }
 
 /// What:
@@ -90,7 +93,14 @@ pub fn configured_hooks(snapshot: &ConfigSnapshot) -> Vec<ConfiguredHook> {
         if name.is_empty() {
             continue;
         }
-        let position: usize = match hooks.iter().position(|known| { return known.name == name; }) {
+        let mut known_position: Option<usize> = None;
+        for (index, known) in hooks.iter().enumerate() {
+            if known.name == name {
+                known_position = Some(index);
+                break;
+            }
+        }
+        let position: usize = match known_position {
             Some(found) => found,
             None => {
                 hooks.push(ConfiguredHook { name: String::from(name), events: Vec::new(), has_command: false });
@@ -108,10 +118,14 @@ pub fn configured_hooks(snapshot: &ConfigSnapshot) -> Vec<ConfiguredHook> {
             hooks[position].has_command = true;
         }
     }
-    hooks.retain(|hook| {
-        return !matches!(snapshot.bool_value(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(false));
-    });
-    return hooks;
+    // A hook the author switched off by its own `hook.<name>.enabled` is dropped; the others keep their order.
+    let mut enabled: Vec<ConfiguredHook> = Vec::new();
+    for hook in hooks {
+        if !matches!(snapshot.bool_value(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(false)) {
+            enabled.push(hook);
+        }
+    }
+    return enabled;
 }
 
 /// What:
@@ -168,7 +182,10 @@ pub fn external_hooks_warning(snapshot: Option<&ConfigSnapshot>) -> Option<Strin
     if hooks.is_empty() {
         return None;
     }
-    let names: Vec<String> = hooks.iter().map(|hook| { return format!("hook.{}", hook.name); }).collect();
+    let mut names: Vec<String> = Vec::new();
+    for hook in &hooks {
+        names.push(format!("hook.{}", hook.name));
+    }
     return Some(render_configuration_warning(
         0,
         EXTERNAL_HOOKS_UNSUPPORTED_CODE,
@@ -191,7 +208,12 @@ pub fn warn_external_hooks(snapshot: Option<&ConfigSnapshot>, stream: &mut impl 
     let Some(line) = external_hooks_warning(snapshot) else {
         return;
     };
-    if let Err(error) = stream.write_all(line.as_bytes()).and_then(|()| { return stream.flush(); }) {
+    // The stream is flushed only after the line was written, as `.and_then(...)` ran it.
+    let written: std::io::Result<()> = match stream.write_all(line.as_bytes()) {
+        Ok(()) => stream.flush(),
+        Err(error) => Err(error),
+    };
+    if let Err(error) = written {
         debug(TAG, format!("the warning could not be written: {error}").as_str());
     }
 }

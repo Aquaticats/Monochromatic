@@ -15,124 +15,27 @@
 //! const clean = await checkClean({ root, gitDir, commonDir }); // { headCommit, headTree } or throws a reason
 //! ```
 
+use crate::add_timing::{begin_step, begin_work, end_step, end_work};
 use crate::scoped_start::start_or_run;
 use crate::repo_read_index::{IndexEntry, parse_index};
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_odb::ObjectDatabase;
 use crate::repo_read_refs::{Refs, RefValue};
 use crate::repo_read_tree::{FlatEntry, MODE_GITLINK, flatten_tree, parse_commit};
-use crate::fs_beneath::{entry_metadata_at, open_directory_beneath, open_root, plain_components};
-use crate::worktree_clean_content::{ContentJudge, ConversionEnvironment, Place};
-use crate::subvolume_index::{StatFields, StoredStat, be32, walk_entries};
-use crate::subvolume_index_files::{fields_of, matches_stored, repository_hash_length};
+use crate::worktree_clean_content::ConversionEnvironment;
+pub use crate::worktree_clean_stat_verdicts::{CleanRefusal, CleanRefusalKind, StatEntry, StatVerdict, metadata_differs_from_entry, metadata_verdict};
+use crate::worktree_clean_stat_verdicts::{ASSUME_VALID, file_changed};
+pub use crate::worktree_clean_tree_walk::{ContentTarget, StatCursor, stat_fields_beneath, tree_differs_from_index, tree_differs_from_index_beneath, tree_fields_beneath};
+use crate::worktree_clean_tree_walk::{tree_differs_from_index_by_content, tree_refusal};
+use crate::subvolume_index::{StoredStat, be32, walk_entries};
+use crate::subvolume_index_files::repository_hash_length;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
-use std::ffi::OsStr;
-use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
 /// The entries of a Git directory that mean an operation is in progress and the index or tree is not a plain state.
 const IN_PROGRESS: &[&str] =
     &["index.lock", "MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "BISECT_LOG", "rebase-merge", "rebase-apply", "sequencer"];
-
-/// The flags bit of an index entry that tells Git to trust the file without looking (`CE_VALID`).
-const ASSUME_VALID: u16 = 0x8000;
-
-/// What:
-///  Which kind of state kept a worktree from being proven clean.
-/// Why:
-///   Callers decide by kind, never by the words of the reason: the snapshot rung restores a worktree whose only trouble is an
-///  ordinary change, and refuses every state a restore cannot be proven to undo; the sentence for the person is chosen by kind.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type CleanRefusalKind = { kind: 'operation-in-progress'; name: string } | { kind: 'unreadable' } | { kind: 'not-plain' }
-///   | { kind: 'staged-change' } | { kind: 'file-changed' } | { kind: 'stat-stale' } | { kind: 'racy' } | { kind: 'untracked' };
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum CleanRefusalKind {
-    /// A merge, cherry-pick, revert, bisect, rebase, sequencer or `index.lock` mark exists; the name is the mark's.
-    OperationInProgress(&'static str),
-    /// The index, the object database, the configuration or Git itself cannot be read in the way the checks need.
-    Unreadable,
-    /// An index or tree entry of a kind a restore cannot be proven to undo: unmerged, intent-to-add, skip-worktree,
-    ///  assume-unchanged, or a submodule.
-    NotPlain,
-    /// The index differs from the tree of `HEAD`: a staged addition, deletion, change or rename.
-    StagedChange,
-    /// A tracked file is missing, changed its type or executable bit, or differs in content.
-    FileChanged,
-    /// A tracked file's size, times or inode differ from its entry, so it probably changed.
-    StatStale,
-    /// A tracked file is as new as the index, so its stat fields prove nothing.
-    Racy,
-    /// Git lists an untracked file that no ignore rule covers.
-    Untracked,
-}
-
-impl CleanRefusalKind {
-    /// Whether a reset to a commit can undo the state: only ordinary changes, not an operation in progress or a state Git
-    ///  keeps outside the tree and the files.
-    pub fn restorable(self) -> bool {
-        return matches!(self, Self::StagedChange | Self::FileChanged | Self::StatStale | Self::Racy | Self::Untracked);
-    }
-}
-
-/// What:
-///  Why a worktree could not be proven clean: the kind and the reason in words.
-/// Why:
-///   The words are for logs and for people; the kind is for code.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type CleanRefusal = { kind: CleanRefusalKind; reason: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CleanRefusal {
-    /// What kind of state refused.
-    pub kind: CleanRefusalKind,
-    /// The reason, in words.
-    pub reason: String,
-}
-
-impl CleanRefusal {
-    /// A refusal of `kind` with its reason.
-    fn new(kind: CleanRefusalKind, reason: impl Into<String>) -> CleanRefusal {
-        return CleanRefusal { kind, reason: reason.into() };
-    }
-
-    /// A refusal because something could not be read.
-    fn unreadable(reason: impl Into<String>) -> CleanRefusal {
-        return CleanRefusal::new(CleanRefusalKind::Unreadable, reason);
-    }
-}
-
-impl std::fmt::Display for CleanRefusal {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return formatter.write_str(self.reason.as_str());
-    }
-}
-
-/// What:
-///  One tracked file of an index with the stat fields the index recorded for it.
-/// Why:
-///   `parse_index` leaves the stat fields out, and the comparison with the file on disk needs them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type StatEntry = { path: Uint8Array; flags: number; mode: number; stored: StoredStat };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct StatEntry {
-    /// The path, `/` separated.
-    pub path: Vec<u8>,
-    /// The entry's flags (the assume-valid bit among them).
-    pub flags: u16,
-    /// The mode with its type bits.
-    pub mode: u32,
-    /// The recorded stat fields.
-    pub stored: StoredStat,
-}
 
 /// What:
 ///  What a clean worktree's `HEAD` names.
@@ -163,6 +66,48 @@ pub struct CleanSource {
 }
 
 /// What:
+///  A refusal that the index or the Git data could not be read, when `found` holds nothing.
+/// Why:
+///   Every read of the repository's own files refuses in the same way, saying which read failed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// found ?? throw unreadable(reason)
+/// ```
+fn or_unreadable<T>(found: Option<T>, reason: &'static str) -> Result<T, CleanRefusal> {
+    return match found {
+        Some(value) => Ok(value),
+        None => Err(CleanRefusal::unreadable(reason)),
+    };
+}
+
+/// What:
+///  A refusal that the index file could not be opened, examined or read.
+/// Why:
+///   Three steps of reading the index word their failure the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unreadable(`the index is unreadable (${error})`)
+/// ```
+fn index_unreadable(error: std::io::Error) -> CleanRefusal {
+    return CleanRefusal::unreadable(format!("the index is unreadable ({error})"));
+}
+
+/// What:
+///  Whether a byte is NUL, the end of each name in Git's `-z` output.
+/// Why:
+///   The untracked names are split on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
 ///  The first entry of the Git directory that marks an operation in progress, if any.
 /// Why:
 ///   A merge, a rebase or a held index lock means the index is not the committed state yet; the lock a caller holds itself
@@ -173,7 +118,15 @@ pub struct CleanSource {
 /// function operationInProgress(gitDir: string): string | undefined;
 /// ```
 fn operation_in_progress(git_dir: &Path, owned_index_lock: bool) -> Option<&'static str> {
-    return IN_PROGRESS.iter().copied().filter(|name: &&str| { return !(owned_index_lock && *name == "index.lock"); }).find(|name: &&str| { return git_dir.join(name).symlink_metadata().is_ok(); });
+    for name in IN_PROGRESS.iter().copied() {
+        if owned_index_lock && name == "index.lock" {
+            continue;
+        }
+        if git_dir.join(name).symlink_metadata().is_ok() {
+            return Some(name);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -249,308 +202,6 @@ fn index_differs_from_tree(index: &[IndexEntry], tree: &[FlatEntry]) -> Option<C
 }
 
 /// What:
-///  What the stat data of an index entry says about a file.
-/// Why:
-///   A file the data cannot vouch for (a racily clean entry, a stale stat) is not the same as a file that certainly changed:
-///  Git settles the first by content, so a caller that can compare content takes the two apart.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type StatVerdict = { kind: 'agrees' } | { kind: 'unproven'; reason: string } | { kind: 'differs'; reason: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum StatVerdict {
-    /// Size, times, inode, type and mode all equal the entry.
-    Agrees,
-    /// The stat data proves nothing either way; the content decides.
-    Unproven(String),
-    /// The file certainly differs: missing type, mode or assume-unchanged mark.
-    Differs(String),
-}
-
-/// What:
-///  What the stat data of the entry says about a file whose metadata is `metadata`.
-/// Why:
-///   The comparison takes the metadata of an inode already in hand, so a caller that holds a descriptor judges the file it
-///  holds, not whatever the path names a moment later. Type and executable bit come before the time checks: they differ
-///  whatever the content is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function metadataVerdict(entry: StatEntry, metadata: Stats, indexSeconds: number): StatVerdict;
-/// ```
-pub fn metadata_verdict(entry: &StatEntry, metadata: &std::fs::Metadata, index_seconds: u32) -> StatVerdict {
-    return match stat_finding(entry, metadata, index_seconds) {
-        None => StatVerdict::Agrees,
-        Some(CleanRefusal { kind: CleanRefusalKind::Racy | CleanRefusalKind::StatStale, reason }) => StatVerdict::Unproven(reason),
-        Some(refusal) => StatVerdict::Differs(refusal.reason),
-    };
-}
-
-/// What:
-///  What the stat data of the entry says about a file whose metadata is `metadata`, as a refusal with its kind, or nothing
-///  when they agree.
-/// Why:
-///   One comparison serves the verdict that callers of the stat-only checks use and the kind that the snapshot rung decides
-///  by. Type and executable bit come before the time checks: they differ whatever the content is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function statFinding(entry: StatEntry, metadata: Stats, indexSeconds: number): CleanRefusal | undefined;
-/// ```
-fn stat_finding(entry: &StatEntry, metadata: &std::fs::Metadata, index_seconds: u32) -> Option<CleanRefusal> {
-    let StatEntry { path, flags, mode, stored }: &StatEntry = entry;
-    let shown: String = String::from_utf8_lossy(path).into_owned();
-    if flags & ASSUME_VALID != 0 {
-        return Some(CleanRefusal::new(CleanRefusalKind::NotPlain, format!("{shown} is marked assume-unchanged")));
-    }
-    let symbolic: bool = *mode & 0o170_000 == 0o120_000;
-    if symbolic != metadata.file_type().is_symlink() || (!symbolic && !metadata.file_type().is_file()) {
-        return Some(CleanRefusal::new(CleanRefusalKind::FileChanged, format!("{shown} changed its type")));
-    }
-    if !symbolic && (*mode & 0o100 != 0) != (metadata.mode() & 0o100 != 0) {
-        return Some(CleanRefusal::new(CleanRefusalKind::FileChanged, format!("{shown} changed its executable bit")));
-    }
-    if stored.mtime_seconds >= index_seconds {
-        return Some(CleanRefusal::new(CleanRefusalKind::Racy, format!("{shown} is as new as the index, so its stat fields prove nothing")));
-    }
-    let now: StatFields = fields_of(metadata);
-    if !matches_stored(&now, stored) {
-        return Some(CleanRefusal::new(CleanRefusalKind::StatStale, format!("{shown} differs from its index entry by size, times or inode")));
-    }
-    return None;
-}
-
-/// What:
-///  The reason a file whose metadata is `metadata` differs from its index entry, or nothing when the two agree.
-/// Why:
-///   Callers that rely on the stat data alone (the snapshot and clone rungs) treat a file the data cannot vouch for like a
-///  file that changed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function metadataDiffersFromEntry(entry: StatEntry, metadata: Stats, indexSeconds: number): string | undefined;
-/// ```
-pub fn metadata_differs_from_entry(entry: &StatEntry, metadata: &std::fs::Metadata, index_seconds: u32) -> Option<String> {
-    return match metadata_verdict(entry, metadata, index_seconds) {
-        StatVerdict::Agrees => None,
-        StatVerdict::Unproven(reason) | StatVerdict::Differs(reason) => Some(reason),
-    };
-}
-
-/// What:
-///  The first reason a tracked file of `root` differs from its index entry, or nothing when every file agrees.
-/// Why:
-///   After a snapshot the same comparison runs against the snapshot's own files, so a source that changed while the
-///  snapshot was taken is caught on the copy. The files are reached below a held root with no link followed, so a directory
-///  replaced by a link is not read through.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function treeDiffersFromIndex(root: string, entries: StatEntry[], indexSeconds: number): string | undefined;
-/// ```
-pub fn tree_differs_from_index(root: &Path, entries: &[StatEntry], index_seconds: u32) -> Option<String> {
-    return match open_root(root) {
-        Ok(held) => tree_differs_from_index_beneath(&held, entries, index_seconds),
-        Err(error) => Some(format!("{} cannot be opened without following a link ({error})", root.display())),
-    };
-}
-
-/// The first refusal of a tracked file of `root` against its index entry, with its kind; the files are reached below a held
-///  root with no link followed.
-fn tree_refusal(root: &Path, entries: &[StatEntry], index_seconds: u32) -> Option<CleanRefusal> {
-    return match open_root(root) {
-        Ok(held) => tree_refusal_beneath(&held, entries, index_seconds),
-        Err(error) => Some(CleanRefusal::unreadable(format!("{} cannot be opened without following a link ({error})", root.display()))),
-    };
-}
-
-/// What the content decision needs besides the entries: the worktree, its Git directories, the environment and the format.
-pub struct ContentTarget<'a> {
-    /// The worktree root.
-    pub root: &'a Path,
-    /// The worktree's Git directory.
-    pub git_dir: &'a Path,
-    /// The shared Git directory.
-    pub common_dir: &'a Path,
-    /// The configuration and attribute locations.
-    pub environment: &'a ConversionEnvironment,
-    /// The object format of the repository.
-    pub format: ObjectFormat,
-}
-
-/// What:
-///  The first reason a tracked file of the worktree differs from its index entry, deciding by content where the stat data
-///  cannot vouch for the file.
-/// Why:
-///   Git hashes a racily clean entry and an entry whose stat data is stale; this does the same in process, so a clean
-///  worktree that was copied, cloned or written in the same second as its index is not refused. Every file is reached below a
-///  held root with no link followed, so a directory replaced by a link is refused instead of being read through. A file that
-///  really differs, or one a content conversion could change, is refused with the reason.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function treeDiffersFromIndexByContent(target: ContentTarget, entries: StatEntry[], indexed: IndexEntry[], indexSeconds: number): string | undefined;
-/// ```
-fn tree_differs_from_index_by_content(target: &ContentTarget<'_>, entries: &[StatEntry], indexed: &[IndexEntry], index_seconds: u32) -> Option<String> {
-    if entries.len() != indexed.len() {
-        return Some(String::from("the index entries and their stat data are not the same files"));
-    }
-    let held: std::fs::File = match open_root(target.root) {
-        Ok(opened) => opened,
-        Err(error) => return Some(format!("{} cannot be opened without following a link ({error})", target.root.display())),
-    };
-    let mut judge: ContentJudge<'_> = ContentJudge::new(&held, target.git_dir, target.common_dir, target.environment, target.format);
-    let mut cached: Option<(Vec<std::ffi::OsString>, std::fs::File)> = None;
-    for (entry, committed) in entries.iter().zip(indexed) {
-        if entry.path != committed.path {
-            return Some(String::from("the index entries and their stat data are not the same files"));
-        }
-        let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
-        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(entry.path.as_slice()))) else { return Some(format!("{shown} is not a plain path")) };
-        let Some((name, parents)) = names.split_last() else { return Some(format!("{shown} is not a plain path")) };
-        if cached.as_ref().is_none_or(|(known, _directory): &(Vec<std::ffi::OsString>, std::fs::File)| { return known.as_slice() != parents; }) {
-            let Ok(directory) = open_directory_beneath(&held, parents) else { return Some(format!("{shown} is missing from the worktree or reached through a link")) };
-            cached = Some((parents.to_vec(), directory));
-        }
-        let Some((_known, directory)) = cached.as_ref() else { return Some(format!("{shown} is missing from the worktree")) };
-        let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { return Some(format!("{shown} is missing from the worktree")) };
-        match metadata_verdict(entry, &metadata, index_seconds) {
-            StatVerdict::Agrees => {}
-            StatVerdict::Differs(reason) => return Some(reason),
-            StatVerdict::Unproven(_reason) => {
-                let place: Place<'_> = Place { directory, parents, name: name.as_os_str() };
-                if let Err(reason) = judge.agrees(&place, entry, committed.id.as_slice(), index_seconds) {
-                    return Some(reason);
-                }
-            }
-        }
-    }
-    return None;
-}
-
-/// What:
-///  The first reason a tracked file below the held directory `root` differs from its index entry, or nothing when every
-///  file agrees; each file is looked at below handles opened without following a link.
-/// Why:
-///   A snapshot is checked against the index it will carry; a path walk through a link inside the snapshot would compare
-///  a file outside it, so every directory on the way must be a real one on the snapshot's device.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function treeDiffersFromIndexBeneath(root: Dir, entries: StatEntry[], indexSeconds: number): string | undefined;
-/// ```
-pub fn tree_differs_from_index_beneath(root: &std::fs::File, entries: &[StatEntry], index_seconds: u32) -> Option<String> {
-    return tree_refusal_beneath(root, entries, index_seconds).map(|refusal: CleanRefusal| { return refusal.reason; });
-}
-
-/// The first refusal of a tracked file below the held directory `root` against its index entry, with its kind.
-fn tree_refusal_beneath(root: &std::fs::File, entries: &[StatEntry], index_seconds: u32) -> Option<CleanRefusal> {
-    let changed = |reason: String| -> Option<CleanRefusal> { return Some(CleanRefusal::new(CleanRefusalKind::FileChanged, reason)); };
-    let mut cached: Option<(Vec<std::ffi::OsString>, std::fs::File)> = None;
-    for entry in entries {
-        let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
-        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(entry.path.as_slice()))) else { return Some(CleanRefusal::unreadable(format!("{shown} is not a plain path"))) };
-        let Some((name, parents)) = names.split_last() else { return Some(CleanRefusal::unreadable(format!("{shown} is not a plain path"))) };
-        if cached.as_ref().is_none_or(|(held, _directory): &(Vec<std::ffi::OsString>, std::fs::File)| { return held.as_slice() != parents; }) {
-            let Ok(directory) = open_directory_beneath(root, parents) else { return changed(format!("{shown} is missing from the worktree or reached through a link")) };
-            cached = Some((parents.to_vec(), directory));
-        }
-        let Some((_held, directory)) = cached.as_ref() else { return changed(format!("{shown} is missing from the worktree")) };
-        let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { return changed(format!("{shown} is missing from the worktree")) };
-        if let Some(refusal) = stat_finding(entry, &metadata, index_seconds) {
-            return Some(refusal);
-        }
-    }
-    return None;
-}
-
-/// What:
-///  A walk below a held directory that keeps the last directory it opened.
-/// Why:
-///   The paths of an index come in order, so most of them share their parent with the one before; one `openat2` chain per
-///  directory instead of per file is what the walk costs, and each file is still reached through handles that follow no link.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const cursor = new StatCursor(root); cursor.fields(path); // StatFields | undefined
-/// ```
-pub struct StatCursor<'a> {
-    /// The directory every path is found below.
-    root: &'a std::fs::File,
-    /// The components and the handle of the last directory opened.
-    held: Option<(Vec<std::ffi::OsString>, std::fs::File)>,
-}
-
-impl<'a> StatCursor<'a> {
-    /// A cursor below `root` that has opened nothing.
-    pub fn new(root: &'a std::fs::File) -> Self {
-        return Self { root, held: None };
-    }
-
-    /// The metadata of the file `path` names below the root, or the reason it cannot be found through plain directories.
-    fn metadata(&mut self, path: &[u8]) -> Result<std::fs::Metadata, String> {
-        let shown: String = String::from_utf8_lossy(path).into_owned();
-        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(path))) else { return Err(format!("{shown} is not a plain path")) };
-        let Some((name, parents)) = names.split_last() else { return Err(format!("{shown} is not a plain path")) };
-        if self.held.as_ref().is_none_or(|(known, _directory): &(Vec<std::ffi::OsString>, std::fs::File)| { return known.as_slice() != parents; }) {
-            let Ok(directory) = open_directory_beneath(self.root, parents) else { return Err(format!("{shown} is missing from the worktree or reached through a link")) };
-            self.held = Some((parents.to_vec(), directory));
-        }
-        let Some((_known, directory)) = self.held.as_ref() else { return Err(format!("{shown} is missing from the worktree")) };
-        return entry_metadata_at(directory, name.as_os_str()).map_err(|_error| { return format!("{shown} is missing from the worktree"); });
-    }
-
-    /// The stat fields of the tracked file `path` below the root, or nothing when it cannot be found through plain directories.
-    pub fn fields(&mut self, path: &[u8]) -> Option<StatFields> {
-        return self.metadata(path).ok().map(|found: std::fs::Metadata| { return fields_of(&found); });
-    }
-}
-
-/// What:
-///  Judge every tracked file below the held directory `root` against its index entry and return the stat fields of each, in
-///  entry order, in one walk.
-/// Why:
-///   The snapshot's index takes the stat fields of the snapshot's own files, and the snapshot is proven equal to the source's
-///  index by the same stat data; the same `statx` serves both, so the files are looked at once, and the fields are the ones the
-///  verdict was given on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const fields = treeFieldsBeneath(root, entries, indexSeconds); // throws a CleanRefusal
-/// ```
-pub fn tree_fields_beneath(root: &std::fs::File, entries: &[StatEntry], index_seconds: u32) -> Result<Vec<StatFields>, CleanRefusal> {
-    let mut cursor: StatCursor<'_> = StatCursor::new(root);
-    let mut fields: Vec<StatFields> = Vec::with_capacity(entries.len());
-    for entry in entries {
-        let metadata: std::fs::Metadata = match cursor.metadata(entry.path.as_slice()) {
-            Ok(found) => found,
-            Err(reason) if reason.ends_with("is not a plain path") => return Err(CleanRefusal::unreadable(reason)),
-            Err(reason) => return Err(CleanRefusal::new(CleanRefusalKind::FileChanged, reason)),
-        };
-        if let Some(refusal) = stat_finding(entry, &metadata, index_seconds) {
-            return Err(refusal);
-        }
-        fields.push(fields_of(&metadata));
-    }
-    return Ok(fields);
-}
-
-/// What:
-///  The stat fields of the tracked file `path` below the held directory `root`, found through handles, or nothing.
-/// Why:
-///   The index of a snapshot takes the stat fields of the snapshot's own files; reading them by a path with several
-///  components would follow a link substituted below the root.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function statFieldsBeneath(root: Dir, path: Uint8Array): StatFields | undefined;
-/// ```
-pub fn stat_fields_beneath(root: &std::fs::File, path: &[u8]) -> Option<StatFields> {
-    return StatCursor::new(root).fields(path);
-}
-
-/// What:
 ///  Whether Git lists an untracked file that no ignore rule covers.
 /// Why:
 ///   Only Git's ignore rules can tell an untracked file that matters from one it ignores; `--directory` stops at the
@@ -567,11 +218,20 @@ fn untracked_file(context: &GitContext, root: &Path) -> Result<Option<String>, C
         without_prefix: true,
         ..GitRequest::default()
     };
-    let output = run_git(context, &request).map_err(|error| { return CleanRefusal::unreadable(format!("Git could not list untracked files ({error})")); })?;
+    let output = match run_git(context, &request) {
+        Ok(finished) => finished,
+        Err(error) => return Err(CleanRefusal::unreadable(format!("Git could not list untracked files ({error})"))),
+    };
     if output.code != Some(0) {
         return Err(CleanRefusal::unreadable(format!("Git could not list untracked files: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())));
     }
-    return Ok(output.stdout.split(|byte: &u8| { return *byte == 0; }).find(|name: &&[u8]| { return !name.is_empty(); }).map(|name: &[u8]| { return String::from_utf8_lossy(name).into_owned(); }));
+    // The first name that is not empty, as `find` chose it.
+    for name in output.stdout.split(is_nul_byte) {
+        if !name.is_empty() {
+            return Ok(Some(String::from_utf8_lossy(name).into_owned()));
+        }
+    }
+    return Ok(None);
 }
 
 /// What:
@@ -586,7 +246,10 @@ fn untracked_file(context: &GitContext, root: &Path) -> Result<Option<String>, C
 /// function checkCleanTracked(root: string, gitDir: string, commonDir: string): CleanSource; // throws the reason
 /// ```
 pub fn check_clean_tracked(root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, String> {
-    return check_tracked(root, git_dir, common_dir, None, false).map_err(|refusal: CleanRefusal| { return refusal.reason; });
+    return match check_tracked(root, git_dir, common_dir, None, false) {
+        Ok(source) => Ok(source),
+        Err(refusal) => Err(refusal.reason),
+    };
 }
 
 /// What:
@@ -602,7 +265,10 @@ pub fn check_clean_tracked(root: &Path, git_dir: &Path, common_dir: &Path) -> Re
 /// function checkCleanTrackedByContent(root: string, gitDir: string, commonDir: string, environment: ConversionEnvironment, ownedIndexLock: boolean): CleanSource; // throws the reason
 /// ```
 pub fn check_clean_tracked_by_content(root: &Path, git_dir: &Path, common_dir: &Path, environment: &ConversionEnvironment, owned_index_lock: bool) -> Result<CleanSource, String> {
-    return check_tracked(root, git_dir, common_dir, Some(environment), owned_index_lock).map_err(|refusal: CleanRefusal| { return refusal.reason; });
+    return match check_tracked(root, git_dir, common_dir, Some(environment), owned_index_lock) {
+        Ok(source) => Ok(source),
+        Err(refusal) => Err(refusal.reason),
+    };
 }
 
 /// What the checks read before they judge: the index with its stat data, the commit `HEAD` names and its flattened tree.
@@ -630,11 +296,13 @@ struct State {
 impl State {
     /// The `.gitattributes` files of the tree as path and object name.
     fn attribute_blobs(&self) -> Vec<(Vec<u8>, Vec<u8>)> {
-        return self.tree
-            .iter()
-            .filter(|entry: &&FlatEntry| { return entry.path == b".gitattributes" || entry.path.ends_with(b"/.gitattributes"); })
-            .map(|entry: &FlatEntry| { return (entry.path.clone(), entry.id.clone()); })
-            .collect();
+        let mut blobs: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
+        for entry in &self.tree {
+            if entry.path == b".gitattributes" || entry.path.ends_with(b"/.gitattributes") {
+                blobs.push((entry.path.clone(), entry.id.clone()));
+            }
+        }
+        return blobs;
     }
 
     /// What `HEAD` names, with the index bytes the caller proved (or none, for a worktree that is not clean).
@@ -655,23 +323,22 @@ impl State {
 /// function readState(gitDir: string, commonDir: string): State; // throws a CleanRefusal
 /// ```
 fn read_state(git_dir: &Path, common_dir: &Path) -> Result<State, CleanRefusal> {
-    let hash_length: usize = repository_hash_length(common_dir).ok_or_else(|| { return CleanRefusal::unreadable("the repository configuration is unreadable"); })?;
+    let hash_length: usize = or_unreadable(repository_hash_length(common_dir), "the repository configuration is unreadable")?;
     let format: ObjectFormat = if hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
     // One open file gives both the bytes and the time, so the time belongs to the bytes that were proven.
     let index_path = git_dir.join("index");
-    let unreadable = |error: std::io::Error| -> CleanRefusal { return CleanRefusal::unreadable(format!("the index is unreadable ({error})")); };
-    let mut index_file: std::fs::File = std::fs::File::open(index_path.as_path()).map_err(unreadable)?;
-    let index_seconds: u32 = index_file.metadata().map_err(unreadable)?.mtime() as u32;
+    let mut index_file: std::fs::File = std::fs::File::open(index_path.as_path()).map_err(index_unreadable)?;
+    let index_seconds: u32 = index_file.metadata().map_err(index_unreadable)?.mtime() as u32;
     let mut bytes: Vec<u8> = Vec::new();
-    std::io::Read::read_to_end(&mut index_file, &mut bytes).map_err(unreadable)?;
-    let entries: Vec<IndexEntry> = parse_index(bytes.as_slice(), format).ok_or_else(|| { return CleanRefusal::unreadable("the index has a layout the reader does not know"); })?;
-    let stats = stored_stats(bytes.as_slice(), hash_length).ok_or_else(|| { return CleanRefusal::unreadable("the index entries have no plain layout"); })?;
-    let commit: String = head_commit(git_dir, common_dir, format).ok_or_else(|| { return CleanRefusal::unreadable("HEAD is not a plain ref to a commit"); })?;
-    let database: ObjectDatabase = ObjectDatabase::open(common_dir, None, format).ok_or_else(|| { return CleanRefusal::unreadable("the object database has a layout the reader does not know"); })?;
-    let commit_name: Vec<u8> = crate::repo_read_object::from_hex(commit.as_bytes(), format).ok_or_else(|| { return CleanRefusal::unreadable("HEAD names no object"); })?;
-    let commit_fields = parse_commit(database.read(commit_name.as_slice()).ok_or_else(|| { return CleanRefusal::unreadable("the commit of HEAD is unreadable"); })?.bytes.as_slice(), format)
-        .ok_or_else(|| { return CleanRefusal::unreadable("the commit of HEAD has a layout the reader does not know"); })?;
-    let tree: Vec<FlatEntry> = flatten_tree(&database, commit_fields.tree.as_slice(), format).ok_or_else(|| { return CleanRefusal::unreadable("the tree of HEAD is unreadable"); })?;
+    std::io::Read::read_to_end(&mut index_file, &mut bytes).map_err(index_unreadable)?;
+    let entries: Vec<IndexEntry> = or_unreadable(parse_index(bytes.as_slice(), format), "the index has a layout the reader does not know")?;
+    let stats = or_unreadable(stored_stats(bytes.as_slice(), hash_length), "the index entries have no plain layout")?;
+    let commit: String = or_unreadable(head_commit(git_dir, common_dir, format), "HEAD is not a plain ref to a commit")?;
+    let database: ObjectDatabase = or_unreadable(ObjectDatabase::open(common_dir, None, format), "the object database has a layout the reader does not know")?;
+    let commit_name: Vec<u8> = or_unreadable(crate::repo_read_object::from_hex(commit.as_bytes(), format), "HEAD names no object")?;
+    let commit_object = or_unreadable(database.read(commit_name.as_slice()), "the commit of HEAD is unreadable")?;
+    let commit_fields = or_unreadable(parse_commit(commit_object.bytes.as_slice(), format), "the commit of HEAD has a layout the reader does not know")?;
+    let tree: Vec<FlatEntry> = or_unreadable(flatten_tree(&database, commit_fields.tree.as_slice(), format), "the tree of HEAD is unreadable")?;
     return Ok(State { bytes, index_seconds, hash_length, format, entries, stats, commit, tree_id: commit_fields.tree, tree });
 }
 
@@ -680,14 +347,25 @@ fn check_tracked(root: &Path, git_dir: &Path, common_dir: &Path, environment: Op
     if let Some(name) = operation_in_progress(git_dir, owned_index_lock) {
         return Err(CleanRefusal::new(CleanRefusalKind::OperationInProgress(name), format!("{name} exists in {}", git_dir.display())));
     }
-    let state: State = crate::add_timing::step("readIndexAndTree", || { return read_state(git_dir, common_dir); })?;
-    if let Some(refusal) = crate::add_timing::step("indexAgainstTree", || { return index_differs_from_tree(state.entries.as_slice(), state.tree.as_slice()); }) {
+    let read_index_and_tree_entered: bool = begin_step("readIndexAndTree");
+    let read_index_and_tree_outcome = read_state(git_dir, common_dir);
+    end_step(read_index_and_tree_entered);
+    let state: State = read_index_and_tree_outcome?;
+    let index_against_tree_entered: bool = begin_step("indexAgainstTree");
+    let index_against_tree_outcome = index_differs_from_tree(state.entries.as_slice(), state.tree.as_slice());
+    end_step(index_against_tree_entered);
+    if let Some(refusal) = index_against_tree_outcome {
         return Err(refusal);
     }
     let differs: Option<CleanRefusal> = match environment {
-        None => crate::add_timing::step("walkSource", || { return tree_refusal(root, state.stats.as_slice(), state.index_seconds); }),
+        None => {
+            let walk_source_entered: bool = begin_step("walkSource");
+            let walked: Option<CleanRefusal> = tree_refusal(root, state.stats.as_slice(), state.index_seconds);
+            end_step(walk_source_entered);
+            walked
+        }
         Some(found) => tree_differs_from_index_by_content(&ContentTarget { root, git_dir, common_dir, environment: found, format: state.format }, state.stats.as_slice(), state.entries.as_slice(), state.index_seconds)
-            .map(|reason: String| { return CleanRefusal::new(CleanRefusalKind::FileChanged, reason); }),
+            .map(file_changed),
     };
     if let Some(refusal) = differs {
         return Err(refusal);
@@ -717,12 +395,17 @@ fn entry_a_reset_cannot_undo(state: &State) -> Option<CleanRefusal> {
             return Some(CleanRefusal::new(CleanRefusalKind::NotPlain, format!("{shown} is a submodule")));
         }
     }
-    if let Some(entry) = state.tree.iter().find(|entry: &&FlatEntry| { return entry.mode == MODE_GITLINK; }) {
-        return Some(CleanRefusal::new(CleanRefusalKind::NotPlain, format!("{} is a submodule in HEAD", String::from_utf8_lossy(&entry.path))));
+    for entry in &state.tree {
+        if entry.mode == MODE_GITLINK {
+            return Some(CleanRefusal::new(CleanRefusalKind::NotPlain, format!("{} is a submodule in HEAD", String::from_utf8_lossy(&entry.path))));
+        }
     }
-    return state.stats.iter().find(|entry: &&StatEntry| { return entry.flags & ASSUME_VALID != 0; }).map(|entry: &StatEntry| {
-        return CleanRefusal::new(CleanRefusalKind::NotPlain, format!("{} is marked assume-unchanged", String::from_utf8_lossy(&entry.path)));
-    });
+    for entry in &state.stats {
+        if entry.flags & ASSUME_VALID != 0 {
+            return Some(CleanRefusal::new(CleanRefusalKind::NotPlain, format!("{} is marked assume-unchanged", String::from_utf8_lossy(&entry.path))));
+        }
+    }
+    return None;
 }
 
 /// Cleanliness controls stay out of the release executable.
@@ -739,10 +422,19 @@ fn entry_a_reset_cannot_undo(state: &State) -> Option<CleanRefusal> {
 pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, CleanRefusal> {
     // The tracked files (the index, the tree of `HEAD`, a stat of every file) and the untracked scan (one Git run over the
     //  directory tree) read different things and write nothing, so they run side by side; the tracked refusal still comes first.
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the scoped thread body and its workers must borrow the caller's state and the callee bounds them by the scope, not by 'static (worktree_closure_lint_suppressions.md, group scope)"))]
     let (tracked, untracked): (Result<CleanSource, CleanRefusal>, Result<Option<String>, CleanRefusal>) = std::thread::scope(|scope| {
-        let scan = start_or_run(scope, || { return crate::add_timing::work("untrackedScan", || { return untracked_file(context, root); }); });
+        let scan = start_or_run(scope, || {
+            let began: std::time::Instant = begin_work();
+            let scanned: Result<Option<String>, CleanRefusal> = untracked_file(context, root);
+            end_work("untrackedScan", began);
+            return scanned;
+        });
         let tracked = check_tracked(root, git_dir, common_dir, None, false);
-        let scanned = scan.join().unwrap_or_else(|_panic| { return Err(CleanRefusal::unreadable("the scan for untracked files stopped unexpectedly")); });
+        let scanned = match scan.join() {
+            Ok(found) => found,
+            Err(_panic) => Err(CleanRefusal::unreadable("the scan for untracked files stopped unexpectedly")),
+        };
         return (tracked, scanned);
     });
     let clean: CleanSource = tracked?;

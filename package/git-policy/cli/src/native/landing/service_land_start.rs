@@ -43,9 +43,22 @@ pub enum IndexWitness {
     },
 }
 
+/// What:
+///  A byte as two lowercase hexadecimal digits.
+/// Why:
+///  `hex` writes the bytes of an index checksum.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hexOfByte = (byte: number) => byte.toString(16).padStart(2, '0');
+/// ```
+fn hex_of_byte(byte: &u8) -> String {
+    return format!("{byte:02x}");
+}
+
 /// The hexadecimal text of `bytes`.
 fn hex(bytes: &[u8]) -> String {
-    return bytes.iter().map(|byte| { return format!("{byte:02x}"); }).collect();
+    return bytes.iter().map(hex_of_byte).collect();
 }
 
 /// What:
@@ -108,7 +121,7 @@ pub fn decode(text: &str) -> Option<IndexWitness> {
     let modified: (i64, i64) = (fields.next()?.parse().ok()?, fields.next()?.parse().ok()?);
     let changed: (i64, i64) = (fields.next()?.parse().ok()?, fields.next()?.parse().ok()?);
     let trailer: String = fields.next()?.to_string();
-    if fields.next().is_some() || !trailer.bytes().all(|byte| { return byte.is_ascii_hexdigit(); }) {
+    if fields.next().is_some() || !trailer.as_bytes().iter().all(u8::is_ascii_hexdigit) {
         return None;
     }
     return Some(IndexWitness::File { inode, size, modified, changed, trailer });

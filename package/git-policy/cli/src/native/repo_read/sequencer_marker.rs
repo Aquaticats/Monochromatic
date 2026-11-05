@@ -113,7 +113,12 @@ fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
     if needle.is_empty() {
         return true;
     }
-    return haystack.windows(needle.len()).any(|window| { return window == needle; });
+    for window in haystack.windows(needle.len()) {
+        if window == needle {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -134,7 +139,13 @@ pub fn markers_maybe_present(layout: &RefFilesLayout<'_>, names: &[&str]) -> Vec
     let packed: Option<Vec<u8>> = packed_refs_bytes(layout.common_dir);
     let mut answers: Vec<bool> = Vec::with_capacity(names.len());
     for name in names {
-        let loose: bool = lookup_paths(layout, name).iter().any(|path| { return something_is_at(path.as_path()); });
+        let mut loose: bool = false;
+        for path in lookup_paths(layout, name) {
+            if something_is_at(path.as_path()) {
+                loose = true;
+                break;
+            }
+        }
         let packed_hit: bool = match &packed {
             Some(bytes) => contains_bytes(bytes.as_slice(), name.as_bytes()),
             None => true,

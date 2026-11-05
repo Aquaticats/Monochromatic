@@ -162,11 +162,10 @@ pub struct AuditRecord<'record> {
 /// function auditLine(record: AuditRecord): string;
 /// ```
 pub fn audit_line(record: &AuditRecord) -> String {
-    let rendered: Vec<String> = record
-        .arguments
-        .iter()
-        .map(|argument| { return argument.to_string_lossy().into_owned(); })
-        .collect();
+    let mut rendered: Vec<String> = Vec::new();
+    for argument in record.arguments {
+        rendered.push(argument.to_string_lossy().into_owned());
+    }
     let dirty: &str = match record.dirty {
         Some(true) => "true",
         Some(false) => "false",
@@ -253,10 +252,10 @@ pub fn record_audit_with_copies(
     };
     let target: PathBuf = place.0.join(AUDIT_FILE);
     let git_dir: &Path = audit_git_dir(identity).unwrap_or(place.0.as_path());
-    let time_millis: u128 = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|elapsed| { return elapsed.as_millis(); })
-        .unwrap_or_default();
+    let time_millis: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(elapsed) => elapsed.as_millis(),
+        Err(_) => 0,
+    };
     let directory: PathBuf = std::env::current_dir().unwrap_or_default();
     let line: String = audit_line(&AuditRecord {
         time_millis,
@@ -388,7 +387,7 @@ fn ends_with_newline(file: &std::fs::File, length: u64) -> bool {
 /// if (sameFile(await stat(target), await opened.stat())) await rename(target, `${target}.1`)
 /// ```
 fn move_aside_if_still_named(target: &Path, opened: &std::fs::File) -> std::io::Result<()> {
-    return move_aside_between(target, opened, &mut |_step| {});
+    return move_aside_between(target, opened, &mut NoObserver);
 }
 
 /// What:
@@ -407,6 +406,36 @@ enum RotationStep {
     BeforeMove,
     /// The name was taken from the path, and the file taken has not been looked at yet.
     AfterMove,
+}
+
+/// What:
+///  Something told at each instant of a rotation at which another writer can act.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   A test acts as another writer at exactly one instant, and the shipped rotation acts at none, so a value stands where a
+///  callback stood; a closure of the right shape is an observer too, so a test passes one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface RotationObserver { at(step: RotationStep): void; }
+/// ```
+trait RotationObserver {
+    /// Called at one instant of the rotation.
+    fn at(&mut self, step: RotationStep);
+}
+
+/// Every function-like value with the right shape is an observer: `at` just calls it.
+impl<Act: FnMut(RotationStep)> RotationObserver for Act {
+    fn at(&mut self, step: RotationStep) {
+        self(step);
+    }
+}
+
+/// The observer of the shipped rotation, which does nothing at any instant.
+struct NoObserver;
+
+impl RotationObserver for NoObserver {
+    fn at(&mut self, _step: RotationStep) {}
 }
 
 /// What:
@@ -470,7 +499,7 @@ fn give_back(taken: &Path, target: &Path) -> std::io::Result<()> {
 /// const taken = await rename(target, privateName); // ENOENT: someone else took it, nothing to do
 /// if (sameFile(await stat(taken), await opened.stat())) await rename(taken, `${target}.1`); else await giveBack(taken, target);
 /// ```
-fn move_aside_between(target: &Path, opened: &std::fs::File, at_step: &mut dyn FnMut(RotationStep)) -> std::io::Result<()> {
+fn move_aside_between(target: &Path, opened: &std::fs::File, at_step: &mut dyn RotationObserver) -> std::io::Result<()> {
     use std::os::unix::fs::MetadataExt;
     let Ok(named) = std::fs::metadata(target) else {
         return Ok(());
@@ -479,7 +508,7 @@ fn move_aside_between(target: &Path, opened: &std::fs::File, at_step: &mut dyn F
     if (named.dev(), named.ino()) != (held.dev(), held.ino()) {
         return Ok(());
     }
-    at_step(RotationStep::BeforeMove);
+    at_step.at(RotationStep::BeforeMove);
     let taken_at: PathBuf = private_name(target);
     match std::fs::rename(target, &taken_at) {
         Ok(()) => {}
@@ -487,7 +516,7 @@ fn move_aside_between(target: &Path, opened: &std::fs::File, at_step: &mut dyn F
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(error),
     }
-    at_step(RotationStep::AfterMove);
+    at_step.at(RotationStep::AfterMove);
     let taken: std::fs::Metadata = match std::fs::metadata(&taken_at) {
         Ok(taken) => taken,
         Err(error) => {

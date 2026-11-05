@@ -30,17 +30,19 @@ fn ends_authority(byte: u8) -> bool {
         || matches!(byte, b'/' | b'?' | b'#' | b'\\' | b'"' | b'\'' | b'<' | b'>' | b'`');
 }
 
+/// Whether a byte is the `@` that ends the userinfo of a URL. `&u8` borrows the byte, as `rposition` hands it over.
+fn is_at_sign(byte: &u8) -> bool {
+    return *byte == b'@';
+}
+
 /// The index of the next scheme separator at or after `from`.
 fn next_separator(text: &[u8], from: usize) -> Option<usize> {
-    return text
-        .get(from..)?
-        .windows(SCHEME_SEPARATOR.len())
-        .position(|window| {
-            return window == SCHEME_SEPARATOR;
-        })
-        .map(|offset| {
-            return from + offset;
-        });
+    for (offset, window) in text.get(from..)?.windows(SCHEME_SEPARATOR.len()).enumerate() {
+        if window == SCHEME_SEPARATOR {
+            return Some(from + offset);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -59,25 +61,25 @@ pub fn mask_userinfo(text: &[u8]) -> Vec<u8> {
     let mut search_from: usize = 0;
     while let Some(separator) = next_separator(text, search_from) {
         let authority_start: usize = separator + SCHEME_SEPARATOR.len();
-        let authority_end: usize = text[authority_start..]
-            .iter()
-            .position(|byte| {
-                return ends_authority(*byte);
-            })
-            .map_or(text.len(), |offset| {
-                return authority_start + offset;
-            });
+        let mut authority_end: usize = text.len();
+        for (offset, byte) in text[authority_start..].iter().enumerate() {
+            if ends_authority(*byte) {
+                authority_end = authority_start + offset;
+                break;
+            }
+        }
         search_from = authority_end;
         let after_scheme: bool = separator > 0 && ends_scheme(text[separator - 1]);
         if !after_scheme {
             continue;
         }
-        let last_at: Option<usize> = text[authority_start..authority_end].iter().rposition(|byte| {
-            return *byte == b'@';
-        });
-        if let Some(offset) = last_at.filter(|offset| {
-            return *offset > 0;
-        }) {
+        let last_at: Option<usize> = text[authority_start..authority_end].iter().rposition(is_at_sign);
+        // Userinfo needs at least one byte before the last `@`.
+        let userinfo_end: Option<usize> = match last_at {
+            Some(offset) if offset > 0 => Some(offset),
+            _ => None,
+        };
+        if let Some(offset) = userinfo_end {
             masked.extend_from_slice(&text[copied..authority_start]);
             masked.extend_from_slice(CREDENTIALS_MASK.as_bytes());
             copied = authority_start + offset;
