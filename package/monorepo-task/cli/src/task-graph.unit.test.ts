@@ -2,10 +2,9 @@ import { execFile, } from 'node:child_process';
 import {
   cp,
   mkdir,
-  mkdtemp,
+  mkdtempDisposable,
   readFile,
   realpath,
-  rm,
   writeFile,
 } from 'node:fs/promises';
 import {
@@ -33,7 +32,15 @@ const repositoryRoot = resolve(import.meta.dirname, '../../../..',);
 /**
  Subprocess adapter for the consumer command.
  */
-const executeFile = promisify(execFile,);
+const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
+
+/** Subprocess completion retains Node's declared stdout, stderr and rejection contract. */
+const executeFile = promisifyExecFile(execFile,);
+
+/** Compares recorded JSON values by their textual identity. */
+function compareText(left: unknown, right: unknown): number {
+  return String(left).localeCompare(String(right));
+}
 
 /**
  Task definitions accepted by the disposable repository.
@@ -41,6 +48,7 @@ const executeFile = promisify(execFile,);
 type FixtureTasks = Readonly<Record<string, {
   readonly depends?: readonly string[];
   readonly extends?: string;
+  readonly usage?: string;
   readonly run?: string | {
     readonly shell: string;
     readonly run: string;
@@ -83,9 +91,8 @@ async function recordedExecutions(
     readonly rootTarget?: boolean;
   },
 ): Promise<readonly unknown[]> {
-  const directory = await mkdtemp(join(scratchRoot(), 'task-graph-',),);
-  const root = await realpath(directory,);
-  try {
+  await using directory = await mkdtempDisposable(join(scratchRoot(), 'task-graph-',),);
+  const root = await realpath(directory.path,);
     const fixturePackage = join(root, 'package/fixture/subject',);
     const cliSource = join(root, 'package/monorepo-task/cli/src',);
     await mkdir(fixturePackage, { recursive: true, },);
@@ -109,10 +116,6 @@ async function recordedExecutions(
       ...argv,
     ], { cwd: root, env: { ...process.env, TASK_TEST_FIXTURE_ROOT: root, }, },);
     return (await readFile(join(root, 'calls',), 'utf8',)).trim().split('\n',).map((line,): unknown => JSON.parse(line,));
-  }
-  finally {
-    await rm(root, { recursive: true, force: true, },);
-  }
 }
 
 //endregion The actual source entrypoint consumed by task-cli-setup
@@ -133,8 +136,8 @@ await describe({
             shared: { run: marker('shared',), },
           } satisfies FixtureTasks;
           const actual = await recordedExecutions({ tasks, target: 'all', consumer, },);
-          const expected = Object.entries(tasks,).filter(([, task,]) => 'run' in task).map(([name,]) => name).toSorted();
-          expect(actual.toSorted(),).toEqual(expected,);
+          const expected = Object.entries(tasks,).filter(([, task,]) => 'run' in task).map(([name,]) => name).toSorted(compareText,);
+          expect(actual.toSorted(compareText,),).toEqual(expected,);
         },
       },),
       it({
@@ -147,8 +150,8 @@ await describe({
             shared: { run: marker('shared',), },
           } satisfies FixtureTasks;
           const actual = await recordedExecutions({ tasks, target: 'build', consumer, },);
-          const expected = Object.entries(tasks,).filter(([, task,]) => 'run' in task).map(([name,]) => name).toSorted();
-          expect(actual.toSorted(),).toEqual(expected,);
+          const expected = Object.entries(tasks,).filter(([, task,]) => 'run' in task).map(([name,]) => name).toSorted(compareText,);
+          expect(actual.toSorted(compareText,),).toEqual(expected,);
         },
       },),
     ],),
@@ -194,6 +197,57 @@ await describe({
       },
     },),
     it({
+      name: 'built command maps declared flags and positional arguments without losing passthrough words',
+      fn: async () => {
+        const usage = 'flag "--all" help="Include every item"\nflag "--output-path <path>"\narg "<file>"\narg "[args]" var=#true';
+        const output = 'folder with spaces';
+        const file = 'literal;$(false).txt';
+        const rest = ["single'quote", '"double"', '\\backslash', '', 'line\nbreak',];
+        const tasks = {
+          capture: {
+            usage,
+            run: {
+              shell: 'node --input-type=module-typescript -e',
+              run: `const { appendFile } = await import('node:fs/promises');
+await appendFile(process.env.TASK_TEST_FIXTURE_ROOT + '/calls', JSON.stringify({
+  all: process.env.usage_all,
+  output: process.env.usage_output_path,
+  file: process.env.usage_file,
+  args: parseUsageArgs(process.env.usage_args)
+}) + '\\n');`,
+            },
+          },
+        } satisfies FixtureTasks;
+        const actual = await recordedExecutions({
+          tasks, target: 'capture', consumer: 'built',
+          argv: ['--all', '--output-path', output, file, '--', ...rest,],
+        },);
+        expect(actual,).toEqual([{ all: 'true', output, file, args: [file, ...rest,], },],);
+      },
+    },),
+    ...[
+      { usage: 'flag "--all"', argv: ['--unknown',], diagnostic: 'unknown option --unknown', },
+      { usage: 'flag "--output <path>"', argv: ['--output',], diagnostic: 'needs <path>', },
+      { usage: 'flag "--all"', argv: ['unexpected.txt',], diagnostic: 'unexpected positional arguments', },
+    ].map(({ usage, argv, diagnostic, }) => it({
+      name: `built command reports ${diagnostic}`,
+      fn: async () => {
+        let caught: unknown;
+        try {
+          await recordedExecutions({
+            tasks: { capture: { usage, run: marker('must-not-run',), }, },
+            target: 'capture', consumer: 'built', argv,
+          },);
+        }
+        catch (error) {
+          caught = error;
+        }
+        if (!Error.isError(caught,) || !('stderr' in caught))
+          throw new Error('Expected task argument rejection',);
+        expect(String(caught.stderr,),).toContain(diagnostic,);
+      },
+    },),),
+    it({
       name: 'built root fanout uses the same shared dependency execution',
       fn: async () => {
         const tasks = {
@@ -203,8 +257,8 @@ await describe({
           shared: { run: marker('shared',), },
         } satisfies FixtureTasks;
         const actual = await recordedExecutions({ tasks, target: 'build', consumer: 'built', rootTarget: true, },);
-        const expected = Object.entries(tasks,).filter(([, task,]) => 'run' in task).map(([name,]) => name).toSorted();
-        expect(actual.toSorted(),).toEqual(expected,);
+        const expected = Object.entries(tasks,).filter(([, task,]) => 'run' in task).map(([name,]) => name).toSorted(compareText,);
+        expect(actual.toSorted(compareText,),).toEqual(expected,);
       },
     },),
     ...[false, true,].map(rootTarget => it({
