@@ -578,9 +578,14 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   the `/proc` look misses helpers started by units older than `9b360150c0` and the shared service;
   the adoption's `Drop` can remove the intent of a landing in flight, leaving a landed commit with no record;
   `current_value` reads a failed Git run as "branch not moved", which also leads to `Drop`.
-  Fixes with red tests are being built on `fix/git-policy-cli-earlier-helper-adoption`
-  (worktree `.claude/worktrees/earlier-helper-adoption-fixes`, from main `35310097267f`); they must land before the
-  release.
+  Fixed with red tests on `fix/git-policy-cli-earlier-helper-adoption`
+  (worktree `.claude/worktrees/earlier-helper-adoption-fixes`, from main `35310097267f`, tip `c4b6812564`):
+  all three P1s and the five P2s (unreadable process counts as "may be running", the `/proc` scan bounded by
+  `PROCESS_LOOK_CEILING` 10 s after a measured 0.64 s for 899 processes, same-user filter, each adopted batch logged,
+  earlier journals read-only); `current_value` now answers "no answer" on a Git failure for both the adoption and
+  the service's own recovery. Host lib 4327, binary 691, clippy and oxlint clean.
+  Container gate running as unit `git-policy-cli-earlier-helper-adoption-gate`
+  (log `~/temp/agent/issue-6261/earlier-helper-adoption-gate.log`); merge after it passes, before the release.
   Open from the merge: the rename note added to 117 old records says "is now" (untrue until the release and the lock)
   and sits in 6 `doc/decision/` records; a scripted fix was refused by the session's permission guard, so it waits
   for the owner (`doc/handover/questions-for-the-owner.md`, "The rename note in old records").
