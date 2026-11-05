@@ -126,6 +126,14 @@ pub mod shell_quote;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert;
 
+/// The first look at a worktree a conversion might change, and every reason the conversion must not start.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_inspection;
+
+/// The journaled phases of one worktree conversion.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_phases;
+
 /// The read-only comparison of the old tree of a conversion with the installed one.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_compare;
