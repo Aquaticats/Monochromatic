@@ -109,6 +109,13 @@ Pnpm completed successfully with no lockfile changes.
 The original `settings-manager.js` import then printed `SettingsManager: function`.
 No store symlink was edited by hand.
 
+The consumer probe is runnable from this repository:
+
+```sh
+# Repository root
+node --input-type=module -e 'const m = await import("./package/dsh-plugin/advisor/node_modules/@earendil-works/pi-coding-agent/dist/core/settings-manager.js"); console.log("SettingsManager:", typeof m.SettingsManager);'
+```
+
 A disposable `DSH_HOME` copied the installed web profile and plugin files,
 without the real session or credential stores.
 The DSH web app started successfully.
@@ -171,7 +178,7 @@ Limits:
 the full pnpm CLI was not rebuilt,
 Windows and macOS were not exercised,
 and the added filesystem lookup cost was not benchmarked.
-PnPM v11 behavior was not validated.
+Pnpm v11 behavior was not validated.
 These are limits on upstream adoption of the prototype,
 not on the verified local Advisor recovery.
 
@@ -194,9 +201,9 @@ Hand-editing the store symlink would leave the next install able to recreate it 
   yes;
   the saved prototype passes the targeted Linux symlink tests.
 - Supported use case:
-  pnpm's `link:` dependency handling explicitly installs these links into shared virtual-store slots
-  in `pnpm/crates/deps-restorer/src/create_symlink_layout.rs`.
-  The real-directory control succeeds with the same manifest.
+  the installed CLI accepts `link:` overrides with `virtualStoreType: global` in both fixture arms.
+  The real-directory control succeeds with the same manifest;
+  path spelling is the measured difference.
 - Contribution policy:
   the checked-out `CONTRIBUTING.md` permits AI-assisted contributions,
   requires disclosure and contributor understanding,
