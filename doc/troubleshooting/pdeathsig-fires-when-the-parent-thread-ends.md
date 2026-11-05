@@ -1,5 +1,12 @@
 # `PR_SET_PDEATHSIG` fires when the spawning thread ends, not the process
 
+Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is now `monochromatic-git-policy-cli`,
+the command word `git cli-git` is now `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` is now `monochromatic-git-policy-cli.config.jsonc`,
+and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+This record keeps the names of its time.
+
 The binary controls of `package/git-policy/cli` start each fixture's commit service with `PR_SET_PDEATHSIG` set to `SIGKILL`
 (`FixtureService::serve` in `src/native/binary_support.rs`), so a control that panics or is killed leaves no service behind.
 `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other` failed after 60

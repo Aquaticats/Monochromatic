@@ -1,5 +1,12 @@
 # MPM global toolchain migration implementation spec
 
+Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is now `monochromatic-git-policy-cli`,
+the command word `git cli-git` is now `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` is now `monochromatic-git-policy-cli.config.jsonc`,
+and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+This record keeps the names of its time.
+
 Status:
  implementation plan for the machine-global slice of
  [`doc/decision/mpm-toolchain-adoption.md`](../decision/mpm-toolchain-adoption.md),

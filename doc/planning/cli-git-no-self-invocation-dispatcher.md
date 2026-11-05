@@ -1,5 +1,12 @@
 # cli-git: no self-invocation, phase 2: the commit hook dispatcher, and then all external hooks
 
+Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is now `monochromatic-git-policy-cli`,
+the command word `git cli-git` is now `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` is now `monochromatic-git-policy-cli.config.jsonc`,
+and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+This record keeps the names of its time.
+
 This is the dispatcher section of the self-invocation ban, kept in its own file so merges stay clean.
 The pointer file `doc/planning/cli-git-no-self-invocation.md` belongs to the lfs and push phase.
 It records the decision, what was tried, what was measured, and what is still open.

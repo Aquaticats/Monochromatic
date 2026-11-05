@@ -1,5 +1,12 @@
 # The wrapper never starts itself
 
+Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is now `monochromatic-git-policy-cli`,
+the command word `git cli-git` is now `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` is now `monochromatic-git-policy-cli.config.jsonc`,
+and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+This record keeps the names of its time.
+
 Status: phase 1 built in this branch (LFS upload run by the parent, merge push, bans, lock budget); phase 2 (the hook
 dispatcher) is another change. The start of the real Git itself is covered by the section "The wrapper never starts
 itself as Git (2026-11-03T10:49:47-05:00)", which supersedes the section "No runtime marker that refuses a nested

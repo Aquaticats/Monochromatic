@@ -1,5 +1,12 @@
 # cli-git subvolume migration script (proven on a throwaway, 2026-11-01)
 
+Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is now `monochromatic-git-policy-cli`,
+the command word `git cli-git` is now `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` is now `monochromatic-git-policy-cli.config.jsonc`,
+and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+This record keeps the names of its time.
+
 Purpose: a durable copy of the one-off script that converts a Git main checkout into a btrfs subvolume in place.
 It was proven on throwaway copies (the procedure and its measurements are summarized in
 `doc/planning/cli-git-btrfs-worktree.md`,

@@ -1,5 +1,12 @@
 # git-lfs 3.8.0: the filter commands rewrite the four hook shims after they were deleted
 
+Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is now `monochromatic-git-policy-cli`,
+the command word `git cli-git` is now `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` is now `monochromatic-git-policy-cli.config.jsonc`,
+and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+This record keeps the names of its time.
+
 ## Symptom
 
 On 2026-10-29 the four `git lfs` shims in the main checkout's `.git/hooks` (`post-checkout`, `post-commit`,

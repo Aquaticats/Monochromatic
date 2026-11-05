@@ -1,5 +1,12 @@
 # Resident commit service for the git wrapper: design and migration
 
+Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is now `monochromatic-git-policy-cli`,
+the command word `git cli-git` is now `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` is now `monochromatic-git-policy-cli.config.jsonc`,
+and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+This record keeps the names of its time.
+
 Status: design for slice work, written by the commit-path performance owner. Evidence comes from a throwaway prototype
 (scratch only, not in the repository) measured in the same harness and on the same 20 207-file clone as the earlier
 remeasurement in `doc/planning/cli-git-commit-timeouts.md`.
