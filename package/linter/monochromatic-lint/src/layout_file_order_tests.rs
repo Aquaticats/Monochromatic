@@ -480,3 +480,39 @@ fn a_loop_through_a_reexporting_file_is_still_found() {
     assert!(found[0].contains("front.rs uses back.rs"), "{}", found[0]);
     assert!(found[0].contains("back.rs uses front.rs"), "{}", found[0]);
 }
+
+/// A top doc whose marker wraps after its comma lists the files like any other,
+/// so a package that follows the Markdown rule makes no finding.
+#[test]
+fn a_top_doc_with_a_wrapped_marker_lists_its_files() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/a/mod.rs",
+            "//! Words about the folder.\n//!\n//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `base.rs`:\n//!   the base.\n//! - `top.rs`: uses `base.rs`.\nmod base;\nmod top;\n",
+        ),
+        ("src/a/base.rs", ""),
+        ("src/a/top.rs", "use super::base::Thing;\n"),
+    ]);
+    assert_eq!(findings_of(&fixture.path), Vec::<String>::new());
+}
+
+/// The help for a missing list shows the marker wrapped after its comma,
+/// so following it does not clash with the Markdown rule.
+#[test]
+fn the_missing_list_help_shows_the_wrapped_marker() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        ("src/a/mod.rs", "//! Words only.\nmod one;\n"),
+        ("src/a/one.rs", ""),
+    ]);
+    let tree = tree_of(&fixture.path);
+    let uses = collect_uses(&tree);
+    let found = check_file_order(&tree, uses.as_slice(), &fixture.path);
+    let help: &str = found[0].help.as_deref().expect("help");
+    let (head, tail) = LIST_MARKER.split_once(", ").expect("marker has a comma");
+    assert!(
+        help.contains(format!("`//! {head},` and `//! {tail}`").as_str()),
+        "{help}"
+    );
+}
