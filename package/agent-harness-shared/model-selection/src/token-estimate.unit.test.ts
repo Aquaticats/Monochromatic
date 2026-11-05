@@ -1,6 +1,6 @@
 /**
  Text-estimate cases captured from the former Pi 1.5.0 wrapper.
- 
+
  @module
  */
 

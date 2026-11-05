@@ -38,7 +38,7 @@ the manifest exposes only the root and `/ts`.
 ## Text token estimate
 
 `estimateAdvisorInputTokens` estimates the combined system prompt,
-two newline separators,
+the `\n\n` separator,
 and serialized context.
 It counts UTF-16 code units and rounds up once using `TOKEN_ESTIMATE_CHARS_PER_TOKEN`.
 The implementation reads string lengths without constructing a combined message.

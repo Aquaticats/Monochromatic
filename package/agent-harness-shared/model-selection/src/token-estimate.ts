@@ -1,6 +1,6 @@
 /**
  Text-only token estimates shared by Advisor host adapters.
- 
+
  @module
  */
 
@@ -50,11 +50,11 @@ export type EstimateAdvisorTokensOptions = {
  Counts JavaScript string code units, including the prompt/context separator,
  and rounds up once for the entire request. Empty input still includes the
  separator. The estimate deliberately retains the previous text-only policy.
- 
+
  @param options - system prompt and serialized conversation
- 
+
  @returns estimated token count
- 
+
  @example
  ```typescript
  estimateAdvisorInputTokens({ systemPrompt, contextText });
