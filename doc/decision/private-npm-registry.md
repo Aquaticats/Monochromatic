@@ -279,6 +279,40 @@ GitHub issue #521 tracks checking installability of the remaining published pack
 
 ## Consequences
 
+## Upstream alpha.17 upgrade at 2026-11-05T04:59:15Z
+
+The owner requested `0.1.0-alpha.17`
+and selected "Repair publishing, then rebuild packages" for its incompatible storage layout.
+Use the official upstream image pinned in `package/config/pnpr/Containerfile`.
+GitHub workload publication passed against that image in isolated run `41941248129`,
+satisfying the standing condition for leaving the discovery-fix fork.
+The existing subject,
+repository,
+owner,
+workflow,
+audience,
+and package restrictions remain in place.
+
+Keep the `/npm/~monochromatic-dev/` consumer URL.
+Generate `maxUsers` instead of `max_users` for the new schema.
+Select `pnpr-readable-registry-storage` for the new store
+and retain `pnpr-registry-storage` with the alpha.16 image as the rollback pair.
+Rebuild current versions after repairing the existing CI runner.
+This chooses no archive transfer and makes no claim that older consumer lockfile integrities survive rebuilding.
+The old `upgrade-storage` command does not apply to alpha.17.
+
+The full build-and-pack check passed in runs `41962968333` and `41969715357`.
+The latter checked the cleaned-up execution path at `c656fdb235`.
+Final task-module validation accepted all current declarations separately.
+Deployment and live republishing remain tracked in
+`doc/handover/pnpr-alpha17-upgrade.md` until their checks finish.
+
+The Cargo registry remains the separate proposal in
+`doc/planning/self-hosted-cargo-registry.md`.
+This npm upgrade does not authorize Cargo deployment or change Cargo retention policy.
+
+## Consequences of the original deployment
+
 - A hand bump rewrites,
    in the same commit,
    the manifest of every dependent reached through runtime or bundled edges.
