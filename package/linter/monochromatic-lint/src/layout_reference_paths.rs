@@ -18,7 +18,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! type Token = { kind: TokenKind; text: string; offset: number };
-//! type RawReference = { segments: string[]; glob: boolean; reexport: boolean; offset: number };
+//! type RawReference = { segments: string[]; glob: boolean; reexport: boolean; alias?: string; offset: number };
 //! function readReferences(tokens: Token[], publicUses: Range[]): RawReference[];
 //! ```
 
@@ -106,7 +106,7 @@ pub struct Token {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RawReference = { segments: string[]; glob: boolean; reexport: boolean; offset: number };
+/// type RawReference = { segments: string[]; glob: boolean; reexport: boolean; alias?: string; offset: number };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RawReference {
@@ -118,6 +118,9 @@ pub struct RawReference {
     /// True when the path sits inside a `pub use` (any visibility),
     ///  which makes the names it brings in visible to other modules.
     pub reexport: bool,
+    /// The new name after `as` in a re-export (`pub use a::B as C;` gives `C`, `_` included);
+    ///  nothing for a path without a rename and for every path that is not a re-export.
+    pub alias: Option<String>,
     /// Byte offset of the first token of the whole path.
     pub offset: usize,
 }
@@ -154,6 +157,7 @@ fn leaf(segments: &[String], glob: bool, offset: usize) -> RawReference {
         segments: segments.to_vec(),
         glob,
         reexport: false,
+        alias: None,
         offset,
     };
 }
@@ -173,6 +177,23 @@ fn kind_at(tokens: &[Token], index: usize) -> TokenKind {
         Some(token) => token.kind,
         None => TokenKind::Other,
     };
+}
+
+/// What:
+///  The name that an `as` at an index gives to the path before it.
+/// Why:
+///  `pub use a::B as C;` makes the item reachable as `C`,
+///  so a path that reaches `C` must be followed to `a::B`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aliasAt(tokens: Token[], index: number): string | undefined;
+/// ```
+fn alias_at(tokens: &[Token], index: usize) -> Option<String> {
+    if kind_at(tokens, index) != TokenKind::As {
+        return None;
+    }
+    return tokens.get(index + 1).map(|name| return name.text.clone());
 }
 
 /// What:
@@ -317,11 +338,14 @@ fn read_entry(tokens: &[Token], start: usize, prefix: &[String], offset: usize) 
         }
     }
     // Skip `as name`, whose name is a new binding and not a path.
-    if kind_at(tokens, index) == TokenKind::As {
+    let alias: Option<String> = alias_at(tokens, index);
+    if alias.is_some() {
         index += 2;
     }
+    let mut found: RawReference = leaf(&current, false, offset);
+    found.alias = alias;
     return Read {
-        leaves: vec![leaf(&current, false, offset)],
+        leaves: vec![found],
         next: index,
     };
 }
@@ -360,8 +384,10 @@ fn read_path(tokens: &[Token], start: usize) -> Read {
         segments.push(tokens[index].text.clone());
         index += 1;
     }
+    let mut found: RawReference = leaf(&segments, false, offset);
+    found.alias = alias_at(tokens, index);
     return Read {
-        leaves: vec![leaf(&segments, false, offset)],
+        leaves: vec![found],
         next: index,
     };
 }
@@ -372,7 +398,8 @@ fn read_path(tokens: &[Token], start: usize) -> Read {
 /// Why:
 ///  One linear pass:
 ///  each path is read once and the scan resumes after it.
-///  A reference whose first token lies inside one of the given byte ranges is marked as a re-export.
+///  A reference whose first token lies inside one of the given byte ranges is marked as a re-export,
+///  and only a re-export keeps its rename.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -392,6 +419,10 @@ pub fn read_references(tokens: &[Token], public_uses: &[(usize, usize)]) -> Vec<
                 if reference.offset >= range.0 && reference.offset < range.1 {
                     reference.reexport = true;
                 }
+            }
+            // A rename outside a re-export (a private `use`, a cast) gives no name to other modules.
+            if !reference.reexport {
+                reference.alias = None;
             }
             found.push(reference);
         }

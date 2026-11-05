@@ -9,7 +9,7 @@
 //! test('groups name every leaf', () => expect(referencesOf('use crate::{a, b::{c, d}};')).toEqual([...]));
 //! ```
 
-use crate::layout_test_support::references_of;
+use crate::layout_test_support::{aliases_of, references_of};
 
 /// A plain path is one reference with every segment.
 #[test]
@@ -37,6 +37,33 @@ fn a_rename_is_not_a_path() {
     assert_eq!(
         references_of("use crate::a::{b as c, d};\nuse super::x as y;"),
         ["crate::a::b", "crate::a::d", "super::x"]
+    );
+}
+
+/// A re-export keeps the new name after `as`,
+/// on a plain path and on a leaf of a group,
+/// and the discard name `_` too.
+#[test]
+fn a_reexport_keeps_its_rename() {
+    assert_eq!(
+        aliases_of(
+            "pub use crate::a::{b as c, d, e::{self as f}};\npub use super::x as y;\npub(crate) use self::z as _;"
+        ),
+        [
+            "pub crate::a::b as c",
+            "pub crate::a::e as f",
+            "pub super::x as y",
+            "pub self::z as _"
+        ]
+    );
+}
+
+/// A rename of a private `use` or a cast of a value is not a re-export name.
+#[test]
+fn only_a_reexport_keeps_its_rename() {
+    assert_eq!(
+        aliases_of("use crate::a::b as c;\nfn f() -> usize { return crate::a::LIMIT as usize; }"),
+        Vec::<String>::new()
     );
 }
 

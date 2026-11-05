@@ -70,6 +70,19 @@ pub(crate) fn references_of(source: &str) -> Vec<String> {
     return shown;
 }
 
+/// The references of a source text as `a::b::c as name` strings,
+///  for the ones that carry a rename.
+pub(crate) fn aliases_of(source: &str) -> Vec<String> {
+    let parsed: RustSource = RustSource::new(String::from("fixture.rs"), String::from(source));
+    let mut shown: Vec<String> = Vec::<String>::new();
+    for reference in collect_body_facts(parsed.syntax()).references {
+        if let Some(alias) = &reference.alias {
+            shown.push(format!("{} as {alias}", describe(&reference)));
+        }
+    }
+    return shown;
+}
+
 /// One reference as text.
 pub(crate) fn describe(reference: &RawReference) -> String {
     let mut text: String = reference.segments.join("::");
