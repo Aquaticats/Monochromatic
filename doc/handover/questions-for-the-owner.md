@@ -86,4 +86,5 @@ Your answer:
   and merges the three suppression notes into one note beside the wrapper's code.
   Reason: the repository's lint rules say to restructure rather than suppress.
 - 2026-11-05: the one test function inside `testing/no_threads_child_test_support.rs`
-  moves into a `*_tests.rs` sidecar, which clears the last `rust/tests-in-sidecars` finding in the wrapper.
+  moved into a `*_tests.rs` sidecar, which clears the last `rust/tests-in-sidecars` finding in the wrapper
+  (`5983d1603d` on the lint integration branch; the probe and a test that relies on it pass).
