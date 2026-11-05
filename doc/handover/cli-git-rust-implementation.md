@@ -557,10 +557,11 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   (B) an open batch an old helper left in the old service state folder must still land after the switch.
   A done at `0c840d0e17` (root file restored in `d513d1cadd`; host lib 4306 and binary 690 passed, clippy clean,
   planted checker 48/0; the installed wrapper's `check` over the paths changed since `f781971973` found nothing).
-  Container gate on `0c840d0e17` runs as unit `git-policy-cli-program-rename-gate`
-  (worktree `.claude/worktrees/git-policy-cli-program-rename-gate`, log
-  `~/temp/agent/issue-6261/program-rename-gate.log`); merge to main after it and the suppression branch's planted
-  run pass, since the rename branch contains the suppression branch.
+  Container gate on `0c840d0e17` passed: `4997 tests run: 4997 passed (1 slow), 8 skipped`
+  (unit `git-policy-cli-program-rename-gate`, worktree `.claude/worktrees/git-policy-cli-program-rename-gate`,
+  log `~/temp/agent/issue-6261/program-rename-gate.log`).
+  Merge to main after the gate on the final tip and the suppression branch's planted run pass,
+  since the rename branch contains the suppression branch.
   B done at `7fe6ac14ff`: `landing/earlier_service_journal_adopted.rs` finishes, at service start, batches left open
   in the old journal (`<state>/cli-git/service/<instance>` and the shared `<state>/cli-git/service`) when no service
   of that instance shows in `/proc`, and counts their finished identities as landed (host lib 4313, binary 691).
