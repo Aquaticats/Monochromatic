@@ -54,6 +54,10 @@ pub mod worktree_attributes;
 
 pub mod worktree_clean_content;
 
+/// The environment and attribute files a content check reads, and the attributes that convert content.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean_content_attribute_sources;
+
 /// The plan of a `git worktree remove` that names one directory and no option.
 #[cfg(unix)]
 pub mod worktree_remove_plan;
