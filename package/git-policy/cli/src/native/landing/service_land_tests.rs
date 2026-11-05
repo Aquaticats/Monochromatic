@@ -1,6 +1,7 @@
 //! Controls for landing a batch with real Git: order and content, the index, conflicting and moving branches, hostile
 //!  names, and the restart decisions for batches left open.
 
+use crate::service_land_git_steps_and_import_stream::{commits_from_marks, overlaps};
 use super::*;
 use crate::service_journal::{DONE_EXTENSION, batch_path, parse_intent};
 use crate::service_protocol::{ALLOWED_MODES, Change};

@@ -12,9 +12,11 @@
 //! const outcomes = await landBatch(context, seq, requests);
 //! ```
 
-use crate::journald_native::Priority;
+use crate::service_land_take_index_lock::take_index_lock;
+use crate::service_land_git_steps_and_import_stream::{checked, ids_of, keep_unlanded, requests_that_land, run, take_ceiling_step};
+use crate::service_land_objects_of_batch::objects_of_batch;
 use crate::service_fault::reach;
-use crate::service_built_checks::{BuiltCommit, adds_only_present_objects, history_is_plain, read_commit};
+use crate::service_built_checks::{BuiltCommit, history_is_plain, read_commit};
 use crate::service_head::{follows_move, still_checked_out};
 use crate::service_pruned::batch_content_missing;
 use crate::service_journal::{Intent, OPEN_EXTENSION, remove_start, write_intent, write_start};
@@ -27,13 +29,12 @@ use crate::service_journal::{Recovery, list_intents};
 use crate::service_index_lock::try_acquire;
 use crate::service_land_finish::finish_after_move;
 use crate::service_land_start::witness_of;
-use crate::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait_within};
-use crate::service_timing::{LandTiming, wait_line};
+use crate::service_index_lock::{Announce, IndexLock};
+use crate::service_timing::LandTiming;
 use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
-use crate::service_land_follow::{classify, storage_failure};
+use crate::service_land_follow::storage_failure;
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, NO_REFLOG_SETTING, run_git};
-use std::collections::{BTreeSet, HashMap};
+use crate::transaction_git::{GitContext, GitOutput, NO_REFLOG_SETTING};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -60,28 +61,6 @@ struct Settings<'a> {
     plain_history: bool,
 }
 
-/// What:
-///  Keeps the commit built for a batch that was withdrawn on a side ref, and returns the line that tells the person where it is.
-/// Why:
-///   The owner's answer for a wait that reaches its bound is that nothing lands later by itself and the commit is kept for a retry;
-///  the person's staged changes are untouched, so running the commit again builds the same commit, and the side ref lets them
-///  recover this one if the worktree changed meanwhile.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await git(['update-ref', `refs/cli-git/kept/${seq}`, tip]); return `kept at refs/cli-git/kept/${seq}`
-/// ```
-fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
-    let name: String = format!("refs/cli-git/kept/{seq}");
-    let made = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name.as_str(), tip], None);
-    if !made.is_ok_and(|output| { return output.succeeded(); }) {
-        return String::from("cli-git: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");
-    }
-    return format!(
-        "cli-git: the commit built for you is kept at {name} (see it with `git log {name}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
-    );
-}
-
 /// What became of one request of a batch.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Outcome {
@@ -91,107 +70,6 @@ pub enum Outcome {
     RetryPrepare { base: String },
     /// An amend, whose parents are the base's parents, found the branch somewhere else than at its base.
     BranchMoved,
-}
-
-fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
-    let mut request: GitRequest = GitRequest::new(repository, arguments);
-    request.input = input;
-    let output: GitOutput = run_git(git, &request).map_err(|error| {
-        // A step ended at its ceiling is told apart from every other failure, and its sentence is kept for the answer.
-        if crate::child_watch::is_ceiling(&error) {
-            CEILING_STEP.with(|step| { *step.borrow_mut() = Some(error.to_string()); });
-            return FailureCode::StepTooSlow;
-        }
-        return FailureCode::Unavailable;
-    })?;
-    return Ok(output);
-}
-
-thread_local! {
-    /// The sentence of the last Git step this thread ended at its ceiling, for the line the clients are told.
-    static CEILING_STEP: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
-}
-
-/// The sentence of the step that was ended at its ceiling, once.
-fn take_ceiling_step() -> Option<String> {
-    return CEILING_STEP.with(|step| { return step.borrow_mut().take(); });
-}
-
-fn checked(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<String, FailureCode> {
-    let output: GitOutput = run(git, repository, arguments, input)?;
-    if !output.succeeded() {
-        return Err(classify(&output));
-    }
-    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
-}
-
-/// A path in the quoted form `fast-import` reads, so no byte of a name can end the line or the field.
-fn quoted(path: &str) -> String {
-    let mut text: String = String::from("\"");
-    for character in path.chars() {
-        match character {
-            '"' => text.push_str("\\\""),
-            '\\' => text.push_str("\\\\"),
-            other => text.push(other),
-        }
-    }
-    text.push('"');
-    return text;
-}
-
-/// Whether two repository paths touch the same file or one contains the other.
-fn overlaps(path: &str, changed: &str) -> bool {
-    return path == changed || path.starts_with(&format!("{changed}/")) || changed.starts_with(&format!("{path}/"));
-}
-
-/// The stream that makes one commit per request on a scratch branch that starts at `old`, or, for an amend, one commit
-///  whose parents are `amended_parents` and whose whole tree is the request's tree.
-fn import_stream(scratch: &str, old: &str, requests: &[&CommitRequest], amended_parents: &[String]) -> Vec<u8> {
-    let mut bytes: Vec<u8> = Vec::new();
-    for (index, request) in requests.iter().enumerate() {
-        bytes.extend(format!("commit {scratch}\nmark :{}\n", index + 1).as_bytes());
-        if let Some(author) = &request.author {
-            bytes.extend(format!("author {author}\n").as_bytes());
-        }
-        bytes.extend(format!("committer {}\ndata {}\n", request.committer, request.message.len()).as_bytes());
-        bytes.extend(request.message.as_bytes());
-        bytes.push(b'\n');
-        if let Some(tree) = request.tree.as_deref().filter(|_| { return request.amend; }) {
-            // An amend replaces the tip: its parents are the base's parents, and its tree is the one the client wrote.
-            for (position, parent) in amended_parents.iter().enumerate() {
-                bytes.extend(format!("{} {parent}\n", if position == 0 { "from" } else { "merge" }).as_bytes());
-            }
-            bytes.extend(format!("M 040000 {tree} \"\"\n").as_bytes());
-            bytes.push(b'\n');
-            continue;
-        }
-        if index == 0 {
-            bytes.extend(format!("from {old}\n").as_bytes());
-        }
-        for change in &request.changes {
-            match &change.blob {
-                Some(blob) => bytes.extend(format!("M {:o} {blob} {}\n", change.mode, quoted(change.path.as_str())).as_bytes()),
-                None => bytes.extend(format!("D {}\n", quoted(change.path.as_str())).as_bytes()),
-            }
-        }
-        bytes.push(b'\n');
-    }
-    bytes.extend(b"done\n");
-    return bytes;
-}
-
-/// The object names `fast-import` recorded for the marks, in request order.
-fn commits_from_marks(text: &str, count: usize) -> Option<Vec<String>> {
-    let mut commits: Vec<Option<String>> = vec![None; count];
-    for line in text.lines() {
-        let mut parts = line.split(' ');
-        let (Some(mark), Some(name)) = (parts.next(), parts.next()) else { continue };
-        let slot: usize = mark.trim_start_matches(':').parse::<usize>().ok()?;
-        if slot >= 1 && slot <= count {
-            commits[slot - 1] = Some(name.to_string());
-        }
-    }
-    return commits.into_iter().collect();
 }
 
 /// What:
@@ -205,7 +83,7 @@ fn commits_from_marks(text: &str, count: usize) -> Option<Vec<String>> {
 /// await landBatch(context, seq, requests) // one outcome per request, in order
 /// ```
 pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -> Result<Vec<Outcome>, FailureCode> {
-    return land_batch_announcing(context, seq, requests, &|_| {});
+    return land_batch_announcing(context, seq, requests, &ignore_announcement);
 }
 
 /// `land_batch`, telling the clients of the batch what it waits for when another program holds the index.
@@ -245,7 +123,10 @@ pub fn land_batch_timed(
     // The landing queues its own syncs and settles them when it ends: nothing is flushed while the person waits for a commit that
     //  is published, and what a landing that publishes nothing wrote is flushed before it returns (`service_durable.rs`). The
     //  index file follows `core.fsync` as native Git's index write does; a configuration that cannot be read is taken to name it.
-    let snapshot = requests.first().and_then(|first| { return read_config_snapshot(&context.git, first.repository.as_path()); });
+    let snapshot: Option<ConfigSnapshot> = match requests.first() {
+        Some(first) => read_config_snapshot(&context.git, first.repository.as_path()),
+        None => None,
+    };
     let hardens_index: bool = snapshot.as_ref().and_then(ConfigSnapshot::hardens_index).unwrap_or(true);
     // Native Git writes a commit's objects as loose objects and flushes none by default; the import of a small batch writes a
     //  temporary pack, flushes it and deletes it, so the flush is dropped unless the repository asks for flushed objects.
@@ -254,7 +135,10 @@ pub fn land_batch_timed(
     // The object store may answer the checks of a commit Git built only where Git shows the history the files say: the settings that
     //  change it (a shallow or graft file elsewhere, another replacement namespace, replacements switched off) are read here from
     //  the environment and configuration the landing's Git children run under, and a configuration that cannot be read counts as one.
-    let plain_history: bool = requests.first().is_some_and(|first| { return history_is_plain(first.common_dir.as_path(), &context.git, snapshot.as_ref()); });
+    let plain_history: bool = match requests.first() {
+        Some(first) => history_is_plain(first.common_dir.as_path(), &context.git, snapshot.as_ref()),
+        None => false,
+    };
     let settings: Settings<'_> = Settings { import_fsync: import_fsync.as_deref(), plain_history };
     let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(context, seq, requests, announce, timing, &settings);
     // A step ended at its ceiling anywhere else in the landing: the clients are told which, and the commit the batch built, when it
@@ -271,9 +155,41 @@ pub fn land_batch_timed(
             let _deleted = run(&git, first.repository.as_path(), &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
         }
     }
-    let published: bool = result.as_ref().is_ok_and(|outcomes| { return outcomes.iter().any(|outcome| { return matches!(outcome, Outcome::Landed { .. }); }); });
+    let published: bool = match result.as_ref() {
+        Ok(outcomes) => any_landed(outcomes.as_slice()),
+        Err(_failure) => false,
+    };
     deferral.settle(published);
     return result;
+}
+
+/// What:
+///  An announcement that nobody is told.
+/// Why:
+///  `land_batch` is `land_batch_announcing` for a caller that has no clients to tell what the landing waits for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ignoreAnnouncement = (_note: Announce) => {};
+/// ```
+fn ignore_announcement(_note: Announce) {}
+
+/// What:
+///  Whether any outcome of a batch is a landed commit.
+/// Why:
+///  A batch that landed something hands its syncs to the background; one that landed nothing syncs them before it returns.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// outcomes.some((outcome) => outcome.kind === 'landed')
+/// ```
+fn any_landed(outcomes: &[Outcome]) -> bool {
+    for outcome in outcomes {
+        if matches!(outcome, Outcome::Landed { .. }) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// The landing itself; `land_batch_timed` adds what is told when a step is ended at its ceiling.
@@ -290,10 +206,10 @@ fn land_batch_body(
     settings: &Settings<'_>,
 ) -> Result<Vec<Outcome>, FailureCode> {
     let first: &CommitRequest = requests.first().ok_or(FailureCode::Rejected)?;
-    if requests.iter().any(|request| {
-        return request.repository != first.repository || request.common_dir != first.common_dir || request.reference != first.reference;
-    }) {
-        return Err(FailureCode::Rejected);
+    for request in requests {
+        if request.repository != first.repository || request.common_dir != first.common_dir || request.reference != first.reference {
+            return Err(FailureCode::Rejected);
+        }
     }
     // An amend, and a commit built elsewhere, are landed alone: each is only valid while the branch is still at its base,
     //  which a neighbour in the same batch would change.
@@ -332,7 +248,8 @@ fn land_batch_body(
         // Only an amend uses the parents of the commit it replaces; they are read from the object store, and listed by Git when the
         //  store cannot say (the same rule as for the commit Git built).
         let amended_parents: Vec<String> = if alone && !unborn && first.amend {
-            match settings.plain_history.then(|| { return read_commit(first.common_dir.as_path(), first.base.as_str()); }).flatten() {
+            let replaced_commit: Option<BuiltCommit> = if settings.plain_history { read_commit(first.common_dir.as_path(), first.base.as_str()) } else { None };
+            match replaced_commit {
                 Some(replaced) => replaced.parents,
                 None => {
                     let listing: String = checked(&git, repository, &["rev-list", "--parents", "--max-count=1", first.base.as_str()], None)?;
@@ -343,103 +260,33 @@ fn land_batch_body(
             Vec::new()
         };
         // One tree comparison per distinct base: the paths that changed on the branch since then.
-        let mut changed_since: HashMap<&str, BTreeSet<String>> = HashMap::new();
-        let mut landing: Vec<(usize, &CommitRequest)> = Vec::new();
         outcomes = vec![Outcome::RetryPrepare { base: old.clone() }; requests.len()];
-        for (index, request) in requests.iter().enumerate() {
-            if request.base != old && !changed_since.contains_key(request.base.as_str()) {
-                let listing: String = checked(&git, repository, &["diff-tree", "-r", "--name-only", "-z", request.base.as_str(), old.as_str()], None)?;
-                changed_since.insert(request.base.as_str(), listing.split('\0').filter(|name| { return !name.is_empty(); }).map(str::to_string).collect());
-            }
-            let conflicts: bool = request.base != old
-                && request.changes.iter().any(|change| {
-                    return changed_since.get(request.base.as_str()).is_some_and(|names| { return names.iter().any(|name| { return overlaps(change.path.as_str(), name.as_str()); }); });
-                });
-            // A member of this batch that an earlier member overlaps would replace that member's bytes in the stream below. It
-            //  stays in the batch only when it captured the worktree (a batch has one) later than that member, so its bytes
-            //  hold the member's edit; any other request is sent back and merged against the member's landed commit.
-            let shadowed: bool = landing.iter().any(|(_, earlier)| {
-                let later_capture: bool = earlier.captured != 0 && request.captured > earlier.captured;
-                return !later_capture && request.changes.iter().any(|change| { return earlier.changes.iter().any(|member| { return overlaps(change.path.as_str(), member.path.as_str()); }); });
-            });
-            if !conflicts && !shadowed {
-                landing.push((index, request));
-            }
-        }
+        let landing: Vec<(usize, &CommitRequest)> = requests_that_land(&git, repository, requests, old.as_str())?;
         if landing.is_empty() {
             return Ok(outcomes);
         }
-        let batch: Vec<&CommitRequest> = landing.iter().map(|(_, request)| { return *request; }).collect();
+        let mut batch: Vec<&CommitRequest> = Vec::new();
+        for (_index, request) in &landing {
+            batch.push(*request);
+        }
         // Content that `git gc --prune=now` removed after the preparation is found before anything is imported or moved: the
         //  client prepares the commit again, and says so plainly when that is not enough.
         if batch_content_missing(first.common_dir.as_path(), batch.as_slice()) {
             return Err(FailureCode::Unavailable);
         }
         let objects_began: Instant = Instant::now();
-        let (commits, new): (Vec<String>, String) = if let Some(built) = first.commit.as_deref() {
-            // A commit Git built elsewhere lands as it is; it must be a commit with the parents this request's rule gives:
-            //  an amend has the replaced commit's parents, a commit on a branch that did not exist has none, and any other
-            //  commit has the branch tip first (a merge conclusion has the merged commits after it).
-            // The parents are read from the object store; a commit it cannot read as a plain commit is listed by Git, whose
-            //  answer is the one that counts (a repository with grafts, a shallow history or replacement objects).
-            let read: Option<BuiltCommit> = settings.plain_history.then(|| { return read_commit(first.common_dir.as_path(), built); }).flatten();
-            let (named_itself, parents): (bool, Vec<String>) = match &read {
-                Some(commit) => (true, commit.parents.clone()),
-                None => {
-                    let listing: GitOutput = run(&git, repository, &["rev-list", "--parents", "--max-count=1", built], None)?;
-                    let text: String = String::from_utf8_lossy(listing.stdout.as_slice()).into_owned();
-                    let mut words = text.split_whitespace();
-                    let named: bool = listing.succeeded() && words.next() == Some(built);
-                    (named, words.map(str::to_string).collect())
-                }
-            };
-            let acceptable: bool = if first.amend {
-                parents == amended_parents
-            } else if unborn {
-                parents.is_empty()
-            } else {
-                parents.first() == Some(&first.base)
-            };
-            if !named_itself || !acceptable {
-                return Err(FailureCode::Rejected);
-            }
-            // Git moves a branch to a commit without looking at what the commit holds, so a tree or a blob that a prune took
-            //  while the commit object survived would put a damaged commit on the branch.
-            reach("before-connectivity");
-            // A commit whose one parent is the tip adds the objects that differ from the tip's tree, and the object store shows
-            //  they are all there; any other commit, and any object that looks absent, is checked by the `rev-list` Git always ran.
-            let proven: bool = read.as_ref().is_some_and(|commit| { return !unborn && adds_only_present_objects(first.common_dir.as_path(), commit, old.as_str()); });
-            if !proven {
-                let connected: Vec<&str> = if unborn { vec!["rev-list", "--objects", built] } else { vec!["rev-list", "--objects", built, "--not", old.as_str()] };
-                if !run(&git, repository, connected.as_slice(), None)?.succeeded() {
-                    return Err(FailureCode::Unavailable);
-                }
-            }
-            (vec![built.to_string()], built.to_string())
-        } else {
-            let marks: PathBuf = context.journal.join(format!("marks-{seq}"));
-            let marks_argument: String = format!("--export-marks={}", marks.display());
-            // The `core.fsync` of the import is a global option of this one start; it reaches the `unpack-objects` child too, where
-            //  it names the same loose-object flush the repository has.
-            let import_fsync: Option<&str> = settings.import_fsync;
-            let fsync_setting: String = import_fsync.map(|value| { return format!("core.fsync={value}"); }).unwrap_or_default();
-            let mut import_arguments: Vec<&str> = Vec::new();
-            if import_fsync.is_some() {
-                import_arguments.extend(["-c", fsync_setting.as_str()]);
-            }
-            import_arguments.extend(["fast-import", "--done", marks_argument.as_str()]);
-            let imported: GitOutput = run(&git, repository, import_arguments.as_slice(), Some(import_stream(scratch.as_str(), old.as_str(), &batch, amended_parents.as_slice())))?;
-            if !imported.succeeded() {
-                return Err(classify(&imported));
-            }
-            // The import carries no `--quiet`, so its `--stats` report is kept in the service's log.
-            crate::inner_git_words::record_words(&["fast-import", "--done"], &imported);
-            let marks_text: String = std::fs::read_to_string(&marks).map_err(|_| { return FailureCode::Unavailable; })?;
-            let _marks_removed = std::fs::remove_file(&marks);
-            let made: Vec<String> = commits_from_marks(marks_text.as_str(), batch.len()).ok_or(FailureCode::Unavailable)?;
-            let last: String = made.last().cloned().ok_or(FailureCode::Unavailable)?;
-            (made, last)
-        };
+        let (commits, new): (Vec<String>, String) = objects_of_batch(
+            &git,
+            context.journal.as_path(),
+            seq,
+            first,
+            scratch.as_str(),
+            old.as_str(),
+            &batch,
+            amended_parents.as_slice(),
+            settings.plain_history,
+            settings.import_fsync,
+        )?;
         timing.objects += objects_began.elapsed();
         reach("after-objects");
         if let Some(seam) = &context.on_objects_written {
@@ -450,7 +297,13 @@ fn land_batch_body(
         let paths: Vec<String> = if derived {
             Vec::new()
         } else {
-            batch.iter().flat_map(|request| { return request.changes.iter().map(|change| { return change.path.clone(); }); }).collect()
+            let mut named: Vec<String> = Vec::new();
+            for request in &batch {
+                for change in &request.changes {
+                    named.push(change.path.clone());
+                }
+            }
+            named
         };
         let intent: Intent = Intent {
             seq,
@@ -459,7 +312,7 @@ fn land_batch_body(
             reference: first.reference.clone(),
             old: old.clone(),
             new: new.clone(),
-            ids: batch.iter().map(|request| { return request.id.clone(); }).collect(),
+            ids: ids_of(&batch),
             commits: commits.clone(),
             paths,
             derived,
@@ -470,7 +323,9 @@ fn land_batch_body(
         let journal_began: Instant = Instant::now();
         let written = write_intent(context.journal.as_path(), &intent);
         timing.journal += journal_began.elapsed();
-        written.map_err(|error| { return storage_failure(&error); })?;
+        if let Err(error) = written {
+            return Err(storage_failure(&error));
+        }
         reach("after-intent");
         // Git's own rule: the index lock is held before the branch is moved and given up when the new index is in place, so
         //  a foreign `git` that holds it finishes first and this landing builds on what it left. Everything that can be done
@@ -478,35 +333,7 @@ fn land_batch_body(
         //  for the branch move and the index build only, and a foreign holder is waited for while the work above is done,
         //  not before it. A lock that is not given up here (a refusal, a failure) is removed when it goes out of scope, and
         //  the index stays as it was.
-        let waiting_since: Instant = Instant::now();
-        let mut notes: WaitNotes = WaitNotes::default();
-        let taken = acquire_noting_wait_within(first.index.as_path(), seq, context.lock_ceiling, announce, &mut notes);
-        let waited: std::time::Duration = waiting_since.elapsed();
-        timing.lock_wait += waited;
-        // A pass over the batch that found the lock free has nothing to add to what an earlier pass found held.
-        if notes.looks > 0 || timing.attempts == 1 {
-            timing.lock_holder.clone_from(&notes.holder);
-            timing.lock_notes = notes.clone();
-        }
-        // The wait is written down when it ends, not with the answer, so a landing that fails later still leaves it.
-        if let Some(line) = wait_line(seq, waited, &notes, taken.is_ok()) {
-            // A lock that was refused fails the commit, so the line stands out from a wait that ended in the lock.
-            let priority: Priority = if taken.is_ok() { Priority::Info } else { Priority::Error };
-            crate::service_timing::log_entry(priority, line.as_str(), &[("CLI_GIT_BATCH", seq.to_string())]);
-        }
-        let held: IndexLock = match taken {
-            Ok(lock) => lock,
-            Err(failure) => {
-                // Nothing moved: forget the intent, so a restart of the service cannot land the batch later (owner, 2026-11-03: "No,
-                //  keep it for a retry"), keep the built commit on a side ref the message names, and forget the scratch branch.
-                let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
-                if failure.code == FailureCode::IndexInUse {
-                    announce(Announce::Waiting(keep_unlanded(&git, repository, seq, new.as_str())));
-                }
-                let _deleted = run(&git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
-                return Err(failure.code);
-            }
-        };
+        let held: IndexLock = take_index_lock(&git, context.journal.as_path(), context.lock_ceiling, first, seq, announce, timing, new.as_str(), scratch.as_str())?;
         let hold_began: Instant = Instant::now();
         // The worktree may have switched while the lock was awaited: the checked-out branch is read again with the lock held and
         //  before the ref moves, and a landing that no longer belongs to this worktree's head stops with nothing changed.

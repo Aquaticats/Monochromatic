@@ -45,6 +45,15 @@ pub mod service_messages;
 /// The commit service's serialized step.
 pub mod service_land;
 
+/// Takes the index lock for a batch that is ready to land.
+pub mod service_land_take_index_lock;
+
+/// The Git steps of a landing, the import stream of a batch and the overlap tests of its requests.
+pub mod service_land_git_steps_and_import_stream;
+
+/// The objects a batch lands: the commit Git built, or the commits made from the requests' changes.
+pub mod service_land_objects_of_batch;
+
 /// What the commit service's landing does once the branch has moved: index entries and conclusion state.
 pub mod service_land_copy;
 
