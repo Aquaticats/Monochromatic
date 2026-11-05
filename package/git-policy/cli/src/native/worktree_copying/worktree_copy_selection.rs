@@ -217,6 +217,37 @@ fn is_ignored_special_path(
 }
 
 /// What:
+///  Whether a byte is NUL, the end of each name in Git's `-z` output.
+/// Why:
+///   Git's listings are split on it, and a path may hold any other byte.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  Whether a NUL-separated listing holds `wanted` as one of its names.
+/// Why:
+///   Git lists a directory's files rather than the directory, so only an exact name is a file Git ignores.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// listing.split('\0').includes(wanted)
+/// ```
+fn lists_exactly(listing: &[u8], wanted: &[u8]) -> bool {
+    for field in listing.split(is_nul_byte) {
+        if field == wanted {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  Whether a native path lies at or under one of the excluded absolute directories.
 /// Why:
 ///   Walks skip registered worktrees and the private stage, so they never copy themselves.
@@ -334,7 +365,7 @@ pub fn read_ignored_roots(
         )));
     }
     let mut paths: Vec<String> = Vec::new();
-    for field in output.stdout.split(|byte| return *byte == 0) {
+    for field in output.stdout.split(is_nul_byte) {
         if field.is_empty() {
             continue;
         }
@@ -417,10 +448,7 @@ pub fn read_named_ignored_roots(
             )));
         }
         // Git lists a directory's files rather than the directory, so only an exact name is a file Git ignores.
-        let listed: bool = output
-            .stdout
-            .split(|byte| return *byte == 0)
-            .any(|field| return field == path.as_bytes());
+        let listed: bool = lists_exactly(output.stdout.as_slice(), path.as_bytes());
         if listed {
             selected.push(path.clone());
         }

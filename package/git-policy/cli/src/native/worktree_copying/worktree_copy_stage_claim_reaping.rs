@@ -58,15 +58,6 @@ pub fn settle_interrupted_add(record: &Path) -> Settlement {
     return settle_text(record, std::fs::read_to_string(record));
 }
 
-/// `settle_interrupted_add` with the two lookups as values, so that a lookup that fails other than by absence can be driven.
-#[cfg(test)]
-pub fn settle_from(record: &Path, marker: std::io::Result<bool>, read: &mut dyn FnMut() -> std::io::Result<String>) -> Settlement {
-    if let Some(settled) = settle_marker(record, marker) {
-        return settled;
-    }
-    return settle_text(record, read());
-}
-
 /// What:
 ///  The settlement the completion marker alone decides, or nothing when the record must be read.
 /// Why:
@@ -76,7 +67,7 @@ pub fn settle_from(record: &Path, marker: std::io::Result<bool>, read: &mut dyn 
 /// ```ts
 /// if (marker === true) return { keep: false }; if (marker instanceof Error) return { keep: true, notice }; return undefined;
 /// ```
-fn settle_marker(record: &Path, marker: std::io::Result<bool>) -> Option<Settlement> {
+pub fn settle_marker(record: &Path, marker: std::io::Result<bool>) -> Option<Settlement> {
     let shown_record: String = quote(record.to_string_lossy().as_ref());
     return match marker {
         Ok(true) => Some(Settlement { notice: None, keep: false }),
@@ -97,7 +88,7 @@ fn settle_marker(record: &Path, marker: std::io::Result<bool>) -> Option<Settlem
 /// ```ts
 /// const settlement = settleText(record, await readFile(record).catch((error) => error));
 /// ```
-fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
+pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
     let shown_record: String = quote(record.to_string_lossy().as_ref());
     let text: String = match read {
         Ok(found) => found,

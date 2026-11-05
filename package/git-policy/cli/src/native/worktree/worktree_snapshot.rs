@@ -270,7 +270,10 @@ fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index:
     // An entry the walk did not cover (a source with changes has no walk) is looked at through a cursor that keeps its directory.
     let mut cursor: StatCursor<'_> = StatCursor::new(&root);
     let install_index_file_entered: bool = begin_step("installIndexFile");
-    let install_index_file_outcome = install_index_in(admin, bytes, &mut |path: &[u8]| { return known.get(path).copied().or_else(|| { return cursor.fields(path); }); }, source.clean.hash_length);
+    let install_index_file_outcome = install_index_in(admin, bytes, &mut |path: &[u8]| { return match known.get(path) {
+        Some(fields) => Some(*fields),
+        None => cursor.fields(path),
+    }; }, source.clean.hash_length);
     end_step(install_index_file_entered);
     let report: String = install_index_file_outcome?;
     crate::diagnostic_log::debug("takeSnapshot", report.as_str());

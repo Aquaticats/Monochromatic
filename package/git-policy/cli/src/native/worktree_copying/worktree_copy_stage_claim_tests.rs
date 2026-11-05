@@ -13,6 +13,14 @@ use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::stage_ignored_snapshot;
 use std::os::unix::fs::PermissionsExt;
 
+/// `settle_interrupted_add` with the two lookups as values, so that a lookup that fails other than by absence can be driven.
+fn settle_from(record: &Path, marker: std::io::Result<bool>, read: &mut dyn FnMut() -> std::io::Result<String>) -> Settlement {
+    if let Some(settled) = settle_marker(record, marker) {
+        return settled;
+    }
+    return settle_text(record, read());
+}
+
 /// A common directory and a destination parent beside it, as a copy into `worktrees/topic` would use.
 fn scene(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     let root: PathBuf = fixture(name);

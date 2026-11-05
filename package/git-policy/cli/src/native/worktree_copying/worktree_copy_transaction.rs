@@ -184,6 +184,32 @@ pub enum Outcome {
 }
 
 /// What:
+///  Where the installation gets the snapshot of the stage it installs from: the one just made, or the one rebuilt from the journal.
+/// Why:
+///   A resumed installation has no snapshot in memory, so it rebuilds one from the stage and checks it holds every path the journal claimed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SnapshotSource = { staged: StagedSnapshot } | { fromJournal: PendingJournal }
+/// ```
+pub enum SnapshotSource<'a> {
+    /// The snapshot the staging step just made.
+    Staged(&'a StagedSnapshot),
+    /// The snapshot rebuilt from the stage that a journal names.
+    FromJournal(&'a PendingJournal),
+}
+
+impl SnapshotSource<'_> {
+    /// The snapshot, given the paths the journal and the install log say were claimed.
+    fn staged_snapshot(&self, intended: &BTreeSet<String>) -> Result<StagedSnapshot, WorktreeCopyError> {
+        return match self {
+            SnapshotSource::Staged(staged) => Ok((*staged).clone()),
+            SnapshotSource::FromJournal(pending) => snapshot_from_journal(pending, intended),
+        };
+    }
+}
+
+/// What:
 ///  Runs one journaled installation: opens the log, seeds the claims, installs, and reports the latest journal.
 /// Why:
 ///   Resumption and first attempts share this path, so an interrupted run's records are always honored.
@@ -194,7 +220,7 @@ pub enum Outcome {
 /// ```
 fn install_recorded(
     pending: PendingJournal,
-    snapshot: &dyn Fn(&BTreeSet<String>) -> Result<StagedSnapshot, WorktreeCopyError>,
+    snapshot: &SnapshotSource<'_>,
 ) -> Result<(PendingJournal, Outcome), WorktreeCopyError> {
     let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_str());
     let opened = open_install_log(stage.as_path())?;
@@ -209,7 +235,7 @@ fn install_recorded(
     }
     let mut prior: Vec<InstalledPath> = pending.journal.created_entries.clone();
     prior.extend(opened.recorded.created.iter().cloned());
-    let staged: StagedSnapshot = snapshot(&intended)?;
+    let staged: StagedSnapshot = snapshot.staged_snapshot(&intended)?;
     let mut state: TransactionState = TransactionState {
         pending,
         log: opened.log,
@@ -252,7 +278,7 @@ fn install_recorded(
 /// ```
 pub fn complete_journal(
     pending: PendingJournal,
-    snapshot: &dyn Fn(&BTreeSet<String>) -> Result<StagedSnapshot, WorktreeCopyError>,
+    snapshot: &SnapshotSource<'_>,
 ) -> Result<Outcome, WorktreeCopyError> {
     let started: std::time::Instant = std::time::Instant::now();
     let (latest, outcome) = install_recorded(pending, snapshot)?;
@@ -315,7 +341,7 @@ const NOTICE_PATHS: usize = 3;
 /// `cli-git: left out ${count} unreadable ignored entries from ${source}: ${first.join(', ')}${more}.\n`
 /// ```
 fn unreadable_notice(source_root: &Path, unreadable: &[String]) -> String {
-    let named: Vec<String> = unreadable.iter().take(NOTICE_PATHS).map(|path| return quote(path.as_str())).collect();
+    let named: Vec<String> = unreadable.iter().take(NOTICE_PATHS).map(String::as_str).map(quote).collect();
     let rest: usize = unreadable.len().saturating_sub(NOTICE_PATHS);
     let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
     let noun: &str = if unreadable.len() == 1 { "entry" } else { "entries" };
@@ -382,7 +408,7 @@ pub fn synchronize_created_worktree_noting(
     claim.release()?;
     let staged_after: std::time::Duration = started.elapsed();
     let staged: StagedSnapshot = snapshot.clone();
-    let outcome: Outcome = complete_journal(pending, &|_intended| return Ok(staged.clone()))?;
+    let outcome: Outcome = complete_journal(pending, &SnapshotSource::Staged(&staged))?;
     debug(
         "worktreeCopyTransaction",
         format!(

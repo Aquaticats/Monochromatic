@@ -8,7 +8,7 @@ use crate::worktree_copy_journal::{
 };
 use crate::worktree_copy_journal_encoding_and_validation::Journal;
 use crate::worktree_copy_selection::CopySelection;
-use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
+use crate::worktree_copy_stage::{StagedSnapshot, new_stage_container, stage_ignored_snapshot};
 use crate::worktree_copy_stage_claim::{claim_stage, claim_stage_for, stage_claims_exist};
 use std::os::unix::fs::PermissionsExt;
 
