@@ -6,7 +6,8 @@ import {
 /**
  Node-side rolldown build for `dev-script-task-cli`.
 
- One entry: the `task-run` CLI. It lands under `dist/final/node/` as `.mjs`
+ Entries include the `task-run` CLI and its testable execution interface.
+ They land under `dist/final/node/` as `.mjs`
  with its command-line shebang preserved. CI invokes the built file when
  present and the TypeScript source otherwise (node runs TypeScript directly),
  so a checkout with no built artifacts still runs the task graph.
@@ -16,6 +17,7 @@ import {
 const config: NodeFlavorConfig = nodeConfig({
   input: [
     './src/run.ts',
+    './src/index.ts',
   ],
 },);
 

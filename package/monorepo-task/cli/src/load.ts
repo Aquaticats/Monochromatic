@@ -25,7 +25,7 @@ const REPO_ROOT = resolve(import.meta.dirname, '..', '..', '..', '..');
 /**
  Cached root task file for the current process.
  */
-let rootTaskFile: RootTaskFile | undefined;
+const rootTaskFiles = new Map<string, RootTaskFile>();
 
 /**
  Returns the monorepo root this loader resolves task files against.
@@ -42,13 +42,14 @@ export function repoRoot(): string {
  @returns Root templates and tasks.
  @throws When the root task file is missing or malformed.
  */
-export async function loadRootTasks(): Promise<RootTaskFile> {
-  if (rootTaskFile !== undefined) { return rootTaskFile; }
-  const path = join(REPO_ROOT, 'task.ts');
+export async function loadRootTasks(root: string = REPO_ROOT,): Promise<RootTaskFile> {
+  const cached = rootTaskFiles.get(root,);
+  if (cached !== undefined) { return cached; }
+  const path = join(root, 'task.ts');
   if (!existsSync(path)) { throw new Error(`task-cli: missing root task.ts`); }
   const module_ = await import(pathToFileURL(path).href) as { default: RootTaskFile; };
-  rootTaskFile = module_.default;
-  return rootTaskFile;
+  rootTaskFiles.set(root, module_.default,);
+  return module_.default;
 }
 
 /**
@@ -71,9 +72,11 @@ export async function loadPackageTasks(path: string): Promise<PackageTaskFile> {
  @returns The definition with template fields filled in.
  @throws When the named template does not exist.
  */
-export async function resolveDefinition(definition: TaskDefinition,): Promise<TaskDefinition> {
+export async function resolveDefinition(
+  { definition, root: repositoryRoot = REPO_ROOT, }: { readonly definition: TaskDefinition; readonly root?: string; },
+): Promise<TaskDefinition> {
   if (definition.extends === undefined) { return definition; }
-  const root = await loadRootTasks();
+  const root = await loadRootTasks(repositoryRoot,);
   const template = root.templates[definition.extends];
   if (template === undefined)
     throw new Error(`task-cli: unknown task template: ${definition.extends}`);

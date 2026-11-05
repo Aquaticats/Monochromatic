@@ -1,6 +1,21 @@
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+
 [tasks."lint:types"]
 extends = "lint:types"
 
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
 [tasks."test:unit"]
-description = "Exercise the source task CLI used by GitHub Actions in disposable task repositories"
-run = "node src/task-graph.unit.test.ts"
+extends = "test:unit"
+depends = ["build"]

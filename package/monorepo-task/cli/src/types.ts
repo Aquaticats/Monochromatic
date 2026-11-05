@@ -8,7 +8,22 @@
 /**
  One executable step: a plain shell string, or a step plus its shell.
  */
-export type TaskStep = string | { readonly shell: string; readonly run: string; };
+export type TaskStep = string | { readonly shell: string; readonly run: string; } | TaskFunction;
+
+/**
+ Invocation-owned context for direct async task bodies.
+ */
+export type TaskFunctionContext = {
+  readonly cwd: string;
+  readonly env: Readonly<NodeJS.ProcessEnv>;
+  readonly argv: readonly string[];
+  readonly runChildren: (suffix: string) => Promise<void>;
+};
+
+/**
+ Direct task body whose child tasks share the current invocation.
+ */
+export type TaskFunction = (context: TaskFunctionContext) => Promise<void>;
 
 /**
  One task definition in a root or package `task.ts` file.

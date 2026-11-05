@@ -234,11 +234,11 @@ async function fanoutChildren(taskName: string): Promise<void> {
 const templates: Record<string, TaskDefinition> = {
   'build': {
     description: 'Build this package, fanout to its build:* tasks',
-    run: { shell: 'node --input-type=module-typescript -e', run: 'await fanoutChildren(`//${process.env.TASK_PACKAGE_PATH}:build`)', },
+    run: async function runChildren({ runChildren, }) { await runChildren('build'); },
   },
   'build:js': {
     description: 'Build this package JavaScript entries, fanout to build:js:* tasks',
-    run: { shell: 'node --input-type=module-typescript -e', run: 'await fanoutChildren(`//${process.env.TASK_PACKAGE_PATH}:build:js`)', },
+    run: async function runChildren({ runChildren, }) { await runChildren('build:js'); },
   },
   'build:js:browser': {
     run: 'rolldown --configLoader native --config rolldown.browser.config.ts',
@@ -251,7 +251,7 @@ const templates: Record<string, TaskDefinition> = {
   },
   'test': {
     description: 'Run this package test suites, fanout to test:* tasks',
-    run: { shell: 'node --input-type=module-typescript -e', run: 'await fanoutChildren(`//${process.env.TASK_PACKAGE_PATH}:test`)', },
+    run: async function runChildren({ runChildren, }) { await runChildren('test'); },
   },
   'test:unit': {
     description: 'Run active-tree *.unit.test.ts in parallel via node (excludes *.expensive.* unless --all); pass file paths to filter',
@@ -284,7 +284,7 @@ await runTestFiles(files, [])
   },
   'lint': {
     description: 'Lint this package, fanout to lint:* tasks',
-    run: { shell: 'node --input-type=module-typescript -e', run: 'await fanoutChildren(`//${process.env.TASK_PACKAGE_PATH}:lint`)', },
+    run: async function runChildren({ runChildren, }) { await runChildren('lint'); },
   },
   'lint:oxlint': {
     description: 'Lint with Oxlint',
@@ -306,11 +306,11 @@ await runTestFiles(files, [])
   },
   'watch:build': {
     description: 'Watch-build this package, fanout to watch:build:* tasks',
-    run: { shell: 'node --input-type=module-typescript -e', run: 'await fanoutChildren(`//${process.env.TASK_PACKAGE_PATH}:watch:build`)', },
+    run: async function runChildren({ runChildren, }) { await runChildren('watch:build'); },
   },
   'watch:build:js': {
     description: 'Watch-build this package JavaScript entries, fanout to watch:build:js:* tasks',
-    run: { shell: 'node --input-type=module-typescript -e', run: 'await fanoutChildren(`//${process.env.TASK_PACKAGE_PATH}:watch:build:js`)', },
+    run: async function runChildren({ runChildren, }) { await runChildren('watch:build:js'); },
   },
   'watch:build:js:browser': {
     run: 'rolldown --watch --configLoader native --config rolldown.browser.config.ts',
