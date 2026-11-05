@@ -58,3 +58,15 @@ pub mod scoped_start;
 
 /// Jobs on scoped threads beside each other or beside the calling thread, each a function and the state it reads.
 pub mod side_by_side_threads;
+
+/// The names this program answers to and keeps on disk,
+///  each as the current spelling and the one an earlier release used.
+pub mod wrapper_names_old_and_new;
+
+/// The rename that never replaces an existing name,
+///  and the test for a filesystem that cannot do it.
+pub mod rename_that_never_replaces;
+
+/// Where a kept file or folder is,
+///  moved in place from its earlier name on the first need.
+pub mod earlier_name_moved_to_current_in_place;
