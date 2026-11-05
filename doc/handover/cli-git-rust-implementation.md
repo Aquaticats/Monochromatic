@@ -572,6 +572,15 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   Merged to main as `ca6cd899b3` (2026-11-05T04:41:34Z), with the suppression branch it contains; per the owner
   ("Mutation runs don't block publish and release", "Treat reviews as async") the planted run and the cross-vendor
   review of B did not hold the merge; a miss or a finding is fixed forward.
+  Review of B: the first cross-vendor run timed out after 3600 s with no output; a smaller rerun is running
+  (`~/temp/agent/issue-6261/sol-review-part-b/review-2.txt`). A same-vendor second pass
+  (`claude-second-pass.md` beside it) found three P1s, no P0:
+  the `/proc` look misses helpers started by units older than `9b360150c0` and the shared service;
+  the adoption's `Drop` can remove the intent of a landing in flight, leaving a landed commit with no record;
+  `current_value` reads a failed Git run as "branch not moved", which also leads to `Drop`.
+  Fixes with red tests are being built on `fix/git-policy-cli-earlier-helper-adoption`
+  (worktree `.claude/worktrees/earlier-helper-adoption-fixes`, from main `35310097267f`); they must land before the
+  release.
   Open from the merge: the rename note added to 117 old records says "is now" (untrue until the release and the lock)
   and sits in 6 `doc/decision/` records; a scripted fix was refused by the session's permission guard, so it waits
   for the owner (`doc/handover/questions-for-the-owner.md`, "The rename note in old records").
