@@ -1,8 +1,12 @@
 //! What:
-//!  Whether a Git command's output is read by a program, so that no failure notice may be shown to it or taken from it.
+//!  Whether a Git command's output is read by a program,
+//! so that no failure notice may be shown to it or taken from it.
 //! Why:
-//!  A prompt, an editor or a script runs `git status --porcelain` or `git rev-parse` often and reads every byte; the notice
-//!  is meant for the person. The rule sits in a file of its own so `push_failure_notice.rs` stays under the file-size limit.
+//!  A prompt,
+//! an editor or a script runs `git status --porcelain` or `git rev-parse` often and reads every byte;
+//! the notice
+//!  is meant for the person.
+//! The rule sits in a file of its own so `push_failure_notice.rs` stays under the file-size limit.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,7 +15,8 @@
 
 use std::ffi::OsString;
 
-/// Commands that a program reads the output of, or that carry a protocol on their streams.
+/// Commands that a program reads the output of,
+/// or that carry a protocol on their streams.
 const MACHINE_COMMANDS: &[&[u8]] = &[
     b"cat-file", b"check-attr", b"check-ignore", b"check-ref-format", b"commit-tree", b"config", b"credential", b"diff-files",
     b"diff-index", b"diff-tree", b"fast-export", b"fast-import", b"for-each-ref", b"hash-object", b"index-pack", b"ls-files",
@@ -30,10 +35,14 @@ fn asks_for_machine_output(option: &[u8]) -> bool {
 }
 
 /// What:
-///  Whether a command's output is read by a program, so that no record may be shown to it or taken from it.
+///  Whether a command's output is read by a program,
+/// so that no record may be shown to it or taken from it.
 /// Why:
-///   A prompt, an editor or a script runs `git status --porcelain` or `git rev-parse` often and reads every byte; the
-///  record is meant for the person, and the first such call would otherwise take it.
+///   A prompt,
+/// an editor or a script runs `git status --porcelain` or `git rev-parse` often and reads every byte;
+/// the
+///  record is meant for the person,
+/// and the first such call would otherwise take it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,7 +1,9 @@
 //! What:
-//!  Why the probe of a manual push could not establish the updates Git would push, and what Git itself said when it refused.
+//!  Why the probe of a manual push could not establish the updates Git would push,
+//! and what Git itself said when it refused.
 //! Why:
-//!  The probe (`manual_push_probe.rs`) and the lifecycle that reads its result share these types; they sit in a file of their
+//!  The probe (`manual_push_probe.rs`) and the lifecycle that reads its result share these types;
+//! they sit in a file of their
 //!  own so the probe stays under the file-size limit and this file needs nothing from it.
 //!
 //! In TS you'd write (pseudocode):
@@ -13,11 +15,18 @@ use crate::auto_push_single_flight::SingleFlightError;
 use crate::manual_push_cause::ManualPushCause;
 
 /// What:
-///  Git's own refusal of a push: the exit status and the standard error it ended with.
+///  Git's own refusal of a push:
+/// the exit status and the standard error it ended with.
 /// Why:
-///   When the dry run exits with a failure before it reports any destination, Git has refused the push itself (a ref to
-///  delete that the remote lacks, a refspec naming nothing, a remote that does not exist, an option it does not know).
-///  Nothing could be published, so Git's words and status are the answer, and the wrapper adds none of its own.
+///   When the dry run exits with a failure before it reports any destination,
+/// Git has refused the push itself (a ref to
+///  delete that the remote lacks,
+/// a refspec naming nothing,
+/// a remote that does not exist,
+/// an option it does not know).
+///  Nothing could be published,
+/// so Git's words and status are the answer,
+/// and the wrapper adds none of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -25,17 +34,22 @@ use crate::manual_push_cause::ManualPushCause;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GitRefusal {
-    /// The exit status Git ended with; never zero.
+    /// The exit status Git ended with;
+    /// never zero.
     pub code: i32,
-    /// What Git wrote to standard error, as Git wrote it.
+    /// What Git wrote to standard error,
+    /// as Git wrote it.
     pub stderr: String,
 }
 
 /// What:
 ///  Why the probe could not establish the updates Git would push.
 /// Why:
-///   Every variant stops the policy lifecycle; none guesses an update. A failure of the wrapper's own reading is a
-///  content-unavailable engine failure, and a refusal by Git carries Git's own report instead.
+///   Every variant stops the policy lifecycle;
+/// none guesses an update.
+/// A failure of the wrapper's own reading is a
+///  content-unavailable engine failure,
+/// and a refusal by Git carries Git's own report instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -45,10 +59,12 @@ pub struct GitRefusal {
 pub struct ManualPushProbeError {
     /// Diagnostic naming what could not be established.
     pub message: String,
-    /// Git's refusal when Git itself ended the dry run before it reported any destination; `None` for a failure of the
+    /// Git's refusal when Git itself ended the dry run before it reported any destination;
+    /// `None` for a failure of the
     ///  wrapper's own reading.
     pub refusal: Option<GitRefusal>,
-    /// What the person can do about it, which the hint is chosen by.
+    /// What the person can do about it,
+    /// which the hint is chosen by.
     pub cause: ManualPushCause,
 }
 
@@ -74,8 +90,10 @@ pub(crate) fn probe_error(cause: ManualPushCause, message: String) -> ManualPush
 /// What:
 ///  The cause of a Git query that could not produce an exit status.
 /// Why:
-///   A query that never started means the Git the wrapper runs is missing; one stopped at its deadline already says in its
-///  message which setting changes the deadline; anything else Git did not explain.
+///   A query that never started means the Git the wrapper runs is missing;
+/// one stopped at its deadline already says in its
+///  message which setting changes the deadline;
+/// anything else Git did not explain.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

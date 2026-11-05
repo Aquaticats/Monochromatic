@@ -1,9 +1,14 @@
 //! What:
-//!  What Git's status lists as changed or untracked in a worktree: how many paths, the first, and whether a `.gitattributes` file
+//!  What Git's status lists as changed or untracked in a worktree:
+//! how many paths,
+//! the first,
+//! and whether a `.gitattributes` file
 //!  is among them.
 //! Why:
-//!  Only Git's own status tells a real change from a stale record of file times. The person is told how many paths and one name,
-//!  and the restore refuses a changed `.gitattributes` file. The read sits in a file of its own so `worktree_snapshot_source.rs`
+//!  Only Git's own status tells a real change from a stale record of file times.
+//! The person is told how many paths and one name,
+//!  and the restore refuses a changed `.gitattributes` file.
+//! The read sits in a file of its own so `worktree_snapshot_source.rs`
 //!  stays under the file-size limit and this file needs nothing from it.
 //!
 //! In TS you'd write (pseudocode):
@@ -18,7 +23,9 @@ use std::path::Path;
 /// What:
 ///  What Git's status lists as changed or untracked in a worktree.
 /// Why:
-///   The person is told how many paths and one name; the restore refuses a changed `.gitattributes` file, whose rules could
+///   The person is told how many paths and one name;
+/// the restore refuses a changed `.gitattributes` file,
+/// whose rules could
 ///  change how the restore writes other files.
 ///
 /// In TS you'd write (pseudocode):
@@ -27,10 +34,14 @@ use std::path::Path;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ChangedPaths {
-    /// How many paths `git status` lists; none when Git finds every file equal to its commit by content although the stat data
-    ///  of the index cannot vouch for it (files as new as the index, or touched without a change).
+    /// How many paths `git status` lists;
+    /// none when Git finds every file equal to its commit by content although the stat data
+    ///  of the index cannot vouch for it (files as new as the index,
+    /// or touched without a change).
     pub count: usize,
-    /// The first of them, with control characters shown as `?`; nothing when `count` is zero.
+    /// The first of them,
+    /// with control characters shown as `?`;
+    /// nothing when `count` is zero.
     pub first: Option<String>,
     /// Whether a `.gitattributes` file is changed or untracked.
     pub attributes_changed: bool,
@@ -54,16 +65,19 @@ pub fn plain(text: &str) -> String {
 }
 
 impl ChangedPaths {
-    /// Whether Git lists any change; false for a worktree whose files equal its commit by content.
+    /// Whether Git lists any change;
+    /// false for a worktree whose files equal its commit by content.
     pub fn has_changes(&self) -> bool {
         return self.count > 0;
     }
 }
 
 /// What:
-///  Whether a byte is NUL, the end of each entry of Git's `-z` output.
+///  Whether a byte is NUL,
+/// the end of each entry of Git's `-z` output.
 /// Why:
-///   Status entries are split on it, and a path may hold any other byte.
+///   Status entries are split on it,
+/// and a path may hold any other byte.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,7 +88,8 @@ fn is_nul_byte(byte: &u8) -> bool {
 }
 
 /// What:
-///  A changed path as printable text, with control characters shown as `?`.
+///  A changed path as printable text,
+/// with control characters shown as `?`.
 /// Why:
 ///   The first changed path goes into a log line and must not carry a terminal escape.
 ///
@@ -87,7 +102,8 @@ fn plain_path_text(path: &&[u8]) -> String {
 }
 
 /// What:
-///  Run Git with `arguments` in `root` and give its standard output; the error says what Git said or why it did not start.
+///  Run Git with `arguments` in `root` and give its standard output;
+/// the error says what Git said or why it did not start.
 /// Why:
 ///   Both listings of the changed paths ask the same way and word a failure the same way.
 ///
@@ -117,13 +133,24 @@ fn ask_git(context: &GitContext, root: &Path, arguments: &[&str]) -> Result<Vec<
 }
 
 /// What:
-///  The paths `git status` lists as changed or untracked in the worktree at `root`, counted, with the first, and whether a
-///  `.gitattributes` file is among them (also one inside an untracked directory); or the words that say which Git run failed
+///  The paths `git status` lists as changed or untracked in the worktree at `root`,
+/// counted,
+/// with the first,
+/// and whether a
+///  `.gitattributes` file is among them (also one inside an untracked directory);
+/// or the words that say which Git run failed
 ///  and how.
 /// Why:
-///   Only Git's own status tells a real change from a stale record of file times. The read takes no optional lock, so it never
-///  disturbs the checkout a person works in. A listing with nothing in it is an answer (every file equals its commit by content),
-///  never a failure: the stat data of an index that was just written, or of a file that was touched, proves nothing, and Git
+///   Only Git's own status tells a real change from a stale record of file times.
+/// The read takes no optional lock,
+/// so it never
+///  disturbs the checkout a person works in.
+/// A listing with nothing in it is an answer (every file equals its commit by content),
+///  never a failure:
+/// the stat data of an index that was just written,
+/// or of a file that was touched,
+/// proves nothing,
+/// and Git
 ///  settles those by content.
 ///
 /// In TS you'd write (pseudocode):

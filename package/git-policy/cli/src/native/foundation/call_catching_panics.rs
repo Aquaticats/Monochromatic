@@ -1,8 +1,12 @@
 //! What:
-//!  Call a function with its state and get the panic it raised as a value, not as an unwind.
+//!  Call a function with its state and get the panic it raised as a value,
+//! not as an unwind.
 //! Why:
-//!  `std::panic::catch_unwind` accepts only a callable with no arguments, so a guarded call that needs the caller's borrows
-//!  would have to be a closure at every place that guards one. This is the one place that makes the callable, so the guarded
+//!  `std::panic::catch_unwind` accepts only a callable with no arguments,
+//! so a guarded call that needs the caller's borrows
+//!  would have to be a closure at every place that guards one.
+//! This is the one place that makes the callable,
+//! so the guarded
 //!  calls elsewhere are a function and the state it reads.
 //!
 //! In TS you'd write (pseudocode):
@@ -11,9 +15,11 @@
 //! ```
 
 /// What:
-///  Run `call(state)` and return what it returned, or the payload of the panic it raised.
+///  Run `call(state)` and return what it returned,
+/// or the payload of the panic it raised.
 /// Why:
-///   The state is asserted to be safe to look at after a panic, as the callers did when they wrapped a closure the same way:
+///   The state is asserted to be safe to look at after a panic,
+/// as the callers did when they wrapped a closure the same way:
 ///  each caller discards or reports the panicked work and never reads half-updated state.
 ///
 /// In TS you'd write (pseudocode):

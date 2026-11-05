@@ -1,4 +1,7 @@
-//! Controls for jobs on scoped threads: every job runs, results keep the order of the states, a panic is an error in its place,
+//! Controls for jobs on scoped threads:
+//! every job runs,
+//! results keep the order of the states,
+//! a panic is an error in its place,
 //! and the calling thread's function runs beside the thread's job.
 
 use super::*;
@@ -49,7 +52,8 @@ fn the_callers_function_runs_here_and_the_job_on_another_thread() {
     assert_eq!(from_here, here);
 }
 
-/// Where no thread can start, every job runs on the calling thread in turn and still returns its value.
+/// Where no thread can start,
+/// every job runs on the calling thread in turn and still returns its value.
 #[test]
 fn jobs_run_in_turn_where_no_thread_starts() {
     let _refused = crate::scoped_start::RefusedStarts::here();

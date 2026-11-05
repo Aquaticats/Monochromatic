@@ -1,8 +1,11 @@
-//! Controls for the guarded call: a return is a value, a panic is an error carrying its payload.
+//! Controls for the guarded call:
+//! a return is a value,
+//! a panic is an error carrying its payload.
 
 use super::*;
 
-/// A call that returns gives back what it returned, computed from its state.
+/// A call that returns gives back what it returned,
+/// computed from its state.
 #[test]
 fn a_call_that_returns_gives_back_its_value() {
     fn double(state: u32) -> u32 {
