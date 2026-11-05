@@ -81,7 +81,7 @@ await describe({
     it({
       name: 'shares the original failure without retrying the failed task',
       fn: async () => {
-        const failure = new FixtureFailure('executor failure',);
+        const failure = new FixtureFailureError('executor failure',);
         const calls: string[] = [];
         const run = createTaskInvocation({ execute: async ({ request, }) => {
           calls.push(request.name,);
@@ -125,7 +125,7 @@ await describe({
         }
         expect(caught,).toBeInstanceOf(TaskDependencyCycleError,);
         if (!(caught instanceof TaskDependencyCycleError))
-          throw new FixtureFailure('Expected a dependency-cycle error',);
+          throw new FixtureFailureError('Expected a dependency-cycle error',);
         expect(caught.message,).toContain(request.name,);
         expect(caught.message,).not.toContain(secret,);
       },
@@ -137,7 +137,7 @@ await describe({
         const run = createTaskInvocation({ execute: async ({ request, runTask, }) => {
           const dependency = dependencies[request.name];
           if (dependency === undefined)
-            throw new FixtureFailure(`Unexpected fixture task ${request.name}`,);
+            throw new FixtureFailureError(`Unexpected fixture task ${request.name}`,);
           await runTask({ name: dependency, },);
         }, },);
         const results = await Promise.allSettled(Object.keys(dependencies,).map(async name => { await run({ name, },); }),);
@@ -160,7 +160,7 @@ await describe({
         }, },);
         await run(owner,);
         if (retained.run === undefined)
-          throw new FixtureFailure('The fixture did not receive a dependency dispatcher',);
+          throw new FixtureFailureError('The fixture did not receive a dependency dispatcher',);
         let caught: unknown;
         try {
           await retained.run({ name: 'late-child', },);

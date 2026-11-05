@@ -62,7 +62,7 @@ async function fanoutPackages(
   },
 ): Promise<void> {
   const names: string[] = [];
-  for (const file of findPackageTaskFiles(root,)) {
+  for (const file of await findPackageTaskFiles(root,)) {
     const tasks = await loadPackageTasks(file,);
     if (Object.hasOwn(
       tasks,
@@ -140,7 +140,7 @@ export async function dispatchTask(
       separator === (-1) ? undefined : separator,
     );
     const taskName = separator === (-1) ? '' : name.slice(separator + 1,);
-    const cwd = packageDirectory({
+    const cwd = await packageDirectory({
       root,
       packagePath,
     },);

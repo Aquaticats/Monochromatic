@@ -31,25 +31,29 @@ import { dispatchTask, } from './task-dispatch.ts';
  Runs one CLI invocation with one shared task completion cache.
  */
 async function main(): Promise<void> {
-  const [name, ...argv] = process.argv
+  /** CLI arguments remain literal words until a task's usage declaration interprets them. */
+  const [taskName, ...argv] = process.argv
     .slice(2);
-  if (name === undefined)
+  if (taskName === undefined)
     throw new Error('task-cli: usage: task-run <task> [-- options] [-- passthrough]');
-  const root = findRepoRoot();
+  /** Repository root fixes the search boundary for this invocation. */
+  const root = await findRepoRoot();
+  /** Child requests inherit a snapshot rather than mutable global process state. */
   const environment = { ...process.env };
+  /** Shared completion cache belongs to this one command invocation. */
   const runTask = createTaskInvocation({
-    execute: async context => { await dispatchTask({
+    execute: async function execute(context) { await dispatchTask({
       root,
       environment,
       ...context
     }); },
-    report: ({
+    report: function report({
       name,
       state,
-    }) => { console.error(`task-run [${state}] ${JSON.stringify(name)}`); },
+    }) { console.error(`task-run [${state}] ${JSON.stringify(name)}`); },
   });
   await runTask({
-    name,
+    name: taskName,
     argv
   });
 }
