@@ -300,29 +300,101 @@ unreviewed agent output can consume maintainer time and harm the poster's reputa
 ### Local report draft
 
 Title:
-`pnpm 12.16.1 creates broken workspace links when the shared store traverses a directory symlink`.
+`pnpm 12.18.0 creates broken dependency links when the global store traverses a directory symlink`.
 
-Pnpm reports a successful install,
-but a transitive `link:` override in the global virtual store points at a nonexistent directory.
-The link's relative contents were calculated from a symlinked parent spelling,
-while the filesystem interprets them from the physical parent.
-On this host,
-`/home` points to `/var/home`,
-and the dependency link incorrectly reaches `/var/var/home`.
+The body follows the checked bug-report form's field order.
+The repro commands are the literal commands used by the public workflow in a fresh checkout.
+Every field is backed by the recorded commands or CI logs;
+no human verification is claimed.
 
-Using the canonical store spelling and forcing a reinstall restores the consumer import.
-The attached source prototype resolves the link parent consistently for creation and reuse,
-and preserves target aliases.
-Its new filesystem regression fails on the unchanged source and passes with the patch;
-the Linux symlink test group reports 19 passing tests.
-The public reproduction now confirms the stock CLI failure across Linux,
-macOS,
-and Windows,
-including pnpm `12.18.0`.
-The source prototype's narrower verification boundary is recorded separately.
+~~~md
+### Verify latest release
 
-Reproduction repository:
-<https://github.com/Aquaticat/pnpm-symlinked-store-repro>.
-The inspected failing runs and passing prototype run are linked in its README.
+- [x] I verified that the issue exists in the latest pnpm release
+
+### pnpm version
+
+12.18.0.
+Also reproduced with 12.16.1 and 11.28.11 on Linux.
+
+### Which area(s) of pnpm are affected? (leave empty if unsure)
+
+Store;
+Operating System (Windows, MacOS, Linux).
+
+### Link to the code that reproduces this issue or a replay of the bug
+
+https://github.com/Aquaticat/pnpm-symlinked-store-repro
+
+### Reproduction steps
+
+Use a checkout of the reproduction repository with `PNPM_VERSION=12.18.0`.
+The workflow provisions checksum-pinned Node and pnpm.
+It then runs these commands from the repository root:
+
+```sh
+# Reproduction repository root
+node provision.ts
+node reproduce.ts prepare control
+node reproduce.ts assert control
+node reproduce.ts prepare symlinked
+node reproduce.ts assert symlinked
+```
+
+Both installs succeed.
+The real-directory control imports its dependency successfully.
+The final assertion fails with `ERR_MODULE_NOT_FOUND` for `proper-lockfile`.
+No DSH installation,
+private repository,
+registry package,
+or credentials are needed.
+
+### Describe the Bug
+
+The synthetic consumer declares a dependency replaced by a local `link:` override.
+With the global virtual store reached through a directory symlink,
+pnpm writes a relative dependency link that resolves to a nonexistent directory.
+The same install through the physical directory works.
+
+The dependency-import assertion fails in both inspected CI runs:
+
+- https://github.com/Aquaticat/pnpm-symlinked-store-repro/actions/runs/42055610522
+- https://github.com/Aquaticat/pnpm-symlinked-store-repro/actions/runs/42056201476
+
+Provisioning,
+the real-directory control,
+and the aliased-directory install pass in the affected jobs.
+Reinstalling with the canonical store path makes the import pass.
+
+The repository includes a Rust source prototype.
+Its new regression fails on unchanged source,
+then all 19 Linux symlink tests pass with the patch:
+https://github.com/Aquaticat/pnpm-symlinked-store-repro/actions/runs/42055609601
+
+This prototype is not a claim that every affected implementation is already fixed.
+
+### Expected Behavior
+
+The installed consumer can import its declared dependency with either spelling of the same store directory.
+
+### Which Node.js version are you using?
+
+26.13.0.
+
+### Which operating systems have you used?
+
+- [x] macOS
+- [x] Windows
+- [x] Linux
+
+### If your OS is a Linux based, which one it is? (Include the version if relevant)
+
+Ubuntu on GitHub's `ubuntu-latest` runner.
+The other jobs use `macos-14` and `windows-latest`.
+
+### Contributing a fix
+
+- [x] I am working on a fix
 
 Written by an agent (Codex, GPT-6).
+~~~
