@@ -97,6 +97,12 @@ pub mod service_index_watch;
 /// The preparation of a commit that the service lands, for every command line.
 pub mod service_prepare;
 
+/// The shapes a service preparation hands back.
+pub mod service_prepare_ready_shapes;
+
+/// The smaller steps of a service preparation.
+pub mod service_prepare_changes_config_and_pathspec_steps;
+
 /// Which commit command lines the commit service covers, and the message they stand for.
 pub mod service_commit_args;
 

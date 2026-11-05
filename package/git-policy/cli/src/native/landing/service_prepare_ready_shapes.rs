@@ -1,0 +1,177 @@
+//! What:
+//!  The shapes a service preparation hands back: the scratch directory that removes itself, what a preparation came to
+//!  (conflict, ended, ready), the inputs of the native Git run, the `Ready` record, and the record that builds a `Ready` for
+//!  the ways out that share their parts.
+//! Why:
+//!  The preparation (`service_prepare.rs`), the replay of captured changes and the commit loop all speak in these; they sit in a
+//!  file that uses none of those.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! type Prepared = Conflict | Ended | Ready; type Ready = { repository, reference, base, changes, events, inputs, scratch, ... }
+//! ```
+
+use crate::capture_invocation::InvocationCapture;
+use crate::commit_transaction::TransactionResult;
+use crate::lfs_pre_push::uses_lfs;
+use crate::policy_events::PolicyEvent;
+use crate::private_storage::remove_tree;
+use crate::service_protocol::{Change, Cleanup};
+use crate::service_replay::ReplayConflict;
+use crate::transaction_journal::{AddedPath, Conclusion, TransactionMode};
+use std::ffi::OsString;
+use std::path::PathBuf;
+/// A scratch directory for the private indexes and Git's scratch repository, removed when it goes out of scope.
+pub struct Scratch(pub PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _removed = remove_tree(self.0.as_path());
+    }
+}
+
+/// What a preparation came to.
+pub enum Prepared {
+    /// The policies stopped the commit, or the preparation itself found the commit's ending (a staged deletion that is
+    ///  still on disk, a normalization that removed every change).
+    Ended(TransactionResult),
+    /// The change is ready to land.
+    Ready(Box<Ready>),
+    /// A retry could not merge the captured change onto the branch; nothing was changed.
+    Conflict(Box<ReplayConflict>),
+}
+
+/// What real Git needs from the preparation to build the commit in a scratch repository.
+pub struct NativeInputs {
+    /// The invocation capture the scratch repository is made from.
+    pub capture: InvocationCapture,
+    /// The arguments after the policies' fixed transforms.
+    pub arguments: Vec<OsString>,
+    /// The positional pathspecs of the command line, which the private index already holds.
+    pub pathspecs: Vec<String>,
+    /// Whether the line commits named paths or the index.
+    pub mode: TransactionMode,
+    /// Whether `-a` staged tracked changes into the private index.
+    pub staged_all: bool,
+    /// Whether the private index already holds a selection by `--include`, `--patch`, `--interactive`.
+    pub selected_privately: bool,
+    /// The private index the policies settled.
+    pub commit_index: PathBuf,
+}
+
+/// Everything a landing needs, from one preparation.
+pub struct Ready {
+    /// The worktree root.
+    pub repository: PathBuf,
+    /// The common Git directory.
+    pub common_dir: PathBuf,
+    /// The branch, or `HEAD` for a detached head.
+    pub reference: String,
+    /// The commit prepared against; the all-zero name for a branch that does not exist yet.
+    pub base: String,
+    /// The changes between the base and the private index, when the embedded route can carry them; nothing when a name is
+    ///  not text, a mode is not an ordinary file, a symbolic link or an executable, or there are too many.
+    pub changes: Option<Vec<Change>>,
+    /// The policies' events, with the fix summary when a correction changed a file.
+    pub events: Vec<PolicyEvent>,
+    /// Whether the repository uses Git LFS.
+    pub uses_lfs: bool,
+    /// The commit's scratch directory, kept until the commit is landed because Git's scratch repository lives in it.
+    pub scratch: Scratch,
+    /// Whether only Git can build this commit: the configuration asks for something the service does not embed, or the
+    ///  head, the branch or the state is not an ordinary one, or Git alone can say what the line means.
+    pub needs_native: bool,
+    /// What real Git needs to build the commit, or what the embedded route needs to make its tree.
+    pub inputs: NativeInputs,
+    /// The files a policy rewrote that the worktree receives once the commit has landed.
+    pub worktree_records: Vec<AddedPath>,
+    /// The conclusion state the landing removes, for the commit that concludes a merge, a cherry-pick or a revert.
+    pub cleanup: Option<Cleanup>,
+    /// Whether the person chose what to commit interactively, so that a moved branch cannot be answered by choosing again.
+    pub interactive: bool,
+    /// Whether a moved branch makes another build on the new tip meaningless (a conclusion, a branch that did not exist).
+    pub fixed_parents: bool,
+    /// When the worktree's bytes were captured (`service_replay::capture_stamp`); a retry keeps the first capture's stamp.
+    pub captured_at: u64,
+    /// The paths this commit commits that the unfinished merge or pick left in conflict. Their worktree bytes, conflict markers
+    ///  included, are what is committed; the person is warned once the commit has landed (`conflicted_path_warning`).
+    pub committed_conflicted: Vec<Vec<u8>>,
+    /// The operation a commit of named paths leaves in progress: the merge or the cherry-pick whose state the commit does not
+    ///  conclude. The person is told once the commit has landed.
+    pub leaves_open: Option<Conclusion>,
+}
+
+/// What:
+///  What every `Ready` of one preparation shares: the pathspecs, the selection mode, the private index, the branch and base the
+///  preparation announced, the cleanup of the conclusion state and the stamps.
+/// Why:
+///  The preparation makes a `Ready` on two of its ways out; one record builds both, so the two are the same by construction.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shape = { pathspecs, mode, stagedAll, selectedPrivately, commitIndex, reference, announcedBase, cleanup, interactive, fixedParents, capturedAt };
+/// const ready = byGit(shape, taken, events, changes, records, args, scratch);
+/// ```
+pub(crate) struct ReadyShape {
+    /// The positional pathspecs as text.
+    pub(crate) pathspecs: Vec<String>,
+    /// Whether the line commits named paths or the index.
+    pub(crate) mode: TransactionMode,
+    /// Whether `-a` staged tracked changes into the private index.
+    pub(crate) staged_all: bool,
+    /// Whether the private index already holds a selection.
+    pub(crate) selected_privately: bool,
+    /// The private index the commit is built from.
+    pub(crate) commit_index: PathBuf,
+    /// The branch reference the preparation announced.
+    pub(crate) reference: String,
+    /// The base the preparation announced.
+    pub(crate) announced_base: String,
+    /// The conclusion state to remove after the landing.
+    pub(crate) cleanup: Option<Cleanup>,
+    /// Whether an interactive selection was made.
+    pub(crate) interactive: bool,
+    /// Whether the parents of the commit are fixed.
+    pub(crate) fixed_parents: bool,
+    /// The stamp of the capture.
+    pub(crate) captured_at: u64,
+}
+
+/// Builders of a `Ready` from a shape.
+impl ReadyShape {
+    /// The inputs of the native Git run for an invocation capture and the arguments after the policies' transforms.
+    pub(crate) fn native_inputs(&self, arguments: Vec<OsString>, captured: InvocationCapture) -> NativeInputs {
+        return NativeInputs {
+            arguments,
+            pathspecs: self.pathspecs.clone(),
+            mode: self.mode,
+            staged_all: self.staged_all,
+            selected_privately: self.selected_privately,
+            commit_index: self.commit_index.clone(),
+            capture: captured,
+        };
+    }
+
+    /// A preparation that Git builds: the `Ready` that needs the native run.
+    pub(crate) fn by_git(&self, taken: InvocationCapture, events: Vec<PolicyEvent>, changes: Option<Vec<Change>>, records: Vec<AddedPath>, arguments: Vec<OsString>, scratch_dir: Scratch) -> Box<Ready> {
+        return Box::new(Ready {
+            repository: taken.layout.repository_root.clone(),
+            common_dir: taken.layout.common_dir.clone(),
+            reference: self.reference.clone(),
+            base: self.announced_base.clone(),
+            changes,
+            events,
+            uses_lfs: taken.layout.config_snapshot.as_ref().is_none_or(uses_lfs),
+            scratch: scratch_dir,
+            needs_native: true,
+            inputs: self.native_inputs(arguments, taken),
+            worktree_records: records,
+            cleanup: self.cleanup.clone(),
+            interactive: self.interactive,
+            fixed_parents: self.fixed_parents,
+            captured_at: self.captured_at,
+            committed_conflicted: Vec::new(),
+            leaves_open: None,
+        });
+    }
+}
