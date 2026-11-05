@@ -27,7 +27,9 @@ await describe({
       name: 'shares concurrent and completed work with omitted or empty inputs',
       fn: async () => {
         const executed: ResolvedTaskRequest[] = [];
-        const run = createTaskInvocation({ execute: async ({ request, }) => { executed.push(request,); }, },);
+        const run = createTaskInvocation({ execute: async ({ request, }) => {
+          executed.push(request,);
+        }, },);
         const name = 'shared';
         await Promise.all([run({ name, },), run({ name, argv: [], environment: {}, },),],);
         await run({ name, },);
@@ -45,8 +47,12 @@ await describe({
           { name: 'compile', argv: ['../path; $(false)', '"quoted"\nline\\end',], environment: { VALUE: "'", }, },
         ];
         const executed: ResolvedTaskRequest[] = [];
-        const run = createTaskInvocation({ execute: async ({ request, }) => { executed.push(request,); }, },);
-        await Promise.all(requests.map(async request => { await run(request,); }),);
+        const run = createTaskInvocation({ execute: async ({ request, }) => {
+          executed.push(request,);
+        }, },);
+        await Promise.all(requests.map(async request => {
+          await run(request,);
+        }),);
         expect(executed,).toEqual(requests,);
       },
     },),
@@ -55,7 +61,9 @@ await describe({
       fn: async () => {
         const environment = { MODE: 'debug', NOTE: 'literal value', };
         const executed: ResolvedTaskRequest[] = [];
-        const run = createTaskInvocation({ execute: async ({ request, }) => { executed.push(request,); }, },);
+        const run = createTaskInvocation({ execute: async ({ request, }) => {
+          executed.push(request,);
+        }, },);
         const request = { name: 'compile', argv: [], environment, };
         await run(request,);
         await run({ ...request, environment: Object.fromEntries(Object.entries(environment,).toReversed(),), },);
@@ -70,7 +78,9 @@ await describe({
         const argv = ['--mode', before,];
         const environment = { MODE: before, };
         const executed: ResolvedTaskRequest[] = [];
-        const run = createTaskInvocation({ execute: async ({ request, }) => { executed.push(request,); }, },);
+        const run = createTaskInvocation({ execute: async ({ request, }) => {
+          executed.push(request,);
+        }, },);
         const pending = run({ name: 'compile', argv, environment, },);
         argv[argv.length - 1] = after;
         environment.MODE = after;
@@ -106,7 +116,9 @@ await describe({
         }
         const invocations = [createTaskInvocation({ execute, },), createTaskInvocation({ execute, },),];
         const request = { name: 'compile', };
-        await Promise.all(invocations.map(async run => { await run(request,); }),);
+        await Promise.all(invocations.map(async run => {
+          await run(request,);
+        }),);
         expect(calls,).toEqual(invocations.map(() => request.name),);
       },
     },),
@@ -115,7 +127,9 @@ await describe({
       fn: async () => {
         const secret = 'private-fixture-value';
         const request = { name: 'loop', environment: { SECRET: secret, }, };
-        const run = createTaskInvocation({ execute: async ({ runTask, }) => { await runTask(request,); }, },);
+        const run = createTaskInvocation({ execute: async ({ runTask, }) => {
+          await runTask(request,);
+        }, },);
         let caught: unknown;
         try {
           await run(request,);
@@ -140,7 +154,9 @@ await describe({
             throw new FixtureFailureError(`Unexpected fixture task ${request.name}`,);
           await runTask({ name: dependency, },);
         }, },);
-        const results = await Promise.allSettled(Object.keys(dependencies,).map(async name => { await run({ name, },); }),);
+        const results = await Promise.allSettled(Object.keys(dependencies,).map(async name => {
+          await run({ name, },);
+        }),);
         for (const result of results) {
           expect(result.status,).toBe('rejected',);
           if (result.status === 'rejected')

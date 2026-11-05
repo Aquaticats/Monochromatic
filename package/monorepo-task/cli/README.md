@@ -55,3 +55,22 @@ and explicit function-body context.
 The invocation tests import the built library artifact.
 Local tasks are declared in `mise.toml`;
 the matching CI tasks are in `task.ts`.
+
+## Ordered task execution
+
+Scoped `eslint/no-await-in-loop` exceptions retain required ordering:
+the repository search stops at the nearest workspace marker,
+root fanout loads definitions in discovery order and waits within each bounded worker,
+and task dependencies and body steps execute in their declared order.
+Replacing these awaits with unrestricted `Promise.all` would change those contracts.
+Independent template children and filesystem checks already run concurrently.
+
+Oxlint `1.90.0` implements this rule as a configuration-free `NoAwaitInLoop` marker
+and reports any await found inside a loop body.
+It has no option for ordered dependencies or bounded worker loops:
+[rule declaration and implementation][await-rule].
+The repository enables it as a warning in `package/config/oxlint/src/rule/correctness.ts`;
+`package/config/oxlint/src/config-base.ts` makes warnings fail the lint gate.
+The exceptions stay on the functions whose control flow needs sequencing.
+
+[await-rule]: https://github.com/oxc-project/oxc/blob/9b6fff42fa6edf0bec55861b6f0764c7b9acd86b/crates/oxc_linter/src/rules/eslint/no_await_in_loop.rs#L17-L107

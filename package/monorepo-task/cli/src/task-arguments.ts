@@ -181,7 +181,9 @@ export function usageEnvironment({
   /**
    Positional declaration order determines named environment variables.
    */
-  const args = options.filter(function positionalOption(option) { return option.kind === 'arg'; },);
+  const args = options.filter(function positionalOption(option) {
+    return option.kind === 'arg';
+  },);
   if ((positional.length > 0) && (args.length === 0))
     throw new TaskUsageError(`task-cli: unexpected positional arguments: ${positional.join(' ',)}`,);
   if ((args.length > 0) || (rest.length > 0))
@@ -192,7 +194,9 @@ export function usageEnvironment({
   /**
    The variadic args name denotes all words and must not overwrite usage_args.
    */
-  const named = args.filter(function namedPosition(option) { return option.name !== 'args'; },);
+  const named = args.filter(function namedPosition(option) {
+    return option.name !== 'args';
+  },);
   for (const [position, option,] of named.entries()) {
     /**
      Optional positional values are omitted rather than converted to an empty string.

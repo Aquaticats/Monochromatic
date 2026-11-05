@@ -41,6 +41,7 @@ const ROOT_FANOUT_TASKS: Readonly<Record<string, string>> = {
 export class TaskSelectionError extends Error {
   /**
    Names the missing task or unsupported invocation.
+   @param message - Task identity and the unsupported selection.
    */
   constructor(message: string,) {
     super(message,);
@@ -48,6 +49,7 @@ export class TaskSelectionError extends Error {
   }
 }
 
+/* oxlint-disable eslint/no-await-in-loop -- Ordered imports and bounded workers; see README.md#ordered-task-execution. */
 /**
  Runs root package groups with the existing bounded concurrency policy.
  */
@@ -126,6 +128,7 @@ async function fanoutPackages(
       failures,
     },);
 }
+/* oxlint-enable eslint/no-await-in-loop */
 
 /**
  Resolves a named task and executes it using the caller's shared dispatcher.

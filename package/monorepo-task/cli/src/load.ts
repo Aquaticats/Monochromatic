@@ -67,7 +67,8 @@ export async function loadRootTasks(root: string = REPO_ROOT,): Promise<RootTask
    Root templates are loaded once per repository in this process.
    */
   const cached = rootTaskFiles.get(root,);
-  if (cached !== undefined) { return cached; }
+  if (cached !== undefined)
+    return cached;
   /**
    The task file belongs to the caller-selected repository root.
    */
@@ -143,7 +144,8 @@ export async function resolveDefinition(
     readonly root?: string
   },
 ): Promise<TaskDefinition> {
-  if (definition.extends === undefined) { return definition; }
+  if (definition.extends === undefined)
+    return definition;
   /**
    Templates come from the same repository as the requested task.
    */

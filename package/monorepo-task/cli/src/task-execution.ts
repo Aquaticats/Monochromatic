@@ -276,6 +276,7 @@ async function runChildren(
     },);
 }
 
+/* oxlint-disable eslint/no-await-in-loop -- Dependencies and body steps preserve declared order; see README.md#ordered-task-execution. */
 /**
  Runs dependencies first, then body steps, with a stable invocation environment.
 
@@ -426,5 +427,6 @@ export async function executeTask(
       context,
     },);
 }
+/* oxlint-enable eslint/no-await-in-loop */
 
 //endregion Task bodies and their process environment

@@ -29,6 +29,7 @@ const PACKAGE_MARKERS = [
   'build.gradle',
 ] as const;
 
+/* oxlint-disable eslint/no-await-in-loop -- Stop at the nearest workspace marker; see README.md#ordered-task-execution. */
 /**
  Finds the repository root by walking parent directories for the workspace marker.
 
@@ -60,6 +61,7 @@ export async function findRepoRoot(): Promise<string> {
     current = parent;
   }
 }
+/* oxlint-enable eslint/no-await-in-loop */
 
 /**
  Resolves a package path and checks that it contains a supported package manifest.

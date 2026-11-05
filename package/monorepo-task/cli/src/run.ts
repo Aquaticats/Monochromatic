@@ -23,9 +23,18 @@
  ```
  */
 
-import { createTaskInvocation, } from './task-invocation.ts';
+import { createTaskInvocation, type TaskEvent, } from './task-invocation.ts';
 import { findRepoRoot, } from './task-locations.ts';
 import { dispatchTask, } from './task-dispatch.ts';
+
+/**
+ Writes task lifecycle events as exact terminal output without exposing inputs.
+
+ @param event - Task identity and state emitted by the invocation.
+ */
+function reportTask(event: TaskEvent,): void {
+  console.error(`task-run [${event.state}] ${JSON.stringify(event.name)}`);
+}
 
 /**
  Runs one CLI invocation with one shared task completion cache.
@@ -55,10 +64,7 @@ async function main(): Promise<void> {
       environment,
       ...context
     }); },
-    report: function report({
-      name,
-      state,
-    }) { console.error(`task-run [${state}] ${JSON.stringify(name)}`); },
+    report: reportTask,
   });
   await runTask({
     name: taskName,
