@@ -120,7 +120,10 @@ impl ChildClass {
         let Some(text) = value else {
             return self.default_limit();
         };
-        return positive_seconds(CHILD_WAIT_VARIABLE, text).unwrap_or_else(|| { return self.default_limit(); });
+        return match positive_seconds(CHILD_WAIT_VARIABLE, text) {
+            Some(seconds) => seconds,
+            None => self.default_limit(),
+        };
     }
 
     /// The window this process runs this class under: the variable in its environment, or the class default.

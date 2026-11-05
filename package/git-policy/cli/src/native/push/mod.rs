@@ -73,6 +73,30 @@ pub mod push_trigger_log;
 /// Publishing a landed commit that a moved remote branch rejected: the merge is made from objects alone and pushed.
 pub mod auto_push_reconcile;
 
+/// What a reconcile of a rejected push shares: the line prefixes, the attempt limit, the stale-rejection test and the small Git queries.
+pub mod auto_push_reconcile_basics_and_limits;
+
+/// The merge commit of a reconcile, built in the object store without a worktree or an index.
+pub mod auto_push_reconcile_merge_commit;
+
+/// The move of the local branch after the merge was pushed, and the checks that guard it.
+pub mod auto_push_reconcile_branch_advance;
+
+/// The reading of a configured push refspec and the judgement of what the refspecs make of one branch.
+pub mod auto_push_refspec_judging;
+
+/// The deadline a push may show nothing for, its default and the patience a push runs under.
+pub mod push_deadline_and_patience_settings;
+
+/// The public update of one pushed reference and the limits on the probe's side-by-side queries.
+pub mod manual_push_update_and_query_limits;
+
+/// What a child watch is made of below its public face: terms, marks, shared flags and the stopping of a child.
+pub mod child_watch_clock_marks_and_stopping;
+
+/// How a watched step may be ended and the errors that say it was.
+pub mod child_watch_step_bounds_and_errors;
+
 /// The paths of a dirty worktree and of a fast-forward, and their overlap.
 pub mod auto_push_dirty_paths;
 

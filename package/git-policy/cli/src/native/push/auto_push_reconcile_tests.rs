@@ -4,7 +4,11 @@
 use super::*;
 use crate::auto_push::{AutoPushOutcome, AutoPushResult, PUSH_FAILED_NOTE, push_once};
 use crate::auto_push_single_flight::PushGit;
+use crate::auto_push_reconcile_branch_advance::status_differs;
+use crate::auto_push_reconcile_merge_commit::PushRunner;
+use crate::merge_second_pass::GitRunner;
 use crate::test_support::{fixture, git, remove};
+use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 

@@ -24,7 +24,7 @@
 /// ```
 pub fn status_paths(output: &[u8]) -> Vec<Vec<u8>> {
     let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-    let mut entries = output.split(|byte| { return *byte == 0; }).filter(|entry| { return !entry.is_empty(); });
+    let mut entries = non_empty_fields(output).into_iter();
     while let Some(entry) = entries.next() {
         // An entry is two status letters, a space, then the path.
         if entry.len() < 4 {
@@ -50,11 +50,27 @@ pub fn status_paths(output: &[u8]) -> Vec<Vec<u8>> {
 /// function diffPaths(output: Uint8Array): Uint8Array[];
 /// ```
 pub fn diff_paths(output: &[u8]) -> Vec<Vec<u8>> {
-    return output
-        .split(|byte| { return *byte == 0; })
-        .filter(|path| { return !path.is_empty(); })
-        .map(<[u8]>::to_vec)
-        .collect();
+    let mut paths: Vec<Vec<u8>> = Vec::new();
+    for path in non_empty_fields(output) {
+        paths.push(path.to_vec());
+    }
+    return paths;
+}
+
+/// Whether `byte` is the NUL that ends each field of Git's `-z` output.
+fn is_nul(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// The fields of NUL-separated output, leaving out the empty ones.
+fn non_empty_fields(output: &[u8]) -> Vec<&[u8]> {
+    let mut fields: Vec<&[u8]> = Vec::new();
+    for field in output.split(is_nul) {
+        if !field.is_empty() {
+            fields.push(field);
+        }
+    }
+    return fields;
 }
 
 /// What:
@@ -92,11 +108,10 @@ const LISTED_LIMIT: usize = 5;
 /// function listed(paths: Uint8Array[]): string;
 /// ```
 pub fn listed(paths: &[Vec<u8>]) -> String {
-    let mut names: Vec<String> = paths
-        .iter()
-        .take(LISTED_LIMIT)
-        .map(|path| { return String::from_utf8_lossy(path).into_owned(); })
-        .collect();
+    let mut names: Vec<String> = Vec::new();
+    for path in paths.iter().take(LISTED_LIMIT) {
+        names.push(String::from_utf8_lossy(path).into_owned());
+    }
     if paths.len() > LISTED_LIMIT {
         names.push(format!("and {} more", paths.len() - LISTED_LIMIT));
     }

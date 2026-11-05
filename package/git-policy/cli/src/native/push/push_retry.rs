@@ -98,8 +98,15 @@ pub const HOOK_DECLINED: &str = "hook declined";
 pub const LOGIN_PHRASES: [&str; 5] = ["Authentication failed for", "terminal prompts disabled", "returned error: 401", "returned error: 403", "Permission denied ("];
 
 /// The lines of an output in which the server rejected a reference.
-fn rejection_lines(output: &str) -> impl Iterator<Item = &str> {
-    return output.lines().map(str::trim).filter(|line| { return line.contains(REMOTE_REJECTED); });
+fn rejection_lines(output: &str) -> Vec<&str> {
+    let mut rejected: Vec<&str> = Vec::new();
+    for line in output.lines() {
+        let trimmed: &str = line.trim();
+        if trimmed.contains(REMOTE_REJECTED) {
+            rejected.push(trimmed);
+        }
+    }
+    return rejected;
 }
 
 /// The failure of a push that no retry can mend, from Git's own words; nothing for a failure that can pass (a stall, the
@@ -108,11 +115,15 @@ pub fn final_failure(output: &str) -> Option<FinalFailure> {
     if output.contains(CONFLICT_PHRASE) {
         return Some(FinalFailure::Conflict);
     }
-    if rejection_lines(output).any(|line| { return line.contains(HOOK_DECLINED); }) {
-        return Some(FinalFailure::Declined);
+    for line in rejection_lines(output) {
+        if line.contains(HOOK_DECLINED) {
+            return Some(FinalFailure::Declined);
+        }
     }
-    if LOGIN_PHRASES.iter().any(|phrase| { return output.contains(phrase); }) {
-        return Some(FinalFailure::Login);
+    for phrase in LOGIN_PHRASES {
+        if output.contains(phrase) {
+            return Some(FinalFailure::Login);
+        }
     }
     return None;
 }
@@ -123,7 +134,11 @@ pub fn unrecognised_rejection(output: &str) -> Option<String> {
     if final_failure(output).is_some() {
         return None;
     }
-    return rejection_lines(output).next().map(str::to_string);
+    let rejected: Vec<&str> = rejection_lines(output);
+    if let Some(line) = rejected.first() {
+        return Some((*line).to_string());
+    }
+    return None;
 }
 
 /// What:
@@ -169,6 +184,17 @@ struct Waiting {
     attempt: u32,
     /// When it is due.
     due: Instant,
+}
+
+/// The waiting plans without the one for `branch_ref` of `git_dir`, in their order.
+fn without_branch(waiting: Vec<Waiting>, git_dir: &Path, branch_ref: &str) -> Vec<Waiting> {
+    let mut kept: Vec<Waiting> = Vec::new();
+    for entry in waiting {
+        if !(entry.git_dir == git_dir && entry.item.branch_ref == branch_ref) {
+            kept.push(entry);
+        }
+    }
+    return kept;
 }
 
 /// A push that is due again.
@@ -312,7 +338,7 @@ impl PushRetries {
 
     /// Plan try number `attempt` of the branch of `item` for `due`, replacing any plan for the same branch.
     fn plan(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, due: Instant) {
-        self.waiting.retain(|entry| { return !(entry.git_dir == git_dir && entry.item.branch_ref == item.branch_ref); });
+        self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, item.branch_ref.as_str());
         self.waiting.push(Waiting { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due });
         if let Some(directory) = self.store.as_deref()
             && let Err(reason) = save(directory, &StoredPlan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt })
@@ -323,7 +349,7 @@ impl PushRetries {
 
     /// Drop the plan of a branch: its push landed, or the person must act.
     pub fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
-        self.waiting.retain(|entry| { return !(entry.git_dir == git_dir && entry.item.branch_ref == branch_ref); });
+        self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, branch_ref);
         if let Some(directory) = self.store.as_deref() {
             remove(directory, git_dir, branch_ref);
         }
@@ -341,14 +367,33 @@ impl PushRetries {
 
     /// Remove and return the plans of this Git directory that are due at `now`.
     pub fn take_due(&mut self, git_dir: &Path, now: Instant) -> Vec<Due> {
-        let (due, kept): (Vec<Waiting>, Vec<Waiting>) = std::mem::take(&mut self.waiting).into_iter().partition(|entry| { return entry.git_dir == git_dir && entry.due <= now; });
+        let mut kept: Vec<Waiting> = Vec::new();
+        let mut due: Vec<Due> = Vec::new();
+        for entry in std::mem::take(&mut self.waiting) {
+            if entry.git_dir == git_dir && entry.due <= now {
+                due.push(Due { git_dir: entry.git_dir, item: entry.item, attempt: entry.attempt });
+            } else {
+                kept.push(entry);
+            }
+        }
         self.waiting = kept;
-        return due.into_iter().map(|entry| { return Due { git_dir: entry.git_dir, item: entry.item, attempt: entry.attempt }; }).collect();
+        return due;
     }
 
     /// How long until the first plan of this Git directory is due (zero for one already due), or nothing when none waits.
     pub fn next_wait(&self, git_dir: &Path, now: Instant) -> Option<Duration> {
-        return self.waiting.iter().filter(|entry| { return entry.git_dir == git_dir; }).map(|entry| { return entry.due.saturating_duration_since(now); }).min();
+        let mut soonest: Option<Duration> = None;
+        for entry in &self.waiting {
+            if entry.git_dir != git_dir {
+                continue;
+            }
+            let wait: Duration = entry.due.saturating_duration_since(now);
+            soonest = Some(match soonest {
+                Some(earlier) => earlier.min(wait),
+                None => wait,
+            });
+        }
+        return soonest;
     }
 
     /// The Git directories that have a plan, each once.

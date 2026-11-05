@@ -38,9 +38,9 @@ use crate::output_capture::Capture;
 /// Starts that ride out a short shortage of processes.
 use crate::start_retry::RetryStart;
 /// The notice cadence, its ticker and the child-wait line.
-use crate::wait_progress::{Cadence, ChildWaitFacts, Ticker, child_wait_line};
+use crate::wait_progress::{ChildWaitFacts, Ticker, child_wait_line};
 /// The patience of a run that ends on a stall, and the stop it reports.
-use crate::bounded_push::{Patience, StopCause};
+use crate::bounded_push::StopCause;
 /// The clock that reads the signs of work of a process tree, and how often it reads.
 use crate::push_progress::{Clock, SAMPLE_INTERVAL};
 /// The longest quiet gap of each step, kept for the timing records.
@@ -56,226 +56,14 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 /// The lock files a stopped step leaves.
 use crate::stopped_git_locks::LockLedger;
-/// How long a stopped step may take to end after the polite request.
-use crate::bounded_push::STOP_GRACE;
-/// The processes below the step, and the identity checks that make signalling them safe.
-use crate::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
 /// The watcher thread.
 use std::thread::JoinHandle;
 /// Time spans and the monotonic clock.
 use std::time::{Duration, Instant};
-
-/// The shortest sleep of the watcher, so a due moment that already passed cannot spin it.
-const SHORTEST_SLEEP: Duration = Duration::from_millis(1);
-
-/// What:
-///  When a watched wait prints and where it stops the child.
-/// Why:
-///   The production entry reads these from the environment and writes to standard error;
-///  tests choose short ones and read the notices from a buffer.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type WatchTerms = { limitMs: number; cadence: Cadence; notices: Writable };
-/// ```
-pub struct WatchTerms {
-    /// The quiet window: how long one wait may show no sign of work before the child is ended.
-    pub limit: Duration,
-    /// When the notices of a wait are due.
-    pub cadence: Cadence,
-    /// Where the notices go.
-    pub notices: Box<dyn Write + Send>,
-}
-
-impl WatchTerms {
-    /// The terms a step of `class` runs under: the class's bound (or the variable's) and the class's grace before
-    ///  the first notice, the notice interval of the environment, notices on standard error.
-    ///  The grace never exceeds the interval, so a short interval still announces a wait quickly, nor half the bound,
-    ///  so a bound set below the class's grace still gets a notice before the step is stopped.
-    pub fn for_class(class: ChildClass) -> Self {
-        let interval: Cadence = Cadence::from_environment();
-        let limit: Duration = class.limit();
-        return Self {
-            limit,
-            cadence: Cadence { grace: grace_for(class, interval.interval, limit), interval: interval.interval },
-            notices: Box::new(std::io::stderr()),
-        };
-    }
-
-    /// The terms of a step that reads objects through a long-lived reader: those of an object-writing step, the longer
-    ///  class, because one request can name a large blob.
-    pub fn from_environment() -> Self {
-        return Self::for_class(ChildClass::Object);
-    }
-}
-
-/// What:
-///  How long a step of `class` runs before its first notice, for a notice `interval` and a `limit`.
-/// Why:
-///   The class's grace, but never past the interval (a short interval still announces a wait quickly) and never past
-///  half the bound (a bound set below the grace still gets a notice before the step is stopped).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// Math.min(class.noticeGrace, interval, limit / 2)
-/// ```
-pub fn grace_for(class: ChildClass, interval: Duration, limit: Duration) -> Duration {
-    return class.notice_grace().min(interval).min(limit / 2);
-}
-
-/// What:
-///  What the waiting thread tells the watcher: a wait began at a moment, or the wait ended.
-/// Why:
-///   The watcher owns the marks it acts on (when the wait began, when its next notice is due, how many notices went out),
-///  so no state is shared and no lock is held: the waiting thread only sends, and the watcher reads at its own pace.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Mark = { kind: 'begin'; at: number } | { kind: 'end' };
-/// ```
-enum Mark {
-    /// A wait on the child began at this moment.
-    Begin(Instant),
-    /// The wait ended.
-    End,
-}
-
-/// How often a stopped step is looked at while it ends.
-const STOP_POLL: Duration = Duration::from_millis(10);
-
-/// The marks of the wait the watcher is watching, kept by the watcher thread alone.
-struct Marks {
-    /// When the current wait began, or nothing between waits.
-    since: Option<Instant>,
-    /// When the current wait's next notice is due.
-    ticker: Ticker,
-    /// How many notices the current wait printed.
-    printed: u32,
-    /// The clock that reads the signs of work of the child during the current wait; nothing between waits.
-    clock: Option<Clock>,
-    /// The child.
-    pid: u32,
-    /// The quiet window.
-    window: Duration,
-    /// The longest quiet gap of any wait on this child, in microseconds, read by the waiting thread.
-    longest: Arc<AtomicU64>,
-}
-
-impl Marks {
-    /// Take one mark from the waiting thread into account; a wait that begins starts a clock on the child with the window as its
-    ///  stall and no wall-clock fallback, because elapsed time alone never ends a step.
-    fn apply(&mut self, mark: Mark, cadence: Cadence) {
-        match mark {
-            Mark::Begin(at) => {
-                self.since = Some(at);
-                self.ticker = Ticker::new(cadence);
-                self.printed = 0;
-                self.clock = Some(Clock::start(self.pid, Patience::Progress { stall: self.window }).without_wall_fallback());
-            }
-            Mark::End => {
-                self.keep_gap();
-                self.since = None;
-                self.clock = None;
-            }
-        }
-    }
-
-    /// Keep the longest quiet gap of the wait that is ending, the one still running included.
-    fn keep_gap(&self) {
-        // A clock that reads nothing (no `/proc`) has no quiet gap to keep: its figure would be the elapsed time.
-        if let Some(clock) = self.clock.as_ref().filter(|measuring| { return measuring.measures(); }) {
-            let micros: u64 = u64::try_from(clock.longest_quiet().as_micros()).unwrap_or(u64::MAX);
-            self.longest.fetch_max(micros, Ordering::AcqRel);
-        }
-    }
-}
-
-/// What:
-///  Ends a process the way a watched wait does when it crosses its bound: a catchable request first, a bounded grace,
-///  then the kill, and then the removal of the lock files it could not remove itself.
-/// Why:
-///   Git removes its lock files only when it is asked to end with a signal it catches, so a step that is killed at once
-///  leaves its `.lock` files and every later Git command on the same files fails. A step that answers the request ends
-///  in the grace; one that does not (it was stopped by the kernel in an uninterruptible call) is killed, and its locks are
-///  swept after it is gone. The blocked read or wait on that process then returns, and the waiting thread reports the
-///  bound. The processes the child started end with it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// process.kill(pid, 'SIGTERM'); await Promise.race([exited, delay(graceMs)]) || process.kill(pid, 'SIGKILL'); locks.sweep(tree.as_slice());
-/// ```
-#[cfg(unix)]
-fn stop_process(pid: u32, locks: &LockLedger, incoming: &Receiver<Mark>) {
-    let Ok(raw) = i32::try_from(pid) else {
-        return;
-    };
-    // The processes below the child are read before it is stopped, because a process's link to its parent is gone once the
-    // parent has exited; a step's helpers (a transport, a hook) would otherwise outlive it and hold its output open, and the
-    // wait for that output would outlast the bound by as long as they live.
-    let below: Vec<TreeMember> = descendants_of(raw);
-    let root: Option<TreeMember> = member_of(raw);
-    let mut tree: Vec<TreeMember> = root.iter().cloned().collect();
-    tree.extend(below.iter().cloned());
-    // A process number can be reused once the waiting thread has reaped the child, and the child is reaped as soon as it
-    // ends, which may be well before the grace is over (a helper below it can outlive it). The signals therefore go to the
-    // root only while it is still the process that was found, by its recorded start time; where no start time can be read
-    // (a platform without `/proc`) the root is signalled without that check, and with nothing to look at the grace ends at once,
-    // as the kill alone did before.
-    let identified: bool = cfg!(target_os = "linux");
-    let signal_root = |signal: libc::c_int| {
-        if root.as_ref().map_or(!identified, still_running) {
-            // SAFETY: `kill` takes no pointers; the process was checked a moment ago to be the one that was found.
-            unsafe {
-                libc::kill(raw, signal);
-            }
-        }
-    };
-    signal_root(libc::SIGTERM);
-    terminate_members(below.as_slice());
-    let asked: Instant = Instant::now();
-    while asked.elapsed() < STOP_GRACE && tree.iter().any(still_running) {
-        std::thread::sleep(STOP_POLL);
-    }
-    signal_root(libc::SIGKILL);
-    kill_members(below.as_slice());
-    // The waiting thread reaps the child, so the watcher only looks. A step in an uninterruptible call ends when the kernel
-    // lets it go, which can be long after the bound; the locks it creates on the way out are swept then, or when the watch
-    // is dropped, whichever comes first.
-    while tree.iter().any(still_running) {
-        match incoming.recv_timeout(STOP_POLL) {
-            Err(RecvTimeoutError::Disconnected) => break,
-            Ok(_) | Err(RecvTimeoutError::Timeout) => {}
-        }
-    }
-    locks.sweep(tree.as_slice());
-}
-
-/// A platform without signals cannot end the child from the watcher; the wait is only announced.
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-#[cfg(not(unix))]
-fn stop_process(_pid: u32, _locks: &LockLedger, _incoming: &Receiver<Mark>) {}
-
-/// What:
-///  The three flags the waiting thread and the watcher thread share.
-/// Why:
-///   They travel together to the watcher, which writes `expired` and `longest` and reads `stoppable`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type WatchFlags = { expired: AtomicBoolean; stoppable: AtomicBoolean; longest: AtomicNumber };
-/// ```
-struct WatchFlags {
-    /// Raised by the watcher when it ended the child for being quiet.
-    expired: Arc<AtomicBool>,
-    /// Whether a quiet child may be ended.
-    stoppable: Arc<AtomicBool>,
-    /// The longest quiet gap so far, in microseconds.
-    longest: Arc<AtomicU64>,
-    /// How long one wait may last in all, in microseconds, whatever the child shows; the largest value means no ceiling.
-    ceiling: Arc<AtomicU64>,
-    /// Raised by the watcher when the child was ended because the ceiling passed, not because it was quiet.
-    ceiling_hit: Arc<AtomicBool>,
-}
+pub use crate::child_watch_clock_marks_and_stopping::{WatchTerms, grace_for};
+use crate::child_watch_clock_marks_and_stopping::{Mark, Marks, SHORTEST_SLEEP, WatchFlags, stop_process};
+pub use crate::child_watch_step_bounds_and_errors::{CeilingReached, NotKnown, StepBound, is_ceiling, is_not_known, not_known_text};
+use crate::child_watch_step_bounds_and_errors::{output_of};
 
 /// What:
 ///  The watcher of one child process.
@@ -476,7 +264,10 @@ fn watch_loop(incoming: &Receiver<Mark>, flags: &WatchFlags, waiting_for: &str, 
             continue;
         }
         let verdict: Option<StopCause> = marks.clock.as_mut().and_then(Clock::check);
-        let quiet: bool = verdict.is_some_and(|cause| { return matches!(cause, StopCause::Stalled(_) | StopCause::Deadline); });
+        let quiet: bool = match verdict {
+            Some(cause) => matches!(cause, StopCause::Stalled(_) | StopCause::Deadline),
+            None => false,
+        };
         if quiet && stoppable.load(Ordering::Acquire) {
             // Raised before the child is signalled, so the waiting thread that its end releases reads it as true.
             expired.store(true, Ordering::Release);
@@ -571,112 +362,6 @@ pub fn output_watched_stopping(
 }
 
 /// What:
-///  How long a watched step is waited for, and what happens at the end.
-/// Why:
-///   A step that can be run twice is ended at a ceiling (owner, 2026-11-03: "nothing should ever wait forever or indefinitely"). A
-///  write in place that cannot be run twice is never ended (owner, 2026-11-04: "Never cut a branch write (Recommended)"): the
-///  command that started it returns at its own bound plus a short extra wait with an error that says the result is not known,
-///  and the step is left running (owner, commit protocol revision 12, "Short extra wait (Recommended)"); only the commit service's
-///  landing thread, whose clients are told through the protocol, waits for it without a bound.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type StepBound = { kind: 'end-at'; ms } | { kind: 'leave-running'; afterMs; extraMs } | { kind: 'unbounded' };
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum StepBound {
-    /// The step is ended, with its whole process tree, when it has run this long, whatever it shows.
-    EndAt(Duration),
-    /// The command stops waiting `after` plus `extra` after the step began and returns an error saying the result is not known;
-    ///  the step is left running and reaped when it ends.
-    LeaveRunning {
-        /// The command's own bound.
-        after: Duration,
-        /// The short extra wait for the write the step started.
-        extra: Duration,
-    },
-    /// The step is waited for as long as it lives.
-    Unbounded,
-}
-
-/// The error of a step ended at its ceiling, which tells it apart from a step ended for being quiet: a step that may be run again
-///  is run again after the second and not after the first.
-#[derive(Debug)]
-pub struct CeilingReached(
-    /// The sentence that names the step and the ceiling.
-    pub String,
-);
-
-impl std::fmt::Display for CeilingReached {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return formatter.write_str(self.0.as_str());
-    }
-}
-
-impl std::error::Error for CeilingReached {}
-
-/// The output of a step that ended: its status and what it wrote to the captured files.
-fn output_of(status: std::process::ExitStatus, captured: Option<&Capture>) -> Output {
-    let Some(files) = captured else {
-        return Output { status, stdout: Vec::new(), stderr: Vec::new() };
-    };
-    let shown: crate::output_capture::Captured = files.snapshot(crate::output_capture::STEP_OUTPUT_LIMIT);
-    let mut stderr: Vec<u8> = shown.stderr;
-    for note in &shown.notes {
-        stderr.extend_from_slice(format!("\ncli-git: {note}\n").as_bytes());
-    }
-    // Read once, and a descendant that keeps the files open must not keep the pages of what was read.
-    files.discard();
-    return Output { status, stdout: shown.stdout, stderr };
-}
-
-/// What:
-///  The sentence for a step left running: what it was, how long it was waited for, and what to check.
-/// Why:
-///   The owner's rule for a write the command started and cannot confirm (commit protocol revision 12, "Short extra wait"): exit
-///  non-zero saying the result is not known and what to look at. The step is a write in place, so the repository is what to check.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `${waitingFor} was still running ${after + extra} seconds after it began, and was left running ...`
-/// ```
-pub fn not_known_text(waiting_for: &str, after: Duration, extra: Duration) -> String {
-    return format!(
-        "{waiting_for} was still running {} seconds after it began (its bound of {} seconds and {} more for the write it started), so it \
-         was left running and not ended: it is not known whether it finished. Check what it changes with `git status` and `git log -1`, \
-         look at the process with `ps` and at the disk it writes to, and run the command again if it did not finish.",
-        after.saturating_add(extra).as_secs(),
-        after.as_secs(),
-        extra.as_secs()
-    );
-}
-
-/// The error of a step left running: the command stopped waiting for it, so it is not known whether it finished.
-#[derive(Debug)]
-pub struct NotKnown(
-    /// The sentence that names the step, how long it was waited for, and what to check.
-    pub String,
-);
-
-impl std::fmt::Display for NotKnown {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return formatter.write_str(self.0.as_str());
-    }
-}
-
-impl std::error::Error for NotKnown {}
-
-/// Whether `error` is the error of a step left running because the command stopped waiting for it.
-pub fn is_not_known(error: &std::io::Error) -> bool {
-    return error.get_ref().is_some_and(|inner| { return inner.is::<NotKnown>(); });
-}
-
-/// Whether `error` is the error of a step ended at its ceiling.
-pub fn is_ceiling(error: &std::io::Error) -> bool {
-    return error.get_ref().is_some_and(|inner| { return inner.is::<CeilingReached>(); });
-}
-
-/// What:
 ///  `output_watched_stopping` where the step is ended at `ceiling` whatever it shows, or never ended for its length when there is
 ///  none.
 /// Why:
@@ -741,7 +426,10 @@ pub fn output_watched_within(
                 return Err(std::io::Error::other(format!("{waiting_for} was started but no thread could be started to wait for it: {error}")));
             }
             match receiver.recv_timeout(after.saturating_add(extra)) {
-                Ok(finished) => finished.map(|status| { return output_of(status, captured.as_ref()); }),
+                Ok(finished) => match finished {
+                    Ok(status) => Ok(output_of(status, captured.as_ref())),
+                    Err(error) => Err(error),
+                },
                 Err(_timeout_or_gone) => {
                     watch.end();
                     // Nobody will read what the step writes from here on, and it is held in memory until the step ends.
@@ -755,7 +443,10 @@ pub fn output_watched_within(
         StepBound::EndAt(_) => child.wait_with_output(),
         StepBound::Unbounded => {
             let mut waited_for: Child = child;
-            waited_for.wait().map(|status| { return output_of(status, captured.as_ref()); })
+            match waited_for.wait() {
+                Ok(status) => Ok(output_of(status, captured.as_ref())),
+                Err(error) => Err(error),
+            }
         }
     };
     watch.end();
