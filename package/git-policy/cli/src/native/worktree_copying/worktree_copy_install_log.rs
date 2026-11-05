@@ -155,11 +155,9 @@ fn parse_line(line: &str, path: &Path) -> Result<InstallLogRecords, WorktreeCopy
         });
     }
     if let Some(created) = object.get("created").and_then(serde_json::Value::as_array) {
-        let entries: Vec<InstalledPath> = created
-            .iter()
-            .map(installed_entry)
-            .collect::<Option<Vec<InstalledPath>>>()
-            .ok_or_else(|| corrupt_install_log(path))?;
+        let Some(entries) = created.iter().map(installed_entry).collect::<Option<Vec<InstalledPath>>>() else {
+            return Err(corrupt_install_log(path));
+        };
         for entry in &entries {
             assert_safe_repository_path(entry.relative_path.as_str())?;
         }
