@@ -85,14 +85,14 @@ export async function dispatchTask(
     const taskName = separator === -1 ? '' : name.slice(separator + 1,);
     const cwd = packageDirectory({ root, packagePath, },);
     const tasks = await loadPackageTasks(join(cwd, 'task.ts',),);
-    const raw = tasks[taskName];
+    const raw = Object.hasOwn(tasks, taskName,) ? tasks[taskName] : undefined;
     if (raw === undefined)
       throw new TaskSelectionError(`task-cli: no task ${taskName} in ${packagePath}`,);
     const definition = await resolveDefinition({ definition: raw, root, },);
     await executeTask({ root, cwd, definition, optionArgs, rest, request, environment, runTask, },);
     return;
   }
-  const suffix = ROOT_FANOUT_TASKS[name];
+  const suffix = Object.hasOwn(ROOT_FANOUT_TASKS, name,) ? ROOT_FANOUT_TASKS[name] : undefined;
   if (suffix !== undefined) {
     if (optionArgs.length > 0 || rest.length > 0)
       throw new TaskSelectionError(`task-cli: ${name} takes no arguments`,);
@@ -100,7 +100,7 @@ export async function dispatchTask(
     return;
   }
   const rootTasks = await loadRootTasks(root,);
-  const raw = rootTasks.tasks[name];
+  const raw = Object.hasOwn(rootTasks.tasks, name,) ? rootTasks.tasks[name] : undefined;
   if (raw === undefined)
     throw new TaskSelectionError(`task-cli: unknown task: ${name}`,);
   const definition = await resolveDefinition({ definition: raw, root, },);

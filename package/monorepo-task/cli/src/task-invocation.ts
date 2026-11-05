@@ -160,8 +160,8 @@ export function createTaskInvocation(
        */
       async function executeOnce(): Promise<void> {
         await Promise.resolve();
-        report?.({ name: request.name, state: 'started', },);
         try {
+          report?.({ name: request.name, state: 'started', },);
           await execute({
             request,
             runTask: async function runDependency(child,) {
