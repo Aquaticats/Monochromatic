@@ -23,7 +23,7 @@ use crate::service_built_checks::{BuiltCommit, history_is_plain, read_commit};
 use crate::service_head::{follows_move, still_checked_out};
 use crate::service_pruned::batch_content_missing;
 use crate::service_journal::{Intent, OPEN_EXTENSION, remove_start, write_intent, write_start};
-pub use crate::service_land_finish::{RecoveryReport, recover, recover_instance};
+pub use crate::service_land_finish::{Handled, RecoveryReport, recover, recover_instance, recover_instance_without_drops};
 #[cfg(test)]
 use crate::service_land_finish::follow_up;
 #[cfg(test)]
@@ -444,3 +444,8 @@ mod fsync_tests;
 #[cfg(test)]
 #[path = "service_land_built_tests.rs"]
 mod built_tests;
+
+/// Controls for the restart decisions when a Git question about the branch fails stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_finish_git_failure_tests.rs"]
+mod finish_git_failure_tests;

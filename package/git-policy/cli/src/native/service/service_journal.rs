@@ -360,6 +360,25 @@ fn newest_first_key(finished: &(u64, PathBuf)) -> std::cmp::Reverse<u64> {
 /// listIntents(dir, 'intent')
 /// ```
 pub fn list_intents(dir: &Path, extension: &str) -> Vec<(PathBuf, Option<Intent>)> {
+    return list_intents_removing_abandoned(dir, extension, true);
+}
+
+/// What:
+///  `list_intents` that removes nothing from the journal.
+/// Why:
+///   A journal another service may still be writing (an earlier helper's) is read, never tidied: its temporary and claim files
+///  are that service's, however old they look, and removing one fails its rename or hands its batch number to a second landing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// listIntentsReadOnly(dir, 'intent')
+/// ```
+pub fn list_intents_read_only(dir: &Path, extension: &str) -> Vec<(PathBuf, Option<Intent>)> {
+    return list_intents_removing_abandoned(dir, extension, false);
+}
+
+/// `list_intents`, with the removal of abandoned temporary and claim files chosen by the caller.
+fn list_intents_removing_abandoned(dir: &Path, extension: &str, remove_abandoned: bool) -> Vec<(PathBuf, Option<Intent>)> {
     let Ok(entries) = fs::read_dir(dir) else {
         return Vec::new();
     };
@@ -370,7 +389,7 @@ pub fn list_intents(dir: &Path, extension: &str) -> Vec<(PathBuf, Option<Intent>
             Some(TEMPORARY_EXTENSION | CLAIM_EXTENSION) => {
                 // Only the remains of a write or a landing that was killed: a younger file may be another instance's write in
                 //  progress, and removing it would fail that instance's rename or hand its number to a second landing.
-                let abandoned: bool = is_abandoned(&entry);
+                let abandoned: bool = remove_abandoned && is_abandoned(&entry);
                 if abandoned {
                     let _removed = fs::remove_file(&path);
                 }
@@ -432,8 +451,18 @@ pub fn prune_done(dir: &Path, retained: usize) -> usize {
 
 /// The request identities of every finished batch, each with the commit it became.
 pub fn landed_commits(dir: &Path) -> HashMap<String, String> {
+    return landed_in(list_intents(dir, DONE_EXTENSION));
+}
+
+/// The request identities of every finished batch of a journal another service may still write, read without removing anything.
+pub fn landed_commits_read_only(dir: &Path) -> HashMap<String, String> {
+    return landed_in(list_intents_read_only(dir, DONE_EXTENSION));
+}
+
+/// The identities of the finished batches listed, each with the commit it became.
+fn landed_in(listed: Vec<(PathBuf, Option<Intent>)>) -> HashMap<String, String> {
     let mut landed: HashMap<String, String> = HashMap::new();
-    for (_, intent) in list_intents(dir, DONE_EXTENSION) {
+    for (_, intent) in listed {
         if let Some(parsed) = intent {
             landed.extend(parsed.ids.into_iter().zip(parsed.commits));
         }

@@ -4,9 +4,13 @@
 
 use super::tests::{World, land_with_failed_index, request, world};
 use super::*;
-use crate::earlier_service_journal_adopted::{EarlierJournals, adopt_open_batches, earlier_commits_landed, earlier_journals_of, service_of_instance_may_run};
+use crate::service_land::Handled;
+use std::time::Duration;
+use crate::earlier_service_journal_adopted::{EarlierJournals, adopt_open_batches, earlier_commits_landed, earlier_journals_of};
+use crate::earlier_service_process_look::{ServiceLook, effective_user, service_of_instance_may_run};
 use crate::service_instance::instance_of;
-use crate::service_journal::{DONE_EXTENSION, OPEN_EXTENSION, batch_path, list_intents};
+use crate::service_index_lock::try_acquire;
+use crate::service_journal::{DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, batch_path, list_intents, mark_indexed, parse_intent, write_intent};
 use crate::test_support::{git_text, remove};
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
 
@@ -73,26 +77,81 @@ fn the_earlier_journals_follow_the_place_of_the_new_journal() {
     }
 }
 
-/// A process with the service words and the instance option of the worktree means a service may be running;
-///  another instance, this process itself, an unrelated command line and a process that vanished do not;
-///  a proc root that cannot be listed means it may.
+/// The look of the instance `abc` whose earlier journals are `/s/abc` and `/s`, run by `own`.
+fn look_for(own_pid: u32) -> ServiceLook {
+    return ServiceLook {
+        instance: String::from("abc"),
+        journals: vec![PathBuf::from("/s/abc"), PathBuf::from("/s")],
+        own_pid,
+        own_user: effective_user(),
+        ceiling: Duration::from_secs(30),
+    };
+}
+
+/// A process with the service words and the instance option of the worktree, or the journal of the worktree's earlier service
+///  as its journal, means a service may be running; another instance or journal, this process itself, an unrelated command
+///  line and a process that vanished do not; a proc root that cannot be listed means it may.
 #[test]
 fn a_service_of_the_worktree_is_found_among_the_processes_and_nothing_else_is() {
     let world: World = world("adopt-proc");
     let proc_root: PathBuf = empty_proc(&world);
     let own: u32 = 4242;
-    assert!(!service_of_instance_may_run("abc", own, proc_root.as_path()), "no process");
+    assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "no process");
     fake_process(proc_root.as_path(), 10, &["/bin/sh", "-c", "service run --instance abc"]);
-    assert!(!service_of_instance_may_run("abc", own, proc_root.as_path()), "one word, not separate words");
+    assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "one word, not separate words");
     fake_process(proc_root.as_path(), 11, &["/p/cli-git-native", "cli-git", "service", "run", "--journal", "/j", "--instance", "other"]);
-    assert!(!service_of_instance_may_run("abc", own, proc_root.as_path()), "another worktree's service");
+    assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "another worktree's service");
+    fake_process(proc_root.as_path(), 14, &["/p/cli-git-native", "--journal", "/s/other", "--git", "/usr/bin/git", "--instance", "other"]);
+    assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "another worktree's service of the earlier unit shape");
+    fake_process(proc_root.as_path(), 15, &["/p/cli-git-native", "/s/abc", "--journal"]);
+    assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "the journal is the word after the option");
     std::fs::create_dir_all(proc_root.join("12")).expect("a process that vanished");
     std::fs::create_dir_all(proc_root.join("self")).expect("not a number");
     fake_process(proc_root.as_path(), own, &["/p/monochromatic-git-policy-cli", "monochromatic-git-policy-cli", "service", "run", "--instance", "abc"]);
-    assert!(!service_of_instance_may_run("abc", own, proc_root.as_path()), "this process is not another");
+    assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "this process is not another");
     fake_process(proc_root.as_path(), 13, &["/p/cli-git-native", "cli-git", "service", "run", "--journal", "/j", "--instance", "abc"]);
-    assert!(service_of_instance_may_run("abc", own, proc_root.as_path()), "an earlier release's service of the worktree");
-    assert!(service_of_instance_may_run("abc", own, world.root.join("no-such-proc").as_path()), "an unlistable root is unproven");
+    assert!(service_of_instance_may_run(look_for(own), proc_root.as_path()), "an earlier release's service of the worktree");
+    std::fs::remove_dir_all(proc_root.join("13")).expect("ended");
+    fake_process(proc_root.as_path(), 16, &["/p/cli-git-native", "--journal", "/s/abc", "--git", "/usr/bin/git", "--instance", "abc"]);
+    assert!(service_of_instance_may_run(look_for(own), proc_root.as_path()), "the unit shape before the service mode");
+    std::fs::remove_dir_all(proc_root.join("16")).expect("ended");
+    fake_process(proc_root.as_path(), 17, &["/p/cli-git-native", "--journal", "/s", "--git", "/usr/bin/git"]);
+    assert!(service_of_instance_may_run(look_for(own), proc_root.as_path()), "the shared service of the first releases");
+    assert!(service_of_instance_may_run(look_for(own), world.root.join("no-such-proc").as_path()), "an unlistable root is unproven");
+    remove(world.root.as_path());
+}
+
+/// Only the processes of the user count: a service another user runs for the same worktree is not this user's to wait for.
+#[test]
+fn a_service_of_another_user_does_not_hold_the_adoption() {
+    let world: World = world("adopt-proc-user");
+    let proc_root: PathBuf = empty_proc(&world);
+    fake_process(proc_root.as_path(), 41, &["/p/cli-git-native", "cli-git", "service", "run", "--journal", "/j", "--instance", "abc"]);
+    let theirs: ServiceLook = ServiceLook { own_user: effective_user() + 1, ..look_for(4242) };
+    assert!(!service_of_instance_may_run(theirs, proc_root.as_path()), "the folder of the process belongs to someone else");
+    assert!(service_of_instance_may_run(look_for(4242), proc_root.as_path()), "control: the same table, the user's own");
+    remove(world.root.as_path());
+}
+
+/// Reading a command line can wait for the process for ever; the look ends at its ceiling and answers "may be running".
+///  A named pipe in place of the file stands for it: opening succeeds, reading waits.
+#[test]
+fn a_command_line_that_cannot_be_read_in_time_counts_as_may_be_running() {
+    use std::os::unix::ffi::OsStrExt;
+    let world: World = world("adopt-proc-stuck");
+    let proc_root: PathBuf = empty_proc(&world);
+    let process: PathBuf = proc_root.join("51");
+    std::fs::create_dir_all(process.as_path()).expect("process directory");
+    let pipe: std::ffi::CString = std::ffi::CString::new(process.join("cmdline").as_os_str().as_bytes()).expect("path");
+    // SAFETY: `pipe` is a NUL-terminated path that lives through the call.
+    assert_eq!(unsafe { libc::mkfifo(pipe.as_ptr(), 0o600) }, 0, "make the pipe");
+    // Holding the pipe open for reading and writing lets the look open it without a writer and then wait for bytes.
+    let holder = std::fs::OpenOptions::new().read(true).write(true).open(process.join("cmdline")).expect("hold the pipe");
+    let short: ServiceLook = ServiceLook { ceiling: Duration::from_millis(300), ..look_for(4242) };
+    let began: std::time::Instant = std::time::Instant::now();
+    assert!(service_of_instance_may_run(short, proc_root.as_path()));
+    assert!(began.elapsed() < Duration::from_secs(20), "it came back at its ceiling, not when the read ended");
+    drop(holder);
     remove(world.root.as_path());
 }
 
@@ -109,6 +168,7 @@ fn an_open_batch_of_the_earlier_helper_is_finished_by_the_new_service() {
         let context: LandContext = new_context(&world, state.as_path());
         let reports: Vec<RecoveryReport> = adopt_open_batches(&context, instance_for(&world).as_str(), empty_proc(&world).as_path());
         assert_eq!(reports.iter().map(|report| { return (report.seq, report.decision); }).collect::<Vec<_>>(), vec![(1, crate::service_journal::Recovery::Finish)]);
+        assert!(reports.iter().all(|report| { return report.handled == Handled::Finished; }), "{reports:?}");
         assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
         assert!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).is_empty(), "nothing is left open");
         assert!(batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION).exists(), "the batch is remembered as finished where it was");
@@ -176,5 +236,180 @@ fn the_requests_the_earlier_helper_landed_are_remembered_by_the_new_service() {
     let remembered = earlier_commits_landed(context.journal.as_path(), instance.as_str());
     assert_eq!(remembered.get("remembered"), Some(&git_text(world.repo.as_path(), &["rev-parse", "HEAD"])));
     assert!(earlier_commits_landed(world.context.journal.as_path(), instance.as_str()).is_empty(), "a journal in any other place has no earlier ones");
+    remove(world.root.as_path());
+}
+
+/// A live landing of the earlier helper writes its intent before it takes the index lock and moves the branch, so for a while the
+///  branch is where the intent says it was and the recovery's answer is "never landed". The adoption must not act on that
+///  answer: removing the intent of a landing that goes on leaves a landed commit with no record, and the person's index shows it
+///  reverted if the helper dies before it installs the index. Such an intent stays on disk, with its records, for the earlier
+///  helper's own start-up recovery.
+#[test]
+fn the_intent_of_a_landing_that_has_not_moved_the_branch_yet_is_left_on_disk() {
+    let (world, state) = world_with_earlier_journal("adopt-mid-landing", "state");
+    let landed: CommitRequest = request(&world, "mid", "mid.txt", "mid\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let mut intent = parse_intent(std::fs::read_to_string(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("read").as_str()).expect("parse");
+    // The landing of batch 2 wrote its intent and waits for the lock: the branch is still at the commit it was based on.
+    intent.seq = 2;
+    intent.old = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    intent.new = "f".repeat(40);
+    write_intent(world.context.journal.as_path(), &intent).expect("the intent of a landing in progress");
+    mark_indexed(world.context.journal.as_path(), 2, intent.new.as_str()).expect("a record the landing wrote");
+    let held = try_acquire(intent.index.as_path(), 2).expect("the landing's index lock");
+    let context: LandContext = new_context(&world, state.as_path());
+    let reports: Vec<RecoveryReport> = adopt_open_batches(&context, instance_for(&world).as_str(), empty_proc(&world).as_path());
+    assert!(batch_path(world.context.journal.as_path(), 2, OPEN_EXTENSION).exists(), "the intent stays: {reports:?}");
+    assert!(reports.contains(&RecoveryReport { seq: 2, decision: crate::service_journal::Recovery::Drop, handled: Handled::Left }), "and it is reported as left: {reports:?}");
+    assert!(batch_path(world.context.journal.as_path(), 2, INDEXED_EXTENSION).exists(), "its record stays");
+    drop(held);
+    remove(world.root.as_path());
+}
+
+/// A landing that moved the branch and still holds the index lock is not finished by the adoption either: the batch stays open
+///  for the helper that holds the lock, and a second adoption after the lock is gone finishes it.
+#[test]
+fn a_landing_that_holds_the_index_lock_is_not_finished_by_the_adoption() {
+    let (world, state) = world_with_earlier_journal("adopt-lock-held", "state");
+    let landed: CommitRequest = request(&world, "held", "held.txt", "held\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let intent = parse_intent(std::fs::read_to_string(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("read").as_str()).expect("parse");
+    let held = try_acquire(intent.index.as_path(), 1).expect("the landing's index lock");
+    let context: LandContext = new_context(&world, state.as_path());
+    let instance: String = instance_for(&world);
+    adopt_open_batches(&context, instance.as_str(), empty_proc(&world).as_path());
+    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 1, "still open while the lock is held");
+    drop(held);
+    assert_eq!(adopt_open_batches(&context, instance.as_str(), empty_proc(&world).as_path()).len(), 1);
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "");
+    remove(world.root.as_path());
+}
+
+/// Sets up an open batch in the earlier per-instance journal and a fake process table that `with_processes` fills, then says
+///  whether the adoption took the batch. The batch is taken once the table is emptied.
+fn adoption_takes_the_batch(name: &str, with_processes: impl FnOnce(&Path, &World, &str)) -> bool {
+    let (world, state) = world_with_earlier_journal(name, "state");
+    let landed: CommitRequest = request(&world, name, "taken.txt", "taken\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let context: LandContext = new_context(&world, state.as_path());
+    let instance: String = instance_for(&world);
+    let proc_root: PathBuf = empty_proc(&world);
+    with_processes(proc_root.as_path(), &world, instance.as_str());
+    let taken: bool = !adopt_open_batches(&context, instance.as_str(), proc_root.as_path()).is_empty();
+    remove(world.root.as_path());
+    return taken;
+}
+
+/// The unit written before commit 9b360150c0 (2026-11-04T16:09:19-05:00) started the helper as
+///  `<binary> --journal %S/cli-git/service/%i --git <git> --instance %i`: no `service run` words. A helper started that way
+///  is still alive after the unit was rewritten (a process keeps its start arguments; the idle exit is three hours).
+#[test]
+fn a_helper_started_by_the_unit_before_the_service_mode_is_found_by_its_journal() {
+    let taken: bool = adoption_takes_the_batch("adopt-unit-before-mode", |proc_root, world, instance| {
+        let journal: String = world.context.journal.to_string_lossy().into_owned();
+        fake_process(proc_root, 21, &["/p/cli-git-native", "--journal", journal.as_str(), "--git", "/usr/bin/git", "--instance", instance]);
+    });
+    assert!(!taken, "a running helper of the earlier unit shape finishes its own batches");
+}
+
+/// The first releases ran one service for every worktree: `<binary> --journal <state>/cli-git/service --git <git>`, with no
+///  instance. It serves this worktree's batches too.
+#[test]
+fn the_single_service_of_the_first_releases_is_found_by_the_shared_journal() {
+    let taken: bool = adoption_takes_the_batch("adopt-shared-service", |proc_root, world, _instance| {
+        let shared: String = world.context.journal.parent().expect("shared journal").to_string_lossy().into_owned();
+        fake_process(proc_root, 22, &["/p/cli-git-native", "--journal", shared.as_str(), "--git", "/usr/bin/git"]);
+    });
+    assert!(!taken, "a running shared service finishes the batches of every worktree");
+}
+
+/// Control: a process with a journal that is neither of the earlier ones, and another instance, is no reason to wait.
+#[test]
+fn a_process_with_another_journal_and_another_instance_does_not_hold_the_adoption() {
+    let taken: bool = adoption_takes_the_batch("adopt-other-journal", |proc_root, world, _instance| {
+        let other: String = world.root.join("elsewhere").to_string_lossy().into_owned();
+        fake_process(proc_root, 23, &["/p/cli-git-native", "--journal", other.as_str(), "--git", "/usr/bin/git", "--instance", "other"]);
+    });
+    assert!(taken);
+}
+
+/// A process whose command line cannot be read says nothing, so it may be the service: a failure other than "the process is
+///  gone" counts as "may be running".
+#[test]
+fn a_command_line_that_cannot_be_read_counts_as_may_be_running() {
+    let unreadable_by_kind: [(&str, fn(&Path)); 2] = [
+        ("adopt-cmdline-is-directory", |process| { std::fs::create_dir_all(process.join("cmdline")).expect("a directory read fails with EISDIR"); }),
+        ("adopt-cmdline-no-access", |process| {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::write(process.join("cmdline"), b"x").expect("file");
+            std::fs::set_permissions(process.join("cmdline"), std::fs::Permissions::from_mode(0o000)).expect("no access");
+        }),
+    ];
+    for (name, make) in unreadable_by_kind {
+        let taken: bool = adoption_takes_the_batch(name, |proc_root, _world, _instance| {
+            let process: PathBuf = proc_root.join("31");
+            std::fs::create_dir_all(process.as_path()).expect("process directory");
+            make(process.as_path());
+        });
+        assert!(!taken, "{name}");
+    }
+}
+
+/// The earlier helper may be alive and writing: a `.tmp` or `.claim` file it owns can be older than the grace of a listing while
+///  it waits on a slow disk, and removing it would fail its rename or hand its batch number to a second landing. Reading the
+///  earlier journals, for the adoption and for the memory of what they landed, removes nothing the adoption does not settle.
+#[test]
+fn reading_the_earlier_journals_removes_no_file_of_the_earlier_helper() {
+    let (world, state) = world_with_earlier_journal("adopt-read-only", "state");
+    let landed: CommitRequest = request(&world, "readonly", "readonly.txt", "readonly\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - crate::service_journal::TEMPORARY_GRACE - Duration::from_secs(60);
+    let shared: PathBuf = world.context.journal.parent().expect("shared journal").to_path_buf();
+    let mut stale: Vec<PathBuf> = Vec::new();
+    for folder in [world.context.journal.as_path(), shared.as_path()] {
+        for extension in ["tmp", "claim"] {
+            let file: PathBuf = batch_path(folder, 90, extension);
+            std::fs::write(&file, "a write in progress").expect("file of the earlier helper");
+            std::fs::File::options().append(true).open(&file).and_then(|opened| { return opened.set_modified(long_ago); }).expect("aged");
+            stale.push(file);
+        }
+    }
+    let context: LandContext = new_context(&world, state.as_path());
+    let instance: String = instance_for(&world);
+    assert_eq!(adopt_open_batches(&context, instance.as_str(), empty_proc(&world).as_path()).len(), 1, "the batch is still finished");
+    let _remembered = earlier_commits_landed(context.journal.as_path(), instance.as_str());
+    for file in stale {
+        assert!(file.exists(), "{} was removed from the earlier journal", file.display());
+    }
+    remove(world.root.as_path());
+}
+
+/// The adoption says what it did with each batch, as the settling of the service's own journal does: a batch finished, a batch
+///  left open, a batch whose intent was left on disk, and the skip of the whole adoption with the folder it protects.
+#[test]
+fn the_adoption_says_what_it_did_with_each_batch() {
+    let (world, state) = world_with_earlier_journal("adopt-says", "state");
+    let landed: CommitRequest = request(&world, "says", "says.txt", "says\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let mut intent = parse_intent(std::fs::read_to_string(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("read").as_str()).expect("parse");
+    intent.seq = 2;
+    intent.old = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    intent.new = "f".repeat(40);
+    write_intent(world.context.journal.as_path(), &intent).expect("the intent of a landing in progress");
+    let context: LandContext = new_context(&world, state.as_path());
+    let instance: String = instance_for(&world);
+    let held = try_acquire(intent.index.as_path(), 1).expect("a lock that keeps batch 1 open");
+    let entries = crate::service_timing::capture::entries_of(|| { let _reports = adopt_open_batches(&context, instance.as_str(), empty_proc(&world).as_path()); });
+    let said: Vec<String> = entries.iter().map(|entry| { return entry.message.clone(); }).collect();
+    assert!(said.iter().any(|line| { return line.contains("batch=1") && line.contains("left open"); }), "{said:?}");
+    assert!(said.iter().any(|line| { return line.contains("batch=2") && line.contains("left on disk"); }), "{said:?}");
+    assert!(entries.iter().all(|entry| { return entry.fields.iter().any(|(name, _)| { return name == "CLI_GIT_BATCH"; }) || !entry.message.contains("batch="); }), "{entries:?}");
+    drop(held);
+    let finished = crate::service_timing::capture::entries_of(|| { let _reports = adopt_open_batches(&context, instance.as_str(), empty_proc(&world).as_path()); });
+    assert!(finished.iter().any(|entry| { return entry.message.contains("batch=1") && entry.message.contains("finish") && entry.message.contains(world.context.journal.to_string_lossy().as_ref()); }), "{finished:?}");
+    let proc_root: PathBuf = empty_proc(&world);
+    fake_process(proc_root.as_path(), 61, &["/p/cli-git-native", "cli-git", "service", "run", "--instance", instance.as_str()]);
+    let skipped = crate::service_timing::capture::entries_of(|| { let _reports = adopt_open_batches(&context, instance.as_str(), proc_root.as_path()); });
+    assert!(skipped.iter().any(|entry| { return entry.message.contains(world.context.journal.to_string_lossy().as_ref()); }), "the skip names the per-instance journal: {skipped:?}");
     remove(world.root.as_path());
 }

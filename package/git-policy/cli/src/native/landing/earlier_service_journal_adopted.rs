@@ -17,28 +17,26 @@
 //! if (!(await serviceMayRun(instance))) await recoverInstance(earlierJournal, instance);
 //! ```
 
+/// Whether a service of the worktree may be running.
+use crate::earlier_service_process_look::{ServiceLook, effective_user, service_of_instance_may_run};
+/// How long that look may take.
+use crate::wait_ceilings::PROCESS_LOOK_CEILING;
 /// The context a recovery runs in,
 ///  and the recovery itself.
-use crate::service_land::{LandContext, RecoveryReport, recover_instance};
+use crate::service_land::{Handled, LandContext, RecoveryReport, recover_instance_without_drops};
+/// The log of the service.
+use crate::journald_native::Priority;
+use crate::service_journal::Recovery;
+use crate::service_timing::log_entry;
 /// The names of the folders.
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
 /// Paths.
-use crate::service_journal::landed_commits;
+use crate::service_journal::landed_commits_read_only;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// The name of the folder below the state folder that holds the service journals.
 const SERVICE_FOLDER: &str = "service";
-
-/// The words that start the service mode after the program name, and the option that names the worktree's instance.
-const SERVICE_MODE_WORDS: [&str; 2] = ["service", "run"];
-
-/// The option that names the instance a service is for.
-const INSTANCE_OPTION: &str = "--instance";
-
-/// Most bytes of one process's command line that are read;
-///  the options of the service are in the first few hundred bytes.
-const COMMAND_LINE_BYTES: u64 = 65_536;
 
 /// The two folders an earlier release kept journals in for one worktree.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -78,70 +76,6 @@ pub fn earlier_journals_of(journal: &Path, instance: &str) -> Option<EarlierJour
     return Some(EarlierJournals { per_instance: shared.join(instance), shared });
 }
 
-/// Whether two neighbouring command line words are the service mode words.
-fn is_mode_pair(pair: &[&[u8]]) -> bool {
-    return pair[0] == SERVICE_MODE_WORDS[0].as_bytes() && pair[1] == SERVICE_MODE_WORDS[1].as_bytes();
-}
-
-/// Whether a byte ends a command line word.
-fn is_word_end(byte: &u8) -> bool {
-    return *byte == 0;
-}
-
-/// Whether one command line (words split at NUL bytes) is a service of the instance:
-///  it has the service mode words in a row and the instance option followed by the instance.
-fn is_service_of(words: &[&[u8]], instance: &str) -> bool {
-    let mode_in_a_row: bool = words.windows(SERVICE_MODE_WORDS.len()).any(is_mode_pair);
-    let mut instance_named: bool = false;
-    for pair in words.windows(2) {
-        if pair[0] == INSTANCE_OPTION.as_bytes() && pair[1] == instance.as_bytes() {
-            instance_named = true;
-        }
-    }
-    return mode_in_a_row && instance_named;
-}
-
-/// What:
-///  Whether a service of the instance may be running:
-///  a process other than this one has the command line of one,
-///  or the processes cannot be listed.
-/// Why:
-///   Adoption needs the earlier service gone.
-///  A process that ends while it is looked at is gone;
-///  a process whose command line cannot be read is not one of ours (the same user's are readable) and is skipped.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function serviceMayRun(instance: string, ownPid: number, procRoot: string): Promise<boolean>;
-/// ```
-pub fn service_of_instance_may_run(instance: &str, own_pid: u32, proc_root: &Path) -> bool {
-    use std::io::Read;
-    let Ok(listing) = std::fs::read_dir(proc_root) else {
-        return true;
-    };
-    for entry in listing.flatten() {
-        let name: String = entry.file_name().to_string_lossy().into_owned();
-        let Ok(pid) = name.parse::<u32>() else {
-            continue;
-        };
-        if pid == own_pid {
-            continue;
-        }
-        let Ok(file) = std::fs::File::open(entry.path().join("cmdline")) else {
-            continue;
-        };
-        let mut bytes: Vec<u8> = Vec::new();
-        if file.take(COMMAND_LINE_BYTES).read_to_end(&mut bytes).is_err() {
-            continue;
-        }
-        let words: Vec<&[u8]> = bytes.split(is_word_end).collect();
-        if is_service_of(words.as_slice(), instance) {
-            return true;
-        }
-    }
-    return false;
-}
-
 /// What:
 ///  The request identities, each with the commit it became, that the earlier release's service finished for this worktree,
 ///  read from its journals (empty when the journal is not in the place the unit gives it).
@@ -160,7 +94,7 @@ pub fn earlier_commits_landed(journal: &Path, instance: &str) -> HashMap<String,
         return landed;
     };
     for folder in [earlier.shared, earlier.per_instance] {
-        landed.extend(landed_commits(folder.as_path()));
+        landed.extend(landed_commits_read_only(folder.as_path()));
     }
     return landed;
 }
@@ -170,9 +104,11 @@ pub fn earlier_commits_landed(journal: &Path, instance: &str) -> HashMap<String,
 ///  when no service of the instance is running.
 ///  `&LandContext` is the new service's context: its Git and the new journal's place.
 /// Why:
-///   The recovery decides each batch by the branch and the index, finishes the index update that may be missing or drops the
-///  intent of a batch that never landed, and marks the finished batch done in the folder it found it in.
-///  Calling it again finds nothing open.
+///   The recovery decides each batch by the branch and the index, finishes the index update that may be missing, and marks
+///  the finished batch done in the folder it found it in. It never drops the intent of a batch that looks unlanded: the look at
+///  the processes can miss a live helper, and a live landing writes its intent before it moves the branch, so that intent stays
+///  on disk (and is reported as left) for the earlier helper's own start-up recovery.
+///  Calling it again finds nothing new to finish.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -186,8 +122,15 @@ pub fn adopt_open_batches(context: &LandContext, instance: &str, proc_root: &Pat
     if !earlier.per_instance.is_dir() && !earlier.shared.is_dir() {
         return reports;
     }
-    if service_of_instance_may_run(instance, std::process::id(), proc_root) {
-        crate::service_log!("the earlier service's journal {} is left for now: a service of this worktree may be running", earlier.shared.display());
+    let look: ServiceLook = ServiceLook {
+        instance: instance.to_string(),
+        journals: vec![earlier.per_instance.clone(), earlier.shared.clone()],
+        own_pid: std::process::id(),
+        own_user: effective_user(),
+        ceiling: PROCESS_LOOK_CEILING,
+    };
+    if service_of_instance_may_run(look, proc_root) {
+        crate::service_log!("the earlier service's journals {} and {} are left for now: a service of this worktree may be running, or the processes cannot be looked at", earlier.per_instance.display(), earlier.shared.display());
         return reports;
     }
     for journal in [earlier.per_instance, earlier.shared] {
@@ -195,7 +138,36 @@ pub fn adopt_open_batches(context: &LandContext, instance: &str, proc_root: &Pat
             continue;
         }
         let earlier_context: LandContext = LandContext { git: context.git.clone(), journal, on_objects_written: None, lock_ceiling: context.lock_ceiling };
-        reports.extend(recover_instance(&earlier_context, instance));
+        let settled: Vec<RecoveryReport> = recover_instance_without_drops(&earlier_context, instance);
+        log_adopted_batches(settled.as_slice(), earlier_context.journal.as_path());
+        reports.extend(settled);
     }
     return reports;
+}
+
+/// What:
+///  Says in the service's log what the adoption did with each batch of one earlier journal, as the settling of the service's own
+///  journal does: a Warning with the batch number in the `CLI_GIT_BATCH` field.
+/// Why:
+///   The batches come from a service that no longer runs or runs elsewhere; a person looking for what became of a commit has
+///  only this log. A batch that stays (open, or with its intent on disk) says why and who settles it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const report of reports) log(Warning, `${verb(report.handled)} batch=${report.seq} journal=${journal}`, { CLI_GIT_BATCH: report.seq })
+/// ```
+fn log_adopted_batches(reports: &[RecoveryReport], journal: &Path) {
+    for report in reports {
+        let what: &str = match report.handled {
+            Handled::Finished => "finished the batch the earlier service left open",
+            Handled::StillOpen => "left open the batch the earlier service left open, which could not be finished now (the index lock is held or a record cannot be read); the next start tries again",
+            Handled::Left => "left on disk the intent of a batch the earlier service wrote: the branch shows it as not landed, and a landing in progress writes its intent first, so the earlier service's own start settles it",
+            Handled::Dropped => "dropped the intent of a batch the earlier service wrote",
+        };
+        log_entry(
+            Priority::Warning,
+            format!("{what} batch={} decision={} journal={}", report.seq, if report.decision == Recovery::Finish { "finish" } else { "drop" }, journal.display()).as_str(),
+            &[("CLI_GIT_BATCH", report.seq.to_string())],
+        );
+    }
 }
