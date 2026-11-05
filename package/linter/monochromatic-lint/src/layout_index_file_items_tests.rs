@@ -34,7 +34,7 @@ fn findings_of(text: &str, role: IndexRole) -> Vec<String> {
 /// and the message names the kind and the name.
 #[test]
 fn every_kind_of_code_in_an_index_is_reported_with_its_kind() {
-    let kinds: [(&str, &str); 17] = [
+    let kinds: [(&str, &str); 19] = [
         ("fn f() {}", "a function `f`"),
         ("pub async fn f() {}", "a function `f`"),
         ("struct S;", "a struct `S`"),
@@ -58,6 +58,8 @@ fn every_kind_of_code_in_an_index_is_reported_with_its_kind() {
         ("extern crate alloc;", "an `extern crate` line"),
         ("extern \"C\" { fn g(); }", "an `extern` block"),
         ("mod inner { fn g() {} }", "an inline module `inner`"),
+        ("macro m() {}", "a macro definition `m`"),
+        ("asm!(\"\");", "a call of the macro `asm!`"),
     ];
     for (source, what) in kinds {
         let found: Vec<String> = findings_of(source, IndexRole::Index);
