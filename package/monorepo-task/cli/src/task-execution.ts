@@ -8,10 +8,8 @@ import {
 } from 'node:path';
 
 import { loadPackageTasks, } from './load.ts';
-import {
-  parseUsageSpec,
-  usageEnvironment,
-} from './task-arguments.ts';
+import { usageEnvironment, } from './task-arguments.ts';
+import { parseUsageSpec, } from './usage-declarations.ts';
 import type {
   ResolvedTaskRequest,
   RunTask,
