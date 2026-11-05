@@ -88,7 +88,7 @@ function newestMtime(path: string): number {
  Mirrors `ensureOxlintConfig` from the root mise vars so lint tasks see the
  same generated config the old `mise run lint:oxlint` bodies built.
  */
-function ensureOxlintConfig(): void {
+async function ensureOxlintConfig(): Promise<void> {
   const oxlintConfigPackageDir = join(REPO_ROOT, 'package', 'config', 'oxlint');
   const oxlintPluginPackagesDir = join(REPO_ROOT, 'package', 'oxlint-plugin');
   const oxlintPluginPackageDirs = existsSync(oxlintPluginPackagesDir)
@@ -117,7 +117,7 @@ function ensureOxlintConfig(): void {
   const missingOutput = outputPaths.some((outputPath) => !existsSync(outputPath),);
   const stale = !missingOutput
     && Math.max(...sourcePaths.map(newestMtime),) > Math.min(...outputPaths.map((outputPath) => newestMtime(outputPath),),);
-  if (missingOutput || stale) { runTaskCli('//package/config/oxlint:build:js:node'); }
+  if (missingOutput || stale) { await runTaskCli({ name: '//package/config/oxlint:build:js:node' }); }
 }
 
 /**
@@ -234,11 +234,11 @@ async function fanoutChildren(taskName: string): Promise<void> {
 const templates: Record<string, TaskDefinition> = {
   'build': {
     description: 'Build this package, fanout to its build:* tasks',
-    run: { shell: 'node --input-type=module-typescript -e', run: 'await fanoutChildren(`//${process.env.TASK_PACKAGE_PATH}:build`)', },
+    run: async function runChildren({ runChildren, }) { await runChildren('build'); },
   },
   'build:js': {
     description: 'Build this package JavaScript entries, fanout to build:js:* tasks',
-    run: { shell: 'node --input-type=module-typescript -e', run: 'await fanoutChildren(`//${process.env.TASK_PACKAGE_PATH}:build:js`)', },
+    run: async function runChildren({ runChildren, }) { await runChildren('build:js'); },
   },
   'build:js:browser': {
     run: 'rolldown --configLoader native --config rolldown.browser.config.ts',
@@ -251,7 +251,7 @@ const templates: Record<string, TaskDefinition> = {
   },
   'test': {
     description: 'Run this package test suites, fanout to test:* tasks',
-    run: { shell: 'node --input-type=module-typescript -e', run: 'await fanoutChildren(`//${process.env.TASK_PACKAGE_PATH}:test`)', },
+    run: async function runChildren({ runChildren, }) { await runChildren('test'); },
   },
   'test:unit': {
     description: 'Run active-tree *.unit.test.ts in parallel via node (excludes *.expensive.* unless --all); pass file paths to filter',
@@ -284,7 +284,7 @@ await runTestFiles(files, [])
   },
   'lint': {
     description: 'Lint this package, fanout to lint:* tasks',
-    run: { shell: 'node --input-type=module-typescript -e', run: 'await fanoutChildren(`//${process.env.TASK_PACKAGE_PATH}:lint`)', },
+    run: async function runChildren({ runChildren, }) { await runChildren('lint'); },
   },
   'lint:oxlint': {
     description: 'Lint with Oxlint',
@@ -306,11 +306,11 @@ await runTestFiles(files, [])
   },
   'watch:build': {
     description: 'Watch-build this package, fanout to watch:build:* tasks',
-    run: { shell: 'node --input-type=module-typescript -e', run: 'await fanoutChildren(`//${process.env.TASK_PACKAGE_PATH}:watch:build`)', },
+    run: async function runChildren({ runChildren, }) { await runChildren('watch:build'); },
   },
   'watch:build:js': {
     description: 'Watch-build this package JavaScript entries, fanout to watch:build:js:* tasks',
-    run: { shell: 'node --input-type=module-typescript -e', run: 'await fanoutChildren(`//${process.env.TASK_PACKAGE_PATH}:watch:build:js`)', },
+    run: async function runChildren({ runChildren, }) { await runChildren('watch:build:js'); },
   },
   'watch:build:js:browser': {
     run: 'rolldown --watch --configLoader native --config rolldown.browser.config.ts',
