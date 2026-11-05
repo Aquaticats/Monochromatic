@@ -126,6 +126,10 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
         crate::service_log!("removed the records of {pruned} old finished batches from {}", context.journal.display());
     }
     let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
+    // What the earlier release's helper of this worktree finished counts as landed too: a client it never answered asks again.
+    if let Some(instance) = settings.instance.as_deref() {
+        landed.extend(crate::earlier_service_journal_adopted::earlier_commits_landed(context.journal.as_path(), instance));
+    }
     // The identities of the requests their clients withdrew; a request with one of these is never landed.
     let mut withdrawn: std::collections::HashSet<String> = std::collections::HashSet::new();
     // What the landed commits were captured at: owned by this loop, the only thread that lands and answers.

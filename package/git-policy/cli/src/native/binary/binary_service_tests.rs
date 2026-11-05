@@ -231,6 +231,63 @@ fn an_instance_removes_the_old_finished_batches_of_the_earlier_shared_journal() 
     remove_settled(&fixture);
 }
 
+/// Starts the service of one worktree with its journal in `journal`, as the unit does with `--journal` and `--instance`.
+fn start_instance_service(name: &str, journal: &Path, instance: &str) -> Service {
+    let mut command: Command = super::support::service_command();
+    command
+        .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name, "--instance", instance])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit());
+    return Service { child: command.spawn().expect("the service starts") };
+}
+
+/// The owner's rule is "never discard user data": a batch that the helper of an earlier release accepted and left open must
+///  still be finished after the switch to the unit of this release, whose journal is in a state folder named after the renamed
+///  program. The earlier helper is gone (killed, or its session ended) and only the new program runs afterwards.
+#[test]
+fn a_batch_the_earlier_helper_left_open_is_finished_by_the_service_of_this_release() {
+    let fixture: Fixture = fixture("service-adopt-earlier");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let state: PathBuf = fixture.root.join("state");
+    let earlier: PathBuf = state.join("cli-git/service").join(instance.as_str());
+    let current: PathBuf = state.join("monochromatic-git-policy-cli/service").join(instance.as_str());
+    std::fs::create_dir_all(&earlier).expect("the earlier journal");
+    // The earlier helper lands a commit and is killed; its batch is then open, as after a kill between landing and finishing.
+    let first_name: String = address(&fixture, "adopt-first");
+    let first: Service = start_instance_service(first_name.as_str(), earlier.as_path(), instance.as_str());
+    wait_until_reachable(first_name.as_str());
+    let sent: CommitRequest = request(&fixture, &repo, "adopt-1", "a.txt", "a\n");
+    submit_quietly(&config(first_name.as_str()), &sent).expect("answered");
+    stop(first);
+    let finished: Vec<PathBuf> = std::fs::read_dir(&earlier)
+        .expect("the earlier journal lists")
+        .flatten()
+        .map(|entry| { return entry.path(); })
+        .filter(|path| { return path.extension().is_some_and(|extension| { return extension == DONE_EXTENSION; }); })
+        .collect();
+    assert_eq!(finished.len(), 1, "one landed batch");
+    let open: PathBuf = finished[0].with_extension(git_policy_cli::service_journal::OPEN_EXTENSION);
+    std::fs::rename(&finished[0], &open).expect("reopen the batch");
+    // The service of this release starts for the same worktree, with its journal in the new place.
+    let second_name: String = address(&fixture, "adopt-second");
+    let second: Service = start_instance_service(second_name.as_str(), current.as_path(), instance.as_str());
+    wait_until_reachable(second_name.as_str());
+    // The first answer comes after the recovery at the start.
+    let next: CommitRequest = request(&fixture, &repo, "adopt-2", "b.txt", "b\n");
+    submit_quietly(&config(second_name.as_str()), &next).expect("answered");
+    assert!(!open.exists(), "the open batch of the earlier journal was finished");
+    assert!(finished[0].exists(), "and is remembered as finished where it was");
+    // The client the earlier helper never answered sends the same request again: it is known to be landed.
+    let again: Submitted = submit_quietly(&config(second_name.as_str()), &sent).expect("answered");
+    assert!(matches!(again, Submitted::Landed { already: true, .. }), "{again:?}");
+    assert_eq!(count_of(&fixture, &repo, "message of adopt-1"), 1, "the batch landed once, not twice");
+    assert_healthy(&fixture, &repo, "adopt");
+    stop(second);
+    remove_settled(&fixture);
+}
+
 /// Many clients at once all land, each once, and the journal never holds more files than commits.
 #[test]
 fn clients_sent_together_all_land_once() {

@@ -104,6 +104,31 @@ Recorded 2026-11-04T22:36:12-05:00 on the branch `feat/git-policy-cli-program-re
 - The earlier command word: `EARLIER_COMMAND_WORD_NOTICE` in front of the same action; `EARLIER_SERVICE_WORDS` starts the
   service mode too, so a unit file an older program wrote still starts a helper.
 
+### Open batches of the old helper
+
+Recorded 2026-11-04T23:40:00-05:00.
+The service journal holds one file per batch: `<seq>.intent` while the batch may be unfinished (the branch moves only after
+the intent is on disk), `<seq>.done` after it, and the request identities a done batch remembers.
+A helper killed between the branch move and the index update, or whose session ended, leaves an `.intent` in its own state
+folder; the unit of this release keeps the journal in another folder, so nothing would have looked at it, the person's index
+would have shown the landed commit as reverted, and a client the old helper never answered would have had its commit landed
+twice on a retry.
+
+- `landing/earlier_service_journal_adopted.rs`: when the service of this release starts for an instance, and its journal is
+  where the unit puts it, it runs the existing recovery over the earlier journal of that instance and the first releases' shared
+  journal above it, in place (nothing is moved or copied; a finished batch is marked done where it was), before it accepts a
+  connection.
+- One owner: it does so only when no other process on the machine has the command line of a service of that instance
+  (`/proc`), so a running helper finishes its own batches and two services never settle one batch.
+  A look that cannot be made counts as "may be running"; the adoption is tried again at the next start of the service
+  (it exits when idle and the socket starts it again); nothing waits, nothing takes a lock.
+- The service of this release also counts the identities in the earlier journals as landed, so a retried request is answered
+  as already landed.
+- Not covered: a helper of another PID namespace (a container) is not seen by the look; the earlier helper restarted by its
+  own unit (`Restart=on-failure`) while the adoption runs could settle the same batch, which the recovery's checks of the
+  branch and the index make a repeat of the same step, not a second landing.
+- The audit log split across two files in a mixed-install window loses nothing; it is documentation only.
+
 ### Where the plan was wrong or incomplete
 
 - The plan's units section says a running old helper "keeps landing commits until replaced".
@@ -111,6 +136,8 @@ Recorded 2026-11-04T22:36:12-05:00 on the branch `feat/git-policy-cli-program-re
   Both helpers can exist for one worktree until the old one idles out; nothing stops or removes the old units or the old
   template unit files (older installs in other worktrees need them), and the new journal folder
   `monochromatic-git-policy-cli/service/<instance>` under the state directory starts empty.
+  The batches the old helper had accepted and left open stay in `cli-git/service/<instance>` (and, from the first releases,
+  `cli-git/service`), so they are adopted, see "Open batches of the old helper".
 - A socket path holds 107 bytes, and the program folder name is 21 bytes longer than `cli-git`:
   a runtime directory longer than 41 bytes no longer fits, so the service fixtures and the e2e scenarios use shorter runtime
   directory names.

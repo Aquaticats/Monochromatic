@@ -415,6 +415,11 @@ fn land_batch_body(
 #[path = "service_land_tests.rs"]
 mod tests;
 
+/// Controls for the adoption of the batches an earlier release's service left open, which land real batches with the fixtures above.
+#[cfg(test)]
+#[path = "earlier_service_journal_adopted_tests.rs"]
+mod adoption_tests;
+
 /// Controls for a replay over the index the landing saw stay out of the release executable.
 #[cfg(test)]
 #[path = "service_land_witness_tests.rs"]
