@@ -103,7 +103,7 @@ function taskPathEnvironment(
  Distinguishes sequential step lists from individual function or command steps.
 
  @param value - Declared body inspected before sequencing.
- *
+ 
  @returns Whether the body contains a sequence of steps.
  */
 function isStepList(value: TaskDefinition['run'],): value is readonly TaskStep[] {
@@ -239,7 +239,9 @@ async function runChildren(
    Stable child ordering gives deterministic dispatch without serializing completion.
    */
   const children = Object.keys(tasks,)
-    .filter(function immediateChild(name) { return name.startsWith(prefix) && (name.split(':',).length === depth); })
+    .filter(function immediateChild(name) { return name.startsWith(prefix) && (name.split(':',)
+      .length
+      === depth); })
     .toSorted(function byName(
       left,
       right

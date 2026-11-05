@@ -33,9 +33,9 @@ const PACKAGE_MARKERS = [
  Finds the repository root by walking parent directories for the workspace marker.
 
  @returns Absolute repository root.
- *
+ 
  @throws When no parent contains the workspace marker.
- *
+ 
  @example
  ```ts
  const root = await findRepoRoot();
@@ -44,7 +44,10 @@ const PACKAGE_MARKERS = [
 export async function findRepoRoot(): Promise<string> {
   for (let current = process.cwd(); ;) {
     if (await stat(
-      join(current, ROOT_MARKER,),
+      join(
+        current,
+        ROOT_MARKER,
+      ),
       { throwIfNoEntry: false, },
     ) !== undefined)
       return current;
@@ -62,13 +65,13 @@ export async function findRepoRoot(): Promise<string> {
  Resolves a package path and checks that it contains a supported package manifest.
 
  @param root - Repository boundary for package paths.
- *
+ 
  @param packagePath - Category and package path from the requested task.
- *
+ 
  @returns Absolute package directory.
- *
+ 
  @throws When the path shape or package manifest is missing.
- *
+ 
  @example
  ```ts
  const cwd = await packageDirectory({ root, packagePath: 'package/logger/core' });
@@ -85,7 +88,8 @@ export async function packageDirectory({
    Accepted paths have exactly the repository prefix, category and package segments.
    */
   const segments = packagePath.split('/',);
-  if ((segments[0] !== 'package') || (segments.length !== 1 + PACKAGE_SEGMENT_COUNT))
+  if ((segments[0] !== 'package') || (segments.length !== (1
+    + PACKAGE_SEGMENT_COUNT)))
     throw new Error(`task-cli: not a package path: ${packagePath}`,);
   /**
    All manifest checks address this one candidate package.
@@ -99,7 +103,10 @@ export async function packageDirectory({
    */
   const markers = await Promise.all(PACKAGE_MARKERS.map(async function manifest(marker) {
     return await stat(
-      join(directory, marker,),
+      join(
+        directory,
+        marker,
+      ),
       { throwIfNoEntry: false, },
     ) !== undefined;
   }),);
@@ -112,9 +119,9 @@ export async function packageDirectory({
  Enumerates task files at the known category/package depth.
 
  @param root - Repository containing the package directory.
- *
+ 
  @returns Sorted task paths without traversing ignored dependency trees.
- *
+ 
  @example
  ```ts
  const taskFiles = await findPackageTaskFiles(root);
@@ -177,7 +184,10 @@ export async function findPackageTaskFiles(root: string,): Promise<readonly stri
     return paths.flat();
   }),);
   return groups.flat()
-    .toSorted(function byPath(left, right) { return left.localeCompare(right,); });
+    .toSorted(function byPath(
+      left,
+      right
+    ) { return left.localeCompare(right,); });
 }
 
 //endregion Repository and package discovery without entering dependency trees

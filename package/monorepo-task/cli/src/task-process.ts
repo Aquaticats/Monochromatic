@@ -11,9 +11,9 @@ export class TaskCommandFailedError extends Error {
    Identifies the command, directory and terminal status.
 
    @param command - Executable selected by the task.
-   *
+   
    @param cwd - Working directory where the command failed.
-   *
+   
    @param status - Exit status, signal or invalid command diagnostic.
    */
   constructor({
@@ -34,15 +34,15 @@ export class TaskCommandFailedError extends Error {
  Starts a command with literal arguments and waits until its process closes.
 
  @param command - Executable resolved through the task environment.
- *
+ 
  @param args - Literal argument vector, never shell-interpolated.
- *
+ 
  @param cwd - Explicit working directory owned by the task.
- *
+ 
  @param env - Snapshot inherited by the process.
- *
+ 
  @throws TaskCommandFailedError when the command closes unsuccessfully.
- *
+ 
  @example
  ```ts
  await runTaskProcess({ command: 'node', args: ['build.ts'], cwd, env });
@@ -65,24 +65,21 @@ export async function runTaskProcess({
   const child = spawn(
     command,
     args,
-    { cwd, env, stdio: 'inherit', },
+    {
+      cwd,
+      env,
+      stdio: 'inherit',
+    },
   );
-  /**
-   Event payloads cross an untyped Node boundary and are kept unknown until inspection.
-   */
-  const result: readonly unknown[] = await once(
+  await once(
     child,
     'close',
   );
-  /**
-   Close reports either an exit code or a terminating signal.
-   */
-  const [code, signal,] = result;
-  if (code !== 0)
+  if (child.exitCode !== 0)
     throw new TaskCommandFailedError({
       command,
       cwd,
-      status: signal === null ? `exit ${String(code,)}` : `signal ${String(signal,)}`,
+      status: child.signalCode === null ? `exit ${child.exitCode}` : `signal ${child.signalCode}`,
     },);
 }
 

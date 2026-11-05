@@ -13,9 +13,9 @@ export type UsageOption = {
  Reads the first word, stopping flag names before their value placeholder.
 
  @param body - Quoted declaration text.
- *
+ 
  @param kind - Flag names and positional placeholders have different delimiters.
- *
+ 
  @returns Name word without trimming declaration-leading whitespace.
  */
 function declarationWord({
@@ -43,7 +43,7 @@ function declarationWord({
  Removes flag dashes and positional argument brackets.
 
  @param word - First declaration word.
- *
+ 
  @returns Environment-compatible argument name.
  */
 function declarationName(word: string,): string {
@@ -71,9 +71,9 @@ function declarationName(word: string,): string {
  Parses quoted flag and argument declarations in one forward scan.
 
  @param usage - Usage string from the task definition; absent declarations produce no options.
- *
+ 
  @returns Options in declaration order.
- *
+ 
  @example
  ```ts
  const options = parseUsageSpec('flag "--mode <name>"\narg "<file>"');
@@ -92,7 +92,7 @@ export function parseUsageSpec(usage = '',): readonly UsageOption[] {
       '"',
       cursor,
     );
-    if (opening === -1)
+    if (opening === (-1))
       break;
     /**
      An unterminated string contributes no declaration, matching the supported usage grammar.
@@ -101,7 +101,7 @@ export function parseUsageSpec(usage = '',): readonly UsageOption[] {
       '"',
       opening + 1,
     );
-    if (closing === -1)
+    if (closing === (-1))
       break;
     /**
      Disjoint prefixes make scanning linear even when help text contains many quoted strings.
@@ -144,15 +144,19 @@ export function parseUsageSpec(usage = '',): readonly UsageOption[] {
     /**
      Searching only the remaining body avoids rescanning a prefix.
      */
-    const valueEnd = valueStart === -1 ? -1 : body.indexOf(
+    const valueEnd = valueStart === (-1) ? -1 : body.indexOf(
       '>',
       valueStart + 1,
     );
-    options.push((valueStart >= 0) && (valueEnd > valueStart + 1)
+    options.push((valueStart !== (-1)) && (valueEnd > (valueStart
+      + 1))
       ? {
         kind,
         name,
-        valueName: body.slice(valueStart + 1, valueEnd,),
+        valueName: body.slice(
+          valueStart + 1,
+          valueEnd,
+        ),
       }
       : {
         kind,

@@ -62,17 +62,26 @@ export function repoRoot(): string {
  @throws When the root task file is missing or malformed.
  */
 export async function loadRootTasks(root: string = REPO_ROOT,): Promise<RootTaskFile> {
-  /** Root templates are loaded once per repository in this process. */
+  /**
+   Root templates are loaded once per repository in this process.
+   */
   const cached = rootTaskFiles.get(root,);
   if (cached !== undefined) { return cached; }
-  /** The task file belongs to the caller-selected repository root. */
+  /**
+   The task file belongs to the caller-selected repository root.
+   */
   const path = join(
     root,
     'task.ts'
   );
-  if (await stat(path, { throwIfNoEntry: false }) === undefined)
+  if (await stat(
+    path,
+    { throwIfNoEntry: false }
+  ) === undefined)
     throw new Error(`task-cli: missing root task.ts`);
-  /** Repository-owned task modules supply their declared default export. */
+  /**
+   Repository-owned task modules supply their declared default export.
+   */
   const module_ = await import(pathToFileURL(path)
     .href) as { default: RootTaskFile; };
   rootTaskFiles.set(
@@ -97,9 +106,14 @@ export async function loadRootTasks(root: string = REPO_ROOT,): Promise<RootTask
  @throws When the file is missing or malformed.
  */
 export async function loadPackageTasks(path: string): Promise<PackageTaskFile> {
-  if (await stat(path, { throwIfNoEntry: false }) === undefined)
+  if (await stat(
+    path,
+    { throwIfNoEntry: false }
+  ) === undefined)
     throw new Error(`task-cli: missing task file: ${path}`);
-  /** Repository-owned task modules supply their declared default export. */
+  /**
+   Repository-owned task modules supply their declared default export.
+   */
   const module_ = await import(pathToFileURL(path)
     .href) as { default: PackageTaskFile; };
   return module_.default;
@@ -129,9 +143,13 @@ export async function resolveDefinition(
   },
 ): Promise<TaskDefinition> {
   if (definition.extends === undefined) { return definition; }
-  /** Templates come from the same repository as the requested task. */
+  /**
+   Templates come from the same repository as the requested task.
+   */
   const root = await loadRootTasks(repositoryRoot,);
-  /** Missing template names receive a task-specific diagnostic before execution. */
+  /**
+   Missing template names receive a task-specific diagnostic before execution.
+   */
   const template = root.templates[definition.extends];
   if (template === undefined)
     throw new Error(`task-cli: unknown task template: ${definition.extends}`);
@@ -159,7 +177,10 @@ export async function resolveDefinition(
  
  @throws When the child task fails.
  */
-export async function runTaskCli({ name, args = [], }: {
+export async function runTaskCli({
+  name,
+  args = [],
+}: {
   readonly name: string;
   readonly args?: readonly string[];
 }): Promise<void> {
@@ -177,10 +198,10 @@ export async function runTaskCli({ name, args = [], }: {
       name,
       ...args,
     ],
-      cwd: REPO_ROOT,
-      env: {
-        ...process.env,
-        TASK_CLI_CHILD: '1',
-      },
+    cwd: REPO_ROOT,
+    env: {
+      ...process.env,
+      TASK_CLI_CHILD: '1',
+    },
   });
 }

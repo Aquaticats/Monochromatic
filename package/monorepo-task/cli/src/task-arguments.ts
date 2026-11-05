@@ -19,9 +19,9 @@ class TaskUsageError extends Error {
  Separates declared options from literal passthrough after the second separator.
 
  @param argv - Arguments following the task name.
- *
+ 
  @returns Option words and raw passthrough words.
- *
+ 
  @example
  ```ts
  const { options, rest } = splitPassthrough(['--', '--mode', 'debug', '--', 'a b']);
@@ -39,13 +39,16 @@ export function splitPassthrough(argv: readonly string[],): {
    A later separator begins words the task must receive literally.
    */
   const index = afterSeparator.indexOf('--',);
-  if (index === -1)
+  if (index === (-1))
     return {
       options: afterSeparator,
       rest: [],
     };
   return {
-    options: afterSeparator.slice(0, index,),
+    options: afterSeparator.slice(
+      0,
+      index,
+    ),
     rest: afterSeparator.slice(index + 1,),
   };
 }
@@ -54,7 +57,7 @@ export function splitPassthrough(argv: readonly string[],): {
  Quotes words for the restricted shell-word grammar consumed by parseUsageArgs.
 
  @param word - Literal argument word.
- *
+ 
  @returns Reversible encoding for the usage_args environment variable.
  */
 function shellQuote(word: string,): string {
@@ -64,7 +67,7 @@ function shellQuote(word: string,): string {
     if ((character.trim() === '') || "'\"\\".includes(character,)) {
       return `'${word.replaceAll(
         "'",
-        "'\\''",
+        String.raw`'\''`,
       )}'`;
     }
   }
@@ -75,7 +78,7 @@ function shellQuote(word: string,): string {
  Joins encoded words without losing empty values, whitespace, quotes or backslashes.
 
  @param words - Literal argument vector.
- *
+ 
  @returns Value recoverable by parseUsageArgs.
  */
 function shellJoin(words: readonly string[],): string {
@@ -87,15 +90,15 @@ function shellJoin(words: readonly string[],): string {
  Interprets declared options while preserving positional and passthrough arguments.
 
  @param options - Parsed usage declarations.
- *
+ 
  @param argv - Task option arguments.
- *
+ 
  @param rest - Passthrough words after the separator.
- *
+ 
  @returns Environment entries consumed by the task body.
- *
+ 
  @throws TaskUsageError when arguments do not match the declarations.
- *
+ 
  @example
  ```ts
  const env = usageEnvironment({ options: [], argv: ['a b'], rest: [] });
@@ -197,7 +200,10 @@ export function usageEnvironment({
     const word = positional[position];
     if (word !== undefined)
       env[`usage_${option.name
-        .replaceAll('-', '_',)}`] = word;
+        .replaceAll(
+          '-',
+          '_',
+        )}`] = word;
   }
   return env;
 }
