@@ -248,7 +248,7 @@ fn an_index_writer_waits_for_the_service_to_finish_landing_and_says_so() {
         std::thread::sleep(Duration::from_millis(10));
     }
     let index_lock: PathBuf = repo.join(".git/index.lock");
-    assert!(std::fs::read_to_string(&index_lock).is_ok_and(|text| { return text.starts_with("monochromatic-git-policy-cli-service"); }), "the service holds the index while it lands");
+    assert!(std::fs::read_to_string(&index_lock).is_ok_and(|text| { return text.starts_with("cli-git-service"); }), "the service holds the index while it lands");
     let mut adding: Command = served(&fixture, &repo, name.as_str(), &["add", "b.txt"]);
     adding.env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
     let mut adding_child: Child = adding.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped()).spawn().expect("the add starts");
