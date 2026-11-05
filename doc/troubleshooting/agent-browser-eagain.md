@@ -461,8 +461,7 @@ There is no new upstream filing artifact beyond the recorded observation.
 for owned source-reading and disposable DSH verification sessions.
 Subsequent snapshot and evaluation requests also timed out.
 
-Unlike the earlier observation without a captured rejection counter,
-these sessions' cgroups retained explicit evidence:
+These sessions' cgroups retained explicit evidence:
 `pids.max` was `128`,
 and `pids.events` reported `max 6` and `max 11` respectively.
 Their memory-event counters recorded no limit or OOM event.
