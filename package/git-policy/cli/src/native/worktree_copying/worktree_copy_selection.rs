@@ -113,6 +113,19 @@ pub fn js_order(left: &str, right: &str) -> Ordering {
 }
 
 /// What:
+///  Order two names the way JavaScript's default sort does, for a sort of owned names.
+/// Why:
+///   `sort_by` hands its function references to the items, and a generic function over `AsRef<str>` takes them without a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// names.sort()
+/// ```
+pub fn by_js_order<Name: AsRef<str>>(left: &Name, right: &Name) -> std::cmp::Ordering {
+    return js_order(left.as_ref(), right.as_ref());
+}
+
+/// What:
 ///  Keeps the outermost of several ignored roots, dropping every root under another one.
 /// Why:
 ///   Copying a parent already copies its descendants, so a second copy would duplicate work and entries.

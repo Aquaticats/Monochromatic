@@ -63,6 +63,10 @@ pub mod worktree_copy_journal_removal;
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim;
 
+/// The judging of stage claims and the removal of the stages that interrupted copies and adds left behind.
+#[cfg(unix)]
+pub mod worktree_copy_stage_claim_reaping;
+
 /// The append-only install log of one stage: per-batch intents and creations, with resumption.
 #[cfg(unix)]
 pub mod worktree_copy_install_log;

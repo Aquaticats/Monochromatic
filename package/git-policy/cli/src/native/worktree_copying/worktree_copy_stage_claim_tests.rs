@@ -1,6 +1,8 @@
 //! Tests of the stage claim and the cleanup of stages an interrupted copy left behind.
 
 use super::*;
+use crate::json_record::quote;
+use crate::worktree_copy_stage_claim_reaping::*;
 use crate::private_storage::{create_private_directory, take_directory_syncs, take_file_syncs};
 use crate::test_support::{dead_copy_owner, fixture, git_context, remove, repository};
 use crate::worktree_add_binding::{Recorded, bind_registration, decode_record};

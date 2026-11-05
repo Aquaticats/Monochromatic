@@ -20,7 +20,7 @@ use crate::random_id::random_uuid;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_journal_encoding_and_validation::{JOURNAL_PARENT_NAME, JOURNAL_SUFFIX, JOURNAL_VERSION_NAME, Journal, PendingJournal, Phase, TEMPORARY_SUFFIX, encode_journal, parse_journal};
 use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
-use crate::worktree_copy_selection::js_order;
+use crate::worktree_copy_selection::by_js_order;
 use crate::worktree_copy_stage::StagedSnapshot;
 use std::path::{Path, PathBuf};
 
@@ -385,19 +385,6 @@ fn load_listed_journal(path: &Path, root: &Path) -> Result<Journal, WorktreeCopy
     assert_private_path(path, Role::JournalFile)?;
     let text: String = read_journal_text(path)?;
     return parse_journal(text.as_str(), path, root);
-}
-
-/// What:
-///  Order two names the way JavaScript's default sort does.
-/// Why:
-///   The listing of journals is read in the order the incumbent reads it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// names.sort()
-/// ```
-fn by_js_order<Name: AsRef<str>>(left: &Name, right: &Name) -> std::cmp::Ordering {
-    return js_order(left.as_ref(), right.as_ref());
 }
 
 /// What:
