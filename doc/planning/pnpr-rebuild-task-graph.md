@@ -138,3 +138,11 @@ and still in progress when inspected.
 That observation does not measure completed build calls or establish which task was active.
 The main upgrade work cancelled that run after receiving the static finding
 and owns the disposable runtime reproduction and repaired CI verification.
+
+Scoped Markdown lint passed with
+`mise run lint:monochromatic-lint -- doc/planning/pnpr-rebuild-task-graph.md`.
+Pandoc rendered the GFM document with `--fail-if-warnings`;
+the resulting headings,
+lists,
+code spans,
+and prose were inspected.
