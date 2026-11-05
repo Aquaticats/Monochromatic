@@ -124,6 +124,8 @@ The `10.34.9` case imports successfully,
 but its logged consumer path is under `project/node_modules/.pnpm`.
 It does not exercise the shared virtual store with this configuration.
 That result is not a claim that v10 has a corrected shared-store implementation.
+This initial result is superseded by the corrected CI-mode check in the
+[completed filing assessment](../planning/pnpm-symlinked-store-filing.md).
 
 The earlier latest-release claim was wrong:
 the release-list API showed `12.18.0` and `11.28.11`,
