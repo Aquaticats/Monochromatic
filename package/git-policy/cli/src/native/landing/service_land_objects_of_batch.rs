@@ -12,7 +12,6 @@
 
 use crate::service_fault::reach;
 use crate::service_built_checks::{BuiltCommit, adds_only_present_objects, read_commit};
-pub use crate::service_land_finish::{RecoveryReport, recover, recover_instance};
 use crate::service_land_follow::classify;
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput};

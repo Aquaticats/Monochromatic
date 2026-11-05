@@ -139,7 +139,7 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     // What this landing thread is inside, for the threads that talk to clients (`service_busy.rs`).
     let board: Arc<LandingBoard> = LandingBoard::new(context.journal.clone(), settings.stuck_after);
-    crate::service_busy::use_on_this_thread(Arc::clone(&board));
+    crate::service_busy_step_record_on_this_thread::use_on_this_thread(Arc::clone(&board));
     let connection_board: Arc<LandingBoard> = Arc::clone(&board);
     // The plan of the pushes waiting for a new try is kept in this instance's own journal, so a restarted service rebuilds it.
     let plan_directory: PathBuf = context.journal.join(PLAN_DIRECTORY);

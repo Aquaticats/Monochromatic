@@ -34,7 +34,6 @@ pub use crate::service_busy_answers_and_name_checks::{EarlyAnswer, GroupAdmissio
 use crate::service_busy_answers_and_name_checks::{CANCELLED_EXTENSION, Decision, Naming, WITHDRAWN, is_confirmation, is_plain, modified_and_path, withdrawal_token};
 #[cfg(test)]
 use std::cell::RefCell;
-pub use crate::service_busy_step_record_on_this_thread::{DetailGuard, StepGuard, detail, enter_step, on_landing_thread, use_on_this_thread};
 use crate::service_journal::{DONE_EXTENSION, DONE_RETAINED, OPEN_EXTENSION, parse_intent};
 use crate::service_messages::RESTART_COMMAND;
 use std::io::Write;

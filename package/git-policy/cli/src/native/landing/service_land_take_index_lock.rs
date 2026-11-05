@@ -12,7 +12,6 @@ use std::time::Duration;
 use crate::service_land_git_steps_and_import_stream::{keep_unlanded, run};
 use crate::journald_native::Priority;
 use crate::service_journal::OPEN_EXTENSION;
-pub use crate::service_land_finish::{RecoveryReport, recover, recover_instance};
 use crate::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait_within};
 use crate::service_timing::{LandTiming, wait_line};
 use crate::service_protocol::{CommitRequest, FailureCode};

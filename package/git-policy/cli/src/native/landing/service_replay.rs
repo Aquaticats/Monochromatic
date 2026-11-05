@@ -16,6 +16,7 @@
 //! const merged = await mergeOntoBranch(captured, currentTip);   // { tree } | { conflict }
 //! ```
 
+pub use crate::service_prepare_ready_shapes::{LandedFirst, ReplayConflict};
 use crate::service_replay_path_and_line_text::{byte_of_character, is_not_empty_line, latin1_of_path};
 use crate::private_index_request::indexed_request;
 use crate::commit_transaction::{TransactionResult, TransactionStop, failed};
@@ -89,26 +90,6 @@ pub struct Retry<'a> {
     pub captured: &'a Captured,
     /// Which retry this is, from 1, which names the retry's scratch files.
     pub attempt: u64,
-}
-
-/// The first commit on the branch since the preparation base that changed one of the conflicting paths.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct LandedFirst {
-    /// Its abbreviated name, as Git abbreviates it in this repository.
-    pub short: String,
-    /// Its subject.
-    pub subject: String,
-}
-
-/// A retry that could not combine the captured change with the branch.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReplayConflict {
-    /// The conflicting paths in Git's byte order, as the exact bytes Git reported.
-    pub paths: Vec<Vec<u8>>,
-    /// The commit that landed first on them, when it could be found.
-    pub landed: Option<LandedFirst>,
-    /// The Git directory of the worktree, where a saved message is kept.
-    pub git_dir: PathBuf,
 }
 
 /// What merging the captured change onto the branch came to.

@@ -45,6 +45,9 @@ pub mod service_messages;
 /// The commit service's serialized step.
 pub mod service_land;
 
+/// What the commit service needs to land a batch.
+pub mod service_land_context;
+
 /// Takes the index lock for a batch that is ready to land.
 pub mod service_land_take_index_lock;
 

@@ -12,7 +12,6 @@
 
 use crate::claim_time::ClaimTime;
 use crate::random_id::random_uuid;
-pub use crate::work_item_recovery::{Recovered, next_claim_expiry, requeue_expired, requeue_expired_reporting};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 /// The state directories, in the order an item moves through them.

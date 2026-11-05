@@ -17,7 +17,6 @@ use crate::lfs_pre_push::uses_lfs;
 use crate::policy_events::PolicyEvent;
 use crate::private_storage::remove_tree;
 use crate::service_protocol::{Change, Cleanup};
-use crate::service_replay::ReplayConflict;
 use crate::transaction_journal::{AddedPath, Conclusion, TransactionMode};
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -174,4 +173,24 @@ impl ReadyShape {
             leaves_open: None,
         });
     }
+}
+
+/// The first commit on the branch since the preparation base that changed one of the conflicting paths.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LandedFirst {
+    /// Its abbreviated name, as Git abbreviates it in this repository.
+    pub short: String,
+    /// Its subject.
+    pub subject: String,
+}
+
+/// A retry that could not combine the captured change with the branch.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReplayConflict {
+    /// The conflicting paths in Git's byte order, as the exact bytes Git reported.
+    pub paths: Vec<Vec<u8>>,
+    /// The commit that landed first on them, when it could be found.
+    pub landed: Option<LandedFirst>,
+    /// The Git directory of the worktree, where a saved message is kept.
+    pub git_dir: PathBuf,
 }

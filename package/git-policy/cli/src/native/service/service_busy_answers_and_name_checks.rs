@@ -10,7 +10,6 @@
 //! type EarlyAnswer, GroupAdmission, Naming, Decision; function isPlain(id), withdrawalToken(content)
 //! ```
 
-pub use crate::service_busy_step_record_on_this_thread::{DetailGuard, StepGuard, detail, enter_step, on_landing_thread, use_on_this_thread};
 use std::path::PathBuf;
 use std::time::SystemTime;
 

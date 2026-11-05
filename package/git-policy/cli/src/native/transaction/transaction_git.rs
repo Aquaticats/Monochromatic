@@ -331,7 +331,7 @@ fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms
     let bound: StepBound = step_bound(request);
     // A write that is never ended is recorded for the clients that queue behind it (`service_busy.rs`); the record ends with the step.
     let _recorded = if matches!(bound, StepBound::Unbounded) {
-        crate::service_busy::enter_step(format!("{} in {}", command_text(&request.arguments), request.cwd.display()))
+        crate::service_busy_step_record_on_this_thread::enter_step(format!("{} in {}", command_text(&request.arguments), request.cwd.display()))
     } else {
         None
     };

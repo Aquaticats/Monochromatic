@@ -21,7 +21,7 @@ use crate::service_land_follow::{IndexPaths, build_index, remove_conclusion_stat
 use crate::service_land_start::witness_of;
 use crate::service_index_lock::{IndexLock, remove_stale, try_acquire};
 use crate::autostash_carry::carry_stages;
-use crate::service_land::LandContext;
+use crate::service_land_context::LandContext;
 use crate::service_protocol::FailureCode;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use std::path::Path;

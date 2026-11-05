@@ -14,6 +14,7 @@
 //! const prepared = await prepare(invocation, checks, request, scratchName, attempt);
 //! ```
 
+use crate::service_prepare_ready_shapes::ReplayConflict;
 pub use crate::service_prepare_ready_shapes::{NativeInputs, Prepared, Ready, Scratch};
 use crate::service_prepare_ready_shapes::ReadyShape;
 pub use crate::service_prepare_changes_config_and_pathspec_steps::config_needs_native;
@@ -44,7 +45,7 @@ use crate::service_pruned::reach_service_phase;
 use crate::transaction_phase::Phase;
 use crate::service_protocol::{Change, Cleanup};
 use crate::merge_second_pass::Merged as MergedFile;
-use crate::service_replay::{MergeSite, Merged, ReplayConflict, Retry, already_committed_result, capture_stamp, first_landed, merge_captured, word_merge_notice};
+use crate::service_replay::{MergeSite, Merged, Retry, already_committed_result, capture_stamp, first_landed, merge_captured, word_merge_notice};
 use crate::external_hooks::warn_external_hooks;
 use crate::traditional_hook_warning::warn_traditional_hooks;
 use crate::transaction_git::{GitContext, run_git_checked};

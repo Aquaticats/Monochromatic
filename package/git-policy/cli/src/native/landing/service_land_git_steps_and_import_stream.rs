@@ -10,7 +10,6 @@
 //! await run(git, repository, args, input); importStream(scratch, old, batch, amendedParents); commitsFromMarks(text, count)
 //! ```
 
-pub use crate::service_land_finish::{RecoveryReport, recover, recover_instance};
 use crate::service_land_follow::classify;
 use crate::service_protocol::{CommitRequest, FailureCode};
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, NO_REFLOG_SETTING, run_git};

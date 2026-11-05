@@ -12,6 +12,9 @@
 //! const outcomes = await landBatch(context, seq, requests);
 //! ```
 
+#[cfg(test)]
+use std::path::PathBuf;
+pub use crate::service_land_context::LandContext;
 use crate::service_land_take_index_lock::take_index_lock;
 use crate::service_land_git_steps_and_import_stream::{checked, ids_of, keep_unlanded, requests_that_land, run, take_ceiling_step};
 use crate::service_land_objects_of_batch::objects_of_batch;
@@ -35,23 +38,11 @@ use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 use crate::service_land_follow::storage_failure;
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput, NO_REFLOG_SETTING};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Instant;
 
 /// How many times a batch is built again when the branch moved under it before the failure is reported.
 pub const LANDING_ATTEMPTS: usize = 3;
-
-/// What the service needs to land: how to run Git and where the journal lives.
-pub struct LandContext {
-    /// How to run the real Git, with the bounds of `child_class.rs`.
-    pub git: GitContext,
-    /// Directory of the journal.
-    pub journal: PathBuf,
-    /// Test seam: called after the batch's objects exist and before the branch moves.
-    pub on_objects_written: Option<Box<dyn Fn() + Send + Sync>>,
-    /// How long a landing waits for a foreign program's `index.lock` before it is withdrawn (`wait_ceilings.rs`).
-    pub lock_ceiling: std::time::Duration,
-}
 
 /// What the landing reads once before it starts and hands to its body.
 struct Settings<'a> {
@@ -372,7 +363,7 @@ fn land_batch_body(
         //  returns holds this thread; the clients that queue behind it are told what it is stuck in, and the commit it makes is on
         //  the scratch branch until the update renames the reference (`service_busy.rs`).
         let moved: GitOutput = {
-            let _described = crate::service_busy::detail(if first.commit.is_some() {
+            let _described = crate::service_busy_step_record_on_this_thread::detail(if first.commit.is_some() {
                 format!("it moves {} to {new}", first.reference)
             } else {
                 format!("it moves {} to {new}; the commit is also at {scratch} until the update ends", first.reference)

@@ -74,7 +74,7 @@ fn leave_running_bound(class_ceiling: Duration) -> StepBound {
 /// onLandingThread() ? unbounded : leaveRunning(classCeiling, SHORT_EXTRA_WAIT)
 /// ```
 fn not_ended_bound(class_ceiling: Duration) -> StepBound {
-    if crate::service_busy::on_landing_thread() {
+    if crate::service_busy_step_record_on_this_thread::on_landing_thread() {
         return StepBound::Unbounded;
     }
     return leave_running_bound(class_ceiling);

@@ -10,7 +10,6 @@
 //! for await (const dir of wakesOrDueRetries) await drain(dir, handlers)
 //! ```
 
-pub use crate::service_server_socket_binding::{Bind, INHERITED_DESCRIPTOR, bind, socket_passed_in};
 use crate::claim_time::ClaimTime;
 use crate::service_retry::RetrySchedule;
 use crate::service_claim_watch::ClaimWatch;
