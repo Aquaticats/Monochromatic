@@ -461,6 +461,9 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   finding; a name reached through a re-export counts as a use of the file that defines it.
   An agent builds it on `feat/monochromatic-lint-index-files-hold-only-declarations`
   (worktree `.claude/worktrees/lint-index-files-only-declarations`, from `bec267799f`); the owner's veto stays open.
+  Merged to main 2026-11-05 (840 tests, 108 in the container). A use through a re-export counts for both the
+  re-exporting file and the defining one (replacing the edge lost a real 15-file loop in `landing/`).
+  The same agent now extends the entry-point check to `main.rs` beside `lib.rs` and `src/bin/*.rs`.
   The `exclude = ["**/uses"]` for the wrapper's `Cargo.toml` is still to add through file-enforcer.
   The worktree lint branch is done (`refactor/git-policy-cli-lint-worktree-folders` at `8d19c13a28`):
   `worktree/` and `worktree_copying/` have zero `rust/avoidable-closure` and `rust/max-lines` findings,

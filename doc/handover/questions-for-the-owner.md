@@ -121,7 +121,12 @@ Your answer:
   and a name reached through a re-export counts as a use of the file that defines it.
   Reason: your principle "Who depends on who must be immediately visible from looking at the file structure";
   code inside `mod.rs` hides who uses whom.
-  Built on branch `feat/monochromatic-lint-index-files-hold-only-declarations`; rules stay off by default.
+  Built on branch `feat/monochromatic-lint-index-files-hold-only-declarations` and merged to `main`
+  (840 tests pass, 108 layout tests in the container); rules stay off by default.
+  On the wrapper it finds no index holding code, and no loop was hidden behind a re-export.
+  A `main.rs` that is its folder's index may hold `fn main` and its `use` lines as well;
+  `extern crate` and an inline `mod` with a body count as code.
+  Being added now: the same check for a `main.rs` beside a `lib.rs` and for `src/bin/*.rs` files.
 - 2026-11-05: after the four lint branches land, one more pass removes most closure-lint suppressions
   by giving the called functions a guard or trait form,
   keeping only those that `std::thread::scope` and `catch_unwind` cannot do without,
