@@ -260,8 +260,52 @@ Hand-editing the store symlink would leave the next install able to recreate it 
 
 ## Upstream filing decision
 
+### Completed assessment at 2026-11-05T16:34:41+00:00
+
+Recommend filing a new issue with the public reproduction and an accompanying draft PR for the verified prototype.
+The [filing assessment](../planning/pnpm-symlinked-store-filing.md) records the completed checks and ranking.
+Filing remains the poster's decision;
+overstating an agent-authored prototype risks maintainer time and the poster's credibility.
+The candidate must remain a draft with its limits disclosed.
+
+The earlier turn stopped at artifact delivery while a mandatory filing verdict remained.
+That was a completion error,
+not an external blocker.
+The remaining assessment has now been carried through to a recommendation.
+
+The audit also closed an actual test gap:
+pnpm v10 disables the global virtual store when `CI=true`,
+even when it was requested.
+Its initial green job therefore did not exercise the reported condition.
+The fixture now sets `CI=false` for its child processes and asserts the consumer's physical location in the shared store.
+At commit `3f9f3ce8a5b2e56865fa5278c220e550375668ad`,
+[run 42063180350][filing-run] and [repeat 42063626526][filing-repeat]
+both reproduce the same missing-package failure on v10,
+v11,
+and v12 with successful install,
+real-store control,
+and workaround steps.
+Their step conclusions and diagnostic logs were inspected.
+
+The deciding v10 source was fetched and its text confirmed in `agent-browser`:
+
+```ts
+// config/config/src/index.ts:636 at v10.34.9
+if (pnpmConfig.ci) {
+  pnpmConfig.enableGlobalVirtualStore = false
+}
+```
+
+[v10 source selection][v10-ci-source].
+The earlier v10 scope limit is superseded by this verified result.
+
+[filing-run]: https://github.com/Aquaticat/pnpm-symlinked-store-repro/actions/runs/42063180350
+[filing-repeat]: https://github.com/Aquaticat/pnpm-symlinked-store-repro/actions/runs/42063626526
+[v10-ci-source]: https://raw.githubusercontent.com/pnpm/pnpm/v10.34.9/config/config/src/index.ts#:~:text=pnpmConfig.enableGlobalVirtualStore%20%3D%20false
+
 - Upstream fault:
-  reproduced in pnpm `12.16.1`,
+  reproduced in pnpm `10.34.9`,
+  `12.16.1`,
   `12.18.0`,
   and `11.28.11`,
   supported by the public CI runs and the failing source regression.
@@ -278,19 +322,22 @@ Hand-editing the store symlink would leave the next install able to recreate it 
   and warns against unreviewed agent output.
   No external contribution was submitted.
 - Maintainer intent and duplicates:
-  searches on 2026-11-05 for issues matching `symlink store canonical` and `"symlinked" "store"`
-  returned no results.
-  The broader PR search `symlink canonical` found related path work,
-  including closed PR `13603` about mountpoint detection,
-  whose code and failure differ from this incident.
-  Current `symlink_dir.rs` history and source contain no matching repair.
+  the earlier empty CLI searches were insufficient.
+  Fresh searches found related issues,
+  including 17448,
+  14286,
+  and 9618;
+  their inputs and source boundaries were checked against this fixture.
+  The planning assessment records why this store-path case warrants its own report.
+  All 202 open PRs were examined for changes in the relevant paths;
+  the only matching draft reformats imports.
 - Prototype:
   verified at the filesystem-library boundary on Linux,
   both locally and in public CI.
   The prototype's scope is the Rust implementation;
   the release matrix separately establishes affected CLI versions and platforms.
 
-The public reproduction and bug-report evidence are complete.
+The filing assessment and recommendation are now complete.
 The earlier absence of a rebuild of the entire CLI was not a requirement for publishing a minimal reproduction;
 it must not be used to stop that work.
 No upstream issue or pull request has been sent.
@@ -314,8 +361,7 @@ no human verification is claimed.
 
 ### pnpm version
 
-12.18.0.
-Also reproduced with 12.16.1 and 11.28.11 on Linux.
+_No response; the primary reproduction uses the latest major release._
 
 ### Which area(s) of pnpm are affected? (leave empty if unsure)
 
@@ -358,13 +404,27 @@ The same install through the physical directory works.
 
 The dependency-import assertion fails in both inspected CI runs:
 
-- https://github.com/Aquaticat/pnpm-symlinked-store-repro/actions/runs/42055610522
-- https://github.com/Aquaticat/pnpm-symlinked-store-repro/actions/runs/42056201476
+- https://github.com/Aquaticat/pnpm-symlinked-store-repro/actions/runs/42063180350
+- https://github.com/Aquaticat/pnpm-symlinked-store-repro/actions/runs/42063626526
 
 Provisioning,
 the real-directory control,
 and the aliased-directory install pass in the affected jobs.
 Reinstalling with the canonical store path makes the import pass.
+Linux also reproduces on 10.34.9,
+11.28.11,
+and 12.16.1.
+The fixture explicitly verifies that the consumer uses the global virtual store;
+it disables pnpm's CI-mode shortcut for that test.
+
+Related pnpm/pnpm#17448 and its fix concern symlinked project `node_modules`.
+This fixture uses an ordinary project directory and an aliased store,
+and still fails on the latest release after that fix.
+It also differs from pnpm/pnpm#9618:
+the dependency is declared and its installed link is dangling.
+
+Verification was performed by Codex automation;
+no separate human rerun is claimed.
 
 The repository includes a Rust source prototype.
 Its new regression fails on unchanged source,
