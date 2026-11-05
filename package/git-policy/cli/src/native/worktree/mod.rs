@@ -27,12 +27,19 @@ pub mod add_timing;
 /// Bringing added paths' worktree copies to their landed bytes.
 pub mod worktree_completion;
 
+/// The descriptor-bound look at one added path's worktree copy.
+pub mod worktree_completion_file_inspection;
+
 /// What becomes of the unshown push notices and unfinished pushes of a linked worktree that Git removes.
 pub mod worktree_removal_rescue;
 
 /// The plan for one `git worktree add` that the cheap-worktree ladder serves: its destination and insertion point.
 #[cfg(unix)]
 pub mod worktree_add_plan;
+
+/// Small questions about a path or a byte that the add plans ask.
+#[cfg(unix)]
+pub mod worktree_add_plan_path_questions;
 
 /// The empty subvolume made at the destination of a `git worktree add` before Git runs, and its cleanup.
 #[cfg(target_os = "linux")]

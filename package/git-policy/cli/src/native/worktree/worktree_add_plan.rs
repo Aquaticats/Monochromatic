@@ -13,6 +13,7 @@
 //! const plan = parseAddPlan(['-C', 'repo', 'worktree', 'add', '-b', 'topic', '../topic'], 1, cwd); // undefined: plain Git
 //! ```
 
+use crate::worktree_add_plan_path_questions::{is_slash, is_symbolic_link, names_parent_directory, nearest_existing_ancestor};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
@@ -79,53 +80,6 @@ pub fn start_directory(global_prefix: &[OsString], current: &Path) -> Option<Pat
 }
 
 /// What:
-///  Whether the byte is a slash.
-/// Why:
-///   An operand is split on its slashes to find its last component.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// byte === '/'.charCodeAt(0)
-/// ```
-fn is_slash(byte: &u8) -> bool {
-    return *byte == b'/';
-}
-
-/// What:
-///  Whether a path is a symbolic link, without following it; a path that cannot be examined is not one.
-/// Why:
-///   Git records the resolved path of a destination that is a link, so the ladder declines such a destination.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// try { return lstatSync(path).isSymbolicLink(); } catch { return false; }
-/// ```
-fn is_symbolic_link(path: &Path) -> bool {
-    return match std::fs::symlink_metadata(path) {
-        Ok(found) => found.file_type().is_symlink(),
-        Err(_unreadable) => false,
-    };
-}
-
-/// What:
-///  Whether a path has a `..` component.
-/// Why:
-///   A `-C` directory with `..` cannot be resolved without the directories it leaves, so the plan declines it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// path.split('/').includes('..')
-/// ```
-fn names_parent_directory(path: &Path) -> bool {
-    for part in path.components() {
-        if part == std::path::Component::ParentDir {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// What:
 ///  Whether a global option word is a valued global in its attached form, `<name>=<value>`.
 /// Why:
 ///   Such a word carries its value, so the word after it is not a value.
@@ -158,24 +112,6 @@ fn option_for_short_letter(letter: u8) -> Option<&'static AddOption> {
     for candidate in ADD_OPTIONS {
         if candidate.short == Some(letter) {
             return Some(candidate);
-        }
-    }
-    return None;
-}
-
-/// What:
-///  The first of a path and its ancestors, nearest first, that exists.
-/// Why:
-///   A destination's missing parents are appended as written to the nearest one that can be resolved.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// ancestors(path).find((ancestor) => existsSync(ancestor))
-/// ```
-fn nearest_existing_ancestor(path: &Path) -> Option<&Path> {
-    for ancestor in path.ancestors() {
-        if ancestor.exists() {
-            return Some(ancestor);
         }
     }
     return None;
