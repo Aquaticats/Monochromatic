@@ -25,7 +25,7 @@ use crate::repo_read_config_text::{ConfigEntry, last_entry, parse_bool};
 use crate::repo_read_layout::ObjectFormat;
 use crate::subvolume_sha::{sha1, sha256};
 use crate::worktree_attributes::{AttributeLine, CONVERTING_ATTRIBUTES, attribute_name, may_apply, parse_attribute_lines};
-use crate::worktree_clean::{StatEntry, StatVerdict, metadata_verdict};
+use crate::worktree_clean_stat_verdicts::{StatEntry, StatVerdict, metadata_verdict};
 use crate::worktree_path_failure_message::subject_failure;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::{OsStr, OsString};

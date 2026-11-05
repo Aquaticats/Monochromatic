@@ -42,6 +42,14 @@ pub mod worktree_subvolume;
 #[cfg(target_os = "linux")]
 pub mod worktree_clean;
 
+/// What a clean check says about one tracked file: refusals, recorded stat data and the metadata verdict.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean_stat_verdicts;
+
+/// The walks of tracked files against the index's recorded stat data, by metadata or by content.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean_tree_walk;
+
 pub mod worktree_attributes;
 
 pub mod worktree_clean_content;

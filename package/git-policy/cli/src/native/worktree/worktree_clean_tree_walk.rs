@@ -1,0 +1,258 @@
+//! What:
+//!  The walks of a worktree's tracked files against the index's recorded stat data, by metadata alone or by content for the
+//!  files whose metadata cannot vouch for them.
+//! Why:
+//!  A file's name, size and times are cheap to compare; only a file with a racy or stale time is read, and only then is
+//!  its content judged against the committed bytes.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! const reason = treeDiffersFromIndex(root, entries, indexSeconds); // undefined when every file agrees
+//! ```
+
+use crate::fs_beneath::{entry_metadata_at, open_directory_beneath, open_root, plain_components};
+use crate::repo_read_index::IndexEntry;
+use crate::repo_read_layout::ObjectFormat;
+use crate::subvolume_index::StatFields;
+use crate::subvolume_index_files::fields_of;
+use crate::worktree_clean_content::{ContentJudge, ConversionEnvironment, Place};
+use crate::worktree_clean_stat_verdicts::{CleanRefusal, CleanRefusalKind, StatEntry, StatVerdict, changed_file, metadata_verdict, stat_finding};
+use std::ffi::OsStr;
+use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
+
+/// What:
+///  Whether the cached directory handle is not the one for `parents`, so the directory must be opened.
+/// Why:
+///   Entries come in path order, so most share the directory of the one before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// cached === undefined || !sameNames(cached.names, parents)
+/// ```
+fn cache_misses(cached: &Option<(Vec<std::ffi::OsString>, std::fs::File)>, parents: &[std::ffi::OsString]) -> bool {
+    return match cached {
+        Some((known, _directory)) => known.as_slice() != parents,
+        None => true,
+    };
+}
+
+/// What:
+///  The first reason a tracked file of `root` differs from its index entry, or nothing when every file agrees.
+/// Why:
+///   After a snapshot the same comparison runs against the snapshot's own files, so a source that changed while the
+///  snapshot was taken is caught on the copy. The files are reached below a held root with no link followed, so a directory
+///  replaced by a link is not read through.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function treeDiffersFromIndex(root: string, entries: StatEntry[], indexSeconds: number): string | undefined;
+/// ```
+pub fn tree_differs_from_index(root: &Path, entries: &[StatEntry], index_seconds: u32) -> Option<String> {
+    return match open_root(root) {
+        Ok(held) => tree_differs_from_index_beneath(&held, entries, index_seconds),
+        Err(error) => Some(format!("{} cannot be opened without following a link ({error})", root.display())),
+    };
+}
+
+/// The first refusal of a tracked file of `root` against its index entry, with its kind; the files are reached below a held
+///  root with no link followed.
+pub fn tree_refusal(root: &Path, entries: &[StatEntry], index_seconds: u32) -> Option<CleanRefusal> {
+    return match open_root(root) {
+        Ok(held) => tree_refusal_beneath(&held, entries, index_seconds),
+        Err(error) => Some(CleanRefusal::unreadable(format!("{} cannot be opened without following a link ({error})", root.display()))),
+    };
+}
+
+/// What the content decision needs besides the entries: the worktree, its Git directories, the environment and the format.
+pub struct ContentTarget<'a> {
+    /// The worktree root.
+    pub root: &'a Path,
+    /// The worktree's Git directory.
+    pub git_dir: &'a Path,
+    /// The shared Git directory.
+    pub common_dir: &'a Path,
+    /// The configuration and attribute locations.
+    pub environment: &'a ConversionEnvironment,
+    /// The object format of the repository.
+    pub format: ObjectFormat,
+}
+
+/// What:
+///  The first reason a tracked file of the worktree differs from its index entry, deciding by content where the stat data
+///  cannot vouch for the file.
+/// Why:
+///   Git hashes a racily clean entry and an entry whose stat data is stale; this does the same in process, so a clean
+///  worktree that was copied, cloned or written in the same second as its index is not refused. Every file is reached below a
+///  held root with no link followed, so a directory replaced by a link is refused instead of being read through. A file that
+///  really differs, or one a content conversion could change, is refused with the reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function treeDiffersFromIndexByContent(target: ContentTarget, entries: StatEntry[], indexed: IndexEntry[], indexSeconds: number): string | undefined;
+/// ```
+pub fn tree_differs_from_index_by_content(target: &ContentTarget<'_>, entries: &[StatEntry], indexed: &[IndexEntry], index_seconds: u32) -> Option<String> {
+    if entries.len() != indexed.len() {
+        return Some(String::from("the index entries and their stat data are not the same files"));
+    }
+    let held: std::fs::File = match open_root(target.root) {
+        Ok(opened) => opened,
+        Err(error) => return Some(format!("{} cannot be opened without following a link ({error})", target.root.display())),
+    };
+    let mut judge: ContentJudge<'_> = ContentJudge::new(&held, target.git_dir, target.common_dir, target.environment, target.format);
+    let mut cached: Option<(Vec<std::ffi::OsString>, std::fs::File)> = None;
+    for (entry, committed) in entries.iter().zip(indexed) {
+        if entry.path != committed.path {
+            return Some(String::from("the index entries and their stat data are not the same files"));
+        }
+        let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
+        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(entry.path.as_slice()))) else { return Some(format!("{shown} is not a plain path")) };
+        let Some((name, parents)) = names.split_last() else { return Some(format!("{shown} is not a plain path")) };
+        if cache_misses(&cached, parents) {
+            let Ok(directory) = open_directory_beneath(&held, parents) else { return Some(format!("{shown} is missing from the worktree or reached through a link")) };
+            cached = Some((parents.to_vec(), directory));
+        }
+        let Some((_known, directory)) = cached.as_ref() else { return Some(format!("{shown} is missing from the worktree")) };
+        let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { return Some(format!("{shown} is missing from the worktree")) };
+        match metadata_verdict(entry, &metadata, index_seconds) {
+            StatVerdict::Agrees => {}
+            StatVerdict::Differs(reason) => return Some(reason),
+            StatVerdict::Unproven(_reason) => {
+                let place: Place<'_> = Place { directory, parents, name: name.as_os_str() };
+                if let Err(reason) = judge.agrees(&place, entry, committed.id.as_slice(), index_seconds) {
+                    return Some(reason);
+                }
+            }
+        }
+    }
+    return None;
+}
+
+/// What:
+///  The first reason a tracked file below the held directory `root` differs from its index entry, or nothing when every
+///  file agrees; each file is looked at below handles opened without following a link.
+/// Why:
+///   A snapshot is checked against the index it will carry; a path walk through a link inside the snapshot would compare
+///  a file outside it, so every directory on the way must be a real one on the snapshot's device.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function treeDiffersFromIndexBeneath(root: Dir, entries: StatEntry[], indexSeconds: number): string | undefined;
+/// ```
+pub fn tree_differs_from_index_beneath(root: &std::fs::File, entries: &[StatEntry], index_seconds: u32) -> Option<String> {
+    return match tree_refusal_beneath(root, entries, index_seconds) {
+        Some(refusal) => Some(refusal.reason),
+        None => None,
+    };
+}
+
+/// The first refusal of a tracked file below the held directory `root` against its index entry, with its kind.
+fn tree_refusal_beneath(root: &std::fs::File, entries: &[StatEntry], index_seconds: u32) -> Option<CleanRefusal> {
+    let mut cached: Option<(Vec<std::ffi::OsString>, std::fs::File)> = None;
+    for entry in entries {
+        let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
+        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(entry.path.as_slice()))) else { return Some(CleanRefusal::unreadable(format!("{shown} is not a plain path"))) };
+        let Some((name, parents)) = names.split_last() else { return Some(CleanRefusal::unreadable(format!("{shown} is not a plain path"))) };
+        if cache_misses(&cached, parents) {
+            let Ok(directory) = open_directory_beneath(root, parents) else { return changed_file(format!("{shown} is missing from the worktree or reached through a link")) };
+            cached = Some((parents.to_vec(), directory));
+        }
+        let Some((_held, directory)) = cached.as_ref() else { return changed_file(format!("{shown} is missing from the worktree")) };
+        let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { return changed_file(format!("{shown} is missing from the worktree")) };
+        if let Some(refusal) = stat_finding(entry, &metadata, index_seconds) {
+            return Some(refusal);
+        }
+    }
+    return None;
+}
+
+/// What:
+///  A walk below a held directory that keeps the last directory it opened.
+/// Why:
+///   The paths of an index come in order, so most of them share their parent with the one before; one `openat2` chain per
+///  directory instead of per file is what the walk costs, and each file is still reached through handles that follow no link.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cursor = new StatCursor(root); cursor.fields(path); // StatFields | undefined
+/// ```
+pub struct StatCursor<'a> {
+    /// The directory every path is found below.
+    root: &'a std::fs::File,
+    /// The components and the handle of the last directory opened.
+    held: Option<(Vec<std::ffi::OsString>, std::fs::File)>,
+}
+
+impl<'a> StatCursor<'a> {
+    /// A cursor below `root` that has opened nothing.
+    pub fn new(root: &'a std::fs::File) -> Self {
+        return Self { root, held: None };
+    }
+
+    /// The metadata of the file `path` names below the root, or the reason it cannot be found through plain directories.
+    fn metadata(&mut self, path: &[u8]) -> Result<std::fs::Metadata, String> {
+        let shown: String = String::from_utf8_lossy(path).into_owned();
+        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(path))) else { return Err(format!("{shown} is not a plain path")) };
+        let Some((name, parents)) = names.split_last() else { return Err(format!("{shown} is not a plain path")) };
+        if cache_misses(&self.held, parents) {
+            let Ok(directory) = open_directory_beneath(self.root, parents) else { return Err(format!("{shown} is missing from the worktree or reached through a link")) };
+            self.held = Some((parents.to_vec(), directory));
+        }
+        let Some((_known, directory)) = self.held.as_ref() else { return Err(format!("{shown} is missing from the worktree")) };
+        return match entry_metadata_at(directory, name.as_os_str()) {
+            Ok(found) => Ok(found),
+            Err(_missing) => Err(format!("{shown} is missing from the worktree")),
+        };
+    }
+
+    /// The stat fields of the tracked file `path` below the root, or nothing when it cannot be found through plain directories.
+    pub fn fields(&mut self, path: &[u8]) -> Option<StatFields> {
+        return match self.metadata(path) {
+            Ok(found) => Some(fields_of(&found)),
+            Err(_refused) => None,
+        };
+    }
+}
+
+/// What:
+///  Judge every tracked file below the held directory `root` against its index entry and return the stat fields of each, in
+///  entry order, in one walk.
+/// Why:
+///   The snapshot's index takes the stat fields of the snapshot's own files, and the snapshot is proven equal to the source's
+///  index by the same stat data; the same `statx` serves both, so the files are looked at once, and the fields are the ones the
+///  verdict was given on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fields = treeFieldsBeneath(root, entries, indexSeconds); // throws a CleanRefusal
+/// ```
+pub fn tree_fields_beneath(root: &std::fs::File, entries: &[StatEntry], index_seconds: u32) -> Result<Vec<StatFields>, CleanRefusal> {
+    let mut cursor: StatCursor<'_> = StatCursor::new(root);
+    let mut fields: Vec<StatFields> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let metadata: std::fs::Metadata = match cursor.metadata(entry.path.as_slice()) {
+            Ok(found) => found,
+            Err(reason) if reason.ends_with("is not a plain path") => return Err(CleanRefusal::unreadable(reason)),
+            Err(reason) => return Err(CleanRefusal::new(CleanRefusalKind::FileChanged, reason)),
+        };
+        if let Some(refusal) = stat_finding(entry, &metadata, index_seconds) {
+            return Err(refusal);
+        }
+        fields.push(fields_of(&metadata));
+    }
+    return Ok(fields);
+}
+
+/// What:
+///  The stat fields of the tracked file `path` below the held directory `root`, found through handles, or nothing.
+/// Why:
+///   The index of a snapshot takes the stat fields of the snapshot's own files; reading them by a path with several
+///  components would follow a link substituted below the root.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function statFieldsBeneath(root: Dir, path: Uint8Array): StatFields | undefined;
+/// ```
+pub fn stat_fields_beneath(root: &std::fs::File, path: &[u8]) -> Option<StatFields> {
+    return StatCursor::new(root).fields(path);
+}

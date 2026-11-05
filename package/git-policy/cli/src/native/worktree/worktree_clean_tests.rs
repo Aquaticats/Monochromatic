@@ -3,6 +3,7 @@
 //!  racy entry) is refused with its reason, while an ignored file changes nothing.
 
 use super::*;
+use crate::subvolume_index::StatFields;
 use crate::test_support::{age, fixture, git, git_context, git_text, remove, repository};
 use std::path::PathBuf;
 
