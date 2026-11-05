@@ -12,6 +12,42 @@ this session."
 So this file holds only choices that are destructive, reach outside this machine, or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end, so any of them can be undone.
 
+## The rename note in old records (asked 2026-11-05T04:41:34Z)
+
+The rename branch (merged to `main` as `ca6cd899b3`) added the same seven-line note under the title of 117 older
+records (audits, handovers, planning, troubleshooting, and 6 files in `doc/decision/`), saying that
+`cli-git-native`, `git cli-git` and `cli-git.config.jsonc` "is now" `monochromatic-git-policy-cli` and so on.
+The repository's rule for moved names in old records asks for such a note.
+Two things are wrong with it:
+
+- 6 of the files are decision records (`ci-caching.md`, `cli-git-concurrent-commits.md`,
+  `cli-git-policies-platform.md`, `file-enforcer-rust-rewrite.md`, `mpm-toolchain-adoption.md`,
+  `slint-ide-0x-scope.md`), which change only with your approval.
+- It says "is now", but nothing is renamed on this machine until the release and the lock step;
+  and the settings file keeps the name `cli-git.config.jsonc` until then (the session's choice listed at the end).
+
+A fix is ready: a scratch script removes the note from the 6 decision records and rewords the other 111 to say the
+new names arrive with the first release after 2026-11-04, and that this repository switches its installed program and
+settings file when it installs that release.
+The tool that guards this session refused to let it rewrite 117 shared files without you, so nothing is changed yet.
+
+Options:
+
+- Run the fix as described: note out of decision records, reworded elsewhere (recommended).
+  Pros: decision records stay as you approved them; the note is true today.
+  Cons: decision records get no pointer to the new names.
+- Reword everywhere, decision records included.
+  Pros: every old record points to the new names. Cons: edits 6 decision records.
+- Leave the note as merged until the release, when "is now" becomes true (the settings-file line stays wrong until
+  the lock step). Pros: no edit now. Cons: 117 files say something untrue for a while; 6 decision records stay edited.
+
+Ranking: fix as described > reword everywhere > leave it,
+because the first keeps decision records unedited and makes every note true today,
+the second makes the notes true but edits decision records without a decision of yours behind it,
+and the third leaves untrue text in 117 files.
+
+Your answer:
+
 ## The wrapper's target layout, before anything moves (asked 2026-11-05T02:28:53Z)
 
 You asked to see the whole tree before any file moves. It is drafted, nothing has moved:
@@ -100,13 +136,11 @@ A crates.io publish cannot be undone; a yank only hides a version.
 Two facts set the timing:
 
 - The wrapper's (`monochromatic-git-policy-cli`) lint clean-up is on `main`
-  (all four lint branches merged; container run 4930 of 4930 passed).
-  The follow-up that removes most closure-lint suppressions passed its container run (4938 of 4938)
-  and merges once its planted checks finish.
-- The planned rename of the wrapper's program and command word
-  (`doc/planning/git-policy-cli-program-rename.md`) needs a wrapper release of its own.
-  Its code is built on its own branch (updated 2026-11-05T03:58:47Z) and being finished;
-  nothing is released or installed.
+  (all four lint branches merged; container run 4930 of 4930 passed),
+  and so is the follow-up that removes most closure-lint suppressions.
+- The rename of the wrapper's program and command word
+  (`doc/planning/git-policy-cli-program-rename.md`) is merged to `main` (`ca6cd899b3`, 2026-11-05T04:41:34Z;
+  container run 5005 of 5005 passed) and needs a wrapper release of its own; nothing is released or installed.
 - Our tools pin our libraries to exact versions,
   so a new library version means a new version of every tool that pins it, in the same batch.
 

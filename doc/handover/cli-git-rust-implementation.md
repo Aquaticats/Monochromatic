@@ -567,8 +567,14 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   Container gate on `0c840d0e17` passed: `4997 tests run: 4997 passed (1 slow), 8 skipped`
   (unit `git-policy-cli-program-rename-gate`, worktree `.claude/worktrees/git-policy-cli-program-rename-gate`,
   log `~/temp/agent/issue-6261/program-rename-gate.log`).
-  Merge to main after the gate on the final tip and the suppression branch's planted run pass,
-  since the rename branch contains the suppression branch.
+  Final tip `cbb5b463e8` (main merged in as `dfa6798f1f`; 13 oxlint findings fixed by restructuring) passed the
+  container gate: `5005 tests run: 5005 passed (1 slow), 8 skipped`.
+  Merged to main as `ca6cd899b3` (2026-11-05T04:41:34Z), with the suppression branch it contains; per the owner
+  ("Mutation runs don't block publish and release", "Treat reviews as async") the planted run and the cross-vendor
+  review of B did not hold the merge; a miss or a finding is fixed forward.
+  Open from the merge: the rename note added to 117 old records says "is now" (untrue until the release and the lock)
+  and sits in 6 `doc/decision/` records; a scripted fix was refused by the session's permission guard, so it waits
+  for the owner (`doc/handover/questions-for-the-owner.md`, "The rename note in old records").
   B done at `7fe6ac14ff`: `landing/earlier_service_journal_adopted.rs` finishes, at service start, batches left open
   in the old journal (`<state>/cli-git/service/<instance>` and the shared `<state>/cli-git/service`) when no service
   of that instance shows in `/proc`, and counts their finished identities as landed (host lib 4313, binary 691).
