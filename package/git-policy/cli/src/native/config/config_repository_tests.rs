@@ -1,5 +1,5 @@
 //! What:
-//!  Controls on this repository's own `monochromatic-git-policy-cli.config.jsonc`, read through the real loader.
+//!  Controls on this repository's own settings file (found by the loader's lookup, so the file's name is free to change), read through the real loader.
 //! Why:
 //!  The native wrapper runs the four optional policies only when the file lists them, and reads the private rules
 //!      file only when `rulesFile` names it.
@@ -14,7 +14,7 @@
 //! ```
 
 /// Import the loader and the settings it produces.
-use super::{CONFIG_FILE_NAME, LoadedConfig, load_repository_config};
+use super::{CONFIG_FILE_NAME, LoadedConfig, load_repository_config, settings_file_of};
 use crate::config_schema::{
     ForbiddenStringsOptions, MarkdownAutofixOptions, MarkdownRule, PolicySetting, RulesFileEntry,
 };
@@ -59,7 +59,7 @@ fn the_repository_ships_a_configuration_file() {
     let loaded: LoadedConfig = load_shipped();
     assert_eq!(
         loaded.source,
-        Some(repository_root().join(CONFIG_FILE_NAME))
+        Some(settings_file_of(repository_root().as_path()))
     );
 }
 

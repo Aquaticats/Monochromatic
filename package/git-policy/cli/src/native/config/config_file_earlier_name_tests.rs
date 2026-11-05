@@ -12,7 +12,7 @@
 
 /// The loader under test,
 ///  both spellings and the settings types the files produce.
-use super::{CONFIG_FILE_NAME, EARLIER_CONFIG_FILE_NAME, LoadedConfig, load_repository_config};
+use super::{CONFIG_FILE_NAME, EARLIER_CONFIG_FILE_NAME, LoadedConfig, load_repository_config, settings_file_of};
 use crate::config_schema::CliGitConfig;
 use crate::policy_registry::{PolicyId, Severity};
 use crate::wrapper_names_old_and_new::SETTINGS_FILE;
@@ -168,4 +168,20 @@ fn an_awkward_repository_path_does_not_change_the_notice_or_what_is_read() {
     assert_eq!(notice.matches('\n').count(), 1, "one line: {notice:?}");
     assert!(!notice.contains("level"), "the notice names files, not the path: {notice:?}");
     std::fs::remove_dir_all(outer.as_path()).expect("remove only the fixture");
+}
+
+/// The file a repository's settings come from is found the way the loader finds it:
+///  the new name when it exists,
+///  else the earlier name when only that exists,
+///  else the new name.
+///  A control that must read a repository's own file asks this and so works before and after the file is renamed.
+#[test]
+fn the_settings_file_of_a_repository_is_found_current_name_first_then_the_earlier() {
+    let root: PathBuf = fixture("settings-file-of");
+    assert_eq!(settings_file_of(root.as_path()), root.join(CONFIG_FILE_NAME), "neither");
+    std::fs::write(root.join(EARLIER_CONFIG_FILE_NAME), "{}").expect("write the earlier file");
+    assert_eq!(settings_file_of(root.as_path()), root.join(EARLIER_CONFIG_FILE_NAME), "earlier only");
+    std::fs::write(root.join(CONFIG_FILE_NAME), "{}").expect("write the new file");
+    assert_eq!(settings_file_of(root.as_path()), root.join(CONFIG_FILE_NAME), "both");
+    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }

@@ -7,6 +7,7 @@
  (the scanner and the JSONC crate), and the wrapper's own sources, the only layer a test or source edit reaches.
  Every build step costs a fixed amount on a busy host, so the stage keeps its step count low as well.
  */
+import { repositorySettingsFileName, } from './native-test-settings-file.ts';
 import {
   imagePackageRoot,
   imageRootDirectory,
@@ -107,7 +108,7 @@ export function testContainerfile({
       'cargo',
       ...compileArguments
     ])}`,
-    'COPY clippy.toml monochromatic-git-policy-cli.config.jsonc /work/',
+    `COPY clippy.toml ${repositorySettingsFileName()} /work/`,
     // Path-crate layer: the scanner's build script and the matcher compile here, and again only when they change.
     ...pathCrateRoots()
       .map(function pathCrateCopy(root) {

@@ -114,9 +114,15 @@ Recorded 2026-11-04T22:36:12-05:00 on the branch `feat/git-policy-cli-program-re
 - A socket path holds 107 bytes, and the program folder name is 21 bytes longer than `cli-git`:
   a runtime directory longer than 41 bytes no longer fits, so the service fixtures and the e2e scenarios use shorter runtime
   directory names.
-- After the settings file is renamed in the repository (the last commit of the branch), a worktree still on the old lock runs
-  the old wrapper, which reads only `cli-git.config.jsonc`: it sees no configuration and runs no policy until the lock moves.
-  The `catalog-specifiers` workflow copes by choosing the program, word and settings name of the pinned release.
+- Renaming this repository's own settings file in step 1 would leave a worktree still on the old lock, whose installed wrapper
+  is the old program that reads only `cli-git.config.jsonc`, with no configuration: no policy would run on any commit until the
+  lock moves.
+  Recorded 2026-11-04T23:00:06-05:00: the root rename moved to step 3.
+  The branch renamed it in `f781971973` and put it back in a later commit; the owner's "rename them." stands, only the
+  timing of this one file changes, and the new program reads the earlier name with a notice meanwhile.
+  Controls that read the repository's own file find it with `settings_file_of` (current name first, then the earlier one), and
+  the gate image copies whichever exists (`bin/native-test-settings-file.ts`).
+  The `catalog-specifiers` workflow chooses the program, word and settings name of the pinned release.
 - While worktrees on the old lock and worktrees on the new lock share one repository (the common Git directory), the new
   wrapper renames the shared data folder and logs and the old wrapper then makes them again on its next save:
   both names exist, every new-wrapper process says so once, and the audit log is split in two files until the last old install
@@ -141,6 +147,9 @@ thread names, the journal field `CLI_GIT_AT_MS`, the test variables `CLI_GIT_TES
 prefixes `cli-git-mutpar` and `localhost/cli-git-concurrent-e2e`.
 
 ### Edits that wait for the release (step 3)
+
+- `git mv cli-git.config.jsonc monochromatic-git-policy-cli.config.jsonc` at the repository root, in the same commit as the lock,
+  and update the first comment line of the file; nothing else needs an edit (the controls and the gate image find the file).
 
 - `toolchain.plan.jsonc` and `toolchain.lock.json`, entry `cargo:monochromatic-git-policy-cli`:
   `bins` becomes `["monochromatic-git-policy-cli"]`, `options.postinstall.link.sourceBin` the same,

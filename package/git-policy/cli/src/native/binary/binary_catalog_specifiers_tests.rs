@@ -176,7 +176,7 @@ fn a_direct_check_of_the_policy_follows_its_severity() {
     remove_settled(&fixture);
 }
 
-/// This repository's own `monochromatic-git-policy-cli.config.jsonc`,
+/// This repository's own settings file (found by the wrapper's lookup, current name then earlier),
 /// read by the built executable:
 /// it loads,
 /// the older optional
@@ -189,8 +189,9 @@ fn a_direct_check_of_the_policy_follows_its_severity() {
 fn the_repository_configuration_loads_and_the_catalog_policy_follows_it() {
     let fixture: Fixture = fixture("catalog-real-configuration");
     let repo: PathBuf = configured(&fixture, None, LITERAL);
-    let shipped: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../monochromatic-git-policy-cli.config.jsonc");
-    std::fs::copy(&shipped, repo.join("monochromatic-git-policy-cli.config.jsonc")).expect("the repository's own configuration");
+    // The file is found by the wrapper's own lookup (current name, then the earlier one) and copied under the current name.
+    let shipped: PathBuf = git_policy_cli::config_file::settings_file_of(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..").as_path());
+    std::fs::copy(&shipped, repo.join(git_policy_cli::config_file::CONFIG_FILE_NAME)).expect("the repository's own configuration");
     let shipped_text: String = std::fs::read_to_string(&shipped).expect("the repository's own configuration text");
     // On means listed with a value other than "off"; a line's `//` comment is not configuration.
     let lists_catalog: bool = shipped_text.lines().any(|line| {

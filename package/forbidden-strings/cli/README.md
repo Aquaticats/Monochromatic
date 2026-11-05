@@ -118,7 +118,7 @@ The release binary lands at `package/forbidden-strings/cli/target/release/forbid
 The cli-git native wrapper links the scanner in-process,
  so it does not use this binary and nothing needs to be on
 `$PATH`;
- `rulesFile` in the root `monochromatic-git-policy-cli.config.jsonc` names the rules file.
+ `rulesFile` in the root settings file (`cli-git.config.jsonc` until the rename of step 3) names the rules file.
 
 ## Setup
 
@@ -855,7 +855,7 @@ and retained survivor limitations.
 
 ### Local cli-git policy
 
-Root `monochromatic-git-policy-cli.config.jsonc` enables `security/forbidden-strings` at error severity.
+The root settings file (`cli-git.config.jsonc` until the rename of step 3) enables `security/forbidden-strings` at error severity.
  The
 PATH-shadowed cli-git wrapper evaluates selected would-be-committed bytes before commit,
 landed commit bytes before automatic push,

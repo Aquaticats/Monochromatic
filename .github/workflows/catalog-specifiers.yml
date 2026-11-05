@@ -66,8 +66,8 @@ jobs:
           { echo 'CLI_PROGRAM=monochromatic-git-policy-cli'; echo 'CLI_WORD=monochromatic-git-policy-cli'; echo 'CLI_SETTINGS=monochromatic-git-policy-cli.config.jsonc'; } >> "$GITHUB_ENV"
         else
           { echo 'CLI_PROGRAM=cli-git-native'; echo 'CLI_WORD=cli-git'; echo 'CLI_SETTINGS=cli-git.config.jsonc'; } >> "$GITHUB_ENV"
-          # The checkout's settings file carries the new name; the earlier program reads only the earlier name, so it gets
-          # a copy of the file under that name in this disposable checkout.
+          # Once the checkout's settings file carries the new name (the lock step renames it), the earlier program, which
+          # reads only the earlier name, gets a copy of the file under that name in this disposable checkout.
           if [ -f monochromatic-git-policy-cli.config.jsonc ] && [ ! -e cli-git.config.jsonc ]; then
             cp monochromatic-git-policy-cli.config.jsonc cli-git.config.jsonc
           fi
@@ -77,7 +77,7 @@ jobs:
     - name: Check every tracked manifest
       # Exit 0 means every `package.json` uses `catalog:`, `catalog:<name>` or exactly `workspace:*` (peer dependencies:
       # `*`, `catalog:` or `catalog:<name>`) and no `package.json5`, `package.yaml` or `package.yml` is tracked.
-      # Exit 2 means the policy is not listed in the settings file (monochromatic-git-policy-cli.config.jsonc), so the check would have run nothing; that fails too.
+      # Exit 2 means the policy is not listed in the repository's settings file (cli-git.config.jsonc until the lock step renames it), so the check would have run nothing; that fails too.
       run: |
         set -euo pipefail
         "$CLI_PROGRAM" "$CLI_WORD" check --all --policy mono/catalog-specifiers

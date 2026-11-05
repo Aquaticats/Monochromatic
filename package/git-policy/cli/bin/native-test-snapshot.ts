@@ -6,6 +6,7 @@ import {
   resolve,
 } from 'node:path';
 
+import { repositorySettingsFileName, } from './native-test-settings-file.ts';
 import { copyWrapperSnapshot, } from './native-wrapper-snapshot.ts';
 
 /**
@@ -34,10 +35,10 @@ export async function copySourceSnapshot({ context, }: {
       },
       // The configuration control in `src/native/config/config_repository_tests.rs` reads the repository's own file.
       {
-        from: resolve('../../../monochromatic-git-policy-cli.config.jsonc'),
+        from: resolve('../../../', repositorySettingsFileName(),),
         to: join(
           context,
-          'monochromatic-git-policy-cli.config.jsonc',
+          repositorySettingsFileName(),
         ),
       },
     ],
