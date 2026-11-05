@@ -324,8 +324,12 @@ both import regressions passed with their exact test names visible in verbose ou
 
 ```sh
 # Repository root; each task rebuilds before checking the built entry.
-MONOCHROMATIC_VERBOSE=true mise run //package/agent-harness-shared/model-selection:buildAndTest -- src/runtime-dependencies.unit.test.ts
-MONOCHROMATIC_VERBOSE=true mise run //package/dsh-plugin/advisor:buildAndTest -- src/runtime-dependencies.unit.test.ts
+MONOCHROMATIC_VERBOSE=true \
+  mise run //package/agent-harness-shared/model-selection:buildAndTest -- \
+  src/runtime-dependencies.unit.test.ts
+MONOCHROMATIC_VERBOSE=true \
+  mise run //package/dsh-plugin/advisor:buildAndTest -- \
+  src/runtime-dependencies.unit.test.ts
 ```
 
 The final direct import probe also loaded Advisor with `proper-lockfile` blocked,
@@ -352,6 +356,28 @@ with the assertion retained.
 The extension verifier also needed `truncated: false`
 in its empty `ExecResult` fixture to satisfy Pi `1.5.0`'s current type.
 Its registration and lifecycle checks then passed.
+
+The copied DSH web profile also activated the rebuilt plugin.
+The Plugins page exposed `Enable Advisor` with `aria-checked="true"`,
+and `agent-browser errors` returned no errors.
+No live model request was made in that fixture.
+Its bounded server and both owned browser sessions were stopped after verification.
+The initial browser launches hit their task limits;
+the measured [browser recovery](agent-browser-eagain.md) records those counters and the replacement limits.
+
+Model selection,
+shared Advisor,
+and DSH Advisor reported zero lint findings.
+The Pi adapter's whole-package lint had a separate TypeScript native-worker crash
+while processing the task-file scope,
+despite a zero-findings summary.
+The added `verify:source-lint` task passed all 17 source files with the same 489 rules
+and no worker failure.
+It excludes the package's task and bundler configuration files from that supplemental check,
+without changing the ordinary lint task or disabling rules.
+The [semantic-bridge record](oxlint-typescript-semantic-bridge-epipe-teardown.md)
+preserves the crash and the verification boundary;
+the whole-package summary is not evidence of complete semantic checking.
 
 The pnpm store-path workaround remains necessary for other consumers of the workspace shim.
 This repository repair does not install the upstream pnpm prototype.
