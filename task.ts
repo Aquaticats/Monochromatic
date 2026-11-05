@@ -88,7 +88,7 @@ function newestMtime(path: string): number {
  Mirrors `ensureOxlintConfig` from the root mise vars so lint tasks see the
  same generated config the old `mise run lint:oxlint` bodies built.
  */
-function ensureOxlintConfig(): void {
+async function ensureOxlintConfig(): Promise<void> {
   const oxlintConfigPackageDir = join(REPO_ROOT, 'package', 'config', 'oxlint');
   const oxlintPluginPackagesDir = join(REPO_ROOT, 'package', 'oxlint-plugin');
   const oxlintPluginPackageDirs = existsSync(oxlintPluginPackagesDir)
@@ -117,7 +117,7 @@ function ensureOxlintConfig(): void {
   const missingOutput = outputPaths.some((outputPath) => !existsSync(outputPath),);
   const stale = !missingOutput
     && Math.max(...sourcePaths.map(newestMtime),) > Math.min(...outputPaths.map((outputPath) => newestMtime(outputPath),),);
-  if (missingOutput || stale) { runTaskCli('//package/config/oxlint:build:js:node'); }
+  if (missingOutput || stale) { await runTaskCli({ name: '//package/config/oxlint:build:js:node' }); }
 }
 
 /**

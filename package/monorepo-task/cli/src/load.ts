@@ -3,14 +3,14 @@
  and package `task.ts` modules and resolves `extends` onto root templates.
  */
 
-import { execFileSync, } from 'node:child_process';
-import { existsSync, } from 'node:fs';
+import { stat, } from 'node:fs/promises';
 import {
   dirname,
   join,
   resolve,
 } from 'node:path';
 import { pathToFileURL, } from 'node:url';
+import { runTaskProcess, } from './task-process.ts';
 import type {
   PackageTaskFile,
   RootTaskFile,
@@ -56,7 +56,8 @@ export async function loadRootTasks(root: string = REPO_ROOT,): Promise<RootTask
     root,
     'task.ts'
   );
-  if (!existsSync(path)) { throw new Error(`task-cli: missing root task.ts`); }
+  if (await stat(path, { throwIfNoEntry: false }) === undefined)
+    throw new Error(`task-cli: missing root task.ts`);
   const module_ = await import(pathToFileURL(path)
     .href) as { default: RootTaskFile; };
   rootTaskFiles.set(
@@ -76,7 +77,8 @@ export async function loadRootTasks(root: string = REPO_ROOT,): Promise<RootTask
  @throws When the file is missing or malformed.
  */
 export async function loadPackageTasks(path: string): Promise<PackageTaskFile> {
-  if (!existsSync(path)) { throw new Error(`task-cli: missing task file: ${path}`); }
+  if (await stat(path, { throwIfNoEntry: false }) === undefined)
+    throw new Error(`task-cli: missing task file: ${path}`);
   const module_ = await import(pathToFileURL(path)
     .href) as { default: PackageTaskFile; };
   return module_.default;
@@ -124,13 +126,13 @@ export async function resolveDefinition(
  
  @throws When the child task fails.
  */
-export function runTaskCli(
-  name: string,
-  args: readonly string[] = []
-): void {
-  execFileSync(
-    process.execPath,
-    [
+export async function runTaskCli({ name, args = [], }: {
+  readonly name: string;
+  readonly args?: readonly string[];
+}): Promise<void> {
+  await runTaskProcess({
+    command: process.execPath,
+    args: [
       join(
         REPO_ROOT,
         'package',
@@ -142,12 +144,10 @@ export function runTaskCli(
       name,
       ...args,
     ],
-    {
-      stdio: 'inherit',
+      cwd: REPO_ROOT,
       env: {
         ...process.env,
         TASK_CLI_CHILD: '1',
       },
-    },
-  );
+  });
 }

@@ -1,5 +1,3 @@
-import { spawn, } from 'node:child_process';
-import { once, } from 'node:events';
 import {
   delimiter,
   dirname,
@@ -15,6 +13,7 @@ import type {
   RunTask,
 } from './task-invocation.ts';
 import { BODY_PRELUDE, } from './task-script-prelude.ts';
+import { runTaskProcess, TaskCommandFailedError, } from './task-process.ts';
 import type {
   TaskDefinition,
   TaskFunctionContext,
@@ -27,6 +26,7 @@ import type {
  Failed child tasks retain their individual errors for the caller's diagnostic.
  */
 export class TaskChildrenFailedError extends AggregateError {
+  /** Reports the parent task while retaining the original failures. */
   constructor({
     name,
     failures,
@@ -39,24 +39,6 @@ export class TaskChildrenFailedError extends AggregateError {
       `Child tasks failed for ${name}`,
     );
     this.name = 'TaskChildrenFailedError';
-  }
-}
-
-/**
- A task command did not complete successfully.
- */
-export class TaskCommandFailedError extends Error {
-  constructor({
-    command,
-    cwd,
-    status,
-  }: {
-    readonly command: string;
-    readonly cwd: string;
-    readonly status: string
-  },) {
-    super(`Task command ${command} in ${cwd} failed: ${status}`,);
-    this.name = 'TaskCommandFailedError';
   }
 }
 
@@ -162,25 +144,7 @@ async function runStep({
       'task-run',
       ...context.argv,
     ];
-  const child = spawn(
-    command,
-    commandArgs,
-    {
-      cwd: context.cwd,
-      env: context.env,
-      stdio: 'inherit',
-    },
-  );
-  const [code, signal,] = await once(
-    child,
-    'exit',
-  );
-  if (code !== 0)
-    throw new TaskCommandFailedError({
-      command,
-      cwd: context.cwd,
-      status: signal === null ? `exit ${code}` : `signal ${signal}`,
-    },);
+  await runTaskProcess({ command, args: commandArgs, cwd: context.cwd, env: context.env, });
 }
 
 /**
