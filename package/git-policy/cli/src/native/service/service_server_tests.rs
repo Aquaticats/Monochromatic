@@ -169,13 +169,16 @@ fn a_restart_says_each_batch_it_settled() {
     let root = crate::test_support::fixture("server-settled");
     let journal = root.join("journal");
     std::fs::create_dir_all(&journal).expect("journal");
-    let git_dir = root.join("worktree/.git");
+    // A real repository whose branch is still at the intent's old value: the batch never landed and Git says so. (A repository
+    //  Git cannot read gives no answer, and the batch then stays open with an error entry instead.)
+    let worktree = crate::test_support::repository(root.as_path(), "worktree");
+    let git_dir = worktree.join(".git");
     let intent: Intent = Intent {
         seq: 41,
-        repository: root.join("worktree"),
+        repository: worktree.clone(),
         common_dir: git_dir.clone(),
         reference: String::from("refs/heads/main"),
-        old: "0".repeat(40),
+        old: crate::test_support::git_text(worktree.as_path(), &["rev-parse", "HEAD"]),
         new: "1".repeat(40),
         ids: vec![String::from("r")],
         commits: vec![String::from("c")],
