@@ -15,7 +15,8 @@
 use crate::auto_push_single_flight::{
     PushAttempt, PushGit, SingleFlightError, git_command, git_output, run_query,
 };
-use crate::bounded_push::{STOP_GRACE, push_patience, run_bounded_push};
+use crate::bounded_push::{STOP_GRACE, run_bounded_push};
+use crate::push_deadline_and_patience_settings::push_patience;
 use crate::journald_native::{CLIENT_IDENTIFIER, IDENTIFIER};
 use crate::inner_git_words::record_text;
 use std::ffi::OsString;

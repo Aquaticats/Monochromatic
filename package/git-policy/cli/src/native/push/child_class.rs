@@ -20,7 +20,7 @@
 //! ```
 
 /// Positive-seconds parsing shared with the lock wait limits.
-use crate::bounded_push::positive_seconds;
+use crate::push_deadline_and_patience_settings::positive_seconds;
 /// The name of the subcommand a request runs.
 use crate::transaction_git::subcommand_of;
 /// Operating-system text of the arguments and of the environment value.

@@ -18,7 +18,7 @@
 //! ```
 
 /// Positive-seconds parsing shared with the lock wait limits.
-use crate::bounded_push::positive_seconds;
+use crate::push_deadline_and_patience_settings::positive_seconds;
 /// Borrowed OS text of the environment value.
 use std::ffi::OsStr;
 /// `Write` is the sink a notice goes to.

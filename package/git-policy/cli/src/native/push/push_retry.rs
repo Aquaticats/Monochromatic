@@ -16,7 +16,7 @@
 //! ```
 
 /// The positive-seconds reading shared by the wait limits.
-use crate::bounded_push::positive_seconds;
+use crate::push_deadline_and_patience_settings::positive_seconds;
 /// The plan on disk.
 use crate::push_retry_store::{StoredPlan, load, remove, save};
 /// What the retry pushes again.
