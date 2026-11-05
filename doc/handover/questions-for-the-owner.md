@@ -99,11 +99,14 @@ You decided "One release each. And we publish less to crates.io".
 A crates.io publish cannot be undone; a yank only hides a version.
 Two facts set the timing:
 
-- The wrapper (`monochromatic-git-policy-cli`) on `main` is in the middle of the lint clean-up:
-  three of the four lint branches are merged together but not yet tested in a container, and the fourth is still running.
+- The wrapper's (`monochromatic-git-policy-cli`) lint clean-up is on `main`
+  (all four lint branches merged; container run 4930 of 4930 passed).
+  The follow-up that removes most closure-lint suppressions passed its container run (4938 of 4938)
+  and merges once its planted checks finish.
 - The planned rename of the wrapper's program and command word
-  (`doc/planning/git-policy-cli-program-rename.md`) needs a wrapper release of its own,
-  and it starts as soon as the lint branches are merged.
+  (`doc/planning/git-policy-cli-program-rename.md`) needs a wrapper release of its own.
+  Its code is built on its own branch (updated 2026-11-05T03:58:47Z) and being finished;
+  nothing is released or installed.
 - Our tools pin our libraries to exact versions,
   so a new library version means a new version of every tool that pins it, in the same batch.
 
@@ -154,6 +157,19 @@ and the wording above already names the file and the editor.
 Your answer:
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
+
+- 2026-11-05T03:58:47Z, program rename: this repository's settings file keeps its old name `cli-git.config.jsonc`
+  until the release step, when what this repository installs switches to the new program.
+  Reason: the installed wrapper is the old program and reads only the old name,
+  so renaming the file earlier would run every commit on `main` with no policies until then;
+  the new program reads the old name too, with a one-line notice.
+  Your "rename them." still holds; only the timing of this one file moves.
+- 2026-11-05T03:58:47Z, program rename: the link folder `.cache/cli-git-bin` becomes
+  `.cache/monochromatic-git-policy-cli-bin` at the release step
+  (you said to rename it and gave no name; this follows the program's name).
+- 2026-11-05T03:58:47Z, program rename: before the renamed program is released, it must finish any work an old
+  background helper left half done (an agent is checking whether that can happen and fixing it if so),
+  following "never discard user data".
 
 - 2026-11-05, target layout: the proposal's technical points are taken as drafted:
   the failure codes stay with the commit service's messages;
