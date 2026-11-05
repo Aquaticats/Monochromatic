@@ -78,11 +78,26 @@ pub fn earlier_journals_of(journal: &Path, instance: &str) -> Option<EarlierJour
     return Some(EarlierJournals { per_instance: shared.join(instance), shared });
 }
 
+/// Whether two neighbouring command line words are the service mode words.
+fn is_mode_pair(pair: &[&[u8]]) -> bool {
+    return pair[0] == SERVICE_MODE_WORDS[0].as_bytes() && pair[1] == SERVICE_MODE_WORDS[1].as_bytes();
+}
+
+/// Whether a byte ends a command line word.
+fn is_word_end(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
 /// Whether one command line (words split at NUL bytes) is a service of the instance:
 ///  it has the service mode words in a row and the instance option followed by the instance.
 fn is_service_of(words: &[&[u8]], instance: &str) -> bool {
-    let mode_in_a_row: bool = words.windows(SERVICE_MODE_WORDS.len()).any(|pair| { return pair[0] == SERVICE_MODE_WORDS[0].as_bytes() && pair[1] == SERVICE_MODE_WORDS[1].as_bytes(); });
-    let instance_named: bool = words.windows(2).any(|pair| { return pair[0] == INSTANCE_OPTION.as_bytes() && pair[1] == instance.as_bytes(); });
+    let mode_in_a_row: bool = words.windows(SERVICE_MODE_WORDS.len()).any(is_mode_pair);
+    let mut instance_named: bool = false;
+    for pair in words.windows(2) {
+        if pair[0] == INSTANCE_OPTION.as_bytes() && pair[1] == instance.as_bytes() {
+            instance_named = true;
+        }
+    }
     return mode_in_a_row && instance_named;
 }
 
@@ -119,7 +134,7 @@ pub fn service_of_instance_may_run(instance: &str, own_pid: u32, proc_root: &Pat
         if file.take(COMMAND_LINE_BYTES).read_to_end(&mut bytes).is_err() {
             continue;
         }
-        let words: Vec<&[u8]> = bytes.split(|byte| { return *byte == 0; }).collect();
+        let words: Vec<&[u8]> = bytes.split(is_word_end).collect();
         if is_service_of(words.as_slice(), instance) {
             return true;
         }

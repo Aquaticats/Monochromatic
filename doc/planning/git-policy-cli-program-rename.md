@@ -106,7 +106,7 @@ Recorded 2026-11-04T22:36:12-05:00 on the branch `feat/git-policy-cli-program-re
 
 ### Open batches of the old helper
 
-Recorded 2026-11-04T23:40:00-05:00.
+Recorded 2026-11-04T23:07:31-05:00.
 The service journal holds one file per batch: `<seq>.intent` while the batch may be unfinished (the branch moves only after
 the intent is on disk), `<seq>.done` after it, and the request identities a done batch remembers.
 A helper killed between the branch move and the index update, or whose session ended, leaves an `.intent` in its own state
