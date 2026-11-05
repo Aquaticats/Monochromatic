@@ -106,6 +106,12 @@ pub mod service_hold_retry;
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
+/// The small steps of a service commit and the commit the service builds itself.
+pub mod service_commit_input_notes_and_embedded_commit;
+
+/// The requests of a service commit and what a landed commit leaves for the person.
+pub mod service_commit_requests_and_landing_report;
+
 /// The service's memory of when the bytes of the commits it landed were captured, per worktree.
 pub mod service_captures;
 

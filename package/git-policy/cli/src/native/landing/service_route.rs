@@ -158,7 +158,7 @@ pub fn worktree_git_dir(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
 /// ```ts
 /// const nonEmptyPathVariable = (name: string) => process.env[name] ? process.env[name] : undefined;
 /// ```
-fn non_empty_path_variable(name: &str) -> Option<PathBuf> {
+pub(crate) fn non_empty_path_variable(name: &str) -> Option<PathBuf> {
     return match std::env::var_os(name) {
         Some(value) if !value.is_empty() => Some(PathBuf::from(value)),
         _ => None,
