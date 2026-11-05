@@ -174,6 +174,11 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     return publish(built, bytes.as_slice(), around.settings.shared_repository).ok();
 }
 
+/// The update of `reset_file`, as the guard calls it with the Git context, the repository, the commit, the paths and the copy.
+fn reset_file_guarded((git, repository, new, paths, built): (&GitContext, &Path, &str, IndexPaths<'_>, &Path)) -> Option<()> {
+    return reset_file(git, repository, new, paths, built);
+}
+
 /// What:
 ///  Reset the index entries of `paths` in the landing's private copy to the commit `new` without starting Git; whether it did.
 /// Why:
@@ -191,11 +196,7 @@ pub fn reset_index_file(git: &GitContext, repository: &Path, new: &str, paths: I
         return false;
     }
     let built: PathBuf = copy.path().to_path_buf();
-    // The closure owns the borrowed arguments for the one call that `guarded` makes inside `catch_unwind`;
-    // `catch_unwind` takes only a closure with no parameters, so no named function can carry them in.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "catch_unwind accepts only a closure with no parameters, so the arguments must be captured; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-    let guarded_work = || { return reset_file(git, repository, new, paths, built.as_path()); };
-    let done: bool = guarded(guarded_work).is_some();
+    let done: bool = guarded((git, repository, new, paths, built.as_path()), reset_file_guarded).is_some();
     // `publish` flushes the new bytes before it renames them onto the copy, and nothing writes to the copy after it returns.
     copy.set_flushed(done);
     debug("indexResetFile", format!("in-process reset of {}: {}", built.display(), if done { "done" } else { "declined, Git answers" }).as_str());

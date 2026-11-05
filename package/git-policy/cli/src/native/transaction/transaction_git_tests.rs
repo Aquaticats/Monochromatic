@@ -6,6 +6,13 @@ use crate::child_class::ChildClass;
 use crate::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING};
 use crate::wait_progress::Cadence;
 
+/// A function-like value with the right shape is a source of watch terms in these controls: the shipped caller writes a small struct.
+impl<Terms: Fn() -> WatchTerms> WatchTermsSource for Terms {
+    fn terms(&self) -> WatchTerms {
+        return self();
+    }
+}
+
 /// Requests carry their arguments and nothing else by default.
 #[test]
 fn requests_start_empty() {

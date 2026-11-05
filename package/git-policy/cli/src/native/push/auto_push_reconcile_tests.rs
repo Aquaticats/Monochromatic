@@ -12,6 +12,13 @@ use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
+/// A function-like value with the right shape is a merge push in these controls: the shipped callers write a small struct that holds the state.
+impl<Push: FnMut(&Destination, &str) -> Result<PushAttempt, SingleFlightError>> MergePusher for Push {
+    fn push_merge(&mut self, destination: &Destination, merge_oid: &str) -> Result<PushAttempt, SingleFlightError> {
+        return self(destination, merge_oid);
+    }
+}
+
 /// A bare remote, the repository under test, and a second clone that stands for another worktree's work.
 struct Scenario {
     /// Fixture root, removed when the test ends.
@@ -1336,7 +1343,7 @@ fn integrate(
     scenario: &Scenario,
     landed: &str,
     explicit: bool,
-    push_merge: &mut dyn FnMut(&Destination, &str) -> Result<PushAttempt, SingleFlightError>,
+    push_merge: &mut dyn MergePusher,
 ) -> Integrated {
     let plan = Reconcile {
         destination: Destination {

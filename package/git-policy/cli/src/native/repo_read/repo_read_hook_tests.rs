@@ -104,9 +104,18 @@ fn a_request_reads_its_private_index() {
 /// A reader that panics is answered by Git instead: the guard returns nothing, and a quiet reader passes through.
 #[test]
 fn a_panicking_reader_is_left_to_git() {
-    assert_eq!(guarded(|| -> Option<u8> { panic!("a reader defect") }), None);
-    assert_eq!(guarded(|| { return Some(7u8); }), Some(7u8));
-    assert_eq!(guarded(|| -> Option<u8> { return None; }), None);
+    fn defective(_state: ()) -> Option<u8> {
+        panic!("a reader defect");
+    }
+    fn answering(_state: ()) -> Option<u8> {
+        return Some(7u8);
+    }
+    fn declining(_state: ()) -> Option<u8> {
+        return None;
+    }
+    assert_eq!(guarded((), defective), None);
+    assert_eq!(guarded((), answering), Some(7u8));
+    assert_eq!(guarded((), declining), None);
 }
 
 /// An environment without `GIT_CONFIG_NOSYSTEM` and without the forward-target variable, as a resident process or a caller
