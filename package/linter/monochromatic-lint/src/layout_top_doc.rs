@@ -5,12 +5,18 @@
 //!  The file rule asks it to list the folder's files,
 //! each after the files it uses.
 //!  The format is plain enough for someone who knows only `git commit` and `git push`:
-//!  a marker line,
+//!  a marker sentence,
 //! then one line per file,
 //!  and everything else in the doc is free text that the rule never reads.
+//!  The marker is read as prose:
+//! the Markdown rule breaks a sentence after its comma,
+//!  so the marker may wrap anywhere a sentence may,
+//!  and a blank line inside it ends the paragraph,
+//! so the marker is then not found.
 //!
 //! ```text
-//! //! Files in this folder, each using only files listed before it:
+//! //! Files in this folder,
+//! //! each using only files listed before it:
 //! //!
 //! //! - `saving_a_file.rs`: writes a file so a crash never leaves half of it.
 //! //! - `saving_many_files.rs`: saves several files together.
@@ -23,7 +29,8 @@
 //! function readTopDoc(text: string): TopDoc;
 //! ```
 
-/// The exact line that starts the file list in a top doc.
+/// The sentence that starts the file list in a top doc,
+/// which the doc may wrap across lines.
 pub const LIST_MARKER: &str = "Files in this folder, each using only files listed before it:";
 
 /// What:
@@ -83,12 +90,65 @@ fn entry_name(text: &str) -> Option<String> {
 }
 
 /// What:
+///  How many leading lines of the given doc lines make up the list marker.
+/// Why:
+///  The Markdown rule breaks prose after a comma,
+///  so the marker may wrap anywhere a sentence may.
+///  The lines are read as one paragraph:
+///  a blank line,
+///  a plain comment or a different word ends it,
+///  and any run of spaces matches one space.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function markerLineCount(bodies: string[]): number | undefined;
+/// ```
+fn marker_line_count(bodies: &[(usize, &str)]) -> Option<usize> {
+    let marker_words: Vec<&str> = LIST_MARKER.split_whitespace().collect::<Vec<&str>>();
+    let mut matched: usize = 0;
+    for (covered, (_, body)) in bodies.iter().enumerate() {
+        let words: Vec<&str> = body.split_whitespace().collect::<Vec<&str>>();
+        if words.is_empty()
+            || marker_words.get(matched..matched + words.len()) != Some(words.as_slice())
+        {
+            return None;
+        }
+        matched += words.len();
+        if matched == marker_words.len() {
+            return Some(covered + 1);
+        }
+    }
+    return None;
+}
+
+/// What:
+///  Where the first marker starts among the doc lines and how many lines it covers.
+/// Why:
+///  The marker may begin at any line,
+///  so every line is tried as its start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function findMarker(bodies: string[]): { start: number; covered: number } | undefined;
+/// ```
+fn find_marker(bodies: &[(usize, &str)]) -> Option<(usize, usize)> {
+    for start in 0..bodies.len() {
+        if let Some(covered) = marker_line_count(&bodies[start..]) {
+            return Some((start, covered));
+        }
+    }
+    return None;
+}
+
+/// What:
 ///  Read the top doc of a Rust file.
 /// Why:
 ///  Only the leading `//!` lines count;
 ///  blank lines,
 /// ordinary comments and inner attributes between them are skipped,
 ///  and the first other line ends the doc.
+///  A skipped line still ends a paragraph,
+///  so it never joins two halves of the marker.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -100,13 +160,15 @@ pub fn read_top_doc(text: &str) -> TopDoc {
         ..TopDoc::default()
     };
     let mut seen_doc: bool = false;
-    let mut list_open: bool = false;
-    let mut list_done: bool = false;
+    let mut bodies: Vec<(usize, &str)> = Vec::<(usize, &str)>::new();
     for (index, line) in text.lines().enumerate() {
         let number: usize = index + 1;
         let trimmed: &str = line.trim();
         let Some(body) = trimmed.strip_prefix("//!") else {
             if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with("#![") {
+                if seen_doc {
+                    bodies.push((number, ""));
+                }
                 continue;
             }
             break;
@@ -115,22 +177,19 @@ pub fn read_top_doc(text: &str) -> TopDoc {
             seen_doc = true;
             doc.first_line = number;
         }
-        if list_done {
-            continue;
-        }
-        if !list_open {
-            if body.trim() == LIST_MARKER && doc.marker_line.is_none() {
-                doc.marker_line = Some(number);
-                list_open = true;
-            }
-            continue;
-        }
+        bodies.push((number, body));
+    }
+    let Some((start, covered)) = find_marker(&bodies) else {
+        return doc;
+    };
+    doc.marker_line = Some(bodies[start].0);
+    for &(number, body) in &bodies[start + covered..] {
         if body.trim().is_empty() || body.starts_with("  ") {
             continue;
         }
         match entry_name(body) {
             Some(name) => doc.entries.push(DocEntry { name, line: number }),
-            None => list_done = true,
+            None => break,
         }
     }
     return doc;

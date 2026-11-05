@@ -194,14 +194,17 @@ fn extra_spaces_at_a_join_count_as_one_space() {
     assert_eq!(doc.entries.len(), 1);
 }
 
-/// Words that differ from the marker, or follow it on the same line, are no marker.
+/// Words that differ from the marker,
+/// or follow it on the same line,
+/// are no marker.
 #[test]
 fn a_changed_or_extended_marker_is_no_list() {
     let changed: String = String::from(
         "//! Files in this folder,\n//! each using only files listed after it:\n//! - `first.rs`: writes a file.\n",
     );
     assert_eq!(read_top_doc(changed.as_str()).marker_line, None);
-    let extended: String = format!("//! {LIST_MARKER} and more\n//! - `first.rs`: writes a file.\n");
+    let extended: String =
+        format!("//! {LIST_MARKER} and more\n//! - `first.rs`: writes a file.\n");
     assert_eq!(read_top_doc(extended.as_str()).marker_line, None);
     let cut: String = String::from("//! Files in this folder,\n//! - `first.rs`: writes a file.\n");
     assert_eq!(read_top_doc(cut.as_str()).marker_line, None);

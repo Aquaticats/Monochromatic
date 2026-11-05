@@ -1444,7 +1444,8 @@ fn layout_rules_run_in_the_built_executable_and_do_not_follow_links() {
     let fixture: Fixture = Fixture::new();
     fixture.write("Cargo.toml", "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n");
     fixture.write("src/lib.rs", "mod top;\nmod middle;\n");
-    fixture.write("src/top/mod.rs", "//! Files in this folder, each using only files listed before it:\n//! - `user.rs`: uses the thing.\nmod user;\n");
+    // The marker is wrapped after its comma, as the Markdown rule demands.
+    fixture.write("src/top/mod.rs", "//! Files in this folder,\n//! each using only files listed before it:\n//! - `user.rs`: uses the thing.\nmod user;\n");
     fixture.write("src/top/user.rs", "use crate::middle::Thing;\n");
     fixture.write("src/middle/mod.rs", "mod thing;\npub use thing::Thing;\n");
     fixture.write("src/middle/thing.rs", "pub struct Thing;\n");
