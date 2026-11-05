@@ -514,23 +514,63 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   Layout next: an agent drafts the whole target tree on main `977e697ad5` (rescan, crate split, every folder and
   file old to new with `uses/` lists, every change the moves need, move order, cross-vendor review) into
   `doc/planning/cli-git-source-layout-target-tree.md`; nothing moves until the owner has seen it.
-  Then one follow-up pass, decided by the coordinator (LN1 and LN2: restructure rather than suppress):
-  give the callees guard or trait forms so most `expect`s go
-  (`worktree/add_timing.rs` already has `begin_step`/`end_step` and `begin_work`/`end_work` for the
-  `repair/package_repair_cargo.rs` wrappers; `process/thread_quiet.rs` `measured_quiet`;
-  `push/wait_progress.rs` `poll`; the `dyn Fn` seams in subvolume, push and `start_retry`),
-  keep only the ones `std::thread::scope` and `catch_unwind` need,
-  and merge the three suppression docs into one package doc beside the code
-  (today: `src/native/worktree/worktree_closure_lint_suppressions.md`,
+  Suppression pass done on `refactor/git-policy-cli-fewer-closure-suppressions` (`cbaa95e9b9`, main merged in at
+  `9829d05863`): `expect(avoidable_closure)` sites 56 to 3, the three in `src/native/foundation/`
+  (`side_by_side_threads.rs` for `std::thread::scope`, `scoped_start.rs` for `spawn_scoped`,
+  `call_catching_panics.rs` for `catch_unwind`); callees take traits on named structs, guards, or an enum instead;
+  blanket closure impls only in test sidecars; lib 4259 and binary 678 passed on the host; 8 new tests, none renamed.
+  The four suppression notes become one, `package/git-policy/cli/doc/closure-lint-suppressions.md`
+  (moved 2026-11-05 from `src/native/worktree/worktree_closure_lint_suppressions.md`,
   `doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`,
-  and `doc/planning/cli-git-closure-lint-suppressions.md`, which is in the wrong family),
-  updating every `reason` that cites them.
+  `doc/closure-lint-suppressions-service-landing-and-runner-folders.md`
+  and `doc/planning/cli-git-closure-lint-suppressions.md`, which are deleted on that branch).
+  Planted controls: of the 46 in `bin/native-planted-controls-{commit,entry,landing}.ts`, 3 had a `from` line
+  that matched nothing before the lint merge (checked at `7663284896`) and 7 after it, on main and on the branch
+  (checker `~/temp/agent/issue-6261/planted-from-lines.ts`); an agent repoints the seven on the suppression branch,
+  proving each fails its test when planted. Then: container gate on that branch, `native:mutation:planted` over
+  its image, merge to main.
+  Correction: two of the seven were checker artifacts (it could not read a `from` written as an array `.join` or
+  `String.raw`); the real breaks were one before the lint merge and four through it, and two controls named
+  binary tests with a wrong folder prefix (from `9533c30e80`) so they could never count as noticed.
+  All fixed at `a7e32e118e` (48 controls, 0 problems; each planted and seen failing on the host).
+  Container gate running on `a7e32e118e` as unit `git-policy-cli-fewer-closure-suppressions-gate`.
+  Target tree drafted and reviewed cross-vendor (`doc/planning/cli-git-source-layout-target-tree.md` and
+  `-files.md`, last `0912bd4661`); its owner questions are in `doc/handover/questions-for-the-owner.md`.
+  The layout rule's file-list marker now reads across a line break (branch
+  `fix/monochromatic-lint-file-list-marker-may-wrap` at `dd600cb33b`, merged to main; 854 tests, 122 in the
+  container), because `markdown/semantic-line-breaks` demands a break after its comma.
+  Suppression branch gate on `a7e32e118e`: `4938 tests run: 4938 passed (1 slow), 8 skipped`;
+  planted controls over its image run as unit `git-policy-cli-planted-controls-after-suppressions`
+  (log `~/temp/agent/issue-6261/planted-controls-after-suppressions.log`); merge after they pass.
   Next for the layout:
   break the file loops with named changes,
   split the large groups into folders,
   name every folder and file plainly with its `uses/` list,
   rescan after the lint branches land,
   and put the whole tree before the owner before anything moves.
+  The fuzz crate `package/git-policy/cli.fuzz` does not compile on main:
+  `src/owners.rs` imports `git_policy_cli::owner_lock_record`, deleted in `ee30d244f6`
+  ("worktree add takes no settlement lock", 2026-11-03T02:36:31-05:00); no gate compiles that crate, so nothing
+  noticed. The crate split changes every `git_policy_cli::` import it uses, so it is fixed as part of the split:
+  each move keeps it compiling, and its compile joins the container gate at the first move.
+- Program rename (task #165; plan `doc/planning/git-policy-cli-program-rename.md`):
+  step 1 built on `feat/git-policy-cli-program-rename` (worktree `.claude/worktrees/git-policy-cli-program-rename`,
+  tip `9dbcb5ce92` with 22 commits on `a7e32e118e`; host lib 4305 and binary 690 passed, clippy clean,
+  planted checker 48/0; container gate not yet run).
+  Two follow-ups sent back to its agent at 2026-11-05T03:58:47Z:
+  (A) the root settings file keeps the name `cli-git.config.jsonc` until step 3, because the installed old program
+  reads only that name (the branch's `f781971973` renamed it, and four later commits on the branch ran with no
+  policies);
+  (B) an open batch an old helper left in the old service state folder must still land after the switch.
+  A done at `0c840d0e17` (root file restored in `d513d1cadd`; host lib 4306 and binary 690 passed, clippy clean,
+  planted checker 48/0; the installed wrapper's `check` over the paths changed since `f781971973` found nothing).
+  Container gate on `0c840d0e17` runs as unit `git-policy-cli-program-rename-gate`
+  (worktree `.claude/worktrees/git-policy-cli-program-rename-gate`, log
+  `~/temp/agent/issue-6261/program-rename-gate.log`); merge to main after it and the suppression branch's planted
+  run pass, since the rename branch contains the suppression branch. B (on top of `0c840d0e17`) must land before
+  the release.
+  Release and lock (steps 2 and 3) wait for the owner's release-timing answer.
+  Step 3 also renames the root settings file and the link folder (to `.cache/monochromatic-git-policy-cli-bin`).
 - crates.io footprint (owner 2026-11-05: "Can we avoid polluting crates.io too much?"):
   measured and ranked in `doc/planning/crates-io-footprint.md` (`dd61b20559`), owner answers recorded there.
   Decided by the owner: "One release each. And we publish less to crates.io".

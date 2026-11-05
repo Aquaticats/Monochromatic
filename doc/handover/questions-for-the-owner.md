@@ -12,6 +12,45 @@ this session."
 So this file holds only choices that are destructive, reach outside this machine, or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end, so any of them can be undone.
 
+## The wrapper's target layout, before anything moves (asked 2026-11-05T02:28:53Z)
+
+You asked to see the whole tree before any file moves. It is drafted, nothing has moved:
+`doc/planning/cli-git-source-layout-target-tree.md` (start at its section "What to look at and how to answer",
+then "The crate split" and "Open points for the owner"),
+with every file's old path, new name and one-line job in `doc/planning/cli-git-source-layout-target-tree-files.md`.
+A reviewer from another vendor read it and its findings are folded in.
+
+In short:
+
+- The wrapper becomes one library crate per job found, each its own package `package/git-policy/<name>`,
+  with no loops between crates, the command-line program on top.
+  As drafted that is 46 libraries (for example `safe-file-saving`, `read-git-files-without-git`,
+  `push-with-a-deadline`, `land-prepared-commits`), a crate of test fixtures, and the program.
+- Inside each crate, folders named as plain sentences with `uses/` links; 276 of 580 files get clearer names.
+- 105 items move and 7 calls change before files move, which takes the 17 loops between files down to none.
+
+What I need from you:
+
+- Is the tree right? Say which crates or names are wrong, or "go".
+- How far to split:
+  - The 46 libraries as the target, built in-package first, then lifted into packages one at a time from the
+    bottom, asking you again after the lower half (recommended).
+    Pros: every crate is one reusable job, as you asked; the lift can stop early if the cost shows.
+    Cons: many packages to keep in step; each bump of a lower crate edits every crate above it.
+  - Fewer, bigger crates (the proposal names its weakest entries, which would merge back first).
+    Pros: fewer packages. Cons: crates that hold more than one job, which you rejected before.
+  Ranking: the 46 as a target > fewer now, because you said splitting must not mean fewer crates,
+  and lifting one at a time keeps every step reversible.
+- One shared build folder for all of these packages (`CARGO_TARGET_DIR` set in their `mise.toml`)?
+  Without it, each of the ~48 packages compiles its dependencies again in its own build folder.
+  Recommended: yes. Asked because build folders are a setting you have strong rules about.
+- The program's package folder `package/git-policy/cli`: keep the name `cli`, or rename it so it explains itself
+  (for example `package/git-policy/git-command-wrapper-program`)?
+  Recommended: rename, since a package folder name still has to make sense alone, the reviewer agrees,
+  and the release archive and the lock row can follow in the same release as the planned program rename.
+
+Your answer:
+
 ## Which of our crates still go to a registry, and which one (asked 2026-11-05T00:56:04Z)
 
 The research you asked for is done: `doc/research/cargo-crates-and-tools-without-crates-io.md`.
@@ -60,11 +99,14 @@ You decided "One release each. And we publish less to crates.io".
 A crates.io publish cannot be undone; a yank only hides a version.
 Two facts set the timing:
 
-- The wrapper (`monochromatic-git-policy-cli`) on `main` is in the middle of the lint clean-up:
-  three of the four lint branches are merged together but not yet tested in a container, and the fourth is still running.
+- The wrapper's (`monochromatic-git-policy-cli`) lint clean-up is on `main`
+  (all four lint branches merged; container run 4930 of 4930 passed).
+  The follow-up that removes most closure-lint suppressions passed its container run (4938 of 4938)
+  and merges once its planted checks finish.
 - The planned rename of the wrapper's program and command word
-  (`doc/planning/git-policy-cli-program-rename.md`) needs a wrapper release of its own,
-  and it starts as soon as the lint branches are merged.
+  (`doc/planning/git-policy-cli-program-rename.md`) needs a wrapper release of its own.
+  Its code is built on its own branch (updated 2026-11-05T03:58:47Z) and being finished;
+  nothing is released or installed.
 - Our tools pin our libraries to exact versions,
   so a new library version means a new version of every tool that pins it, in the same batch.
 
@@ -115,6 +157,36 @@ and the wording above already names the file and the editor.
 Your answer:
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
+
+- 2026-11-05T03:58:47Z, program rename: this repository's settings file keeps its old name `cli-git.config.jsonc`
+  until the release step, when what this repository installs switches to the new program.
+  Reason: the installed wrapper is the old program and reads only the old name,
+  so renaming the file earlier would run every commit on `main` with no policies until then;
+  the new program reads the old name too, with a one-line notice.
+  Your "rename them." still holds; only the timing of this one file moves.
+- 2026-11-05T03:58:47Z, program rename: the link folder `.cache/cli-git-bin` becomes
+  `.cache/monochromatic-git-policy-cli-bin` at the release step
+  (you said to rename it and gave no name; this follows the program's name).
+- 2026-11-05T03:58:47Z, program rename: before the renamed program is released, it must finish any work an old
+  background helper left half done (an agent is checking whether that can happen and fixing it if so),
+  following "never discard user data".
+
+- 2026-11-05, target layout: the proposal's technical points are taken as drafted:
+  the failure codes stay with the commit service's messages;
+  the crash points for tests and the durable index-lock code get their own crates;
+  the source-text guard tests move to the program crate;
+  sidecar tests move with their code and no new tests are written for the move;
+  the two extra call changes (the copy error type, the hint functions moving with their users);
+  the `include` list goes at the split;
+  pins are kept in step by the catalog sync;
+  names that fail the "monkey" test are renamed while grouping;
+  `commit-command`, `doctor-report`, `merge-in-isolation`, `typed-push-planning` fold into the program,
+  and `service-after-commit-work` into the commit service program, because no outside program would use them alone;
+  `new-worktrees-quickly` is split first after the lower half.
+- 2026-11-05: the layout rule reads a folder's file-list marker even when it wraps over two lines,
+  because the repository's line-break rule demands a break after its comma (merged to `main`;
+  854 tests, 122 in the container; the "no file list" help now shows the wrapped form).
+  A blank `//!` line or a plain `//` comment inside the marker still means no marker.
 
 - 2026-11-05: index files in the new layout lint rules (`mod.rs`, and `lib.rs` used as an index) may hold only
   the top doc, `mod` lines and re-exports; anything else is a finding,

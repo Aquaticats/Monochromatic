@@ -1,8 +1,14 @@
 # Renaming the Git wrapper program and its command word
 
-Status: step 1 of "Order" is built on the branch `feat/git-policy-cli-program-rename`, unmerged and unreleased
-(see "Step 1 as built"); steps 2 and 3 wait for the owner.
-The decisions below are the owner's and are unchanged.
+Status: decided by the owner; step 1 is built on the branch `feat/git-policy-cli-program-rename` (see "Step 1 as built"),
+unmerged and unreleased.
+The work waited for the four lint branches of the crate (`refactor/git-policy-cli-lint-*`) to merge,
+because the command word is read in `invocation/management*.rs`, which one of them was editing.
+They merged on 2026-11-05; the branch started from `a7e32e118e`, the gated suppression branch
+(worktree `.claude/worktrees/git-policy-cli-program-rename`).
+The proposed handling of the settings file and data folders is adopted as written, owner veto open.
+Steps 2 and 3 (release, lock) wait for the owner's answer on when the one release of each crate happens
+(`doc/handover/questions-for-the-owner.md`).
 
 ## What the owner decided
 

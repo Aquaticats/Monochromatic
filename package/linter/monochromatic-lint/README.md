@@ -724,9 +724,16 @@ The top doc is the `//!` lines at the start of the folder's `mod.rs`
 (`lib.rs`,
 or `main.rs` when `lib.rs` is absent,
 in the folder of a crate root).
-The list starts at the exact line below
+The list starts at the marker sentence below
 and has one `- ` line per file,
-with the file name in backticks first:
+with the file name in backticks first.
+The marker is read as prose,
+like the Markdown rule `markdown/semantic-line-breaks` reads it:
+it may wrap wherever a sentence may,
+because the lines of one paragraph are joined with single spaces before the match,
+and any run of spaces equals one space.
+A blank `//!` line ends a paragraph,
+so a marker with a blank line inside it is no marker:
 
 ```rust
 //! What this folder is for,
@@ -743,8 +750,9 @@ with the file name in backticks first:
 ```
 
 Everything else in the doc is free text and is never read.
-Indented continuation lines are allowed,
-and the list ends at the first line that is neither blank,
+An entry starts at a line beginning `- `,
+and the indented lines under it belong to that entry.
+The list ends at the first line that is neither blank,
 an entry nor a continuation.
 The index file itself is not listed,
 and neither are the other crate roots (`main.rs` beside `lib.rs`),

@@ -196,6 +196,8 @@ fn list_findings(
 ) -> Vec<LayoutFinding> {
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     let Some(marker) = doc.marker_line else {
+        // The help shows the marker broken after its comma, which is where the Markdown rule breaks it.
+        let (head, tail) = LIST_MARKER.split_once(", ").unwrap_or((LIST_MARKER, ""));
         findings.push(LayoutFinding {
             file: index.to_path_buf(),
             line: doc.first_line,
@@ -204,7 +206,7 @@ fn list_findings(
                 shown(index, base)
             ),
             help: Some(format!(
-                "Add the line `//! {LIST_MARKER}` to the top doc, then one line `//! - `name.rs`: what it does` per file, each file after the files it uses."
+                "Add the two lines `//! {head},` and `//! {tail}` to the top doc, so the marker is wrapped where the Markdown rule `markdown/semantic-line-breaks` breaks it (it may wrap at any other word too), then one line `//! - `name.rs`: what it does` per file, each file after the files it uses."
             )),
         });
         return findings;

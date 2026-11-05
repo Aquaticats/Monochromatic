@@ -151,7 +151,34 @@
     "inner_git_words": "service_talk",
     "merge_isolation_changes": "merge_engine",
     "merge_isolation_moved": "merge_engine",
-    "policy_checks": "checks_runner"
+    "policy_checks": "checks_runner",
+    "service_commit_args_editor_opening": "commit",
+    "service_commit_input_notes_and_embedded_commit": "commit",
+    "service_commit_requests_and_landing_report": "commit",
+    "service_prepare_changes_config_and_pathspec_steps": "commit",
+    "service_prepare_ready_shapes": "commit",
+    "service_replay_path_and_line_text": "commit",
+    "work_item_state_directories_and_claim_names": "service_talk",
+    "merge_isolation_recovery_steps": "merge_engine",
+    "merge_second_pass_conflicts": "merge_engine",
+    "merge_second_pass_finish": "merge_engine",
+    "merge_second_pass_finish_stops": "merge_engine",
+    "merge_second_pass_git_runner": "merge_engine",
+    "merge_second_pass_worktree": "merge_engine",
+    "child_watch_clock_marks_and_stopping": "basic_tools",
+    "child_watch_step_bounds_and_errors": "basic_tools",
+    "repo_read_query_request_answer_and_context": "start_git",
+    "journald_native_socket_target": "basic_tools",
+    "service_client_listen_and_ask_to_retire": "service_talk",
+    "service_client_reach_service": "service_talk",
+    "service_client_settings_and_watches": "service_talk",
+    "service_protocol_decode_lines_to_messages": "service_talk",
+    "service_protocol_encode_messages_to_lines": "service_talk",
+    "service_protocol_messages_and_name_checks": "service_talk",
+    "service_provision_unit_file_ownership_and_writes": "service_talk",
+    "systemd_dbus_wire_format": "service_talk",
+    "push_deadline_and_patience_settings": "basic_tools",
+    "conflict_side_state": "merge_engine"
   },
   "items": {
     "forwarding::ChildOutcome": "child_class",
@@ -181,17 +208,13 @@
     "git_system_config::system_config_for": "(removed)",
     "entry::plan_invocation": "(removed)",
     "entry::run_process": "(removed)",
-    "service_busy::enter_step": "(removed)",
-    "service_busy::on_landing_thread": "(removed)",
     "stopped_git_locks::LockLedger": "(removed)",
     "bounded_push::STOP_GRACE": "wait_ceilings",
     "bounded_push::positive_seconds": "child_watch",
-    "bounded_push::Patience": "child_watch",
-    "bounded_push::StopCause": "child_watch",
+    "bounded_push::Patience": "push_deadline_and_patience_settings",
+    "bounded_push::StopCause": "push_progress",
     "service_messages::RESTART_COMMAND": "push_deadline_advice",
     "service_protocol::RELEASE": "add_timing",
-    "service_protocol::FailureCode": "service_index_lock",
-    "service_land_follow::storage_failure": "service_index_lock",
     "shadow_git::SHADOW_NO_HOOKS_NAME": "traditional_hook_warning",
     "shadow_git::SHADOW_ROOT_NAME": "traditional_hook_warning",
     "discarded_prune::parse_size": "config_discarded",
@@ -212,7 +235,64 @@
     "index_writer_forward::CoordinatedRun": "index_holder_wait",
     "worktree_copy_forward::ForwardedRun": "forwarded_command",
     "worktree_copy_forward::run_forwarded_git": "forwarded_command",
-    "policy_checks::ShippedChecks": "policy_pass"
+    "policy_checks::ShippedChecks": "policy_pass",
+    "merge_isolation_git_reads::editor_would_open": "merge_second_pass_git_runner",
+    "merge_isolation_git_reads::stdin_and_stdout_are_one_terminal": "merge_second_pass_git_runner",
+    "service_busy_step_record_on_this_thread::enter_step": "(removed)",
+    "service_busy_step_record_on_this_thread::on_landing_thread": "(removed)",
+    "command_options::Occurrence": "command_options_types",
+    "command_options::OptionError": "command_options_types",
+    "command_options::OptionErrorKind": "command_options_types",
+    "command_options::OptionSpec": "command_options_types",
+    "command_options::OptionValue": "command_options_types",
+    "command_options::ParseMode": "command_options_types",
+    "command_options::ParsedOptions": "command_options_types",
+    "command_options::Arity": "command_options_types",
+    "rule_linked_worktree::GuardedCommand": "rule_linked_worktree_messages",
+    "conflict_sides::SavedCopy": "conflict_side_notice",
+    "service_land_follow::IndexPaths": "index_reset_file",
+    "service_land_follow::PrivateCopy": "service_land_copy",
+    "real_git::RealGitNotFound": "real_git_candidate",
+    "real_git::ResolutionInputs": "real_git_candidate",
+    "real_git::SearchedCandidate": "real_git_candidate",
+    "real_git::search_path_for_real_git": "real_git_candidate",
+    "git_metadata::MetadataOutput": "repo_read_query_request_answer_and_context",
+    "landing_location::LandingLocation": "repo_read_adapter",
+    "service_index_marker::marker_of": "service_index_identity",
+    "service_index_marker::Marked": "service_index_identity",
+    "service_index_lock::Announce": "service_index_lock_names_and_failures",
+    "service_index_lock::LockFailure": "service_index_lock_names_and_failures",
+    "service_index_lock::lock_path_of": "service_index_lock_names_and_failures",
+    "service_index_lock::notice_every": "service_index_lock_names_and_failures",
+    "service_land_follow::storage_failure": "service_index_lock_names_and_failures",
+    "service_index_placement::reclaim": "service_index_reclaim",
+    "stopped_git_locks::LOCK_SUFFIX": "stale_ref_lock_names",
+    "stopped_git_locks::PID_LOCK_SUFFIX": "stale_ref_lock_names",
+    "stopped_git_locks::pid_named_by": "stale_ref_lock_names",
+    "stale_ref_lock_walk::pid_file_beside": "stale_ref_lock_names",
+    "stale_ref_lock_judge::Verdict": "stale_ref_lock_found",
+    "index_lock_holders::Holder": "index_lock_holder_parsers",
+    "auto_push_single_flight::PushAttempt": "push_attempt_and_failure",
+    "auto_push_single_flight::SingleFlightError": "push_attempt_and_failure",
+    "bounded_push::MAX_PUSH_OUTPUT": "bounded_push_waiting",
+    "bounded_push::stop_push": "bounded_push_waiting",
+    "bounded_push::wait_until_done": "bounded_push_waiting",
+    "bounded_push::run_bounded_push_once": "bounded_push_waiting",
+    "push_failure_notice::fnv_hex": "auto_push_branch_key",
+    "auto_push::PUSH_FAILED_NOTE": "push_failure_notice",
+    "push_retry::CONFLICT_PHRASE": "auto_push_reconcile_basics_and_limits",
+    "worktree_trash::trash_location_is_ignored": "worktree_snapshot_source",
+    "worktree_trash::TRASH_PARENT": "worktree_trash_manifest",
+    "worktree_copy::GitRunner": "worktree_copy_git_steps",
+    "worktree_copy::GitStatus": "worktree_copy_git_steps",
+    "worktree_copy::GitStep": "worktree_copy_git_steps",
+    "service_index_placement::rename_noreplace": "private_storage",
+    "worktree_copy_forward::CopyFacts": "worktree_command_facts",
+    "worktree_add_plan::AddPlan": "worktree_command_facts",
+    "worktree_remove_plan::RemovePlan": "worktree_command_facts",
+    "event_hints::engine_failure_hint": "invocation_config",
+    "event_hints::push_hint_field": "invocation_config",
+    "service_index_found::WaitNotes": "service_timing"
   },
   "order": [
     "basic_tools",
@@ -227,18 +307,3013 @@
     "merge_engine",
     "shadow",
     "subvolume",
-    "worktree",
     "repair",
     "lfs",
     "push",
+    "worktree",
     "conflict",
     "checks_runner",
     "merge",
-    "commit",
     "health",
     "service_server",
+    "commit",
     "decide",
     "zz_test_helpers",
     "root"
-  ]
+  ],
+  "target": {
+    "action": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "the_decision_one_command_ends_in"
+    ],
+    "add_timing": [
+      "starting-and-watching-programs",
+      "recording_where_time_went",
+      "where_worktree_add_spent_its_time"
+    ],
+    "announced_query": [
+      "typed-command-reader",
+      "the_words_meant_for_this_wrapper",
+      "commands_that_ask_what_this_is"
+    ],
+    "auto_push": [
+      "background-push-after-commit",
+      "pushing_what_the_commit_service_saved",
+      "pushing_a_landed_commit"
+    ],
+    "auto_push_branch_key": [
+      "background-push-after-commit",
+      "pushing_what_the_commit_service_saved",
+      "file_name_of_one_branch"
+    ],
+    "auto_push_destination": [
+      "background-push-after-commit",
+      "pushing_what_the_commit_service_saved",
+      "where_a_plain_push_would_send_a_branch"
+    ],
+    "auto_push_dirty_paths": [
+      "background-push-after-commit",
+      "pushing_what_the_commit_service_saved",
+      "paths_a_dirty_worktree_holds"
+    ],
+    "auto_push_reconcile": [
+      "background-push-after-commit",
+      "pushing_what_the_commit_service_saved",
+      "publishing_after_the_remote_moved"
+    ],
+    "auto_push_reconcile_basics_and_limits": [
+      "background-push-after-commit",
+      "pushing_what_the_commit_service_saved",
+      "words_and_limits_of_a_reconcile"
+    ],
+    "auto_push_reconcile_branch_advance": [
+      "background-push-after-commit",
+      "pushing_what_the_commit_service_saved",
+      "moving_the_local_branch_after_a_reconcile"
+    ],
+    "auto_push_reconcile_merge_commit": [
+      "background-push-after-commit",
+      "pushing_what_the_commit_service_saved",
+      "the_merge_commit_of_a_reconcile"
+    ],
+    "auto_push_refspec_judging": [
+      "background-push-after-commit",
+      "pushing_what_the_commit_service_saved",
+      "what_configured_refspecs_make_of_a_branch"
+    ],
+    "auto_push_single_flight": [
+      "push-with-a-deadline",
+      "running_git_push_until_it_ends_or_stalls",
+      "running_one_push_at_a_time"
+    ],
+    "auto_push_trigger": [
+      "background-push-after-commit",
+      "pushing_what_the_commit_service_saved",
+      "handing_a_push_to_the_commit_service"
+    ],
+    "autostash_carry": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "autostash_carry"
+    ],
+    "blob_batch": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "loading_many_files_through_one_git_process"
+    ],
+    "bounded_push": [
+      "push-with-a-deadline",
+      "running_git_push_until_it_ends_or_stalls",
+      "pushing_until_it_ends_or_stalls"
+    ],
+    "bounded_push_waiting": [
+      "push-with-a-deadline",
+      "running_git_push_until_it_ends_or_stalls",
+      "waiting_for_a_push_to_end"
+    ],
+    "bounded_query": [
+      "push-with-a-deadline",
+      "running_git_push_until_it_ends_or_stalls",
+      "one_git_query_that_ends_when_idle"
+    ],
+    "candidate_attribute": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "files_marked_not_text"
+    ],
+    "candidate_batch": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "reading_a_cat_file_batch_reply"
+    ],
+    "candidate_error": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "failures_of_reading_candidates"
+    ],
+    "candidate_known_content": [
+      "commit-candidate-content",
+      "scanning_those_bytes_for_forbidden_strings",
+      "content_the_parent_commit_already_has"
+    ],
+    "candidate_object": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "object_names_and_modes"
+    ],
+    "candidate_pathspec_chunk_size": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "paths_per_git_command"
+    ],
+    "candidate_prediction": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "candidates_that_need_a_private_index"
+    ],
+    "candidate_prediction_git_runs": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "git_runs_of_a_prediction"
+    ],
+    "candidate_private_index": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "private_copy_of_the_index"
+    ],
+    "candidate_reader": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "one_long_lived_cat_file_process"
+    ],
+    "candidate_record": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "reading_diff_records"
+    ],
+    "candidate_stage": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "reading_stage_records"
+    ],
+    "candidate_store": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "owner_of_candidate_versions"
+    ],
+    "candidate_store_commit_listings": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "listings_of_one_commits_tree"
+    ],
+    "candidate_tree": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "reading_tree_listings"
+    ],
+    "candidate_version": [
+      "commit-candidate-content",
+      "reading_the_bytes_a_commit_would_save",
+      "one_candidate_version"
+    ],
+    "capture_invocation": [
+      "hidden-git-copy-for-preparing-commits",
+      "the_hidden_second_git_folder",
+      "capture_invocation"
+    ],
+    "checkout_workers": [
+      "new-worktrees-quickly",
+      "planning_a_worktree_add_and_what_git_made",
+      "checkout_workers"
+    ],
+    "child_class": [
+      "starting-and-watching-programs",
+      "starting_programs_catching_signals_and_keeping_their_output",
+      "kinds_of_git_step"
+    ],
+    "child_environment": [
+      "git-environment-variables",
+      "environment_variables_for_git_children",
+      "environment_variables_for_git_children"
+    ],
+    "child_watch": [
+      "starting-and-watching-programs",
+      "watching_a_started_program_until_it_stops_making_progress",
+      "watching_a_child_program"
+    ],
+    "child_watch_clock_marks_and_stopping": [
+      "starting-and-watching-programs",
+      "watching_a_started_program_until_it_stops_making_progress",
+      "watch_clock_marks_and_stopping"
+    ],
+    "child_watch_step_bounds_and_errors": [
+      "starting-and-watching-programs",
+      "watching_a_started_program_until_it_stops_making_progress",
+      "watch_step_limits_and_errors"
+    ],
+    "claim_time": [
+      "durable-work-items",
+      "work_left_for_the_service_to_finish_later",
+      "claim_time"
+    ],
+    "client_journal": [
+      "system-journal-entries",
+      "sending_log_entries_to_the_system_journal",
+      "journal_entry_from_the_wrapper"
+    ],
+    "command_add": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_add"
+    ],
+    "command_branch_create": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_branch_create"
+    ],
+    "command_branch_mode": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_branch_mode"
+    ],
+    "command_branch_table": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_branch_table"
+    ],
+    "command_branch_target": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_branch_target"
+    ],
+    "command_checkout_table": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_checkout_table"
+    ],
+    "command_clean": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_clean"
+    ],
+    "command_commit": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_commit"
+    ],
+    "command_commit_table": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_commit_table"
+    ],
+    "command_config": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_config"
+    ],
+    "command_config_table": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_config_table"
+    ],
+    "command_conflict_side": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "command_conflict_side"
+    ],
+    "command_discard": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_discard"
+    ],
+    "command_options": [
+      "typed-command-reader",
+      "reading_options_the_way_git_does",
+      "reading_a_command_line_option_by_option"
+    ],
+    "command_options_long": [
+      "typed-command-reader",
+      "reading_options_the_way_git_does",
+      "long_options"
+    ],
+    "command_options_query": [
+      "typed-command-reader",
+      "reading_options_the_way_git_does",
+      "questions_about_typed_options"
+    ],
+    "command_options_short": [
+      "typed-command-reader",
+      "reading_options_the_way_git_does",
+      "clusters_of_short_options"
+    ],
+    "command_options_types": [
+      "typed-command-reader",
+      "reading_options_the_way_git_does",
+      "types_of_option_reading"
+    ],
+    "command_options_value": [
+      "typed-command-reader",
+      "reading_options_the_way_git_does",
+      "option_values"
+    ],
+    "command_push": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_push"
+    ],
+    "command_reset": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_reset"
+    ],
+    "command_stash": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_stash"
+    ],
+    "command_stash_table": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_stash_table"
+    ],
+    "command_status": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_status"
+    ],
+    "command_worktree": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "command_worktree"
+    ],
+    "commit_args": [
+      "commit-command",
+      "the_commit_command",
+      "commit_args"
+    ],
+    "commit_command": [
+      "commit-command",
+      "the_commit_command",
+      "commit_command"
+    ],
+    "commit_conclusion": [
+      "commit-command",
+      "the_commit_command",
+      "commit_conclusion"
+    ],
+    "commit_convergence": [
+      "commit-command",
+      "the_commit_command",
+      "commit_convergence"
+    ],
+    "commit_facts": [
+      "commit-command",
+      "the_commit_command",
+      "commit_facts"
+    ],
+    "commit_index": [
+      "commit-command",
+      "the_commit_command",
+      "commit_index"
+    ],
+    "commit_index_copying": [
+      "commit-command",
+      "the_commit_command",
+      "commit_index_copying"
+    ],
+    "commit_no_change": [
+      "commit-command",
+      "the_commit_command",
+      "commit_no_change"
+    ],
+    "commit_preparation": [
+      "commit-command",
+      "the_commit_command",
+      "commit_preparation"
+    ],
+    "commit_staged_additions": [
+      "commit-command",
+      "the_commit_command",
+      "commit_staged_additions"
+    ],
+    "commit_staged_deletions": [
+      "commit-command",
+      "the_commit_command",
+      "commit_staged_deletions"
+    ],
+    "commit_timing": [
+      "commit-service-log-lines",
+      "log_lines_of_the_commit_service",
+      "commit_timing"
+    ],
+    "commit_transaction": [
+      "commit-command",
+      "the_commit_command",
+      "commit_transaction"
+    ],
+    "commit_worktree_records": [
+      "commit-command",
+      "the_commit_command",
+      "commit_worktree_records"
+    ],
+    "conclusion_cleanup": [
+      "hidden-git-copy-for-preparing-commits",
+      "the_hidden_second_git_folder",
+      "conclusion_cleanup"
+    ],
+    "conclusion_copy": [
+      "hidden-git-copy-for-preparing-commits",
+      "the_hidden_second_git_folder",
+      "conclusion_copy"
+    ],
+    "config_discarded": [
+      "wrapper-settings",
+      "the_settings_file_cli_git_config_jsonc",
+      "discarded_copies_settings"
+    ],
+    "config_error": [
+      "wrapper-settings",
+      "the_settings_file_cli_git_config_jsonc",
+      "rejected_settings"
+    ],
+    "config_file": [
+      "wrapper-settings",
+      "the_settings_file_cli_git_config_jsonc",
+      "finding_and_reading_the_settings_file"
+    ],
+    "config_fsync": [
+      "wrapper-settings",
+      "git_settings_read_once",
+      "which_parts_git_flushes_to_disk"
+    ],
+    "config_loading": [
+      "wrapper-settings",
+      "the_settings_file_cli_git_config_jsonc",
+      "deciding_how_to_load_settings"
+    ],
+    "config_parse": [
+      "wrapper-settings",
+      "the_settings_file_cli_git_config_jsonc",
+      "turning_settings_text_into_typed_settings"
+    ],
+    "config_policies": [
+      "wrapper-settings",
+      "the_settings_file_cli_git_config_jsonc",
+      "checking_the_policies_section"
+    ],
+    "config_policies_markdown": [
+      "wrapper-settings",
+      "the_settings_file_cli_git_config_jsonc",
+      "checking_the_markdown_policy_options"
+    ],
+    "config_rules_file": [
+      "wrapper-settings",
+      "the_settings_file_cli_git_config_jsonc",
+      "the_rules_file_option"
+    ],
+    "config_schema": [
+      "wrapper-settings",
+      "the_settings_file_cli_git_config_jsonc",
+      "typed_settings"
+    ],
+    "config_snapshot": [
+      "wrapper-settings",
+      "git_settings_read_once",
+      "one_read_of_all_git_settings"
+    ],
+    "config_values": [
+      "wrapper-settings",
+      "the_settings_file_cli_git_config_jsonc",
+      "typed_readers_over_json_values"
+    ],
+    "conflict_markers": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "conflict_markers"
+    ],
+    "conflict_side_decision": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "conflict_side_decision"
+    ],
+    "conflict_side_guard": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "conflict_side_guard"
+    ],
+    "conflict_side_modes": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "conflict_side_modes"
+    ],
+    "conflict_side_notice": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "conflict_side_notice"
+    ],
+    "conflict_side_source": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "conflict_side_source"
+    ],
+    "conflict_side_state": [
+      "read-git-files-without-git",
+      "reading_branches_tags_and_markers",
+      "operation_in_progress"
+    ],
+    "conflict_sides": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "conflict_sides"
+    ],
+    "current_step_record": [
+      "starting-and-watching-programs",
+      "watching_a_started_program_until_it_stops_making_progress",
+      "current_step_record"
+    ],
+    "dependent_version_bundled": [
+      "dependent-version-bump-check",
+      "planning_version_bumps_of_dependents",
+      "dependent_version_bundled"
+    ],
+    "dependent_version_content": [
+      "dependent-version-bump-check",
+      "planning_version_bumps_of_dependents",
+      "dependent_version_content"
+    ],
+    "dependent_version_graph": [
+      "dependent-version-bump-check",
+      "planning_version_bumps_of_dependents",
+      "dependent_version_graph"
+    ],
+    "dependent_version_imports": [
+      "dependent-version-bump-check",
+      "planning_version_bumps_of_dependents",
+      "dependent_version_imports"
+    ],
+    "dependent_version_lifecycle": [
+      "dependent-version-bump-check",
+      "planning_version_bumps_of_dependents",
+      "dependent_version_lifecycle"
+    ],
+    "dependent_version_manifest": [
+      "dependent-version-bump-check",
+      "planning_version_bumps_of_dependents",
+      "dependent_version_manifest"
+    ],
+    "dependent_version_paths": [
+      "dependent-version-bump-check",
+      "planning_version_bumps_of_dependents",
+      "dependent_version_paths"
+    ],
+    "dependent_version_plan": [
+      "dependent-version-bump-check",
+      "planning_version_bumps_of_dependents",
+      "dependent_version_plan"
+    ],
+    "dependent_version_policy": [
+      "dependent-version-bump-check",
+      "planning_version_bumps_of_dependents",
+      "dependent_version_policy"
+    ],
+    "dependent_version_publishable": [
+      "dependent-version-bump-check",
+      "planning_version_bumps_of_dependents",
+      "dependent_version_publishable"
+    ],
+    "dependent_version_release": [
+      "dependent-version-bump-check",
+      "planning_version_bumps_of_dependents",
+      "dependent_version_release"
+    ],
+    "dependent_version_states": [
+      "dependent-version-bump-check",
+      "planning_version_bumps_of_dependents",
+      "dependent_version_states"
+    ],
+    "dependent_version_text": [
+      "dependent-version-bump-check",
+      "planning_version_bumps_of_dependents",
+      "dependent_version_text"
+    ],
+    "diagnostic_log": [
+      "text-time-and-log-line-formats",
+      "lines_the_wrapper_prints_for_the_person",
+      "debug_and_warning_lines_on_standard_error"
+    ],
+    "diagnostics": [
+      "policy-engine",
+      "running_policies_and_settling_their_corrections",
+      "messages_as_json_lines"
+    ],
+    "direct_fix": [
+      "shipped-policies",
+      "the_list_of_checks_every_commit_runs",
+      "fixing_files_in_place_command"
+    ],
+    "direct_fix_install": [
+      "commit-candidate-content",
+      "putting_corrected_files_into_the_private_index",
+      "putting_corrections_into_the_private_index"
+    ],
+    "discard_audit": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "discard_audit"
+    ],
+    "discard_audit_generations": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "discard_audit_generations"
+    ],
+    "discarded_prune": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "discarded_prune"
+    ],
+    "discarded_prune_audit_line": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "discarded_prune_audit_line"
+    ],
+    "discarded_prune_limits": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "discarded_prune_limits"
+    ],
+    "discarded_prune_plan": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "discarded_prune_plan"
+    ],
+    "discarded_prune_problems": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "discarded_prune_problems"
+    ],
+    "discarded_prune_stamps": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "discarded_prune_stamps"
+    ],
+    "discarded_store": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "discarded_store"
+    ],
+    "discarded_store_records": [
+      "keep-copies-of-discarded-work",
+      "saving_copies_of_what_a_command_would_throw_away",
+      "discarded_store_records"
+    ],
+    "doctor": [
+      "doctor-report",
+      "checking_that_your_setup_works",
+      "doctor"
+    ],
+    "doctor_config": [
+      "doctor-report",
+      "checking_that_your_setup_works",
+      "doctor_config"
+    ],
+    "doctor_filesystem": [
+      "doctor-report",
+      "checking_that_your_setup_works",
+      "doctor_filesystem"
+    ],
+    "doctor_fsmonitor": [
+      "doctor-report",
+      "checking_that_your_setup_works",
+      "doctor_fsmonitor"
+    ],
+    "effective_target": [
+      "typed-command-reader",
+      "the_words_meant_for_this_wrapper",
+      "which_worktree_a_command_targets"
+    ],
+    "empty_tree": [
+      "hidden-git-copy-for-preparing-commits",
+      "the_hidden_second_git_folder",
+      "empty_tree"
+    ],
+    "entry": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "deciding_what_one_git_command_does"
+    ],
+    "entry_forward_action_planning": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "entry_forward_action_planning"
+    ],
+    "entry_push_stacking_and_lfs_upload": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "entry_push_stacking_and_lfs_upload"
+    ],
+    "entry_run_forwarded_actions": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "entry_run_forwarded_actions"
+    ],
+    "escape_hatch": [
+      "typed-command-reader",
+      "spellings_that_switch_the_wrapper_off",
+      "escape_hatch_spellings"
+    ],
+    "event_hints": [
+      "policy-engine",
+      "running_policies_and_settling_their_corrections",
+      "hints_after_a_finding"
+    ],
+    "event_path": [
+      "policy-engine",
+      "running_policies_and_settling_their_corrections",
+      "repository_path_in_an_event"
+    ],
+    "external_hooks": [
+      "wrapper-settings",
+      "hooks_a_repository_configures",
+      "hooks_set_in_git_settings"
+    ],
+    "forwarded_command": [
+      "start-the-real-git",
+      "running_git_for_a_transaction",
+      "the_git_command_a_forward_runs"
+    ],
+    "forwarded_lock_notice": [
+      "git-lock-files",
+      "clearing_leftover_reference_locks",
+      "clearing_locks_before_fetch_and_push"
+    ],
+    "forwarding": [
+      "start-the-real-git",
+      "starting_git_and_describing_a_run",
+      "starting_git_with_the_callers_arguments"
+    ],
+    "fs_beneath": [
+      "linux-filesystem-primitives",
+      "file_operations_that_never_follow_a_link",
+      "file_operations_that_never_follow_a_link"
+    ],
+    "fs_btrfs_ioctl": [
+      "linux-filesystem-primitives",
+      "fast_copies_and_swaps_on_linux",
+      "btrfs_folder_copy_calls"
+    ],
+    "fs_clone_exchange": [
+      "linux-filesystem-primitives",
+      "fast_copies_and_swaps_on_linux",
+      "cloning_file_data_and_swapping_paths"
+    ],
+    "fs_kind": [
+      "linux-filesystem-primitives",
+      "which_disk_a_folder_is_on",
+      "which_kind_of_disk_a_folder_is_on"
+    ],
+    "fs_mount_options": [
+      "linux-filesystem-primitives",
+      "which_disk_a_folder_is_on",
+      "mounted_disks_and_their_options"
+    ],
+    "fs_primitive_error": [
+      "linux-filesystem-primitives",
+      "which_disk_a_folder_is_on",
+      "why_a_disk_call_failed"
+    ],
+    "git_builtins": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "git_builtins"
+    ],
+    "git_directory_roots": [
+      "read-git-files-without-git",
+      "finding_the_git_folders",
+      "git_folder_roots"
+    ],
+    "git_metadata": [
+      "start-the-real-git",
+      "running_git_for_a_transaction",
+      "running_a_read_only_git_query"
+    ],
+    "git_system_config": [
+      "start-the-real-git",
+      "starting_git_and_describing_a_run",
+      "system_settings_file_of_git"
+    ],
+    "git_version": [
+      "start-the-real-git",
+      "running_git_for_a_transaction",
+      "checking_the_real_git_version"
+    ],
+    "git_version_cache": [
+      "start-the-real-git",
+      "finding_the_real_git_program",
+      "remembered_git_version"
+    ],
+    "global_arguments": [
+      "typed-command-reader",
+      "what_each_git_command_accepts",
+      "global_arguments"
+    ],
+    "hooks_off": [
+      "start-the-real-git",
+      "starting_git_and_describing_a_run",
+      "starting_git_with_hooks_off"
+    ],
+    "index_byte_search": [
+      "git-index-file",
+      "reading_and_writing_the_index_file_of_git",
+      "finding_bytes_in_a_slice"
+    ],
+    "index_cache_tree": [
+      "git-index-file",
+      "reading_and_writing_the_index_file_of_git",
+      "cache_tree_extension"
+    ],
+    "index_ewah": [
+      "git-index-file",
+      "reading_and_writing_the_index_file_of_git",
+      "compressed_bitmaps"
+    ],
+    "index_flags": [
+      "git-index-file",
+      "reading_and_writing_the_index_file_of_git",
+      "per_entry_flags"
+    ],
+    "index_fsmonitor": [
+      "git-index-file",
+      "reading_and_writing_the_index_file_of_git",
+      "file_system_monitor_extension"
+    ],
+    "index_full": [
+      "git-index-file",
+      "reading_and_writing_the_index_file_of_git",
+      "the_whole_index_in_memory"
+    ],
+    "index_full_write": [
+      "git-index-file",
+      "reading_and_writing_the_index_file_of_git",
+      "writing_the_whole_index"
+    ],
+    "index_holder_wait": [
+      "commit-service-index-lock",
+      "waiting_for_the_index_lock_of_git",
+      "waiting_for_any_programs_hold_on_the_index_lock"
+    ],
+    "index_lock_evidence": [
+      "git-lock-files",
+      "finding_who_holds_a_lock_file",
+      "evidence_about_a_foreign_index_lock"
+    ],
+    "index_lock_holder_parsers": [
+      "git-lock-files",
+      "finding_who_holds_a_lock_file",
+      "reading_the_output_of_a_holder_scan"
+    ],
+    "index_lock_holders": [
+      "git-lock-files",
+      "finding_who_holds_a_lock_file",
+      "programs_holding_a_lock_file_open"
+    ],
+    "index_lock_wait": [
+      "git-lock-files",
+      "finding_who_holds_a_lock_file",
+      "git_retry_schedule_for_lock_files"
+    ],
+    "index_reset": [
+      "land-prepared-commits",
+      "landing_commits",
+      "index_reset"
+    ],
+    "index_reset_file": [
+      "land-prepared-commits",
+      "landing_commits",
+      "index_reset_file"
+    ],
+    "index_reset_publish": [
+      "land-prepared-commits",
+      "landing_commits",
+      "index_reset_publish"
+    ],
+    "index_reset_tree": [
+      "land-prepared-commits",
+      "landing_commits",
+      "index_reset_tree"
+    ],
+    "index_resolve_undo": [
+      "git-index-file",
+      "reading_and_writing_the_index_file_of_git",
+      "resolve_undo_extension"
+    ],
+    "index_settings": [
+      "read-git-files-without-git",
+      "settings_that_decide_how_the_index_is_read",
+      "index_extension_settings"
+    ],
+    "index_stat": [
+      "git-index-file",
+      "reading_and_writing_the_index_file_of_git",
+      "stat_fields_of_an_entry"
+    ],
+    "index_untracked": [
+      "git-index-file",
+      "reading_and_writing_the_index_file_of_git",
+      "untracked_cache_extension"
+    ],
+    "index_untracked_io": [
+      "git-index-file",
+      "reading_and_writing_the_index_file_of_git",
+      "reading_and_writing_the_untracked_cache"
+    ],
+    "index_writer_commands": [
+      "commit-service-index-lock",
+      "waiting_for_the_index_lock_of_git",
+      "does_a_command_write_the_index"
+    ],
+    "index_writer_forward": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "index_writer_forward"
+    ],
+    "inner_git_words": [
+      "commit-service-log-lines",
+      "log_lines_of_the_commit_service",
+      "inner_git_words"
+    ],
+    "invocation_config": [
+      "wrapper-settings",
+      "the_settings_file_cli_git_config_jsonc",
+      "settings_of_the_worktree_a_command_runs_in"
+    ],
+    "iso_time": [
+      "text-time-and-log-line-formats",
+      "text_time_and_records_written_like_javascript",
+      "utc_time_stamps_like_javascript"
+    ],
+    "journald_native": [
+      "system-journal-entries",
+      "sending_log_entries_to_the_system_journal",
+      "writing_to_the_system_journal"
+    ],
+    "journald_native_socket_target": [
+      "system-journal-entries",
+      "sending_log_entries_to_the_system_journal",
+      "where_journal_entries_are_sent"
+    ],
+    "js_text": [
+      "text-time-and-log-line-formats",
+      "text_time_and_records_written_like_javascript",
+      "text_operations_like_javascript"
+    ],
+    "json_record": [
+      "text-time-and-log-line-formats",
+      "text_time_and_records_written_like_javascript",
+      "compact_json_records"
+    ],
+    "landed_summary": [
+      "commit-service-client",
+      "asking_the_commit_service_to_save_a_commit",
+      "landed_summary"
+    ],
+    "landing_location": [
+      "start-the-real-git",
+      "what_the_wrapper_asks_git_about_a_repository",
+      "where_the_real_index_lives"
+    ],
+    "lexical_path": [
+      "safe-file-saving",
+      "saving_files_so_a_crash_leaves_no_half_file",
+      "cleaning_up_a_path_by_its_text"
+    ],
+    "lfs_bounded_push": [
+      "upload-large-files-before-a-push",
+      "uploading_large_files",
+      "push_preceded_by_large_file_upload"
+    ],
+    "lfs_interactive": [
+      "upload-large-files-before-a-push",
+      "uploading_large_files",
+      "large_file_step_before_a_typed_push"
+    ],
+    "lfs_object_plan": [
+      "upload-large-files-before-a-push",
+      "uploading_large_files",
+      "exact_large_files_a_push_introduces"
+    ],
+    "lfs_output_mask": [
+      "text-time-and-log-line-formats",
+      "lines_the_wrapper_prints_for_the_person",
+      "hiding_passwords_in_urls"
+    ],
+    "lfs_pointer": [
+      "upload-large-files-before-a-push",
+      "uploading_large_files",
+      "is_a_blob_a_large_file_pointer"
+    ],
+    "lfs_pointer_scan": [
+      "upload-large-files-before-a-push",
+      "uploading_large_files",
+      "large_files_found_in_the_commits_to_push"
+    ],
+    "lfs_pre_push": [
+      "upload-large-files-before-a-push",
+      "uploading_large_files",
+      "when_a_push_needs_the_large_file_upload"
+    ],
+    "lfs_push_precheck": [
+      "upload-large-files-before-a-push",
+      "uploading_large_files",
+      "can_the_large_file_upload_start"
+    ],
+    "lfs_upload": [
+      "upload-large-files-before-a-push",
+      "uploading_large_files",
+      "running_the_large_file_upload"
+    ],
+    "lfs_upload_plan": [
+      "upload-large-files-before-a-push",
+      "uploading_large_files",
+      "what_the_large_file_upload_sends"
+    ],
+    "lfs_upload_settings": [
+      "upload-large-files-before-a-push",
+      "uploading_large_files",
+      "settings_the_upload_plan_reads"
+    ],
+    "maintenance_decision": [
+      "land-prepared-commits",
+      "landing_commits",
+      "maintenance_decision"
+    ],
+    "maintenance_run": [
+      "land-prepared-commits",
+      "landing_commits",
+      "maintenance_run"
+    ],
+    "management": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "deciding_what_a_cli_git_command_does"
+    ],
+    "management_arguments": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "management_arguments"
+    ],
+    "management_direct_commands": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "management_direct_commands"
+    ],
+    "management_selection": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "management_selection"
+    ],
+    "management_service_repository_selection": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "management_service_repository_selection"
+    ],
+    "manual_push_cause": [
+      "rules-about-git-command-lines",
+      "rules_about_what_a_commit_may_contain",
+      "why_a_push_scope_is_unknown"
+    ],
+    "manual_push_lifecycle": [
+      "typed-push-planning",
+      "working_out_what_a_typed_push_would_send",
+      "scope_of_one_typed_push"
+    ],
+    "manual_push_porcelain": [
+      "typed-push-planning",
+      "working_out_what_a_typed_push_would_send",
+      "reading_dry_run_push_output"
+    ],
+    "manual_push_probe": [
+      "typed-push-planning",
+      "working_out_what_a_typed_push_would_send",
+      "what_a_dry_run_push_would_send"
+    ],
+    "manual_push_range": [
+      "typed-push-planning",
+      "working_out_what_a_typed_push_would_send",
+      "commits_a_push_newly_publishes"
+    ],
+    "manual_push_update_and_query_limits": [
+      "typed-push-planning",
+      "working_out_what_a_typed_push_would_send",
+      "one_pushed_ref_and_query_limits"
+    ],
+    "markdown_exclude": [
+      "markdown-autofix-check",
+      "fixing_markdown_in_process",
+      "markdown_exclude"
+    ],
+    "markdown_linter": [
+      "markdown-autofix-check",
+      "fixing_markdown_in_process",
+      "markdown_linter"
+    ],
+    "markdown_linter_config": [
+      "markdown-autofix-check",
+      "fixing_markdown_in_process",
+      "markdown_linter_config"
+    ],
+    "markdown_linter_guard": [
+      "markdown-autofix-check",
+      "fixing_markdown_in_process",
+      "markdown_linter_guard"
+    ],
+    "markdown_linter_output": [
+      "markdown-autofix-check",
+      "fixing_markdown_in_process",
+      "markdown_linter_output"
+    ],
+    "merge_isolation": [
+      "merge-in-isolation",
+      "merging_without_touching_your_files",
+      "merge_isolation"
+    ],
+    "merge_isolation_apply": [
+      "merge-in-isolation",
+      "merging_without_touching_your_files",
+      "merge_isolation_apply"
+    ],
+    "merge_isolation_changes": [
+      "isolated-merge-recovery",
+      "recovering_a_merge_that_was_cut_short",
+      "merge_isolation_changes"
+    ],
+    "merge_isolation_git_reads": [
+      "merge-in-isolation",
+      "merging_without_touching_your_files",
+      "merge_isolation_git_reads"
+    ],
+    "merge_isolation_journal": [
+      "isolated-merge-recovery",
+      "recovering_a_merge_that_was_cut_short",
+      "merge_isolation_journal"
+    ],
+    "merge_isolation_message": [
+      "merge-in-isolation",
+      "merging_without_touching_your_files",
+      "merge_isolation_message"
+    ],
+    "merge_isolation_moved": [
+      "isolated-merge-recovery",
+      "recovering_a_merge_that_was_cut_short",
+      "merge_isolation_moved"
+    ],
+    "merge_isolation_recovery": [
+      "isolated-merge-recovery",
+      "recovering_a_merge_that_was_cut_short",
+      "merge_isolation_recovery"
+    ],
+    "merge_isolation_recovery_steps": [
+      "isolated-merge-recovery",
+      "recovering_a_merge_that_was_cut_short",
+      "merge_isolation_recovery_steps"
+    ],
+    "merge_isolation_report": [
+      "merge-in-isolation",
+      "merging_without_touching_your_files",
+      "merge_isolation_report"
+    ],
+    "merge_isolation_run_types": [
+      "merge-in-isolation",
+      "merging_without_touching_your_files",
+      "merge_isolation_run_types"
+    ],
+    "merge_options": [
+      "merge-in-isolation",
+      "merging_without_touching_your_files",
+      "merge_options"
+    ],
+    "merge_second_pass": [
+      "merge-conflicts-word-by-word",
+      "rerunning_a_merge_word_by_word",
+      "word_level_second_pass"
+    ],
+    "merge_second_pass_conflicts": [
+      "merge-conflicts-word-by-word",
+      "rerunning_a_merge_word_by_word",
+      "merge_second_pass_conflicts"
+    ],
+    "merge_second_pass_finish": [
+      "merge-conflicts-word-by-word",
+      "rerunning_a_merge_word_by_word",
+      "merge_second_pass_finish"
+    ],
+    "merge_second_pass_finish_stops": [
+      "merge-conflicts-word-by-word",
+      "rerunning_a_merge_word_by_word",
+      "merge_second_pass_finish_stops"
+    ],
+    "merge_second_pass_git_runner": [
+      "merge-conflicts-word-by-word",
+      "rerunning_a_merge_word_by_word",
+      "merge_second_pass_git_runner"
+    ],
+    "merge_second_pass_tree": [
+      "merge-conflicts-word-by-word",
+      "rerunning_a_merge_word_by_word",
+      "merge_second_pass_tree"
+    ],
+    "merge_second_pass_worktree": [
+      "merge-conflicts-word-by-word",
+      "rerunning_a_merge_word_by_word",
+      "merge_second_pass_worktree"
+    ],
+    "object_abbreviation": [
+      "read-git-files-without-git",
+      "reading_saved_commits_and_files",
+      "short_object_names"
+    ],
+    "object_abbreviation_byte_and_prefix_checks": [
+      "read-git-files-without-git",
+      "reading_saved_commits_and_files",
+      "byte_and_prefix_checks_for_short_names"
+    ],
+    "output_capture": [
+      "starting-and-watching-programs",
+      "starting_programs_catching_signals_and_keeping_their_output",
+      "child_output_kept_in_files"
+    ],
+    "package_repair": [
+      "fix-packages-after-copying-a-folder",
+      "repairing_installed_packages",
+      "package_repair"
+    ],
+    "package_repair_cargo": [
+      "fix-packages-after-copying-a-folder",
+      "repairing_installed_packages",
+      "package_repair_cargo"
+    ],
+    "package_repair_cargo_concurrent": [
+      "fix-packages-after-copying-a-folder",
+      "repairing_installed_packages",
+      "package_repair_cargo_concurrent"
+    ],
+    "package_repair_cargo_lock": [
+      "fix-packages-after-copying-a-folder",
+      "repairing_installed_packages",
+      "package_repair_cargo_lock"
+    ],
+    "package_repair_cargo_workspaces": [
+      "fix-packages-after-copying-a-folder",
+      "repairing_installed_packages",
+      "package_repair_cargo_workspaces"
+    ],
+    "package_repair_command": [
+      "fix-packages-after-copying-a-folder",
+      "repairing_installed_packages",
+      "package_repair_command"
+    ],
+    "package_repair_pnpm": [
+      "fix-packages-after-copying-a-folder",
+      "repairing_installed_packages",
+      "package_repair_pnpm"
+    ],
+    "package_repair_report": [
+      "fix-packages-after-copying-a-folder",
+      "repairing_installed_packages",
+      "package_repair_report"
+    ],
+    "package_repair_request": [
+      "fix-packages-after-copying-a-folder",
+      "repairing_installed_packages",
+      "package_repair_request"
+    ],
+    "package_repair_toolchain": [
+      "fix-packages-after-copying-a-folder",
+      "repairing_installed_packages",
+      "package_repair_toolchain"
+    ],
+    "package_repair_tree_clone": [
+      "fix-packages-after-copying-a-folder",
+      "repairing_installed_packages",
+      "package_repair_tree_clone"
+    ],
+    "panic_notice": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "message_when_the_program_panics"
+    ],
+    "parallel_budget": [
+      "parallel-work-within-a-budget",
+      "running_independent_jobs_side_by_side",
+      "how_many_jobs_may_run_together"
+    ],
+    "parallel_runner": [
+      "parallel-work-within-a-budget",
+      "running_independent_jobs_side_by_side",
+      "running_jobs_side_by_side"
+    ],
+    "path_bytes": [
+      "safe-file-saving",
+      "saving_files_so_a_crash_leaves_no_half_file",
+      "paths_as_exact_bytes"
+    ],
+    "pid_namespace": [
+      "starting-and-watching-programs",
+      "which_programs_are_running_and_since_when",
+      "process_numbers_in_other_containers"
+    ],
+    "policy_added_path": [
+      "policy-engine",
+      "running_policies_and_settling_their_corrections",
+      "may_a_fix_change_an_unselected_file"
+    ],
+    "policy_catalog_specifiers": [
+      "shipped-policies",
+      "the_built_in_policies",
+      "policy_catalog_specifiers"
+    ],
+    "policy_checks": [
+      "shipped-policies",
+      "the_list_of_checks_every_commit_runs",
+      "the_list_of_shipped_checks"
+    ],
+    "policy_content": [
+      "policy-engine",
+      "running_policies_and_settling_their_corrections",
+      "content_offered_to_policies"
+    ],
+    "policy_convergence": [
+      "policy-engine",
+      "running_policies_and_settling_their_corrections",
+      "repeating_a_pass_until_it_settles"
+    ],
+    "policy_dependent_version": [
+      "dependent-version-bump-check",
+      "planning_version_bumps_of_dependents",
+      "policy_dependent_version"
+    ],
+    "policy_engine": [
+      "policy-engine",
+      "running_policies_and_settling_their_corrections",
+      "running_policies_in_order"
+    ],
+    "policy_events": [
+      "policy-engine",
+      "running_policies_and_settling_their_corrections",
+      "events_of_a_policy_pass"
+    ],
+    "policy_final_newline": [
+      "shipped-policies",
+      "the_built_in_policies",
+      "policy_final_newline"
+    ],
+    "policy_forbidden_strings": [
+      "shipped-policies",
+      "the_built_in_policies",
+      "policy_forbidden_strings"
+    ],
+    "policy_markdown": [
+      "markdown-autofix-check",
+      "fixing_markdown_in_process",
+      "policy_markdown"
+    ],
+    "policy_pass": [
+      "shipped-policies",
+      "the_list_of_checks_every_commit_runs",
+      "one_complete_policy_pass"
+    ],
+    "policy_registry": [
+      "typed-command-reader",
+      "the_words_meant_for_this_wrapper",
+      "names_of_the_built_in_policies"
+    ],
+    "policy_root_context": [
+      "shipped-policies",
+      "the_built_in_policies",
+      "policy_root_context"
+    ],
+    "policy_transforms": [
+      "policy-engine",
+      "running_policies_and_settling_their_corrections",
+      "fixed_changes_to_a_command"
+    ],
+    "policy_trigger": [
+      "policy-engine",
+      "running_policies_and_settling_their_corrections",
+      "points_at_which_policies_run"
+    ],
+    "post_commit": [
+      "commit-command",
+      "the_commit_command",
+      "post_commit"
+    ],
+    "private_index_request": [
+      "commit-command",
+      "the_commit_command",
+      "private_index_request"
+    ],
+    "private_index_stage": [
+      "commit-command",
+      "the_commit_command",
+      "private_index_stage"
+    ],
+    "private_storage": [
+      "safe-file-saving",
+      "saving_files_so_a_crash_leaves_no_half_file",
+      "saving_private_files"
+    ],
+    "process_identity": [
+      "starting-and-watching-programs",
+      "which_programs_are_running_and_since_when",
+      "telling_one_process_from_a_reused_number"
+    ],
+    "process_start": [
+      "starting-and-watching-programs",
+      "which_programs_are_running_and_since_when",
+      "when_a_process_started"
+    ],
+    "process_tree": [
+      "starting-and-watching-programs",
+      "which_programs_are_running_and_since_when",
+      "a_process_and_the_programs_below_it"
+    ],
+    "process_use": [
+      "starting-and-watching-programs",
+      "which_programs_are_running_and_since_when",
+      "which_programs_use_a_file_or_folder"
+    ],
+    "pull_isolation": [
+      "merge-in-isolation",
+      "merging_without_touching_your_files",
+      "pull_isolation"
+    ],
+    "push_attempt_and_failure": [
+      "push-with-a-deadline",
+      "running_git_push_until_it_ends_or_stalls",
+      "one_push_attempt_and_its_failure"
+    ],
+    "push_deadline_advice": [
+      "push-with-a-deadline",
+      "running_git_push_until_it_ends_or_stalls",
+      "how_to_change_the_push_deadline"
+    ],
+    "push_deadline_and_patience_settings": [
+      "starting-and-watching-programs",
+      "how_long_the_wrapper_waits_for_each_thing",
+      "how_long_a_push_may_show_nothing"
+    ],
+    "push_failure_notice": [
+      "background-push-after-commit",
+      "pushing_what_the_commit_service_saved",
+      "record_of_a_failed_backup_push"
+    ],
+    "push_lock_clearing": [
+      "push-with-a-deadline",
+      "running_git_push_until_it_ends_or_stalls",
+      "clearing_locks_around_a_push"
+    ],
+    "push_progress": [
+      "starting-and-watching-programs",
+      "watching_a_started_program_until_it_stops_making_progress",
+      "measuring_progress_of_a_push"
+    ],
+    "push_retry": [
+      "background-push-after-commit",
+      "pushing_what_the_commit_service_saved",
+      "retrying_a_stopped_push"
+    ],
+    "push_retry_store": [
+      "background-push-after-commit",
+      "pushing_what_the_commit_service_saved",
+      "retry_plans_on_disk"
+    ],
+    "push_stacking": [
+      "typed-push-planning",
+      "working_out_what_a_typed_push_would_send",
+      "typed_push_that_lost_a_race"
+    ],
+    "push_trigger_log": [
+      "background-push-after-commit",
+      "pushing_what_the_commit_service_saved",
+      "log_of_push_trigger_decisions"
+    ],
+    "quiet_ledger": [
+      "starting-and-watching-programs",
+      "watching_a_started_program_until_it_stops_making_progress",
+      "longest_quiet_gaps"
+    ],
+    "random_id": [
+      "safe-file-saving",
+      "saving_files_so_a_crash_leaves_no_half_file",
+      "random_names"
+    ],
+    "real_git": [
+      "start-the-real-git",
+      "finding_the_real_git_program",
+      "finding_the_real_git"
+    ],
+    "real_git_candidate": [
+      "start-the-real-git",
+      "finding_the_real_git_program",
+      "deciding_if_a_path_is_real_git"
+    ],
+    "real_git_record": [
+      "start-the-real-git",
+      "finding_the_real_git_program",
+      "real_git_the_service_was_set_up_with"
+    ],
+    "real_git_resolution": [
+      "start-the-real-git",
+      "finding_the_real_git_program",
+      "the_one_resolution_of_real_git"
+    ],
+    "recovery_error": [
+      "safe-file-saving",
+      "saving_files_so_a_crash_leaves_no_half_file",
+      "why_a_file_step_failed"
+    ],
+    "recovery_files": [
+      "safe-file-saving",
+      "saving_files_so_a_crash_leaves_no_half_file",
+      "file_steps_that_report_why_they_failed"
+    ],
+    "ref_files": [
+      "read-git-files-without-git",
+      "reading_branches_tags_and_markers",
+      "ref_file_answers"
+    ],
+    "replay_capture_order": [
+      "hidden-git-copy-for-preparing-commits",
+      "replaying_changes_onto_new_commits",
+      "replay_capture_order"
+    ],
+    "replay_containment": [
+      "hidden-git-copy-for-preparing-commits",
+      "replaying_changes_onto_new_commits",
+      "replay_containment"
+    ],
+    "replay_merge": [
+      "hidden-git-copy-for-preparing-commits",
+      "replaying_changes_onto_new_commits",
+      "replay_merge"
+    ],
+    "replay_patch": [
+      "hidden-git-copy-for-preparing-commits",
+      "replaying_changes_onto_new_commits",
+      "replay_patch"
+    ],
+    "replay_reverse_apply": [
+      "hidden-git-copy-for-preparing-commits",
+      "replaying_changes_onto_new_commits",
+      "replay_reverse_apply"
+    ],
+    "replay_shadow": [
+      "hidden-git-copy-for-preparing-commits",
+      "replaying_changes_onto_new_commits",
+      "replay_shadow"
+    ],
+    "replay_shared_paths": [
+      "hidden-git-copy-for-preparing-commits",
+      "replaying_changes_onto_new_commits",
+      "replay_shared_paths"
+    ],
+    "replay_subsumption": [
+      "hidden-git-copy-for-preparing-commits",
+      "replaying_changes_onto_new_commits",
+      "replay_subsumption"
+    ],
+    "replay_subsumption_text": [
+      "hidden-git-copy-for-preparing-commits",
+      "replaying_changes_onto_new_commits",
+      "replay_subsumption_text"
+    ],
+    "repo_read_adapter": [
+      "start-the-real-git",
+      "what_the_wrapper_asks_git_about_a_repository",
+      "answer_shapes_built_from_a_repository_layout"
+    ],
+    "repo_read_config_list": [
+      "read-git-files-without-git",
+      "reading_git_settings_from_files",
+      "merged_configuration_listing"
+    ],
+    "repo_read_config_scan": [
+      "read-git-files-without-git",
+      "reading_git_settings_from_files",
+      "configuration_scopes_scan"
+    ],
+    "repo_read_config_text": [
+      "read-git-files-without-git",
+      "reading_git_settings_from_files",
+      "configuration_file_text"
+    ],
+    "repo_read_config_typed": [
+      "read-git-files-without-git",
+      "reading_git_settings_from_files",
+      "typed_configuration_values"
+    ],
+    "repo_read_config_value_kinds": [
+      "read-git-files-without-git",
+      "reading_git_settings_from_files",
+      "kinds_of_configuration_values"
+    ],
+    "repo_read_diff": [
+      "read-git-files-without-git",
+      "reading_saved_commits_and_files",
+      "difference_of_two_trees"
+    ],
+    "repo_read_hook": [
+      "start-the-real-git",
+      "answering_questions_without_starting_git",
+      "trying_in_process_answers_first"
+    ],
+    "repo_read_index": [
+      "read-git-files-without-git",
+      "reading_saved_commits_and_files",
+      "index_entries"
+    ],
+    "repo_read_layout": [
+      "read-git-files-without-git",
+      "finding_the_git_folders",
+      "repository_location_without_git"
+    ],
+    "repo_read_layout_disk_and_directory_facts": [
+      "read-git-files-without-git",
+      "finding_the_git_folders",
+      "disk_and_directory_facts"
+    ],
+    "repo_read_layout_environment_rules": [
+      "read-git-files-without-git",
+      "finding_the_git_folders",
+      "environment_rules_of_repository_discovery"
+    ],
+    "repo_read_layout_without": [
+      "read-git-files-without-git",
+      "finding_the_git_folders",
+      "location_with_options_left_out"
+    ],
+    "repo_read_object": [
+      "read-git-files-without-git",
+      "reading_saved_commits_and_files",
+      "object_shapes_and_zlib"
+    ],
+    "repo_read_odb": [
+      "read-git-files-without-git",
+      "reading_saved_commits_and_files",
+      "the_object_database"
+    ],
+    "repo_read_pack": [
+      "read-git-files-without-git",
+      "reading_saved_commits_and_files",
+      "reading_a_pack_file"
+    ],
+    "repo_read_query": [
+      "start-the-real-git",
+      "answering_questions_without_starting_git",
+      "answers_to_the_wrappers_own_git_queries"
+    ],
+    "repo_read_query_quiet": [
+      "start-the-real-git",
+      "answering_questions_without_starting_git",
+      "quiet_diff_index_answer"
+    ],
+    "repo_read_query_refs": [
+      "start-the-real-git",
+      "answering_questions_without_starting_git",
+      "reference_and_configuration_answers"
+    ],
+    "repo_read_query_request_answer_and_context": [
+      "start-the-real-git",
+      "answering_questions_without_starting_git",
+      "query_request_answer_and_context"
+    ],
+    "repo_read_refs": [
+      "read-git-files-without-git",
+      "reading_branches_tags_and_markers",
+      "refs_in_files"
+    ],
+    "repo_read_tree": [
+      "read-git-files-without-git",
+      "reading_saved_commits_and_files",
+      "trees_and_commits"
+    ],
+    "repo_read_tree_cached": [
+      "read-git-files-without-git",
+      "reading_saved_commits_and_files",
+      "tree_against_index_difference"
+    ],
+    "repository_facts": [
+      "policy-engine",
+      "running_policies_and_settling_their_corrections",
+      "repository_facts_policies_need"
+    ],
+    "repository_location": [
+      "start-the-real-git",
+      "what_the_wrapper_asks_git_about_a_repository",
+      "asking_git_where_the_repository_is"
+    ],
+    "rule_add_explicit": [
+      "rules-about-git-command-lines",
+      "rules_that_add_flags_to_a_command",
+      "rule_add_names_explicitly"
+    ],
+    "rule_argument_rewrite": [
+      "rules-about-git-command-lines",
+      "rules_that_add_flags_to_a_command",
+      "adding_words_to_a_command_line"
+    ],
+    "rule_atomic_push": [
+      "rules-about-git-command-lines",
+      "rules_that_add_flags_to_a_command",
+      "rule_push_all_or_nothing"
+    ],
+    "rule_branch_worktree": [
+      "rules-about-git-command-lines",
+      "rules_about_where_a_command_may_run",
+      "rule_branch_worktree_only"
+    ],
+    "rule_commit_index": [
+      "rules-about-git-command-lines",
+      "rules_about_what_a_commit_may_contain",
+      "is_the_index_the_same_as_head"
+    ],
+    "rule_commit_only": [
+      "rules-about-git-command-lines",
+      "rules_about_what_a_commit_may_contain",
+      "rule_commit_only_what_was_named"
+    ],
+    "rule_commit_only_message": [
+      "rules-about-git-command-lines",
+      "rules_about_what_a_commit_may_contain",
+      "messages_of_the_commit_only_rule"
+    ],
+    "rule_commit_sequencer": [
+      "rules-about-git-command-lines",
+      "rules_about_what_a_commit_may_contain",
+      "is_a_merge_or_rebase_in_progress"
+    ],
+    "rule_linked_worktree": [
+      "rules-about-git-command-lines",
+      "rules_about_where_a_command_may_run",
+      "rule_linked_worktree_only"
+    ],
+    "rule_linked_worktree_messages": [
+      "rules-about-git-command-lines",
+      "rules_about_where_a_command_may_run",
+      "rejection_texts_of_the_linked_worktree_rule"
+    ],
+    "rule_require_root": [
+      "rules-about-git-command-lines",
+      "rules_about_where_a_command_may_run",
+      "rule_require_root"
+    ],
+    "rule_status_hints": [
+      "rules-about-git-command-lines",
+      "rules_that_add_flags_to_a_command",
+      "rule_status_hints"
+    ],
+    "rule_worktree_dirty": [
+      "rules-about-git-command-lines",
+      "rules_about_where_a_command_may_run",
+      "does_this_worktree_hold_uncommitted_state"
+    ],
+    "scanner_adapter": [
+      "commit-candidate-content",
+      "scanning_those_bytes_for_forbidden_strings",
+      "the_forbidden_strings_scanner"
+    ],
+    "scanner_failure_code": [
+      "commit-candidate-content",
+      "scanning_those_bytes_for_forbidden_strings",
+      "failure_codes_of_scanning"
+    ],
+    "scanner_run": [
+      "commit-candidate-content",
+      "scanning_those_bytes_for_forbidden_strings",
+      "scanning_one_version"
+    ],
+    "scanner_selection": [
+      "commit-candidate-content",
+      "scanning_those_bytes_for_forbidden_strings",
+      "which_rules_files_the_scanner_loads"
+    ],
+    "scoped_start": [
+      "parallel-work-within-a-budget",
+      "running_independent_jobs_side_by_side",
+      "starting_a_job_on_a_helper_thread"
+    ],
+    "scratch_location": [
+      "safe-file-saving",
+      "saving_files_so_a_crash_leaves_no_half_file",
+      "private_scratch_places"
+    ],
+    "sequencer_marker": [
+      "read-git-files-without-git",
+      "reading_branches_tags_and_markers",
+      "proof_that_a_marker_names_nothing"
+    ],
+    "service_amend": [
+      "commit-command",
+      "the_commit_command",
+      "facts_of_the_commit_an_amend_replaces"
+    ],
+    "service_built_checks": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_built_checks"
+    ],
+    "service_busy": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_busy"
+    ],
+    "service_busy_answers_and_name_checks": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_busy_answers_and_name_checks"
+    ],
+    "service_busy_step_record_on_this_thread": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_busy_step_record_on_this_thread"
+    ],
+    "service_captures": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_captures"
+    ],
+    "service_claim_renewal": [
+      "service-after-commit-work",
+      "after_commit_work_of_the_service",
+      "service_claim_renewal"
+    ],
+    "service_claim_watch": [
+      "service-after-commit-work",
+      "after_commit_work_of_the_service",
+      "service_claim_watch"
+    ],
+    "service_client": [
+      "commit-service-client",
+      "asking_the_commit_service_to_save_a_commit",
+      "service_client"
+    ],
+    "service_client_listen_and_ask_to_retire": [
+      "commit-service-client",
+      "asking_the_commit_service_to_save_a_commit",
+      "service_client_listen_and_ask_to_retire"
+    ],
+    "service_client_reach_service": [
+      "commit-service-client",
+      "asking_the_commit_service_to_save_a_commit",
+      "service_client_reach_service"
+    ],
+    "service_client_settings_and_watches": [
+      "commit-service-client",
+      "asking_the_commit_service_to_save_a_commit",
+      "service_client_settings_and_watches"
+    ],
+    "service_commit": [
+      "commit-command",
+      "the_commit_command",
+      "service_commit"
+    ],
+    "service_commit_args": [
+      "commit-command",
+      "the_commit_command",
+      "service_commit_args"
+    ],
+    "service_commit_args_editor_opening": [
+      "commit-command",
+      "the_commit_command",
+      "service_commit_args_editor_opening"
+    ],
+    "service_commit_input_notes_and_embedded_commit": [
+      "commit-command",
+      "the_commit_command",
+      "service_commit_input_notes_and_embedded_commit"
+    ],
+    "service_commit_requests_and_landing_report": [
+      "commit-command",
+      "the_commit_command",
+      "service_commit_requests_and_landing_report"
+    ],
+    "service_durable": [
+      "commit-service-index-lock",
+      "syncing_files_off_the_waiting_path",
+      "syncs_off_the_waiting_path"
+    ],
+    "service_fault": [
+      "crash-points-for-tests",
+      "stopping_the_program_at_a_named_step_for_tests",
+      "fault_points_the_service_can_be_told_to_hit"
+    ],
+    "service_handoff": [
+      "commit-service-client",
+      "asking_the_commit_service_to_save_a_commit",
+      "service_handoff"
+    ],
+    "service_head": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_head"
+    ],
+    "service_hold_retry": [
+      "service-after-commit-work",
+      "after_commit_work_of_the_service",
+      "service_hold_retry"
+    ],
+    "service_index_attempts": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "attempts_and_waiting_for_the_index_lock"
+    ],
+    "service_index_claim": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "choosing_one_reclaimer_of_a_stale_lock"
+    ],
+    "service_index_found": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "what_waiting_for_the_lock_found"
+    ],
+    "service_index_hold": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "holding_the_lock_after_it_is_placed"
+    ],
+    "service_index_identity": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "who_a_lock_holder_is"
+    ],
+    "service_index_lock": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "the_hold_on_the_index_lock"
+    ],
+    "service_index_lock_names_and_failures": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "lock_names_and_failures"
+    ],
+    "service_index_marker": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "marker_inside_the_held_lock"
+    ],
+    "service_index_ownership": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "is_the_lock_still_ours"
+    ],
+    "service_index_placement": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "putting_the_marked_file_in_place_as_the_lock"
+    ],
+    "service_index_prestage": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "marker_of_the_next_batch"
+    ],
+    "service_index_reclaim": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "removing_a_stale_index_lock"
+    ],
+    "service_index_same": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "is_the_new_index_the_live_one"
+    ],
+    "service_index_staging": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "staging_files_of_the_lock"
+    ],
+    "service_index_wait": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "waiting_for_the_services_hold"
+    ],
+    "service_index_watch": [
+      "commit-service-index-lock",
+      "holding_the_index_lock_for_the_commit_service",
+      "watching_the_lock_folder"
+    ],
+    "service_instance": [
+      "commit-service-messages",
+      "naming_the_service_of_one_worktree",
+      "service_instance"
+    ],
+    "service_journal": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_journal"
+    ],
+    "service_journal_intent_text_and_parse": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_journal_intent_text_and_parse"
+    ],
+    "service_land": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_land"
+    ],
+    "service_land_context": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_land_context"
+    ],
+    "service_land_copy": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_land_copy"
+    ],
+    "service_land_finish": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_land_finish"
+    ],
+    "service_land_follow": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_land_follow"
+    ],
+    "service_land_git_steps_and_import_stream": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_land_git_steps_and_import_stream"
+    ],
+    "service_land_objects_of_batch": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_land_objects_of_batch"
+    ],
+    "service_land_start": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_land_start"
+    ],
+    "service_land_take_index_lock": [
+      "land-prepared-commits",
+      "landing_commits",
+      "service_land_take_index_lock"
+    ],
+    "service_main": [
+      "commit-service-program",
+      "the_service_program",
+      "the_service_as_a_mode_of_the_program"
+    ],
+    "service_message": [
+      "commit-command",
+      "the_commit_command",
+      "service_message"
+    ],
+    "service_messages": [
+      "commit-service-client",
+      "asking_the_commit_service_to_save_a_commit",
+      "service_messages"
+    ],
+    "service_native": [
+      "commit-command",
+      "the_commit_command",
+      "service_native"
+    ],
+    "service_prepare": [
+      "commit-command",
+      "the_commit_command",
+      "service_prepare"
+    ],
+    "service_prepare_changes_config_and_pathspec_steps": [
+      "commit-command",
+      "the_commit_command",
+      "service_prepare_changes_config_and_pathspec_steps"
+    ],
+    "service_prepare_ready_shapes": [
+      "commit-command",
+      "the_commit_command",
+      "service_prepare_ready_shapes"
+    ],
+    "service_protocol": [
+      "commit-service-messages",
+      "messages_between_the_wrapper_and_the_commit_service",
+      "service_protocol"
+    ],
+    "service_protocol_decode_lines_to_messages": [
+      "commit-service-messages",
+      "messages_between_the_wrapper_and_the_commit_service",
+      "service_protocol_decode_lines_to_messages"
+    ],
+    "service_protocol_encode_messages_to_lines": [
+      "commit-service-messages",
+      "messages_between_the_wrapper_and_the_commit_service",
+      "service_protocol_encode_messages_to_lines"
+    ],
+    "service_protocol_messages_and_name_checks": [
+      "commit-service-messages",
+      "messages_between_the_wrapper_and_the_commit_service",
+      "service_protocol_messages_and_name_checks"
+    ],
+    "service_provision": [
+      "commit-service-client",
+      "asking_the_commit_service_to_save_a_commit",
+      "service_provision"
+    ],
+    "service_provision_unit_file_ownership_and_writes": [
+      "commit-service-client",
+      "asking_the_commit_service_to_save_a_commit",
+      "service_provision_unit_file_ownership_and_writes"
+    ],
+    "service_pruned": [
+      "commit-service-client",
+      "asking_the_commit_service_to_save_a_commit",
+      "service_pruned"
+    ],
+    "service_replay": [
+      "commit-command",
+      "the_commit_command",
+      "service_replay"
+    ],
+    "service_replay_path_and_line_text": [
+      "commit-command",
+      "the_commit_command",
+      "service_replay_path_and_line_text"
+    ],
+    "service_reply": [
+      "commit-service-program",
+      "the_service_program",
+      "service_reply"
+    ],
+    "service_retry": [
+      "service-after-commit-work",
+      "after_commit_work_of_the_service",
+      "service_retry"
+    ],
+    "service_review": [
+      "service-after-commit-work",
+      "after_commit_work_of_the_service",
+      "service_review"
+    ],
+    "service_review_key": [
+      "commit-service-messages",
+      "messages_between_the_wrapper_and_the_commit_service",
+      "review_gateway_credential"
+    ],
+    "service_round": [
+      "service-after-commit-work",
+      "after_commit_work_of_the_service",
+      "service_round"
+    ],
+    "service_route": [
+      "commit-service-client",
+      "asking_the_commit_service_to_save_a_commit",
+      "service_route"
+    ],
+    "service_server": [
+      "commit-service-program",
+      "the_service_program",
+      "service_server"
+    ],
+    "service_server_connection_handling": [
+      "commit-service-program",
+      "the_service_program",
+      "service_server_connection_handling"
+    ],
+    "service_server_land_group": [
+      "commit-service-program",
+      "the_service_program",
+      "service_server_land_group"
+    ],
+    "service_server_queue_types_and_send": [
+      "commit-service-program",
+      "the_service_program",
+      "service_server_queue_types_and_send"
+    ],
+    "service_server_socket_binding": [
+      "commit-service-program",
+      "the_service_program",
+      "service_server_socket_binding"
+    ],
+    "service_server_work_loop": [
+      "commit-service-program",
+      "the_service_program",
+      "service_server_work_loop"
+    ],
+    "service_signal": [
+      "commit-service-program",
+      "the_service_program",
+      "last_words_when_a_signal_ends_the_service"
+    ],
+    "service_timing": [
+      "commit-service-log-lines",
+      "log_lines_of_the_commit_service",
+      "service_timing"
+    ],
+    "service_work": [
+      "service-after-commit-work",
+      "after_commit_work_of_the_service",
+      "service_work"
+    ],
+    "service_work_drain_pending_claims": [
+      "service-after-commit-work",
+      "after_commit_work_of_the_service",
+      "service_work_drain_pending_claims"
+    ],
+    "service_work_handlers_replanning_and_acceptance": [
+      "service-after-commit-work",
+      "after_commit_work_of_the_service",
+      "service_work_handlers_replanning_and_acceptance"
+    ],
+    "service_work_run_round": [
+      "service-after-commit-work",
+      "after_commit_work_of_the_service",
+      "service_work_run_round"
+    ],
+    "shadow_config": [
+      "hidden-git-copy-for-preparing-commits",
+      "the_hidden_second_git_folder",
+      "shadow_config"
+    ],
+    "shadow_create": [
+      "hidden-git-copy-for-preparing-commits",
+      "the_hidden_second_git_folder",
+      "shadow_create"
+    ],
+    "shadow_git": [
+      "hidden-git-copy-for-preparing-commits",
+      "the_hidden_second_git_folder",
+      "shadow_git"
+    ],
+    "shadow_links": [
+      "hidden-git-copy-for-preparing-commits",
+      "the_hidden_second_git_folder",
+      "shadow_links"
+    ],
+    "shadow_refs": [
+      "hidden-git-copy-for-preparing-commits",
+      "the_hidden_second_git_folder",
+      "shadow_refs"
+    ],
+    "shadow_skeleton": [
+      "hidden-git-copy-for-preparing-commits",
+      "the_hidden_second_git_folder",
+      "shadow_skeleton"
+    ],
+    "shell_quote": [
+      "text-time-and-log-line-formats",
+      "lines_the_wrapper_prints_for_the_person",
+      "quoting_bytes_for_a_shell_command"
+    ],
+    "signal_relay": [
+      "starting-and-watching-programs",
+      "starting_programs_catching_signals_and_keeping_their_output",
+      "passing_signals_to_the_child"
+    ],
+    "single_owner_claim": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "single_owner_claim"
+    ],
+    "stacked_merge_push": [
+      "typed-push-planning",
+      "working_out_what_a_typed_push_would_send",
+      "push_of_a_merge_that_integrated_a_lost_race"
+    ],
+    "stale_ref_lock_found": [
+      "git-lock-files",
+      "clearing_leftover_reference_locks",
+      "record_of_a_judged_reference_lock"
+    ],
+    "stale_ref_lock_identity": [
+      "git-lock-files",
+      "clearing_leftover_reference_locks",
+      "identity_of_a_lock_file_when_judged"
+    ],
+    "stale_ref_lock_judge": [
+      "git-lock-files",
+      "clearing_leftover_reference_locks",
+      "judging_one_reference_lock"
+    ],
+    "stale_ref_lock_message": [
+      "git-lock-files",
+      "clearing_leftover_reference_locks",
+      "words_about_reference_locks"
+    ],
+    "stale_ref_lock_names": [
+      "git-lock-files",
+      "clearing_leftover_reference_locks",
+      "names_of_reference_lock_files"
+    ],
+    "stale_ref_lock_nested_numbers": [
+      "git-lock-files",
+      "clearing_leftover_reference_locks",
+      "process_numbers_inside_nested_containers"
+    ],
+    "stale_ref_lock_retire": [
+      "git-lock-files",
+      "clearing_leftover_reference_locks",
+      "setting_aside_and_removing_a_stale_lock"
+    ],
+    "stale_ref_lock_walk": [
+      "git-lock-files",
+      "clearing_leftover_reference_locks",
+      "finding_reference_lock_files"
+    ],
+    "stale_ref_locks": [
+      "git-lock-files",
+      "clearing_leftover_reference_locks",
+      "clearing_all_stale_reference_locks"
+    ],
+    "standards_review_append": [
+      "standards-review-log",
+      "reviewing_landed_commits_against_standards",
+      "adding_a_review_entry_to_the_log"
+    ],
+    "standards_review_client": [
+      "standards-review-log",
+      "reviewing_landed_commits_against_standards",
+      "the_one_https_call_of_a_review"
+    ],
+    "standards_review_entry": [
+      "standards-review-log",
+      "reviewing_landed_commits_against_standards",
+      "review_log_entries"
+    ],
+    "standards_review_input": [
+      "standards-review-log",
+      "reviewing_landed_commits_against_standards",
+      "which_commits_get_a_review"
+    ],
+    "standards_review_patch": [
+      "standards-review-log",
+      "reviewing_landed_commits_against_standards",
+      "changed_line_spans_of_a_file"
+    ],
+    "standards_review_request": [
+      "standards-review-log",
+      "reviewing_landed_commits_against_standards",
+      "request_body_of_a_review"
+    ],
+    "standards_review_run": [
+      "standards-review-log",
+      "reviewing_landed_commits_against_standards",
+      "running_a_review_end_to_end"
+    ],
+    "standards_review_source": [
+      "standards-review-log",
+      "reviewing_landed_commits_against_standards",
+      "git_reads_of_a_review"
+    ],
+    "standards_review_text": [
+      "standards-review-log",
+      "reviewing_landed_commits_against_standards",
+      "text_rules_of_the_review_log"
+    ],
+    "start_retry": [
+      "starting-and-watching-programs",
+      "starting_programs_catching_signals_and_keeping_their_output",
+      "starting_a_program_again_when_processes_run_out"
+    ],
+    "started_as_git": [
+      "start-the-real-git",
+      "finding_the_real_git_program",
+      "marker_that_git_was_started_by_the_wrapper"
+    ],
+    "startup_gate": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "first_step_of_a_command"
+    ],
+    "stopped_git_locks": [
+      "git-lock-files",
+      "clearing_leftover_reference_locks",
+      "locks_a_stopped_git_may_leave"
+    ],
+    "subvolume_anchor": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_anchor"
+    ],
+    "subvolume_arguments": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_arguments"
+    ],
+    "subvolume_command": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_command"
+    ],
+    "subvolume_entry_count": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_entry_count"
+    ],
+    "subvolume_error": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_error"
+    ],
+    "subvolume_file_write_steps": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_file_write_steps"
+    ],
+    "subvolume_index": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_index"
+    ],
+    "subvolume_index_files": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_index_files"
+    ],
+    "subvolume_index_install_into_new_worktree": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_index_install_into_new_worktree"
+    ],
+    "subvolume_journal": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_journal"
+    ],
+    "subvolume_lock": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_lock"
+    ],
+    "subvolume_migrate": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_migrate"
+    ],
+    "subvolume_platform": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_platform"
+    ],
+    "subvolume_preflight": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_preflight"
+    ],
+    "subvolume_remove": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_remove"
+    ],
+    "subvolume_remove_walk": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_remove_walk"
+    ],
+    "subvolume_rollback": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_rollback"
+    ],
+    "subvolume_run": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_run"
+    ],
+    "subvolume_sha": [
+      "sha-digests",
+      "sha_1_and_sha_256_of_bytes",
+      "sha_1_and_sha_256"
+    ],
+    "subvolume_sync": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_sync"
+    ],
+    "subvolume_sync_attrs": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_sync_attrs"
+    ],
+    "subvolume_sync_copy_one_entry": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_sync_copy_one_entry"
+    ],
+    "subvolume_sync_pass_state_and_checks": [
+      "convert-a-checkout-to-a-btrfs-subvolume",
+      "converting_the_main_checkout",
+      "subvolume_sync_pass_state_and_checks"
+    ],
+    "systemd_dbus": [
+      "systemd-user-manager-client",
+      "talking_to_the_systemd_user_manager",
+      "systemd_dbus"
+    ],
+    "systemd_dbus_wire_format": [
+      "systemd-user-manager-client",
+      "talking_to_the_systemd_user_manager",
+      "systemd_dbus_wire_format"
+    ],
+    "tcp_sockets": [
+      "starting-and-watching-programs",
+      "which_programs_are_running_and_since_when",
+      "open_network_connections_and_bytes_sent"
+    ],
+    "thread_quiet": [
+      "starting-and-watching-programs",
+      "watching_a_started_program_until_it_stops_making_progress",
+      "is_a_thread_at_work"
+    ],
+    "traditional_hook_warning": [
+      "wrapper-settings",
+      "hooks_a_repository_configures",
+      "warning_about_hooks_in_the_hooks_folder"
+    ],
+    "transaction_git": [
+      "start-the-real-git",
+      "running_git_for_a_transaction",
+      "running_git_for_a_transaction"
+    ],
+    "transaction_git_request_and_reply_types": [
+      "start-the-real-git",
+      "starting_git_and_describing_a_run",
+      "what_a_git_run_asks_and_answers"
+    ],
+    "transaction_git_step_bounds": [
+      "start-the-real-git",
+      "running_git_for_a_transaction",
+      "how_long_a_git_step_is_waited_for"
+    ],
+    "transaction_git_step_rerun_and_end_rules": [
+      "start-the-real-git",
+      "running_git_for_a_transaction",
+      "which_git_steps_run_again_or_end_early"
+    ],
+    "transaction_journal": [
+      "read-git-files-without-git",
+      "state_shared_by_preparing_and_landing_a_commit",
+      "repository_state_of_a_transaction"
+    ],
+    "transaction_owner": [
+      "starting-and-watching-programs",
+      "who_owns_a_folder",
+      "owner_record_of_a_folder"
+    ],
+    "transaction_phase": [
+      "crash-points-for-tests",
+      "stopping_the_program_at_a_named_step_for_tests",
+      "phase_markers_for_crash_tests"
+    ],
+    "unported": [
+      "policy-engine",
+      "running_policies_and_settling_their_corrections",
+      "work_not_ported_yet"
+    ],
+    "wait_ceilings": [
+      "starting-and-watching-programs",
+      "how_long_the_wrapper_waits_for_each_thing",
+      "longest_waits"
+    ],
+    "wait_progress": [
+      "starting-and-watching-programs",
+      "watching_a_started_program_until_it_stops_making_progress",
+      "wait_notice_clock"
+    ],
+    "what_a_command_hands_back": [
+      "start-the-real-git",
+      "starting_git_and_describing_a_run",
+      "what_a_command_hands_back"
+    ],
+    "word_merge": [
+      "three-way-text-merge",
+      "merging_text_by_line_and_by_word",
+      "word_merge"
+    ],
+    "work_item": [
+      "durable-work-items",
+      "work_left_for_the_service_to_finish_later",
+      "work_item"
+    ],
+    "work_item_recovery": [
+      "durable-work-items",
+      "work_left_for_the_service_to_finish_later",
+      "work_item_recovery"
+    ],
+    "work_item_state_directories_and_claim_names": [
+      "durable-work-items",
+      "work_left_for_the_service_to_finish_later",
+      "work_item_state_directories_and_claim_names"
+    ],
+    "worktree_add_binding": [
+      "new-worktrees-quickly",
+      "planning_a_worktree_add_and_what_git_made",
+      "worktree_add_binding"
+    ],
+    "worktree_add_plan": [
+      "new-worktrees-quickly",
+      "planning_a_worktree_add_and_what_git_made",
+      "worktree_add_plan"
+    ],
+    "worktree_add_plan_path_questions": [
+      "safe-file-saving",
+      "saving_files_so_a_crash_leaves_no_half_file",
+      "questions_about_a_path_or_a_byte"
+    ],
+    "worktree_attributes": [
+      "new-worktrees-quickly",
+      "is_the_worktree_clean",
+      "worktree_attributes"
+    ],
+    "worktree_clean": [
+      "new-worktrees-quickly",
+      "is_the_worktree_clean",
+      "worktree_clean"
+    ],
+    "worktree_clean_content": [
+      "new-worktrees-quickly",
+      "is_the_worktree_clean",
+      "worktree_clean_content"
+    ],
+    "worktree_clean_content_attribute_sources": [
+      "new-worktrees-quickly",
+      "is_the_worktree_clean",
+      "worktree_clean_content_attribute_sources"
+    ],
+    "worktree_clean_stat_verdicts": [
+      "new-worktrees-quickly",
+      "is_the_worktree_clean",
+      "worktree_clean_stat_verdicts"
+    ],
+    "worktree_clean_tree_walk": [
+      "new-worktrees-quickly",
+      "is_the_worktree_clean",
+      "worktree_clean_tree_walk"
+    ],
+    "worktree_clone": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_clone"
+    ],
+    "worktree_command_facts": [
+      "start-the-real-git",
+      "starting_git_and_describing_a_run",
+      "worktree_command_facts"
+    ],
+    "worktree_completion": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_completion"
+    ],
+    "worktree_completion_file_inspection": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_completion_file_inspection"
+    ],
+    "worktree_convert": [
+      "new-worktrees-quickly",
+      "converting_a_linked_worktree",
+      "worktree_convert"
+    ],
+    "worktree_convert_arguments": [
+      "new-worktrees-quickly",
+      "converting_a_linked_worktree",
+      "worktree_convert_arguments"
+    ],
+    "worktree_convert_command": [
+      "new-worktrees-quickly",
+      "converting_a_linked_worktree",
+      "worktree_convert_command"
+    ],
+    "worktree_convert_compare": [
+      "new-worktrees-quickly",
+      "converting_a_linked_worktree",
+      "worktree_convert_compare"
+    ],
+    "worktree_convert_inspection": [
+      "new-worktrees-quickly",
+      "converting_a_linked_worktree",
+      "worktree_convert_inspection"
+    ],
+    "worktree_convert_journal": [
+      "new-worktrees-quickly",
+      "converting_a_linked_worktree",
+      "worktree_convert_journal"
+    ],
+    "worktree_convert_phases": [
+      "new-worktrees-quickly",
+      "converting_a_linked_worktree",
+      "worktree_convert_phases"
+    ],
+    "worktree_convert_remove": [
+      "new-worktrees-quickly",
+      "converting_a_linked_worktree",
+      "worktree_convert_remove"
+    ],
+    "worktree_copy": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_around_one_git_command",
+      "worktree_copy"
+    ],
+    "worktree_copy_compare": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_compare"
+    ],
+    "worktree_copy_error": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_error"
+    ],
+    "worktree_copy_forward": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "worktree_copy_forward"
+    ],
+    "worktree_copy_git_steps": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_git_steps"
+    ],
+    "worktree_copy_install": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_install"
+    ],
+    "worktree_copy_install_entry": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_install_entry"
+    ],
+    "worktree_copy_install_log": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_install_log"
+    ],
+    "worktree_copy_journal": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_journal"
+    ],
+    "worktree_copy_journal_encoding_and_validation": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_journal_encoding_and_validation"
+    ],
+    "worktree_copy_journal_removal": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_journal_removal"
+    ],
+    "worktree_copy_manifest": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_manifest"
+    ],
+    "worktree_copy_owner": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_owner"
+    ],
+    "worktree_copy_prune": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_prune"
+    ],
+    "worktree_copy_recovery": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_recovery"
+    ],
+    "worktree_copy_registry": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_registry"
+    ],
+    "worktree_copy_rollback": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_rollback"
+    ],
+    "worktree_copy_selection": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_selection"
+    ],
+    "worktree_copy_stage": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_stage"
+    ],
+    "worktree_copy_stage_claim": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_stage_claim"
+    ],
+    "worktree_copy_stage_claim_reaping": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_stage_claim_reaping"
+    ],
+    "worktree_copy_stage_leaf_copying": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_stage_leaf_copying"
+    ],
+    "worktree_copy_transaction": [
+      "new-worktrees-quickly",
+      "copying_ignored_files_into_a_stage",
+      "worktree_copy_transaction"
+    ],
+    "worktree_dirty_restore": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_dirty_restore"
+    ],
+    "worktree_identity": [
+      "start-the-real-git",
+      "what_the_wrapper_asks_git_about_a_repository",
+      "asking_git_which_worktree_this_is"
+    ],
+    "worktree_ladder": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_ladder"
+    ],
+    "worktree_ladder_finish": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_ladder_finish"
+    ],
+    "worktree_ladder_run": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_ladder_run"
+    ],
+    "worktree_ladder_target": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_ladder_target"
+    ],
+    "worktree_path_failure_message": [
+      "text-time-and-log-line-formats",
+      "lines_the_wrapper_prints_for_the_person",
+      "message_when_a_step_on_a_path_fails"
+    ],
+    "worktree_removal_rescue": [
+      "new-worktrees-quickly",
+      "removing_a_linked_worktree",
+      "worktree_removal_rescue"
+    ],
+    "worktree_remove": [
+      "new-worktrees-quickly",
+      "removing_a_linked_worktree",
+      "worktree_remove"
+    ],
+    "worktree_remove_plan": [
+      "new-worktrees-quickly",
+      "removing_a_linked_worktree",
+      "worktree_remove_plan"
+    ],
+    "worktree_remove_registry": [
+      "new-worktrees-quickly",
+      "removing_a_linked_worktree",
+      "worktree_remove_registry"
+    ],
+    "worktree_slow_route": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_slow_route"
+    ],
+    "worktree_snapshot": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_snapshot"
+    ],
+    "worktree_snapshot_source": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_snapshot_source"
+    ],
+    "worktree_subvolume": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_subvolume"
+    ],
+    "worktree_trash": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_trash"
+    ],
+    "worktree_trash_dispose": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_trash_dispose"
+    ],
+    "worktree_trash_entries": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_trash_entries"
+    ],
+    "worktree_trash_manifest": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_trash_manifest"
+    ],
+    "worktree_trash_remove": [
+      "new-worktrees-quickly",
+      "making_a_worktree_quickly",
+      "worktree_trash_remove"
+    ],
+    "wrapped_command": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "deciding_what_a_wrapped_command_does"
+    ],
+    "wrapped_command_notices_snapshots_and_manual_push": [
+      "cli",
+      "what_happens_when_you_type_a_command",
+      "wrapped_command_notices_snapshots_and_manual_push"
+    ],
+    "wrapper_controls": [
+      "typed-command-reader",
+      "the_words_meant_for_this_wrapper",
+      "control_words_for_the_wrapper"
+    ],
+    "wrapper_invocation": [
+      "typed-command-reader",
+      "the_words_meant_for_this_wrapper",
+      "removing_control_words_from_a_command"
+    ]
+  },
+  "target_test_only_modules": {
+    "scanner_test_support": "commit-candidate-content",
+    "command_test_cases": "typed-command-reader",
+    "command_test_completion": "typed-command-reader",
+    "command_test_parseopt": "typed-command-reader",
+    "command_test_support": "typed-command-reader",
+    "dependent_version_fixture_cases": "dependent-version-bump-check",
+    "dependent_version_fixture_json": "dependent-version-bump-check",
+    "dependent_version_fixture_output": "dependent-version-bump-check",
+    "dependent_version_test_support": "dependent-version-bump-check",
+    "dependent_version_differential_tests": "dependent-version-bump-check",
+    "index_reset_support": "land-prepared-commits",
+    "index_reset_support_probe": "land-prepared-commits",
+    "claim_time_machine_id_test_support": "durable-work-items",
+    "stale_ref_lock_killed_git": "git-lock-files",
+    "policy_test_support": "policy-engine",
+    "service_fault_hooks_test_support": "crash-points-for-tests",
+    "service_timing_capture_test_support": "commit-service-log-lines",
+    "replay_reverse_apply_test_support": "hidden-git-copy-for-preparing-commits",
+    "standards_review_mock": "standards-review-log",
+    "fs_btrfs_test_support": "linux-filesystem-primitives",
+    "subvolume_test_support": "convert-a-checkout-to-a-btrfs-subvolume",
+    "worktree_ladder_test_support": "new-worktrees-quickly",
+    "source_guard": "cli",
+    "source_scan_tests": "cli",
+    "test_support": "disposable-test-fixtures",
+    "recording_git": "start-the-real-git",
+    "smart_http_support": "disposable-test-fixtures",
+    "umask_child_test_support": "disposable-test-fixtures",
+    "no_threads_child_test_support": "disposable-test-fixtures",
+    "parallel_test_support": "disposable-test-fixtures",
+    "fixture_executable": "disposable-test-fixtures",
+    "test_alive": "disposable-test-fixtures",
+    "testing": "disposable-test-fixtures",
+    "no_self_invocation_tests": "cli",
+    "standards_review_boundary_tests": "cli",
+    "binary_tests": "cli",
+    "management_tests": "cli",
+    "git_stop_lock_tests": "push-with-a-deadline",
+    "policy_catalog_specifiers_tests": "shipped-policies",
+    "policy_forbidden_strings_tests": "shipped-policies",
+    "push_patience_tests": "upload-large-files-before-a-push",
+    "push_slow_server_tests": "upload-large-files-before-a-push",
+    "push_wait_tests": "push-with-a-deadline",
+    "reader_fsmonitor_tests": "commit-command",
+    "subvolume_btrfs_tests": "convert-a-checkout-to-a-btrfs-subvolume",
+    "worktree_trash_tests": "new-worktrees-quickly"
+  }
 }
