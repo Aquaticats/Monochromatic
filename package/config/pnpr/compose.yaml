@@ -18,9 +18,10 @@ services:
       PNPR_PUBLIC_URL: https://pnpr.c.aquati.cat
     volumes:
       # No backup by decision: recovery republishes current versions.
-      # Named pnpr-registry-storage since the switch to the patched image, which runs as user pnpr:
-      # the earlier pnpr-storage volume is owned by the node:24-slim image's node user and held no packages.
-      - pnpr-registry-storage:/pnpr/storage
+      # alpha.17 cannot read alpha.16 storage. Keep pnpr-registry-storage declared
+      # and untouched for rollback; publish current versions into this new store.
+      - pnpr-readable-registry-storage:/pnpr/storage
 
 volumes:
   pnpr-registry-storage:
+  pnpr-readable-registry-storage:
