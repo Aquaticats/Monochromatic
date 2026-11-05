@@ -126,7 +126,10 @@ Your answer:
   On the wrapper it finds no index holding code, and no loop was hidden behind a re-export.
   A `main.rs` that is its folder's index may hold `fn main` and its `use` lines as well;
   `extern crate` and an inline `mod` with a body count as code.
-  Being added now: the same check for a `main.rs` beside a `lib.rs` and for `src/bin/*.rs` files.
+  The same check now also covers a `main.rs` beside a `lib.rs` and single-file `src/bin/*.rs` programs
+  (merged to `main`; 842 tests, 110 in the container).
+  A repo-wide survey with the file rule on finds 74 entry-point findings in 15 program files outside the wrapper,
+  and 107 index-file findings in 11 files; none in the wrapper.
 - 2026-11-05: after the four lint branches land, one more pass removes most closure-lint suppressions
   by giving the called functions a guard or trait form,
   keeping only those that `std::thread::scope` and `catch_unwind` cannot do without,
