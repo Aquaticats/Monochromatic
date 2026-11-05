@@ -505,10 +505,14 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
 - crates.io footprint (owner 2026-11-05: "Can we avoid polluting crates.io too much?"):
   measured and ranked in `doc/planning/crates-io-footprint.md` (`dd61b20559`), owner answers recorded there.
   Decided by the owner: "One release each. And we publish less to crates.io".
-  Research running in two agents, into `doc/research/cargo-crates-and-tools-without-crates-io.md`
-  (the owner's ranking: a `workspace:`-like protocol, then floating git, then GitHub's package registry,
-  plus how each relates to the pnpr registry track in `doc/planning/self-hosted-cargo-registry.md`)
-  and `doc/research/tests-inside-published-rust-crates.md` (who uses tests inside a published crate).
+  Research done: `doc/research/cargo-crates-and-tools-without-crates-io.md` (option 1 works; floating git and
+  GitHub Packages do not; a static index on GitHub Pages would) and `doc/research/tests-inside-published-rust-crates.md`
+  (distributions and crater run `cargo test` from a published crate); summary in the planning doc,
+  section "Research results (2026-11-05)".
+  Owner questions open in `doc/handover/questions-for-the-owner.md` (kept open in Zed): where the libraries go,
+  and when the one release of each crate happens.
+  Chosen by the session (non-destructive, owner's likely pick): tools move to the `archive` route and
+  `publish = false` after their one release, not started until layout and lint land; test files stay in.
   The wrapper's crate with test files left out packs and verifies (1.6 MiB compressed against 3.1 MiB for the
   published 0.5.34; details in the planning doc); the throwaway worktree is removed.
   The one release of each crate is held until the route research is answered by the owner and,
