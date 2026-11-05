@@ -395,3 +395,22 @@ fn an_entry_point_beside_a_library_root_is_not_read() {
     ]);
     assert_eq!(findings_of(&fixture.path), Vec::<String>::new());
 }
+
+/// A loop between a file and a file that re-exports from it is found,
+/// although the user's path reaches the defining file through the re-export.
+#[test]
+fn a_loop_through_a_reexporting_file_is_still_found() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/a/mod.rs",
+            index_listing(&["front.rs", "back.rs"], &["front", "back"]).as_str(),
+        ),
+        ("src/a/front.rs", "pub use super::back::Y;\n"),
+        ("src/a/back.rs", "use super::front::Y;\n"),
+    ]);
+    let found: Vec<String> = findings_of(&fixture.path);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert!(found[0].contains("front.rs uses back.rs"), "{}", found[0]);
+    assert!(found[0].contains("back.rs uses front.rs"), "{}", found[0]);
+}

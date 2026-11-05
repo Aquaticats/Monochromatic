@@ -15,20 +15,24 @@ use crate::{
     test_fs::Fixture,
 };
 
-/// Where the use that starts in a file and has the given path as written ends up,
-///  as a path relative to the fixture.
-fn target_of(fixture: &Fixture, tree: &ModuleTree, from_file: &str, text: &str) -> String {
+/// The files that the uses of a file with the given path as written end up in,
+///  as sorted paths relative to the fixture.
+fn targets_of(fixture: &Fixture, tree: &ModuleTree, from_file: &str, text: &str) -> Vec<String> {
     let from: usize = module_in(tree, &fixture.path, from_file);
-    let found: ModuleUse = collect_uses(tree)
+    let mut targets: Vec<String> = collect_uses(tree)
         .into_iter()
-        .find(|item| return item.from == from && item.text == text)
-        .expect("the use exists");
-    let file = &tree.modules[found.to].file;
-    return file
-        .strip_prefix(&fixture.path)
-        .expect("inside the fixture")
-        .display()
-        .to_string();
+        .filter(|item| return item.from == from && item.text == text)
+        .map(|item| {
+            return tree.modules[item.to]
+                .file
+                .strip_prefix(&fixture.path)
+                .expect("inside the fixture")
+                .display()
+                .to_string();
+        })
+        .collect::<Vec<String>>();
+    targets.sort();
+    return targets;
 }
 
 /// A use records the modules,
@@ -85,7 +89,9 @@ fn a_module_belongs_to_the_folder_of_its_file() {
     assert_eq!(folder_of(&tree, inline), fixture.path.join("src"));
 }
 
-/// A use that reaches a name through the folder's index belongs to the file the index re-exports it from.
+/// A use that reaches a name through the folder's index is a use of the index,
+/// which the path names,
+/// and of the file the index re-exports the name from.
 #[test]
 fn a_use_through_a_reexport_names_the_file_that_defines_it() {
     let fixture = package_with(&[
@@ -96,18 +102,19 @@ fn a_use_through_a_reexport_names_the_file_that_defines_it() {
     ]);
     let tree = tree_of(&fixture.path);
     assert!(tree.problems.is_empty(), "{:?}", tree.problems);
+    let both: [&str; 2] = ["src/a/mod.rs", "src/a/two.rs"];
     assert_eq!(
-        target_of(&fixture, &tree, "src/a/one.rs", "super::Y"),
-        "src/a/two.rs"
+        targets_of(&fixture, &tree, "src/a/one.rs", "super::Y"),
+        both
     );
     assert_eq!(
-        target_of(&fixture, &tree, "src/a/one.rs", "crate::a::Y"),
-        "src/a/two.rs"
+        targets_of(&fixture, &tree, "src/a/one.rs", "crate::a::Y"),
+        both
     );
-    // The index itself names the defining file as well.
+    // The index names the defining file itself, so it has one use.
     assert_eq!(
-        target_of(&fixture, &tree, "src/a/mod.rs", "two::Y"),
-        "src/a/two.rs"
+        targets_of(&fixture, &tree, "src/a/mod.rs", "two::Y"),
+        ["src/a/two.rs"]
     );
 }
 
@@ -125,17 +132,18 @@ fn a_renamed_reexport_is_found_by_its_new_name() {
     ]);
     let tree = tree_of(&fixture.path);
     assert_eq!(
-        target_of(&fixture, &tree, "src/a/one.rs", "super::Y"),
-        "src/a/two.rs"
+        targets_of(&fixture, &tree, "src/a/one.rs", "super::Y"),
+        ["src/a/mod.rs", "src/a/two.rs"]
     );
     // `Thing` is not a name the index exports, so the use stays on the index.
     assert_eq!(
-        target_of(&fixture, &tree, "src/a/one.rs", "super::Thing"),
-        "src/a/mod.rs"
+        targets_of(&fixture, &tree, "src/a/one.rs", "super::Thing"),
+        ["src/a/mod.rs"]
     );
 }
 
-/// A chain of two re-exports ends at the file that defines the name.
+/// A chain of two re-exports ends at the file that defines the name,
+/// and the file in the middle of the chain is not used.
 #[test]
 fn a_chain_of_reexports_ends_at_the_defining_file() {
     let fixture = package_with(&[
@@ -150,8 +158,8 @@ fn a_chain_of_reexports_ends_at_the_defining_file() {
     ]);
     let tree = tree_of(&fixture.path);
     assert_eq!(
-        target_of(&fixture, &tree, "src/a/top.rs", "super::Y"),
-        "src/a/base.rs"
+        targets_of(&fixture, &tree, "src/a/top.rs", "super::Y"),
+        ["src/a/base.rs", "src/a/mod.rs"]
     );
 }
 
@@ -167,12 +175,12 @@ fn a_ring_of_reexports_ends() {
     ]);
     let tree = tree_of(&fixture.path);
     assert_eq!(
-        target_of(&fixture, &tree, "src/a/top.rs", "super::Y"),
-        "src/a/mod.rs"
+        targets_of(&fixture, &tree, "src/a/top.rs", "super::Y"),
+        ["src/a/mod.rs"]
     );
 }
 
-/// A re-export from a child folder sends the use to the child folder.
+/// A re-export from a child folder makes the use a use of the child folder too.
 #[test]
 fn a_reexport_from_a_child_folder_names_the_child_folder() {
     let fixture = package_with(&[
@@ -189,12 +197,13 @@ fn a_reexport_from_a_child_folder_names_the_child_folder() {
     assert!(tree.problems.is_empty(), "{:?}", tree.problems);
     let child: usize = module_in(&tree, &fixture.path, "src/a/child/mod.rs");
     let from: usize = module_in(&tree, &fixture.path, "src/a/user.rs");
-    let found: ModuleUse = collect_uses(&tree)
+    let reached: Vec<usize> = collect_uses(&tree)
         .into_iter()
-        .find(|item| return item.from == from)
-        .expect("the use exists");
-    assert_eq!(found.to, child);
-    assert_eq!(folder_of(&tree, found.to), fixture.path.join("src/a/child"));
+        .filter(|item| return item.from == from)
+        .map(|item| return item.to)
+        .collect::<Vec<usize>>();
+    assert!(reached.contains(&child), "{reached:?}");
+    assert_eq!(folder_of(&tree, child), fixture.path.join("src/a/child"));
 }
 
 /// Once the child's index re-exports the name from its own file,
@@ -213,8 +222,8 @@ fn a_reexport_from_a_child_folder_goes_on_to_the_childs_own_file() {
     ]);
     let tree = tree_of(&fixture.path);
     assert_eq!(
-        target_of(&fixture, &tree, "src/a/user.rs", "super::Thing"),
-        "src/a/child/thing.rs"
+        targets_of(&fixture, &tree, "src/a/user.rs", "super::Thing"),
+        ["src/a/child/thing.rs", "src/a/mod.rs"]
     );
 }
 
@@ -240,9 +249,26 @@ fn only_a_named_reexport_of_the_package_is_followed() {
     let tree = tree_of(&fixture.path);
     for text in ["super::Y", "super::Q", "super::D"] {
         assert_eq!(
-            target_of(&fixture, &tree, "src/a/one.rs", text),
-            "src/a/mod.rs",
+            targets_of(&fixture, &tree, "src/a/one.rs", text),
+            ["src/a/mod.rs"],
             "{text}"
         );
     }
+}
+
+/// The file a path names stays a used file when it re-exports the name from the file that uses it,
+/// so the loop between the two is not lost.
+#[test]
+fn a_file_that_reexports_from_its_user_stays_used() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        ("src/a/mod.rs", "mod front;\nmod back;\n"),
+        ("src/a/front.rs", "pub use super::back::Y;\n"),
+        ("src/a/back.rs", "use super::front::Y;\n"),
+    ]);
+    let tree = tree_of(&fixture.path);
+    assert_eq!(
+        targets_of(&fixture, &tree, "src/a/back.rs", "super::front::Y"),
+        ["src/a/front.rs"]
+    );
 }

@@ -13,7 +13,10 @@
 //! ```
 
 /// Import the tree and the resolver.
-use crate::{layout_module_tree::ModuleTree, layout_path_resolution::resolve_use_path};
+use crate::{
+    layout_module_tree::ModuleTree,
+    layout_path_resolution::{resolve_path, resolve_use_path},
+};
 /// Import the native path type.
 use std::path::{Path, PathBuf};
 
@@ -45,8 +48,12 @@ pub struct ModuleUse {
 /// What:
 ///  Every use of a module by a different module.
 /// Why:
-///  A path that names the module it is in is not a dependency,
-///  and a path that reaches an item through a re-export is a use of the module that defines the item.
+///  A path that names the module it is in is not a dependency.
+///  A path that reaches an item through a re-export is a use of the module it names
+///  and also of the module that defines the item,
+///  because dropping the first would hide a loop through the re-exporting file
+///  (measured on `package/git-policy/cli`:
+///  replacing it let three files of a fifteen-file loop escape).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -56,24 +63,33 @@ pub fn collect_uses(tree: &ModuleTree) -> Vec<ModuleUse> {
     let mut uses: Vec<ModuleUse> = Vec::<ModuleUse>::new();
     for (index, module) in tree.modules.iter().enumerate() {
         for reference in &module.references {
-            let Some(target) = resolve_use_path(tree, index, reference.raw.segments.as_slice())
+            let Some(named) = resolve_path(tree, index, reference.raw.segments.as_slice(), true)
             else {
                 continue;
             };
-            if target == index {
-                continue;
-            }
+            // A path that reaches an item through re-exports also uses the module that defines it.
+            let defining: usize =
+                resolve_use_path(tree, index, reference.raw.segments.as_slice()).unwrap_or(named);
             let mut text: String = reference.raw.segments.join("::");
             if reference.raw.glob {
                 text.push_str("::*");
             }
-            uses.push(ModuleUse {
-                from: index,
-                to: target,
-                file: module.file.clone(),
-                line: reference.line,
-                text,
-            });
+            let mut targets: Vec<usize> = vec![named];
+            if defining != named {
+                targets.push(defining);
+            }
+            for target in targets {
+                if target == index {
+                    continue;
+                }
+                uses.push(ModuleUse {
+                    from: index,
+                    to: target,
+                    file: module.file.clone(),
+                    line: reference.line,
+                    text: text.clone(),
+                });
+            }
         }
     }
     return uses;
