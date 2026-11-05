@@ -73,12 +73,36 @@ pub fn is_plain_ref_name(name: &str) -> bool {
     if rest.is_empty() || rest.ends_with('.') || rest.contains("..") {
         return false;
     }
-    return rest.split('/').all(|component| {
-        return !component.is_empty()
+    for component in rest.split('/') {
+        let plain: bool = !component.is_empty()
             && !component.starts_with('.')
             && !component.ends_with(".lock")
-            && component.bytes().all(|byte| { return byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'); });
-    });
+            && component.bytes().all(is_reference_name_byte);
+        if !plain {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// Whether `byte` may appear in a component of a reference name this reader takes: a letter, a digit, `.`, `_` or `-`.
+fn is_reference_name_byte(byte: u8) -> bool {
+    return byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-');
+}
+
+/// Whether `byte` is a lower-case hexadecimal digit.
+fn is_lower_hex_digit(byte: u8) -> bool {
+    return matches!(byte, b'0'..=b'9' | b'a'..=b'f');
+}
+
+/// Whether `byte` is the digit zero.
+fn is_zero_digit(byte: u8) -> bool {
+    return byte == b'0';
+}
+
+/// Whether `byte` is a control byte (below space, or DEL), which a packed ref name cannot hold.
+fn is_control_byte(byte: u8) -> bool {
+    return byte < 0x20 || byte == 0x7f;
 }
 
 impl Refs {
@@ -90,17 +114,23 @@ impl Refs {
     /// Whether `text` is a plain, non-null, lower-case object name.
     fn is_name(&self, text: &str) -> bool {
         return text.len() == self.hex_length
-            && text.bytes().all(|byte| { return matches!(byte, b'0'..=b'9' | b'a'..=b'f'); })
-            && !text.bytes().all(|byte| { return byte == b'0'; });
+            && text.bytes().all(is_lower_hex_digit)
+            && !text.bytes().all(is_zero_digit);
     }
 
     /// The value of a loose file's text.
     fn parse_loose(&self, text: &str) -> Option<RefValue> {
         let line: &str = text.strip_suffix('\n')?;
         if let Some(target) = line.strip_prefix("ref: ") {
-            return is_plain_ref_name(target).then(|| { return RefValue::Symbolic(target.to_string()); });
+            if is_plain_ref_name(target) {
+                return Some(RefValue::Symbolic(target.to_string()));
+            }
+            return None;
         }
-        return self.is_name(line).then(|| { return RefValue::Direct(line.to_string()); });
+        if self.is_name(line) {
+            return Some(RefValue::Direct(line.to_string()));
+        }
+        return None;
     }
 
     /// The packed lines as `(name, object name)`, or `None` when the file is not a plain `packed-refs`.
@@ -137,7 +167,7 @@ impl Refs {
                 continue;
             }
             let (object, name) = line.split_once(' ')?;
-            if !self.is_name(object) || name.is_empty() || name.bytes().any(|byte| { return byte < 0x20 || byte == 0x7f; }) {
+            if !self.is_name(object) || name.is_empty() || name.bytes().any(is_control_byte) {
                 return None;
             }
             after_ref = true;
@@ -169,7 +199,10 @@ impl Refs {
                 let Ok(bytes) = read_regular_file(path.as_path(), LOOSE_LIMIT) else {
                     return Lookup::Unsure;
                 };
-                let Some(value) = std::str::from_utf8(bytes.as_slice()).ok().and_then(|text| { return self.parse_loose(text); }) else {
+                let Ok(text) = std::str::from_utf8(bytes.as_slice()) else {
+                    return Lookup::Unsure;
+                };
+                let Some(value) = self.parse_loose(text) else {
                     return Lookup::Unsure;
                 };
                 return Lookup::Found(value);
@@ -183,10 +216,12 @@ impl Refs {
         let Some(packed) = self.packed_named(true) else {
             return Lookup::Unsure;
         };
-        return match packed.into_iter().find(|(candidate, _)| { return candidate == name; }) {
-            Some((_, object)) => Lookup::Found(RefValue::Direct(object)),
-            None => Lookup::Missing,
-        };
+        for (candidate, object) in packed {
+            if candidate == name {
+                return Lookup::Found(RefValue::Direct(object));
+            }
+        }
+        return Lookup::Missing;
     }
 
     /// The object name `name` resolves to through symbolic refs; `None` when it is missing or unsure.

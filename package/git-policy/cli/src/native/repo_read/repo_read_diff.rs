@@ -42,8 +42,20 @@ fn type_of(mode: u32) -> u32 {
 fn has_entry_below(list: &[FlatEntry], path: &[u8]) -> bool {
     let mut prefix: Vec<u8> = path.to_vec();
     prefix.push(b'/');
-    let at: usize = list.partition_point(|entry| { return entry.path.as_slice() < prefix.as_slice(); });
-    return list.get(at).is_some_and(|entry| { return entry.path.starts_with(prefix.as_slice()); });
+    // A binary search over the sorted list, the same split `partition_point` finds.
+    let (mut low, mut high): (usize, usize) = (0, list.len());
+    while low < high {
+        let middle: usize = low + (high - low) / 2;
+        if list[middle].path.as_slice() < prefix.as_slice() {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    return match list.get(low) {
+        Some(entry) => entry.path.starts_with(prefix.as_slice()),
+        None => false,
+    };
 }
 
 /// What:
@@ -93,8 +105,10 @@ pub fn diff_sorted(old: &[FlatEntry], new: &[FlatEntry]) -> Option<Vec<Change>> 
             }
         }
     }
-    if changes.iter().any(|change| { return type_of(change.old_mode) == MODE_GITLINK || type_of(change.new_mode) == MODE_GITLINK; }) {
-        return None;
+    for change in &changes {
+        if type_of(change.old_mode) == MODE_GITLINK || type_of(change.new_mode) == MODE_GITLINK {
+            return None;
+        }
     }
     return Some(changes);
 }
@@ -135,9 +149,9 @@ impl PathFilter {
                 && !name.starts_with(b":")
                 && !name.starts_with(b"/")
                 && !name.ends_with(b"/")
-                && !name.windows(2).any(|pair| { return pair == b"//"; })
-                && !name.split(|byte| { return *byte == b'/'; }).any(|part| { return part == b"." || part == b".."; })
-                && !name.iter().any(|byte| { return matches!(byte, b'*' | b'?' | b'[' | b'\\' | 0); });
+                && !name.windows(2).any(is_double_slash)
+                && !name.split(is_slash).any(is_dot_part)
+                && !name.iter().any(is_pattern_byte);
             if !plain || !top_ok {
                 return None;
             }
@@ -154,15 +168,43 @@ impl PathFilter {
         if self.names.is_empty() {
             return true;
         }
-        return self.names.iter().any(|name| {
-            return path == name.as_slice() || (path.starts_with(name.as_slice()) && path.get(name.len()) == Some(&b'/'));
-        });
+        for name in &self.names {
+            if path == name.as_slice() || (path.starts_with(name.as_slice()) && path.get(name.len()) == Some(&b'/')) {
+                return true;
+            }
+        }
+        return false;
     }
+}
+
+/// Whether the two bytes are `//`.
+fn is_double_slash(pair: &[u8]) -> bool {
+    return pair == b"//";
+}
+
+/// Whether `byte` is the path separator `/`.
+fn is_slash(byte: &u8) -> bool {
+    return *byte == b'/';
+}
+
+/// Whether a path component is `.` or `..`.
+fn is_dot_part(part: &[u8]) -> bool {
+    return part == b"." || part == b"..";
+}
+
+/// Whether `byte` is a wildcard or escape byte (`*`, `?`, `[`, `\` or NUL) that a literal pathspec cannot hold.
+fn is_pattern_byte(byte: &u8) -> bool {
+    return matches!(byte, b'*' | b'?' | b'[' | b'\\' | 0);
+}
+
+/// Whether `byte` is one of the status letters `A`, `D`, `M`, `T`.
+fn is_status_letter(byte: u8) -> bool {
+    return matches!(byte, b'A' | b'D' | b'M' | b'T');
 }
 
 /// The statuses `--diff-filter` keeps; `None` keeps all. Only the upper-case letters `A D M T` are understood.
 pub fn parse_diff_filter(text: &str) -> Option<Vec<u8>> {
-    if text.is_empty() || !text.bytes().all(|byte| { return matches!(byte, b'A' | b'D' | b'M' | b'T'); }) {
+    if text.is_empty() || !text.bytes().all(is_status_letter) {
         return None;
     }
     return Some(text.bytes().collect());
@@ -170,10 +212,20 @@ pub fn parse_diff_filter(text: &str) -> Option<Vec<u8>> {
 
 /// Keep the changes the filter and statuses name.
 pub fn select(changes: Vec<Change>, filter: &PathFilter, statuses: Option<&[u8]>) -> Vec<Change> {
-    return changes
-        .into_iter()
-        .filter(|change| { return filter.matches(change.path.as_slice()) && statuses.is_none_or(|kept| { return kept.contains(&change.status); }); })
-        .collect();
+    let mut selected: Vec<Change> = Vec::new();
+    for change in changes {
+        if !filter.matches(change.path.as_slice()) {
+            continue;
+        }
+        let status_kept: bool = match statuses {
+            Some(kept) => kept.contains(&change.status),
+            None => true,
+        };
+        if status_kept {
+            selected.push(change);
+        }
+    }
+    return selected;
 }
 
 /// The `-z` raw lines: `:<old mode> <new mode> <old id> <new id> <status>\0<path>\0`.

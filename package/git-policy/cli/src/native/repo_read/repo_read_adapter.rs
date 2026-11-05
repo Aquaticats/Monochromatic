@@ -70,15 +70,17 @@ pub fn landing_of(layout: &RepoLayout) -> Option<LandingLocation> {
 /// sequencerState({ mergeHead: exists(gitPath('MERGE_HEAD')), cherryPickHead: ..., revertHead: ... })
 /// ```
 pub fn sequencer_of(layout: &RepoLayout) -> Option<SequencerState> {
-    let exists = |name: &str| -> Option<bool> {
-        let path = git_path(layout, name)?;
-        return Some(std::fs::symlink_metadata(path).is_ok());
-    };
     return Some(sequencer_state(SequencerFacts {
-        merge_head: exists("MERGE_HEAD")?,
-        cherry_pick_head: exists("CHERRY_PICK_HEAD")?,
-        revert_head: exists("REVERT_HEAD")?,
+        merge_head: git_file_exists(layout, "MERGE_HEAD")?,
+        cherry_pick_head: git_file_exists(layout, "CHERRY_PICK_HEAD")?,
+        revert_head: git_file_exists(layout, "REVERT_HEAD")?,
     }));
+}
+
+/// Whether the per-worktree Git file `name` exists (a link counts), or nothing when its path cannot be worked out.
+fn git_file_exists(layout: &RepoLayout, name: &str) -> Option<bool> {
+    let path = git_path(layout, name)?;
+    return Some(std::fs::symlink_metadata(path).is_ok());
 }
 
 /// What:

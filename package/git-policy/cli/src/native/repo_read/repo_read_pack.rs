@@ -159,9 +159,14 @@ impl Pack {
         if table[..8] != *b"\xfftOc\0\0\0\x02" {
             return None;
         }
-        let fanout: Vec<u32> = table[8..].as_chunks::<4>().0.iter().map(|word| { return u32::from_be_bytes(*word); }).collect();
-        if fanout.windows(2).any(|pair| { return pair[0] > pair[1]; }) {
-            return None;
+        let mut fanout: Vec<u32> = Vec::new();
+        for word in table[8..].as_chunks::<4>().0 {
+            fanout.push(u32::from_be_bytes(*word));
+        }
+        for pair in fanout.windows(2) {
+            if pair[0] > pair[1] {
+                return None;
+            }
         }
         let count: u64 = u64::from(fanout[255]);
         let index_length: u64 = index.metadata().ok()?.len();

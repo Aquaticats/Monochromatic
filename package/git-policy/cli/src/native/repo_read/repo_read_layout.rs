@@ -18,7 +18,6 @@
 //! const layout: RepoLayout | undefined = readLayout({ globalPrefix, overlay }); // undefined: ask Git
 //! ```
 
-use crate::child_environment::{COUNT_VARIABLE, environment_value, parse_config_count};
 use crate::private_storage::read_regular_file;
 use crate::repo_read_hook::enabled;
 use crate::repo_read_config_scan::{ScopeEnvironment, discovery_key, entries_avoid_keys, outer_scopes_avoid_keys, read_following};
@@ -26,105 +25,13 @@ use crate::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, last_entry, p
 use crate::repo_read_config_typed::{entries_are_accepted, environment_is_accepted, outer_scopes_are_accepted};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-
-/// The environment variables a plain read tolerates, by prefix; any other `GIT_` variable can move a path or a key.
-///  The first group is the original list. The second group was added after reading what Git 2.56.0 does with each name
-///  (`environment.h`, and the file named for each); none can change which configuration entry, attribute tree, repository,
-///  index, object, ref or pathspec meaning an answer rests on, since each only traces, words output, reaches a network or a tool,
-///  or sets a limit or a write-time choice:
-///  Tracing and output: `GIT_TRACE` and every `GIT_TRACE2`, `GIT_TRACE_*` name (`trace.c` line 33, `trace2/tr2_sysenv.c`
-///   lines 32 and 34), `GIT_FLUSH` (`write-or-die.c` line 25), `GIT_PROGRESS_DELAY` (`progress.c` line 286),
-///   `GIT_PRINT_SHA1_ELLIPSIS` (`environment.c` line 242), `GIT_MERGE_VERBOSITY` (`merge-ort.c` line 5516), `GIT_ADVICE`
-///   (`advice.c` line 139), `GIT_REFLOG_ACTION` (`sequencer.c` line 53), `GIT_CHERRY_PICK_HELP` (`sequencer.c` line 527);
-///  Network and transport: `GIT_CURL_*` (`http.c` line 1494), `GIT_HTTP_*` (`http.c` lines 1475 to 1477), `GIT_SSL_*`
-///   (`http.c` line 1465), `GIT_PROXY_*` (`connect.c` line 1046), `GIT_TCP_KEEP*` (`http.c` line 1507), `GIT_USER_AGENT`
-///   (`version.c` line 33), `GIT_OVERRIDE_VIRTUAL_HOST` (`connect.c` line 1276), `GIT_PROTOCOL_FROM_USER` (`transport.c` line 1182);
-///  Tools: `GIT_EXTERNAL_DIFF` (`diff.c` line 565), `GIT_DIFF_*` (`diff.c` line 4045, `builtin/difftool.c` lines 792 and 799),
-///   `GIT_MERGETOOL_GUI` (`builtin/difftool.c` line 786), `GIT_MAN_VIEWER` (`builtin/help.c` line 521), `GIT_SHELL_PATH`
-///   (`builtin/var.c` line 149);
-///  Limits and write-time choices: `GIT_ALLOC_LIMIT` (`wrapper.c` line 25), `GIT_MMAP_LIMIT` (`wrapper.c` line 947),
-///   `GIT_INDEX_VERSION` (`read-cache.c` line 1646, the version Git writes; the index reader takes versions 2 to 4),
-///   `GIT_BASENAME_FACTOR` (`diffcore-rename.c` line 1497), `GIT_COMMIT_GRAPH_PARANOIA` (`commit-graph.c` line 1028),
-///   `GIT_DISABLE_UNTRACKED_CACHE` and `GIT_FORCE_UNTRACKED_CACHE` (`dir.c` lines 2988 and 3174),
-///   `GIT_AUTO_COMMENT_CHAR_CONFIG_WARNING_GIVEN` (`config.c` line 2260, only suppresses a warning).
-///  Left out because they can move an answer: `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR`, `GIT_PREFIX`, `GIT_IMPLICIT_WORK_TREE`,
-///  `GIT_INDEX_FILE`, `GIT_OBJECT_DIRECTORY`, `GIT_ALTERNATE_OBJECT_DIRECTORIES`, `GIT_CEILING_DIRECTORIES`,
-///  `GIT_DISCOVERY_ACROSS_FILESYSTEM`, `GIT_NAMESPACE`, `GIT_CONFIG`, `GIT_CONFIG_PARAMETERS`, `GIT_ATTR_*`, `GIT_NO_REPLACE_OBJECTS`,
-///  `GIT_REPLACE_REF_BASE`, `GIT_GRAFT_FILE`, `GIT_SHALLOW_FILE`, `GIT_QUARANTINE_PATH`, `GIT_REFERENCE_BACKEND`, `GIT_REF_PARANOIA`,
-///  the four `GIT_*_PATHSPECS`, `GIT_TEMPLATE_DIR`, `GIT_TEXTDOMAINDIR` (the wording the synthesized failures assume),
-///  `GIT_NOTES_*`, `GIT_NO_LAZY_FETCH`, `GIT_DEFAULT_*` and every `GIT_TEST_*`.
-const PLAIN_ENVIRONMENT_PREFIXES: &[&str] = &[
-    "GIT_AUTHOR_",
-    "GIT_COMMITTER_",
-    "GIT_TERMINAL_PROMPT",
-    "GIT_ASKPASS",
-    "GIT_PAGER",
-    "GIT_EDITOR",
-    "GIT_SEQUENCE_EDITOR",
-    "GIT_EXEC_PATH",
-    "GIT_SSH",
-    "GIT_ALLOW_PROTOCOL",
-    "GIT_LFS_",
-    "GIT_CONFIG_NOSYSTEM",
-    "GIT_CONFIG_GLOBAL",
-    "GIT_CONFIG_SYSTEM",
-    "GIT_CONFIG_COUNT",
-    "GIT_CONFIG_KEY_",
-    "GIT_CONFIG_VALUE_",
-    "GIT_MERGE_AUTOEDIT",
-    "GIT_OPTIONAL_LOCKS",
-    "GIT_TRACE",
-    "GIT_FLUSH",
-    "GIT_PROGRESS_DELAY",
-    "GIT_PRINT_SHA1_ELLIPSIS",
-    "GIT_MERGE_VERBOSITY",
-    "GIT_ADVICE",
-    "GIT_REFLOG_ACTION",
-    "GIT_CHERRY_PICK_HELP",
-    "GIT_CURL_",
-    "GIT_HTTP_",
-    "GIT_SSL_",
-    "GIT_PROXY_",
-    "GIT_TCP_KEEP",
-    "GIT_USER_AGENT",
-    "GIT_OVERRIDE_VIRTUAL_HOST",
-    "GIT_PROTOCOL_FROM_USER",
-    "GIT_EXTERNAL_DIFF",
-    "GIT_DIFF_",
-    "GIT_DIFFTOOL_",
-    "GIT_MERGETOOL_GUI",
-    "GIT_MAN_VIEWER",
-    "GIT_SHELL_PATH",
-    "GIT_ALLOC_LIMIT",
-    "GIT_MMAP_LIMIT",
-    "GIT_INDEX_VERSION",
-    "GIT_BASENAME_FACTOR",
-    "GIT_COMMIT_GRAPH_PARANOIA",
-    "GIT_DISABLE_UNTRACKED_CACHE",
-    "GIT_FORCE_UNTRACKED_CACHE",
-    "GIT_AUTO_COMMENT_CHAR_CONFIG_WARNING_GIVEN",
-];
-
-/// The prefix of the variables this package owns (`GIT_POLICY_NATIVE_IMAGE_TAG` keeps the images of parallel runs apart);
-///  Git defines none of them, so they cannot move a path or a key.
-pub const WRAPPER_ENVIRONMENT_PREFIX: &str = "GIT_POLICY_";
+pub use crate::repo_read_layout_environment_rules::{WRAPPER_ENVIRONMENT_PREFIX, env_config_avoids};
+pub(crate) use crate::repo_read_layout_environment_rules::{effective_environment, environment_is_plain};
+pub(crate) use crate::repo_read_layout_disk_and_directory_facts::start_directory;
+use crate::repo_read_layout_disk_and_directory_facts::{device_of, has_git_directory_entries, has_git_directory_entries_split, is_hex_byte, owned_by_current_user, small_file};
 
 /// The per-worktree configuration file in a worktree's own Git directory.
 const WORKTREE_CONFIG_NAME: &str = "config.worktree";
-
-/// The longest `HEAD` or `commondir` or gitfile this reader looks at.
-///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
-///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
-///  open to the owner's veto.
-const SMALL_FILE_LIMIT: u64 = 4096;
-
-/// How many environment-supplied configuration entries the reader inspects before it declines.
-///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
-///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
-///  open to the owner's veto.
-const ENV_CONFIG_ENTRY_LIMIT: u64 = 1024;
 
 /// The hash algorithms of object names.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -176,105 +83,6 @@ pub struct RepoLayout {
     pub object_format: ObjectFormat,
 }
 
-/// The keys an environment-supplied configuration entry may not set without the reader declining.
-fn env_key_moves_discovery(key: &str) -> bool {
-    let lowered: String = key.to_ascii_lowercase();
-    return lowered == "core.bare" || lowered == "core.worktree" || lowered.starts_with("include");
-}
-
-/// Whether the `GIT_CONFIG_COUNT` entries of `variables` (the wrapper injects some) all leave discovery alone.
-fn env_config_is_plain(variables: &[(OsString, OsString)]) -> bool {
-    return env_config_avoids(variables, &env_key_moves_discovery);
-}
-
-/// What:
-///  Whether every environment-supplied configuration entry has a key `declines` does not name;
-///  a malformed set of entries is not plain either.
-/// Why:
-///   The content queries use the same walk with their own key list, so an injected `diff.orderFile` is not missed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// envConfigKeys(variables).every((key) => !declines(key)); // false when malformed
-/// ```
-pub fn env_config_avoids(variables: &[(OsString, OsString)], declines: &dyn Fn(&str) -> bool) -> bool {
-    let Some(count_text) = environment_value(variables, COUNT_VARIABLE) else {
-        return true;
-    };
-    let Some(count) = parse_config_count(count_text.as_os_str()) else {
-        return false;
-    };
-    if count > ENV_CONFIG_ENTRY_LIMIT {
-        return false;
-    }
-    for index in 0..count {
-        let Some(key) = environment_value(variables, format!("GIT_CONFIG_KEY_{index}").as_str()) else {
-            return false;
-        };
-        match key.to_str() {
-            Some(text) if !declines(text) => {}
-            _ => return false,
-        }
-    }
-    return true;
-}
-
-/// Whether every `GIT_` variable among `variables` is one that cannot move discovery:
-///  a tolerated prefix, or one of this package's own.
-pub(crate) fn environment_is_plain(variables: &[(OsString, OsString)]) -> bool {
-    for (name, _) in variables {
-        let Some(text) = name.to_str() else {
-            continue;
-        };
-        let tolerated: bool = text.starts_with(WRAPPER_ENVIRONMENT_PREFIX) || PLAIN_ENVIRONMENT_PREFIXES.iter().any(|prefix| { return text.starts_with(prefix); });
-        if text.starts_with("GIT_") && !tolerated {
-            return false;
-        }
-    }
-    return env_config_is_plain(variables);
-}
-
-/// The environment Git would see: the process environment with the child overlay applied over it.
-pub(crate) fn effective_environment(overlay: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
-    let mut variables: Vec<(OsString, OsString)> = std::env::vars_os()
-        .filter(|(name, _)| { return !overlay.iter().any(|(added, _)| { return added == name; }); })
-        .collect();
-    variables.extend(overlay.iter().cloned());
-    return variables;
-}
-
-/// The directory a command starts in: the process directory moved by leading `-C <path>` options.
-///  Any other global option returns `None`.
-pub(crate) fn start_directory(global_prefix: &[OsString]) -> Option<PathBuf> {
-    let mut directory: PathBuf = std::env::current_dir().ok()?;
-    let mut options = global_prefix.iter();
-    while let Some(option) = options.next() {
-        if option != "-C" {
-            return None;
-        }
-        let path: &OsString = options.next()?;
-        if !path.is_empty() {
-            directory = directory.join(path);
-        }
-        // Git changes directory at each `-C` in turn and fails at the first one that is not a directory.
-        if !std::fs::metadata(&directory).is_ok_and(|found| { return found.is_dir(); }) {
-            return None;
-        }
-    }
-    return std::fs::canonicalize(directory).ok();
-}
-
-/// A small regular file's text, refusing links.
-fn small_file(path: &Path) -> Option<String> {
-    let bytes: Vec<u8> = read_regular_file(path, SMALL_FILE_LIMIT).ok()?;
-    return String::from_utf8(bytes).ok();
-}
-
-/// Whether `directory` holds the three entries Git takes for a Git directory.
-fn has_git_directory_entries(directory: &Path) -> bool {
-    return directory.join("HEAD").exists() && directory.join("objects").is_dir() && directory.join("refs").is_dir();
-}
-
 /// Whether the `HEAD` text is one of the two spellings Git accepts that this reader knows.
 fn head_is_valid(text: &str, format: ObjectFormat) -> bool {
     let Some(line) = text.strip_suffix('\n') else {
@@ -283,37 +91,7 @@ fn head_is_valid(text: &str, format: ObjectFormat) -> bool {
     if let Some(name) = line.strip_prefix("ref: ") {
         return name.starts_with("refs/") && !name.contains('\n');
     }
-    return line.len() == format.hex_length() && line.bytes().all(|byte| { return byte.is_ascii_hexdigit(); });
-}
-
-/// Whether `path` is owned by the effective user, as Git's ownership check requires.
-#[cfg(unix)]
-fn owned_by_current_user(path: &Path) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    let Ok(metadata) = std::fs::symlink_metadata(path) else {
-        return false;
-    };
-    // SAFETY: `geteuid` takes no argument, touches no memory and cannot fail.
-    return metadata.uid() == unsafe { libc::geteuid() };
-}
-
-/// Without user ids, every repository is left to Git.
-#[cfg(not(unix))]
-fn owned_by_current_user(_path: &Path) -> bool {
-    return false;
-}
-
-/// The device a directory lives on, so a walk can stop where Git stops.
-#[cfg(unix)]
-fn device_of(path: &Path) -> Option<u64> {
-    use std::os::unix::fs::MetadataExt;
-    return std::fs::metadata(path).ok().map(|metadata| { return metadata.dev(); });
-}
-
-/// Without device numbers, every walk is left to Git.
-#[cfg(not(unix))]
-fn device_of(_path: &Path) -> Option<u64> {
-    return None;
+    return line.len() == format.hex_length() && line.bytes().all(is_hex_byte);
 }
 
 /// The Git directory a `.git` entry names: the entry itself when it is a directory,
@@ -367,7 +145,10 @@ fn format_of(entries: &[ConfigEntry]) -> Option<(ObjectFormat, bool)> {
     };
     let mut format: ObjectFormat = ObjectFormat::Sha1;
     let mut worktree_config: bool = false;
-    for entry in entries.iter().filter(|entry| { return entry.key.starts_with("extensions."); }) {
+    for entry in entries {
+        if !entry.key.starts_with("extensions.") {
+            continue;
+        }
         if entry.key == "extensions.worktreeconfig" {
             worktree_config = parse_bool(entry.value.as_deref())?;
             continue;
@@ -424,15 +205,29 @@ fn worktree_entries(git_dir: &Path, enabled: bool) -> Option<Vec<ConfigEntry>> {
 /// ```
 fn without_false_bare(files: [&[ConfigEntry]; 2]) -> Option<[Vec<ConfigEntry>; 2]> {
     let mut last: Option<bool> = None;
-    for entry in files.iter().flat_map(|entries| { return entries.iter(); }).filter(|entry| { return entry.key == "core.bare"; }) {
-        last = Some(parse_bool(entry.value.as_deref())?);
+    for entries in files {
+        for entry in entries {
+            if entry.key == "core.bare" {
+                last = Some(parse_bool(entry.value.as_deref())?);
+            }
+        }
     }
     if last == Some(true) {
         return None;
     }
-    return Some(files.map(|entries| {
-        return entries.iter().filter(|entry| { return entry.key != "core.bare"; }).cloned().collect::<Vec<ConfigEntry>>();
-    }));
+    let [common, per_worktree] = files;
+    return Some([without_bare(common), without_bare(per_worktree)]);
+}
+
+/// The entries without `core.bare`, in their order.
+fn without_bare(entries: &[ConfigEntry]) -> Vec<ConfigEntry> {
+    let mut kept: Vec<ConfigEntry> = Vec::new();
+    for entry in entries {
+        if entry.key != "core.bare" {
+            kept.push(entry.clone());
+        }
+    }
+    return kept;
 }
 
 /// What:
@@ -499,11 +294,6 @@ fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEn
         prefix.push(b'/');
     }
     return Some(RepoLayout { git_dir, common_dir, worktree_root: worktree.to_path_buf(), prefix, object_format });
-}
-
-/// The three-entry check, with `HEAD` in the worktree's directory and the rest in the common directory.
-fn has_git_directory_entries_split(git_dir: &Path, common_dir: &Path) -> bool {
-    return git_dir.join("HEAD").exists() && common_dir.join("objects").is_dir() && common_dir.join("refs").is_dir();
 }
 
 /// What:
@@ -690,7 +480,9 @@ pub fn git_path(layout: &RepoLayout, name: &str) -> Option<PathBuf> {
     }
     let path: PathBuf = layout.git_dir.join(name);
     // With `--path-format=absolute` Git prints the target of a link, so a linked name is left to Git.
-    if std::fs::symlink_metadata(path.as_path()).is_ok_and(|metadata| { return metadata.file_type().is_symlink(); }) {
+    if let Ok(metadata) = std::fs::symlink_metadata(path.as_path())
+        && metadata.file_type().is_symlink()
+    {
         return None;
     }
     return Some(path);

@@ -7,6 +7,7 @@
 use super::*;
 use crate::test_support::{fixture, git, git_output, remove};
 use std::os::unix::ffi::OsStringExt;
+use std::path::Path;
 
 /// The scope facts that match the hermetic environment the fixtures give Git.
 pub(crate) fn scope(root: &Path) -> ScopeEnvironment {

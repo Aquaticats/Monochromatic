@@ -15,10 +15,9 @@
 
 #![cfg(unix)]
 
-use crate::repo_read_config_scan::{ScopeEnvironment, content_key, entries_avoid_keys, file_avoids_keys, outer_scopes_avoid_keys};
+use crate::repo_read_config_scan::{ScopeEnvironment, content_key, entries_avoid_keys, file_avoids_keys, last_variable, outer_scopes_avoid_keys};
 use crate::repo_read_config_text::{CONFIG_TEXT_LIMIT, parse_config_text};
 use crate::repo_read_diff::{PathFilter, diff_sorted, name_lines, parse_diff_filter, raw_lines, select};
-use crate::repo_read_index::{INTENT_TO_ADD, IndexEntry, ParsedIndex, parse_index_with_tree};
 use crate::repo_read_layout::{RepoLayout, env_config_avoids, read_layout_with};
 use crate::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
 
@@ -27,89 +26,20 @@ use crate::repo_read_query_refs::{config_list, for_each_ref, remote_url, rev_par
 use crate::index_cache_tree::CacheTree;
 use crate::repo_read_tree_cached::changes_with_cache;
 use crate::repo_read_tree::{FlatEntry, flatten_pair, flatten_tree_shared, parse_commit, subject_of};
-use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use std::ffi::OsString;
+use std::path::PathBuf;
 use std::rc::Rc;
+pub use crate::repo_read_query_request_answer_and_context::{Answer, Query};
+use crate::repo_read_query_request_answer_and_context::{Context, Parsed, flags_are, parse};
 
-/// The command line and surroundings of one query.
-pub struct Query<'a> {
-    /// The arguments given to Git, global options first.
-    pub arguments: &'a [OsString],
-    /// The directory Git would run in; `None` is the process directory.
-    pub directory: Option<&'a Path>,
-    /// The variables added to Git's environment for this run.
-    pub variables: &'a [(OsString, OsString)],
-    /// The bytes sent to Git's standard input, for the commands that read object names from it.
-    pub input: Option<&'a [u8]>,
+/// Whether `byte` is a newline.
+fn is_newline(byte: &u8) -> bool {
+    return *byte == b'\n';
 }
 
-/// What Git would have printed and returned.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Answer {
-    /// Standard output.
-    pub stdout: Vec<u8>,
-    /// Standard error.
-    pub stderr: Vec<u8>,
-    /// The exit code.
-    pub code: i32,
-}
-
-/// The parts of a command line after its global options.
-pub(crate) struct Parsed<'a> {
-    /// The subcommand word.
-    pub(crate) command: &'a str,
-    /// Options before `--`.
-    pub(crate) flags: Vec<&'a str>,
-    /// Non-option arguments before `--`.
-    pub(crate) operands: Vec<&'a [u8]>,
-    /// Arguments after `--`.
-    pub(crate) specs: Vec<&'a [u8]>,
-}
-
-/// Split the arguments: leading `-C <dir>` pairs move the start directory, `--no-literal-pathspecs` is Git's default.
-fn parse<'a>(arguments: &'a [OsString], start: &mut PathBuf) -> Option<Parsed<'a>> {
-    let mut index: usize = 0;
-    while index < arguments.len() {
-        let word: &OsStr = arguments[index].as_os_str();
-        if word == "-C" {
-            let target: &OsString = arguments.get(index + 1)?;
-            if !target.is_empty() {
-                *start = start.join(target);
-            }
-            // Git changes directory at each `-C` in turn and fails at the first one that is not a directory.
-            if !std::fs::metadata(&*start).is_ok_and(|found| { return found.is_dir(); }) {
-                return None;
-            }
-            index += 2;
-        } else if word == "--no-literal-pathspecs" {
-            index += 1;
-        } else {
-            break;
-        }
-    }
-    let command: &str = arguments.get(index)?.to_str()?;
-    let mut parsed: Parsed<'a> = Parsed { command, flags: Vec::new(), operands: Vec::new(), specs: Vec::new() };
-    let mut after_separator: bool = false;
-    for argument in &arguments[index + 1..] {
-        let bytes: &[u8] = argument.as_encoded_bytes();
-        if after_separator {
-            parsed.specs.push(bytes);
-        } else if bytes == b"--" {
-            after_separator = true;
-        } else if bytes.starts_with(b"-") {
-            parsed.flags.push(argument.to_str()?);
-        } else {
-            parsed.operands.push(bytes);
-        }
-    }
-    return Some(parsed);
-}
-
-/// Whether `flags` holds exactly the options of `allowed` (each at most once) and every one of `required`.
-pub(crate) fn flags_are(flags: &[&str], required: &[&str], allowed: &[&str]) -> bool {
-    return required.iter().all(|flag| { return flags.contains(flag); })
-        && flags.iter().all(|flag| { return allowed.contains(flag) || required.contains(flag); })
-        && flags.iter().enumerate().all(|(position, flag)| { return !flags[..position].contains(flag); });
+/// Whether a configuration key, in any letter case, is one that could change the output of a content command.
+fn content_key_of_any_case(key: &str) -> bool {
+    return content_key(key.to_ascii_lowercase().as_str());
 }
 
 /// The environment Git would see, without the two variables this reader handles itself.
@@ -117,19 +47,30 @@ fn environment(
     base: Vec<(OsString, OsString)>,
     variables: &[(OsString, OsString)],
 ) -> (Vec<(OsString, OsString)>, Option<OsString>, Option<OsString>) {
-    let mut all: Vec<(OsString, OsString)> = base
-        .into_iter()
-        .filter(|(name, _)| { return !variables.iter().any(|(added, _)| { return added == name; }); })
-        .collect();
+    let mut all: Vec<(OsString, OsString)> = Vec::new();
+    for (name, value) in base {
+        let mut replaced: bool = false;
+        for (added, _) in variables {
+            if *added == name {
+                replaced = true;
+                break;
+            }
+        }
+        if !replaced {
+            all.push((name, value));
+        }
+    }
     all.extend(variables.iter().cloned());
-    let find = |wanted: &str| -> Option<OsString> {
-        // The last assignment wins, as it does for the child's environment.
-        return all.iter().rev().find(|(name, _)| { return name == wanted; }).map(|(_, value)| { return value.clone(); });
-    };
-    let index: Option<OsString> = find("GIT_INDEX_FILE");
-    let objects: Option<OsString> = find("GIT_OBJECT_DIRECTORY");
-    all.retain(|(name, _)| { return name != "GIT_INDEX_FILE" && name != "GIT_OBJECT_DIRECTORY"; });
-    return (all, index, objects);
+    // The last assignment wins, as it does for the child's environment.
+    let index: Option<OsString> = last_variable(all.as_slice(), "GIT_INDEX_FILE");
+    let objects: Option<OsString> = last_variable(all.as_slice(), "GIT_OBJECT_DIRECTORY");
+    let mut kept: Vec<(OsString, OsString)> = Vec::new();
+    for (name, value) in all {
+        if name != "GIT_INDEX_FILE" && name != "GIT_OBJECT_DIRECTORY" {
+            kept.push((name, value));
+        }
+    }
+    return (kept, index, objects);
 }
 
 /// Whether no configuration file Git reads for these queries sets a key that could change the output.
@@ -146,64 +87,6 @@ fn content_config_is_plain(layout: &RepoLayout, scope: &ScopeEnvironment) -> Opt
         return Some(false);
     }
     return outer_scopes_avoid_keys(scope, &content_key);
-}
-
-/// Everything one query needs, opened lazily.
-pub(crate) struct Context {
-    /// The repository.
-    pub(crate) layout: RepoLayout,
-    /// The index file Git would read.
-    index_path: PathBuf,
-    /// The object directory override, if any.
-    objects: Option<PathBuf>,
-    /// Where the system and global configuration files are.
-    pub(crate) scope: ScopeEnvironment,
-    /// The environment Git would see, without the index and object directory variables.
-    pub(crate) variables: Vec<(OsString, OsString)>,
-}
-
-impl Context {
-    /// The object database.
-    pub(crate) fn database(&self) -> Option<ObjectDatabase> {
-        return ObjectDatabase::open(self.layout.common_dir.as_path(), self.objects.as_deref(), self.layout.object_format);
-    }
-
-    /// The index entries.
-    pub(crate) fn index(&self) -> Option<Vec<IndexEntry>> {
-        return self.index_with_tree().map(|parsed| { return parsed.entries; });
-    }
-
-    /// The index entries and the cache-tree extension.
-    pub(crate) fn index_with_tree(&self) -> Option<ParsedIndex> {
-        let bytes: Vec<u8> = crate::private_storage::read_regular_file(self.index_path.as_path(), 1 << 30).ok()?;
-        return parse_index_with_tree(bytes.as_slice(), self.layout.object_format);
-    }
-
-    /// The index as flat entries and its cache-tree, refusing unmerged or intent-to-add entries.
-    fn resolved_index_with_tree(&self) -> Option<(Vec<FlatEntry>, Option<CacheTree>)> {
-        let parsed: ParsedIndex = self.index_with_tree()?;
-        if parsed.entries.iter().any(|entry| { return entry.stage != 0 || entry.extended & INTENT_TO_ADD != 0; }) {
-            return None;
-        }
-        let flat: Vec<FlatEntry> = parsed.entries.into_iter().map(|entry| { return FlatEntry { path: entry.path, mode: entry.mode, id: entry.id }; }).collect();
-        return Some((flat, parsed.tree));
-    }
-
-    /// The root tree of a commit or tree named by `hex`.
-    fn tree_of(&self, database: &ObjectDatabase, hex: &[u8]) -> Option<Vec<u8>> {
-        let name: Vec<u8> = from_hex(hex, self.layout.object_format)?;
-        let object = database.read(name.as_slice())?;
-        return match object.kind {
-            ObjectKind::Tree => Some(name),
-            ObjectKind::Commit => Some(parse_commit(object.bytes.as_slice(), self.layout.object_format)?.tree),
-            ObjectKind::Blob | ObjectKind::Tag => None,
-        };
-    }
-
-    /// The zero object name spelled out for raw lines.
-    fn zero(&self) -> String {
-        return "0".repeat(self.layout.object_format.hex_length());
-    }
 }
 
 /// `ls-files --stage -z` and `ls-files --unmerged -z`.
@@ -258,7 +141,10 @@ fn diff_cached(context: &Context, parsed: &Parsed<'_>, porcelain: bool) -> Optio
     let (index, cache): (Vec<FlatEntry>, Option<CacheTree>) = context.resolved_index_with_tree()?;
     // The cache-tree names the directories the index has not changed, and those are left unread; without one, or when its walk
     //  declines, the whole tree is read.
-    let cached = cache.as_ref().and_then(|nodes| { return changes_with_cache(&database, tree.as_slice(), context.layout.object_format, nodes, index.as_slice()); });
+    let cached = match cache.as_ref() {
+        Some(nodes) => changes_with_cache(&database, tree.as_slice(), context.layout.object_format, nodes, index.as_slice()),
+        None => None,
+    };
     let changes = match cached {
         Some(found) => found,
         None => {
@@ -267,8 +153,16 @@ fn diff_cached(context: &Context, parsed: &Parsed<'_>, porcelain: bool) -> Optio
         }
     };
     // The porcelain pairs an added and a deleted path as a rename; plain lists cannot say which pairs it would choose.
-    if porcelain && changes.iter().any(|change| { return change.status == b'A'; }) && changes.iter().any(|change| { return change.status == b'D'; }) {
-        return None;
+    if porcelain {
+        let mut added: bool = false;
+        let mut deleted: bool = false;
+        for change in &changes {
+            added = added || change.status == b'A';
+            deleted = deleted || change.status == b'D';
+        }
+        if added && deleted {
+            return None;
+        }
     }
     let kept = select(changes, &filter, statuses.as_deref());
     let stdout: Vec<u8> = if raw { raw_lines(kept.as_slice(), context.zero().as_str()) } else { name_lines(kept.as_slice()) };
@@ -375,7 +269,7 @@ fn batch_objects(context: &Context, parsed: &Parsed<'_>, input: Option<&[u8]>) -
     let database: ObjectDatabase = context.database()?;
     let mut stdout: Vec<u8> = Vec::new();
     let text: &[u8] = input?.strip_suffix(b"\n")?;
-    for line in text.split(|byte| { return *byte == b'\n'; }) {
+    for line in text.split(is_newline) {
         let name: Vec<u8> = from_hex(line, context.layout.object_format)?;
         // A name the store lacks is Git's `missing` line, which the reader leaves to it.
         let object = database.read(name.as_slice())?;
@@ -419,13 +313,16 @@ pub fn answer_with(query: &Query<'_>, base: Vec<(OsString, OsString)>, scope: &S
         Some(file) => start.join(file),
         None => layout.git_dir.join("index"),
     };
-    let objects: Option<PathBuf> = objects_variable.map(|directory| { return start.join(directory); });
+    let mut objects: Option<PathBuf> = None;
+    if let Some(directory) = objects_variable {
+        objects = Some(start.join(directory));
+    }
     let content_command: bool = matches!(parsed.command, "ls-files" | "diff-index" | "diff" | "diff-tree" | "show");
     if content_command && !content_config_is_plain(&layout, scope)? {
         return None;
     }
     // Entries injected through the environment are configuration too.
-    if content_command && !env_config_avoids(variables.as_slice(), &|key: &str| { return content_key(key.to_ascii_lowercase().as_str()); }) {
+    if content_command && !env_config_avoids(variables.as_slice(), &content_key_of_any_case) {
         return None;
     }
     let context: Context = Context { layout, index_path, objects, scope: scope.clone(), variables };
