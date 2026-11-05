@@ -504,6 +504,9 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   The earlier one-time host failure of three of them stays unexplained; it is still open,
   to be measured if it recurs.
   Merged to main 2026-11-05 (483 files). The five lint worktrees are removed; their branches stay.
+  Layout next: an agent drafts the whole target tree on main `977e697ad5` (rescan, crate split, every folder and
+  file old to new with `uses/` lists, every change the moves need, move order, cross-vendor review) into
+  `doc/planning/cli-git-source-layout-target-tree.md`; nothing moves until the owner has seen it.
   Then one follow-up pass, decided by the coordinator (LN1 and LN2: restructure rather than suppress):
   give the callees guard or trait forms so most `expect`s go
   (`worktree/add_timing.rs` already has `begin_step`/`end_step` and `begin_work`/`end_work` for the
