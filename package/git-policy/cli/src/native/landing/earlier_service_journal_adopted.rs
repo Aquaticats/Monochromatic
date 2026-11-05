@@ -19,7 +19,7 @@
 
 /// The context a recovery runs in,
 ///  and the recovery itself.
-use crate::service_land::{LandContext, RecoveryReport, recover_instance};
+use crate::service_land::{LandContext, RecoveryReport, recover_instance_without_drops};
 /// The names of the folders.
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
 /// Paths.
@@ -170,9 +170,11 @@ pub fn earlier_commits_landed(journal: &Path, instance: &str) -> HashMap<String,
 ///  when no service of the instance is running.
 ///  `&LandContext` is the new service's context: its Git and the new journal's place.
 /// Why:
-///   The recovery decides each batch by the branch and the index, finishes the index update that may be missing or drops the
-///  intent of a batch that never landed, and marks the finished batch done in the folder it found it in.
-///  Calling it again finds nothing open.
+///   The recovery decides each batch by the branch and the index, finishes the index update that may be missing, and marks
+///  the finished batch done in the folder it found it in. It never drops the intent of a batch that looks unlanded: the look at
+///  the processes can miss a live helper, and a live landing writes its intent before it moves the branch, so that intent stays
+///  on disk (and is reported as left) for the earlier helper's own start-up recovery.
+///  Calling it again finds nothing new to finish.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -195,7 +197,7 @@ pub fn adopt_open_batches(context: &LandContext, instance: &str, proc_root: &Pat
             continue;
         }
         let earlier_context: LandContext = LandContext { git: context.git.clone(), journal, on_objects_written: None, lock_ceiling: context.lock_ceiling };
-        reports.extend(recover_instance(&earlier_context, instance));
+        reports.extend(recover_instance_without_drops(&earlier_context, instance));
     }
     return reports;
 }

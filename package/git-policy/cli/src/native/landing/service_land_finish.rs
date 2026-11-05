@@ -239,6 +239,19 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
     };
 }
 
+/// What a restart did with a batch it decided on.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Handled {
+    /// The batch landed and every obligation of it is settled; it is marked done.
+    Finished,
+    /// The batch landed and something is left (the index lock is held, a record cannot be read); it stays open.
+    StillOpen,
+    /// The batch never landed; its intent and records are removed.
+    Dropped,
+    /// The batch looks as if it never landed, and its journal is another service's: the intent and records stay on disk.
+    Left,
+}
+
 /// One thing a restart did, for the service's log.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RecoveryReport {
@@ -246,6 +259,18 @@ pub struct RecoveryReport {
     pub seq: u64,
     /// What was decided.
     pub decision: Recovery,
+    /// What was done about it.
+    pub handled: Handled,
+}
+
+/// Whose journal a recovery works on, which decides whether it may remove the intent of a batch that looks unlanded.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum JournalOwner {
+    /// This service's own: no landing of another service is in progress in it, so an unlanded intent is dropped.
+    ThisService,
+    /// An earlier helper's, which may be alive: its landing writes the intent before it moves the branch, so "unlanded" may be
+    ///  "about to land", and the intent stays for that helper's own start-up recovery.
+    EarlierHelper,
 }
 
 /// What:
@@ -259,7 +284,7 @@ pub struct RecoveryReport {
 /// await recover(context)
 /// ```
 pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
-    return recover_selected(context, None, true);
+    return recover_selected(context, None, true, JournalOwner::ThisService);
 }
 
 /// What:
@@ -277,7 +302,25 @@ pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
 /// await recoverInstance(context, instance)
 /// ```
 pub fn recover_instance(context: &LandContext, instance: &str) -> Vec<RecoveryReport> {
-    return recover_selected(context, Some(instance), false);
+    return recover_selected(context, Some(instance), false, JournalOwner::ThisService);
+}
+
+/// What:
+///  `recover_instance` over a journal an earlier helper may still be writing: a batch that landed is finished as before, and a
+///  batch that looks as if it never landed is left on disk, never dropped.
+/// Why:
+///   A live landing writes its intent, then waits for the index lock, then moves the branch. A drop in that window removes the
+///  record of a commit that lands a moment later, and the person's index shows it reverted if the helper dies before it
+///  installs the index. A finish is safe against a live landing: it never moves the branch, its index replay needs the lock and
+///  the records the landing writes, and two finishes end in one `.done`. The earlier helper drops what is still unlanded when it
+///  starts again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recoverInstanceWithoutDrops(context, instance)
+/// ```
+pub fn recover_instance_without_drops(context: &LandContext, instance: &str) -> Vec<RecoveryReport> {
+    return recover_selected(context, Some(instance), false, JournalOwner::EarlierHelper);
 }
 
 /// The exit status `git rev-parse --verify --quiet` gives for a name that is no object: the one answer that means "not there".
@@ -352,7 +395,7 @@ fn decision_for(git: &GitContext, intent: &Intent) -> Option<Recovery> {
     return Some(recovery_for(intent, current.as_str(), ancestor));
 }
 
-fn recover_selected(context: &LandContext, instance: Option<&str>, remove_unreadable: bool) -> Vec<RecoveryReport> {
+fn recover_selected(context: &LandContext, instance: Option<&str>, remove_unreadable: bool, owner: JournalOwner) -> Vec<RecoveryReport> {
     let mut reports: Vec<RecoveryReport> = Vec::new();
     for (path, parsed) in list_intents(context.journal.as_path(), OPEN_EXTENSION) {
         let Some(intent) = parsed else {
@@ -374,21 +417,26 @@ fn recover_selected(context: &LandContext, instance: Option<&str>, remove_unread
             crate::service_error!("batch {} stays open: Git gave no answer about {} in {}, so its intent is kept", intent.seq, intent.reference, intent.repository.display());
             continue;
         };
-        match decision {
-            Recovery::Drop => {
+        let handled: Handled = match (decision, owner) {
+            (Recovery::Drop, JournalOwner::EarlierHelper) => Handled::Left,
+            (Recovery::Drop, JournalOwner::ThisService) => {
                 remove_stale(intent.index.as_path(), intent.seq);
                 let _removed = std::fs::remove_file(&path);
                 let _record_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), intent.seq, INDEXED_EXTENSION));
                 remove_start(context.journal.as_path(), intent.seq);
+                Handled::Dropped
             }
-            Recovery::Finish => {
+            (Recovery::Finish, _) => {
                 remove_stale(intent.index.as_path(), intent.seq);
                 if matches!(settle(&git, &intent, context.journal.as_path()), Settled::Done) {
                     let _marked = mark_done(context.journal.as_path(), intent.seq);
+                    Handled::Finished
+                } else {
+                    Handled::StillOpen
                 }
             }
-        }
-        reports.push(RecoveryReport { seq: intent.seq, decision });
+        };
+        reports.push(RecoveryReport { seq: intent.seq, decision, handled });
     }
     return reports;
 }

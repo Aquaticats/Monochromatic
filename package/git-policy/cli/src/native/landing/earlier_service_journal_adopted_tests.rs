@@ -4,9 +4,11 @@
 
 use super::tests::{World, land_with_failed_index, request, world};
 use super::*;
+use crate::service_land::Handled;
 use crate::earlier_service_journal_adopted::{EarlierJournals, adopt_open_batches, earlier_commits_landed, earlier_journals_of, service_of_instance_may_run};
 use crate::service_instance::instance_of;
-use crate::service_journal::{DONE_EXTENSION, OPEN_EXTENSION, batch_path, list_intents};
+use crate::service_index_lock::try_acquire;
+use crate::service_journal::{DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, batch_path, list_intents, mark_indexed, parse_intent, write_intent};
 use crate::test_support::{git_text, remove};
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
 
@@ -109,6 +111,7 @@ fn an_open_batch_of_the_earlier_helper_is_finished_by_the_new_service() {
         let context: LandContext = new_context(&world, state.as_path());
         let reports: Vec<RecoveryReport> = adopt_open_batches(&context, instance_for(&world).as_str(), empty_proc(&world).as_path());
         assert_eq!(reports.iter().map(|report| { return (report.seq, report.decision); }).collect::<Vec<_>>(), vec![(1, crate::service_journal::Recovery::Finish)]);
+        assert!(reports.iter().all(|report| { return report.handled == Handled::Finished; }), "{reports:?}");
         assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing");
         assert!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).is_empty(), "nothing is left open");
         assert!(batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION).exists(), "the batch is remembered as finished where it was");
@@ -176,5 +179,51 @@ fn the_requests_the_earlier_helper_landed_are_remembered_by_the_new_service() {
     let remembered = earlier_commits_landed(context.journal.as_path(), instance.as_str());
     assert_eq!(remembered.get("remembered"), Some(&git_text(world.repo.as_path(), &["rev-parse", "HEAD"])));
     assert!(earlier_commits_landed(world.context.journal.as_path(), instance.as_str()).is_empty(), "a journal in any other place has no earlier ones");
+    remove(world.root.as_path());
+}
+
+/// A live landing of the earlier helper writes its intent before it takes the index lock and moves the branch, so for a while the
+///  branch is where the intent says it was and the recovery's answer is "never landed". The adoption must not act on that
+///  answer: removing the intent of a landing that goes on leaves a landed commit with no record, and the person's index shows it
+///  reverted if the helper dies before it installs the index. Such an intent stays on disk, with its records, for the earlier
+///  helper's own start-up recovery.
+#[test]
+fn the_intent_of_a_landing_that_has_not_moved_the_branch_yet_is_left_on_disk() {
+    let (world, state) = world_with_earlier_journal("adopt-mid-landing", "state");
+    let landed: CommitRequest = request(&world, "mid", "mid.txt", "mid\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let mut intent = parse_intent(std::fs::read_to_string(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("read").as_str()).expect("parse");
+    // The landing of batch 2 wrote its intent and waits for the lock: the branch is still at the commit it was based on.
+    intent.seq = 2;
+    intent.old = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    intent.new = "f".repeat(40);
+    write_intent(world.context.journal.as_path(), &intent).expect("the intent of a landing in progress");
+    mark_indexed(world.context.journal.as_path(), 2, intent.new.as_str()).expect("a record the landing wrote");
+    let held = try_acquire(intent.index.as_path(), 2).expect("the landing's index lock");
+    let context: LandContext = new_context(&world, state.as_path());
+    let reports: Vec<RecoveryReport> = adopt_open_batches(&context, instance_for(&world).as_str(), empty_proc(&world).as_path());
+    assert!(batch_path(world.context.journal.as_path(), 2, OPEN_EXTENSION).exists(), "the intent stays: {reports:?}");
+    assert!(reports.contains(&RecoveryReport { seq: 2, decision: crate::service_journal::Recovery::Drop, handled: Handled::Left }), "and it is reported as left: {reports:?}");
+    assert!(batch_path(world.context.journal.as_path(), 2, INDEXED_EXTENSION).exists(), "its record stays");
+    drop(held);
+    remove(world.root.as_path());
+}
+
+/// A landing that moved the branch and still holds the index lock is not finished by the adoption either: the batch stays open
+///  for the helper that holds the lock, and a second adoption after the lock is gone finishes it.
+#[test]
+fn a_landing_that_holds_the_index_lock_is_not_finished_by_the_adoption() {
+    let (world, state) = world_with_earlier_journal("adopt-lock-held", "state");
+    let landed: CommitRequest = request(&world, "held", "held.txt", "held\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let intent = parse_intent(std::fs::read_to_string(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("read").as_str()).expect("parse");
+    let held = try_acquire(intent.index.as_path(), 1).expect("the landing's index lock");
+    let context: LandContext = new_context(&world, state.as_path());
+    let instance: String = instance_for(&world);
+    adopt_open_batches(&context, instance.as_str(), empty_proc(&world).as_path());
+    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 1, "still open while the lock is held");
+    drop(held);
+    assert_eq!(adopt_open_batches(&context, instance.as_str(), empty_proc(&world).as_path()).len(), 1);
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "");
     remove(world.root.as_path());
 }
