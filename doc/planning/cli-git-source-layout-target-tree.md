@@ -211,8 +211,9 @@ and reports loops between crates,
 between folders of one crate,
 and between any files (global).
 With the changes applied it reports zero at all three levels.
-Without them (same placement,
-no named change) it reports one crate loop and 16 global file loops,
+Without this proposal's named changes (same placement,
+only the planning doc's item moves) it reports one crate loop,
+two folder loops and 16 global file loops,
 so the changes are what makes the cut valid,
 not the cut alone.
 Two checks were added after an early version looked clean for the wrong reasons:
@@ -663,8 +664,12 @@ disposable-test-fixtures
   the quick routes,
   the clean check,
   removal and conversion reach each other,
-  and cutting it into crates made a folder loop (measured) that needs more
-  code changes than the owner approved.
+  and an early cut into three crates (clean check,
+  copying,
+  quick routes) made a crate loop (measured):
+  the copy entry needs the add plan and the ladder,
+  the ladder needs the copy stage,
+  and the clean check needs one path-message file of the worktree code.
   It can be cut later along `is_the_worktree_clean` and `converting_a_linked_worktree`.
 - `git-environment-variables`,
   `sha-1-and-sha-256-digests` and `three-way-text-merge` are one-file crates.
