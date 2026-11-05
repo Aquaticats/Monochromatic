@@ -147,8 +147,13 @@ await describe({
       name: 'rejects dependent work requested after its owner completed',
       fn: async () => {
         let retained: RunTask | undefined;
-        const run = createTaskInvocation({ execute: async ({ runTask, }) => { retained = runTask; }, },);
-        await run({ name: 'owner', },);
+        const executed: string[] = [];
+        const owner = { name: 'owner', };
+        const run = createTaskInvocation({ execute: async ({ request, runTask, }) => {
+          executed.push(request.name,);
+          retained = runTask;
+        }, },);
+        await run(owner,);
         if (retained === undefined)
           throw new FixtureFailure('The fixture did not receive a dependency dispatcher',);
         let caught: unknown;
@@ -159,6 +164,7 @@ await describe({
           caught = error;
         }
         expect(caught,).toBeInstanceOf(TaskInvocationClosedError,);
+        expect(executed,).toEqual([owner.name,],);
       },
     },),
   ],

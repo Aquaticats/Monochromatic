@@ -151,7 +151,7 @@ await describe({
         expect(actual.toSorted(),).toEqual(expected,);
       },
     },),
-    ],),),
+    ],),
     it({
       name: 'built command preserves literal arguments through a shell body',
       fn: async () => {

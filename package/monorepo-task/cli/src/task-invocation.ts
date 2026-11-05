@@ -127,6 +127,7 @@ function assertNoPendingCycle(
  completion or failure; a new invocation always owns a fresh cache.
 
  @param execute - Task implementation that uses runTask for dependent work.
+ @param report - CLI progress observer, receiving identities and states without argument or environment values.
  @returns Entry point for the invocation's task graph.
  @throws TaskDependencyCycleError when dependent tasks would await each other.
  @throws TaskInvocationClosedError when a completed task requests more dependent work.
