@@ -307,12 +307,47 @@ The old `upgrade-storage` command does not apply to alpha.17.
 The full build-and-pack check passed in runs `41962968333` and `41969715357`.
 The latter checked the cleaned-up execution path at `c656fdb235`.
 Final task-module validation accepted all current declarations separately.
-Deployment and live republishing remain tracked in
-`doc/handover/pnpr-alpha17-upgrade.md` until their checks finish.
+The upgrade and publisher repair landed on `main` in merge `1f6a6f8dc8`.
+Missing CI build declarations were restored,
+and the existing runner now shares matching task executions within an invocation.
+The separate task-system replacement was not adopted.
+
+### Production verification at 2026-11-05T05:29:26Z
+
+Production readiness reported storage and authentication healthy at `2026-11-05T05:06:42.668Z`.
+The metrics endpoint changed from the observed alpha.16 version response
+to the expected disabled endpoint.
+The deployment uses the tested upstream digest from `Containerfile`;
+the public API does not expose its exact version with metrics disabled.
+The retained rollback volume remains declared in Compose;
+host-side volume inventory was not inspected.
+
+Push-triggered [publication run 41971694888][initial-alpha17-publish] succeeded,
+but its inventory was taken before deployment switched stores.
+The post-cutover [publication run 41972276692][final-alpha17-publish]
+found and published the remaining 132 current versions.
+
+At `2026-11-05T05:24:06.435Z`,
+anonymous requests verified all 169 selected current manifests and archives.
+Every downloaded archive matched its declared SHA-512 integrity.
+A positive control changed an archive byte locally and observed the expected integrity mismatch.
+A fresh npm consumer with empty credential configuration and no forwarded authentication variables
+installed `@monochromatic-dev/or-throw-core@0.0.1`,
+imported its exports,
+and exercised their successful and throwing cases.
+
+The isolated upgrade worktree was removed after checking its ignored artifacts,
+dependency symlinks,
+and active processes.
+The deployment and publication watchers finished,
+and the browser sessions were closed.
 
 The Cargo registry remains the separate proposal in
 `doc/planning/self-hosted-cargo-registry.md`.
 This npm upgrade does not authorize Cargo deployment or change Cargo retention policy.
+
+[initial-alpha17-publish]: https://github.com/Aquaticats/Monochromatic/actions/runs/41971694888
+[final-alpha17-publish]: https://github.com/Aquaticats/Monochromatic/actions/runs/41972276692
 
 ## Consequences
 

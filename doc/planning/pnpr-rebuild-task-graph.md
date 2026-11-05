@@ -1,5 +1,16 @@
 # pnpr rebuild repeats shared task dependencies
 
+## Repair completed at 2026-11-05T05:29:26Z
+
+Merge `1f6a6f8dc8` landed the existing runner's invocation-owned completion cache,
+cycle checks,
+and in-process template fanout.
+The [task CLI README](../../package/monorepo-task/cli/README.md)
+records source and built consumer verification.
+The full rebuild and production publication passed.
+The counts in this report remain conditional models of the named source snapshot,
+not measured execution counts for the final runner.
+
 ## Static graph finding at 2026-11-04T20:15:12-05:00
 
 The build graph at `8a897f3007593bf82ccbc24eabfae55962266366`
@@ -84,11 +95,11 @@ and all visits to a task in one model share the same effective call inputs.
   The publisher does not currently provide this shared invocation scope.
 
 The global count must not be promised for a repair that only caches within each package's CLI invocation.
-The main upgrade work proposes repairing the existing runner's execution semantics
+The upgrade repaired the existing runner's execution semantics
 with an invocation-owned promise cache,
 cycle detection,
 and in-process built-in fanout.
-That implementation is being verified separately.
+That implementation passed its consumer tests and the complete CI rebuild.
 It is not an adoption of a new task engine or a change to task ownership.
 
 ## Calculation and evidence limits

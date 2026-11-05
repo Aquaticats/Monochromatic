@@ -20,12 +20,13 @@ Source:
 [pnpr ecosystem support at the alpha.17 revision][pnpr-cargo].
 
 The owner separately requested the pnpr `0.1.0-alpha.17` upgrade.
-That upgrade is authorized implementation work;
+That npm upgrade has completed;
 the Cargo registry and its authentication extension remain this proposal.
 The [alpha.17 upgrade assessment](pnpr-alpha17-upgrade.md)
 records its separate storage,
 configuration,
-and npm workload-publishing checks.
+and npm workload-publishing checks,
+with a link to the completed production verification.
 
 ## Authentication is the missing integration
 

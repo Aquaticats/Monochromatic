@@ -1,5 +1,15 @@
 # pnpr alpha.17 upgrade
 
+## Completed upgrade at 2026-11-05T05:29:26Z
+
+The upgrade landed on `main` as `1f6a6f8dc8`.
+The owner selected repairing publishing and rebuilding current versions into a fresh store.
+Archive transfer was not selected.
+Production publication and anonymous verification of all 169 current archives completed successfully.
+The [registry decision](../decision/private-npm-registry.md#production-verification-at-2026-11-05t052926z)
+holds the deployment checks and their limits.
+The source reviews in this document retain the evidence and alternatives considered before implementation.
+
 ## Source review at 2026-11-04T19:11:37-05:00
 
 The owner asked,
@@ -166,6 +176,9 @@ code spans,
 and lists were inspected.
 
 ## Offline migration source review at 2026-11-04T19:28:02-05:00
+
+This archive-transfer alternative was not selected.
+The completed upgrade rebuilt current versions instead.
 
 Migration must inventory the stored packages,
 including historical names and versions,
