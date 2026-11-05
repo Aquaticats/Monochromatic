@@ -498,6 +498,12 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   (log `~/temp/agent/issue-6261/lint-all-folders-gate.log`).
   The suppression pass runs in parallel from the same commit on `refactor/git-policy-cli-fewer-closure-suppressions`
   (worktree `.claude/worktrees/fewer-closure-suppressions`), gated on its own after it lands.
+  Gate result on `a8b41b0d62`: `4930 tests run: 4930 passed (1 slow), 8 skipped` in the container
+  (the slow one is `push_slow_server_tests::a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands`, which
+  waits past a 60 s cutoff by design); all 27 `landing::service_index_lock::claim_tests` passed.
+  The earlier one-time host failure of three of them stays unexplained; it is still open,
+  to be measured if it recurs.
+  Merged to main 2026-11-05 (483 files). The five lint worktrees are removed; their branches stay.
   Then one follow-up pass, decided by the coordinator (LN1 and LN2: restructure rather than suppress):
   give the callees guard or trait forms so most `expect`s go
   (`worktree/add_timing.rs` already has `begin_step`/`end_step` and `begin_work`/`end_work` for the
