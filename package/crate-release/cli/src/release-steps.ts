@@ -114,7 +114,7 @@ function offlineArguments(host: ReleaseHost): readonly string[] {
 
  @example
  ```ts
- buildCheckArguments({ checkBins: ['cli-git-native'], host: 'local' });
+ buildCheckArguments({ checkBins: ['monochromatic-git-policy-cli'], host: 'local' });
  ```
  */
 export function buildCheckArguments({
