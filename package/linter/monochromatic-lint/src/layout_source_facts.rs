@@ -166,7 +166,7 @@ fn braces_of(list: ast::ItemList) -> SyntaxNode {
 /// ```ts
 /// function isTestOnly(node: SyntaxNode): boolean;
 /// ```
-fn is_test_only(node: &SyntaxNode) -> bool {
+pub(crate) fn is_test_only(node: &SyntaxNode) -> bool {
     if let Some(function) = ast::Fn::cast(node.clone())
         && has_test_attribute(&function)
     {
