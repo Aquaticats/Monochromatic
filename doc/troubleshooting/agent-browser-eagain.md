@@ -459,7 +459,9 @@ There is no new upstream filing artifact beyond the recorded observation.
 `agent-browser 0.41.0` returned
 `Operation timed out. The page may still be loading or the element may not exist.`
 for owned source-reading and disposable DSH verification sessions.
-Subsequent snapshot and evaluation requests also timed out.
+The subsequent DSH snapshot returned `page_wedged`.
+The source-reading evaluation returned
+`Failed to read: Resource temporarily unavailable (os error 11)`.
 
 These sessions' cgroups retained explicit evidence:
 `pids.max` was `128`,
