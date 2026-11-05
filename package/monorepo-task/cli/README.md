@@ -35,15 +35,23 @@ Shell and Node-inline command bodies retain their existing subprocess behavior.
 - `src/load.ts` loads definitions and merges inherited templates.
 - `src/task-invocation.ts` owns shared completion and pending dependency checks.
 - `src/task-locations.ts` locates workspace and package task files.
-- `src/task-arguments.ts` interprets the existing usage declarations.
+- `src/usage-declarations.ts` scans quoted flag and argument declarations.
+- `src/task-arguments.ts` maps argument words into the usage environment.
 - `src/task-script-prelude.ts` provides helpers for legacy Node-inline bodies.
+- `src/task-process.ts` awaits commands with inherited terminal output.
 - `src/task-execution.ts` runs dependency and command steps.
 - `src/task-dispatch.ts` selects package and root tasks.
 - `src/run.ts` owns a CLI invocation and its terminal progress output.
 
 ## Verification
 
-The graph regression tests execute the source consumer configured by GitHub Actions in disposable repositories.
+The graph regression tests execute both the source consumer configured by GitHub Actions
+and the built executable in disposable repositories.
+They cover shared dependency execution,
+root and package dispatch,
+literal shell arguments,
+declared options,
+and explicit function-body context.
 The invocation tests import the built library artifact.
 Local tasks are declared in `mise.toml`;
 the matching CI tasks are in `task.ts`.

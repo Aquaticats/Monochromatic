@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Containerfile
-    # pnpr as PID 1 ignores SIGTERM, so every stop waited for the kill timeout.
+    # Keep the init process for signal forwarding and child reaping.
     init: true
     restart: unless-stopped
     # Loopback only: the host's self-managed Caddy terminates TLS and reverse-proxies here.

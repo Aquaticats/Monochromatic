@@ -43,18 +43,19 @@ Through this route,
 ## Files
 
 - `Containerfile`:
-   starts from the digest-pinned `ghcr.io/aquaticat/pnpr` image,
+   starts from the digest-pinned upstream `ghcr.io/pnpm/pnpr:0.1.0-alpha.17` image,
    bakes in `config.yaml`,
    and disables the install-accelerator surface.
-   That image is pnpr 0.1.0-alpha.11 with a fix for GitHub Actions OIDC publishes
-   (`doc/troubleshooting/pnpr-oidc-github-actions-discovery.md`),
-   published by `.github/workflows/pnpr-patched-image.yml`
-   on branch `pnpr-oidc-workload-discovery` of `Aquaticat/pnpm`.
+   Alpha.17 includes the GitHub Actions discovery fix that previously required
+   the `ghcr.io/aquaticat/pnpr` fork.
+   The isolated GitHub workload check passed in run `41941248129`.
 - `compose.yaml`:
    the Coolify Docker Compose resource.
    It publishes `127.0.0.1:7677` for the host's Caddy,
    requires `PNPR_SECRET` from Coolify,
-   and keeps storage in the unbacked `pnpr-registry-storage` volume.
+   and keeps storage in `pnpr-readable-registry-storage`.
+   The previous `pnpr-registry-storage` volume stays declared and untouched for rollback.
+   Recovery follows the owner's choice to rebuild and republish current versions.
 - `config.yaml`:
    generated and checked by this package
    (`src/generated-config-sync.ts`, command line `src/generate-config.ts`).
@@ -120,40 +121,41 @@ Locally,
  and `PNPR_PUBLISH_ONLY` point the same script at a test registry;
  `mise run //package/config/pnpr:publish:dry-run` builds and packs without publishing.
 
+The workflow's `rebuild_check` input runs that same build-and-pack path against an empty disposable registry.
+Its `verify_image` input tests a digest-pinned image with real GitHub workload credentials
+and an isolated trust configuration.
+That check also exercises anonymous-write refusal,
+off-target workload refusal,
+and exact archive download.
+Neither mode publishes to production.
+
 ## Deploy and operate
 
 Deployment steps live in
  [`doc/runbook/deploy-pnpr-registry.md`](../../../doc/runbook/deploy-pnpr-registry.md).
-Coolify redeploys only when files under `package/config/pnpr/` change,
- through its Watch Paths setting.
+Coolify watches `config.yaml`,
+`Containerfile`,
+and `compose.yaml` under `package/config/pnpr/`.
+Changes to those files on `main` trigger deployment.
 
-To move to a newer pnpr,
- rebase `pnpr-oidc-workload-discovery` in `Aquaticat/pnpm` onto upstream and push it,
- then copy the `tag@digest` from that run's **pnpr image** notice into the `Containerfile` `FROM` line.
-A base newer than 0.1.0-alpha.11 also needs the generated `config.yaml` schema change in the same commit,
- because Coolify bakes the config into the rebuilt image:
- pnpr 0.1.0-alpha.16's schema names the web UI block `ui` (`enabled`) where our config had `web` (`enable`),
- and the parser rejects unknown fields.
-A base at 0.1.0-alpha.16 or newer also gates the deploy in two ways,
- both measured in
- [`doc/troubleshooting/pnpr-base-move.md`](../../../doc/troubleshooting/pnpr-base-move.md):
+The alpha.17 upgrade keeps the existing `/npm/~monochromatic-dev/` consumer URL.
+It changes the generated registration field from `max_users` to `maxUsers`
+and uses a fresh store because alpha.17 cannot read alpha.16's package paths.
+The alpha.16 `upgrade-storage` command is absent from alpha.17.
+The historical procedure in the runbook applies only to the alpha.11-to-alpha.16 move.
 
-- The startup layout gate aborts on the deployed store until `pnpr upgrade-storage` converts it
-  on the Coolify host,
-  with the container stopped and the volume backed up.
-  The section "Move to a newer pnpr base" in
-  [`doc/runbook/deploy-pnpr-registry.md`](../../../doc/runbook/deploy-pnpr-registry.md)
-  is that procedure.
-  The converted store cannot be read by the 0.1.0-alpha.11 base,
-  so rollback after that step means restoring the snapshot.
-- The npm surface answers only under `/npm`,
-  so move the consumer route,
-  the publish tooling URLs in `package/config/pnpr/src/`
-  (`publish-steps.ts` and `registry-read.ts`),
-  and every doc example in that same commit.
+The owner selected repairing publishing and rebuilding current versions before this cutover.
+The old volume remains available with the old image for rollback.
+Rebuilt archives can differ from archives recorded in existing consumer lockfiles;
+archive preservation was not the selected recovery path.
+The upgrade assessment and verification record live in
+[`doc/planning/pnpr-alpha17-upgrade.md`](../../../doc/planning/pnpr-alpha17-upgrade.md).
 
-Once an upstream release verifies GitHub workload tokens,
- return to the upstream image instead.
+Future image changes require reviewing the release's configuration and storage format,
+testing the pinned image with `verify_image`,
+and verifying the selected storage transition before deployment.
+Alpha.17 leaves public metrics disabled unless explicitly configured,
+so the old `/-/metrics` version probe is not a deployment health check.
 
 ## Local check
 
