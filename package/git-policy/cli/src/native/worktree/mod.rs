@@ -82,8 +82,9 @@ pub mod worktree_path_failure_message;
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) mod worktree_ladder_test_support;
 
-/// The configuration, ignore-rule and cleanliness reads of a snapshot source, run side by side.
-pub mod worktree_snapshot_source_side_by_side_reads;
+/// What Git's status lists as changed or untracked in a worktree, for the snapshot source.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_source_changed_paths;
 
 /// The snapshot source: whether the creating worktree can be snapshotted for a new worktree, and what that needs.
 #[cfg(target_os = "linux")]
