@@ -16,18 +16,15 @@
 //! const notices = await reapAbandonedStages(commonDir);
 //! ```
 
-use crate::json_record::quote;
+use crate::add_timing::{begin_step, end_step};
 use crate::private_storage::sync_directory;
-use crate::worktree_add_binding::{Binding, Recorded, decode_record, planned_record};
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
-use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
-use crate::worktree_copy_journal::{
-    Role, TEMPORARY_SUFFIX, assert_private_path, ensure_journal_root, journal_root,
-    read_pending_journals, remove_file_if_present, remove_stage, temporary_writer_token, write_atomic, write_atomic_unsynced,
-};
-use crate::worktree_copy_selection::{STAGE_PREFIX, js_order};
+use crate::worktree_add_binding::{Binding, planned_record};
+use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
+use crate::worktree_copy_owner::{CopyOwner, current_copy_owner};
+use crate::worktree_copy_journal::{ensure_journal_root, journal_root, write_atomic, write_atomic_unsynced};
+use crate::worktree_copy_journal_removal::remove_file_if_present;
+use crate::worktree_copy_selection::{STAGE_PREFIX, by_js_order};
 use crate::worktree_copy_stage::new_stage_container;
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -85,9 +82,15 @@ impl StageClaim {
     /// await claim.markComplete();
     /// ```
     pub fn mark_complete(&self) -> Result<(), WorktreeCopyError> {
-        crate::add_timing::step("markCompleteFile", || { return write_atomic(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker"); })?;
+        let file_entered: bool = begin_step("markCompleteFile");
+        let marked: Result<(), WorktreeCopyError> = write_atomic(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker");
+        end_step(file_entered);
+        marked?;
         if let Some(parent) = self.path.parent() {
-            crate::add_timing::step("markCompleteDirectory", || { return sync_directory(parent); }).map_err(|error| return raw_failure(&error))?;
+            let directory_entered: bool = begin_step("markCompleteDirectory");
+            let synced: std::io::Result<()> = sync_directory(parent);
+            end_step(directory_entered);
+            synced.map_err(raw_failure_of)?;
         }
         return Ok(());
     }
@@ -105,7 +108,10 @@ impl StageClaim {
     /// await claim.markCompleteUnsynced();
     /// ```
     pub fn mark_complete_unsynced(&self) -> Result<(), WorktreeCopyError> {
-        return crate::add_timing::step("markCompleteFile", || { return write_atomic_unsynced(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker"); });
+        let file_entered: bool = begin_step("markCompleteFile");
+        let marked: Result<(), WorktreeCopyError> = write_atomic_unsynced(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker");
+        end_step(file_entered);
+        return marked;
     }
 
     /// What:
@@ -141,7 +147,7 @@ impl StageClaim {
         let Some(record) = self.destination_record.as_deref() else { return Ok(()) };
         write_atomic(record, binding.encode().as_bytes(), "destination record")?;
         if let Some(parent) = self.path.parent() {
-            sync_directory(parent).map_err(|error| return raw_failure(&error))?;
+            sync_directory(parent).map_err(raw_failure_of)?;
         }
         return Ok(());
     }
@@ -163,7 +169,7 @@ impl StageClaim {
         remove_file_if_present(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
         remove_file_if_present(self.path.as_path())?;
         if let Some(parent) = self.path.parent() {
-            sync_directory(parent).map_err(|error| return raw_failure(&error))?;
+            sync_directory(parent).map_err(raw_failure_of)?;
         }
         return Ok(());
     }
@@ -186,7 +192,7 @@ pub fn claim_stage(
 }
 
 /// The line of a claim's text that names its owner, after the line that names the container.
-const OWNER_LINE_PREFIX: &str = "owner=";
+pub(crate) const OWNER_LINE_PREFIX: &str = "owner=";
 
 /// What:
 ///  Claims a stage name for a named owner: the claim file holds the container path and, on a line of its own, the owner.
@@ -216,10 +222,10 @@ pub fn claim_stage_for(
     return Ok(StageClaim { path, container, destination_record: None });
 }
 
-const DESTINATION_SUFFIX: &str = ".add";
+pub(crate) const DESTINATION_SUFFIX: &str = ".add";
 
 /// The suffix of the marker that says the worktree add the claim covers is complete.
-const COMPLETE_SUFFIX: &str = ".done";
+pub(crate) const COMPLETE_SUFFIX: &str = ".done";
 
 /// What:
 ///  Claims a stage name as `claim_stage` does and also records the destination of the `git worktree add` it serves.
@@ -253,81 +259,6 @@ pub fn claim_stage_for_add_as(common_dir: &Path, destination_root: &Path, owner:
     return Ok(claim);
 }
 
-/// What recovery decided about one add's record.
-struct Settlement {
-    /// What to tell the person, if anything.
-    notice: Option<String>,
-    /// Whether the record and the claim stay because the record could not be read or settled.
-    keep: bool,
-}
-
-/// What:
-///  Report an add that was interrupted before it was marked complete, and change nothing.
-/// Why:
-///   Recovery never deletes or unregisters a worktree: a path, a registration or a name can be changed by another process
-///  between any check and any act, so nothing the wrapper recorded earlier is a right to remove something later. The report
-///  names the worktree and the two commands that finish or remove it, as Git's own interrupted add leaves it. A record that
-///  cannot be read, and a marker that cannot be looked up, are not "incomplete" and not "complete": the record stays and the
-///  report says that the state is unknown.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const { notice, keep } = await reportInterruptedAdd(record);
-/// ```
-fn settle_interrupted_add(record: &Path) -> Settlement {
-    let marker: std::io::Result<bool> = match std::fs::symlink_metadata(record.with_extension(&COMPLETE_SUFFIX[1..])) {
-        Ok(_) => Ok(true),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(error),
-    };
-    return settle_from(record, marker, &mut || { return std::fs::read_to_string(record); });
-}
-
-/// `settle_interrupted_add` with the two lookups as values, so that a lookup that fails other than by absence can be driven.
-fn settle_from(record: &Path, marker: std::io::Result<bool>, read: &mut dyn FnMut() -> std::io::Result<String>) -> Settlement {
-    let shown_record: String = quote(record.to_string_lossy().as_ref());
-    match marker {
-        Ok(true) => return Settlement { notice: None, keep: false },
-        Ok(false) => {}
-        Err(error) => {
-            return Settlement {
-                notice: Some(format!("cli-git: whether the `git worktree add` of {shown_record} completed cannot be checked ({error}); nothing was changed and the record stays.")),
-                keep: true,
-            };
-        }
-    }
-    let text: String = match read() {
-        Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Settlement { notice: None, keep: false },
-        Err(error) => {
-            return Settlement {
-                notice: Some(format!("cli-git: the record {shown_record} of an interrupted `git worktree add` cannot be read ({error}); nothing was changed and the record stays.")),
-                keep: true,
-            };
-        }
-    };
-    return match decode_record(text.as_str()) {
-        None => Settlement {
-            notice: Some(format!("cli-git: the record {shown_record} of an interrupted `git worktree add` is unreadable; nothing was changed.")),
-            keep: false,
-        },
-        Some(Recorded::Planned(destination)) => {
-            let shown: String = quote(destination.to_string_lossy().as_ref());
-            let notice: Option<String> = destination.join(".git").exists().then(|| {
-                return format!("cli-git: an interrupted `git worktree add` may have left {shown}; nothing proves it is the add's, so it was not changed. `git worktree list` shows whether it is registered, and `git worktree remove --force {shown}` removes it.");
-            });
-            Settlement { notice, keep: false }
-        }
-        Some(Recorded::Registered(binding)) => {
-            let shown: String = quote(binding.destination.to_string_lossy().as_ref());
-            Settlement {
-                notice: Some(format!("cli-git: an interrupted `git worktree add` left {shown} registered and possibly incomplete; it was not changed. `git -C {shown} reset --hard` completes its checkout, and `git worktree remove --force {shown}` removes it.")),
-                keep: false,
-            }
-        }
-    };
-}
-
 /// What:
 ///  The names of the stage claim files under a journal root, in journal-name order.
 /// Why:
@@ -337,7 +268,7 @@ fn settle_from(record: &Path, marker: std::io::Result<bool>, read: &mut dyn FnMu
 /// ```ts
 /// (await readdir(root)).filter((name) => name.endsWith('.stage')).sort(jsOrder)
 /// ```
-fn claim_names(root: &Path) -> Result<Vec<String>, WorktreeCopyError> {
+pub(crate) fn claim_names(root: &Path) -> Result<Vec<String>, WorktreeCopyError> {
     // `match` treats an absent root as having no claims, and every other failure as fatal.
     let listing = match std::fs::read_dir(root) {
         Ok(listing) => listing,
@@ -347,7 +278,7 @@ fn claim_names(root: &Path) -> Result<Vec<String>, WorktreeCopyError> {
     let mut names: Vec<String> = Vec::new();
     for listed in listing {
         let name: String = listed
-            .map_err(|error| return raw_failure(&error))?
+            .map_err(raw_failure_of)?
             .file_name()
             .to_string_lossy()
             .into_owned();
@@ -355,7 +286,7 @@ fn claim_names(root: &Path) -> Result<Vec<String>, WorktreeCopyError> {
             names.push(name);
         }
     }
-    names.sort_by(|left, right| return js_order(left, right));
+    names.sort_by(by_js_order);
     return Ok(names);
 }
 
@@ -370,227 +301,6 @@ fn claim_names(root: &Path) -> Result<Vec<String>, WorktreeCopyError> {
 /// ```
 pub fn stage_claims_exist(common_dir: &Path) -> Result<bool, WorktreeCopyError> {
     return Ok(!claim_names(journal_root(common_dir).as_path())?.is_empty());
-}
-
-/// What:
-///  One claim file as read: the stage container it names, refused unless it is a cli-git stage container name, and the owner
-///  token on its second line.
-/// Why:
-///   The container is deleted recursively, so a claim that names anything else is never acted on; the owner decides whether
-///  the claim may be reaped at all. A claim that vanished while it was read was removed by its owner or by another command.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const [container, owner] = (await readFile(claimPath, 'utf8')).split('\n'); assertStageContainerName(container);
-/// ```
-fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, WorktreeCopyError> {
-    // `match` on the lookup: a claim already gone is nobody's fault, and nothing is left to reap.
-    match std::fs::symlink_metadata(claim) {
-        Ok(_) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(raw_failure(&error)),
-    }
-    assert_private_path(claim, Role::JournalFile)?;
-    // `match` on the read: the claim can vanish between the lookup and the read.
-    let text: String = match std::fs::read_to_string(claim) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => {
-            let message: String = format!(
-                "cli-git: could not read worktree-copy stage claim {}.",
-                quote(claim.to_string_lossy().as_ref())
-            );
-            return Err(failure_with_cause(message.as_str(), Some(&error)));
-        }
-    };
-    let mut lines = text.lines();
-    let container: PathBuf = PathBuf::from(lines.next().unwrap_or_default());
-    let owner: Option<String> = lines
-        .find_map(|line: &str| { return line.strip_prefix(OWNER_LINE_PREFIX); })
-        .map(str::to_string);
-    let named: bool = container.is_absolute()
-        && container
-            .file_name()
-            .is_some_and(|name| return name.to_string_lossy().starts_with(STAGE_PREFIX));
-    if !named {
-        return Err(failure_with_cause(
-            format!(
-                "cli-git: worktree-copy stage claim {} does not name a stage container; remove the file after checking it.",
-                quote(claim.to_string_lossy().as_ref())
-            )
-            .as_str(),
-            None,
-        ));
-    }
-    return Ok(Some((container, owner)));
-}
-
-/// What:
-///  Removes the temporaries that dead writers left in the journal root.
-/// Why:
-///   A write cut off before its rename leaves a file nothing else names. The writer is in the file's name, so the sweep
-///  removes only what a dead process left and can never delete a temporary a live writer is about to rename.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const name of await readdir(root)) if (name.endsWith('.tmp') && ownerIsDead(writerOf(name))) await rm(join(root, name), { force: true });
-/// ```
-fn remove_dead_temporaries(root: &Path, verdicts: &StageVerdicts) -> Result<(), WorktreeCopyError> {
-    for name in &verdicts.dead_temporaries {
-        remove_file_if_present(root.join(name).as_path())?;
-    }
-    return Ok(());
-}
-
-/// Which owners were found dead, decided before anything is removed.
-#[derive(Debug, Default)]
-pub struct StageVerdicts {
-    /// The names of the claims whose owner is dead.
-    dead_claims: BTreeSet<String>,
-    /// The names of the temporaries whose writer is dead.
-    dead_temporaries: BTreeSet<String>,
-}
-
-/// What:
-///  Judges the owner of every stage claim and every temporary in the journal root, and changes nothing.
-/// Why:
-///   A command that refuses an item of another namespace older than the patience must refuse before it changes anything, so every
-///  owner is judged first, once (sol-1 round 3, P1 C), and the sweep acts on the verdicts without judging again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const verdicts = await judgeStageOwners(commonDir); // throws on an expired foreign item, before any removal
-/// ```
-pub fn judge_stage_owners(common_dir: &Path) -> Result<StageVerdicts, WorktreeCopyError> {
-    let root: PathBuf = journal_root(common_dir);
-    let mut verdicts: StageVerdicts = StageVerdicts::default();
-    for name in claim_names(root.as_path())? {
-        let claim: PathBuf = root.join(name.as_str());
-        let Some((_container, owner)) = read_claim(claim.as_path())? else {
-            continue;
-        };
-        // A live owner's claim is its running add or copy; a claim whose owner cannot be judged is kept, too.
-        if token_owner_is_dead(owner.as_deref(), claim.as_path())? {
-            verdicts.dead_claims.insert(name);
-        }
-    }
-    // `match` treats an absent root as having nothing to remove.
-    let listing = match std::fs::read_dir(root.as_path()) {
-        Ok(listing) => listing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(verdicts),
-        Err(error) => return Err(raw_failure(&error)),
-    };
-    // In name order, so which temporary is judged first (and which refusal is reported first) does not depend on the directory's order.
-    let mut temporaries: Vec<(String, PathBuf)> = Vec::new();
-    for listed in listing {
-        let entry: std::fs::DirEntry = listed.map_err(|error| return raw_failure(&error))?;
-        let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name.ends_with(TEMPORARY_SUFFIX) {
-            temporaries.push((name, entry.path()));
-        }
-    }
-    temporaries.sort_by(|left, right| return js_order(&left.0, &right.0));
-    for (name, path) in temporaries {
-        // The name is `<item>.<writer>.<unique>.tmp`; a name of another shape has no writer and counts as a dead one's.
-        if token_owner_is_dead(temporary_writer_token(name.as_str()), path.as_path())? {
-            verdicts.dead_temporaries.insert(name);
-        }
-    }
-    return Ok(verdicts);
-}
-
-/// What:
-///  Accepts a finished action, or one that found its directory absent, and reports every other failure.
-/// Why:
-///   A root that was never created holds nothing to make durable, while any other refusal means the durable state is
-///  unknown.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// try { await action(); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-/// ```
-fn absent_is_fine(outcome: std::io::Result<()>) -> Result<(), WorktreeCopyError> {
-    // `match` on the failure kind: only absence is accepted.
-    match outcome {
-        Ok(()) => return Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(raw_failure(&error)),
-    }
-}
-
-/// What:
-///  Removes every stage container that a dead owner's claim names and no journal does, then those claims, and says what it
-///  removed.
-/// Why:
-///   A claim whose owner still runs belongs to an add or a copy between claiming and journaling, so it is left whole;
-///  a claimed container no journal names, whose owner is dead, was abandoned by a process that died.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const notices = await reapAbandonedStages(commonDir);
-/// ```
-pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeCopyError> {
-    return reap_judged_stages(common_dir, &judge_stage_owners(common_dir)?);
-}
-
-/// `reap_abandoned_stages` on verdicts that were made before the command changed anything; a claim or a temporary that the verdicts
-///  do not name as dead is left whole.
-pub fn reap_judged_stages(common_dir: &Path, verdicts: &StageVerdicts) -> Result<Vec<String>, WorktreeCopyError> {
-    let root: PathBuf = journal_root(common_dir);
-    let names: Vec<String> = claim_names(root.as_path())?;
-    let mut notices: Vec<String> = Vec::new();
-    if !names.is_empty() {
-        let journaled: BTreeSet<PathBuf> = read_pending_journals(common_dir)?
-            .into_iter()
-            .map(|pending| return PathBuf::from(pending.journal.stage_container))
-            .collect();
-        for name in names {
-            let claim: PathBuf = root.join(name.as_str());
-            let Some((container, _owner)) = read_claim(claim.as_path())? else {
-                continue;
-            };
-            // A live owner's claim is its running add or copy; a claim whose owner cannot be judged is kept, too.
-            if !verdicts.dead_claims.contains(name.as_str()) {
-                continue;
-            }
-            let present: bool = match std::fs::symlink_metadata(container.as_path()) {
-                Ok(_) => true,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
-                Err(error) => return Err(raw_failure(&error)),
-            };
-            let record: PathBuf = claim.with_extension(&DESTINATION_SUFFIX[1..]);
-            // The claim of a worktree add names a stage by its path alone, which proves nothing about what stands there now
-            // (a snapshot, a directory another process put there, or nothing): such a stage is reported and never removed.
-            // A record that cannot be looked up counts as one: when in doubt the stage is kept.
-            let of_an_add: bool = !matches!(std::fs::symlink_metadata(record.as_path()), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound);
-            if present && !journaled.contains(&container) && of_an_add {
-                notices.push(format!(
-                    "cli-git: the stage {} was left by an interrupted `git worktree add` and was not changed; remove it yourself once nothing needs it (`btrfs subvolume delete` for a snapshot, `rm -r` otherwise).",
-                    quote(container.to_string_lossy().as_ref())
-                ));
-            } else if present && !journaled.contains(&container) {
-                assert_private_path(container.as_path(), Role::PrivateStage)?;
-                remove_stage(container.as_path())?;
-                notices.push(format!(
-                    "cli-git: removed the stage {} that an interrupted ignored-state copy left behind.",
-                    quote(container.to_string_lossy().as_ref())
-                ));
-            }
-            let settled: Settlement = settle_interrupted_add(record.as_path());
-            if let Some(notice) = settled.notice {
-                notices.push(notice);
-            }
-            if settled.keep {
-                continue;
-            }
-            remove_file_if_present(record.as_path())?;
-            remove_file_if_present(claim.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
-            remove_file_if_present(claim.as_path())?;
-        }
-    }
-    remove_dead_temporaries(root.as_path(), verdicts)?;
-    absent_is_fine(sync_directory(root.as_path()))?;
-    return Ok(notices);
 }
 
 /// Claim controls stay out of the release executable.

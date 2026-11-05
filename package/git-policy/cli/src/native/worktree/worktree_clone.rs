@@ -23,6 +23,7 @@ use crate::fs_beneath::{create_file_at, entry_metadata_at, make_directory_at, op
 use crate::fs_clone_exchange::clone_file;
 use crate::subvolume_index::StatFields;
 use crate::subvolume_index_files::{fields_of, install_index_in};
+use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_clean::{StatEntry, metadata_differs_from_entry, stored_stats};
 use crate::worktree_snapshot_source::SnapshotSource;
 use std::collections::HashMap;
@@ -34,6 +35,54 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 /// What:
+///  The refusal for an index path that is not a plain path inside the worktree.
+/// Why:
+///   A path with a link, a `..` or a `.git` component could reach outside the tracked files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `the index path ${path} is not a plain path`
+/// ```
+fn index_path_refusal(path: &[u8]) -> String {
+    return format!("the index path {} is not a plain path", String::from_utf8_lossy(path));
+}
+
+/// What:
+///  Whether any component of a path is `.git`.
+/// Why:
+///   The clones never write into a Git directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// names.includes('.git')
+/// ```
+fn names_dot_git(names: &[OsString]) -> bool {
+    for name in names {
+        if name == ".git" {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  The components of a path joined with slashes, as text.
+/// Why:
+///   The report names a few of the entries the clones created.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// names.join('/')
+/// ```
+fn joined_names(names: &[OsString]) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    for name in names {
+        parts.push(name.to_string_lossy().into_owned());
+    }
+    return parts.join("/");
+}
+
+/// What:
 ///  The names of a tracked entry's path below a root, refused unless every component is a plain name and none is `.git`.
 /// Why:
 ///   The index is the source's own, but a path that climbs out of the destination or enters `.git` is never created.
@@ -43,9 +92,11 @@ use std::path::{Path, PathBuf};
 /// function entryNames(path: Uint8Array): string[]; // throws
 /// ```
 fn entry_names(path: &[u8]) -> Result<Vec<OsString>, String> {
-    let refused = || { return format!("the index path {} is not a plain path", String::from_utf8_lossy(path)); };
-    let names: Vec<OsString> = plain_components(Path::new(OsStr::from_bytes(path))).map_err(|_error| { return refused(); })?;
-    return if names.is_empty() || names.iter().any(|name: &OsString| { return name == ".git"; }) { Err(refused()) } else { Ok(names) };
+    let names: Vec<OsString> = match plain_components(Path::new(OsStr::from_bytes(path))) {
+        Ok(found) => found,
+        Err(_not_plain) => return Err(index_path_refusal(path)),
+    };
+    return if names.is_empty() || names_dot_git(names.as_slice()) { Err(index_path_refusal(path)) } else { Ok(names) };
 }
 
 /// What:
@@ -133,7 +184,17 @@ impl Cloned {
 /// const text = leftover_report(created, destination);
 /// ```
 pub fn leftover_report(created: &[Created], destination: &Path) -> String {
-    let shown: Vec<String> = created.iter().filter(|entry: &&Created| { return !entry.directory; }).take(3).map(|entry: &Created| { return entry.names.iter().map(|name: &OsString| { return name.to_string_lossy().into_owned(); }).collect::<Vec<String>>().join("/"); }).collect();
+    // The first three entries that are not directories, as `filter` and `take` chose them.
+    let mut shown: Vec<String> = Vec::new();
+    for entry in created {
+        if entry.directory {
+            continue;
+        }
+        if shown.len() == 3 {
+            break;
+        }
+        shown.push(joined_names(entry.names.as_slice()));
+    }
     return format!("{} entries the clones created stay in {} (for example {}); the checkout that completes the worktree overwrites the tracked ones, and `git -C {} status` lists any other as untracked", created.len(), destination.display(), shown.join(", "), destination.display());
 }
 
@@ -149,23 +210,26 @@ pub fn leftover_report(created: &[Created], destination: &Path) -> String {
 /// const parent = ensureParents(directories, names, created);
 /// ```
 fn ensure_parents(directories: &mut Directories, names: &[OsString], created: &mut Vec<Created>) -> Result<File, String> {
-    let mut current: File = directories.get(&Vec::new()).ok_or_else(|| { return String::from("the destination is not held"); })?.try_clone().map_err(|error| { return format!("the destination handle cannot be kept ({error})"); })?;
+    let Some(held_destination) = directories.get(&Vec::new()) else {
+        return Err(String::from("the destination is not held"));
+    };
+    let mut current: File = subject_failure(held_destination.try_clone(), &"the destination handle", "cannot be kept")?;
     for index in 0..names.len() - 1 {
         let key: Vec<OsString> = names[..=index].to_vec();
         if let Some(known) = directories.get(&key) {
-            current = known.try_clone().map_err(|error| { return format!("a directory handle cannot be kept ({error})"); })?;
+            current = subject_failure(known.try_clone(), &"a directory handle", "cannot be kept")?;
             continue;
         }
         let name: &OsString = &names[index];
-        let made: bool = make_directory_at(&current, name.as_os_str(), 0o777).map_err(|error| { return format!("{} cannot be created ({error})", name.to_string_lossy()); })?;
-        let next: File = open_directory_at(&current, name.as_os_str()).map_err(|error| { return format!("{} cannot be entered ({error})", name.to_string_lossy()); })?;
+        let made: bool = subject_failure(make_directory_at(&current, name.as_os_str(), 0o777), &name.to_string_lossy(), "cannot be created")?;
+        let next: File = subject_failure(open_directory_at(&current, name.as_os_str()), &name.to_string_lossy(), "cannot be entered")?;
         if crate::fs_beneath::device_of(&next).ok() != crate::fs_beneath::device_of(&current).ok() {
             return Err(format!("{} is on another device", name.to_string_lossy()));
         }
         if made {
             created.push(Created { names: key.clone(), directory: true });
         }
-        directories.insert(key, next.try_clone().map_err(|error| { return format!("a directory handle cannot be kept ({error})"); })?);
+        directories.insert(key, subject_failure(next.try_clone(), &"a directory handle", "cannot be kept")?);
         current = next;
     }
     return Ok(current);
@@ -213,24 +277,38 @@ struct Work<'a> {
 /// ```ts
 /// await cloneEntry({ sourceDir, destinationDir, work, created, stats });
 /// ```
+/// What:
+///  The refusal for a source that changed while it was cloned.
+/// Why:
+///   A clone of a moving source would not equal the source's index.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `the source changed while it was cloned (${reason})`
+/// ```
+fn source_changed(reason: String) -> String {
+    return format!("the source changed while it was cloned ({reason})");
+}
+
 fn clone_entry(source_dir: &File, destination_dir: &File, work: &Work<'_>, results: (&mut Vec<Created>, &mut HashMap<Vec<u8>, StatFields>), seams: &mut Seams<'_>) -> Result<(), String> {
     let (created, stats): (&mut Vec<Created>, &mut HashMap<Vec<u8>, StatFields>) = results;
     let Work { entry, names: all_names, index_seconds }: &Work<'_> = work;
     let name: &OsStr = all_names[all_names.len() - 1].as_os_str();
     let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
-    let changed = |reason: String| { return format!("the source changed while it was cloned ({reason})"); };
-    let metadata: std::fs::Metadata = entry_metadata_at(source_dir, name).map_err(|error| { return format!("{shown} is unreadable ({error})"); })?;
+    let metadata: std::fs::Metadata = subject_failure(entry_metadata_at(source_dir, name), &shown, "is unreadable")?;
     if metadata.file_type().is_symlink() {
         if let Some(reason) = metadata_differs_from_entry(entry, &metadata, *index_seconds) {
-            return Err(changed(reason));
+            return Err(source_changed(reason));
         }
-        let target: PathBuf = read_link_at(source_dir, name).map_err(|error| { return format!("{shown} is unreadable ({error})"); })?;
-        symlink_at(target.as_path(), destination_dir, name).map_err(|error| { return format!("{shown} cannot be linked ({error})"); })?;
+        let target: PathBuf = subject_failure(read_link_at(source_dir, name), &shown, "is unreadable")?;
+        subject_failure(symlink_at(target.as_path(), destination_dir, name), &shown, "cannot be linked")?;
         created.push(Created { names: all_names.to_vec(), directory: false });
-        set_times_at(destination_dir, name, times_of(&metadata)).map_err(|error| { return format!("the times of {shown} cannot be set ({error})"); })?;
-        let after: std::fs::Metadata = entry_metadata_at(source_dir, name).map_err(|error| { return format!("{shown} is unreadable ({error})"); })?;
+        if let Err(error) = set_times_at(destination_dir, name, times_of(&metadata)) {
+            return Err(format!("the times of {shown} cannot be set ({error})"));
+        }
+        let after: std::fs::Metadata = subject_failure(entry_metadata_at(source_dir, name), &shown, "is unreadable")?;
         if identity_of_metadata(&after) != identity_of_metadata(&metadata) {
-            return Err(changed(format!("{shown} was replaced")));
+            return Err(source_changed(format!("{shown} was replaced")));
         }
         // A link cannot be held by a descriptor that reads its metadata, so the name is not asked: the entry keeps the
         // source's stat fields, which no longer match the new link, and Git compares the link's target on first use.
@@ -240,22 +318,24 @@ fn clone_entry(source_dir: &File, destination_dir: &File, work: &Work<'_>, resul
         return Err(format!("{shown} is neither a file nor a link"));
     }
     (seams.after_lookup)();
-    let source: File = open_file_at(source_dir, name).map_err(|error| { return format!("{shown} is unreadable ({error})"); })?;
-    let held: std::fs::Metadata = source.metadata().map_err(|error| { return format!("{shown} is unreadable ({error})"); })?;
+    let source: File = subject_failure(open_file_at(source_dir, name), &shown, "is unreadable")?;
+    let held: std::fs::Metadata = subject_failure(source.metadata(), &shown, "is unreadable")?;
     if let Some(reason) = metadata_differs_from_entry(entry, &held, *index_seconds) {
-        return Err(changed(reason));
+        return Err(source_changed(reason));
     }
-    let destination: File = create_file_at(destination_dir, name, 0o600).map_err(|error| { return format!("{shown} cannot be created ({error})"); })?;
+    let destination: File = subject_failure(create_file_at(destination_dir, name, 0o600), &shown, "cannot be created")?;
     created.push(Created { names: all_names.to_vec(), directory: false });
     if held.len() > 0 {
-        clone_file(&source, &destination, Path::new(name)).map_err(|error| { return format!("the clone was refused ({error})"); })?;
+        subject_failure(clone_file(&source, &destination, Path::new(name)), &"the clone", "was refused")?;
     }
     (seams.after_clone)();
-    let after: std::fs::Metadata = source.metadata().map_err(|error| { return format!("{shown} is unreadable ({error})"); })?;
+    let after: std::fs::Metadata = subject_failure(source.metadata(), &shown, "is unreadable")?;
     if identity_of_metadata(&after) != identity_of_metadata(&held) {
-        return Err(changed(format!("{shown} was written during the clone")));
+        return Err(source_changed(format!("{shown} was written during the clone")));
     }
-    destination.set_permissions(std::fs::Permissions::from_mode(held.mode() & 0o7777)).map_err(|error| { return format!("the mode of {shown} cannot be set ({error})"); })?;
+    if let Err(error) = destination.set_permissions(std::fs::Permissions::from_mode(held.mode() & 0o7777)) {
+        return Err(format!("the mode of {shown} cannot be set ({error})"));
+    }
     let times: [libc::timespec; 2] = times_of(&held);
     // SAFETY: `destination` is an open descriptor and `times` holds the two timestamps the call reads.
     let result: libc::c_int = unsafe { libc::futimens(destination.as_raw_fd(), times.as_ptr()) };
@@ -263,36 +343,45 @@ fn clone_entry(source_dir: &File, destination_dir: &File, work: &Work<'_>, resul
         return Err(format!("the times of {shown} cannot be set ({})", std::io::Error::last_os_error()));
     }
     // The fields of the object made here, taken from its descriptor after its last change.
-    let made: std::fs::Metadata = destination.metadata().map_err(|error| { return format!("{shown} cannot be examined ({error})"); })?;
+    let made: std::fs::Metadata = subject_failure(destination.metadata(), &shown, "cannot be examined")?;
     stats.insert(entry.path.clone(), fields_of(&made));
     return Ok(());
 }
 
 /// The run itself: every tracked file, then the index; the caller removes `created` when this fails.
 fn clone_all(source: &SnapshotSource, directories: &mut Directories, admin: &File, created: &mut Vec<Created>) -> Result<(), String> {
-    let mut seams: Seams<'_> = Seams { after_lookup: &mut || {}, after_clone: &mut || {}, before_index: &mut || {} };
+    let mut seams: Seams<'_> = Seams { after_lookup: &mut do_nothing, after_clone: &mut do_nothing, before_index: &mut do_nothing };
     return clone_with(source, directories, admin, created, &mut seams);
 }
 
 /// `clone_all` with the moments at which a control may move the tree.
 fn clone_with(source: &SnapshotSource, directories: &mut Directories, admin: &File, created: &mut Vec<Created>, seams: &mut Seams<'_>) -> Result<(), String> {
-    let entries: Vec<StatEntry> = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length).ok_or_else(|| { return String::from("the source's index changed shape"); })?;
-    let root: File = open_root(source.root.as_path()).map_err(|error| { return format!("the source's root cannot be opened ({error})"); })?;
+    let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
+        return Err(String::from("the source's index changed shape"));
+    };
+    let root: File = subject_failure(open_root(source.root.as_path()), &"the source's root", "cannot be opened")?;
     let mut stats: HashMap<Vec<u8>, StatFields> = HashMap::new();
     for entry in &entries {
         let names: Vec<OsString> = entry_names(entry.path.as_slice())?;
-        let source_dir: File = crate::fs_beneath::open_directory_beneath(&root, &names[..names.len() - 1]).map_err(|error| { return format!("the source directory of {} cannot be opened ({error})", String::from_utf8_lossy(entry.path.as_slice())); })?;
+        let source_dir: File = match crate::fs_beneath::open_directory_beneath(&root, &names[..names.len() - 1]) {
+            Ok(opened) => opened,
+            Err(error) => return Err(format!("the source directory of {} cannot be opened ({error})", String::from_utf8_lossy(entry.path.as_slice()))),
+        };
         let destination_dir: File = ensure_parents(directories, names.as_slice(), created)?;
         let work: Work<'_> = Work { entry, names: names.as_slice(), index_seconds: source.clean.index_seconds };
         clone_entry(&source_dir, &destination_dir, &work, (&mut *created, &mut stats), seams)?;
     }
     (seams.before_index)();
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "install_index_in takes its stat lookup as a dyn FnMut owned by subvolume/subvolume_index_files.rs, and the lookup must capture the caller's table (worktree_closure_lint_suppressions.md, group install_index_in)"))]
     let report: String = install_index_in(admin, source.clean.index_bytes.as_slice(), &mut |path: &[u8]| { return stats.get(path).copied(); }, source.clean.hash_length)?;
     debug_report(report.as_str());
     return Ok(());
 }
 
 /// Log what the index install did.
+/// Do nothing; the seams of the clones run this unless a control puts work there.
+fn do_nothing() {}
+
 fn debug_report(report: &str) {
     crate::diagnostic_log::debug("cloneTrackedFiles", report);
 }
@@ -311,7 +400,7 @@ fn debug_report(report: &str) {
 /// ```
 pub fn clone_tracked_files(source: &SnapshotSource, destination: &File, admin: &File) -> Result<Cloned, String> {
     let mut directories: Directories = HashMap::new();
-    directories.insert(Vec::new(), destination.try_clone().map_err(|error| { return format!("the destination handle cannot be kept ({error})"); })?);
+    directories.insert(Vec::new(), subject_failure(destination.try_clone(), &"the destination handle", "cannot be kept")?);
     let mut created: Vec<Created> = Vec::new();
     if let Err(reason) = clone_all(source, &mut directories, admin, &mut created) {
         return Err(if created.is_empty() { reason } else { format!("{reason}; {} entries it created stay", created.len()) });

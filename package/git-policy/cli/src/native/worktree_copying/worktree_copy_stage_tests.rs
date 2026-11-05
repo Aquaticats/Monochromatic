@@ -1,6 +1,9 @@
 //! Staging checks against real Git repositories: what the private stage holds and how it is cleaned up.
 
 use super::*;
+use crate::parallel_budget::HostResources;
+use crate::worktree_copy_manifest::{EntryKind, stamp_of};
+use crate::worktree_copy_stage_leaf_copying::*;
 use crate::test_support::{fixture, git, git_context, remove, repository};
 
 /// A source with ignored files, a symbolic link, an executable and a nested private-looking name.

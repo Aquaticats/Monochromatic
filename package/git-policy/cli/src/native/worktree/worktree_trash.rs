@@ -22,6 +22,7 @@ use crate::fs_kind::is_subvolume_root;
 use crate::random_id::random_uuid;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::worktree_clean::stored_stats;
+use crate::worktree_path_failure_message::{path_failure, subject_failure};
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_snapshot_source::SnapshotSource;
 pub use crate::worktree_trash_dispose::{Reach, Router, TRASH_REFERENCE, delete_trash, dispose_pending_trash, dispose_pending_trash_with, empty_trash};
@@ -67,13 +68,24 @@ pub fn trash_location_is_ignored(context: &GitContext, root: &Path) -> bool {
         without_prefix: true,
         ..GitRequest::default()
     };
-    return run_git(context, &request).is_ok_and(|output| { return output.code == Some(0); });
+    return match run_git(context, &request) {
+        Ok(output) => output.code == Some(0),
+        Err(_not_started) => false,
+    };
 }
 
 /// A name for one trash directory: forty hexadecimal digits, which is also the object name the work item carries.
+/// One random identifier for the name of a trash directory; the reason is the error.
+fn fresh_uuid() -> Result<String, String> {
+    return match random_uuid() {
+        Ok(made) => Ok(made),
+        Err(error) => Err(format!("a name for the trash could not be made: {error:?}")),
+    };
+}
+
 fn new_trash_name() -> Result<String, String> {
-    let first: String = random_uuid().map_err(|error| { return format!("a name for the trash could not be made: {error:?}"); })?;
-    let second: String = random_uuid().map_err(|error| { return format!("a name for the trash could not be made: {error:?}"); })?;
+    let first: String = fresh_uuid()?;
+    let second: String = fresh_uuid()?;
     let digits: String = format!("{first}{second}").chars().filter(char::is_ascii_hexdigit).collect();
     return Ok(digits.chars().take(40).collect::<String>().to_ascii_lowercase());
 }
@@ -116,9 +128,9 @@ struct Aside {
 impl Aside {
     /// The held directory that contains `relative`, and the entry's name in it.
     fn holder(&self, relative: &Path) -> Result<(File, OsString), String> {
-        let names: Vec<OsString> = plain_components(relative).map_err(|error: std::io::Error| { return format!("{} is not a plain path inside the snapshot ({error})", relative.display()); })?;
+        let names: Vec<OsString> = path_failure(plain_components(relative), relative, "is not a plain path inside the snapshot")?;
         let Some((name, parents)) = names.split_last() else { return Err(format!("{} names the snapshot itself", relative.display())) };
-        let parent: File = open_directory_beneath(&self.root, parents).map_err(|error: std::io::Error| { return format!("{} is reached through a link or another mount in the snapshot ({error})", self.stage.join(relative).display()); })?;
+        let parent: File = path_failure(open_directory_beneath(&self.root, parents), self.stage.join(relative).as_path(), "is reached through a link or another mount in the snapshot")?;
         return Ok((parent, name.clone()));
     }
 
@@ -129,17 +141,17 @@ impl Aside {
         let shown: PathBuf = self.stage.join(relative);
         match self.trash.as_ref() {
             Some(trash) => {
-                let looked: ObjectId = identity_at(&parent, name.as_os_str()).map_err(|error: std::io::Error| { return format!("{} cannot be examined ({error})", shown.display()); })?;
+                let looked: ObjectId = path_failure(identity_at(&parent, name.as_os_str()), shown.as_path(), "cannot be examined")?;
                 let to: String = entry_name(self.entries.len());
-                rename_at(&parent, name.as_os_str(), &trash.dir, OsStr::new(to.as_str()), false).map_err(|error: std::io::Error| { return format!("{} cannot be set aside ({error})", shown.display()); })?;
-                let moved: ObjectId = identity_at(&trash.dir, OsStr::new(to.as_str())).map_err(|error: std::io::Error| { return format!("{} cannot be examined in the trash ({error})", shown.display()); })?;
+                path_failure(rename_at(&parent, name.as_os_str(), &trash.dir, OsStr::new(to.as_str()), false), shown.as_path(), "cannot be set aside")?;
+                let moved: ObjectId = path_failure(identity_at(&trash.dir, OsStr::new(to.as_str())), shown.as_path(), "cannot be examined in the trash")?;
                 if moved != looked {
                     return Err(format!("{} changed while it was set aside ({} instead of {})", shown.display(), moved.encode(), looked.encode()));
                 }
                 self.entries.push(moved);
             }
             None => {
-                remove_tree_beneath(shown.parent().unwrap_or(self.stage.as_path()), &parent, name.as_os_str(), None).map_err(|reason: String| { return format!("{} cannot be removed ({reason})", shown.display()); })?;
+                path_failure(remove_tree_beneath(shown.parent().unwrap_or(self.stage.as_path()), &parent, name.as_os_str(), None), shown.as_path(), "cannot be removed")?;
             }
         }
         self.count += 1;
@@ -149,18 +161,22 @@ impl Aside {
 
 /// Make the trash directory below the trash parent in the snapshot, one plain name at a time; the reason is the error.
 fn make_trash(root: &File) -> Result<Trash, String> {
-    let names: Vec<OsString> = plain_components(Path::new(TRASH_PARENT)).map_err(|error: std::io::Error| { return format!("the trash parent is not a plain path ({error})"); })?;
-    let mut parent: File = root.try_clone().map_err(|error: std::io::Error| { return format!("the snapshot cannot be held ({error})"); })?;
+    let names: Vec<OsString> = match plain_components(Path::new(TRASH_PARENT)) {
+        Ok(found) => found,
+        Err(error) => return Err(format!("the trash parent is not a plain path ({error})")),
+    };
+    let mut parent: File = subject_failure(root.try_clone(), &"the snapshot", "cannot be held")?;
     for name in &names {
-        make_directory_at(&parent, name.as_os_str(), 0o755).map_err(|error: std::io::Error| { return format!("{} cannot be made in the snapshot ({error})", name.to_string_lossy()); })?;
-        parent = open_directory_at(&parent, name.as_os_str()).map_err(|error: std::io::Error| { return format!("{} is not a plain directory in the snapshot ({error})", name.to_string_lossy()); })?;
+        subject_failure(make_directory_at(&parent, name.as_os_str(), 0o755), &name.to_string_lossy(), "cannot be made in the snapshot")?;
+        parent = subject_failure(open_directory_at(&parent, name.as_os_str()), &name.to_string_lossy(), "is not a plain directory in the snapshot")?;
     }
     let name: String = new_trash_name()?;
-    if !make_directory_at(&parent, OsStr::new(name.as_str()), 0o700).map_err(|error: std::io::Error| { return format!("the trash {name} cannot be made ({error})"); })? {
+    let trash_subject: String = format!("the trash {name}");
+    if !subject_failure(make_directory_at(&parent, OsStr::new(name.as_str()), 0o700), &trash_subject, "cannot be made")? {
         return Err(format!("the trash {name} already exists"));
     }
-    let dir: File = open_directory_at(&parent, OsStr::new(name.as_str())).map_err(|error: std::io::Error| { return format!("the trash {name} cannot be opened ({error})"); })?;
-    let id: ObjectId = identity_of(&dir).map_err(|error: std::io::Error| { return format!("the trash {name} cannot be examined ({error})"); })?;
+    let dir: File = subject_failure(open_directory_at(&parent, OsStr::new(name.as_str())), &trash_subject, "cannot be opened")?;
+    let id: ObjectId = subject_failure(identity_of(&dir), &trash_subject, "cannot be examined")?;
     return Ok(Trash { dir, name, id, parent });
 }
 
@@ -176,14 +192,16 @@ fn make_trash(root: &File) -> Result<Trash, String> {
 /// const keep = trackedPaths(source); // has 'src', 'src/.cache' and the gitlink 'vendor/lib'
 /// ```
 fn tracked_paths(source: &SnapshotSource) -> Result<HashSet<Vec<u8>>, String> {
-    let entries = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length).ok_or_else(|| { return String::from("the index entries have no plain layout"); })?;
+    let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
+        return Err(String::from("the index entries have no plain layout"));
+    };
     let mut directories: HashSet<Vec<u8>> = HashSet::new();
     for entry in entries {
         if DIRECTORY_MODES.contains(&(entry.mode & TYPE_MASK)) {
             directories.insert(entry.path.clone());
         }
         let mut end: usize = entry.path.len();
-        while let Some(at) = entry.path[..end].iter().rposition(|byte: &u8| { return *byte == b'/'; }) {
+        while let Some(at) = entry.path[..end].iter().rposition(is_slash_byte) {
             if !directories.insert(entry.path[..at].to_vec()) {
                 break;
             }
@@ -194,12 +212,27 @@ fn tracked_paths(source: &SnapshotSource) -> Result<HashSet<Vec<u8>>, String> {
 }
 
 /// A tracked path at or below `directory`, to name in a refusal.
+/// Whether a byte is a slash.
+fn is_slash_byte(byte: &u8) -> bool {
+    return *byte == b'/';
+}
+
+/// Whether the path is a directory itself, not a link to one; a path that cannot be examined is not.
+fn is_directory_itself(path: &Path) -> bool {
+    return match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata.is_dir(),
+        Err(_unreadable) => false,
+    };
+}
+
 fn tracked_below(source: &SnapshotSource, directory: &[u8]) -> Option<String> {
     let entries = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length)?;
-    return entries
-        .into_iter()
-        .find(|entry| { return entry.path == directory || (entry.path.starts_with(directory) && entry.path.get(directory.len()) == Some(&b'/')); })
-        .map(|entry| { return String::from_utf8_lossy(entry.path.as_slice()).into_owned(); });
+    for entry in entries {
+        if entry.path == directory || (entry.path.starts_with(directory) && entry.path.get(directory.len()) == Some(&b'/')) {
+            return Some(String::from_utf8_lossy(entry.path.as_slice()).into_owned());
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -228,16 +261,19 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
         if is_subvolume_root(nested.as_path()).unwrap_or(false) {
             continue;
         }
-        if !std::fs::symlink_metadata(stage.join(relative)).is_ok_and(|metadata: std::fs::Metadata| { return metadata.is_dir(); }) {
+        if !is_directory_itself(stage.join(relative).as_path()) {
             continue;
         }
         if tracked.contains(relative.as_os_str().as_bytes()) {
-            let inside: String = tracked_below(source, relative.as_os_str().as_bytes()).unwrap_or_else(|| { return relative.display().to_string(); });
+            let inside: String = match tracked_below(source, relative.as_os_str().as_bytes()) {
+                Some(found) => found,
+                None => relative.display().to_string(),
+            };
             return Err(format!("{} is a registered worktree, but the main checkout tracks {inside} in it, so the snapshot cannot leave it out", relative.display()));
         }
         nested_copies.push(relative.to_path_buf());
     }
-    let root: File = open_root(stage).map_err(|error: std::io::Error| { return format!("the snapshot {} cannot be opened ({error})", stage.display()); })?;
+    let root: File = subject_failure(open_root(stage), &format!("the snapshot {}", stage.display()), "cannot be opened")?;
     let trash: Option<Trash> = if source.trash_ignored {
         match make_trash(&root) {
             Ok(made) => Some(made),
@@ -257,14 +293,20 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
     let mut pending: Vec<(PathBuf, Vec<u8>)> = vec![(stage.to_path_buf(), Vec::new())];
     while let Some((directory, relative)) = pending.pop() {
         let mut children: Vec<(OsString, bool)> = Vec::new();
-        for listed in std::fs::read_dir(&directory).map_err(|error: std::io::Error| { return format!("{} cannot be listed ({error})", directory.display()); })? {
-            let entry: std::fs::DirEntry = listed.map_err(|error: std::io::Error| { return format!("{} cannot be listed ({error})", directory.display()); })?;
-            let is_directory: bool = entry.file_type().is_ok_and(|kind: std::fs::FileType| { return kind.is_dir(); });
+        for listed in path_failure(std::fs::read_dir(&directory), directory.as_path(), "cannot be listed")? {
+            let entry: std::fs::DirEntry = path_failure(listed, directory.as_path(), "cannot be listed")?;
+            let is_directory: bool = match entry.file_type() {
+                Ok(kind) => kind.is_dir(),
+                Err(_unreadable) => false,
+            };
             children.push((entry.file_name(), is_directory));
         }
         // The rules compare names with ASCII names only, so the text of a name that is not UTF-8 (with the replacement
         //  character in it) can never equal one; the bytes alone decide every move and every protection.
-        let names: Vec<String> = children.iter().map(|(name, _is_directory): &(OsString, bool)| { return name.to_string_lossy().into_owned(); }).collect();
+        let mut names: Vec<String> = Vec::new();
+        for (name, _is_directory) in &children {
+            names.push(name.to_string_lossy().into_owned());
+        }
         // A directory that is another checkout is set aside whole, its pointer first.
         if !relative.is_empty() && prune.skips_checkout(names.as_slice()) && !tracked.contains(relative.as_slice()) {
             unlink_pointer(directory.as_path())?;
@@ -306,7 +348,7 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
 fn unlink_pointer(directory: &Path) -> Result<(), String> {
     let pointer: PathBuf = directory.join(".git");
     match std::fs::symlink_metadata(&pointer) {
-        Ok(metadata) if metadata.is_file() => return std::fs::remove_file(&pointer).map_err(|error: std::io::Error| { return format!("{} cannot be unlinked ({error})", pointer.display()); }),
+        Ok(metadata) if metadata.is_file() => return path_failure(std::fs::remove_file(&pointer), pointer.as_path(), "cannot be unlinked"),
         Ok(_) => return Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(format!("{} cannot be examined ({error})", pointer.display())),

@@ -27,12 +27,19 @@ pub mod add_timing;
 /// Bringing added paths' worktree copies to their landed bytes.
 pub mod worktree_completion;
 
+/// The descriptor-bound look at one added path's worktree copy.
+pub mod worktree_completion_file_inspection;
+
 /// What becomes of the unshown push notices and unfinished pushes of a linked worktree that Git removes.
 pub mod worktree_removal_rescue;
 
 /// The plan for one `git worktree add` that the cheap-worktree ladder serves: its destination and insertion point.
 #[cfg(unix)]
 pub mod worktree_add_plan;
+
+/// Small questions about a path or a byte that the add plans ask.
+#[cfg(unix)]
+pub mod worktree_add_plan_path_questions;
 
 /// The empty subvolume made at the destination of a `git worktree add` before Git runs, and its cleanup.
 #[cfg(target_os = "linux")]
@@ -42,9 +49,21 @@ pub mod worktree_subvolume;
 #[cfg(target_os = "linux")]
 pub mod worktree_clean;
 
+/// What a clean check says about one tracked file: refusals, recorded stat data and the metadata verdict.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean_stat_verdicts;
+
+/// The walks of tracked files against the index's recorded stat data, by metadata or by content.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean_tree_walk;
+
 pub mod worktree_attributes;
 
 pub mod worktree_clean_content;
+
+/// The environment and attribute files a content check reads, and the attributes that convert content.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean_content_attribute_sources;
 
 /// The plan of a `git worktree remove` that names one directory and no option.
 #[cfg(unix)]
@@ -55,6 +74,9 @@ pub mod worktree_remove_plan;
 pub mod worktree_remove;
 
 pub mod worktree_remove_registry;
+
+/// The one message shape of a failed step on a path: `<path> <what> (<error>)`.
+pub mod worktree_path_failure_message;
 
 /// Fixtures shared by the controls of the cheap-worktree ladder.
 #[cfg(all(test, target_os = "linux"))]
@@ -110,6 +132,14 @@ pub mod shell_quote;
 /// Converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path, resumably.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert;
+
+/// The first look at a worktree a conversion might change, and every reason the conversion must not start.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_inspection;
+
+/// The journaled phases of one worktree conversion.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_phases;
 
 /// The read-only comparison of the old tree of a conversion with the installed one.
 #[cfg(target_os = "linux")]

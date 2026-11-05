@@ -1,14 +1,25 @@
 //! Tests of the stage claim and the cleanup of stages an interrupted copy left behind.
 
 use super::*;
+use crate::json_record::quote;
+use crate::worktree_copy_stage_claim_reaping::*;
 use crate::private_storage::{create_private_directory, take_directory_syncs, take_file_syncs};
 use crate::test_support::{dead_copy_owner, fixture, git_context, remove, repository};
 use crate::worktree_add_binding::{Recorded, bind_registration, decode_record};
-use crate::worktree_copy_journal::{JOURNAL_PARENT_NAME, create_journal, ensure_journal_root, journal_root};
+use crate::worktree_copy_journal::{create_journal, ensure_journal_root, journal_root};
+use crate::worktree_copy_journal_encoding_and_validation::JOURNAL_PARENT_NAME;
 use crate::worktree_copy_owner::current_copy_owner;
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::stage_ignored_snapshot;
 use std::os::unix::fs::PermissionsExt;
+
+/// `settle_interrupted_add` with the two lookups as values, so that a lookup that fails other than by absence can be driven.
+fn settle_from(record: &Path, marker: std::io::Result<bool>, read: &mut dyn FnMut() -> std::io::Result<String>) -> Settlement {
+    if let Some(settled) = settle_marker(record, marker) {
+        return settled;
+    }
+    return settle_text(record, read());
+}
 
 /// A common directory and a destination parent beside it, as a copy into `worktrees/topic` would use.
 fn scene(name: &str) -> (PathBuf, PathBuf, PathBuf) {

@@ -13,13 +13,13 @@
 
 use crate::diagnostic_log::debug;
 use crate::transaction_git::GitContext;
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, raw_failure_of};
 use crate::worktree_copy_install::{InstallRecorder, install_snapshot};
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_install_log::{InstallLog, open_install_log};
-use crate::worktree_copy_journal::{
-    Journal, PendingJournal, Phase, create_journal, remove_pending_journal, write_journal,
-};
+use crate::worktree_copy_journal::{create_journal, write_journal};
+use crate::worktree_copy_journal_encoding_and_validation::{Journal, PendingJournal, Phase};
+use crate::worktree_copy_journal_removal::remove_pending_journal;
 use crate::worktree_copy_manifest::{WorktreeCopyEntry, collect_entry_manifest};
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::{StagedSnapshot, stage_ignored_snapshot};
@@ -51,11 +51,12 @@ pub struct TransactionState {
 impl InstallRecorder for TransactionState {
     /// Records the claims that no earlier record holds, then remembers them.
     fn record_intents(&mut self, relative_paths: &[String]) -> Result<(), WorktreeCopyError> {
-        let unclaimed: Vec<String> = relative_paths
-            .iter()
-            .filter(|relative_path| return !self.intended.contains(relative_path.as_str()))
-            .cloned()
-            .collect();
+        let mut unclaimed: Vec<String> = Vec::new();
+        for relative_path in relative_paths {
+            if !self.intended.contains(relative_path.as_str()) {
+                unclaimed.push(relative_path.clone());
+            }
+        }
         self.log.append_intents(unclaimed.as_slice())?;
         self.intended.extend(unclaimed);
         return Ok(());
@@ -63,17 +64,16 @@ impl InstallRecorder for TransactionState {
 
     /// Records the creations no earlier record holds, then remembers them.
     fn record_creations(&mut self, entries: &[InstalledPath]) -> Result<(), WorktreeCopyError> {
-        let unrecorded: Vec<InstalledPath> = entries
-            .iter()
-            .filter(|entry| return !self.created_paths.contains(entry.relative_path.as_str()))
-            .cloned()
-            .collect();
+        let mut unrecorded: Vec<InstalledPath> = Vec::new();
+        for entry in entries {
+            if !self.created_paths.contains(entry.relative_path.as_str()) {
+                unrecorded.push(entry.clone());
+            }
+        }
         self.log.append_creations(unrecorded.as_slice())?;
-        self.created_paths.extend(
-            unrecorded
-                .into_iter()
-                .map(|entry| return entry.relative_path),
-        );
+        for entry in unrecorded {
+            self.created_paths.insert(entry.relative_path);
+        }
         return Ok(());
     }
 }
@@ -101,6 +101,33 @@ pub fn begin_installing(state: &mut TransactionState) -> Result<(), WorktreeCopy
 }
 
 /// What:
+///  Read the stage's manifest and check that it holds every path the journal says was claimed.
+/// Why:
+///   A claim the stage lacks means the stage is not the one the journal describes, and nothing may be installed from it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const entries = collectEntryManifest(stageRoot, selectedRoots); for (const claim of intended) if (!has(entries, claim)) throw ...; return entries;
+/// ```
+fn stage_entries_holding_intents(pending: &PendingJournal, stage_root: &Path, intended: &BTreeSet<String>) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
+    let entries: Vec<WorktreeCopyEntry> = collect_entry_manifest(stage_root, pending.journal.selected_roots.as_slice(), &[])?;
+    let mut present: BTreeSet<&str> = BTreeSet::new();
+    for entry in &entries {
+        present.insert(entry.relative_path.as_str());
+    }
+    for claim in intended {
+        if !present.contains(claim.as_str()) {
+            let message: String = format!(
+                "cli-git: worktree-copy journal intent is absent from private stage {}.",
+                quote(pending.journal.stage_root.as_str())
+            );
+            return Err(crate::worktree_copy_error::failure_with_cause(message.as_str(), None));
+        }
+    }
+    return Ok(entries);
+}
+
+/// What:
 ///  The validated staged payload a journal describes, rebuilt from its stage.
 /// Why:
 ///   Recovery installs from the stage that exists now, and refuses a stage that lost a claimed path.
@@ -114,30 +141,7 @@ pub fn snapshot_from_journal(
     intended: &BTreeSet<String>,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
     let stage_root: PathBuf = PathBuf::from(pending.journal.stage_root.as_str());
-    let outcome: Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> = (|| {
-        let entries: Vec<WorktreeCopyEntry> = collect_entry_manifest(
-            stage_root.as_path(),
-            pending.journal.selected_roots.as_slice(),
-            &[],
-        )?;
-        let present: BTreeSet<&str> = entries
-            .iter()
-            .map(|entry| return entry.relative_path.as_str())
-            .collect();
-        for claim in intended {
-            if !present.contains(claim.as_str()) {
-                let message: String = format!(
-                    "cli-git: worktree-copy journal intent is absent from private stage {}.",
-                    quote(pending.journal.stage_root.as_str())
-                );
-                return Err(crate::worktree_copy_error::failure_with_cause(
-                    message.as_str(),
-                    None,
-                ));
-            }
-        }
-        return Ok(entries);
-    })();
+    let outcome: Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> = stage_entries_holding_intents(pending, stage_root.as_path(), intended);
     // Every failure here reads as a failed recovery, with its own cause after it.
     let entries: Vec<WorktreeCopyEntry> = match outcome {
         Ok(entries) => entries,
@@ -180,6 +184,32 @@ pub enum Outcome {
 }
 
 /// What:
+///  Where the installation gets the snapshot of the stage it installs from: the one just made, or the one rebuilt from the journal.
+/// Why:
+///   A resumed installation has no snapshot in memory, so it rebuilds one from the stage and checks it holds every path the journal claimed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SnapshotSource = { staged: StagedSnapshot } | { fromJournal: PendingJournal }
+/// ```
+pub enum SnapshotSource<'a> {
+    /// The snapshot the staging step just made.
+    Staged(&'a StagedSnapshot),
+    /// The snapshot rebuilt from the stage that a journal names.
+    FromJournal(&'a PendingJournal),
+}
+
+impl SnapshotSource<'_> {
+    /// The snapshot, given the paths the journal and the install log say were claimed.
+    fn staged_snapshot(&self, intended: &BTreeSet<String>) -> Result<StagedSnapshot, WorktreeCopyError> {
+        return match self {
+            SnapshotSource::Staged(staged) => Ok((*staged).clone()),
+            SnapshotSource::FromJournal(pending) => snapshot_from_journal(pending, intended),
+        };
+    }
+}
+
+/// What:
 ///  Runs one journaled installation: opens the log, seeds the claims, installs, and reports the latest journal.
 /// Why:
 ///   Resumption and first attempts share this path, so an interrupted run's records are always honored.
@@ -190,28 +220,22 @@ pub enum Outcome {
 /// ```
 fn install_recorded(
     pending: PendingJournal,
-    snapshot: &dyn Fn(&BTreeSet<String>) -> Result<StagedSnapshot, WorktreeCopyError>,
+    snapshot: &SnapshotSource<'_>,
 ) -> Result<(PendingJournal, Outcome), WorktreeCopyError> {
     let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_str());
     let opened = open_install_log(stage.as_path())?;
     let mut intended: BTreeSet<String> = pending.journal.intended_entries.iter().cloned().collect();
     intended.extend(opened.recorded.intended.iter().cloned());
-    let mut created_paths: BTreeSet<String> = pending
-        .journal
-        .created_entries
-        .iter()
-        .map(|entry| return entry.relative_path.clone())
-        .collect();
-    created_paths.extend(
-        opened
-            .recorded
-            .created
-            .iter()
-            .map(|entry| return entry.relative_path.clone()),
-    );
+    let mut created_paths: BTreeSet<String> = BTreeSet::new();
+    for entry in &pending.journal.created_entries {
+        created_paths.insert(entry.relative_path.clone());
+    }
+    for entry in &opened.recorded.created {
+        created_paths.insert(entry.relative_path.clone());
+    }
     let mut prior: Vec<InstalledPath> = pending.journal.created_entries.clone();
     prior.extend(opened.recorded.created.iter().cloned());
-    let staged: StagedSnapshot = snapshot(&intended)?;
+    let staged: StagedSnapshot = snapshot.staged_snapshot(&intended)?;
     let mut state: TransactionState = TransactionState {
         pending,
         log: opened.log,
@@ -254,7 +278,7 @@ fn install_recorded(
 /// ```
 pub fn complete_journal(
     pending: PendingJournal,
-    snapshot: &dyn Fn(&BTreeSet<String>) -> Result<StagedSnapshot, WorktreeCopyError>,
+    snapshot: &SnapshotSource<'_>,
 ) -> Result<Outcome, WorktreeCopyError> {
     let started: std::time::Instant = std::time::Instant::now();
     let (latest, outcome) = install_recorded(pending, snapshot)?;
@@ -317,7 +341,7 @@ const NOTICE_PATHS: usize = 3;
 /// `cli-git: left out ${count} unreadable ignored entries from ${source}: ${first.join(', ')}${more}.\n`
 /// ```
 fn unreadable_notice(source_root: &Path, unreadable: &[String]) -> String {
-    let named: Vec<String> = unreadable.iter().take(NOTICE_PATHS).map(|path| return quote(path.as_str())).collect();
+    let named: Vec<String> = unreadable.iter().take(NOTICE_PATHS).map(String::as_str).map(quote).collect();
     let rest: usize = unreadable.len().saturating_sub(NOTICE_PATHS);
     let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
     let noun: &str = if unreadable.len() == 1 { "entry" } else { "entries" };
@@ -371,7 +395,7 @@ pub fn synchronize_created_worktree_noting(
         Err(error) => {
             // A failed removal replaces the journal failure, as the incumbent's cleanup throws its own error there.
             std::fs::remove_dir_all(snapshot.stage_container.as_path())
-                .map_err(|removal| return raw_failure(&removal))?;
+                .map_err(raw_failure_of)?;
             claim.release()?;
             return Err(error);
         }
@@ -384,7 +408,7 @@ pub fn synchronize_created_worktree_noting(
     claim.release()?;
     let staged_after: std::time::Duration = started.elapsed();
     let staged: StagedSnapshot = snapshot.clone();
-    let outcome: Outcome = complete_journal(pending, &|_intended| return Ok(staged.clone()))?;
+    let outcome: Outcome = complete_journal(pending, &SnapshotSource::Staged(&staged))?;
     debug(
         "worktreeCopyTransaction",
         format!(

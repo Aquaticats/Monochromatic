@@ -253,6 +253,22 @@ fn run_settled(
     use crate::worktree_copy::{GitStatus, GitStep, Invocation, exit_code, run_with_worktree_copy};
     use crate::worktree_copy_error::WorktreeCopyError;
 
+    /// What:
+    ///  Decide once whether the checkout gets parallel workers, and say the decision.
+    /// Why:
+    ///   The first checkout step decides from what the person set, and later steps use that answer.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// parallel ??= parallelCheckoutWanted(context, cwd, arguments); return parallel;
+    /// ```
+    fn decided_parallel(parallel: &mut Option<bool>, invocation: &Invocation, arguments: &[OsString]) -> bool {
+        if parallel.is_none() {
+            *parallel = Some(parallel_checkout_wanted(&invocation.context, invocation.effective_cwd.as_path(), arguments));
+        }
+        return *parallel == Some(true);
+    }
+
     let context: GitContext = GitContext {
         real_git: real_git.to_path_buf(),
         overlay: overlay.to_vec(),
@@ -277,13 +293,14 @@ fn run_settled(
     // Whether the checkout may get parallel workers, decided at the first checkout step from what the person set, and not again.
     let mut parallel: Option<bool> = None;
     // The runner starts Git as a child, so the wrapper is still there to copy once Git returns.
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "GitRunner is a dyn FnMut that the ladder calls once per Git step, and this runner carries the invocation, the real Git and the parallel-checkout decision (worktree_closure_lint_suppressions.md, group git runner)"))]
     let mut run_git = |step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> {
         let mut child_overlay: Vec<(OsString, OsString)> = overlay.to_vec();
         let mut child_arguments: Vec<OsString> = arguments.to_vec();
         match step {
             GitStep::Person => {
                 // The person's `git worktree add` is the checkout of the new worktree: it gets parallel workers where nothing sets them.
-                if facts.creates && *parallel.get_or_insert_with(|| { return parallel_checkout_wanted(&invocation.context, invocation.effective_cwd.as_path(), arguments); }) {
+                if facts.creates && decided_parallel(&mut parallel, &invocation, arguments) {
                     insert_parallel_checkout(&mut child_arguments);
                 }
             }
@@ -298,7 +315,7 @@ fn run_settled(
                 child_arguments = other.to_vec();
                 child_overlay.extend(environment.iter().cloned());
                 // The ladder's own checkout after a failed snapshot is the same checkout, so it takes the same option.
-                if is_fallback_checkout(child_arguments.as_slice()) && *parallel.get_or_insert_with(|| { return parallel_checkout_wanted(&invocation.context, invocation.effective_cwd.as_path(), arguments); }) {
+                if is_fallback_checkout(child_arguments.as_slice()) && decided_parallel(&mut parallel, &invocation, arguments) {
                     insert_parallel_checkout(&mut child_arguments);
                 }
             }

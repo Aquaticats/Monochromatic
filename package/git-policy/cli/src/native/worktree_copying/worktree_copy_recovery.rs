@@ -12,16 +12,14 @@
 //! ```
 
 use crate::json_record::quote;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use crate::worktree_copy_owner::current_copy_owner;
-use crate::worktree_copy_stage::StagedSnapshot;
-use crate::worktree_copy_stage_claim::{judge_stage_owners, reap_judged_stages, stage_claims_exist};
-use crate::worktree_copy_transaction::{Outcome, complete_journal, snapshot_from_journal};
-use crate::worktree_copy_journal::{
-    PendingJournal, Phase, Role, adopt_journal, assert_private_path, journal_owner_is_dead, read_pending_journals,
-    remove_pending_journal,
-};
-use std::collections::BTreeSet;
+use crate::worktree_copy_stage_claim::stage_claims_exist;
+use crate::worktree_copy_stage_claim_reaping::{judge_stage_owners, reap_judged_stages};
+use crate::worktree_copy_transaction::{Outcome, SnapshotSource, complete_journal};
+use crate::worktree_copy_journal::{Role, adopt_journal, assert_private_path, journal_owner_is_dead, read_pending_journals};
+use crate::worktree_copy_journal_encoding_and_validation::{PendingJournal, Phase};
+use crate::worktree_copy_journal_removal::remove_pending_journal;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -209,11 +207,8 @@ fn recover_transaction(
         ));
     }
     let journal_for_snapshot: PendingJournal = pending.clone();
-    let snapshot = move |intended: &BTreeSet<String>| -> Result<StagedSnapshot, WorktreeCopyError> {
-        return snapshot_from_journal(&journal_for_snapshot, intended);
-    };
     // `match` on the outcome: a completed installation is recovered; a failed one becomes a notice.
-    match complete_journal(pending, &snapshot)? {
+    match complete_journal(pending, &SnapshotSource::FromJournal(&journal_for_snapshot))? {
         Outcome::Installed(_) => return Ok((true, None)),
         Outcome::Ended(failure) => {
             return Ok((
@@ -284,7 +279,7 @@ pub fn report_recovered(
     stderr: &mut dyn Write,
 ) -> Result<(), WorktreeCopyError> {
     for notice in &report.notices {
-        writeln!(stderr, "{notice}").map_err(|error| return raw_failure(&error))?;
+        writeln!(stderr, "{notice}").map_err(raw_failure_of)?;
     }
     if report.recovered > 0 {
         let noun: &str = if report.recovered == 1 {
@@ -297,7 +292,7 @@ pub fn report_recovered(
             "cli-git: recovered ignored-state copies for {} worktree {noun}.",
             report.recovered
         )
-        .map_err(|error| return raw_failure(&error))?;
+        .map_err(raw_failure_of)?;
     }
     return Ok(());
 }

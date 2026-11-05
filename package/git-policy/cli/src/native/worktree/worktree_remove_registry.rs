@@ -14,6 +14,7 @@
 //! const registration = registrationOf({ commonDir, target, operand }); // throws the reason Git must decide
 //! ```
 
+use crate::worktree_path_failure_message::path_failure;
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
@@ -83,7 +84,10 @@ fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<Vec<u8>>,
         Err(error) => return Err(format!("the registrations in {} cannot be listed ({error})", worktrees.display())),
     };
     for found in listing {
-        let entry: std::fs::DirEntry = found.map_err(|error: std::io::Error| { return format!("the registrations in {} cannot be listed ({error})", worktrees.display()); })?;
+        let entry: std::fs::DirEntry = match found {
+            Ok(listed) => listed,
+            Err(error) => return Err(format!("the registrations in {} cannot be listed ({error})", worktrees.display())),
+        };
         let Ok(text) = std::fs::read(entry.path().join("gitdir")) else { continue };
         let trimmed: &[u8] = text.trim_ascii_end();
         if trimmed.is_empty() {
@@ -114,13 +118,22 @@ fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<Vec<u8>>,
 /// ```
 pub fn registration_of(common_dir: &Path, target: &Path, operand: &OsStr) -> Result<Registration, String> {
     let pointer_path: PathBuf = target.join(".git");
-    let pointer: Vec<u8> = std::fs::read(pointer_path.as_path()).map_err(|error: std::io::Error| { return format!("{} cannot be read as a file ({error}), so it is not a linked worktree", pointer_path.display()); })?;
+    let pointer: Vec<u8> = match std::fs::read(pointer_path.as_path()) {
+        Ok(bytes) => bytes,
+        Err(error) => return Err(format!("{} cannot be read as a file ({error}), so it is not a linked worktree", pointer_path.display())),
+    };
     let line: &[u8] = without_newline(pointer.as_slice());
-    let named: &[u8] = line.strip_prefix(b"gitdir: ").ok_or_else(|| { return format!("{} does not start with `gitdir: `", pointer_path.display()); })?;
-    let admin: PathBuf = std::fs::canonicalize(target.join(OsStr::from_bytes(named)))
-        .map_err(|error: std::io::Error| { return format!("the administrative directory {} that {} names cannot be resolved ({error})", String::from_utf8_lossy(named), pointer_path.display()); })?;
-    let worktrees: PathBuf = std::fs::canonicalize(common_dir.join("worktrees"))
-        .map_err(|error: std::io::Error| { return format!("{} cannot be resolved ({error}), so this repository has no linked worktree", common_dir.join("worktrees").display()); })?;
+    let Some(named) = line.strip_prefix(b"gitdir: ") else {
+        return Err(format!("{} does not start with `gitdir: `", pointer_path.display()));
+    };
+    let admin: PathBuf = match std::fs::canonicalize(target.join(OsStr::from_bytes(named))) {
+        Ok(resolved) => resolved,
+        Err(error) => return Err(format!("the administrative directory {} that {} names cannot be resolved ({error})", String::from_utf8_lossy(named), pointer_path.display())),
+    };
+    let worktrees: PathBuf = match std::fs::canonicalize(common_dir.join("worktrees")) {
+        Ok(resolved) => resolved,
+        Err(error) => return Err(format!("{} cannot be resolved ({error}), so this repository has no linked worktree", common_dir.join("worktrees").display())),
+    };
     if admin.parent() != Some(worktrees.as_path()) {
         return Err(format!(
             "the administrative directory {} of {} is not one of the registrations in {}, the repository this command runs in",
@@ -129,8 +142,11 @@ pub fn registration_of(common_dir: &Path, target: &Path, operand: &OsStr) -> Res
             worktrees.display()
         ));
     }
-    let id: OsString = admin.file_name().ok_or_else(|| { return format!("{} has no name", admin.display()); })?.to_os_string();
-    let gitdir_text: Vec<u8> = std::fs::read(admin.join("gitdir")).map_err(|error: std::io::Error| { return format!("{} cannot be read ({error})", admin.join("gitdir").display()); })?;
+    let Some(admin_name) = admin.file_name() else {
+        return Err(format!("{} has no name", admin.display()));
+    };
+    let id: OsString = admin_name.to_os_string();
+    let gitdir_text: Vec<u8> = path_failure(std::fs::read(admin.join("gitdir")), admin.join("gitdir").as_path(), "cannot be read")?;
     let recorded: PathBuf = PathBuf::from(OsStr::from_bytes(without_newline(gitdir_text.as_slice())));
     if recorded != pointer_path {
         return Err(format!("{} records {}, not {}", admin.join("gitdir").display(), recorded.display(), pointer_path.display()));

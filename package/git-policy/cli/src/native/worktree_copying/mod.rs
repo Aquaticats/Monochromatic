@@ -31,6 +31,10 @@ pub mod worktree_copy_compare;
 /// The private, validated stage of one source's ignored state beside a destination worktree.
 pub mod worktree_copy_stage;
 
+/// The copying of a staged snapshot's files and links into the stage, one worker per slice of the manifest.
+#[cfg(unix)]
+pub mod worktree_copy_stage_leaf_copying;
+
 /// The exclusive creation of one destination entry from the stage, and the identity captured after it.
 #[cfg(unix)]
 pub mod worktree_copy_install_entry;
@@ -43,13 +47,25 @@ pub mod worktree_copy_install;
 #[cfg(unix)]
 pub mod worktree_copy_rollback;
 
-/// The durable journal of one copy: exact encoding, strict validation, private storage and removal.
+/// The durable journal of one copy: private storage, atomic writes and reading.
 #[cfg(unix)]
 pub mod worktree_copy_journal;
+
+/// The exact JSON encoding of a copy journal and the strict validation of every field recovery will act on.
+#[cfg(unix)]
+pub mod worktree_copy_journal_encoding_and_validation;
+
+/// The removal of a finished or abandoned copy transaction's stage and journal.
+#[cfg(unix)]
+pub mod worktree_copy_journal_removal;
 
 /// The durable claim on a stage container's name, and the removal of stages an interrupted copy left behind.
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim;
+
+/// The judging of stage claims and the removal of the stages that interrupted copies and adds left behind.
+#[cfg(unix)]
+pub mod worktree_copy_stage_claim_reaping;
 
 /// The append-only install log of one stage: per-batch intents and creations, with resumption.
 #[cfg(unix)]

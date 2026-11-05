@@ -1,6 +1,9 @@
 //! Journal checks: the exact encoding, strict validation, private storage and removal on disk.
 
 use super::*;
+use crate::worktree_copy_install_entry::InstalledPath;
+use crate::worktree_copy_journal_encoding_and_validation::*;
+use crate::worktree_copy_journal_removal::*;
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::PermissionsExt;
 

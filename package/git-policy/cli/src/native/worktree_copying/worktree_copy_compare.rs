@@ -12,7 +12,7 @@
 //! ```
 
 use crate::scoped_start::start_or_run;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_manifest::{
     EntryKind, FileStamp, WorktreeCopyEntry, collect_entry_manifest, collect_pruned_manifest, retained_mode, stamp_of,
 };
@@ -68,16 +68,16 @@ fn regular_file_bytes_equal(
     right_path: &Path,
 ) -> Result<bool, WorktreeCopyError> {
     let mut left: std::fs::File =
-        std::fs::File::open(left_path).map_err(|error| return raw_failure(&error))?;
+        std::fs::File::open(left_path).map_err(raw_failure_of)?;
     let mut right: std::fs::File =
-        std::fs::File::open(right_path).map_err(|error| return raw_failure(&error))?;
+        std::fs::File::open(right_path).map_err(raw_failure_of)?;
     let left_size: u64 = left
         .metadata()
-        .map_err(|error| return raw_failure(&error))?
+        .map_err(raw_failure_of)?
         .len();
     let right_size: u64 = right
         .metadata()
-        .map_err(|error| return raw_failure(&error))?
+        .map_err(raw_failure_of)?
         .len();
     if left_size != right_size {
         return Ok(false);
@@ -86,9 +86,10 @@ fn regular_file_bytes_equal(
     let mut right_buffer: Vec<u8> = vec![0; COMPARE_BUFFER_BYTES];
     let mut remaining: u64 = left_size;
     while remaining > 0 {
-        let length: usize = usize::try_from(remaining).map_or(COMPARE_BUFFER_BYTES, |size| {
-            return size.min(COMPARE_BUFFER_BYTES);
-        });
+        let length: usize = match usize::try_from(remaining) {
+            Ok(size) => size.min(COMPARE_BUFFER_BYTES),
+            Err(_too_large) => COMPARE_BUFFER_BYTES,
+        };
         let left_chunk: &mut [u8] = &mut left_buffer[..length];
         let right_chunk: &mut [u8] = &mut right_buffer[..length];
         // `read_exact` reports a file that ended early as `UnexpectedEof`, which is a difference, not a failure.
@@ -121,7 +122,7 @@ fn regular_file_bytes_equal(
 /// await readlink(path)
 /// ```
 fn link_target(path: &Path) -> Result<PathBuf, WorktreeCopyError> {
-    return std::fs::read_link(path).map_err(|error| return raw_failure(&error));
+    return std::fs::read_link(path).map_err(raw_failure_of);
 }
 
 /// What:
@@ -248,6 +249,7 @@ pub fn assert_final_source_equivalence_pruned(
     check: &FinalCheck<'_>,
 ) -> Result<(), WorktreeCopyError> {
     // The source and the stage are independent trees, so their two walks run side by side.
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the scoped thread body and its workers must borrow the caller's state and the callee bounds them by the scope, not by 'static (worktree_closure_lint_suppressions.md, group scope)"))]
     let (source_walked, stage_walked) = std::thread::scope(|scope| {
         let source_walk = start_or_run(scope, || {
             let mut unreadable: Vec<String> = Vec::new();
@@ -260,9 +262,10 @@ pub fn assert_final_source_equivalence_pruned(
             );
         });
         let stage_walk = collect_entry_manifest(stage_root, selected_roots, &[]);
-        let source_result = source_walk
-            .join()
-            .unwrap_or_else(|_panic| return Err(raw_failure(&std::io::Error::other("a manifest walk panicked"))));
+        let source_result = match source_walk.join() {
+            Ok(walked) => walked,
+            Err(_panic) => Err(raw_failure(&std::io::Error::other("a manifest walk panicked"))),
+        };
         return (source_result, stage_walk);
     });
     let final_source: Vec<WorktreeCopyEntry> = source_walked?;

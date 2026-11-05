@@ -20,7 +20,7 @@
 use crate::git_metadata::path_from_git_bytes;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::worktree_add_binding::bind_registration;
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_identity::WorktreeIdentity;
 use std::path::{Path, PathBuf};
@@ -188,6 +188,19 @@ pub fn destination_is_registered(common_dir: &Path, destination: &Path) -> bool 
 }
 
 /// What:
+///  Whether a byte is NUL, the end of each field of Git's `-z` output.
+/// Why:
+///   Git's worktree listing is split on it, and a path may hold any other byte.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
 ///  The canonical root of a Git-reported worktree path,
 ///  or `None` when Git still lists a root that no longer exists.
 /// Why:
@@ -233,7 +246,7 @@ fn read_registered_roots(
         without_prefix: true,
         ..GitRequest::default()
     };
-    let output = run_git(context, &request).map_err(|error| return raw_failure(&error))?;
+    let output = run_git(context, &request).map_err(raw_failure_of)?;
     if !output.succeeded() {
         return Err(raw_failure(&String::from_utf8_lossy(
             output.stderr.as_slice(),
@@ -241,12 +254,13 @@ fn read_registered_roots(
     }
     let mut roots: Vec<PathBuf> = Vec::new();
     // `filter_map` keeps only fields of the `worktree <path>` form.
-    for path in output
-        .stdout
-        .split(|byte| return *byte == 0)
-        .filter_map(|field| return field.strip_prefix(b"worktree "))
-        .filter_map(path_from_git_bytes)
-    {
+    for field in output.stdout.split(is_nul_byte) {
+        let Some(named) = field.strip_prefix(b"worktree ") else {
+            continue;
+        };
+        let Some(path) = path_from_git_bytes(named) else {
+            continue;
+        };
         if let Some(canonical) = canonical_registered_root(path.as_path())? {
             roots.push(canonical);
         }

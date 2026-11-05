@@ -95,10 +95,10 @@ pub fn rollback_created(
     entries: &[WorktreeCopyEntry],
     created: &[InstalledPath],
 ) -> Result<Vec<String>, WorktreeCopyError> {
-    let selected_by_path: BTreeMap<&str, &WorktreeCopyEntry> = entries
-        .iter()
-        .map(|entry| return (entry.relative_path.as_str(), entry))
-        .collect();
+    let mut selected_by_path: BTreeMap<&str, &WorktreeCopyEntry> = BTreeMap::new();
+    for entry in entries {
+        selected_by_path.insert(entry.relative_path.as_str(), entry);
+    }
     let mut retained: Vec<String> = Vec::new();
     for installed in created.iter().rev() {
         let destination_path: std::path::PathBuf =
@@ -173,12 +173,15 @@ fn rollback_one(
             )));
         }
     }
-    let is_directory: bool = expected
-        .is_some_and(|entry| return entry.kind == EntryKind::Directory)
-        || !installed.selected;
+    let expected_directory: bool = match expected {
+        Some(entry) => entry.kind == EntryKind::Directory,
+        None => false,
+    };
+    let is_directory: bool = expected_directory || !installed.selected;
     // The removal's own text is kept as the reason, as the incumbent reports it.
-    remove_proven(destination_path, is_directory)
-        .map_err(|error| return WorktreeCopyError(error.to_string()))?;
+    if let Err(error) = remove_proven(destination_path, is_directory) {
+        return Err(WorktreeCopyError(error.to_string()));
+    }
     return Ok(None);
 }
 

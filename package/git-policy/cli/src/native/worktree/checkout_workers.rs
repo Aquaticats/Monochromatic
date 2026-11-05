@@ -54,7 +54,20 @@ fn global_prefix_length(arguments: &[OsString]) -> usize {
 /// ```
 pub fn typed_before_subcommand(arguments: &[OsString]) -> bool {
     let before: &[OsString] = &arguments[..global_prefix_length(arguments)];
-    return before.iter().any(|word: &OsString| { return word.to_string_lossy().to_lowercase().contains(KEY); });
+    return before.iter().map(OsString::as_os_str).any(word_names_key);
+}
+
+/// What:
+///  Whether one typed word contains the key, in any letter case.
+/// Why:
+///   `-c`, `-ccheckout.workers=<n>` and `--config-env=...` spell the key differently, and the check is on the text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// word.toLowerCase().includes('checkout.workers')
+/// ```
+fn word_names_key(word: &OsStr) -> bool {
+    return word.to_string_lossy().to_lowercase().contains(KEY);
 }
 
 /// What:
@@ -68,10 +81,21 @@ pub fn typed_before_subcommand(arguments: &[OsString]) -> bool {
 /// Object.entries(env).some(([name, value]) => (name.startsWith('GIT_CONFIG_KEY_') || name === 'GIT_CONFIG_PARAMETERS') && value.toLowerCase().includes('checkout.workers'))
 /// ```
 pub fn environment_sets<'a>(variables: impl IntoIterator<Item = (&'a OsStr, &'a OsStr)>) -> bool {
-    return variables.into_iter().any(|(name, value): (&OsStr, &OsStr)| {
-        let variable: String = name.to_string_lossy().into_owned();
-        return (variable.starts_with("GIT_CONFIG_KEY_") || variable == "GIT_CONFIG_PARAMETERS") && value.to_string_lossy().to_lowercase().contains(KEY);
-    });
+    return variables.into_iter().any(variable_sets_key);
+}
+
+/// What:
+///  Whether one environment variable is a Git configuration variable whose value mentions the key.
+/// Why:
+///   Only `GIT_CONFIG_KEY_<n>` and `GIT_CONFIG_PARAMETERS` carry configuration, so other variables are not read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (name.startsWith('GIT_CONFIG_KEY_') || name === 'GIT_CONFIG_PARAMETERS') && value.toLowerCase().includes('checkout.workers')
+/// ```
+fn variable_sets_key((name, value): (&OsStr, &OsStr)) -> bool {
+    let variable: String = name.to_string_lossy().into_owned();
+    return (variable.starts_with("GIT_CONFIG_KEY_") || variable == "GIT_CONFIG_PARAMETERS") && value.to_string_lossy().to_lowercase().contains(KEY);
 }
 
 /// What:
@@ -84,7 +108,26 @@ pub fn environment_sets<'a>(variables: impl IntoIterator<Item = (&'a OsStr, &'a 
 /// snapshot.entries.some((entry) => entry.key === 'checkout.workers')
 /// ```
 pub fn configured(snapshot: &ConfigSnapshot) -> bool {
-    return snapshot.entries().iter().any(|entry| { return entry.key == KEY; });
+    // The loop stops at the first entry with the key, as `any` did.
+    for entry in snapshot.entries() {
+        if entry.key == KEY {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  A variable's name and value as borrowed OS strings.
+/// Why:
+///   `environment_sets` reads borrowed pairs, and the process environment and the overlay both hold owned ones.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ([name, value]) => [name, value]
+/// ```
+fn as_os_str_pair((name, value): &(OsString, OsString)) -> (&OsStr, &OsStr) {
+    return (name.as_os_str(), value.as_os_str());
 }
 
 /// What:
@@ -103,7 +146,7 @@ pub fn parallel_checkout_wanted(context: &GitContext, cwd: &Path, arguments: &[O
         return false;
     }
     let process: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    let exported = process.iter().chain(context.overlay.iter()).map(|(name, value): &(OsString, OsString)| { return (name.as_os_str(), value.as_os_str()); });
+    let exported = process.iter().chain(context.overlay.iter()).map(as_os_str_pair);
     if environment_sets(exported) {
         debug("parallelCheckoutWanted", "the environment sets the key; nothing is added");
         return false;
@@ -146,7 +189,20 @@ pub fn insert_parallel_checkout(arguments: &mut Vec<OsString>) {
 /// subcommand(args) === 'reset' && args.includes('--hard')
 /// ```
 pub fn is_fallback_checkout(arguments: &[OsString]) -> bool {
-    return matches!(subcommand_of(arguments), Some((_index, name)) if name == "reset") && arguments.iter().any(|word: &OsString| { return word == "--hard"; });
+    return matches!(subcommand_of(arguments), Some((_index, name)) if name == "reset") && arguments.iter().map(OsString::as_os_str).any(is_hard_flag);
+}
+
+/// What:
+///  Whether a word is the `--hard` flag of `reset`.
+/// Why:
+///   The wrapper's own fallback checkout is `reset --hard`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// word === '--hard'
+/// ```
+fn is_hard_flag(word: &OsStr) -> bool {
+    return word == "--hard";
 }
 
 /// Parallel-checkout controls stay out of the release executable.
