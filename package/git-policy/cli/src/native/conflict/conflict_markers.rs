@@ -54,7 +54,7 @@ pub fn marker_size_of(value: &str) -> usize {
 /// ```
 pub fn has_marker_lines(content: &[u8], size: usize) -> bool {
     // `split_inclusive` keeps each line's line feed, which is the white space that must follow the marker.
-    for line in content.split_inclusive(|byte| { return *byte == b'\n'; }) {
+    for line in content.split_inclusive(is_line_feed_byte) {
         // A line shorter than the marker plus one character cannot be a marker.
         if line.len() <= size {
             continue;
@@ -63,12 +63,28 @@ pub fn has_marker_lines(content: &[u8], size: usize) -> bool {
         if first != b'<' && first != b'>' {
             continue;
         }
-        let all_same: bool = line[..size].iter().all(|byte| { return *byte == first; });
+        let mut all_same: bool = true;
+        for byte in &line[..size] {
+            if *byte != first {
+                all_same = false;
+                break;
+            }
+        }
         if all_same && line[size].is_ascii_whitespace() {
             return true;
         }
     }
     return false;
+}
+
+/// Whether one byte is the line feed that ends a line. `&u8` borrows the byte, as `split_inclusive` hands it over.
+fn is_line_feed_byte(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// Whether one byte is the NUL byte that ends each field of `git check-attr -z`. `&u8` borrows the byte.
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
 }
 
 /// What:
@@ -82,20 +98,25 @@ pub fn has_marker_lines(content: &[u8], size: usize) -> bool {
 /// ```
 fn marker_sizes(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Vec<usize> {
     let mut arguments: Vec<OsString> = vec![OsString::from("check-attr"), OsString::from("-z"), OsString::from("conflict-marker-size"), OsString::from("--")];
-    arguments.extend(paths.iter().map(|path| { return OsString::from_vec(path.clone()); }));
+    for path in paths {
+        arguments.push(OsString::from_vec(path.clone()));
+    }
     let mut request: GitRequest = GitRequest::new(root, &[] as &[&str]);
     request.arguments = arguments;
     // Every path answers with three NUL-ended fields: the path, the attribute, the value.
     let answered: Vec<Vec<u8>> = match run_git(context, &request) {
-        Ok(output) if output.succeeded() => output.stdout.split(|byte| { return *byte == 0; }).map(<[u8]>::to_vec).collect(),
+        Ok(output) if output.succeeded() => output.stdout.split(is_nul_byte).map(<[u8]>::to_vec).collect(),
         _ => Vec::new(),
     };
-    return (0..paths.len())
-        .map(|index| {
-            let value: String = answered.get(index * 3 + 2).map(|bytes| { return String::from_utf8_lossy(bytes).into_owned(); }).unwrap_or_default();
-            return marker_size_of(value.as_str());
-        })
-        .collect();
+    let mut sizes: Vec<usize> = Vec::new();
+    for index in 0..paths.len() {
+        let value: String = match answered.get(index * 3 + 2) {
+            Some(bytes) => String::from_utf8_lossy(bytes).into_owned(),
+            None => String::new(),
+        };
+        sizes.push(marker_size_of(value.as_str()));
+    }
+    return sizes;
 }
 
 /// What:

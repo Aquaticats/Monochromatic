@@ -83,9 +83,9 @@ fn walk(source: &Path) -> Result<(Vec<Entry>, Vec<PathBuf>), String> {
             Err(error) => return Err(format!("{} cannot be read ({error})", directory.display())),
         };
         for listed in listing {
-            let item = listed.map_err(|error| { return format!("{} cannot be listed ({error})", directory.display()); })?;
+            let item = say_where(listed, directory.as_path(), "cannot be listed")?;
             let path: PathBuf = relative.join(item.file_name());
-            let file_type = item.file_type().map_err(|error| { return format!("{} has no type ({error})", item.path().display()); })?;
+            let file_type = say_where(item.file_type(), item.path().as_path(), "has no type")?;
             if file_type.is_dir() {
                 pending.push(path.clone());
                 found.push(Entry { relative: path, kind: Kind::Directory });
@@ -97,7 +97,7 @@ fn walk(source: &Path) -> Result<(Vec<Entry>, Vec<PathBuf>), String> {
         }
     }
     // Parents sort before their children, so directories can be made in list order.
-    found.sort_by(|left: &Entry, right: &Entry| { return left.relative.cmp(&right.relative); });
+    found.sort_by(compare_by_relative_path);
     left_out.sort();
     return Ok((found, left_out));
 }
@@ -115,10 +115,11 @@ fn place(source: &Path, destination: &Path, entry: &Entry) -> Result<Option<Path
     let from: PathBuf = source.join(&entry.relative);
     let to: PathBuf = destination.join(&entry.relative);
     if entry.kind == Kind::Link {
-        let target: PathBuf = std::fs::read_link(&from).map_err(|error| { return format!("{} cannot be read as a link ({error})", from.display()); })?;
-        return symlink(&target, &to).map(|()| { return None; }).map_err(|error| { return format!("{} cannot be made ({error})", to.display()); });
+        let target: PathBuf = say_where(std::fs::read_link(&from), from.as_path(), "cannot be read as a link")?;
+        say_where(symlink(&target, &to), to.as_path(), "cannot be made")?;
+        return Ok(None);
     }
-    let before: Metadata = std::fs::metadata(&from).map_err(|error| { return format!("{} cannot be read ({error})", from.display()); })?;
+    let before: Metadata = say_where(std::fs::metadata(&from), from.as_path(), "cannot be read")?;
     if let Err(error) = copy_file_exclusive(&from, &to) {
         // A file without read permission cannot be cloned or copied by anyone but its owner's chmod, which the source is never given:
         //  the file stays out of the destination (a missing file only makes Cargo rebuild what needs it) and is named.
@@ -129,10 +130,82 @@ fn place(source: &Path, destination: &Path, entry: &Entry) -> Result<Option<Path
         }
         return Err(format!("{} cannot be cloned ({})", from.display(), error.0));
     }
-    std::fs::set_permissions(&to, before.permissions()).map_err(|error| { return format!("{} cannot take its mode ({error})", to.display()); })?;
+    say_where(std::fs::set_permissions(&to, before.permissions()), to.as_path(), "cannot take its mode")?;
     let times: FileTimes = FileTimes::new().set_accessed(before.accessed().unwrap_or(std::time::UNIX_EPOCH)).set_modified(before.modified().unwrap_or(std::time::UNIX_EPOCH));
-    let made: std::fs::File = std::fs::File::open(&to).map_err(|error| { return format!("{} cannot be opened ({error})", to.display()); })?;
-    return made.set_times(times).map(|()| { return None; }).map_err(|error| { return format!("{} cannot take its times ({error})", to.display()); });
+    let made: std::fs::File = say_where(std::fs::File::open(&to), to.as_path(), "cannot be opened")?;
+    say_where(made.set_times(times), to.as_path(), "cannot take its times")?;
+    return Ok(None);
+}
+
+/// What:
+///  Say which path an input or output step failed on: `<path> <what> (<error>)`.
+///  `Result<T, std::io::Error>` is "the value, or an input/output error".
+/// Why:
+///   Every step of the clone names the entry it could not handle, and a named function stands where a closure that
+///  built that text stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function sayWhere<T>(attempt: () => T, path: string, what: string): T; // throws `${path} ${what} (${error})`
+/// ```
+fn say_where<T>(result: Result<T, std::io::Error>, path: &Path, what: &str) -> Result<T, String> {
+    return match result {
+        Ok(value) => Ok(value),
+        Err(error) => Err(format!("{} {what} ({error})", path.display())),
+    };
+}
+
+/// Order two entries by their path below the source, so parents sort before their children. `sort_by` takes this
+///  function by path; the sort stays stable.
+fn compare_by_relative_path(left: &Entry, right: &Entry) -> std::cmp::Ordering {
+    return left.relative.cmp(&right.relative);
+}
+
+/// What:
+///  Place each slice of leaf entries on a thread of its own inside one thread scope, and collect what each slice
+///  left out.
+/// Why:
+///   The slices borrow the entries, the source and the destination of the caller for the length of the scope, which a
+///  named function cannot express and which owned copies for threads that outlive the caller would only waste. A
+///  thread that cannot start runs its slice in turn (`start_or_run`), and a worker that panicked is an error.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcomes = await Promise.all(slices.map(async (slice) => placeAll(source, destination, slice)));
+/// ```
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "std::thread::scope and start_or_run take closures that borrow the caller's entries for the scope only, not 'static; see doc/planning/cli-git-closure-lint-suppressions.md"
+    )
+)]
+fn place_slices_side_by_side(
+    leaves: &[&Entry],
+    slice_length: usize,
+    source: &Path,
+    destination: &Path,
+) -> Vec<Result<Vec<PathBuf>, String>> {
+    return std::thread::scope(|scope| {
+        let mut handles: Vec<_> = Vec::new();
+        for slice in leaves.chunks(slice_length) {
+            handles.push(start_or_run(scope, move || {
+                let mut skipped: Vec<PathBuf> = Vec::new();
+                for entry in slice {
+                    skipped.extend(place(source, destination, entry)?);
+                }
+                return Ok(skipped);
+            }));
+        }
+        let mut outcomes: Vec<Result<Vec<PathBuf>, String>> = Vec::new();
+        for handle in handles {
+            outcomes.push(match handle.join() {
+                Ok(outcome) => outcome,
+                Err(_panic) => Err(String::from("a clone worker stopped unexpectedly")),
+            });
+        }
+        return outcomes;
+    });
 }
 
 /// What:
@@ -147,35 +220,28 @@ fn place(source: &Path, destination: &Path, entry: &Entry) -> Result<Option<Path
 /// ```
 pub fn clone_tree(source: &Path, destination: &Path, workers: usize) -> Result<Cloned, String> {
     let (entries, mut left_out): (Vec<Entry>, Vec<PathBuf>) = walk(source)?;
-    let root: Metadata = std::fs::metadata(source).map_err(|error| { return format!("{} cannot be read ({error})", source.display()); })?;
+    let root: Metadata = say_where(std::fs::metadata(source), source, "cannot be read")?;
     if let Some(parent) = destination.parent() {
-        std::fs::create_dir_all(parent).map_err(|error| { return format!("{} cannot be made ({error})", parent.display()); })?;
+        say_where(std::fs::create_dir_all(parent), parent, "cannot be made")?;
     }
     // Exclusive creation: an existing destination is refused and left as it was.
-    std::fs::create_dir(destination).map_err(|error| { return format!("{} cannot be made ({error})", destination.display()); })?;
-    let directories: Vec<&Entry> = entries.iter().filter(|entry: &&Entry| { return entry.kind == Kind::Directory; }).collect();
+    say_where(std::fs::create_dir(destination), destination, "cannot be made")?;
+    let mut directories: Vec<&Entry> = Vec::new();
+    let mut leaves: Vec<&Entry> = Vec::new();
+    for entry in &entries {
+        if entry.kind == Kind::Directory {
+            directories.push(entry);
+        } else {
+            leaves.push(entry);
+        }
+    }
     for directory in &directories {
         let made: PathBuf = destination.join(&directory.relative);
-        std::fs::create_dir(&made).map_err(|error| { return format!("{} cannot be made ({error})", made.display()); })?;
+        say_where(std::fs::create_dir(&made), made.as_path(), "cannot be made")?;
     }
-    let leaves: Vec<&Entry> = entries.iter().filter(|entry: &&Entry| { return entry.kind != Kind::Directory; }).collect();
     let used: usize = if leaves.len() < PARALLEL_MIN_ENTRIES { 1 } else { workers.max(1) };
     let slice_length: usize = leaves.len().div_ceil(used).max(1);
-    let outcomes: Vec<Result<Vec<PathBuf>, String>> = std::thread::scope(|scope| {
-        let handles: Vec<_> = leaves
-            .chunks(slice_length)
-            .map(|slice: &[&Entry]| {
-                return start_or_run(scope, move || {
-                    let mut skipped: Vec<PathBuf> = Vec::new();
-                    for entry in slice {
-                        skipped.extend(place(source, destination, entry)?);
-                    }
-                    return Ok(skipped);
-                });
-            })
-            .collect();
-        return handles.into_iter().map(|handle| { return handle.join().unwrap_or_else(|_panic| { return Err(String::from("a clone worker stopped unexpectedly")); }); }).collect();
-    });
+    let outcomes: Vec<Result<Vec<PathBuf>, String>> = place_slices_side_by_side(&leaves, slice_length, source, destination);
     for outcome in outcomes {
         left_out.extend(outcome?);
     }
@@ -183,11 +249,16 @@ pub fn clone_tree(source: &Path, destination: &Path, workers: usize) -> Result<C
     // Modes last, so a read-only directory does not stop its own contents from being placed.
     for directory in directories.iter().rev() {
         let made: PathBuf = destination.join(&directory.relative);
-        let mode: std::fs::Permissions = std::fs::metadata(source.join(&directory.relative)).map_err(|error| { return format!("{} cannot be read ({error})", directory.relative.display()); })?.permissions();
-        std::fs::set_permissions(&made, mode).map_err(|error| { return format!("{} cannot take its mode ({error})", made.display()); })?;
+        let source_directory: Metadata = say_where(std::fs::metadata(source.join(&directory.relative)), directory.relative.as_path(), "cannot be read")?;
+        say_where(std::fs::set_permissions(&made, source_directory.permissions()), made.as_path(), "cannot take its mode")?;
     }
-    std::fs::set_permissions(destination, root.permissions()).map_err(|error| { return format!("{} cannot take its mode ({error})", destination.display()); })?;
-    let skipped_files: usize = entries.iter().filter(|entry: &&Entry| { return entry.kind != Kind::Directory && left_out.contains(&entry.relative); }).count();
+    say_where(std::fs::set_permissions(destination, root.permissions()), destination, "cannot take its mode")?;
+    let mut skipped_files: usize = 0;
+    for entry in &entries {
+        if entry.kind != Kind::Directory && left_out.contains(&entry.relative) {
+            skipped_files += 1;
+        }
+    }
     return Ok(Cloned { made: entries.len() - skipped_files, left_out });
 }
 

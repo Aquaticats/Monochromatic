@@ -210,8 +210,10 @@ fn guarded_decision(
 ) -> Result<LinkedWorktreeDecision, OptionError> {
     if word == b"stash" {
         // A region the stash parser refuses stays guarded, as every stash form was before the read-only forms.
-        let reads_only: bool = parse_stash_region(region, &[])
-            .is_ok_and(|facts| { return !stash_changes_state(facts.subcommand); });
+        let reads_only: bool = match parse_stash_region(region, &[]) {
+            Ok(facts) => !stash_changes_state(facts.subcommand),
+            Err(_) => false,
+        };
         if reads_only {
             return Ok(LinkedWorktreeDecision::Pass);
         }

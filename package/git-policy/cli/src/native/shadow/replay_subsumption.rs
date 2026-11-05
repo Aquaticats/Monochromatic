@@ -111,10 +111,12 @@ pub struct BaseEdit {
 /// oidWidth(shared);
 /// ```
 fn oid_width(shared: &SharedPath) -> usize {
-    return [&shared.base, &shared.landed, &shared.prepared]
-        .iter()
-        .find_map(|entry| { return entry.as_ref().map(|present| { return present.oid.len(); }); })
-        .unwrap_or(0);
+    for entry in [&shared.base, &shared.landed, &shared.prepared] {
+        if let Some(present) = entry {
+            return present.oid.len();
+        }
+    }
+    return 0;
 }
 
 /// What:
@@ -129,7 +131,10 @@ fn oid_width(shared: &SharedPath) -> usize {
 /// ```
 pub fn subsumed_record(shared: &SharedPath) -> Vec<u8> {
     let Some(landed) = &shared.landed else {
-        let width: usize = shared.base.as_ref().map(|entry| { return entry.oid.len(); }).unwrap_or(0);
+        let width: usize = match shared.base.as_ref() {
+            Some(entry) => entry.oid.len(),
+            None => 0,
+        };
         return format!("0 {}\t{}\0", "0".repeat(width), shared.path).into_bytes();
     };
     let mode: &str = match &shared.base {
@@ -243,6 +248,11 @@ pub fn is_identical(shared: &SharedPath) -> bool {
     return same_entry(&shared.prepared, &shared.landed);
 }
 
+/// The capture-order decision for one shared path; a path the order does not name is unordered.
+fn decision_of(order: &BTreeMap<String, CaptureOrderDecision>, shared_path: &SharedPath) -> CaptureOrderDecision {
+    return order.get(&shared_path.path).copied().unwrap_or(CaptureOrderDecision::Unordered);
+}
+
 /// What:
 ///  Computes the effective merge base of one replay from the shared paths the caller listed once.
 /// Why:
@@ -263,45 +273,37 @@ pub fn subsume_landed_changes(
     shared: &[SharedPath],
     order: &BTreeMap<String, CaptureOrderDecision>,
 ) -> Result<SubsumptionBase, SubsumptionError> {
-    let decision_of = |shared_path: &SharedPath| -> CaptureOrderDecision {
-        return order.get(&shared_path.path).copied().unwrap_or(CaptureOrderDecision::Unordered);
-    };
-    let unordered: Vec<&SharedPath> = shared
-        .iter()
-        .filter(|entry| { return decision_of(entry) == CaptureOrderDecision::Unordered; })
-        .collect();
-    let text_candidates: Vec<SharedPath> = unordered
-        .iter()
-        .filter(|entry| { return is_text_candidate(entry) && !is_identical(entry); })
-        .map(|entry| { return (*entry).clone(); })
-        .collect();
+    let mut text_candidates: Vec<SharedPath> = Vec::new();
+    for entry in shared {
+        if decision_of(order, entry) == CaptureOrderDecision::Unordered && is_text_candidate(entry) && !is_identical(entry) {
+            text_candidates.push(entry.clone());
+        }
+    }
     let text: Vec<String> = subsumed_text_paths(context, shadow, cwd, object_directory, &text_candidates)
         .map_err(SubsumptionError::Text)?;
     // Every synthetic base edit in Git order.
-    let edits: Vec<BaseEdit> = shared
-        .iter()
-        .filter_map(|entry| { return match decision_of(entry) {
-            CaptureOrderDecision::Prepared => Some(BaseEdit { shared: entry.clone(), rule: BaseRule::Prepared }),
-            CaptureOrderDecision::Landed => Some(BaseEdit { shared: entry.clone(), rule: BaseRule::Landed }),
+    let mut edits: Vec<BaseEdit> = Vec::new();
+    for entry in shared {
+        match decision_of(order, entry) {
+            CaptureOrderDecision::Prepared => edits.push(BaseEdit { shared: entry.clone(), rule: BaseRule::Prepared }),
+            CaptureOrderDecision::Landed => edits.push(BaseEdit { shared: entry.clone(), rule: BaseRule::Landed }),
             CaptureOrderDecision::Unordered => {
                 let subsumed: bool = is_identical(entry) || text.contains(&entry.path);
                 if subsumed {
-                    return Some(BaseEdit { shared: entry.clone(), rule: BaseRule::Subsumed });
+                    edits.push(BaseEdit { shared: entry.clone(), rule: BaseRule::Subsumed });
                 }
-                return None;
             }
-        }; })
-        .collect();
-    let subsumed_paths: Vec<String> = edits
-        .iter()
-        .filter(|edit| { return edit.rule != BaseRule::Landed; })
-        .map(|edit| { return edit.shared.path.clone(); })
-        .collect();
-    let kept_landed_paths: Vec<String> = edits
-        .iter()
-        .filter(|edit| { return edit.rule == BaseRule::Landed; })
-        .map(|edit| { return edit.shared.path.clone(); })
-        .collect();
+        }
+    }
+    let mut subsumed_paths: Vec<String> = Vec::new();
+    let mut kept_landed_paths: Vec<String> = Vec::new();
+    for edit in &edits {
+        if edit.rule == BaseRule::Landed {
+            kept_landed_paths.push(edit.shared.path.clone());
+        } else {
+            subsumed_paths.push(edit.shared.path.clone());
+        }
+    }
     if edits.is_empty() {
         return Ok(SubsumptionBase {
             merge_base: String::from(merge_base),

@@ -53,7 +53,10 @@ const CHOICES: [(&str, &str); 3] = [
 /// JSON.stringify(text)
 /// ```
 fn json_text(text: &str) -> String {
-    return serde_json::to_string(text).unwrap_or_else(|_| return String::from("\"\""));
+    return match serde_json::to_string(text) {
+        Ok(quoted) => quoted,
+        Err(_) => String::from("\"\""),
+    };
 }
 
 /// What:
@@ -66,10 +69,10 @@ fn json_text(text: &str) -> String {
 /// JSON.stringify({ model: 'openai/gpt-6-luna-decisions', input, questions: [{ type: 'choice', name, instructions, choices }] })
 /// ```
 pub fn request_body(input: &str) -> String {
-    let choices: Vec<String> = CHOICES
-        .iter()
-        .map(|(value, description)| return format!("{{\"value\":{},\"description\":{}}}", json_text(value), json_text(description)))
-        .collect();
+    let mut choices: Vec<String> = Vec::new();
+    for (value, description) in CHOICES {
+        choices.push(format!("{{\"value\":{},\"description\":{}}}", json_text(value), json_text(description)));
+    }
     return format!(
         "{{\"model\":{},\"input\":{},\"questions\":[{{\"type\":\"choice\",\"name\":{},\"instructions\":{},\"choices\":[{}]}}]}}",
         json_text(MODEL),
@@ -96,7 +99,13 @@ fn js_text(value: Option<&Value>) -> String {
         Some(Value::Bool(flag)) => flag.to_string(),
         Some(Value::Number(number)) => js_number_text(number.as_f64().unwrap_or(f64::NAN)),
         Some(Value::String(text)) => text.clone(),
-        Some(Value::Array(items)) => items.iter().map(|item| return js_text(Some(item))).collect::<Vec<String>>().join(","),
+        Some(Value::Array(items)) => {
+            let mut texts: Vec<String> = Vec::new();
+            for item in items {
+                texts.push(js_text(Some(item)));
+            }
+            texts.join(",")
+        }
         Some(Value::Object(_)) => String::from("[object Object]"),
     };
 }
@@ -131,8 +140,14 @@ pub fn read_answer(status: u16, raw: &str) -> Result<Judged, String> {
     if !(200..300).contains(&status) {
         return Err(format!("HTTP {status} {}", utf16_prefix(raw, FAILURE_EXCERPT_UNITS)));
     }
-    let parsed: Value = serde_json::from_str(raw).map_err(|error| return format!("the response is not JSON: {error}"))?;
-    let answer: Option<&Value> = parsed.get("answers").and_then(Value::as_array).and_then(|answers| return answers.first());
+    let parsed: Value = match serde_json::from_str(raw) {
+        Ok(value) => value,
+        Err(error) => return Err(format!("the response is not JSON: {error}")),
+    };
+    let answer: Option<&Value> = match parsed.get("answers").and_then(Value::as_array) {
+        Some(answers) => answers.first(),
+        None => None,
+    };
     let refused: bool = match answer {
         None | Some(Value::Null) => true,
         Some(value) => value.get("type").and_then(Value::as_str) == Some("refusal"),
@@ -150,10 +165,13 @@ pub fn read_answer(status: u16, raw: &str) -> Result<Judged, String> {
     };
     let scores: Vec<String> = match answer_value.get("probabilities") {
         None | Some(Value::Null) => Vec::new(),
-        Some(Value::Array(items)) => items
-            .iter()
-            .map(|one| return format!("{} {}", js_text(one.get("value")), js_text(one.get("probability"))))
-            .collect(),
+        Some(Value::Array(items)) => {
+            let mut pairs: Vec<String> = Vec::new();
+            for one in items {
+                pairs.push(format!("{} {}", js_text(one.get("value")), js_text(one.get("probability"))));
+            }
+            pairs
+        }
         Some(_) => return Err(String::from("the answer's probabilities are not a list")),
     };
     return Ok(Judged { outcome: format!("cost_verdict: {top} ({})", scores.join(" ")), top });

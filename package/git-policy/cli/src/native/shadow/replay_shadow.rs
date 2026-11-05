@@ -40,8 +40,8 @@ pub fn run_shadow_checked(
     environment: &[(OsString, OsString)],
 ) -> Result<GitOutput, GitFailure> {
     let mut request: GitRequest = shadow_request(shadow, cwd, arguments);
-    request.input = input.map(|bytes| { return bytes.to_vec(); });
-    request.index = index.map(|path| { return path.to_path_buf(); });
+    request.input = input.map(<[u8]>::to_vec);
+    request.index = index.map(Path::to_path_buf);
     request.environment = environment.to_vec();
     return run_git_checked(context, &request);
 }

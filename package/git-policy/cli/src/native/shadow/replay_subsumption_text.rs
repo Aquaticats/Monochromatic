@@ -82,7 +82,14 @@ fn empty_blob_for(
     cwd: &Path,
     candidates: &[SharedPath],
 ) -> Result<String, TextSubsumptionError> {
-    if !candidates.iter().any(|shared| { return shared.base.is_none(); }) {
+    let mut needs_empty_base: bool = false;
+    for shared in candidates {
+        if shared.base.is_none() {
+            needs_empty_base = true;
+            break;
+        }
+    }
+    if !needs_empty_base {
         return Ok(String::new());
     }
     let output = run_shadow_checked(
@@ -181,8 +188,40 @@ fn indexed_hunks(
         &[],
     )
     .map_err(TextSubsumptionError::Git)?;
-    return parse_indexed_patch(&output.stdout)
-        .map_err(|error| { return TextSubsumptionError::Format(error.0); });
+    return match parse_indexed_patch(&output.stdout) {
+        Ok(hunks) => Ok(hunks),
+        Err(error) => Err(TextSubsumptionError::Format(error.0)),
+    };
+}
+
+/// The bytes of a tree entry's blob in the batch; nothing for an absent entry, and empty bytes for a blob the batch did not return.
+fn blob_of(blobs: &HashMap<String, Vec<u8>>, entry: &Option<TreeEntry>) -> Option<Vec<u8>> {
+    let present: &TreeEntry = entry.as_ref()?;
+    return Some(blobs.get(&present.oid).cloned().unwrap_or_default());
+}
+
+/// The base side of a shared path.
+fn base_side(shared: &SharedPath) -> &Option<TreeEntry> {
+    return &shared.base;
+}
+
+/// The landed side of a shared path.
+fn landed_side(shared: &SharedPath) -> &Option<TreeEntry> {
+    return &shared.landed;
+}
+
+/// The prepared side of a shared path.
+fn prepared_side(shared: &SharedPath) -> &Option<TreeEntry> {
+    return &shared.prepared;
+}
+
+/// The object IDs of one side of every shared path, in order, with the empty blob standing for an absent side.
+fn side_oids(owned: &[SharedPath], empty_blob: &str, side: fn(&SharedPath) -> &Option<TreeEntry>) -> Vec<String> {
+    let mut oids: Vec<String> = Vec::new();
+    for shared in owned {
+        oids.push(side_oid(side(shared), empty_blob));
+    }
+    return oids;
 }
 
 /// What:
@@ -207,51 +246,57 @@ pub fn subsumed_text_paths(
     }
     let empty_blob: String = empty_blob_for(context, shadow, cwd, candidates)?;
     // Every present blob of every candidate, in candidate order.
-    let oids: Vec<String> = candidates
-        .iter()
-        .flat_map(|shared| { return [&shared.base, &shared.landed, &shared.prepared]; })
-        .filter_map(|entry| { return entry.as_ref().map(|present| { return present.oid.clone(); }); })
-        .collect();
+    let mut oids: Vec<String> = Vec::new();
+    for shared in candidates {
+        for entry in [&shared.base, &shared.landed, &shared.prepared] {
+            if let Some(present) = entry {
+                oids.push(present.oid.clone());
+            }
+        }
+    }
     let blobs: HashMap<String, Vec<u8>> = load_blob_batch(context, cwd, &oids, Some(object_directory))
         .map_err(TextSubsumptionError::Blob)?;
-    let blob_of = |entry: &Option<TreeEntry>| -> Option<Vec<u8>> {
-        return entry.as_ref().map(|present| { return blobs.get(&present.oid).cloned().unwrap_or_default(); });
-    };
     // Candidates whose present blobs are all text; a blob the batch did not return counts as binary.
-    let text: Vec<&SharedPath> = candidates
-        .iter()
-        .filter(|shared| {
-            return [&shared.base, &shared.landed, &shared.prepared].iter().all(|entry| {
-                let blob = entry.as_ref().map(|present| { return blobs.get(&present.oid); });
-                return match blob {
-                    None => true,
-                    Some(Some(bytes)) => !is_binary(bytes),
-                    Some(None) => false,
-                };
-            });
-        })
-        .collect();
-    if text.is_empty() {
+    let mut owned: Vec<SharedPath> = Vec::new();
+    for shared in candidates {
+        let mut all_text: bool = true;
+        for entry in [&shared.base, &shared.landed, &shared.prepared] {
+            let is_text: bool = match entry {
+                None => true,
+                Some(present) => match blobs.get(&present.oid) {
+                    Some(bytes) => !is_binary(bytes),
+                    None => false,
+                },
+            };
+            if !is_text {
+                all_text = false;
+                break;
+            }
+        }
+        if all_text {
+            owned.push(shared.clone());
+        }
+    }
+    if owned.is_empty() {
         return Ok(Vec::new());
     }
-    let owned: Vec<SharedPath> = text.iter().map(|shared| { return (*shared).clone(); }).collect();
     let base_tree: String = indexed_tree(
         context,
         shadow,
         cwd,
-        &owned.iter().map(|shared| { return side_oid(&shared.base, &empty_blob); }).collect::<Vec<String>>(),
+        &side_oids(&owned, &empty_blob, base_side),
     )?;
     let landed_tree: String = indexed_tree(
         context,
         shadow,
         cwd,
-        &owned.iter().map(|shared| { return side_oid(&shared.landed, &empty_blob); }).collect::<Vec<String>>(),
+        &side_oids(&owned, &empty_blob, landed_side),
     )?;
     let prepared_tree: String = indexed_tree(
         context,
         shadow,
         cwd,
-        &owned.iter().map(|shared| { return side_oid(&shared.prepared, &empty_blob); }).collect::<Vec<String>>(),
+        &side_oids(&owned, &empty_blob, prepared_side),
     )?;
     let strict: BTreeMap<Vec<u8>, Vec<PatchHunk>> =
         indexed_hunks(context, shadow, cwd, &base_tree, &landed_tree, STRICT_CONTEXT)?;
@@ -263,8 +308,8 @@ pub fn subsumed_text_paths(
     let mut subsumed: Vec<String> = Vec::new();
     for (index, shared) in owned.iter().enumerate() {
         let name: Vec<u8> = index.to_string().into_bytes();
-        let prepared_bytes: Vec<u8> = blob_of(&shared.prepared).unwrap_or_default();
-        let base_bytes: Vec<u8> = blob_of(&shared.base).unwrap_or_default();
+        let prepared_bytes: Vec<u8> = blob_of(&blobs, &shared.prepared).unwrap_or_default();
+        let base_bytes: Vec<u8> = blob_of(&blobs, &shared.base).unwrap_or_default();
         let strict_hunks: &[PatchHunk] = strict.get(&name).map(Vec::as_slice).unwrap_or_default();
         let landed_hunks: &[PatchHunk] = landed_zero.get(&name).map(Vec::as_slice).unwrap_or_default();
         let prepared_hunks: &[PatchHunk] = prepared_zero.get(&name).map(Vec::as_slice).unwrap_or_default();

@@ -81,6 +81,21 @@ const HUNK_HEADER: &[u8] = b"@@ -";
 /// Marker of a `\ No newline at end of file` line.
 const INCOMPLETE_MARKER: u8 = b'\\';
 
+/// Whether one byte is the line feed that ends a line. `&u8` borrows the byte, as `position` hands it over.
+fn is_line_feed_byte(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// Whether one byte is the comma that separates the start of a hunk range from its count. `&u8` borrows the byte.
+fn is_comma_byte(byte: &u8) -> bool {
+    return *byte == b',';
+}
+
+/// Whether one byte is the space that separates the parts of a hunk or section header. `&u8` borrows the byte.
+fn is_space_byte(byte: &u8) -> bool {
+    return *byte == b' ';
+}
+
 /// What:
 ///  Split bytes into lines,
 ///       each keeping its newline;
@@ -98,7 +113,7 @@ pub fn split_keeping_newlines(text: &[u8]) -> Vec<Vec<u8>> {
     let mut lines: Vec<Vec<u8>> = Vec::new();
     let mut start: usize = 0;
     while start < text.len() {
-        let stop: usize = match text[start..].iter().position(|byte| { return *byte == b'\n'; }) {
+        let stop: usize = match text[start..].iter().position(is_line_feed_byte) {
             Some(offset) => start + offset + 1,
             None => text.len(),
         };
@@ -120,7 +135,7 @@ pub fn split_keeping_newlines(text: &[u8]) -> Vec<Vec<u8>> {
 /// Number(text) // must be a safe integer
 /// ```
 fn parse_number(text: &[u8]) -> Option<i64> {
-    if text.is_empty() || !text.iter().all(|byte| { return byte.is_ascii_digit(); }) {
+    if text.is_empty() || !text.iter().all(u8::is_ascii_digit) {
         return None;
     }
     // `to_str` is safe here: every byte is an ASCII digit.
@@ -141,7 +156,7 @@ fn parse_number(text: &[u8]) -> Option<i64> {
 /// ```
 fn parse_range(range: &[u8]) -> Result<(i64, i64), ReplayPatchFormatError> {
     let body: &[u8] = &range[1..];
-    let (start_text, count_text): (&[u8], &[u8]) = match body.iter().position(|byte| { return *byte == b','; }) {
+    let (start_text, count_text): (&[u8], &[u8]) = match body.iter().position(is_comma_byte) {
         Some(comma) => (&body[..comma], &body[comma + 1..]),
         None => (body, b"1"),
     };
@@ -203,7 +218,7 @@ fn parse_hunk(lines: &[Vec<u8>], start: usize) -> Result<(PatchHunk, usize), Rep
         }
     };
     let ranges: &[u8] = &header[3..end];
-    let (old_range, new_range): (&[u8], &[u8]) = match ranges.iter().position(|byte| { return *byte == b' '; }) {
+    let (old_range, new_range): (&[u8], &[u8]) = match ranges.iter().position(is_space_byte) {
         Some(space) => (&ranges[..space], &ranges[space + 1..]),
         None => {
             return Err(ReplayPatchFormatError(format!(
@@ -244,7 +259,11 @@ fn parse_hunk(lines: &[Vec<u8>], start: usize) -> Result<(PatchHunk, usize), Rep
         let text: Vec<u8> = if line == b"\n" { b"\n".to_vec() } else { line[1..].to_vec() };
         parsed.push(PatchLine { op: marker, text });
     }
-    if lines.get(cursor).is_some_and(|line| { return line.starts_with(b"\\"); }) {
+    let marks_missing_newline: bool = match lines.get(cursor) {
+        Some(line) => line.starts_with(b"\\"),
+        None => false,
+    };
+    if marks_missing_newline {
         mark_incomplete(&mut parsed)?;
         cursor += 1;
     }
@@ -293,7 +312,12 @@ fn find_bytes(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
     if haystack.len() < needle.len() {
         return None;
     }
-    return (from..=haystack.len() - needle.len()).find(|index| { return &haystack[*index..*index + needle.len()] == needle; });
+    for index in from..=haystack.len() - needle.len() {
+        if &haystack[index..index + needle.len()] == needle {
+            return Some(index);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -331,7 +355,7 @@ pub fn parse_indexed_patch(
             }
             hunks.clear();
             let rest: &[u8] = &line[SECTION_HEADER.len()..];
-            let name_end: usize = match rest.iter().position(|byte| { return *byte == b' '; }) {
+            let name_end: usize = match rest.iter().position(is_space_byte) {
                 Some(space) => space,
                 None => {
                     return Err(ReplayPatchFormatError(format!(

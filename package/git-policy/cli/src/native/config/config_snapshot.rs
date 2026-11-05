@@ -110,7 +110,7 @@ fn plain_decimal(text: &str) -> Option<u32> {
     if !(b'1'..=b'9').contains(&first) || text.len() > DECIMAL_DIGITS_LIMIT {
         return None;
     }
-    if !text.bytes().all(|byte| { return byte.is_ascii_digit(); }) {
+    if !text.as_bytes().iter().all(u8::is_ascii_digit) {
         return None;
     }
     return text.parse::<u32>().ok();
@@ -161,7 +161,8 @@ pub fn canonical_bool(value: Option<&[u8]>) -> Option<bool> {
     if let Some(word) = boolean_word(text) {
         return Some(word);
     }
-    return plain_decimal(text).map(|number| { return number != 0; });
+    let number: u32 = plain_decimal(text)?;
+    return Some(number != 0);
 }
 
 /// What:
@@ -185,7 +186,8 @@ pub fn canonical_bool_or_int(value: Option<&[u8]>) -> Option<String> {
     if let Some(word) = boolean_word(text) {
         return Some(String::from(if word { "true" } else { "false" }));
     }
-    return plain_decimal(text).map(|number| { return number.to_string(); });
+    let number: u32 = plain_decimal(text)?;
+    return Some(number.to_string());
 }
 
 /// What:
@@ -217,13 +219,61 @@ pub fn plain_path(value: Option<&[u8]>) -> Option<String> {
 /// const at = record.indexOf(0x0a); at < 0 ? [record, undefined] : [record.slice(0, at), record.slice(at + 1)];
 /// ```
 fn split_record(record: &[u8]) -> (&[u8], Option<&[u8]>) {
-    return match record.iter().position(|byte| { return *byte == b'\n'; }) {
+    return match record.iter().position(is_line_feed_byte) {
         Some(newline) => (&record[..newline], Some(&record[newline + 1..])),
         None => (record, None),
     };
 }
 
+/// What:
+///  Whether one byte is the line feed that separates a key from its value in one record.
+///  `&u8` borrows the byte, as `position` hands it over.
+/// Why:
+///   `position` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isLineFeedByte = (byte: number) => byte === '\n'.charCodeAt(0);
+/// ```
+fn is_line_feed_byte(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
+///  Whether one byte is the NUL byte that ends each field of the listing.
+///  `&u8` borrows the byte, as `split` hands it over.
+/// Why:
+///   `split` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNulByte = (byte: number) => byte === 0;
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
 impl ConfigSnapshot {
+    /// What:
+    ///  The last entry whose key is exactly `key`, or `None` when no entry has it.
+    ///  `Option<&ConfigEntry>` is "a borrowed entry, or no answer".
+    /// Why:
+    ///   Git uses the last value of a key, and four readers ask for it, so one loop from the end answers them all
+    ///  where closures given to `rfind` and `any` stood.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// this.entries.findLast((entry) => entry.key === key);
+    /// ```
+    fn last_entry_named(&self, key: &str) -> Option<&ConfigEntry> {
+        for entry in self.entries.iter().rev() {
+            if entry.key == key {
+                return Some(entry);
+            }
+        }
+        return None;
+    }
+
     /// What:
     ///  Parse the bytes of `git config --list -z --show-scope`.
     /// Why:
@@ -240,7 +290,7 @@ impl ConfigSnapshot {
             return Some(Self { entries, without_global_options });
         }
         let body: &[u8] = listing.strip_suffix(&[0])?;
-        let mut fields = body.split(|byte| { return *byte == 0; });
+        let mut fields = body.split(is_nul_byte);
         while let Some(scope) = fields.next() {
             let record: &[u8] = fields.next()?;
             let (key, value): (&[u8], Option<&[u8]>) = split_record(record);
@@ -269,7 +319,7 @@ impl ConfigSnapshot {
     /// const value = entries('core.fsync').at(-1); // undefined: the default
     /// ```
     pub fn fsync_components(&self) -> Option<FsyncComponents> {
-        let Some(entry) = self.entries.iter().rfind(|entry| { return entry.key == "core.fsync"; }) else { return Some(FsyncComponents::default_set()) };
+        let Some(entry) = self.last_entry_named("core.fsync") else { return Some(FsyncComponents::default_set()) };
         let value: &str = std::str::from_utf8(entry.value.as_deref()?).ok()?;
         return Some(FsyncComponents::parse(value));
     }
@@ -306,7 +356,7 @@ impl ConfigSnapshot {
     pub fn import_fsync_value(&self) -> Option<String> {
         let set: FsyncComponents = self.fsync_components()?;
         // The deprecated switch makes Git flush every loose object file; a value that is not a plain boolean is not modelled.
-        let legacy = self.entries.iter().rfind(|entry| { return entry.key == "core.fsyncobjectfiles"; });
+        let legacy = self.last_entry_named("core.fsyncobjectfiles");
         let legacy_flush: bool = match legacy {
             None => false,
             Some(entry) => canonical_bool(entry.value.as_deref())?,
@@ -365,7 +415,10 @@ impl ConfigSnapshot {
         convert: impl Fn(Option<&[u8]>) -> Option<Value>,
     ) -> Lookup<Value> {
         let mut last: Lookup<Value> = Lookup::Unset;
-        for entry in self.entries.iter().filter(|candidate| { return candidate.key == key; }) {
+        for entry in &self.entries {
+            if entry.key != key {
+                continue;
+            }
             match convert(entry.value.as_deref()) {
                 Some(converted) => last = Lookup::Found(converted),
                 None => return Lookup::Unhandled,
@@ -436,8 +489,7 @@ impl ConfigSnapshot {
     /// snapshot.withoutGlobalOptions && !snapshot.entries.some((entry) => entry.key === 'extensions.refstorage');
     /// ```
     pub fn proves_files_ref_storage(&self) -> bool {
-        return self.without_global_options
-            && !self.entries.iter().any(|entry| { return entry.key == "extensions.refstorage"; });
+        return self.without_global_options && self.last_entry_named("extensions.refstorage").is_none();
     }
 }
 

@@ -25,6 +25,10 @@
 //! // for (const candidate of prepared.version.candidates) await prepared.store.bytes(candidate);
 //! ```
 
+/// The size of a pathspec chunk, kept in a file of its own so that sibling files share it without importing each other.
+use crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE;
+/// Running Git for a prediction, and the path of the real index.
+use crate::candidate_prediction_git_runs::{real_index_path, run_git};
 /// Import the layer's failure type and its closed list of causes.
 use crate::candidate_attribute::{AttributeSource, CandidateAttributes};
 use crate::candidate_error::{CandidateError, CandidateFailure};
@@ -43,10 +47,7 @@ use crate::candidate_store::CandidateStore;
 /// Import the immutable version type.
 use crate::candidate_version::{CandidateSource, CandidateVersion};
 /// Import the captured-query runner and its byte helpers.
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git, strip_git_line};
-/// The in-process repository layout, tried before the `rev-parse --git-path` query.
-use crate::git_system_config::with_real_git;
-use crate::repo_read_layout::{git_path, read_layout};
+use crate::git_metadata::path_from_git_bytes;
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -69,26 +70,6 @@ use std::rc::Rc;
 
 /// The environment variable that points Git at a different index file.
 pub const INDEX_FILE_VARIABLE: &str = "GIT_INDEX_FILE";
-
-/// What:
-///  The most pathspecs one `git diff-index` receives.
-///  `usize` is the type of counts.
-/// Why:
-///   The installed wrapper passes candidate paths 2,048 at a time
-///       (`commit-transaction-candidate-batch.ts`),
-///  far below any platform's argument
-///       limit;
-///  one process per 2,048 changed paths keeps the count bounded.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const PATHSPEC_CHUNK_SIZE = 2_048;
-/// ```
-///  Exempt from a citation under `LQM` (class: chunk size): it splits one command into several starts of the same
-///  command, so the result is the same and only the number of starts changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
-///  open to the owner's veto.
-pub const PATHSPEC_CHUNK_SIZE: usize = 2_048;
 
 /// What:
 ///  What a lifecycle asks for.
@@ -200,136 +181,6 @@ pub struct PreparedCandidates {
     /// Kept only so the private directory lives as long as the store;
     ///  never read.
     _private: PrivateIndex,
-}
-
-/// What:
-///  Build the failure of a Git command a prediction ran.
-///       `&MetadataOutput` borrows the captured run;
-///  `None` means Git could not be started.
-/// Why:
-///   A failed replay is reported with Git's own message,
-///  so the person sees why the
-///       command they typed could not be staged.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function predictionFailure(purpose: string, operation: string, output?: GitOutput, error?: Error): CandidateError;
-/// ```
-fn command_failure(purpose: &str, operation: &str, output: &MetadataOutput) -> CandidateError {
-    // `String::from_utf8_lossy` decodes Git's message for display, replacing invalid bytes.
-    return CandidateError::new(
-        CandidateFailure::GitFailed,
-        format!(
-            "cli-git could not {purpose}: git {operation} failed: {}",
-            String::from_utf8_lossy(output.stderr.as_slice()).trim()
-        )
-        .as_str(),
-    );
-}
-
-/// What:
-///  Build the failure of a Git command that could not be started.
-/// Why:
-///   Without Git there is nothing to predict,
-///  and the person needs the reason.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function notStarted(purpose: string, operation: string, error: Error): CandidateError;
-/// ```
-fn not_started(purpose: &str, operation: &str, error: &std::io::Error) -> CandidateError {
-    return CandidateError::new(
-        CandidateFailure::GitNotStarted,
-        format!("cli-git could not {purpose}: git {operation} could not be started: {error}.")
-            .as_str(),
-    );
-}
-
-/// What:
-///  Run one Git command of a prediction and return its output when it succeeded.
-///       `&[OsString]` borrows the global prefix and the command separately.
-/// Why:
-///   The prefix selects the same repository the caller's command selects;
-///  the
-///       command follows it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function runGit(git, prefix, command, overlay, purpose): Promise<GitOutput>;
-/// ```
-fn run_git(
-    real_git: &Path,
-    prefix: &[OsString],
-    command: &[OsString],
-    overlay: &[(OsString, OsString)],
-    purpose: &str,
-) -> Result<MetadataOutput, CandidateError> {
-    // `.to_vec()` copies the borrowed prefix; `.extend_from_slice(..)` appends the command.
-    let mut arguments: Vec<OsString> = prefix.to_vec();
-    arguments.extend_from_slice(command);
-    // The operation named in messages is the command's first word, `add` or `rev-parse`.
-    let operation: String = match command.first() {
-        Some(word) => word.to_string_lossy().into_owned(),
-        None => String::from("(no command)"),
-    };
-    // `match` on the start result: `Err(error)` means Git could not be started at all.
-    let output: MetadataOutput = match run_metadata_git(real_git, arguments.as_slice(), overlay) {
-        Ok(captured) => captured,
-        Err(error) => return Err(not_started(purpose, operation.as_str(), &error)),
-    };
-    if !output.success {
-        return Err(command_failure(purpose, operation.as_str(), &output));
-    }
-    return Ok(output);
-}
-
-/// What:
-///  The absolute path of the index the caller's command would use.
-/// Why:
-///   Git answers for `GIT_INDEX_FILE`,
-///  a linked worktree's own index and
-///       `--git-dir`,
-///  so the copy is of exactly the index `git add` would change.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function realIndexPath(git, prefix, overlay): Promise<string>;
-/// ```
-fn real_index_path(
-    real_git: &Path,
-    prefix: &[OsString],
-    overlay: &[(OsString, OsString)],
-    purpose: &str,
-) -> Result<PathBuf, CandidateError> {
-    // A plain layout names the index without a Git process.
-    if let Some(path) = read_layout(prefix, with_real_git(overlay, real_git).as_slice()).as_ref().and_then(|layout| { return git_path(layout, "index"); }) {
-        return Ok(path);
-    }
-    let output: MetadataOutput = run_git(
-        real_git,
-        prefix,
-        &[
-            OsString::from("rev-parse"),
-            OsString::from("--path-format=absolute"),
-            OsString::from("--git-path"),
-            OsString::from("index"),
-        ],
-        overlay,
-        purpose,
-    )?;
-    // `match` unpacks "a path or nothing": empty output names no index.
-    match path_from_git_bytes(strip_git_line(output.stdout.as_slice())) {
-        Some(path) => return Ok(path),
-        None => {
-            return Err(CandidateError::new(
-                CandidateFailure::ListingMalformed,
-                format!(
-                    "cli-git could not {purpose}: git rev-parse --git-path index printed no path."
-                )
-                .as_str(),
-            ));
-        }
-    }
 }
 
 /// What:
@@ -507,9 +358,10 @@ fn note_listing(
     source: &ObjectId,
 ) {
     for record in listed {
-        listed_from
-            .entry(record.path.clone())
-            .or_insert_with(|| { return source.clone(); });
+        // The source is cloned only for a path not yet listed, as `or_insert_with` ran its closure.
+        if let std::collections::hash_map::Entry::Vacant(slot) = listed_from.entry(record.path.clone()) {
+            slot.insert(source.clone());
+        }
     }
 }
 

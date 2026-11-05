@@ -22,6 +22,8 @@ use crate::conclusion_cleanup::{
 use crate::private_storage::{create_private_directory, write_private_file};
 /// Optional reads that treat a missing entry as absent.
 use crate::recovery_files::{path_present, read_optional};
+/// The error of a recovery-file read, whose text becomes a Git failure.
+use crate::recovery_error::RecoveryError;
 /// JSON object writer for the store-held record.
 use crate::json_record::ObjectWriter;
 /// The shadow ref helper and the process context.
@@ -31,6 +33,41 @@ use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked
 use crate::transaction_journal::RefFormat;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
+
+/// What:
+///  Turns the result of one filesystem step into a Git failure that names the step.
+///  `std::io::Result<T>` is "the value, or an input/output error".
+/// Why:
+///   Every step of `copy_conclusion_state` reports its failure as `<step> failed: <error>`, and a named function
+///  stands where a closure that built that failure stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ioStep<T>(step: string, attempt: () => T): T; // throws GitFailure(`${step} failed: ${error}`)
+/// ```
+fn io_step<T>(step: &str, result: std::io::Result<T>) -> Result<T, GitFailure> {
+    return match result {
+        Ok(value) => Ok(value),
+        Err(error) => Err(GitFailure(format!("{step} failed: {error}"))),
+    };
+}
+
+/// What:
+///  Turns the result of one recovery-file read into a Git failure that carries the recovery error's text.
+/// Why:
+///   Reads of optional and present entries report their failure the same way, and a named function stands where a
+///  closure that unwrapped the error text stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function recoveryStep<T>(attempt: () => T): T; // throws GitFailure(error.message)
+/// ```
+fn recovery_step<T>(result: Result<T, RecoveryError>) -> Result<T, GitFailure> {
+    return match result {
+        Ok(value) => Ok(value),
+        Err(error) => Err(GitFailure(error.0)),
+    };
+}
 
 /// What:
 ///  Copies a directory tree, keeping links as links.
@@ -94,9 +131,8 @@ pub fn copy_conclusion_state(
     transaction_directory: &Path,
     ref_format: RefFormat,
 ) -> Result<(), GitFailure> {
-    let io = |step: &str, error: std::io::Error| { return GitFailure(format!("{step} failed: {error}")); };
     let copies: PathBuf = transaction_directory.join(CONCLUSION_COPY_DIRECTORY);
-    create_private_directory(copies.as_path()).map_err(|error| { return io("creating the conclusion copies", error); })?;
+    io_step("creating the conclusion copies", create_private_directory(copies.as_path()))?;
     // Store-held values in the order of the copied names, as the incumbent's JSON record lists them.
     let mut store_held: ObjectWriter = ObjectWriter::new();
     for name in CONCLUSION_STATE_FILES {
@@ -110,28 +146,33 @@ pub fn copy_conclusion_state(
             }
             continue;
         }
-        let Some(bytes) = read_optional(git_dir.join(name).as_path())
-            .map_err(|error| { return GitFailure(error.0); })?
-        else {
+        let Some(bytes) = recovery_step(read_optional(git_dir.join(name).as_path()))? else {
             continue;
         };
-        write_private_file(shadow.join(name).as_path(), bytes.as_slice())
-            .map_err(|error| { return io("copying a conclusion entry into the shadow", error); })?;
-        write_private_file(copies.join(name).as_path(), bytes.as_slice())
-            .map_err(|error| { return io("copying a conclusion entry for comparison", error); })?;
+        io_step(
+            "copying a conclusion entry into the shadow",
+            write_private_file(shadow.join(name).as_path(), bytes.as_slice()),
+        )?;
+        io_step(
+            "copying a conclusion entry for comparison",
+            write_private_file(copies.join(name).as_path(), bytes.as_slice()),
+        )?;
     }
     let record: String = store_held.finish();
-    write_private_file(
-        copies.join(STORE_RECORD_FILENAME).as_path(),
-        format!("{record}\n").as_bytes(),
-    )
-    .map_err(|error| { return io("writing the store-held record", error); })?;
+    io_step(
+        "writing the store-held record",
+        write_private_file(copies.join(STORE_RECORD_FILENAME).as_path(), format!("{record}\n").as_bytes()),
+    )?;
     let sequencer: PathBuf = git_dir.join(SEQUENCER_DIRECTORY);
-    if path_present(sequencer.as_path()).map_err(|error| { return GitFailure(error.0); })? {
-        copy_tree(sequencer.as_path(), shadow.join(SEQUENCER_DIRECTORY).as_path())
-            .map_err(|error| { return io("copying the sequencer into the shadow", error); })?;
-        copy_tree(sequencer.as_path(), copies.join(SEQUENCER_DIRECTORY).as_path())
-            .map_err(|error| { return io("copying the sequencer for comparison", error); })?;
+    if recovery_step(path_present(sequencer.as_path()))? {
+        io_step(
+            "copying the sequencer into the shadow",
+            copy_tree(sequencer.as_path(), shadow.join(SEQUENCER_DIRECTORY).as_path()),
+        )?;
+        io_step(
+            "copying the sequencer for comparison",
+            copy_tree(sequencer.as_path(), copies.join(SEQUENCER_DIRECTORY).as_path()),
+        )?;
     }
     return Ok(());
 }

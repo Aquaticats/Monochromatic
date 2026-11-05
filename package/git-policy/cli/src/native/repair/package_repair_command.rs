@@ -133,7 +133,10 @@ pub fn find_program(name: &str, search_path: Option<&OsStr>) -> Option<PathBuf> 
             continue;
         }
         let candidate: PathBuf = directory.join(name);
-        let runnable: bool = std::fs::metadata(&candidate).is_ok_and(|found: std::fs::Metadata| { return found.is_file() && found.permissions().mode() & 0o111 != 0; });
+        let runnable: bool = match std::fs::metadata(&candidate) {
+            Ok(found) => found.is_file() && found.permissions().mode() & 0o111 != 0,
+            Err(_) => false,
+        };
         if runnable {
             return Some(candidate);
         }
@@ -154,12 +157,22 @@ fn tail_of(bytes: &[u8]) -> String {
     let cut: usize = bytes.len().saturating_sub(OUTPUT_TAIL_BYTES);
     let text: String = String::from_utf8_lossy(&bytes[cut..]).into_owned();
     // Lines that only say a tool waited for another process say nothing about why it failed.
-    let informative: String = text.lines().filter(|line: &&str| { return !line.trim_start().starts_with("Blocking waiting for file lock"); }).collect::<Vec<&str>>().join("\n");
+    let mut informative_lines: Vec<&str> = Vec::new();
+    for line in text.lines() {
+        if !line.trim_start().starts_with("Blocking waiting for file lock") {
+            informative_lines.push(line);
+        }
+    }
+    let informative: String = informative_lines.join("\n");
     let trimmed: &str = informative.trim();
     if cut == 0 {
         return trimmed.to_owned();
     }
-    return trimmed.split_once('\n').map_or(trimmed, |(_ragged, rest): (&str, &str)| { return rest; }).trim().to_owned();
+    let whole_lines: &str = match trimmed.split_once('\n') {
+        Some((_ragged, rest)) => rest,
+        None => trimmed,
+    };
+    return whole_lines.trim().to_owned();
 }
 
 /// What:
@@ -199,7 +212,26 @@ fn describe_status(status: std::process::ExitStatus) -> String {
 /// async function runTool(program: string, command: ToolCommand, limits: { windowMs: number; ceilingMs: number }): Promise<ToolRun>;
 /// ```
 pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> ToolRun {
-    return run_tool_reaping(program, command, limits, &|leader: Child, _captured: &Capture| { return reap_within(leader, crate::bounded_push::STOP_GRACE); });
+    return run_tool_reaping(program, command, limits, &reap_within_stop_grace);
+}
+
+/// What:
+///  Reap a stopped leader within the push stop grace; whether it was reaped.
+/// Why:
+///   `run_tool` stops a leader the usual way, and a named function stands where a closure that ignored the captured
+///  output stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reapWithinStopGrace = (leader: Child, _captured: Capture) => reapWithin(leader, STOP_GRACE);
+/// ```
+fn reap_within_stop_grace(leader: Child, _captured: &Capture) -> bool {
+    return reap_within(leader, crate::bounded_push::STOP_GRACE);
+}
+
+/// The run of a tool that never started because the files for its output could not be made.
+fn no_place_for_output(program: &Path, started: Instant, error: &std::io::Error) -> ToolRun {
+    return ToolRun { end: ToolEnd::Failed(format!("{} could not be started: no place for its output ({error})", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() };
 }
 
 /// `run_tool` with the reaper of a stopped leader given: a control sees that the stop path reaps through it.
@@ -209,12 +241,15 @@ pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimit
     let mut starting: Command = Command::new(program);
     // The output goes to anonymous files and not to pipes: a helper that keeps an inherited stream open after the tool has exited, or
     // that left the process group while holding it, then holds nothing up, because no thread waits for a stream to close.
-    let captured: Capture = match Capture::new().and_then(|files| { return files.stdio().map(|streams| { return (files, streams); }); }) {
-        Ok((files, (out, err))) => {
-            starting.stdout(out).stderr(err);
-            files
-        }
-        Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not be started: no place for its output ({error})", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() },
+    let captured: Capture = match Capture::new() {
+        Ok(files) => match files.stdio() {
+            Ok((out, err)) => {
+                starting.stdout(out).stderr(err);
+                files
+            }
+            Err(error) => return no_place_for_output(program, started, &error),
+        },
+        Err(error) => return no_place_for_output(program, started, &error),
     };
     starting.args(&command.arguments).current_dir(&command.directory).stdin(Stdio::null()).process_group(0);
     for (name, value) in &command.set {
@@ -329,7 +364,10 @@ fn reap_within(mut child: Child, budget: Duration) -> bool {
 /// [basename(program), args[0]].filter(Boolean).join(' ')
 /// ```
 fn tool_step(program: &Path, command: &ToolCommand) -> String {
-    let name: String = program.file_name().map_or_else(String::new, |file| { return file.to_string_lossy().into_owned(); });
+    let name: String = match program.file_name() {
+        Some(file) => file.to_string_lossy().into_owned(),
+        None => String::new(),
+    };
     return match command.arguments.first() {
         Some(first) => format!("{name} {}", first.to_string_lossy()),
         None => name,

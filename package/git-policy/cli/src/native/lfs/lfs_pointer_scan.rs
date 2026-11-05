@@ -84,10 +84,15 @@ impl Scan<'_> {
         if Instant::now() >= self.deadline {
             return None;
         }
-        if parents.iter().any(|parent| {
-            return parent.as_slice() == tree;
-        }) || !self.seen_trees.insert([vec![tree.to_vec()], parents.to_vec()].concat())
-        {
+        let mut parent_is_tree: bool = false;
+        for parent in parents {
+            if parent.as_slice() == tree {
+                parent_is_tree = true;
+                break;
+            }
+        }
+        // The pair is recorded as seen only when no parent is the tree itself, as `||` stopped at the first true side.
+        if parent_is_tree || !self.seen_trees.insert([vec![tree.to_vec()], parents.to_vec()].concat()) {
             return Some(());
         }
         let entries = self.tree(tree)?;
@@ -99,33 +104,50 @@ impl Scan<'_> {
             if entry.mode == MODE_GITLINK {
                 continue;
             }
-            let counterparts: Vec<&crate::repo_read_tree::TreeEntry> = parent_entries
-                .iter()
-                .filter_map(|list| {
-                    return list.iter().find(|candidate| {
-                        return candidate.name == entry.name;
-                    });
-                })
-                .collect();
+            // The entry of the same name in each parent that has one, in parent order.
+            let mut counterparts: Vec<&crate::repo_read_tree::TreeEntry> = Vec::new();
+            for list in &parent_entries {
+                for candidate in list {
+                    if candidate.name == entry.name {
+                        counterparts.push(candidate);
+                        break;
+                    }
+                }
+            }
             if is_tree_mode(entry.mode) {
-                let below: Vec<Vec<u8>> = counterparts
-                    .iter()
-                    .filter(|other| {
-                        return is_tree_mode(other.mode);
-                    })
-                    .map(|other| {
-                        return other.id.clone();
-                    })
-                    .collect();
+                let mut below: Vec<Vec<u8>> = Vec::new();
+                for other in &counterparts {
+                    if is_tree_mode(other.mode) {
+                        below.push(other.id.clone());
+                    }
+                }
                 self.compare(entry.id.as_slice(), below.as_slice())?;
-            } else if !counterparts.iter().any(|other| {
-                return other.id == entry.id && !is_tree_mode(other.mode);
-            }) {
-                self.candidates.insert(entry.id.clone());
+            } else {
+                let mut held_by_a_parent: bool = false;
+                for other in &counterparts {
+                    if other.id == entry.id && !is_tree_mode(other.mode) {
+                        held_by_a_parent = true;
+                        break;
+                    }
+                }
+                if !held_by_a_parent {
+                    self.candidates.insert(entry.id.clone());
+                }
             }
         }
         return Some(());
     }
+}
+
+/// Whether one byte is the line feed that ends a line of a commit. `&u8` borrows the byte, as `split` hands it over.
+fn is_line_feed_byte(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// Whether one byte is the `>` that closes the email address of a committer line. `&u8` borrows the byte, as
+///  `rposition` hands it over.
+fn is_closing_angle_byte(byte: &u8) -> bool {
+    return *byte == b'>';
 }
 
 /// How many commits are still popped after only known commits remain queued, because committer times can run backwards.
@@ -133,17 +155,23 @@ const CLOCK_SKEW_SLOP: usize = 5;
 
 /// The committer time in seconds of a commit object's content.
 fn committer_time(bytes: &[u8]) -> Option<i64> {
-    let header_end: usize = bytes.windows(2).position(|pair| {
-        return pair == b"\n\n";
-    })?;
-    let line: &[u8] = bytes[..header_end].split(|byte| {
-        return *byte == b'\n';
-    }).find(|line| {
-        return line.starts_with(b"committer ");
-    })?;
-    let after_email: &[u8] = &line[line.iter().rposition(|byte| {
-        return *byte == b'>';
-    })? + 1..];
+    let mut header_end_found: Option<usize> = None;
+    for (position, pair) in bytes.windows(2).enumerate() {
+        if pair == b"\n\n" {
+            header_end_found = Some(position);
+            break;
+        }
+    }
+    let header_end: usize = header_end_found?;
+    let mut committer_line: Option<&[u8]> = None;
+    for line in bytes[..header_end].split(is_line_feed_byte) {
+        if line.starts_with(b"committer ") {
+            committer_line = Some(line);
+            break;
+        }
+    }
+    let line: &[u8] = committer_line?;
+    let after_email: &[u8] = &line[line.iter().rposition(is_closing_angle_byte)? + 1..];
     let text: &str = std::str::from_utf8(after_email).ok()?;
     return text.split_whitespace().next()?.parse::<i64>().ok();
 }
@@ -248,14 +276,13 @@ fn new_commits(scan: &mut Scan<'_>, include: &[Vec<u8>], stop: &[Vec<u8>]) -> Op
             slop = 0;
         }
     }
-    return Some(
-        listed
-            .into_iter()
-            .filter(|name| {
-                return !walk.known.get(name.as_slice()).copied().unwrap_or(false);
-            })
-            .collect(),
-    );
+    let mut unknown: Vec<Vec<u8>> = Vec::new();
+    for name in listed {
+        if !walk.known.get(name.as_slice()).copied().unwrap_or(false) {
+            unknown.push(name);
+        }
+    }
+    return Some(unknown);
 }
 
 /// What:

@@ -67,6 +67,17 @@ pub struct ReleaseBump {
     pub to: String,
 }
 
+/// What: Whether one UTF-16 code unit is the dot `.`. `&u16` borrows the unit, as `split` hands it over.
+/// Why:  `split` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isDotUnit = (unit: number) => unit === DOT;
+/// ```
+fn is_dot_unit(unit: &u16) -> bool {
+    return *unit == DOT;
+}
+
 /// What: Whether one component is a non-empty run of ASCII digits without a leading zero.
 ///       `&[u16]` borrows code units.
 /// Why:  Semantic versioning's numeric identifiers; `0` alone is allowed.
@@ -76,10 +87,13 @@ pub struct ReleaseBump {
 /// function isReleaseComponent(text: string): boolean;
 /// ```
 fn is_release_component(component: &[u16]) -> bool {
-    let digits: bool = !component.is_empty()
-        && component
-            .iter()
-            .all(|unit: &u16| return (u16::from(b'0')..=u16::from(b'9')).contains(unit));
+    let mut digits: bool = !component.is_empty();
+    for unit in component {
+        if !(u16::from(b'0')..=u16::from(b'9')).contains(unit) {
+            digits = false;
+            break;
+        }
+    }
     return digits && !(component.len() > 1 && component[0] == u16::from(b'0'));
 }
 
@@ -110,11 +124,11 @@ fn increment_decimal(digits: &[u16]) -> String {
         result.push(b'1');
     }
     // `.rev()` restores most-significant-first order; `char::from` widens each byte.
-    return result
-        .iter()
-        .rev()
-        .map(|byte: &u8| return char::from(*byte))
-        .collect();
+    let mut text: String = String::new();
+    for byte in result.iter().rev() {
+        text.push(char::from(*byte));
+    }
+    return text;
 }
 
 /// What: Bump the patch component of a plain release version.
@@ -125,7 +139,7 @@ fn increment_decimal(digits: &[u16]) -> String {
 /// function patchBumpVersion({ name, version }): string; // throws UnsupportedVersionError
 /// ```
 pub fn patch_bump_version(name: &str, version: &[u16]) -> Result<ReleaseBump, UnsupportedVersion> {
-    let components: Vec<&[u16]> = version.split(|unit: &u16| return *unit == DOT).collect();
+    let components: Vec<&[u16]> = version.split(is_dot_unit).collect();
     let [major, minor, patch] = components.as_slice() else {
         return Err(UnsupportedVersion {
             name: String::from(name),

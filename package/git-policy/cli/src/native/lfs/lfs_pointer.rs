@@ -37,22 +37,39 @@ pub enum Verdict {
     Decline,
 }
 
+/// Whether one byte is the line feed that ends a line of a pointer. `&u8` borrows the byte, as `split` hands it over.
+fn is_line_feed_byte(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// Whether one byte is the space that separates a key of a pointer from its value. `&u8` borrows the byte, as
+///  `position` hands it over.
+fn is_space_byte(byte: &u8) -> bool {
+    return *byte == b' ';
+}
+
 /// Whether `haystack` holds `needle`.
 fn contains(haystack: &[u8], needle: &[u8]) -> bool {
-    return haystack.windows(needle.len()).any(|window| {
-        return window == needle;
-    });
+    for window in haystack.windows(needle.len()) {
+        if window == needle {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// The object name of an `sha256:<64 digits>` value.
 fn parse_oid(value: &[u8]) -> Option<String> {
     let digits: &[u8] = value.strip_prefix(b"sha256:")?;
-    let valid: bool = digits.len() == 64 && digits.iter().all(|byte| {
-        return matches!(byte, b'0'..=b'9' | b'a'..=b'f');
-    });
-    return valid.then(|| {
-        return String::from_utf8_lossy(digits).into_owned();
-    });
+    if digits.len() != 64 {
+        return None;
+    }
+    for byte in digits {
+        if !matches!(byte, b'0'..=b'9' | b'a'..=b'f') {
+            return None;
+        }
+    }
+    return Some(String::from_utf8_lossy(digits).into_owned());
 }
 
 /// Whether a key starts like an extension key, `ext-` and one digit (`extRE`, which `git-lfs` matches as a prefix).
@@ -77,30 +94,35 @@ pub fn decode_pointer(blob: &[u8]) -> Verdict {
     if blob.len() >= BLOB_SIZE_CUTOFF || blob.is_empty() {
         return Verdict::NotUploadable;
     }
-    if !MATCHERS.iter().any(|word| {
-        return contains(blob, word);
-    }) {
+    let mut holds_matcher: bool = false;
+    for word in MATCHERS {
+        if contains(blob, word) {
+            holds_matcher = true;
+            break;
+        }
+    }
+    if !holds_matcher {
         return Verdict::NotUploadable;
     }
     let trimmed: &[u8] = blob.trim_ascii();
     // Go trims Unicode white space too; a non-ASCII edge is not worth guessing about.
-    let odd_edge: bool = trimmed.first().is_some_and(|byte| {
-        return !byte.is_ascii();
-    }) || trimmed.last().is_some_and(|byte| {
-        return !byte.is_ascii();
-    });
+    let first_is_odd: bool = match trimmed.first() {
+        Some(byte) => !byte.is_ascii(),
+        None => false,
+    };
+    let last_is_odd: bool = match trimmed.last() {
+        Some(byte) => !byte.is_ascii(),
+        None => false,
+    };
+    let odd_edge: bool = first_is_odd || last_is_odd;
     let mut values: [Option<&[u8]>; 3] = [None; 3];
     let mut line_number: usize = 0;
-    for raw in trimmed.split(|byte| {
-        return *byte == b'\n';
-    }) {
+    for raw in trimmed.split(is_line_feed_byte) {
         let line: &[u8] = raw.strip_suffix(b"\r").unwrap_or(raw);
         if line.is_empty() {
             continue;
         }
-        let Some(space) = line.iter().position(|byte| {
-            return *byte == b' ';
-        }) else {
+        let Some(space) = line.iter().position(is_space_byte) else {
             return if odd_edge { Verdict::Decline } else { Verdict::NotUploadable };
         };
         let (key, value): (&[u8], &[u8]) = (&line[..space], &line[space + 1..]);
@@ -117,12 +139,16 @@ pub fn decode_pointer(blob: &[u8]) -> Verdict {
     let [Some(version), Some(oid), Some(size)] = values else {
         return if odd_edge { Verdict::Decline } else { Verdict::NotUploadable };
     };
-    let size_value: Option<i64> = std::str::from_utf8(size).ok().and_then(|text| {
-        return text.parse::<i64>().ok();
-    });
-    let (Some(name), Some(bytes)) = (parse_oid(oid), size_value.filter(|number| {
-        return *number >= 0;
-    })) else {
+    let parsed_size: Option<i64> = match std::str::from_utf8(size) {
+        Ok(text) => text.parse::<i64>().ok(),
+        Err(_) => None,
+    };
+    // A negative size is no size at all.
+    let size_value: Option<i64> = match parsed_size {
+        Some(number) if number >= 0 => Some(number),
+        _ => None,
+    };
+    let (Some(name), Some(bytes)) = (parse_oid(oid), size_value) else {
         return if odd_edge { Verdict::Decline } else { Verdict::NotUploadable };
     };
     if !VERSIONS.contains(&version) {

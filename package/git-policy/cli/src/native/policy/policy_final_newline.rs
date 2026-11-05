@@ -253,10 +253,10 @@ pub fn check_final_newline<F: RepositoryFacts>(
     // What: One lookup for every file that would change.
     // Why:  A file whose `text` attribute is unset keeps its exact bytes; a commit that needs no
     //       change starts no attribute query.
-    let paths: Vec<&[u8]> = pending
-        .iter()
-        .map(|(candidate, _, _)| { return candidate.path.as_slice(); })
-        .collect();
+    let mut paths: Vec<&[u8]> = Vec::new();
+    for (candidate, _, _) in &pending {
+        paths.push(candidate.path.as_slice());
+    }
     let unset: HashSet<Vec<u8>> = match content.text_unset(paths.as_slice()) {
         Ok(found) => found,
         Err(outcome) => return outcome,

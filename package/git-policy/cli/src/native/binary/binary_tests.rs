@@ -19,6 +19,26 @@
 #[path = "binary_support.rs"]
 mod support;
 
+/// The names of the two programs a control starts and the time bound every wrapped command runs under.
+#[path = "binary_support_program_names_and_time_bound.rs"]
+mod support_program_names_and_time_bound;
+
+/// The limits a control puts on a fixture service process, and how it applies them.
+#[path = "binary_support_resource_limits.rs"]
+mod support_resource_limits;
+
+/// The fixture of a control and the resident service process it may start.
+#[path = "binary_support_fixture_service.rs"]
+mod support_fixture_service;
+
+/// Making and removing the disposable directory of a fixture and the wrapper link inside it.
+#[path = "binary_support_fixture_directories.rs"]
+mod support_fixture_directories;
+
+/// Running a wrapped command with a time bound and reading what it did.
+#[path = "binary_support_observation.rs"]
+mod support_observation;
+
 /// The hang guard: a thread that ends a wrapped command whose process tree shows no progress or burns too much processor time.
 #[path = "binary_supervisor.rs"]
 mod supervisor;

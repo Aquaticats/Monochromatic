@@ -156,20 +156,37 @@ fn says_no(value: &str) -> bool {
 /// ```
 pub fn merge_is_stated(plan: &PullPlan, settings: &[(String, String)], branch: &str) -> bool {
     // The settings that add steps this does not mirror.
-    if settings.iter().any(|(key, _)| { return NATIVE_ONLY_SETTINGS.contains(&key.as_str()); }) {
-        return false;
+    for (key, _value) in settings {
+        if NATIVE_ONLY_SETTINGS.contains(&key.as_str()) {
+            return false;
+        }
     }
     // `pull.ff` is Git's to combine with the rest.
-    if !plan.fast_forward_stated && settings.iter().any(|(key, _)| { return key == "pull.ff"; }) {
-        return false;
+    if !plan.fast_forward_stated {
+        for (key, _value) in settings {
+            if key == "pull.ff" {
+                return false;
+            }
+        }
     }
     // The branch's own setting wins over the general one, as in Git's `config_get_rebase`.
     let branch_key: String = format!("branch.{branch}.rebase");
-    let chosen: Option<&String> = settings
-        .iter()
-        .find(|(key, _)| { return *key == branch_key; })
-        .or_else(|| { return settings.iter().find(|(key, _)| { return key == "pull.rebase"; }); })
-        .map(|(_, value)| { return value; });
+    let mut chosen: Option<&String> = None;
+    for (key, value) in settings {
+        if *key == branch_key {
+            chosen = Some(value);
+            break;
+        }
+    }
+    // The general setting is looked at only when the branch has none, as `.or_else(...)` ran it.
+    if chosen.is_none() {
+        for (key, value) in settings {
+            if key == "pull.rebase" {
+                chosen = Some(value);
+                break;
+            }
+        }
+    }
     if plan.merge_stated {
         return true;
     }
@@ -218,7 +235,10 @@ fn pull_settings(context: &GitContext) -> Option<Vec<(String, String)>> {
     }
     // A list of key and value pairs, built entry by entry.
     let mut settings: Vec<(String, String)> = Vec::new();
-    for entry in output.stdout.split(|byte| { return *byte == 0; }).filter(|entry| { return !entry.is_empty(); }) {
+    for entry in output.stdout.split(is_nul_byte) {
+        if entry.is_empty() {
+            continue;
+        }
         let text: String = String::from_utf8_lossy(entry).into_owned();
         let (key, value): (&str, &str) = text.split_once('\n').unwrap_or((text.as_str(), "true"));
         settings.push((key.to_owned(), value.to_owned()));
@@ -291,6 +311,11 @@ fn merge_forward(forward: &CoordinatedForward, plan: &PullPlan, overlay: Vec<(Os
     return CoordinatedForward { arguments, command, overlay, ..forward.clone() };
 }
 
+/// Whether one byte is the NUL byte that ends each entry of a `-z` listing. `&u8` borrows the byte, as `split` hands it over.
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
 /// What:
 ///  Decide what to do with a `git pull`, and run its fetch when the merge half can be completed here; `real_index` is the index
 ///  the working tree update waits on.
@@ -314,7 +339,14 @@ pub fn pull_step(forward: &CoordinatedForward, real_index: &Path) -> PullStep {
         }
         _ => return PullStep::Native,
     };
-    if IN_PROGRESS_MARKERS.iter().any(|name| { return git_dir.join(name).exists(); }) || root.join(".gitmodules").exists() {
+    let mut operation_in_progress: bool = false;
+    for name in IN_PROGRESS_MARKERS {
+        if git_dir.join(name).exists() {
+            operation_in_progress = true;
+            break;
+        }
+    }
+    if operation_in_progress || root.join(".gitmodules").exists() {
         debug(TAG, "native Git runs this pull: another operation is in progress, or the repository has submodules");
         return PullStep::Native;
     }
@@ -338,7 +370,11 @@ pub fn pull_step(forward: &CoordinatedForward, real_index: &Path) -> PullStep {
     }
     // An unmerged entry makes native Git's pull refuse with its own advice.
     let unmerged: Option<GitOutput> = ask(&context, &["ls-files", "--unmerged", "-z"]);
-    if unmerged.as_ref().is_none_or(|found| { return found.code != Some(0) || !found.stdout.is_empty(); }) {
+    let unmerged_unclear: bool = match unmerged.as_ref() {
+        Some(found) => found.code != Some(0) || !found.stdout.is_empty(),
+        None => true,
+    };
+    if unmerged_unclear {
         debug(TAG, "native Git runs this pull: the index holds unmerged entries");
         return PullStep::Native;
     }
@@ -377,7 +413,11 @@ pub fn pull_step(forward: &CoordinatedForward, real_index: &Path) -> PullStep {
         wait_for_service_hold_here(real_index, "pull's merge");
         wait_for_index_release_here(real_index, "pull's merge");
         let moved: Option<GitOutput> = ask(&context, &["read-tree", "-u", "-m", orig_head.as_str(), curr_head.as_str()]);
-        if moved.is_none_or(|found| { return found.code != Some(0); }) {
+        let move_failed: bool = match moved {
+            Some(found) => found.code != Some(0),
+            None => true,
+        };
+        if move_failed {
             return PullStep::Ended(CoordinatedRun::Failed {
                 stderr: format!(
                     "fatal: Cannot fast-forward your working tree.\nAfter making sure that you saved anything precious from\n$ git diff {orig_head}\noutput, run\n$ git reset --hard\nto recover.\n"
@@ -395,10 +435,13 @@ pub fn pull_step(forward: &CoordinatedForward, real_index: &Path) -> PullStep {
     // One start tells a merge that makes a commit from a fast-forward (the merge base is `HEAD`) and from nothing to merge (the
     // merge base is the head); only the first is worth the isolated attempt, whose queries the other two would only waste.
     let bases: Option<GitOutput> = ask(&context, &["merge-base", "--all", "HEAD", heads[0].as_str()]);
-    let makes_commit: bool = bases.is_none_or(|found| {
-        let listed: String = String::from_utf8_lossy(&found.stdout).trim().to_owned();
-        return found.code != Some(0) || (listed != curr_head && listed != heads[0]);
-    });
+    let makes_commit: bool = match bases {
+        Some(found) => {
+            let listed: String = String::from_utf8_lossy(&found.stdout).trim().to_owned();
+            found.code != Some(0) || (listed != curr_head && listed != heads[0])
+        }
+        None => true,
+    };
     return PullStep::Merge { forward: Box::new(merge_forward(forward, &plan, overlay)), makes_commit };
 }
 

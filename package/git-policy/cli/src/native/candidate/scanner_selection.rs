@@ -312,8 +312,10 @@ pub fn is_scannable(candidate: &Candidate, rules_paths: &[Vec<u8>]) -> bool {
         return false;
     }
     // `.iter().any(..)` asks whether any rules file's pathname equals the candidate's.
-    if rules_paths.iter().any(|rules_path| return rules_path.as_slice() == candidate.path.as_slice()) {
-        return false;
+    for rules_path in rules_paths {
+        if rules_path.as_slice() == candidate.path.as_slice() {
+            return false;
+        }
     }
     // `.contains(&..)` asks whether the list holds this exact byte string.
     return !SCANNER_SELF_MATCH_PATHS.contains(&candidate.path.as_slice());

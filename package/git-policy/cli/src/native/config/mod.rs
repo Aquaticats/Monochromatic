@@ -24,6 +24,9 @@ pub mod config_parse;
 /// Validation of the `policies` section and per-policy options.
 pub(crate) mod config_policies;
 
+/// Validation of the options of the `markdown/autofix` policy and of its `rules` list.
+pub(crate) mod config_policies_markdown;
+
 /// The `rulesFile` option:
 ///  a repository-relative name that stays inside the repository.
 pub mod config_rules_file;

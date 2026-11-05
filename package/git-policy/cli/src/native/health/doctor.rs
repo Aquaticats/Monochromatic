@@ -203,17 +203,20 @@ or express what it checked as a policy under policies in cli-git.config.jsonc.\n
 /// ```
 fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<String>, String> {
     let request: GitRequest = GitRequest::new(cwd, arguments);
-    let output = run_git(context, &request).map_err(|error| {
-        return format!("git {} could not start: {error}", arguments.join(" "));
-    })?;
+    let output = match run_git(context, &request) {
+        Ok(done) => done,
+        Err(error) => return Err(format!("git {} could not start: {error}", arguments.join(" "))),
+    };
     if output.code == Some(1) && arguments.first() == Some(&"config") {
         return Ok(None);
     }
     if !output.succeeded() {
         return Err(format!("git {} failed: {}", arguments.join(" "), output.error_text()));
     }
-    let text: String = String::from_utf8(output.stdout)
-        .map_err(|_| { return format!("git {} printed bytes that are not UTF-8", arguments.join(" ")); })?;
+    let text: String = match String::from_utf8(output.stdout) {
+        Ok(decoded) => decoded,
+        Err(_) => return Err(format!("git {} printed bytes that are not UTF-8", arguments.join(" "))),
+    };
     return Ok(Some(text));
 }
 
@@ -239,9 +242,14 @@ pub fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocation, S
     let (Some(common), Some(git_directory)) = (lines.next(), lines.next()) else {
         return Err(String::from("git rev-parse did not report the common and Git directories"));
     };
-    let configured_text: Option<String> = query(context, cwd, &["config", "--type=path", "--get", "core.hooksPath"])?
-        .map(|text| { return text.strip_suffix('\n').unwrap_or(text.as_str()).to_string(); })
-        .filter(|text| { return !text.is_empty(); });
+    // An answer with nothing after its trailing line feed counts as no answer, as `.filter(...)` made it.
+    let configured_text: Option<String> = match query(context, cwd, &["config", "--type=path", "--get", "core.hooksPath"])? {
+        Some(text) => {
+            let stripped: String = text.strip_suffix('\n').unwrap_or(text.as_str()).to_string();
+            if stripped.is_empty() { None } else { Some(stripped) }
+        }
+        None => None,
+    };
     let Some(value) = configured_text else {
         return Ok(HooksLocation {
             common_directory: PathBuf::from(common),
@@ -303,7 +311,7 @@ pub fn lfs_shim_text(name: &str) -> String {
 /// ```
 pub fn is_lfs_shim(path: &Path) -> bool {
     use std::io::Read;
-    let Some(name) = path.file_name().and_then(|found| { return found.to_str(); }) else {
+    let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else {
         return false;
     };
     if !LFS_SHIM_NAMES.contains(&name) {
@@ -367,7 +375,21 @@ such as `/usr/bin/git` directly, would run them.\n",
 /// async function doctor({ context, cwd }): Promise<Action>;
 /// ```
 pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
-    return doctor_action_with_section(context, cwd, &|_common_directory: &Path| { return String::new(); });
+    return doctor_action_with_section(context, cwd, &no_filesystem_section);
+}
+
+/// What:
+///  A filesystem section that is always empty.
+/// Why:
+///   `doctor_action` prints no filesystem section, and `doctor_action_with_section` takes its section as a function,
+///  so this named function stands where a closure that ignored its argument stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noFilesystemSection = (_commonDirectory: string) => '';
+/// ```
+fn no_filesystem_section(_common_directory: &Path) -> String {
+    return String::new();
 }
 
 /// What:
@@ -392,8 +414,15 @@ pub fn doctor_action_with_section(context: &GitContext, cwd: &Path, filesystem_s
         Ok(listed) => listed,
         Err(error) => return doctor_failure(format!("cannot read a hooks directory: {error}").as_str()),
     };
-    let (shims, hooks): (Vec<PathBuf>, Vec<PathBuf>) =
-        found.into_iter().partition(|path| { return is_lfs_shim(path.as_path()); });
+    let mut shims: Vec<PathBuf> = Vec::new();
+    let mut hooks: Vec<PathBuf> = Vec::new();
+    for path in found {
+        if is_lfs_shim(path.as_path()) {
+            shims.push(path);
+        } else {
+            hooks.push(path);
+        }
+    }
     let shim_report: String = if shims.is_empty() { String::new() } else { render_lfs_shims(shims.as_slice()) };
     let findings: ConfigFindings = config_findings(context, cwd);
     let notes: String = format!("{}{}", render_notes(&findings), fsmonitor_report(context, cwd));

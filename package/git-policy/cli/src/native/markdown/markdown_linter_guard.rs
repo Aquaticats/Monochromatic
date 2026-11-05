@@ -151,6 +151,13 @@ fn notice_line(waiting_for: &str, waited: Duration, window: Duration, repeat: bo
 /// ```ts
 /// async function waitFor<T>(receiver, ids, windowMs, reporter): Promise<T>; // throws GuardFailure
 /// ```
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "WaitReporter::poll (push/wait_progress.rs) takes the notice builder as `impl FnOnce`, so only a closure that borrows waiting_for and window can reach it; see doc/planning/cli-git-closure-lint-suppressions.md"
+    )
+)]
 fn wait_for<T>(
     receiver: &Receiver<Result<T, String>>,
     thread_numbers: &Receiver<i32>,

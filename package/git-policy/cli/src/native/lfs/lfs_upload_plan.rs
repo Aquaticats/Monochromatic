@@ -20,7 +20,7 @@
 use crate::command_push::{parse_push_region, push_shape};
 /// The configuration the plan reads.
 use crate::lfs_upload_settings::{current_branch, default_remote, reads_as_true, setting, values};
-pub use crate::lfs_upload_settings::{PlanError, Query, Settings, read_settings, resolve_push_remote, settings_from_snapshot};
+pub use crate::lfs_upload_settings::{GitQuery, PlanError, Query, Settings, read_settings, resolve_push_remote, settings_from_snapshot};
 /// The switch and the skip variable.
 use crate::lfs_pre_push::{hook_switched_off, skip_requested};
 /// Owned OS text for arguments.
@@ -63,14 +63,13 @@ impl UploadPlan {
         let Some(objects) = self.objects.as_ref() else {
             return vec![self.arguments(remote)];
         };
-        return objects
-            .chunks(OBJECTS_PER_RUN)
-            .map(|chunk| {
-                let mut arguments: Vec<OsString> = vec![OsString::from("push"), OsString::from("--object-id"), remote.to_owned()];
-                arguments.extend(chunk.iter().map(OsString::from));
-                return arguments;
-            })
-            .collect();
+        let mut runs: Vec<Vec<OsString>> = Vec::new();
+        for chunk in objects.chunks(OBJECTS_PER_RUN) {
+            let mut arguments: Vec<OsString> = vec![OsString::from("push"), OsString::from("--object-id"), remote.to_owned()];
+            arguments.extend(chunk.iter().map(OsString::from));
+            runs.push(arguments);
+        }
+        return runs;
     }
 
     /// The arguments of one `git-lfs` run: `push`, with `--all` for a full scan, the destination, then the refs.
@@ -107,9 +106,7 @@ fn refspec_source(spec: &OsStr) -> Source {
     if unforced == b":" {
         return Source::Matching;
     }
-    let source: &[u8] = match unforced.iter().rposition(|byte| {
-        return *byte == b':';
-    }) {
+    let source: &[u8] = match unforced.iter().rposition(is_colon_byte) {
         Some(position) => &unforced[..position],
         None => unforced,
     };
@@ -119,35 +116,43 @@ fn refspec_source(spec: &OsStr) -> Source {
     return Source::Named(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(source.to_vec()));
 }
 
-/// Keeps every ref name.
-fn keep_all(_name: &str) -> bool {
-    return true;
+/// Whether one byte is the colon that separates the source of a refspec from its destination, or the host of an
+///  scp-like remote from its path. `&u8` borrows the byte, as `position` hands it over.
+fn is_colon_byte(byte: &u8) -> bool {
+    return *byte == b':';
 }
 
-/// The refs under a prefix, listed by one `for-each-ref`, kept when `keep` accepts the full name.
-fn list(query: Query<'_>, prefix: &str, keep: &dyn Fn(&str) -> bool) -> Result<Vec<OsString>, PlanError> {
-    let listing: String = query(&["for-each-ref", "--format=%(refname)", prefix]).map_err(|why| {
-        return PlanError(format!("git for-each-ref {prefix}: {why}"));
-    })?;
-    return Ok(listing
-        .lines()
-        .filter(|name| {
-            return keep(name);
-        })
-        .map(OsString::from)
-        .collect());
+/// The refs under a prefix, listed by one `for-each-ref`; with a `(front, back)` pattern, only the full names that
+///  start with `front` and end with `back` without the two overlapping, and with `None` every name.
+fn list(query: Query<'_>, prefix: &str, pattern: Option<(&str, &str)>) -> Result<Vec<OsString>, PlanError> {
+    let listing: String = match query.ask(&["for-each-ref", "--format=%(refname)", prefix]) {
+        Ok(text) => text,
+        Err(why) => return Err(PlanError(format!("git for-each-ref {prefix}: {why}"))),
+    };
+    let mut names: Vec<OsString> = Vec::new();
+    for name in listing.lines() {
+        let kept: bool = match pattern {
+            Some((front, back)) => {
+                name.len() >= front.len() + back.len() && name.starts_with(front) && name.ends_with(back)
+            }
+            None => true,
+        };
+        if kept {
+            names.push(OsString::from(name));
+        }
+    }
+    return Ok(names);
 }
 
 /// The refs a source with a `*` stands for, by a refspec's own rule: the text before the star, the text after it, and
 ///  anything between, `/` included (which a `for-each-ref` pattern does not do).
 fn expand_pattern(query: Query<'_>, pattern: &str) -> Result<Vec<OsString>, PlanError> {
     let (front, back) = pattern.split_once('*').unwrap_or((pattern, ""));
-    let directory: &str = front.rsplit_once('/').map_or("refs", |(head, _)| {
-        return head;
-    });
-    return list(query, directory, &|name| {
-        return name.len() >= front.len() + back.len() && name.starts_with(front) && name.ends_with(back);
-    });
+    let directory: &str = match front.rsplit_once('/') {
+        Some((head, _)) => head,
+        None => "refs",
+    };
+    return list(query, directory, Some((front, back)));
 }
 
 /// `file://` and percent-encoding for a path, where `git-lfs` accepts only a remote name or an URL.
@@ -176,14 +181,17 @@ fn file_url(absolute: &Path) -> OsString {
 /// ```
 fn lfs_destination(remote: &OsStr, directory: &Path, configured: bool) -> OsString {
     let bytes: &[u8] = remote.as_encoded_bytes();
-    let has_scheme: bool = bytes.windows(3).any(|window| {
-        return window == b"://";
-    });
-    let scp_like: bool = bytes.iter().position(|byte| {
-        return *byte == b':';
-    }).is_some_and(|colon| {
-        return !bytes[..colon].contains(&b'/');
-    });
+    let mut has_scheme: bool = false;
+    for window in bytes.windows(3) {
+        if window == b"://" {
+            has_scheme = true;
+            break;
+        }
+    }
+    let scp_like: bool = match bytes.iter().position(is_colon_byte) {
+        Some(colon) => !bytes[..colon].contains(&b'/'),
+        None => false,
+    };
     let explicit_path: bool = bytes.starts_with(b"/") || bytes.starts_with(b"./") || bytes.starts_with(b"../");
     if configured || has_scheme || (scp_like && !explicit_path) {
         return remote.to_owned();
@@ -200,21 +208,29 @@ fn lfs_destination(remote: &OsStr, directory: &Path, configured: bool) -> OsStri
 
 /// The remotes the configuration defines (a `url` or a `pushurl`).
 fn configured_remotes(all: &[(String, String)]) -> Vec<&str> {
-    return all
-        .iter()
-        .filter_map(|(key, _)| {
-            let rest: &str = key.strip_prefix("remote.")?;
-            let (name, variable) = rest.rsplit_once('.')?;
-            return (variable == "url" || variable == "pushurl").then_some(name);
-        })
-        .collect();
+    let mut names: Vec<&str> = Vec::new();
+    for (key, _) in all {
+        let Some(rest) = key.strip_prefix("remote.") else {
+            continue;
+        };
+        let Some((name, variable)) = rest.rsplit_once('.') else {
+            continue;
+        };
+        if variable == "url" || variable == "pushurl" {
+            names.push(name);
+        }
+    }
+    return names;
 }
 
 /// Whether any `url.<base>.pushInsteadOf` rewrite is configured, which can send the push elsewhere than the fetch.
 fn has_push_rewrite(all: &[(String, String)]) -> bool {
-    return all.iter().any(|(key, _)| {
-        return key.starts_with("url.") && key.ends_with(".pushinsteadof");
-    });
+    for (key, _) in all {
+        if key.starts_with("url.") && key.ends_with(".pushinsteadof") {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -248,9 +264,10 @@ pub fn plan_upload(
     if region_facts.no_verify || region_facts.dry_run || shape.deletes {
         return Ok(None);
     }
-    let submodules: bool = shape.recurse_submodules.as_ref().is_some_and(|value| {
-        return matches!(value.to_str(), Some("on-demand" | "only"));
-    });
+    let submodules: bool = match shape.recurse_submodules.as_ref() {
+        Some(value) => matches!(value.to_str(), Some("on-demand" | "only")),
+        None => false,
+    };
     let branch_needed: bool = shape.repository.is_none() || shape.refspecs.is_empty();
     let branch: Option<String> = if branch_needed { current_branch(query)? } else { None };
     let remote_name: OsString = match shape.repository.clone() {
@@ -280,7 +297,7 @@ pub fn plan_upload(
     for spec in &specs {
         match refspec_source(spec.as_os_str()) {
             Source::Deletion => {}
-            Source::Matching => refs.extend(list(query, "refs/heads", &keep_all)?),
+            Source::Matching => refs.extend(list(query, "refs/heads", None)?),
             Source::Named(source) => match source.to_str() {
                 Some(text) if text.contains('*') => refs.extend(expand_pattern(query, text)?),
                 _ => refs.push(source),
@@ -288,10 +305,10 @@ pub fn plan_upload(
         }
     }
     if shape.branches {
-        refs.extend(list(query, "refs/heads", &keep_all)?);
+        refs.extend(list(query, "refs/heads", None)?);
     }
     if shape.tags {
-        refs.extend(list(query, "refs/tags", &keep_all)?);
+        refs.extend(list(query, "refs/tags", None)?);
     }
     let mut unique: Vec<OsString> = Vec::new();
     for found in refs {
@@ -306,13 +323,11 @@ pub fn plan_upload(
     let push_urls: Vec<&str> = if configured { values(all, &format!("remote.{remote_text}.pushurl")) } else { Vec::new() };
     let push_url_count: usize = push_urls.len();
     let remotes: Vec<OsString> = if push_url_count > 1 {
-        push_urls
-            .iter()
-            .copied()
-            .map(|url| {
-                return lfs_destination(OsStr::new(url), directory, false);
-            })
-            .collect()
+        let mut destinations: Vec<OsString> = Vec::new();
+        for url in &push_urls {
+            destinations.push(lfs_destination(OsStr::new(url), directory, false));
+        }
+        destinations
     } else {
         vec![lfs_destination(remote_name.as_os_str(), directory, configured)]
     };

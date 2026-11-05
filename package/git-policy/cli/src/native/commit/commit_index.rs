@@ -27,12 +27,11 @@ use crate::commit_staged_additions::{
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
 /// Commit selection mode of the transaction.
 use crate::transaction_journal::TransactionMode;
-/// What marks the captured index carries.
-use crate::index_flags::{IndexFlags, read_index_flags};
+/// The index copy steps, kept in a file of their own.
+pub use crate::commit_index_copying::copy_index_with_timestamps;
+use crate::commit_index_copying::{copy_index_failure, seeds_private_index};
 /// Real-Git command builder shared with the forwarded commands.
 use crate::forwarding::git_command;
-/// `FileTimes` carries the copied timestamps.
-use std::fs::FileTimes;
 /// `OsString` is owned operating-system text.
 use std::ffi::{OsStr, OsString};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -40,48 +39,6 @@ use std::path::Path;
 
 /// Name of the single-consumption stdin snapshot inside the transaction directory.
 pub const PATHSPEC_INPUT_NAME: &str = "pathspec.input";
-
-/// What:
-///  Copies an index and gives the copy the source's access and modification times.
-/// Why:
-///   A copy with fresh times would make Git trust stat data captured in the same second
-///  as a later same-size edit (issue #544).
-///  A missing source is an error, as the incumbent's `copyFile` reports it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await copyIndexFile({ sourcePath, destinationPath });
-/// ```
-pub fn copy_index_with_timestamps(source: &Path, destination: &Path) -> std::io::Result<()> {
-    // The times come from the open file, not from its path, so a rename of another index over the path between the
-    // read and the stat cannot give this content that file's times.
-    let mut opened: std::fs::File = std::fs::File::open(source)?;
-    let metadata: std::fs::Metadata = opened.metadata()?;
-    let times: FileTimes = FileTimes::new()
-        .set_accessed(metadata.accessed()?)
-        .set_modified(metadata.modified()?);
-    let mut copy: std::fs::File = std::fs::File::create(destination)?;
-    std::io::copy(&mut opened, &mut copy)?;
-    copy.set_permissions(metadata.permissions())?;
-    return copy.set_times(times);
-}
-
-/// What:
-///  Whether the captured real index may seed the private index of an explicit-path commit.
-/// Why:
-///   Only an index whose every entry was read and carries no assume-unchanged or skip-worktree mark may;
-///  one that cannot be read is treated like a marked one, and the commit builds its index from the base alone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// readIndexFlags(await readFile(capturedIndex).catch(() => undefined)) === 'plain'
-/// ```
-fn seeds_private_index(captured_index: &Path) -> bool {
-    let Ok(bytes) = std::fs::read(captured_index) else {
-        return false;
-    };
-    return read_index_flags(bytes.as_slice()) == IndexFlags::Plain;
-}
 
 /// What:
 ///  The choices that shape one private index.
@@ -165,6 +122,34 @@ fn private_git<S: AsRef<OsStr>>(
 }
 
 /// What:
+///  Whether one byte is the NUL byte that ends each record of a `-z` listing.
+///  `&u8` borrows the byte, as `split` hands it over.
+/// Why:
+///   `split` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNulByte = (byte: number) => byte === 0;
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  Whether one byte is the tab that separates the stage columns from the path in `git ls-files -u`.
+///  `&u8` borrows the byte, as `position` hands it over.
+/// Why:
+///   `position` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isTabByte = (byte: number) => byte === '\t'.charCodeAt(0);
+/// ```
+fn is_tab_byte(byte: &u8) -> bool {
+    return *byte == b'\t';
+}
+
+/// What:
 ///  Copies or builds the private commit index and snapshots the real index at invocation.
 /// Why:
 ///   Index commits start from the real index, so their staged state is the state at invocation;
@@ -182,7 +167,6 @@ pub fn initialize_commit_index(
     indexes: &CaptureIndexes,
     selection: &IndexSelection,
 ) -> Result<(), GitFailure> {
-    let copy_failure = |error: std::io::Error| { return GitFailure(format!("copying the index failed: {error}")); };
     // A repository nothing was ever staged in has no index file, which Git reads as an empty index.
     if !real_index.exists() {
         run_git_checked(
@@ -190,10 +174,10 @@ pub fn initialize_commit_index(
             &indexed_request(cwd, &["read-tree".to_string(), "--empty".to_string()], Some(real_index), None),
         )?;
     }
-    copy_index_with_timestamps(real_index, indexes.captured_index.as_path()).map_err(copy_failure)?;
+    copy_index_with_timestamps(real_index, indexes.captured_index.as_path()).map_err(copy_index_failure)?;
     if selection.mode == TransactionMode::Index {
         copy_index_with_timestamps(indexes.captured_index.as_path(), indexes.commit_index.as_path())
-            .map_err(copy_failure)?;
+            .map_err(copy_index_failure)?;
         if selection.stage_tracked_changes {
             // Whole-tree update of tracked paths, exactly what `commit -a` stages, captured once at invocation.
             private_git(
@@ -219,7 +203,7 @@ pub fn initialize_commit_index(
         let seeded: bool = seeds_private_index(indexes.captured_index.as_path());
         if seeded {
             copy_index_with_timestamps(indexes.captured_index.as_path(), indexes.commit_index.as_path())
-                .map_err(copy_failure)?;
+                .map_err(copy_index_failure)?;
         }
         // An index that already holds exactly the base has nothing for `read-tree --reset` to remove and no staged addition
         // to carry, and the copy keeps everything the reset would have kept (the stat data and the extensions), so the Git
@@ -292,8 +276,10 @@ fn index_equals_base(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes,
         Some(indexes.captured_index.as_path()),
         Some(indexes.object_directory.as_path()),
     );
-    return crate::repo_read_hook::try_request(context, &request)
-        .is_some_and(|answer| { return answer.code == Some(0) && answer.stdout.is_empty(); });
+    return match crate::repo_read_hook::try_request(context, &request) {
+        Some(answer) => answer.code == Some(0) && answer.stdout.is_empty(),
+        None => false,
+    };
 }
 
 /// What:
@@ -362,8 +348,10 @@ pub fn write_private_tree(
         object_directory,
         &[String::from("write-tree")],
     )?;
-    let text: &str = std::str::from_utf8(output.stdout.as_slice())
-        .map_err(|_| { return GitFailure(String::from("Git returned non-UTF-8 output.")); })?;
+    let text: &str = match std::str::from_utf8(output.stdout.as_slice()) {
+        Ok(decoded) => decoded,
+        Err(_) => return Err(GitFailure(String::from("Git returned non-UTF-8 output."))),
+    };
     let oid: &str = text.trim();
     if oid.is_empty() {
         return Err(GitFailure(String::from("Git returned empty private tree identity.")));
@@ -390,8 +378,8 @@ pub fn list_unmerged_index_paths(
         &indexed_request(cwd, &["ls-files", "--unmerged", "-z"], Some(commit_index), None),
     )?;
     let mut paths: Vec<Vec<u8>> = Vec::new();
-    for record in output.stdout.split(|byte| { return *byte == 0; }) {
-        let Some(tab) = record.iter().position(|byte| { return *byte == b'\t'; }) else {
+    for record in output.stdout.split(is_nul_byte) {
+        let Some(tab) = record.iter().position(is_tab_byte) else {
             continue;
         };
         let path: Vec<u8> = record[tab + 1..].to_vec();
@@ -427,12 +415,13 @@ pub fn list_changed_index_paths(
             Some(object_directory),
         ),
     )?;
-    return Ok(output
-        .stdout
-        .split(|byte| { return *byte == 0; })
-        .filter(|path| { return !path.is_empty(); })
-        .map(<[u8]>::to_vec)
-        .collect());
+    let mut paths: Vec<Vec<u8>> = Vec::new();
+    for path in output.stdout.split(is_nul_byte) {
+        if !path.is_empty() {
+            paths.push(path.to_vec());
+        }
+    }
+    return Ok(paths);
 }
 
 /// What:
@@ -456,23 +445,27 @@ pub fn prepare_interactive_selection(
     let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from(mode)];
     arguments.extend(selection_arguments(selection));
     // The message shows the command as text; the command itself keeps the exact bytes.
-    let shown: String = arguments
-        .iter()
-        .map(|argument| { return argument.to_string_lossy().into_owned(); })
-        .collect::<Vec<String>>()
-        .join(" ");
+    let mut shown_words: Vec<String> = Vec::new();
+    for argument in &arguments {
+        shown_words.push(argument.to_string_lossy().into_owned());
+    }
+    let shown: String = shown_words.join(" ");
     let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice());
     command
         .current_dir(cwd)
         .env("GIT_INDEX_FILE", commit_index)
         .env("GIT_OBJECT_DIRECTORY", object_directory);
-    let status: std::process::ExitStatus = command
-        .status_retrying()
-        .map_err(|error| { return GitFailure(format!("git {shown} could not start: {error}")); })?;
+    let status: std::process::ExitStatus = match command.status_retrying() {
+        Ok(finished) => finished,
+        Err(error) => return Err(GitFailure(format!("git {shown} could not start: {error}"))),
+    };
     if !status.success() {
         return Err(GitFailure(format!(
             "git {shown} exited {}",
-            status.code().map_or_else(|| { return String::from("by signal"); }, |code| { return code.to_string(); })
+            match status.code() {
+                Some(code) => code.to_string(),
+                None => String::from("by signal"),
+            }
         )));
     }
     return Ok(());

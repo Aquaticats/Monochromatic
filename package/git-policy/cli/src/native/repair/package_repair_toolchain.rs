@@ -17,7 +17,7 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::package_repair::RepairEnvironment;
+use crate::package_repair_request::RepairEnvironment;
 use crate::package_repair_command::{ToolCommand, ToolRun, find_program, run_tool};
 use crate::package_repair_report::{Finding, Outcome, Tool, finding_from, missing_tool};
 use std::ffi::OsString;
@@ -62,17 +62,21 @@ pub const MANUAL_COMMAND: &str = "mise run toolchain:install";
 pub fn stale_launch_records(destination: &Path) -> Vec<PathBuf> {
     let Ok(listing) = std::fs::read_dir(destination.join(LAUNCHERS)) else { return Vec::new() };
     let own: PathBuf = destination.join(LOCK_FILE);
-    let own_real: Option<PathBuf> = std::fs::canonicalize(destination).ok().map(|real: PathBuf| { return real.join(LOCK_FILE); });
+    let own_real: Option<PathBuf> = match std::fs::canonicalize(destination) {
+        Ok(real) => Some(real.join(LOCK_FILE)),
+        Err(_) => None,
+    };
     let mut stale: Vec<PathBuf> = Vec::new();
     for item in listing.flatten() {
         let path: PathBuf = item.path();
-        if path.extension().is_none_or(|extension| { return extension != RECORD_EXTENSION; }) {
+        let is_record: bool = match path.extension() {
+            Some(extension) => extension == RECORD_EXTENSION,
+            None => false,
+        };
+        if !is_record {
             continue;
         }
-        let named: Option<PathBuf> = std::fs::read_to_string(&path)
-            .ok()
-            .and_then(|text: String| { return serde_json::from_str::<serde_json::Value>(text.as_str()).ok(); })
-            .and_then(|record: serde_json::Value| { return record.get(LOCK_KEY).and_then(serde_json::Value::as_str).map(PathBuf::from); });
+        let named: Option<PathBuf> = lock_named_by_record(&path);
         let Some(lock) = named else {
             debug(TAG, format!("{} names no lock file and is left alone", path.display()).as_str());
             continue;
@@ -83,6 +87,23 @@ pub fn stale_launch_records(destination: &Path) -> Vec<PathBuf> {
     }
     stale.sort();
     return stale;
+}
+
+/// What:
+///  The lock file a launcher record names, when the record can be read and holds the key.
+///  `Option<PathBuf>` is "the path, or no answer".
+/// Why:
+///   A record that cannot be read, is not JSON or names no lock is left alone, and each step of reading it may fail the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function lockNamedByRecord(path: string): string | undefined;
+/// ```
+fn lock_named_by_record(path: &Path) -> Option<PathBuf> {
+    let text: String = std::fs::read_to_string(path).ok()?;
+    let record: serde_json::Value = serde_json::from_str::<serde_json::Value>(text.as_str()).ok()?;
+    let lock: &str = record.get(LOCK_KEY).and_then(serde_json::Value::as_str)?;
+    return Some(PathBuf::from(lock));
 }
 
 /// What:
@@ -114,7 +135,14 @@ fn mpm_command(destination: &Path, arguments: &[&str]) -> ToolCommand {
 fn install_summary(stdout: &[u8]) -> Option<String> {
     const PREFIX: &str = "toolchain install: ";
     let text: String = String::from_utf8_lossy(stdout).into_owned();
-    return text.lines().rev().find_map(|line: &str| { return line.strip_prefix(PREFIX).filter(|rest: &&str| { return rest.contains("installed"); }).map(str::to_owned); });
+    for line in text.lines().rev() {
+        if let Some(rest) = line.strip_prefix(PREFIX)
+            && rest.contains("installed")
+        {
+            return Some(rest.to_owned());
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -133,7 +161,14 @@ pub fn repair_toolchain(destination: &Path, environment: &RepairEnvironment) -> 
         return None;
     }
     let own_link: PathBuf = destination.join(OWN_LINK);
-    let Some(program) = find_program(PROGRAM, environment.path()).or_else(|| { return own_link.is_file().then_some(own_link.clone()); }) else {
+    // The link in the worktree is looked at only when the search path gave no program, as `.or_else(...)` ran it.
+    let found_program: Option<PathBuf> = match find_program(PROGRAM, environment.path()) {
+        Some(program) => Some(program),
+        None => {
+            if own_link.is_file() { Some(own_link.clone()) } else { None }
+        }
+    };
+    let Some(program) = found_program else {
         return Some(missing_tool(Tool::Toolchain, PROGRAM, MANUAL_COMMAND));
     };
     let installed: ToolRun = run_tool(program.as_path(), &mpm_command(destination, &["install", "--frozen-lockfile"]), environment.limits());

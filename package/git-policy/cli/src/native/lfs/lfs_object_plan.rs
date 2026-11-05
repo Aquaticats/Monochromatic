@@ -63,6 +63,29 @@ mod unix {
     /// How many tag objects are followed to a commit.
     const PEEL_LIMIT: usize = 5;
 
+    /// Whether one byte is the line feed that ends the first line of a tag object. `&u8` borrows the byte, as `split` hands it over.
+    fn is_line_feed_byte(byte: &u8) -> bool {
+        return *byte == b'\n';
+    }
+
+    /// Whether a typed ref name is made only of slash-separated, non-empty parts of letters, digits, dots, underscores and hyphens.
+    fn is_plain_typed_name(typed: &str) -> bool {
+        if typed.is_empty() {
+            return false;
+        }
+        for part in typed.split('/') {
+            if part.is_empty() {
+                return false;
+            }
+            for byte in part.bytes() {
+                if !(byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-')) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     /// The commit a name stands for, through annotated tags; `None` for anything else.
     fn peel(database: &ObjectDatabase, layout: &RepoLayout, hex: &str) -> Option<Vec<u8>> {
         let mut name: Vec<u8> = from_hex(hex.as_bytes(), layout.object_format)?;
@@ -71,7 +94,7 @@ mod unix {
             match object.kind {
                 ObjectKind::Commit => return Some(name),
                 ObjectKind::Tag => {
-                    let first: &[u8] = object.bytes.split(|byte| { return *byte == b'\n'; }).next()?;
+                    let first: &[u8] = object.bytes.split(is_line_feed_byte).next()?;
                     name = from_hex(first.strip_prefix(b"object ")?, layout.object_format)?;
                 }
                 ObjectKind::Tree | ObjectKind::Blob => return None,
@@ -88,11 +111,7 @@ mod unix {
                 RefValue::Symbolic(target) => refs.resolve(target.as_str()),
             };
         }
-        let plain: bool = !typed.is_empty()
-            && typed.split('/').all(|part| {
-                return !part.is_empty() && part.bytes().all(|byte| { return byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'); });
-            });
-        if !plain {
+        if !is_plain_typed_name(typed) {
             return None;
         }
         let candidates: [String; 6] = [
@@ -114,7 +133,10 @@ mod unix {
             }
         }
         let as_name: Vec<u8> = from_hex(typed.as_bytes(), layout.object_format)?;
-        return database.contains(as_name.as_slice()).then(|| { return to_hex(as_name.as_slice()); });
+        if database.contains(as_name.as_slice()) {
+            return Some(to_hex(as_name.as_slice()));
+        }
+        return None;
     }
 
     /// The names of the LFS objects the plan's push introduces; `None` when the readers decline.
