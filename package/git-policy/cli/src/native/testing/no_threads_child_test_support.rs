@@ -37,15 +37,11 @@ fn child_command(path: &str) -> std::process::Command {
     return command;
 }
 
-/// Says whether one thread can start in this process, in a child under the limit. A test run without the variable does nothing.
-#[test]
-fn thread_probe() {
-    if std::env::var_os(CHILD_VARIABLE).is_none() {
-        return;
-    }
-    let started: bool = std::thread::Builder::new().spawn(|| {}).is_ok();
-    println!("{}", if started { "thread-started" } else { "thread-refused" });
-}
+/// The probe test the parent starts in a child before the real test: it says whether a thread can start under the limit.
+/// It lives in a sidecar, as every test of the crate does; `ran_in_child` names it by its path there.
+#[cfg(test)]
+#[path = "no_threads_child_test_support_tests.rs"]
+mod tests;
 
 /// Whether this call ran the test in a child with no thread to start (and asserted that it passed), or skipped because the user may
 /// exceed the process limit; `false` in the child itself, where the body follows. `module` is `module_path!()` of the test and `name`
@@ -55,7 +51,7 @@ pub(crate) fn ran_in_child(module: &str, name: &str) -> bool {
         return false;
     }
     let strip = |full: &str| -> String { return full.split_once("::").map_or(String::from(full), |(_, rest)| { return String::from(rest); }); };
-    let probe_path: String = format!("{}::thread_probe", strip(module_path!()));
+    let probe_path: String = format!("{}::tests::thread_probe", strip(module_path!()));
     let probe = child_command(probe_path.as_str()).stderr(std::process::Stdio::null()).output().expect("the probe runs");
     if String::from_utf8_lossy(probe.stdout.as_slice()).contains("thread-started") {
         eprintln!("skipped: this user may exceed RLIMIT_NPROC, so no thread start was refused");
