@@ -141,6 +141,9 @@ Two facts set the timing:
 - The rename of the wrapper's program and command word
   (`doc/planning/git-policy-cli-program-rename.md`) is merged to `main` (`ca6cd899b3`, 2026-11-05T04:41:34Z;
   container run 5005 of 5005 passed) and needs a wrapper release of its own; nothing is released or installed.
+  Its follow-up, which lets the renamed program finish work an old background helper left half done, is merged too
+  (container run 5019 of 5019). A reviewer from another vendor did not answer on that part in three one-hour tries
+  (it answers short prompts); the session tries once more just before the release.
 - Our tools pin our libraries to exact versions,
   so a new library version means a new version of every tool that pins it, in the same batch.
 

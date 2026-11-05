@@ -574,8 +574,10 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   review of B did not hold the merge; a miss or a finding is fixed forward.
   Review of B: two cross-vendor runs (10 files, then 4 files with the diff) each timed out after 3600 s with no
   output; a one-line control prompt answered `ok`, so the reviewer works and the input was too heavy.
-  A third run over only the three fixed source files on main is running
-  (`~/temp/agent/issue-6261/sol-review-after-fixes/review.txt`). A same-vendor second pass
+  A third run over only the three fixed source files on main (846 lines) also timed out after 3600 s with no output
+  (`~/temp/agent/issue-6261/sol-review-after-fixes/`). Retries stopped for now; the hand-over has only the
+  same-vendor second pass. Before the release, run the cross-vendor review once more (same command, same three
+  files); a finding is fixed before the release goes out. A same-vendor second pass
   (`claude-second-pass.md` beside it) found three P1s, no P0:
   the `/proc` look misses helpers started by units older than `9b360150c0` and the shared service;
   the adoption's `Drop` can remove the intent of a landing in flight, leaving a landed commit with no record;
