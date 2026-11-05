@@ -1444,8 +1444,10 @@ fn layout_rules_run_in_the_built_executable_and_do_not_follow_links() {
     let fixture: Fixture = Fixture::new();
     fixture.write("Cargo.toml", "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n");
     fixture.write("src/lib.rs", "mod top;\nmod middle;\n");
-    fixture.write("src/top/mod.rs", "use crate::middle::Thing;\n");
-    fixture.write("src/middle/mod.rs", "pub struct Thing;\n");
+    fixture.write("src/top/mod.rs", "//! Files in this folder, each using only files listed before it:\n//! - `user.rs`: uses the thing.\nmod user;\n");
+    fixture.write("src/top/user.rs", "use crate::middle::Thing;\n");
+    fixture.write("src/middle/mod.rs", "mod thing;\npub use thing::Thing;\n");
+    fixture.write("src/middle/thing.rs", "pub struct Thing;\n");
     let configuration: &str = r#"[{ "files": ["**/*.rs"], "rules": {
       "rust/folder-uses-links": { "severity": "error" },
       "rust/file-order-in-folder": { "severity": "warn" },
@@ -1464,16 +1466,17 @@ fn layout_rules_run_in_the_built_executable_and_do_not_follow_links() {
     let missing: Run = run(&fixture.path, &["src"], b"");
     assert_eq!(missing.status, 1, "{}", missing.stderr);
     let found: Vec<String> = located(missing.stdout.as_str());
-    assert!(found.contains(&String::from("src/top/mod.rs rust/folder-uses-links 1 1")), "{found:?}");
+    assert!(found.contains(&String::from("src/top/user.rs rust/folder-uses-links 1 1")), "{found:?}");
     assert!(missing.stdout.contains("src/top uses the folder src/middle (`crate::middle::Thing`)"), "{}", missing.stdout);
     // With the link in place, and a file list for the root folder, the layout findings are gone,
     // and a test function behind the link is reported once, not once per path to it.
     std::fs::create_dir_all(fixture.path.join("src/top/uses")).expect("uses folder");
     std::os::unix::fs::symlink("../../middle", fixture.path.join("src/top/uses/middle")).expect("link");
-    fixture.write("src/middle/mod.rs", "pub struct Thing;\n#[test]\nfn stray() {}\n");
+    let list: &str = "//! Files in this folder, each using only files listed before it:\n//! - `thing.rs`: the thing.\n";
+    fixture.write("src/middle/mod.rs", format!("{list}mod thing;\npub use thing::Thing;\n#[test]\nfn stray() {{}}\n").as_str());
     fixture.write("src/lib.rs", "//! Files in this folder, each using only files listed before it:\nmod top;\nmod middle;\n");
     let linked: Run = run(&fixture.path, &["src"], b"");
-    assert_eq!(located(linked.stdout.as_str()), ["src/middle/mod.rs rust/tests-in-sidecars 3 4"], "{}", linked.stderr);
+    assert_eq!(located(linked.stdout.as_str()), ["src/middle/mod.rs rust/tests-in-sidecars 6 4"], "{}", linked.stderr);
 }
 
 /// The unit-test scratch root,

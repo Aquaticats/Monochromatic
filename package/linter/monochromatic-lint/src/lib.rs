@@ -116,10 +116,17 @@ mod layout_crate_roots;
 mod layout_file_order;
 /// The shape of a finding of a layout rule.
 mod layout_finding;
+/// The files of each folder,
+///  its index file,
+///  and the code check of index files and executable roots.
+mod layout_folder_index_files;
 /// The folder rule:
 ///  `uses` links that match the folders the code uses,
 ///  and no loop between folders.
 mod layout_folder_links;
+/// What an index file (`mod.rs`,
+///  or a crate root that is a folder's index) holds besides the index.
+mod layout_index_file_items;
 /// The `uses` folder of one source folder,
 ///  entry by entry.
 mod layout_link_entries;

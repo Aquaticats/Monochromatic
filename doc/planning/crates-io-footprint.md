@@ -24,6 +24,26 @@ nothing on crates.io, in the toolchain lock or in the publish workflow has been 
   "\"some Linux distro packagers do that\" - that's not enough research."
   Open: who runs the tests of a published crate needs evidence before the choice.
 
+## Research results (2026-11-05)
+
+- Routes: `doc/research/cargo-crates-and-tools-without-crates-io.md` (`54c6511df7`, `62ccbc6fa5`).
+  Option 1, `path` plus exact version between crates and the `archive` route for tools, works for crates using
+  each other, for installing tools and alongside the crates.io releases that continue; it does not serve outside users.
+  Floating git is blocked for both inside uses (the catalog refuses moving git links; installing from git compiles).
+  GitHub Packages has no Cargo registry; a static sparse index on GitHub Pages with `.crate` files as release
+  assets works, with new code in `mpm-shadow`, the catalog and `cargo-shadow`.
+  A crate on crates.io may depend only on crates on crates.io (the server checks it; `cargo publish --dry-run` does not).
+- Test files: `doc/research/tests-inside-published-rust-crates.md` (`534f61bf99`, `e4e0c001f4`).
+  Debian, Fedora, Gentoo, NixOS and crater run `cargo test` from a published crate;
+  with our sidecar declarations left in the sources, a crate packed without the sidecar files fails that with E0583.
+  `exclude` is ignored when `include` is set, so a removal would be a `!` pattern inside `include`.
+- Choices made by the session under the owner's 2026-11-05 instruction
+  ("make any non-destructive options (when they are the ones I would likely have picked) yourself"):
+  tools install from GitHub releases and stop publishing after their one release each (not started: layout and lint
+  come first); the lock follows the newest release; test files stay in the crates that stay published.
+- Open for the owner, in `doc/handover/questions-for-the-owner.md`:
+  where the libraries go, and when the one release of each crate happens.
+
 ## What crates.io holds now
 
 Read from the public API at about 2026-11-05T00:10Z
@@ -189,6 +209,10 @@ b beats c because it puts the owner's notice where crates.io users see it.
 
 - Leave test files out of the packed crate (an `exclude` list set through `file-enforcer.config.jsonc`,
   next to the `**/uses` exclude the layout plan already needs).
+  Correction, 2026-11-05: `exclude` is ignored when `include` is set, as it is for the wrapper,
+  so this would be `!` patterns inside `include`;
+  and it breaks `cargo test` from the published crate (E0583) unless the sidecar declarations change too
+  (`doc/research/tests-inside-published-rust-crates.md`).
   Pros: about half the bytes of each wrapper version.
   Cons: someone cannot run our tests from the `.crate` alone.
 - Keep them in.

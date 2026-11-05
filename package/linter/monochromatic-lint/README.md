@@ -690,6 +690,17 @@ Decisions:
   one level of glob at a time and with a visited set so rings end,
   and the path of a glob is read through direct children only.
   An item that a glob supplies resolves to the module that re-exports it.
+- A name that a module re-exports by name (`pub use sibling::Name;`,
+  or `pub use sibling::Thing as Name;`) is followed to the module that defines it,
+  through any chain of such re-exports;
+  a path that reaches the name through the re-exporting module is a use of the module it names
+  and also of the defining module,
+  which is the child folder when the re-export comes from a child folder.
+  The walk keeps a visited set of module and name pairs,
+  so a ring of re-exports ends
+  and the use stays on the module where the ring closed.
+  The named module stays a used module because dropping it would hide a loop through a re-exporting file:
+  on `package/git-policy/cli` the other choice let three files of a fifteen-file loop escape.
 
 ### File rule
 
@@ -700,6 +711,7 @@ Findings:
 - Files use each other in a loop.
   One finding lists the files and one reference per use inside the loop.
 - A folder has module files but no `mod.rs` to hold the top doc.
+- An index file holds code (see "Index files hold only the index").
 - The top doc has no file list,
   lists a file twice,
   lists a name that is not a module file of the folder,
@@ -738,7 +750,80 @@ The index file itself is not listed,
 and neither are the other crate roots (`main.rs` beside `lib.rs`),
 test files and subfolders.
 Using the index file with `super::` is never reported,
-so an item that `mod.rs` re-exports and a sibling file reaches through `super::` hides the file that defines it.
+because the index holds no code that could take part in a loop.
+A sibling that reaches a name through the index is a use of the file the index re-exports the name from
+(see the re-export decision under the folder rule),
+so a re-export hides neither a loop nor a listing order.
+
+#### Index files hold only the index
+
+An index file is the `mod.rs` of a folder,
+or the `lib.rs` (else `main.rs`) of the folder of a crate root.
+It may hold:
+
+- its `//!` top doc,
+  inner attributes and comments;
+- `mod x;` lines with any attributes and docs (`#[path]`,
+  `#[cfg(test)]`,
+  `#[macro_use]`);
+- `pub use`,
+  `pub(crate) use` and `pub(super) use` re-exports.
+
+Every other item is a finding of `rust/file-order-in-folder`,
+on the item's own line (not its attribute or doc line),
+one finding for each:
+a function,
+struct,
+enum,
+union,
+`impl` block,
+trait,
+constant,
+static,
+type alias,
+`macro_rules!` or macro definition,
+a macro call,
+an `extern crate` line,
+an `extern` block,
+a `use` that is not public,
+and an inline `mod x { ... }` with a body.
+The message names the kind and the name:
+
+```text
+src/a/mod.rs is the index of its folder, so it may hold only its top doc, `mod` lines and `pub use` re-exports,
+but it holds a function `helper`.
+```
+
+The help says to move the item into a file of the folder named for what it does,
+to add `mod` for that file in the index,
+and to re-export the names other folders use with `pub use`.
+Code marked for test builds (`#[cfg(test)]`,
+`#[test]`) is not read.
+The check runs even when the index is the only file of its folder.
+
+An entry point is a `main.rs` that is the index of its folder (there is no `lib.rs` beside it).
+The compiler pins `fn main` to that file,
+so it may also hold `fn main` (also `async` or under an attribute)
+and plain `use` lines,
+which feed only `fn main`.
+No code can name `main`,
+so it cannot close a loop,
+and the index stays out of the loop check.
+Any other item is a finding in the entry point's own words:
+
+```text
+src/main.rs is the entry point of its program, so it may hold only its top doc, `mod` lines, `use` lines and `fn main`,
+but it holds a function `run`.
+```
+
+A `main.rs` beside a `lib.rs`,
+and a single-file binary under `src/bin`,
+are other crate roots.
+They stay out of the loop check and the top doc list,
+and they are read for code like an entry point:
+the same items are allowed and the same message is used.
+A `main.rs` that is the index of its own folder under `src/bin/<name>/` is an entry point already.
+A root named by a `[[bin]]` path anywhere else is not read for code.
 
 ### Known limits
 
@@ -748,10 +833,14 @@ so an item that `mod.rs` re-exports and a sibling file reaches through `super::`
   example and benchmark targets are test-only code.
 - Names are resolved by module,
   not by item:
-  an item re-exported from another folder,
+  an item that a glob supplies,
   or a `#[macro_export]` macro used as `crate::name!`,
-  belongs to the
-  module the path names.
+  belongs to the module the path names.
+  A name re-exported by name is followed to the module that defines it.
+- A glob import (`use super::*;`) names the index and hides which re-exported file it reaches;
+  only a re-export that is a glob is a finding of its own.
+- When a module re-exports one name twice (for example from two `cfg` branches),
+  the first `pub use` in the file decides.
 - `cfg` gates other than the ones that name `test` are not evaluated;
   every `mod` line is followed.
 - A module that a macro declares is not seen.

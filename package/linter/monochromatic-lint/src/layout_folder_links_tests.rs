@@ -281,3 +281,22 @@ fn a_link_outside_the_package_is_reported() {
         "{found:#?}"
     );
 }
+
+/// A folder that reaches an item through another folder's index uses that folder and the folder that defines the item,
+/// which is the child folder when the index re-exports it from there.
+#[test]
+fn a_use_through_a_reexport_needs_the_link_to_the_defining_folder_too() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\nmod b;\n"),
+        ("src/a/mod.rs", "use crate::b::Thing;\n"),
+        ("src/b/mod.rs", "mod inner;\npub use inner::Thing;\n"),
+        ("src/b/inner/mod.rs", "pub struct Thing;\n"),
+    ]);
+    let found: Vec<String> = findings_of(&fixture.path);
+    for folder in ["src/b", "src/b/inner"] {
+        assert!(
+            found.iter().any(|text| return text.contains(format!("src/a uses the folder {folder} (`crate::b::Thing`)").as_str())),
+            "{folder}: {found:#?}"
+        );
+    }
+}

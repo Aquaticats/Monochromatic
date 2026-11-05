@@ -456,6 +456,15 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   off unless a config block selects them; measured on the wrapper at `8c9eb6e035`: 364 findings
   (288 missing `uses/` links, 27 glob re-exports, 1 folder loop, 21 file loops, 27 top docs without a file list).
   Open to veto from that agent: `mod.rs` and other crate roots are left out of the in-folder loop check.
+  Asked the owner async on 2026-11-05 (owner: ask "async", not with the question tool), pick adopted at once:
+  index files (`mod.rs`, `lib.rs` as index) hold only the top doc, `mod` lines and re-exports, anything else is a
+  finding; a name reached through a re-export counts as a use of the file that defines it.
+  An agent builds it on `feat/monochromatic-lint-index-files-hold-only-declarations`
+  (worktree `.claude/worktrees/lint-index-files-only-declarations`, from `bec267799f`); the owner's veto stays open.
+  Merged to main 2026-11-05 (840 tests, 108 in the container). A use through a re-export counts for both the
+  re-exporting file and the defining one (replacing the edge lost a real 15-file loop in `landing/`).
+  The entry-point check for `main.rs` beside `lib.rs` and `src/bin/*.rs` is merged to main too (842 tests,
+  110 in the container); repo-wide survey: 74 entry-point and 107 index-file findings outside the wrapper, none in it.
   The `exclude = ["**/uses"]` for the wrapper's `Cargo.toml` is still to add through file-enforcer.
   The worktree lint branch is done (`refactor/git-policy-cli-lint-worktree-folders` at `8d19c13a28`):
   `worktree/` and `worktree_copying/` have zero `rust/avoidable-closure` and `rust/max-lines` findings,
@@ -472,6 +481,25 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   until measured; the merged gate must check these three, and a failure there is a defect to find.
   Its seam closures (`dyn Fn` parameters in subvolume, push and `start_retry`) stay suppressed;
   turning them into traits changes signatures used by `worktree/worktree_clone.rs` and test sidecars.
+  The command and policy branch is done too (`refactor/git-policy-cli-lint-command-and-policy-folders` at
+  `0595efcd4b`): zero findings of both rules in its 17 folders, 10 `expect`s documented in
+  `doc/planning/cli-git-closure-lint-suppressions.md`, 1507 host tests passed with the same test names as before,
+  clippy clean, no container gate.
+  All three finished branches are merged into `refactor/git-policy-cli-lint-all-folders`
+  (worktree `.claude/worktrees/lint-all-folders`, from main `bec267799f`) without conflicts;
+  clippy passed after the first two.
+  Next, after the service, landing and runner branch lands: merge it, one container gate, merge to main.
+  Then one follow-up pass, decided by the coordinator (LN1 and LN2: restructure rather than suppress):
+  give the callees guard or trait forms so most `expect`s go
+  (`worktree/add_timing.rs` already has `begin_step`/`end_step` and `begin_work`/`end_work` for the
+  `repair/package_repair_cargo.rs` wrappers; `process/thread_quiet.rs` `measured_quiet`;
+  `push/wait_progress.rs` `poll`; the `dyn Fn` seams in subvolume, push and `start_retry`),
+  keep only the ones `std::thread::scope` and `catch_unwind` need,
+  and merge the three suppression docs into one package doc beside the code
+  (today: `src/native/worktree/worktree_closure_lint_suppressions.md`,
+  `doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`,
+  and `doc/planning/cli-git-closure-lint-suppressions.md`, which is in the wrong family),
+  updating every `reason` that cites them.
   Next for the layout:
   break the file loops with named changes,
   split the large groups into folders,
@@ -481,10 +509,14 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
 - crates.io footprint (owner 2026-11-05: "Can we avoid polluting crates.io too much?"):
   measured and ranked in `doc/planning/crates-io-footprint.md` (`dd61b20559`), owner answers recorded there.
   Decided by the owner: "One release each. And we publish less to crates.io".
-  Research running in two agents, into `doc/research/cargo-crates-and-tools-without-crates-io.md`
-  (the owner's ranking: a `workspace:`-like protocol, then floating git, then GitHub's package registry,
-  plus how each relates to the pnpr registry track in `doc/planning/self-hosted-cargo-registry.md`)
-  and `doc/research/tests-inside-published-rust-crates.md` (who uses tests inside a published crate).
+  Research done: `doc/research/cargo-crates-and-tools-without-crates-io.md` (option 1 works; floating git and
+  GitHub Packages do not; a static index on GitHub Pages would) and `doc/research/tests-inside-published-rust-crates.md`
+  (distributions and crater run `cargo test` from a published crate); summary in the planning doc,
+  section "Research results (2026-11-05)".
+  Owner questions open in `doc/handover/questions-for-the-owner.md` (kept open in Zed): where the libraries go,
+  and when the one release of each crate happens.
+  Chosen by the session (non-destructive, owner's likely pick): tools move to the `archive` route and
+  `publish = false` after their one release, not started until layout and lint land; test files stay in.
   The wrapper's crate with test files left out packs and verifies (1.6 MiB compressed against 3.1 MiB for the
   published 0.5.34; details in the planning doc); the throwaway worktree is removed.
   The one release of each crate is held until the route research is answered by the owner and,
