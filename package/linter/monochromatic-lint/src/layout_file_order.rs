@@ -20,8 +20,9 @@
 //!  (`main.rs` that is the index may also hold `fn main` and plain `use` lines);
 //!  a use of a name that the index re-exports counts as a use of the sibling file that defines it,
 //!  so a re-export hides neither a loop nor an order;
-//!  executable roots next to a library root are not listed either,
-//!  and not read for code;
+//!  executable roots next to a library root (a `main.rs` beside `lib.rs`,
+//!  a single file under `src/bin`) are not listed either,
+//!  and are read for code like an entry point;
 //!  a folder with module files but no `mod.rs` is a finding,
 //! because it has no top doc.
 //!
@@ -31,13 +32,13 @@
 //! ```
 
 /// Import the finding shape,
-/// the index file check,
+/// the folder and index file readers,
 /// the loop finder,
 /// the tree,
 /// the uses and the top doc reader.
 use crate::{
     layout_finding::{LayoutFinding, shown},
-    layout_index_file_items::{IndexRole, check_index_items},
+    layout_folder_index_files::{file_name, files_by_folder, index_file, index_file_findings},
     layout_loops::find_loops,
     layout_module_tree::ModuleTree,
     layout_module_uses::ModuleUse,
@@ -45,7 +46,7 @@ use crate::{
 };
 /// Import ordered collections and native paths.
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     path::{Path, PathBuf},
 };
 
@@ -66,77 +67,6 @@ struct Proof {
     line: usize,
     /// The path as written.
     text: String,
-}
-
-/// What:
-///  The name of a file without its folder.
-/// Why:
-///  The top doc lists bare file names.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function fileName(file: Path): string;
-/// ```
-fn file_name(file: &Path) -> String {
-    return match file.file_name() {
-        Some(name) => name.to_string_lossy().into_owned(),
-        None => String::new(),
-    };
-}
-
-/// What:
-///  The files of each folder,
-///  and the files that are roots of a crate.
-/// Why:
-///  A file is the unit of the rule,
-/// however many modules it holds.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function filesByFolder(tree: ModuleTree): { byFolder: Map<Path, Set<Path>>; roots: Set<Path> };
-/// ```
-fn files_by_folder(tree: &ModuleTree) -> (BTreeMap<PathBuf, BTreeSet<PathBuf>>, BTreeSet<PathBuf>) {
-    let mut by_folder: BTreeMap<PathBuf, BTreeSet<PathBuf>> =
-        BTreeMap::<PathBuf, BTreeSet<PathBuf>>::new();
-    for module in &tree.modules {
-        if let Some(folder) = module.file.parent() {
-            by_folder
-                .entry(folder.to_path_buf())
-                .or_default()
-                .insert(module.file.clone());
-        }
-    }
-    let mut roots: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
-    for root in &tree.roots {
-        roots.insert(tree.modules[*root].file.clone());
-    }
-    return (by_folder, roots);
-}
-
-/// What:
-///  The file that holds a folder's top doc.
-/// Why:
-///  `mod.rs` for a module folder;
-/// `lib.rs`,
-/// else `main.rs`,
-/// for the folder of a crate root.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function indexFile(folder: Path, files: Set<Path>, roots: Set<Path>): Path | undefined;
-/// ```
-fn index_file(
-    folder: &Path,
-    files: &BTreeSet<PathBuf>,
-    roots: &BTreeSet<PathBuf>,
-) -> Option<PathBuf> {
-    for name in ["mod.rs", "lib.rs", "main.rs"] {
-        let candidate: PathBuf = folder.join(name);
-        if files.contains(&candidate) && (name == "mod.rs" || roots.contains(&candidate)) {
-            return Some(candidate);
-        }
-    }
-    return None;
 }
 
 /// What:
@@ -372,14 +302,7 @@ pub fn check_file_order(tree: &ModuleTree, uses: &[ModuleUse], base: &Path) -> V
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     for (folder, files) in &by_folder {
         let index: Option<PathBuf> = index_file(folder, files, &roots);
-        if let Some(index_path) = &index {
-            let role: IndexRole = if file_name(index_path) == "main.rs" {
-                IndexRole::EntryPoint
-            } else {
-                IndexRole::Index
-            };
-            findings.extend(check_index_items(index_path, role, base));
-        }
+        findings.extend(index_file_findings(index.as_ref(), files, &roots, base));
         let mut listed: Vec<PathBuf> = Vec::<PathBuf>::new();
         for file in files {
             if Some(file) == index.as_ref() || roots.contains(file) {

@@ -816,13 +816,14 @@ src/main.rs is the entry point of its program, so it may hold only its top doc, 
 but it holds a function `run`.
 ```
 
-Measured over every package of the repository with only this rule switched on,
-seven `main.rs` files are entry points and six hold more than `fn main` (helper functions,
-constants,
-structs),
-so the choice is not a free pass.
-A `main.rs` beside a `lib.rs` and the single files of `src/bin` are other crate roots
-and are not read for code.
+A `main.rs` beside a `lib.rs`,
+and a single-file binary under `src/bin`,
+are other crate roots.
+They stay out of the loop check and the top doc list,
+and they are read for code like an entry point:
+the same items are allowed and the same message is used.
+A `main.rs` that is the index of its own folder under `src/bin/<name>/` is an entry point already.
+A root named by a `[[bin]]` path anywhere else is not read for code.
 
 ### Known limits
 

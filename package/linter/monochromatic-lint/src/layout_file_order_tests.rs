@@ -385,13 +385,79 @@ fn other_code_in_an_entry_point_is_reported() {
     );
 }
 
-/// A `main.rs` beside a `lib.rs` is another crate root and is not read.
+/// A `main.rs` beside a `lib.rs` is another crate root,
+/// and it holds the same as an entry point:
+/// its top doc,
+/// `mod` lines,
+/// `use` lines and `fn main`.
 #[test]
-fn an_entry_point_beside_a_library_root_is_not_read() {
+fn an_entry_point_beside_a_library_root_is_read_as_an_entry_point() {
     let fixture = package_with(&[
         ("src/lib.rs", "mod a;\n"),
         ("src/main.rs", "fn run() {}\nfn main() { run(); }\n"),
         ("src/a/mod.rs", ""),
+    ]);
+    let found: Vec<String> = findings_of(&fixture.path);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert!(
+        found[0].starts_with("src/main.rs:1 src/main.rs is the entry point of its program"),
+        "{}",
+        found[0]
+    );
+    assert!(
+        found[0].contains("but it holds a function `run`."),
+        "{}",
+        found[0]
+    );
+
+    let clean = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/main.rs",
+            "//! The program.\nuse monochromatic_lint::run;\nfn main() { run(); }\n",
+        ),
+        ("src/a/mod.rs", ""),
+    ]);
+    assert_eq!(findings_of(&clean.path), Vec::<String>::new());
+}
+
+/// A single-file binary under `src/bin` is read as an entry point too,
+/// and the folder `src/bin` needs no `mod.rs` for it.
+#[test]
+fn a_single_file_binary_is_read_as_an_entry_point() {
+    let fixture = package_with(&[
+        ("src/lib.rs", ""),
+        ("src/bin/tool.rs", "const LIMIT: u8 = 1;\nfn main() {}\n"),
+        (
+            "src/bin/clean.rs",
+            "use std::process::ExitCode;\nfn main() -> ExitCode { ExitCode::SUCCESS }\n",
+        ),
+    ]);
+    let found: Vec<String> = findings_of(&fixture.path);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert!(
+        found[0].starts_with("src/bin/tool.rs:1 src/bin/tool.rs is the entry point of its program"),
+        "{}",
+        found[0]
+    );
+    assert!(
+        found[0].contains("but it holds a constant `LIMIT`."),
+        "{}",
+        found[0]
+    );
+}
+
+/// A root that is neither a `main.rs` nor a single file under `src/bin`
+/// (here a `[[bin]]` path elsewhere) is outside this check.
+#[test]
+fn another_root_is_not_read_for_code() {
+    let fixture = package_with(&[
+        (
+            "Cargo.toml",
+            "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n[[bin]]\nname = \"tool\"\npath = \"src/tool.rs\"\n",
+        ),
+        ("src/lib.rs", ""),
+        ("src/tool.rs", "fn helper() {}\nfn main() {}\n"),
     ]);
     assert_eq!(findings_of(&fixture.path), Vec::<String>::new());
 }
