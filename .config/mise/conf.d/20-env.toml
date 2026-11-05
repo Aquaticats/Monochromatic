@@ -13,6 +13,14 @@
 # https://mise.jdx.dev/environments/secrets/sops.html
 _.file = [{ path = ".env.local.json", redact = true }]
 
+# pnpm 12.16.1 computes relative workspace links from the store's spelled path.
+# Resolve the existing home first: /home can point at /var/home, otherwise the
+# shared virtual store links reach /var/var/home and Advisor cannot import its
+# proper-lockfile shim. Keep the shared store chosen in pnpm-workspace.yaml.
+# Canonicalizing only home also works before the store exists on a fresh clone.
+# See doc/troubleshooting/pnpm-symlinked-store-path.md.
+PNPM_CONFIG_STORE_DIR = "{{ env.HOME | canonicalize }}/.local/share/pnpm/store"
+
 # The first entry is the gitignored per-worktree directory .cache/search-shadow-bin that
 # holds the rg link to the installed search shadow (the postinstall of the
 # cargo:monochromatic-search-shadow tool in the toolchain plan). It has to come first:

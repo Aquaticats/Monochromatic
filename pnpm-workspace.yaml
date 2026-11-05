@@ -571,6 +571,9 @@ shellEmulator: false
 # Owner decision 2026-11-02 ("Set the shared store"); measurements in
 # doc/planning/cli-git-main-worktree-ignored-copy.md ("Snapshot route measured").
 storeDir: ${HOME}/.local/share/pnpm/store
+# Mise supplies PNPM_CONFIG_STORE_DIR with the canonical home spelling of this
+# same location. pnpm 12.16.1 otherwise makes broken relative workspace links
+# when HOME traverses a symlink; see doc/troubleshooting/pnpm-symlinked-store-path.md.
 # Global virtual store: node_modules holds only links into one shared virtual
 # store at <storeDir>/links, so every worktree shares one tree per package
 # instead of its own node_modules/.pnpm. This is the setting the owner asked
