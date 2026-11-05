@@ -1,4 +1,4 @@
-// Repository-owned policy configuration for the monochromatic-git-policy-cli wrapper (renamed from cli-git.config.jsonc on 2026-11-04).
+// Repository-owned policy configuration for the monochromatic-git-policy-cli wrapper. The file keeps its earlier name cli-git.config.jsonc until the toolchain lock carries a release with the new name (doc/planning/git-policy-cli-program-rename.md); the new program reads it with a notice.
 // The native wrapper runs the four optional policies only when they are listed.
 // Evidence and the differential check: doc/handover/cli-git-native-config.md
 {
