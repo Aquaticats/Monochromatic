@@ -13,7 +13,12 @@ import {
 /**
  Failure created by the test executor, never by the invocation cache.
  */
-class FixtureFailure extends Error {}
+class FixtureFailureError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'FixtureFailureError';
+  }
+}
 
 await describe({
   name: createTaskInvocation.name,
@@ -146,19 +151,19 @@ await describe({
     it({
       name: 'rejects dependent work requested after its owner completed',
       fn: async () => {
-        let retained: RunTask | undefined;
+        const retained: { run?: RunTask } = {};
         const executed: string[] = [];
         const owner = { name: 'owner', };
         const run = createTaskInvocation({ execute: async ({ request, runTask, }) => {
           executed.push(request.name,);
-          retained = runTask;
+          retained.run = runTask;
         }, },);
         await run(owner,);
-        if (retained === undefined)
+        if (retained.run === undefined)
           throw new FixtureFailure('The fixture did not receive a dependency dispatcher',);
         let caught: unknown;
         try {
-          await retained({ name: 'late-child', },);
+          await retained.run({ name: 'late-child', },);
         }
         catch (error) {
           caught = error;
