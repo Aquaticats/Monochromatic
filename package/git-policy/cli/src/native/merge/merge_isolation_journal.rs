@@ -10,7 +10,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await writeFile(join(gitDir, 'cli-git-merges', `${id}.json`), encodeMergeIntent(intent), { flag: 'wx' });
+//! await writeFile(join(gitDir, 'monochromatic-git-policy-cli-merges', `${id}.json`), encodeMergeIntent(intent), { flag: 'wx' });
 //! ```
 
 /// Record writers and readers.
@@ -65,7 +65,7 @@ pub struct MergeIntent {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// join(gitDir, 'cli-git-merges')
+/// join(gitDir, 'monochromatic-git-policy-cli-merges')
 /// ```
 pub fn intent_directory(git_dir: &Path) -> PathBuf {
     return git_dir.join(MERGE_INTENT_DIRECTORY);

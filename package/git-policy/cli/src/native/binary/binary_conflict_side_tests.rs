@@ -114,7 +114,7 @@ fn saved_root(repo: &Path) -> PathBuf {
 
 /// Every audit line of the repository.
 fn audit_lines(repo: &Path) -> Vec<String> {
-    return std::fs::read_to_string(repo.join(".git/cli-git-audit.jsonl")).unwrap_or_default().lines().map(String::from).collect();
+    return std::fs::read_to_string(repo.join(".git/monochromatic-git-policy-cli-audit.jsonl")).unwrap_or_default().lines().map(String::from).collect();
 }
 
 /// Every control for one stop:

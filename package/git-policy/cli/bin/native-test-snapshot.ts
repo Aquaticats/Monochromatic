@@ -34,10 +34,10 @@ export async function copySourceSnapshot({ context, }: {
       },
       // The configuration control in `src/native/config/config_repository_tests.rs` reads the repository's own file.
       {
-        from: resolve('../../../cli-git.config.jsonc'),
+        from: resolve('../../../monochromatic-git-policy-cli.config.jsonc'),
         to: join(
           context,
-          'cli-git.config.jsonc',
+          'monochromatic-git-policy-cli.config.jsonc',
         ),
       },
     ],

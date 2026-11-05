@@ -719,7 +719,7 @@ fn a_service_on_the_journal_stream_sends_native_entries_that_join_the_clients_re
     assert_eq!(Some(answered["CLI_GIT_REQUEST_ID"].as_str()), record["requestId"].as_str(), "the key that joins the client's record to the service's entry");
     assert!(record["requestId"].as_str().is_some_and(|id| { return !id.is_empty(); }), "{record}");
     assert_eq!(answered["PRIORITY"], "6");
-    assert_eq!(answered["SYSLOG_IDENTIFIER"], "cli-git-service");
+    assert_eq!(answered["SYSLOG_IDENTIFIER"], "monochromatic-git-policy-cli-service");
     assert_eq!(answered["CLI_GIT_OUTCOME"], "landed");
     assert_eq!(answered["CLI_GIT_RELEASE"], RELEASE);
     assert_eq!(answered["CLI_GIT_INSTANCE"], instance.as_str());
@@ -771,7 +771,7 @@ fn a_journal_that_is_gone_leaves_the_lines_on_standard_error_with_their_priority
     environment.push((git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, format!("@cli-git-test-journal-nobody-{}", std::process::id())));
     let _service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[], environment.as_slice());
     let text: String = std::fs::read_to_string(&places.log).expect("log");
-    assert!(text.lines().any(|line| { return line.starts_with("<6>cli-git-service: ready"); }), "{text}");
+    assert!(text.lines().any(|line| { return line.starts_with("<6>monochromatic-git-policy-cli-service: ready"); }), "{text}");
     assert!(text.lines().all(|line| { return line.starts_with("<6>") && line.contains(" at_ms="); }), "{text}");
     remove_settled(&fixture);
 }

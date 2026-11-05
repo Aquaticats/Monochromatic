@@ -1590,7 +1590,7 @@ fn the_union_attribute_of_the_local_tip_applies_without_a_worktree_file() {
 /// The auto-push runs inside the service and journals under the service's identifier; a push a person typed journals as the wrapper.
 #[test]
 fn the_journal_identifier_follows_who_runs_the_reconcile() {
-    assert_eq!(journal_identifier(false), "cli-git-service");
+    assert_eq!(journal_identifier(false), "monochromatic-git-policy-cli-service");
     assert_eq!(journal_identifier(true), "monochromatic-git-policy-cli");
 }
 //endregion
@@ -1674,7 +1674,7 @@ fn a_fast_forward_that_loses_the_race_inside_git_leaves_the_checkout_matching_th
     assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the checkout matches the branch");
     assert_ne!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "remote\n", "a.txt is not the published merge's");
     assert!(s.local.join("z.txt").exists());
-    assert_eq!(std::fs::read_dir(s.local.join(".git/cli-git-merges")).map_or(0, Iterator::count), 0, "no record is left");
+    assert_eq!(std::fs::read_dir(s.local.join(".git/monochromatic-git-policy-cli-merges")).map_or(0, Iterator::count), 0, "no record is left");
     remove(&s.root);
 }
 

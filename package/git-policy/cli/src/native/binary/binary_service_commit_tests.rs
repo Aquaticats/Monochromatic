@@ -25,7 +25,24 @@ pub(super) fn query(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Strin
 ///  fixture tree's depth does not allow, so it lives in the short agent scratch directory.
 pub(super) fn runtime_for(name: &str) -> PathBuf {
     let scratch: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
-    return scratch.join(format!("rt-{}-{name}", std::process::id()));
+    return scratch.join(format!("rn-{}-{}", std::process::id(), runtime_number(name)));
+}
+
+/// The names given to `runtime_for` so far in this process, in the order they were first given.
+///  A mutex guards the list because tests of one process may name runtimes from several threads; a test-only list, so no
+///  production code waits on it.
+static RUNTIME_NAMES: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+/// A small number for a runtime name:
+///  the socket path is the runtime directory, the program's folder name and a 32-digit instance name, and the whole must
+///  fit in a socket address (107 bytes), so the directory name is a number and not the test's name.
+fn runtime_number(name: &str) -> usize {
+    let mut names = RUNTIME_NAMES.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(position) = names.iter().position(|known| { return known == name; }) {
+        return position;
+    }
+    names.push(name.to_owned());
+    return names.len() - 1;
 }
 
 /// The services under test, one per worktree as in production, stopped (and their runtime directory removed) when they go out

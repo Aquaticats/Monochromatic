@@ -319,7 +319,7 @@ fn a_saved_patch_makes_the_hatch_revert_reversible() {
 fn each_decision_leaves_one_line_in_the_audit_file() {
     let fixture: Fixture = fixture("discard-audit");
     let repo: PathBuf = dirty_repository(&fixture);
-    let audit: PathBuf = repo.join(".git/cli-git-audit.jsonl");
+    let audit: PathBuf = repo.join(".git/monochromatic-git-policy-cli-audit.jsonl");
     let rejected: Observed = run_wrapped(&fixture, repo.as_path(), &["restore", "--", "tracked.txt"]);
     assert!(rejected_by_policy(&rejected), "{}", stderr_of(&rejected));
     let text: String = std::fs::read_to_string(&audit).expect("audit file after a rejection");

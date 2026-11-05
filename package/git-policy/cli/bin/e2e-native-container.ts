@@ -10,7 +10,7 @@
    or the Containerfile is new to the host, so the tag changes with either input and no run reuses a stale base.
    The build needs a network (the package manager); the suite itself does not.
  - `image` builds `localhost/cli-git-concurrent-e2e-native:<tag>` in two stages.
-   The first compiles the release `cli-git-native` from a mount-free snapshot of this checkout in the gate's base
+   The first compiles the release `monochromatic-git-policy-cli` from a mount-free snapshot of this checkout in the gate's base
    image (`native-test-base.Containerfile`: the same CachyOS image the end-to-end base starts from, plus Rust),
    so the executable runs there without a glibc mismatch.
    The second starts from the end-to-end base image (built first when it does not exist) and links the executable as
@@ -198,17 +198,17 @@ async function buildImage(): Promise<void> {
       'COPY cargo-config /work/.cargo',
       `ENV CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=${String(parallelJobs(containerLimits))} CARGO_INCREMENTAL=0`,
       'WORKDIR /work/package/git-policy/cli',
-      'RUN ["cargo", "build", "--offline", "--locked", "--release", "--bin", "cli-git-native"]',
+      'RUN ["cargo", "build", "--offline", "--locked", "--release", "--bin", "monochromatic-git-policy-cli"]',
       '',
       `FROM ${endToEndBase.id}`,
       'RUN ["mkdir", "--parents", "/opt/native/bin"]',
-      // The artifact is named `cli-git-native` so it never shadows Git by accident; inside this disposable image it
+      // The artifact is named `monochromatic-git-policy-cli` so it never shadows Git by accident; inside this disposable image it
       // becomes the `git` the scenarios find first on PATH.
-      'COPY --from=compile /work/package/git-policy/cli/target/release/cli-git-native /opt/native/cli-git-native',
-      'RUN ["ln", "--symbolic", "/opt/native/cli-git-native", "/opt/native/bin/git"]',
+      'COPY --from=compile /work/package/git-policy/cli/target/release/monochromatic-git-policy-cli /opt/native/monochromatic-git-policy-cli',
+      'RUN ["ln", "--symbolic", "/opt/native/monochromatic-git-policy-cli", "/opt/native/bin/git"]',
       // The executable was linked in another stage; `ldd` exits zero even for a missing library or symbol version, so the step
       // looks for its `not found` lines: a C library older than the one the executable was linked against fails the build here.
-      'RUN ["sh", "-c", "! ldd /opt/native/cli-git-native 2>&1 | grep --quiet \'not found\'"]',
+      'RUN ["sh", "-c", "! ldd /opt/native/monochromatic-git-policy-cli 2>&1 | grep --quiet \'not found\'"]',
       '',
     ].join('\n'),
   );

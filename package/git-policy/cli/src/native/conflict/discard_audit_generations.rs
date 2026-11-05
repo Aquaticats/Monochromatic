@@ -1,5 +1,5 @@
 //! What:
-//!  The history of `cli-git-audit.jsonl`: where a rotated file goes, which generations may be removed, and the pass that
+//!  The history of `monochromatic-git-policy-cli-audit.jsonl`: where a rotated file goes, which generations may be removed, and the pass that
 //!  removes them.
 //! Why:
 //!  The audit lines name the saved copies of conflicted files, and with a single `.1` the second rotation dropped the lines

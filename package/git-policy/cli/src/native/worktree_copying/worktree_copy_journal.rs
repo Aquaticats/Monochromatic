@@ -1,6 +1,6 @@
 //! What:
 //!  The durable journal of one destination's linked-worktree copy:
-//!  private storage under `<common>/cli-git-worktree-copy/v1`, the atomic writes into it, and the reading of what it holds.
+//!  private storage under `<common>/monochromatic-git-policy-cli-worktree-copy/v1`, the atomic writes into it, and the reading of what it holds.
 //!  The exact JSON encoding is in `worktree_copy_journal_encoding_and_validation.rs`, and the removal of a finished
 //!  transaction's stage and journal is in `worktree_copy_journal_removal.rs`.
 //! Why:
@@ -114,7 +114,7 @@ pub fn assert_private_path(path: &Path, role: Role) -> Result<(), WorktreeCopyEr
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// join(commonDir, 'cli-git-worktree-copy', 'v1')
+/// join(commonDir, 'monochromatic-git-policy-cli-worktree-copy', 'v1')
 /// ```
 pub fn journal_root(common_dir: &Path) -> PathBuf {
     return common_dir

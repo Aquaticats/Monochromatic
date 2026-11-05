@@ -49,7 +49,7 @@ fn a_merge_waits_for_a_held_index_lock_and_then_lands() {
         assert!(ended.stderr.contains("index.lock"), "the lock is named: {}", ended.stderr);
         assert_eq!(parents(&fixture, repo.as_path()).len(), 2, "staged={staged}: a merge commit");
         assert!(!repo.join(".git/MERGE_HEAD").exists());
-        assert_eq!(records_in(repo.join(".git/cli-git-merges").as_path()), Vec::<PathBuf>::new());
+        assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new());
         git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
         remove_settled(&fixture);
     }
@@ -96,7 +96,7 @@ fn a_merge_whose_branch_moved_underneath_it_lands_on_the_new_head() {
         assert_eq!(parents[1], git_text(&fixture, repo.as_path(), &["rev-parse", "feature"]).trim());
         assert!(repo.join("z.txt").exists() && repo.join("dir/new.txt").exists(), "staged={staged}: both sides are in the checkout");
         assert!(!repo.join(".git/MERGE_HEAD").exists());
-        assert_eq!(records_in(repo.join(".git/cli-git-merges").as_path()), Vec::<PathBuf>::new());
+        assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new());
         let status: String = git_text(&fixture, repo.as_path(), &["--no-optional-locks", "status", "--porcelain=v1"]);
         assert_eq!(status.lines().count(), if staged { 3 } else { 0 }, "staged={staged}: only the other session's work is staged: {status}");
         git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);

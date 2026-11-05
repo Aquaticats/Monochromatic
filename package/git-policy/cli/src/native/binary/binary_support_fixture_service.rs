@@ -214,13 +214,23 @@ impl FixtureService {
         //  connected to the old one and called the new one ready.
         wait_until_nothing_listens(&socket);
         let launch: ServiceLaunch = fixture.service_launch.lock().expect("the service launch").clone();
+        // A helper that an older program started has the earlier command word in its unit file.
+        let words: [&str; 3] = if launch.earlier_command_word {
+            git_policy_cli::service_main::EARLIER_SERVICE_WORDS
+        } else {
+            git_policy_cli::service_main::SERVICE_WORDS
+        };
         let mut command: Command = match launch.prefix.split_first() {
             Some((program, rest)) => {
                 let mut prefixed: Command = Command::new(program);
-                prefixed.args(rest).arg(SERVICE_PROGRAM).args(git_policy_cli::service_main::SERVICE_WORDS);
+                prefixed.args(rest).arg(SERVICE_PROGRAM).args(words);
                 prefixed
             }
-            None => service_command(),
+            None => {
+                let mut plain: Command = Command::new(SERVICE_PROGRAM);
+                plain.args(words);
+                plain
+            }
         };
         command
             .args(["--journal"])

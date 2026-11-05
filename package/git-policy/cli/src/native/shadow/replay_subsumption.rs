@@ -219,7 +219,7 @@ fn write_subsumed_base(
         .map_err(SubsumptionError::Git)?;
     let tree: String = String::from_utf8_lossy(&tree_output.stdout).trim().to_string();
     let message: String = format!(
-        "tree {tree}\nauthor monochromatic-git-policy-cli <cli-git@localhost> 0 +0000\ncommitter monochromatic-git-policy-cli <cli-git@localhost> 0 +0000\n\nmonochromatic-git-policy-cli replay base with subsumed landed changes\n"
+        "tree {tree}\nauthor monochromatic-git-policy-cli <monochromatic-git-policy-cli@localhost> 0 +0000\ncommitter monochromatic-git-policy-cli <monochromatic-git-policy-cli@localhost> 0 +0000\n\nmonochromatic-git-policy-cli replay base with subsumed landed changes\n"
     );
     let commit = run_shadow_checked(
         context,

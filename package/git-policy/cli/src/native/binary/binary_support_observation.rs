@@ -131,7 +131,7 @@ pub fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
         .iter()
         .take_while(|token| { return *token != "--"; })
         .any(|token| { return token == "--help"; });
-    if word != b"monochromatic-git-policy-cli" && asks_for_help && !has_manual_stub {
+    if word != b"monochromatic-git-policy-cli" && word != b"cli-git" && asks_for_help && !has_manual_stub {
         return Some(SharedBoundMisuse::ManualPage);
     }
     return None;

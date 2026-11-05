@@ -189,11 +189,11 @@ pub(crate) fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: 
             match handlers.trash(&item.item) {
                 Verdict::Done => settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE),
                 Verdict::Failed(reason) | Verdict::Retry(reason) => {
-                    eprintln!("cli-git-service: the trash {} could not be emptied: {reason}", item.item.parent);
+                    eprintln!("monochromatic-git-policy-cli-service: the trash {} could not be emptied: {reason}", item.item.parent);
                     settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), FAILED);
                 }
                 Verdict::Skipped(reason) => {
-                    eprintln!("cli-git-service: the trash {} was left as it is: {reason}", item.item.parent);
+                    eprintln!("monochromatic-git-policy-cli-service: the trash {} was left as it is: {reason}", item.item.parent);
                     settle_all(work_dir.as_path(), &held, std::slice::from_ref(&item), DONE);
                 }
             }

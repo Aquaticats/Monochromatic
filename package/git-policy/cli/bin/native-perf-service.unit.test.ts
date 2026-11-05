@@ -37,7 +37,7 @@ const scratchParent = join(
 
 /**
  A fake service program: it records its arguments next to its socket and listens on the `--path` it is given, as the
- real service mode (`cli-git service run`) does.
+ real service mode (`monochromatic-git-policy-cli service run`) does.
  */
 const FAKE_SERVICE = `#!${process.execPath}
 const { createServer } = require('node:net');
@@ -146,7 +146,7 @@ async function accepts(socket: string): Promise<boolean> {
 }
 
 /**
- Put a fake `git` into `root/bin` that stands for the wrapper's answer to `git cli-git service status`.
+ Put a fake `git` into `root/bin` that stands for the wrapper's answer to `git monochromatic-git-policy-cli service status`.
 
  @param root - scratch root that holds `bin`
 
@@ -181,7 +181,7 @@ async function fakeWrapper({
   await writeFile(
     program,
     `#!${process.execPath}
-if (process.argv.slice(2).join(' ') !== 'cli-git service status') process.exit(99);
+if (process.argv.slice(2).join(' ') !== 'monochromatic-git-policy-cli service status') process.exit(99);
 if (!process.env.XDG_RUNTIME_DIR) process.exit(98);
 process.stderr.write(${JSON.stringify(stderr)});
 process.exit(${String(status)});
@@ -239,7 +239,7 @@ await describe({
         await Promise.all(names.map(async function checkServed(name) {
           const socket = join(
             service.runtime,
-            'cli-git',
+            'monochromatic-git-policy-cli',
             `${name}.sock`,
           );
           expect(await accepts(socket)).toBe(true);

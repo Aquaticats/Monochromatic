@@ -35,7 +35,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "cli-git-service";
+const TAG: &str = "monochromatic-git-policy-cli-service";
 
 /// Counts how often this process reached `ServiceStaged`, which numbers the marker files of a commit prepared again.
 static STAGED_REACHED: AtomicU64 = AtomicU64::new(0);

@@ -124,7 +124,7 @@ if (traceDirectory !== undefined) {
   );
 }
 if (values.binary === undefined) {
-  throw new Error('--binary <path to the release cli-git-native> is required');
+  throw new Error('--binary <path to the release monochromatic-git-policy-cli> is required');
 }
 /**
  Samples per scenario, validated below as an integer of at least the minimum.

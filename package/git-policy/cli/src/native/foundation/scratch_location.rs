@@ -38,7 +38,7 @@ use std::time::{Duration, SystemTime};
 const TAG: &str = "monochromatic-git-policy-cli";
 
 /// The entry in a Git common directory that holds repository scratch.
-pub const REPOSITORY_SCRATCH_NAME: &str = "cli-git-scratch";
+pub const REPOSITORY_SCRATCH_NAME: &str = "monochromatic-git-policy-cli-scratch";
 
 /// How old an entry must be before a preparation removes it:
 ///  far longer than any command of the wrapper runs, so a live process never loses a file. Measured: the longest command in the

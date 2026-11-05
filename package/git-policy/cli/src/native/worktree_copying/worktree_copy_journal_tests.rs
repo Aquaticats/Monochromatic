@@ -268,7 +268,7 @@ fn journal_is_written_privately_and_read_back() {
     let journal_root: PathBuf = ensure_journal_root(common.as_path()).expect("root");
     assert_eq!(
         journal_root,
-        common.join("cli-git-worktree-copy").join("v1")
+        common.join("monochromatic-git-policy-cli-worktree-copy").join("v1")
     );
     assert_eq!(
         std::fs::metadata(journal_root.as_path())

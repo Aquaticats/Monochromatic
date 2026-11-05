@@ -25,7 +25,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await appendFile(join(commonDir, 'cli-git-commit-timing.jsonl'), JSON.stringify(timing) + '\n');
+//! await appendFile(join(commonDir, 'monochromatic-git-policy-cli-commit-timing.jsonl'), JSON.stringify(timing) + '\n');
 //! ```
 
 use crate::wrapper_names_old_and_new::COMMIT_TIMING_LOG;
@@ -41,7 +41,7 @@ use std::time::{Duration, Instant};
 
 /// The file inside the common Git directory that collects the timing records of every worktree of the repository.
 /// It moves
-///  aside to `cli-git-commit-timing.jsonl.1`, replacing the older one (a timing log keeps one generation), at the size limit
+///  aside to `monochromatic-git-policy-cli-commit-timing.jsonl.1`, replacing the older one (a timing log keeps one generation), at the size limit
 ///  `discard_audit::append_line` applies.
 pub const TIMING_FILE: &str = COMMIT_TIMING_LOG.current;
 

@@ -227,7 +227,7 @@ fn only_a_builtin_merge_is_completed() {
     assert_eq!(attempted(repo.as_path(), Route::Unresolved, &["merge", "--no-edit", "feature"], &[]), forwarded);
     assert_eq!(attempted(repo.as_path(), Route::ShellAlias, &["merge", "--no-edit", "feature"], &[]), forwarded);
     assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing was merged");
-    assert!(!repo.join(".git/cli-git-merges").exists(), "no record was written");
+    assert!(!repo.join(".git/monochromatic-git-policy-cli-merges").exists(), "no record was written");
     let direct: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "feature"], &[]);
     assert!(is_completed(&direct), "the same fixture is completed as a built-in merge: {direct:?}");
     assert_ne!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head);
@@ -405,6 +405,6 @@ fn a_ref_update_that_loses_the_race_inside_gits_fast_forward_is_made_again_on_th
     assert_eq!(git_text(repo.as_path(), &["status", "--porcelain=v1"]), "M  u.txt", "only the other session's work differs from the head");
     assert!(repo.join("z.txt").exists() && repo.join("dir/new.txt").exists(), "both sides are in the checkout");
     assert!(!repo.join(".git/MERGE_HEAD").exists());
-    assert_eq!(std::fs::read_dir(repo.join(".git/cli-git-merges")).map_or(0, Iterator::count), 0, "no record is left");
+    assert_eq!(std::fs::read_dir(repo.join(".git/monochromatic-git-policy-cli-merges")).map_or(0, Iterator::count), 0, "no record is left");
     remove(parent.as_path());
 }

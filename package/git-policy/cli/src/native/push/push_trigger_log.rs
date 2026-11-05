@@ -12,7 +12,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await appendFile(join(commonDir, 'cli-git-push-trigger.jsonl'), JSON.stringify({ command, outcome, reason }) + '\n');
+//! await appendFile(join(commonDir, 'monochromatic-git-policy-cli-push-trigger.jsonl'), JSON.stringify({ command, outcome, reason }) + '\n');
 //! ```
 
 use crate::wrapper_names_old_and_new::PUSH_TRIGGER_LOG;

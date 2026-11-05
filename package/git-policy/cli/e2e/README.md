@@ -1,6 +1,6 @@
 # Concurrent-commit container suite
 
-End-to-end workload replay for cli-git concurrent commits.
+End-to-end workload replay for monochromatic-git-policy-cli concurrent commits.
 It is the "Container end-to-end verification" part of
 [`doc/decision/cli-git-concurrent-commits.md`](../../../../doc/decision/cli-git-concurrent-commits.md)
 and slice 8 of
@@ -42,7 +42,7 @@ The TypeScript wrapper that this suite first verified is retired;
    the only wrapper) names the directory whose `git` shadows the real Git
   (`wrapper-selection-fixture.ts`);
   the consumer checks that this `git` is an ELF executable and prints the result first.
-- `test:e2e:concurrent:native:image` compiles the release `cli-git-native` in the gate's base image
+- `test:e2e:concurrent:native:image` compiles the release `monochromatic-git-policy-cli` in the gate's base image
   (CachyOS with Rust, `native-test-base.Containerfile`)
   and links it as `/opt/native/bin/git` in a copy of the `cli-git-concurrent-e2e` base image,
   which starts from the same CachyOS image.
@@ -65,8 +65,8 @@ mise run //package/git-policy/cli:e2e:concurrent:trace
 
 ## Commit service
 
-Every commit the scenarios make lands through the resident commit service, the wrapper's own `/opt/native/cli-git-native`
-started with the words `cli-git service run` (`SERVICE_MODE_WORDS` in `service-launch-fixture.ts`).
+Every commit the scenarios make lands through the resident commit service, the wrapper's own `/opt/native/monochromatic-git-policy-cli`
+started with the words `monochromatic-git-policy-cli service run` (`SERVICE_MODE_WORDS` in `service-launch-fixture.ts`).
 Each scenario starts its own service (`service-fixture.ts`) with its own runtime directory (`XDG_RUNTIME_DIR`)
 and journal under `<scenario root>/service/`,
 and stops it when the scenario ends,
@@ -77,7 +77,7 @@ they remove the stale socket file (the service does not replace one) and start a
 The scenario's wrapper environment names the runtime directory.
 
 A commit the service landed returns before its push.
-The wrapper writes a `push-<oid>` and a `maintenance-<oid>` record under `<common git dir>/cli-git/work/pending`,
+The wrapper writes a `push-<oid>` and a `maintenance-<oid>` record under `<common git dir>/monochromatic-git-policy-cli/work/pending`,
 and the service runs them on its own thread and moves them to `done` or `failed`.
 `settleServiceWork` therefore waits until no record is pending or claimed
 before the observation compares the remote with the local branch,
@@ -116,7 +116,7 @@ The instruments that replace them add nothing to the release executables:
   `after-objects`, `after-intent`, `after-ref`, `after-index` and `before-ack`.
   The variable is armed only by the harness, and only on the process a scenario starts for it.
 
-A declared `postCommit` action in `cli-git.config.jsonc` is not an instrument:
+A declared `postCommit` action in `monochromatic-git-policy-cli.config.jsonc` is not an instrument:
 that facility was built and deleted on the owner's instruction, and the key is a configuration error
 (`src/native/config/config_parse.rs`, `SPEC.md` "External hooks").
 
@@ -546,8 +546,8 @@ see "Commit service").
   which `push-rejection-surfaced` covers).
 - `push-rejection-surfaced`:
   a commit that exited `0` on top of a landed amend of a commit the remote already had
-  and that the remote does not contain must have surfaced Git's `non-fast-forward` push rejection and either cli-git's
-  `auto-push to origin failed` note or its `cli-git: auto-push: not published:` line,
+  and that the remote does not contain must have surfaced Git's `non-fast-forward` push rejection and either monochromatic-git-policy-cli's
+  `auto-push to origin failed` note or its `monochromatic-git-policy-cli: auto-push: not published:` line,
   on its own stderr or, because the service pushes after the commit returns, on the stderr of a later wrapped command
   in the same repository
   (the observation runs one `git status --short` when the service left a notice, so the notice reaches a stderr)
@@ -558,10 +558,10 @@ see "Commit service").
   no `refs/cli-git/` ref,
   lock file or lock directory
   (the capture lock included),
-  client scratch directory `cli-git-service-<id>`,
+  client scratch directory `monochromatic-git-policy-cli-service-<id>`,
   transaction directory under `cli-git-transactions/`,
   legacy `cli-git-transaction` directory,
-  shadow repository under `cli-git/shadow/`,
+  shadow repository under `monochromatic-git-policy-cli/shadow/`,
   landed-capture record under `cli-git-captures/landed/`,
   or other capture-store entry remains;
   the persistent `cli-git-transactions/` root
@@ -707,7 +707,7 @@ so they detect the regression.
   the push to the local remote is too short to hold, so that kill can land after the push finished.
 - The lint-staged scenarios run in a linked worktree,
   because the `linked-worktree-only` core policy rejects the hook's `git stash` in a main worktree.
-  lint-staged in a main worktree is therefore blocked by cli-git today,
+  lint-staged in a main worktree is therefore blocked by monochromatic-git-policy-cli today,
   independent of concurrency.
 - The container consumer writes its report with `console`:
   the tagged logger is a workspace package with its own dependencies and is not installed in the container.

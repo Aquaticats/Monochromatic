@@ -360,7 +360,7 @@ fn merge_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<()
     }
     // A record being written is a dot-file that is renamed into place; one left by a kill is no record, no reader takes it, and
     //  a later merge does not trip on it.
-    let records: Vec<PathBuf> = super::merge_isolation::records_in(repo.join(".git/cli-git-merges").as_path())
+    let records: Vec<PathBuf> = super::merge_isolation::records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path())
         .into_iter()
         .filter(|path| { return path.extension().is_none_or(|extension| { return extension != "partial"; }); })
         .collect();

@@ -43,8 +43,8 @@ After=cli-git@%i.socket
 # The wrapper replaces the program and Git words below, each written between two at-signs, with absolute paths. The socket
 # comes from the socket unit, so the program is never started by the wrapper and is started again by the first
 # connection after an exit or a crash. The instance refuses every message about another worktree.
-ExecStart=@SERVICE_BINARY@ --journal %S/monochromatic-git-policy-cli/service/%i --git @GIT@ --instance %i
-StateDirectory=monochromatic-git-policy-cli/service/%i
+ExecStart=@SERVICE_BINARY@ --journal %S/cli-git/service/%i --git @GIT@ --instance %i
+StateDirectory=cli-git/service/%i
 Restart=on-failure
 ";
 
@@ -60,14 +60,15 @@ const OLD_SERVICE_VARIABLE: &str = "CLI_GIT_OLD_SERVICE_0_5_34";
 const STAND_IN_RELEASE: &str = "0.5.34-before-one-executable";
 
 /// The words of an `ExecStart=` line after the equals sign, with the specifiers the control can know filled in, as the manager
-///  would fill them: `%S/monochromatic-git-policy-cli/service/%i` is the journal directory, and `%i` the instance.
+///  would fill them: `%S/cli-git/service/%i` (an earlier release's unit) and `%S/monochromatic-git-policy-cli/service/%i`
+///  (this release's) are the journal directory, and `%i` the instance.
 fn exec_words(unit: &str, journal: &Path, instance: &str) -> Vec<String> {
     let line: &str = unit.lines().find(|line| { return line.starts_with("ExecStart="); }).expect("an ExecStart line");
     return line
         .trim_start_matches("ExecStart=")
         .split_whitespace()
         .map(|word| {
-            if word == "%S/monochromatic-git-policy-cli/service/%i" {
+            if word == "%S/monochromatic-git-policy-cli/service/%i" || word == "%S/cli-git/service/%i" {
                 return journal.display().to_string();
             }
             return word.replace("%i", instance);

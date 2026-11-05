@@ -18,7 +18,7 @@ export const SERVICE_LOG_NAME = 'service.log';
 /**
  Name of the commit timing file in a Git directory.
  */
-const TIMING_FILE = 'cli-git-commit-timing.jsonl';
+const TIMING_FILE = 'monochromatic-git-policy-cli-commit-timing.jsonl';
 
 /**
  What a run keeps: per scenario the parsed timing records of its wrapped repository, and the service's landing lines.

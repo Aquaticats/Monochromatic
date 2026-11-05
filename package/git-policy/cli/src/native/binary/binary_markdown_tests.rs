@@ -337,7 +337,7 @@ fn a_commit_keeps_its_git_input_in_the_repository_scratch_directory() {
         (Some(0), String::new())
     );
     assert_ne!(head(&fixture, repo.as_path()), base, "the commit landed");
-    let scratch: PathBuf = repo.join(".git").join("cli-git-scratch");
+    let scratch: PathBuf = repo.join(".git").join("monochromatic-git-policy-cli-scratch");
     let left: Vec<OsString> = std::fs::read_dir(&scratch)
         .expect("the repository scratch directory exists")
         .map(|entry| { return entry.expect("entry").file_name(); })

@@ -25,7 +25,7 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const JOURNAL_PARENT_NAME = 'cli-git-worktree-copy';
+/// const JOURNAL_PARENT_NAME = 'monochromatic-git-policy-cli-worktree-copy';
 /// ```
 pub const JOURNAL_PARENT_NAME: &str = WORKTREE_COPY_RECORD_FOLDER.current;
 

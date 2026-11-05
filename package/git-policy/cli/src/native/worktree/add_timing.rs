@@ -14,7 +14,7 @@
 //! const entered = beginStep('walkSource');
 //! const value = walk();
 //! endStep(entered);
-//! finish(exitCode); // appends JSON.stringify(record) + '\n' to join(commonDir, 'cli-git-worktree-add-timing.jsonl')
+//! finish(exitCode); // appends JSON.stringify(record) + '\n' to join(commonDir, 'monochromatic-git-policy-cli-worktree-add-timing.jsonl')
 //! ```
 
 use crate::wrapper_names_old_and_new::WORKTREE_ADD_TIMING_LOG;

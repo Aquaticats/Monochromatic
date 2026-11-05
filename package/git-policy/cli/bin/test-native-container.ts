@@ -83,7 +83,7 @@ const testImage = `localhost/git-policy-native-test:${imageTag}`;
  */
 await using context = await mkdtempDisposable(join(
   scratchBase,
-  'cli-git-native-test-',
+  'monochromatic-git-policy-cli-test-',
 ));
 /**
  Directory under the package's `target/` that keeps the evidence of every gate run.

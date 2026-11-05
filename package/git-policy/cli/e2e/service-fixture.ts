@@ -50,7 +50,7 @@ const POLL_MILLISECONDS = 10;
 
  @param root - scenario root
 
- @returns the directory the service's `cli-git/<instance>.sock` sits under
+ @returns the directory the service's `monochromatic-git-policy-cli/<instance>.sock` sits under
 
  @example
  ```ts
@@ -102,7 +102,7 @@ export function startScenarioService({
    */
   const socketDirectory = join(
     runtime,
-    'cli-git',
+    'monochromatic-git-policy-cli',
   );
   /**
    The worktree the service serves, its instance name, and the socket it listens on, known once `bind` names the worktree.

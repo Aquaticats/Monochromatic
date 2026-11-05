@@ -136,6 +136,10 @@ mod markdown;
 #[path = "binary_event_path_tests.rs"]
 mod event_path;
 
+/// The program under its new name and its earlier names: the command word, the settings file and the kept folders.
+#[path = "binary_program_rename_tests.rs"]
+mod program_rename_guard;
+
 /// The `git monochromatic-git-policy-cli` management namespace.
 #[path = "binary_management_tests.rs"]
 mod management;

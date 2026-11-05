@@ -354,7 +354,7 @@ pub fn is_plain_path(path: &str) -> bool {
 }
 
 /// The name prefix of a commit's scratch directory.
-pub const SCRATCH_PREFIX: &str = "cli-git-service-";
+pub const SCRATCH_PREFIX: &str = "monochromatic-git-policy-cli-service-";
 
 /// What:
 ///  Whether `path` is the scratch directory of a commit in the worktree whose own Git directory is `git_dir`.

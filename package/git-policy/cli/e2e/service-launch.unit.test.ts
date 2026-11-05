@@ -45,7 +45,7 @@ await describe({
       fn: async () => {
         const longest = Math.max(...SCENARIO_CATALOG.map(function lengthOf(scenario,) {
           return Buffer.byteLength(
-            `${scenarioRuntimeDirectory(`${SCENARIO_ROOT_PREFIX}${scenario.name}`,)}/cli-git/${VECTOR_NAME}.sock`,
+            `${scenarioRuntimeDirectory(`${SCENARIO_ROOT_PREFIX}${scenario.name}`,)}/monochromatic-git-policy-cli/${VECTOR_NAME}.sock`,
           );
         },),);
         expect(longest,).toBeLessThanOrEqual(SOCKET_PATH_LIMIT,);

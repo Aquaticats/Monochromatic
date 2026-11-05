@@ -279,7 +279,7 @@ fn a_merge_over_a_staged_path_is_refused_and_changes_nothing() {
     }
     assert_eq!(snapshot(&fixture, repo.as_path()), before);
     assert!(!repo.join(".git/MERGE_HEAD").exists());
-    assert!(!repo.join(".git/cli-git-merges").exists(), "no record is written before the check passes");
+    assert!(!repo.join(".git/monochromatic-git-policy-cli-merges").exists(), "no record is written before the check passes");
     assert_eq!(std::fs::read(repo.join("g.txt")).expect("g"), b"g.txt staged by another session\n");
     git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
     remove_settled(&fixture);
@@ -358,7 +358,7 @@ fn an_untracked_file_in_the_way_is_refused_by_git_and_changes_nothing() {
     assert!(stderr.contains("merge-isolation/not-applied"), "the finding follows: {stderr}");
     assert_eq!(snapshot(&fixture, repo.as_path()), before);
     assert_eq!(std::fs::read(repo.join("dir/new.txt")).expect("file"), b"an untracked file in the way\n");
-    assert_eq!(records_in(repo.join(".git/cli-git-merges").as_path()), Vec::<PathBuf>::new(), "the record is removed");
+    assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "the record is removed");
     git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
     remove_settled(&fixture);
 }
@@ -376,7 +376,7 @@ fn a_clean_index_merge_is_completed_and_equals_what_native_git_writes() {
     assert_eq!((ours.code, text(&ours.stdout), text(&ours.stderr)), (theirs.code, text(&theirs.stdout), text(&theirs.stderr)));
     assert_eq!(commit_shape(&fixture, wrapped_repo.as_path()), commit_shape(&fixture, clean.as_path()));
     assert_eq!(git_text(&fixture, wrapped_repo.as_path(), &["status", "--porcelain=v1"]), "");
-    assert_eq!(records_in(wrapped_repo.join(".git/cli-git-merges").as_path()), Vec::<PathBuf>::new(), "no record is left");
+    assert_eq!(records_in(wrapped_repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "no record is left");
     remove_settled(&fixture);
 }
 
@@ -468,7 +468,7 @@ fn shapes_that_cannot_be_made_exact_fall_back_to_native_git() {
         let theirs: Observed = native(&fixture, clean.as_path(), merge.as_slice());
         assert_eq!((ours.code, text(&ours.stdout)), (theirs.code, text(&theirs.stdout)), "{name}");
         assert_eq!(text(&ours.stderr), text(&theirs.stderr), "{name}: native Git's words");
-        assert!(!repo.join(".git/cli-git-merges").exists(), "{name}");
+        assert!(!repo.join(".git/monochromatic-git-policy-cli-merges").exists(), "{name}");
         remove_settled(&fixture);
     }
 }
@@ -698,7 +698,7 @@ fn killed_merge_at(fixture: &Fixture, repo: &Path, phase: &str) -> PathBuf {
         text(&output.stderr)
     );
     assert!(markers.join(format!("{phase}.reached")).exists(), "{phase} was reached");
-    return repo.join(".git/cli-git-merges");
+    return repo.join(".git/monochromatic-git-policy-cli-merges");
 }
 
 /// The files in a records directory.
@@ -823,7 +823,7 @@ fn a_damaged_record_fails_closed_and_a_missing_one_recovers_nothing() {
 fn a_live_merges_record_is_left_alone() {
     let fixture: Fixture = fixture("merge-live-record");
     let repo: PathBuf = diverged(&fixture, "repo");
-    let records: PathBuf = repo.join(".git/cli-git-merges");
+    let records: PathBuf = repo.join(".git/monochromatic-git-policy-cli-merges");
     std::fs::create_dir(&records).expect("directory");
     let owner = git_policy_cli::transaction_owner::current_transaction_owner(
         "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10",
@@ -889,7 +889,7 @@ fn a_relative_directory_option_does_not_break_the_settling_of_a_refused_merge() 
     let stderr: String = text(&observed.stderr);
     assert!(stderr.contains("merge-isolation/not-applied"), "the refusal is settled and reported: {stderr}");
     assert_eq!(snapshot(&fixture, repo.as_path()), before);
-    assert_eq!(records_in(repo.join(".git/cli-git-merges").as_path()), Vec::<PathBuf>::new(), "the record is removed");
+    assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "the record is removed");
     remove_settled(&fixture);
 }
 

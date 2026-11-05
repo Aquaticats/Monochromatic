@@ -107,7 +107,7 @@ export function testContainerfile({
       'cargo',
       ...compileArguments
     ])}`,
-    'COPY clippy.toml cli-git.config.jsonc /work/',
+    'COPY clippy.toml monochromatic-git-policy-cli.config.jsonc /work/',
     // Path-crate layer: the scanner's build script and the matcher compile here, and again only when they change.
     ...pathCrateRoots()
       .map(function pathCrateCopy(root) {

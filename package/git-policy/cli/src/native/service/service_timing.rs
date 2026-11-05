@@ -32,7 +32,7 @@ use std::time::{Duration, Instant};
 
 /// The prefix of every line the service writes,
 /// which `journalctl` shows after the unit name.
-pub const LOG_PREFIX: &str = "cli-git-service: ";
+pub const LOG_PREFIX: &str = "monochromatic-git-policy-cli-service: ";
 
 /// When a connection was accepted and how long its request line took to arrive.
 #[derive(Clone, Copy, Debug)]

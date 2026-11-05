@@ -8,7 +8,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // expect(signalLine(15, uptimeNanos)).toBe('cli-git-service: exiting reason=signal-15 uptime_ms=...\n');
+//! // expect(signalLine(15, uptimeNanos)).toBe('monochromatic-git-policy-cli-service: exiting reason=signal-15 uptime_ms=...\n');
 //! ```
 
 /// The line and the handled signals.
@@ -72,6 +72,6 @@ fn the_line_on_the_journal_stream_carries_the_info_priority() {
     let (on_stream, on_length) = signal_line(libc::SIGTERM, 0, 1, true);
     let (plain, plain_length) = signal_line(libc::SIGTERM, 0, 1, false);
     let streamed: &[u8] = &on_stream[..on_length];
-    assert!(streamed.starts_with(b"<6>cli-git-service: exiting"), "{:?}", String::from_utf8_lossy(streamed));
+    assert!(streamed.starts_with(b"<6>monochromatic-git-policy-cli-service: exiting"), "{:?}", String::from_utf8_lossy(streamed));
     assert_eq!(&streamed[3..], &plain[..plain_length]);
 }

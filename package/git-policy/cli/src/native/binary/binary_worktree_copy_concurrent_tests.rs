@@ -170,7 +170,7 @@ fn an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_
     assert_eq!(std::fs::read(root.join("held").join(RULES_FILE)).expect("held's rules"), format!("{}\n", super::worktree_copy::needle()).into_bytes());
     assert_eq!(std::fs::read(root.join("held/heavy/data")).expect("held's heavy tree"), b"payload\n");
     let common: PathBuf = std::fs::canonicalize(held.repo.join(".git")).expect("common directory");
-    let leftovers: Vec<String> = std::fs::read_dir(common.join("cli-git-worktree-copy/v1"))
+    let leftovers: Vec<String> = std::fs::read_dir(common.join("monochromatic-git-policy-cli-worktree-copy/v1"))
         .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
         .unwrap_or_default();
     assert!(leftovers.is_empty(), "nothing of either copy may remain: {leftovers:?}");

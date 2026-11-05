@@ -537,8 +537,8 @@ fn direct_commands_go_on_beside_records_an_earlier_release_left() {
     let id: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
     std::fs::create_dir_all(registry.join(id)).expect("a transaction directory an earlier release left");
     // An interrupted worktree copy does not concern a direct command.
-    std::fs::create_dir_all(repo.join(".git/cli-git-worktree-copy/v1")).expect("journals");
-    std::fs::write(repo.join(".git/cli-git-worktree-copy/v1/id.json"), b"{}").expect("journal");
+    std::fs::create_dir_all(repo.join(".git/monochromatic-git-policy-cli-worktree-copy/v1")).expect("journals");
+    std::fs::write(repo.join(".git/monochromatic-git-policy-cli-worktree-copy/v1/id.json"), b"{}").expect("journal");
     for (arguments, command) in [
         (
             vec!["check", "--all", "--policy", "require-root"],

@@ -101,7 +101,7 @@ export async function waitForServiceWork({
    */
   const workDirectory = join(
     gitDir,
-    'cli-git',
+    'monochromatic-git-policy-cli',
     'work',
   );
   /**

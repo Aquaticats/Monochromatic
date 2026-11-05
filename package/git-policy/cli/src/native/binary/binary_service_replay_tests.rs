@@ -259,7 +259,7 @@ fn overlapping_edits_of_a_commit_made_elsewhere_fail_the_second_commit_with_noth
         .expect("the git directory")
         .flatten()
         .map(|entry| { return entry.path(); })
-        .filter(|path| { return path.file_name().is_some_and(|name| { return name.to_string_lossy().starts_with("cli-git-saved-message-"); }); })
+        .filter(|path| { return path.file_name().is_some_and(|name| { return name.to_string_lossy().starts_with("monochromatic-git-policy-cli-saved-message-"); }); })
         .collect();
     assert_eq!(saved.len(), 1, "the message is saved once: {saved:?}");
     assert!(text.contains(saved[0].to_string_lossy().as_ref()), "the saved message is named: {text}");

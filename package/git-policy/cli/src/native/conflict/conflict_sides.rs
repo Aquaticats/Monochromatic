@@ -45,7 +45,7 @@ pub use crate::conflict_side_state::{Operation, conflicted_paths, operation_in_p
 
 /// Where the copies live,
 /// below the common Git directory,
-/// beside `cli-git-audit.jsonl`.
+/// beside `monochromatic-git-policy-cli-audit.jsonl`.
 pub const SAVED_DIRECTORY: &str = "monochromatic-git-policy-cli/discarded";
 
 /// One saved file.

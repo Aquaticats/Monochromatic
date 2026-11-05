@@ -108,7 +108,7 @@ pub fn service_commit<F: RepositoryFacts>(
     // Whether an editor may have run, which decides what a moved branch costs the person: a message to keep or a signature to redo.
     let editor_possible: bool = opens_editor(after);
     let config: ClientConfig = managed_client_config(address, provisioning.as_ref());
-    let scratch_name: String = format!("cli-git-service-{id}");
+    let scratch_name: String = format!("monochromatic-git-policy-cli-service-{id}");
     // The service builds the commits it can from the command line; real Git builds the rest in a scratch repository. Which
     //  it is gets decided once the preparation has passed every cheap decision (head, configuration, index, policies), so a
     //  commit the service never takes starts no Git for a message or an identity.
@@ -150,7 +150,7 @@ pub fn service_commit<F: RepositoryFacts>(
         let ready: Box<Ready> = match prepared? {
             Prepared::Conflict(conflict) => {
                 // The message is kept so the person can commit again once their files agree with the commit that landed first.
-                let saved: PathBuf = conflict.git_dir.join(format!("cli-git-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
+                let saved: PathBuf = conflict.git_dir.join(format!("monochromatic-git-policy-cli-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
                 // The typed message is kept beside the conflict when it can be written.
                 let mut kept: Option<&PathBuf> = None;
                 if let Some(text) = last_message.as_ref() {
@@ -344,7 +344,7 @@ pub fn service_commit<F: RepositoryFacts>(
                 }
                 if native && editor_possible && let Some(text) = typed.as_deref() {
                     // The person typed this message: keep it where they can reuse it.
-                    let file: PathBuf = native_inputs.capture.layout.git_dir.join(format!("cli-git-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
+                    let file: PathBuf = native_inputs.capture.layout.git_dir.join(format!("monochromatic-git-policy-cli-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
                     match std::fs::write(&file, text) {
                         Ok(()) => {
                             // After the editor the message is fixed: while the bound allows, Git builds the commit again on the new

@@ -110,7 +110,7 @@ fn a_loose_scratch_directory_of_this_user_is_tightened() {
 fn the_repository_scratch_directory_is_created_private_beside_the_common_directory_entries() {
     let root: PathBuf = fixture("scratch-repository-create");
     let first: PathBuf = prepare_repository_scratch(root.as_path()).expect("first preparation");
-    assert_eq!(first, root.join("cli-git-scratch"));
+    assert_eq!(first, root.join("monochromatic-git-policy-cli-scratch"));
     assert_eq!(mode_of(first.as_path()), 0o700);
     assert_eq!(prepare_repository_scratch(root.as_path()).expect("second preparation"), first);
     let missing: PathBuf = root.join("no-such-common-directory");
@@ -183,10 +183,10 @@ fn preparing_a_directory_collects_what_a_killed_process_left() {
     assert!(scratch.join("cli-git-markdown-live.jsonc").exists());
     let common: PathBuf = root.join("common");
     std::fs::create_dir_all(common.join(REPOSITORY_SCRATCH_NAME)).expect("repository scratch");
-    std::fs::write(common.join("cli-git-scratch/cli-git-input-stale"), b"x").expect("stale");
-    age(common.join("cli-git-scratch/cli-git-input-stale").as_path(), SCRATCH_STALE_AFTER * 2);
+    std::fs::write(common.join("monochromatic-git-policy-cli-scratch/cli-git-input-stale"), b"x").expect("stale");
+    age(common.join("monochromatic-git-policy-cli-scratch/cli-git-input-stale").as_path(), SCRATCH_STALE_AFTER * 2);
     prepare_repository_scratch(common.as_path()).expect("preparation");
-    assert!(!common.join("cli-git-scratch/cli-git-input-stale").exists());
+    assert!(!common.join("monochromatic-git-policy-cli-scratch/cli-git-input-stale").exists());
     remove(root.as_path());
 }
 

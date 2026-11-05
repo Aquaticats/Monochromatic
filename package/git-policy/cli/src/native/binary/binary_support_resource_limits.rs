@@ -86,6 +86,9 @@ pub struct ServiceLaunch {
     pub single_cpu: bool,
     /// Whether a service that ends or never listens is the control's subject, not a failure of the fixture.
     pub may_fail_to_start: bool,
+    /// Whether the service is started with the command word an earlier release wrote in its unit files,
+    ///  as a helper that an older program started is.
+    pub earlier_command_word: bool,
 }
 
 /// Restricts the calling process, and so everything it starts, to the one processor it may use first.

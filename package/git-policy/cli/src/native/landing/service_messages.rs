@@ -15,13 +15,13 @@
 use std::path::Path;
 
 /// The command that shows why the service did not start (Linux with systemd).
-pub const LOG_COMMAND: &str = "journalctl --user --unit 'cli-git@*.service'";
+pub const LOG_COMMAND: &str = "journalctl --user --unit 'monochromatic-git-policy-cli@*.service'";
 
 /// The command that turns on user services for an account that is not logged in (Linux with systemd).
 pub const LINGER_COMMAND: &str = "loginctl enable-linger";
 
 /// The command that restarts the commit service, so the manager starts the one the installed units name (Linux with systemd).
-pub const RESTART_COMMAND: &str = "systemctl --user restart 'cli-git@*.service'";
+pub const RESTART_COMMAND: &str = "systemctl --user restart 'monochromatic-git-policy-cli@*.service'";
 
 /// The commands that show whether the commit was made.
 pub const CHECK_COMMANDS: [&str; 2] = ["git log -1", "git status"];
