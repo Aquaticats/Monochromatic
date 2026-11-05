@@ -148,3 +148,10 @@ This reproduces the wrapper refusal;
 it does not test Cargo against pnpr.
 
 The cited Cargo text fragments were opened and matched against rendered body text with `agent-browser`.
+Scoped `lint:monochromatic-lint` passed,
+and Pandoc's GFM-to-HTML renderer completed with warnings treated as failures;
+the generated heading,
+link,
+and code output was inspected.
+The dedicated browser's cleanup required the recovery recorded in
+[agent-browser cleanup evidence](../troubleshooting/agent-browser-eagain.md#cargo-source-verification-cleanup-at-2026-11-04t190858-0500).

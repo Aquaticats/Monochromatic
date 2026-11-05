@@ -426,3 +426,30 @@ The helper's argument checks did not find its private profile flag.
 Handling that observed representation for its whitespace-free fixture path corrected identification.
 This is separate from the daemon-read diagnostic and does not explain that diagnostic.
 No new upstream defect or filing is established by these observations.
+
+## Cargo source verification cleanup at 2026-11-04T19:08:58-05:00
+
+The owned `cargo-protocol-20261104` session of `agent-browser 0.41.0`
+successfully opened the Cargo documentation and matched the cited text fragments.
+Its subsequent `close` returned the daemon-read diagnostic quoted in this document.
+The session PID file and `/proc/2458786/environ` identified daemon PID `2458786` as this session.
+Process inspection showed its Chrome child `2458794` as a zombie.
+This records the cleanup failure separately from the successful source-page verification;
+it does not establish why Chrome exited or why the close response was absent.
+
+The documented TERM recovery was attempted against that verified owned PID.
+Bash's `kill --signal TERM` form was rejected before sending a signal;
+the supported `kill -s TERM` form succeeded,
+but a subsequent process check still showed the daemon and zombie child.
+`kill -s KILL 2458786` then removed both inspected PIDs,
+and the browser's identified systemd scope disappeared from `list-units`.
+No other browser session was terminated.
+This recovery discards the disposable session state and is not a graceful browser shutdown.
+The historical PIDs must never be reused as cleanup targets.
+
+No source defect was attributed,
+so upstream fault and fixability remain unresolved.
+The successful navigation establishes the supported use case;
+contribution policy and maintainer intent were not reassessed,
+and no patch was prototyped.
+There is no new upstream filing artifact beyond the recorded observation.
