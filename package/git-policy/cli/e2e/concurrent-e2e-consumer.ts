@@ -54,6 +54,18 @@ import {
 const INSTALLED_GIT = '/usr/bin/git';
 
 /**
+ Specialized promisified `execFile`, typed through Node's own adapter contract.
+ The generic `promisify(execFile)` form trips `strict-void-return`;
+ see `doc/troubleshooting/oxlint-promisify-void-return.md`.
+ */
+const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
+
+/**
+ `execFile` with a promise result, which never goes through a shell.
+ */
+const execFileAsync = promisifyExecFile(execFile,);
+
+/**
  Whether one dot-separated part of a release is a plain number, such as `56` (not `windows`, not empty).
 
  @param part - one part
@@ -80,7 +92,7 @@ async function installedGitVersion(): Promise<string> {
   /**
    Output of the installed Git's version command.
    */
-  const { stdout, } = await promisify(execFile,)(
+  const { stdout, } = await execFileAsync(
     INSTALLED_GIT,
     ['--version',],
   );
