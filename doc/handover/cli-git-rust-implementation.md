@@ -451,12 +451,36 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   in-process recursions, and all four smaller call changes.
   A fifth agent builds the LYD and LYF checks into `monochromatic-lint`, off by default
   (branch `feat/monochromatic-lint-folder-uses-and-file-loops`, brief `~/temp/agent/issue-6261/layout-lint-brief.md`).
+  Update 2026-11-05 (main `1942f0de53`): the fifth agent's rules `rust/folder-uses-links` and
+  `rust/file-order-in-folder` are merged to main (78 layout tests in the container, 810 native),
+  off unless a config block selects them; measured on the wrapper at `8c9eb6e035`: 364 findings
+  (288 missing `uses/` links, 27 glob re-exports, 1 folder loop, 21 file loops, 27 top docs without a file list).
+  Open to veto from that agent: `mod.rs` and other crate roots are left out of the in-folder loop check.
+  The `exclude = ["**/uses"]` for the wrapper's `Cargo.toml` is still to add through file-enforcer.
+  The worktree lint branch is done (`refactor/git-policy-cli-lint-worktree-folders` at `8d19c13a28`):
+  `worktree/` and `worktree_copying/` have zero `rust/avoidable-closure` and `rust/max-lines` findings,
+  11 closure statements carry an `expect` documented in
+  `src/native/worktree/worktree_closure_lint_suppressions.md`, host tests 582 passed, clippy clean,
+  no container gate run; it waits for the other three branches, then one merge and one container gate.
   Next for the layout:
   break the file loops with named changes,
   split the large groups into folders,
   name every folder and file plainly with its `uses/` list,
   rescan after the lint branches land,
   and put the whole tree before the owner before anything moves.
+- crates.io footprint (owner 2026-11-05: "Can we avoid polluting crates.io too much?"):
+  measured and ranked in `doc/planning/crates-io-footprint.md` (`dd61b20559`), owner answers recorded there.
+  Decided by the owner: "One release each. And we publish less to crates.io".
+  Research running in two agents, into `doc/research/cargo-crates-and-tools-without-crates-io.md`
+  (the owner's ranking: a `workspace:`-like protocol, then floating git, then GitHub's package registry,
+  plus how each relates to the pnpr registry track in `doc/planning/self-hosted-cargo-registry.md`)
+  and `doc/research/tests-inside-published-rust-crates.md` (who uses tests inside a published crate).
+  A build check of the wrapper's crate with test files left out runs as unit `crate-package-without-tests`
+  in the throwaway worktree `.claude/worktrees/crate-package-without-tests` (log
+  `~/temp/agent/issue-6261/package-without-tests.log`); remove the worktree after it reports.
+  The one release of each crate is held until the route research is answered by the owner and,
+  for the wrapper and the crates it pins, until the four lint branches are merged and gated,
+  so all of them ship in one batch; the automatic yank step (task #166) is on hold for the same answer.
 - Issue 6261 reopened by the owner at 2026-11-04T21:30:23Z
   (https://github.com/Aquaticats/Monochromatic/issues/6261#issuecomment-6642606105):
   "The current layout is still completely unacceptable and far from enough to consider this issue complete."
