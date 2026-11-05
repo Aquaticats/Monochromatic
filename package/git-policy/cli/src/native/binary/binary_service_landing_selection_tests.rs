@@ -138,7 +138,8 @@ fn a_dry_run_and_the_status_formats_need_neither_the_transaction_nor_the_service
         assert_eq!(text_of(&fixture, &served_repo, &["rev-parse", "HEAD"]), head, "{line:?}: nothing was committed");
         assert!(!served_repo.join(".git/monochromatic-git-policy-cli").exists(), "{line:?}: the transaction's area was not made");
         assert!(std::fs::read_dir(served_repo.join(".git")).expect("git dir").flatten().all(|entry| {
-            return !entry.file_name().to_string_lossy().starts_with("cli-git-service-");
+            let name = entry.file_name().to_string_lossy().into_owned();
+            return !(name.starts_with("monochromatic-git-policy-cli-service-") || name.starts_with("cli-git-service-"));
         }), "{line:?}: no scratch directory of the service was made");
         std::fs::remove_dir_all(&served_repo).expect("remove the copy");
     }

@@ -43,7 +43,7 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   {
     name: 'legacy configuration migration diagnostic',
     file: 'src/native/config/config_file.rs',
-    from: 'return Err(migration_required(first.as_path(), source.as_path()));',
+    from: 'return Err(migration_required(first.as_path(), current.as_path()));',
     to: 'let _ = first;',
     failing: 'config::config_file::tests::legacy_configuration_alone_requires_migration',
   },

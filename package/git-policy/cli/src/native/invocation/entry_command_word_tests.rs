@@ -140,10 +140,8 @@ fn a_longer_word_is_not_the_management_word() {
     let root: PathBuf = fixture("command-word-prefix");
     let resolution: ResolutionInputs = inputs(root.as_path());
     for word in ["monochromatic-git-policy-cli-x", "cli-git-x", "cli-gi", "monochromatic-git-policy-cl"] {
-        match plan_invocation(text(&["-C", ".", word, "--help"]).as_slice(), &[], &resolution) {
-            Action::Exit { stdout, .. } => assert_ne!(stdout, MANAGEMENT_HELP, "{word}"),
-            _ => {}
-        }
+        let planned: Action = plan_invocation(text(&["-C", ".", word, "--help"]).as_slice(), &[], &resolution);
+        assert!(!matches!(&planned, Action::Exit { stdout, .. } if stdout == MANAGEMENT_HELP), "{word}: {planned:?}");
     }
     remove(root.as_path());
 }

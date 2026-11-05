@@ -77,7 +77,7 @@ async function scratchTree(): Promise<{
    */
   const root = await mkdtemp(join(
     scratchParent,
-    'perf-service-test-',
+    'ps-',
   ));
   /**
    Path of the fake service.

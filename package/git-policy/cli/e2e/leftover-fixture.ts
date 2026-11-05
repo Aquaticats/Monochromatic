@@ -33,6 +33,11 @@ const PERSISTENT_CAPTURE_ENTRIES: ReadonlySet<string> = new Set([
 const CLIENT_SCRATCH_PREFIX = 'monochromatic-git-policy-cli-service-';
 
 /**
+ Name prefix of the scratch directory a commit client of a program before the rename prepared in.
+ */
+const EARLIER_CLIENT_SCRATCH_PREFIX = 'cli-git-service-';
+
+/**
  Returns the leftover root an entry belongs to.
 
  @param entry - path relative to the Git common directory, `/`-separated
@@ -60,6 +65,7 @@ function leftoverRoot(entry: string,): readonly string[] {
   ) {
     return segment.endsWith('.lock',)
       || segment.startsWith(CLIENT_SCRATCH_PREFIX,)
+      || segment.startsWith(EARLIER_CLIENT_SCRATCH_PREFIX,)
       || (segment === 'cli-git-transaction')
       || (segments[index - 1] === 'cli-git-transactions')
       || ((segments[index - 1] === 'shadow') && ((segments[index - 2] === 'monochromatic-git-policy-cli') || (segments[index - 2] === 'cli-git')))

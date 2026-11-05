@@ -227,7 +227,7 @@ fn a_request_without_a_capture_stamp_has_an_unknown_one() {
 fn a_scratch_announcement_round_trips() {
     let sent: ClientMessage = ClientMessage::Scratch {
         git_dir: PathBuf::from("/work/repo/.git/worktrees/w"),
-        path: PathBuf::from("/work/repo/.git/worktrees/w/cli-git-service-0a1b2c3d-4e5f"),
+        path: PathBuf::from("/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-0a1b2c3d-4e5f"),
     };
     let line: String = encode_client(&sent);
     assert!(!line.contains('\n'));
@@ -240,20 +240,20 @@ fn a_scratch_announcement_round_trips() {
 fn a_scratch_announcement_names_only_a_scratch_directory_of_the_worktree() {
     let git_dir: &str = "/work/repo/.git/worktrees/w";
     let accepted = |path: &str| -> bool { return is_scratch_path(Path::new(path), Path::new(git_dir)); };
-    assert!(accepted("/work/repo/.git/worktrees/w/cli-git-service-0a1b-2c"));
+    assert!(accepted("/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-0a1b-2c"));
     for refused in [
-        "/work/repo/.git/worktrees/w/cli-git-service-",
-        "/work/repo/.git/worktrees/w/cli-git-service-a b",
-        "/work/repo/.git/worktrees/w/cli-git-service-../x",
-        "/work/repo/.git/worktrees/w/../cli-git-service-x",
+        "/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-",
+        "/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-a b",
+        "/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-../x",
+        "/work/repo/.git/worktrees/w/../monochromatic-git-policy-cli-service-x",
         "/work/repo/.git/worktrees/w/notes",
         "/work/repo/.git/worktrees/w/index",
-        "/work/repo/.git/worktrees/w/deeper/cli-git-service-x",
-        "/work/repo/.git/cli-git-service-x",
-        "/work/repo/.git/worktrees/other/cli-git-service-x",
-        "/work/other/cli-git-service-x",
-        "/work/repo/.git/worktrees/w/cli-git-service-x\u{0}",
-        "cli-git-service-x",
+        "/work/repo/.git/worktrees/w/deeper/monochromatic-git-policy-cli-service-x",
+        "/work/repo/.git/monochromatic-git-policy-cli-service-x",
+        "/work/repo/.git/worktrees/other/monochromatic-git-policy-cli-service-x",
+        "/work/other/monochromatic-git-policy-cli-service-x",
+        "/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-x\u{0}",
+        "monochromatic-git-policy-cli-service-x",
         "/",
     ] {
         assert!(!accepted(refused), "{refused:?}");

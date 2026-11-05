@@ -186,7 +186,7 @@ export async function makeService({
    */
   const runtime = await mkdtemp(join(
     scratchParent,
-    'rt-',
+    'r',
   ));
   await mkdir(
     join(

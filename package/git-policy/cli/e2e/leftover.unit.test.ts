@@ -35,9 +35,12 @@ await describe({
           'cli-git-service-7321ec41/captured.index',
           'worktrees/linked/cli-git-service-0f0f',
           'worktrees/linked/cli-git-service-0f0f/commit.index',
+          'monochromatic-git-policy-cli-service-aa11',
+          'monochromatic-git-policy-cli-service-aa11/captured.index',
           'monochromatic-git-policy-cli/work/done/push-abc',
         ],),).toEqual([
           'cli-git-service-7321ec41',
+          'monochromatic-git-policy-cli-service-aa11',
           'worktrees/linked/cli-git-service-0f0f',
         ],);
       },

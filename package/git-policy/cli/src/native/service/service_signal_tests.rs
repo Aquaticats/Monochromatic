@@ -55,7 +55,7 @@ fn the_native_entry_carries_the_message_the_priority_and_the_time() {
         fields,
         vec![
             "PRIORITY=6".to_string(),
-            "SYSLOG_IDENTIFIER=cli-git-service".to_string(),
+            "SYSLOG_IDENTIFIER=monochromatic-git-policy-cli-service".to_string(),
             format!("MESSAGE=exiting reason=signal-{} uptime_ms=12345 at_ms={at_ms}", libc::SIGTERM),
             format!("CLI_GIT_AT_MS={at_ms}"),
         ]

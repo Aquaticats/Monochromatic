@@ -12,7 +12,11 @@
 import type { ChildProcess, } from 'node:child_process';
 import { once, } from 'node:events';
 import { mkdir, } from 'node:fs/promises';
-import { join, } from 'node:path';
+import { createHash, } from 'node:crypto';
+import {
+  dirname,
+  join,
+} from 'node:path';
 import { setInterval as ticks, } from 'node:timers/promises';
 
 import { listening, } from './service-connection-fixture.ts';
@@ -23,6 +27,11 @@ import {
 import type { ScenarioService, } from './service-model-fixture.ts';
 
 //region Constants
+
+/**
+ Hexadecimal digits of the digest that names a scenario's runtime directory, enough that two scenarios never share one.
+ */
+const RUNTIME_NAME_HEXADECIMAL_DIGITS = 8;
 
 /**
  How long the suite waits for the service to listen, in milliseconds.
@@ -44,9 +53,10 @@ const POLL_MILLISECONDS = 10;
 //region Service
 
 /**
- The runtime directory of a scenario's service.
- Its name is short on purpose: a socket path holds about a hundred bytes, and the root of a scenario with a long name,
- the runtime directory, the socket directory and the 32-digit instance name must all fit in it.
+ The runtime directory of a scenario's service, beside the scenario roots and named by a digest of the root.
+ Its name is short on purpose: a socket path holds about a hundred bytes, and the runtime directory, the socket directory
+ (the program's name) and the 32-digit instance name must all fit in it, which the longer name of a scenario root and the
+ program's own name no longer allow when the runtime directory sits inside the root.
 
  @param root - scenario root
 
@@ -59,8 +69,12 @@ const POLL_MILLISECONDS = 10;
  */
 export function scenarioRuntimeDirectory(root: string,): string {
   return join(
-    root,
-    'rt',
+    dirname(root,),
+    'r',
+    createHash('sha256',).update(root,).digest('hex',).slice(
+      0,
+      RUNTIME_NAME_HEXADECIMAL_DIGITS,
+    ),
   );
 }
 

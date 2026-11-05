@@ -251,7 +251,7 @@ pub enum ClientMessage {
     Scratch {
         /// The worktree's own Git directory, which holds the directory and names the instance that removes it.
         git_dir: PathBuf,
-        /// The scratch directory (`cli-git-service-<id>` in a Git directory of that repository).
+        /// The scratch directory (`monochromatic-git-policy-cli-service-<id>` in a Git directory of that repository).
         path: PathBuf,
     },
     /// Work items were written for this repository; run what is pending.

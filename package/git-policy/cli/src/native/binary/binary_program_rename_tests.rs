@@ -214,6 +214,14 @@ fn both_names_of_a_kept_kind_use_the_new_and_report_the_earlier() {
     remove(&fixture);
 }
 
+/// How many wrapper processes start together in one round of the race,
+///  and how many rounds run:
+///  enough that two of them reach the rename in the same instant on a loaded host.
+const RACING_PROCESSES: usize = 8;
+
+/// The rounds of the race.
+const RACING_ROUNDS: usize = 4;
+
 /// Several wrapper processes start at once on a repository that holds only the earlier folder:
 ///  one moves it,
 ///  the rest find the result,
@@ -223,10 +231,13 @@ fn wrapper_processes_racing_to_move_a_kept_folder_lose_nothing() {
     let fixture: Fixture = fixture("rename-kept-race");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let git_dir: PathBuf = repo.join(".git");
-    for round in 0..4 {
+    for round in 0..RACING_ROUNDS {
         plant_earlier(git_dir.as_path(), DATA_FOLDER, true);
         let observed: Vec<Observed> = std::thread::scope(|scope| {
-            let workers: Vec<_> = (0..8).map(|_| scope.spawn(|| { return run(&fixture, repo.as_path(), &["status"]); })).collect();
+            let mut workers = Vec::new();
+            for _ in 0..RACING_PROCESSES {
+                workers.push(scope.spawn(|| { return run(&fixture, repo.as_path(), &["status"]); }));
+            }
             return workers.into_iter().map(|worker| { return worker.join().expect("a worker"); }).collect();
         });
         for run_result in &observed {

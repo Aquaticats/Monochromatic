@@ -36,6 +36,12 @@ const OTHER_NAMES_IN_COMMON_DIRECTORY: [RenamedName; 3] = [DATA_FOLDER, PUSH_TRI
 /// The names kept in a worktree's own Git directory.
 const NAMES_IN_WORKTREE_DIRECTORY: [RenamedName; 2] = [DATA_FOLDER, MERGE_INTENT_FOLDER];
 
+/// Whether one byte of a name is an ASCII digit;
+///  a named function so `all` can take it.
+fn is_digit_byte(byte: u8) -> bool {
+    return byte.is_ascii_digit();
+}
+
 /// What:
 ///  Move the numbered older copies of a rotated log,
 ///  `<earlier>.<number>` to `<current>.<number>`,
@@ -61,7 +67,7 @@ fn move_numbered_copies(parent: &Path, name: RenamedName) {
         let Some(number) = file_name.strip_prefix(wanted_start.as_str()) else {
             continue;
         };
-        if number.is_empty() || !number.bytes().all(|byte| byte.is_ascii_digit()) {
+        if number.is_empty() || !number.bytes().all(is_digit_byte) {
             continue;
         }
         let target: PathBuf = parent.join(format!("{}.{number}", name.current));

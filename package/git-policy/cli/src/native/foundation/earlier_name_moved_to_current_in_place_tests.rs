@@ -247,8 +247,8 @@ fn two_threads_moving_the_same_name_leave_one_folder_with_the_content() {
     let parent: PathBuf = fixture("two-threads");
     earlier_folder_with_file(parent.as_path(), DATA_FOLDER, "contended bytes");
     let placements: Vec<Placement> = std::thread::scope(|scope| {
-        let first = scope.spawn(|| place_kept_name(parent.as_path(), DATA_FOLDER));
-        let second = scope.spawn(|| place_kept_name(parent.as_path(), DATA_FOLDER));
+        let first = scope.spawn(|| { return place_kept_name(parent.as_path(), DATA_FOLDER); });
+        let second = scope.spawn(|| { return place_kept_name(parent.as_path(), DATA_FOLDER); });
         return vec![first.join().expect("first thread"), second.join().expect("second thread")];
     });
     for placed in &placements {

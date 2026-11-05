@@ -10,7 +10,7 @@ use std::os::unix::fs::PermissionsExt;
 /// A valid staged journal whose paths live under one fixture root.
 fn sample(root: &Path) -> Journal {
     let destination: PathBuf = root.join("topic");
-    let stage: PathBuf = root.join(".monochromatic-git-policy-cli-worktree-copy-abc");
+    let stage: PathBuf = root.join(".cli-git-worktree-copy-abc");
     return Journal {
         created_entries: vec![InstalledPath {
             device: 7,

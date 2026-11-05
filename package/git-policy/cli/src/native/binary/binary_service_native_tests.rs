@@ -413,7 +413,7 @@ fn an_abandoned_editor_lands_nothing_and_leaves_no_scratch_behind() {
             .expect("git directory")
             .flatten()
             .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-            .filter(|entry| { return entry.starts_with("cli-git-service-"); })
+            .filter(|entry| { return entry.starts_with("monochromatic-git-policy-cli-service-") || entry.starts_with("cli-git-service-"); })
             .collect();
         assert!(scratch.is_empty(), "{label}: left {scratch:?}");
     }
@@ -457,7 +457,7 @@ fn a_branch_that_moves_while_the_editor_is_open_is_built_again_from_the_typed_me
         .expect("git directory")
         .flatten()
         .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-        .filter(|entry| { return entry.starts_with("monochromatic-git-policy-cli-saved-message-") || entry.starts_with("cli-git-service-"); })
+        .filter(|entry| { return entry.starts_with("monochromatic-git-policy-cli-saved-message-") || entry.starts_with("monochromatic-git-policy-cli-service-") || entry.starts_with("cli-git-service-"); })
         .collect();
     assert!(leftover.is_empty(), "nothing is left behind: {leftover:?}");
     let _killed = service.kill();
@@ -563,7 +563,7 @@ fn a_switch_to_another_branch_while_the_editor_is_open_fails_the_commit_and_keep
         .expect("git directory")
         .flatten()
         .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-        .filter(|entry| { return entry.starts_with("cli-git-service-"); })
+        .filter(|entry| { return entry.starts_with("monochromatic-git-policy-cli-service-") || entry.starts_with("cli-git-service-"); })
         .collect();
     assert!(scratch.is_empty(), "left {scratch:?}");
     let _killed = service.kill();
