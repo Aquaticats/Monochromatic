@@ -584,8 +584,11 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   `PROCESS_LOOK_CEILING` 10 s after a measured 0.64 s for 899 processes, same-user filter, each adopted batch logged,
   earlier journals read-only); `current_value` now answers "no answer" on a Git failure for both the adoption and
   the service's own recovery. Host lib 4327, binary 691, clippy and oxlint clean.
-  Container gate running as unit `git-policy-cli-earlier-helper-adoption-gate`
-  (log `~/temp/agent/issue-6261/earlier-helper-adoption-gate.log`); merge after it passes, before the release.
+  Container gate on `c4b6812564` passed: `5019 tests run: 5019 passed (1 slow), 8 skipped`; merged to main.
+  The rename, hand-over-fix and gate worktrees are removed; the suppression worktree stays until its planted run ends.
+  Still uncovered (plan doc, "Open batches of the old helper"): a helper in another PID namespace; an intent left on
+  disk is never settled if the old units are removed; the Windows build of the new module was not compiled (owner:
+  Windows paused).
   Open from the merge: the rename note added to 117 old records says "is now" (untrue until the release and the lock)
   and sits in 6 `doc/decision/` records; a scripted fix was refused by the session's permission guard, so it waits
   for the owner (`doc/handover/questions-for-the-owner.md`, "The rename note in old records").
