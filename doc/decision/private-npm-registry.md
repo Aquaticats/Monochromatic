@@ -78,7 +78,8 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
 - Every workspace package except those under `package/test-fixture/`,
    private ones included.
    Selection lives in `generatePnprConfig` in `file-enforcer.config.ts`
-   (moved 2026-10-30 to `package/config/pnpr/src/generated-config-selection.ts`, which the root file now calls);
+   (moved 2026-10-30 to `package/config/pnpr/src/generated-config-selection.ts`,
+  which the root file now calls);
    the publish workflow reads the generated name list instead of re-deriving it.
 - A package publishes only if its manifest still declares `exports`,
    `main`,
@@ -128,7 +129,8 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
    typed exports type-checked under `nodenext`,
    and every bin run with `--help`.
    Findings and fixes are listed in the handover.
-- Owner decision (2026-09-15, #543):
+- Owner decision (2026-09-15,
+  #543):
    the hook plugins bundle `claude-code-plugin-source`,
    so they list it as a development dependency,
    and it is excluded from pnpr because it exports only TypeScript source;
@@ -184,7 +186,8 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
     so both apply the same edge and publishability rules.
    It imports only Node built-ins and sibling source files,
     so the job needs no build step.
-   Evidence (2026-09-15, disposable clone of `main`):
+   Evidence (2026-09-15,
+  disposable clone of `main`):
     hand-bumping `@monochromatic-dev/or-throw-core` and running the runner planned 19 dependent bumps,
     and `git diff --shortstat` reported `20 files changed, 20 insertions(+), 20 deletions(-)`,
     version lines only.
@@ -214,7 +217,8 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
 - file-enforcer generates the pnpr config,
    including the package-name list and the exclusion list
    (since 2026-10-30 the generator and its check live in `package/config/pnpr`,
-   per `doc/decision/file-enforcer-rust-rewrite.md`, "Elsewhere").
+   per `doc/decision/file-enforcer-rust-rewrite.md`,
+  "Elsewhere").
 - The deployment lives in `package/config/pnpr/`
    and Coolify redeploys it on push through a GitHub App source,
    limited by Watch Paths to `config.yaml`,
@@ -280,7 +284,8 @@ GitHub issue #521 tracks checking installability of the remaining published pack
 ## Upstream alpha.17 upgrade at 2026-11-05T04:59:15Z
 
 The owner requested `0.1.0-alpha.17`
-and selected "Repair publishing, then rebuild packages" for its incompatible storage layout.
+and selected "Repair publishing,
+then rebuild packages" for its incompatible storage layout.
 Use the official upstream image pinned in `package/config/pnpr/Containerfile`.
 GitHub workload publication passed against that image in isolated run `41941248129`,
 satisfying the standing condition for leaving the discovery-fix fork.
