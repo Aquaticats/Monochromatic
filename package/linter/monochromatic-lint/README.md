@@ -575,6 +575,209 @@ which leaves its other rules selected:
 ]
 ```
 
+## Rust layout rules
+
+Two crate-wide rules check that the folder tree of a Rust package shows who depends on whom
+(`AGENTS.md` rules LYD and LYF).
+Both are off by default and are switched on for a package in configuration,
+by selecting them for any of its Rust files:
+
+```jsonc
+// monochromatic-lint.config.jsonc
+[
+  {
+    "files": ["package/git-policy/cli/**/*.rs"],
+    "rules": {
+      "rust/folder-uses-links": { "severity": "error" },
+      "rust/file-order-in-folder": { "severity": "error" }
+    }
+  }
+]
+```
+
+A rule sees the whole package,
+not one file,
+so it runs once per Cargo package after the per-file rules,
+as the closure check does.
+The package of a file is the one whose `Cargo.toml` is nearest above it,
+and the first selecting file of a package decides the severity.
+`--stdin` and embedded sources are not checked.
+The rules report findings that no inline directive can suppress.
+
+### What both rules read
+
+The rules follow the real module tree and never walk folders.
+They start at the library root and every executable root
+(`src/lib.rs`,
+`src/main.rs`,
+`src/bin/*.rs`,
+`src/bin/*/main.rs`,
+and the `path` of `[lib]` and of each `[[bin]]`),
+then follow `mod` lines:
+`mod x;` loads `x.rs` or `x/mod.rs`,
+`#[path = "..."]` moves the file (also with `..`),
+and an inline `mod x { ... }` is a module in the file that holds it.
+A module that cannot be followed (no file,
+both files,
+or a file that loads its own container) fails the run with a `core/processing-failure` finding,
+and that package is not checked.
+
+A module belongs to the folder of its file:
+`a/mod.rs` and `a/b.rs` both belong to the folder `a`.
+Test-only code is outside both rules:
+files named `*_tests.rs` or `tests.rs`,
+files under a `tests` folder,
+and anything marked `#[cfg(test)]` (a module,
+an item or a `use`),
+including a sidecar declared inside a production file with `#[path]`,
+or `#[test]` on a function.
+
+A folder uses another folder when code in one of its module files names a module that the other folder defines.
+The names that count are paths:
+`crate::...`,
+`super::...`,
+`self::...`,
+the leaves of groups such as `use crate::{a, b::{c, d}}`,
+and a path that starts with the name of a module declared beside the code (`use child::Thing;`).
+A path stops at the deepest module it names;
+the names after it are items of that module.
+Paths inside macro calls count,
+and comments,
+strings of every kind and character literals never do,
+because the rules read the parser's tokens and not text.
+`super::` inside an inline module names the module around it.
+
+### Folder rule
+
+`rust/folder-uses-links` asks every source folder
+(a folder that holds a production module file) to hold a `uses` folder of symbolic links,
+one for each folder its code uses and none for any other.
+Findings:
+
+- A used folder has no link.
+  The finding names both folders and the file and line of one reference that proves the use,
+  and gives the command that creates the link.
+- A link points to a folder the code does not use.
+- An entry of `uses` is not a symbolic link,
+  is a broken link,
+  points to a file,
+  points to a folder that is not a source folder of the same package (including a folder outside it),
+  points to its own folder,
+  or is not named like the folder it points to.
+  `uses` itself must be a real folder.
+- Folders use each other,
+  directly or through others:
+  one finding lists the folders and one reference per use inside the loop.
+- A `pub use path::*` glob re-export of a module of the package (see below).
+- A module file lies below a folder named `uses`.
+
+Decisions:
+
+- A parent folder and a child folder are folders like any other.
+  A child that names `super::super::x` in its parent's folder depends on it and needs a link,
+  and a parent that names a child needs one too;
+  both together are a loop,
+  which is the knot the rule exists to show.
+- A folder that uses nothing needs no `uses` folder,
+  because Git cannot store an empty folder.
+- The link name must be the name of the folder it points to,
+  so two used folders with the same name cannot both be linked:
+  rename one.
+- Glob re-exports hide which folder an item comes from,
+  so each `pub use path::*` (any visibility) of a module of the package is a finding of its own.
+  Module names are still resolved through such a glob (a flat `pub use folder::*;` at the crate root makes
+  `crate::module` reach `folder/module.rs`),
+  one level of glob at a time and with a visited set so rings end,
+  and the path of a glob is read through direct children only.
+  An item that a glob supplies resolves to the module that re-exports it.
+
+### File rule
+
+`rust/file-order-in-folder` asks the files of one folder to use each other in no loop
+and the folder's top doc to list them in dependency order.
+Findings:
+
+- Files use each other in a loop.
+  One finding lists the files and one reference per use inside the loop.
+- A folder has module files but no `mod.rs` to hold the top doc.
+- The top doc has no file list,
+  lists a file twice,
+  lists a name that is not a module file of the folder,
+  or omits a file.
+- A file uses a file that is listed after it
+  (the finding names both and the proving reference).
+  Uses inside a loop are not reported again here.
+
+The top doc is the `//!` lines at the start of the folder's `mod.rs`
+(`lib.rs`,
+or `main.rs` when `lib.rs` is absent,
+in the folder of a crate root).
+The list starts at the exact line below
+and has one `- ` line per file,
+with the file name in backticks first:
+
+```rust
+//! What this folder is for,
+//! in words for someone who knows only `git commit` and `git push`.
+//!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `saving_a_file.rs`:
+//!   writes a file so that a crash never leaves half of it.
+//! - `saving_many_files.rs`:
+//!   saves several files together,
+//!   using `saving_a_file.rs` for each one.
+```
+
+Everything else in the doc is free text and is never read.
+Indented continuation lines are allowed,
+and the list ends at the first line that is neither blank,
+an entry nor a continuation.
+The index file itself is not listed,
+and neither are the other crate roots (`main.rs` beside `lib.rs`),
+test files and subfolders.
+Using the index file with `super::` is never reported,
+so an item that `mod.rs` re-exports and a sibling file reaches through `super::` hides the file that defines it.
+
+### Known limits
+
+- Only `[lib] path` and `[[bin]] path` written as `path = "..."` lines are read from `Cargo.toml`;
+  dotted keys and inline tables are not,
+  and test,
+  example and benchmark targets are test-only code.
+- Names are resolved by module,
+  not by item:
+  an item re-exported from another folder,
+  or a `#[macro_export]` macro used as `crate::name!`,
+  belongs to the
+  module the path names.
+- `cfg` gates other than the ones that name `test` are not evaluated;
+  every `mod` line is followed.
+- A module that a macro declares is not seen.
+- The rules cannot see a use through a trait method or a type alias that never names the module.
+- `/*! ... */` top docs are not read.
+
+### Links and other tools
+
+The links form a tree of copies when something follows them.
+The linter's own walk never enters a link
+(`ignore` is configured with `follow_links(false)`),
+so a file behind a `uses` link is linted once;
+the tests `layout_uses_links_are_never_entered_by_the_walk` and
+`layout_rules_run_in_the_built_executable_and_do_not_follow_links` fail when that setting is reversed.
+Only a link that a user names as a command-line path is entered.
+`cargo package` follows the links and packs nested copies,
+so a package that has `uses` folders needs `exclude = ["**/uses"]` in its `Cargo.toml`
+(measured in `doc/planning/cli-git-source-layout.md`,
+section "The `uses/` links and cargo").
+The layout rules themselves find modules by following `mod` lines and read only the names of the entries of a
+`uses` folder,
+never the files behind them.
+
+`mise run //package/linter/monochromatic-lint:test:layout` runs the layout tests alone;
+`test:layout:container` runs them in the bounded container.
+
 ## Explicit Rust types
 
 `rust/require-explicit-types` uses resolved Rust declarations and inferred types,

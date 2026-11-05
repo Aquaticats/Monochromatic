@@ -31,6 +31,8 @@ pub const RULE_IDS: &[&str] = &[
     "rust/require-explicit-types",
     "rust/tests-in-sidecars",
     "rust/avoidable-closure",
+    "rust/folder-uses-links",
+    "rust/file-order-in-folder",
     "markdown/heading-increment",
     "markdown/commands-show-output",
     "markdown/no-duplicate-heading",
