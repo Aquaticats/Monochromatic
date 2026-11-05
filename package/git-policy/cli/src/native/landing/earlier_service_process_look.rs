@@ -70,6 +70,16 @@ fn path_word(path: &Path) -> Vec<u8> {
     return path.to_string_lossy().into_owned().into_bytes();
 }
 
+/// Whether a command line word spells one of the earlier journal folders.
+fn is_earlier_journal(journals: &[PathBuf], word: &[u8]) -> bool {
+    for journal in journals {
+        if path_word(journal.as_path()).as_slice() == word {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// What:
 ///  Whether one command line (words split at NUL bytes) is a service of the worktree.
 /// Why:
@@ -94,7 +104,7 @@ fn is_service_of(words: &[&[u8]], look: &ServiceLook) -> bool {
         if pair[0] == INSTANCE_OPTION.as_bytes() && pair[1] == look.instance.as_bytes() {
             instance_named = true;
         }
-        if pair[0] == JOURNAL_OPTION.as_bytes() && look.journals.iter().any(|journal| { return path_word(journal.as_path()).as_slice() == pair[1]; }) {
+        if pair[0] == JOURNAL_OPTION.as_bytes() && is_earlier_journal(look.journals.as_slice(), pair[1]) {
             journal_named = true;
         }
     }
@@ -127,8 +137,8 @@ fn scan(look: &ServiceLook, proc_root: &Path) -> bool {
     let Ok(listing) = std::fs::read_dir(proc_root) else {
         return true;
     };
-    for entry in listing {
-        let Ok(entry) = entry else {
+    for listed in listing {
+        let Ok(entry) = listed else {
             return true;
         };
         let name: String = entry.file_name().to_string_lossy().into_owned();

@@ -342,7 +342,7 @@ fn a_command_line_that_cannot_be_read_counts_as_may_be_running() {
         ("adopt-cmdline-no-access", |process| {
             use std::os::unix::fs::PermissionsExt;
             std::fs::write(process.join("cmdline"), b"x").expect("file");
-            std::fs::set_permissions(process.join("cmdline"), std::fs::Permissions::from_mode(0)).expect("no access");
+            std::fs::set_permissions(process.join("cmdline"), std::fs::Permissions::from_mode(0o000)).expect("no access");
         }),
     ];
     for (name, make) in unreadable_by_kind {
