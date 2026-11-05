@@ -66,6 +66,19 @@ impl MigrateError {
     pub fn io(action: &str, path: &std::path::Path, error: &std::io::Error) -> MigrateError {
         return MigrateError::Io { action: action.to_string(), path: path.to_path_buf(), reason: error.to_string() };
     }
+
+    /// The success of an input and output result as it is, its failure as `MigrateError::io` for `action` on `path`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const value = ioResult(await attempt(), action, path); // throws MigrateError(io) on failure
+    /// ```
+    pub fn from_io_result<T>(result: std::io::Result<T>, action: &str, path: &std::path::Path) -> Result<T, MigrateError> {
+        return match result {
+            Ok(value) => Ok(value),
+            Err(error) => Err(MigrateError::io(action, path, &error)),
+        };
+    }
 }
 
 /// Prints the cause in plain words.

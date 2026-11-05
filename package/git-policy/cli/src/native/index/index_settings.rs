@@ -92,25 +92,46 @@ pub fn shared_permission(value: Option<&[u8]>) -> Option<i32> {
             other => Some(-(other & 0o666)),
         };
     }
-    return parse_bool(Some(text)).map(|truth| { return if truth { SHARED_GROUP } else { 0 }; });
+    return match parse_bool(Some(text)) {
+        Some(true) => Some(SHARED_GROUP),
+        Some(false) => Some(0),
+        None => None,
+    };
+}
+
+/// The last entry of `listed` whose key is `key`, or `None`; later lines of a configuration win.
+fn last_entry<'a>(listed: &'a [ListedEntry], key: &str) -> Option<&'a crate::repo_read_config_text::ConfigEntry> {
+    for item in listed.iter().rev() {
+        if item.entry.key == key {
+            return Some(&item.entry);
+        }
+    }
+    return None;
+}
+
+/// Whether the configuration holds a key that this update does not reproduce.
+fn has_declined_key(listed: &[ListedEntry]) -> bool {
+    for item in listed {
+        if DECLINED.contains(&item.entry.key.as_str()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// The settings of a configuration, or `None` when a key or value is outside what this update reproduces.
 pub fn read_settings(listed: &[ListedEntry]) -> Option<IndexSettings> {
-    let last = |key: &str| -> Option<&crate::repo_read_config_text::ConfigEntry> {
-        return listed.iter().rev().map(|item| { return &item.entry; }).find(|entry| { return entry.key == key; });
-    };
-    if listed.iter().any(|item| { return DECLINED.contains(&item.entry.key.as_str()); }) {
+    if has_declined_key(listed) {
         return None;
     }
     for key in DECLINED_WHEN_TRUE {
-        if let Some(entry) = last(key)
+        if let Some(entry) = last_entry(listed, key)
             && parse_bool(entry.value.as_deref()) != Some(false)
         {
             return None;
         }
     }
-    let monitor: bool = match last("core.fsmonitor") {
+    let monitor: bool = match last_entry(listed, "core.fsmonitor") {
         None => false,
         Some(entry) => match entry.value.as_deref() {
             // A bare name is a true boolean to Git.
@@ -122,7 +143,7 @@ pub fn read_settings(listed: &[ListedEntry]) -> Option<IndexSettings> {
             },
         },
     };
-    let untracked: UntrackedMode = match last("core.untrackedcache") {
+    let untracked: UntrackedMode = match last_entry(listed, "core.untrackedcache") {
         None => UntrackedMode::Keep,
         Some(entry) => match entry.value.as_deref() {
             Some(text) if text.eq_ignore_ascii_case(b"keep") => UntrackedMode::Keep,
@@ -132,7 +153,7 @@ pub fn read_settings(listed: &[ListedEntry]) -> Option<IndexSettings> {
             },
         },
     };
-    let shared_repository: i32 = match last("core.sharedrepository") {
+    let shared_repository: i32 = match last_entry(listed, "core.sharedrepository") {
         None => 0,
         Some(entry) => shared_permission(entry.value.as_deref())?,
     };

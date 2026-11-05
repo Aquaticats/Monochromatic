@@ -46,9 +46,17 @@ pub mod subvolume_sha;
 #[cfg(target_os = "linux")]
 pub mod subvolume_index;
 
+/// The first index of a new worktree: written into `index.lock` and linked under its name, nothing replaced.
+#[cfg(target_os = "linux")]
+pub mod subvolume_index_install_into_new_worktree;
+
 /// The linked worktrees of a main checkout and the index stat rewrite applied to files.
 #[cfg(target_os = "linux")]
 pub mod subvolume_index_files;
+
+/// Write-and-flush and directory-flush steps that the migration's writers share.
+#[cfg(target_os = "linux")]
+pub mod subvolume_file_write_steps;
 
 /// The failure type of the subvolume migration and its simulated-kill hook.
 #[cfg(target_os = "linux")]
@@ -65,6 +73,14 @@ pub mod subvolume_sync_attrs;
 /// One idempotent pass that makes a directory tree match another, in process.
 #[cfg(target_os = "linux")]
 pub mod subvolume_sync;
+
+/// The pieces every step of a tree sync shares: options, statistics, work entries, the pass state and the entry checks.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync_pass_state_and_checks;
+
+/// The copying of one source entry (file, symbolic link, named pipe) into the destination, as methods of the pass.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync_copy_one_entry;
 
 /// The index locks the migration holds, marked with a token that names the migration.
 #[cfg(target_os = "linux")]

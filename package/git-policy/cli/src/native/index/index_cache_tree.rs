@@ -10,6 +10,8 @@
 //! const tree = CacheTree.read(bytes, hashLength); tree.invalidate(path); const out = tree.write();
 //! ```
 
+use crate::index_byte_search::{first_index_of_byte, leading_digit_count, leading_run_length};
+
 /// The deepest nesting the reader follows: the depth the tree reader follows (`TREE_DEPTH_LIMIT` in `repo_read_tree.rs`).
 const DEPTH_LIMIT: usize = 256;
 
@@ -26,8 +28,8 @@ pub struct CacheTree {
 
 /// The decimal number at the start of `bytes` (with `-` signs, as `parse_int`), the bytes after it.
 fn parse_number(bytes: &[u8]) -> Option<(i64, &[u8])> {
-    let signs: usize = bytes.iter().take_while(|byte| { return **byte == b'-'; }).count();
-    let digits: usize = bytes[signs..].iter().take_while(|byte| { return byte.is_ascii_digit(); }).count();
+    let signs: usize = leading_run_length(bytes, b'-');
+    let digits: usize = leading_digit_count(&bytes[signs..]);
     let text: &str = std::str::from_utf8(&bytes[signs..signs + digits]).ok()?;
     let magnitude: i64 = if text.is_empty() { 0 } else { text.parse::<i64>().ok()? };
     let value: i64 = if signs % 2 == 1 { -magnitude } else { magnitude };
@@ -39,7 +41,7 @@ fn read_one<'a>(bytes: &'a [u8], hash_length: usize, depth: usize) -> Option<(Ve
     if depth > DEPTH_LIMIT {
         return None;
     }
-    let nul: usize = bytes.iter().position(|byte| { return *byte == 0; })?;
+    let nul: usize = first_index_of_byte(bytes, 0)?;
     let name: Vec<u8> = bytes[..nul].to_vec();
     let (entry_count, after_count) = parse_number(&bytes[nul + 1..])?;
     let after_space: &[u8] = after_count.strip_prefix(b" ")?;
@@ -55,7 +57,9 @@ fn read_one<'a>(bytes: &'a [u8], hash_length: usize, depth: usize) -> Option<(Ve
         let (child_name, child, after) = read_one(rest, hash_length, depth + 1)?;
         // Git sorts subtrees on insertion by length first and then by bytes (`subtree_name_cmp`); a file that is not already
         //  in that order is left to Git.
-        if subtrees.last().is_some_and(|(previous, _)| { return (previous.len(), previous.as_slice()) >= (child_name.len(), child_name.as_slice()); }) {
+        if let Some((previous, _)) = subtrees.last()
+            && (previous.len(), previous.as_slice()) >= (child_name.len(), child_name.as_slice())
+        {
             return None;
         }
         subtrees.push((child_name, child));
@@ -97,12 +101,22 @@ impl CacheTree {
     pub fn invalidate(&mut self, path: &[u8]) {
         self.entry_count = -1;
         self.id.clear();
-        let Some(slash) = path.iter().position(|byte| { return *byte == b'/'; }) else {
-            self.subtrees.retain(|(name, _)| { return name.as_slice() != path; });
+        let Some(slash) = first_index_of_byte(path, b'/') else {
+            // Rebuild the list without the subtree `path` names, keeping the others in their order.
+            let mut kept: Vec<(Vec<u8>, CacheTree)> = Vec::new();
+            for (name, child) in std::mem::take(&mut self.subtrees) {
+                if name.as_slice() != path {
+                    kept.push((name, child));
+                }
+            }
+            self.subtrees = kept;
             return;
         };
-        if let Some((_, child)) = self.subtrees.iter_mut().find(|(name, _)| { return name.as_slice() == &path[..slash]; }) {
-            child.invalidate(&path[slash + 1..]);
+        for (name, child) in &mut self.subtrees {
+            if name.as_slice() == &path[..slash] {
+                child.invalidate(&path[slash + 1..]);
+                break;
+            }
         }
     }
 }

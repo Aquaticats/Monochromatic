@@ -11,6 +11,7 @@
 //! const out = writeUntracked(cache);
 //! ```
 
+use crate::index_byte_search::{first_index_of_byte, has_nonzero_byte};
 use crate::index_ewah::Ewah;
 use crate::index_stat::{CACHE_STAT_LENGTH, StatData, be32, decode_varint, encode_varint};
 use crate::index_untracked::{Untracked, UntrackedDir};
@@ -20,7 +21,7 @@ const DEPTH_LIMIT: usize = 256;
 
 /// The text up to the first NUL and the bytes after it.
 fn take_text(bytes: &[u8]) -> Option<(&[u8], &[u8])> {
-    let nul: usize = bytes.iter().position(|byte| { return *byte == 0; })?;
+    let nul: usize = first_index_of_byte(bytes, 0)?;
     return Some((&bytes[..nul], &bytes[nul + 1..]));
 }
 
@@ -200,6 +201,17 @@ struct Writer {
     ids: Vec<u8>,
 }
 
+/// The subdirectories of `dir` that the cache descends into, in order.
+fn recursing_children(dir: &UntrackedDir) -> Vec<&UntrackedDir> {
+    let mut recursing: Vec<&UntrackedDir> = Vec::new();
+    for child in &dir.dirs {
+        if child.recurse {
+            recursing.push(child);
+        }
+    }
+    return recursing;
+}
+
 /// Write one directory and its recursing subdirectories (`write_one_dir`).
 fn write_dir(dir: &UntrackedDir, writer: &mut Writer) {
     let index: usize = writer.count;
@@ -213,19 +225,20 @@ fn write_dir(dir: &UntrackedDir, writer: &mut Writer) {
         writer.valid.push(index);
         dir.stat.to_cache_bytes(&mut writer.stats);
     }
-    if dir.exclude_id.iter().any(|byte| { return *byte != 0; }) {
+    if has_nonzero_byte(dir.exclude_id.as_slice()) {
         writer.has_id.push(index);
         writer.ids.extend_from_slice(dir.exclude_id.as_slice());
     }
     encode_varint(listing.len() as u64, &mut writer.records);
-    encode_varint(dir.dirs.iter().filter(|child| { return child.recurse; }).count() as u64, &mut writer.records);
+    let recursing: Vec<&UntrackedDir> = recursing_children(dir);
+    encode_varint(recursing.len() as u64, &mut writer.records);
     writer.records.extend_from_slice(dir.name.as_slice());
     writer.records.push(0);
     for file in listing {
         writer.records.extend_from_slice(file.as_slice());
         writer.records.push(0);
     }
-    for child in dir.dirs.iter().filter(|child| { return child.recurse; }) {
+    for child in recursing {
         write_dir(child, writer);
     }
 }

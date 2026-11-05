@@ -78,9 +78,10 @@ fn parse_summary(summary: &str) -> (RemoteBefore, Option<String>) {
     if token == "[new" {
         return (RemoteBefore::Absent, None);
     }
-    let range: Option<(&str, &str)> = token.split_once("...").or_else(|| {
-        return token.split_once("..");
-    });
+    let range: Option<(&str, &str)> = match token.split_once("...") {
+        Some(halves) => Some(halves),
+        None => token.split_once(".."),
+    };
     return match range {
         Some((old, new)) if !old.is_empty() && !new.is_empty() => {
             (RemoteBefore::Known(old.to_owned()), Some(new.to_owned()))

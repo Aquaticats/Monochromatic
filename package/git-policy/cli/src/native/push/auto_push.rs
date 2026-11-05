@@ -100,13 +100,13 @@ pub fn filter_push_output(output: &str, exit_code: i64) -> String {
     if exit_code != 0 {
         return output.to_owned();
     }
-    return output
-        .split('\n')
-        .filter(|line| {
-            return line.starts_with(REMOTE_LINE_PREFIX) || line.starts_with(RECONCILE_LINE_PREFIX);
-        })
-        .collect::<Vec<&str>>()
-        .join("\n");
+    let mut kept: Vec<&str> = Vec::new();
+    for line in output.split('\n') {
+        if line.starts_with(REMOTE_LINE_PREFIX) || line.starts_with(RECONCILE_LINE_PREFIX) {
+            kept.push(line);
+        }
+    }
+    return kept.join("\n");
 }
 
 /// What:
@@ -207,7 +207,9 @@ fn plan_named_push(git: &PushGit, branch_ref: &str, err: &mut dyn Write) -> Resu
             NamedPush::Skip(note) => return Ok(skipped_with(note, err)),
         };
         let mut arguments: Vec<String> = vec![String::from("push"), remote];
-        arguments.extend(targets.iter().map(|target| { return format!("{branch_ref}:{target}"); }));
+        for target in &targets {
+            arguments.push(format!("{branch_ref}:{target}"));
+        }
         arguments
     } else {
         vec![String::from("push"), String::from("--set-upstream"), String::from("origin"), format!("{branch_ref}:{branch_ref}")]

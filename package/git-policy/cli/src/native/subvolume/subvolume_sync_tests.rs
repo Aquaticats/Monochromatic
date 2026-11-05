@@ -4,6 +4,8 @@
 //!  (clones refused, so the byte-copy path runs); the clone path is the btrfs control's.
 
 use super::*;
+use crate::subvolume_anchor::Anchor;
+use std::fs::File;
 use crate::subvolume_sync_attrs::make_fifo;
 use crate::subvolume_test_support::{Hooked, PlainPlatform};
 use crate::test_support::{fixture, remove};

@@ -247,7 +247,9 @@ pub fn scan_proc_fd_holders_until(proc_root: &Path, device: u64, inode: u64, sel
         }
     }
     for (reached, pid) in pids.iter().enumerate() {
-        if deadline.is_some_and(|limit| { return std::time::Instant::now() >= limit; }) {
+        if let Some(limit) = deadline
+            && std::time::Instant::now() >= limit
+        {
             evidence.partial.push(format!("stopped at the time bound after {reached} of {} processes", pids.len()));
             break;
         }

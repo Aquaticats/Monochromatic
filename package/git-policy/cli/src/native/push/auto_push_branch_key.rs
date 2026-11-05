@@ -93,9 +93,7 @@ pub fn encode_branch_key(ref_name: &str) -> String {
 fn decode_escape(key: &[u8], index: usize) -> Result<u8, BranchKeyError> {
     let digits = key.get(index + 1..index + 3).unwrap_or(&[]);
     if digits.len() != 2
-        || !digits.iter().all(|digit| {
-            return is_upper_hex(*digit);
-        })
+        || !digits.iter().all(is_upper_hex_ref)
     {
         return Err(BranchKeyError {
             message: format!(
@@ -126,6 +124,11 @@ fn decode_escape(key: &[u8], index: usize) -> Result<u8, BranchKeyError> {
 /// ```
 fn is_upper_hex(digit: u8) -> bool {
     return digit.is_ascii_digit() || (b'A'..=b'F').contains(&digit);
+}
+
+/// `is_upper_hex` for the borrowed bytes that `all` hands over.
+fn is_upper_hex_ref(digit: &u8) -> bool {
+    return is_upper_hex(*digit);
 }
 
 /// The value of one uppercase hexadecimal digit; the caller has checked the digit.

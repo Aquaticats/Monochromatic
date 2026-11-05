@@ -102,19 +102,29 @@ pub fn judge_and_clear(candidate: &Candidate, judge: &Judge, outcome: &mut Outco
     let companions: Vec<(PathBuf, Identity)> = if candidate.orphan_staging {
         Vec::new()
     } else {
-        companions_of(candidate.lock.as_path()).into_iter().filter_map(|path| { return identity_of(path.as_path()).map(|identity| { return (path, identity); }); }).collect()
+        let mut with_identity: Vec<(PathBuf, Identity)> = Vec::new();
+        for path in companions_of(candidate.lock.as_path()) {
+            if let Some(identity) = identity_of(path.as_path()) {
+                with_identity.push((path, identity));
+            }
+        }
+        with_identity
     };
     let maybe: Option<Examined> = if candidate.orphan_staging { judge.examine_staging(candidate.lock.as_path()) } else { judge.examine(candidate.lock.as_path()) };
     let Some(Examined { verdict, pid_file, identity, born }) = maybe else {
         return;
     };
+    let mut companion_paths: Vec<PathBuf> = Vec::new();
+    for (path, _) in &companions {
+        companion_paths.push(path.clone());
+    }
     let mut found: Found = Found {
         lock: candidate.lock.clone(),
         verdict: verdict.clone(),
         size: identity.size,
         born,
         pid_file,
-        companions: companions.iter().map(|(path, _)| { return path.clone(); }).collect(),
+        companions: companion_paths,
     };
     match verdict {
         Verdict::TooNew => {}

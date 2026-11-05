@@ -18,7 +18,7 @@
 #![cfg(unix)]
 
 use crate::git_system_config::with_real_git;
-use crate::repo_read_config_list::list_config;
+use crate::repo_read_config_list::{ListedEntry, list_config};
 use crate::repo_read_config_scan::ScopeEnvironment;
 use crate::repo_read_layout::{RepoLayout, read_layout_after_success};
 use crate::repo_read_object::{ObjectKind, from_hex};
@@ -125,16 +125,18 @@ impl TipWatch {
 /// ```
 fn current_branch(layout: &RepoLayout) -> Result<(String, String), Declined> {
     let refs: Refs = Refs::new(layout.common_dir.as_path(), layout.object_format.hex_length());
-    let head: RefValue = refs
-        .lookup_head(layout.git_dir.as_path())
-        .ok_or_else(|| { return declined("head-unreadable", format!("HEAD in {} is not a plain symbolic or direct ref", layout.git_dir.display())); })?;
+    let Some(head) = refs.lookup_head(layout.git_dir.as_path()) else {
+        return Err(declined("head-unreadable", format!("HEAD in {} is not a plain symbolic or direct ref", layout.git_dir.display())));
+    };
     let RefValue::Symbolic(target) = head else {
         return Err(declined("head-detached", "HEAD names a commit, not a branch"));
     };
     if !target.starts_with("refs/heads/") {
         return Err(declined("head-not-a-branch", format!("HEAD names {target}")));
     }
-    let tip: String = refs.resolve(target.as_str()).ok_or_else(|| { return declined("branch-has-no-tip", format!("{target} does not resolve")); })?;
+    let Some(tip) = refs.resolve(target.as_str()) else {
+        return Err(declined("branch-has-no-tip", format!("{target} does not resolve")));
+    };
     return Ok((target, tip));
 }
 
@@ -160,8 +162,9 @@ pub fn try_watch_tip(
 ) -> Result<TipWatch, Declined> {
     // The readers learn the system configuration file from the real Git the child would run.
     let named: Vec<(OsString, OsString)> = with_real_git(overlay, real_git);
-    let layout: RepoLayout = read_layout_after_success(worktree_root, named.as_slice())
-        .ok_or_else(|| { return declined("layout-declined", format!("the files of {} are not a layout the reader takes", worktree_root.display())); })?;
+    let Some(layout) = read_layout_after_success(worktree_root, named.as_slice()) else {
+        return Err(declined("layout-declined", format!("the files of {} are not a layout the reader takes", worktree_root.display())));
+    };
     let (branch_ref, before): (String, String) = current_branch(&layout)?;
     let mut variables: Vec<(OsString, OsString)> = environment.to_vec();
     variables.extend(named);
@@ -179,6 +182,36 @@ pub fn watch_tip(
     return try_watch_tip(worktree_root, real_git, overlay, environment).ok();
 }
 
+/// Every readable value of `branch.<name>.<suffix>` in the configuration listing, in order.
+fn branch_values(listed: &[ListedEntry], name: &str, suffix: &str) -> Vec<String> {
+    let key: String = format!("branch.{name}.{suffix}");
+    let mut found: Vec<String> = Vec::new();
+    for item in listed {
+        if item.entry.key != key {
+            continue;
+        }
+        if let Some(bytes) = item.entry.value.as_deref()
+            && let Ok(text) = std::str::from_utf8(bytes)
+        {
+            found.push(text.to_owned());
+        }
+    }
+    return found;
+}
+
+/// Record how a hand-over ended, with the reason, for the watched branch and the command that ran.
+fn record_ending(watch: &TipWatch, command: &str, outcome: Outcome, reason: &str, detail: &str) {
+    record_decision(&Decision {
+        common_dir: Some(watch.layout.common_dir.as_path()),
+        origin: Some(watch.origin()),
+        command,
+        outcome,
+        reason,
+        detail,
+        branch: Some(watch.branch_ref.as_str()),
+    });
+}
+
 /// The tip the upstream tracking ref of the branch holds,
 /// or the step that found no single plain upstream on a remote.
 ///
@@ -187,29 +220,28 @@ pub fn watch_tip(
 /// function upstreamTip(watch: TipWatch, refs: Refs): string | Declined;
 /// ```
 fn upstream_tip(watch: &TipWatch, refs: &Refs) -> Result<String, Declined> {
-    let name: &str = watch.branch_ref.strip_prefix("refs/heads/").ok_or_else(|| { return declined("upstream-no-branch-name", watch.branch_ref.clone()); })?;
-    let scope: ScopeEnvironment = ScopeEnvironment::from_variables(watch.variables.as_slice());
-    let listed = list_config(watch.layout.common_dir.as_path(), watch.layout.git_dir.as_path(), &scope, watch.variables.as_slice())
-        .ok_or_else(|| { return declined("upstream-config-unreadable", "the configuration listing was declined by the reader"); })?;
-    let values = |suffix: &str| -> Vec<String> {
-        let key: String = format!("branch.{name}.{suffix}");
-        return listed
-            .iter()
-            .filter(|item| { return item.entry.key == key; })
-            .filter_map(|item| { return item.entry.value.as_deref().and_then(|bytes| { return std::str::from_utf8(bytes).ok().map(str::to_owned); }); })
-            .collect();
+    let Some(name) = watch.branch_ref.strip_prefix("refs/heads/") else {
+        return Err(declined("upstream-no-branch-name", watch.branch_ref.clone()));
     };
-    let remotes: Vec<String> = values("remote");
-    let merges: Vec<String> = values("merge");
+    let scope: ScopeEnvironment = ScopeEnvironment::from_variables(watch.variables.as_slice());
+    let Some(listed) = list_config(watch.layout.common_dir.as_path(), watch.layout.git_dir.as_path(), &scope, watch.variables.as_slice()) else {
+        return Err(declined("upstream-config-unreadable", "the configuration listing was declined by the reader"));
+    };
+    let remotes: Vec<String> = branch_values(listed.as_slice(), name, "remote");
+    let merges: Vec<String> = branch_values(listed.as_slice(), name, "merge");
     let ([remote], [merge]) = (remotes.as_slice(), merges.as_slice()) else {
         return Err(declined("upstream-not-single", format!("branch.{name}.remote has {} values and branch.{name}.merge has {}", remotes.len(), merges.len())));
     };
     if remote == "." {
         return Err(declined("upstream-is-local", format!("branch.{name}.remote is the repository itself")));
     }
-    let tracking: String = tracking_ref(listed.as_slice(), remote, merge)
-        .ok_or_else(|| { return declined("upstream-no-tracking-ref", format!("no remote.{remote}.fetch maps {merge}")); })?;
-    return refs.resolve(tracking.as_str()).ok_or_else(|| { return declined("upstream-tracking-ref-missing", tracking); });
+    let Some(tracking) = tracking_ref(listed.as_slice(), remote, merge) else {
+        return Err(declined("upstream-no-tracking-ref", format!("no remote.{remote}.fetch maps {merge}")));
+    };
+    let Some(tip) = refs.resolve(tracking.as_str()) else {
+        return Err(declined("upstream-tracking-ref-missing", tracking));
+    };
+    return Ok(tip);
 }
 
 /// What:
@@ -275,15 +307,18 @@ pub fn tip_to_push_or_why(watch: &TipWatch) -> Result<String, Declined> {
     if upstream == after {
         return Err(declined("upstream-equals-tip", format!("{after} is already the upstream tip")));
     }
-    let database: ObjectDatabase = ObjectDatabase::open(watch.layout.common_dir.as_path(), None, watch.layout.object_format)
-        .ok_or_else(|| { return declined("object-database-unopened", watch.layout.common_dir.display().to_string()); })?;
-    let grew: bool = reaches(&database, &watch.layout, after.as_str(), watch.before.as_str(), WALK_BUDGET)
-        .ok_or_else(|| { return declined("walk-undecided-growth", format!("from {after} to the old tip {}", watch.before)); })?;
+    let Some(database) = ObjectDatabase::open(watch.layout.common_dir.as_path(), None, watch.layout.object_format) else {
+        return Err(declined("object-database-unopened", watch.layout.common_dir.display().to_string()));
+    };
+    let Some(grew) = reaches(&database, &watch.layout, after.as_str(), watch.before.as_str(), WALK_BUDGET) else {
+        return Err(declined("walk-undecided-growth", format!("from {after} to the old tip {}", watch.before)));
+    };
     if !grew {
         return Err(declined("not-grown", format!("the old tip {} is not an ancestor of {after}: a rewritten branch", watch.before)));
     }
-    let ahead: bool = reaches(&database, &watch.layout, after.as_str(), upstream.as_str(), WALK_BUDGET)
-        .ok_or_else(|| { return declined("walk-undecided-ahead", format!("from {after} to the upstream tip {upstream}")); })?;
+    let Some(ahead) = reaches(&database, &watch.layout, after.as_str(), upstream.as_str(), WALK_BUDGET) else {
+        return Err(declined("walk-undecided-ahead", format!("from {after} to the upstream tip {upstream}")));
+    };
     if !ahead {
         return Err(declined("not-ahead", format!("the upstream tip {upstream} is not an ancestor of {after}: diverged")));
     }
@@ -308,20 +343,17 @@ pub fn tip_to_push(watch: &TipWatch) -> Option<String> {
 /// await watch.handOverIfAhead(command, stderr);
 /// ```
 pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Write) {
-    let common: &Path = watch.layout.common_dir.as_path();
+
     let branch: &str = watch.branch_ref.as_str();
-    let decide = |outcome: Outcome, reason: &str, detail: &str| {
-        record_decision(&Decision { common_dir: Some(common), origin: Some(watch.origin()), command, outcome, reason, detail, branch: Some(branch) });
-    };
     let tip: String = match tip_to_push_or_why(watch) {
         Ok(tip) => tip,
         Err(Declined { reason, detail }) => {
-            decide(Outcome::Declined, reason, detail.as_str());
+            record_ending(watch, command, Outcome::Declined, reason, detail.as_str());
             return;
         }
     };
     let Some(Route { address, provision }) = route_from_environment(watch.real_git.as_path(), watch.layout.git_dir.as_path()) else {
-        decide(Outcome::Declined, "no-route", "no way to reach the commit service");
+        record_ending(watch, command, Outcome::Declined, "no-route", "no way to reach the commit service");
         // Terminal output error: the message is the only report of a push that was not handed over.
         let _written = writeln!(stderr, "{}", render(&ClientFailure::NoActivation(platform_without_manager())));
         return;
@@ -341,12 +373,12 @@ pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Writ
         parent: watch.before.clone(),
     };
     if let Err(failure) = hand_over_push(&handoff, tip.as_str(), stderr) {
-        decide(Outcome::Declined, "handover-failed", render(&failure).as_str());
+        record_ending(watch, command, Outcome::Declined, "handover-failed", render(&failure).as_str());
         // Terminal output error: the message is the only report of a push that was not handed over.
         let _written = writeln!(stderr, "{}", render(&failure));
         return;
     }
-    decide(Outcome::HandedOver, "ahead-of-upstream", format!("pushed {tip} of {branch}").as_str());
+    record_ending(watch, command, Outcome::HandedOver, "ahead-of-upstream", format!("pushed {tip} of {branch}").as_str());
 }
 
 /// The trigger's controls stay out of the release executable.

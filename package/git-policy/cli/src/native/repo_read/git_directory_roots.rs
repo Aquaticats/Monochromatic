@@ -71,7 +71,10 @@ pub fn git_directory_of(start: &Path) -> Option<PathBuf> {
 /// function rootsFor(working: string, named?: string): string[];
 /// ```
 pub fn roots_for(working: &Path, named: Option<PathBuf>) -> Vec<PathBuf> {
-    let git_dir: Option<PathBuf> = named.or_else(|| { return git_directory_of(working); });
+    let git_dir: Option<PathBuf> = match named {
+        Some(explicit) => Some(explicit),
+        None => git_directory_of(working),
+    };
     let mut roots: Vec<PathBuf> = Vec::new();
     if let Some(directory) = git_dir {
         let common: PathBuf = common_dir_for(directory.as_path());
@@ -91,15 +94,20 @@ pub fn roots_for(working: &Path, named: Option<PathBuf>) -> Vec<PathBuf> {
 /// function rootsOfCommand(command: Command): string[];
 /// ```
 pub fn roots_of_command(command: &Command) -> Vec<PathBuf> {
-    let working: PathBuf = command
-        .get_current_dir()
-        .map(Path::to_path_buf)
-        .or_else(|| { return std::env::current_dir().ok(); })
-        .unwrap_or_default();
-    let named: Option<PathBuf> = command
-        .get_envs()
-        .filter(|(name, _)| { return *name == OsStr::new("GIT_DIR"); })
-        .last()
-        .and_then(|(_, value)| { return value.map(|path| { return working.join(path); }); });
+    let working: PathBuf = match command.get_current_dir() {
+        Some(directory) => directory.to_path_buf(),
+        None => std::env::current_dir().unwrap_or_default(),
+    };
+    // The last `GIT_DIR` the command sets wins; a removal of it (no value) names nothing.
+    let mut git_dir_value: Option<Option<&OsStr>> = None;
+    for (name, value) in command.get_envs() {
+        if name == OsStr::new("GIT_DIR") {
+            git_dir_value = Some(value);
+        }
+    }
+    let mut named: Option<PathBuf> = None;
+    if let Some(Some(path)) = git_dir_value {
+        named = Some(working.join(path));
+    }
     return roots_for(working.as_path(), named);
 }

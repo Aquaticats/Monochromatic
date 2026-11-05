@@ -103,6 +103,21 @@ pub struct Layout {
     pub claim_prefix: std::ffi::OsString,
 }
 
+/// `parent/<name><suffix>`: the name of a file kept beside the root under a fixed suffix.
+fn with_suffix(parent: &Path, name: &std::ffi::OsStr, suffix: &str) -> PathBuf {
+    let mut text: std::ffi::OsString = name.to_os_string();
+    text.push(suffix);
+    return parent.join(text);
+}
+
+/// `parent/.cli-git-migrate-<name><suffix>`: the name of a hidden file kept beside the root under a fixed suffix.
+fn dotted(parent: &Path, name: &std::ffi::OsStr, suffix: &str) -> PathBuf {
+    let mut text: std::ffi::OsString = std::ffi::OsString::from(".cli-git-migrate-");
+    text.push(name);
+    text.push(suffix);
+    return parent.join(text);
+}
+
 /// What:
 ///  The layout for a checkout path.
 ///  A root with no parent or no name (`/`) has no layout.
@@ -116,25 +131,15 @@ pub struct Layout {
 pub fn layout_of(root: &Path) -> Option<Layout> {
     let name: &std::ffi::OsStr = root.file_name()?;
     let parent: &Path = root.parent()?;
-    let with_suffix = |suffix: &str| -> PathBuf {
-        let mut text: std::ffi::OsString = name.to_os_string();
-        text.push(suffix);
-        return parent.join(text);
-    };
-    let dotted = |suffix: &str| -> PathBuf {
-        let mut text: std::ffi::OsString = std::ffi::OsString::from(".cli-git-migrate-");
-        text.push(name);
-        text.push(suffix);
-        return parent.join(text);
-    };
+
     return Some(Layout {
         root: root.to_path_buf(),
         parent: parent.to_path_buf(),
-        new_path: with_suffix(".subvol-new"),
-        old_path: with_suffix(".before-subvolume"),
-        journal_path: dotted(".journal.json"),
-        unreadable_path: dotted(".unreadable.txt"),
-        claim_prefix: dotted(".owner").file_name().unwrap_or_default().to_os_string(),
+        new_path: with_suffix(parent, name, ".subvol-new"),
+        old_path: with_suffix(parent, name, ".before-subvolume"),
+        journal_path: dotted(parent, name, ".journal.json"),
+        unreadable_path: dotted(parent, name, ".unreadable.txt"),
+        claim_prefix: dotted(parent, name, ".owner").file_name().unwrap_or_default().to_os_string(),
     });
 }
 
@@ -276,7 +281,7 @@ fn conversion_refusal(administrative: &Path) -> Option<Refusal> {
 fn git_state_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
     let mut found: Vec<Refusal> = Vec::new();
     let git_directory: PathBuf = layout.root.join(".git");
-    if !std::fs::metadata(&git_directory).is_ok_and(|read: std::fs::Metadata| { return read.is_dir(); }) {
+    if !git_directory.is_dir() {
         found.push(refuse(
             format!("{} is not a directory, so this is not the main checkout of a repository", git_directory.display()),
             "Run the command from the main checkout (the directory that holds the repository's `.git` directory), not from a linked worktree.",
@@ -306,7 +311,9 @@ fn git_state_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
         }
         for queue in ["pending", "claimed"] {
             let path: PathBuf = directory.join("cli-git").join("work").join(queue);
-            if std::fs::read_dir(&path).is_ok_and(|mut entries: std::fs::ReadDir| { return entries.next().is_some(); }) {
+            if let Ok(mut entries) = std::fs::read_dir(&path)
+                && entries.next().is_some()
+            {
                 found.push(refuse(
                     format!("the commit service has unfinished work in {}", path.display()),
                     "Wait for the service to finish landing its commits (`git cli-git service status`), then run the command again.",

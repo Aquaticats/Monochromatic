@@ -22,8 +22,8 @@ use std::time::{Duration, SystemTime};
 const LINE_PREFIX: &str = "cli-git: ";
 
 /// Bytes a shell reads as part of a plain word.
-fn is_plain(byte: u8) -> bool {
-    return byte.is_ascii_alphanumeric() || b"_@%+=:,./-".contains(&byte);
+fn is_plain(byte: &u8) -> bool {
+    return byte.is_ascii_alphanumeric() || b"_@%+=:,./-".contains(byte);
 }
 
 /// A path as a shell word that stands for exactly that path.
@@ -37,10 +37,13 @@ fn is_plain(byte: u8) -> bool {
 /// ```
 pub fn shell_quote(path: &Path) -> String {
     let bytes: &[u8] = path.as_os_str().as_bytes();
-    if !bytes.is_empty() && bytes.iter().all(|byte| { return is_plain(*byte); }) {
+    if !bytes.is_empty() && bytes.iter().all(is_plain) {
         return String::from_utf8_lossy(bytes).into_owned();
     }
-    let printable: bool = std::str::from_utf8(bytes).is_ok_and(|text| { return text.chars().all(|character| { return !character.is_control(); }); });
+    let printable: bool = match std::str::from_utf8(bytes) {
+        Ok(text) => !text.chars().any(char::is_control),
+        Err(_) => false,
+    };
     if printable {
         return format!("'{}'", String::from_utf8_lossy(bytes).replace('\'', "'\\''"));
     }
@@ -73,7 +76,10 @@ fn born_text(born: Option<SystemTime>) -> String {
     let Some(at) = born else {
         return String::new();
     };
-    let milliseconds: i64 = at.duration_since(SystemTime::UNIX_EPOCH).ok().and_then(|elapsed| { return i64::try_from(elapsed.as_millis()).ok(); }).unwrap_or(0);
+    let milliseconds: i64 = match at.duration_since(SystemTime::UNIX_EPOCH) {
+        Ok(elapsed) => i64::try_from(elapsed.as_millis()).unwrap_or(0),
+        Err(_) => 0,
+    };
     let age: Duration = SystemTime::now().duration_since(at).unwrap_or_default();
     return format!(", made {} ({} ago)", format_iso_milliseconds(milliseconds), age_text(age));
 }
@@ -90,7 +96,9 @@ fn proof_text(proof: &Proof) -> String {
 /// The paths a person clears by hand: the lock and what goes with it, quoted.
 fn clearing_words(found: &Found) -> String {
     let mut paths: Vec<String> = vec![shell_quote(found.lock.as_path())];
-    paths.extend(found.companions.iter().map(|path| { return shell_quote(path.as_path()); }));
+    for path in &found.companions {
+        paths.push(shell_quote(path.as_path()));
+    }
     return paths.join(" ");
 }
 
@@ -137,7 +145,11 @@ impl Outcome {
 
 /// The paths of a list, for a log line.
 pub fn path_list(paths: &[PathBuf]) -> String {
-    return paths.iter().map(|path| { return shell_quote(path.as_path()); }).collect::<Vec<String>>().join(" ");
+    let mut quoted: Vec<String> = Vec::new();
+    for path in paths {
+        quoted.push(shell_quote(path.as_path()));
+    }
+    return quoted.join(" ");
 }
 
 /// Controls for the notices and the quoting are in the test module.

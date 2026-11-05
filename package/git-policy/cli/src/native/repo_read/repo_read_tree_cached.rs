@@ -51,15 +51,45 @@ struct Walk<'a> {
 
 /// The subdirectory `name` of a cache-tree node; the file keeps its subdirectories sorted by length and then bytes.
 fn subtree_of<'a>(node: &'a CacheTree, name: &[u8]) -> Option<&'a CacheTree> {
-    let at: usize = node.subtrees.binary_search_by(|(candidate, _)| { return (candidate.len(), candidate.as_slice()).cmp(&(name.len(), name)); }).ok()?;
-    return Some(&node.subtrees[at].1);
+    // A binary search over the sorted subdirectories by (length, bytes).
+    let (mut low, mut high): (usize, usize) = (0, node.subtrees.len());
+    while low < high {
+        let middle: usize = low + (high - low) / 2;
+        let (candidate, subtree) = &node.subtrees[middle];
+        match (candidate.len(), candidate.as_slice()).cmp(&(name.len(), name)) {
+            std::cmp::Ordering::Less => low = middle + 1,
+            std::cmp::Ordering::Greater => high = middle,
+            std::cmp::Ordering::Equal => return Some(subtree),
+        }
+    }
+    return None;
 }
 
 /// The range of `range` whose paths start with `prefix`, which is one stretch because the paths are sorted.
 fn below(paths: &[&[u8]], range: (usize, usize), prefix: &[u8]) -> (usize, usize) {
     let window: &[&[u8]] = &paths[range.0..range.1];
-    let start: usize = window.partition_point(|path| { return *path < prefix; });
-    let length: usize = window[start..].partition_point(|path| { return path.starts_with(prefix); });
+    // Two binary searches over the sorted paths: the first path not before the prefix, then the end of the paths that start with it.
+    let (mut low, mut high): (usize, usize) = (0, window.len());
+    while low < high {
+        let middle: usize = low + (high - low) / 2;
+        if window[middle] < prefix {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    let start: usize = low;
+    let rest: &[&[u8]] = &window[start..];
+    let (mut inside, mut past): (usize, usize) = (0, rest.len());
+    while inside < past {
+        let middle: usize = inside + (past - inside) / 2;
+        if rest[middle].starts_with(prefix) {
+            inside = middle + 1;
+        } else {
+            past = middle;
+        }
+    }
+    let length: usize = inside;
     return (range.0 + start, range.0 + start + length);
 }
 
@@ -69,7 +99,11 @@ impl Walk<'_> {
         if depth > TREE_DEPTH_LIMIT {
             return None;
         }
-        if let Some(valid) = node.filter(|candidate| { return candidate.entry_count >= 0 && candidate.id.as_slice() == tree; }) {
+        let valid_node: Option<&CacheTree> = match node {
+            Some(candidate) if candidate.entry_count >= 0 && candidate.id.as_slice() == tree => Some(candidate),
+            _ => None,
+        };
+        if let Some(valid) = valid_node {
             // A node whose count is not the number of index entries below the directory is not trusted; the whole tree is read.
             if usize::try_from(valid.entry_count).ok()? != range.1 - range.0 {
                 return None;
@@ -87,7 +121,10 @@ impl Walk<'_> {
             if is_tree_mode(entry.mode) {
                 prefix.push(b'/');
                 let inner: (usize, usize) = below(self.paths, range, prefix.as_slice());
-                let child: Option<&CacheTree> = node.and_then(|parent| { return subtree_of(parent, entry.name.as_slice()); });
+                let child: Option<&CacheTree> = match node {
+                    Some(parent) => subtree_of(parent, entry.name.as_slice()),
+                    None => None,
+                };
                 self.directory(entry.id.as_slice(), child, prefix, inner, depth + 1)?;
             } else {
                 self.tree.push(FlatEntry { path: prefix.clone(), mode: entry.mode, id: entry.id });
@@ -157,9 +194,15 @@ pub fn outside<'a, Item>(all: &'a [Item], skipped: &[(usize, usize)]) -> Vec<&'a
 /// function changesWithCache(odb, tree, format, cache, index: FlatEntry[]): Change[] | undefined;
 /// ```
 pub fn changes_with_cache(database: &ObjectDatabase, tree: &[u8], format: ObjectFormat, cache: &CacheTree, index: &[FlatEntry]) -> Option<Vec<Change>> {
-    let paths: Vec<&[u8]> = index.iter().map(|entry| { return entry.path.as_slice(); }).collect();
+    let mut paths: Vec<&[u8]> = Vec::new();
+    for entry in index {
+        paths.push(entry.path.as_slice());
+    }
     let parts: UnequalParts = unequal_parts(database, tree, format, cache, paths.as_slice())?;
-    let kept: Vec<FlatEntry> = outside(index, parts.skipped.as_slice()).into_iter().cloned().collect();
+    let mut kept: Vec<FlatEntry> = Vec::new();
+    for entry in outside(index, parts.skipped.as_slice()) {
+        kept.push(entry.clone());
+    }
     return diff_sorted(parts.tree.as_slice(), kept.as_slice());
 }
 
