@@ -76,7 +76,6 @@
     "@deepseek-ai/dsh-workspace": "catalog:",
     "@deepseek-ai/schemastery": "catalog:",
     "@earendil-works/pi-ai": "catalog:",
-    "@earendil-works/pi-coding-agent": "catalog:",
     "typebox": "catalog:"
   },
   "devDependencies": {
@@ -106,7 +105,6 @@
     "@deepseek-ai/dsh-workspace": "catalog:",
     "@deepseek-ai/schemastery": "catalog:",
     "@earendil-works/pi-ai": "catalog:",
-    "@earendil-works/pi-coding-agent": "catalog:",
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",

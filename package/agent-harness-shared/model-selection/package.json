@@ -28,18 +28,7 @@
     "valibot": "catalog:",
     "zeptomatch": "catalog:"
   },
-  "peerDependencies": {
-    "@earendil-works/pi-ai": "*",
-    "@earendil-works/pi-coding-agent": "*"
-  },
-  "peerDependenciesMeta": {
-    "@earendil-works/pi-ai": {
-      "optional": true
-    }
-  },
   "devDependencies": {
-    "@earendil-works/pi-ai": "catalog:",
-    "@earendil-works/pi-coding-agent": "catalog:",
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",

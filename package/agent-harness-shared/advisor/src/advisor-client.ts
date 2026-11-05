@@ -4,18 +4,18 @@
  @module
  */
 
-import {
-  getSupportedThinkingLevels,
-  normalizeContext,
-  type Api,
-  type AssistantMessage,
-  type Context,
-  type Message,
-  type Model,
-  type ModelThinkingLevel,
-  type SimpleStreamOptions,
-  type Usage,
+import type {
+  Api,
+  AssistantMessage,
+  Context,
+  Message,
+  Model,
+  ModelThinkingLevel,
+  SimpleStreamOptions,
+  Usage,
 } from '@earendil-works/pi-ai';
+import { getSupportedThinkingLevels, } from '@earendil-works/pi-ai/models';
+import { normalizeContext, } from '@earendil-works/pi-ai/utils/transcript';
 import type { ReadonlyDeep, } from 'type-fest';
 import type {
   ForeignBorrowed,

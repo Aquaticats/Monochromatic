@@ -5,11 +5,10 @@ import {
 
 /**
  Node build configuration: a single `src/index.ts` entry that re-exports
- every feature module (core, scope, cost, budget, pi-coding-agent), so the
+ every feature module (core, scope, cost, budget, token estimation), so the
  package emits only `dist/final/node/index.mjs`. The former per-feature
  bundle entries were dropped when the export map collapsed to `.` + `./ts`
- (no consumer imports a feature subpath). pi peer deps stay external via the
- base config's `neverBundle`.
+ (no consumer imports a feature subpath). This package has no Pi dependencies.
  */
 const config: NodeFlavorConfig = nodeConfig({
   input: [

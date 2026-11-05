@@ -12,6 +12,7 @@
  */
 
 export * from './constants.ts';
+export { TOKEN_ESTIMATE_CHARS_PER_TOKEN, } from '@monochromatic-dev/agent-harness-shared-model-selection/ts';
 export type * from './types.ts';
 export type * from './ports.ts';
 export * from './advisor-completion-error.ts';
