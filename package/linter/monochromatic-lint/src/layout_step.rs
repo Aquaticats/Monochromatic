@@ -4,11 +4,14 @@
 //!  build each package's module tree once,
 //!  and report the findings of the folder rule and the file rule.
 //! Why:
-//!  Both rules need the whole package, not one parsed file,
-//!  so they run after the per-file rules, once per package,
+//!  Both rules need the whole package,
+//! not one parsed file,
+//!  so they run after the per-file rules,
+//! once per package,
 //!  as the closure check does.
 //!  They are off unless configuration turns them on for some file of the package.
-//!  A package whose tree cannot be completed (a missing module file, an unreadable file)
+//!  A package whose tree cannot be completed (a missing module file,
+//! an unreadable file)
 //!  fails the run with a processing failure and is not checked,
 //!  because a partial tree would give wrong answers.
 //!
@@ -18,7 +21,8 @@
 //! function runLayoutStep(plans: FilePlan[], cwd: Path): LayoutOutcome;
 //! ```
 
-/// Import every part of the layout checks and the run's plan, finding and path types.
+/// Import every part of the layout checks and the run's plan,
+/// finding and path types.
 use crate::{
     diagnostic::{Diagnostic, Severity, Span},
     layout_crate_roots::crate_root_files,
@@ -103,7 +107,10 @@ fn select_packages(plans: &[FilePlan], notes: &mut Vec<String>) -> BTreeMap<Path
         let manifest: PathBuf = match discover_manifest(&plan.absolute) {
             Ok(found) => found,
             Err(error) => {
-                notes.push(format!("{}: not checked by the layout rules: {error}", plan.display));
+                notes.push(format!(
+                    "{}: not checked by the layout rules: {error}",
+                    plan.display
+                ));
                 continue;
             }
         };
@@ -122,7 +129,8 @@ fn select_packages(plans: &[FilePlan], notes: &mut Vec<String>) -> BTreeMap<Path
 ///  The span of a whole line of a file,
 ///  or the file start when the line is zero or the file cannot be read.
 /// Why:
-///  Findings carry a byte offset, a line and a column.
+///  Findings carry a byte offset,
+/// a line and a column.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -161,7 +169,12 @@ fn line_span(file: &Path, line: usize) -> Span {
 /// ```ts
 /// function diagnostics(found: LayoutFinding[], code: string, severity: Severity, cwd: Path): Diagnostic[];
 /// ```
-fn diagnostics(found: Vec<LayoutFinding>, code: &str, severity: Severity, cwd: &Path) -> Vec<Diagnostic> {
+fn diagnostics(
+    found: Vec<LayoutFinding>,
+    code: &str,
+    severity: Severity,
+    cwd: &Path,
+) -> Vec<Diagnostic> {
     let mut result: Vec<Diagnostic> = Vec::<Diagnostic>::new();
     for item in found {
         let mut diagnostic: Diagnostic = Diagnostic::new(
@@ -233,11 +246,15 @@ fn check_package(manifest: &Path, selection: Selection, cwd: &Path, outcome: &mu
     ));
     if let Some(severity) = selection.folder {
         let found: Vec<LayoutFinding> = check_folder_links(&tree, uses.as_slice(), package);
-        outcome.findings.extend(diagnostics(found, FOLDER_RULE, severity, cwd));
+        outcome
+            .findings
+            .extend(diagnostics(found, FOLDER_RULE, severity, cwd));
     }
     if let Some(severity) = selection.order {
         let found: Vec<LayoutFinding> = check_file_order(&tree, uses.as_slice(), package);
-        outcome.findings.extend(diagnostics(found, FILE_RULE, severity, cwd));
+        outcome
+            .findings
+            .extend(diagnostics(found, FILE_RULE, severity, cwd));
     }
 }
 

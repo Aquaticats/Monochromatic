@@ -292,8 +292,8 @@ fn read_entry(tokens: &[Token], start: usize, prefix: &[String], offset: usize) 
     loop {
         let kind: TokenKind = kind_at(tokens, index);
         // `self` alone in a group names the prefix module itself.
-        let alone: bool =
-            kind == TokenKind::SelfKeyword && kind_at(tokens, index + 1) != TokenKind::PathSeparator;
+        let alone: bool = kind == TokenKind::SelfKeyword
+            && kind_at(tokens, index + 1) != TokenKind::PathSeparator;
         if !alone {
             current.push(tokens[index].text.clone());
         }
@@ -388,9 +388,11 @@ pub fn read_references(tokens: &[Token], public_uses: &[(usize, usize)]) -> Vec<
         }
         let read: Read = read_path(tokens, index);
         for mut reference in read.leaves {
-            reference.reexport = public_uses
-                .iter()
-                .any(|range| return reference.offset >= range.0 && reference.offset < range.1);
+            for range in public_uses {
+                if reference.offset >= range.0 && reference.offset < range.1 {
+                    reference.reexport = true;
+                }
+            }
             found.push(reference);
         }
         index = read.next.max(index + 1);

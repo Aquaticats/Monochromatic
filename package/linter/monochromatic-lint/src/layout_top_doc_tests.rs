@@ -19,7 +19,11 @@ fn entries_after_the_marker_are_read_in_order() {
     );
     let doc = read_top_doc(text.as_str());
     assert_eq!(doc.marker_line, Some(3));
-    let seen: Vec<(&str, usize)> = doc.entries.iter().map(|entry| return (entry.name.as_str(), entry.line)).collect::<Vec<(&str, usize)>>();
+    let seen: Vec<(&str, usize)> = doc
+        .entries
+        .iter()
+        .map(|entry| return (entry.name.as_str(), entry.line))
+        .collect::<Vec<(&str, usize)>>();
     assert_eq!(seen, [("first.rs", 5), ("second.rs", 7)]);
     assert_eq!(doc.first_line, 1);
 }
@@ -34,10 +38,13 @@ fn bullets_without_the_marker_are_no_list() {
 }
 
 /// Only the leading doc lines count:
-/// comments and inner attributes do not end the doc, code does.
+/// comments and inner attributes do not end the doc,
+/// code does.
 #[test]
 fn only_the_leading_doc_block_counts() {
-    let text: String = format!("// plain\n#![allow(dead_code)]\n//! {LIST_MARKER}\n//! - `a.rs`: x\n\nfn code() {{}}\n//! {LIST_MARKER}\n//! - `late.rs`: y\n");
+    let text: String = format!(
+        "// plain\n#![allow(dead_code)]\n//! {LIST_MARKER}\n//! - `a.rs`: x\n\nfn code() {{}}\n//! {LIST_MARKER}\n//! - `late.rs`: y\n"
+    );
     let doc = read_top_doc(text.as_str());
     assert_eq!(doc.marker_line, Some(3));
     assert_eq!(doc.entries.len(), 1);
@@ -49,7 +56,9 @@ fn only_the_leading_doc_block_counts() {
 #[test]
 fn no_doc_and_unquoted_entries() {
     assert_eq!(read_top_doc("fn code() {}\n").first_line, 1);
-    let text: String = format!("//! {LIST_MARKER}\n//! - `a.rs`: x\n//! - b.rs: unquoted\n//! - `c.rs`: not read\n");
+    let text: String = format!(
+        "//! {LIST_MARKER}\n//! - `a.rs`: x\n//! - b.rs: unquoted\n//! - `c.rs`: not read\n"
+    );
     let doc = read_top_doc(text.as_str());
     assert_eq!(doc.entries.len(), 1);
 }

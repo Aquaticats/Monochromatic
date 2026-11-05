@@ -34,6 +34,8 @@ use crate::{
 /// Import the syntax node,
 ///  shared ownership of a parsed file and native paths.
 use ra_ap_syntax::SyntaxNode;
+/// Import an ordered map,
+///  native paths and shared ownership.
 use std::{collections::BTreeMap, path::PathBuf, rc::Rc};
 
 /// What:
@@ -197,10 +199,15 @@ fn loads_itself(tree: &ModuleTree, from: Option<usize>, file: &std::path::Path) 
 fn locate(parent: &Pending, declaration: &ModuleDeclaration) -> Result<(PathBuf, PathBuf), String> {
     if let Some(attribute) = &declaration.path_attribute {
         let file: PathBuf = lexical_normal(&parent.path_base.join(attribute));
-        let folder: PathBuf = file.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
+        let folder: PathBuf = file
+            .parent()
+            .map(std::path::Path::to_path_buf)
+            .unwrap_or_default();
         return Ok((file, folder));
     }
-    let plain: PathBuf = parent.children_folder.join(format!("{}.rs", declaration.name));
+    let plain: PathBuf = parent
+        .children_folder
+        .join(format!("{}.rs", declaration.name));
     let folder: PathBuf = parent.children_folder.join(&declaration.name);
     let nested: PathBuf = folder.join("mod.rs");
     let has_plain: bool = plain.is_file();
@@ -276,7 +283,9 @@ fn read_pending(tree: &mut ModuleTree, item: Pending, queue: &mut Vec<Pending>) 
     });
     match item.parent {
         Some(parent) => {
-            tree.modules[parent].children.insert(item.name.clone(), index);
+            tree.modules[parent]
+                .children
+                .insert(item.name.clone(), index);
         }
         None => tree.roots.push(index),
     }
@@ -344,7 +353,11 @@ fn queue_declaration(
         tree.problems.push(TreeProblem {
             file: host.file.clone(),
             line: source.span(declaration.offset, 0).line,
-            message: format!("module `{}` loads {}, which already contains it", declaration.name, file.display()),
+            message: format!(
+                "module `{}` loads {}, which already contains it",
+                declaration.name,
+                file.display()
+            ),
         });
         return;
     }
@@ -354,7 +367,10 @@ fn queue_declaration(
         inline: None,
         parent: Some(host_index),
         children_folder: folder.clone(),
-        path_base: file.parent().map(std::path::Path::to_path_buf).unwrap_or_default(),
+        path_base: file
+            .parent()
+            .map(std::path::Path::to_path_buf)
+            .unwrap_or_default(),
     });
 }
 
@@ -372,7 +388,10 @@ fn queue_declaration(
 pub fn build_module_tree(roots: &[PathBuf]) -> ModuleTree {
     let mut tree: ModuleTree = ModuleTree::default();
     for root in roots {
-        let folder: PathBuf = root.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
+        let folder: PathBuf = root
+            .parent()
+            .map(std::path::Path::to_path_buf)
+            .unwrap_or_default();
         let mut queue: Vec<Pending> = vec![Pending {
             name: String::from("crate"),
             file: root.clone(),

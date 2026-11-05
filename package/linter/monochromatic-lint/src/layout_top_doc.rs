@@ -2,9 +2,11 @@
 //!  Read the list of files that a folder's top doc carries.
 //! Why:
 //!  The top doc is the `//!` lines at the start of the folder's `mod.rs`.
-//!  The file rule asks it to list the folder's files, each after the files it uses.
+//!  The file rule asks it to list the folder's files,
+//! each after the files it uses.
 //!  The format is plain enough for someone who knows only `git commit` and `git push`:
-//!  a marker line, then one line per file,
+//!  a marker line,
+//! then one line per file,
 //!  and everything else in the doc is free text that the rule never reads.
 //!
 //! ```text
@@ -84,7 +86,8 @@ fn entry_name(text: &str) -> Option<String> {
 ///  Read the top doc of a Rust file.
 /// Why:
 ///  Only the leading `//!` lines count;
-///  blank lines, ordinary comments and inner attributes between them are skipped,
+///  blank lines,
+/// ordinary comments and inner attributes between them are skipped,
 ///  and the first other line ends the doc.
 ///
 /// In TS you'd write (pseudocode):

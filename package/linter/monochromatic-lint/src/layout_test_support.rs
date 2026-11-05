@@ -27,7 +27,11 @@ use std::path::{Path, PathBuf};
 /// Write a package with the given source files and a minimal `Cargo.toml`.
 pub(crate) fn package_with(files: &[(&str, &str)]) -> Fixture {
     let fixture: Fixture = Fixture::new();
-    write(&fixture.path, "Cargo.toml", "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n");
+    write(
+        &fixture.path,
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
     for (relative, contents) in files {
         write(&fixture.path, relative, contents);
     }

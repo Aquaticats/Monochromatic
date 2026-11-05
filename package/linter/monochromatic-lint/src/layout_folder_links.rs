@@ -1,12 +1,15 @@
 //! What:
 //!  The folder rule:
-//!  every source folder links, in its `uses` folder, to exactly the folders its code uses,
+//!  every source folder links,
+//! in its `uses` folder,
+//! to exactly the folders its code uses,
 //!  and no two folders use each other.
 //! Why:
 //!  "Who depends on whom" must be visible in the file tree itself.
 //!  A folder uses another when code in one of its module files names a module that the other folder defines.
 //!  Decisions:
-//!  a parent folder and a child folder are folders like any other, so using one needs a link
+//!  a parent folder and a child folder are folders like any other,
+//! so using one needs a link
 //!  (a child that reaches `super::super` into its parent's folder depends on it);
 //!  a folder that uses nothing needs no `uses` folder because Git cannot store an empty one;
 //!  a glob re-export (`pub use folder::*`) is a finding of its own,
@@ -24,7 +27,7 @@
 ///  the resolver and the uses.
 use crate::{
     layout_finding::{LayoutFinding, shown},
-    layout_link_entries::{Link, USES_FOLDER, link_command, read_links},
+    layout_link_entries::{USES_FOLDER, link_command, read_links},
     layout_loops::find_loops,
     layout_module_tree::ModuleTree,
     layout_module_uses::{ModuleUse, folder_of},
@@ -89,9 +92,14 @@ fn group_by_folder(tree: &ModuleTree, uses: &[ModuleUse]) -> FolderUses {
             line: found.line,
             text: found.text.clone(),
         };
-        let slot = grouped.entry(from).or_default().entry(to).or_insert_with(|| return proof.clone());
-        if proof < *slot {
-            *slot = proof;
+        // Keep the smallest proof so the output does not depend on discovery order.
+        let targets: &mut BTreeMap<PathBuf, Proof> = grouped.entry(from).or_default();
+        let smaller: bool = match targets.get(&to) {
+            Some(existing) => proof < *existing,
+            None => true,
+        };
+        if smaller {
+            targets.insert(to, proof);
         }
     }
     return grouped;
@@ -141,7 +149,10 @@ fn check_one_folder(
 ) -> Vec<LayoutFinding> {
     let read = read_links(folder, sources, base);
     let mut findings: Vec<LayoutFinding> = read.findings;
-    let linked: BTreeSet<&PathBuf> = read.links.iter().map(|link: &Link| return &link.target).collect::<BTreeSet<&PathBuf>>();
+    let mut linked: BTreeSet<&PathBuf> = BTreeSet::<&PathBuf>::new();
+    for link in &read.links {
+        linked.insert(&link.target);
+    }
     let empty: BTreeMap<PathBuf, Proof> = BTreeMap::<PathBuf, Proof>::new();
     let needed: &BTreeMap<PathBuf, Proof> = used.unwrap_or(&empty);
     for link in &read.links {
@@ -155,7 +166,9 @@ fn check_one_folder(
                     shown(&link.target, base),
                     shown(folder, base)
                 ),
-                help: Some(String::from("Remove the link, or use the folder it points to.")),
+                help: Some(String::from(
+                    "Remove the link, or use the folder it points to.",
+                )),
             });
         }
     }
@@ -250,7 +263,8 @@ fn glob_reexports(tree: &ModuleTree, base: &Path) -> Vec<LayoutFinding> {
             if !(reference.raw.glob && reference.raw.reexport) {
                 continue;
             }
-            let Some(target) = resolve_path(tree, index, reference.raw.segments.as_slice(), false) else {
+            let Some(target) = resolve_path(tree, index, reference.raw.segments.as_slice(), false)
+            else {
                 continue;
             };
             if target == index || !seen.insert((module.file.clone(), reference.line)) {
@@ -290,7 +304,13 @@ fn folder_below_uses(folders: &[PathBuf], base: &Path) -> Vec<LayoutFinding> {
         let Ok(below) = folder.strip_prefix(base) else {
             continue;
         };
-        if below.components().any(|part| return part.as_os_str() == USES_FOLDER) {
+        let mut named_uses: bool = false;
+        for part in below.components() {
+            if part.as_os_str() == USES_FOLDER {
+                named_uses = true;
+            }
+        }
+        if named_uses {
             findings.push(LayoutFinding {
                 file: folder.clone(),
                 line: 0,
@@ -315,7 +335,11 @@ fn folder_below_uses(folders: &[PathBuf], base: &Path) -> Vec<LayoutFinding> {
 /// ```ts
 /// function checkFolderLinks(tree: ModuleTree, uses: ModuleUse[], base: Path): LayoutFinding[];
 /// ```
-pub fn check_folder_links(tree: &ModuleTree, uses: &[ModuleUse], base: &Path) -> Vec<LayoutFinding> {
+pub fn check_folder_links(
+    tree: &ModuleTree,
+    uses: &[ModuleUse],
+    base: &Path,
+) -> Vec<LayoutFinding> {
     let mut folders: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
     for index in 0..tree.modules.len() {
         folders.insert(folder_of(tree, index));
@@ -330,7 +354,12 @@ pub fn check_folder_links(tree: &ModuleTree, uses: &[ModuleUse], base: &Path) ->
     let grouped: FolderUses = group_by_folder(tree, uses);
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     for folder in &folder_list {
-        findings.extend(check_one_folder(folder, grouped.get(folder), &sources, base));
+        findings.extend(check_one_folder(
+            folder,
+            grouped.get(folder),
+            &sources,
+            base,
+        ));
     }
     findings.extend(folder_loops(folder_list.as_slice(), &grouped, base));
     findings.extend(glob_reexports(tree, base));

@@ -4,7 +4,8 @@
 //! Why:
 //!  A module body is a whole file or the braces of an inline `mod x { ... }`.
 //!  Production code only is read:
-//!  anything marked for test builds (`#[cfg(test)]` on an item, a `mod` line or a `use`,
+//!  anything marked for test builds (`#[cfg(test)]` on an item,
+//! a `mod` line or a `use`,
 //!  or `#[test]` on a function) is skipped with everything inside it.
 //!
 //! In TS you'd write (pseudocode):
@@ -144,6 +145,19 @@ fn path_attribute(module: &ast::Module) -> Option<String> {
 }
 
 /// What:
+///  The syntax node of an inline module's braces.
+/// Why:
+///  The tree builder reads the module's own body from it later.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function bracesOf(list: ItemList): SyntaxNode;
+/// ```
+fn braces_of(list: ast::ItemList) -> SyntaxNode {
+    return list.syntax().clone();
+}
+
+/// What:
 ///  Whether a node is marked for test builds only.
 /// Why:
 ///  Test-only code is outside both layout rules.
@@ -220,10 +234,11 @@ pub fn collect_body_facts(body: &SyntaxNode) -> BodyFacts {
                         Some(found) => plain_name(found.text().as_str()),
                         None => String::new(),
                     };
+                    let braces: Option<SyntaxNode> = module.item_list().map(braces_of);
                     facts.declarations.push(ModuleDeclaration {
                         name,
                         path_attribute: path_attribute(&module),
-                        body: module.item_list().map(|list| return list.syntax().clone()),
+                        body: braces,
                         offset: usize::from(module.syntax().text_range().start()),
                     });
                     walk.skip_subtree();

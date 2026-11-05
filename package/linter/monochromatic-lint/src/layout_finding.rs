@@ -10,6 +10,7 @@
 //! type LayoutFinding = { file: Path; line: number; message: string; help?: string };
 //! ```
 
+/// Import the native path type.
 use std::path::PathBuf;
 
 /// What:

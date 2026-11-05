@@ -5,10 +5,12 @@
 //!  named after the folder it points to.
 //!  Whether a link is needed is a question about the code and is answered by the caller;
 //!  this module answers what each entry is.
-//!  Links are read with `symlink_metadata`, `read_link` and `canonicalize` on the link itself,
+//!  Links are read with `symlink_metadata`,
+//! `read_link` and `canonicalize` on the link itself,
 //!  and never followed to list files.
 //!  A folder with no `uses` folder links to nothing:
-//!  Git cannot store an empty folder, so a folder that uses nothing has none.
+//!  Git cannot store an empty folder,
+//! so a folder that uses nothing has none.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -117,7 +119,9 @@ pub fn link_command(folder: &Path, target: &Path, base: &Path) -> String {
 ///  Check one entry of a `uses` folder.
 /// Why:
 ///  An entry is good only when it is a link whose target exists,
-///  is a folder, is a source folder of this package, is not the folder itself,
+///  is a folder,
+/// is a source folder of this package,
+/// is not the folder itself,
 ///  and carries the target folder's name.
 ///
 /// In TS you'd write (pseudocode):
@@ -140,7 +144,9 @@ fn check_entry(
     if !kind.file_type().is_symlink() {
         return Err(entry_finding(
             entry,
-            format!("{shown_entry} is not a symbolic link; a uses folder holds only links to the folders the code uses."),
+            format!(
+                "{shown_entry} is not a symbolic link; a uses folder holds only links to the folders the code uses."
+            ),
         ));
     }
     let written: String = match std::fs::read_link(entry) {
@@ -150,25 +156,33 @@ fn check_entry(
     let Ok(canonical) = std::fs::canonicalize(entry) else {
         return Err(entry_finding(
             entry,
-            format!("{shown_entry} is a broken link: it points to {written}, which does not exist."),
+            format!(
+                "{shown_entry} is a broken link: it points to {written}, which does not exist."
+            ),
         ));
     };
     if !canonical.is_dir() {
         return Err(entry_finding(
             entry,
-            format!("{shown_entry} points to {written}, which is a file; a link must point to a folder."),
+            format!(
+                "{shown_entry} points to {written}, which is a file; a link must point to a folder."
+            ),
         ));
     }
     let Some(target) = source_folders.get(&canonical) else {
         return Err(entry_finding(
             entry,
-            format!("{shown_entry} points to {written}, which is not a source folder of this package (a folder holding a module file of its production code)."),
+            format!(
+                "{shown_entry} points to {written}, which is not a source folder of this package (a folder holding a module file of its production code)."
+            ),
         ));
     };
     if target == folder {
         return Err(entry_finding(
             entry,
-            format!("{shown_entry} points to the folder it is in; a folder does not link to itself."),
+            format!(
+                "{shown_entry} points to the folder it is in; a folder does not link to itself."
+            ),
         ));
     }
     let wanted: String = match target.file_name() {
@@ -182,7 +196,9 @@ fn check_entry(
     if wanted != named {
         return Err(entry_finding(
             entry,
-            format!("{shown_entry} points to the folder {wanted}, so the link must be named {wanted}."),
+            format!(
+                "{shown_entry} points to the folder {wanted}, so the link must be named {wanted}."
+            ),
         ));
     }
     return Ok(Link {
@@ -222,7 +238,10 @@ pub fn read_links(
     if !kind.is_dir() {
         read.findings.push(entry_finding(
             &uses,
-            format!("{} must be a folder of links, not a file or a link.", shown(&uses, base)),
+            format!(
+                "{} must be a folder of links, not a file or a link.",
+                shown(&uses, base)
+            ),
         ));
         return read;
     }
@@ -233,10 +252,10 @@ pub fn read_links(
         ));
         return read;
     };
-    let mut entries: Vec<PathBuf> = listing
-        .flatten()
-        .map(|found| return found.path())
-        .collect::<Vec<PathBuf>>();
+    let mut entries: Vec<PathBuf> = Vec::<PathBuf>::new();
+    for found in listing.flatten() {
+        entries.push(found.path());
+    }
     entries.sort();
     for entry in entries {
         match check_entry(&entry, folder, source_folders, base) {

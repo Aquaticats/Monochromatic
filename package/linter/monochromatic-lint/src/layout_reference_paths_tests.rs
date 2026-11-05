@@ -20,7 +20,8 @@ fn a_plain_crate_path_is_one_reference() {
     );
 }
 
-/// Groups, nested groups and `self` name every leaf with its whole path.
+/// Groups,
+/// nested groups and `self` name every leaf with its whole path.
 #[test]
 fn groups_name_every_leaf_with_its_whole_path() {
     assert_eq!(
@@ -29,7 +30,8 @@ fn groups_name_every_leaf_with_its_whole_path() {
     );
 }
 
-/// A rename gives a new binding, which is not a module path.
+/// A rename gives a new binding,
+/// which is not a module path.
 #[test]
 fn a_rename_is_not_a_path() {
     assert_eq!(
@@ -52,7 +54,9 @@ fn a_glob_keeps_its_prefix_and_is_marked() {
 #[test]
 fn only_public_uses_are_reexports() {
     assert_eq!(
-        references_of("pub use crate::a::*;\nuse crate::b::*;\npub(crate) use crate::c::D;\npub(super) use super::e::{F, G};"),
+        references_of(
+            "pub use crate::a::*;\nuse crate::b::*;\npub(crate) use crate::c::D;\npub(super) use super::e::{F, G};"
+        ),
         [
             "pub crate::a::*",
             "crate::b::*",
@@ -63,7 +67,9 @@ fn only_public_uses_are_reexports() {
     );
 }
 
-/// Comments, doc comments, strings of every kind and character literals hold no code;
+/// Comments,
+/// doc comments,
+/// strings of every kind and character literals hold no code;
 /// a double quote character literal must not swallow the code after it.
 #[test]
 fn comments_strings_and_character_literals_are_not_code() {
@@ -93,7 +99,10 @@ fn paths_inside_macro_calls_count_and_macro_variables_do_not() {
 fn f() { println!(\"{}\", crate::inside::value()); assert!(super::other::ready()); }
 macro_rules! m { () => { $crate::defined::x() }; }
 ";
-    assert_eq!(references_of(source), ["crate::inside::value", "super::other::ready"]);
+    assert_eq!(
+        references_of(source),
+        ["crate::inside::value", "super::other::ready"]
+    );
 }
 
 /// A raw identifier names the module without its prefix.
@@ -105,7 +114,8 @@ fn raw_identifiers_lose_their_prefix() {
     );
 }
 
-/// A visibility path, a method turbofish and a field access are not module paths.
+/// A visibility path,
+/// a method turbofish and a field access are not module paths.
 #[test]
 fn visibility_restrictions_and_member_accesses_are_not_paths() {
     let source: &str = "
@@ -139,7 +149,9 @@ use crate::production::Z;
 #[test]
 fn a_leading_name_is_kept_and_a_continued_path_is_not_split() {
     assert_eq!(
-        references_of("use child::Thing;\nfn f() { std::mem::swap(a, b); <T as crate::tr::Tr>::run(); }"),
+        references_of(
+            "use child::Thing;\nfn f() { std::mem::swap(a, b); <T as crate::tr::Tr>::run(); }"
+        ),
         ["child::Thing", "std::mem::swap", "crate::tr::Tr"]
     );
 }

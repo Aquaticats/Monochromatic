@@ -8,7 +8,8 @@
 //!  and only two keys matter.
 //!  Known limit:
 //!  `path` written as a dotted key (`lib.path = "..."`) or an inline table is not read,
-//!  and test, example and benchmark targets are left out because they are test-only code.
+//!  and test,
+//! example and benchmark targets are left out because they are test-only code.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -125,7 +126,11 @@ fn rust_files_in(directory: &Path) -> Vec<PathBuf> {
         let Ok(kind) = std::fs::symlink_metadata(&path) else {
             continue;
         };
-        if kind.is_file() && path.extension().is_some_and(|extension| return extension == "rs") {
+        let is_rust: bool = match path.extension() {
+            Some(extension) => extension == "rs",
+            None => false,
+        };
+        if kind.is_file() && is_rust {
             found.push(path);
         }
     }
@@ -197,7 +202,11 @@ pub fn crate_root_files(manifest: &Path) -> Result<Vec<PathBuf>, String> {
     for candidate in candidates {
         let normal: PathBuf = lexical_normal(&candidate);
         // Only a regular file can be a root; a missing default is normal.
-        if std::fs::metadata(&normal).is_ok_and(|kind| return kind.is_file()) {
+        let is_file: bool = match std::fs::metadata(&normal) {
+            Ok(kind) => kind.is_file(),
+            Err(_) => false,
+        };
+        if is_file {
             roots.insert(normal);
         }
     }

@@ -1,7 +1,9 @@
 //! What:
 //!  Controls of the layout step through whole runs.
 //! Why:
-//!  The rules are off unless configured, switch on per package, and report through the usual JSONL channel;
+//!  The rules are off unless configured,
+//! switch on per package,
+//! and report through the usual JSONL channel;
 //!  these tests run the command itself over disposable packages.
 //!
 //! In TS you'd write (pseudocode):
@@ -10,9 +12,9 @@
 //! ```
 
 use crate::{
+    layout_test_support::package_with,
     run_output::RunOutput,
     run_test_support::{ALL_RULES, CONFIG, records, run, write},
-    layout_test_support::package_with,
     test_fs::Fixture,
 };
 
@@ -50,15 +52,24 @@ fn summary(output: &RunOutput) -> Vec<String> {
         .collect::<Vec<String>>();
 }
 
-/// Without a block that selects them, the rules do nothing,
+/// Without a block that selects them,
+/// the rules do nothing,
 /// and the starter rule set does not select them either.
 #[test]
 fn the_rules_are_off_unless_configuration_selects_them() {
     let fixture = crooked_package();
     write(&fixture.path, CONFIG, ALL_RULES);
     let output: RunOutput = run(&fixture.path, &[], "");
-    assert!(!output.stdout.contains("folder-uses-links"), "{}", output.stdout);
-    assert!(!output.stdout.contains("file-order-in-folder"), "{}", output.stdout);
+    assert!(
+        !output.stdout.contains("folder-uses-links"),
+        "{}",
+        output.stdout
+    );
+    assert!(
+        !output.stdout.contains("file-order-in-folder"),
+        "{}",
+        output.stdout
+    );
 }
 
 /// Selected rules report in the usual channel with their configured severity and the proving line.
@@ -69,18 +80,39 @@ fn selected_rules_report_with_their_severity_and_line() {
     let output: RunOutput = run(&fixture.path, &[], "");
     assert_eq!(output.exit_code, 1, "{}", output.stderr);
     let found: Vec<String> = summary(&output);
-    assert!(found.contains(&String::from("rust/folder-uses-links error src/a/mod.rs 2")), "{found:#?}");
-    assert!(found.contains(&String::from("rust/file-order-in-folder warn src/a/mod.rs 1")), "{found:#?}");
+    assert!(
+        found.contains(&String::from("rust/folder-uses-links error src/a/mod.rs 2")),
+        "{found:#?}"
+    );
+    assert!(
+        found.contains(&String::from(
+            "rust/file-order-in-folder warn src/a/mod.rs 1"
+        )),
+        "{found:#?}"
+    );
 }
 
-/// The rules switch on per package: a package whose files no block selects is not read.
+/// The rules switch on per package:
+/// a package whose files no block selects is not read.
 #[test]
 fn the_rules_switch_on_per_package() {
     let fixture = Fixture::new();
     for name in ["one", "two"] {
-        write(&fixture.path, format!("{name}/Cargo.toml").as_str(), "[package]\nname = \"x\"\n");
-        write(&fixture.path, format!("{name}/src/lib.rs").as_str(), "mod a;\nmod b;\n");
-        write(&fixture.path, format!("{name}/src/a/mod.rs").as_str(), "use crate::b::Thing;\n");
+        write(
+            &fixture.path,
+            format!("{name}/Cargo.toml").as_str(),
+            "[package]\nname = \"x\"\n",
+        );
+        write(
+            &fixture.path,
+            format!("{name}/src/lib.rs").as_str(),
+            "mod a;\nmod b;\n",
+        );
+        write(
+            &fixture.path,
+            format!("{name}/src/a/mod.rs").as_str(),
+            "use crate::b::Thing;\n",
+        );
         write(&fixture.path, format!("{name}/src/b/mod.rs").as_str(), "");
     }
     write(
@@ -90,7 +122,12 @@ fn the_rules_switch_on_per_package() {
     );
     let output: RunOutput = run(&fixture.path, &[], "");
     let found: Vec<String> = summary(&output);
-    assert_eq!(found, ["rust/folder-uses-links error one/src/a/mod.rs 1"], "{}", output.stderr);
+    assert_eq!(
+        found,
+        ["rust/folder-uses-links error one/src/a/mod.rs 1"],
+        "{}",
+        output.stderr
+    );
 }
 
 /// A module file that does not exist fails the run with a processing failure and exit status 2,
@@ -103,10 +140,15 @@ fn an_incomplete_tree_is_a_processing_failure() {
     assert_eq!(output.exit_code, 2, "{}", output.stderr);
     let found: Vec<String> = summary(&output);
     assert_eq!(found, ["core/processing-failure error src/lib.rs 1"]);
-    assert!(output.stdout.contains("could not complete the module tree"), "{}", output.stdout);
+    assert!(
+        output.stdout.contains("could not complete the module tree"),
+        "{}",
+        output.stdout
+    );
 }
 
-/// Files below `uses` links are linted once, not once per link,
+/// Files below `uses` links are linted once,
+/// not once per link,
 /// and the layout rules agree with the links that are there.
 #[cfg(unix)]
 #[test]
@@ -124,5 +166,10 @@ fn files_behind_uses_links_are_linted_once() {
     );
     let output: RunOutput = run(&fixture.path, &[], "");
     let found: Vec<String> = summary(&output);
-    assert_eq!(found, ["rust/tests-in-sidecars error src/middle/mod.rs 2"], "{}", output.stderr);
+    assert_eq!(
+        found,
+        ["rust/tests-in-sidecars error src/middle/mod.rs 2"],
+        "{}",
+        output.stderr
+    );
 }

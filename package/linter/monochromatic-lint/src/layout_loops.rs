@@ -2,7 +2,8 @@
 //!  Find the loops in a directed graph:
 //!  the groups of two or more nodes that can each reach every other.
 //! Why:
-//!  "Two folders never use each other, directly or through others" and "files never use each other in a loop"
+//!  "Two folders never use each other,
+//! directly or through others" and "files never use each other in a loop"
 //!  are both the same question on different graphs.
 //!  The search is Tarjan's strongly connected components with an explicit work stack,
 //!  because the graph comes from the repository and its depth is not bounded.
@@ -54,7 +55,10 @@ pub fn find_loops(adjacency: &[Vec<usize>]) -> Vec<Vec<usize>> {
         if order[root] != unvisited {
             continue;
         }
-        let mut work: Vec<Frame> = vec![Frame { node: root, next: 0 }];
+        let mut work: Vec<Frame> = vec![Frame {
+            node: root,
+            next: 0,
+        }];
         order[root] = counter;
         low[root] = counter;
         counter += 1;

@@ -5,14 +5,18 @@
 //! Why:
 //!  A folder's reader should be able to read its files top to bottom,
 //!  each one building only on those already read.
-//!  A loop makes such an order impossible, so a loop is reported first
+//!  A loop makes such an order impossible,
+//! so a loop is reported first
 //!  and the order check skips the uses inside a loop.
 //!  Decisions:
-//!  the file that holds the top doc (`mod.rs`, or `lib.rs` or `main.rs` in the folder of a crate root)
-//!  is not listed and is not part of the loops, because it declares the folder's modules and every file may
+//!  the file that holds the top doc (`mod.rs`,
+//! or `lib.rs` or `main.rs` in the folder of a crate root)
+//!  is not listed and is not part of the loops,
+//! because it declares the folder's modules and every file may
 //!  name it with `super::`;
 //!  executable roots next to a library root are not listed either;
-//!  a folder with module files but no `mod.rs` is a finding, because it has no top doc.
+//!  a folder with module files but no `mod.rs` is a finding,
+//! because it has no top doc.
 //!  Known limit:
 //!  an item that `mod.rs` re-exports and a sibling file reaches through `super::` hides the file that defines it.
 //!
@@ -21,7 +25,10 @@
 //! function checkFileOrder(tree: ModuleTree, uses: ModuleUse[], base: Path): LayoutFinding[];
 //! ```
 
-/// Import the finding shape, the loop finder, the tree, the uses and the top doc reader.
+/// Import the finding shape,
+/// the loop finder,
+/// the tree,
+/// the uses and the top doc reader.
 use crate::{
     layout_finding::{LayoutFinding, shown},
     layout_loops::find_loops,
@@ -74,14 +81,16 @@ fn file_name(file: &Path) -> String {
 ///  The files of each folder,
 ///  and the files that are roots of a crate.
 /// Why:
-///  A file is the unit of the rule, however many modules it holds.
+///  A file is the unit of the rule,
+/// however many modules it holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function filesByFolder(tree: ModuleTree): { byFolder: Map<Path, Set<Path>>; roots: Set<Path> };
 /// ```
 fn files_by_folder(tree: &ModuleTree) -> (BTreeMap<PathBuf, BTreeSet<PathBuf>>, BTreeSet<PathBuf>) {
-    let mut by_folder: BTreeMap<PathBuf, BTreeSet<PathBuf>> = BTreeMap::<PathBuf, BTreeSet<PathBuf>>::new();
+    let mut by_folder: BTreeMap<PathBuf, BTreeSet<PathBuf>> =
+        BTreeMap::<PathBuf, BTreeSet<PathBuf>>::new();
     for module in &tree.modules {
         if let Some(folder) = module.file.parent() {
             by_folder
@@ -100,13 +109,20 @@ fn files_by_folder(tree: &ModuleTree) -> (BTreeMap<PathBuf, BTreeSet<PathBuf>>, 
 /// What:
 ///  The file that holds a folder's top doc.
 /// Why:
-///  `mod.rs` for a module folder; `lib.rs`, else `main.rs`, for the folder of a crate root.
+///  `mod.rs` for a module folder;
+/// `lib.rs`,
+/// else `main.rs`,
+/// for the folder of a crate root.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function indexFile(folder: Path, files: Set<Path>, roots: Set<Path>): Path | undefined;
 /// ```
-fn index_file(folder: &Path, files: &BTreeSet<PathBuf>, roots: &BTreeSet<PathBuf>) -> Option<PathBuf> {
+fn index_file(
+    folder: &Path,
+    files: &BTreeSet<PathBuf>,
+    roots: &BTreeSet<PathBuf>,
+) -> Option<PathBuf> {
     for name in ["mod.rs", "lib.rs", "main.rs"] {
         let candidate: PathBuf = folder.join(name);
         if files.contains(&candidate) && (name == "mod.rs" || roots.contains(&candidate)) {
@@ -120,13 +136,18 @@ fn index_file(folder: &Path, files: &BTreeSet<PathBuf>, roots: &BTreeSet<PathBuf
 ///  The uses between the listed files of one folder,
 ///  with the smallest proving reference for each pair.
 /// Why:
-///  Uses of other folders, of the index file and of oneself are not part of this rule.
+///  Uses of other folders,
+/// of the index file and of oneself are not part of this rule.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function usesBetween(tree: ModuleTree, uses: ModuleUse[], listed: Path[]): Map<[number, number], Proof>;
 /// ```
-fn uses_between(tree: &ModuleTree, uses: &[ModuleUse], listed: &[PathBuf]) -> BTreeMap<(usize, usize), Proof> {
+fn uses_between(
+    tree: &ModuleTree,
+    uses: &[ModuleUse],
+    listed: &[PathBuf],
+) -> BTreeMap<(usize, usize), Proof> {
     let mut position: BTreeMap<&PathBuf, usize> = BTreeMap::<&PathBuf, usize>::new();
     for (index, file) in listed.iter().enumerate() {
         position.insert(file, index);
@@ -147,9 +168,13 @@ fn uses_between(tree: &ModuleTree, uses: &[ModuleUse], listed: &[PathBuf]) -> BT
             line: found.line,
             text: found.text.clone(),
         };
-        let slot = edges.entry((*from, *to)).or_insert_with(|| return proof.clone());
-        if proof < *slot {
-            *slot = proof;
+        // Keep the smallest proof so the output does not depend on discovery order.
+        let smaller: bool = match edges.get(&(*from, *to)) {
+            Some(existing) => proof < *existing,
+            None => true,
+        };
+        if smaller {
+            edges.insert((*from, *to), proof);
         }
     }
     return edges;
@@ -216,7 +241,8 @@ fn loop_findings(
 /// What:
 ///  The findings about how a top doc lists a folder's files.
 /// Why:
-///  A file must be listed once, a listed name must be a file of the folder,
+///  A file must be listed once,
+/// a listed name must be a file of the folder,
 ///  and a file must come after every file it uses.
 ///
 /// In TS you'd write (pseudocode):
@@ -252,14 +278,21 @@ fn list_findings(
             findings.push(LayoutFinding {
                 file: index.to_path_buf(),
                 line: entry.line,
-                message: format!("The top doc of {} lists `{}` twice.", shown(index, base), entry.name),
+                message: format!(
+                    "The top doc of {} lists `{}` twice.",
+                    shown(index, base),
+                    entry.name
+                ),
                 help: None,
             });
             continue;
         }
         first_place.insert(entry.name.clone(), place);
     }
-    let names: Vec<String> = listed.iter().map(|file| return file_name(file)).collect::<Vec<String>>();
+    let mut names: Vec<String> = Vec::<String>::new();
+    for file in listed {
+        names.push(file_name(file));
+    }
     for entry in &doc.entries {
         if !names.contains(&entry.name) {
             findings.push(LayoutFinding {
@@ -279,14 +312,22 @@ fn list_findings(
             findings.push(LayoutFinding {
                 file: index.to_path_buf(),
                 line: marker,
-                message: format!("The top doc of {} does not list the file `{name}`.", shown(index, base)),
-                help: Some(format!("Add a line `//! - `{name}`: what it does` after the files it uses.")),
+                message: format!(
+                    "The top doc of {} does not list the file `{name}`.",
+                    shown(index, base)
+                ),
+                help: Some(format!(
+                    "Add a line `//! - `{name}`: what it does` after the files it uses."
+                )),
             });
         }
     }
     for ((from, to), proof) in edges {
-        let same_loop: bool = component.get(from).is_some() && component.get(from) == component.get(to);
-        let (Some(at_from), Some(at_to)) = (first_place.get(&names[*from]), first_place.get(&names[*to])) else {
+        let same_loop: bool =
+            component.get(from).is_some() && component.get(from) == component.get(to);
+        let (Some(at_from), Some(at_to)) =
+            (first_place.get(&names[*from]), first_place.get(&names[*to]))
+        else {
             continue;
         };
         if same_loop || at_to < at_from {
@@ -322,11 +363,13 @@ pub fn check_file_order(tree: &ModuleTree, uses: &[ModuleUse], base: &Path) -> V
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     for (folder, files) in &by_folder {
         let index: Option<PathBuf> = index_file(folder, files, &roots);
-        let listed: Vec<PathBuf> = files
-            .iter()
-            .filter(|file| return Some(*file) != index.as_ref() && !roots.contains(*file))
-            .cloned()
-            .collect::<Vec<PathBuf>>();
+        let mut listed: Vec<PathBuf> = Vec::<PathBuf>::new();
+        for file in files {
+            if Some(file) == index.as_ref() || roots.contains(file) {
+                continue;
+            }
+            listed.push(file.clone());
+        }
         if listed.is_empty() {
             continue;
         }
@@ -358,7 +401,14 @@ pub fn check_file_order(tree: &ModuleTree, uses: &[ModuleUse], base: &Path) -> V
             }
         };
         let doc: TopDoc = read_top_doc(text.as_str());
-        findings.extend(list_findings(&doc, &index_path, listed.as_slice(), &edges, &component, base));
+        findings.extend(list_findings(
+            &doc,
+            &index_path,
+            listed.as_slice(),
+            &edges,
+            &component,
+            base,
+        ));
     }
     return findings;
 }

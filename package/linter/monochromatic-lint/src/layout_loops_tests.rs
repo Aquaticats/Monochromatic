@@ -14,7 +14,8 @@ use super::find_loops;
 /// so the search provably keeps its own stack.
 const DEEP_CHAIN: usize = 300_000;
 
-/// No edges, a chain and a self-edge have no loop.
+/// No edges,
+/// a chain and a self-edge have no loop.
 #[test]
 fn chains_and_self_edges_are_not_loops() {
     assert!(find_loops(&[]).is_empty());
@@ -22,7 +23,8 @@ fn chains_and_self_edges_are_not_loops() {
     assert!(find_loops(&[vec![0]]).is_empty());
 }
 
-/// A ring is one loop with every member, whatever order the edges are listed in.
+/// A ring is one loop with every member,
+/// whatever order the edges are listed in.
 #[test]
 fn a_ring_is_one_loop() {
     assert_eq!(find_loops(&[vec![1], vec![2], vec![0]]), [[0, 1, 2]]);
@@ -33,10 +35,14 @@ fn a_ring_is_one_loop() {
 #[test]
 fn tails_and_branches_are_not_members() {
     // 0 -> 1 -> 2 -> 1, 2 -> 3
-    assert_eq!(find_loops(&[vec![1], vec![2], vec![1, 3], vec![]]), [[1, 2]]);
+    assert_eq!(
+        find_loops(&[vec![1], vec![2], vec![1, 3], vec![]]),
+        [[1, 2]]
+    );
 }
 
-/// Separate loops are reported separately, ordered by their first member,
+/// Separate loops are reported separately,
+/// ordered by their first member,
 /// and two rings joined by one edge stay two loops.
 #[test]
 fn separate_loops_stay_separate() {

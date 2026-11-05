@@ -3,7 +3,9 @@
 //!  using the real module tree.
 //! Why:
 //!  The folder a path points at is the folder of the deepest module the path names;
-//!  the names after it are items (a function, a type, an enum variant) that live in that module.
+//!  the names after it are items (a function,
+//! a type,
+//! an enum variant) that live in that module.
 //!  A module name is also found through `pub use path::*` re-exports of a module,
 //!  because the crate-root glob lines of a flat layout (`pub use folder::*;`) are how
 //!  `crate::module` reaches a module that a folder defines.
@@ -120,7 +122,9 @@ pub fn resolve_path(
 }
 
 /// What:
-///  Record, for every module, the modules it re-exports with `pub use path::*`.
+///  Record,
+/// for every module,
+/// the modules it re-exports with `pub use path::*`.
 /// Why:
 ///  Later lookups of a module name can pass through these re-exports.
 ///
@@ -135,7 +139,8 @@ pub fn link_glob_targets(tree: &mut ModuleTree) {
             if !(reference.raw.glob && reference.raw.reexport) {
                 continue;
             }
-            if let Some(target) = resolve_path(tree, index, reference.raw.segments.as_slice(), false)
+            if let Some(target) =
+                resolve_path(tree, index, reference.raw.segments.as_slice(), false)
                 && target != index
             {
                 found.push((index, target));

@@ -1,7 +1,9 @@
 //! What:
 //!  Controls of `uses` folder reading.
 //! Why:
-//!  Every kind of wrong entry must be named, and a right one must pass, because a link is how the tree shows
+//!  Every kind of wrong entry must be named,
+//! and a right one must pass,
+//! because a link is how the tree shows
 //!  who depends on whom.
 //!
 //! In TS you'd write (pseudocode):
@@ -16,7 +18,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// The source folders of a fixture, keyed by their real paths.
+/// The source folders of a fixture,
+/// keyed by their real paths.
 fn sources_of(root: &Path, folders: &[&str]) -> BTreeMap<PathBuf, PathBuf> {
     let mut sources: BTreeMap<PathBuf, PathBuf> = BTreeMap::<PathBuf, PathBuf>::new();
     for folder in folders {
@@ -26,7 +29,8 @@ fn sources_of(root: &Path, folders: &[&str]) -> BTreeMap<PathBuf, PathBuf> {
     return sources;
 }
 
-/// The messages of a read, with the fixture folder removed.
+/// The messages of a read,
+/// with the fixture folder removed.
 fn messages(read: &LinkRead, root: &Path) -> Vec<String> {
     let prefix: String = format!("{}/", root.display());
     return read
@@ -46,7 +50,9 @@ fn a_folder_without_uses_links_to_nothing() {
     assert!(read.findings.is_empty());
 }
 
-/// A relative link to a source folder, named like it, is a good entry.
+/// A relative link to a source folder,
+/// named like it,
+/// is a good entry.
 #[cfg(unix)]
 #[test]
 fn a_correct_link_is_a_good_entry() {
@@ -74,7 +80,11 @@ fn every_kind_of_wrong_entry_is_named() {
         ("src/a/file_target.rs", ""),
     ]);
     crate::layout_test_support::link(&fixture.path, "src/a/uses/broken", "../../missing");
-    crate::layout_test_support::link(&fixture.path, "src/a/uses/file_target.rs", "../file_target.rs");
+    crate::layout_test_support::link(
+        &fixture.path,
+        "src/a/uses/file_target.rs",
+        "../file_target.rs",
+    );
     crate::layout_test_support::link(&fixture.path, "src/a/uses/outside", "../../../outside");
     crate::layout_test_support::link(&fixture.path, "src/a/uses/not_a_source", "../../../src");
     crate::layout_test_support::link(&fixture.path, "src/a/uses/a", "..");
@@ -84,7 +94,10 @@ fn every_kind_of_wrong_entry_is_named() {
     assert!(read.links.is_empty(), "{:?}", read.links);
     let text: Vec<String> = messages(&read, &fixture.path);
     let expect = |needle: &str| {
-        assert!(text.iter().any(|message| return message.contains(needle)), "no finding with {needle:?} in {text:#?}");
+        assert!(
+            text.iter().any(|message| return message.contains(needle)),
+            "no finding with {needle:?} in {text:#?}"
+        );
     };
     expect("src/a/uses/broken is a broken link");
     expect("src/a/uses/file_target.rs points to ../file_target.rs, which is a file");
@@ -97,17 +110,29 @@ fn every_kind_of_wrong_entry_is_named() {
     assert_eq!(text.len(), 8);
 }
 
-/// `uses` as a file, or as a link, is one finding about it and nothing more.
+/// `uses` as a file,
+/// or as a link,
+/// is one finding about it and nothing more.
 #[cfg(unix)]
 #[test]
 fn uses_must_be_a_real_folder() {
-    let fixture = package_with(&[("src/a/mod.rs", ""), ("src/b/mod.rs", ""), ("src/b/uses", "a file")]);
+    let fixture = package_with(&[
+        ("src/a/mod.rs", ""),
+        ("src/b/mod.rs", ""),
+        ("src/b/uses", "a file"),
+    ]);
     crate::layout_test_support::link(&fixture.path, "src/a/uses", "../b");
     let sources = sources_of(&fixture.path, &["src/a", "src/b"]);
     for folder in ["src/a", "src/b"] {
         let read: LinkRead = read_links(&fixture.path.join(folder), &sources, &fixture.path);
         assert_eq!(read.findings.len(), 1, "{folder}: {:?}", read.findings);
-        assert!(read.findings[0].message.contains("must be a folder of links"), "{}", read.findings[0].message);
+        assert!(
+            read.findings[0]
+                .message
+                .contains("must be a folder of links"),
+            "{}",
+            read.findings[0].message
+        );
         assert!(read.links.is_empty());
     }
 }
@@ -117,5 +142,8 @@ fn uses_must_be_a_real_folder() {
 fn the_link_command_is_relative_and_named_after_the_target() {
     let base: PathBuf = PathBuf::from("/pkg");
     let command: String = link_command(&base.join("src/top"), &base.join("src/middle"), &base);
-    assert_eq!(command, "mkdir --parents src/top/uses && ln --symbolic ../../middle src/top/uses/middle");
+    assert_eq!(
+        command,
+        "mkdir --parents src/top/uses && ln --symbolic ../../middle src/top/uses/middle"
+    );
 }
