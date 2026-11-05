@@ -82,6 +82,12 @@ between crates a crate's `Cargo.toml` dependencies are its list (cargo refuses l
 folders inside a crate keep `uses/` links and the check.
 Every crate the installed program depends on is published to crates.io, because the program installs through
 cargo-binstall from crates.io (`toolchain.lock.json`: `cargo:monochromatic-git-policy-cli@latest`).
+Superseded 2026-11-05 (`doc/planning/crates-io-footprint.md`, section "Research results (2026-11-05)"):
+the tools, this wrapper among them, move to the `archive` route (install from the GitHub release)
+and stop publishing to crates.io after their one release each,
+so the split crates need no crates.io names and are `publish = false`;
+the one release of the wrapper must happen before it depends on an unpublished crate.
+Where libraries go is the owner's open question in `doc/handover/questions-for-the-owner.md`.
 
 ## What the code looks like now
 

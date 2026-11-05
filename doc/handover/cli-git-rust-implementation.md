@@ -489,6 +489,24 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   (worktree `.claude/worktrees/lint-all-folders`, from main `bec267799f`) without conflicts;
   clippy passed after the first two.
   Next, after the service, landing and runner branch lands: merge it, one container gate, merge to main.
+  Update 2026-11-05: that branch is done too (`refactor/git-policy-cli-lint-service-landing-and-runner-folders` at
+  `c97766b11a`; 662 closure and 12 max-lines findings to 0; 17 `expect`s; lib 4248 passed, binary 678 passed,
+  no container gate). All four branches and `main` are merged into the integration branch, plus the probe-test move
+  (`5983d1603d`) and the `repo_read_hook` import that breaks its loop with `git_metadata` and `transaction_git`
+  (`a8b41b0d62`); clippy is clean there.
+  The container gate runs on `a8b41b0d62` as unit `git-policy-cli-lint-all-folders-gate`
+  (log `~/temp/agent/issue-6261/lint-all-folders-gate.log`).
+  The suppression pass runs in parallel from the same commit on `refactor/git-policy-cli-fewer-closure-suppressions`
+  (worktree `.claude/worktrees/fewer-closure-suppressions`), gated on its own after it lands.
+  Gate result on `a8b41b0d62`: `4930 tests run: 4930 passed (1 slow), 8 skipped` in the container
+  (the slow one is `push_slow_server_tests::a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands`, which
+  waits past a 60 s cutoff by design); all 27 `landing::service_index_lock::claim_tests` passed.
+  The earlier one-time host failure of three of them stays unexplained; it is still open,
+  to be measured if it recurs.
+  Merged to main 2026-11-05 (483 files). The five lint worktrees are removed; their branches stay.
+  Layout next: an agent drafts the whole target tree on main `977e697ad5` (rescan, crate split, every folder and
+  file old to new with `uses/` lists, every change the moves need, move order, cross-vendor review) into
+  `doc/planning/cli-git-source-layout-target-tree.md`; nothing moves until the owner has seen it.
   Then one follow-up pass, decided by the coordinator (LN1 and LN2: restructure rather than suppress):
   give the callees guard or trait forms so most `expect`s go
   (`worktree/add_timing.rs` already has `begin_step`/`end_step` and `begin_work`/`end_work` for the
