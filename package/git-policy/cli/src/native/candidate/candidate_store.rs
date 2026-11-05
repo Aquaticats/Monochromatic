@@ -29,8 +29,6 @@ use crate::candidate_reader::{ObjectReader, start_object_reader};
 use crate::candidate_record::{CandidateRecord, parse_raw_records};
 /// Import the stage-record parser of `git ls-files --stage`.
 use crate::candidate_stage::{StageRecord, parse_stage_records};
-/// Import the tree record that `head_tree_records` returns.
-use crate::candidate_tree::TreeRecord;
 /// Import the version types and builder.
 use crate::candidate_version::{Candidate, CandidateSource, CandidateVersion, build_version};
 /// Import the captured-query runner and its line helper.
@@ -188,7 +186,7 @@ impl CandidateStore {
     /// ```ts
     /// const baseline = recorded ?? await headCommit();
     /// ```
-    fn baseline_commit(&mut self) -> Result<Option<ObjectId>, CandidateError> {
+    pub(crate) fn baseline_commit(&mut self) -> Result<Option<ObjectId>, CandidateError> {
         if let Some(recorded) = &self.baseline {
             return Ok(recorded.clone());
         }
@@ -479,23 +477,6 @@ impl CandidateStore {
         let head: Option<ObjectId> = self.baseline_commit()?;
         let output: Vec<u8> = self.list_staged(head.as_ref(), pathspecs)?;
         return parse_raw_records(output.as_slice());
-    }
-
-    /// What: Every file of the `HEAD` commit with its mode and object; nothing when the
-    ///       branch has no commit yet.
-    /// Why:  A policy that compares the candidate state with `HEAD` reads `HEAD`'s copy of
-    ///       a file without naming the path in an object request, and learns its mode.
-    ///       `--full-tree` lists from the top level whatever directory Git runs in.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// async headTreeRecords(): Promise<TreeRecord[]>
-    /// ```
-    pub fn head_tree_records(&mut self) -> Result<Vec<TreeRecord>, CandidateError> {
-        let Some(head) = self.baseline_commit()? else {
-            return Ok(Vec::new());
-        };
-        return self.commit_tree_records(&head);
     }
 
     /// What: The commit the "against `HEAD`" listings compare with: the recorded base or the commit

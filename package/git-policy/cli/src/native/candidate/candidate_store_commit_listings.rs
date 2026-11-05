@@ -49,6 +49,23 @@ static LISTED: std::sync::Mutex<Option<(ObjectId, std::sync::Arc<Vec<TreeRecord>
 const COMMIT_CHUNK_SIZE: usize = PATHSPEC_CHUNK_SIZE;
 
 impl CandidateStore {
+    /// What: Every file of the `HEAD` commit with its mode and object; nothing when the
+    ///       branch has no commit yet.
+    /// Why:  A policy that compares the candidate state with `HEAD` reads `HEAD`'s copy of
+    ///       a file without naming the path in an object request, and learns its mode.
+    ///       `--full-tree` lists from the top level whatever directory Git runs in.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// async headTreeRecords(): Promise<TreeRecord[]>
+    /// ```
+    pub fn head_tree_records(&mut self) -> Result<Vec<TreeRecord>, CandidateError> {
+        let Some(head) = self.baseline_commit()? else {
+            return Ok(Vec::new());
+        };
+        return self.commit_tree_records(&head);
+    }
+
     /// What: Every file of one commit with its mode and object.
     /// Why:  Policies that compare candidates with the parents of a commit read each parent's files
     ///       the way they read `HEAD`'s. `--full-tree` lists from the top level whatever directory
