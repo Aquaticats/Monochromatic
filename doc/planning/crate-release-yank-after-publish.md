@@ -1,7 +1,11 @@
 # Yanking older crate releases right after a new one is published
 
-Status: the one-time yank of the releases already superseded is running from this machine;
-the automatic step in `package/crate-release/cli` is not built yet.
+Status: the one-time yank finished at 2026-11-05T00:07:16Z;
+every one of our crates on crates.io now has exactly one unyanked version, its newest.
+The automatic step in `package/crate-release/cli` is not built,
+and is on hold behind the owner's answer in `doc/planning/crates-io-footprint.md`:
+yanking keeps every version stored on crates.io,
+so it does nothing for the owner's later question "Can we avoid polluting crates.io too much?".
 
 ## What the owner asked
 
@@ -62,6 +66,19 @@ The owner then asked for these right now, naming the seven crates that carry old
 They are yanked one at a time by `~/temp/agent/issue-6261/yank-older-releases.ts`
 (log `~/temp/agent/issue-6261/yank-log.txt`); undo with `cargo yank --undo --version <v> <crate>`.
 
+Result, from the log:
+nine versions were yanked
+(`monochromatic-dependency-catalog` 0.1.0, `monochromatic-file-enforcer` 0.1.0,
+`monochromatic-file-enforcer-cli` 0.1.1 and 0.1.0,
+`monochromatic-git-policy-cli` 0.5.18, 0.5.17, 0.5.16, 0.5.15 and 0.5.14).
+When the run read `monochromatic-git-policy-cli` at 2026-11-05T00:01:26Z,
+only five of the 40 older versions counted earlier were still unyanked;
+this session did not yank the other 35,
+and nothing here records who did.
+A read of all 16 of our crates on crates.io at about 2026-11-05T00:10Z
+(`~/temp/agent/issue-6261/crates-io-footprint.ts`)
+found one unyanked version each, the newest.
+
 ## The automatic step (to build)
 
 In `crate-release`'s wait command, after the new version is confirmed on crates.io:
@@ -78,8 +95,11 @@ The first yank answered 429:
 "You have yanked or unyanked too many versions in a short period of time."
 crates.io allows a burst of 100 yanks per account and then one a minute
 (`src/rate_limiter.rs` at the commit read on 2026-11-04: `YankUnyank => 60` seconds, burst `100`),
-so the account had used its burst before this run;
-the 44 take about one minute each.
+so the account had used its burst before this run,
+and each yank after the burst waits about one minute.
+A second form of 429 also came back: an empty body from the cache in front of the registry
+(`via: 1.1 varnish`, `content-length: 0`), naming no time;
+the script waits 65 seconds on that one.
 The read API answered 429 too after the version counts, so the script waits out both,
 retrying at the time each answer names, within a two-hour deadline
 (systemd unit `crates-io-yank-older-releases`, log `~/temp/agent/issue-6261/yank-log.txt`).
