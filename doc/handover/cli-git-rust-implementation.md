@@ -529,9 +529,12 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   Container gate running on `a7e32e118e` as unit `git-policy-cli-fewer-closure-suppressions-gate`.
   Target tree drafted and reviewed cross-vendor (`doc/planning/cli-git-source-layout-target-tree.md` and
   `-files.md`, last `0912bd4661`); its owner questions are in `doc/handover/questions-for-the-owner.md`.
-  The layout rule's file-list marker is being made to read across a line break (branch
-  `fix/monochromatic-lint-file-list-marker-may-wrap`), because `markdown/semantic-line-breaks` demands a break
-  after its comma.
+  The layout rule's file-list marker now reads across a line break (branch
+  `fix/monochromatic-lint-file-list-marker-may-wrap` at `dd600cb33b`, merged to main; 854 tests, 122 in the
+  container), because `markdown/semantic-line-breaks` demands a break after its comma.
+  Suppression branch gate on `a7e32e118e`: `4938 tests run: 4938 passed (1 slow), 8 skipped`;
+  planted controls over its image run as unit `git-policy-cli-planted-controls-after-suppressions`
+  (log `~/temp/agent/issue-6261/planted-controls-after-suppressions.log`); merge after they pass.
   Next for the layout:
   break the file loops with named changes,
   split the large groups into folders,

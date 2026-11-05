@@ -167,8 +167,10 @@ Your answer:
   `commit-command`, `doctor-report`, `merge-in-isolation`, `typed-push-planning` fold into the program,
   and `service-after-commit-work` into the commit service program, because no outside program would use them alone;
   `new-worktrees-quickly` is split first after the lower half.
-- 2026-11-05: the layout rule will read a folder's file-list marker even when it wraps over two lines,
-  because the repository's line-break rule demands a break after its comma; being built on its own branch.
+- 2026-11-05: the layout rule reads a folder's file-list marker even when it wraps over two lines,
+  because the repository's line-break rule demands a break after its comma (merged to `main`;
+  854 tests, 122 in the container; the "no file list" help now shows the wrapped form).
+  A blank `//!` line or a plain `//` comment inside the marker still means no marker.
 
 - 2026-11-05: index files in the new layout lint rules (`mod.rs`, and `lib.rs` used as an index) may hold only
   the top doc, `mod` lines and re-exports; anything else is a finding,
