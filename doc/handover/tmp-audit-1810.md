@@ -1,5 +1,12 @@
 # Audit of /tmp uses (issue 1810)
 
+Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is now `monochromatic-git-policy-cli`,
+the command word `git cli-git` is now `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` is now `monochromatic-git-policy-cli.config.jsonc`,
+and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+This record keeps the names of its time.
+
 Issue: [#1810](https://github.com/Aquaticats/Monochromatic/issues/1810).
 Rule: `XTD` in `AGENTS.md` (never use `/tmp`; the device behind it is unknowable).
 The user chose one pass (not one layer per run) on 2026-10-29.

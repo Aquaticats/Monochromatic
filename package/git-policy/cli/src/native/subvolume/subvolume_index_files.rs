@@ -21,10 +21,8 @@
 //! for (const { adminDirectory, worktree } of linkedWorktrees(root)) refreshIndexFile(join(adminDirectory, 'index'), worktree);
 //! ```
 
-use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use crate::parallel_runner::{Event, OrderedRun, run_ordered};
 pub use crate::subvolume_index_install_into_new_worktree::{InstallSeams, install_index_in, install_index_in_with};
-use crate::subvolume_index::{IndexOutcome, RewriteContext, StatFields, StoredStat, rewrite_index_stat_with};
+use crate::subvolume_index::{IndexOutcome, RewriteContext, StatFields, StatLookup, StatTrust, StoredStat, rewrite_index_stat_with};
 use crate::subvolume_lock::is_ours;
 use std::ffi::OsStr;
 use std::io::Write;
@@ -278,18 +276,52 @@ fn rewrite_under_lock(index_path: &Path, tree: &Path, options: &RefreshOptions<'
     return rewrite_and_install(bytes.as_slice(), index_mtime, [index_path, tree, lock_path], options, lock_file);
 }
 
+/// What:
+///  The stat fields of a path as the tree being rewritten reports them now.
+/// Why:
+///   The rewrite asks for each entry's path; the tree it describes is the only state the answer needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class StatOfTree implements StatLookup { constructor(readonly tree: string) {} statNow(path) { return statFields(this.tree, path); } }
+/// ```
+struct StatOfTree<'a> {
+    /// The tree the index describes.
+    tree: &'a Path,
+}
+
+impl StatLookup for StatOfTree<'_> {
+    fn stat_now(&mut self, path: &[u8]) -> Option<StatFields> {
+        return stat_fields(self.tree, path);
+    }
+}
+
+/// What:
+///  Whether an entry still agrees with the trees the checkout was copied from.
+/// Why:
+///   The rewrite trusts an entry's stored fields only for a file that is still the one the copy was made from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class AgreeWithReferences implements StatTrust { isTrusted(path, stored) { return agreesWithAReference(this.references, path, stored); } }
+/// ```
+struct AgreeWithReferences<'a> {
+    /// The trees the checkout was copied from, one per reference.
+    references: &'a [PathBuf],
+}
+
+impl StatTrust for AgreeWithReferences<'_> {
+    fn is_trusted(&mut self, path: &[u8], stored: &StoredStat) -> bool {
+        return agrees_with_a_reference(self.references, path, stored);
+    }
+}
+
 /// The rewrite of the stat fields of `bytes` and the install of the result over `index_path`, with `paths` naming the index, the tree it
 ///  describes and the lock file.
 fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&Path; 3], options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>) -> (String, RefreshStatus) {
     let [index_path, tree, lock_path]: [&Path; 3] = paths;
     let context: RewriteContext = RewriteContext { hash_length: options.hash_length, index_mtime };
-    // The stat lookup keeps `tree` for the rewrite, which takes a callback that carries state (`&mut dyn FnMut`).
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the rewrite's callback parameter is a state-carrying dyn FnMut that tests and other folders also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-    let mut lookup = |path: &[u8]| { return stat_fields(tree, path); };
-    // The check keeps `options` for the rewrite, in the same kind of callback parameter.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the rewrite's callback parameter is a state-carrying dyn FnMut that tests and other folders also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-    let mut agrees = |path: &[u8], stored: &StoredStat| { return agrees_with_a_reference(options.references, path, stored); };
-    let outcome: IndexOutcome = rewrite_index_stat_with(bytes, &context, &mut lookup, &mut agrees);
+    let outcome: IndexOutcome = rewrite_index_stat_with(bytes, &context, &mut StatOfTree { tree }, &mut AgreeWithReferences { references: options.references });
     let (rewritten, updated, total): (Vec<u8>, usize, usize) = match outcome {
         IndexOutcome::Rewritten { bytes: new_bytes, updated, total } => (new_bytes, updated, total),
         IndexOutcome::Skipped(reason) => return (format!("skipped ({reason})"), RefreshStatus::Skipped),
@@ -422,126 +454,6 @@ pub fn repository_hash_length(git_directory: &Path) -> Option<usize> {
         }
     }
     return Some(20);
-}
-
-/// The number of copies of an index file one rewrite holds at once: the bytes read, the parsed entries, and the bytes written.
-///  The budget multiplies the largest index file by it to estimate what one rewrite holds.
-///  Measured with `refresh_index_file` on throwaway repositories of this repository's tracked files, resident size read every 0.2 ms
-///  in a fresh process (2026-11-03): an index of 2,786,564 bytes grew the process by 13,123,584 bytes (4.7 copies) and one of
-///  1,066,894 bytes by 7,929,856 bytes (7.4 copies), which is 3.0 copies of the index plus about 4.7 MB that does not grow with
-///  it. Four copies cover the growth for an index over 4.7 MB, the indexes this estimate exists for. Kept at 4 as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", option A).
-const INDEX_REWRITE_COPIES: u64 = 4;
-
-/// What one rewrite of an index file is: the file, the tree it describes, and the trees its entries were copied from.
-struct IndexTarget {
-    /// The index file.
-    index: PathBuf,
-    /// The tree whose files the index describes.
-    tree: PathBuf,
-    /// The trees the entries were copied from (each is the reference tree joined with the worktree's place in the checkout).
-    references: Vec<PathBuf>,
-}
-
-/// The rewrite of one index file, replaceable so a control can watch or delay it.
-pub type RewriteOne<'a> = dyn Fn(&Path, &Path, &RefreshOptions<'_>) -> String + Sync + 'a;
-
-/// What:
-///  What a rewrite of every index of a checkout is told.
-/// Why:
-///   One value names the inputs: the checkout, how its indexes are locked, the trees they were copied from, the host the
-///  budget is derived from, and the rewrite of one file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type AllIndexes = { root: string; lock: IndexLock; references: string[]; host: HostResources; rewrite: RewriteOne };
-/// ```
-pub struct AllIndexes<'a> {
-    /// The main checkout.
-    pub root: &'a Path,
-    /// How each index is protected while it is rewritten.
-    pub lock: IndexLock<'a>,
-    /// The trees the checkout was copied from; each linked worktree is looked up under the same relative path in them.
-    pub references: &'a [PathBuf],
-    /// The CPUs and memory the budget is derived from.
-    pub host: &'a HostResources,
-    /// The rewrite of one index file.
-    pub rewrite: &'a RewriteOne<'a>,
-}
-
-/// What:
-///  Rewrite the index of the checkout and of every linked worktree inside it, reporting each through `say`.
-///  `&mut dyn FnMut(&str)` is a borrowed callback that receives one report line at a time.
-///  `references` are the trees the checkout was copied from (empty trusts every entry); each linked worktree is looked up
-///  under the same relative path in them.
-/// Why:
-///   The first `git status` of each of them is otherwise a full re-hash.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function refreshAllIndexes(root: string, lock: IndexLock, references: string[], say: (line: string) => void): void;
-/// ```
-pub fn refresh_all_indexes(root: &Path, lock: IndexLock<'_>, references: &[PathBuf], say: &mut dyn FnMut(&str)) -> usize {
-    return refresh_all_indexes_with(&AllIndexes { root, lock, references, host: &HostResources::read(), rewrite: &refresh_index_file_with }, say);
-}
-
-/// What:
-///  `refresh_all_indexes` with the host and the rewrite of one file chosen by the caller; returns how many indexes it covered.
-/// Why:
-///   Each index is its own file under its own lock describing its own tree, so the rewrites run side by side within a budget
-///  and are reported in the order the checkout's index first, then each linked worktree's by path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const count = await refreshAllIndexesWith({ root, lock, references, host, rewrite }, say);
-/// ```
-pub fn refresh_all_indexes_with(request: &AllIndexes<'_>, say: &mut dyn FnMut(&str)) -> usize {
-    let AllIndexes { root, lock, references, host, rewrite } = *request;
-    let hash_length: Option<usize> = repository_hash_length(root.join(".git").as_path());
-    let mut targets: Vec<IndexTarget> = vec![IndexTarget { index: root.join(".git").join("index"), tree: root.to_path_buf(), references: references.to_vec() }];
-    for linked in linked_worktrees_inside(root) {
-        let relative: &Path = linked.worktree.strip_prefix(root).unwrap_or(Path::new(""));
-        targets.push(IndexTarget {
-            index: linked.admin_directory.join("index"),
-            tree: linked.worktree.clone(),
-            references: joined_below(references, relative),
-        });
-    }
-    let mut largest: u64 = 0;
-    for target in &targets {
-        let size: u64 = match std::fs::metadata(&target.index) {
-            Ok(found) => found.len(),
-            Err(_) => 0,
-        };
-        largest = largest.max(size);
-    }
-    let workers: usize = worker_budget(&BudgetRequest { items: targets.len(), per_item_memory: largest.saturating_mul(INDEX_REWRITE_COPIES), ceiling: None, cap: None, host });
-    let mut lanes: Vec<Vec<usize>> = Vec::new();
-    for index in 0..targets.len() {
-        lanes.push(vec![index]);
-    }
-    // The pool calls this on a worker thread for each index; it carries the lock, the rewrite and the hash length.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's work parameter is a state-carrying callback; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-    let work = |_index: usize, target: &IndexTarget, _worker_say: &mut dyn FnMut(&str)| {
-        return rewrite(target.index.as_path(), target.tree.as_path(), &RefreshOptions { lock, references: target.references.as_slice(), hash_length });
-    };
-    // The pool calls this as each index ends, in index order; it carries `say` and the target list.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's event parameter is a state-carrying callback; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-    let mut on_event = |event: Event<'_, String>| {
-        if let Event::End(index, line) = event {
-            say(format!("index {}: {line}", targets[index].index.display()).as_str());
-        }
-    };
-    run_ordered(OrderedRun { items: targets.as_slice(), lanes: lanes.as_slice(), workers, work: &work, on_event: &mut on_event });
-    return targets.len();
-}
-
-/// Each reference tree path joined with `relative`, in order.
-fn joined_below(references: &[PathBuf], relative: &Path) -> Vec<PathBuf> {
-    let mut joined: Vec<PathBuf> = Vec::new();
-    for reference in references {
-        joined.push(reference.join(relative));
-    }
-    return joined;
 }
 
 /// Index file controls stay out of the release executable.

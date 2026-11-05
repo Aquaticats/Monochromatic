@@ -1,5 +1,5 @@
 //! What:
-//!  Which repository the service commands (`cli-git service ...`) mean: the global options name it, or Git is asked for
+//!  Which repository the service commands (`monochromatic-git-policy-cli service ...`) mean: the global options name it, or Git is asked for
 //!  the Git directory of the current directory.
 //! Why:
 //!  `management.rs` plans the service commands; the question of which repository is asked of Git and answered as a
@@ -31,7 +31,7 @@ use std::path::{Path, PathBuf};
 /// or nothing when
 ///  another option could choose the repository too.
 /// Why:
-///   `git -C /path/B cli-git service status` asks about B,
+///   `git -C /path/B monochromatic-git-policy-cli service status` asks about B,
 /// wherever it is run from;
 /// `-c <name>=<value>` changes no directory,
 ///  while `--git-dir` and its kin name a repository the in-process reader does not resolve.
@@ -55,7 +55,7 @@ fn directory_options(global_arguments: &[OsString]) -> Option<Vec<OsString>> {
     return Some(kept);
 }
 
-/// Which repository a `git cli-git service status` invocation selects.
+/// Which repository a `git monochromatic-git-policy-cli service status` invocation selects.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Selection {
     /// The Git directory of the worktree it selects.
@@ -68,7 +68,7 @@ pub(crate) enum Selection {
 }
 
 /// What:
-///  The repository a `git <global options> cli-git service status` selects:
+///  The repository a `git <global options> monochromatic-git-policy-cli service status` selects:
 /// the Git directory of its worktree,
 /// outside a
 ///  repository,

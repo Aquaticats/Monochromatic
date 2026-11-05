@@ -79,8 +79,8 @@ fn a_clean_ordinary_main_checkout_is_cloned_and_equals_gits_own_checkout() {
     // Then the line that says why this was not a snapshot (the main checkout here is no subvolume), then the summary line of the
     //  ignored-state copy.
     let after_git: Vec<&str> = wrapped[git_words.len()..].lines().collect();
-    assert!(after_git.first().is_some_and(|line: &&str| { return line.starts_with("cli-git: this worktree was not made as a snapshot"); }), "{wrapped}");
-    assert!(after_git.get(1).is_some_and(|line: &&str| { return line.starts_with("cli-git: copied "); }), "then the summary line of the ignored-state copy: {wrapped}");
+    assert!(after_git.first().is_some_and(|line: &&str| { return line.starts_with("monochromatic-git-policy-cli: this worktree was not made as a snapshot"); }), "{wrapped}");
+    assert!(after_git.get(1).is_some_and(|line: &&str| { return line.starts_with("monochromatic-git-policy-cli: copied "); }), "then the summary line of the ignored-state copy: {wrapped}");
     assert_eq!(String::from_utf8_lossy(&created.stdout), String::from_utf8_lossy(&control.stdout));
     let topic: PathBuf = fixture.root.join("topic");
     assert!(is_subvolume_root(topic.as_path()).expect("probe"), "the clones went into a subvolume");

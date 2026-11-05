@@ -11,6 +11,7 @@
 //! await swapPhase(platform, job, interrupt);
 //! ```
 
+use crate::line_sink::LineSink;
 use crate::fs_beneath::{ObjectId, identity_at, open_root};
 use crate::process_use::{UseTarget, processes_using};
 use crate::subvolume_error::{Interrupt, MigrateError};
@@ -179,7 +180,7 @@ pub fn release_index_lock(job: &Job<'_>) -> Result<(), MigrateError> {
 /// ```ts
 /// await copyPhase(platform, job, interrupt, say);
 /// ```
-pub fn copy_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interrupt, say: &mut dyn FnMut(&str)) -> Result<(), MigrateError> {
+pub fn copy_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interrupt, say: &mut dyn LineSink) -> Result<(), MigrateError> {
     if job.journal.phase < Phase::Creating {
         job.reach(Phase::Creating)?;
     }
@@ -188,7 +189,7 @@ pub fn copy_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interr
     interrupt.check("created")?;
     let first: SyncStats = sync_tree(platform, job.candidate.path.as_path(), job.converting.as_path(), SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None }, interrupt)?;
     require_complete(&first, job.candidate.path.as_path())?;
-    say(format!("  copied {} entries ({} files, {} cloned)", first.entries, first.files_copied, first.cloned).as_str());
+    say.say(format!("  copied {} entries ({} files, {} cloned)", first.entries, first.files_copied, first.cloned).as_str());
     // Git's `index.lock` is taken only now: the long first copy ran without it, and the lock covers the span in which a Git
     // writer could invalidate the proof, the swap or the index rewrite.
     hold_index_lock(job)?;
@@ -321,14 +322,14 @@ pub fn verify_swap(platform: &dyn Platform, job: &Job<'_>) -> Result<(), Migrate
 
 /// The index phase: rewrite the stat fields of the index to the files of the subvolume, so the first status stays fast.
 /// A refresh that did not install the new index stops the conversion with the old tree kept, and the journal stays at the swap.
-pub fn index_phase(job: &mut Job<'_>, interrupt: &Interrupt, say: &mut dyn FnMut(&str)) -> Result<(), MigrateError> {
+pub fn index_phase(job: &mut Job<'_>, interrupt: &Interrupt, say: &mut dyn LineSink) -> Result<(), MigrateError> {
     let references: Vec<PathBuf> = vec![job.converting.clone()];
     let report = refresh_index_file_report(
         job.candidate.admin.join("index").as_path(),
         job.candidate.path.as_path(),
         &RefreshOptions { lock: IndexLock::Held(job.journal.token.as_str()), references: references.as_slice(), hash_length: repository_hash_length(job.candidate.common.as_path()) },
     );
-    say(format!("  index: {}", report.line).as_str());
+    say.say(format!("  index: {}", report.line).as_str());
     if report.status == RefreshStatus::Skipped {
         return Err(MigrateError::Journal(format!(
             "the index of {} was not refreshed ({}); the old tree is kept at {}; fix that and run the command again",

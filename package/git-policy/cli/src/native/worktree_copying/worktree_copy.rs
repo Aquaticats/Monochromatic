@@ -136,8 +136,21 @@ pub enum GitStep<'a> {
     },
 }
 
-/// Runs one real Git step.
-pub type GitRunner<'a> = dyn FnMut(&GitStep<'_>) -> Result<GitStatus, WorktreeCopyError> + 'a;
+/// What:
+///  Runs one real Git step.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The ladder calls it once per Git step; the state a step needs (the invocation, the real Git, the overlay, the parallel-checkout
+///  decision) is a small struct that implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface GitRunner { run(step: GitStep): GitStatus } // throws WorktreeCopyError
+/// ```
+pub trait GitRunner {
+    /// Run `step` and report how Git ended.
+    fn run(&mut self, step: &GitStep<'_>) -> Result<GitStatus, WorktreeCopyError>;
+}
 
 /// What:
 ///  The one summary line a successful copy writes.
@@ -160,7 +173,7 @@ pub fn summary_line(copied: usize, destinations: usize, source: Option<&Path>) -
     };
     let entry_noun: &str = if copied == 1 { "entry" } else { "entries" };
     return format!(
-        "cli-git: copied {copied} ignored filesystem {entry_noun} from {source_text} into {destinations} new {worktree_noun}.\n"
+        "monochromatic-git-policy-cli: copied {copied} ignored filesystem {entry_noun} from {source_text} into {destinations} new {worktree_noun}.\n"
     );
 }
 
@@ -196,8 +209,8 @@ pub fn exit_code(settlement: &Settlement) -> i32 {
 /// ```ts
 /// await forwardOnly({ args, gitPath, environment });
 /// ```
-fn forward_only(run_git: &mut GitRunner) -> Result<Settlement, WorktreeCopyError> {
-    let git: GitStatus = run_git(&GitStep::Person)?;
+fn forward_only(run_git: &mut dyn GitRunner) -> Result<Settlement, WorktreeCopyError> {
+    let git: GitStatus = run_git.run(&GitStep::Person)?;
     return Ok(Settlement {
         git,
         copy_failure: None,
@@ -205,21 +218,21 @@ fn forward_only(run_git: &mut GitRunner) -> Result<Settlement, WorktreeCopyError
 }
 
 /// The line a successful `git worktree add` prints when its command line has a form whose destination is not read.
-const UNKNOWN_DESTINATION_NOTICE: &str = "cli-git: this `git worktree add` names its worktree in a form cli-git does not read, so the worktree received no ignored-state copy. Name the path as a plain operand (`git worktree add [-b <branch>] <path> [<commit-ish>]`, with `-C <directory>` or `-c <name>=<value>` before `worktree`) to have it copied.\n";
+const UNKNOWN_DESTINATION_NOTICE: &str = "monochromatic-git-policy-cli: this `git worktree add` names its worktree in a form monochromatic-git-policy-cli does not read, so the worktree received no ignored-state copy. Name the path as a plain operand (`git worktree add [-b <branch>] <path> [<commit-ish>]`, with `-C <directory>` or `-c <name>=<value>` before `worktree`) to have it copied.\n";
 
 /// What:
 ///  The line for a destination Git made whose registration could not be confirmed.
 /// Why:
 ///   A worktree that gets no copy must say so; here the pointer in its `.git` file and the registration it names do not
-///  name each other, so cli-git cannot tell the worktree is the command's own and copies nothing.
+///  name each other, so monochromatic-git-policy-cli cannot tell the worktree is the command's own and copies nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: ${quote(destination)} was made by git worktree add, but ...`
+/// `monochromatic-git-policy-cli: ${quote(destination)} was made by git worktree add, but ...`
 /// ```
 fn unconfirmed_destination_notice(destination: &Path) -> String {
     return format!(
-        "cli-git: {} was made, but its registration could not be confirmed as this command's, so it received no ignored-state copy. `git worktree list` shows whether Git registered it.\n",
+        "monochromatic-git-policy-cli: {} was made, but its registration could not be confirmed as this command's, so it received no ignored-state copy. `git worktree list` shows whether Git registered it.\n",
         quote(destination.to_string_lossy().as_ref())
     );
 }
@@ -365,7 +378,7 @@ fn repair_created(invocation: &Invocation, after: &AfterLock, stderr: &mut dyn W
 fn settle_creation(
     invocation: &Invocation,
     observation: &WorktreeCopyObservation,
-    run_git: &mut GitRunner,
+    run_git: &mut dyn GitRunner,
     stderr: &mut dyn Write,
 ) -> Result<(Settlement, AfterLock), WorktreeCopyError> {
     let registered_before: bool = match invocation.destination.as_deref() {
@@ -376,7 +389,7 @@ fn settle_creation(
     let ladder = begin_ladder(invocation.add_plan.as_ref(), &invocation.context, &invocation.identity);
     end_step(choose_rung_entered);
     let git_add_entered: bool = begin_step("gitAdd");
-    let ran: Result<GitStatus, WorktreeCopyError> = run_git(&ladder.first_step());
+    let ran: Result<GitStatus, WorktreeCopyError> = run_git.run(&ladder.first_step());
     end_step(git_add_entered);
     let settled: Result<LadderResult, WorktreeCopyError> = match ran {
         Ok(status) => {
@@ -420,7 +433,7 @@ fn settle_creation(
 /// ```
 pub fn run_with_worktree_copy(
     invocation: &Invocation,
-    run_git: &mut GitRunner,
+    run_git: &mut dyn GitRunner,
     stderr: &mut dyn Write,
 ) -> Result<Settlement, WorktreeCopyError> {
     return settle_invocation(invocation, run_git, stderr).map_err(lifecycle_failure);
@@ -437,7 +450,7 @@ pub fn run_with_worktree_copy(
 /// ```
 fn settle_invocation(
     invocation: &Invocation,
-    run_git: &mut GitRunner,
+    run_git: &mut dyn GitRunner,
     stderr: &mut dyn Write,
 ) -> Result<Settlement, WorktreeCopyError> {
     // `if` chain in the incumbent's order: each bypass forwards without touching the repository.
@@ -476,7 +489,7 @@ fn settle_invocation(
 fn settle_observed(
     invocation: &Invocation,
     observation: &WorktreeCopyObservation,
-    run_git: &mut GitRunner,
+    run_git: &mut dyn GitRunner,
     stderr: &mut dyn Write,
 ) -> Result<Settlement, WorktreeCopyError> {
     // Recovery never waits: it takes over only journals and claims whose owner is dead, and one rename picks its single winner.

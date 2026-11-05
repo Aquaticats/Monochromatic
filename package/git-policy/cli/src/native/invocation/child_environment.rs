@@ -1,5 +1,5 @@
 //! What:
-//!  The environment variables cli-git adds for every real Git it starts.
+//!  The environment variables monochromatic-git-policy-cli adds for every real Git it starts.
 //! Why:
 //!  Native Git must write lock-owner PID files,
 //!  and a wrapper must be able to
@@ -31,7 +31,7 @@ pub const COUNT_VARIABLE: &str = "GIT_CONFIG_COUNT";
 /// What:
 ///  The variable naming the executable this wrapper selected as real Git.
 /// Why:
-///   If the selected executable is itself a cli-git wrapper (for example another
+///   If the selected executable is itself a monochromatic-git-policy-cli wrapper (for example another
 ///       build that file identity cannot recognise),
 ///  it finds its own path here and
 ///       stops instead of forwarding back and forth forever.
@@ -177,7 +177,7 @@ pub fn parse_config_count(value: &OsStr) -> Option<u64> {
 }
 
 /// What:
-///  Report whether a configuration value is one of the true spellings cli-git
+///  Report whether a configuration value is one of the true spellings monochromatic-git-policy-cli
 ///       itself writes or recognises (`true`,
 ///  `yes`,
 ///  `on`,
@@ -186,7 +186,7 @@ pub fn parse_config_count(value: &OsStr) -> Option<u64> {
 /// Why:
 ///   When the last numbered `core.lockfilePid` entry already reads as true,
 ///  a
-///       nested cli-git must not grow the list again.
+///       nested monochromatic-git-policy-cli must not grow the list again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -297,7 +297,7 @@ pub fn lockfile_pid_overlay(environment: &[(OsString, OsString)]) -> Vec<(OsStri
 pub const CHILD_SET_PREFIX: &str = "CLI_GIT_CHILD_SET_";
 
 /// What:
-///  Compute every variable cli-git sets for a real Git child:
+///  Compute every variable monochromatic-git-policy-cli sets for a real Git child:
 ///  the lock PID
 ///       injection plus the forward-target marker naming `real_git`.
 /// Why:

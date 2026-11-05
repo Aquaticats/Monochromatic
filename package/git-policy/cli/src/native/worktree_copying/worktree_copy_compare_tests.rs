@@ -183,7 +183,7 @@ fn changed_source_entry_fails_final_check() {
     .expect_err("changed");
     assert_eq!(
         failure.0,
-        "cli-git: ignored source entry changed while copying: \"cache/file\"."
+        "monochromatic-git-policy-cli: ignored source entry changed while copying: \"cache/file\"."
     );
     remove(root.as_path());
 }
@@ -212,7 +212,7 @@ fn added_source_entry_fails_final_check_by_count() {
     .expect_err("count");
     assert_eq!(
         failure.0,
-        "cli-git: ignored source paths changed while snapshot was staged."
+        "monochromatic-git-policy-cli: ignored source paths changed while snapshot was staged."
     );
     remove(root.as_path());
 }
@@ -256,7 +256,7 @@ fn an_unchanged_stamp_stands_in_for_reading_the_bytes() {
     final_check(source.as_path(), stage.as_path(), entries.as_slice(), stamps.as_slice()).expect("the stamp is unchanged");
     let unstamped: Vec<Option<FileStamp>> = vec![None; entries.len()];
     let failure: WorktreeCopyError = final_check(source.as_path(), stage.as_path(), entries.as_slice(), unstamped.as_slice()).expect_err("bytes differ");
-    assert_eq!(failure.0, "cli-git: ignored source entry changed while copying: \"cache/file\".");
+    assert_eq!(failure.0, "monochromatic-git-policy-cli: ignored source entry changed while copying: \"cache/file\".");
     remove(root.as_path());
 }
 
@@ -270,7 +270,7 @@ fn a_source_written_after_the_stamp_fails_the_final_check() {
     // Same size, so only the times can tell; the change time moves on every write.
     std::fs::write(source.join("cache/file"), b"other").expect("write");
     let failure: WorktreeCopyError = final_check(source.as_path(), stage.as_path(), entries.as_slice(), stamps.as_slice()).expect_err("written");
-    assert_eq!(failure.0, "cli-git: ignored source entry changed while copying: \"cache/file\".");
+    assert_eq!(failure.0, "monochromatic-git-policy-cli: ignored source entry changed while copying: \"cache/file\".");
     remove(root.as_path());
 }
 

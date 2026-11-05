@@ -125,7 +125,7 @@ fn stage_failure(failure: CandidateFailure, position: usize, detail: &str) -> Ca
     return CandidateError::new(
         failure,
         format!(
-            "cli-git could not read the index: entry record {position} {detail}. \
+            "monochromatic-git-policy-cli could not read the index: entry record {position} {detail}. \
              Inspect the entries with `git ls-files --stage`."
         )
         .as_str(),

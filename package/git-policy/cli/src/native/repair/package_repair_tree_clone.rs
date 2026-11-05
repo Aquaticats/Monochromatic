@@ -11,7 +11,7 @@
 //! const cloned = await cloneTree({ source, destination, workers });
 //! ```
 
-use crate::scoped_start::start_or_run;
+use crate::side_by_side_threads::run_all_side_by_side;
 use crate::worktree_copy_stage::copy_file_exclusive;
 use std::fs::{FileTimes, Metadata};
 use std::os::unix::fs::symlink;
@@ -165,47 +165,49 @@ fn compare_by_relative_path(left: &Entry, right: &Entry) -> std::cmp::Ordering {
 ///  Place each slice of leaf entries on a thread of its own inside one thread scope, and collect what each slice
 ///  left out.
 /// Why:
-///   The slices borrow the entries, the source and the destination of the caller for the length of the scope, which a
-///  named function cannot express and which owned copies for threads that outlive the caller would only waste. A
-///  thread that cannot start runs its slice in turn (`start_or_run`), and a worker that panicked is an error.
+///   The slices borrow the entries, the source and the destination of the caller for the length of the scope, which owned
+///  copies for threads that outlive the caller would only waste. A thread that cannot start runs its slice in turn
+///  (`start_or_run_with`), and a worker that panicked is an error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const outcomes = await Promise.all(slices.map(async (slice) => placeAll(source, destination, slice)));
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "std::thread::scope and start_or_run take closures that borrow the caller's entries for the scope only, not 'static; see doc/planning/cli-git-closure-lint-suppressions.md"
-    )
-)]
 fn place_slices_side_by_side(
     leaves: &[&Entry],
     slice_length: usize,
     source: &Path,
     destination: &Path,
 ) -> Vec<Result<Vec<PathBuf>, String>> {
-    return std::thread::scope(|scope| {
-        let mut handles: Vec<_> = Vec::new();
-        for slice in leaves.chunks(slice_length) {
-            handles.push(start_or_run(scope, move || {
-                let mut skipped: Vec<PathBuf> = Vec::new();
-                for entry in slice {
-                    skipped.extend(place(source, destination, entry)?);
-                }
-                return Ok(skipped);
-            }));
-        }
-        let mut outcomes: Vec<Result<Vec<PathBuf>, String>> = Vec::new();
-        for handle in handles {
-            outcomes.push(match handle.join() {
-                Ok(outcome) => outcome,
-                Err(_panic) => Err(String::from("a clone worker stopped unexpectedly")),
-            });
-        }
-        return outcomes;
-    });
+    let mut slices: Vec<(&Path, &Path, &[&Entry])> = Vec::new();
+    for slice in leaves.chunks(slice_length) {
+        slices.push((source, destination, slice));
+    }
+    let mut outcomes: Vec<Result<Vec<PathBuf>, String>> = Vec::new();
+    for joined in run_all_side_by_side(slices, place_slice) {
+        outcomes.push(match joined {
+            Ok(outcome) => outcome,
+            Err(_panic) => Err(String::from("a clone worker stopped unexpectedly")),
+        });
+    }
+    return outcomes;
+}
+
+/// What:
+///  Place every entry of one slice, and return the paths the slice left out.
+/// Why:
+///   One worker takes a slice; the first entry that cannot be placed ends the slice with its message.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function placeSlice([source, destination, slice]): string[] { return slice.flatMap((entry) => place(source, destination, entry) ?? []); }
+/// ```
+fn place_slice((source, destination, slice): (&Path, &Path, &[&Entry])) -> Result<Vec<PathBuf>, String> {
+    let mut skipped: Vec<PathBuf> = Vec::new();
+    for entry in slice {
+        skipped.extend(place(source, destination, entry)?);
+    }
+    return Ok(skipped);
 }
 
 /// What:

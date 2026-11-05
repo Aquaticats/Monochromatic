@@ -30,7 +30,7 @@ const validRegistry = {
     crateDir: 'package/git-policy/cli',
     scope: 'git-policy/cli',
     pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
-    checkBins: ['cli-git-native'],
+    checkBins: ['monochromatic-git-policy-cli'],
     lockDirs: ['package/git-policy/cli.fuzz'],
   },
   'plain-crate': {
@@ -104,7 +104,7 @@ await describe({
               crateDirectory: 'package/git-policy/cli',
               scope: 'git-policy/cli',
               pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
-              checkBins: ['cli-git-native'],
+              checkBins: ['monochromatic-git-policy-cli'],
               lockDirectories: ['package/git-policy/cli.fuzz'],
             });
           },

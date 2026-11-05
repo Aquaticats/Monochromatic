@@ -49,7 +49,7 @@ fn repository_with_unpublished_commit(name: &str) -> (PathBuf, String) {
     std::fs::create_dir_all(&repo).expect("repo");
     git(&repo, &["init", "--quiet", "--initial-branch=main"]);
     git(&repo, &["config", "user.email", "cli-git@example.invalid"]);
-    git(&repo, &["config", "user.name", "cli-git fixture"]);
+    git(&repo, &["config", "user.name", "monochromatic-git-policy-cli fixture"]);
     git(
         &repo,
         &["commit", "--quiet", "--allow-empty", "--message=base"],

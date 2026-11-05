@@ -68,7 +68,7 @@ pub(crate) fn output_of(status: std::process::ExitStatus, captured: Option<&Capt
     let shown: crate::output_capture::Captured = files.snapshot(crate::output_capture::STEP_OUTPUT_LIMIT);
     let mut stderr: Vec<u8> = shown.stderr;
     for note in &shown.notes {
-        stderr.extend_from_slice(format!("\ncli-git: {note}\n").as_bytes());
+        stderr.extend_from_slice(format!("\nmonochromatic-git-policy-cli: {note}\n").as_bytes());
     }
     // Read once, and a descendant that keeps the files open must not keep the pages of what was read.
     files.discard();

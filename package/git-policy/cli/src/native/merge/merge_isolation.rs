@@ -88,7 +88,7 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
         match attempt_round(input) {
             Err(Bail::Again(reason)) => {
                 debug(TAG, format!("round {round} of {MAX_ROUNDS}: {reason}").as_str());
-                let _noted = std::io::stderr().write_all(format!("cli-git: git merge: {reason}; merging again on the current branch.\n").as_bytes());
+                let _noted = std::io::stderr().write_all(format!("monochromatic-git-policy-cli: git merge: {reason}; merging again on the current branch.\n").as_bytes());
             }
             finished => return finished,
         }
@@ -96,7 +96,7 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
     return Err(refused(
         2,
         format!(
-            "cli-git: git merge: the branch moved or the index lock was taken in {MAX_ROUNDS} merges in a row, so the wrapper \
+            "monochromatic-git-policy-cli: git merge: the branch moved or the index lock was taken in {MAX_ROUNDS} merges in a row, so the wrapper \
              stopped; nothing was changed. Run the merge again.\n"
         ),
     ));
@@ -170,7 +170,7 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
     }
     if opens_editor {
         return Err(Bail::Forward(Some(String::from(
-            "cli-git: this merge would open an editor, so the wrapper does not complete it in isolation while the \
+            "monochromatic-git-policy-cli: this merge would open an editor, so the wrapper does not complete it in isolation while the \
              index holds staged changes; native Git refuses it. Run `git merge --no-edit` (or set \
              GIT_MERGE_AUTOEDIT=no) and the wrapper completes the merge without touching the staged changes.\n",
         ))));
@@ -256,7 +256,7 @@ fn attempt_round(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> 
         Err(reason) => {
             return Err(refused(
                 128,
-                format!("cli-git: git merge {reference}: the merge commit could not be created, and nothing was changed: {reason}\n"),
+                format!("monochromatic-git-policy-cli: git merge {reference}: the merge commit could not be created, and nothing was changed: {reason}\n"),
             ));
         }
     };

@@ -51,7 +51,7 @@ export function isAbsent(error: unknown,): boolean {
 
  @example
  ```ts
- await listening('/work/s1/service/runtime/cli-git/service.sock');
+ await listening('/work/s1/service/runtime/monochromatic-git-policy-cli/service.sock');
  ```
  */
 export async function listening(socket: string,): Promise<boolean> {

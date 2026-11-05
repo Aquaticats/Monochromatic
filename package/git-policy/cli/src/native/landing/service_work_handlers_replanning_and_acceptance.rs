@@ -10,6 +10,7 @@
 //! interface WorkHandlers { review(...); push(...); maintenance(...); trash(...) }; function isAcceptable(item, gitDir): boolean
 //! ```
 
+use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::journald_native::Priority;
 use crate::push_failure_notice::{clear_push_failures_before, record_push_failure, record_push_skip};
 use crate::push_retry::{Due, RetryChange, pause_before};
@@ -59,7 +60,7 @@ pub trait WorkHandlers {
 
 /// The work directory of a repository.
 pub fn work_directory(git_dir: &Path) -> PathBuf {
-    return git_dir.join(WORK_DIRECTORY);
+    return path_for_reading(git_dir, WORK_DIRECTORY);
 }
 
 /// What:
@@ -176,7 +177,7 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) {
             continue;
         }
         let reason: String = format!(
-            "cli-git: the commit service stopped {MAX_TRIES} times before it finished pushing {} (a restart, a kill or a crash each time), so it gave up on that push.",
+            "monochromatic-git-policy-cli: the commit service stopped {MAX_TRIES} times before it finished pushing {} (a restart, a kill or a crash each time), so it gave up on that push.",
             item.branch_ref
         );
         if let Err(problem) = record_push_skip(git_dir, item.branch_ref.as_str(), item.oid.as_str(), reason.as_str()) {
@@ -245,7 +246,7 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
     let pause: Duration = pause_before(attempt, first);
     replanning.changes.push(RetryChange::Plan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due: Instant::now() + pause });
     let plan: String = format!(
-        "cli-git: the commit service tries this push again by itself in {} seconds (try {}), and keeps trying with longer pauses until the push lands or a conflict needs you.",
+        "monochromatic-git-policy-cli: the commit service tries this push again by itself in {} seconds (try {}), and keeps trying with longer pauses until the push lands or a conflict needs you.",
         pause.as_secs(),
         attempt + 1
     );

@@ -50,19 +50,19 @@ pub mod forwarding;
 /// Git 2.56.0 global-argument boundaries over unchanged operating-system strings.
 pub mod global_arguments;
 
-/// The `git cli-git` decision:
+/// The `git monochromatic-git-policy-cli` decision:
 ///  help,
 ///  retired commands,
 ///  and direct `check`/`fix`.
 pub mod management;
 
-/// The direct `cli-git` commands that run in this process, with their refusals.
+/// The direct `monochromatic-git-policy-cli` commands that run in this process, with their refusals.
 pub mod management_direct_commands;
 
 /// Which repository the service commands mean.
 pub mod management_service_repository_selection;
 
-/// The `git cli-git` argument grammar.
+/// The `git monochromatic-git-policy-cli` argument grammar.
 pub mod management_arguments;
 
 /// The refusal of a direct command whose `--policy` selects a policy that is off.

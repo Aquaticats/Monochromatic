@@ -14,8 +14,8 @@ use crate::service_messages::ClientFailure;
 use std::path::{Path, PathBuf};
 /// The words that mark a unit file as written by this wrapper: the marker its units carry now, and the descriptions the
 ///  units of earlier releases carried.
-pub const OWN_MARKERS: [&str; 3] =
-    ["(cli-git-unit)", "Description=Commit service socket for the git wrapper", "Description=Commit service for the git wrapper"];
+pub const OWN_MARKERS: [&str; 4] =
+    ["(monochromatic-git-policy-cli-unit)", "(cli-git-unit)", "Description=Commit service socket for the git wrapper", "Description=Commit service for the git wrapper"];
 
 /// Writes `text` to `path` through a temporary file and a rename, so a reader sees the old file or the new one whole.
 pub(crate) fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {

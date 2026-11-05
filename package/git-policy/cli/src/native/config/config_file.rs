@@ -1,5 +1,5 @@
 //! What:
-//!  Find and read `cli-git.config.jsonc` at a repository root.
+//!  Find and read `monochromatic-git-policy-cli.config.jsonc` at a repository root.
 //! Why:
 //!  Configuration is one data file at one fixed place;
 //!  legacy executable
@@ -24,6 +24,7 @@
 use crate::config_error::ConfigError;
 use crate::config_parse::parse_config;
 use crate::config_schema::CliGitConfig;
+use crate::wrapper_names_old_and_new::SETTINGS_FILE;
 /// What:
 ///  Import the trait that gives files `.take(..)` and `.read_to_end(..)`.
 ///       A trait is an interface;
@@ -52,8 +53,13 @@ use std::io::Read;
 /// ```
 use std::path::{Path, PathBuf};
 
-/// The only configuration file the native wrapper reads.
-pub const CONFIG_FILE_NAME: &str = "cli-git.config.jsonc";
+/// The configuration file the native wrapper reads.
+pub const CONFIG_FILE_NAME: &str = SETTINGS_FILE.current;
+
+/// The name an earlier release gave the configuration file;
+///  read when it is the only one,
+///  with a notice.
+pub const EARLIER_CONFIG_FILE_NAME: &str = SETTINGS_FILE.earlier;
 
 /// What:
 ///  Executable configuration names of the TypeScript wrapper,
@@ -109,6 +115,10 @@ pub struct LoadedConfig {
     ///  never read,
     ///  to be reported.
     pub ignored_legacy: Vec<PathBuf>,
+    /// One line for standard error when the repository still has the file under its earlier name,
+    ///  or has both:
+    ///  `None` when the settings come from the current name or from no file.
+    pub earlier_name_notice: Option<String>,
 }
 
 /// What:
@@ -149,6 +159,48 @@ fn entry_exists(path: &Path) -> Result<bool, ConfigError> {
 }
 
 /// What:
+///  The settings file of the repository whose top level is `repository_root`, found the way the loader finds it:
+///  the current name when it exists,
+///  else the earlier name when only that exists,
+///  else the current name.
+/// Why:
+///   A control or tool that must read a repository's own file asks this, so it works before and after that file is renamed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function settingsFileOf(root: string): string;
+/// ```
+pub fn settings_file_of(repository_root: &Path) -> PathBuf {
+    let current: PathBuf = repository_root.join(CONFIG_FILE_NAME);
+    let earlier: PathBuf = repository_root.join(EARLIER_CONFIG_FILE_NAME);
+    if !current.exists() && earlier.exists() {
+        return earlier;
+    }
+    return current;
+}
+
+/// The line for a repository that has only the earlier settings file:
+///  it is read,
+///  and the new name is given.
+fn earlier_only_notice() -> String {
+    return format!(
+        "{}: the settings file {EARLIER_CONFIG_FILE_NAME} is read under its earlier name; rename it to {CONFIG_FILE_NAME} \
+         (the wrapper never renames a committed file by itself).\n",
+        SETTINGS_FILE.current
+    );
+}
+
+/// The line for a repository that has both settings files:
+///  the new one is read and the earlier one is ignored.
+fn both_files_notice() -> String {
+    return format!(
+        "{}: the settings file {EARLIER_CONFIG_FILE_NAME} is ignored because {CONFIG_FILE_NAME} exists; remove \
+         {EARLIER_CONFIG_FILE_NAME} once nothing else reads it.\n",
+        SETTINGS_FILE.current
+    );
+}
+
+/// What:
 ///  Explain a legacy configuration file that has no JSONC replacement yet.
 /// Why:
 ///   The author needs to know it was not run,
@@ -162,7 +214,7 @@ fn entry_exists(path: &Path) -> Result<bool, ConfigError> {
 fn migration_required(legacy: &Path, target: &Path) -> ConfigError {
     return ConfigError::new(
         format!(
-            "Legacy configuration {} is not executed or read by the native cli-git. \
+            "Legacy configuration {} is not executed or read by the native monochromatic-git-policy-cli. \
              Translate its settings into {} (data only: policies, hooks, indexLock, landing), \
              then remove the legacy file. Plugins, executable paths, command arrays and trust \
              settings have no JSONC equivalent because every policy is built in.",
@@ -185,8 +237,8 @@ fn migration_required(legacy: &Path, target: &Path) -> ConfigError {
 /// ```
 pub fn ignored_legacy_notice(legacy: &Path, source: &Path) -> String {
     return format!(
-        "Legacy configuration {} is ignored: {} is authoritative for the native cli-git. \
-         Remove the legacy file once no TypeScript cli-git reads it.",
+        "Legacy configuration {} is ignored: {} is authoritative for the native monochromatic-git-policy-cli. \
+         Remove the legacy file once no TypeScript monochromatic-git-policy-cli reads it.",
         legacy.display(),
         source.display()
     );
@@ -309,7 +361,8 @@ fn read_config_text(path: &Path) -> Result<String, ConfigError> {
 /// ```
 pub fn load_repository_config(repository_root: &Path) -> Result<LoadedConfig, ConfigError> {
     // `.join(name)` appends one path segment and returns an owned path.
-    let source: PathBuf = repository_root.join(CONFIG_FILE_NAME);
+    let current: PathBuf = repository_root.join(CONFIG_FILE_NAME);
+    let earlier: PathBuf = repository_root.join(EARLIER_CONFIG_FILE_NAME);
     // `Vec::<PathBuf>::new()` is an empty owned list; `mut` allows pushing.
     let mut legacy: Vec<PathBuf> = Vec::<PathBuf>::new();
     // `for name in LEGACY_CONFIG_FILE_NAMES` visits each compiled-in name.
@@ -320,18 +373,36 @@ pub fn load_repository_config(repository_root: &Path) -> Result<LoadedConfig, Co
             legacy.push(candidate);
         }
     }
-    if !entry_exists(source.as_path())? {
+    let current_there: bool = entry_exists(current.as_path())?;
+    let earlier_there: bool = entry_exists(earlier.as_path())?;
+    if !current_there && !earlier_there {
         // `.first()` is `Some(&item)` for a non-empty list, `None` otherwise.
         if let Some(first) = legacy.first() {
-            return Err(migration_required(first.as_path(), source.as_path()));
+            return Err(migration_required(first.as_path(), current.as_path()));
         }
         return Ok(LoadedConfig {
             config: CliGitConfig::defaults(),
             // `None` records that no file was read.
             source: None,
             ignored_legacy: legacy,
+            earlier_name_notice: None,
         });
     }
+    // What: The current name wins when both exist; the earlier name is read only when it is the only one.
+    // Why:  The owner decided that a repository with both reads the new file, and that one with only the old file is
+    //       read with a notice and never renamed.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const [source, notice] = currentThere ? [current, earlierThere ? bothNotice : undefined] : [earlier, earlierOnlyNotice];
+    // ```
+    let (source, earlier_name_notice): (PathBuf, Option<String>) = if current_there && earlier_there {
+        (current, Some(both_files_notice()))
+    } else if current_there {
+        (current, None)
+    } else {
+        (earlier, Some(earlier_only_notice()))
+    };
     let text: String = read_config_text(source.as_path())?;
     // What: `.strip_prefix(..)` is `Some(rest)` when the text starts with the marker.
     //       `.unwrap_or(default)` picks `rest`, or the whole text when there is no marker.
@@ -349,6 +420,7 @@ pub fn load_repository_config(repository_root: &Path) -> Result<LoadedConfig, Co
                 // `Some(source)` records the file the settings came from.
                 source: Some(source),
                 ignored_legacy: legacy,
+                earlier_name_notice,
             });
         }
         Err(error) => {
@@ -363,6 +435,11 @@ pub fn load_repository_config(repository_root: &Path) -> Result<LoadedConfig, Co
 #[cfg(test)]
 #[path = "config_file_tests.rs"]
 mod tests;
+
+/// Controls on the two spellings of the settings file stay out of the release executable.
+#[cfg(test)]
+#[path = "config_file_earlier_name_tests.rs"]
+mod earlier_name_tests;
 
 /// Controls on the repository's own configuration file stay out of the release executable.
 #[cfg(test)]

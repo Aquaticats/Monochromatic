@@ -96,7 +96,7 @@ fn a_pattern_that_cannot_compile_is_reported() {
         compile_exclude(&[String::from("ok/"), String::from("a{b")]).expect_err("refused");
     assert!(
         refused.starts_with(
-            "cli-git could not compile the markdown/autofix exclude pattern \"a{b\": "
+            "monochromatic-git-policy-cli could not compile the markdown/autofix exclude pattern \"a{b\": "
         ),
         "{refused}"
     );

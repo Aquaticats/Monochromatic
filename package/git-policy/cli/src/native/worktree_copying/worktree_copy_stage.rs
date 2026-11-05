@@ -217,11 +217,11 @@ pub fn stage_ignored_snapshot(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// new WorktreeCopyError(`cli-git: could not stage ignored state from ${JSON.stringify(sourceRoot)}.`, error)
+/// new WorktreeCopyError(`monochromatic-git-policy-cli: could not stage ignored state from ${JSON.stringify(sourceRoot)}.`, error)
 /// ```
 fn words_for_source(error: WorktreeCopyError, source_root: &Path) -> WorktreeCopyError {
     let message: String = format!(
-        "cli-git: could not stage ignored state from {}.",
+        "monochromatic-git-policy-cli: could not stage ignored state from {}.",
         quote(source_root.to_string_lossy().as_ref())
     );
     return wrap_raw(error, message.as_str());

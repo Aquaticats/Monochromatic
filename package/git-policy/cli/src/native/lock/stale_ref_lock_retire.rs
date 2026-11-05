@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "cli-git";
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// The start of the private name a lock is set aside under; it ends in no `.lock`, so Git and the walk ignore it.
 const ASIDE_PREFIX: &str = "cli-git-stale-lock";

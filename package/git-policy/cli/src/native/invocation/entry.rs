@@ -43,6 +43,7 @@ use crate::rule_require_root::{RequireRootDecision, decide_require_root};
 use crate::scanner_selection::RULES_VARIABLE;
 use crate::wrapped_command::{WrappedOutcome, run_wrapped_command};
 use crate::wrapper_controls::{Controls, no_controls, strip_global_controls};
+use crate::wrapper_names_old_and_new::COMMAND_WORD;
 use crate::worktree_copy_forward::run_forwarded_git;
 use crate::wrapper_invocation::{StrippedInvocation, strip_wrapper_controls};
 /// What:
@@ -60,12 +61,17 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// The management namespace:
-///  `git cli-git ...` is handled by the wrapper,
+///  `git monochromatic-git-policy-cli ...` is handled by the wrapper,
 ///  never by Git.
-pub const MANAGEMENT_COMMAND: &str = "cli-git";
+pub const MANAGEMENT_COMMAND: &str = COMMAND_WORD.current;
+
+/// The line on standard error that an invocation spelled with the earlier word gets before the same output:
+///  the earlier spelling works, and the new one is named.
+pub const EARLIER_COMMAND_WORD_NOTICE: &str = "monochromatic-git-policy-cli: `git cli-git` is the earlier spelling of this \
+                                               command; `git monochromatic-git-policy-cli` does the same, so use that from now on.\n";
 
 /// What:
-///  Explain that another cli-git wrapper selected this executable as real Git.
+///  Explain that another monochromatic-git-policy-cli wrapper selected this executable as real Git.
 ///       `&Path` borrows this executable's path for the message.
 /// Why:
 ///   Forwarding again would bounce between the two wrappers forever;
@@ -80,8 +86,8 @@ fn forwarded_to_self(own_executable: &Path) -> Action {
     // `format!` builds owned text; `.as_str()` lends it to the helper.
     return failure(
         format!(
-            "another cli-git wrapper selected this cli-git executable ({}) as real Git. \
-             Forwarding again would never reach Git. Remove the extra cli-git from PATH or \
+            "another monochromatic-git-policy-cli wrapper selected this monochromatic-git-policy-cli executable ({}) as real Git. \
+             Forwarding again would never reach Git. Remove the extra monochromatic-git-policy-cli from PATH or \
              place the real Git executable on PATH.",
             own_executable.display()
         )
@@ -153,11 +159,19 @@ pub fn plan_invocation(
     let global_clean: Vec<OsString> = strip_global_controls(arguments, &mut global_controls);
     // `.as_slice()` lends the owned list as a borrowed view.
     let layout: GlobalLayout = global_layout(global_clean.as_slice());
+    // What: Both spellings of the management word are answered by the wrapper; the earlier one adds one notice line.
+    // Why:  The owner decided the earlier word "still works, with a one-line notice".
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const earlier = words[prefixLen] === COMMAND_WORD.earlier;
+    // ```
     if layout.outcome == GlobalOutcome::Command
-        && global_clean[layout.prefix_len] == MANAGEMENT_COMMAND
+        && (global_clean[layout.prefix_len] == MANAGEMENT_COMMAND || global_clean[layout.prefix_len] == COMMAND_WORD.earlier)
     {
+        let earlier_spelling: bool = global_clean[layout.prefix_len] == COMMAND_WORD.earlier;
         // `&list[a..]` borrows from index `a` on; `&list[..a]` borrows up to it.
-        return plan_management_with_section(
+        let answer: Action = plan_management_with_section(
             &global_clean[layout.prefix_len + 1..],
             &global_clean[..layout.prefix_len],
             &global_controls,
@@ -165,6 +179,10 @@ pub fn plan_invocation(
             inputs,
             &host_filesystem_section,
         );
+        if earlier_spelling {
+            return with_leading_notice(answer, Some(EARLIER_COMMAND_WORD_NOTICE));
+        }
+        return answer;
     }
     // What: `match` on the resolver's `Result`: keep the selection or stop with its message.
     // Why:  Without real Git there is nothing to forward to.
@@ -312,7 +330,7 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
     // From here on every real-Git start of this process runs with traditional hooks off.
     crate::hooks_off::activate();
     let action: Action = match process_resolution_inputs(environment) {
-        // A cli-git executable that a wrapper started as Git stops before it plans anything or starts anything.
+        // A monochromatic-git-policy-cli executable that a wrapper started as Git stops before it plans anything or starts anything.
         Ok(inputs) => match refusal_when_started_as_git(environment, inputs.own_executable.as_path()) {
             Some(refusal) => failure(refusal.as_str()),
             None => plan_invocation(arguments, environment, &inputs),
@@ -343,7 +361,7 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
             write_stream(
                 &mut std::io::stderr(),
                 format!(
-                    "cli-git: cannot start {}: {error}. Hint: if you moved or upgraded Git, check that the file exists and is executable with `ls -l {}`, \
+                    "monochromatic-git-policy-cli: cannot start {}: {error}. Hint: if you moved or upgraded Git, check that the file exists and is executable with `ls -l {}`, \
                      then reinstall Git or the wrapper; no Git command ran.\n",
                     real_git.display(),
                     real_git.display()
@@ -430,7 +448,7 @@ fn run_announced(
             write_stream(
                 &mut std::io::stderr(),
                 format!(
-                    "cli-git: cannot start {}: {error}. Hint: if you moved or upgraded Git, check that the file exists and is executable with `ls -l {}`, \
+                    "monochromatic-git-policy-cli: cannot start {}: {error}. Hint: if you moved or upgraded Git, check that the file exists and is executable with `ls -l {}`, \
                      then reinstall Git or the wrapper; no Git command ran.\n",
                     real_git.display(),
                     real_git.display()
@@ -441,6 +459,13 @@ fn run_announced(
         }
     }
 }
+
+/// The two spellings of the management word:
+///  the same behaviour,
+///  and one notice line for the earlier one.
+#[cfg(test)]
+#[path = "entry_command_word_tests.rs"]
+mod command_word_tests;
 
 /// Plans of the announced queries,
 ///  `--version`, `-v`, `--help` and `-h`, against the queries that stay exact.

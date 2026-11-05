@@ -82,6 +82,10 @@ pub mod worktree_path_failure_message;
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) mod worktree_ladder_test_support;
 
+/// What Git's status lists as changed or untracked in a worktree, for the snapshot source.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_source_changed_paths;
+
 /// The snapshot source: whether the creating worktree can be snapshotted for a new worktree, and what that needs.
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_source;
@@ -153,10 +157,10 @@ pub mod worktree_convert_journal;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_remove;
 
-/// The grammar of `git cli-git convert-worktree-to-subvolume`.
+/// The grammar of `git monochromatic-git-policy-cli convert-worktree-to-subvolume`.
 pub mod worktree_convert_arguments;
 
-/// `git cli-git convert-worktree-to-subvolume`: the worktrees to cover and the report.
+/// `git monochromatic-git-policy-cli convert-worktree-to-subvolume`: the worktrees to cover and the report.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_command;
 

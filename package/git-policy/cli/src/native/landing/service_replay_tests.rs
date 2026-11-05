@@ -176,12 +176,12 @@ fn the_conflict_text_names_what_the_person_needs_and_leaks_no_internal_term() {
         landed: Some(LandedFirst { short: String::from("3f2a1c9"), subject: String::from("Add the thing") }),
         git_dir: PathBuf::from("/work/repo/.git"),
     };
-    let saved: PathBuf = PathBuf::from("/work/repo/.git/cli-git-saved-message-ab12");
+    let saved: PathBuf = PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12");
     let text: String = conflict_text(&conflict, Some(saved.as_path()));
-    for fact in ["a/one.txt", "two.txt", "3f2a1c9", "Add the thing", "/work/repo/.git/cli-git-saved-message-ab12", NOTHING_CHANGED] {
+    for fact in ["a/one.txt", "two.txt", "3f2a1c9", "Add the thing", "/work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12", NOTHING_CHANGED] {
         assert!(text.contains(fact), "{fact} missing: {text}");
     }
-    assert!(text.contains("`git commit -F /work/repo/.git/cli-git-saved-message-ab12`") && text.contains("`git show 3f2a1c9`"), "{text}");
+    assert!(text.contains("`git commit -F /work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12`") && text.contains("`git show 3f2a1c9`"), "{text}");
     let unknown: String = conflict_text(&ReplayConflict { landed: None, ..conflict }, None);
     for shown in [text, unknown] {
         let plain: String = shown.split('`').enumerate().filter(|(at, _)| { return at % 2 == 0; }).map(|(_, part)| { return part; }).collect::<Vec<&str>>().join(" ").to_lowercase();

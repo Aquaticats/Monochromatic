@@ -1,5 +1,12 @@
 # Every wait of the git wrapper has a bound
 
+Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is now `monochromatic-git-policy-cli`,
+the command word `git cli-git` is now `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` is now `monochromatic-git-policy-cli.config.jsonc`,
+and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+This record keeps the names of its time.
+
 This is the inventory the new owner rule asks for, with the bound proposed for each wait and what happens at the bound.
 It was written on `fix/git-policy-cli-every-wait-has-a-bound` from the 0.5.28 base (`14c26dbcc9`) on 2026-11-03.
 Paths are relative to `package/git-policy/cli`.

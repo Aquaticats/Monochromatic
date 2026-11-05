@@ -1,5 +1,5 @@
 //! What:
-//!  The one failure type for rejected `cli-git.config.jsonc` content or files.
+//!  The one failure type for rejected `monochromatic-git-policy-cli.config.jsonc` content or files.
 //! Why:
 //!  Callers render a single configuration diagnostic without parsing message text.
 //!

@@ -1,5 +1,5 @@
 //! What:
-//!  `git cli-git` controls through the built executable.
+//!  `git monochromatic-git-policy-cli` controls through the built executable.
 //! Why:
 //!  The management namespace belongs to the wrapper:
 //!  help and retired commands
@@ -10,7 +10,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // expect(run(wrappedGit, ['cli-git', '--help'])).toMatchObject({ status: 0, stdout: HELP });
+//! // expect(run(wrappedGit, ['monochromatic-git-policy-cli', '--help'])).toMatchObject({ status: 0, stdout: HELP });
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
@@ -22,7 +22,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 /// The only configuration file the native wrapper reads.
-const CONFIG_FILE_NAME: &str = "cli-git.config.jsonc";
+const CONFIG_FILE_NAME: &str = "monochromatic-git-policy-cli.config.jsonc";
 
 /// Run `git <arguments>` through the wrapper in a directory.
 fn run(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Observed {
@@ -51,8 +51,8 @@ fn help_needs_neither_git_nor_a_repository() {
     let fixture: Fixture = fixture("management-help");
     let only_wrapper: OsString = fixture.root.join("bin").into_os_string();
     for arguments in [
-        vec!["cli-git", "--help"],
-        vec!["-C", "/nonexistent", "cli-git", "-h"],
+        vec!["monochromatic-git-policy-cli", "--help"],
+        vec!["-C", "/nonexistent", "monochromatic-git-policy-cli", "-h"],
     ] {
         let observed: Observed = observe(
             bounded(
@@ -67,7 +67,7 @@ fn help_needs_neither_git_nor_a_repository() {
         assert_eq!(observed.stderr, Vec::<u8>::new(), "{arguments:?}");
         let help: String = stdout_text(&observed);
         assert!(
-            help.starts_with("Usage: git cli-git <command> [options]\n"),
+            help.starts_with("Usage: git monochromatic-git-policy-cli <command> [options]\n"),
             "{help}"
         );
         assert!(
@@ -93,20 +93,20 @@ fn malformed_invocations_exit_two() {
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     for (arguments, message) in [
         (
-            vec!["cli-git", "check"],
-            "git cli-git check requires exactly one scope: --all or non-empty pathspecs after --.\n",
+            vec!["monochromatic-git-policy-cli", "check"],
+            "git monochromatic-git-policy-cli check requires exactly one scope: --all or non-empty pathspecs after --.\n",
         ),
         (
-            vec!["cli-git", "check", "--all", "--", "a.txt"],
-            "git cli-git check requires exactly one scope: --all or non-empty pathspecs after --.\n",
+            vec!["monochromatic-git-policy-cli", "check", "--all", "--", "a.txt"],
+            "git monochromatic-git-policy-cli check requires exactly one scope: --all or non-empty pathspecs after --.\n",
         ),
         (
-            vec!["cli-git", "check", "a.txt"],
-            "git cli-git check pathspecs must follow --.\n",
+            vec!["monochromatic-git-policy-cli", "check", "a.txt"],
+            "git monochromatic-git-policy-cli check pathspecs must follow --.\n",
         ),
         (
-            vec!["cli-git", "fix", "a.txt", "--all"],
-            "git cli-git fix pathspecs must follow --.\n",
+            vec!["monochromatic-git-policy-cli", "fix", "a.txt", "--all"],
+            "git monochromatic-git-policy-cli fix pathspecs must follow --.\n",
         ),
     ] {
         assert_eq!(
@@ -120,18 +120,18 @@ fn malformed_invocations_exit_two() {
         );
     }
     for arguments in [
-        vec!["cli-git"],
-        vec!["cli-git", "unknown"],
-        vec!["cli-git", "check", "--bogus", "--all"],
-        vec!["cli-git", "check", "--policy"],
-        vec!["cli-git", "--help", "extra"],
+        vec!["monochromatic-git-policy-cli"],
+        vec!["monochromatic-git-policy-cli", "unknown"],
+        vec!["monochromatic-git-policy-cli", "check", "--bogus", "--all"],
+        vec!["monochromatic-git-policy-cli", "check", "--policy"],
+        vec!["monochromatic-git-policy-cli", "--help", "extra"],
     ] {
         let observed: Observed = run(&fixture, repo.as_path(), arguments.as_slice());
         assert_eq!(observed.code, Some(2), "{arguments:?}");
         assert_eq!(observed.stdout, Vec::<u8>::new(), "{arguments:?}");
         assert!(
             stderr_text(&observed).starts_with(
-                "Usage: git cli-git check (--all | -- <pathspec>...) [--policy <id>]...\n"
+                "Usage: git monochromatic-git-policy-cli check (--all | -- <pathspec>...) [--policy <id>]...\n"
             ),
             "{arguments:?}"
         );
@@ -149,10 +149,10 @@ fn retired_trust_commands_explain_and_change_nothing() {
     // A legacy executable configuration that would fail loudly if anything ran it.
     std::fs::write(repo.join("cli-git.config.mjs"), "process.exit(97);\n").expect("legacy");
     for (arguments, name) in [
-        (vec!["cli-git", "trust"], "trust"),
-        (vec!["cli-git", "trust", "--yes"], "trust"),
-        (vec!["cli-git", "untrust"], "untrust"),
-        (vec!["cli-git", "status"], "status"),
+        (vec!["monochromatic-git-policy-cli", "trust"], "trust"),
+        (vec!["monochromatic-git-policy-cli", "trust", "--yes"], "trust"),
+        (vec!["monochromatic-git-policy-cli", "untrust"], "untrust"),
+        (vec!["monochromatic-git-policy-cli", "status"], "status"),
     ] {
         let observed: Observed = run(&fixture, repo.as_path(), arguments.as_slice());
         assert_eq!(
@@ -161,7 +161,7 @@ fn retired_trust_commands_explain_and_change_nothing() {
                 code: Some(0),
                 stdout: Vec::<u8>::new(),
                 stderr: format!(
-                    "git cli-git {name} is retired. cli-git now reads cli-git.config.jsonc as \
+                    "git monochromatic-git-policy-cli {name} is retired. monochromatic-git-policy-cli now reads monochromatic-git-policy-cli.config.jsonc as \
                      data and runs no repository-supplied code, so there is no code execution to \
                      approve, revoke or report. Nothing was changed; existing trust records are \
                      left in place and are no longer read.\n"
@@ -171,10 +171,10 @@ fn retired_trust_commands_explain_and_change_nothing() {
             "{arguments:?}"
         );
     }
-    let help: Observed = run(&fixture, repo.as_path(), &["cli-git", "trust", "--help"]);
+    let help: Observed = run(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "trust", "--help"]);
     assert_eq!(help.code, Some(0));
     assert_eq!(help.stderr, Vec::<u8>::new());
-    assert!(stdout_text(&help).starts_with("git cli-git trust is retired."));
+    assert!(stdout_text(&help).starts_with("git monochromatic-git-policy-cli trust is retired."));
     // The fixture home, where a trust registry would live, is still empty.
     assert_eq!(
         std::fs::read_dir(fixture.root.join("home"))
@@ -208,11 +208,11 @@ fn direct_commands_validate_run_ported_policies_and_refuse_the_rest() {
     // reads the selected worktree file and reports it on standard output.
     let repo_text: String = repo.to_string_lossy().into_owned();
     for arguments in [
-        vec!["-C", repo_text.as_str(), "cli-git", "check", "--all"],
+        vec!["-C", repo_text.as_str(), "monochromatic-git-policy-cli", "check", "--all"],
         vec![
             "-C",
             repo_text.as_str(),
-            "cli-git",
+            "monochromatic-git-policy-cli",
             "check",
             "--policy",
             "final-newline",
@@ -235,7 +235,7 @@ fn direct_commands_validate_run_ported_policies_and_refuse_the_rest() {
         run(
             &fixture,
             repo.as_path(),
-            &["cli-git", "check", "--all", "--policy", "require-root"]
+            &["monochromatic-git-policy-cli", "check", "--all", "--policy", "require-root"]
         ),
         Observed {
             code: Some(0),
@@ -244,14 +244,14 @@ fn direct_commands_validate_run_ported_policies_and_refuse_the_rest() {
         }
     );
     let finding: String = format!(
-        "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"finding\",\"trigger\":\"direct-check\",\"policyId\":\"require-root\",\"severity\":\"error\",\"code\":\"require-root/not-at-root\",\"message\":\"cli-git: not at the root of the git repository. Repo root is {root} but effective cwd is {root}/nested. This rule exists because agents and humans frequently forget which directory they are in. Tip: cd to {root} or pass -C {root} before the subcommand.\",\"fix\":\"none\"}}\n",
+        "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"finding\",\"trigger\":\"direct-check\",\"policyId\":\"require-root\",\"severity\":\"error\",\"code\":\"require-root/not-at-root\",\"message\":\"monochromatic-git-policy-cli: not at the root of the git repository. Repo root is {root} but effective cwd is {root}/nested. This rule exists because agents and humans frequently forget which directory they are in. Tip: cd to {root} or pass -C {root} before the subcommand.\",\"fix\":\"none\"}}\n",
         root = repo.display()
     );
     assert_eq!(
         run(
             &fixture,
             nested.as_path(),
-            &["cli-git", "check", "--all", "--policy", "require-root"]
+            &["monochromatic-git-policy-cli", "check", "--all", "--policy", "require-root"]
         ),
         Observed {
             code: Some(1),
@@ -262,7 +262,7 @@ fn direct_commands_validate_run_ported_policies_and_refuse_the_rest() {
     // The first error stops the pass; keep-going written before the namespace reaches the
     // content policy, which reports after the finding.
     assert_eq!(
-        run(&fixture, nested.as_path(), &["cli-git", "check", "--all"]),
+        run(&fixture, nested.as_path(), &["monochromatic-git-policy-cli", "check", "--all"]),
         Observed {
             code: Some(1),
             stdout: finding.clone().into_bytes(),
@@ -273,7 +273,7 @@ fn direct_commands_validate_run_ported_policies_and_refuse_the_rest() {
         run(
             &fixture,
             nested.as_path(),
-            &["--cli-git-keep-going", "cli-git", "check", "--all"]
+            &["--cli-git-keep-going", "monochromatic-git-policy-cli", "check", "--all"]
         ),
         Observed {
             code: Some(1),
@@ -288,7 +288,7 @@ fn direct_commands_validate_run_ported_policies_and_refuse_the_rest() {
             nested.as_path(),
             &[
                 "--no-enforce-require-root",
-                "cli-git",
+                "monochromatic-git-policy-cli",
                 "check",
                 "--all",
                 "--policy",
@@ -305,7 +305,7 @@ fn direct_commands_validate_run_ported_policies_and_refuse_the_rest() {
     let refused: Observed = run(
         &fixture,
         repo.as_path(),
-        &["cli-git", "fix", "--all", "--policy", "require-root"],
+        &["monochromatic-git-policy-cli", "fix", "--all", "--policy", "require-root"],
     );
     let refusal: String = String::from_utf8_lossy(refused.stdout.as_slice()).into_owned();
     assert_eq!((refused.code, refused.stderr.as_slice()), (Some(2), &b""[..]), "{refusal}");
@@ -313,7 +313,7 @@ fn direct_commands_validate_run_ported_policies_and_refuse_the_rest() {
     // The content policy corrects the worktree file and reports only the summary.
     let index_before: Vec<u8> = std::fs::read(repo.join(".git/index")).expect("index");
     assert_eq!(
-        run(&fixture, repo.as_path(), &["cli-git", "fix", "--all"]),
+        run(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "fix", "--all"]),
         Observed {
             code: Some(0),
             stdout: b"{\"schemaVersion\":1,\"sequence\":0,\"type\":\"fix-summary\",\"trigger\":\"direct-fix\",\"passes\":1,\"changedPaths\":[\"file.txt\"]}\n".to_vec(),
@@ -334,7 +334,7 @@ fn direct_commands_validate_run_ported_policies_and_refuse_the_rest() {
     let unknown: Observed = run(
         &fixture,
         repo.as_path(),
-        &["cli-git", "check", "--all", "--policy", "no-such-policy"],
+        &["monochromatic-git-policy-cli", "check", "--all", "--policy", "no-such-policy"],
     );
     assert_eq!(unknown.code, Some(2));
     assert_eq!(unknown.stderr, Vec::<u8>::new());
@@ -349,7 +349,7 @@ fn direct_commands_validate_run_ported_policies_and_refuse_the_rest() {
     // Invalid repository configuration: the same event shape, naming the file and key.
     let source: PathBuf = repo.join(CONFIG_FILE_NAME);
     std::fs::write(&source, r#"{ "plugins": {} }"#).expect("invalid config");
-    let invalid: Observed = run(&fixture, repo.as_path(), &["cli-git", "fix", "--all"]);
+    let invalid: Observed = run(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "fix", "--all"]);
     assert_eq!(invalid.code, Some(2));
     assert_eq!(invalid.stderr, Vec::<u8>::new());
     assert!(
@@ -369,7 +369,7 @@ fn direct_commands_validate_run_ported_policies_and_refuse_the_rest() {
     let beside_live: Observed = run(
         &fixture,
         repo.as_path(),
-        &["cli-git", "check", "--all", "--policy", "require-root"],
+        &["monochromatic-git-policy-cli", "check", "--all", "--policy", "require-root"],
     );
     assert_eq!(beside_live.code, Some(0), "{}", String::from_utf8_lossy(&beside_live.stderr).into_owned());
     assert!(
@@ -391,23 +391,23 @@ fn direct_commands_validate_run_ported_policies_and_refuse_the_rest() {
 fn namespace_word_elsewhere_is_an_ordinary_argument() {
     let fixture: Fixture = fixture("management-word");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    std::fs::write(repo.join("cli-git"), b"a file named like the namespace\n").expect("file");
+    std::fs::write(repo.join("monochromatic-git-policy-cli"), b"a file named like the namespace\n").expect("file");
     // An inspection command naming the file is forwarded to Git unchanged.
     let listed: Observed = run(
         &fixture,
         repo.as_path(),
-        &["ls-files", "--others", "--", "cli-git"],
+        &["ls-files", "--others", "--", "monochromatic-git-policy-cli"],
     );
     assert_eq!(
         listed,
         Observed {
             code: Some(0),
-            stdout: b"cli-git\n".to_vec(),
+            stdout: b"monochromatic-git-policy-cli\n".to_vec(),
             stderr: Vec::<u8>::new(),
         }
     );
-    // `git add cli-git` is an `add`: its content is checked and Git stages the file.
-    let add: Observed = run(&fixture, repo.as_path(), &["add", "cli-git"]);
+    // `git add monochromatic-git-policy-cli` is an `add`: its content is checked and Git stages the file.
+    let add: Observed = run(&fixture, repo.as_path(), &["add", "monochromatic-git-policy-cli"]);
     assert_eq!(
         add,
         Observed {
@@ -416,19 +416,19 @@ fn namespace_word_elsewhere_is_an_ordinary_argument() {
             stderr: Vec::<u8>::new(),
         }
     );
-    let staged: Observed = run(&fixture, repo.as_path(), &["ls-files", "--", "cli-git"]);
-    assert_eq!(staged.stdout, b"cli-git\n".to_vec());
+    let staged: Observed = run(&fixture, repo.as_path(), &["ls-files", "--", "monochromatic-git-policy-cli"]);
+    assert_eq!(staged.stdout, b"monochromatic-git-policy-cli\n".to_vec());
     remove(&fixture);
 }
 
-/// `git cli-git doctor` lists the traditional hooks of the default and the configured hooks directory, one path per
+/// `git monochromatic-git-policy-cli doctor` lists the traditional hooks of the default and the configured hooks directory, one path per
 ///  line, and exits 1 when it finds any and 0 when it finds none; samples are ignored.
 #[test]
 fn doctor_lists_traditional_hooks_and_exits_by_what_it_finds() {
     let fixture: Fixture = fixture("management-doctor");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     super::support::executable(repo.join(".git/hooks/pre-commit.sample").as_path(), b"#!/bin/sh\n");
-    let clean: Observed = run(&fixture, repo.as_path(), &["cli-git", "doctor"]);
+    let clean: Observed = run(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "doctor"]);
     assert_eq!(clean.code, Some(0), "{}", stderr_text(&clean));
     assert_eq!(stdout_text(&clean), "");
     assert_eq!(
@@ -440,14 +440,14 @@ fn doctor_lists_traditional_hooks_and_exits_by_what_it_finds() {
     std::fs::create_dir(repo.join("custom")).expect("custom hooks");
     super::support::executable(repo.join("custom/pre-commit").as_path(), b"#!/bin/sh\n");
     super::support::git(&fixture, repo.as_path(), &["config", "core.hooksPath", "custom"]);
-    let found: Observed = run(&fixture, repo.as_path(), &["cli-git", "doctor"]);
+    let found: Observed = run(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "doctor"]);
     assert_eq!(found.code, Some(1), "{}", stderr_text(&found));
     assert_eq!(
         stdout_text(&found),
         format!("{}\n{}\n", repo.join(".git/hooks/commit-msg").display(), repo.join("custom/pre-commit").display())
     );
-    assert!(stderr_text(&found).contains("never run through cli-git"), "{}", stderr_text(&found));
-    let refused: Observed = run(&fixture, repo.as_path(), &["cli-git", "doctor", "--all"]);
+    assert!(stderr_text(&found).contains("never run through monochromatic-git-policy-cli"), "{}", stderr_text(&found));
+    let refused: Observed = run(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "doctor", "--all"]);
     assert_eq!(refused.code, Some(2), "{}", stderr_text(&refused));
     remove(&fixture);
 }

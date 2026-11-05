@@ -101,7 +101,7 @@ fn preflight_refuses_differing_entries_without_overwriting() {
     assert_eq!(
         failure.0,
         format!(
-            "cli-git: ignored-state copy would overwrite differing destination entry \"cache/top\" in {}.",
+            "monochromatic-git-policy-cli: ignored-state copy would overwrite differing destination entry \"cache/top\" in {}.",
             quote(destination.to_string_lossy().as_ref())
         )
     );
@@ -280,7 +280,7 @@ fn failed_installation_rolls_back_its_own_paths() {
     assert_eq!(
         failure.0,
         format!(
-            "cli-git: ignored-state installation failed for {}. Cause: recorder refused the batch",
+            "monochromatic-git-policy-cli: ignored-state installation failed for {}. Cause: recorder refused the batch",
             quote(destination.to_string_lossy().as_ref())
         )
     );
@@ -317,7 +317,7 @@ fn retained_paths_are_named_in_the_failure() {
     assert_eq!(
         failure.0,
         format!(
-            "cli-git: ignored-state installation failed for {}. Rollback retained: \"cache/top: filesystem identity changed\", \"cache: Directory not empty (os error 39)\". Cause: recorder refused the batch",
+            "monochromatic-git-policy-cli: ignored-state installation failed for {}. Rollback retained: \"cache/top: filesystem identity changed\", \"cache: Directory not empty (os error 39)\". Cause: recorder refused the batch",
             quote(destination.to_string_lossy().as_ref())
         )
     );

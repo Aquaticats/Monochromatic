@@ -1,5 +1,5 @@
 //! What:
-//!  The resident commit service as a mode of the one executable: `cli-git-native cli-git service run <options>`.
+//!  The resident commit service as a mode of the one executable: `monochromatic-git-policy-cli monochromatic-git-policy-cli service run <options>`.
 //! Why:
 //!  The release ships one program (owner, 2026-11-04: "Bazel doesn't need to distribute as 2 bins."), so the service is a mode
 //!  of the wrapper's executable and not a second one. The operating system starts it on demand and hands it the listening
@@ -14,10 +14,12 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! if (argv.slice(0, 3).join(' ') === 'cli-git service run') process.exit(await runService(argv.slice(3)));
+//! if (argv.slice(0, 3).join(' ') === 'monochromatic-git-policy-cli service run') process.exit(await runService(argv.slice(3)));
 //! ```
 
 use crate::service_journal::{DONE_RETAINED, prune_done};
+use crate::wrapper_names_old_and_new::COMMAND_WORD;
+use crate::earlier_service_journal_adopted::adopt_open_batches;
 use crate::service_land::{LandContext, recover_instance};
 use crate::service_protocol::PROTOCOL_VERSION;
 use crate::service_timing::{log, started_line};
@@ -27,9 +29,13 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// The words, first in the arguments, that select the service mode. They sit inside the wrapper's own `cli-git` namespace, and
+/// The words, first in the arguments, that select the service mode. They sit inside the wrapper's own `monochromatic-git-policy-cli` namespace, and
 ///  `run` is a third word apart from `status`, which asks a running service whether it answers.
-pub const SERVICE_WORDS: [&str; 3] = ["cli-git", "service", "run"];
+pub const SERVICE_WORDS: [&str; 3] = [COMMAND_WORD.current, "service", "run"];
+
+/// The words a unit file an earlier release wrote passes;
+///  the service mode answers them the same.
+pub const EARLIER_SERVICE_WORDS: [&str; 3] = [COMMAND_WORD.earlier, "service", "run"];
 
 /// The exit status of a start that was refused for its arguments or its Git.
 pub const EXIT_REFUSED: i32 = 2;
@@ -45,11 +51,11 @@ pub const EXIT_NOT_LISTENING: i32 = 3;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// isServiceStart(args) // args[0..3] equal 'cli-git', 'service', 'run'
+/// isServiceStart(args) // args[0..3] equal 'monochromatic-git-policy-cli', 'service', 'run'
 /// ```
 pub fn is_service_start(arguments: &[OsString]) -> bool {
     return arguments.len() >= SERVICE_WORDS.len()
-        && starts_with_service_words(arguments);
+        && (starts_with_service_words(arguments, &SERVICE_WORDS) || starts_with_service_words(arguments, &EARLIER_SERVICE_WORDS));
 }
 
 /// The words of the arguments after the service mode words, as text; a word that is not text is refused.
@@ -74,9 +80,9 @@ pub fn service_options(arguments: &[OsString]) -> Result<Vec<String>, OsString> 
 /// ```ts
 /// SERVICE_WORDS.every((word, at) => arguments[at] === word)
 /// ```
-fn starts_with_service_words(arguments: &[OsString]) -> bool {
-    for (argument, word) in arguments.iter().zip(SERVICE_WORDS) {
-        if argument != word {
+fn starts_with_service_words(arguments: &[OsString], words: &[&str; 3]) -> bool {
+    for (argument, word) in arguments.iter().zip(words) {
+        if argument != *word {
             return false;
         }
     }
@@ -151,11 +157,11 @@ pub fn run(arguments: &[String]) -> i32 {
         (None, Some(path)) => Bind::Path(PathBuf::from(path)),
         (None, None) => Bind::Inherited,
     };
-    // A person who typed `git cli-git service run` has no socket from the manager and named no address: the refusal comes before
+    // A person who typed `git monochromatic-git-policy-cli service run` has no socket from the manager and named no address: the refusal comes before
     //  anything is read, created or bound, so no stray server and no stray directory is left.
     if matches!(address, Bind::Inherited) && !crate::service_server::socket_passed_in() {
         crate::service_error!(
-            "cli-git service run is started by the service manager, which passes it the listening socket of one worktree's commit service; no socket was passed in and no address was named, so nothing was started. Nothing needs starting by hand: the first commit in a worktree sets the service up. For a development run name an address with --path <socket> or --abstract <name>"
+            "monochromatic-git-policy-cli service run is started by the service manager, which passes it the listening socket of one worktree's commit service; no socket was passed in and no address was named, so nothing was started. Nothing needs starting by hand: the first commit in a worktree sets the service up. For a development run name an address with --path <socket> or --abstract <name>"
         );
         return EXIT_NOT_LISTENING;
     }
@@ -169,7 +175,7 @@ pub fn run(arguments: &[String]) -> i32 {
     };
     if git_is_wrapper(git.as_path()) {
         crate::service_error!(
-            "--git {} is the cli-git executable itself, a copy of it or a toolchain launcher of it, so every Git the service started would start cli-git again; pass the real Git executable (for example /usr/bin/git), or remove the unit that names this path and let the next cli-git command write it again",
+            "--git {} is the monochromatic-git-policy-cli executable itself, a copy of it or a toolchain launcher of it, so every Git the service started would start monochromatic-git-policy-cli again; pass the real Git executable (for example /usr/bin/git), or remove the unit that names this path and let the next monochromatic-git-policy-cli command write it again",
             git.display()
         );
         return EXIT_REFUSED;
@@ -210,6 +216,9 @@ pub fn run(arguments: &[String]) -> i32 {
         let _reports = recover_instance(&earlier, instance);
         // Nothing reads that journal's finished batches any more; the newest are kept and the rest go, so it stops growing.
         let _pruned = prune_done(shared, DONE_RETAINED);
+        // The unit of this release keeps the journal in a state folder named after the renamed program: the batches the earlier
+        //  helper of this worktree left open in its own folder are finished here too, when no service of the worktree runs.
+        let _adopted = adopt_open_batches(&context, instance, std::path::Path::new("/proc"));
     }
     crate::service_log!("ready");
     serve(listener, &context, &settings);

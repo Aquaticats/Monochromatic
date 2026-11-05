@@ -108,7 +108,7 @@ fn the_warning_names_the_hooks_and_the_ways_forward() {
     let line: String = external_hooks_warning(Some(&snapshot)).expect("warning");
     assert!(line.ends_with('\n') && line.matches('\n').count() == 1, "one line: {line:?}");
     assert!(line.contains("\"type\":\"configuration-warning\"") && line.contains(EXTERNAL_HOOKS_UNSUPPORTED_CODE), "{line}");
-    for expected in ["hook.review (events: post-commit)", "hook.lint (events: pre-commit)", "--unset-all", "runs no program named by any configuration", "policies", "git cli-git doctor"] {
+    for expected in ["hook.review (events: post-commit)", "hook.lint (events: pre-commit)", "--unset-all", "runs no program named by any configuration", "policies", "git monochromatic-git-policy-cli doctor"] {
         assert!(line.contains(expected), "{expected} in {line}");
     }
 }

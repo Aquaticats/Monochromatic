@@ -1,7 +1,7 @@
 //! What:
 //!  The two candidate sources that need a private index:
 //!  what `git add` would stage,
-//!       and the worktree files a direct `git cli-git check` or `fix` selects.
+//!       and the worktree files a direct `git monochromatic-git-policy-cli check` or `fix` selects.
 //! Why:
 //!  Both are answered before Git touches the real index.
 //!  `git add` is replayed on a
@@ -231,7 +231,7 @@ fn baseline_records(
             let Some(pathspec) = literal_pathspec(path.path.as_slice()) else {
                 return Err(CandidateError::new(
                     CandidateFailure::ListingMalformed,
-                    "cli-git could not predict what git add stages: Git listed an entry whose \
+                    "monochromatic-git-policy-cli could not predict what git add stages: Git listed an entry whose \
                      name is not a path on this platform.",
                 ));
             };

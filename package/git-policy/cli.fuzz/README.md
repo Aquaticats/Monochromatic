@@ -1,6 +1,6 @@
 # git-policy-cli-fuzz
 
-Coverage-guided checks for the native cli-git wrapper's pure boundaries.
+Coverage-guided checks for the native monochromatic-git-policy-cli wrapper's pure boundaries.
 The subject is `package/git-policy/cli/src/native`;
 nothing here starts Git or touches a repository.
 
@@ -31,7 +31,7 @@ and that any `branch` or `tag` invocation gaining a mutating flag in first posit
 
 ### `config_schema`
 
-Builds a valid `cli-git.config.jsonc` document from every input together with the settings it must parse to,
+Builds a valid `monochromatic-git-policy-cli.config.jsonc` document from every input together with the settings it must parse to,
 and compares the schema's result with that expectation.
 For `security/forbidden-strings` the generator also writes `rulesFile` as a string or as an array of strings and
 `{"path", "optional"}` objects,
@@ -130,7 +130,7 @@ with only ordinary components.
 ### `final_newline`
 
 Runs `normalized_final_newline`,
-the `final-newline` rule that also decides what `git cli-git fix` writes,
+the `final-newline` rule that also decides what `git monochromatic-git-policy-cli fix` writes,
 over raw bytes and over text built with a chosen number of trailing line feeds.
 A file is left alone only when it is empty,
 holds NUL,

@@ -8,9 +8,10 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await appendFile(join(commonDir, 'cli-git-audit.jsonl'), JSON.stringify(entry) + '\n');
+//! await appendFile(join(commonDir, 'monochromatic-git-policy-cli-audit.jsonl'), JSON.stringify(entry) + '\n');
 //! ```
 
+use crate::wrapper_names_old_and_new::DISCARD_AUDIT_LOG;
 use crate::diagnostic_log::debug;
 use generations::{Retention, install_generation, retention_of, trim_generations};
 use crate::iso_time::format_iso_milliseconds;
@@ -23,14 +24,14 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// The file inside the common Git directory that collects the lines of every worktree of the repository.
-pub const AUDIT_FILE: &str = "cli-git-audit.jsonl";
+pub const AUDIT_FILE: &str = DISCARD_AUDIT_LOG.current;
 
 /// The size at which a log file moves aside.
 ///
-/// Measured on this host (read-only, 2026-11-03T14:55Z): `cli-git-audit.jsonl` of the main repository held 322,900 bytes in
+/// Measured on this host (read-only, 2026-11-03T14:55Z): `monochromatic-git-policy-cli-audit.jsonl` of the main repository held 322,900 bytes in
 /// 950 lines from 2026-10-21T00:35:32Z to 2026-11-03T14:15:51Z, about 23 KB a day with a daily range of 1,074 to 71,328
 /// bytes, so one mebibyte is about 45 days of audit lines at the mean rate and about 15 days at the busiest measured day.
-/// `cli-git-commit-timing.jsonl` held 760,605 bytes in 1,040 lines from 2026-11-02T09:01:37Z to 2026-11-03T14:55:02Z, so it
+/// `monochromatic-git-policy-cli-commit-timing.jsonl` held 760,605 bytes in 1,040 lines from 2026-11-02T09:01:37Z to 2026-11-03T14:55:02Z, so it
 /// reaches one mebibyte in about two days. The commands and the window are in
 /// `doc/planning/cli-git-shipped-limits-audit.md`, "Audit log rotation, 1 MiB and one generation".
 const ROTATE_AT_BYTES: u64 = 1024 * 1024;

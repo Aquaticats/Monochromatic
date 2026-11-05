@@ -16,7 +16,8 @@
 
 use crate::process_use::{UseTarget, processes_using};
 use crate::subvolume_error::{Interrupt, MigrateError};
-use crate::subvolume_index_files::{IndexLock, linked_worktrees_inside, refresh_all_indexes};
+use crate::subvolume_index_files::{IndexLock, linked_worktrees_inside};
+use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
 use crate::subvolume_lock::{acquire, lock_paths, release_all, token_of};
 use crate::subvolume_platform::Platform;
 use crate::subvolume_preflight::{Layout, Refusal, layout_of, migrate_refusals};
@@ -82,7 +83,7 @@ fn announce(run: &mut Run<'_>, options: MigrateOptions) {
     let root: PathBuf = run.layout.root.clone();
     let removal: bool = run.platform.removal_allowed(root.as_path());
     run.line(format!("checkout {}; new subvolume {}; old tree will be {}", root.display(), run.layout.new_path.display(), run.layout.old_path.display()).as_str());
-    run.line(format!("user_subvol_rm_allowed: {}", if removal { "active" } else { "absent (a subvolume is then removed by emptying it and rmdir; see git cli-git doctor)" }).as_str());
+    run.line(format!("user_subvol_rm_allowed: {}", if removal { "active" } else { "absent (a subvolume is then removed by emptying it and rmdir; see git monochromatic-git-policy-cli doctor)" }).as_str());
     let real: PathBuf = std::fs::canonicalize(root.as_path()).unwrap_or(root);
     let scan = processes_using(&UseTarget::Inside(real.as_path()));
     if scan.users.is_empty() {
@@ -234,10 +235,8 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
     if options.refresh_indexes && !run.journal.is_done("indexes") {
         let started: Instant = Instant::now();
         let mut lines: Vec<String> = Vec::new();
-        // The refresh reports each index through a callback that carries the list the lines are collected in.
-        #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the refresh's say parameter is a state-carrying dyn FnMut that tests and other folders also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-        let mut collect_line = |text: &str| { lines.push(text.to_string()); };
-        let count: usize = refresh_all_indexes(root.as_path(), IndexLock::Held(token.as_str()), std::slice::from_ref(&old_path), &mut collect_line);
+        // The refresh reports each index into the list the lines are collected in.
+        let count: usize = refresh_all_indexes(root.as_path(), IndexLock::Held(token.as_str()), std::slice::from_ref(&old_path), &mut lines);
         for text in &lines {
             run.line(text.as_str());
         }
@@ -269,7 +268,7 @@ fn closing(run: &mut Run<'_>) {
     let layout: &Layout = run.layout;
     let (root, old_path) = (layout.root.display().to_string(), layout.old_path.display().to_string());
     run.line(format!("{root} is now a btrfs subvolume (root inode 256).").as_str());
-    run.line(format!("The original tree is kept at {old_path}. Check the result with `git status` and `git fsck`, then delete it with `git cli-git migrate-to-subvolume --remove-old` (or undo everything with `--rollback`).").as_str());
+    run.line(format!("The original tree is kept at {old_path}. Check the result with `git status` and `git fsck`, then delete it with `git monochromatic-git-policy-cli migrate-to-subvolume --remove-old` (or undo everything with `--rollback`).").as_str());
     run.line("Shells, editors and agent sessions that had their working directory inside the checkout still use the old tree; restart them, or run `cd \"$PWD\"` in a shell.");
     if !run.unreadable.is_empty() {
         let count: usize = run.unreadable.len();
@@ -303,7 +302,7 @@ pub fn migrate(
     if is_subvolume(platform, root) && (run.journal.is_done("verify") || !run.journal.is_persisted()) {
         run.line(format!("{} is already a btrfs subvolume; nothing to do.", root.display()).as_str());
         if run.journal.is_done("verify") && layout.old_path.exists() {
-            run.line(format!("The original tree is still at {}; delete it with `git cli-git migrate-to-subvolume --remove-old`.", layout.old_path.display()).as_str());
+            run.line(format!("The original tree is still at {}; delete it with `git monochromatic-git-policy-cli migrate-to-subvolume --remove-old`.", layout.old_path.display()).as_str());
         }
         return Ok(Verdict::AlreadyDone);
     }

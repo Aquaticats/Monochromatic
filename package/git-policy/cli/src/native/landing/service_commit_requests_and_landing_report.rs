@@ -142,7 +142,7 @@ pub(crate) fn report_landing(
         // Terminal output error: a warning is advisory; a failed write must not fail a commit that landed.
         let _warned = writeln!(
             std::io::stderr(),
-            "cli-git: warning: {name} still has conflict markers, and they were committed. To fix it, remove the \
+            "monochromatic-git-policy-cli: warning: {name} still has conflict markers, and they were committed. To fix it, remove the \
              markers from {name} and make a follow-up commit: git commit -m \"<message>\" -- {name}"
         );
     }

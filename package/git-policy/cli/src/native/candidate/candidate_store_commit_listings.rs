@@ -287,7 +287,7 @@ fn added_raw_from_ls_tree(output: &[u8]) -> Result<Vec<u8>, CandidateError> {
         let Some(tab) = record.iter().position(is_tab_byte) else {
             return Err(CandidateError::new(
                 crate::candidate_error::CandidateFailure::ListingMalformed,
-                "cli-git could not list the pushed tree: an entry lacks its path separator.",
+                "monochromatic-git-policy-cli could not list the pushed tree: an entry lacks its path separator.",
             ));
         };
         // The mode, type and object name are ASCII; the path stays the exact bytes Git printed.
@@ -297,7 +297,7 @@ fn added_raw_from_ls_tree(output: &[u8]) -> Result<Vec<u8>, CandidateError> {
         if fields.len() != 3 {
             return Err(CandidateError::new(
                 crate::candidate_error::CandidateFailure::ListingMalformed,
-                "cli-git could not list the pushed tree: an entry lacks its mode, type or object name.",
+                "monochromatic-git-policy-cli could not list the pushed tree: an entry lacks its mode, type or object name.",
             ));
         }
         if fields[1] != "blob" {

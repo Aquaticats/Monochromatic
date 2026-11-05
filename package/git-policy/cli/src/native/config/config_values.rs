@@ -115,7 +115,7 @@ pub(crate) fn kind_name(value: &JsoncValue) -> &'static str {
 ///  Build the failure for a value of the wrong JSON type at a named key.
 /// Why:
 ///   Null gets its own wording:
-///  it is valid JSON but never a cli-git setting,
+///  it is valid JSON but never a monochromatic-git-policy-cli setting,
 ///  and
 ///       the fix (remove the key) differs from a plain type mismatch.
 ///

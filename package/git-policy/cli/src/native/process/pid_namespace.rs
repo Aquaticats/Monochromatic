@@ -132,19 +132,19 @@ impl ExpiredForeignRecord {
     ///  another container or a Git process left running, and the exact `rm`.
     /// Why:
     ///   The person must be able to decide, and the condition for removing the record covers the Git processes the wrapper leaves
-    ///  running (a step that cannot be run twice survives the wrapper that started it), not only a running cli-git command.
+    ///  running (a step that cannot be run twice survives the wrapper that started it), not only a running monochromatic-git-policy-cli command.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// `cli-git: the record ${record} was written by process ${pid} ... rm -- ${quoted(record)}`
+    /// `monochromatic-git-policy-cli: the record ${record} was written by process ${pid} ... rm -- ${quoted(record)}`
     /// ```
     pub fn describe(&self, owner_pid: i64) -> String {
         return format!(
-            "cli-git: the record {record} was written by process {owner_pid} in the PID namespace {namespace}, which is not this one, and it is {minutes} \
-             minutes old, past the {patience} minutes after which cli-git no longer takes such a record for a live owner's. Nothing was \
-             changed. The owner may still be alive in another container, and a Git process that cli-git left running (a write it could not \
+            "monochromatic-git-policy-cli: the record {record} was written by process {owner_pid} in the PID namespace {namespace}, which is not this one, and it is {minutes} \
+             minutes old, past the {patience} minutes after which monochromatic-git-policy-cli no longer takes such a record for a live owner's. Nothing was \
+             changed. The owner may still be alive in another container, and a Git process that monochromatic-git-policy-cli left running (a write it could not \
              safely end, such as a merge, a reset or a branch update) may still be working for it. Look in every container and on this host \
-             that use this repository for a cli-git command and for a Git process cli-git left running (`ps` shows them); when none runs, \
+             that use this repository for a monochromatic-git-policy-cli command and for a Git process monochromatic-git-policy-cli left running (`ps` shows them); when none runs, \
              remove the record with `rm -- {path}` and run the command again.",
             record = self.record.display(),
             namespace = self.namespace,

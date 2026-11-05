@@ -172,7 +172,7 @@ fn the_text_of_a_claim_round_trips() {
     ] {
         assert_eq!(decode(encode(&record).as_str()), Some(record));
     }
-    for text in ["", "cli-git owner-claim v2\nreleased\n", "cli-git owner-claim v1\npid=0\nbirth=x\nnamespace=-\n", "cli-git owner-claim v1\npid=1\nbirth=\nnamespace=-\n"] {
+    for text in ["", "monochromatic-git-policy-cli owner-claim v2\nreleased\n", "monochromatic-git-policy-cli owner-claim v1\npid=0\nbirth=x\nnamespace=-\n", "monochromatic-git-policy-cli owner-claim v1\npid=1\nbirth=\nnamespace=-\n"] {
         assert_eq!(decode(text), None, "{text:?}");
     }
 }

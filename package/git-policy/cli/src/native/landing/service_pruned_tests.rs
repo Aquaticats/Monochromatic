@@ -17,7 +17,7 @@ fn failure(code: EngineFailureCode, message: &str) -> PolicyEvent {
 fn only_a_missing_object_is_removed_content() {
     let missing: String = format!("{OBJECT_MISSING_PREFIX}{NAME}. Run `git fsck` to check the object store.");
     assert!(content_was_removed(&[failure(EngineFailureCode::ContentUnavailable, missing.as_str())]));
-    assert!(!content_was_removed(&[failure(EngineFailureCode::ContentUnavailable, "cli-git could not start Git")]));
+    assert!(!content_was_removed(&[failure(EngineFailureCode::ContentUnavailable, "monochromatic-git-policy-cli could not start Git")]));
     assert!(!content_was_removed(&[failure(EngineFailureCode::PolicyIncomplete, missing.as_str())]));
     assert!(!content_was_removed(&[]));
 }

@@ -24,7 +24,7 @@ use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 use std::path::{Path, PathBuf};
 
 /// What:
-///  The permission bits of a directory cli-git creates for a selected entry, before modes are applied.
+///  The permission bits of a directory monochromatic-git-policy-cli creates for a selected entry, before modes are applied.
 /// Why:
 ///   Restrictive modes can block the children installation still has to create, so modes come last.
 ///
@@ -53,7 +53,7 @@ const LINK_UNSUPPORTED_CODES: [i32; 6] = [
 ];
 
 /// What:
-///  One path cli-git created, with the identity the filesystem gave it.
+///  One path monochromatic-git-policy-cli created, with the identity the filesystem gave it.
 /// Why:
 ///   Rollback removes a path only when its device and inode still match this record.
 ///
@@ -76,7 +76,7 @@ pub struct InstalledPath {
 /// What:
 ///  The no-follow identity of a path, read right after its creation.
 /// Why:
-///   The identity names the exact object cli-git made, not whatever later sits at the same path.
+///   The identity names the exact object monochromatic-git-policy-cli made, not whatever later sits at the same path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,7 +146,7 @@ pub fn ensure_parents_remembering(
             Some(metadata) => {
                 if !metadata.is_dir() {
                     let message: String = format!(
-                        "cli-git: ignored-state parent is not a directory: {} in {}.",
+                        "monochromatic-git-policy-cli: ignored-state parent is not a directory: {} in {}.",
                         quote(current.as_str()),
                         quote(destination_root.to_string_lossy().as_ref())
                     );

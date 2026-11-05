@@ -43,7 +43,7 @@ pub mod worktree_copy_install_entry;
 #[cfg(unix)]
 pub mod worktree_copy_install;
 
-/// Removal of the paths a failed installation created, only where their identity and content still prove them cli-git's own.
+/// Removal of the paths a failed installation created, only where their identity and content still prove them monochromatic-git-policy-cli's own.
 #[cfg(unix)]
 pub mod worktree_copy_rollback;
 

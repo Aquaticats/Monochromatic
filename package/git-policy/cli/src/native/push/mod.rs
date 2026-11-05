@@ -109,6 +109,9 @@ pub mod manual_push_porcelain;
 /// Why a manual push's scope could not be established, as the cause its hint is chosen by.
 pub mod manual_push_cause;
 
+/// Why the probe of a manual push could not establish the updates Git would push, and what Git said when it refused.
+pub mod manual_push_probe_error;
+
 /// The updates a manual `git push` would send, learned from Git's own dry-run report and confirmed against the remote.
 pub mod manual_push_probe;
 
@@ -123,6 +126,9 @@ pub mod start_retry;
 
 /// The manual-push candidate scope of one push: the commits and trees the destination lacks.
 pub mod manual_push_lifecycle;
+
+/// Whether a command's output is read by a program, so that no failure notice is shown to it.
+pub mod push_failure_notice_machine_output;
 
 /// The record of a failed backup push and the rule for when a wrapper command shows it.
 pub mod push_failure_notice;

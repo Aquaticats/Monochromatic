@@ -3,7 +3,7 @@
 //!  and their JSON Lines rendering.
 //! Why:
 //!  Agents and scripts read these lines from wrapper standard error and from
-//!      `git cli-git check|fix` standard output.
+//!      `git monochromatic-git-policy-cli check|fix` standard output.
 //!  Each event is one compact JSON object with
 //!      the incumbent's field names and field order,
 //!  so existing readers parse native

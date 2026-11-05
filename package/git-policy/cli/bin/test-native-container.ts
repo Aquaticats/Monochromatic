@@ -27,6 +27,7 @@ import {
 import { ensureTestBase, } from './native-test-base.ts';
 import { vendorLockedDependencies, } from './native-scanner-snapshot.ts';
 import { testContainerfile, } from './native-test-containerfile.ts';
+import { repositorySettingsFileName, } from './native-test-settings-file.ts';
 import { copySourceSnapshot, } from './native-test-snapshot.ts';
 import {
   NativeVerificationError,
@@ -83,7 +84,7 @@ const testImage = `localhost/git-policy-native-test:${imageTag}`;
  */
 await using context = await mkdtempDisposable(join(
   scratchBase,
-  'cli-git-native-test-',
+  'monochromatic-git-policy-cli-test-',
 ));
 /**
  Directory under the package's `target/` that keeps the evidence of every gate run.
@@ -129,6 +130,7 @@ await writeFile(
   testContainerfile({
     base,
     jobs: parallelJobs(containerLimits),
+    settingsFile: await repositorySettingsFileName(),
   }),
 );
 await runCommand({

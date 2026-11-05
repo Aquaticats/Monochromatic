@@ -6,7 +6,7 @@
 //!  The commit path may not look for them: a directory scan would cost file system calls on every commit.
 //!  It already holds one free signal, the configuration snapshot it read for other purposes, so a configured
 //!  `core.hooksPath` is the only trigger, decided from memory alone.
-//!  Finding the scripts themselves is the job of `git cli-git doctor`.
+//!  Finding the scripts themselves is the job of `git monochromatic-git-policy-cli doctor`.
 //!  The line is a `configuration-warning` event, which never blocks a command.
 //!
 //! In TS you'd write (pseudocode):
@@ -45,13 +45,13 @@ const TAG: &str = "traditionalHookWarning";
 ///  Whether a `core.hooksPath` value is one of the wrapper's own hooks-off values.
 /// Why:
 ///   Every real Git the wrapper starts carries `core.hooksPath=/dev/null/cli-git-no-hooks`, and its shadow commands
-///  carry `<git-common-dir>/cli-git/shadow/<transaction>/no-hooks`; a Git child that reads `GIT_CONFIG_PARAMETERS`
+///  carry `<git-common-dir>/monochromatic-git-policy-cli/shadow/<transaction>/no-hooks`; a Git child that reads `GIT_CONFIG_PARAMETERS`
 ///  sees them as `-c` values.
 ///  A command such as `git commit` run by such a child must not warn about a path the user never chose.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// value === NO_HOOKS_DIRECTORY || /\/cli-git\/shadow\/[0-9a-f-]{36}\/no-hooks$/.test(value)
+/// value === NO_HOOKS_DIRECTORY || /\/monochromatic-git-policy-cli\/shadow\/[0-9a-f-]{36}\/no-hooks$/.test(value)
 /// ```
 pub fn is_wrapper_hooks_path(value: &str) -> bool {
     if value == NO_HOOKS_DIRECTORY {
@@ -113,7 +113,7 @@ pub fn configured_hooks_path(snapshot: &ConfigSnapshot) -> Option<String> {
 ///  The warning line for a configured `core.hooksPath`, or nothing when the snapshot sets none.
 /// Why:
 ///   The answer comes from the snapshot alone, so a repository without the setting pays no process start and no
-///  file system call; the directory is not looked at, because `git cli-git doctor` does that on request.
+///  file system call; the directory is not looked at, because `git monochromatic-git-policy-cli doctor` does that on request.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -123,10 +123,10 @@ pub fn traditional_hooks_warning(snapshot: Option<&ConfigSnapshot>) -> Option<St
     let value: String = configured_hooks_path(snapshot?)?;
     let message: String = format!(
         "`core.hooksPath` is set to {value}, so this repository may use traditional Git hooks (executable scripts in \
-         a hooks directory). cli-git supports no external hook program, traditional or configured: every Git it \
+         a hooks directory). monochromatic-git-policy-cli supports no external hook program, traditional or configured: every Git it \
          starts has the hooks directory switched off, so these scripts never run. Express what a script checked as a \
-         policy under policies in cli-git.config.jsonc instead. \
-         Run `git cli-git doctor` to list the traditional hooks it can find."
+         policy under policies in monochromatic-git-policy-cli.config.jsonc instead. \
+         Run `git monochromatic-git-policy-cli doctor` to list the traditional hooks it can find."
     );
     return Some(render_configuration_warning(
         0,

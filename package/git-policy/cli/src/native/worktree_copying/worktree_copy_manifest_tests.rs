@@ -109,7 +109,7 @@ fn fifo_is_refused_without_being_opened() {
     assert!(status.success());
     let failure: WorktreeCopyError =
         collect_entry_manifest(root.as_path(), &[String::from("pipe")], &[]).expect_err("fifo");
-    assert!(failure.0.starts_with("cli-git: ignored path "));
+    assert!(failure.0.starts_with("monochromatic-git-policy-cli: ignored path "));
     assert!(failure.0.ends_with(" has unsupported filesystem type."));
     remove(root.as_path());
 }

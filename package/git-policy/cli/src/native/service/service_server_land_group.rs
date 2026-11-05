@@ -13,7 +13,7 @@
 use crate::service_server_queue_types_and_send::Queued;
 use crate::service_journal::{BatchClaim, Recovery, claim_batch};
 use crate::service_land_follow::storage_failure;
-use crate::service_index_lock::Announce;
+use crate::service_index_lock::{Announce, Announcer};
 use crate::service_captures::CaptureMemory;
 use crate::service_land::{LandContext, Outcome, land_batch_timed, recover, recover_instance};
 use crate::journald_native::Priority;
@@ -104,6 +104,31 @@ pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &
     log_entry(priority, line.as_str(), &fields);
 }
 
+/// What:
+///  Tells every client of a batch what the landing waits for.
+/// Why:
+///   The landing takes its announcer as a value; the streams of the batch are the state each announcement is sent through.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class AnnounceToStreams implements Announcer { announce(note) { for (const stream of streams) stream.send(note); } }
+/// ```
+struct AnnounceToStreams<'a> {
+    /// The requests of the batch, each with the stream its client listens on.
+    fresh: &'a [Queued],
+}
+
+impl Announcer for AnnounceToStreams<'_> {
+    fn announce(&self, note: Announce) {
+        for (_, stream, _) in self.fresh {
+            match &note {
+                Announce::Waiting(text) => stream.send(&ServiceMessage::Waiting { text: text.clone() }),
+                Announce::Holder(who) => stream.send(&ServiceMessage::Holder { who: who.clone() }),
+            }
+        }
+    }
+}
+
 /// Lands one group of jobs that share a branch, and answers each client.
 pub(crate) fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, group: Vec<Queued>, landed: &mut HashMap<String, String>, captures: &mut CaptureMemory) {
     let group_began: Instant = Instant::now();
@@ -164,21 +189,7 @@ pub(crate) fn land_group(context: &LandContext, instance: Option<&str>, seq: &mu
     for (request, _, _) in &fresh {
         requests.push((**request).clone());
     }
-    #[cfg_attr(
-        dylint_lib = "monochromatic_lint_closure",
-        expect(
-            avoidable_closure,
-            reason = "`land_batch_timed` takes `&dyn Fn(Announce)` to tell the clients of the batch what the landing waits for, and it must carry the streams of the batch"
-        )
-    )]
-    let announce = |note: Announce| {
-        for (_, stream, _) in &fresh {
-            match &note {
-                Announce::Waiting(text) => stream.send(&ServiceMessage::Waiting { text: text.clone() }),
-                Announce::Holder(who) => stream.send(&ServiceMessage::Holder { who: who.clone() }),
-            }
-        }
-    };
+    let announce: AnnounceToStreams<'_> = AnnounceToStreams { fresh: fresh.as_slice() };
     let mut landing: LandTiming = LandTiming::default();
     let landing_began: Instant = Instant::now();
     let result = land_batch_timed(context, *seq, &requests, &announce, &mut landing);

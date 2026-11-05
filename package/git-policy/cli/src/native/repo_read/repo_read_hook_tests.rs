@@ -104,9 +104,18 @@ fn a_request_reads_its_private_index() {
 /// A reader that panics is answered by Git instead: the guard returns nothing, and a quiet reader passes through.
 #[test]
 fn a_panicking_reader_is_left_to_git() {
-    assert_eq!(guarded(|| -> Option<u8> { panic!("a reader defect") }), None);
-    assert_eq!(guarded(|| { return Some(7u8); }), Some(7u8));
-    assert_eq!(guarded(|| -> Option<u8> { return None; }), None);
+    fn defective(_state: ()) -> Option<u8> {
+        panic!("a reader defect");
+    }
+    fn answering(_state: ()) -> Option<u8> {
+        return Some(7u8);
+    }
+    fn declining(_state: ()) -> Option<u8> {
+        return None;
+    }
+    assert_eq!(guarded((), defective), None);
+    assert_eq!(guarded((), answering), Some(7u8));
+    assert_eq!(guarded((), declining), None);
 }
 
 /// An environment without `GIT_CONFIG_NOSYSTEM` and without the forward-target variable, as a resident process or a caller
@@ -131,7 +140,7 @@ fn a_caller_that_names_only_its_git_still_gets_in_process_answers() {
     let expected = git_output(repo.as_path(), &["ls-files", "--stage", "-z", "--full-name"]);
     let found = try_request(&context, &request).expect("the readers answer without the forward-target variable");
     assert_eq!(found.stdout, expected.stdout);
-    let learned = std::fs::read_dir(cache.join("cli-git")).expect("the cache directory").count();
+    let learned = std::fs::read_dir(cache.join("monochromatic-git-policy-cli")).expect("the cache directory").count();
     assert_eq!(learned, 1, "the system file path was asked of the named Git once and recorded");
     let metadata = run_metadata_git(named_git.as_path(), listing(repo.as_path()).as_slice(), overlay.as_slice()).expect("answer");
     assert_eq!(metadata.stdout, expected.stdout);

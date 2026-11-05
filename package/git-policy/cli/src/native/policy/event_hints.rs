@@ -44,7 +44,7 @@ pub fn finding_hint(policy: &str, code: &str, fix_available: bool) -> Option<&'s
         ("final-newline", "noncanonical-final-newline", true) => {
             return Some(
                 "Hint: if you are committing or checking this file, a commit corrects the ending for you; \
-                 to correct it now without committing, run `git cli-git fix -- <path>`.",
+                 to correct it now without committing, run `git monochromatic-git-policy-cli fix -- <path>`.",
             );
         }
         ("final-newline", "noncanonical-final-newline", false) => {
@@ -56,7 +56,7 @@ pub fn finding_hint(policy: &str, code: &str, fix_available: bool) -> Option<&'s
         ("markdown/autofix", "markdown-autofix", _) => {
             return Some(
                 "Hint: if you are committing this Markdown, the commit applies the linter's corrections itself; \
-                 to apply them now, run `git cli-git fix -- <path>`.",
+                 to apply them now, run `git monochromatic-git-policy-cli fix -- <path>`.",
             );
         }
         ("markdown/autofix", "markdown-violation", _) => {
@@ -74,7 +74,7 @@ pub fn finding_hint(policy: &str, code: &str, fix_available: bool) -> Option<&'s
         ("mono/dependent-version-bump", "dependent-version-stale", _) => {
             return Some(
                 "Hint: if you changed a package that others depend on, raise its dependents' version ranges to match \
-                 the new version in the same commit, then stage those files; `git cli-git fix -- <path>` applies the \
+                 the new version in the same commit, then stage those files; `git monochromatic-git-policy-cli fix -- <path>` applies the \
                  correction when one is available.",
             );
         }
@@ -187,7 +187,7 @@ pub fn engine_failure_hint(code: &str) -> Option<&'static str> {
     match code {
         "config-invalid" => {
             return Some(
-                "Hint: if you just edited cli-git.config.jsonc, fix the key the message names or revert the edit; \
+                "Hint: if you just edited monochromatic-git-policy-cli.config.jsonc, fix the key the message names or revert the edit; \
                  an unknown key, a wrong type or an unknown policy id fails before any policy runs.",
             );
         }
@@ -215,7 +215,7 @@ pub fn engine_failure_hint(code: &str) -> Option<&'static str> {
         "patch-invalid" | "patch-conflict" => {
             return Some(
                 "Hint: if you are committing files that changed while the command ran or that another policy also \
-                 rewrites, save your edits, run `git cli-git fix -- <path>` to apply the corrections, review the \
+                 rewrites, save your edits, run `git monochromatic-git-policy-cli fix -- <path>` to apply the corrections, review the \
                  result with `git diff`, and commit again.",
             );
         }
@@ -235,13 +235,13 @@ pub fn engine_failure_hint(code: &str) -> Option<&'static str> {
         "legacy-config-ignored" => {
             return Some(
                 "Hint: if you are still keeping the old configuration files, delete them once \
-                 cli-git.config.jsonc holds the settings; they are no longer read.",
+                 monochromatic-git-policy-cli.config.jsonc holds the settings; they are no longer read.",
             );
         }
         "traditional-hooks-unsupported" => {
             return Some(
-                "Hint: scripts in the hooks directory never run through cli-git. If one still checks something for you, \
-                 express it as a policy under policies in cli-git.config.jsonc; `git cli-git doctor` lists the \
+                "Hint: scripts in the hooks directory never run through monochromatic-git-policy-cli. If one still checks something for you, \
+                 express it as a policy under policies in monochromatic-git-policy-cli.config.jsonc; `git monochromatic-git-policy-cli doctor` lists the \
                  scripts it finds and exits 1 while any remain.",
             );
         }
@@ -261,7 +261,7 @@ pub fn engine_failure_hint(code: &str) -> Option<&'static str> {
 /// ```
 pub const WARN_UNSAFE_HINT: &str = "Hint: if you set it to warn to keep commits flowing, note that this policy \
      changes or misses content when it only warns; set its severity to error to enforce it, or to off to disable it, \
-     in cli-git.config.jsonc.";
+     in monochromatic-git-policy-cli.config.jsonc.";
 
 /// The hint that follows a post-commit gate block.
 pub const POST_COMMIT_BLOCKED_HINT: &str = "Hint: if you wanted this commit backed up, fix what the gate reported \

@@ -1,7 +1,7 @@
 //! What:
 //!  Lexical path normalization, the way Node's `path.resolve` does it.
 //! Why:
-//!  `git cli-git doctor` scans each hooks directory once, so one directory named two ways (`./hooks`, `hooks/`,
+//!  `git monochromatic-git-policy-cli doctor` scans each hooks directory once, so one directory named two ways (`./hooks`, `hooks/`,
 //!  `a/../hooks`) must compare equal without touching the file system.
 //!
 //! In TS you'd write (pseudocode):

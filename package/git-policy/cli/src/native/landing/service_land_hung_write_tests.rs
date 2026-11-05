@@ -238,7 +238,7 @@ fn the_commit_inside_a_branch_write_that_does_not_return_is_reported_as_not_know
 /// The error for a commit withdrawn behind a hung write names the log and the restart, the way out when the write never returns.
 #[test]
 fn the_error_for_a_commit_behind_a_hung_write_names_the_way_out() {
-    let failure: ClientFailure = ClientFailure::StillWithService { minutes: 20, blocker: Some(String::from("cli-git: the commit service has been inside a write for 21 minutes")) };
+    let failure: ClientFailure = ClientFailure::StillWithService { minutes: 20, blocker: Some(String::from("monochromatic-git-policy-cli: the commit service has been inside a write for 21 minutes")) };
     let text: String = crate::service_messages::render(&failure);
     assert!(text.contains("21 minutes") && text.contains(crate::service_messages::RESTART_COMMAND) && text.contains(crate::service_messages::LOG_COMMAND), "{text}");
 }

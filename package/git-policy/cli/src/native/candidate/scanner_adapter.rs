@@ -236,7 +236,7 @@ impl CandidateScanner {
                 return Err(ScannerError {
                     failure: ScannerFailure::RulesNotLoaded,
                     message: format!(
-                        "cli-git could not load the forbidden-strings rules, so no file was scanned: {error}."
+                        "monochromatic-git-policy-cli could not load the forbidden-strings rules, so no file was scanned: {error}."
                     ),
                 });
             }
@@ -265,7 +265,7 @@ impl CandidateScanner {
     ///  in list order.
     ///       `&[PathBuf]` borrows the list read-only.
     /// Why:
-    ///   The scanner library has no log subscriber inside cli-git,
+    ///   The scanner library has no log subscriber inside monochromatic-git-policy-cli,
     ///  so the caller reports the skipped files.
     ///
     /// In TS you'd write (pseudocode):
@@ -299,7 +299,7 @@ impl CandidateScanner {
             return Err(ScannerError {
                 failure: ScannerFailure::PathnameUnrepresentable,
                 message: format!(
-                    "cli-git could not scan candidate {}: its pathname cannot be expressed as a native path on this platform.",
+                    "monochromatic-git-policy-cli could not scan candidate {}: its pathname cannot be expressed as a native path on this platform.",
                     candidate.identity.index
                 ),
             });

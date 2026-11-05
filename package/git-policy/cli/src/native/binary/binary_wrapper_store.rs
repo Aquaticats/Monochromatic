@@ -103,7 +103,7 @@ pub fn content_name(path: &Path) -> std::io::Result<String> {
         hasher.write(&chunk[..read]);
         length += u64::try_from(read).map_err(std::io::Error::other)?;
     }
-    return Ok(format!("{:016x}-{length}-cli-git-native", hasher.finish()));
+    return Ok(format!("{:016x}-{length}-monochromatic-git-policy-cli", hasher.finish()));
 }
 
 /// What:

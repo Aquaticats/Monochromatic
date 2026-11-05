@@ -2,7 +2,7 @@
 //!       plan becomes.
 //! Why: The plan is a pre-commit step. Another forwarded command such as `git add` could
 //!      not apply its patches, so it plans only for `git commit` among forwarded commands,
-//!      and for `git cli-git check` and `git cli-git fix`; and only when a workspace manifest
+//!      and for `git monochromatic-git-policy-cli check` and `git monochromatic-git-policy-cli fix`; and only when a workspace manifest
 //!      is modified, so ordinary commits read nothing. Each stale dependent is one finding
 //!      whose patch rewrites a tracked manifest that may not be a candidate, which adds that
 //!      manifest to the commit (`dependent-version-bump-policy.ts:178-235`).

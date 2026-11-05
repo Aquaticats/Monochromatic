@@ -94,11 +94,11 @@ fn not_digit(character: char) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: real Git at ${path} reports ${found}, so its release cannot be read ...`
+/// `monochromatic-git-policy-cli: real Git at ${path} reports ${found}, so its release cannot be read ...`
 /// ```
 pub fn unsupported_message(context: &GitContext, found: &str) -> String {
     return format!(
-        "cli-git: real Git at {} reports {found}, so its release cannot be read; commits, hooks and the \
+        "monochromatic-git-policy-cli: real Git at {} reports {found}, so its release cannot be read; commits, hooks and the \
          locks that coordinate with them depend on it. Nothing was run. Point the wrapper at a working \
          Git, then run the command again.",
         context.real_git.display()
@@ -123,7 +123,7 @@ pub fn older_git_warning(context: &GitContext, release: GitRelease) -> Option<St
         return None;
     }
     return Some(format!(
-        "cli-git: warning: real Git at {} is version {}.{}.{}, older than {}.{}.{}, the release this wrapper was tested \
+        "monochromatic-git-policy-cli: warning: real Git at {} is version {}.{}.{}, older than {}.{}.{}, the release this wrapper was tested \
          with; the command continues with it.\n",
         context.real_git.display(),
         release.0,

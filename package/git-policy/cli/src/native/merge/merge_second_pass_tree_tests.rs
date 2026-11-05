@@ -28,7 +28,7 @@ fn a_tree_comes_back_with_the_merged_files_and_nothing_else_changed() {
         assert_eq!(blob.as_bytes(), corpus("md1b", "word.out").as_slice(), "{path}");
     }
     assert_eq!(git_text(world.repo.as_path(), &["show", format!("{}:clean.txt", resolved.tree).as_str()]), "two");
-    let leftovers: Vec<String> = std::fs::read_dir(common.join("cli-git-scratch")).expect("the scratch directory").filter_map(|entry| { return entry.ok()?.file_name().to_str().map(String::from); }).filter(|name| { return name.starts_with("second-pass-"); }).collect();
+    let leftovers: Vec<String> = std::fs::read_dir(common.join("monochromatic-git-policy-cli-scratch")).expect("the scratch directory").filter_map(|entry| { return entry.ok()?.file_name().to_str().map(String::from); }).filter(|name| { return name.starts_with("second-pass-"); }).collect();
     assert_eq!(leftovers, Vec::<String>::new());
     remove(world.root.as_path());
 }

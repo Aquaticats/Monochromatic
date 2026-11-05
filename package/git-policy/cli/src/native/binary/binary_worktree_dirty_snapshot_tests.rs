@@ -118,7 +118,7 @@ fn a_dirty_main_checkout_is_snapshotted_and_restored_to_gits_own_result() {
     assert_equals_gits_checkout(&fixture, &created, fixture.root.join("topic").as_path(), fixture.root.join("control").as_path(), repo.as_path());
     let text: String = stderr_of(&created);
     assert!(text.contains(git_policy_cli::worktree_trash::MAIN_SNAPSHOT_NOTE), "{text}");
-    assert!(text.lines().any(|line: &str| { return line.starts_with("cli-git: ") && line.contains(LEFT_OUT_MARK) && line.contains("left out"); }), "the person is told: {text}");
+    assert!(text.lines().any(|line: &str| { return line.starts_with("monochromatic-git-policy-cli: ") && line.contains(LEFT_OUT_MARK) && line.contains("left out"); }), "the person is told: {text}");
     assert!(!text.contains(SLOW_MARK), "no slow-route line: {text}");
     assert_eq!(state_of(repo.as_path()), before, "the main checkout is untouched");
     remove(&fixture);
@@ -229,7 +229,7 @@ fn set_mtime_seconds_ago(path: &Path, seconds: u64) {
 
 /// Whether any stderr line says changes were left out of the new worktree; with none to leave out, the line would be false.
 fn says_changes_were_left_out(text: &str) -> bool {
-    return text.lines().any(|line: &str| { return line.starts_with("cli-git: ") && line.contains(LEFT_OUT_MARK); });
+    return text.lines().any(|line: &str| { return line.starts_with("monochromatic-git-policy-cli: ") && line.contains(LEFT_OUT_MARK); });
 }
 
 /// What the person sees when the main checkout holds no change at all: a snapshot, equal to Git's checkout, with nothing said about

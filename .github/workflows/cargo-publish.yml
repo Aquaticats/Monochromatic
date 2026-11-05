@@ -2291,11 +2291,13 @@ jobs:
   # `Publishing the native crate`). It follows the monochromatic-lint jobs above, with these differences:
   # - Linux GNU targets only (x86_64 and aarch64). The Windows and macOS branches of the code never compiled in a
   #   release gate, and the repository's immutable releases mean one failing target produces no release.
-  # - The executable is `cli-git-native`, not the crate name, so the archive holds
-  #   monochromatic-git-policy-cli-<version>-<target>/cli-git-native, the layout the crate's
+  # - The executable is named after the crate (the owner renamed it from `cli-git-native` on 2026-11-04, so the archive of
+  #   a release before that holds `cli-git-native`), so the archive holds
+  #   monochromatic-git-policy-cli-<version>-<target>/monochromatic-git-policy-cli, the layout the crate's
   #   [package.metadata.binstall] table points at. It is the crate's only `[[bin]]`: the commit service is its mode
-  #   `cli-git-native cli-git service run`, because cargo-binstall refuses an archive that lacks any `[[bin]]` of the crate
-  #   (the second `cli-git-service` bin added on 2026-11-01 turned the catalog-specifiers workflow red).
+  #   `monochromatic-git-policy-cli monochromatic-git-policy-cli service run`, because cargo-binstall refuses an archive that
+  #   lacks any `[[bin]]` of the crate (the second `cli-git-service` bin added on 2026-11-01 turned the catalog-specifiers
+  #   workflow red).
   #   `package/git-policy/cli/bin/native-release-bins.unit.test.ts` fails when this job, Cargo.toml,
   #   releasable-crates.json and toolchain.lock.json list different executables.
   # - The crate links forbidden-strings by path in the repository and by version on crates.io once packaged, so the
@@ -2507,17 +2509,17 @@ jobs:
     - name: Build binary
       shell: bash
       working-directory: package/git-policy/cli
-      run: cargo build --release --locked --target ${{ matrix.target }} --bin cli-git-native
+      run: cargo build --release --locked --target ${{ matrix.target }} --bin monochromatic-git-policy-cli
 
-    # The wrapper answers `cli-git --help` without a repository, so a target that links but cannot start fails here.
+    # The wrapper answers `monochromatic-git-policy-cli --help` without a repository, so a target that links but cannot start fails here.
     - name: Smoke-run the binary
       shell: bash
       env:
         TARGET: ${{ matrix.target }}
       run: |
         set -euo pipefail
-        help=$("package/git-policy/cli/target/${TARGET}/release/cli-git-native" cli-git --help)
-        printf '%s\n' "$help" | grep -q '^Usage: git cli-git'
+        help=$("package/git-policy/cli/target/${TARGET}/release/monochromatic-git-policy-cli" monochromatic-git-policy-cli --help)
+        printf '%s\n' "$help" | grep -q '^Usage: git monochromatic-git-policy-cli'
 
     - name: Package binary archive
       id: pkg
@@ -2528,7 +2530,7 @@ jobs:
       run: |
         set -euo pipefail
         crate='monochromatic-git-policy-cli'
-        bin='cli-git-native'
+        bin='monochromatic-git-policy-cli'
         stage_dir="${crate}-${VERSION}-${TARGET}"
         mkdir -p "dist/${stage_dir}"
         cp "package/git-policy/cli/target/${TARGET}/release/${bin}" "dist/${stage_dir}/"

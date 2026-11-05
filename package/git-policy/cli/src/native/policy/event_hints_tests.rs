@@ -61,7 +61,7 @@ fn every_engine_failure_code_has_a_hint() {
     assert!(engine_failure_hint(LEGACY_CONFIG_IGNORED_CODE).is_some());
     let traditional: &str =
         engine_failure_hint(TRADITIONAL_HOOKS_UNSUPPORTED_CODE).expect("the traditional-hooks warning has a hint");
-    assert!(traditional.starts_with("Hint: ") && traditional.contains("git cli-git doctor"), "{traditional}");
+    assert!(traditional.starts_with("Hint: ") && traditional.contains("git monochromatic-git-policy-cli doctor"), "{traditional}");
     assert_eq!(engine_failure_hint("not-a-code"), None);
 }
 
@@ -102,8 +102,8 @@ fn every_finding_code_has_a_hint_or_its_own() {
 fn the_final_newline_hint_follows_the_availability_of_a_fix() {
     let with: &str = finding_hint("final-newline", FINAL_NEWLINE_CODE, true).expect("hint");
     let without: &str = finding_hint("final-newline", FINAL_NEWLINE_CODE, false).expect("hint");
-    assert!(with.contains("git cli-git fix"));
-    assert!(!without.contains("git cli-git fix"));
+    assert!(with.contains("git monochromatic-git-policy-cli fix"));
+    assert!(!without.contains("git monochromatic-git-policy-cli fix"));
 }
 
 /// The hint field is appended as escaped JSON, and nothing is appended without a hint.

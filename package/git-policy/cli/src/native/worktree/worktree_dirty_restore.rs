@@ -34,11 +34,11 @@ const TAG: &str = "worktreeDirtyRestore";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: the uncommitted changes of the main checkout (${count} paths) were left out of the new worktree.\n`
+/// `monochromatic-git-policy-cli: the uncommitted changes of the main checkout (${count} paths) were left out of the new worktree.\n`
 /// ```
 pub fn left_out_note(changed: &ChangedPaths) -> String {
     let paths: &str = if changed.count == 1 { "path" } else { "paths" };
-    return format!("cli-git: the uncommitted changes of the main checkout ({} {paths}) were left out of the new worktree, which holds what Git's own checkout holds.\n", changed.count);
+    return format!("monochromatic-git-policy-cli: the uncommitted changes of the main checkout ({} {paths}) were left out of the new worktree, which holds what Git's own checkout holds.\n", changed.count);
 }
 
 /// What:
@@ -166,7 +166,7 @@ pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path) -
 /// ```ts
 /// await restoreDirty({ source, target, stage, runGit, context }); // throws the reason
 /// ```
-pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run_git_step: &mut GitRunner, context: &GitContext) -> Result<(), String> {
+pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run_git_step: &mut dyn GitRunner, context: &GitContext) -> Result<(), String> {
     if stage == source.root.as_path() || target.admin == source.git_dir || target.admin == source.common_dir {
         return Err(String::from("the restore would run in the source's own directory"));
     }

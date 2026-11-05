@@ -69,7 +69,7 @@ fn clone_of(root: &Path, remote: &Path, path: &Path) {
         ],
     );
     git(path, &["config", "user.email", "cli-git@example.invalid"]);
-    git(path, &["config", "user.name", "cli-git push-stacking test"]);
+    git(path, &["config", "user.name", "monochromatic-git-policy-cli push-stacking test"]);
 }
 
 /// Build the fixture with one commit on the remote and no local change yet.
@@ -170,7 +170,7 @@ fn a_push_that_lost_a_race_publishes_the_merge_and_the_branch_follows() {
         reachable(&race, &oid(&race.rival, "HEAD"), &published),
         "the rival commit is kept"
     );
-    assert!(err.contains("cli-git: push: origin/"), "{err}");
+    assert!(err.contains("monochromatic-git-policy-cli: push: origin/"), "{err}");
     assert_eq!(oid(&race.local, "HEAD"), published, "the branch follows the merge");
     remove(&race.root);
 }

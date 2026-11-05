@@ -74,7 +74,7 @@ fn the_removal_command_in_the_note_removes_exactly_the_registry() {
         std::fs::create_dir_all(registry.join(TRANSACTION)).expect("transaction directory");
         std::fs::write(git_dir.join("HEAD"), "ref: refs/heads/main\n").expect("a sibling file that must stay");
         let note: String = registry_note(registry.as_path()).expect("a note");
-        assert!(note.starts_with("cli-git: "), "{note}");
+        assert!(note.starts_with("monochromatic-git-policy-cli: "), "{note}");
         let command: String = removal_command(note.as_str());
         let status = std::process::Command::new("sh").arg("-c").arg(command.as_str()).status().expect("sh runs");
         assert!(status.success(), "{name:?}: {command}");

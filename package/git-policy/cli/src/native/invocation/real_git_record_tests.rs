@@ -28,7 +28,7 @@ fn rendered_service_unit(git: &Path) -> String {
         runtime_dir: PathBuf::from("/run/user/1"),
         user_unit_dir: None,
         bus: PathBuf::from("/nonexistent/bus"),
-        service_binary: PathBuf::from("/opt/tool/cli-git-native"),
+        service_binary: PathBuf::from("/opt/tool/monochromatic-git-policy-cli"),
         git: git.to_path_buf(),
         instance: String::from("x"),
         retirement_wait: std::time::Duration::ZERO,
@@ -75,7 +75,7 @@ fn the_first_exec_start_line_that_names_a_git_is_the_record() {
 fn the_unit_file_is_the_service_template_below_the_runtime_directory() {
     assert_eq!(
         service_unit_file(Path::new("/run/user/7")),
-        PathBuf::from("/run/user/7/systemd/user/cli-git@.service")
+        PathBuf::from("/run/user/7/systemd/user/monochromatic-git-policy-cli@.service")
     );
 }
 

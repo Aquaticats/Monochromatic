@@ -33,7 +33,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// The first line of every claim file.
-const CLAIM_HEADER: &str = "cli-git owner-claim v1";
+const CLAIM_HEADER: &str = "monochromatic-git-policy-cli owner-claim v1";
 
 /// The line of a released claim.
 const RELEASED_LINE: &str = "released";
@@ -216,7 +216,7 @@ fn read_record(path: &Path) -> Result<Option<Record>, MigrateError> {
     return match decode(String::from_utf8_lossy(bytes.as_slice()).as_ref()) {
         Some(record) => Ok(Some(record)),
         None => Err(MigrateError::Journal(format!(
-            "{} is not a claim file this command wrote, so it cannot tell whether another command is working here; nothing was changed. Look at the file: if no cli-git command is running on this item, remove it and run the command again",
+            "{} is not a claim file this command wrote, so it cannot tell whether another command is working here; nothing was changed. Look at the file: if no monochromatic-git-policy-cli command is running on this item, remove it and run the command again",
             path.display()
         ))),
     };

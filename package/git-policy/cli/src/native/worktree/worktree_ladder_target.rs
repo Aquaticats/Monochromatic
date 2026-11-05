@@ -329,8 +329,8 @@ fn untracked_attribute_texts(source: &SnapshotSource, entries: &[ConfigEntry]) -
 /// ```ts
 /// await runStep(runGit, args, env);
 /// ```
-pub(crate) fn run_step(run_git: &mut GitRunner, arguments: &[OsString], environment: &[(OsString, OsString)]) -> Result<GitStatus, String> {
-    return match run_git(&GitStep::Other { arguments, environment }) {
+pub(crate) fn run_step(run_git: &mut dyn GitRunner, arguments: &[OsString], environment: &[(OsString, OsString)]) -> Result<GitStatus, String> {
+    return match run_git.run(&GitStep::Other { arguments, environment }) {
         Ok(status) => Ok(status),
         Err(error) => Err(error.0),
     };
@@ -436,7 +436,7 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
 /// ```ts
 /// await applyDifference(source, target, workTree, runGit); // throws a reason
 /// ```
-pub fn apply_difference(source: &SnapshotSource, target: &Target, work_tree: &Path, run_git: &mut GitRunner) -> Result<(), String> {
+pub fn apply_difference(source: &SnapshotSource, target: &Target, work_tree: &Path, run_git: &mut dyn GitRunner) -> Result<(), String> {
     if !target.differs {
         return Ok(());
     }

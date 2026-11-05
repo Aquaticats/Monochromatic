@@ -62,7 +62,7 @@ fn write_unit(root: &Path, git: &Path) {
         runtime_dir: root.to_path_buf(),
         user_unit_dir: None,
         bus: PathBuf::from("/nonexistent/bus"),
-        service_binary: PathBuf::from("/opt/tool/cli-git-native"),
+        service_binary: PathBuf::from("/opt/tool/monochromatic-git-policy-cli"),
         git: git.to_path_buf(),
         instance: String::from("x"),
         retirement_wait: std::time::Duration::ZERO,
@@ -91,7 +91,7 @@ fn a_recorded_real_git_is_used_with_a_one_line_notice_when_path_has_only_the_wra
     let notice: String = resolved.notice.expect("a fallback is announced");
     assert_eq!(notice.matches('\n').count(), 1, "{notice}");
     assert!(notice.ends_with('\n'), "{notice}");
-    assert!(notice.starts_with("cli-git: no real Git follows this wrapper on PATH ("), "{notice}");
+    assert!(notice.starts_with("monochromatic-git-policy-cli: no real Git follows this wrapper on PATH ("), "{notice}");
     for named in [
         root.join("wrapper").display().to_string(),
         root.join("recorded/git").display().to_string(),
@@ -167,13 +167,13 @@ fn a_record_naming_the_wrapper_a_link_to_it_or_its_launcher_is_refused() {
     std::fs::create_dir(root.join("linked")).expect("directory");
     std::os::unix::fs::symlink(root.join("wrapper/git"), root.join("linked/git")).expect("link");
     std::fs::create_dir(root.join("launchers")).expect("directory");
-    executable(root.join("launchers/cli-git-native").as_path(), b"\x7fELF launcher");
+    executable(root.join("launchers/monochromatic-git-policy-cli").as_path(), b"\x7fELF launcher");
     std::fs::write(
-        root.join("launchers/cli-git-native.launch"),
+        root.join("launchers/monochromatic-git-policy-cli.launch"),
         b"{\"toolId\":\"cargo:monochromatic-git-policy-cli\",\"lockFile\":\"/l\",\"real\":\"/r\"}",
     )
     .expect("launch record");
-    for named in [root.join("wrapper/git"), root.join("linked/git"), root.join("launchers/cli-git-native")] {
+    for named in [root.join("wrapper/git"), root.join("linked/git"), root.join("launchers/monochromatic-git-policy-cli")] {
         write_unit(root.as_path(), named.as_path());
         let failure: RealGitNotFound = resolve_real_git(&resolution).expect_err("the record is refused");
         assert_eq!(
@@ -223,7 +223,7 @@ fn process_inputs_name_the_unit_below_an_absolute_runtime_directory_only() {
         }
         return process_resolution_inputs(environment.as_slice()).expect("process inputs").service_unit;
     };
-    assert_eq!(named(Some("/run/user/7")), Some(PathBuf::from("/run/user/7/systemd/user/cli-git@.service")));
+    assert_eq!(named(Some("/run/user/7")), Some(PathBuf::from("/run/user/7/systemd/user/monochromatic-git-policy-cli@.service")));
     assert_eq!(named(None), None);
     assert_eq!(named(Some("")), None);
     assert_eq!(named(Some("run/user/7")), None);

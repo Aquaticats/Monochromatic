@@ -111,7 +111,7 @@ pub fn kill_with_everything_it_started(child: &mut Child) {
 
 /// The executable Cargo built for this test run, which is the wrapper and, started with the service mode words, the resident
 ///  service.
-pub const SERVICE_PROGRAM: &str = env!("CARGO_BIN_EXE_cli-git-native");
+pub const SERVICE_PROGRAM: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
 
 /// What:
 ///  The command that starts the resident service of this build: the one executable followed by the words of its service mode.
@@ -143,7 +143,7 @@ pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
     let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory for the service's runtime directory"));
     let number: usize = RUNTIME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let runtime: PathBuf = home.join("temp/agent").join(format!("rt-{}-{number}", std::process::id()));
-    std::fs::create_dir_all(runtime.join("cli-git")).expect("runtime directory");
+    std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("runtime directory");
     return FixtureService { children: std::sync::Mutex::new(std::collections::HashMap::new()), runtime };
 }
 
@@ -214,13 +214,23 @@ impl FixtureService {
         //  connected to the old one and called the new one ready.
         wait_until_nothing_listens(&socket);
         let launch: ServiceLaunch = fixture.service_launch.lock().expect("the service launch").clone();
+        // A helper that an older program started has the earlier command word in its unit file.
+        let words: [&str; 3] = if launch.earlier_command_word {
+            git_policy_cli::service_main::EARLIER_SERVICE_WORDS
+        } else {
+            git_policy_cli::service_main::SERVICE_WORDS
+        };
         let mut command: Command = match launch.prefix.split_first() {
             Some((program, rest)) => {
                 let mut prefixed: Command = Command::new(program);
-                prefixed.args(rest).arg(SERVICE_PROGRAM).args(git_policy_cli::service_main::SERVICE_WORDS);
+                prefixed.args(rest).arg(SERVICE_PROGRAM).args(words);
                 prefixed
             }
-            None => service_command(),
+            None => {
+                let mut plain: Command = Command::new(SERVICE_PROGRAM);
+                plain.args(words);
+                plain
+            }
         };
         command
             .args(["--journal"])

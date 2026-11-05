@@ -38,7 +38,7 @@ fn forward_target_naming_this_executable_stops() {
         for arguments in [
             vec!["--version"],
             vec!["add", "x"],
-            vec!["cli-git", "--help"],
+            vec!["monochromatic-git-policy-cli", "--help"],
         ] {
             assert_eq!(
                 stopped(plan_invocation(
@@ -47,8 +47,8 @@ fn forward_target_naming_this_executable_stops() {
                     &resolution
                 )),
                 format!(
-                    "cli-git: another cli-git wrapper selected this cli-git executable ({}) as \
-                     real Git. Forwarding again would never reach Git. Remove the extra cli-git \
+                    "monochromatic-git-policy-cli: another monochromatic-git-policy-cli wrapper selected this monochromatic-git-policy-cli executable ({}) as \
+                     real Git. Forwarding again would never reach Git. Remove the extra monochromatic-git-policy-cli \
                      from PATH or place the real Git executable on PATH.\n",
                     resolution.own_executable.display()
                 ),
@@ -92,14 +92,14 @@ fn missing_real_git_stops_with_resolution_evidence() {
         ));
         assert!(
             said.starts_with(
-                "cli-git: Could not find a real Git executable after examining 2 PATH candidates and \
-                 skipping 1 cli-git wrappers, so no Git command was run. PATH is only-wrapper:missing."
+                "monochromatic-git-policy-cli: Could not find a real Git executable after examining 2 PATH candidates and \
+                 skipping 1 monochromatic-git-policy-cli wrappers, so no Git command was run. PATH is only-wrapper:missing."
             ),
             "{arguments:?}: {said}"
         );
         // Every candidate is listed with its verdict, and the fix names the PATH of the program that ran the command.
         assert!(said.contains(root.join("only-wrapper/git").to_string_lossy().as_ref()), "{said}");
-        assert!(said.contains("leads back to cli-git"), "{said}");
+        assert!(said.contains("leads back to monochromatic-git-policy-cli"), "{said}");
         assert!(said.contains("is missing, not an executable file, or unreadable"), "{said}");
         assert!(said.contains("To fix it, install Git"), "{said}");
     }
@@ -123,7 +123,7 @@ fn uninterpretable_identity_output_stops() {
         &resolution,
     ));
     assert!(
-        message.starts_with("cli-git: cli-git could not classify the Git worktree"),
+        message.starts_with("monochromatic-git-policy-cli: monochromatic-git-policy-cli could not classify the Git worktree"),
         "{message}"
     );
     remove(root.as_path());

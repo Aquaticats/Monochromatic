@@ -457,7 +457,7 @@ fn failures_report_git_and_leave_the_index_alone() {
     assert_eq!(missing.failure, CandidateFailure::GitFailed);
     assert!(
         missing.message.starts_with(
-            "cli-git could not predict what git add stages: git add failed: fatal: pathspec"
+            "monochromatic-git-policy-cli could not predict what git add stages: git add failed: fatal: pathspec"
         ),
         "{}",
         missing.message
@@ -470,7 +470,7 @@ fn failures_report_git_and_leave_the_index_alone() {
     assert!(
         direct_missing
             .message
-            .starts_with("cli-git could not read the selected worktree files: git add failed:"),
+            .starts_with("monochromatic-git-policy-cli could not read the selected worktree files: git add failed:"),
         "{}",
         direct_missing.message
     );
@@ -488,7 +488,7 @@ fn failures_report_git_and_leave_the_index_alone() {
     assert!(
         outside
             .message
-            .starts_with("cli-git could not predict what git add stages: git rev-parse failed:"),
+            .starts_with("monochromatic-git-policy-cli could not predict what git add stages: git rev-parse failed:"),
         "{}",
         outside.message
     );
@@ -505,7 +505,7 @@ fn failures_report_git_and_leave_the_index_alone() {
     assert!(
         start
             .message
-            .starts_with("cli-git could not read the selected worktree files: git rev-parse could not be started:"),
+            .starts_with("monochromatic-git-policy-cli could not read the selected worktree files: git rev-parse could not be started:"),
         "{}",
         start.message
     );

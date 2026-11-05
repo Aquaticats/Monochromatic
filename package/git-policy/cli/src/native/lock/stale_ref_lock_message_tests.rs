@@ -6,7 +6,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! expect(outcome.notice()).toBe("cli-git: left the reference lock ... alone: ...\ncli-git:   rm -- '...'\n");
+//! expect(outcome.notice()).toBe("monochromatic-git-policy-cli: left the reference lock ... alone: ...\nmonochromatic-git-policy-cli:   rm -- '...'\n");
 //! ```
 #![cfg(unix)]
 
@@ -79,10 +79,10 @@ fn an_unproven_lock_is_described_with_the_command_that_clears_it() {
         left: vec![found("/r/.git/refs/remotes/origin/main.lock", Verdict::Unproven(String::from("no pid file beside it names a holder")), PidFile::Absent, &[])],
         ..Outcome::default()
     };
-    let expected: &str = "cli-git: left the reference lock /r/.git/refs/remotes/origin/main.lock alone: no pid file beside it names a holder.\n\
-cli-git: it is 0 bytes. If no Git process is running in this repository, clear it with:\n\
-cli-git:   rm -- /r/.git/refs/remotes/origin/main.lock\n\
-cli-git: Git writes a process number beside its locks only when `core.lockfilePid` is on. The wrapper turns it on for the Git it starts; `git config --global core.lockfilePid true` does it for the rest, so the next lock can be proven.\n";
+    let expected: &str = "monochromatic-git-policy-cli: left the reference lock /r/.git/refs/remotes/origin/main.lock alone: no pid file beside it names a holder.\n\
+monochromatic-git-policy-cli: it is 0 bytes. If no Git process is running in this repository, clear it with:\n\
+monochromatic-git-policy-cli:   rm -- /r/.git/refs/remotes/origin/main.lock\n\
+monochromatic-git-policy-cli: Git writes a process number beside its locks only when `core.lockfilePid` is on. The wrapper turns it on for the Git it starts; `git config --global core.lockfilePid true` does it for the rest, so the next lock can be proven.\n";
     assert_eq!(outcome.notice(), expected);
 }
 
@@ -97,8 +97,8 @@ fn the_command_names_the_companions_and_quotes_an_odd_reference() {
         ..Outcome::default()
     };
     let text: String = outcome.notice();
-    assert!(text.contains("cli-git:   rm -- /r/.git/packed-refs.lock '/r/.git/packed-refs~pid.lock' /r/.git/packed-refs.new\n"), "{text}");
-    assert!(text.contains("cli-git:   rm -- '/r/.git/refs/heads/it'\\''s$(x).lock'\n"), "{text}");
+    assert!(text.contains("monochromatic-git-policy-cli:   rm -- /r/.git/packed-refs.lock '/r/.git/packed-refs~pid.lock' /r/.git/packed-refs.new\n"), "{text}");
+    assert!(text.contains("monochromatic-git-policy-cli:   rm -- '/r/.git/refs/heads/it'\\''s$(x).lock'\n"), "{text}");
     assert!(!text.contains("core.lockfilePid"), "the hint is only for locks without a pid file: {text}");
 }
 
@@ -114,11 +114,11 @@ fn a_removed_lock_and_a_held_lock_are_worded_as_printed() {
         left: vec![found("/r/.git/refs/heads/d.lock", Verdict::Held(String::from("process 43 (git), which the pid file beside it names, is running")), PidFile::Names(43), &[])],
         displaced: vec![PathBuf::from("/r/.git/cli-git-stale-lock-1-0-ff")],
     };
-    let expected: &str = "cli-git: removed the reference lock /r/.git/refs/heads/a.lock, left by a Git that is gone: process 41, named by the pid file beside it, has ended.\n\
-cli-git: removed the reference lock /r/.git/refs/heads/b.lock, left by a Git that is gone: process 42, named by the pid file beside it, has ended and the number now belongs to `sleep`.\n\
-cli-git: removed the packed-references staging file /r/.git/packed-refs.new, left by a Git that is gone: Git makes this staging file only while it holds `packed-refs.lock`, and that lock is gone.\n\
-cli-git: the reference lock /r/.git/refs/heads/d.lock is in use: process 43 (git), which the pid file beside it names, is running; it was left alone.\n\
-cli-git: a lock file was set aside while a new lock took its place, and is left at /r/.git/cli-git-stale-lock-1-0-ff; look at it before removing it.\n";
+    let expected: &str = "monochromatic-git-policy-cli: removed the reference lock /r/.git/refs/heads/a.lock, left by a Git that is gone: process 41, named by the pid file beside it, has ended.\n\
+monochromatic-git-policy-cli: removed the reference lock /r/.git/refs/heads/b.lock, left by a Git that is gone: process 42, named by the pid file beside it, has ended and the number now belongs to `sleep`.\n\
+monochromatic-git-policy-cli: removed the packed-references staging file /r/.git/packed-refs.new, left by a Git that is gone: Git makes this staging file only while it holds `packed-refs.lock`, and that lock is gone.\n\
+monochromatic-git-policy-cli: the reference lock /r/.git/refs/heads/d.lock is in use: process 43 (git), which the pid file beside it names, is running; it was left alone.\n\
+monochromatic-git-policy-cli: a lock file was set aside while a new lock took its place, and is left at /r/.git/cli-git-stale-lock-1-0-ff; look at it before removing it.\n";
     assert_eq!(outcome.notice(), expected);
 }
 

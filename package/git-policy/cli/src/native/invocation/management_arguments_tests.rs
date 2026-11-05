@@ -1,5 +1,5 @@
 //! What:
-//!  Grammar controls for `git cli-git` arguments.
+//!  Grammar controls for `git monochromatic-git-policy-cli` arguments.
 //! Why:
 //!  A malformed invocation must be refused with the right remedy,
 //!  a pathspec must
@@ -64,11 +64,11 @@ fn help_takes_no_further_arguments() {
             "{arguments:?}"
         );
     }
-    assert!(MANAGEMENT_HELP.starts_with("Usage: git cli-git <command> [options]\n"));
+    assert!(MANAGEMENT_HELP.starts_with("Usage: git monochromatic-git-policy-cli <command> [options]\n"));
     assert!(MANAGEMENT_HELP.contains("The trust, untrust and status commands are retired"));
     assert!(MANAGEMENT_HELP.ends_with("so there is nothing to approve.\n"));
-    assert!(MANAGEMENT_USAGE.starts_with("Usage: git cli-git check (--all | -- <pathspec>...)"));
-    assert!(MANAGEMENT_USAGE.ends_with("git cli-git --help\n"));
+    assert!(MANAGEMENT_USAGE.starts_with("Usage: git monochromatic-git-policy-cli check (--all | -- <pathspec>...)"));
+    assert!(MANAGEMENT_USAGE.ends_with("git monochromatic-git-policy-cli --help\n"));
 }
 
 /// Retired commands accept exactly the forms they had.
@@ -284,7 +284,7 @@ fn doctor_takes_no_arguments_and_is_documented() {
     for arguments in [vec!["doctor", "--all"], vec!["doctor", "--help"], vec!["doctor", "--", "a.txt"], vec!["doctor", "x"]] {
         assert_eq!(parse(arguments.as_slice()), Err(ManagementRefusal::Usage), "{arguments:?}");
     }
-    assert!(MANAGEMENT_USAGE.contains("git cli-git doctor"), "{MANAGEMENT_USAGE}");
+    assert!(MANAGEMENT_USAGE.contains("git monochromatic-git-policy-cli doctor"), "{MANAGEMENT_USAGE}");
     assert!(MANAGEMENT_HELP.contains("doctor"), "{MANAGEMENT_HELP}");
 }
 

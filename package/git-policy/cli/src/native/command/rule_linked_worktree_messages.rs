@@ -9,7 +9,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // mainWorktreeMessage('restore-staged') === 'cli-git: git restore --staged is rejected in the main git worktree: ...'
+//! // mainWorktreeMessage('restore-staged') === 'monochromatic-git-policy-cli: git restore --staged is rejected in the main git worktree: ...'
 //! ```
 
 use crate::rule_linked_worktree::GuardedCommand;
@@ -134,7 +134,7 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
 pub fn outside_worktree_message(command: GuardedCommand) -> String {
     let (name, risk, instead): (&str, &str, &str) = describe(command);
     return format!(
-        "cli-git: {name} requires the effective working directory to be inside a linked git worktree: {risk}. \
+        "monochromatic-git-policy-cli: {name} requires the effective working directory to be inside a linked git worktree: {risk}. \
          cd to a linked worktree root or pass -C <linked-worktree-root> before the subcommand. {instead}"
     );
 }
@@ -151,7 +151,7 @@ pub fn outside_worktree_message(command: GuardedCommand) -> String {
 pub fn main_worktree_message(command: GuardedCommand) -> String {
     let (name, risk, instead): (&str, &str, &str) = describe(command);
     return format!(
-        "cli-git: {name} is rejected in the main git worktree: {risk}, and nothing records which command did it. \
+        "monochromatic-git-policy-cli: {name} is rejected in the main git worktree: {risk}, and nothing records which command did it. \
          {instead} {HATCH_ADVICE}"
     );
 }
@@ -174,7 +174,7 @@ pub fn dirty_worktree_message(command: GuardedCommand) -> String {
         "changes to tracked files"
     };
     return format!(
-        "cli-git: {name} is rejected because this worktree has uncommitted {what}: {risk}. \
+        "monochromatic-git-policy-cli: {name} is rejected because this worktree has uncommitted {what}: {risk}. \
          {instead} {HATCH_ADVICE}"
     );
 }

@@ -20,7 +20,7 @@ use std::collections::BTreeMap;
 pub const TRACKED_LOG_RELATIVE: &str = "doc/audit/standards-review-gate-shadow.md";
 
 /// The live log's path under the common Git directory: untracked, so a landing never makes a checkout show a change.
-pub const SHARED_LOG_RELATIVE: &str = "cli-git/standards-review-shadow.md";
+pub const SHARED_LOG_RELATIVE: &str = "monochromatic-git-policy-cli/standards-review-shadow.md";
 
 /// What:
 ///  The live log of a repository: the one file every worktree's service instance appends its entries to.
@@ -30,7 +30,7 @@ pub const SHARED_LOG_RELATIVE: &str = "cli-git/standards-review-shadow.md";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// join(commonDir, 'cli-git/standards-review-shadow.md')
+/// join(commonDir, 'monochromatic-git-policy-cli/standards-review-shadow.md')
 /// ```
 pub fn shared_log_path(common_dir: &std::path::Path) -> std::path::PathBuf {
     return common_dir.join(SHARED_LOG_RELATIVE);

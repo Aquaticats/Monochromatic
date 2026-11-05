@@ -93,12 +93,19 @@ jobs:
       # panic = "unwind", which the linked scanner requires.
       - name: Build the native cli-git executable from the checkout
         working-directory: package/git-policy/cli
-        run: cargo build --release --locked --bin cli-git-native
+        run: cargo build --release --locked --bin monochromatic-git-policy-cli
 
       # The executable is exposed under its own name, never as git: the changesets action runs git commands of its own
       # in the same environment, and the wrapper refuses bulk staging.
+      # The root mise task `changeset:version` still starts the program as `cli-git-native` with the earlier command word,
+      # which the toolchain lock changes only after a release carries the new name; the executable accepts the earlier
+      # command word and ignores the name it was started as, so a second name for the same file keeps the task working.
       - name: Expose the native cli-git executable to later steps
-        run: printf '%s\n' "$GITHUB_WORKSPACE/package/git-policy/cli/target/release" >> "$GITHUB_PATH"
+        run: |
+          set -euo pipefail
+          release_directory="$GITHUB_WORKSPACE/package/git-policy/cli/target/release"
+          ln --symbolic --force monochromatic-git-policy-cli "$release_directory/cli-git-native"
+          printf '%s\n' "$release_directory" >> "$GITHUB_PATH"
 
       - name: Open or update the version pull request
         uses: changesets/action/version@8488615a623b1b9c987934bb89eae8af6a946ac1

@@ -54,8 +54,8 @@ fn help_section() -> String {
     return format!(
         "\nmonochromatic-git-policy-cli {VERSION} sits in front of this git\n\
          It adds repository policies on commit, push and worktree commands,\n\
-         the `git cli-git` management command (`git cli-git --help`),\n\
-         and `git cli-git doctor`, which lists the traditional hooks a repository holds.\n\
+         the `git monochromatic-git-policy-cli` management command (`git monochromatic-git-policy-cli --help`),\n\
+         and `git monochromatic-git-policy-cli doctor`, which lists the traditional hooks a repository holds.\n\
          real git: {REAL_GIT}\n"
     );
 }
@@ -103,7 +103,7 @@ fn a_global_prefix_keeps_the_query_announced() {
             banner(),
         ),
         // A word after the query is an ordinary argument that Git ignores.
-        (vec!["--help", "cli-git"], vec!["--help", "cli-git"], help_section()),
+        (vec!["--help", "monochromatic-git-policy-cli"], vec!["--help", "monochromatic-git-policy-cli"], help_section()),
     ] {
         assert_eq!(
             plan_invocation(text(arguments.as_slice()).as_slice(), &[], &resolution),

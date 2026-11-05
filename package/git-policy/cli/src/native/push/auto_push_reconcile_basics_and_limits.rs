@@ -8,7 +8,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! export const RECONCILE_LINE_PREFIX = 'cli-git: auto-push: ';
+//! export const RECONCILE_LINE_PREFIX = 'monochromatic-git-policy-cli: auto-push: ';
 //! export function wasRejectedAsStale(output: string): boolean;
 //! ```
 
@@ -22,14 +22,14 @@ use crate::inner_git_words::record_text;
 use std::ffi::OsString;
 use crate::auto_push_destination::Destination;
 /// Tag used for diagnostics from this module.
-pub(crate) const TAG: &str = "cli-git";
+pub(crate) const TAG: &str = "monochromatic-git-policy-cli";
 
 /// Prefix of every line this module adds to a push's output, so the terminal filter can keep it.
-pub const RECONCILE_LINE_PREFIX: &str = "cli-git: auto-push: ";
+pub const RECONCILE_LINE_PREFIX: &str = "monochromatic-git-policy-cli: auto-push: ";
 
 /// Start of the line that explains why a rejected push stays unpublished; the generic "run `git push`" note is then
 /// wrong advice and is not printed.
-pub const RECONCILE_FAILED_PREFIX: &str = "cli-git: auto-push: not published: ";
+pub const RECONCILE_FAILED_PREFIX: &str = "monochromatic-git-policy-cli: auto-push: not published: ";
 
 /// How many times the remote tip is fetched, merged and pushed before the push is reported as failed.
 pub const MAX_RECONCILE_ATTEMPTS: u32 = 10;
@@ -157,7 +157,7 @@ pub(crate) fn fetch_remote_tip(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const identifier = explicit ? 'cli-git' : 'cli-git-service';
+/// const identifier = explicit ? 'monochromatic-git-policy-cli' : 'cli-git-service';
 /// ```
 pub fn journal_identifier(explicit: bool) -> &'static str {
     return if explicit { CLIENT_IDENTIFIER } else { IDENTIFIER };

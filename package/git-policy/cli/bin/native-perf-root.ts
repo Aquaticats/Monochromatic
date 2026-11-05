@@ -77,7 +77,7 @@ export async function makeRoot({
   const wrapperBinary = join(
     root,
     'bin',
-    'cli-git-native',
+    'monochromatic-git-policy-cli',
   );
   await copyFile(
     binary,

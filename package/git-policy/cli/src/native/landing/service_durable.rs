@@ -18,9 +18,11 @@
 //! landing.settle(published); // true: hand the queue to the background thread; false: sync it now
 //! ```
 
-use crate::scoped_start::{Started, start_or_run};
+use crate::scoped_start::{Started, start_or_run_with};
+use crate::side_by_side_threads::{ScopeBody, in_thread_scope};
 use std::cell::{Cell, RefCell};
 use std::fs::File;
+use std::thread::Scope;
 use std::sync::OnceLock;
 use std::sync::mpsc::{Receiver, Sender, channel};
 
@@ -72,41 +74,42 @@ fn sync_batch(batch: Vec<Pending>) {
 /// await Promise.all(batch.map(async (pending) => { try { await pending.handle.sync(); } catch (e) { warn(e); } if (background) synced++; }));
 /// ```
 fn sync_all_at_once(batch: &[Pending], background: bool) {
-    #[cfg_attr(
-        dylint_lib = "monochromatic_lint_closure",
-        expect(
-            avoidable_closure,
-            reason = "std::thread::scope accepts only a callable, and the callable must carry the batch the scoped threads sync"
-        )
-    )]
-    std::thread::scope(|scope| {
-        let mut started: Vec<Started<'_, ()>> = Vec::new();
-        for pending in batch {
-            started.push(start_or_run(
-                scope,
-                #[cfg_attr(
-                    dylint_lib = "monochromatic_lint_closure",
-                    expect(
-                        avoidable_closure,
-                        reason = "start_or_run runs a callable on a scoped thread, and the callable must carry the pending sync it makes"
-                    )
-                )]
-                move || {
-                    if let Err(error) = pending.handle.sync_all() {
-                        if background {
-                            crate::service_warn!("the background sync of the {} failed: {error}", pending.what);
-                        } else {
-                            crate::service_warn!("the sync of the {} failed: {error}", pending.what);
-                        }
-                    }
-                    if background {
-                        BACKGROUND_SYNCED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    }
-                },
-            ));
+    in_thread_scope(SyncAll { batch, background });
+}
+
+/// The syncs of one batch, started together inside one thread scope.
+struct SyncAll<'batch> {
+    /// The handles to sync, one thread each.
+    batch: &'batch [Pending],
+    /// Whether the batch is the background's, which counts each sync and words its failures as the background's.
+    background: bool,
+}
+
+impl<'batch> ScopeBody<'batch> for SyncAll<'batch> {
+    type Output = ();
+
+    /// Start one sync per pending handle, then say once when any of them had to run here.
+    fn run<'scope>(self, scope: &'scope Scope<'scope, 'batch>) {
+        let mut started: Vec<Started<'scope, ()>> = Vec::new();
+        for pending in self.batch {
+            started.push(start_or_run_with(scope, (pending, self.background), sync_one_pending));
         }
         say_once_if_inline(started.as_slice());
-    });
+    }
+}
+
+/// Sync one handle, log a failure, and count a background sync.
+fn sync_one_pending((pending, background): (&Pending, bool)) {
+    if let Err(error) = pending.handle.sync_all() {
+        if background {
+            crate::service_warn!("the background sync of the {} failed: {error}", pending.what);
+        } else {
+            crate::service_warn!("the sync of the {} failed: {error}", pending.what);
+        }
+    }
+    if background {
+        BACKGROUND_SYNCED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
 }
 
 /// Logs once, for a batch, that a sync was made on the calling thread because the system could not start a thread for it.

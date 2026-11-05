@@ -84,20 +84,20 @@ pub enum SideVerdict {
 fn copy_failed_text(failure: &SaveFailure) -> String {
     return match failure.kind {
         FailureKind::Io => format!(
-            "cli-git: this command would replace a conflicted file, and your copy of it could not be saved first ({}: {}), so it is \
+            "monochromatic-git-policy-cli: this command would replace a conflicted file, and your copy of it could not be saved first ({}: {}), so it is \
              rejected and nothing was changed. Free the space or fix the permissions of the Git directory and run it again, or \
              save the file yourself and pass `--no-enforce-worktree` directly after the subcommand.",
             failure.subject, failure.reason
         ),
         FailureKind::Ancestor => format!(
-            "cli-git: this command would replace a conflicted file, but `{}` in front of it {}. Git would replace `{}` with a real \
+            "monochromatic-git-policy-cli: this command would replace a conflicted file, but `{}` in front of it {}. Git would replace `{}` with a real \
              directory to write the file, and nothing of it would be saved first, so the command is rejected and nothing was \
              changed. Move `{}` out of the way or save it yourself and run the command again, or pass `--no-enforce-worktree` \
              directly after the subcommand to go ahead without a copy.",
             failure.subject, failure.reason, failure.subject, failure.subject
         ),
         FailureKind::Changed => format!(
-            "cli-git: the conflicted file `{}` {}, so the copy that was being made may be stale or cut short and was not kept. The \
+            "monochromatic-git-policy-cli: the conflicted file `{}` {}, so the copy that was being made may be stale or cut short and was not kept. The \
              command is rejected and nothing was changed. Run it again once nothing is writing to the file (an editor or a build may \
              be), or save the file yourself and pass `--no-enforce-worktree` directly after the subcommand.",
             failure.subject, failure.reason

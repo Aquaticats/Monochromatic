@@ -1,5 +1,5 @@
 //! What:
-//!  Decide what one `git cli-git ...` invocation does.
+//!  Decide what one `git monochromatic-git-policy-cli ...` invocation does.
 //! Why:
 //!  Help,
 //!  refusals and retired commands need no repository;
@@ -18,7 +18,7 @@ use crate::management_direct_commands::{direct_config_failure, plan_direct, refu
 use crate::management_service_repository_selection::{Selection, status_git_dir};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure, with_leading_notice};
 use crate::child_environment::{child_environment_overlay, environment_value};
-/// The traditional-hook listing of `git cli-git doctor`.
+/// The traditional-hook listing of `git monochromatic-git-policy-cli doctor`.
 use crate::doctor::doctor_action_with_section;
 use crate::service_route::service_status;
 use crate::management_arguments::{
@@ -86,7 +86,7 @@ fn retired_name(command: RetiredCommand) -> &'static str {
 pub fn retired_explanation(command: RetiredCommand) -> String {
     // `format!` builds the owned text; `{}` interpolates the command word.
     return format!(
-        "git cli-git {} is retired. cli-git now reads cli-git.config.jsonc as data and runs no \
+        "git monochromatic-git-policy-cli {} is retired. monochromatic-git-policy-cli now reads monochromatic-git-policy-cli.config.jsonc as data and runs no \
          repository-supplied code, so there is no code execution to approve, revoke or report. \
          Nothing was changed; existing trust records are left in place and are no longer read.\n",
         retired_name(command)
@@ -116,7 +116,7 @@ fn scope_pathspecs(all: bool, pathspecs: Vec<OsString>) -> Vec<OsString> {
 }
 
 /// What:
-///  Decide the action of `git cli-git service status`.
+///  Decide the action of `git monochromatic-git-policy-cli service status`.
 /// Why:
 ///   The command is read-only:
 /// it says whether the service of the worktree it runs in answers.
@@ -154,7 +154,7 @@ fn optional_real_git(inputs: &ResolutionInputs) -> (Option<PathBuf>, Option<Stri
 }
 
 /// What:
-///  Decide the action of `git cli-git service status` once the optional real Git is known.
+///  Decide the action of `git monochromatic-git-policy-cli service status` once the optional real Git is known.
 /// Why:
 ///   `plan_service` adds the notice of a recorded fallback to the action this returns.
 ///
@@ -185,7 +185,7 @@ fn plan_service_with(global_arguments: &[OsString], environment: &[(OsString, Os
 }
 
 /// What:
-///  Decide the action of `git cli-git migrate-to-subvolume`: a refused invocation prints its reason, anything else runs
+///  Decide the action of `git monochromatic-git-policy-cli migrate-to-subvolume`: a refused invocation prints its reason, anything else runs
 ///  from the working directory.
 /// Why:
 ///   The command needs neither configuration nor Git: it reads `.git` itself and calls the filesystem.
@@ -201,7 +201,7 @@ fn plan_migrate(parsed: Result<MigrateArguments, String>) -> Action {
             return Action::Exit {
                 code: ENGINE_FAILURE_EXIT_CODE,
                 stdout: String::new(),
-                stderr: format!("git cli-git migrate-to-subvolume: {reason}\n"),
+                stderr: format!("git monochromatic-git-policy-cli migrate-to-subvolume: {reason}\n"),
             };
         }
     };
@@ -213,7 +213,7 @@ fn plan_migrate(parsed: Result<MigrateArguments, String>) -> Action {
 }
 
 /// What:
-///  Decide the action of `git cli-git convert-worktree-to-subvolume`: a refused invocation prints its reason, anything else
+///  Decide the action of `git monochromatic-git-policy-cli convert-worktree-to-subvolume`: a refused invocation prints its reason, anything else
 ///  runs from the working directory.
 /// Why:
 ///   Like the migration, the command needs no valid configuration and starts no Git. It resolves the real Git the wrapper
@@ -232,7 +232,7 @@ fn plan_convert(parsed: Result<ConvertArguments, String>, global_arguments: &[Os
             return Action::Exit {
                 code: ENGINE_FAILURE_EXIT_CODE,
                 stdout: String::new(),
-                stderr: format!("git cli-git convert-worktree-to-subvolume: {reason}\n"),
+                stderr: format!("git monochromatic-git-policy-cli convert-worktree-to-subvolume: {reason}\n"),
             };
         }
     };
@@ -254,7 +254,7 @@ fn run_convert(arguments: &ConvertArguments, cwd: &Path, environment: &[(OsStrin
 /// Other platforms have no btrfs subvolumes, so the command says so.
 #[cfg(not(target_os = "linux"))]
 fn run_convert(_arguments: &ConvertArguments, _cwd: &Path, _environment: &[(OsString, OsString)], _real_git: Option<&Path>) -> Action {
-    return failure("git cli-git convert-worktree-to-subvolume works on Linux with btrfs only");
+    return failure("git monochromatic-git-policy-cli convert-worktree-to-subvolume works on Linux with btrfs only");
 }
 
 /// The doctor's filesystem section read from the running system.
@@ -278,7 +278,7 @@ fn run_migrate(arguments: &MigrateArguments, cwd: &Path) -> Action {
 /// Other platforms have no btrfs subvolumes, so the command says so.
 #[cfg(not(target_os = "linux"))]
 fn run_migrate(_arguments: &MigrateArguments, _cwd: &Path) -> Action {
-    return failure("git cli-git migrate-to-subvolume works on Linux with btrfs only");
+    return failure("git monochromatic-git-policy-cli migrate-to-subvolume works on Linux with btrfs only");
 }
 
 fn plan_doctor(
@@ -309,10 +309,10 @@ fn plan_doctor(
 }
 
 /// What:
-///  Decide the action for the arguments after `git cli-git`.
+///  Decide the action for the arguments after `git monochromatic-git-policy-cli`.
 ///       `&[OsString]` borrows argument lists;
 ///  `&Controls` borrows what the wrapper
-///       controls written before `cli-git` asked for;
+///       controls written before `monochromatic-git-policy-cli` asked for;
 ///  `&ResolutionInputs` borrows process facts.
 /// Why:
 ///   Help,

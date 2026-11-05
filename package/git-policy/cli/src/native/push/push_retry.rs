@@ -151,18 +151,18 @@ pub fn unrecognised_rejection(output: &str) -> Option<String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// plainWords(cause) // 'cli-git: the remote wants a login ...'
+/// plainWords(cause) // 'monochromatic-git-policy-cli: the remote wants a login ...'
 /// ```
 pub fn plain_words(cause: FinalFailure) -> Option<&'static str> {
     return match cause {
         FinalFailure::Conflict => None,
         FinalFailure::Login => Some(
-            "cli-git: the remote refused this push because it wants a login that the commit service does not have, or because the login it has lacks \
+            "monochromatic-git-policy-cli: the remote refused this push because it wants a login that the commit service does not have, or because the login it has lacks \
              permission, so the commit service stops pushing this branch until your next commit. Log in in a way the service can use (a credential \
              helper, or an SSH key without a passphrase that its environment reaches) and make sure that login may push, then push by hand or commit again.",
         ),
         FinalFailure::Declined => Some(
-            "cli-git: the server refused this push: a hook on the server declined it, with the message shown below. Trying again would be refused the same way, \
+            "monochromatic-git-policy-cli: the server refused this push: a hook on the server declined it, with the message shown below. Trying again would be refused the same way, \
              so the commit service stops pushing this branch until your next commit. Fix what the message names, then push by hand or commit again.",
         ),
     };

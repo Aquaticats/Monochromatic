@@ -17,7 +17,7 @@ export type WrapperKind = 'native';
 /**
  Directory holding the `git` of each wrapper kind inside the end-to-end image.
  The directory is created by the native end-to-end image task, which links the release executable
- as `git` there (the Cargo artifact itself is named `cli-git-native` so it never shadows Git by accident).
+ as `git` there (the Cargo artifact itself is named `monochromatic-git-policy-cli` so it never shadows Git by accident).
  */
 export const WRAPPER_BINS: Readonly<Record<WrapperKind, string>> = {
   native: '/opt/native/bin',

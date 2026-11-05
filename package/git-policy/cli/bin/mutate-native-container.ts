@@ -186,7 +186,7 @@ await runCampaign({
       pidsLimit: containerLimits.pidsLimit,
     },
   }),
-  contextPrefix: 'cli-git-native-mutation-',
+  contextPrefix: 'monochromatic-git-policy-cli-mutation-',
   evidenceRoot,
   evidencePrefix: campaignPrefix,
   limits: containerLimits,

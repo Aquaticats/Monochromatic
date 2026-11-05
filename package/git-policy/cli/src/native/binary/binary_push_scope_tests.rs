@@ -22,7 +22,7 @@ fn wrapped_with_hints(fixture: &Fixture, directory: &std::path::Path, arguments:
 /// A repository whose policy file turns a manual-push policy on, with one commit published to `origin`.
 fn policy_world(fixture: &Fixture) -> World {
     let world: World = world(fixture, false, None);
-    commit_directly(fixture, world.repo.as_path(), "cli-git.config.jsonc", "{ \"policies\": { \"final-newline\": \"error\" } }\n");
+    commit_directly(fixture, world.repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", "{ \"policies\": { \"final-newline\": \"error\" } }\n");
     git(fixture, world.repo.as_path(), &["push", "--quiet", "--no-verify", "origin", "main"]);
     return world;
 }

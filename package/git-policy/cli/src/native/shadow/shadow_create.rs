@@ -82,7 +82,7 @@ fn set_private_file(_path: &Path) -> std::io::Result<()> {
 /// What:
 ///  Creates the shadow's parent directories as private directories.
 /// Why:
-///   The incumbent creates `cli-git/shadow` with mode 0700.
+///   The incumbent creates `monochromatic-git-policy-cli/shadow` with mode 0700.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -99,7 +99,7 @@ fn create_parent(shadow: &Path) -> std::io::Result<()> {
 /// What:
 ///  Create a private directory unless another process made it first.
 /// Why:
-///   Concurrent commits of one repository race to create the shared `cli-git/shadow` parents; whoever loses has
+///   Concurrent commits of one repository race to create the shared `monochromatic-git-policy-cli/shadow` parents; whoever loses has
 ///   nothing left to do. A path that exists as anything but a directory is still a failure.
 ///
 /// In TS you'd write (pseudocode):

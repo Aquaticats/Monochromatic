@@ -11,6 +11,10 @@
 //! ```
 #![cfg(unix)]
 
+use crate::wrapper_names_old_and_new::PROGRAM;
+
+/// The bytes of a command name that `/proc/<pid>/comm` keeps.
+const KERNEL_COMMAND_NAME_BYTES: usize = 15;
 use super::*;
 use crate::stale_ref_lock_killed_git as killed;
 use crate::stale_ref_lock_killed_git::{Held, Helper, Stage, GONE_REF};
@@ -210,14 +214,23 @@ fn a_process_number_now_held_by_another_program_proves_the_holder_gone() {
 ///  was not Git's either, so merging the two executables changes no verdict.
 #[test]
 fn a_process_named_like_the_one_executable_is_not_git() {
-    let stage: Stage = killed::stage("stale-refs-named-like-the-wrapper", true);
-    let named: PathBuf = stage.git_dir.join("cli-git-native");
+    // The executable's current name and the name an older install gave it: neither starts with Git's.
+    for program in [PROGRAM.current, PROGRAM.earlier] {
+        a_process_named_like_this_program_is_not_git(program);
+    }
+}
+
+/// One program name of the control above.
+fn a_process_named_like_this_program_is_not_git(program: &str) {
+    let stage: Stage = killed::stage(format!("stale-refs-named-{program}").as_str(), true);
+    let named: PathBuf = stage.git_dir.join(program);
     std::fs::copy(Path::new("/usr/bin/sleep"), &named).expect("a copy of sleep under the executable's name");
     killed::write_file(stage.lock_of(PLANTED_REF).as_path(), "");
     std::thread::sleep(Duration::from_millis(400));
     let other: Helper = Helper(Command::new(&named).arg("120").stdin(Stdio::null()).spawn().expect("start the copy"));
     let comm: String = std::fs::read_to_string(format!("/proc/{}/comm", other.pid())).expect("comm").trim().to_string();
-    assert_eq!(comm, "cli-git-native");
+    // The kernel reports at most fifteen bytes of a command name.
+    assert_eq!(comm, program.chars().take(KERNEL_COMMAND_NAME_BYTES).collect::<String>());
     std::thread::sleep(Duration::from_millis(50));
     killed::write_file(stage.pid_file_of(PLANTED_REF).as_path(), &format!("pid {}\n", other.pid()));
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());

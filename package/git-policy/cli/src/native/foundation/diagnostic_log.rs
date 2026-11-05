@@ -13,7 +13,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const l = tagged({ tag: 'cli-git' }); l.debug(message); l.warn(message);
+//! const l = tagged({ tag: 'monochromatic-git-policy-cli' }); l.debug(message); l.warn(message);
 //! ```
 
 /// The current time in `toISOString` form.
@@ -81,16 +81,16 @@ fn is_false(value: std::ffi::OsString) -> bool {
 
 /// What:
 ///  One diagnostic line in the incumbent's console format,
-///       `[<level>] [<ISO time>] [cli-git] [<tag>] <message>`,
+///       `[<level>] [<ISO time>] [monochromatic-git-policy-cli] [<tag>] <message>`,
 ///  with every control character of
 ///       the message replaced by a space.
 /// Why:
-///   The incumbent's tagged loggers print `[warn] [2026-10-06T21:40:39.524Z] [cli-git] ...`;
+///   The incumbent's tagged loggers print `[warn] [2026-10-06T21:40:39.524Z] [monochromatic-git-policy-cli] ...`;
 ///       one line per record keeps standard error parseable beside JSONL events.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `[${level}] [${new Date().toISOString()}] [cli-git] [${tag}] ${neutralize(message)}\n`
+/// `[${level}] [${new Date().toISOString()}] [monochromatic-git-policy-cli] [${tag}] ${neutralize(message)}\n`
 /// ```
 pub fn diagnostic_line(level: &str, time: &str, tag: &str, message: &str) -> String {
     // `mut` allows building the neutralized message one character at a time.
@@ -102,7 +102,7 @@ pub fn diagnostic_line(level: &str, time: &str, tag: &str, message: &str) -> Str
             single.push(character);
         }
     }
-    return format!("[{level}] [{time}] [cli-git] [{tag}] {single}\n");
+    return format!("[{level}] [{time}] [monochromatic-git-policy-cli] [{tag}] {single}\n");
 }
 
 /// What:

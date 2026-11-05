@@ -86,7 +86,7 @@ pub mod policy_transforms;
 ///  optional policies.
 pub mod policy_pass;
 
-/// The work of the installed cli-git that is not ported,
+/// The work of the installed monochromatic-git-policy-cli that is not ported,
 ///  and the refusal notice.
 pub mod unported;
 

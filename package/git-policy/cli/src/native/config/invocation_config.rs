@@ -3,8 +3,8 @@
 //!  and render
 //!       the events configuration loading can produce.
 //! Why:
-//!  Both wrapped Git commands and `git cli-git check`/`fix` need the same answer:
-//!      what does the `cli-git.config.jsonc` of the worktree Git reported say.
+//!  Both wrapped Git commands and `git monochromatic-git-policy-cli check`/`fix` need the same answer:
+//!      what does the `monochromatic-git-policy-cli.config.jsonc` of the worktree Git reported say.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,7 +21,9 @@ use crate::diagnostics::{
 };
 use crate::worktree_identity::{WorktreeIdentity, worktree_root};
 /// `PathBuf` is an owned filesystem path of raw OS bytes.
+use std::io::Write;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// What:
 ///  Load the configuration for the worktree Git reported for this invocation.
@@ -51,10 +53,31 @@ pub fn load_identity_config(identity: &WorktreeIdentity) -> Result<LoadedConfig,
             source: None,
             // `Vec::new()` is the empty owned list.
             ignored_legacy: Vec::<PathBuf>::new(),
+        earlier_name_notice: None,
         });
     };
-    return load_repository_config(root);
+    let loaded: LoadedConfig = load_repository_config(root)?;
+    // The one line about the settings file's name is said once per process, however many times the settings are loaded.
+    if let Some(notice) = &loaded.earlier_name_notice
+        && !EARLIER_NAME_SAID.swap(true, Ordering::Relaxed)
+    {
+        let _written = std::io::stderr().write_all(notice.as_bytes());
+    }
+    return Ok(loaded);
 }
+
+/// What:
+///  Whether this process has already told the person about the settings file's name.
+///  `AtomicBool` is a flag that threads share without a lock.
+/// Why:
+///   One invocation loads the settings more than once;
+///  the owner decided on "one notice".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let earlierNameSaid = false;
+/// ```
+static EARLIER_NAME_SAID: AtomicBool = AtomicBool::new(false);
 
 /// What:
 ///  Render the `config-invalid` event for a rejected configuration.

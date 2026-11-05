@@ -74,7 +74,7 @@ pub fn link_built_wrapper(built: &Path, to: &Path, store_root: &Path) {
 }
 
 /// Create a fixture in the fixture root:
-///  `<root>/wrapper/cli-git-native` (hard link of the built executable) and `<root>/bin/git` (symbolic link to it).
+///  `<root>/wrapper/monochromatic-git-policy-cli` (hard link of the built executable) and `<root>/bin/git` (symbolic link to it).
 pub fn fixture(name: &str) -> Fixture {
     return fixture_in(fixture_root().as_path(), name);
 }
@@ -92,7 +92,7 @@ pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
     for subdirectory in ["wrapper", "bin", "home"] {
         std::fs::create_dir(root.join(subdirectory)).expect("fixture directory");
     }
-    let wrapper: PathBuf = root.join("wrapper/cli-git-native");
+    let wrapper: PathBuf = root.join("wrapper/monochromatic-git-policy-cli");
     link_built_wrapper(Path::new(WRAPPER), wrapper.as_path(), directory);
     std::os::unix::fs::symlink(&wrapper, root.join("bin/git")).expect("git-named link");
     return Fixture { root, wrapper, service: std::sync::Mutex::new(None), service_environment: std::sync::Mutex::new(Vec::new()), service_launch: std::sync::Mutex::new(ServiceLaunch::default()) };

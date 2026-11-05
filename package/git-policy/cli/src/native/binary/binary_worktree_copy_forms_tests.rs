@@ -9,7 +9,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! expect(run(wrappedGit, ['worktree', 'add', '--det', '../one']).stderr).toMatch(/^cli-git: copied /);
+//! expect(run(wrappedGit, ['worktree', 'add', '--det', '../one']).stderr).toMatch(/^monochromatic-git-policy-cli: copied /);
 //! ```
 
 use super::support::{Fixture, Observed, fixture, remove, run_wrapped, stderr_of};
@@ -20,7 +20,7 @@ use std::path::PathBuf;
 const RULES_FILE: &str = ".cache/forbidden-strings.rules.txt";
 
 /// The text the copy line of a successful add starts with.
-const COPIED: &str = "cli-git: copied ";
+const COPIED: &str = "monochromatic-git-policy-cli: copied ";
 
 /// Git's status for a usage error.
 const USAGE_ERROR_STATUS: i32 = 129;

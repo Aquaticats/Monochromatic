@@ -12,7 +12,7 @@
 //! ```
 
 use crate::subvolume_file_write_steps::write_all_then_sync;
-use crate::subvolume_index::{IndexOutcome, RewriteContext, StatFields, accept_every_stat, rewrite_index_stat_with};
+use crate::subvolume_index::{AcceptEveryStat, IndexOutcome, RewriteContext, StatLookup, rewrite_index_stat_with};
 use std::ffi::OsStr;
 
 /// The call the install makes at a seam when no control wants one: none.
@@ -32,7 +32,7 @@ fn do_nothing() {}
 /// ```ts
 /// installIndexIn(admin, seed, stats, hashLength); // throws a reason
 /// ```
-pub fn install_index_in(admin: &std::fs::File, seed: &[u8], stats: &mut dyn FnMut(&[u8]) -> Option<StatFields>, hash_length: usize) -> Result<String, String> {
+pub fn install_index_in(admin: &std::fs::File, seed: &[u8], stats: &mut dyn StatLookup, hash_length: usize) -> Result<String, String> {
     return install_index_in_with(admin, seed, stats, hash_length, &mut InstallSeams { before_publish: &mut do_nothing, after_publish: &mut do_nothing });
 }
 
@@ -45,7 +45,7 @@ pub struct InstallSeams<'a> {
 }
 
 /// `install_index_in` with the moments at which a control may move the tree.
-pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn FnMut(&[u8]) -> Option<StatFields>, hash_length: usize, seams: &mut InstallSeams<'_>) -> Result<String, String> {
+pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn StatLookup, hash_length: usize, seams: &mut InstallSeams<'_>) -> Result<String, String> {
     use crate::fs_beneath::{create_file_at, entry_metadata_at, identity_of, link_open_file_at};
     let lock: &OsStr = OsStr::new("index.lock");
     let index: &OsStr = OsStr::new("index");
@@ -65,7 +65,7 @@ pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn
     }
     let now: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
     let context: RewriteContext = RewriteContext { hash_length: Some(hash_length), index_mtime: Some((now.as_secs() as u32, now.subsec_nanos())) };
-    let (rewritten, updated, total): (Vec<u8>, usize, usize) = match rewrite_index_stat_with(seed, &context, stats, &mut accept_every_stat) {
+    let (rewritten, updated, total): (Vec<u8>, usize, usize) = match rewrite_index_stat_with(seed, &context, stats, &mut AcceptEveryStat) {
         IndexOutcome::Rewritten { bytes, updated, total } => (bytes, updated, total),
         IndexOutcome::Skipped(reason) => return give_up(admin, lock, ours, format!("the index cannot be refreshed ({reason})")),
     };

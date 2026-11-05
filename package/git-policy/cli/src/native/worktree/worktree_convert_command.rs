@@ -1,5 +1,5 @@
 //! What:
-//!  `git cli-git convert-worktree-to-subvolume`: parse the options, find the worktrees to convert, run the conversion on each,
+//!  `git monochromatic-git-policy-cli convert-worktree-to-subvolume`: parse the options, find the worktrees to convert, run the conversion on each,
 //!  and turn the results into lines and an exit status.
 //! Why:
 //!  A conversion takes seconds to minutes per worktree and is bound by the filesystem's metadata work, not by any one
@@ -18,7 +18,8 @@ use crate::action::Action;
 use crate::subvolume_command::main_checkout_root;
 use crate::diagnostic_log::debug;
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use crate::parallel_runner::{Event, OrderedRun, run_ordered};
+use crate::line_sink::LineSink;
+use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
 use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_index_files::linked_worktrees_inside;
 use crate::subvolume_platform::{LinuxPlatform, Platform};
@@ -155,21 +156,98 @@ fn lanes_of(list: &[PathBuf]) -> Vec<Vec<usize>> {
     return lanes;
 }
 
+/// What:
+///  The conversion of one worktree, run by a worker of the ordered runner.
+/// Why:
+///   The platform, the options and the interrupt are what the conversion reads; the runner shares them among its worker threads,
+///  so they are plain borrowed fields of a value that is `Sync`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ConvertEachWorktree implements OrderedWork<string, Result<Verdict>> { run(index, path, say) { return convertWorktree(platform, path, options, interrupt, say); } }
+/// ```
+struct ConvertEachWorktree<'a> {
+    /// The filesystem the conversions run on.
+    platform: &'a (dyn Platform + Sync),
+    /// What the invocation asked of each conversion.
+    options: ConvertOptions,
+    /// Where an injected interruption stops a conversion.
+    interrupt: &'a Interrupt,
+}
+
+impl OrderedWork<PathBuf, Result<Verdict, MigrateError>> for ConvertEachWorktree<'_> {
+    fn run(&self, _index: usize, path: &PathBuf, say: &mut dyn LineSink) -> Result<Verdict, MigrateError> {
+        return convert_worktree(self.platform, path.as_path(), self.options, self.interrupt, say);
+    }
+}
+
+/// What:
+///  What the person is told as the conversions finish, in input order, and how many of each kind there were.
+/// Why:
+///   The runner calls the report on the calling thread only, one event at a time, so the counts need no lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ConversionReport implements OrderedEvents<Result<Verdict>> { refused = 0; converted = 0; failed = 0; }
+/// ```
+struct ConversionReport<'a> {
+    /// Where the lines go.
+    say: &'a mut dyn FnMut(&str),
+    /// The worktrees, in the order their output is reported.
+    list: &'a [PathBuf],
+    /// Whether the run only lists what it would do.
+    dry_run: bool,
+    /// How many worktrees were skipped.
+    refused: usize,
+    /// How many worktrees were converted or completed.
+    converted: usize,
+    /// How many conversions failed.
+    failed: usize,
+}
+
+impl OrderedEvents<Result<Verdict, MigrateError>> for ConversionReport<'_> {
+    fn on_event(&mut self, event: Event<'_, Result<Verdict, MigrateError>>) {
+        match event {
+            Event::Begin(index) => (self.say)(format!("{}", self.list[index].display()).as_str()),
+            Event::Line(_index, text) => (self.say)(text),
+            Event::End(_index, Ok(Verdict::Converted)) => {
+                self.converted += 1;
+                (self.say)("  converted into a subvolume");
+            }
+            Event::End(_index, Ok(Verdict::Resumed)) => {
+                self.converted += 1;
+                (self.say)(if self.dry_run { "  an unfinished conversion would be completed" } else { "  the unfinished conversion was completed" });
+            }
+            Event::End(_index, Ok(Verdict::WouldConvert)) => (self.say)("  would convert"),
+            Event::End(_index, Ok(Verdict::AlreadySubvolume)) => (self.say)("  already a subvolume, skipped"),
+            Event::End(_index, Ok(Verdict::Abandoned)) => (self.say)("  the unfinished conversion was undone"),
+            Event::End(_index, Ok(Verdict::Skipped(reasons))) => {
+                self.refused += 1;
+                for reason in reasons {
+                    (self.say)(format!("  skipped: {reason}").as_str());
+                }
+            }
+            Event::End(_index, Err(error)) => {
+                self.failed += 1;
+                (self.say)(format!("  failed: {error}").as_str());
+                (self.say)("  The conversion is journaled. Run the same command again to finish it, or add --abandon to undo it before its swap.");
+            }
+        }
+    }
+}
+
 /// `execute` with the host's resources chosen by the caller.
 pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
     let ConvertRun { platform, arguments, cwd, interrupt, host } = *run;
     let list: Vec<PathBuf> = match targets(arguments, cwd) {
         Ok(found) => found,
         Err(reason) => {
-            say(format!("git cli-git convert-worktree-to-subvolume: refused: {reason}").as_str());
+            say(format!("git monochromatic-git-policy-cli convert-worktree-to-subvolume: refused: {reason}").as_str());
             say("Nothing was changed.");
             return REFUSED_EXIT_CODE;
         }
     };
     let options: ConvertOptions = ConvertOptions { dry_run: arguments.dry_run, abandon: arguments.abandon, command_line_attributes: arguments.command_line_attributes };
-    let mut refused: usize = 0;
-    let mut converted: usize = 0;
-    let mut failed: usize = 0;
     // Said once, before the first worktree is touched, when the run can delete an old tree.
     if !arguments.dry_run && !arguments.abandon && !list.is_empty() {
         say(RISK_NOTICE);
@@ -179,43 +257,17 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
     debug(TAG, format!("{} worktree(s) in {} lane(s) on {workers} worker(s) (host {host:?}, cap {:?})", list.len(), lanes.len(), arguments.jobs).as_str());
     // Each worktree has its own administrative directory, index, claim and journal, so the conversions share nothing but the
     //  filesystem. Lines and results come back to this thread, which says them in input order.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "OrderedRun takes its work and event callbacks as dyn Fn and dyn FnMut owned by foundation/parallel_runner.rs, and both must capture the caller's state (worktree_closure_lint_suppressions.md, group run_ordered)"))]
+    let mut report: ConversionReport<'_> = ConversionReport { say, list: list.as_slice(), dry_run: arguments.dry_run, refused: 0, converted: 0, failed: 0 };
     run_ordered(OrderedRun {
         items: list.as_slice(),
         lanes: lanes.as_slice(),
         workers,
-        work: &|_index: usize, path: &PathBuf, worker_say: &mut dyn FnMut(&str)| { return convert_worktree(platform, path.as_path(), options, interrupt, worker_say); },
-        on_event: &mut |event: Event<'_, Result<Verdict, MigrateError>>| {
-            match event {
-                Event::Begin(index) => say(format!("{}", list[index].display()).as_str()),
-                Event::Line(_index, text) => say(text),
-                Event::End(_index, Ok(Verdict::Converted)) => {
-                    converted += 1;
-                    say("  converted into a subvolume");
-                }
-                Event::End(_index, Ok(Verdict::Resumed)) => {
-                    converted += 1;
-                    say(if arguments.dry_run { "  an unfinished conversion would be completed" } else { "  the unfinished conversion was completed" });
-                }
-                Event::End(_index, Ok(Verdict::WouldConvert)) => say("  would convert"),
-                Event::End(_index, Ok(Verdict::AlreadySubvolume)) => say("  already a subvolume, skipped"),
-                Event::End(_index, Ok(Verdict::Abandoned)) => say("  the unfinished conversion was undone"),
-                Event::End(_index, Ok(Verdict::Skipped(reasons))) => {
-                    refused += 1;
-                    for reason in reasons {
-                        say(format!("  skipped: {reason}").as_str());
-                    }
-                }
-                Event::End(_index, Err(error)) => {
-                    failed += 1;
-                    say(format!("  failed: {error}").as_str());
-                    say("  The conversion is journaled. Run the same command again to finish it, or add --abandon to undo it before its swap.");
-                }
-            }
-        },
+        work: &ConvertEachWorktree { platform, options, interrupt },
+        on_event: &mut report,
     });
+    let (refused, converted, failed): (usize, usize, usize) = (report.refused, report.converted, report.failed);
     let failures: String = if failed > 0 { format!(", {failed} failed") } else { String::new() };
-    say(format!("{} worktree(s) looked at, {converted} converted or completed, {refused} skipped{failures}.", list.len()).as_str());
+    (report.say)(format!("{} worktree(s) looked at, {converted} converted or completed, {refused} skipped{failures}.", list.len()).as_str());
     if failed > 0 {
         return FAILED_EXIT_CODE;
     }

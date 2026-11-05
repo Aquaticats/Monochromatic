@@ -11,6 +11,7 @@
 //! const journal = parseJournal(text, path, journalRoot); // throws when any field is not what the encoder writes
 //! ```
 
+use crate::wrapper_names_old_and_new::WORKTREE_COPY_RECORD_FOLDER;
 use crate::json_record::quote;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
 use crate::worktree_copy_install_entry::InstalledPath;
@@ -24,9 +25,9 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const JOURNAL_PARENT_NAME = 'cli-git-worktree-copy';
+/// const JOURNAL_PARENT_NAME = 'monochromatic-git-policy-cli-worktree-copy';
 /// ```
-pub const JOURNAL_PARENT_NAME: &str = "cli-git-worktree-copy";
+pub const JOURNAL_PARENT_NAME: &str = WORKTREE_COPY_RECORD_FOLDER.current;
 
 /// What:
 ///  The schema directory of the journals.
@@ -305,7 +306,7 @@ pub fn decimal_identity(value: &serde_json::Value) -> Option<u64> {
 /// What:
 ///  One created-entry object, read strictly.
 /// Why:
-///   An identity with any wrong type is not an identity cli-git wrote.
+///   An identity with any wrong type is not an identity monochromatic-git-policy-cli wrote.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -391,7 +392,7 @@ pub fn parse_journal(
         Ok(parsed) => parsed,
         Err(error) => {
             let message: String = format!(
-                "cli-git: could not read worktree-copy journal {}.",
+                "monochromatic-git-policy-cli: could not read worktree-copy journal {}.",
                 quote(path.to_string_lossy().as_ref())
             );
             return Err(failure_with_cause(message.as_str(), Some(&error)));
@@ -403,7 +404,7 @@ pub fn parse_journal(
     if path.parent() != Some(journal_root) {
         return Err(failure_with_cause(
             format!(
-                "cli-git: worktree-copy journal escaped private root: {}.",
+                "monochromatic-git-policy-cli: worktree-copy journal escaped private root: {}.",
                 quote(path.to_string_lossy().as_ref())
             )
             .as_str(),
@@ -419,7 +420,7 @@ pub fn parse_journal(
         if !is_canonical_absolute(field_value) {
             return Err(failure_with_cause(
                 format!(
-                    "cli-git: worktree-copy journal has unsafe {field}: {}.",
+                    "monochromatic-git-policy-cli: worktree-copy journal has unsafe {field}: {}.",
                     quote(field_value)
                 )
                 .as_str(),
@@ -438,7 +439,7 @@ pub fn parse_journal(
     if !stage_relation {
         return Err(failure_with_cause(
             format!(
-                "cli-git: worktree-copy journal has unsafe private stage relation: {}.",
+                "monochromatic-git-policy-cli: worktree-copy journal has unsafe private stage relation: {}.",
                 quote(path.to_string_lossy().as_ref())
             )
             .as_str(),
@@ -464,7 +465,7 @@ pub fn parse_journal(
     if duplicated {
         return Err(failure_with_cause(
             format!(
-                "cli-git: worktree-copy journal contains duplicate repository paths: {}.",
+                "monochromatic-git-policy-cli: worktree-copy journal contains duplicate repository paths: {}.",
                 quote(path.to_string_lossy().as_ref())
             )
             .as_str(),
@@ -501,12 +502,12 @@ fn has_duplicates<T: AsRef<str>>(items: &[T]) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// new WorktreeCopyError(`cli-git: worktree-copy journal is corrupt: ${JSON.stringify(path)}.`)
+/// new WorktreeCopyError(`monochromatic-git-policy-cli: worktree-copy journal is corrupt: ${JSON.stringify(path)}.`)
 /// ```
 fn corrupt(path: &Path) -> WorktreeCopyError {
     return failure_with_cause(
         format!(
-            "cli-git: worktree-copy journal is corrupt: {}.",
+            "monochromatic-git-policy-cli: worktree-copy journal is corrupt: {}.",
             quote(path.to_string_lossy().as_ref())
         )
         .as_str(),

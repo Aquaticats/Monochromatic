@@ -2,7 +2,7 @@
 //!  The crate declares exactly the executable that the release archive holds.
 //! Why:
 //!  cargo-binstall requires every `[[bin]]` of a crate to be in the archive (`[package.metadata.binstall]`), and the release job
-//!  packages one file, `cli-git-native`. A second `[[bin]]` made the `catalog-specifiers` workflow fail from 2026-11-01 (`When
+//!  packages one file, `monochromatic-git-policy-cli`. A second `[[bin]]` made the `catalog-specifiers` workflow fail from 2026-11-01 (`When
 //!  resolving monochromatic-git-policy-cli bin cli-git-service is not found. This binary is not optional`) while local installs,
 //!  which compile from source, worked. The service is a mode of the one executable (`service_main.rs`). The release job, the
 //!  release list and the toolchain lock are checked against the same manifest by `bin/native-release-bins.unit.test.ts`, which
@@ -10,13 +10,13 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! expect(manifestBins(readFileSync('Cargo.toml', 'utf8'))).toEqual(['cli-git-native']);
+//! expect(manifestBins(readFileSync('Cargo.toml', 'utf8'))).toEqual(['monochromatic-git-policy-cli']);
 //! ```
 
 use std::path::Path;
 
 /// The one executable the release archive holds, which `.github/workflows/cargo-publish.yml` builds with `--bin` and copies.
-const RELEASED_BINS: [&str; 1] = ["cli-git-native"];
+const RELEASED_BINS: [&str; 1] = ["monochromatic-git-policy-cli"];
 
 /// The names of the `[[bin]]` tables of a manifest: a table header starts a table, and the first `name = "..."` line of a
 ///  `[[bin]]` table names the executable.
@@ -46,13 +46,13 @@ fn the_crate_declares_only_the_executable_the_release_archive_holds() {
     assert_eq!(
         declared,
         RELEASED_BINS.iter().map(|name| { return (*name).to_string(); }).collect::<Vec<String>>(),
-        "every [[bin]] must be in the release archive, or cargo-binstall refuses the archive; make a second program a mode of cli-git-native, or package it in .github/workflows/cargo-publish.yml and add it here and in releasable-crates.json"
+        "every [[bin]] must be in the release archive, or cargo-binstall refuses the archive; make a second program a mode of monochromatic-git-policy-cli, or package it in .github/workflows/cargo-publish.yml and add it here and in releasable-crates.json"
     );
 }
 
 /// The reader sees a second table, whatever else the manifest holds around it.
 #[test]
 fn a_second_bin_table_is_read() {
-    let planted: &str = "[package]\nname = \"x\"\n\n[[bin]]\nname = \"cli-git-native\"\npath = \"a.rs\"\n\n[[test]]\nname = \"not-a-bin\"\n\n[[bin]]\npath = \"b.rs\"\nname = \"second\"\n";
-    assert_eq!(manifest_bins(planted), vec![String::from("cli-git-native"), String::from("second")]);
+    let planted: &str = "[package]\nname = \"x\"\n\n[[bin]]\nname = \"monochromatic-git-policy-cli\"\npath = \"a.rs\"\n\n[[test]]\nname = \"not-a-bin\"\n\n[[bin]]\npath = \"b.rs\"\nname = \"second\"\n";
+    assert_eq!(manifest_bins(planted), vec![String::from("monochromatic-git-policy-cli"), String::from("second")]);
 }

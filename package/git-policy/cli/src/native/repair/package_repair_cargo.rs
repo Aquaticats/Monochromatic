@@ -15,7 +15,7 @@
 //! const findings = await repairCargo(request); // one per workspace that failed, one for the rest that worked
 //! ```
 
-use crate::add_timing::work;
+use crate::add_timing::{begin_work, end_work};
 use crate::diagnostic_log::debug;
 use crate::package_repair_request::RepairRequest;
 use crate::package_repair_cargo_concurrent::{ConcurrentWork, ItemLabel, map_concurrent};
@@ -265,61 +265,55 @@ fn workspace_failed(manual: &str, reason: String) -> Done {
 /// What:
 ///  Read one workspace with `cargo metadata`, timed as the step `name`.
 /// Why:
-///   The add timing record sums the work of worker threads by name, and `work` takes the timed call as a closure.
+///   The add timing record sums the work of worker threads by name; the call runs in place between `begin_work` and `end_work`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const workspace = await work(name, () => readWorkspace(cargo, directory, limits));
+/// const began = beginWork();
+/// const workspace = await readWorkspace(cargo, directory, limits);
+/// endWork(name, began);
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "add_timing::work takes the timed call as `impl FnOnce`, so only a closure that borrows the arguments can reach it; see doc/planning/cli-git-closure-lint-suppressions.md"
-    )
-)]
 fn timed_read_workspace(name: &str, cargo: &Path, directory: &Path, limits: ToolLimits) -> Result<Workspace, String> {
-    return work(name, || { return read_workspace(cargo, directory, limits); });
+    let began: Instant = begin_work();
+    let read: Result<Workspace, String> = read_workspace(cargo, directory, limits);
+    end_work(name, began);
+    return read;
 }
 
 /// What:
 ///  Clone a build directory with the timing record's step `cargoCloneTree`.
 /// Why:
-///   Same as `timed_read_workspace`: `work` takes the timed call as a closure.
+///   Same as `timed_read_workspace`: the call runs in place between `begin_work` and `end_work`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const made = await work('cargoCloneTree', () => cloneTree(from, to, workers));
+/// const began = beginWork();
+/// const made = await cloneTree(from, to, workers);
+/// endWork('cargoCloneTree', began);
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "add_timing::work takes the timed call as `impl FnOnce`, so only a closure that borrows the arguments can reach it; see doc/planning/cli-git-closure-lint-suppressions.md"
-    )
-)]
 fn timed_clone_tree(from: &Path, to: &Path, clone_workers: usize) -> Result<crate::package_repair_tree_clone::Cloned, String> {
-    return work("cargoCloneTree", || { return clone_tree(from, to, clone_workers); });
+    let began: Instant = begin_work();
+    let made: Result<crate::package_repair_tree_clone::Cloned, String> = clone_tree(from, to, clone_workers);
+    end_work("cargoCloneTree", began);
+    return made;
 }
 
 /// What:
 ///  Run `cargo clean` with the timing record's step `cargoClean`.
 /// Why:
-///   Same as `timed_read_workspace`: `work` takes the timed call as a closure.
+///   Same as `timed_read_workspace`: the call runs in place between `begin_work` and `end_work`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const run = await work('cargoClean', () => runTool(cargo, command, limits));
+/// const began = beginWork();
+/// const run = await runTool(cargo, command, limits);
+/// endWork('cargoClean', began);
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "add_timing::work takes the timed call as `impl FnOnce`, so only a closure that borrows the arguments can reach it; see doc/planning/cli-git-closure-lint-suppressions.md"
-    )
-)]
 fn timed_clean(cargo: &Path, command: &ToolCommand, limits: ToolLimits) -> ToolRun {
-    return work("cargoClean", || { return run_tool(cargo, command, limits); });
+    let began: Instant = begin_work();
+    let run: ToolRun = run_tool(cargo, command, limits);
+    end_work("cargoClean", began);
+    return run;
 }
 
 /// The label of a metadata read whose worker panicked: the directory it was reading.
@@ -389,16 +383,12 @@ impl ConcurrentWork<Workspace, Done> for RepairWorkspaceJob<'_> {
     }
 }
 
-/// Repair one workspace with the timing record's step `cargoRepairWorkspace`; `work` takes the timed call as a closure.
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "add_timing::work takes the timed call as `impl FnOnce`, so only a closure that borrows the arguments can reach it; see doc/planning/cli-git-closure-lint-suppressions.md"
-    )
-)]
+/// Repair one workspace with the timing record's step `cargoRepairWorkspace`; the call runs in place between `begin_work` and `end_work`.
 fn timed_repair_workspace(job: &RepairWorkspaceJob<'_>, workspace: &Workspace) -> Done {
-    return work("cargoRepairWorkspace", || { return repair_workspace(job.cargo, workspace, job.destination_root, job.request, job.clone_workers); });
+    let began: Instant = begin_work();
+    let done: Done = repair_workspace(job.cargo, workspace, job.destination_root, job.request, job.clone_workers);
+    end_work("cargoRepairWorkspace", began);
+    return done;
 }
 
 /// What:

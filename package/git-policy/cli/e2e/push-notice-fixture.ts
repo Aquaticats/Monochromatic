@@ -17,7 +17,7 @@ import {
  Directory of the failure notices under the common Git directory (`NOTICE_DIRECTORY` in `src/native/push/push_failure_notice.rs`).
  */
 const NOTICE_SEGMENTS: readonly string[] = [
-  'cli-git',
+  'monochromatic-git-policy-cli',
   'notices',
 ];
 

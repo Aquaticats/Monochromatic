@@ -93,7 +93,7 @@ fn a_folder_that_is_a_link_is_never_followed() {
     let common: PathBuf = root.join("repo.git");
     let outside: PathBuf = root.join("elsewhere");
     let victim: PathBuf = save_under(outside.as_path(), 90 * DAY, "precious.txt", "not the wrapper's");
-    std::fs::create_dir_all(common.join("cli-git")).expect("the wrapper's directory");
+    std::fs::create_dir_all(common.join("monochromatic-git-policy-cli")).expect("the wrapper's directory");
     std::os::unix::fs::symlink(&outside, common.join(SAVED_DIRECTORY)).expect("the link");
     let outcome = prune(common.as_path(), NOW, age_only(), None);
     assert!(victim.join("precious.txt").exists(), "a directory the link reaches was removed");
@@ -111,7 +111,7 @@ fn a_wrapper_directory_that_is_a_link_is_never_followed() {
     let outside: PathBuf = root.join("elsewhere");
     let victim: PathBuf = save_under(outside.join("discarded").as_path(), 90 * DAY, "precious.txt", "not the wrapper's");
     std::fs::create_dir_all(&common).expect("the common directory");
-    std::os::unix::fs::symlink(&outside, common.join("cli-git")).expect("the link");
+    std::os::unix::fs::symlink(&outside, common.join("monochromatic-git-policy-cli")).expect("the link");
     let outcome = prune(common.as_path(), NOW, age_only(), None);
     assert!(victim.join("precious.txt").exists(), "a directory the link reaches was removed");
     assert_eq!(outcome.problems.iter().map(|problem| { return problem.kind; }).collect::<Vec<_>>(), vec![ProblemKind::StoreUnusable]);
@@ -130,7 +130,7 @@ fn a_folder_swapped_for_a_link_after_the_listing_reaches_nothing_outside() {
     let victim: PathBuf = save_under(outside.as_path(), 90 * DAY, "precious.txt", "not the wrapper's");
     let mut swapped: bool = false;
     let _outcome = prune_with(common.as_path(), NOW, age_only(), None, &mut |_candidate: &Path| {
-        std::fs::rename(&saved_root, common.join("cli-git/discarded.moved")).expect("move the folder aside");
+        std::fs::rename(&saved_root, common.join("monochromatic-git-policy-cli/discarded.moved")).expect("move the folder aside");
         std::os::unix::fs::symlink(&outside, &saved_root).expect("the link");
         swapped = true;
     });
@@ -413,7 +413,7 @@ fn the_doctor_says_when_the_folder_is_a_link() {
     let common: PathBuf = root.join("repo.git");
     let outside: PathBuf = root.join("elsewhere");
     save_under(outside.as_path(), 9 * DAY, "one.txt", "one");
-    std::fs::create_dir_all(common.join("cli-git")).expect("the wrapper's directory");
+    std::fs::create_dir_all(common.join("monochromatic-git-policy-cli")).expect("the wrapper's directory");
     std::os::unix::fs::symlink(&outside, common.join(SAVED_DIRECTORY)).expect("the link");
     let text: String = doctor_section(common.as_path(), Limits::default());
     assert!(text.contains(&common.join(SAVED_DIRECTORY).display().to_string()), "{text}");

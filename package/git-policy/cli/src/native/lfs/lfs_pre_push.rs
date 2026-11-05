@@ -234,11 +234,11 @@ pub fn skip_requested(environment: &[(std::ffi::OsString, std::ffi::OsString)]) 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: this push was stopped before it sent anything: ...`
+/// `monochromatic-git-policy-cli: this push was stopped before it sent anything: ...`
 /// ```
 pub fn missing_program_message() -> String {
     return format!(
-        "cli-git: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
+        "monochromatic-git-policy-cli: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
          keys (`filter.lfs.*` or `lfs.*`), so the wrapper runs `{LFS_PROGRAM} push` to upload the large \
          files the pushed commits point to before it publishes the pointer files, but `{LFS_PROGRAM}` was not found in \
          any directory of PATH. Pushing without that upload would publish pointers whose content the LFS server does \
@@ -257,11 +257,11 @@ pub fn missing_program_message() -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: this push was stopped before it sent anything: ${why}...`
+/// `monochromatic-git-policy-cli: this push was stopped before it sent anything: ${why}...`
 /// ```
 pub fn plan_failed_message(why: &str) -> String {
     return format!(
-        "cli-git: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
+        "monochromatic-git-policy-cli: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
          keys, so the wrapper uploads the large files the pushed commits point to before it publishes the pointer \
          files, but it could not work out which refs this push sends ({why}). Pushing without that upload could \
          publish pointers whose content the LFS server does not have. Ways forward: push again, because the cause may \
@@ -277,11 +277,11 @@ pub fn plan_failed_message(why: &str) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: git-lfs push exited with status ${code}; ...`
+/// `monochromatic-git-policy-cli: git-lfs push exited with status ${code}; ...`
 /// ```
 pub fn failed_message(status: &str) -> String {
     return format!(
-        "cli-git: `{LFS_PROGRAM} push` {status}, so this push was not started and nothing was published. \
+        "monochromatic-git-policy-cli: `{LFS_PROGRAM} push` {status}, so this push was not started and nothing was published. \
          The lines above come from `{LFS_PROGRAM}`; they usually name the cause: the LFS server \
          (`lfs.url`) is unreachable or refused the credentials, or a large file the pushed commits point to is not \
          in this clone's `.git/lfs`. Ways forward: fix that cause and push again, because objects the server already \

@@ -4,7 +4,7 @@
 //!       offers is passed through `monochromatic-lint --fix` with the policy's rules;
 //!  a
 //!       changed source is reported,
-//!  and corrected on `git cli-git fix`,
+//!  and corrected on `git monochromatic-git-policy-cli fix`,
 //!  and each finding
 //!       the fixes leave is reported as it is.
 //! Why:
@@ -212,7 +212,7 @@ impl MarkdownState {
             Some(Err(reason)) => return Err(reason.clone()),
             None => {
                 return Err(String::from(
-                    "cli-git did not compile the markdown/autofix exclude patterns; this is a defect in cli-git.",
+                    "monochromatic-git-policy-cli did not compile the markdown/autofix exclude patterns; this is a defect in monochromatic-git-policy-cli.",
                 ));
             }
         }
@@ -317,7 +317,7 @@ fn top_level<F: RepositoryFacts>(facts: &mut F) -> Result<PathBuf, PolicyOutcome
             return Err(PolicyOutcome::Failed {
                 code: EngineFailureCode::ContentUnavailable,
                 message: String::from(
-                    "cli-git could not find the repository's top level, where monochromatic-lint must run.",
+                    "monochromatic-git-policy-cli could not find the repository's top level, where monochromatic-lint must run.",
                 ),
                 path: None,
             });

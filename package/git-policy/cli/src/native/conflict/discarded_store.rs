@@ -1,5 +1,5 @@
 //! What:
-//!  The folder of saved copies (`<common git dir>/cli-git/discarded`) opened once without following a link, and every
+//!  The folder of saved copies (`<common git dir>/monochromatic-git-policy-cli/discarded`) opened once without following a link, and every
 //!  read and removal inside it addressed through descriptors: the folder's, then each directory's, never a path walked again.
 //! Why:
 //!  A pass that lists a path and later removes a path can be led anywhere by a link or a rename that happens in between.
@@ -13,7 +13,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const store = await openStore(commonDir);          // throws on a link at cli-git or discarded
+//! const store = await openStore(commonDir);          // throws on a link at monochromatic-git-policy-cli or discarded
 //! const directory = await store.open('2026-11-02T14-01-07'); // never follows a link
 //! await directory.empty();                           // unlinkat by descriptor, files before subdirectories
 //! ```
@@ -36,7 +36,7 @@ mod unix {
     /// Why the folder could not be opened as a store.
     #[derive(Debug)]
     pub enum OpenFailure {
-        /// A symbolic link, or something that is not a directory, stands at `cli-git` or `discarded`.
+        /// A symbolic link, or something that is not a directory, stands at `monochromatic-git-policy-cli` or `discarded`.
         Link,
         /// The system refused to open it.
         Refused(std::io::Error),
@@ -323,10 +323,10 @@ mod unix {
 
     impl Store {
         /// What:
-        ///  Opens `<common_dir>/cli-git/discarded`, following a link in `common_dir` (Git names it) and none below it.
+        ///  Opens `<common_dir>/monochromatic-git-policy-cli/discarded`, following a link in `common_dir` (Git names it) and none below it.
         ///  Nothing when the folder does not exist.
         /// Why:
-        ///   A link at `cli-git` or `discarded` would send every later read and removal to wherever it points.
+        ///   A link at `monochromatic-git-policy-cli` or `discarded` would send every later read and removal to wherever it points.
         ///
         /// In TS you'd write (pseudocode):
         /// ```ts

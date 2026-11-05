@@ -7,7 +7,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // expect((await loadIdentityConfig(identityOf(['-C', nested]))).source).toBe(join(repo, 'cli-git.config.jsonc'));
+//! // expect((await loadIdentityConfig(identityOf(['-C', nested]))).source).toBe(join(repo, 'monochromatic-git-policy-cli.config.jsonc'));
 //! ```
 #![cfg(unix)]
 
@@ -142,6 +142,7 @@ fn locations_without_a_worktree_use_the_defaults() {
                 config: CliGitConfig::defaults(),
                 source: None,
                 ignored_legacy: Vec::<PathBuf>::new(),
+            earlier_name_notice: None,
             }),
             "{directory:?}"
         );
@@ -176,26 +177,28 @@ fn a_rejected_file_is_a_configuration_error() {
 #[test]
 fn events_render_configuration_failures_and_legacy_warnings() {
     assert_eq!(
-        config_invalid_event(&ConfigError::new("/r/cli-git.config.jsonc: bad \"key\"")),
-        "{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"/r/cli-git.config.jsonc: bad \\\"key\\\"\",\"hint\":\"Hint: if you just edited cli-git.config.jsonc, fix the key the message names or revert the edit; an unknown key, a wrong type or an unknown policy id fails before any policy runs.\"}\n"
+        config_invalid_event(&ConfigError::new("/r/monochromatic-git-policy-cli.config.jsonc: bad \"key\"")),
+        "{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"/r/monochromatic-git-policy-cli.config.jsonc: bad \\\"key\\\"\",\"hint\":\"Hint: if you just edited monochromatic-git-policy-cli.config.jsonc, fix the key the message names or revert the edit; an unknown key, a wrong type or an unknown policy id fails before any policy runs.\"}\n"
     );
     let loaded: LoadedConfig = LoadedConfig {
         config: CliGitConfig::defaults(),
-        source: Some(PathBuf::from("/r/cli-git.config.jsonc")),
+        source: Some(PathBuf::from("/r/monochromatic-git-policy-cli.config.jsonc")),
         ignored_legacy: vec![
             PathBuf::from("/r/cli-git.config.mjs"),
             PathBuf::from("/r/cli-git.config.ts"),
         ],
+            earlier_name_notice: None,
     };
     assert_eq!(
         legacy_warning_events(&loaded),
-        "{\"schemaVersion\":1,\"sequence\":0,\"type\":\"configuration-warning\",\"code\":\"legacy-config-ignored\",\"message\":\"Legacy configuration /r/cli-git.config.mjs is ignored: /r/cli-git.config.jsonc is authoritative for the native cli-git. Remove the legacy file once no TypeScript cli-git reads it.\",\"path\":\"/r/cli-git.config.mjs\",\"hint\":\"Hint: if you are still keeping the old configuration files, delete them once cli-git.config.jsonc holds the settings; they are no longer read.\"}\n\
-         {\"schemaVersion\":1,\"sequence\":1,\"type\":\"configuration-warning\",\"code\":\"legacy-config-ignored\",\"message\":\"Legacy configuration /r/cli-git.config.ts is ignored: /r/cli-git.config.jsonc is authoritative for the native cli-git. Remove the legacy file once no TypeScript cli-git reads it.\",\"path\":\"/r/cli-git.config.ts\",\"hint\":\"Hint: if you are still keeping the old configuration files, delete them once cli-git.config.jsonc holds the settings; they are no longer read.\"}\n"
+        "{\"schemaVersion\":1,\"sequence\":0,\"type\":\"configuration-warning\",\"code\":\"legacy-config-ignored\",\"message\":\"Legacy configuration /r/cli-git.config.mjs is ignored: /r/monochromatic-git-policy-cli.config.jsonc is authoritative for the native monochromatic-git-policy-cli. Remove the legacy file once no TypeScript monochromatic-git-policy-cli reads it.\",\"path\":\"/r/cli-git.config.mjs\",\"hint\":\"Hint: if you are still keeping the old configuration files, delete them once monochromatic-git-policy-cli.config.jsonc holds the settings; they are no longer read.\"}\n\
+         {\"schemaVersion\":1,\"sequence\":1,\"type\":\"configuration-warning\",\"code\":\"legacy-config-ignored\",\"message\":\"Legacy configuration /r/cli-git.config.ts is ignored: /r/monochromatic-git-policy-cli.config.jsonc is authoritative for the native monochromatic-git-policy-cli. Remove the legacy file once no TypeScript monochromatic-git-policy-cli reads it.\",\"path\":\"/r/cli-git.config.ts\",\"hint\":\"Hint: if you are still keeping the old configuration files, delete them once monochromatic-git-policy-cli.config.jsonc holds the settings; they are no longer read.\"}\n"
     );
     let without_legacy: LoadedConfig = LoadedConfig {
         config: CliGitConfig::defaults(),
-        source: Some(PathBuf::from("/r/cli-git.config.jsonc")),
+        source: Some(PathBuf::from("/r/monochromatic-git-policy-cli.config.jsonc")),
         ignored_legacy: Vec::<PathBuf>::new(),
+        earlier_name_notice: None,
     };
     assert_eq!(legacy_warning_events(&without_legacy), "");
     // Without a JSONC source there is nothing authoritative to compare a legacy file with.
@@ -203,6 +206,7 @@ fn events_render_configuration_failures_and_legacy_warnings() {
         config: CliGitConfig::defaults(),
         source: None,
         ignored_legacy: vec![PathBuf::from("/r/cli-git.config.ts")],
+            earlier_name_notice: None,
     };
     assert_eq!(legacy_warning_events(&without_source), "");
 }

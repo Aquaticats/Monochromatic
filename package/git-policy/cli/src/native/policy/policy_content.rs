@@ -684,7 +684,7 @@ impl ContentState {
 fn not_prepared_error() -> CandidateError {
     return CandidateError::new(
         CandidateFailure::StaleCandidate,
-        "cli-git read candidate content before the candidates were prepared; this is a defect in cli-git.",
+        "monochromatic-git-policy-cli read candidate content before the candidates were prepared; this is a defect in monochromatic-git-policy-cli.",
     );
 }
 

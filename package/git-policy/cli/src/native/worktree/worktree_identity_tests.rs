@@ -112,7 +112,7 @@ fn unexpected_output_shapes_are_rejected() {
         let error = parse_identity_output(success, stdout).expect_err("malformed");
         assert!(
             error.to_string().starts_with(
-                "cli-git could not classify the Git worktree: git rev-parse returned "
+                "monochromatic-git-policy-cli could not classify the Git worktree: git rev-parse returned "
             ),
             "{error}"
         );

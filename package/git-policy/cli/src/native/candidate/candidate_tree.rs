@@ -49,7 +49,7 @@ fn tree_failure(failure: CandidateFailure, position: usize, detail: &str) -> Can
     return CandidateError::new(
         failure,
         format!(
-            "cli-git could not read the HEAD commit's files: tree record {position} {detail}. \
+            "monochromatic-git-policy-cli could not read the HEAD commit's files: tree record {position} {detail}. \
              Inspect the entries with `git ls-tree -r HEAD`."
         )
         .as_str(),

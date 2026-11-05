@@ -32,7 +32,7 @@ pub fn saved_notice(copies: &[SavedCopy]) -> String {
         match &copy.saved_to {
             Some(place) => text.push_str(
                 format!(
-                    "cli-git: saved your copy of {} to\n  {}\n  before this command replaces it ({} was conflicted).\n",
+                    "monochromatic-git-policy-cli: saved your copy of {} to\n  {}\n  before this command replaces it ({} was conflicted).\n",
                     copy.path,
                     place.display(),
                     copy.path
@@ -41,7 +41,7 @@ pub fn saved_notice(copies: &[SavedCopy]) -> String {
             ),
             None => text.push_str(
                 format!(
-                    "cli-git: {} was conflicted and is deleted in your worktree, so there is no copy to save; this command brings a file back.\n",
+                    "monochromatic-git-policy-cli: {} was conflicted and is deleted in your worktree, so there is no copy to save; this command brings a file back.\n",
                     copy.path
                 )
                 .as_str(),

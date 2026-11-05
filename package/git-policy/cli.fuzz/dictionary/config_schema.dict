@@ -1,4 +1,4 @@
-# Keys, policy IDs, severities and JSONC syntax of cli-git.config.jsonc.
+# Keys, policy IDs, severities and JSONC syntax of monochromatic-git-policy-cli.config.jsonc.
 "\"policies\""
 "\"hooks\""
 "\"indexLock\""

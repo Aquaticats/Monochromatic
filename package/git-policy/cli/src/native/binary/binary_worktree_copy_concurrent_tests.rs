@@ -157,7 +157,7 @@ fn an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_
     assert!(held.held_is_running(), "the first add must still be inside its real Git when the second ends");
     let waiting: String = stderr_of(&free);
     assert!(!waiting.contains("waiting"), "{waiting}");
-    assert!(waiting.starts_with("cli-git: copied "), "{waiting}");
+    assert!(waiting.starts_with("monochromatic-git-policy-cli: copied "), "{waiting}");
     assert!(waiting.ends_with(ONE_WORKTREE_SUMMARY_END), "the second add copied into more than its own worktree: {waiting}");
     let root: PathBuf = held.fixture.root.clone();
     assert_eq!(std::fs::read(root.join("free").join(RULES_FILE)).expect("free's rules"), format!("{}\n", super::worktree_copy::needle()).into_bytes());
@@ -170,7 +170,7 @@ fn an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_
     assert_eq!(std::fs::read(root.join("held").join(RULES_FILE)).expect("held's rules"), format!("{}\n", super::worktree_copy::needle()).into_bytes());
     assert_eq!(std::fs::read(root.join("held/heavy/data")).expect("held's heavy tree"), b"payload\n");
     let common: PathBuf = std::fs::canonicalize(held.repo.join(".git")).expect("common directory");
-    let leftovers: Vec<String> = std::fs::read_dir(common.join("cli-git-worktree-copy/v1"))
+    let leftovers: Vec<String> = std::fs::read_dir(common.join("monochromatic-git-policy-cli-worktree-copy/v1"))
         .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
         .unwrap_or_default();
     assert!(leftovers.is_empty(), "nothing of either copy may remain: {leftovers:?}");
@@ -216,7 +216,7 @@ fn a_conversion_check_finishes_while_an_add_is_running() {
     assert_eq!(made.code, Some(0), "{}", stderr_of(&made));
     held.start_held_add();
     let planned: Observed =
-        held.run(held.repo.as_path(), &["cli-git", "convert-worktree-to-subvolume", "--dry-run", "../old"]);
+        held.run(held.repo.as_path(), &["monochromatic-git-policy-cli", "convert-worktree-to-subvolume", "--dry-run", "../old"]);
     assert!(!stderr_of(&planned).contains("waiting"), "{}", stderr_of(&planned));
     assert!(!stderr_of(&planned).contains("settlement"), "{}", stderr_of(&planned));
     assert!(held.held_is_running());
@@ -242,7 +242,7 @@ fn an_add_beside_a_running_conversion_neither_waits_nor_touches_it() {
         .expect("conversion lock file");
     // SAFETY: `flock` takes the descriptor `lock_file` keeps open for the call.
     assert_eq!(unsafe { libc::flock(lock_file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) }, 0, "the control takes the conversion lock");
-    let token: &[u8] = b"cli-git migrate-to-subvolume test\n";
+    let token: &[u8] = b"monochromatic-git-policy-cli migrate-to-subvolume test\n";
     std::fs::write(admin.join("index.lock"), token).expect("conversion index lock");
     let added: Observed = held.run(old.as_path(), &["worktree", "add", "--quiet", "-b", "beside", "../beside"]);
     assert_eq!(added.code, Some(0), "the add waited or failed: {}", stderr_of(&added));

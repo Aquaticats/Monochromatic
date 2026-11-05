@@ -1,5 +1,5 @@
 //! What:
-//!  The filesystem section of `git cli-git doctor`: what the repository's main checkout sits on (btrfs subvolume,
+//!  The filesystem section of `git monochromatic-git-policy-cli doctor`: what the repository's main checkout sits on (btrfs subvolume,
 //!  btrfs directory, overlayfs, other), whether the mount allows a regular user to delete a subvolume, and the exact
 //!  commands that change what can be changed.
 //! Why:
@@ -23,7 +23,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
 /// The first words of the first line of the section, which a caller can cut the section off at.
-pub const SECTION_MARKER: &str = "git cli-git doctor: filesystem:";
+pub const SECTION_MARKER: &str = "git monochromatic-git-policy-cli doctor: filesystem:";
 
 /// The mount option that lets a regular user delete a subvolume in one step.
 pub const REMOVAL_OPTION: &str = "user_subvol_rm_allowed";
@@ -282,8 +282,8 @@ fn btrfs_lines(facts: &FilesystemFacts) -> Vec<String> {
         lines.push(String::from("  Making it a subvolume can help with performance: `git worktree add` then makes the new worktree from a btrfs snapshot of the worktree it is run from, which took a median of 0.35 s to 1.09 s in the design measurements, against 2.1 s to 2.7 s for Git's checkout and 28.35 s with an ignored tree of 72 thousand entries, and shares every data block with its source (doc/planning/cli-git-btrfs-worktree.md, section Measurements)."));
         lines.push(String::from("  Until then `git worktree add` clones the tracked files of a clean worktree, which shares disk but takes about as long as Git's checkout, and makes every new worktree a subvolume that later ones can be snapshotted from; worktrees that exist already as ordinary directories stay ordinary. The conversion keeps the original tree until you delete it."));
         lines.push(String::from("  Stop agent sessions and editors that have their working directory inside the checkout first, then:"));
-        lines.push(String::from("    git cli-git migrate-to-subvolume --dry-run"));
-        lines.push(String::from("    git cli-git migrate-to-subvolume"));
+        lines.push(String::from("    git monochromatic-git-policy-cli migrate-to-subvolume --dry-run"));
+        lines.push(String::from("    git monochromatic-git-policy-cli migrate-to-subvolume"));
     }
     match &facts.mount {
         Some(mount) if mount.has_removal_option => {

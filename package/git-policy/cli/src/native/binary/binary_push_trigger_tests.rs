@@ -68,7 +68,7 @@ fn tip(world: &World, repository: &Path, name: &str) -> String {
 
 /// How many push records of any state the service holds for the repository.
 fn push_records(world: &World) -> usize {
-    let work: PathBuf = world.repo.join(".git/cli-git/work");
+    let work: PathBuf = world.repo.join(".git/monochromatic-git-policy-cli/work");
     return ["pending", "claimed", "recovering", "done", "failed"]
         .iter()
         .map(|state| {
@@ -326,7 +326,7 @@ fn a_merge_is_pushed_for_a_user_whose_configuration_the_reader_cannot_prove() {
     command.env("XDG_RUNTIME_DIR", &world.service.runtime).env("GIT_CONFIG_GLOBAL", &file);
     let observed: Observed = observe(&mut command, b"");
     assert_pushed(&world, &observed);
-    let record: String = std::fs::read_to_string(world.repo.join(".git/cli-git-push-trigger.jsonl")).expect("the trigger's record");
+    let record: String = std::fs::read_to_string(world.repo.join(".git/monochromatic-git-policy-cli-push-trigger.jsonl")).expect("the trigger's record");
     assert!(record.contains("\"outcome\":\"handed-over\"") && record.contains("\"command\":\"merge\""), "{record}");
     remove_settled(&world.fixture);
 }
@@ -342,7 +342,7 @@ fn a_declined_trigger_leaves_its_reason_in_the_record() {
     git(&world.fixture, &world.repo, &["push", "--quiet", "origin", "main"]);
     let observed: Observed = run(&world, &["merge", "topic"]);
     assert_eq!(observed.code, Some(0));
-    let record: String = std::fs::read_to_string(world.repo.join(".git/cli-git-push-trigger.jsonl")).expect("the trigger's record");
+    let record: String = std::fs::read_to_string(world.repo.join(".git/monochromatic-git-policy-cli-push-trigger.jsonl")).expect("the trigger's record");
     assert!(record.contains("\"outcome\":\"declined\"") && record.contains("\"reason\":\"tip-unchanged\""), "{record}");
     assert!(record.contains("\"branch\":\"refs/heads/main\""), "{record}");
     let text: String = String::from_utf8_lossy(observed.stderr.as_slice()).into_owned();
@@ -363,7 +363,7 @@ fn a_failed_command_is_recorded_as_such() {
     git(&world.fixture, &world.repo, &["commit", "--quiet", "--all", "--message=main edit"]);
     let observed: Observed = run(&world, &["merge", "--no-edit", "topic"]);
     assert_eq!(observed.code, Some(1));
-    let record: String = std::fs::read_to_string(world.repo.join(".git/cli-git-push-trigger.jsonl")).expect("the trigger's record");
+    let record: String = std::fs::read_to_string(world.repo.join(".git/monochromatic-git-policy-cli-push-trigger.jsonl")).expect("the trigger's record");
     assert!(record.contains("\"reason\":\"command-failed\"") && record.contains("status 1"), "{record}");
     // The file is shared by every worktree: the line names the worktree and the branch the failed command ran on.
     assert!(record.contains("\"branch\":\"refs/heads/main\""), "the branch is named: {record}");
@@ -381,7 +381,7 @@ fn a_watch_that_could_not_start_is_recorded() {
     git(&world.fixture, &world.repo, &["switch", "--quiet", "--detach"]);
     let observed: Observed = run(&world, &["merge", "--no-ff", "--no-edit", "topic"]);
     assert_eq!(observed.code, Some(0), "{}", String::from_utf8_lossy(observed.stderr.as_slice()));
-    let record: String = std::fs::read_to_string(world.repo.join(".git/cli-git-push-trigger.jsonl")).expect("the trigger's record");
+    let record: String = std::fs::read_to_string(world.repo.join(".git/monochromatic-git-policy-cli-push-trigger.jsonl")).expect("the trigger's record");
     assert!(record.contains("\"reason\":\"head-detached\"") && record.contains("\"command\":\"merge\""), "{record}");
     let root: String = world.repo.to_string_lossy().into_owned();
     assert!(record.contains(format!("\"worktree\":{}", git_policy_cli::json_record::quote(root.as_str())).as_str()), "the worktree is named: {record}");

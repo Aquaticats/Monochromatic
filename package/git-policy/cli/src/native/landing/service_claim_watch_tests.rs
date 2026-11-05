@@ -68,7 +68,7 @@ fn files_that_are_certainly_of_no_use_are_removed() {
     let root: PathBuf = scratch("dropped");
     let gone: PathBuf = git_dir_with_work(root.as_path(), "gone.git");
     let linked: PathBuf = root.join("linked.git");
-    std::fs::create_dir_all(linked.join("cli-git")).expect("the parent of the link");
+    std::fs::create_dir_all(linked.join("monochromatic-git-policy-cli")).expect("the parent of the link");
     std::os::unix::fs::symlink(gone.join(WORK_DIRECTORY), linked.join(WORK_DIRECTORY)).expect("the link");
     let store: PathBuf = root.join("journal").join(WATCH_DIRECTORY);
     let mut watch: ClaimWatch = ClaimWatch::restored(store.as_path(), None);

@@ -46,7 +46,7 @@ const TAG: &str = "worktreeRemove";
 const REMOVAL_OPTION: &str = "user_subvol_rm_allowed";
 
 /// What the command says on standard error whenever it destroys a subvolume.
-pub const DESTROY_NOTICE: &str = "cli-git: destroyed the btrfs subvolume of the removed worktree in one step; this cannot be undone, and anything another process wrote or locked in the moments since the last check went with it (the risk of git worktree remove, here faster).";
+pub const DESTROY_NOTICE: &str = "monochromatic-git-policy-cli: destroyed the btrfs subvolume of the removed worktree in one step; this cannot be undone, and anything another process wrote or locked in the moments since the last check went with it (the risk of git worktree remove, here faster).";
 
 /// What:
 ///  Whether the administrative directory holds a `locked` entry.
@@ -335,7 +335,7 @@ fn prune_command(common_dir: &Path) -> String {
 fn incomplete_report(target: &Path, registration: &Registration, common_dir: &Path, reason: &str) -> String {
     let prune: String = prune_command(common_dir);
     return format!(
-        "cli-git: the worktree {target} was removed (its subvolume was destroyed), but its registration {admin} was not: {reason}.\n\
+        "monochromatic-git-policy-cli: the worktree {target} was removed (its subvolume was destroyed), but its registration {admin} was not: {reason}.\n\
          Git still lists the worktree as missing. To finish, run `{prune}`; it forgets every registration whose directory is \
          missing, and `{prune} --dry-run --verbose` lists them first.\n\
          If that fails the same way, make {admin} and {worktrees} writable by you (`chmod --recursive u+rwx {admin}`) and \

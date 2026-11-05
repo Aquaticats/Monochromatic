@@ -53,7 +53,7 @@ fn a_commit_with_no_service_manager_stops_plainly_and_changes_nothing() {
         .expect("git directory")
         .flatten()
         .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-        .filter(|name| { return name.starts_with("cli-git"); })
+        .filter(|name| { return name.starts_with("monochromatic-git-policy-cli") || name.starts_with("cli-git"); })
         .collect();
     assert!(leftovers.is_empty(), "no scratch directory or record is left: {leftovers:?}");
     remove_settled(&fixture);

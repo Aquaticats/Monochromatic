@@ -118,7 +118,7 @@ fn stage_entries_holding_intents(pending: &PendingJournal, stage_root: &Path, in
     for claim in intended {
         if !present.contains(claim.as_str()) {
             let message: String = format!(
-                "cli-git: worktree-copy journal intent is absent from private stage {}.",
+                "monochromatic-git-policy-cli: worktree-copy journal intent is absent from private stage {}.",
                 quote(pending.journal.stage_root.as_str())
             );
             return Err(crate::worktree_copy_error::failure_with_cause(message.as_str(), None));
@@ -147,7 +147,7 @@ pub fn snapshot_from_journal(
         Ok(entries) => entries,
         Err(error) => {
             let message: String = format!(
-                "cli-git: could not recover staged ignored state at {}.",
+                "monochromatic-git-policy-cli: could not recover staged ignored state at {}.",
                 quote(pending.journal.stage_root.as_str())
             );
             return Err(crate::worktree_copy_error::failure_with_cause(
@@ -338,7 +338,7 @@ const NOTICE_PATHS: usize = 3;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: left out ${count} unreadable ignored entries from ${source}: ${first.join(', ')}${more}.\n`
+/// `monochromatic-git-policy-cli: left out ${count} unreadable ignored entries from ${source}: ${first.join(', ')}${more}.\n`
 /// ```
 fn unreadable_notice(source_root: &Path, unreadable: &[String]) -> String {
     let named: Vec<String> = unreadable.iter().take(NOTICE_PATHS).map(String::as_str).map(quote).collect();
@@ -346,7 +346,7 @@ fn unreadable_notice(source_root: &Path, unreadable: &[String]) -> String {
     let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
     let noun: &str = if unreadable.len() == 1 { "entry" } else { "entries" };
     return format!(
-        "cli-git: left out {} unreadable ignored {noun} from {}: {}{more}.\n",
+        "monochromatic-git-policy-cli: left out {} unreadable ignored {noun} from {}: {}{more}.\n",
         unreadable.len(),
         quote(source_root.to_string_lossy().as_ref()),
         named.join(", ")

@@ -283,7 +283,7 @@ fn the_ending_commit_is_judged_by_the_repositorys_policies() {
     std::fs::create_dir(repo.join("rules")).expect("rules directory");
     std::fs::write(repo.join("rules/private.txt"), b"Exit code is zero on success.\n").expect("rules");
     std::fs::write(
-        repo.join("cli-git.config.jsonc"),
+        repo.join("monochromatic-git-policy-cli.config.jsonc"),
         "{ \"policies\": { \"security/forbidden-strings\": [\"error\", { \"builtinRules\": false, \"rulesFile\": \"rules/private.txt\" }] } }\n",
     )
     .expect("configuration");

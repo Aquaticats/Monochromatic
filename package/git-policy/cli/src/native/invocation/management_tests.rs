@@ -1,5 +1,5 @@
 //! What:
-//!  Decision controls for `git cli-git` against real Git.
+//!  Decision controls for `git monochromatic-git-policy-cli` against real Git.
 //! Why:
 //!  Help and retired commands must answer without Git or a repository;
 //!  direct
@@ -77,7 +77,7 @@ fn plan_with(
     );
 }
 
-/// Plan management text arguments without any wrapper control before `cli-git`.
+/// Plan management text arguments without any wrapper control before `monochromatic-git-policy-cli`.
 fn plan(values: &[&str], directory: &Path, inputs: &ResolutionInputs) -> Action {
     return plan_with(values, directory, &no_controls(), inputs);
 }
@@ -87,7 +87,7 @@ fn plan(values: &[&str], directory: &Path, inputs: &ResolutionInputs) -> Action 
 ///  whether the line says off or on; the line's wording is controlled in `doctor_fsmonitor_tests.rs` with an injected
 ///  global file.
 fn without_fsmonitor_line(stderr: &str) -> String {
-    let prefix: &str = "git cli-git doctor: Git's fsmonitor is ";
+    let prefix: &str = "git monochromatic-git-policy-cli doctor: Git's fsmonitor is ";
     assert!(stderr.starts_with(prefix), "{stderr}");
     let line_end: usize = stderr.find('\n').expect("the fsmonitor line ends with a line feed");
     return String::from(&stderr[line_end + 1..]);
@@ -149,7 +149,7 @@ fn projection_failed(action: Action, trigger: &str, message: &str) {
 ///  as event number `sequence`.
 fn not_at_root(sequence: u64, repo: &Path) -> String {
     return format!(
-        "{{\"schemaVersion\":1,\"sequence\":{sequence},\"type\":\"finding\",\"trigger\":\"direct-check\",\"policyId\":\"require-root\",\"severity\":\"error\",\"code\":\"require-root/not-at-root\",\"message\":\"cli-git: not at the root of the git repository. Repo root is {root} but effective cwd is {root}/nested. This rule exists because agents and humans frequently forget which directory they are in. Tip: cd to {root} or pass -C {root} before the subcommand.\",\"fix\":\"none\"}}\n",
+        "{{\"schemaVersion\":1,\"sequence\":{sequence},\"type\":\"finding\",\"trigger\":\"direct-check\",\"policyId\":\"require-root\",\"severity\":\"error\",\"code\":\"require-root/not-at-root\",\"message\":\"monochromatic-git-policy-cli: not at the root of the git repository. Repo root is {root} but effective cwd is {root}/nested. This rule exists because agents and humans frequently forget which directory they are in. Tip: cd to {root} or pass -C {root} before the subcommand.\",\"fix\":\"none\"}}\n",
         root = repo.display()
     );
 }
@@ -182,18 +182,18 @@ fn help_and_refusals_need_no_git() {
     }
     assert_eq!(
         plan(&["check", "a.txt"], root.as_path(), &inputs),
-        exit(2, "", "git cli-git check pathspecs must follow --.\n")
+        exit(2, "", "git monochromatic-git-policy-cli check pathspecs must follow --.\n")
     );
     assert_eq!(
         plan(&["fix", "a.txt"], root.as_path(), &inputs),
-        exit(2, "", "git cli-git fix pathspecs must follow --.\n")
+        exit(2, "", "git monochromatic-git-policy-cli fix pathspecs must follow --.\n")
     );
     assert_eq!(
         plan(&["check"], root.as_path(), &inputs),
         exit(
             2,
             "",
-            "git cli-git check requires exactly one scope: --all or non-empty pathspecs after --.\n"
+            "git monochromatic-git-policy-cli check requires exactly one scope: --all or non-empty pathspecs after --.\n"
         )
     );
     assert_eq!(
@@ -201,7 +201,7 @@ fn help_and_refusals_need_no_git() {
         exit(
             2,
             "",
-            "git cli-git fix requires exactly one scope: --all or non-empty pathspecs after --.\n"
+            "git monochromatic-git-policy-cli fix requires exactly one scope: --all or non-empty pathspecs after --.\n"
         )
     );
     remove(root.as_path());
@@ -219,7 +219,7 @@ fn retired_commands_explain_and_succeed() {
         (vec!["status"], "status", RetiredCommand::Status),
     ] {
         let explanation: String = format!(
-            "git cli-git {name} is retired. cli-git now reads cli-git.config.jsonc as data and \
+            "git monochromatic-git-policy-cli {name} is retired. monochromatic-git-policy-cli now reads monochromatic-git-policy-cli.config.jsonc as data and \
              runs no repository-supplied code, so there is no code execution to approve, revoke \
              or report. Nothing was changed; existing trust records are left in place and are no \
              longer read.\n"
@@ -268,7 +268,7 @@ fn unknown_selected_policy_is_reported_on_stdout() {
             exit(
                 2,
                 format!(
-                    "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"Unknown policy ID: {id}. Shipped policies: require-root, linked-worktree-only, branch-worktree-only, add-explicit, final-newline, markdown/autofix, mono/forbidden-root-context, mono/dependent-version-bump, mono/catalog-specifiers, security/forbidden-strings.\",\"hint\":\"Hint: if you just edited cli-git.config.jsonc, fix the key the message names or revert the edit; an unknown key, a wrong type or an unknown policy id fails before any policy runs.\"}}\n"
+                    "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"Unknown policy ID: {id}. Shipped policies: require-root, linked-worktree-only, branch-worktree-only, add-explicit, final-newline, markdown/autofix, mono/forbidden-root-context, mono/dependent-version-bump, mono/catalog-specifiers, security/forbidden-strings.\",\"hint\":\"Hint: if you just edited monochromatic-git-policy-cli.config.jsonc, fix the key the message names or revert the edit; an unknown key, a wrong type or an unknown policy id fails before any policy runs.\"}}\n"
                 )
                 .as_str(),
                 ""
@@ -334,18 +334,18 @@ fn direct_commands_project_their_scope_and_run_the_policies() {
             &inputs,
         ),
         "direct-check",
-        "cli-git could not read the selected worktree files: git add failed: fatal: pathspec",
+        "monochromatic-git-policy-cli could not read the selected worktree files: git add failed: fatal: pathspec",
     );
     projection_failed(
         plan(&["fix", "--", "missing.txt"], repo.as_path(), &inputs),
         "direct-fix",
-        "cli-git could not read the selected worktree files: git add failed: fatal: pathspec",
+        "monochromatic-git-policy-cli could not read the selected worktree files: git add failed: fatal: pathspec",
     );
     // Outside a repository there is no index to project into.
     projection_failed(
         plan(&["check", "--all"], root.as_path(), &inputs),
         "direct-check",
-        "cli-git could not read the selected worktree files: git rev-parse failed:",
+        "monochromatic-git-policy-cli could not read the selected worktree files: git rev-parse failed:",
     );
     // Selecting only command policies gives their answer: clean at the top level ...
     for arguments in [
@@ -394,7 +394,7 @@ fn direct_commands_project_their_scope_and_run_the_policies() {
 }
 
 /// The first error stops a direct check;
-///  keep-going and escapes written before `cli-git` apply.
+///  keep-going and escapes written before `monochromatic-git-policy-cli` apply.
 #[test]
 fn controls_before_the_namespace_reach_a_direct_command() {
     let root: PathBuf = fixture("management-controls");
@@ -457,7 +457,7 @@ fn direct_commands_use_the_repository_configuration() {
         exit(
             2,
             format!(
-                "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"{}: Configuration key trust is retired: JSONC configuration is data and needs no code-execution approval. Remove the key.\",\"hint\":\"Hint: if you just edited cli-git.config.jsonc, fix the key the message names or revert the edit; an unknown key, a wrong type or an unknown policy id fails before any policy runs.\"}}\n",
+                "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"{}: Configuration key trust is retired: JSONC configuration is data and needs no code-execution approval. Remove the key.\",\"hint\":\"Hint: if you just edited monochromatic-git-policy-cli.config.jsonc, fix the key the message names or revert the edit; an unknown key, a wrong type or an unknown policy id fails before any policy runs.\"}}\n",
                 source.display()
             )
             .as_str(),
@@ -503,7 +503,7 @@ fn direct_commands_use_the_repository_configuration() {
     std::fs::write(&source, r#"{ "policies": { "final-newline": "off" } }"#).expect("valid config");
     std::fs::write(repo.join("cli-git.config.ts"), "export default {};").expect("legacy config");
     let legacy_warning: String = format!(
-        "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"configuration-warning\",\"code\":\"legacy-config-ignored\",\"message\":\"Legacy configuration {legacy} is ignored: {jsonc} is authoritative for the native cli-git. Remove the legacy file once no TypeScript cli-git reads it.\",\"path\":\"{legacy}\",\"hint\":\"Hint: if you are still keeping the old configuration files, delete them once cli-git.config.jsonc holds the settings; they are no longer read.\"}}\n",
+        "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"configuration-warning\",\"code\":\"legacy-config-ignored\",\"message\":\"Legacy configuration {legacy} is ignored: {jsonc} is authoritative for the native monochromatic-git-policy-cli. Remove the legacy file once no TypeScript monochromatic-git-policy-cli reads it.\",\"path\":\"{legacy}\",\"hint\":\"Hint: if you are still keeping the old configuration files, delete them once monochromatic-git-policy-cli.config.jsonc holds the settings; they are no longer read.\"}}\n",
         legacy = repo.join("cli-git.config.ts").display(),
         jsonc = source.display()
     );
@@ -537,16 +537,16 @@ fn direct_commands_go_on_beside_records_an_earlier_release_left() {
     let id: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
     std::fs::create_dir_all(registry.join(id)).expect("a transaction directory an earlier release left");
     // An interrupted worktree copy does not concern a direct command.
-    std::fs::create_dir_all(repo.join(".git/cli-git-worktree-copy/v1")).expect("journals");
-    std::fs::write(repo.join(".git/cli-git-worktree-copy/v1/id.json"), b"{}").expect("journal");
+    std::fs::create_dir_all(repo.join(".git/monochromatic-git-policy-cli-worktree-copy/v1")).expect("journals");
+    std::fs::write(repo.join(".git/monochromatic-git-policy-cli-worktree-copy/v1/id.json"), b"{}").expect("journal");
     for (arguments, command) in [
         (
             vec!["check", "--all", "--policy", "require-root"],
-            "cli-git check",
+            "monochromatic-git-policy-cli check",
         ),
         (
             vec!["fix", "--all", "--policy", "require-root"],
-            "cli-git fix",
+            "monochromatic-git-policy-cli fix",
         ),
     ] {
         // A transaction an earlier release left does not stop a direct command.
@@ -595,8 +595,8 @@ fn direct_commands_report_git_failures() {
     assert_eq!(stop_out, "");
     assert!(
         stop_err.starts_with(
-            "cli-git: Could not find a real Git executable after examining 1 PATH candidates and \
-             skipping 0 cli-git wrappers, so no Git command was run. PATH is "
+            "monochromatic-git-policy-cli: Could not find a real Git executable after examining 1 PATH candidates and \
+             skipping 0 monochromatic-git-policy-cli wrappers, so no Git command was run. PATH is "
         ),
         "{stop_err}"
     );
@@ -617,7 +617,7 @@ fn direct_commands_report_git_failures() {
             assert_eq!(code, 2);
             assert_eq!(stdout, "");
             assert!(
-                stderr.starts_with("cli-git: cli-git could not classify the Git worktree"),
+                stderr.starts_with("monochromatic-git-policy-cli: monochromatic-git-policy-cli could not classify the Git worktree"),
                 "{stderr}"
             );
         }
@@ -639,7 +639,7 @@ fn exit_parts(action: Action) -> (i32, String, String) {
 }
 
 /// `doctor` lists the traditional hooks with status 1, prints nothing with status 0 when there are none, and does
-/// not load the configuration, so a broken `cli-git.config.jsonc` does not stop it.
+/// not load the configuration, so a broken `monochromatic-git-policy-cli.config.jsonc` does not stop it.
 #[test]
 fn doctor_lists_traditional_hooks_without_loading_the_configuration() {
     let root: PathBuf = fixture("management-doctor");
@@ -652,7 +652,7 @@ fn doctor_lists_traditional_hooks_without_loading_the_configuration() {
     let (code, stdout, stderr) = exit_parts(plan(&["doctor"], repo.as_path(), &inputs));
     assert_eq!(code, 1);
     assert_eq!(stdout, format!("{}\n", repo.join(".git/hooks/pre-commit").display()));
-    assert!(stderr.contains("never run through cli-git"), "{stderr}");
+    assert!(stderr.contains("never run through monochromatic-git-policy-cli"), "{stderr}");
     remove(root.as_path());
 }
 
@@ -663,7 +663,7 @@ fn doctor_outside_a_repository_fails_with_status_two() {
     let inputs: ResolutionInputs = with_git(root.as_path());
     let (code, stdout, stderr) = exit_parts(plan(&["doctor"], root.as_path(), &inputs));
     assert_eq!((code, stdout.as_str()), (2, ""));
-    assert!(stderr.starts_with("git cli-git doctor: "), "{stderr}");
+    assert!(stderr.starts_with("git monochromatic-git-policy-cli doctor: "), "{stderr}");
     remove(root.as_path());
 }
 
@@ -709,7 +709,7 @@ fn in_directory(directory: &Path) -> Vec<OsString> {
     return vec![OsString::from("-C"), directory.as_os_str().to_os_string()];
 }
 
-/// `git cli-git service status` asks about the service of the worktree it runs in,
+/// `git monochromatic-git-policy-cli service status` asks about the service of the worktree it runs in,
 /// however the user's configuration reads:
 /// it needs no valid configuration.
 /// A user-level `core.fsmonitor = true` and a key the typed proof refuses must not turn the
@@ -745,7 +745,7 @@ fn the_status_needs_the_real_git_to_name_the_worktree() {
 /// and for a worktree whose does not.
 const THIS_WORKTREE: &str = "The commit service of this worktree";
 
-/// `git -C /path/B cli-git service status` run from anywhere asks about B:
+/// `git -C /path/B monochromatic-git-policy-cli service status` run from anywhere asks about B:
 /// the global options reach the status,
 /// and `-c` options do not change the worktree,
 /// while an option that could name another repository leaves the status counting any service.

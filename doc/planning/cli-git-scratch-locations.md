@@ -1,5 +1,12 @@
 # Scratch locations of cli-git
 
+Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is now `monochromatic-git-policy-cli`,
+the command word `git cli-git` is now `git monochromatic-git-policy-cli`,
+the settings file `cli-git.config.jsonc` is now `monochromatic-git-policy-cli.config.jsonc`,
+and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+(the list is in `doc/planning/git-policy-cli-program-rename.md`).
+This record keeps the names of its time.
+
 This note records where the native wrapper (`package/git-policy/cli`, binary `cli-git-native`, installed as `git`)
 keeps its short-lived private files, and why none of them is in the system temporary directory.
 It answers issue 1810 for this crate; issue 1809 is the incident behind it.

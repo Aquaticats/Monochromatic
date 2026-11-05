@@ -53,7 +53,7 @@ const WRAPPER_STOP_CODE: i32 = 2;
 
 /// The name of the toolchain launcher the repository's tool links point at,
 /// and of its record's stem.
-const LAUNCHER_NAME: &str = "cli-git-native";
+const LAUNCHER_NAME: &str = "monochromatic-git-policy-cli";
 
 /// What:
 ///  Write a stand-in launcher:
@@ -300,7 +300,7 @@ fn another_wrapper_release_behind_an_unrecorded_launcher_stops_on_arrival() {
     let fixture: Fixture = fixture("other-release-behind-launcher");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let other_directory: PathBuf = directory(&fixture, "other");
-    let other: PathBuf = other_directory.join("cli-git-native");
+    let other: PathBuf = other_directory.join("monochromatic-git-policy-cli");
     copy_executable(fixture.wrapper.as_path(), other.as_path());
     // One trailing byte makes a different file with different bytes that still runs, as another release would be.
     let mut bytes: Vec<u8> = std::fs::read(&other).expect("copy bytes");

@@ -44,8 +44,33 @@ pub mod lexical_path;
 /// How many workers independent items may use together, from the CPUs allowed, the memory free and a measured ceiling.
 pub mod parallel_budget;
 
+/// Where one line of progress goes, as a trait a struct can implement.
+pub mod line_sink;
+
 /// Independent items on a bounded number of threads, reported in input order with no lock.
 pub mod parallel_runner;
 
+/// A call turned into a value when it panics, for the places that guard a function and its state.
+pub mod call_catching_panics;
+
 /// A scoped thread, or the work done in turn where the system cannot start one.
 pub mod scoped_start;
+
+/// Jobs on scoped threads beside each other or beside the calling thread, each a function and the state it reads.
+pub mod side_by_side_threads;
+
+/// The names this program answers to and keeps on disk,
+///  each as the current spelling and the one an earlier release used.
+pub mod wrapper_names_old_and_new;
+
+/// The rename that never replaces an existing name,
+///  and the test for a filesystem that cannot do it.
+pub mod rename_that_never_replaces;
+
+/// Where a kept file or folder is,
+///  moved in place from its earlier name on the first need.
+pub mod earlier_name_moved_to_current_in_place;
+
+/// Every kept name in a repository's Git directories settled to its current spelling,
+///  and the finder for a reader that moves nothing.
+pub mod kept_names_in_the_git_directories;

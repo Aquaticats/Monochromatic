@@ -342,7 +342,7 @@ async function buildDerivedImage({
    */
   await using context = await mkdtempDisposable(join(
     scratchBase,
-    'cli-git-native-base-',
+    'monochromatic-git-policy-cli-base-',
   ));
   await runCommand({
     command: 'podman',

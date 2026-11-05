@@ -288,7 +288,7 @@ impl ScannerState {
             None => {
                 return Err(failed(
                     EngineFailureCode::PolicyIncomplete,
-                    "cli-git did not load the forbidden-strings rules; this is a defect in cli-git.",
+                    "monochromatic-git-policy-cli did not load the forbidden-strings rules; this is a defect in monochromatic-git-policy-cli.",
                 ));
             }
         }
@@ -322,7 +322,7 @@ fn repository_root<F: RepositoryFacts>(facts: &mut F) -> Result<PathBuf, PolicyO
         None => {
             return Err(failed(
                 EngineFailureCode::ContentUnavailable,
-                "cli-git could not find the repository's top level to resolve the forbidden-strings rules file.",
+                "monochromatic-git-policy-cli could not find the repository's top level to resolve the forbidden-strings rules file.",
             ));
         }
     }
@@ -463,7 +463,7 @@ pub fn check_forbidden_strings<F: RepositoryFacts>(
             return failed(
                 scanner_failure_code(ScannerFailure::RulesNotLoaded),
                 format!(
-                    "cli-git could not load the forbidden-strings rules, so no file was scanned: \
+                    "monochromatic-git-policy-cli could not load the forbidden-strings rules, so no file was scanned: \
                      the value of {RULES_VARIABLE} is not a valid rules list: {error}."
                 )
                 .as_str(),

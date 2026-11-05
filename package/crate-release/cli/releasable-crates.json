@@ -21,7 +21,7 @@
     "crateDir": "package/git-policy/cli",
     "scope": "git-policy/cli",
     "pinFiles": ["package/git-policy/cli.fuzz/Cargo.toml"],
-    "checkBins": ["cli-git-native"],
+    "checkBins": ["monochromatic-git-policy-cli"],
     "lockDirs": ["package/git-policy/cli.fuzz"]
   },
   "monochromatic-mpm-shadow": {

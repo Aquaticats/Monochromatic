@@ -153,10 +153,10 @@ fn fallback_notice(path: &OsStr, git: &Path, unit_file: &Path) -> String {
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // return `cli-git: no real Git follows this wrapper on PATH (${shownPath}); used ${git}, ... add ${directory} to the PATH ...\n`;
+    // return `monochromatic-git-policy-cli: no real Git follows this wrapper on PATH (${shownPath}); used ${git}, ... add ${directory} to the PATH ...\n`;
     // ```
     return format!(
-        "cli-git: no real Git follows this wrapper on PATH ({shown_path}); used {}, the Git recorded in {} as the one \
+        "monochromatic-git-policy-cli: no real Git follows this wrapper on PATH ({shown_path}); used {}, the Git recorded in {} as the one \
          the commit service starts; to silence this notice, add {directory} to the PATH of the program that ran this \
          command.\n",
         git.display(),

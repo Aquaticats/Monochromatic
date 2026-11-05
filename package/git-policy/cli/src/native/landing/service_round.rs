@@ -15,7 +15,8 @@
 
 use crate::claim_time::ClaimTime;
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use crate::parallel_runner::{Event, OrderedRun, run_ordered};
+use crate::line_sink::LineSink;
+use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
 use crate::push_retry::{RetryChange, Retrying};
 use crate::service_work::{CLAIM_LEASE, Drained, WorkHandlers, common_directory_of, drain_common_records_planned, drain_planned};
 use std::path::{Path, PathBuf};
@@ -115,6 +116,58 @@ fn lane_key(directory: &Path) -> PathBuf {
 }
 
 /// What:
+///  The drain of one directory, run by a worker of the ordered runner.
+/// Why:
+///   The handlers and the time are what each drain reads; the runner shares them among its worker threads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class DrainEachDirectory implements OrderedWork<Assignment, [Duration | undefined, RetryChange[]]> { run(i, assignment) { return [wait, changes]; } }
+/// ```
+struct DrainEachDirectory<'a, H> {
+    /// What the drain does with each record it finds.
+    handlers: &'a H,
+    /// The time the drain judges leases and retries by.
+    now: &'a ClaimTime,
+}
+
+impl<H: WorkHandlers + Sync> OrderedWork<Assignment, (Option<Duration>, Vec<RetryChange>)> for DrainEachDirectory<'_, H> {
+    fn run(&self, _index: usize, assignment: &Assignment, _say: &mut dyn LineSink) -> (Option<Duration>, Vec<RetryChange>) {
+        let own: Drained = drain_planned(assignment.directory.as_path(), self.handlers, self.now, &assignment.retrying);
+        let common: Drained = drain_common_records_planned(assignment.directory.as_path(), self.handlers, self.now, CLAIM_LEASE, assignment.retrying.first);
+        let wait: Option<Duration> = [own.wait, common.wait].into_iter().flatten().min();
+        return (wait, own.changes.into_iter().chain(common.changes).collect::<Vec<RetryChange>>());
+    }
+}
+
+/// What:
+///  Collects, in the order the directories were named, the wait of each claim another instance holds and every retry change.
+/// Why:
+///   The runner reports on the calling thread only and in input order, so the answer needs no lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class CollectWaitsAndChanges implements OrderedEvents<[Duration | undefined, RetryChange[]]> { answer: RoundAnswer }
+/// ```
+struct CollectWaitsAndChanges<'a> {
+    /// The directories, in the order they were named.
+    directories: &'a [Assignment],
+    /// The answer being built.
+    answer: &'a mut RoundAnswer,
+}
+
+impl OrderedEvents<(Option<Duration>, Vec<RetryChange>)> for CollectWaitsAndChanges<'_> {
+    fn on_event(&mut self, event: Event<'_, (Option<Duration>, Vec<RetryChange>)>) {
+        if let Event::End(index, (wait, changes)) = event {
+            if let Some(lease_wait) = wait {
+                self.answer.waits.push((self.directories[index].directory.clone(), lease_wait));
+            }
+            self.answer.changes.extend(changes);
+        }
+    }
+}
+
+/// What:
 ///  Drain every directory, repositories side by side, and give, for each directory that has a claim another instance holds, how
 ///  long until that claim's lease runs out, in the order the directories were named.
 /// Why:
@@ -124,13 +177,6 @@ fn lane_key(directory: &Path) -> PathBuf {
 /// ```ts
 /// const answer = await drainDirectories({ directories, handlers, now, host });
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "`run_ordered` takes its work and its event sink as the `&dyn Fn` and `&mut dyn FnMut` fields of `OrderedRun`, and both must carry the handlers, the time and the answer"
-    )
-)]
 pub fn drain_directories<H: WorkHandlers + Sync>(request: &RoundDrain<'_, H>) -> RoundAnswer {
     let RoundDrain { directories, handlers, now, host } = *request;
     let mut lanes: Vec<Vec<usize>> = Vec::new();
@@ -150,20 +196,8 @@ pub fn drain_directories<H: WorkHandlers + Sync>(request: &RoundDrain<'_, H>) ->
         items: directories,
         lanes: lanes.as_slice(),
         workers,
-        work: &|_index: usize, assignment: &Assignment, _say: &mut dyn FnMut(&str)| {
-            let own: Drained = drain_planned(assignment.directory.as_path(), handlers, now, &assignment.retrying);
-            let common: Drained = drain_common_records_planned(assignment.directory.as_path(), handlers, now, CLAIM_LEASE, assignment.retrying.first);
-            let wait: Option<Duration> = [own.wait, common.wait].into_iter().flatten().min();
-            return (wait, own.changes.into_iter().chain(common.changes).collect::<Vec<RetryChange>>());
-        },
-        on_event: &mut |event: Event<'_, (Option<Duration>, Vec<RetryChange>)>| {
-            if let Event::End(index, (wait, changes)) = event {
-                if let Some(lease_wait) = wait {
-                    answer.waits.push((directories[index].directory.clone(), lease_wait));
-                }
-                answer.changes.extend(changes);
-            }
-        },
+        work: &DrainEachDirectory { handlers, now },
+        on_event: &mut CollectWaitsAndChanges { directories, answer: &mut answer },
     });
     return answer;
 }

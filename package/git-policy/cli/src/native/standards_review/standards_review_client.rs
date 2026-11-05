@@ -17,7 +17,7 @@
 //! ```
 
 /// The measuring of a call's quiet gap, beside the call.
-use crate::thread_quiet::measured_quiet;
+use crate::thread_quiet::QuietMeasurement;
 use std::time::Duration;
 use ureq::tls::{Certificate, RootCerts, TlsConfig};
 
@@ -79,16 +79,12 @@ pub struct Reply {
 /// ```ts
 /// const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key }, body, signal });
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "measured_quiet (process/thread_quiet.rs) takes the job as `impl FnOnce`, so only a closure that borrows gateway and body can reach it; see doc/planning/cli-git-closure-lint-suppressions.md"
-    )
-)]
 pub fn post_decision(gateway: &Gateway, body: &str) -> Result<Reply, String> {
     // The quiet gap of the call is measured beside it; the call itself ends on the transport's idle timeouts below.
-    return measured_quiet("standards review gateway call", || { return post_decision_unmeasured(gateway, body); });
+    let measurement: QuietMeasurement = QuietMeasurement::begin("standards review gateway call");
+    let reply: Result<Reply, String> = post_decision_unmeasured(gateway, body);
+    measurement.finish();
+    return reply;
 }
 
 /// `post_decision` without the measuring thread.
@@ -140,7 +136,7 @@ fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, Stri
 ///  otherwise `fetch failed` and the cause.
 /// Why:
 ///   Node prints only `fetch failed` and hides the cause; the cause is what a person needs. The ceiling's sentence names the call,
-///  the ceiling and the command that reviews the commit again, because the call ran as long as cli-git lets it and a person
+///  the ceiling and the command that reviews the commit again, because the call ran as long as monochromatic-git-policy-cli lets it and a person
 ///  reading the log entry needs to know that it was not the endpoint's silence.
 ///
 /// In TS you'd write (pseudocode):
@@ -150,7 +146,7 @@ fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, Stri
 fn describe(error: ureq::Error, ceiling: Duration) -> String {
     return match error {
         ureq::Error::Timeout(ureq::Timeout::Global) => format!(
-            "the standards-review gateway call ran for {} seconds, the longest cli-git lets it run, and was ended, so this commit has no \
+            "the standards-review gateway call ran for {} seconds, the longest monochromatic-git-policy-cli lets it run, and was ended, so this commit has no \
              verdict; review it again with `SHADOW_REVIEW_SHA=<commit> mise run shadow-review`",
             ceiling.as_secs()
         ),

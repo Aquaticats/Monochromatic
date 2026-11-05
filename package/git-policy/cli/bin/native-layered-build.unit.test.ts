@@ -390,6 +390,7 @@ await describe({
         const lines = lastStage(testContainerfile({
           base: baseImage,
           jobs: 1,
+          settingsFile: 'cli-git.config.jsonc',
         }));
         /**
          Position of the dependency compile: the first `RUN` that runs nextest.
@@ -424,6 +425,7 @@ await describe({
         const lines = lastStage(testContainerfile({
           base: baseImage,
           jobs: 1,
+          settingsFile: 'cli-git.config.jsonc',
         }));
         /**
          Position of the copy of the tested crate.
@@ -464,6 +466,7 @@ await describe({
         const lines = lastStage(testContainerfile({
           base: baseImage,
           jobs: 1,
+          settingsFile: 'cli-git.config.jsonc',
         }));
         /**
          The image's default command.

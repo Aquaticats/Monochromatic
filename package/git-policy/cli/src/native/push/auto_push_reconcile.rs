@@ -75,16 +75,8 @@ pub fn reconcile_divergent_push(
         label: "auto-push",
         explicit: false,
     };
-    // The loop takes its push as a callback so controls can stand in for it; this one carries the Git context.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "integrate_and_push's push parameter is a state-carrying dyn FnMut that tests also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-    let mut push_merge = |target: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
-        let arguments = argv(&[
-            "push",
-            &target.remote,
-            &format!("{merge_oid}:{}", target.merge_ref),
-        ]);
-        return run_push(git, &arguments);
-    };
+    // The loop takes its push as a value so controls can stand in for it; this one carries the Git context.
+    let mut push_merge: PushMergeThroughGit<'_> = PushMergeThroughGit { git };
     return Ok(match integrate_and_push(git, &plan, rejected, &mut push_merge)? {
         Integrated::NotDivergent(attempt) | Integrated::Finished(attempt) => attempt,
     });
@@ -110,7 +102,7 @@ pub struct Reconcile<'a> {
     pub local: String,
     /// The branch that follows the published merge when it can, or nothing for a detached HEAD.
     pub branch_ref: Option<&'a str>,
-    /// The word after `cli-git:` in every line the run adds.
+    /// The word after `monochromatic-git-policy-cli:` in every line the run adds.
     pub label: &'a str,
     /// Whether the rejected push was typed by a person and has already shown its own output.
     pub explicit: bool,
@@ -130,6 +122,47 @@ pub enum Integrated {
 }
 
 /// What:
+///  What publishes one merge commit to a destination.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The loop takes its push as a value so controls can stand in for it; the state a push needs (the Git context, the tokens, the
+///  planner) is a small struct that implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface MergePusher { pushMerge(destination: Destination, mergeOid: string): PushAttempt }
+/// ```
+pub trait MergePusher {
+    /// Push the merge commit `merge_oid` to `destination`.
+    fn push_merge(&mut self, destination: &Destination, merge_oid: &str) -> Result<PushAttempt, SingleFlightError>;
+}
+
+/// What:
+///  The automatic push of a merge: plain `git push` of the merge commit to the destination, through the push coordinator.
+/// Why:
+///   The auto-push reconcile has only the Git context to carry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class PushMergeThroughGit implements MergePusher { pushMerge(target, mergeOid) { return runPush(git, ['push', target.remote, `${mergeOid}:${target.mergeRef}`]); } }
+/// ```
+struct PushMergeThroughGit<'a> {
+    /// The coordinator's Git.
+    git: &'a PushGit,
+}
+
+impl MergePusher for PushMergeThroughGit<'_> {
+    fn push_merge(&mut self, target: &Destination, merge_oid: &str) -> Result<PushAttempt, SingleFlightError> {
+        let arguments = argv(&[
+            "push",
+            &target.remote,
+            &format!("{merge_oid}:{}", target.merge_ref),
+        ]);
+        return run_push(self.git, &arguments);
+    }
+}
+
+/// What:
 ///  Merge the remote tip into the pushed commit and publish the result, a bounded number of times.
 /// Why:
 ///   Another worktree advancing the remote makes the plain push fail for good, while both histories are valid and
@@ -145,12 +178,12 @@ pub fn integrate_and_push(
     git: &PushGit,
     plan: &Reconcile<'_>,
     rejected: PushAttempt,
-    push_merge: &mut dyn FnMut(&Destination, &str) -> Result<PushAttempt, SingleFlightError>,
+    push_merge: &mut dyn MergePusher,
 ) -> Result<Integrated, SingleFlightError> {
     let destination = plan.destination.clone();
     let local = plan.local.clone();
     let label = plan.label;
-    let line_prefix = format!("cli-git: {label}: ");
+    let line_prefix = format!("monochromatic-git-policy-cli: {label}: ");
     let failed_prefix = format!("{line_prefix}not published: ");
     let short = destination
         .merge_ref
@@ -158,7 +191,7 @@ pub fn integrate_and_push(
         .unwrap_or(&destination.merge_ref)
         .to_owned();
     let message = format!(
-        "Merge {}/{short} into {short}\n\nCreated by cli-git {label} because {}/{short} advanced after the commit landed.",
+        "Merge {}/{short} into {short}\n\nCreated by monochromatic-git-policy-cli {label} because {}/{short} advanced after the commit landed.",
         destination.remote, destination.remote
     );
     let mut previous = rejected.output.clone();
@@ -260,7 +293,7 @@ pub fn integrate_and_push(
                 "attempt {attempt}: pushing the merge {merge_oid} of {local} and {remote_tip}"
             ),
         );
-        let pushed = push_merge(&destination, &merge_oid)?;
+        let pushed = push_merge.push_merge(&destination, &merge_oid)?;
         if pushed.exit_code == 0 {
             let branch = match plan.branch_ref {
                 Some(reference) => reference.strip_prefix("refs/heads/").unwrap_or(reference),

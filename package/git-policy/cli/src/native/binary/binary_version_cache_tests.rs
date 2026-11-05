@@ -27,7 +27,7 @@ fn commit_edit(fixture: &Fixture, repo: &Path, content: &str) -> Observed {
 
 /// The cache files under the fixture's home.
 fn cache_files(fixture: &Fixture) -> Vec<PathBuf> {
-    let directory: PathBuf = fixture.root.join("home/.cache/cli-git");
+    let directory: PathBuf = fixture.root.join("home/.cache/monochromatic-git-policy-cli");
     let mut files: Vec<PathBuf> = std::fs::read_dir(directory)
         .map(|entries| { return entries.flatten().map(|entry| { return entry.path(); }).collect(); })
         .unwrap_or_default();
@@ -52,7 +52,7 @@ fn a_commit_records_and_then_trusts_the_version_text() {
     let mode: u32 = std::fs::metadata(&files[0]).expect("recorded").permissions().mode() & 0o777;
     assert_eq!(mode, 0o600);
     let recorded: String = String::from_utf8(std::fs::read(&files[0]).expect("recorded")).expect("UTF-8");
-    assert!(recorded.starts_with("cli-git git-version cache 1\n"), "{recorded}");
+    assert!(recorded.starts_with("monochromatic-git-policy-cli git-version cache 1\n"), "{recorded}");
     assert!(recorded.contains("\ngit version 2."), "{recorded}");
 
     // The record is the only source of the answer now: an old release in it draws the warning and the commit goes on.

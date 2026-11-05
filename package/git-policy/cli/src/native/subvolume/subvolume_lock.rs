@@ -42,10 +42,10 @@ const LOCK_NAME: &str = "index.lock";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const token = `cli-git migrate-to-subvolume ${journal.started}\n`;
+/// const token = `monochromatic-git-policy-cli migrate-to-subvolume ${journal.started}\n`;
 /// ```
 pub fn token_of(journal: &Journal) -> String {
-    return format!("cli-git migrate-to-subvolume {}\n", journal.started());
+    return format!("monochromatic-git-policy-cli migrate-to-subvolume {}\n", journal.started());
 }
 
 /// What:

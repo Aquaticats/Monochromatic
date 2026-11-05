@@ -1,15 +1,15 @@
 //! What:
-//!  The built executable's service mode (`cli-git-native cli-git service run`): the invariants that the service is a mode of
+//!  The built executable's service mode (`monochromatic-git-policy-cli monochromatic-git-policy-cli service run`): the invariants that the service is a mode of
 //!  the wrapper and not a second program.
 //! Why:
-//!  The release ships one executable, so a person's `git cli-git service run` reaches the same code the service manager starts.
+//!  The release ships one executable, so a person's `git monochromatic-git-policy-cli service run` reaches the same code the service manager starts.
 //!  A start with no socket from the manager and no named address must be refused and leave no server and no directory; a
 //!  `--git` that is the wrapper itself must be refused (owner: "We should never invoke ourselves recursively."); the words
 //!  count only first, so a global option of Git in front never selects the mode.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! expect(run(wrapper, ['cli-git', 'service', 'run', '--journal', dir]).code).toBe(3); expect(exists(dir)).toBe(false);
+//! expect(run(wrapper, ['monochromatic-git-policy-cli', 'service', 'run', '--journal', dir]).code).toBe(3); expect(exists(dir)).toBe(false);
 //! ```
 
 use super::support::{Fixture, fixture, hermetic, remove, repository, service_command, service_executable, spawn_owned, wrapped};
@@ -39,7 +39,7 @@ fn finished(mut child: Child) -> Output {
     }
 }
 
-/// A person types `git cli-git service run`: the manager passed no socket and no address is named, so the start is refused with
+/// A person types `git monochromatic-git-policy-cli service run`: the manager passed no socket and no address is named, so the start is refused with
 ///  the reason and the way forward, exits without listening, and creates nothing, not even the journal directory.
 #[test]
 fn a_start_with_no_socket_and_no_address_is_refused_and_creates_nothing() {
@@ -47,7 +47,7 @@ fn a_start_with_no_socket_and_no_address_is_refused_and_creates_nothing() {
     let journal: PathBuf = fixture.root.join("journal-not-made");
     for (label, listen_pid, listen_fds) in [("no variables", None, None), ("a socket for another process", Some("1"), Some("1")), ("a count of none", Some("1"), Some("0"))] {
         let mut command = wrapped(&fixture);
-        command.args(["cli-git", "service", "run", "--journal"]).arg(&journal);
+        command.args(["monochromatic-git-policy-cli", "service", "run", "--journal"]).arg(&journal);
         if let (Some(pid), Some(fds)) = (listen_pid.as_ref(), listen_fds.as_ref()) {
             command.env("LISTEN_PID", pid).env("LISTEN_FDS", fds);
         }
@@ -58,7 +58,7 @@ fn a_start_with_no_socket_and_no_address_is_refused_and_creates_nothing() {
         assert!(!journal.exists(), "{label}: a refused start left a directory");
     }
     // Also without any option: the refusal names the manager, not a missing option.
-    let bare: Output = finished(wrapped(&fixture).args(["cli-git", "service", "run"]).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the wrapper starts"));
+    let bare: Output = finished(wrapped(&fixture).args(["monochromatic-git-policy-cli", "service", "run"]).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the wrapper starts"));
     assert!(String::from_utf8_lossy(&bare.stderr).contains("started by the service manager"), "{}", String::from_utf8_lossy(&bare.stderr));
     remove(&fixture);
 }
@@ -74,7 +74,7 @@ fn the_words_behind_a_global_option_start_no_server() {
         wrapped(&fixture)
             .arg("-C")
             .arg(&repo)
-            .args(["cli-git", "service", "run", "--journal"])
+            .args(["monochromatic-git-policy-cli", "service", "run", "--journal"])
             .arg(fixture.root.join("journal-not-made"))
             .arg("--path")
             .arg(&socket)
@@ -84,7 +84,7 @@ fn the_words_behind_a_global_option_start_no_server() {
             .expect("the wrapper starts"),
     );
     assert!(!output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    assert!(String::from_utf8_lossy(&output.stderr).contains("Usage: git cli-git"), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Usage: git monochromatic-git-policy-cli"), "{}", String::from_utf8_lossy(&output.stderr));
     std::thread::sleep(SETTLE);
     assert!(!socket.exists(), "a socket appeared");
     assert!(!fixture.root.join("journal-not-made").exists());
@@ -128,7 +128,7 @@ fn a_git_that_is_the_wrapper_is_refused() {
         let (output, socket) = run_with_git(&fixture, git.as_path(), label);
         let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
         assert_eq!(output.status.code(), Some(git_policy_cli::service_main::EXIT_REFUSED), "{label}: {stderr}");
-        assert!(stderr.contains("would start cli-git again") && stderr.contains("/usr/bin/git"), "{label}: {stderr}");
+        assert!(stderr.contains("would start monochromatic-git-policy-cli again") && stderr.contains("/usr/bin/git"), "{label}: {stderr}");
         assert!(!socket.exists(), "{label}: a refused start listened");
     }
     remove(&fixture);

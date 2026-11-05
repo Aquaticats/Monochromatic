@@ -1,5 +1,5 @@
 //! What:
-//!  `git cli-git doctor`: list the traditional hooks a repository holds and the external hooks its Git
+//!  `git monochromatic-git-policy-cli doctor`: list the traditional hooks a repository holds and the external hooks its Git
 //!  configuration defines, and note the retired `hooks.concurrentCommits` key.
 //! Why:
 //!  Traditional hooks (executable scripts in `<git-common-dir>/hooks` or in a `core.hooksPath` directory) are
@@ -188,9 +188,9 @@ pub fn render_hooks(hooks: &[PathBuf]) -> String {
 /// ```ts
 /// const explanation: string;
 /// ```
-const FOUND_EXPLANATION: &str = "git cli-git doctor: the traditional hooks listed on standard output never run through \
-cli-git, which supports no external hook program and runs no program named by any configuration. Delete each script, \
-or express what it checked as a policy under policies in cli-git.config.jsonc.\n";
+const FOUND_EXPLANATION: &str = "git monochromatic-git-policy-cli doctor: the traditional hooks listed on standard output never run through \
+monochromatic-git-policy-cli, which supports no external hook program and runs no program named by any configuration. Delete each script, \
+or express what it checked as a policy under policies in monochromatic-git-policy-cli.config.jsonc.\n";
 
 /// What:
 ///  Run one Git query in `cwd` and return its standard output as text.
@@ -345,7 +345,7 @@ pub fn is_lfs_shim(path: &Path) -> bool {
 /// ```
 pub fn render_lfs_shims(shims: &[PathBuf]) -> String {
     let mut text: String = String::from(
-        "git cli-git doctor: the hook files below are the Git LFS shims, byte for byte, and nothing needs doing:\n",
+        "git monochromatic-git-policy-cli doctor: the hook files below are the Git LFS shims, byte for byte, and nothing needs doing:\n",
     );
     for shim in shims {
         text.push_str("  ");
@@ -353,17 +353,17 @@ pub fn render_lfs_shims(shims: &[PathBuf]) -> String {
         text.push('\n');
     }
     text.push_str(
-        "git-lfs writes these files again whenever it cleans a file in a Git that cli-git did not start (for example \
+        "git-lfs writes these files again whenever it cleans a file in a Git that monochromatic-git-policy-cli did not start (for example \
 `git add` of an LFS file run as `/usr/bin/git` directly), so they can come back after you delete them; this is \
-normal. cli-git uploads the LFS objects itself before every push and starts Git with traditional hooks off, so these \
-files never run through cli-git. You may delete them or leave them. Only a script that starts Git without cli-git, \
+normal. monochromatic-git-policy-cli uploads the LFS objects itself before every push and starts Git with traditional hooks off, so these \
+files never run through monochromatic-git-policy-cli. You may delete them or leave them. Only a script that starts Git without monochromatic-git-policy-cli, \
 such as `/usr/bin/git` directly, would run them.\n",
     );
     return text;
 }
 
 /// What:
-///  Decide what `git cli-git doctor` prints and exits with.
+///  Decide what `git monochromatic-git-policy-cli doctor` prints and exits with.
 /// Why:
 ///   Exit 0 with no output means no traditional hook was found, exit 1 lists each one on standard output, and exit 2
 ///  reports a repository or a directory that could not be examined.
@@ -426,6 +426,8 @@ pub fn doctor_action_with_section(context: &GitContext, cwd: &Path, filesystem_s
     let shim_report: String = if shims.is_empty() { String::new() } else { render_lfs_shims(shims.as_slice()) };
     let findings: ConfigFindings = config_findings(context, cwd);
     let notes: String = format!("{}{}", render_notes(&findings), fsmonitor_report(context, cwd));
+    // The first time the common Git directory is known to this command, an earlier release's names in it are moved.
+    crate::kept_names_in_the_git_directories::settle_common_directory_names(location.common_directory.as_path());
     let discarded: String = doctor_section(location.common_directory.as_path(), findings.discarded);
     let section: String = filesystem_section(location.common_directory.as_path());
     if hooks.is_empty() && findings.hooks.is_empty() {
@@ -450,13 +452,13 @@ pub fn doctor_action_with_section(context: &GitContext, cwd: &Path, filesystem_s
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// { code: 2, stdout: '', stderr: `git cli-git doctor: ${message}\n` }
+/// { code: 2, stdout: '', stderr: `git monochromatic-git-policy-cli doctor: ${message}\n` }
 /// ```
 fn doctor_failure(message: &str) -> Action {
     return Action::Exit {
         code: ENGINE_FAILURE_EXIT_CODE,
         stdout: String::new(),
-        stderr: format!("git cli-git doctor: {message}\n"),
+        stderr: format!("git monochromatic-git-policy-cli doctor: {message}\n"),
     };
 }
 

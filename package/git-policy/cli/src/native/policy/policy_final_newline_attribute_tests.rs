@@ -465,7 +465,7 @@ fn an_attribute_lookup_that_fails_fails_the_policy() {
             assert_eq!(code, EngineFailureCode::ContentUnavailable);
             // The failure is the attribute lookup's, not the object reader's.
             assert!(
-                message.starts_with("cli-git could not read the text attribute of candidate files: git rev-parse failed"),
+                message.starts_with("monochromatic-git-policy-cli could not read the text attribute of candidate files: git rev-parse failed"),
                 "{message}"
             );
         }

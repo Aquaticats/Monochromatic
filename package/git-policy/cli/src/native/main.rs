@@ -1,5 +1,5 @@
 //! What:
-//!  The thin native cli-git executable.
+//!  The thin native monochromatic-git-policy-cli executable.
 //! Why:
 //!  Process facts are gathered once here;
 //!  every decision lives in the library.
@@ -46,7 +46,7 @@ fn main() {
     // const args = process.argv.slice(2);
     // ```
     let arguments: Vec<OsString> = std::env::args_os().skip(1).collect();
-    // The service mode is chosen by the leading words (`cli-git service run`), never by the name this program was started
+    // The service mode is chosen by the leading words (`monochromatic-git-policy-cli service run`), never by the name this program was started
     // as, and before anything else of the wrapper runs: the service's process setup is its own, and the wrapper's start
     // never takes it (doc/planning/cli-git-resident-service.md, "One executable").
     if git_policy_cli::service_main::is_service_start(arguments.as_slice()) {

@@ -1,0 +1,123 @@
+//! What:
+//!  Every name this program answers to or keeps on disk, as a pair: the name of this release and the name an earlier
+//!  release used before the program became `monochromatic-git-policy-cli`.
+//! Why:
+//!  The owner renamed the program, its command word, its settings file and the folders and files it keeps inside the Git
+//!  directory (`doc/planning/git-policy-cli-program-rename.md`). An older install, a settings file in a repository that has
+//!  not been renamed and a folder an older release wrote must all keep working, so each place that reads or writes one of
+//!  these names takes the pair from here and never spells either half itself.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! export const PROGRAM = { current: 'monochromatic-git-policy-cli', earlier: 'cli-git-native' } as const;
+//! ```
+
+/// What:
+///  One renamed name:
+///  the spelling this release writes and the spelling an earlier release wrote.
+///  `&'static str` is text compiled into the executable.
+/// Why:
+///   Reading code needs both spellings,
+///  and writing code needs only the current one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RenamedName = { readonly current: string; readonly earlier: string };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RenamedName {
+    /// The spelling this release writes.
+    pub current: &'static str,
+    /// The spelling an earlier release wrote,
+    ///  still accepted for reading.
+    pub earlier: &'static str,
+}
+
+/// The executable's file name,
+///  which is the crate's name.
+pub const PROGRAM: RenamedName = RenamedName {
+    current: "monochromatic-git-policy-cli",
+    earlier: "cli-git-native",
+};
+
+/// The word after `git` that the wrapper answers itself,
+///  as in `git monochromatic-git-policy-cli doctor`.
+pub const COMMAND_WORD: RenamedName = RenamedName {
+    current: "monochromatic-git-policy-cli",
+    earlier: "cli-git",
+};
+
+/// The settings file at a repository's top level.
+pub const SETTINGS_FILE: RenamedName = RenamedName {
+    current: "monochromatic-git-policy-cli.config.jsonc",
+    earlier: "cli-git.config.jsonc",
+};
+
+/// The prefix of the wrapper's own lines on standard error,
+///  and the name its messages call it by.
+pub const MESSAGE_PREFIX: RenamedName = RenamedName {
+    current: "monochromatic-git-policy-cli",
+    earlier: "cli-git",
+};
+
+/// The folder inside a Git directory that holds the saved copies,
+///  notices,
+///  work records,
+///  removal snapshots and the standards-review log.
+pub const DATA_FOLDER: RenamedName = RenamedName {
+    current: "monochromatic-git-policy-cli",
+    earlier: "cli-git",
+};
+
+/// The log of discarded conflict sides and their prunes,
+///  inside the common Git directory.
+pub const DISCARD_AUDIT_LOG: RenamedName = RenamedName {
+    current: "monochromatic-git-policy-cli-audit.jsonl",
+    earlier: "cli-git-audit.jsonl",
+};
+
+/// The log of where the time of each commit went,
+///  inside the common Git directory.
+pub const COMMIT_TIMING_LOG: RenamedName = RenamedName {
+    current: "monochromatic-git-policy-cli-commit-timing.jsonl",
+    earlier: "cli-git-commit-timing.jsonl",
+};
+
+/// The log of where the time of each `git worktree add` went,
+///  inside the common Git directory.
+pub const WORKTREE_ADD_TIMING_LOG: RenamedName = RenamedName {
+    current: "monochromatic-git-policy-cli-worktree-add-timing.jsonl",
+    earlier: "cli-git-worktree-add-timing.jsonl",
+};
+
+/// The log of what triggered each automatic push,
+///  inside the common Git directory.
+pub const PUSH_TRIGGER_LOG: RenamedName = RenamedName {
+    current: "monochromatic-git-policy-cli-push-trigger.jsonl",
+    earlier: "cli-git-push-trigger.jsonl",
+};
+
+/// The records of a merge that was started and not yet concluded,
+///  inside a Git directory.
+pub const MERGE_INTENT_FOLDER: RenamedName = RenamedName {
+    current: "monochromatic-git-policy-cli-merges",
+    earlier: "cli-git-merges",
+};
+
+/// The folder of ignored-state copy records,
+///  inside the common Git directory.
+pub const WORKTREE_COPY_RECORD_FOLDER: RenamedName = RenamedName {
+    current: "monochromatic-git-policy-cli-worktree-copy",
+    earlier: "cli-git-worktree-copy",
+};
+
+/// The commit service's units and sockets,
+///  by the name `systemd` knows them as.
+pub const SERVICE_UNIT: RenamedName = RenamedName {
+    current: "monochromatic-git-policy-cli",
+    earlier: "cli-git",
+};
+
+#[cfg(test)]
+#[path = "wrapper_names_old_and_new_tests.rs"]
+mod tests;

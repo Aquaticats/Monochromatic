@@ -21,7 +21,7 @@ const testRegistry = parseCrateRegistry(JSON.stringify({
     crateDir: 'package/git-policy/cli',
     scope: 'git-policy/cli',
     pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
-    checkBins: ['cli-git-native'],
+    checkBins: ['monochromatic-git-policy-cli'],
     lockDirs: ['package/git-policy/cli.fuzz'],
   },
   'plain-crate': {
@@ -124,7 +124,7 @@ await describe({
               '--pin-file',
               'package/x/Cargo.toml',
               '--check-bin',
-              'cli-git-native',
+              'monochromatic-git-policy-cli',
               '--check-bin',
               'second-bin',
               '--lock-dir',
@@ -143,7 +143,7 @@ await describe({
             ]);
             expect(options.root).toBe('/other');
             expect(options.pinFiles).toEqual(['package/git-policy/cli.fuzz/Cargo.toml', 'package/x/Cargo.toml']);
-            expect(options.checkBins).toEqual(['cli-git-native', 'second-bin']);
+            expect(options.checkBins).toEqual(['monochromatic-git-policy-cli', 'second-bin']);
             expect(options.lockDirectories).toEqual(['package/a', 'package/b']);
             expect(options.host).toBe('runner');
             expect(options.memoryMax).toBe('8G');
@@ -314,7 +314,7 @@ await describe({
               to: '0.4.3',
               note: 'fix it',
               pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
-              checkBins: ['cli-git-native'],
+              checkBins: ['monochromatic-git-policy-cli'],
               lockDirectories: ['package/git-policy/cli.fuzz'],
               host: 'runner',
               memoryMax: defaultMemoryMax,

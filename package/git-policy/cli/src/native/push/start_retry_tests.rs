@@ -2,6 +2,13 @@
 
 use super::*;
 
+/// A function-like value with the right shape is a start in these controls: the shipped callers write a small struct that holds the state.
+impl<T, Start: FnMut() -> Result<T>> RefusableStart<T> for Start {
+    fn start(&mut self) -> Result<T> {
+        return self();
+    }
+}
+
 /// The error a refused start returns: `EAGAIN`, which Rust reports as `WouldBlock`.
 fn refusal() -> Error {
     return Error::from_raw_os_error(libc::EAGAIN);

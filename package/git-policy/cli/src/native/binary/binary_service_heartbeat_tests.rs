@@ -450,7 +450,7 @@ fn serve_a_withdrawal_that_says_the_request_is_inside_the_write(service: UnixLis
         greet(&second);
         let mut asked: String = String::new();
         BufReader::new(&second).read_line(&mut asked).expect("the withdrawal");
-        (&second).write_all(&line(&ServiceMessage::InsideWrite { text: String::from("cli-git: this commit is inside a write of the commit service") })).expect("the notice");
+        (&second).write_all(&line(&ServiceMessage::InsideWrite { text: String::from("monochromatic-git-policy-cli: this commit is inside a write of the commit service") })).expect("the notice");
         // The connection stays open and beats until the client leaves.
         while (&second).write_all(&line(&ServiceMessage::Heartbeat)).is_ok() {
             std::thread::sleep(FAKE_BEAT);

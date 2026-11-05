@@ -310,7 +310,7 @@ fn summary_name(line: &str) -> String {
 /// The note the wrapper adds, on standard error, after a commit Git built was built again because the branch moved: it names the
 ///  builds that did not land and the one that did, by the names Git's own summary lines carry.
 fn rebuilt_note(unlanded: &[String], landed: &str) -> String {
-    return format!("cli-git: the branch moved during the commit, so it was built again; {} did not land, {landed} did.", unlanded.join(" and "));
+    return format!("monochromatic-git-policy-cli: the branch moved during the commit, so it was built again; {} did not land, {landed} did.", unlanded.join(" and "));
 }
 
 /// A commit Git builds again because the branch moved prints Git's summary for each build, as Git prints them (the owner's
@@ -413,7 +413,7 @@ fn an_abandoned_editor_lands_nothing_and_leaves_no_scratch_behind() {
             .expect("git directory")
             .flatten()
             .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-            .filter(|entry| { return entry.starts_with("cli-git-service-"); })
+            .filter(|entry| { return entry.starts_with("monochromatic-git-policy-cli-service-") || entry.starts_with("cli-git-service-"); })
             .collect();
         assert!(scratch.is_empty(), "{label}: left {scratch:?}");
     }
@@ -457,7 +457,7 @@ fn a_branch_that_moves_while_the_editor_is_open_is_built_again_from_the_typed_me
         .expect("git directory")
         .flatten()
         .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-        .filter(|entry| { return entry.starts_with("cli-git-saved-message-") || entry.starts_with("cli-git-service-"); })
+        .filter(|entry| { return entry.starts_with("monochromatic-git-policy-cli-saved-message-") || entry.starts_with("monochromatic-git-policy-cli-service-") || entry.starts_with("cli-git-service-"); })
         .collect();
     assert!(leftover.is_empty(), "nothing is left behind: {leftover:?}");
     let _killed = service.kill();
@@ -491,7 +491,7 @@ fn a_typed_message_is_saved_only_when_the_branch_never_stops_moving() {
         .expect("git directory")
         .flatten()
         .map(|entry| { return entry.path(); })
-        .find(|path| { return path.file_name().is_some_and(|file| { return file.to_string_lossy().starts_with("cli-git-saved-message-"); }); })
+        .find(|path| { return path.file_name().is_some_and(|file| { return file.to_string_lossy().starts_with("monochromatic-git-policy-cli-saved-message-"); }); })
         .expect("the typed message was saved");
     assert!(stderr.contains(&format!("git commit -F {}", saved.display())), "{stderr}");
     assert!(std::fs::read_to_string(&saved).expect("saved message").starts_with("typed: seed"), "the typed text is what was saved");
@@ -555,7 +555,7 @@ fn a_switch_to_another_branch_while_the_editor_is_open_fails_the_commit_and_keep
         .expect("git directory")
         .flatten()
         .map(|entry| { return entry.path(); })
-        .find(|path| { return path.file_name().is_some_and(|file| { return file.to_string_lossy().starts_with("cli-git-saved-message-"); }); })
+        .find(|path| { return path.file_name().is_some_and(|file| { return file.to_string_lossy().starts_with("monochromatic-git-policy-cli-saved-message-"); }); })
         .expect("the typed message was saved");
     assert!(std::fs::read_to_string(&saved).expect("saved message").starts_with("typed: seed"), "the typed text is what was saved");
     assert!(stderr.contains(&saved.display().to_string()), "the message names the file: {stderr}");
@@ -563,7 +563,7 @@ fn a_switch_to_another_branch_while_the_editor_is_open_fails_the_commit_and_keep
         .expect("git directory")
         .flatten()
         .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
-        .filter(|entry| { return entry.starts_with("cli-git-service-"); })
+        .filter(|entry| { return entry.starts_with("monochromatic-git-policy-cli-service-") || entry.starts_with("cli-git-service-"); })
         .collect();
     assert!(scratch.is_empty(), "left {scratch:?}");
     let _killed = service.kill();

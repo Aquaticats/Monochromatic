@@ -34,8 +34,8 @@ await describe({
           fn: async () => {
             expect(formatCommandLine({
               program: 'cargo',
-              args: ['check', '--offline', '--bin', 'cli-git-native'],
-            })).toBe('cargo check --offline --bin cli-git-native');
+              args: ['check', '--offline', '--bin', 'monochromatic-git-policy-cli'],
+            })).toBe('cargo check --offline --bin monochromatic-git-policy-cli');
           },
         }),
         it({

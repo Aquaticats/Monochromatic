@@ -17,7 +17,8 @@ use crate::candidate_prediction::PushedScope;
 use crate::manual_push_cause::ManualPushCause;
 use crate::manual_push_probe::{GitRefusal, MOST_CONCURRENT_LOCAL_QUERIES, PushUpdate, QUERY_MEMORY, probe_manual_push_updates};
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use crate::parallel_runner::{Event, OrderedRun, run_ordered};
+use crate::line_sink::LineSink;
+use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
 use crate::manual_push_range::{
     ManualPushRangeError, UpdateScope, peel_commits, published_tips, tracking_commits, update_scope,
 };
@@ -101,6 +102,57 @@ pub fn scopes_of_updates(
     return scopes_of_updates_on(&HostResources::read(), git, updates);
 }
 
+/// What:
+///  The scope of one update, run by a worker of the ordered runner.
+/// Why:
+///   The Git context and the published tips are what each update reads; the runner shares them among its worker threads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ScopeOfEachUpdate implements OrderedWork<PushUpdate, Result<UpdateScope>> { run(i, update) { return updateScope(git, update, tips.get(update.remoteName) ?? []); } }
+/// ```
+struct ScopeOfEachUpdate<'a> {
+    /// The coordinator's Git, whose queries are bounded.
+    git: &'a PushGit,
+    /// The tips already published at each destination, by remote name.
+    tips: &'a BTreeMap<String, Vec<String>>,
+}
+
+impl OrderedWork<PushUpdate, Result<UpdateScope, ManualPushRangeError>> for ScopeOfEachUpdate<'_> {
+    fn run(&self, _index: usize, update: &PushUpdate, _say: &mut dyn LineSink) -> Result<UpdateScope, ManualPushRangeError> {
+        let published: Vec<String> = self.tips.get(&update.remote_name).cloned().unwrap_or_default();
+        return update_scope(self.git, update, &published);
+    }
+}
+
+/// What:
+///  Keeps the scopes in update order and the first failure; once an update has failed, later results are dropped.
+/// Why:
+///   The runner reports on the calling thread only and in update order, so the first update that fails decides the error.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class KeepScopesUntilTheFirstFailure implements OrderedEvents<Result<UpdateScope>> { scopes: UpdateScope[]; failure?: Error }
+/// ```
+struct KeepScopesUntilTheFirstFailure<'a> {
+    /// The scopes so far.
+    scopes: &'a mut Vec<UpdateScope>,
+    /// The first failure, when an update has failed.
+    failure: &'a mut Option<ManualPushRangeError>,
+}
+
+impl OrderedEvents<Result<UpdateScope, ManualPushRangeError>> for KeepScopesUntilTheFirstFailure<'_> {
+    fn on_event(&mut self, event: Event<'_, Result<UpdateScope, ManualPushRangeError>>) {
+        if let Event::End(_index, outcome) = event {
+            match outcome {
+                Ok(scope) if self.failure.is_none() => self.scopes.push(scope),
+                Err(error) if self.failure.is_none() => *self.failure = Some(error),
+                Ok(_) | Err(_) => {}
+            }
+        }
+    }
+}
+
 /// `scopes_of_updates` with the host's resources chosen by the caller, so a control states a host of any size.
 pub fn scopes_of_updates_on(
     host: &HostResources,
@@ -138,24 +190,13 @@ pub fn scopes_of_updates_on(
     let workers: usize = worker_budget(&BudgetRequest { items: updates.len(), per_item_memory: QUERY_MEMORY, ceiling: Some(MOST_CONCURRENT_LOCAL_QUERIES), cap: None, host });
     let mut scopes: Vec<UpdateScope> = Vec::new();
     let mut failure: Option<ManualPushRangeError> = None;
-    // The pool calls this on a worker thread for each update; it carries the Git context and the published tips.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's work parameter is a state-carrying callback; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-    let work = |_index: usize, update: &PushUpdate, _say: &mut dyn FnMut(&str)| {
-        let published: Vec<String> = tips.get(&update.remote_name).cloned().unwrap_or_default();
-        return update_scope(git, update, &published);
-    };
-    // The pool calls this as each update ends, in update order; it carries the scopes and the first failure.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's event parameter is a state-carrying callback; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-    let mut on_event = |event: Event<'_, Result<UpdateScope, ManualPushRangeError>>| {
-        if let Event::End(_index, outcome) = event {
-            match outcome {
-                Ok(scope) if failure.is_none() => scopes.push(scope),
-                Err(error) if failure.is_none() => failure = Some(error),
-                Ok(_) | Err(_) => {}
-            }
-        }
-    };
-    run_ordered(OrderedRun { items: updates, lanes: lanes.as_slice(), workers, work: &work, on_event: &mut on_event });
+    run_ordered(OrderedRun {
+        items: updates,
+        lanes: lanes.as_slice(),
+        workers,
+        work: &ScopeOfEachUpdate { git, tips: &tips },
+        on_event: &mut KeepScopesUntilTheFirstFailure { scopes: &mut scopes, failure: &mut failure },
+    });
     return match failure {
         Some(error) => Err(from_range(&error)),
         None => Ok(scopes),

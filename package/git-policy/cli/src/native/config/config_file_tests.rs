@@ -8,7 +8,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // const root = await mkdtemp(...); await writeFile(join(root, 'cli-git.config.jsonc'), '{}');
+//! // const root = await mkdtemp(...); await writeFile(join(root, 'monochromatic-git-policy-cli.config.jsonc'), '{}');
 //! ```
 
 /// Import the loader under test and the settings it produces.
@@ -49,6 +49,7 @@ fn absent_and_empty_configuration_load_the_same_defaults() {
             config: CliGitConfig::defaults(),
             source: None,
             ignored_legacy: Vec::<PathBuf>::new(),
+        earlier_name_notice: None,
         })
     );
     assert_eq!(
@@ -115,7 +116,7 @@ fn invalid_content_names_the_file_and_the_key() {
     assert_eq!(
         rejection(root.as_path()),
         format!(
-            "{}: Configuration key plugins is retired: policies are compiled into cli-git and \
+            "{}: Configuration key plugins is retired: policies are compiled into monochromatic-git-policy-cli and \
              JSONC configuration cannot load plugin code. Remove the key and configure the \
              shipped policies under policies.",
             source.display()
@@ -217,7 +218,7 @@ fn legacy_configuration_alone_requires_migration() {
         assert_eq!(
             message,
             format!(
-                "Legacy configuration {} is not executed or read by the native cli-git. \
+                "Legacy configuration {} is not executed or read by the native monochromatic-git-policy-cli. \
                  Translate its settings into {} (data only: policies, hooks, indexLock, landing), \
                  then remove the legacy file. Plugins, executable paths, command arrays and trust \
                  settings have no JSONC equivalent because every policy is built in.",
@@ -256,8 +257,8 @@ fn legacy_configuration_beside_jsonc_is_reported() {
     assert_eq!(
         ignored_legacy_notice(loaded.ignored_legacy[1].as_path(), source.as_path()),
         format!(
-            "Legacy configuration {} is ignored: {} is authoritative for the native cli-git. \
-             Remove the legacy file once no TypeScript cli-git reads it.",
+            "Legacy configuration {} is ignored: {} is authoritative for the native monochromatic-git-policy-cli. \
+             Remove the legacy file once no TypeScript monochromatic-git-policy-cli reads it.",
             root.join("cli-git.config.ts").display(),
             source.display()
         )

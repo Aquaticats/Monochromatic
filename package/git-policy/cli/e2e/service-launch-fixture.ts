@@ -16,14 +16,14 @@ import { realpath, } from 'node:fs/promises';
  The service program: the wrapper's own executable, installed by the image build. The service is its mode, selected by the
  words of `SERVICE_MODE_WORDS` first in the arguments (`src/native/service/service_main.rs`).
  */
-const SERVICE_PROGRAM = '/opt/native/cli-git-native';
+const SERVICE_PROGRAM = '/opt/native/monochromatic-git-policy-cli';
 
 /**
  The words, first in the arguments, that select the service mode of the executable. A control
  (`e2e/service-mode-words.unit.test.ts`) fails when it differs from `SERVICE_WORDS` in `src/native/service/service_main.rs`.
  */
 export const SERVICE_MODE_WORDS = [
-  'cli-git',
+  'monochromatic-git-policy-cli',
   'service',
   'run',
 ] as const;
@@ -148,7 +148,7 @@ export async function instanceOf(gitDir: string,): Promise<string> {
 
  @example
  ```ts
- const child = spawnService({ socket: '/work/s1/service/runtime/cli-git/service.sock', journal: '/work/s1/service/journal' });
+ const child = spawnService({ socket: '/work/s1/service/runtime/monochromatic-git-policy-cli/service.sock', journal: '/work/s1/service/journal' });
  ```
  */
 export function spawnService({

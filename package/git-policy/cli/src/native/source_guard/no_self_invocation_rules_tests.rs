@@ -53,9 +53,9 @@ pub(super) const RULES: &[Rule] = &[
         id: "management-word",
         reason: "passes the management words to a process, which would start the wrapper's own management entry",
         matches: |line, _joined| {
-            return line.contains(".arg(\"cli-git\"")
+            return line.contains(".arg(\"monochromatic-git-policy-cli\"")
                 || line.contains(".arg(MANAGEMENT_COMMAND")
-                || line.contains("args([\"cli-git\"")
+                || line.contains("args([\"monochromatic-git-policy-cli\"")
                 || line.contains("HOOK_ENTRY");
         },
     },

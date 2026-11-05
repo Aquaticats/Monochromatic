@@ -71,7 +71,7 @@ fn listing_failures_are_typed() {
     assert_eq!(listing.failure, CandidateFailure::GitNotStarted);
     assert!(
         listing.message.starts_with(
-            "cli-git could not list candidate files: git diff-index could not be started: "
+            "monochromatic-git-policy-cli could not list candidate files: git diff-index could not be started: "
         ),
         "{listing}"
     );
@@ -90,7 +90,7 @@ fn listing_failures_are_typed() {
     assert!(
         failed
             .message
-            .starts_with("cli-git could not list candidate files: git diff-tree failed: fatal: "),
+            .starts_with("monochromatic-git-policy-cli could not list candidate files: git diff-tree failed: fatal: "),
         "{failed}"
     );
     assert_eq!(

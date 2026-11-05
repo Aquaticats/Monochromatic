@@ -109,7 +109,7 @@ fn entry_kind(file_type: std::fs::FileType, path: &Path) -> Result<EntryKind, Wo
         return Ok(EntryKind::Symlink);
     }
     let message: String = format!(
-        "cli-git: ignored path {} has unsupported filesystem type.",
+        "monochromatic-git-policy-cli: ignored path {} has unsupported filesystem type.",
         quote(path.to_string_lossy().as_ref())
     );
     return Err(failure_with_cause(message.as_str(), None));

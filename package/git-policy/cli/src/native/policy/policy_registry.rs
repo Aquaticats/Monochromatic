@@ -108,7 +108,7 @@ pub struct PolicyDescriptor {
     pub warn_safe: bool,
     /// Whether the `["severity", { ... }]` form is accepted for this policy.
     pub accepts_options: bool,
-    /// Whether the policy runs only where `cli-git.config.jsonc` names it.
+    /// Whether the policy runs only where `monochromatic-git-policy-cli.config.jsonc` names it.
     ///  The four
     /// policies that plugins used to provide are off everywhere else,
     ///  with or without

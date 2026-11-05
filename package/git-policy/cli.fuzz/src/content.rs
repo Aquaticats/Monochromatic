@@ -124,7 +124,7 @@ pub fn check_stage_records(data: &[u8]) {
             assert!(
                 error
                     .message
-                    .starts_with("cli-git could not read the index: entry record "),
+                    .starts_with("monochromatic-git-policy-cli could not read the index: entry record "),
                 "{}",
                 error.message
             );

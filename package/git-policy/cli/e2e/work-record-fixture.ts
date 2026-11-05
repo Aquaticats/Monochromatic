@@ -1,7 +1,7 @@
 /**
  Observation of the after-commit work records a landed commit leaves for the service.
 
- The wrapper writes a `push-<oid>` record under `cli-git/work/pending` once a commit has landed and before it wakes the
+ The wrapper writes a `push-<oid>` record under `monochromatic-git-policy-cli/work/pending` once a commit has landed and before it wakes the
  service, so the record is the earliest durable trace of a landing that a harness can watch from outside.
  It moves through `claimed` to `done` or `failed` as the service works.
 
@@ -70,7 +70,7 @@ export async function pushRecordNames({
     try {
       return await readdir(join(
         repository.gitDir,
-        'cli-git',
+        'monochromatic-git-policy-cli',
         'work',
         state,
       ),);
@@ -288,7 +288,7 @@ export async function workRecordPlacements({
      */
     const directory = join(
       repository.gitDir,
-      'cli-git',
+      'monochromatic-git-policy-cli',
       'work',
       state,
     );

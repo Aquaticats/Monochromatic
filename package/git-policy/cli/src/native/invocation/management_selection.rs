@@ -1,5 +1,5 @@
 //! What:
-//!  The `--policy` selection of a direct `git cli-git check` or `fix`:
+//!  The `--policy` selection of a direct `git monochromatic-git-policy-cli check` or `fix`:
 //!  the names turned into shipped policies,
 //!  and the refusal of a selection that names a policy which is off.
 //! Why:
@@ -7,7 +7,7 @@
 //!  A policy that is off runs nothing,
 //!  so a run limited to it would exit 0 with no output and read as "checked and clean".
 //!  A CI step or a person who selected the policy by name must learn that it did not run,
-//!  and which `cli-git.config.jsonc` key turns it on.
+//!  and which `monochromatic-git-policy-cli.config.jsonc` key turns it on.
 //!  The commit,
 //! add and push lifecycles are not direct runs and keep skipping policies that are off.
 //!
@@ -83,13 +83,13 @@ pub fn selected_policies(names: &[String]) -> Result<Vec<PolicyId>, ConfigError>
 /// ```
 fn off_message(name: &str, explicit: bool, on: &str) -> String {
     let cause: String = if explicit {
-        format!("cli-git.config.jsonc sets policies.\"{name}\" to \"off\"")
+        format!("monochromatic-git-policy-cli.config.jsonc sets policies.\"{name}\" to \"off\"")
     } else {
-        format!("cli-git.config.jsonc does not list \"{name}\", and an unlisted policy of this kind is off")
+        format!("monochromatic-git-policy-cli.config.jsonc does not list \"{name}\", and an unlisted policy of this kind is off")
     };
     return format!(
         "Policy {name} is off, so --policy {name} would check nothing and exit clean: {cause}. \
-         To turn it on, set \"policies\": {{ \"{name}\": \"{on}\" }} in cli-git.config.jsonc and run the command again."
+         To turn it on, set \"policies\": {{ \"{name}\": \"{on}\" }} in monochromatic-git-policy-cli.config.jsonc and run the command again."
     );
 }
 
@@ -113,16 +113,16 @@ fn off_message(name: &str, explicit: bool, on: &str) -> String {
 fn unrun_message(name: &str, command: &str, runs_for: &[&str]) -> String {
     if runs_for.is_empty() {
         return format!(
-            "Policy {name} does not run for the cli-git check or fix commands, only when the Git command it guards is \
+            "Policy {name} does not run for the monochromatic-git-policy-cli check or fix commands, only when the Git command it guards is \
              forwarded, so --policy {name} would check nothing and exit clean. Run that Git command to see it."
         );
     }
     let mut commands: Vec<String> = Vec::new();
     for word in runs_for {
-        commands.push(format!("cli-git {word}"));
+        commands.push(format!("monochromatic-git-policy-cli {word}"));
     }
     return format!(
-        "Policy {name} does not run for cli-git {command}, so --policy {name} would check nothing and exit clean. \
+        "Policy {name} does not run for monochromatic-git-policy-cli {command}, so --policy {name} would check nothing and exit clean. \
          It runs for {}.",
         commands.join(" or ")
     );

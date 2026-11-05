@@ -160,7 +160,7 @@ fn invocations_git_answers_itself_are_forwarded_unchanged() {
         vec![],
         vec!["--no-pager"],
         // The namespace word after a query is an ordinary argument.
-        vec!["--man-path", "cli-git"],
+        vec!["--man-path", "monochromatic-git-policy-cli"],
     ] {
         assert_eq!(
             plan_invocation(text(arguments.as_slice()).as_slice(), &[], &resolution),
@@ -187,7 +187,7 @@ fn inspection_commands_are_forwarded_without_wrapper_controls() {
         (vec!["log", "--oneline"], vec!["log", "--oneline"]),
         (vec!["branch", "--list"], vec!["branch", "--list"]),
         // The namespace word in any position but the subcommand is an ordinary argument.
-        (vec!["log", "cli-git"], vec!["log", "cli-git"]),
+        (vec!["log", "monochromatic-git-policy-cli"], vec!["log", "monochromatic-git-policy-cli"]),
         (
             vec!["status", "--cli-git-keep-going", "--short"],
             vec!["-c", "advice.statusHints=false", "status", "--short"],
@@ -242,7 +242,7 @@ fn inspection_commands_are_forwarded_without_wrapper_controls() {
     remove(root.as_path());
 }
 
-/// `git cli-git ...` is answered by the wrapper,
+/// `git monochromatic-git-policy-cli ...` is answered by the wrapper,
 ///  also behind global options,
 ///  and never forwarded.
 #[test]
@@ -251,18 +251,18 @@ fn management_namespace_is_answered_by_the_wrapper() {
     let mut resolution: ResolutionInputs = inputs(root.as_path());
     // No Git on PATH: help must not need it.
     resolution.path = OsString::from("nothing-here");
-    assert_eq!(MANAGEMENT_COMMAND, "cli-git");
+    assert_eq!(MANAGEMENT_COMMAND, "monochromatic-git-policy-cli");
     for arguments in [
-        vec!["cli-git", "--help"],
-        vec!["-C", "/somewhere", "-c", "a.b=c", "cli-git", "-h"],
-        vec!["--no-pager", "cli-git", "--help"],
+        vec!["monochromatic-git-policy-cli", "--help"],
+        vec!["-C", "/somewhere", "-c", "a.b=c", "monochromatic-git-policy-cli", "-h"],
+        vec!["--no-pager", "monochromatic-git-policy-cli", "--help"],
         // A wrapper control before the namespace word does not hide it.
-        vec!["--cli-git-keep-going", "cli-git", "--help"],
+        vec!["--cli-git-keep-going", "monochromatic-git-policy-cli", "--help"],
         vec![
             "-C",
             "/somewhere",
             "--no-enforce-require-root",
-            "cli-git",
+            "monochromatic-git-policy-cli",
             "-h",
         ],
     ] {
@@ -278,7 +278,7 @@ fn management_namespace_is_answered_by_the_wrapper() {
     }
     // A control after the namespace word is not part of the management grammar.
     match plan_invocation(
-        text(&["cli-git", "--cli-git-keep-going", "check", "--all"]).as_slice(),
+        text(&["monochromatic-git-policy-cli", "--cli-git-keep-going", "check", "--all"]).as_slice(),
         &[],
         &resolution,
     ) {
@@ -297,7 +297,7 @@ fn management_namespace_is_answered_by_the_wrapper() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join(CONFIG_FILE_NAME), r#"{ "unknown": 1 }"#).expect("invalid config");
     match plan_invocation(
-        in_directory(repo.as_path(), &["cli-git", "check", "--all"]).as_slice(),
+        in_directory(repo.as_path(), &["monochromatic-git-policy-cli", "check", "--all"]).as_slice(),
         &[],
         &resolution,
     ) {
@@ -376,7 +376,7 @@ fn policy_commands_validate_configuration_then_run_policies() {
         "",
     );
     // A legacy file beside it is not mentioned by an ordinary command: only
-    // `git cli-git check` reports it.
+    // `git monochromatic-git-policy-cli check` reports it.
     std::fs::write(&legacy, "export default {};").expect("legacy config");
     assert_coordinated_add(
         plan_invocation(arguments.as_slice(), &[], &resolution),
@@ -388,7 +388,7 @@ fn policy_commands_validate_configuration_then_run_policies() {
     assert_eq!(
         stopped(plan_invocation(arguments.as_slice(), &[], &resolution)),
         format!(
-            "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"{}: Unknown policy ID: unknown. Shipped policies: require-root, linked-worktree-only, branch-worktree-only, add-explicit, final-newline, markdown/autofix, mono/forbidden-root-context, mono/dependent-version-bump, mono/catalog-specifiers, security/forbidden-strings.\",\"hint\":\"Hint: if you just edited cli-git.config.jsonc, fix the key the message names or revert the edit; an unknown key, a wrong type or an unknown policy id fails before any policy runs.\"}}\n",
+            "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"{}: Unknown policy ID: unknown. Shipped policies: require-root, linked-worktree-only, branch-worktree-only, add-explicit, final-newline, markdown/autofix, mono/forbidden-root-context, mono/dependent-version-bump, mono/catalog-specifiers, security/forbidden-strings.\",\"hint\":\"Hint: if you just edited monochromatic-git-policy-cli.config.jsonc, fix the key the message names or revert the edit; an unknown key, a wrong type or an unknown policy id fails before any policy runs.\"}}\n",
             source.display()
         )
     );
@@ -398,7 +398,7 @@ fn policy_commands_validate_configuration_then_run_policies() {
     assert!(
         migration.starts_with(
             format!(
-                "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"Legacy configuration {} is not executed or read by the native cli-git.",
+                "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"Legacy configuration {} is not executed or read by the native monochromatic-git-policy-cli.",
                 legacy.display()
             )
             .as_str()

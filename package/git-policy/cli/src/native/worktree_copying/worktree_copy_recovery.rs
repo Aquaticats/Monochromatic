@@ -125,7 +125,7 @@ pub fn destination_registration(
         }
         Err(error) => {
             let message: String = format!(
-                "cli-git: could not read worktree registration of {}.",
+                "monochromatic-git-policy-cli: could not read worktree registration of {}.",
                 quote(destination.to_string_lossy().as_ref())
             );
             return Err(failure_with_cause(message.as_str(), Some(&error)));
@@ -154,7 +154,7 @@ pub fn validate_stage(pending: &PendingJournal) -> Result<StagePresence, Worktre
             }
             Err(error) => {
                 let message: String = format!(
-                    "cli-git: could not validate worktree-copy recovery state for {}.",
+                    "monochromatic-git-policy-cli: could not validate worktree-copy recovery state for {}.",
                     quote(pending.journal.destination_root.as_str())
                 );
                 return Err(failure_with_cause(message.as_str(), Some(&error)));
@@ -189,7 +189,7 @@ fn recover_transaction(
         return Ok((
             false,
             Some(format!(
-                "cli-git: discarded an interrupted ignored-state copy for {destination}, which is no longer a registered worktree."
+                "monochromatic-git-policy-cli: discarded an interrupted ignored-state copy for {destination}, which is no longer a registered worktree."
             )),
         ));
     }
@@ -202,7 +202,7 @@ fn recover_transaction(
         return Ok((
             false,
             Some(format!(
-                "cli-git: discarded an interrupted ignored-state copy into {destination} because its private stage is missing; ignored files there may be incomplete."
+                "monochromatic-git-policy-cli: discarded an interrupted ignored-state copy into {destination} because its private stage is missing; ignored files there may be incomplete."
             )),
         ));
     }
@@ -214,7 +214,7 @@ fn recover_transaction(
             return Ok((
                 false,
                 Some(format!(
-                    "cli-git: ended an interrupted ignored-state copy into {destination} without finishing it. {}",
+                    "monochromatic-git-policy-cli: ended an interrupted ignored-state copy into {destination} without finishing it. {}",
                     failure.0
                 )),
             ));
@@ -289,7 +289,7 @@ pub fn report_recovered(
         };
         writeln!(
             stderr,
-            "cli-git: recovered ignored-state copies for {} worktree {noun}.",
+            "monochromatic-git-policy-cli: recovered ignored-state copies for {} worktree {noun}.",
             report.recovered
         )
         .map_err(raw_failure_of)?;

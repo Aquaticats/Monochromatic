@@ -39,7 +39,7 @@ const TAG: &str = "wordMergeWorktree";
 const INDEX_LIMIT_BYTES: u64 = 1 << 30;
 
 /// The line prefix of every line this module writes.
-const LINE_PREFIX: &str = "cli-git: ";
+const LINE_PREFIX: &str = "monochromatic-git-policy-cli: ";
 
 /// The commands whose conflicts get the pass; a pull's own merge or rebase stops in the same state the command would.
 const OPERATIONS: [&[u8]; 5] = [b"merge", b"rebase", b"cherry-pick", b"revert", b"pull"];

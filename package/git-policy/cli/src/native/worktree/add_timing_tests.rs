@@ -10,7 +10,7 @@
 //! ```
 
 /// The recorder under test.
-use super::{ADD_TIMING_FILE, Recorder, begin, finish, git_step_label, note, step, work};
+use super::{ADD_TIMING_FILE, Recorder, begin, begin_step, begin_work, end_step, end_work, finish, git_step_label, note};
 use crate::command_test_support::{fixture, remove};
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -98,7 +98,9 @@ fn the_line_carries_the_exit_code_and_notes_escaped() {
 #[test]
 fn a_step_without_a_recorder_returns_its_body() {
     note("route", "ignored");
-    assert_eq!(step("anything", || { return 7; }), 7);
+    let entered: bool = begin_step("anything");
+    end_step(entered);
+    assert!(!entered, "no recording took the step");
 }
 
 /// A step whose body begins another step nests it through the real clock too.
@@ -108,9 +110,11 @@ fn steps_nest_through_the_thread_recorder() {
     let common: PathBuf = root.join(".git");
     std::fs::create_dir_all(common.as_path()).expect("common directory");
     begin(common.clone());
-    let value: i32 = step("outer", || { return step("inner", || { return 5; }) + 1; });
+    let outer: bool = begin_step("outer");
+    let inner: bool = begin_step("inner");
+    end_step(inner);
+    end_step(outer);
     finish(0);
-    assert_eq!(value, 6);
     let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
     let record = parsed(text.lines().next().expect("one line"));
     assert_eq!(record["steps"]["outer"]["calls"], 1);
@@ -162,7 +166,11 @@ fn work_on_other_threads_is_summed_by_name() {
     begin(common.clone());
     std::thread::scope(|scope| {
         for _worker in 0..2 {
-            scope.spawn(|| { work("clone", || { std::thread::sleep(Duration::from_millis(5)); }); });
+            scope.spawn(|| {
+                let began = begin_work();
+                std::thread::sleep(Duration::from_millis(5));
+                end_work("clone", began);
+            });
         }
     });
     finish(0);
@@ -177,7 +185,7 @@ fn work_on_other_threads_is_summed_by_name() {
 /// Work with no recording begun is its body, and a later recording does not inherit it.
 #[test]
 fn work_without_a_recording_is_forgotten() {
-    assert_eq!(work("early", || { return 3; }), 3);
+    end_work("early", begin_work());
     let root: PathBuf = fixture("add-timing-work-forgotten");
     let common: PathBuf = root.join(".git");
     std::fs::create_dir_all(common.as_path()).expect("common directory");

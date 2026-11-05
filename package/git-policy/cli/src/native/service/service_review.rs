@@ -14,8 +14,8 @@
 //! const outcome = await reviewLanded(names, sha, subject, read, options);
 //! ```
 
-use crate::standards_review_input::has_shadow_log;
-use crate::standards_review_run::{Containment, Contained, ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_contained_in};
+use crate::standards_review_input::{LandedCommit, has_shadow_log};
+use crate::standards_review_run::{Containment, Contained, EnvironmentVariables, LandedCommitReader, ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_contained_in};
 use crate::standards_review_source::{read_landed_commit, read_message, read_names};
 use crate::standards_review_text::commit_subject;
 use crate::service_review_key::{KEY_VARIABLES, ReviewKey};
@@ -75,7 +75,7 @@ pub fn common_dir_of(git_dir: &Path) -> PathBuf {
 /// ```ts
 /// optionsFor(item, process.env)
 /// ```
-pub fn options_for(item: &WorkItem, variable: &dyn Fn(&str) -> Option<String>) -> ReviewOptions {
+pub fn options_for(item: &WorkItem, variable: &dyn EnvironmentVariables) -> ReviewOptions {
     let common: PathBuf = common_dir_of(Path::new(item.git_dir.as_str()));
     let mut options: ReviewOptions = options_from_environment(common.as_path(), variable);
     options.quiet_window = CALL_QUIET_WINDOW;
@@ -106,24 +106,52 @@ fn expose_as_text(held: &ReviewKey) -> String {
 /// ```ts
 /// (name) => keyNames.includes(name) ? fromMessage(name) : process.env[name]
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "the lookup is returned as `impl Fn(&str) -> Option<String>` for a `&dyn Fn` parameter of `key_from_environment`, and it must carry the exposed key"
-    )
-)]
-pub fn review_variables(key: Option<&ReviewKey>) -> impl Fn(&str) -> Option<String> {
-    let exposed: Option<String> = key.map(expose_as_text);
-    return move |name: &str| {
+pub fn review_variables(key: Option<&ReviewKey>) -> ReviewVariables {
+    return ReviewVariables { exposed: key.map(expose_as_text) };
+}
+
+/// The variable lookup of a review: the exposed key answers for the credential variables, every other name from the environment.
+pub struct ReviewVariables {
+    /// The key that came in the wake message, as text, or nothing.
+    exposed: Option<String>,
+}
+
+impl EnvironmentVariables for ReviewVariables {
+    fn variable(&self, name: &str) -> Option<String> {
         if name == KEY_VARIABLES[0] {
-            return exposed.clone();
+            return self.exposed.clone();
         }
         if name == KEY_VARIABLES[1] {
             return None;
         }
         return std::env::var(name).ok();
-    };
+    }
+}
+
+/// What:
+///  The read of the landed commit that the review asks for when the commit has code files.
+/// Why:
+///   The read needs the Git context, the directory, the commit and the subject, which the review does not carry itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ReadLandedCommit implements LandedCommitReader { read(files) { return readLandedCommit(context, cwd, oid, subject, files); } }
+/// ```
+struct ReadLandedCommit<'a> {
+    /// The Git program and the directories the read uses.
+    context: &'a GitContext,
+    /// The repository the commit landed in.
+    cwd: &'a Path,
+    /// The commit.
+    oid: &'a str,
+    /// The commit's subject line.
+    subject: &'a str,
+}
+
+impl LandedCommitReader for ReadLandedCommit<'_> {
+    fn read(&self, files: &[String]) -> Result<LandedCommit, String> {
+        return read_landed_commit(self.context, self.cwd, self.oid, self.subject, files);
+    }
 }
 
 /// The Git reads, the subject and the review, without the budget.
@@ -137,14 +165,7 @@ fn run_review(context: &GitContext, item: &WorkItem, options: &ReviewOptions, no
         Ok(message) => commit_subject(message.as_str()),
         Err(message) => return ReviewOutcome::Unread(message),
     };
-    #[cfg_attr(
-        dylint_lib = "monochromatic_lint_closure",
-        expect(
-            avoidable_closure,
-            reason = "`review_landed` takes `&dyn Fn(&[String]) -> ...` to read the landed commit, and the reader must carry the context, the directory, the commit and the subject"
-        )
-    )]
-    let read = |files: &[String]| { return read_landed_commit(context, cwd.as_path(), item.oid.as_str(), subject.as_str(), files); };
+    let read: ReadLandedCommit<'_> = ReadLandedCommit { context, cwd: cwd.as_path(), oid: item.oid.as_str(), subject: subject.as_str() };
     return review_landed(names.as_slice(), item.oid.as_str(), subject.as_str(), &read, options, now_millis);
 }
 

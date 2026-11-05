@@ -27,7 +27,7 @@ fn printed_by_git() -> PathBuf {
 fn the_learned_path_equals_what_git_prints_and_is_asked_once() {
     let root = fixture("system-config-learned");
     let git_copy = copy_git(root.as_path(), "git");
-    let cache = root.join("xdg").join("cli-git");
+    let cache = root.join("xdg").join("monochromatic-git-policy-cli");
     let starts: Cell<usize> = Cell::new(0);
     let counting = |path: &Path| -> Option<Vec<u8>> {
         starts.set(starts.get() + 1);
@@ -47,7 +47,7 @@ fn the_learned_path_equals_what_git_prints_and_is_asked_once() {
 fn a_replaced_executable_is_asked_again_and_another_prefix_is_believed() {
     let root = fixture("system-config-replaced");
     let git_copy = copy_git(root.as_path(), "git");
-    let cache = root.join("xdg").join("cli-git");
+    let cache = root.join("xdg").join("monochromatic-git-policy-cli");
     let elsewhere = root.join("opt").join("etc").join("gitconfig");
     let from_prefix = |_: &Path| -> Option<Vec<u8>> { return Some(format!("{}\n", elsewhere.display()).into_bytes()); };
     assert_eq!(system_config_of(git_copy.as_path(), Some(cache.as_path()), &from_prefix), Some(elsewhere.clone()));

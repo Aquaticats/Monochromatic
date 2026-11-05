@@ -25,6 +25,46 @@ const rustSource = readFileSync(
 );
 
 /**
+ The Rust source that declares the pair of names the first word comes from.
+ */
+const namesSource = readFileSync(
+  resolve(
+    import.meta.dirname,
+    '../src/native/foundation/wrapper_names_old_and_new.rs',
+  ),
+  'utf8',
+);
+
+/**
+ The current spelling of the command word, read from its declaration (`COMMAND_WORD`).
+
+ @param source - the Rust source text of the names
+
+ @returns the current command word
+
+ @throws Error when the declaration is not found
+ */
+function currentCommandWord(source: string): string {
+  const declaration = 'pub const COMMAND_WORD: RenamedName = RenamedName {';
+  const declared = source.indexOf(declaration,);
+  const keyword = 'current: "';
+  const keywordAt = source.indexOf(
+    keyword,
+    declared,
+  );
+  if ((declared === (-1)) || (keywordAt === (-1)))
+    throw new Error('wrapper_names_old_and_new.rs no longer declares COMMAND_WORD with a current spelling');
+  const wordStart = keywordAt + keyword.length;
+  return source.slice(
+    wordStart,
+    source.indexOf(
+      '"',
+      wordStart,
+    ),
+  );
+}
+
+/**
  The quoted words of the `SERVICE_WORDS` declaration, read from the line that starts it.
 
  @param source - the Rust source text
@@ -48,7 +88,7 @@ function rustWords(source: string): readonly string[] {
   return list.split(',').map((word) => word.trim().replaceAll(
     '"',
     '',
-  )).filter((word) => word !== '');
+  )).filter((word) => word !== '').map((word) => word === 'COMMAND_WORD.current' ? currentCommandWord(namesSource,) : word);
 }
 
 await describe({

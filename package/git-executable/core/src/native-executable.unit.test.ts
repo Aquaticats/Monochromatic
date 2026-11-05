@@ -97,18 +97,20 @@ async function createTempDirectory(): Promise<TempDirectory> {
 }
 
 /**
- Creates the installed wrapper layout: native executable `cli-git-native` and a `git` link to it.
+ Creates the installed wrapper layout: native executable under the given program name and a `git` link to it.
  
  @param root - Disposable directory that receives the layout.
+ 
+ @param programName - File name of the wrapper executable: the current name or the earlier one.
  
  @returns Directory holding the `git` link.
  
  @example
  ```ts
- const wrapperBin = await createWrapperLink(tempDirectory.path);
+ const wrapperBin = await createWrapperLink(tempDirectory.path, 'monochromatic-git-policy-cli');
  ```
  */
-async function createWrapperLink(root: string,): Promise<string> {
+async function createWrapperLink(root: string, programName: string,): Promise<string> {
   /**
    Directory standing in for the mise install `bin` directory.
    */
@@ -122,7 +124,7 @@ async function createWrapperLink(root: string,): Promise<string> {
   /**
    Native-format wrapper executable.
    */
-  const wrapper = join(installBin, 'cli-git-native',);
+  const wrapper = join(installBin, programName,);
   await writeFile(
     wrapper,
     Buffer.from('7f454c46', 'hex',),
@@ -201,13 +203,47 @@ await describe({
   name: `${resolveRealGit.name} with the native wrapper link`,
   children: [
     it({
-      name: 'skips a git link that resolves to cli-git-native and selects the next native Git',
+      name: 'skips a git link that resolves to monochromatic-git-policy-cli and selects the next native Git',
       fn: async function skipsWrapperLink(): Promise<void> {
         await using tempDirectory = await createTempDirectory();
         /**
          PATH directory holding the wrapper link.
          */
-        const linkBin = await createWrapperLink(tempDirectory.path,);
+        const linkBin = await createWrapperLink(tempDirectory.path, 'monochromatic-git-policy-cli',);
+        /**
+         PATH directory holding a native Git that is not the wrapper.
+         */
+        const realBin = join(tempDirectory.path, 'real-bin',);
+        await mkdir(realBin,);
+        /**
+         Native-format real Git candidate.
+         */
+        const realGit = join(realBin, 'git',);
+        await writeFile(
+          realGit,
+          Buffer.from('7f454c46', 'hex',),
+          { mode: EXECUTABLE_MODE, },
+        );
+
+        /**
+         PATH with the wrapper link ahead of the real Git.
+         */
+        const pathEnv = [linkBin, realBin,].join(delimiter,);
+
+        expect(await resolveRealGit({
+          pathEnv,
+          commonGitPaths: [],
+        },),).toBe(realGit,);
+      },
+    },),
+    it({
+      name: 'skips a git link that resolves to the earlier name cli-git-native and selects the next native Git',
+      fn: async function skipsEarlierWrapperLink(): Promise<void> {
+        await using tempDirectory = await createTempDirectory();
+        /**
+         PATH directory holding the wrapper link.
+         */
+        const linkBin = await createWrapperLink(tempDirectory.path, 'cli-git-native',);
         /**
          PATH directory holding a native Git that is not the wrapper.
          */
@@ -241,7 +277,7 @@ await describe({
         /**
          PATH directory holding only the wrapper link.
          */
-        const linkBin = await createWrapperLink(tempDirectory.path,);
+        const linkBin = await createWrapperLink(tempDirectory.path, 'monochromatic-git-policy-cli',);
         /**
          Failure recorded for a PATH that exposes only the wrapper.
          */

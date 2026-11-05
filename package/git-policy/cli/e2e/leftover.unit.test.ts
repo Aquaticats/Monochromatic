@@ -15,7 +15,7 @@ await describe({
         expect(classifyLeftovers([
           'HEAD',
           'cli-git-transactions',
-          'cli-git',
+          'monochromatic-git-policy-cli',
           'cli-git/shadow',
           'cli-git-captures',
           'cli-git-captures/worktree-id',
@@ -35,10 +35,28 @@ await describe({
           'cli-git-service-7321ec41/captured.index',
           'worktrees/linked/cli-git-service-0f0f',
           'worktrees/linked/cli-git-service-0f0f/commit.index',
-          'cli-git/work/done/push-abc',
+          'monochromatic-git-policy-cli-service-aa11',
+          'monochromatic-git-policy-cli-service-aa11/captured.index',
+          'monochromatic-git-policy-cli/work/done/push-abc',
         ],),).toEqual([
           'cli-git-service-7321ec41',
+          'monochromatic-git-policy-cli-service-aa11',
           'worktrees/linked/cli-git-service-0f0f',
+        ],);
+      },
+    },),
+    it({
+      name: 'reports a shadow repository under the data folder of either spelling and keeps the folder itself',
+      fn: async () => {
+        expect(classifyLeftovers([
+          'monochromatic-git-policy-cli',
+          'monochromatic-git-policy-cli/shadow',
+          'monochromatic-git-policy-cli/shadow/0a1b',
+          'monochromatic-git-policy-cli/shadow/0a1b/HEAD',
+          'cli-git/shadow/0c2d',
+        ],),).toEqual([
+          'cli-git/shadow/0c2d',
+          'monochromatic-git-policy-cli/shadow/0a1b',
         ],);
       },
     },),

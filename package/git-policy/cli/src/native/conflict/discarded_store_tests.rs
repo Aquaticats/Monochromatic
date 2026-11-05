@@ -7,7 +7,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const store = await Store.open(common, 'cli-git/discarded'); const counted = await Promise.all([walk(store), walk(store)]);
+//! const store = await Store.open(common, 'monochromatic-git-policy-cli/discarded'); const counted = await Promise.all([walk(store), walk(store)]);
 //! ```
 
 use super::{Identity, MAX_DEPTH, OpenFailure, Store, Tally};
@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 /// The folder of a fixture repository, made, and the common directory above it.
 fn folder_in(root: &Path) -> (PathBuf, PathBuf) {
     let common: PathBuf = root.join("repo.git");
-    let folder: PathBuf = common.join("cli-git/discarded");
+    let folder: PathBuf = common.join("monochromatic-git-policy-cli/discarded");
     std::fs::create_dir_all(&folder).expect("the folder");
     return (common, folder);
 }
@@ -28,16 +28,16 @@ fn folder_in(root: &Path) -> (PathBuf, PathBuf) {
 fn a_link_at_either_component_is_refused_and_an_absent_folder_is_nothing() {
     let root: PathBuf = fixture("store-open");
     let (common, folder) = folder_in(root.as_path());
-    assert!(Store::open(common.as_path(), "cli-git/discarded").expect("opens").is_some());
-    assert!(Store::open(root.as_path(), "cli-git/discarded").expect("absent is not a failure").is_none());
+    assert!(Store::open(common.as_path(), "monochromatic-git-policy-cli/discarded").expect("opens").is_some());
+    assert!(Store::open(root.as_path(), "monochromatic-git-policy-cli/discarded").expect("absent is not a failure").is_none());
     let elsewhere: PathBuf = root.join("elsewhere");
     std::fs::create_dir(&elsewhere).expect("elsewhere");
     std::fs::remove_dir(&folder).expect("remove the folder");
     std::os::unix::fs::symlink(&elsewhere, &folder).expect("link");
-    assert!(matches!(Store::open(common.as_path(), "cli-git/discarded"), Err(OpenFailure::Link)));
+    assert!(matches!(Store::open(common.as_path(), "monochromatic-git-policy-cli/discarded"), Err(OpenFailure::Link)));
     std::fs::remove_file(&folder).expect("remove the link");
     std::fs::write(&folder, "a file").expect("a file where the folder belongs");
-    assert!(matches!(Store::open(common.as_path(), "cli-git/discarded"), Err(OpenFailure::Link)), "a file is not a folder");
+    assert!(matches!(Store::open(common.as_path(), "monochromatic-git-policy-cli/discarded"), Err(OpenFailure::Link)), "a file is not a folder");
     remove(root.as_path());
 }
 
@@ -48,7 +48,7 @@ fn a_link_at_the_common_directory_itself_is_followed() {
     let (common, _) = folder_in(root.as_path());
     let through: PathBuf = root.join("through");
     std::os::unix::fs::symlink(&common, &through).expect("link");
-    assert!(Store::open(through.as_path(), "cli-git/discarded").expect("opens").is_some());
+    assert!(Store::open(through.as_path(), "monochromatic-git-policy-cli/discarded").expect("opens").is_some());
     remove(root.as_path());
 }
 
@@ -67,7 +67,7 @@ fn a_survey_counts_and_a_removal_takes_the_same_files_and_never_enters_a_link() 
     std::fs::create_dir(&outside).expect("elsewhere");
     std::fs::write(outside.join("precious.txt"), "not ours").expect("file");
     std::os::unix::fs::symlink(&outside, entry.join("link")).expect("link");
-    let store: Store = Store::open(common.as_path(), "cli-git/discarded").expect("opens").expect("exists");
+    let store: Store = Store::open(common.as_path(), "monochromatic-git-policy-cli/discarded").expect("opens").expect("exists");
     let directory = store.open_directory(OsStr::new("2026-11-02T14-01-07")).expect("opens").expect("exists");
     let surveyed = directory.survey().expect("surveyed");
     let mut names: Vec<String> = surveyed.names.clone();
@@ -90,7 +90,7 @@ fn files_go_before_subdirectories() {
     std::fs::create_dir_all(entry.join("sub")).expect("tree");
     std::fs::write(entry.join("sub/inner.txt"), "x").expect("file");
     std::fs::write(entry.join("z-last-by-name.txt"), "y").expect("file");
-    let store: Store = Store::open(common.as_path(), "cli-git/discarded").expect("opens").expect("exists");
+    let store: Store = Store::open(common.as_path(), "monochromatic-git-policy-cli/discarded").expect("opens").expect("exists");
     let directory = store.open_directory(OsStr::new("2026-11-02T14-01-07")).expect("opens").expect("exists");
     let emptied = directory.empty().expect("emptied");
     assert_eq!(emptied.names, vec!["z-last-by-name.txt", "sub/inner.txt"]);
@@ -106,7 +106,7 @@ fn a_link_a_file_and_a_gone_name_are_not_directories() {
     std::fs::create_dir(&elsewhere).expect("elsewhere");
     std::os::unix::fs::symlink(&elsewhere, folder.join("a-link")).expect("link");
     std::fs::write(folder.join("a-file"), "x").expect("file");
-    let store: Store = Store::open(common.as_path(), "cli-git/discarded").expect("opens").expect("exists");
+    let store: Store = Store::open(common.as_path(), "monochromatic-git-policy-cli/discarded").expect("opens").expect("exists");
     for name in ["a-link", "a-file"] {
         let error = store.open_directory(OsStr::new(name)).expect_err(name);
         assert_eq!(error.kind(), std::io::ErrorKind::NotADirectory, "{name}");
@@ -124,7 +124,7 @@ fn a_replaced_directory_has_another_identity_and_its_name_is_not_removed() {
     let (common, folder) = folder_in(root.as_path());
     let name: &OsStr = OsStr::new("2026-11-02T14-01-07");
     std::fs::create_dir(folder.join(name)).expect("directory");
-    let store: Store = Store::open(common.as_path(), "cli-git/discarded").expect("opens").expect("exists");
+    let store: Store = Store::open(common.as_path(), "monochromatic-git-policy-cli/discarded").expect("opens").expect("exists");
     let judged: Identity = store.directory_identity(name).expect("inspected").expect("a directory");
     std::fs::rename(folder.join(name), folder.join("aside")).expect("aside");
     std::fs::create_dir(folder.join(name)).expect("a replacement");
@@ -141,7 +141,7 @@ fn a_directory_with_content_is_not_removed_as_empty() {
     let name: &OsStr = OsStr::new("2026-11-02T14-01-07");
     std::fs::create_dir(folder.join(name)).expect("directory");
     std::fs::write(folder.join(name).join("kept.txt"), "x").expect("file");
-    let store: Store = Store::open(common.as_path(), "cli-git/discarded").expect("opens").expect("exists");
+    let store: Store = Store::open(common.as_path(), "monochromatic-git-policy-cli/discarded").expect("opens").expect("exists");
     let judged: Identity = store.directory_identity(name).expect("inspected").expect("a directory");
     assert!(store.remove_empty_directory(name, judged).is_err());
     assert!(folder.join(name).join("kept.txt").exists());
@@ -159,7 +159,7 @@ fn a_tree_deeper_than_the_bound_is_stopped_at() {
     }
     std::fs::create_dir_all(&deep).expect("a deep tree");
     std::fs::write(deep.join("bottom.txt"), "x").expect("file");
-    let store: Store = Store::open(common.as_path(), "cli-git/discarded").expect("opens").expect("exists");
+    let store: Store = Store::open(common.as_path(), "monochromatic-git-policy-cli/discarded").expect("opens").expect("exists");
     let directory = store.open_directory(OsStr::new("2026-11-02T14-01-07")).expect("opens").expect("exists");
     let interrupted = directory.survey().expect_err("too deep");
     assert!(interrupted.tally.names.is_empty());
@@ -180,7 +180,7 @@ fn walks_emptying_one_directory_together_count_each_file_once() {
         std::fs::write(directory.join(format!("file-{number}")), "x").expect("a file");
         std::fs::write(directory.join("inner").join(format!("deep-{number}")), "y").expect("a deeper file");
     }
-    let store: Store = Store::open(common.as_path(), "cli-git/discarded").expect("opens").expect("exists");
+    let store: Store = Store::open(common.as_path(), "monochromatic-git-policy-cli/discarded").expect("opens").expect("exists");
     let name = std::ffi::OsString::from("2026-11-02T14-01-07");
     let starting: std::sync::Barrier = std::sync::Barrier::new(SHARED_WALKS);
     let tallies: Vec<Tally> = std::thread::scope(|scope| {

@@ -4,7 +4,7 @@
 //! Why:
 //!  The copies are the only remaining content of replaced files, so every way a pass could remove one that is still wanted
 //!  (a young one, the one just written, a directory that is not the wrapper's, a limit read as zero) is checked, each with
-//!  a real folder in a fixture and none against this repository's own `.git/cli-git`.
+//!  a real folder in a fixture and none against this repository's own `.git/monochromatic-git-policy-cli`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

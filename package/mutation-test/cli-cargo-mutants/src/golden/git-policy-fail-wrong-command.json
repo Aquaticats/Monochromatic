@@ -19,10 +19,10 @@
       "--cpu-period=100000",
       "--cpu-quota=200000",
       "--iidfile",
-      "<PACKAGE>/git-policy/cli/node_modules/.monochromatic/git-policy/cli-git-native-mutation-<ID>/image-id",
+      "<PACKAGE>/git-policy/cli/node_modules/.monochromatic/git-policy/monochromatic-git-policy-cli-mutation-<ID>/image-id",
       "--tag",
       "localhost/git-policy-native-mutation:golden",
-      "<PACKAGE>/git-policy/cli/node_modules/.monochromatic/git-policy/cli-git-native-mutation-<ID>"
+      "<PACKAGE>/git-policy/cli/node_modules/.monochromatic/git-policy/monochromatic-git-policy-cli-mutation-<ID>"
     ],
     [
       "image",

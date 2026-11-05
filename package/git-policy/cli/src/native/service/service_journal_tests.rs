@@ -36,7 +36,7 @@ fn an_intent_round_trips_through_its_text() {
 fn a_derived_index_rule_and_a_cleanup_round_trip_and_older_intents_name_neither() {
     let mut sent: Intent = intent(8);
     sent.derived = true;
-    sent.cleanup = Some(Cleanup { git_dir: PathBuf::from("/work/repo/.git"), scratch: PathBuf::from("/work/repo/.git/cli-git-service-x"), reftable: true });
+    sent.cleanup = Some(Cleanup { git_dir: PathBuf::from("/work/repo/.git"), scratch: PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-service-x"), reftable: true });
     assert_eq!(parse_intent(intent_text(&sent).as_str()), Some(sent.clone()));
     let older: String = intent_text(&intent(9)).lines().filter(|line| { return !line.starts_with("derived=") && !line.starts_with("cleanup="); }).collect::<Vec<&str>>().join("\n");
     let read: Intent = parse_intent(older.as_str()).expect("an older intent still reads");

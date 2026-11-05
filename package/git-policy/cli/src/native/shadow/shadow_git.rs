@@ -3,10 +3,10 @@
 //!  and its location and
 //!       removal.
 //! Why:
-//!  The shadow lives at `<git-common-dir>/cli-git/shadow/<transaction-id>`,
+//!  The shadow lives at `<git-common-dir>/monochromatic-git-policy-cli/shadow/<transaction-id>`,
 //!  derived from the
 //!      transaction ID so recovery finds it before `prepared.json` exists.
-//!  cli-git's own shadow
+//!  monochromatic-git-policy-cli's own shadow
 //!      commands remove every variable that would redirect Git elsewhere and point hooks at an
 //!      absent directory,
 //!  so no hook observes private shadow writes
@@ -41,10 +41,10 @@ pub const REPOSITORY_REDIRECT_VARIABLES: [&str; 5] = [
     "GIT_INDEX_FILE",
 ];
 
-/// Name of the absent directory inside a shadow, named as the hooks path of cli-git's own shadow commands.
+/// Name of the absent directory inside a shadow, named as the hooks path of monochromatic-git-policy-cli's own shadow commands.
 pub const SHADOW_NO_HOOKS_NAME: &str = "no-hooks";
 
-/// Name of the directory under `<git-common-dir>/cli-git` that holds one shadow repository per transaction.
+/// Name of the directory under `<git-common-dir>/monochromatic-git-policy-cli` that holds one shadow repository per transaction.
 pub const SHADOW_ROOT_NAME: &str = "shadow";
 
 /// What:
@@ -55,11 +55,11 @@ pub const SHADOW_ROOT_NAME: &str = "shadow";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// shadowRepositoryPath({ commonDir, transactionId }) // `${commonDir}/cli-git/shadow/${transactionId}`
+/// shadowRepositoryPath({ commonDir, transactionId }) // `${commonDir}/monochromatic-git-policy-cli/shadow/${transactionId}`
 /// ```
 pub fn shadow_repository_path(common_dir: &Path, transaction_id: &str) -> PathBuf {
     return common_dir
-        .join("cli-git")
+        .join("monochromatic-git-policy-cli")
         .join(SHADOW_ROOT_NAME)
         .join(transaction_id);
 }
@@ -72,7 +72,7 @@ pub fn shadow_repository_path(common_dir: &Path, transaction_id: &str) -> PathBu
 ///  redirecting variables removed,
 ///  in `cwd`.
 /// Why:
-///   Every cli-git shadow command looks the same;
+///   Every monochromatic-git-policy-cli shadow command looks the same;
 ///  the caller adds input or variables.
 ///
 /// In TS you'd write (pseudocode):

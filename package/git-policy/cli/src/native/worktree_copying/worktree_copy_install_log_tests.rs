@@ -109,7 +109,7 @@ fn corrupt_line_fails_closed() {
     assert_eq!(
         failure.0,
         format!(
-            "cli-git: worktree-copy install log is corrupt: {}.",
+            "monochromatic-git-policy-cli: worktree-copy install log is corrupt: {}.",
             quote(path.to_string_lossy().as_ref())
         )
     );
@@ -132,7 +132,7 @@ fn unsafe_intent_is_refused() {
     let failure: WorktreeCopyError = open_install_log(stage.as_path()).expect_err("unsafe");
     assert_eq!(
         failure.0,
-        "cli-git: Git returned unsafe ignored path \"../up\"."
+        "monochromatic-git-policy-cli: Git returned unsafe ignored path \"../up\"."
     );
     remove(root.as_path());
 }

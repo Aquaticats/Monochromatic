@@ -115,7 +115,7 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
     return Some(Route { address: Bind::Path(socket), provision: Some(host) });
 }
 
-/// What `git cli-git service status` prints and exits with.
+/// What `git monochromatic-git-policy-cli service status` prints and exits with.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StatusReport {
     /// Exit status: 0 when the service answered.

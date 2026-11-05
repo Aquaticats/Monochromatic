@@ -372,7 +372,7 @@ fn exclude_patterns_that_do_not_compile_fail_the_policy() {
             } => {
                 assert!(
                     message.starts_with(
-                        "cli-git could not compile the markdown/autofix exclude pattern \"a{b\": "
+                        "monochromatic-git-policy-cli could not compile the markdown/autofix exclude pattern \"a{b\": "
                     ) && message.ends_with(UNCHECKED_REMEDY),
                     "{message}"
                 );
@@ -485,7 +485,7 @@ fn the_top_level_is_asked_only_when_a_candidate_needs_the_linter() {
         PolicyOutcome::Failed {
             code: EngineFailureCode::ContentUnavailable,
             message: String::from(
-                "cli-git could not find the repository's top level, where monochromatic-lint must run."
+                "monochromatic-git-policy-cli could not find the repository's top level, where monochromatic-lint must run."
             ),
             path: None,
         }

@@ -27,6 +27,7 @@
 //! const watch = restored(journalDir, instance); watch.remember(gitDir); for (const dir of watch.directories()) await drain(dir);
 //! ```
 
+use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::push_failure_notice::fnv_hex;
 use crate::service_instance::instance_of;
@@ -321,7 +322,7 @@ impl ClaimWatch {
                 let _removed = std::fs::remove_file(path.as_path());
                 continue;
             }
-            match std::fs::symlink_metadata(git_dir.join(WORK_DIRECTORY)) {
+            match std::fs::symlink_metadata(path_for_reading(git_dir.as_path(), WORK_DIRECTORY)) {
                 Ok(metadata) if metadata.is_dir() => {
                     if !self.known.contains(&git_dir) {
                         self.known.push(git_dir.clone());

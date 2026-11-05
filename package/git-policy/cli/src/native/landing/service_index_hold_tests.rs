@@ -6,6 +6,13 @@ use crate::service_index_lock::try_acquire;
 use crate::service_land_start::witness_of;
 use crate::test_support::{fixture, remove};
 
+/// A function-like value with the right shape is a record in tests: the shipped callers write a small struct that holds the state.
+impl<Make: Fn() -> Result<(), std::io::Error>> Record for Make {
+    fn record(&self) -> std::io::Result<()> {
+        return self();
+    }
+}
+
 /// An index file of `body` followed by a checksum tail of `tail`, in a fresh fixture directory.
 fn index_with(name: &str, body: &[u8], tail: &[u8]) -> (PathBuf, PathBuf) {
     let root: PathBuf = fixture(name);

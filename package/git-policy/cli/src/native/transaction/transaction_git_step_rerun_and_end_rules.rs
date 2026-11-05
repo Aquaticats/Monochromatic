@@ -380,7 +380,7 @@ pub(crate) fn is_side_ref_write(request: &GitRequest) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// /^refs\/(cli-git\/kept|worktree\/cli-git-service)\/[0-9]+$/.test(word)
+/// /^refs\/(monochromatic-git-policy-cli\/kept|worktree\/cli-git-service)\/[0-9]+$/.test(word)
 /// ```
 fn is_side_ref_name(word: &str) -> bool {
     for prefix in ["refs/cli-git/kept/", "refs/worktree/cli-git-service/"] {

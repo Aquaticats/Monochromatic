@@ -21,7 +21,7 @@ const ENGINE_FAILURE_MARKERS: [&str; 3] = ["engine-failure", "content-unavailabl
 fn policy_world(fixture: &Fixture) -> World {
     let world: World = world(fixture, false, None);
     let policy: &str = "{ \"policies\": { \"final-newline\": \"error\" } }\n";
-    commit_directly(fixture, world.repo.as_path(), "cli-git.config.jsonc", policy);
+    commit_directly(fixture, world.repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", policy);
     git(fixture, world.repo.as_path(), &["push", "--quiet", "--no-verify", "origin", "main"]);
     return world;
 }

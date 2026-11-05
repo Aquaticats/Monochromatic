@@ -28,7 +28,7 @@ use std::path::Path;
 /// What:
 ///  The marker every real-Git start carries, and the two ways a start can be made.
 /// Why:
-///   A cli-git executable that is started as "Git" finds the marker and stops instead of starting one more wrapper.
+///   A monochromatic-git-policy-cli executable that is started as "Git" finds the marker and stops instead of starting one more wrapper.
 use crate::started_as_git::{StartMode, mark_real_git_start};
 /// Starts that ride out a short shortage of processes.
 #[cfg(unix)]
@@ -95,7 +95,7 @@ pub fn git_command(
     for (name, value) in overlay {
         command.env(name, value);
     }
-    // Every real-Git start says it is one, so a cli-git executable that arrives as "Git" stops (`started_as_git.rs`).
+    // Every real-Git start says it is one, so a monochromatic-git-policy-cli executable that arrives as "Git" stops (`started_as_git.rs`).
     mark_real_git_start(&mut command, StartMode::Child);
     return command;
 }

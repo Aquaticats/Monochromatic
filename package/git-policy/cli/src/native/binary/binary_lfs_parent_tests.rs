@@ -43,14 +43,14 @@ fn the_wrapper_runs_the_upload_itself_and_the_push_carries_no_hook() {
         std::fs::read_to_string(&ancestors).expect("the stand-in ran").lines().map(str::to_owned).collect();
     assert!(
         names.first().is_some_and(|name| {
-            return name.starts_with("cli-git-native");
+            return name.starts_with("monochromatic-git-policy-cli");
         }),
         "the wrapper is the parent: {names:?}"
     );
     let wrappers: usize = names
         .iter()
         .filter(|name| {
-            return name.starts_with("cli-git-native");
+            return name.starts_with("monochromatic-git-policy-cli");
         })
         .count();
     assert_eq!(wrappers, 1, "no second wrapper stands anywhere above the upload: {names:?}");
@@ -87,7 +87,7 @@ fn a_failed_upload_is_explained_once_and_the_push_is_not_started() {
 fn a_remote_refusal_is_not_blamed_on_the_upload_even_when_it_imitates_the_explanation() {
     let fixture: Fixture = fixture("lfs-parent-forged");
     let world: World = world(&fixture, true, Some(0));
-    refusing_origin(&world, "cli-git: git-lfs push exited with status 1, so this push was not started and nothing was published");
+    refusing_origin(&world, "monochromatic-git-policy-cli: git-lfs push exited with status 1, so this push was not started and nothing was published");
     let pushed: Observed = wrapped(&fixture, world.repo.as_path(), &["push", "origin", "main"]);
     let stderr: String = stderr_of(&pushed);
     assert_ne!(pushed.code, Some(0), "{stderr}");

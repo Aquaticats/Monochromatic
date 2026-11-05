@@ -136,7 +136,7 @@ fn add_runs_the_content_policies_over_what_it_stages() {
         "A  file.txt\n?? CONTEXT.md\n?? second.txt\n"
     );
     // A listed ported policy at error stops the add, and nothing is staged.
-    let configuration: PathBuf = repo.join("cli-git.config.jsonc");
+    let configuration: PathBuf = repo.join("monochromatic-git-policy-cli.config.jsonc");
     std::fs::write(
         &configuration,
         "{ \"policies\": { \"mono/forbidden-root-context\": \"error\" } }\n",
@@ -152,7 +152,7 @@ fn add_runs_the_content_policies_over_what_it_stages() {
     );
     assert_eq!(
         porcelain(&fixture, repo.as_path()),
-        "A  file.txt\n?? CONTEXT.md\n?? cli-git.config.jsonc\n?? second.txt\n"
+        "A  file.txt\n?? CONTEXT.md\n?? monochromatic-git-policy-cli.config.jsonc\n?? second.txt\n"
     );
     // A listed Markdown policy at error checks a file that is not Markdown: the add stages it.
     std::fs::write(
@@ -166,7 +166,7 @@ fn add_runs_the_content_policies_over_what_it_stages() {
     );
     assert_eq!(
         porcelain(&fixture, repo.as_path()),
-        "A  file.txt\nA  second.txt\n?? CONTEXT.md\n?? cli-git.config.jsonc\n"
+        "A  file.txt\nA  second.txt\n?? CONTEXT.md\n?? monochromatic-git-policy-cli.config.jsonc\n"
     );
     // A listed dependent-version policy at error plans only for a forwarded commit: the add stages.
     std::fs::write(repo.join("third.txt"), b"third\n").expect("third file");
@@ -181,7 +181,7 @@ fn add_runs_the_content_policies_over_what_it_stages() {
     );
     assert_eq!(
         porcelain(&fixture, repo.as_path()),
-        "A  file.txt\nA  second.txt\nA  third.txt\n?? CONTEXT.md\n?? cli-git.config.jsonc\n"
+        "A  file.txt\nA  second.txt\nA  third.txt\n?? CONTEXT.md\n?? monochromatic-git-policy-cli.config.jsonc\n"
     );
     remove(&fixture);
 }
@@ -297,8 +297,8 @@ fn leftover_transaction_state_refuses_guarded_commands() {
         run_wrapped(&fixture, repo.as_path(), &guarded),
         stopped_with(
             format!(
-                "cli-git: {} holds a commit journal in a format this executable does not recover. \
-                 Nothing was changed. Run any git command once with the previous cli-git executable to \
+                "monochromatic-git-policy-cli: {} holds a commit journal in a format this executable does not recover. \
+                 Nothing was changed. Run any git command once with the previous monochromatic-git-policy-cli executable to \
                  recover it, then run this command again.\n",
                 legacy.display()
             )
@@ -342,11 +342,11 @@ fn a_real_push_of_a_nonconforming_commit_is_refused_and_publishes_nothing() {
         &["remote", "add", "origin", "../remote.git"],
     );
     std::fs::write(
-        repo.join("cli-git.config.jsonc"),
+        repo.join("monochromatic-git-policy-cli.config.jsonc"),
         "{ \"policies\": { \"final-newline\": \"error\" } }\n",
     )
     .expect("configuration");
-    git(&fixture, repo.as_path(), &["add", "cli-git.config.jsonc"]);
+    git(&fixture, repo.as_path(), &["add", "monochromatic-git-policy-cli.config.jsonc"]);
     git(
         &fixture,
         repo.as_path(),

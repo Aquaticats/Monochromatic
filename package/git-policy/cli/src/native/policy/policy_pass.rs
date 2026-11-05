@@ -9,7 +9,7 @@
 //!  and each stage can
 //!      end the pass.
 //!  Keeping the sequence in one place means a wrapped command and a
-//!      direct `git cli-git check` cannot drift apart in what they run or when they stop.
+//!      direct `git monochromatic-git-policy-cli check` cannot drift apart in what they run or when they stop.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

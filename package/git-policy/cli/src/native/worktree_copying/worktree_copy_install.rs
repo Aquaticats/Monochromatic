@@ -12,7 +12,7 @@
 //! const copied = await installSnapshot({ snapshot, destinationRoot, journalState, priorCreations });
 //! ```
 
-use crate::scoped_start::start_or_run;
+use crate::side_by_side_threads::run_all_side_by_side;
 use crate::worktree_copy_compare::{entry_matches, lstat_or_absent};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
 use crate::parallel_budget::{HostResources, sliced_workers};
@@ -119,7 +119,7 @@ pub fn preflight_destination(
                 }
                 if !entry_matches(stage_root, destination_root, entry)? {
                     let message: String = format!(
-                        "cli-git: ignored-state copy would overwrite differing destination entry {} in {}.",
+                        "monochromatic-git-policy-cli: ignored-state copy would overwrite differing destination entry {} in {}.",
                         quote(entry.relative_path.as_str()),
                         quote(destination_root.to_string_lossy().as_ref())
                     );
@@ -225,12 +225,10 @@ fn install_one(stage_root: &Path, destination_root: &Path, entry: &WorktreeCopyE
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function installSlice({ stageRoot, destinationRoot, slice }): Promise<{ created: InstalledPath[]; failure?: WorktreeCopyError }>;
+/// async function installSlice([stageRoot, destinationRoot, slice]): Promise<{ created: InstalledPath[]; failure?: WorktreeCopyError }>;
 /// ```
 fn install_slice(
-    stage_root: &Path,
-    destination_root: &Path,
-    slice: &[&WorktreeCopyEntry],
+    (stage_root, destination_root, slice): (&Path, &Path, &[&WorktreeCopyEntry]),
 ) -> (Vec<InstalledPath>, Option<WorktreeCopyError>) {
     let mut made: Vec<InstalledPath> = Vec::new();
     for entry in slice {
@@ -266,21 +264,17 @@ fn install_leaves(
         sliced_workers(leaves.len(), PARALLEL_COPY_MAX_WORKERS, &HostResources::read())
     };
     let slice_length: usize = leaves.len().div_ceil(workers).max(1);
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the scoped thread body and its workers must borrow the caller's state and the callee bounds them by the scope, not by 'static (worktree_closure_lint_suppressions.md, group scope)"))]
-    let results: Vec<(Vec<InstalledPath>, Option<WorktreeCopyError>)> = std::thread::scope(|scope| {
-        let mut handles: Vec<_> = Vec::new();
-        for slice in leaves.chunks(slice_length) {
-            handles.push(start_or_run(scope, move || return install_slice(stage_root, destination_root, slice)));
-        }
-        let mut joined: Vec<(Vec<InstalledPath>, Option<WorktreeCopyError>)> = Vec::new();
-        for handle in handles {
-            joined.push(match handle.join() {
-                Ok(done) => done,
-                Err(_panic) => (Vec::new(), Some(failure_with_cause("cli-git: an install worker panicked.", None))),
-            });
-        }
-        return joined;
-    });
+    let mut slices: Vec<(&Path, &Path, &[&WorktreeCopyEntry])> = Vec::new();
+    for slice in leaves.chunks(slice_length) {
+        slices.push((stage_root, destination_root, slice));
+    }
+    let mut results: Vec<(Vec<InstalledPath>, Option<WorktreeCopyError>)> = Vec::new();
+    for joined in run_all_side_by_side(slices, install_slice) {
+        results.push(match joined {
+            Ok(done) => done,
+            Err(_panic) => (Vec::new(), Some(failure_with_cause("monochromatic-git-policy-cli: an install worker panicked.", None))),
+        });
+    }
     let mut failure: Option<WorktreeCopyError> = None;
     for (made, stopped) in results {
         created.extend(made);
@@ -329,7 +323,7 @@ pub fn install_snapshot(
                 format!(" Rollback retained: {}.", names.join(", "))
             };
             let message: String = format!(
-                "cli-git: ignored-state installation failed for {}.{suffix}",
+                "monochromatic-git-policy-cli: ignored-state installation failed for {}.{suffix}",
                 quote(destination_root.to_string_lossy().as_ref())
             );
             return Err(failure_with_cause(message.as_str(), Some(&error.0)));

@@ -12,7 +12,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // const plan = planInvocation(['--version'], env, { ...inputs, path: '', serviceUnit });
-//! // expect(plan.stderr.startsWith('cli-git: no real Git follows this wrapper on PATH')).toBe(true);
+//! // expect(plan.stderr.startsWith('monochromatic-git-policy-cli: no real Git follows this wrapper on PATH')).toBe(true);
 //! ```
 #![cfg(unix)]
 
@@ -30,7 +30,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// The words every notice of this fallback starts with.
-const NOTICE_LEAD: &str = "cli-git: no real Git follows this wrapper on PATH";
+const NOTICE_LEAD: &str = "monochromatic-git-policy-cli: no real Git follows this wrapper on PATH";
 
 /// What:
 ///  Inputs whose `PATH` holds no Git and whose unit file `root/unit` names `git`.
@@ -51,7 +51,7 @@ fn with_record(root: &Path, git: &Path) -> ResolutionInputs {
         runtime_dir: root.to_path_buf(),
         user_unit_dir: None,
         bus: PathBuf::from("/nonexistent/bus"),
-        service_binary: PathBuf::from("/opt/tool/cli-git-native"),
+        service_binary: PathBuf::from("/opt/tool/monochromatic-git-policy-cli"),
         git: git.to_path_buf(),
         instance: String::from("x"),
         retirement_wait: std::time::Duration::ZERO,
@@ -119,10 +119,10 @@ fn management_commands_give_the_notice_only_when_they_resolve_git() {
     let resolution: ResolutionInputs = with_record(root.as_path(), Path::new(REAL_GIT));
     let in_root: Vec<&str> = vec!["-C", root.to_str().expect("a text path")];
     let mut status: Vec<&str> = in_root.clone();
-    status.extend(["cli-git", "service", "status"]);
+    status.extend(["monochromatic-git-policy-cli", "service", "status"]);
     let status_plan: Action = plan_invocation(text(&status).as_slice(), &[], &resolution);
     assert!(stderr_of(&status_plan).starts_with(NOTICE_LEAD), "{}", stderr_of(&status_plan));
-    let help_plan: Action = plan_invocation(text(&["cli-git", "--help"]).as_slice(), &[], &resolution);
+    let help_plan: Action = plan_invocation(text(&["monochromatic-git-policy-cli", "--help"]).as_slice(), &[], &resolution);
     assert!(!stderr_of(&help_plan).contains(NOTICE_LEAD), "{}", stderr_of(&help_plan));
     remove(root.as_path());
 }

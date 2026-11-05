@@ -68,7 +68,7 @@ pub enum WorktreeIdentity {
         /// Canonical invocation-specific Git directory.
         git_dir: PathBuf,
         /// Canonical worktree top level,
-        ///  where `cli-git.config.jsonc` lives.
+        ///  where `monochromatic-git-policy-cli.config.jsonc` lives.
         worktree_root: PathBuf,
     },
     /// A linked worktree:
@@ -79,7 +79,7 @@ pub enum WorktreeIdentity {
         /// Canonical invocation-specific Git directory.
         git_dir: PathBuf,
         /// Canonical worktree top level,
-        ///  where `cli-git.config.jsonc` lives.
+        ///  where `monochromatic-git-policy-cli.config.jsonc` lives.
         worktree_root: PathBuf,
     },
 }
@@ -121,7 +121,7 @@ pub const IDENTITY_QUERY: &[&str] = &[
 fn malformed(detail: &str) -> std::io::Error {
     // `format!` builds the owned message text.
     return std::io::Error::other(format!(
-        "cli-git could not classify the Git worktree: git rev-parse returned {detail}. \
+        "monochromatic-git-policy-cli could not classify the Git worktree: git rev-parse returned {detail}. \
          Repository paths containing line feeds are not supported."
     ));
 }

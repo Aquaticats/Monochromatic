@@ -1,5 +1,5 @@
 //! What:
-//!  Internal native cli-git implementation,
+//!  Internal native monochromatic-git-policy-cli implementation,
 //!  not yet the production executable.
 //! Why:
 //!  The Rust rewrite preserves Git's own argument,
@@ -43,7 +43,7 @@ pub mod invocation;
 /// ```
 pub use invocation::*;
 
-/// Reading and validating `cli-git.config.jsonc` and the Git configuration one invocation is judged by.
+/// Reading and validating `monochromatic-git-policy-cli.config.jsonc` and the Git configuration one invocation is judged by.
 pub mod config;
 
 /// The same re-export for `config`.

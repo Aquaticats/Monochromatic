@@ -27,7 +27,7 @@ fn entry(tag: &str) -> String {
 
 /// A log path inside a fixture directory that does not exist yet, as the live log is before the first review.
 fn absent_log(root: &Path) -> PathBuf {
-    return root.join("cli-git").join("standards-review-shadow.md");
+    return root.join("monochromatic-git-policy-cli").join("standards-review-shadow.md");
 }
 
 /// An entry is added after what the log holds, whatever its ending, and nothing already there changes.

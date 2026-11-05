@@ -34,7 +34,7 @@ const options: ReleaseOptions = {
   to: '0.4.3',
   note: 'fix the thing',
   pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
-  checkBins: ['cli-git-native'],
+  checkBins: ['monochromatic-git-policy-cli'],
   lockDirectories: ['package/git-policy/cli.fuzz'],
   host: 'local',
   memoryMax: '12G',
@@ -134,7 +134,7 @@ await describe({
           fn: async () => {
             const result = await record();
             expect(result.printed).toContain('== cargo check');
-            expect(result.printed).toContain('$ cargo check --offline --bin cli-git-native');
+            expect(result.printed).toContain('$ cargo check --offline --bin monochromatic-git-policy-cli');
             expect(result.printed).toContain(
               `$ git commit --message '${commitType}(git-policy/cli): release 0.4.3: fix the thing' -- `
                 + 'package/git-policy/cli/Cargo.toml package/git-policy/cli/Cargo.lock '
@@ -249,7 +249,7 @@ await describe({
           fn: async () => {
             const result = await record({ releaseOptions: { ...options, host: 'runner' } });
             expect(result.status).toBe(0);
-            expect(result.printed).toContain('$ cargo check --bin cli-git-native');
+            expect(result.printed).toContain('$ cargo check --bin monochromatic-git-policy-cli');
             expect(result.printed).toContain('$ cargo update --workspace');
             expect(result.printed).toContain('$ cargo publish --dry-run --locked --allow-dirty');
             expect(result.printed.at(-1)).toBe('RELEASE COMMITTED');

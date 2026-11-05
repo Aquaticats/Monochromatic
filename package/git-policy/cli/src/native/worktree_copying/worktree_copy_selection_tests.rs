@@ -39,7 +39,7 @@ fn unsafe_repository_paths_are_refused() {
         assert!(
             failure
                 .0
-                .starts_with("cli-git: Git returned unsafe ignored path "),
+                .starts_with("monochromatic-git-policy-cli: Git returned unsafe ignored path "),
             "{unsafe_path}"
         );
     }
@@ -290,7 +290,7 @@ fn unsafe_named_path_is_refused() {
         assert!(
             failure
                 .0
-                .starts_with("cli-git: Git returned unsafe ignored path "),
+                .starts_with("monochromatic-git-policy-cli: Git returned unsafe ignored path "),
             "{unsafe_path}"
         );
     }

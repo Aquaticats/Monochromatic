@@ -30,10 +30,10 @@ pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: 
     let name: String = format!("refs/cli-git/kept/{seq}");
     let made = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name.as_str(), tip], None);
     if !matches!(made, Ok(output) if output.succeeded()) {
-        return String::from("cli-git: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");
+        return String::from("monochromatic-git-policy-cli: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");
     }
     return format!(
-        "cli-git: the commit built for you is kept at {name} (see it with `git log {name}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
+        "monochromatic-git-policy-cli: the commit built for you is kept at {name} (see it with `git log {name}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
     );
 }
 

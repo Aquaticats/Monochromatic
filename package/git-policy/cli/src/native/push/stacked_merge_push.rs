@@ -33,7 +33,7 @@ use std::ffi::OsString;
 use std::io::Write;
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "cli-git";
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// What:
 ///  The environment handed to the planner: the coordinator's complete environment with the stacking marker set once.
@@ -110,7 +110,7 @@ fn run_planned(action: Action) -> i32 {
         }
         other => {
             debug(TAG, format!("a merge push planned an action it cannot run: {other:?}").as_str());
-            write_to_standard_error("cli-git: the merge push could not be planned; nothing was pushed.\n");
+            write_to_standard_error("monochromatic-git-policy-cli: the merge push could not be planned; nothing was pushed.\n");
             return ENGINE_FAILURE_EXIT_CODE;
         }
     }

@@ -53,7 +53,7 @@ fn init_repo_with_commit(path: &Path) {
     std::fs::create_dir_all(path).expect("repo directory");
     git(path, &["init", "--quiet"]);
     git(path, &["config", "user.email", "cli-git@example.invalid"]);
-    git(path, &["config", "user.name", "cli-git auto-push test"]);
+    git(path, &["config", "user.name", "monochromatic-git-policy-cli auto-push test"]);
     std::fs::write(path.join("tracked.txt"), "initial\n").expect("tracked file");
     git(path, &["add", "tracked.txt"]);
     git(path, &["commit", "--quiet", "-m", "initial", "tracked.txt"]);
@@ -148,10 +148,10 @@ fn a_clean_push_without_remote_lines_surfaces_nothing() {
 fn a_clean_push_keeps_the_reconcile_lines() {
     assert_eq!(
         filter_push_output(
-            "To origin\nremote: hello\ncli-git: auto-push: published a merge\nbranch set up",
+            "To origin\nremote: hello\nmonochromatic-git-policy-cli: auto-push: published a merge\nbranch set up",
             0
         ),
-        "remote: hello\ncli-git: auto-push: published a merge"
+        "remote: hello\nmonochromatic-git-policy-cli: auto-push: published a merge"
     );
 }
 
@@ -390,7 +390,7 @@ fn a_first_push_rejected_for_a_moved_remote_branch_publishes_no_merge() {
     git(&repo, &["push", "--quiet", "origin", "HEAD"]);
     git(&root, &["clone", "--quiet", remote_text, "other"]);
     git(&other, &["config", "user.email", "cli-git@example.invalid"]);
-    git(&other, &["config", "user.name", "cli-git auto-push test"]);
+    git(&other, &["config", "user.name", "monochromatic-git-policy-cli auto-push test"]);
     commit_change(&other, "remote side\n");
     git(&other, &["push", "--quiet", "origin", "HEAD"]);
     let branch = String::from_utf8_lossy(&git(&repo, &["branch", "--show-current"]).stdout)
@@ -489,7 +489,7 @@ fn a_differently_named_upstream_that_moved_is_reconciled_on_the_tracked_branch()
     let other = root.join("other");
     git(&root, &["clone", "--quiet", remote.to_str().expect("utf-8"), "other"]);
     git(&other, &["config", "user.email", "cli-git@example.invalid"]);
-    git(&other, &["config", "user.name", "cli-git auto-push test"]);
+    git(&other, &["config", "user.name", "monochromatic-git-policy-cli auto-push test"]);
     std::fs::write(other.join("remote.txt"), "remote side\n").expect("remote file");
     git(&other, &["add", "remote.txt"]);
     git(&other, &["commit", "--quiet", "-m", "remote side", "remote.txt"]);
@@ -519,7 +519,7 @@ fn a_named_branch_whose_tracked_remote_branch_moved_is_reconciled() {
     let other = root.join("other");
     git(&root, &["clone", "--quiet", remote.to_str().expect("utf-8"), "other"]);
     git(&other, &["config", "user.email", "cli-git@example.invalid"]);
-    git(&other, &["config", "user.name", "cli-git auto-push test"]);
+    git(&other, &["config", "user.name", "monochromatic-git-policy-cli auto-push test"]);
     std::fs::write(other.join("remote.txt"), "remote side\n").expect("remote file");
     git(&other, &["add", "remote.txt"]);
     git(&other, &["commit", "--quiet", "-m", "remote side", "remote.txt"]);

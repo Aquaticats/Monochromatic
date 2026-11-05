@@ -95,39 +95,7 @@ fn unlink_file(path: &Path) -> std::io::Result<()> {
     return std::fs::remove_file(path);
 }
 
-/// Renames `from` to `to` unless `to` exists:
-/// one step that is as exclusive as `create_new` and leaves no second name.
-#[cfg(target_os = "linux")]
-pub fn rename_noreplace(from: &Path, to: &Path) -> std::io::Result<()> {
-    use std::os::unix::ffi::OsStrExt;
-    let source = std::ffi::CString::new(from.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
-    let target = std::ffi::CString::new(to.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
-    // SAFETY: both strings are valid NUL-terminated paths for the call.
-    let done: i32 = unsafe { libc::renameat2(libc::AT_FDCWD, source.as_ptr(), libc::AT_FDCWD, target.as_ptr(), libc::RENAME_NOREPLACE) };
-    return if done == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) };
-}
-
-#[cfg(not(target_os = "linux"))]
-pub fn rename_noreplace(_from: &Path, _to: &Path) -> std::io::Result<()> {
-    return Err(std::io::Error::from(std::io::ErrorKind::Unsupported));
-}
-
-/// Whether a failed rename without replacing means the filesystem cannot do one (renameat2(2):
-/// `EINVAL`),
-/// not that the lock exists or storage failed.
-pub fn rename_unsupported(error: &std::io::Error) -> bool {
-    if error.kind() == std::io::ErrorKind::Unsupported {
-        return true;
-    }
-    #[cfg(unix)]
-    {
-        return matches!(error.raw_os_error(), Some(code) if code == libc::EINVAL || code == libc::ENOSYS || code == libc::EOPNOTSUPP);
-    }
-    #[cfg(not(unix))]
-    {
-        return false;
-    }
-}
+pub use crate::rename_that_never_replaces::{rename_noreplace, rename_unsupported};
 
 /// Whether a failed hard link means the filesystem makes none (link(2):
 /// `EPERM`),
@@ -247,26 +215,13 @@ pub fn placement_failure_text(lock: &Path, error: &std::io::Error) -> Option<Str
     ));
 }
 
-/// What:
-///  Whether the holder a mark names is gone.
-/// Why:
-///  `reclaim` takes a stale lock whose mark names a holder that no longer runs.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const holderIsGoneInMark = (marked: Marked) => holderIsGone(marked.holder);
-/// ```
-fn holder_is_gone_in_mark(marked: &crate::service_index_marker::Marked) -> bool {
-    return crate::service_index_marker::holder_is_gone(marked.holder.as_ref());
-}
-
 /// Removes the stale `lock`,
 /// whose holder is gone,
 /// while no other reclaimer holds it;
 /// what came of it is the answer (`Reclaimed`),
 /// and the log says why a stale lock stays.
 pub fn reclaim(platform: &Platform, lock: &Path) -> Reclaimed {
-    return reclaim_if(platform, lock, &holder_is_gone_in_mark);
+    return reclaim_if(platform, lock, StaleMark::HolderIsGone);
 }
 
-pub use crate::service_index_reclaim::{Reclaimed, reclaim_if};
+pub use crate::service_index_reclaim::{Reclaimed, StaleMark, reclaim_if};

@@ -3,6 +3,8 @@
 //!  budget bounds the overlap.
 
 use super::*;
+use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
+use crate::subvolume_index_refresh_of_every_worktree::{AllIndexes, RewriteOne, refresh_all_indexes_with};
 use crate::parallel_test_support::{Rendezvous, SERIAL_PATIENCE};
 use crate::subvolume_test_support::make_checkout;
 use crate::test_support::{fixture, git, remove};

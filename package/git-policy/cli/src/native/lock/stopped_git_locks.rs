@@ -47,7 +47,7 @@ use std::process::Command;
 use std::time::SystemTime;
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "cli-git";
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// What every Git lock file's name ends with.
 pub(crate) const LOCK_SUFFIX: &str = ".lock";

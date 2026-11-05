@@ -11,6 +11,7 @@
 //! const output = tryInProcess(args, overlay) ?? (await spawnGit(args, overlay));
 //! ```
 
+use crate::call_catching_panics::call_catching_panics;
 use crate::git_metadata::MetadataOutput;
 #[cfg(unix)]
 use crate::repo_read_config_scan::ScopeEnvironment;
@@ -60,10 +61,10 @@ pub fn switch_off() -> [(OsString, OsString); 1] {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// try { return read(); } catch (error) { log(error); return undefined; }
+/// try { return read(state); } catch (error) { log(error); return undefined; }
 /// ```
-pub fn guarded<T>(read: impl FnOnce() -> Option<T>) -> Option<T> {
-    return match std::panic::catch_unwind(std::panic::AssertUnwindSafe(read)) {
+pub fn guarded<S, T>(state: S, read: fn(S) -> Option<T>) -> Option<T> {
+    return match call_catching_panics(state, read) {
         Ok(found) => found,
         Err(payload) => {
             let message: &str = if let Some(text) = payload.downcast_ref::<&str>() {
@@ -77,6 +78,12 @@ pub fn guarded<T>(read: impl FnOnce() -> Option<T>) -> Option<T> {
             None
         }
     };
+}
+
+/// The answer of the readers for one query, as the guard calls it with the query, the base environment and the scope.
+#[cfg(unix)]
+fn answer_for_query((query, base, scope): (Query<'_>, Vec<(OsString, OsString)>, &ScopeEnvironment)) -> Option<Answer> {
+    return answer_with(&query, base, scope);
 }
 
 /// The answer for a command line, if the readers have one and the switch allows it.
@@ -94,10 +101,7 @@ fn attempt(
     let mut effective: Vec<(OsString, OsString)> = base.clone();
     effective.extend(variables.iter().cloned());
     let scope: ScopeEnvironment = ScopeEnvironment::from_variables(effective.as_slice());
-    // `guarded` runs the work inside `catch_unwind`, which takes only a closure with no parameters, so the arguments are captured.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "catch_unwind accepts only a closure with no parameters, so the arguments must be captured; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-    let answering = || { return answer_with(&Query { arguments, directory, variables, input }, base, &scope); };
-    return guarded(answering);
+    return guarded((Query { arguments, directory, variables, input }, base, &scope), answer_for_query);
 }
 
 /// What:

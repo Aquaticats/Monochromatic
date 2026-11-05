@@ -40,7 +40,7 @@ use crate::private_storage::write_exclusive_scratch;
 /// The repository scratch directory the input file is made in.
 use crate::scratch_location::prepare_repository_scratch;
 /// Starts that ride out a short shortage of processes.
-use crate::start_retry::{START_RETRY_BUDGET, retry_refused_start_with};
+use crate::start_retry::{RefusableStart, START_RETRY_BUDGET, retry_refused_start_with};
 /// Unique temporary names.
 use crate::random_id::random_uuid;
 /// `OsString` is owned operating-system text of raw bytes.
@@ -75,8 +75,8 @@ use std::time::Duration;
 fn input_file(bytes: &[u8], common_dir: Option<&Path>) -> std::io::Result<std::fs::File> {
     let Some(common) = common_dir else {
         return Err(std::io::Error::other(
-            "cli-git has no repository scratch directory for the input of this Git command: the command was started \
-             before the repository was known, which is a defect in cli-git",
+            "monochromatic-git-policy-cli has no repository scratch directory for the input of this Git command: the command was started \
+             before the repository was known, which is a defect in monochromatic-git-policy-cli",
         ));
     };
     let directory: PathBuf = prepare_repository_scratch(common)?;
@@ -147,20 +147,16 @@ fn build_command(context: &GitContext, request: &GitRequest) -> Command {
 /// ```ts
 /// await runTransactionGit({ ..., allowFailure: true })
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "`add_timing::step` (outside this folder) runs a callable under a timing label, and the callable must carry the context and the request"
-    )
-)]
 pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
     // An exact read-only command line the in-process readers know costs no Git process.
     if let Some(answered) = try_request(context, request) {
         return Ok(answered);
     }
     let label: String = crate::add_timing::git_step_label(request.arguments.as_slice());
-    return crate::add_timing::step(label.as_str(), || { return run_git_pausing(context, request, START_RETRY_BUDGET, &mut std::thread::sleep); });
+    let entered: bool = crate::add_timing::begin_step(label.as_str());
+    let output: std::io::Result<GitOutput> = run_git_pausing(context, request, START_RETRY_BUDGET, &mut std::thread::sleep);
+    crate::add_timing::end_step(entered);
+    return output;
 }
 
 /// What:
@@ -190,13 +186,6 @@ pub(crate) fn refused_by_the_system(output: &GitOutput) -> bool {
 /// ```ts
 /// await retryWhile(() => runGitOnce(request), (output) => refusedBySystem(output) && mayBeRerun(request));
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "`retry_refused_start_with` (start_retry.rs, outside this folder) takes `&mut dyn FnMut() -> io::Result<_>`, and the attempt must carry the context, the request and the refused output it keeps"
-    )
-)]
 fn run_git_pausing(
     context: &GitContext,
     request: &GitRequest,
@@ -207,23 +196,73 @@ fn run_git_pausing(
         return run_git_once(context, request);
     }
     let what: String = command_text(&request.arguments);
-    let mut refused: Option<GitOutput> = None;
-    let result: std::io::Result<GitOutput> = retry_refused_start_with(what.as_str(), budget, pause, &mut || {
-        let output: GitOutput = match run_git_once(context, request) {
+    let mut attempt: RefusableGitRun<'_> = RefusableGitRun { context, request, refused: None };
+    let result: std::io::Result<GitOutput> = retry_refused_start_with(what.as_str(), budget, pause, &mut attempt);
+    match (result, attempt.refused.take()) {
+        (Ok(finished), _) => return Ok(finished),
+        (Err(error), Some(last)) if error.kind() == std::io::ErrorKind::WouldBlock => return Ok(last),
+        (Err(error), _) => return Err(error),
+    }
+}
+
+/// What:
+///  One run of a request that the retry may start again: the run, and the output Git gave when the system refused it a process.
+/// Why:
+///   The retry takes its start as a value; a refusal is told to the retry as `WouldBlock` and the output that carried it is kept
+///  here, so that after the budget the caller can return Git's own last words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class RefusableGitRun implements RefusableStart<GitOutput> { refused?: GitOutput; start() {} }
+/// ```
+struct RefusableGitRun<'a> {
+    /// The Git program and the directories the run uses.
+    context: &'a GitContext,
+    /// What to run.
+    request: &'a GitRequest,
+    /// The last output Git gave when the system refused it a process.
+    refused: Option<GitOutput>,
+}
+
+impl RefusableStart<GitOutput> for RefusableGitRun<'_> {
+    fn start(&mut self) -> std::io::Result<GitOutput> {
+        let output: GitOutput = match run_git_once(self.context, self.request) {
             Ok(finished) => finished,
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => return Err(std::io::Error::other(error)),
             Err(error) => return Err(error),
         };
         if refused_by_the_system(&output) {
-            refused = Some(output);
+            self.refused = Some(output);
             return Err(std::io::Error::from(std::io::ErrorKind::WouldBlock));
         }
         return Ok(output);
-    });
-    match (result, refused.take()) {
-        (Ok(finished), _) => return Ok(finished),
-        (Err(error), Some(last)) if error.kind() == std::io::ErrorKind::WouldBlock => return Ok(last),
-        (Err(error), _) => return Err(error),
+    }
+}
+
+/// What:
+///  Where `run_git_once_with` asks for the watch terms of a start, once for each start.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The production entry reads the terms of the request's class; tests choose short ones.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface WatchTermsSource { terms(): WatchTerms }
+/// ```
+trait WatchTermsSource {
+    /// The terms for the next start.
+    fn terms(&self) -> WatchTerms;
+}
+
+/// The watch terms of the class a request belongs to, asked again at each start.
+struct TermsOfRequest<'a> {
+    /// The request whose subcommand names the class.
+    request: &'a GitRequest,
+}
+
+impl WatchTermsSource for TermsOfRequest<'_> {
+    fn terms(&self) -> WatchTerms {
+        return terms_for_request(self.request);
     }
 }
 
@@ -236,15 +275,8 @@ fn run_git_pausing(
 /// ```ts
 /// await runTransactionGitOnce({ gitPath, cwd, args })
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "`run_git_once_with` takes its terms as `&dyn Fn() -> WatchTerms`, which its tests also give their own callables, and this one must carry the request"
-    )
-)]
 fn run_git_once(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
-    return run_git_once_with(context, request, &|| { return terms_for_request(request); });
+    return run_git_once_with(context, request, &TermsOfRequest { request });
 }
 
 /// What:
@@ -280,18 +312,18 @@ pub(crate) fn terms_for_request(request: &GitRequest) -> WatchTerms {
 fn run_git_once_with(
     context: &GitContext,
     request: &GitRequest,
-    terms: &dyn Fn() -> WatchTerms,
+    terms: &dyn WatchTermsSource,
 ) -> std::io::Result<GitOutput> {
-    let first: std::io::Result<GitOutput> = run_git_watched(context, request, terms());
+    let first: std::io::Result<GitOutput> = run_git_watched(context, request, terms.terms());
     return match first {
         Err(error) if error.kind() == std::io::ErrorKind::TimedOut && may_be_rerun(request) && !crate::child_watch::is_ceiling(&error) => {
             // Terminal output error: a notice is advisory; a failed write must not stop the commit.
             let _written = writeln!(
                 std::io::stderr(),
-                "cli-git: {} showed no sign of work and was ended; running it again",
+                "monochromatic-git-policy-cli: {} showed no sign of work and was ended; running it again",
                 step_subject(request)
             );
-            run_git_watched(context, request, terms())
+            run_git_watched(context, request, terms.terms())
         }
         other => other,
     };

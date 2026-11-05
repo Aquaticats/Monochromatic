@@ -22,7 +22,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "cli-git";
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// Whether the person's command is one that updates references from or to a remote and is covered.
 pub fn is_covered(word: &[u8]) -> bool {

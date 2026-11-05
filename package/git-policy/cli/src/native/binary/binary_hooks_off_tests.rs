@@ -1,4 +1,4 @@
-//! Binary-level controls for traditional hooks never running through the wrapper, and for what `git cli-git doctor`
+//! Binary-level controls for traditional hooks never running through the wrapper, and for what `git monochromatic-git-policy-cli doctor`
 //!  says about the shims `git lfs` writes.
 //! A hook file in the hooks directory writes a marker when it runs. Forwarded commands, the commit path, the
 //!  auto-push and the push-race integration start the real Git with `-c core.hooksPath=` pointing at a directory that
@@ -254,9 +254,9 @@ fn commit_directly(fixture: &Fixture, world: &World, name: &str) {
     git(fixture, world.repo.as_path(), &["commit", "--quiet", &format!("--message={name}"), "--", name]);
 }
 
-/// Run `git cli-git doctor` through the wrapper.
+/// Run `git monochromatic-git-policy-cli doctor` through the wrapper.
 fn doctor(fixture: &Fixture, world: &World) -> Observed {
-    return wrapped(fixture, world, &["cli-git", "doctor"]);
+    return wrapped(fixture, world, &["monochromatic-git-policy-cli", "doctor"]);
 }
 
 /// Only the shims `git lfs` writes: status 0, nothing on standard output, the explanation on standard error.
@@ -290,7 +290,7 @@ fn doctor_keeps_reporting_other_hooks_beside_the_shims() {
         String::from_utf8_lossy(&report.stdout),
         format!("{}\n", world.repo.join(".git/hooks/pre-commit").display())
     );
-    assert!(stderr_of(&report).contains("never run through cli-git"), "{}", stderr_of(&report));
+    assert!(stderr_of(&report).contains("never run through monochromatic-git-policy-cli"), "{}", stderr_of(&report));
     remove_settled(&fixture);
 }
 
@@ -299,7 +299,7 @@ fn doctor_keeps_reporting_other_hooks_beside_the_shims() {
 fn doctor_outside_a_repository_still_exits_two() {
     let fixture: Fixture = fixture("hooks-off-doctor-outside");
     let _world: World = world(&fixture, false);
-    let report: Observed = observe(&mut wrapped_commit(&fixture, fixture.root.as_path(), &["cli-git", "doctor"]), b"");
+    let report: Observed = observe(&mut wrapped_commit(&fixture, fixture.root.as_path(), &["monochromatic-git-policy-cli", "doctor"]), b"");
     assert_eq!(report.code, Some(2), "{}", stderr_of(&report));
     remove_settled(&fixture);
 }

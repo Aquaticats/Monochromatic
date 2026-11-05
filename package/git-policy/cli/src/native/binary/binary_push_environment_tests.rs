@@ -21,7 +21,7 @@ const MARKER_NAME: &str = "CLI_GIT_PUSH_ENVIRONMENT_MARKER";
 const MARKER_VALUE: &str = "carried-by-the-invocation";
 
 /// The per-user scratch directory relative to `HOME`, where the manual-push probe makes its private directory.
-const SCRATCH_RELATIVE: &str = ".local/state/cli-git/scratch";
+const SCRATCH_RELATIVE: &str = ".local/state/monochromatic-git-policy-cli/scratch";
 
 /// One repository, its bare origin, and the shim's record.
 struct PushWorld {

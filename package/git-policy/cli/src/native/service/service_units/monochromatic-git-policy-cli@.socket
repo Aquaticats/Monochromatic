@@ -1,10 +1,10 @@
-# Written by the git wrapper for its commit service (cli-git-unit); the wrapper rewrites this file when it changes.
+# Written by the git wrapper for its commit service (monochromatic-git-policy-cli-unit); the wrapper rewrites this file when it changes.
 # One instance per worktree: the instance name is a hash of the worktree's own Git directory (service_instance.rs).
 [Unit]
 Description=Commit service socket of one worktree for the git wrapper
 
 [Socket]
 # The wrapper looks for the socket at the same place under the user's runtime directory (service_instance.rs).
-ListenStream=%t/cli-git/%i.sock
+ListenStream=%t/monochromatic-git-policy-cli/%i.sock
 SocketMode=0600
 DirectoryMode=0700

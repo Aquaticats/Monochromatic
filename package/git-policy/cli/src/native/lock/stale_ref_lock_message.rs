@@ -8,7 +8,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! process.stderr.write(outcome.notice()); // "cli-git: left the reference lock ... alone: ...\ncli-git:   rm -- '...'\n"
+//! process.stderr.write(outcome.notice()); // "monochromatic-git-policy-cli: left the reference lock ... alone: ...\nmonochromatic-git-policy-cli:   rm -- '...'\n"
 //! ```
 
 use crate::iso_time::format_iso_milliseconds;
@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 /// The start of every line the wrapper prints.
-const LINE_PREFIX: &str = "cli-git: ";
+const LINE_PREFIX: &str = "monochromatic-git-policy-cli: ";
 
 /// Bytes a shell reads as part of a plain word.
 fn is_plain(byte: &u8) -> bool {
@@ -103,7 +103,7 @@ fn clearing_words(found: &Found) -> String {
 }
 
 impl Outcome {
-    /// What the wrapper prints for this pass, as lines that each start with `cli-git: `; empty when there is nothing to say.
+    /// What the wrapper prints for this pass, as lines that each start with `monochromatic-git-policy-cli: `; empty when there is nothing to say.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

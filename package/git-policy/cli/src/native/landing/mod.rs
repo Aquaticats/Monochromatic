@@ -45,6 +45,9 @@ pub mod service_messages;
 /// The commit service's serialized step.
 pub mod service_land;
 
+/// The batches the commit service of an earlier release left open, finished by the service of this release when none runs.
+pub mod earlier_service_journal_adopted;
+
 /// What the commit service needs to land a batch.
 pub mod service_land_context;
 

@@ -111,7 +111,7 @@ pub struct CandidateStore {
 pub(crate) fn listing_failure(failure: CandidateFailure, operation: &str, detail: &str) -> CandidateError {
     return CandidateError::new(
         failure,
-        format!("cli-git could not list candidate files: git {operation} {detail}").as_str(),
+        format!("monochromatic-git-policy-cli could not list candidate files: git {operation} {detail}").as_str(),
     );
 }
 
@@ -220,7 +220,7 @@ impl CandidateStore {
             // `Err(...)` is the failure variant. The reader was stored just above, so this is not expected.
             return Err(CandidateError::new(
                 CandidateFailure::ReaderEnded,
-                "cli-git could not read a Git object: the object reader was not started.",
+                "monochromatic-git-policy-cli could not read a Git object: the object reader was not started.",
             ));
         };
         // `Ok(...)` is the success variant.
@@ -530,7 +530,7 @@ impl CandidateStore {
         if candidate.identity.generation != self.generation {
             return Err(CandidateError::new(
                 CandidateFailure::StaleCandidate,
-                "cli-git refused to read a candidate from a version that was invalidated by a fix or replay; \
+                "monochromatic-git-policy-cli refused to read a candidate from a version that was invalidated by a fix or replay; \
                  list the version again and use its candidates.",
             ));
         }

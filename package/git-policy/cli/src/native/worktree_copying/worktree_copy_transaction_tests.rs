@@ -296,7 +296,7 @@ fn stage_missing_a_claim_cannot_be_recovered() {
     assert!(
         failure
             .0
-            .starts_with("cli-git: could not recover staged ignored state at "),
+            .starts_with("monochromatic-git-policy-cli: could not recover staged ignored state at "),
         "{}",
         failure.0
     );

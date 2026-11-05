@@ -204,7 +204,7 @@ fn names_in_git_directory(repo: &Path) -> String {
         };
         for entry in entries.flatten() {
             let name: String = entry.file_name().to_string_lossy().into_owned();
-            if name.contains("lock") || name.starts_with("cli-git") || directory.ends_with("cli-git-transactions") || directory.ends_with("heads") {
+            if name.contains("lock") || name.starts_with("monochromatic-git-policy-cli") || name.starts_with("cli-git") || directory.ends_with("cli-git-transactions") || directory.ends_with("heads") {
                 names.push(format!("{}/{name}", directory.strip_prefix(repo).unwrap_or(&directory).display()));
             }
         }

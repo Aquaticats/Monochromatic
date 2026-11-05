@@ -38,7 +38,7 @@ const gitPolicyOptions: ReleaseOptions = {
   to: '0.4.3',
   note: 'fix the thing',
   pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
-  checkBins: ['cli-git-native'],
+  checkBins: ['monochromatic-git-policy-cli'],
   lockDirectories: ['package/git-policy/cli.fuzz'],
   host: 'local',
   memoryMax: '12G',
@@ -105,11 +105,11 @@ await describe({
         it({
           name: 'checks the named binary offline on a local host',
           fn: async () => {
-            expect(buildCheckArguments({ checkBins: ['cli-git-native'], host: 'local' })).toEqual([
+            expect(buildCheckArguments({ checkBins: ['monochromatic-git-policy-cli'], host: 'local' })).toEqual([
               'check',
               '--offline',
               '--bin',
-              'cli-git-native',
+              'monochromatic-git-policy-cli',
             ]);
           },
         }),
@@ -242,7 +242,7 @@ await describe({
               {
                 label: 'cargo check',
                 program: cargoProgram,
-                args: ['check', '--offline', '--bin', 'cli-git-native'],
+                args: ['check', '--offline', '--bin', 'monochromatic-git-policy-cli'],
                 cwd: '/repo/package/git-policy/cli',
               },
               {
@@ -292,7 +292,7 @@ await describe({
               {
                 label: 'cargo check',
                 program: cargoProgram,
-                args: ['check', '--bin', 'cli-git-native'],
+                args: ['check', '--bin', 'monochromatic-git-policy-cli'],
                 cwd: '/repo/package/git-policy/cli',
               },
               {

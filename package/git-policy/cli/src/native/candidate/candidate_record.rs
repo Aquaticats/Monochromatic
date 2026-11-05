@@ -96,7 +96,7 @@ fn record_failure(failure: CandidateFailure, position: usize, detail: &str) -> C
     return CandidateError::new(
         failure,
         format!(
-            "cli-git could not list candidate files: changed-path record {position} {detail}. \
+            "monochromatic-git-policy-cli could not list candidate files: changed-path record {position} {detail}. \
              Inspect the entries with `git diff --cached --raw` or `git diff-tree --raw -r <commit>`."
         )
         .as_str(),

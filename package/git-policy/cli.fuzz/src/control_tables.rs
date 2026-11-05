@@ -81,6 +81,7 @@ pub(crate) const CONTROL_TOKENS: &[&[u8]] = &[
     b"st",
     b"wta",
     b"cli-git",
+    b"monochromatic-git-policy-cli",
     // Git's own global options and their values.
     b"-C",
     b"dir",

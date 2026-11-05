@@ -53,7 +53,7 @@ fn shadow_answers_head_base_and_upstream_like_the_real_repository() {
     git(repo.as_path(), &["config", "branch.main.remote", "origin"]);
     git(repo.as_path(), &["config", "branch.main.merge", "refs/heads/main"]);
     let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
-    assert_eq!(shadow, repo.join(".git").join("cli-git").join("shadow").join(TRANSACTION));
+    assert_eq!(shadow, repo.join(".git").join("monochromatic-git-policy-cli").join("shadow").join(TRANSACTION));
     assert_eq!(shadow_text(shadow.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/main");
     assert_eq!(shadow_text(shadow.as_path(), &["rev-parse", "HEAD"]), head);
     assert_eq!(
@@ -281,7 +281,7 @@ fn an_existing_private_directory_is_accepted_and_a_file_is_not() {
 #[test]
 fn concurrent_creators_of_the_shared_parents_all_succeed() {
     let root: PathBuf = fixture("shadow-parents-race");
-    let shadow: PathBuf = root.join("cli-git/shadow/one");
+    let shadow: PathBuf = root.join("monochromatic-git-policy-cli/shadow/one");
     let workers: Vec<std::thread::JoinHandle<std::io::Result<()>>> = (0..16)
         .map(|_| {
             let target: PathBuf = shadow.clone();
@@ -291,7 +291,7 @@ fn concurrent_creators_of_the_shared_parents_all_succeed() {
     for worker in workers {
         worker.join().expect("worker").expect("every creator succeeds");
     }
-    assert!(root.join("cli-git/shadow").is_dir());
+    assert!(root.join("monochromatic-git-policy-cli/shadow").is_dir());
     remove(root.as_path());
 }
 

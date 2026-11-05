@@ -10,8 +10,10 @@
 //! const results = await mapConcurrent(items, workers, label, job); // Array<{ ok: R } | { error: string }>
 //! ```
 
+/// The guarded call that turns a panic in one item's job into a result.
+use crate::call_catching_panics::call_catching_panics;
 /// Threads that borrow the caller's items for the length of one scope, or run in turn when none can start.
-use crate::scoped_start::start_or_run;
+use crate::side_by_side_threads::run_all_side_by_side;
 /// The shared counter that hands each worker the next item.
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -60,6 +62,14 @@ impl<T, Namer: Fn(&T) -> String> ItemLabel<T> for Namer {
     }
 }
 
+/// What one worker reads: the items, the counter that hands out the next one, the namer and the job.
+type WorkerState<'a, T, R> = (&'a [T], &'a AtomicUsize, &'a (dyn ItemLabel<T> + Sync), &'a (dyn ConcurrentWork<T, R> + Sync));
+
+/// The job for one item, as a function of its two inputs so that the guarded call can name it.
+fn run_job_for_item<T, R>((job, item): (&(dyn ConcurrentWork<T, R> + Sync), &T)) -> R {
+    return job.run(item);
+}
+
 /// What:
 ///  Take items from the shared counter until none is left and run the job for each inside a catch, so a panic costs
 ///  the item it happened in and never the results already produced or the items still to take.
@@ -70,24 +80,12 @@ impl<T, Namer: Fn(&T) -> String> ItemLabel<T> for Namer {
 /// ```ts
 /// for (let index = next++; items[index] !== undefined; index = next++) { try { done.push([index, job(items[index])]); } catch (panic) { done.push([index, error]); } }
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "std::panic::catch_unwind takes the guarded call as a closure that borrows the job and the item, not 'static; see doc/planning/cli-git-closure-lint-suppressions.md"
-    )
-)]
-fn take_items<T, R>(
-    items: &[T],
-    next: &AtomicUsize,
-    label: &(dyn ItemLabel<T> + Sync),
-    job: &(dyn ConcurrentWork<T, R> + Sync),
-) -> Vec<(usize, Result<R, String>)> {
+fn take_items<T, R>((items, next, label, job): WorkerState<'_, T, R>) -> Vec<(usize, Result<R, String>)> {
     let mut done: Vec<(usize, Result<R, String>)> = Vec::new();
     loop {
         let index: usize = next.fetch_add(1, Ordering::Relaxed);
         let Some(item) = items.get(index) else { break };
-        let caught: std::thread::Result<R> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { return job.run(item); }));
+        let caught: std::thread::Result<R> = call_catching_panics((job, item), run_job_for_item::<T, R>);
         let outcome: Result<R, String> = match caught {
             Ok(value) => Ok(value),
             Err(payload) => Err(format!("{} stopped because its worker panicked: {}", label.label(item), panic_words(payload.as_ref()))),
@@ -113,13 +111,6 @@ fn result_index<R>(numbered: &(usize, Result<R, String>)) -> usize {
 /// ```ts
 /// const results = await mapConcurrent(items, workers, label, job); // Array<{ ok: R } | { error: string }>
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "std::thread::scope and start_or_run take closures that borrow the items, the counter and the job for the scope only, not 'static; see doc/planning/cli-git-closure-lint-suppressions.md"
-    )
-)]
 pub fn map_concurrent<T: Sync, R: Send>(
     items: &[T],
     workers: usize,
@@ -127,21 +118,18 @@ pub fn map_concurrent<T: Sync, R: Send>(
     job: &(dyn ConcurrentWork<T, R> + Sync),
 ) -> Vec<Result<R, String>> {
     let next: AtomicUsize = AtomicUsize::new(0);
-    let mut results: Vec<(usize, Result<R, String>)> = std::thread::scope(|scope| {
-        let mut handles: Vec<_> = Vec::new();
-        for _worker in 0..workers.max(1).min(items.len().max(1)) {
-            handles.push(start_or_run(scope, || { return take_items(items, &next, label, job); }));
+    let mut worker_states: Vec<WorkerState<'_, T, R>> = Vec::new();
+    for _worker in 0..workers.max(1).min(items.len().max(1)) {
+        worker_states.push((items, &next, label, job));
+    }
+    // A worker cannot panic outside the catch around each item, so a thread that did not return its list is a bug to raise.
+    let mut results: Vec<(usize, Result<R, String>)> = Vec::new();
+    for joined in run_all_side_by_side(worker_states, take_items::<T, R>) {
+        match joined {
+            Ok(done) => results.extend(done),
+            Err(payload) => std::panic::resume_unwind(payload),
         }
-        // A worker cannot panic outside the catch around each item, so a thread that did not return its list is a bug to raise.
-        let mut all: Vec<(usize, Result<R, String>)> = Vec::new();
-        for handle in handles {
-            match handle.join() {
-                Ok(done) => all.extend(done),
-                Err(payload) => std::panic::resume_unwind(payload),
-            }
-        }
-        return all;
-    });
+    }
     results.sort_by_key(result_index);
     let mut ordered: Vec<Result<R, String>> = Vec::new();
     for (_index, result) in results {

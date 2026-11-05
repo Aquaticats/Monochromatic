@@ -1,5 +1,5 @@
-//! What: `mono/dependent-version-bump` through the built executable: `git cli-git check`
-//!       reports the dependents of a raised manifest, `git cli-git fix` bumps them in the
+//! What: `mono/dependent-version-bump` through the built executable: `git monochromatic-git-policy-cli check`
+//!       reports the dependents of a raised manifest, `git monochromatic-git-policy-cli fix` bumps them in the
 //!       worktree, and a narrow fix changes an unselected dependent only when it matches
 //!       `HEAD`.
 //! Why: These are the commands the release workflow will run; the controls read the
@@ -7,7 +7,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // expect(run(wrappedGit, ['cli-git', 'fix', '--all']).stdout).toContain('fix-summary');
+//! // expect(run(wrappedGit, ['monochromatic-git-policy-cli', 'fix', '--all']).stdout).toContain('fix-summary');
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
@@ -68,7 +68,7 @@ fn workspace(fixture: &Fixture) -> PathBuf {
         "package/config/pnpr/config.yaml",
         "packages:\n  - '@s/a'\n  - '@s/b'\n  - '@s/c'\n",
     );
-    write(repo.as_path(), "cli-git.config.jsonc", CONFIGURATION);
+    write(repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", CONFIGURATION);
     git(fixture, repo.as_path(), &["add", "--all"]);
     git(
         fixture,
@@ -107,7 +107,7 @@ fn check_reports_and_fix_bumps_every_dependent() {
     let fixture: Fixture = fixture("dependent-version-all");
     let repo: PathBuf = workspace(&fixture);
     assert_eq!(
-        run_wrapped(&fixture, repo.as_path(), &["cli-git", "check", "--all"]),
+        run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "check", "--all"]),
         Observed {
             code: Some(1),
             stdout: format!(
@@ -121,7 +121,7 @@ fn check_reports_and_fix_bumps_every_dependent() {
     );
     let index_before: Vec<u8> = std::fs::read(repo.join(".git/index")).expect("index");
     assert_eq!(
-        run_wrapped(&fixture, repo.as_path(), &["cli-git", "fix", "--all"]),
+        run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "fix", "--all"]),
         Observed {
             code: Some(0),
             stdout: b"{\"schemaVersion\":1,\"sequence\":0,\"type\":\"fix-summary\",\"trigger\":\"direct-fix\",\"passes\":1,\"changedPaths\":[\"package/module/b/package.json\",\"package/module/c/package.json\"]}\n".to_vec(),
@@ -141,7 +141,7 @@ fn check_reports_and_fix_bumps_every_dependent() {
         manifest("@s/c", "3.0.1", Some("@s/a"))
     );
     assert_eq!(
-        run_wrapped(&fixture, repo.as_path(), &["cli-git", "check", "--all"]),
+        run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "check", "--all"]),
         Observed {
             code: Some(0),
             stdout: Vec::new(),
@@ -157,7 +157,7 @@ fn check_reports_and_fix_bumps_every_dependent() {
 fn a_narrow_fix_changes_unselected_dependents_only_when_they_match_head() {
     let fixture: Fixture = fixture("dependent-version-narrow");
     let repo: PathBuf = workspace(&fixture);
-    let narrow: [&str; 4] = ["cli-git", "fix", "--", "package/module/a/package.json"];
+    let narrow: [&str; 4] = ["monochromatic-git-policy-cli", "fix", "--", "package/module/a/package.json"];
     let edited: String = format!("{} ", manifest("@s/b", "2.0.0", Some("@s/a")));
     write(repo.as_path(), "package/module/b/package.json", &edited);
     let refused: Observed = run_wrapped(&fixture, repo.as_path(), &narrow);
@@ -260,7 +260,7 @@ fn a_staged_deletion_does_not_block_the_check() {
         &["rm", "--quiet", "--", "package/module/old/notes.txt"],
     );
     assert_eq!(
-        run_wrapped(&fixture, repo.as_path(), &["cli-git", "check", "--all"]),
+        run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "check", "--all"]),
         Observed {
             code: Some(1),
             stdout: format!(
@@ -281,7 +281,7 @@ fn a_staged_deletion_does_not_block_the_check() {
 fn literal_pathspecs_check_a_named_manifest_like_plain_mode() {
     let fixture: Fixture = fixture("dependent-version-literal-named");
     let repo: PathBuf = workspace(&fixture);
-    let arguments: [&str; 4] = ["cli-git", "check", "--", "package/module/a/package.json"];
+    let arguments: [&str; 4] = ["monochromatic-git-policy-cli", "check", "--", "package/module/a/package.json"];
     let plain: Observed = observe(
         wrapped(&fixture).current_dir(repo.as_path()).args(arguments),
         b"",
@@ -304,7 +304,7 @@ fn literal_pathspecs_check_a_named_manifest_like_plain_mode() {
 fn literal_pathspecs_check_all_like_plain_mode() {
     let fixture: Fixture = fixture("dependent-version-literal-all");
     let repo: PathBuf = workspace(&fixture);
-    let arguments: [&str; 3] = ["cli-git", "check", "--all"];
+    let arguments: [&str; 3] = ["monochromatic-git-policy-cli", "check", "--all"];
     let plain: Observed = observe(
         wrapped(&fixture).current_dir(repo.as_path()).args(arguments),
         b"",

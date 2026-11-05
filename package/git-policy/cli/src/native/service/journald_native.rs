@@ -34,10 +34,10 @@ pub const TEST_SOCKET_VARIABLE: &str = "CLI_GIT_TEST_ONLY_JOURNAL_SOCKET";
 pub const STREAM_VARIABLE: &str = "JOURNAL_STREAM";
 
 /// The `SYSLOG_IDENTIFIER` of every entry, the name `journalctl` shows after the host.
-pub const IDENTIFIER: &str = "cli-git-service";
+pub const IDENTIFIER: &str = "monochromatic-git-policy-cli-service";
 
 /// The `SYSLOG_IDENTIFIER` of an entry the wrapper itself sends, as the command a person ran, beside the service's own.
-pub const CLIENT_IDENTIFIER: &str = "cli-git";
+pub const CLIENT_IDENTIFIER: &str = "monochromatic-git-policy-cli";
 
 /// The most characters of a message an entry carries; longer text is cut. The limits count characters, not encoded bytes,
 /// and bound no total, so an entry made of very many or very wide fields can still exceed what a socket takes; the send then
@@ -441,7 +441,7 @@ impl Sink {
 pub const LOST_FIELD: &str = "CLI_GIT_LOG_DROPPED";
 
 /// What a line on standard error says before the count of entries dropped before it.
-const LOST_NOTICE_HEAD: &str = "cli-git-service: ";
+const LOST_NOTICE_HEAD: &str = "monochromatic-git-policy-cli-service: ";
 
 /// What it says after the count.
 const LOST_NOTICE_TAIL: &str = " log entries were dropped before this one because the log stream had no room";

@@ -54,6 +54,34 @@ pub enum Reclaimed {
 }
 
 /// What:
+///  Which marks `reclaim_if` takes for stale.
+/// Why:
+///   A mark is stale when its holder is gone; the removal of a killed service's lock adds that the mark is the one of its own batch.
+///  Each kind is a value, so no closure has to carry the batch number.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type StaleMark = { kind: 'holder-gone' } | { kind: 'of-batch'; seq: number };
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub enum StaleMark {
+    /// Any mark whose holder is gone.
+    HolderIsGone,
+    /// A mark of the batch with this number whose holder is gone.
+    OfBatchWhoseHolderIsGone(u64),
+}
+
+impl StaleMark {
+    /// Whether `marked` is stale under this kind.
+    fn judges_stale(self, marked: &Marked) -> bool {
+        return match self {
+            StaleMark::HolderIsGone => holder_is_gone(marked.holder.as_ref()),
+            StaleMark::OfBatchWhoseHolderIsGone(seq) => marked.seq == seq && holder_is_gone(marked.holder.as_ref()),
+        };
+    }
+}
+
+/// What:
 ///  Removes the index lock of `index` left by a service that was killed, when it still carries the service's marker for `seq`
 ///  and its holder is gone.
 /// Why:
@@ -65,15 +93,7 @@ pub enum Reclaimed {
 /// ```
 pub fn remove_stale(index: &Path, seq: u64) {
     let lock: PathBuf = lock_path_of(index);
-    #[cfg_attr(
-        dylint_lib = "monochromatic_lint_closure",
-        expect(
-            avoidable_closure,
-            reason = "`reclaim_if` takes `&dyn Fn(&Marked) -> bool` as its test of a stale mark, and the test for one batch must carry the batch number"
-        )
-    )]
-    let for_this_batch = |marked: &Marked| -> bool { return marked.seq == seq && holder_is_gone(marked.holder.as_ref()); };
-    let _outcome: Reclaimed = reclaim_if(&SYSTEM, lock.as_path(), &for_this_batch);
+    let _outcome: Reclaimed = reclaim_if(&SYSTEM, lock.as_path(), StaleMark::OfBatchWhoseHolderIsGone(seq));
 }
 
 /// What:
@@ -87,7 +107,7 @@ pub fn remove_stale(index: &Path, seq: u64) {
 /// ```ts
 /// const outcome = reclaimIf(platform, lock, isStale) // 'removed' | 'changed' | 'busy' | 'kept' | 'stuck'
 /// ```
-pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: &dyn Fn(&Marked) -> bool) -> Reclaimed {
+pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: StaleMark) -> Reclaimed {
     let file: std::fs::File = match open_to_judge(lock) {
         Ok(opened) => opened,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Reclaimed::Removed,
@@ -98,7 +118,7 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: &dyn Fn(&Marked) -
     let Some(marked) = marker_of_file(&file) else {
         return Reclaimed::Kept;
     };
-    if !is_stale(&marked) {
+    if !is_stale.judges_stale(&marked) {
         // A holder on another machine is not proven gone and not proven running: the person is told, not the lock removed.
         if holder_is_elsewhere(marked.holder.as_ref()) {
             crate::service_error!("{}", foreign_words(lock, &marked));

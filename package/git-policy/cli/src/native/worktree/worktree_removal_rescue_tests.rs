@@ -247,7 +247,7 @@ fn a_promoted_push_is_not_recorded_again_when_the_snapshot_is_tried_again() {
 fn a_snapshot_that_could_not_be_taken_is_told_and_what_was_copied_is_kept() {
     let whole: Repo = repo("rescue-uncreatable");
     records(&whole);
-    std::fs::write(whole.common.join("cli-git"), "a file where the directory belongs").expect("blocker");
+    std::fs::write(whole.common.join("monochromatic-git-policy-cli"), "a file where the directory belongs").expect("blocker");
     let problems: Vec<String> = snapshot_linked_worktrees(whole.common.as_path());
     assert_eq!(problems.len(), 1, "{problems:?}");
     assert!(problems[0].contains(whole.linked.to_string_lossy().as_ref()), "the worktree is named: {problems:?}");

@@ -180,11 +180,11 @@ fn a_fetch_after_a_killed_fetch_clears_the_locks_where_the_holder_is_provably_go
     let words: String = stderr_text(&seen);
     if proof_available() {
         assert_eq!(seen.code, Some(0), "{words}");
-        assert!(words.contains("cli-git: removed the reference lock"), "{words}");
+        assert!(words.contains("monochromatic-git-policy-cli: removed the reference lock"), "{words}");
         assert!(!stage.gone_lock().exists());
     } else {
         assert_ne!(seen.code, Some(0), "{words}");
-        assert!(words.contains("cli-git: left the reference lock"), "{words}");
+        assert!(words.contains("monochromatic-git-policy-cli: left the reference lock"), "{words}");
         assert!(words.contains("rm -- "), "{words}");
         assert!(stage.gone_lock().exists());
     }
@@ -201,8 +201,8 @@ fn a_fetch_after_a_killed_fetch_with_no_pid_file_keeps_the_lock_and_gives_the_co
     let seen: Observed = wrapped_fetch(&stage);
     let words: String = stderr_text(&seen);
     assert_ne!(seen.code, Some(0), "{words}");
-    assert!(words.contains("cli-git: left the reference lock"), "{words}");
-    assert!(words.contains(&format!("cli-git:   rm -- {}", stage.gone_lock().display())) || words.contains("cli-git:   rm -- "), "{words}");
+    assert!(words.contains("monochromatic-git-policy-cli: left the reference lock"), "{words}");
+    assert!(words.contains(&format!("monochromatic-git-policy-cli:   rm -- {}", stage.gone_lock().display())) || words.contains("monochromatic-git-policy-cli:   rm -- "), "{words}");
     assert!(words.contains("cannot lock ref") || words.contains("Unable to create"), "Git's own refusal follows: {words}");
     assert!(stage.gone_lock().exists());
     remove(&stage.fixture);
@@ -217,7 +217,7 @@ fn a_fetch_leaves_the_locks_of_a_git_that_is_still_running() {
     let seen: Observed = wrapped_fetch(&stage);
     let words: String = stderr_text(&seen);
     assert!(stage.gone_lock().exists(), "{words}");
-    assert!(!words.contains("cli-git: removed"), "{words}");
+    assert!(!words.contains("monochromatic-git-policy-cli: removed"), "{words}");
     drop(held);
     remove(&stage.fixture);
 }

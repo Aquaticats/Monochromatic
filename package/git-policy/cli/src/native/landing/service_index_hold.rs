@@ -49,16 +49,36 @@ pub struct IndexLock {
 }
 
 /// What:
+///  What a caller records, durably, between the installation of the index and the giving up of the lock.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The record runs once, while the lock still keeps every other writer out. The state it needs (the journal, the batch, the new
+///  commit) is a small struct that implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface Record { record(): void } // throws when the record cannot be made
+/// ```
+pub trait Record {
+    /// Make the record.
+    fn record(&self) -> std::io::Result<()>;
+}
+
+/// What:
 ///  A record step that records nothing.
 /// Why:
 ///  `release_with` is `release_with_record` for a caller that has nothing to record before the lock is given up.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const nothingToRecord = async () => {};
+/// const nothingToRecord = { record: async () => {} };
 /// ```
-fn nothing_to_record() -> std::io::Result<()> {
-    return Ok(());
+struct NothingToRecord;
+
+impl Record for NothingToRecord {
+    fn record(&self) -> std::io::Result<()> {
+        return Ok(());
+    }
 }
 
 impl IndexLock {
@@ -158,7 +178,7 @@ impl IndexLock {
     /// the lock stays,
     /// and the service ends after its batch so that the restart reclaims it.
     pub fn release_with(self, built: &Path) -> Result<(), std::io::Error> {
-        return self.release_with_record(built, &nothing_to_record);
+        return self.release_with_record(built, &NothingToRecord);
     }
 
     /// What:
@@ -179,7 +199,7 @@ impl IndexLock {
     /// # Errors
     ///
     /// As `release_with`, and the error of `record`, with the lock left in place.
-    pub fn release_with_record(self, built: &Path, record: &dyn Fn() -> Result<(), std::io::Error>) -> Result<(), std::io::Error> {
+    pub fn release_with_record(self, built: &Path, record: &dyn Record) -> Result<(), std::io::Error> {
         return self.release_flushed_with_record(built, false, record);
     }
 
@@ -197,7 +217,7 @@ impl IndexLock {
     /// # Errors
     ///
     /// As `release_with_record`.
-    pub fn release_flushed_with_record(mut self, built: &Path, flushed: bool, record: &dyn Fn() -> Result<(), std::io::Error>) -> Result<(), std::io::Error> {
+    pub fn release_flushed_with_record(mut self, built: &Path, flushed: bool, record: &dyn Record) -> Result<(), std::io::Error> {
         match self.ownership() {
             Ownership::Owned => {}
             Ownership::Replaced => {
@@ -250,7 +270,7 @@ impl IndexLock {
         };
         // The record is made only when the directory was made durable.
         let recorded: std::io::Result<()> = match durable {
-            Ok(()) => record(),
+            Ok(()) => record.record(),
             Err(error) => Err(error),
         };
         if let Err(error) = recorded {

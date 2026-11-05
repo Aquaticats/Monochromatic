@@ -6,6 +6,13 @@ use crate::child_class::ChildClass;
 use crate::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING};
 use crate::wait_progress::Cadence;
 
+/// A function-like value with the right shape is a source of watch terms in these controls: the shipped caller writes a small struct.
+impl<Terms: Fn() -> WatchTerms> WatchTermsSource for Terms {
+    fn terms(&self) -> WatchTerms {
+        return self();
+    }
+}
+
 /// Requests carry their arguments and nothing else by default.
 #[test]
 fn requests_start_empty() {
@@ -197,7 +204,7 @@ fn input_files_leave_nothing_behind() {
     let mut read: Vec<u8> = Vec::new();
     file.read_to_end(&mut read).expect("read");
     assert_eq!(read, b"bytes");
-    let left: Vec<std::ffi::OsString> = std::fs::read_dir(root.join("cli-git-scratch"))
+    let left: Vec<std::ffi::OsString> = std::fs::read_dir(root.join("monochromatic-git-policy-cli-scratch"))
         .expect("the repository scratch directory exists")
         .map(|entry| { return entry.expect("entry").file_name(); })
         .collect();
@@ -245,9 +252,9 @@ fn a_command_reads_its_input_from_the_repository_scratch_directory() {
     request.input = Some(b"12345".to_vec());
     let output: GitOutput = run_git(&context, &request).expect("the fake runs");
     let named: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
-    let expected: String = format!("{}/cli-git-scratch/cli-git-input-", common.display());
+    let expected: String = format!("{}/monochromatic-git-policy-cli-scratch/cli-git-input-", common.display());
     assert!(named.starts_with(expected.as_str()), "{named} should start with {expected}");
-    assert_eq!(std::fs::read_dir(common.join("cli-git-scratch")).expect("scratch").count(), 0);
+    assert_eq!(std::fs::read_dir(common.join("monochromatic-git-policy-cli-scratch")).expect("scratch").count(), 0);
     remove(root.as_path());
 }
 
@@ -413,7 +420,7 @@ fn a_git_step_that_runs_long_is_announced_by_name() {
     let text: String = sink.text();
     assert!(text.lines().count() >= 3, "{text}");
     assert!(
-        text.starts_with(format!("cli-git: still waiting for git add -- a.md, {} (process ", class_of(request.arguments.as_slice()).label()).as_str()),
+        text.starts_with(format!("monochromatic-git-policy-cli: still waiting for git add -- a.md, {} (process ", class_of(request.arguments.as_slice()).label()).as_str()),
         "{text}"
     );
     remove(root.as_path());

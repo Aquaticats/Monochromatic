@@ -113,7 +113,7 @@ fn not_at_root(root: &str, severity: Severity) -> PolicyEvent {
         severity,
         code: "not-at-root",
         message: format!(
-            "cli-git: not at the root of the git repository. Repo root is {root} but effective cwd is {root}/sub. This rule exists because agents and humans frequently forget which directory they are in. Tip: cd to {root} or pass -C {root} before the subcommand."
+            "monochromatic-git-policy-cli: not at the root of the git repository. Repo root is {root} but effective cwd is {root}/sub. This rule exists because agents and humans frequently forget which directory they are in. Tip: cd to {root} or pass -C {root} before the subcommand."
         ),
         path: None,
         location: None,
@@ -290,7 +290,7 @@ fn a_guarded_command_is_prepared_in_order() {
         (
             WrappedOutcome::Exit {
                 code: 2,
-                stderr: String::from("cli-git: no location answer\n"),
+                stderr: String::from("monochromatic-git-policy-cli: no location answer\n"),
             },
             location_only()
         )

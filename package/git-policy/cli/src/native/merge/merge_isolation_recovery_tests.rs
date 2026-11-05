@@ -347,7 +347,7 @@ fn an_old_record_of_another_namespace_is_refused_and_named_and_nothing_changes()
     assert!(text.contains(record.to_string_lossy().as_ref()), "the record file is named: {text}");
     assert!(text.contains("31337") && text.contains("pid:[4026531999]"), "the owner and its namespace are named: {text}");
     assert!(text.contains("minutes old") && text.contains("another container") && text.contains("rm -- "), "age, the live-owner possibility and the rm: {text}");
-    assert!(text.contains("left running"), "the condition covers Git processes the wrapper left running, not only a cli-git command: {text}");
+    assert!(text.contains("left running"), "the condition covers Git processes the wrapper left running, not only a monochromatic-git-policy-cli command: {text}");
     assert!(record.exists(), "the record is untouched");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head);
     assert_eq!(snapshot(&world), before);
