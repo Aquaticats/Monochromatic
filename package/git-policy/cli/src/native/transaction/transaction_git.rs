@@ -147,20 +147,16 @@ fn build_command(context: &GitContext, request: &GitRequest) -> Command {
 /// ```ts
 /// await runTransactionGit({ ..., allowFailure: true })
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "`add_timing::step` (outside this folder) runs a callable under a timing label, and the callable must carry the context and the request"
-    )
-)]
 pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
     // An exact read-only command line the in-process readers know costs no Git process.
     if let Some(answered) = try_request(context, request) {
         return Ok(answered);
     }
     let label: String = crate::add_timing::git_step_label(request.arguments.as_slice());
-    return crate::add_timing::step(label.as_str(), || { return run_git_pausing(context, request, START_RETRY_BUDGET, &mut std::thread::sleep); });
+    let entered: bool = crate::add_timing::begin_step(label.as_str());
+    let output: std::io::Result<GitOutput> = run_git_pausing(context, request, START_RETRY_BUDGET, &mut std::thread::sleep);
+    crate::add_timing::end_step(entered);
+    return output;
 }
 
 /// What:

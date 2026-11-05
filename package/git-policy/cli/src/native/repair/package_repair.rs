@@ -15,7 +15,7 @@
 //! ```
 
 use crate::scoped_start::start_or_run;
-use crate::add_timing::work;
+use crate::add_timing::{begin_work, end_work};
 use crate::diagnostic_log::debug;
 use crate::package_repair_cargo::repair_cargo;
 use crate::package_repair_pnpm::repair_pnpm;
@@ -64,14 +64,26 @@ fn settled(joined: std::thread::Result<Option<Finding>>, tool: &str) -> Option<F
     dylint_lib = "monochromatic_lint_closure",
     expect(
         avoidable_closure,
-        reason = "std::thread::scope, start_or_run and work (add_timing.rs) take closures that borrow the request for the scope only, not 'static; see doc/planning/cli-git-closure-lint-suppressions.md"
+        reason = "std::thread::scope and start_or_run take closures that borrow the request for the scope only, not 'static; see doc/planning/cli-git-closure-lint-suppressions.md"
     )
 )]
 fn repair_side_by_side(request: &RepairRequest<'_>) -> (Option<Finding>, Vec<Finding>, Option<Finding>) {
     return std::thread::scope(|scope| {
-        let pnpm = start_or_run(scope, || { return work("repairPnpm", || { return repair_pnpm(request.destination, request.environment); }); });
-        let toolchain = start_or_run(scope, || { return work("repairToolchain", || { return repair_toolchain(request.destination, request.environment); }); });
-        let cargo: Vec<Finding> = work("repairCargo", || { return repair_cargo(request); });
+        let pnpm = start_or_run(scope, || {
+            let began: std::time::Instant = begin_work();
+            let found: Option<Finding> = repair_pnpm(request.destination, request.environment);
+            end_work("repairPnpm", began);
+            return found;
+        });
+        let toolchain = start_or_run(scope, || {
+            let began: std::time::Instant = begin_work();
+            let found: Option<Finding> = repair_toolchain(request.destination, request.environment);
+            end_work("repairToolchain", began);
+            return found;
+        });
+        let began: std::time::Instant = begin_work();
+        let cargo: Vec<Finding> = repair_cargo(request);
+        end_work("repairCargo", began);
         return (settled(pnpm.join(), "pnpm"), cargo, settled(toolchain.join(), "toolchain"));
     });
 }

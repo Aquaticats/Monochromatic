@@ -83,11 +83,9 @@ fn an_unreadable_thread_is_never_judged_quiet() {
 fn a_measured_job_leaves_its_gap_in_the_ledger() {
     crate::quiet_ledger::drain();
     let pause: Duration = Duration::from_millis(900);
-    let value: u8 = measured_quiet("measured fixture", || {
-        std::thread::sleep(pause);
-        return 3;
-    });
-    assert_eq!(value, 3);
+    let measurement: QuietMeasurement = QuietMeasurement::begin("measured fixture");
+    std::thread::sleep(pause);
+    measurement.finish();
     let figures = crate::quiet_ledger::drain();
     let kept = figures.iter().find(|(step, _)| { return step == "measured fixture"; }).expect("the step is in the ledger");
     assert!(kept.1 >= pause / 2 && kept.1 <= pause * 4, "{kept:?}");

@@ -124,20 +124,18 @@ fn the_child_line_names_the_wait_the_process_and_both_durations() {
     );
 }
 
-/// The reporter prints nothing before the grace, and the line builder does not run.
+/// The reporter reports no notice due and prints nothing before the grace.
 ///  The grace is an hour, so no host is slow enough to make the early poll late.
 #[test]
 fn the_reporter_prints_nothing_inside_the_grace() {
     let mut sink: Vec<u8> = Vec::new();
-    let mut built: u32 = 0;
     {
         let mut reporter: WaitReporter<'_> = WaitReporter::start(
             Cadence { grace: Duration::from_secs(3600), interval: Duration::from_secs(3600) },
             &mut sink,
         );
-        assert!(!reporter.poll(|_, _| { built += 1; return String::from("early"); }));
+        assert!(reporter.notice_due().is_none());
     }
-    assert_eq!(built, 0, "the builder runs only when a line is printed");
     assert!(sink.is_empty());
 }
 
@@ -155,7 +153,9 @@ fn the_reporter_prints_at_the_pace_of_its_ticker() {
         );
         let mut printed: u32 = 0;
         while printed < 3 {
-            if reporter.poll(|_, repeat| { built += 1; return format!("line repeat={repeat}"); }) {
+            if let Some(due) = reporter.notice_due() {
+                built += 1;
+                reporter.print_notice(format!("line repeat={}", due.repeat).as_str());
                 printed += 1;
             }
             std::thread::sleep(Duration::from_millis(2));

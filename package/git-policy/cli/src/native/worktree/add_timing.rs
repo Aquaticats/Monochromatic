@@ -11,7 +11,9 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! begin(commonDir);
-//! const value = step('walkSource', () => walk());
+//! const entered = beginStep('walkSource');
+//! const value = walk();
+//! endStep(entered);
 //! finish(exitCode); // appends JSON.stringify(record) + '\n' to join(commonDir, 'cli-git-worktree-add-timing.jsonl')
 //! ```
 
@@ -239,18 +241,10 @@ pub fn begin(common_dir: PathBuf) {
     }
 }
 
-/// Run `body` as the step `name`; with no recording begun, `body` runs alone.
-pub fn step<T>(name: &str, body: impl FnOnce() -> T) -> T {
-    let entered: bool = begin_step(name);
-    let value: T = body();
-    end_step(entered);
-    return value;
-}
-
 /// What:
-///  Enter the step `name` and say whether a recording took it; the first half of `step` for a caller that runs the body itself.
+///  Enter the step `name` and say whether a recording took it; the first half of a timed step.
 /// Why:
-///   A body that needs the caller's variables is written in place between `begin_step` and `end_step`, so no closure has to
+///   The body runs in place between `begin_step` and `end_step`, so it reads the caller's variables without a closure to
 ///  carry them. The answer goes to `end_step` unchanged; with no recording begun, nothing is entered and `end_step` does nothing.
 ///
 /// In TS you'd write (pseudocode):
@@ -276,7 +270,7 @@ pub fn begin_step(name: &str) -> bool {
 /// What:
 ///  Leave the step that `begin_step` entered, when it entered one.
 /// Why:
-///   The second half of `step`: it ends the step's clock at the moment the body is done, whether the body succeeded or not.
+///   The second half of a timed step: it ends the step's clock at the moment the body is done, whether the body succeeded or not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -336,27 +330,11 @@ pub fn git_step_label(arguments: &[OsString]) -> String {
 }
 
 /// What:
-///  Run `body` as work named `name` on any thread, adding its time to the name's sum; with no recording begun, `body` runs alone.
+///  The clock reading that starts a stretch of work on any thread, added to the name's sum when `end_work` is called.
 /// Why:
 ///   The repair of package managers runs its tools on worker threads, which the thread's own steps cannot see; the sum over
-///  threads says how much work a step held, and the step that waited for it says how long the add waited.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const value = work('clone', () => cloneTree());
-/// ```
-pub fn work<T>(name: &str, body: impl FnOnce() -> T) -> T {
-    let began: Instant = begin_work();
-    let value: T = body();
-    end_work(name, began);
-    return value;
-}
-
-/// What:
-///  The clock reading that starts a stretch of work; the first half of `work` for a caller that runs the body itself.
-/// Why:
-///   A body that needs the caller's variables is written in place between `begin_work` and `end_work`, so no closure has to
-///  carry them.
+///  threads says how much work a step held, and the step that waited for it says how long the add waited. The body runs in
+///  place between `begin_work` and `end_work`, so it reads the caller's variables without a closure to carry them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -371,7 +349,7 @@ pub fn begin_work() -> Instant {
 /// What:
 ///  Add the time since `began` to the work named `name`.
 /// Why:
-///   The second half of `work`: the sum per name says how much work a step held across threads.
+///   The second half of a stretch of work: the sum per name says how much work a step held across threads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
