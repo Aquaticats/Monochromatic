@@ -456,6 +456,11 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   off unless a config block selects them; measured on the wrapper at `8c9eb6e035`: 364 findings
   (288 missing `uses/` links, 27 glob re-exports, 1 folder loop, 21 file loops, 27 top docs without a file list).
   Open to veto from that agent: `mod.rs` and other crate roots are left out of the in-folder loop check.
+  Asked the owner async on 2026-11-05 (owner: ask "async", not with the question tool), pick adopted at once:
+  index files (`mod.rs`, `lib.rs` as index) hold only the top doc, `mod` lines and re-exports, anything else is a
+  finding; a name reached through a re-export counts as a use of the file that defines it.
+  An agent builds it on `feat/monochromatic-lint-index-files-hold-only-declarations`
+  (worktree `.claude/worktrees/lint-index-files-only-declarations`, from `bec267799f`); the owner's veto stays open.
   The `exclude = ["**/uses"]` for the wrapper's `Cargo.toml` is still to add through file-enforcer.
   The worktree lint branch is done (`refactor/git-policy-cli-lint-worktree-folders` at `8d19c13a28`):
   `worktree/` and `worktree_copying/` have zero `rust/avoidable-closure` and `rust/max-lines` findings,
@@ -472,6 +477,25 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   until measured; the merged gate must check these three, and a failure there is a defect to find.
   Its seam closures (`dyn Fn` parameters in subvolume, push and `start_retry`) stay suppressed;
   turning them into traits changes signatures used by `worktree/worktree_clone.rs` and test sidecars.
+  The command and policy branch is done too (`refactor/git-policy-cli-lint-command-and-policy-folders` at
+  `0595efcd4b`): zero findings of both rules in its 17 folders, 10 `expect`s documented in
+  `doc/planning/cli-git-closure-lint-suppressions.md`, 1507 host tests passed with the same test names as before,
+  clippy clean, no container gate.
+  All three finished branches are merged into `refactor/git-policy-cli-lint-all-folders`
+  (worktree `.claude/worktrees/lint-all-folders`, from main `bec267799f`) without conflicts;
+  clippy passed after the first two.
+  Next, after the service, landing and runner branch lands: merge it, one container gate, merge to main.
+  Then one follow-up pass, decided by the coordinator (LN1 and LN2: restructure rather than suppress):
+  give the callees guard or trait forms so most `expect`s go
+  (`worktree/add_timing.rs` already has `begin_step`/`end_step` and `begin_work`/`end_work` for the
+  `repair/package_repair_cargo.rs` wrappers; `process/thread_quiet.rs` `measured_quiet`;
+  `push/wait_progress.rs` `poll`; the `dyn Fn` seams in subvolume, push and `start_retry`),
+  keep only the ones `std::thread::scope` and `catch_unwind` need,
+  and merge the three suppression docs into one package doc beside the code
+  (today: `src/native/worktree/worktree_closure_lint_suppressions.md`,
+  `doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`,
+  and `doc/planning/cli-git-closure-lint-suppressions.md`, which is in the wrong family),
+  updating every `reason` that cites them.
   Next for the layout:
   break the file loops with named changes,
   split the large groups into folders,
