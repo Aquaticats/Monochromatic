@@ -120,6 +120,9 @@ mod layout_finding;
 ///  `uses` links that match the folders the code uses,
 ///  and no loop between folders.
 mod layout_folder_links;
+/// What an index file (`mod.rs`,
+///  or a crate root that is a folder's index) holds besides the index.
+mod layout_index_file_items;
 /// The `uses` folder of one source folder,
 ///  entry by entry.
 mod layout_link_entries;

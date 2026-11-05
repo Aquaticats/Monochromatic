@@ -14,11 +14,16 @@
 //!  is not listed and is not part of the loops,
 //! because it declares the folder's modules and every file may
 //!  name it with `super::`;
-//!  executable roots next to a library root are not listed either;
+//!  that is safe because an index file may hold only its top doc,
+//! `mod` lines and `pub use` re-exports,
+//!  and any other item in it is a finding that says to move it into a file of the folder
+//!  (`main.rs` that is the index may also hold `fn main` and plain `use` lines);
+//!  a use of a name that the index re-exports counts as a use of the sibling file that defines it,
+//!  so a re-export hides neither a loop nor an order;
+//!  executable roots next to a library root are not listed either,
+//!  and not read for code;
 //!  a folder with module files but no `mod.rs` is a finding,
 //! because it has no top doc.
-//!  Known limit:
-//!  an item that `mod.rs` re-exports and a sibling file reaches through `super::` hides the file that defines it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,11 +31,13 @@
 //! ```
 
 /// Import the finding shape,
+/// the index file check,
 /// the loop finder,
 /// the tree,
 /// the uses and the top doc reader.
 use crate::{
     layout_finding::{LayoutFinding, shown},
+    layout_index_file_items::{IndexRole, check_index_items},
     layout_loops::find_loops,
     layout_module_tree::ModuleTree,
     layout_module_uses::ModuleUse,
@@ -352,7 +359,9 @@ fn list_findings(
 /// What:
 ///  Check the file rule over a package.
 /// Why:
-///  A folder with fewer than one listed file has nothing to order and nothing to list.
+///  The index file of every folder is checked for code first,
+///  even when the folder has no other file;
+///  a folder with fewer than one listed file has nothing to order and nothing to list.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -363,6 +372,14 @@ pub fn check_file_order(tree: &ModuleTree, uses: &[ModuleUse], base: &Path) -> V
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     for (folder, files) in &by_folder {
         let index: Option<PathBuf> = index_file(folder, files, &roots);
+        if let Some(index_path) = &index {
+            let role: IndexRole = if file_name(index_path) == "main.rs" {
+                IndexRole::EntryPoint
+            } else {
+                IndexRole::Index
+            };
+            findings.extend(check_index_items(index_path, role, base));
+        }
         let mut listed: Vec<PathBuf> = Vec::<PathBuf>::new();
         for file in files {
             if Some(file) == index.as_ref() || roots.contains(file) {

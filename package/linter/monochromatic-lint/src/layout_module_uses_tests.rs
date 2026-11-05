@@ -172,8 +172,7 @@ fn a_ring_of_reexports_ends() {
     );
 }
 
-/// A re-export from a child folder sends the use to the child folder,
-/// and on to the file in it that the child's index re-exports from.
+/// A re-export from a child folder sends the use to the child folder.
 #[test]
 fn a_reexport_from_a_child_folder_names_the_child_folder() {
     let fixture = package_with(&[
@@ -196,8 +195,12 @@ fn a_reexport_from_a_child_folder_names_the_child_folder() {
         .expect("the use exists");
     assert_eq!(found.to, child);
     assert_eq!(folder_of(&tree, found.to), fixture.path.join("src/a/child"));
+}
 
-    // Once the child's index re-exports the name from its own file, the use goes on to that file.
+/// Once the child's index re-exports the name from its own file,
+/// the use goes on to that file.
+#[test]
+fn a_reexport_from_a_child_folder_goes_on_to_the_childs_own_file() {
     let fixture = package_with(&[
         ("src/lib.rs", "mod a;\n"),
         (

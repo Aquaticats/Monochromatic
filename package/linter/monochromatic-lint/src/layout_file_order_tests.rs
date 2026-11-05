@@ -277,7 +277,15 @@ fn a_reexport_from_a_child_folder_is_no_use_between_sibling_files() {
         ),
         ("src/a/one.rs", "use super::Thing;\n"),
         ("src/a/two.rs", "use super::one::X;\n"),
-        ("src/a/child/mod.rs", "pub struct Thing;\n"),
+        (
+            "src/a/child/mod.rs",
+            format!(
+                "{}pub use thing::Thing;\n",
+                index_listing(&["thing.rs"], &["thing"])
+            )
+            .as_str(),
+        ),
+        ("src/a/child/thing.rs", "pub struct Thing;\n"),
     ]);
     assert_eq!(findings_of(&fixture.path), Vec::<String>::new());
 }
@@ -297,6 +305,93 @@ fn a_ring_of_reexports_makes_no_loop_and_no_hang() {
         ),
         ("src/a/one.rs", "pub use super::Y;\n"),
         ("src/a/top.rs", "use super::Y;\n"),
+    ]);
+    assert_eq!(findings_of(&fixture.path), Vec::<String>::new());
+}
+
+/// Code in the index file of a folder with other files is a finding of the file rule,
+/// on the line of the item,
+/// and it does not hide a loop:
+/// the loop between the files is still found.
+#[test]
+fn code_in_the_index_of_a_folder_is_reported() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/a/mod.rs",
+            format!(
+                "{}fn helper() {{}}\n",
+                index_listing(&["one.rs", "two.rs"], &["one", "two"])
+            )
+            .as_str(),
+        ),
+        ("src/a/one.rs", "use super::two::X;\n"),
+        ("src/a/two.rs", "use super::one::X;\n"),
+    ]);
+    let found: Vec<String> = findings_of(&fixture.path);
+    let text: String = found.join("\n");
+    assert_eq!(found.len(), 2, "{text}");
+    assert!(
+        text.contains("src/a/mod.rs:9 src/a/mod.rs is the index of its folder"),
+        "{text}"
+    );
+    assert!(text.contains("but it holds a function `helper`."), "{text}");
+    assert!(
+        text.contains("These files use each other in a loop"),
+        "{text}"
+    );
+}
+
+/// An index that is alone in its folder is checked too:
+/// the crate root holds code and only folders.
+#[test]
+fn code_in_an_index_with_no_other_file_is_reported() {
+    let fixture = package_with(&[("src/lib.rs", "mod a;\nfn f() {}\n"), ("src/a/mod.rs", "")]);
+    let found: Vec<String> = findings_of(&fixture.path);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert!(
+        found[0].starts_with("src/lib.rs:2 src/lib.rs is the index of its folder"),
+        "{}",
+        found[0]
+    );
+}
+
+/// A `main.rs` that is the index of its folder may hold `fn main` and `use` lines beside the index.
+#[test]
+fn an_entry_point_may_hold_fn_main_and_its_uses() {
+    let fixture = package_with(&[
+        (
+            "src/main.rs",
+            "use std::process::ExitCode;\nmod a;\nfn main() -> ExitCode { ExitCode::SUCCESS }\n",
+        ),
+        ("src/a/mod.rs", ""),
+    ]);
+    assert_eq!(findings_of(&fixture.path), Vec::<String>::new());
+}
+
+/// Other code in an entry point is reported.
+#[test]
+fn other_code_in_an_entry_point_is_reported() {
+    let fixture = package_with(&[
+        ("src/main.rs", "mod a;\nfn run() {}\nfn main() { run(); }\n"),
+        ("src/a/mod.rs", ""),
+    ]);
+    let found: Vec<String> = findings_of(&fixture.path);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert!(
+        found[0].starts_with("src/main.rs:2 src/main.rs is the entry point of its program"),
+        "{}",
+        found[0]
+    );
+}
+
+/// A `main.rs` beside a `lib.rs` is another crate root and is not read.
+#[test]
+fn an_entry_point_beside_a_library_root_is_not_read() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        ("src/main.rs", "fn run() {}\nfn main() { run(); }\n"),
+        ("src/a/mod.rs", ""),
     ]);
     assert_eq!(findings_of(&fixture.path), Vec::<String>::new());
 }
