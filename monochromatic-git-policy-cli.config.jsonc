@@ -1,4 +1,4 @@
-// Repository-owned cli-git policy configuration for the native wrapper.
+// Repository-owned policy configuration for the monochromatic-git-policy-cli wrapper (renamed from cli-git.config.jsonc on 2026-11-04).
 // The native wrapper runs the four optional policies only when they are listed.
 // Evidence and the differential check: doc/handover/cli-git-native-config.md
 {
