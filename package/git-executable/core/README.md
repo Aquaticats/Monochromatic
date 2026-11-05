@@ -8,8 +8,8 @@ It recognizes Windows `PATHEXT`,
 rejects non-regular candidates without blocking on their contents,
 inspects script candidates up to 64 KiB for `@monochromatic-dev/git-policy-cli` delegation,
 rejects larger non-native candidates,
-rejects a candidate that resolves to the native wrapper executable `cli-git-native`
-(the installed `git` is a link to it),
+rejects a candidate that resolves to the native wrapper executable `monochromatic-git-policy-cli`
+or to its earlier name `cli-git-native` (the installed `git` is a link to it),
 and accepts any other ELF,
 PE,
 Mach-O,
