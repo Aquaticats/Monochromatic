@@ -58,7 +58,8 @@ Through this route,
    Recovery follows the owner's choice to rebuild and republish current versions.
 - `config.yaml`:
    generated and checked by this package
-   (`src/generated-config-sync.ts`, command line `src/generate-config.ts`).
+   (`src/generated-config-sync.ts`,
+  command line `src/generate-config.ts`).
    Run `mise run //package/config/pnpr:generate:config` after adding,
     removing,
     or changing the entry points of a workspace package;
@@ -70,7 +71,8 @@ Through this route,
 
 ## Which packages publish
 
-`generatePnprConfig` (selection in `selectPnprPublishedNames`, `src/generated-config-selection.ts`)
+`generatePnprConfig` (selection in `selectPnprPublishedNames`,
+`src/generated-config-selection.ts`)
 lists every workspace package that:
 
 - is outside `package/test-fixture/`,
