@@ -114,6 +114,14 @@ await describe({
             expect(PROCESS_NAME_WAIT_BAN_REASON.includes('systemd-run --user --wait',),).toBe(true,);
           },
         },),
+        it({
+          name: 'shows the long-run unit with memory, CPU, task and disk-weight limits and a disk weight of 10',
+          fn: async function testBanReasonLimits() {
+            for (const property of ['MemoryMax=', 'CPUQuota=', 'TasksMax=',])
+              expect(PROCESS_NAME_WAIT_BAN_REASON.includes(`--property=${property}`,),).toBe(true,);
+            expect(PROCESS_NAME_WAIT_BAN_REASON.includes('--property=IOWeight=10',),).toBe(true,);
+          },
+        },),
       ],
     },),
   ],

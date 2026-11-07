@@ -41,6 +41,12 @@ Every earlier name keeps working in this release:
   The fold waits while a process has the start arguments of the earlier commit service of the Git directory's worktree
    (a socket that only listens does not hold it), says one line per process what to do in plain words, and folds on a later command.
   A kill at any instruction leaves each byte under one of the two names, and the next command finishes the fold.
+  A program of an earlier release that opened a log before the fold moved it may still write a line to it, so the fold removes
+   the moved log only when no process on the machine has it open for writing (a read lease that is taken and given back at once
+   answers that, for any user and any namespace, and takes nothing from anyone).
+  While one does, the fold leaves the moved log and a journal beside the current log, says nothing, and each later command adds
+   only the lines written since and tries again, until that program has closed the log; no line is lost or added twice.
+   Each such command also looks at the running processes once (about 10 ms) while the moved log waits.
   Logs are not interleaved by time stamp: the current log is never rewritten, because other programs append to it without a lock.
   If a rename fails (a read-only Git directory), the earlier name is used for that run and the next command tries again.
 - The commit service units.
@@ -88,6 +94,12 @@ Read-only commands,
    on every file system: reclaimers take their place in a chain of numbered claim files (`cli-reclaim-*`) beside the lock and check that
    the name still refers to the file they judged before they unlink, so no `flock` is involved. A killed reclaimer can leave inert
    claim files, which `SPEC.md` ("The claim chain") says how to remove.
+  On a file system that supports neither a rename that does not replace nor a hard link (a FUSE server such as `s3fs-fuse`), the service
+   takes `index.lock` the way Git does, by exclusive creation, and writes its marker into the file afterwards, so a commit lands there as
+   it does with plain Git. A kill between the two steps leaves a lock without its marker, as plain Git leaves one: the wrapper never removes
+   it (it may be a Git that is still writing), a wrapped `git add` meets it as Git does, and a commit waits for it until the lock ceiling and
+   then says which file it is and the command that removes it (`SPEC.md`, "Placement and its refusals"). A killed service's lock with its whole
+   marker is removed by the next landing only where a claim file can be placed; on such a file system the notice names the file to remove.
   A marker carries the machine ID of its host: a reboot of the same machine ends the holder, and a lock or claim of a service on another
    machine (a repository on a shared file system) is never taken for stale. Neither is a marker of an earlier release, which names no
    machine and is reclaimed by that release's own exclusion: such a lock, or a claim that cannot be judged, stays, the commit waits as for

@@ -1871,6 +1871,13 @@ for that one case only: the publish answered by neither `renameat2` with `RENAME
      that holds on that filesystem (for example, that file locks are honored there); that is a measurement for the agent, and
      only a proven mechanism ships. Sources fetched to `~/temp/agent/git-prompt-src/lockfile-v2.56.0.c` and
      `tempfile-v2.56.0.c` (tag `v2.56.0`).
+- The index lock without links, branch `fix/git-policy-cli-index-lock-without-links`: item 2 above is built. `907416dba7` is the red test
+  (`a_filesystem_with_neither_no_replace_rename_nor_links_does_not_stop_a_commit`: `EOPNOTSUPP` on `link`, `linkat` and `renameat2`, real Git
+  as the native control); `place_lock` in `landing/service_index_placement.rs` takes `index.lock` by exclusive creation only when both the
+  rename that does not replace and the hard link were refused, writes and flushes the marker, and hands the created file's descriptor to the
+  hold (`Placed::Created`), because the ownership check compares the lock's inode. The claim chain keeps `place_marked` (a claim must be placed
+  whole). Self-clearing is not shipped: a file lock cannot tell a killed service's empty lock from a live Git's, since the lock file must
+  exist before it can be locked and Git never locks it; the empty lock stays, and the ceiling's words name the file and the fix.
 - Merged into main as `5e441f25d3` (2026-11-07, coordinator), with steps T1 to T4 and the publish swap; main's only wrapper
   changes since the branch's last main merge were rename step 3's README and two TypeScript test files.
 

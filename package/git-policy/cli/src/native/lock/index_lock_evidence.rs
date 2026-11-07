@@ -529,6 +529,25 @@ pub fn ceiling_line(lock_path: &Path, blocker: &str, waited_seconds: u64, conseq
 }
 
 /// What:
+///  The sentence that names the lock file and the fix when a wait ended at its ceiling on an owner nothing proves alive.
+/// Why:
+///   A lock without its marker is what plain Git leaves when it is killed holding it, and what a kill of the service leaves on a
+///  filesystem that places no file whole; nothing here removes it, because it may be a program that is still at work, so the
+///  person who knows no program is using the repository needs the file's name and the command to clear it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function unprovenRemovalAdvice(lockPath: string): string;
+/// ```
+pub fn unproven_removal_advice(lock_path: &Path) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: nothing proves a program is still using {lock}. If no program is using this repository, the lock was left by a program that was killed, \
+         and removing the file {lock} lets the command run.\n",
+        lock = lock_path.display()
+    );
+}
+
+/// What:
 ///  The words for the owner of a lock that is held, from the evidence: a process proven alive, or an owner nothing proves alive
 ///  with what was looked at.
 /// Why:

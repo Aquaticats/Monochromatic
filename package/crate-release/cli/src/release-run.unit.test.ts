@@ -38,6 +38,8 @@ const options: ReleaseOptions = {
   lockDirectories: ['package/git-policy/cli.fuzz'],
   host: 'local',
   memoryMax: '12G',
+  cpuQuota: '800%',
+  tasksMax: '2048',
   unitName: 'cli-git-publish-dry',
 };
 

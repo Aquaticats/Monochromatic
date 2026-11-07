@@ -134,11 +134,17 @@ const hostEnv = () => {
   return { ...process.env, LIBCLANG_PATH: '/usr/lib64', BINDGEN_EXTRA_CLANG_ARGS: '-resource-dir=' + resourceDir }
 }
 const defaultContainer = { image: 'localhost/monochromatic/music-player', containerfile: 'Containerfile', cargoVolume: 'music-player-cargo', limits: [], env: [], program: 'cargo' }
+// The build arguments the Containerfiles declare without a default: the CachyOS base image of this host's CPU level, the Rust
+// nightly and the Zig archive that toolchain.lock.json records. Each comes from a core-matrix command, never from a copy here.
+const coreMatrixCommand = (name, commandArgs) => execFileSync('node', [join(REPO_ROOT, 'package', 'test-harness', 'core-matrix', 'src', 'bin', name + '.ts'), ...commandArgs], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()
+const cachyosBuildArguments = (imageName) => ['--build-arg', coreMatrixCommand('cachyos-image', ['--image-name', imageName, '--build-argument'])]
+const rustToolchainBuildArguments = () => ['--build-arg', coreMatrixCommand('locked-rust-toolchain', ['--build-argument'])]
+const zigArchiveBuildArguments = () => coreMatrixCommand('locked-tool-build-arguments', ['zig']).split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+// Builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label).
+const containerImageBuild = ({ image, containerfile, buildArguments }) => execFileSync('node', [join(REPO_ROOT, 'package', 'test-harness', 'core-matrix', 'src', 'bin', 'container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs, containerOptions = {}) => {
   const container = { ...defaultContainer, ...containerOptions }
-  let imageExists = true
-  try { execFileSync('podman', ['image', 'exists', container.image], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', '-t', container.image, '-f', container.containerfile, '.'], { stdio: 'inherit' }) }
+  containerImageBuild({ image: container.image, containerfile: container.containerfile, buildArguments: [...cachyosBuildArguments(container.image.split('/').pop()), ...rustToolchainBuildArguments(), ...(container.containerfile === 'Containerfile' ? zigArchiveBuildArguments() : [])] })
   const debugInfoEnv = process.env.SLINT_EMIT_DEBUG_INFO ? ['-e', 'SLINT_EMIT_DEBUG_INFO=1'] : []
   const siblingMounts = [['../truepeak-core', '/truepeak-core'], ['../android-app/app/src/test/resources', '/android-app/app/src/test/resources'], ['../../../clippy.toml', '/clippy.toml']]
   const siblingMountArgs = siblingMounts.flatMap(([relative, inside]) => {

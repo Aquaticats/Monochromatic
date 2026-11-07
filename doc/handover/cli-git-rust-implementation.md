@@ -3572,12 +3572,23 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   (`8bfa833de3`): `doc/decision/ide-releases.md` and `doc/decision/desktop-app-podman-build.md`, each with the old
   statement kept in an amended note.
 - Running (briefs and resume notes in `~/temp/agent/coordinator-briefs/`):
-  - Zig: finish lint, Clippy and nextest, image tasks that rebuild when their lock-driven arguments change, the
-    prelude's missing build arguments, the music-player `branches` 0.4.6 break on the new nightly, the plan doc
-    (`fix/containers-zig-from-lock`);
+  - Zig: merged into main `c3198db0d0` (2026-11-07). Containers take Zig from the lock row; images carry the label
+    `dev.monochromatic.image-build-inputs-sha256` and rebuild only when it differs; five images on Zig 0.17.1; the
+    `branches` 0.4.6 break fixed through named catalog `branches-0-4` (removal condition in
+    `doc/troubleshooting/branches-0-4-calls-removed-core-intrinsics-abort.md`); commit `8b4ae3025f` is mis-scoped,
+    corrected by commit comment 208703294. Left from it: the music player is held on zbus 5 (named catalog `zbus-5`,
+    a pin back against "Move anyway, fix forward"), which the zbus 6 port agent removes
+    (`fix/nested-wayland-session-cli-zbus-6-async`); one music-player test fails,
+    `ui_lists_render_tests::a_search_result_title_wider_than_the_page_ends_in_an_ellipsis`
+    (`src/ui_lists_render_tests.rs:227`), cause not measured, queued; `image:windows-gnu` and
+    `nested-wayland-session` image tasks still use the old exists check;
   - the `mpm-shadow` alpha: crates.io absence check, lock update, install, worktree check, records;
   - `core-exec`: finish the lint cleanup and gate (`fix/monorepo-task-core-exec-depends-test-time`);
-  - fold late lines: read-lease design (`fix/git-policy-cli-fold-keeps-late-lines`);
+  - fold late lines: merged into main `baf4c039f2` (gate 5179 of 5179 on its second run; the first run failed only
+    `a_push_stop_of_a_responsive_holder_leaves_no_lock`, the same incident the tokio agent is measuring). A read lease
+    probes for an open writer; a writer still open leaves the moved log and an append-only journal for a later command;
+    eight rounds per command at most. Facts in `doc/planning/git-policy-cli-program-rename.md`. Limit: a file system
+    without leases makes the fold fail with its one-line message and keep every byte;
   - tokio: the three coordinator settlements, then T8 and T9 (`feat/git-policy-cli-on-tokio`);
   - index lock without links or no-replace rename (`fix/git-policy-cli-index-lock-without-links`);
   - mutation campaign over the merged tokio files (`test/git-policy-cli-tokio-mutants`, worktree
@@ -3604,15 +3615,60 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   warnings 0 errors; process-group kill and the daily-update lint cleanup included). Its lint run still logs
   "semantic evidence unavailable for .../core-exec/task.ts: project-not-found" (a preference log line, not a finding;
   not investigated).
+- Index lock where neither a no-replace rename nor a hard link is allowed: merged `136a40fe69` (branch gate 5172 of
+  5172 on main `d7d0813b92`; Clippy on main after the merge running as unit `main-wrapper-clippy-136a40fe69`). Only
+  when both calls are refused, `index.lock` is created with `O_EXCL`, marked and flushed; an existing lock is never
+  removed; facts in `SPEC.md` ("Placement and its refusals"). Not shipped, reasoning only (no such file system was
+  available to measure): self-clearing a lock a killed service left empty, because it is identical to a live Git's
+  mid-write lock; the wrapper never removes it, and the ceiling message names the file and how to remove it. Open:
+  `a_foreign_index_lock_at_the_ceiling_withdraws_the_commit_and_keeps_it_on_a_side_ref` failed once in a host run of
+  178 tests (13 s; passes alone in 8.6 s and in three container gates), cause not measured (rule SUF). Repo-wide
+  `monochromatic-lint` found 27 `markdown/semantic-line-breaks` errors in `service_fault.rs` that the package lint
+  does not run; whole-package count running as unit `main-wrapper-repo-lint-136a40fe69`.
+- systemd-run limits audit: merged `aab8488b0b` (2026-11-07). `crate-release` publish dry run, music-player e2e units,
+  `nested-wayland-session` app scope and the guardrail refusal text now carry `MemoryMax`, `CPUQuota`, `TasksMax` and
+  `IOWeight=10`, each cited to a measurement. Queued, all eight agent slots full at 2026-11-07T11:40-05:00 (start
+  each when a slot frees):
+  - Daily update has no post-update build check: `d61dc1934a` raised the zbus floor to `>=6.2.1` and
+    `nested-wayland-session` stopped compiling (no `zbus::blocking` in 6); no fix-forward issue was opened (`gh issue
+    list` empty). The owner's pick, `doc/planning/rust-nightly-always-latest.md:228`: "the lock goes to the newest
+    nightly regardless, and the failing package gets a fix-forward issue." Build: after the update, check each package
+    and open one issue per failing package; the move itself never waits. The crate port runs now
+    (`fix/nested-wayland-session-cli-zbus-6-async`).
+  - `cargo-shadow` launcher scope (`control_group.rs`) is created under its own slice with no limits, so a capped
+    caller's `cargo` build escapes the caller's caps. Adopted by the coordinator from repo precedent
+    (`package/wg/cli-quicker-exempt/src/inherited_limits.rs`): the scope copies the launcher's own `memory.max`,
+    `pids.max`, `cpu.max` and `io.weight`. Contract doc `doc/planning/cargo-shadow-guarantees.md` gains the clause.
+    Running since 2026-11-07T12:05-05:00 (`fix/cargo-shadow-cli-scope-keeps-caller-limits`), with an alpha release
+    and lock move. Separately unmerged since 2026-11-04: round 21 `feat/cargo-shadow-check-to-start-race`
+    (16 commits, worktree `.claude/worktrees/cargo-shadow-r21`, no agent on it).
+  - Guardrail bundle `package/claude-code-plugin/guardrail/bundle/node/index.mjs` still has the old refusal text; a
+    rebuild also pulls about 300 KB of unrelated source drift (patch at `~/temp/agent/guardrail-bundle-rebuild.patch`).
+    Rebuild deliberately through its task, attribute the drift to source commits, run the plugin's tests, commit.
+  - `package/music-player/desktop-e2e` lint: 11 errors and 89 warnings, older than the audit (not counted on an
+    unmodified main yet). Owner: "Principle 1: Lint issues need to be taken care of asap." Running since
+    2026-11-07T11:55-05:00 (`fix/music-player-desktop-e2e-lint-clean`).
+  - Daily-update fix-forward issues: running since 2026-11-07T11:55-05:00
+    (`feat/monorepo-task-daily-update-opens-fix-forward-issues`).
+- Settle test in suite: merged `58d910f99e` (gate 5166 of 5166, lint clean; test-only). Cause shown by sharing state:
+  another test's fixture service shows the earlier `--journal` word before it creates that folder (measured median
+  1.7 ms, max 485 ms alone), and the settle command's process look counts it as `Hold::HelperUnsure`, settles nothing
+  and exits 1 (the conservative design, unchanged). The settle controls now ask again while that exact answer comes
+  back, up to the existing 60 s. Kept for later, not changed: treating ENOENT on an absolute word as "not this
+  worktree's journal" (an earlier helper on another spelling of a not-yet-created journal could still adopt batches).
+  Running: the held message names the program, its command line (masked), the unresolved folder and what to do
+  (rule DGT; `fix/git-policy-cli-held-settle-names-the-program`).
 - Layout, 2026-11-07T11:05:21-05:00: rescan and library verdicts merged (`docs/git-policy-cli-layout-after-adopted-crates`);
   owner answered "Shelf + summaries (Recommended)", "Four libraries (Recommended)" (starting-and-watching-programs,
   parallel-work-within-a-budget, fix-packages-after-copying-a-folder, dependent-version-bump-check) and
   "tracing (Recommended)" for library logs; recorded in the layout plan. Still "Not yet." from the owner: test helpers,
   where the libraries live. Running: `monochromatic-lint` group-summary checks
   (`feat/monochromatic-lint-group-folder-summaries`). Next: after the remaining tokio steps, rescan, then move steps 2
-  to 6 on branches. Also from that pass: `mpm-shadow` fixed for global pnpm installs (merge `dea47ef164`; physical
-  `PNPM_HOME`); an agent releases it as `0.2.7-alpha.2` after checking a `tagPrefix` field the main build rejected in
-  the global plan and making install re-observe what pnpm added, then repairs the 11 global tools.
+  to 6 on branches. Also from that pass: `mpm-shadow` `0.2.7-alpha.2` released, locked (`d48fb5cc36`) and installed:
+  global pnpm installs use a physical `PNPM_HOME` and are read back after `pnpm add`; `toolchain:list:global` 62 of 62
+  in sync after one `toolchain:install:global`; the `tagPrefix` rejection came from a binary older than `eb202865fc`,
+  not main. Left: `install_mpm_uvx` still trusts `uv`'s exit status (recorded in
+  `doc/troubleshooting/pnpm-symlinked-store-path.md`).
 - Layout (owner: "Layout + linting fixes are the biggest priority."): the redone split waits on the owner, who
   answered "Not yet." for the test helpers and for where libraries live, "One level of groups" for the program, and
   asked "Why are we not using already established crates for some functions?" An agent now rescans main, checks each
@@ -3714,10 +3770,9 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   end, every byte kept), folders merged entry by entry with `rename_noreplace`, a clash keeps both
   (`<name>.from-earlier-release`); a journal plus `flock` makes every step restartable; it waits while this
   worktree's earlier commit service runs (main's `cli-git@fc85fdf7a58f866b7f7a84b44fe0b69a` is running now), with about
-  10 ms per command while waiting. The old notice and its flaky test are gone. Known gap, must close before the next
-  wrapper release: a line an earlier-release wrapper writes into the moved-aside log after the last size check is lost
-  when the moved file is removed (about 216 checkouts lock older releases); agent on
-  `fix/git-policy-cli-fold-keeps-late-lines`. Another suite-only failure seen once in its gates:
+  10 ms per command while waiting. The old notice and its flaky test are gone. The late-line gap is closed in main
+  (`baf4c039f2`). The next wrapper release waits only for the tokio agent's measured cause of the leftover ref lock.
+  Another suite-only failure seen once in its gates:
   `service::the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero` (passed alone and in three later
   gates; cause not measured; queued). Its agent wrote a planning section into main's checkout by mistake and removed
   exactly its own lines with `git apply --reverse`; main was clean after.
@@ -3727,9 +3782,7 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `fix/monorepo-task-core-exec-depends-test-time` (`b9bbbb4268`), not merged. Back with its agent for a process-group
   kill (a timed-out pipeline survives today) and for the package lint, which fails on main with 16 warnings in
   `daily-update-*.ts`, `mpm-shadow.unit.test.ts` and `playwright-image.unit.test.ts`. Bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`)
-  started about 09:34. Still waiting for a slot: the terminal and music-player Containerfiles taking Zig from the lock row instead of `ZIG_VERSION=0.15.2`
-  (`fix/containers-zig-from-lock`); both briefs are saved in
-  `~/temp/agent/coordinator-briefs/waiting-for-a-slot.md` (scratch, lost on reboot).
+  started about 09:34.
 - Tokio T1 to T4 merged into main as `5e441f25d3` (branch gate 5127 of 5127, Clippy and lint clean; main's only wrapper
   changes since the branch's last main merge were rename step 3's README and two TypeScript files). It brings the fix for the
   service decision file that needed hard links. The agent's two owner questions were settled from owner rules, recorded in

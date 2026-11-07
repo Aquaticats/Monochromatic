@@ -120,9 +120,63 @@ fn an_npm_tool_installs_globally_at_the_locked_version_with_its_allowed_builds()
     let rig = Rig::new();
     let pnpm = rig.scope.toolchain_bin_dir.join("pnpm");
     write_executable(&pnpm);
+    rig.runner.answer("pnpm list --global", WRANGLER_1_2_3_LISTING, 0);
     install_tool(&rig.context(), &rig.tool("npm:wrangler")).expect("installed");
-    assert_eq!(rig.runner.lines(), vec!["pnpm add --global --allow-build esbuild wrangler@1.2.3".to_string()]);
+    assert_eq!(rig.runner.lines()[0], "pnpm add --global --allow-build esbuild wrangler@1.2.3");
     assert_eq!(rig.runner.calls()[0].command, pnpm.to_str().expect("utf-8"));
+}
+
+/// What `pnpm list --global --depth=0 --json` prints when `wrangler` 1.2.3 is installed.
+const WRANGLER_1_2_3_LISTING: &str = "[{\"dependencies\": {\"wrangler\": {\"version\": \"1.2.3\"}}}]";
+
+/// `pnpm add --global` exits 0 when it writes links that `pnpm list --global` cannot read,
+/// so the install reads the package back and a package that is still absent is a failure.
+#[test]
+fn an_npm_tool_that_pnpm_added_but_does_not_list_is_a_failed_install() {
+    let rig = Rig::new();
+    write_executable(&rig.scope.toolchain_bin_dir.join("pnpm"));
+    rig.runner.answer("pnpm add --global", "", 0);
+    rig.runner.answer("pnpm list --global", "[{\"dependencies\": {}}]", 0);
+    let error = install_tool(&rig.context(), &rig.tool("npm:wrangler")).expect_err("added but still absent");
+    assert!(error.message.contains("wrangler"), "the message names the package: {error}");
+    assert!(error.message.contains("absent"), "the message names the observed state: {error}");
+    assert_eq!(
+        rig.runner.lines(),
+        vec![
+            "pnpm add --global --allow-build esbuild wrangler@1.2.3".to_string(),
+            "pnpm list --global --depth=0 --json".to_string()
+        ],
+        "the package is read back with the same listing `list` reads"
+    );
+}
+
+/// The read-back names the version it found when pnpm listed another one.
+#[test]
+fn an_npm_tool_that_pnpm_lists_at_another_version_is_a_failed_install() {
+    let rig = Rig::new();
+    write_executable(&rig.scope.toolchain_bin_dir.join("pnpm"));
+    rig.runner.answer("pnpm list --global", "[{\"dependencies\": {\"wrangler\": {\"version\": \"0.9.0\"}}}]", 0);
+    let error = install_tool(&rig.context(), &rig.tool("npm:wrangler")).expect_err("another version");
+    assert!(error.message.contains("wrangler"), "{error}");
+    assert!(error.message.contains("0.9.0"), "the message names the observed version: {error}");
+    assert!(error.message.contains("1.2.3"), "the message names the locked version: {error}");
+}
+
+/// The positive control of the two tests before it:
+/// the same install with the package listed at the locked version succeeds and reads it back once.
+#[test]
+fn an_npm_tool_that_pnpm_lists_at_the_locked_version_is_installed() {
+    let rig = Rig::new();
+    write_executable(&rig.scope.toolchain_bin_dir.join("pnpm"));
+    rig.runner.answer("pnpm list --global", WRANGLER_1_2_3_LISTING, 0);
+    install_tool(&rig.context(), &rig.tool("npm:wrangler")).expect("installed");
+    assert_eq!(
+        rig.runner.lines(),
+        vec![
+            "pnpm add --global --allow-build esbuild wrangler@1.2.3".to_string(),
+            "pnpm list --global --depth=0 --json".to_string()
+        ]
+    );
 }
 
 /// The install side of the same rule:
@@ -133,6 +187,7 @@ fn an_npm_tool_installs_globally_at_the_locked_version_with_its_allowed_builds()
 fn an_npm_tool_installs_with_the_physical_spelling_of_the_pnpm_home() {
     let (rig, canonical_home) = Rig::through_symlinked_home();
     write_executable(&rig.scope.toolchain_bin_dir.join("pnpm"));
+    rig.runner.answer("pnpm list --global", WRANGLER_1_2_3_LISTING, 0);
     install_tool(&rig.context(), &rig.tool("npm:wrangler")).expect("installed");
     let call = &rig.runner.calls()[0];
     let env = call.env.as_ref().expect("an explicit environment");

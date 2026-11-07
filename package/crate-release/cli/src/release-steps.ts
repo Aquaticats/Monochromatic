@@ -11,6 +11,7 @@ import {
   lockFileName,
   manifestFileName,
   systemdRunProgram,
+  unitIoWeight,
 } from './constants.ts';
 import type {
   ReleaseHost,
@@ -200,21 +201,29 @@ export function buildPublishDryRunTail(): readonly string[] {
 
  @param memoryMax - systemd `MemoryMax` value of the unit
 
+ @param cpuQuota - systemd `CPUQuota` value of the unit
+
+ @param tasksMax - systemd `TasksMax` value of the unit, which counts threads and processes
+
  @returns the arguments after `systemd-run`; the cargo call is last, so no shell reads anything
 
  @example
  ```ts
- buildPublishDryRunArguments({ unitName: 'u', workingDirectory: '/r/c', memoryMax: '12G' });
+ buildPublishDryRunArguments({ unitName: 'u', workingDirectory: '/r/c', memoryMax: '12G', cpuQuota: '800%', tasksMax: '2048' });
  ```
  */
 export function buildPublishDryRunArguments({
   unitName,
   workingDirectory,
   memoryMax,
+  cpuQuota,
+  tasksMax,
 }: {
   readonly unitName: string;
   readonly workingDirectory: string;
   readonly memoryMax: string;
+  readonly cpuQuota: string;
+  readonly tasksMax: string;
 }): readonly string[] {
   return [
     '--user',
@@ -224,6 +233,9 @@ export function buildPublishDryRunArguments({
     '--pipe',
     `--working-directory=${workingDirectory}`,
     `--property=MemoryMax=${memoryMax}`,
+    `--property=CPUQuota=${cpuQuota}`,
+    `--property=TasksMax=${tasksMax}`,
+    `--property=IOWeight=${String(unitIoWeight)}`,
     cargoProgram,
     ...buildPublishDryRunTail(),
   ];
@@ -288,6 +300,8 @@ function publishDryRunStep({
         unitName: options.unitName,
         workingDirectory: crateRoot,
         memoryMax: options.memoryMax,
+        cpuQuota: options.cpuQuota,
+        tasksMax: options.tasksMax,
       }),
       cwd: crateRoot,
     }

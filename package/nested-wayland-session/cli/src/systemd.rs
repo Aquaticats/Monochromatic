@@ -1,10 +1,15 @@
-//! systemd-based CPU isolation for the hosted app,
+//! systemd-based CPU,
+//!  memory,
+//!  task and disk isolation for the hosted app,
 //!  with graceful degradation.
 //!
 //! To keep a steady 60fps capture even when the hosted app is CPU-greedy,
 //!  the app can be
 //! launched inside a transient systemd user scope with a `CPUQuota` (a hard cap on total
-//! CPU time) and a low `CPUWeight` (so it yields to the compositor under contention).
+//! CPU time),
+//!  a low `CPUWeight` (so it yields to the compositor under contention),
+//!  a `MemoryMax`,
+//!  a `TasksMax` and a low `IOWeight` (so a runaway app cannot exhaust the host).
 //!  That
 //! reserves headroom for the render thread and encoder pool.
 //!  When systemd is unavailable
@@ -29,7 +34,7 @@ use std::process::Command;
 ///  or warn when degrading.
 use tracing::{info, warn};
 
-/// CPU-isolation settings for the hosted app.
+/// Resource-isolation settings for the hosted app.
 ///
 /// What:
 ///      `pub struct Isolation { pub enabled: bool, pub cpu_quota_percent: Option<u32>,
@@ -54,7 +59,69 @@ pub struct Isolation {
     /// Optional relative CPU share (systemd `CPUWeight`,
     ///  1..=10000).
     pub cpu_weight: Option<u32>,
+    /// Optional memory cap of the app scope,
+    ///  as a systemd `MemoryMax` value such as `4G`.
+    pub memory_max: Option<String>,
+    /// Optional limit on the threads and processes of the app scope,
+    ///  as a systemd `TasksMax` count.
+    pub tasks_max: Option<u32>,
 }
+
+/// What:
+///      `const DEFAULT_APP_MEMORY_MAX: &str = "4G";`.
+///  The memory cap of the app scope when no `--app-memory-max` is given.
+///  `&str` is a borrowed text slice baked into the program (not `String`,
+///           which would allocate at run time for a value that never changes).
+/// Why:
+///       Measured on 2026-11-07 on the one app this fixture hosts in its tests,
+///  the music player,
+///           inside the nested compositor:
+///  its process peaked at 138828 KiB resident (`VmHWM`) over a full 122-check end-to-end run
+///           (`package/music-player/desktop-e2e`).
+///  4G is about thirty times that peak,
+///           because the hosted app can be any program and a cap that kills a heavier one without a hint is worse than a loose one.
+///  Raise it with `--app-memory-max` for an app that needs more.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const DEFAULT_APP_MEMORY_MAX = "4G";
+/// ```
+const DEFAULT_APP_MEMORY_MAX: &str = "4G";
+
+/// What:
+///      `const DEFAULT_APP_TASKS_MAX: u32 = 512;`.
+///  The limit on threads and processes of the app scope when no `--app-tasks-max` is given.
+///  `u32` is an unsigned 32-bit whole number (not `usize`,
+///           which changes width with the machine,
+///           and not `i32`,
+///           which allows negative values systemd rejects).
+/// Why:
+///       A control group counts threads as well as processes.
+///  The music player ran at most 66 threads in the same measurement as `DEFAULT_APP_MEMORY_MAX`,
+///           and 512 is a power of two about eight times that,
+///           because a start that hits the limit fails with a bare `EAGAIN` that names no limit.
+///  Raise it with `--app-tasks-max`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const DEFAULT_APP_TASKS_MAX: number = 512;
+/// ```
+const DEFAULT_APP_TASKS_MAX: u32 = 512;
+
+/// What:
+///      `const APP_IO_WEIGHT: u32 = 10;`.
+///  The disk weight (`IOWeight`) of the app scope.
+/// Why:
+///       The owner's rule (`CLAUDE.md`,
+///  rule RXS) is never above 10,
+///           and a scope without the property gets systemd's default of 100.
+///  No option raises it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const APP_IO_WEIGHT: number = 10;
+/// ```
+pub const APP_IO_WEIGHT: u32 = 10;
 
 /// Cores to leave free for the compositor when computing a default CPU quota.
 ///
@@ -195,16 +262,6 @@ pub fn build_child_command(program: &str, args: &[String], isolation: &Isolation
         return direct(program, args);
     }
 
-    // What:     `let quota = isolation.cpu_quota_percent.unwrap_or_else(default_quota_percent);`.
-    //           The hard cap, defaulting to the machine-sized reservation.
-    // Why:      Always cap the app when isolating, so the compositor keeps headroom.
-    let quota = isolation.cpu_quota_percent.unwrap_or_else(default_quota_percent);
-
-    // What:     `let weight = isolation.cpu_weight.unwrap_or(DEFAULT_APP_WEIGHT);`. The soft
-    //           share, defaulting low.
-    // Why:      Deprioritise the app under contention.
-    let weight = isolation.cpu_weight.unwrap_or(DEFAULT_APP_WEIGHT);
-
     // What:     `let mut cmd = Command::new("systemd-run");`. Start the wrapper command.
     // Why:      systemd-run places the app in a resource-controlled transient scope.
     let mut cmd = Command::new("systemd-run");
@@ -217,13 +274,26 @@ pub fn build_child_command(program: &str, args: &[String], isolation: &Isolation
     // Why:      Run the app in a scope we can constrain, transparently to it.
     cmd.args(["--user", "--scope", "--collect", "--quiet"]);
 
-    // What:     `cmd.arg(format!("--property=CPUQuota={quota}%"));`. Set the hard CPU cap.
-    // Why:      Bound the app's total CPU so encoders and the render thread are never starved.
-    cmd.arg(format!("--property=CPUQuota={quota}%"));
+    // What:     `let properties = isolation_properties(isolation);`. Ask the pure helper for
+    //           every `--property=NAME=value` argument the scope carries. `isolation` is already
+    //           a `&Isolation` (a borrow), so it is passed on as it is.
+    // Why:      The limits live in one function that a test can call without a user manager.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const properties = isolationProperties(isolation);
+    // ```
+    let properties = isolation_properties(isolation);
 
-    // What:     `cmd.arg(format!("--property=CPUWeight={weight}"));`. Set the soft share.
-    // Why:      Under contention the scheduler favours the compositor.
-    cmd.arg(format!("--property=CPUWeight={weight}"));
+    // What:     `cmd.args(&properties);`. Append each property as its own argument.
+    //           `&properties` lends the `Vec<String>` read-only.
+    // Why:      Each property reaches `systemd-run` as one argument, never through a shell.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // cmd.args(properties);
+    // ```
+    cmd.args(&properties);
 
     // What:     `cmd.arg("--");`. End of systemd-run options.
     // Why:      Everything after is the app command line.
@@ -236,11 +306,102 @@ pub fn build_child_command(program: &str, args: &[String], isolation: &Isolation
 
     // What:     `info!(...)`. Announce the applied isolation.
     // Why:      Make the constraint visible in logs.
-    info!("hosting the app under a systemd scope: CPUQuota={quota}%, CPUWeight={weight}");
+    info!("hosting the app under a systemd scope with {}", properties.join(" "));
 
     // What:     `cmd`. Return the configured wrapper command (tail expression).
     // Why:      The caller adds Wayland env and spawns it.
     return cmd
+}
+
+/// What:
+///      `pub fn isolation_properties(isolation: &Isolation) -> Vec<String>`.
+///  Returns every `--property=NAME=value` argument of the scope that hosts the app,
+///           in order:
+///  `CPUQuota`,
+///           `CPUWeight`,
+///           `MemoryMax`,
+///           `TasksMax` and `IOWeight`.
+///  `&Isolation` borrows the settings read-only;
+///           `Vec<String>` is a growable list of owned strings (not `&[&str]`,
+///           because the values are built at run time and must outlive this call).
+/// Why:
+///       The limits are decided in one pure function,
+///  so a test reads them without starting a scope.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isolationProperties(isolation: Isolation): string[] { ... }
+/// ```
+pub fn isolation_properties(isolation: &Isolation) -> Vec<String> {
+    // What:     `let quota = isolation.cpu_quota_percent.unwrap_or_else(default_quota_percent);`.
+    //           `Option<u32>` holds the caller's cap or nothing; `unwrap_or_else` takes the
+    //           value when present and otherwise calls `default_quota_percent` (a function
+    //           passed as a value, as in TS).
+    // Why:      Always cap the app when isolating, so the compositor keeps headroom.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const quota = isolation.cpuQuotaPercent ?? defaultQuotaPercent();
+    // ```
+    let quota = isolation.cpu_quota_percent.unwrap_or_else(default_quota_percent);
+
+    // What:     `let weight = isolation.cpu_weight.unwrap_or(DEFAULT_APP_WEIGHT);`. The soft
+    //           share; `unwrap_or` takes the value when present and otherwise the constant.
+    // Why:      Deprioritise the app under contention.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const weight = isolation.cpuWeight ?? DEFAULT_APP_WEIGHT;
+    // ```
+    let weight = isolation.cpu_weight.unwrap_or(DEFAULT_APP_WEIGHT);
+
+    // What:     `vec![...]` builds a `Vec<String>` from a list; `format!` builds a `String`
+    //           like a TS template literal. `APP_IO_WEIGHT` is the fixed disk weight. The last
+    //           expression has no `;`, so it is the return value.
+    // Why:      Hand the caller the properties in the order they are passed to systemd-run.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return [
+    //   `--property=CPUQuota=${quota}%`, `--property=CPUWeight=${weight}`,
+    //   `--property=MemoryMax=${memoryMax}`, `--property=TasksMax=${tasksMax}`,
+    //   `--property=IOWeight=${APP_IO_WEIGHT}`,
+    // ];
+    // ```
+    // What:     `match &isolation.memory_max { Some(value) => value.clone(), None => ... }`.
+    //           `&isolation.memory_max` borrows the `Option<String>` without moving it. `Some(value)`
+    //           is the arm taken when the caller named a cap (`value` is a borrowed `&String`);
+    //           `.clone()` copies it into a new owned `String`. `None` is the arm taken when nothing
+    //           was named; `DEFAULT_APP_MEMORY_MAX.to_string()` turns the borrowed text slice into an
+    //           owned `String` so both arms produce the same type.
+    // Why:      The scope always carries a memory cap: the caller's, or the measured default.
+    // Gotcha:   `.clone()` copies the text; there is no shared reference as in TS strings.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const memoryMax = isolation.memoryMax ?? DEFAULT_APP_MEMORY_MAX;
+    // ```
+    let memory_max = match &isolation.memory_max {
+        Some(value) => value.clone(),
+        None => DEFAULT_APP_MEMORY_MAX.to_string(),
+    };
+
+    // What:     `isolation.tasks_max.unwrap_or(DEFAULT_APP_TASKS_MAX)`. The caller's task limit, or the default.
+    // Why:      The scope always carries a task limit.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const tasksMax = isolation.tasksMax ?? DEFAULT_APP_TASKS_MAX;
+    // ```
+    let tasks_max = isolation.tasks_max.unwrap_or(DEFAULT_APP_TASKS_MAX);
+
+    return vec![
+        format!("--property=CPUQuota={quota}%"),
+        format!("--property=CPUWeight={weight}"),
+        format!("--property=MemoryMax={memory_max}"),
+        format!("--property=TasksMax={tasks_max}"),
+        format!("--property=IOWeight={APP_IO_WEIGHT}"),
+    ]
 }
 
 /// Build a direct (un-isolated) command for the app.
@@ -264,3 +425,8 @@ fn direct(program: &str, args: &[String]) -> Command {
     // Why:      Hand it back to the caller.
     return cmd
 }
+
+/// Verifies the properties the isolated scope carries.
+#[cfg(test)]
+#[path = "systemd_tests.rs"]
+mod tests;

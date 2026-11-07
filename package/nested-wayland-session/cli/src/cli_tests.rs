@@ -61,6 +61,8 @@ fn defaults_are_preserved() {
     assert_eq!(config.control_socket, None);
     assert_eq!(config.app_cpu_quota, None);
     assert_eq!(config.app_cpu_weight, None);
+    assert_eq!(config.app_memory_max, None);
+    assert_eq!(config.app_tasks_max, None);
     assert!(!config.isolate);
     assert_eq!(config.scale, OutputScale::ONE);
     // The announced key repeat pair keeps the production defaults.
@@ -125,6 +127,14 @@ fn all_parent_options_are_preserved() {
     assert_eq!(config.child_command, ["app", "a file.txt"]);
 }
 
+/// The memory cap and the task limit of the isolated app are accepted as given.
+#[test]
+fn app_memory_and_task_limits_are_accepted() {
+    let config = parsed(&["--isolate", "--app-memory-max", "3G", "--app-tasks-max", "77", "--", "app"]);
+    assert_eq!(config.app_memory_max, Some("3G".to_string()));
+    assert_eq!(config.app_tasks_max, Some(77));
+}
+
 /// Both documented appearance values remain accepted.
 #[test]
 fn color_scheme_flag_accepts_supported_values() {
@@ -179,7 +189,8 @@ fn joined_parent_values_are_supported() {
 #[test]
 fn missing_inputs_are_errors() {
     for input in [vec![], vec!["--"], vec!["--socket"], vec!["--size"],
-        vec!["--color-scheme"], vec!["--app-cpu-quota"], vec!["--app-cpu-weight"]] {
+        vec!["--color-scheme"], vec!["--app-cpu-quota"], vec!["--app-cpu-weight"],
+        vec!["--app-memory-max"], vec!["--app-tasks-max"]] {
         assert!(parse_args(&args(&input)).is_err());
     }
 }
@@ -199,6 +210,8 @@ fn invalid_option_values_are_rejected() {
         ["--color-scheme", "system", "app"],
         ["--app-cpu-quota", "not-a-number", "app"],
         ["--app-cpu-weight", "4294967296", "app"],
+        ["--app-memory-max", "4G;x", "app"],
+        ["--app-tasks-max", "not-a-number", "app"],
     ] {
         let error = parse_args(&args(&input)).err().expect("expected validation error");
         assert!(error.to_string().contains(input[0]));

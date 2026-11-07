@@ -385,6 +385,8 @@ await describe({
                     lockDirectories: entry.lockDirectories,
                     host: 'runner',
                     memoryMax: '1G',
+                    cpuQuota: '100%',
+                    tasksMax: '64',
                     unitName: 'u',
                   });
                   for (const path of paths)
