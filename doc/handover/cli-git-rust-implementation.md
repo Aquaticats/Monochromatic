@@ -3593,8 +3593,11 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     2 of 5165 under load about 70 on 28 CPUs, on Rust code identical to the 5165-of-5165 `tokio-gate-merge2` run:
     `lock::git_stop_lock_tests::a_push_stop_of_a_responsive_holder_leaves_no_lock` (a stopped push left
     `refs/remotes/origin/main.lock`) and `push::push_progress::tests::a_write_of_a_process_the_root_started_is_progress`
-    (fixture removal hit `DirectoryNotEmpty`). Both touch child stopping, which T5 rewrote; sent to the tokio agent as
-    priority before T8. The campaign waits for a clean gate. Note: `systemd-run` expands `$VAR` in its command line,
+    (fixture removal hit `DirectoryNotEmpty`). Sent to the tokio agent as priority before T8. The second is shown from
+    the code to be a test-helper defect older than T5: `end()` kills only the `sh` leader, the group from
+    `spawn_owned` dies only when the test thread ends (after `remove()`), and the meter counts `rchar` plus `wchar`, so
+    a read can end the wait before the subshell's `echo a >> log` creates a file during `remove_dir_all`. The first (a
+    ref lock left by a stopped push) still needs its measured cause. The campaign waits for a clean gate. Note: `systemd-run` expands `$VAR` in its command line,
     so a literal `$?` must be written `$$?`;
   - the settle-command test that fails only in its suite (`fix/git-policy-cli-settle-test-in-suite`).
 - `core-exec` depends branch merged as `adadb1d03b` (`buildAndTest` 52 suites pass, `lint:types` clean, `lint` 0
