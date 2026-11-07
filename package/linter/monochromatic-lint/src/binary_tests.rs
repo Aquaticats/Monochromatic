@@ -1490,10 +1490,13 @@ fn layout_group_folders_run_in_the_built_executable() {
     let fixture: Fixture = Fixture::new();
     fixture.write("Cargo.toml", "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n");
     fixture.write("src/lib.rs", "mod g;\nmod h;\n");
+    let list: &str = "//! Files in this folder, each using only files listed before it:\n//!\n";
     fixture.write("src/g/mod.rs", "mod a;\n");
-    fixture.write("src/g/a/mod.rs", "pub struct X;\n");
+    fixture.write("src/g/a/mod.rs", format!("{list}//! - `thing.rs`: the thing.\nmod thing;\n").as_str());
+    fixture.write("src/g/a/thing.rs", "pub struct X;\n");
     fixture.write("src/h/mod.rs", "mod c;\n");
-    fixture.write("src/h/c/mod.rs", "use crate::g::a::X;\n");
+    fixture.write("src/h/c/mod.rs", format!("{list}//! - `user.rs`: uses the thing.\nmod user;\n").as_str());
+    fixture.write("src/h/c/user.rs", "use crate::g::a::X;\n");
     fixture.write(CONFIG, r#"[{ "files": ["**/*.rs"], "rules": {
       "rust/folder-uses-links": { "severity": "error" },
       "rust/file-order-in-folder": { "severity": "error" }
@@ -1505,7 +1508,7 @@ fn layout_group_folders_run_in_the_built_executable() {
     assert_eq!(missing.status, 1, "{}", missing.stderr);
     assert_eq!(
         located(missing.stdout.as_str()),
-        ["src/h/c/mod.rs rust/folder-uses-links 1 1"],
+        ["src/h/c/user.rs rust/folder-uses-links 1 1"],
         "{}",
         missing.stdout
     );

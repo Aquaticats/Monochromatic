@@ -150,7 +150,7 @@ fn layout_uses_inside_one_group_need_no_summary() {
     let mut files = two_groups();
     files[3].1 = "use crate::g::a::X;\n";
     let fixture = package_with(&files);
-    link(&fixture.path, "src/g/b/uses/a", "../a");
+    link(&fixture.path, "src/g/b/uses/a", "../../a");
     link_child_to_a(&fixture.path);
     link_group_h_to_g(&fixture.path);
     assert_eq!(findings_of(&fixture.path), Vec::<String>::new());
@@ -173,11 +173,14 @@ fn layout_a_code_file_in_a_group_is_reported() {
 }
 
 /// An item in the index of a group is reported on its line.
+#[cfg(unix)]
 #[test]
 fn layout_code_in_the_index_of_a_group_is_reported() {
     let mut files = two_groups();
     files[1].1 = "mod a;\nmod b;\nfn helper() {}\n";
     let fixture = package_with(&files);
+    link_child_to_a(&fixture.path);
+    link_group_h_to_g(&fixture.path);
     assert_eq!(
         findings_of(&fixture.path),
         ["src/g/mod.rs:3 src/g/mod.rs is the index of the group folder src/g, so it may hold only its top doc and `mod` lines, but it holds a function `helper`."]
