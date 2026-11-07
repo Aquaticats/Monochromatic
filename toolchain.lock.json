@@ -103,7 +103,7 @@
     },
     "pnpm": {
       "request": "github:pnpm/pnpm@latest",
-      "version": "12.16.1",
+      "version": "12.18.0",
       "route": "bin-sourced",
       "bins": [
         "pn",
@@ -121,26 +121,26 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-arm64.tar.gz",
-          "sha256": "f5847699e5d528f8f8e9bcfb385e58cb9fba7482af1b1aa7b70737be42277f81"
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.18.0/pnpm-linux-arm64.tar.gz",
+          "sha256": "700bd1aa4028465b80e62b7c5bec8455be60bbafaf53a3262a4ab8e2057712ac"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-arm64-musl.tar.gz",
-          "sha256": "1bb5df66cef8ec77089167e52111ce4515ea36c465ca3068e1ac96fe0338bcc1"
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.18.0/pnpm-linux-arm64-musl.tar.gz",
+          "sha256": "86c80eb744b1ff41ca7400bb1f8ca5fb522b2101da39ac93bd45f3bc652e5cfb"
         },
         "linux-x64": {
-          "url": "https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-x64.tar.gz",
-          "sha256": "565ff81174a14f6f7bd5d84c1b17e51031a80230d370a1fe24be5d16bd02a825"
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.18.0/pnpm-linux-x64.tar.gz",
+          "sha256": "3726060e236c0db3e7124c0a5af123c840ba0cb76682149b63ea0baf290017c2"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-x64-musl.tar.gz",
-          "sha256": "2ce798ca1565730137fb9b1871b17297e195a06383de69f3d76041b64a4c4e72"
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.18.0/pnpm-linux-x64-musl.tar.gz",
+          "sha256": "faaed5856527e4f1e8d5e16edf797c6e643cbe1521e3d15e2d791e8295489fb1"
         }
       }
     },
     "cargo:fd-find": {
       "request": "cargo:fd-find@latest",
-      "version": "10.5.0",
+      "version": "10.5.2",
       "route": "cargo-binstall",
       "bins": [
         "fd"
@@ -231,7 +231,7 @@
     },
     "harper-cli": {
       "request": "github:Automattic/harper@latest",
-      "version": "3.0.0",
+      "version": "3.1.0",
       "route": "bin-sourced",
       "bins": [
         "harper-cli"
@@ -242,20 +242,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/Automattic/harper/releases/download/v3.0.0/harper-cli-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "5b583c04ffcbda2abfaee3ac13c7f0e2d64f71899aff27adfe293a1194b460f7"
+          "url": "https://github.com/Automattic/harper/releases/download/v3.1.0/harper-cli-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "9ba3daee45d6427e1545b2bd660442e532f71c4d37d574b395f7ce6ef2eb4ec6"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/Automattic/harper/releases/download/v3.0.0/harper-cli-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "9a29e026662b219f31987101f0fdcaab7895804f6686bfe18fc6357dfff64e55"
+          "url": "https://github.com/Automattic/harper/releases/download/v3.1.0/harper-cli-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "36543f8db4634822e99dd45accc9a769d4cd9516ee1df038826a992891bfbce6"
         },
         "linux-x64": {
-          "url": "https://github.com/Automattic/harper/releases/download/v3.0.0/harper-cli-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "d136a76d75cfc95d778da1aedc36958faa90cf47f43801f4cbfc7b8323d5404a"
+          "url": "https://github.com/Automattic/harper/releases/download/v3.1.0/harper-cli-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "66b621866287b2af5de53e9915fa7d8b94f0f29c6446702497dbba5c1436b24a"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/Automattic/harper/releases/download/v3.0.0/harper-cli-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "fb15a5a2deed78ea68c02ef048b80680a7cd770cde1712bedfb42207410ac53a"
+          "url": "https://github.com/Automattic/harper/releases/download/v3.1.0/harper-cli-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "74b66183422e510c475c455623b60c60d1630c13c6f9ab3c0b73d07b32e9347e"
         }
       }
     },
@@ -289,7 +289,7 @@
     },
     "uv": {
       "request": "github:astral-sh/uv@latest",
-      "version": "0.13.6",
+      "version": "0.13.7",
       "route": "archive",
       "bins": [
         "uv",
@@ -299,20 +299,20 @@
       "options": {},
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/astral-sh/uv/releases/download/0.13.6/uv-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "229e194255c7958d86d56e8790d969a6f74736592133f0dfd0076f754c642c1d"
+          "url": "https://github.com/astral-sh/uv/releases/download/0.13.7/uv-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "71279f8d3c67241e807b9d8db872d1bf541579fb9f08b7d1eb1682196d1e57dc"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/astral-sh/uv/releases/download/0.13.6/uv-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "819692e404d23e5aae6bc44c0e260f1f5492fd1910ab4693b2c650f926dbe800"
+          "url": "https://github.com/astral-sh/uv/releases/download/0.13.7/uv-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "2d3ec076a0c4c0e8250bb6418c44080828b544f1a3be0b6e46adf9fb6923de45"
         },
         "linux-x64": {
-          "url": "https://github.com/astral-sh/uv/releases/download/0.13.6/uv-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "f29c3e94ffabd7e6f3ba521dba169a9b7ec12100bf3257087f0f24f6123f3645"
+          "url": "https://github.com/astral-sh/uv/releases/download/0.13.7/uv-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "c5221ff41b7892bfc223543883600125f6a47fe845093e0f5bdff4f359196d83"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/astral-sh/uv/releases/download/0.13.6/uv-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "5d61f26b6c7213779eda90edc6971ea6b0b796bfb8d49a574c8ad69b59838548"
+          "url": "https://github.com/astral-sh/uv/releases/download/0.13.7/uv-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "287491da03f2a785c70fa75b13e1f849918c2f2b5415fe84876b8214eeb792f9"
         }
       }
     },
@@ -346,7 +346,7 @@
     },
     "caddy": {
       "request": "github:caddyserver/caddy@latest",
-      "version": "2.11.7",
+      "version": "2.11.9",
       "route": "bin-sourced",
       "bins": [
         "caddy"
@@ -355,20 +355,20 @@
       "options": {},
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_linux_arm64.tar.gz",
-          "sha256": "d8fc6d179a5d283028a472a5618564f6ad8a86fed513e64f032b3b0b7cc45e42"
+          "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.9/caddy_2.11.9_linux_arm64.tar.gz",
+          "sha256": "5e377cff994fc9362a6fcf695c53f226cfca3a3ef85bd3a3687cf252d6310165"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_linux_arm64.tar.gz",
-          "sha256": "d8fc6d179a5d283028a472a5618564f6ad8a86fed513e64f032b3b0b7cc45e42"
+          "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.9/caddy_2.11.9_linux_arm64.tar.gz",
+          "sha256": "5e377cff994fc9362a6fcf695c53f226cfca3a3ef85bd3a3687cf252d6310165"
         },
         "linux-x64": {
-          "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_linux_amd64.tar.gz",
-          "sha256": "727b91701a392de6ebc5027509f548bf39979e5216340d0faed8fa5e69c84f8b"
+          "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.9/caddy_2.11.9_linux_amd64.tar.gz",
+          "sha256": "5b8cb7faf8726a2028ad96a66e54e6e81e8f361bc6175e5d22bbd997cc5177fb"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_linux_amd64.tar.gz",
-          "sha256": "727b91701a392de6ebc5027509f548bf39979e5216340d0faed8fa5e69c84f8b"
+          "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.9/caddy_2.11.9_linux_amd64.tar.gz",
+          "sha256": "5b8cb7faf8726a2028ad96a66e54e6e81e8f361bc6175e5d22bbd997cc5177fb"
         }
       }
     },
@@ -561,7 +561,7 @@
     },
     "cargo:cargo-nextest": {
       "request": "cargo:cargo-nextest@latest",
-      "version": "0.9.150",
+      "version": "0.9.151",
       "route": "cargo-binstall",
       "bins": [
         "cargo-nextest"
@@ -911,7 +911,7 @@
     },
     "tombi": {
       "request": "github:tombi-toml/tombi@latest",
-      "version": "1.9.8",
+      "version": "1.10.0",
       "route": "bin-sourced",
       "bins": [
         "tombi"
@@ -922,20 +922,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "696d6b934fd0c4fa002ae905dc72a551d54677d9caa7b272adee3ea27e056307"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.10.0/tombi-cli-1.10.0-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "90950a01c67c061a0bc1d8180ef93bf9e741ba8d22a575c3efa0b943d4676516"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "696d6b934fd0c4fa002ae905dc72a551d54677d9caa7b272adee3ea27e056307"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.10.0/tombi-cli-1.10.0-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "90950a01c67c061a0bc1d8180ef93bf9e741ba8d22a575c3efa0b943d4676516"
         },
         "linux-x64": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "cf51b0f134e5b488212bb062538e0381a163a4f7db2330c58e3cf613637b3118"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.10.0/tombi-cli-1.10.0-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "47c80f210c2abc54f9a4c433b768378a321a0c53fcb907cb2563fe16f277f402"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "cf51b0f134e5b488212bb062538e0381a163a4f7db2330c58e3cf613637b3118"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.10.0/tombi-cli-1.10.0-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "47c80f210c2abc54f9a4c433b768378a321a0c53fcb907cb2563fe16f277f402"
         }
       }
     },
@@ -1025,7 +1025,7 @@
     },
     "zizmor": {
       "request": "github:zizmorcore/zizmor@latest",
-      "version": "1.31.1",
+      "version": "1.32.0",
       "route": "bin-sourced",
       "bins": [
         "zizmor"
@@ -1034,20 +1034,20 @@
       "options": {},
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "37eebbd5762a44f262d94875431b14a6d2402991e90a685113ea97b8b41be833"
+          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.32.0/zizmor-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "cb152b207f815116d7fa1c1ee4614f61578803351395052908095e79adfd9fd0"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "37eebbd5762a44f262d94875431b14a6d2402991e90a685113ea97b8b41be833"
+          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.32.0/zizmor-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "cb152b207f815116d7fa1c1ee4614f61578803351395052908095e79adfd9fd0"
         },
         "linux-x64": {
-          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "d185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99"
+          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.32.0/zizmor-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "bb110cc765eca9cd7efb2e284a956be5974c60027b0970f16397d86208a9957b"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "d185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99"
+          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.32.0/zizmor-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "bb110cc765eca9cd7efb2e284a956be5974c60027b0970f16397d86208a9957b"
         }
       }
     },
@@ -1240,7 +1240,7 @@
     },
     "opentofu": {
       "request": "github:opentofu/opentofu@latest",
-      "version": "1.13.2",
+      "version": "1.13.9",
       "route": "bin-sourced",
       "bins": [
         "tofu"
@@ -1249,20 +1249,20 @@
       "options": {},
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/opentofu/opentofu/releases/download/v1.13.2/tofu_1.13.2_linux_arm64.tar.gz",
-          "sha256": "88e2d9e3f94f97b76ab2faf55ade87578f56aed19c5e45fa139d70e994366d1f"
+          "url": "https://github.com/opentofu/opentofu/releases/download/v1.13.9/tofu_1.13.9_linux_arm64.tar.gz",
+          "sha256": "5dc196dde75b667e4806d358310ec96742774cd0993c54c1237efee5644b69b8"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/opentofu/opentofu/releases/download/v1.13.2/tofu_1.13.2_linux_arm64.tar.gz",
-          "sha256": "88e2d9e3f94f97b76ab2faf55ade87578f56aed19c5e45fa139d70e994366d1f"
+          "url": "https://github.com/opentofu/opentofu/releases/download/v1.13.9/tofu_1.13.9_linux_arm64.tar.gz",
+          "sha256": "5dc196dde75b667e4806d358310ec96742774cd0993c54c1237efee5644b69b8"
         },
         "linux-x64": {
-          "url": "https://github.com/opentofu/opentofu/releases/download/v1.13.2/tofu_1.13.2_linux_amd64.tar.gz",
-          "sha256": "ac05d9952662c7db28dd57e93f0a68018837bfdf9342384ec0987977c16a9645"
+          "url": "https://github.com/opentofu/opentofu/releases/download/v1.13.9/tofu_1.13.9_linux_amd64.tar.gz",
+          "sha256": "b34b327cc1ef07178207b6f2cd1f5276537d3e5b7be316500f6dac50d4c0a857"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/opentofu/opentofu/releases/download/v1.13.2/tofu_1.13.2_linux_amd64.tar.gz",
-          "sha256": "ac05d9952662c7db28dd57e93f0a68018837bfdf9342384ec0987977c16a9645"
+          "url": "https://github.com/opentofu/opentofu/releases/download/v1.13.9/tofu_1.13.9_linux_amd64.tar.gz",
+          "sha256": "b34b327cc1ef07178207b6f2cd1f5276537d3e5b7be316500f6dac50d4c0a857"
         }
       }
     },
@@ -1296,7 +1296,7 @@
     },
     "npm:typescript-language-server": {
       "request": "npm:typescript-language-server@latest",
-      "version": "6.0.2",
+      "version": "6.0.3",
       "route": "mpm-pnpm",
       "bins": [
         "typescript-language-server"
@@ -1322,7 +1322,7 @@
     },
     "npm:socket": {
       "request": "npm:socket@latest",
-      "version": "1.12.2",
+      "version": "1.14.1",
       "route": "mpm-pnpm",
       "bins": [
         "socket",
@@ -1337,7 +1337,7 @@
     },
     "npm:wrangler": {
       "request": "npm:wrangler@latest",
-      "version": "4.156.0",
+      "version": "4.158.0",
       "route": "mpm-pnpm",
       "bins": [
         "cf-wrangler",
@@ -1350,7 +1350,7 @@
     },
     "npm:pagefind": {
       "request": "npm:pagefind@latest",
-      "version": "1.5.2",
+      "version": "1.6.0",
       "route": "mpm-pnpm",
       "bins": [
         "pagefind"
@@ -1361,7 +1361,7 @@
     },
     "betterleaks": {
       "request": "github:betterleaks/betterleaks@latest",
-      "version": "1.9.0",
+      "version": "1.10.0",
       "route": "bin-sourced",
       "bins": [
         "betterleaks"
@@ -1370,20 +1370,20 @@
       "options": {},
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.9.0/betterleaks_1.9.0_linux_arm64.tar.gz",
-          "sha256": "1d39116e0a58dc94574715e2aa12a2dbd5062f193eee3fec011fef6ba06bd13b"
+          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.10.0/betterleaks_1.10.0_linux_arm64.tar.gz",
+          "sha256": "3d7585cbe4f947aef6e31662f65beb5b43b104381a691b6b81b157ebfbb0c02d"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.9.0/betterleaks_1.9.0_linux_arm64.tar.gz",
-          "sha256": "1d39116e0a58dc94574715e2aa12a2dbd5062f193eee3fec011fef6ba06bd13b"
+          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.10.0/betterleaks_1.10.0_linux_arm64.tar.gz",
+          "sha256": "3d7585cbe4f947aef6e31662f65beb5b43b104381a691b6b81b157ebfbb0c02d"
         },
         "linux-x64": {
-          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.9.0/betterleaks_1.9.0_linux_x64.tar.gz",
-          "sha256": "f8b185a39ffcece2a1ca82bf3a4e7435cd81963ffd16b7a9128daf75f35f6de7"
+          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.10.0/betterleaks_1.10.0_linux_x64.tar.gz",
+          "sha256": "9d9ad503cd5d80d18a939352266c3fcca52f10da9b83cd5cfe646989b13940fe"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.9.0/betterleaks_1.9.0_linux_x64.tar.gz",
-          "sha256": "f8b185a39ffcece2a1ca82bf3a4e7435cd81963ffd16b7a9128daf75f35f6de7"
+          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.10.0/betterleaks_1.10.0_linux_x64.tar.gz",
+          "sha256": "9d9ad503cd5d80d18a939352266c3fcca52f10da9b83cd5cfe646989b13940fe"
         }
       }
     },
@@ -1525,5 +1525,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:1f201c55cab8d3755c7920a1783cbc2f5502bf86a9b5a0c3c73898fc84d65a20"
+  "digest": "sha256:3df8af39fc96a0648dd35a7bec90f222d61ac5775251d34920a1071c126b2f47"
 }
