@@ -1983,7 +1983,7 @@ Each is a red commit, then a green commit; none is a new owner question.
   - A name's hold (claim, check, rename): 20,000 publishes by one thread under a load average of about 70: median 181 us, 99.9th percentile
     312143 us, longest 6031986 us (the 120 second watchdog then ended that run before its crowd part). Three runs of 4,000 under a load
     average of 15 to 22: medians 24 to 25 us, longest 93, 179 and 296227 us. Eight threads at once (2,000 publishes): median 143 to 156 us,
-    longest 497 to 1126 us. So a hold of 6.03 s happened, and the previous five seconds was below it: a thread that waited for that holder
+    longest 497 to 1126 us. So a hold of 6.03 s of wall time happened (the cause is not measured: the run was inside a scope capped at 1600% of the processors while the load average was about 70, so a throttled or descheduled thread gives the same figure as a stalled disk; a later run of 4,000 in a scope capped at 2400%, load average about 20, had a longest of 94 us, which excludes neither), and the previous five seconds was below it: a thread that waited for that holder
     would have given up and published nothing. `HELD_NAME_WAIT` is now `LONGEST_HOLD_SEEN` times `HOLD_MARGIN` (ten, because the tail moved
     by a factor of twenty between runs), 60.3 seconds. No filesystem with neither exclusive publish was available (an S3 bucket through
     `s3fs-fuse`); a measurement there can only raise the figure. The factor ten is the agent's choice, open to the owner's veto.
@@ -2021,11 +2021,11 @@ The coordinator's gate under a load average of about 70 failed two controls that
   `unlink(x.lock)` 130 microseconds apart), so a `SIGKILL` between the two unlinks leaves exactly the failed state (a 41-byte lock,
   `pid_file_beside=false`), which the sweep leaves alone because nothing proves its holder gone (`stale_ref_lock_retire.rs`, rule: never
   remove an unproven lock). The log says the escalation did happen: the sweep that warned ran 12 s after the lock was born, about 8 s
-  after the stop returned, so the killed tree took seconds to be gone, as a process held in a stalled disk call does (this host's
-  metadata calls stalled up to 6.03 s, section c above). A load of 70 on the gate's few CPUs is the trigger; the cause is the escalation
+  after the stop returned, so the killed tree took seconds to be gone, as a process held in a stalled disk call does, or one that the
+  scheduler did not run (this host once took 6.03 s of wall time for a check and a rename, section c above; whether disk or scheduler is not measured). A load of 70 on the gate's few CPUs is the trigger; the cause is the escalation
   at the end of the grace cutting a handler that the host had not let finish. Not reproduced deterministically: the stall cannot be
   made on demand (an injected delay in `strace` is a ptrace stop, which is not an uninterruptible call, so it would test the
-  injection, not the stall). The control's grace for a responsive holder is now twice the longest stall seen (`RESPONSIVE_GRACE`,
+  injection, not the stall). The control's grace for a responsive holder is now twice the longest delay seen (`RESPONSIVE_GRACE`,
   `git_stop_lock_tests.rs`); a responsive holder ends at once, so the longer grace costs nothing when it works.
   Exposure that remains in production, for the coordinator and the owner, not fixed here: `STOP_GRACE` is five seconds, below the
   measured 6.03 s stall, so the same cut can leave a ref lock that the next Git command must name, which weighs against "Commits

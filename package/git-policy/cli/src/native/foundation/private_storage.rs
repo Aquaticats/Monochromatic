@@ -51,8 +51,8 @@ use std::time::Duration;
 ///  load there was (`foundation/private_storage_hold_time_measurement_tests.rs`, run by hand): 20,000 publishes by one thread under a
 ///  load average of about 70 took a median of 181 us, a 99.9th percentile of 312143 us and a longest of 6031986 us; three later runs
 ///  of 4,000 under a load average of 15 to 22 had a longest of 93 us to 296227 us, and eight threads at once a longest of 497 us to
-///  1126 us. The longest hold ever seen is therefore 6.03 s and it moved by a factor of twenty between runs, so the wait is
-///  `HOLD_MARGIN` times it: a thread whose holder is merely stalled in a slow rename does not give up, because giving up publishes nothing. Only a
+///  1126 us. The longest hold ever seen is therefore 6.03 s of wall time (the measurement ran in a scope capped at sixteen processors while the host was loaded; a rerun in a scope capped at twenty-four processors, load average about 20, saw at most 94 us, which neither confirms nor excludes the scheduler as the cause, so whether the disk or the scheduler held the thread is not measured) and it moved by a factor of twenty between runs, so the wait is
+///  `HOLD_MARGIN` times it: a thread whose holder is merely delayed in a slow rename does not give up, because giving up publishes nothing. Only a
 ///  filesystem with neither exclusive publish reaches this wait; none was available to measure, so the figure is open to the owner's
 ///  veto and to a measurement on such a disk (an S3 bucket through `s3fs-fuse`), which can only raise it.
 const HELD_NAME_WAIT: Duration = LONGEST_HOLD_SEEN.saturating_mul(HOLD_MARGIN);
@@ -60,7 +60,7 @@ const HELD_NAME_WAIT: Duration = LONGEST_HOLD_SEEN.saturating_mul(HOLD_MARGIN);
 /// The longest hold of a name seen in the measurements cited at `HELD_NAME_WAIT`.
 const LONGEST_HOLD_SEEN: Duration = Duration::from_micros(6_031_986);
 
-/// How many times the longest hold seen the wait covers, because the tail moved by a factor of twenty between runs on one disk.
+/// How many times the longest hold seen the wait covers, because the tail moved by a factor of twenty between runs on one host.
 const HOLD_MARGIN: u32 = 10;
 
 /// Mode of every private directory the wrapper creates:

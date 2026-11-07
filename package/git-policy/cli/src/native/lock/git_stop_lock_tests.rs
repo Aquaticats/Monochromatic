@@ -30,8 +30,8 @@ const SHORT_GRACE: Duration = Duration::from_secs(2);
 
 /// The grace of a stop whose holder answers the request: Git's handler removes the pid file of the lock and then the lock, 130
 ///  microseconds apart on a quiet disk (`strace` of `git update-ref --stdin` told to prepare, then sent `SIGTERM`, 2026-11-07), and
-///  a kill between the two leaves the lock with no pid file, which the sweep rightly leaves alone as unproven. A single metadata
-///  call on this host's disk has taken 6.03 s (`doc/planning/git-policy-cli-full-tokio.md`, "The coordinator's three settlements",
+///  a kill between the two leaves the lock with no pid file, which the sweep rightly leaves alone as unproven. A check and a rename
+///  on this host once took 6.03 s of wall time under load (whether the disk or the scheduler held the thread was not measured) (`doc/planning/git-policy-cli-full-tokio.md`, "The coordinator's three settlements",
 ///  item c), so the handler of a responsive holder is given twice that; a holder that answers ends at once and never waits it out.
 ///  The gate of `85e6d2ab99` left such a lock after the 2 s grace of `SHORT_GRACE` while the host load was about 70.
 const RESPONSIVE_GRACE: Duration = Duration::from_micros(6_031_986).saturating_mul(2);
@@ -46,7 +46,15 @@ enum Holder {
     Responsive,
     /// `SIGTERM` stays blocked in every process of the command, as for a Git that sits in an uninterruptible call.
     Unresponsive,
+    /// Git answers `SIGTERM`, but its handler is held for `CLEANUP_DELAY_MICROSECONDS` after its first `unlink` (the lock's pid file),
+    ///  as a handler is held by a stalled disk or a processor that is not given to it: a `SIGKILL` at the end of the grace then
+    ///  falls between the removal of the pid file and the removal of the lock.
+    SlowToFinishCleanup,
 }
+
+/// How long the handler of the slow holder is held after its first `unlink`, in microseconds: more than twice `SHORT_GRACE`, so the
+///  kill at the end of the grace always falls inside it.
+const CLEANUP_DELAY_MICROSECONDS: u64 = 5_000_000;
 
 /// A repository whose `origin/main` is behind a bare remote's `main`, so a later fetch has a tracking ref to update.
 struct Stage {
@@ -81,10 +89,15 @@ fn holder(stage: &Stage, kind: Holder) -> Command {
     // The wait for the lock ends with the test; the hold after it is one `sleep`, because the stop under test walks the holder's
     //  processes once, and a loop would start new ones after the walk. The fixture ends the sleeper when its test is over.
     let lives: String = while_test_lives(stage.root.as_path());
+    // `strace` holds the first `unlink` of Git after it ran: the handler removes the pid file first and the lock second.
+    let git: String = match kind {
+        Holder::SlowToFinishCleanup => format!("strace -f -o /dev/null -e trace=unlink -e inject=unlink:delay_exit={CLEANUP_DELAY_MICROSECONDS}:when=1 /usr/bin/git"),
+        Holder::Responsive | Holder::Unresponsive => String::from("/usr/bin/git"),
+    };
     let script: String = format!(
         "( printf 'start\\nupdate %s %s\\nprepare\\n' \"$HELD_REF\" \"$TARGET\"; \
          while [ ! -e \"$LOCK\" ] && {lives}; do sleep 0.05; done; : > \"$READY\"; sleep 600 ) \
-         | /usr/bin/git update-ref --stdin"
+         | {git} update-ref --stdin"
     );
     let mut command: Command = Command::new("sh");
     command
@@ -92,7 +105,7 @@ fn holder(stage: &Stage, kind: Holder) -> Command {
         .arg(script)
         .current_dir(stage.repo.as_path())
         .env_clear()
-        .env("PATH", "/usr/bin:/bin")
+        .env("PATH", "/usr/bin:/bin:/usr/sbin")
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
         .env("GIT_CONFIG_COUNT", "1")
@@ -181,7 +194,7 @@ fn bounded_run_leaves_no_lock(kind: Holder, name: &str) {
     let stage: Stage = stage(name);
     let grace: Duration = match kind {
         Holder::Responsive => RESPONSIVE_GRACE,
-        Holder::Unresponsive => SHORT_GRACE,
+        Holder::Unresponsive | Holder::SlowToFinishCleanup => SHORT_GRACE,
     };
     let attempt = run_bounded_push(holder(&stage, kind), Patience::Fixed(HOLD_DEADLINE), grace, scratch_environment().as_slice()).expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its deadline");
@@ -219,6 +232,16 @@ fn a_stall_stop_of_an_unresponsive_holder_leaves_no_lock() {
 #[test]
 fn a_push_stop_of_a_responsive_holder_leaves_no_lock() {
     bounded_run_leaves_no_lock(Holder::Responsive, "stop-lock-push-responsive");
+}
+
+/// REPRODUCTION, not a control: a holder whose handler is slow to finish is killed between Git's two unlinks, which leaves the lock
+///  without its pid file, and the sweep leaves that lock alone because nothing proves its holder gone. It fails today, which is the
+///  exposure of `STOP_GRACE` that needs a decision (plan, "The two gate failures of main at `85e6d2ab99`"); it is ignored so that it
+///  does not hold the gate, and run by hand with `--run-ignored only`.
+#[test]
+#[ignore = "reproduces an open exposure (a kill between Git's two unlinks); needs a decision on STOP_GRACE"]
+fn a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock() {
+    bounded_run_leaves_no_lock(Holder::SlowToFinishCleanup, "stop-lock-push-slow-cleanup");
 }
 
 /// A holder that cannot answer `SIGTERM` is killed, and the wrapper leaves no lock behind it.
