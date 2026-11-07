@@ -33,6 +33,26 @@ const OPTIONS: SessionOptions = {
   label: 'wide',
 };
 
+/**
+ Highest `IOWeight` a per-command cgroup may carry: the owner's rule in `CLAUDE.md` (RXS) says never above 10.
+ The test states it itself so a change to the implementation's own constant cannot move it.
+ */
+const OWNER_MAXIMUM_IO_WEIGHT = 10;
+
+/**
+ Values a unit's arguments give one `--property` name, in order.
+
+ @param args - arguments after `systemd-run`
+ @param property - systemd property name such as `TasksMax`
+ @returns the text after `--property=<name>=` of every argument that sets the property
+ */
+function propertyValues({ args, property, }: { readonly args: readonly string[]; readonly property: string; },): readonly string[] {
+  const prefix = `--property=${property}=`;
+  return args
+    .filter((argument,) => argument.startsWith(prefix,),)
+    .map((argument,) => argument.slice(prefix.length,),);
+}
+
 await describe({
   name: unitNameOf.name,
   children: [
@@ -158,6 +178,57 @@ await describe({
           '/app/music-player',
           '/lib',
         ],);
+      },
+    },),
+    it({
+      name: 'sets memory, CPU, task and disk-weight limits on the unit, one of each',
+      fn: async ({ expect, }) => {
+        const args = systemdRunArguments({
+          unit: 'u',
+          logPath: '/l',
+          environment: {},
+          compositorPath: '/c',
+          socket: '/s',
+          options: OPTIONS,
+          releaseBinary: '/app',
+        },);
+        for (const property of ['MemoryMax', 'CPUQuota', 'TasksMax', 'IOWeight',])
+          expect(propertyValues({ args, property, },),).toHaveLength(1,);
+      },
+    },),
+    it({
+      name: 'never sets a disk weight above the owner limit',
+      fn: async ({ expect, }) => {
+        const args = systemdRunArguments({
+          unit: 'u',
+          logPath: '/l',
+          environment: {},
+          compositorPath: '/c',
+          socket: '/s',
+          options: OPTIONS,
+          releaseBinary: '/app',
+        },);
+        const [weight,] = propertyValues({ args, property: 'IOWeight', },);
+        expect(Number(weight,),).toBeGreaterThan(0,);
+        expect(Number(weight,),).toBeLessThanOrEqual(OWNER_MAXIMUM_IO_WEIGHT,);
+      },
+    },),
+    it({
+      name: 'passes the limits it is given',
+      fn: async ({ expect, }) => {
+        const args = systemdRunArguments({
+          unit: 'u',
+          logPath: '/l',
+          environment: {},
+          compositorPath: '/c',
+          socket: '/s',
+          options: OPTIONS,
+          releaseBinary: '/app',
+          limits: { memoryMax: '3G', cpuQuota: '700%', tasksMax: '77', },
+        } as Parameters<typeof systemdRunArguments>[0],);
+        expect(propertyValues({ args, property: 'MemoryMax', },),).toEqual(['3G',],);
+        expect(propertyValues({ args, property: 'CPUQuota', },),).toEqual(['700%',],);
+        expect(propertyValues({ args, property: 'TasksMax', },),).toEqual(['77',],);
       },
     },),
     it({

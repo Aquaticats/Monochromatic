@@ -54,6 +54,31 @@ await describe({
       },
     },),
     it({
+      name: 'lets the overrides replace the memory, CPU and task limits of a session unit',
+      fn: async ({ expect, }) => {
+        const config = loadRunConfig({
+          appDir: '/work/app',
+          home: '/home/tester',
+          overrides: { unitMemoryMax: '3G', unitCpuQuota: '700%', unitTasksMax: '77', },
+          defaultCompositorPath: '/mise/installs/nested/bin/nested',
+        } as Parameters<typeof loadRunConfig>[0],) as Record<string, unknown>;
+        expect(config.unitLimits,).toEqual({ memoryMax: '3G', cpuQuota: '700%', tasksMax: '77', },);
+      },
+    },),
+    it({
+      name: 'gives every session unit a memory, CPU and task limit when no override is set',
+      fn: async ({ expect, }) => {
+        const config = loadRunConfig({
+          appDir: '/work/app',
+          home: '/home/tester',
+          overrides: {},
+          defaultCompositorPath: '/mise/installs/nested/bin/nested',
+        },) as Record<string, unknown>;
+        const limits = config.unitLimits as Record<string, string> | undefined;
+        expect(Object.keys(limits ?? {},).toSorted(),).toEqual(['cpuQuota', 'memoryMax', 'tasksMax',],);
+      },
+    },),
+    it({
       name: 'lets the compositor path be replaced over the installed one, for a build that is not installed yet',
       fn: async ({ expect, }) => {
         const config = loadRunConfig({
@@ -72,6 +97,25 @@ await describe({
   name: overridesFromEnvironment.name,
   concurrency: 1,
   children: [
+    it({
+      name: 'reads the unit limits from E2E_UNIT_MEMORY_MAX, E2E_UNIT_CPU_QUOTA and E2E_UNIT_TASKS_MAX',
+      fn: async ({ expect, }) => {
+        const names = ['E2E_UNIT_MEMORY_MAX', 'E2E_UNIT_CPU_QUOTA', 'E2E_UNIT_TASKS_MAX',] as const;
+        const saved = names.map((name,) => [name, process.env[name],] as const);
+        process.env.E2E_UNIT_MEMORY_MAX = '3G';
+        process.env.E2E_UNIT_CPU_QUOTA = '700%';
+        process.env.E2E_UNIT_TASKS_MAX = '77';
+        const read = overridesFromEnvironment() as Record<string, unknown>;
+        for (const [name, value,] of saved)
+          if (value === undefined)
+            Reflect.deleteProperty(process.env, name,);
+          else
+            process.env[name] = value;
+        expect(read.unitMemoryMax,).toBe('3G',);
+        expect(read.unitCpuQuota,).toBe('700%',);
+        expect(read.unitTasksMax,).toBe('77',);
+      },
+    },),
     it({
       name: 'reads only the variables that are set',
       fn: async ({ expect, }) => {
