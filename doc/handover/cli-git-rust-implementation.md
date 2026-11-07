@@ -3976,9 +3976,22 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     tip `944bdd30b5` after the coordinator merged main and resolved the plan-doc conflict to the branch side,
     whose only main change was the linter's whitespace reflow;
     the agent's last gate was 5209 of 5209 on `ad314ca6eb`;
-    the merged tree's gate runs as unit `tokio-merge-gate-944bdd30b5`,
-    log `~/temp/agent/tokio-merge-gate-944bdd30b5.log`;
-    then merge into main,
+    the merged tree's gate (unit `tokio-merge-gate-944bdd30b5`,
+    log `~/temp/agent/tokio-merge-gate-944bdd30b5.log`)
+    failed 5 of 5216:
+    `SIGABRT` in `push::auto_push_reconcile::tests::what_the_fetch_and_the_fast_forward_say_is_kept_in_the_journal`
+    and the two `push::push_slow_server_tests` HTTP controls,
+    `push::bounded_push::tests::a_tree_still_running_after_the_grace_is_swept_when_it_ends`
+    ("a tree that still runs is not swept"),
+    and `service::service_reply::tests::a_queued_answer_is_written_before_the_connection_closes`
+    (read `Heartbeat`,
+    expected `Landed`);
+    back with the tokio agent for measured causes;
+    the coordinator's unmeasured hypothesis is that stops now wait up to 18 s whenever a member is in `D` under disk pressure,
+    which would be a production regression too;
+    not merged;
+    after a clean gate:
+    merge into main,
     `native:perf`,
     a wrapper alpha,
     and the mutation campaign over the changed files;
