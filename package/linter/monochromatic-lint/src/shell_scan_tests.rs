@@ -72,3 +72,18 @@ fn shell_an_expression_ends_after_its_closing_braces_or_at_the_end_of_the_body()
     assert_eq!(expression_end(one_brace, 0), Some(one_brace.len()));
     assert_eq!(expression_end(b"echo", 0), None);
 }
+
+/// The end of an expression is found after text before it and with text after it,
+///  and a single closing brace does not end it.
+#[test]
+fn an_expression_ends_after_its_own_closing_braces_whatever_surrounds_it() {
+    let inside: &[u8] = b"abcd${{}} x";
+    let end_of_inside: usize = inside
+        .windows(2)
+        .position(|pair| return pair == b"}}")
+        .expect("closing braces")
+        + 2;
+    assert_eq!(expression_end(inside, 4), Some(end_of_inside));
+    let single: &[u8] = b"${{ a } b }}";
+    assert_eq!(expression_end(single, 0), Some(single.len()));
+}

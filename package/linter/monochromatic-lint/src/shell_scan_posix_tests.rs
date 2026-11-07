@@ -343,3 +343,32 @@ fn a_substitution_ends_at_its_own_closing_parenthesis() {
     assert_hits("echo $x | c", false, &[(Construct::Pipe, "|", 0)]);
     assert_hits("cmd >| out | b", false, &[(Construct::Pipe, "|", 1)]);
 }
+
+/// Arithmetic ends at its own closing parentheses,
+///  after double parentheses that came before it
+///  and with an operator inside it that is not a pipe.
+#[test]
+fn arithmetic_ends_at_its_own_closing_parentheses() {
+    assert_hits(
+        "echo (( x )) $((1 + 2)) | c",
+        false,
+        &[(Construct::Pipe, "|", 0)],
+    );
+    assert_hits("echo $((1|2)) | c", false, &[(Construct::Pipe, "|", 1)]);
+}
+
+/// A here-document body starts on the line after its opener,
+///  also when the end word is empty or one character long.
+#[test]
+fn heredoc_words_that_are_empty_or_one_character_long_end_their_own_body() {
+    assert_hits(
+        "cat <<''\nx | y\n\na | b",
+        false,
+        &[(Construct::Pipe, "|", 1)],
+    );
+    assert_hits(
+        "cat <<F\nx | y\nF\na | b",
+        false,
+        &[(Construct::Pipe, "|", 1)],
+    );
+}

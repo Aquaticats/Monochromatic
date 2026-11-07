@@ -249,3 +249,60 @@ fn a_sub_expression_ends_at_its_own_closing_parenthesis() {
 fn a_less_than_sign_is_not_a_block_comment() {
     assert_hits("cmd < in.txt | x", &[(Construct::Pipe, "|", 0)]);
 }
+
+/// A here-string ends at its own closer,
+///  whatever quotes its body holds,
+///  and an empty one ends at once.
+#[test]
+fn here_strings_ignore_the_quotes_of_their_body() {
+    assert_hits(
+        "ab\n@'\nit's a | b\n'@\nc | d",
+        &[(Construct::Pipe, "|", 1)],
+    );
+    assert_hits(
+        "ab\n@\"\na \" | b\n\"@\nc | d",
+        &[(Construct::Pipe, "|", 1)],
+    );
+    assert_hits("ab\n@'\n'@\nc | d", &[(Construct::Pipe, "|", 0)]);
+    assert_hits(
+        "ab\n@'  \t\r\nit's a | b\n'@\nc | d",
+        &[(Construct::Pipe, "|", 1)],
+    );
+}
+
+/// Every `$(` of a live here-string is reported,
+///  however far apart they are.
+#[test]
+fn a_live_here_string_reports_substitutions_that_are_far_apart() {
+    assert_hits(
+        "@\"\nxxxxxxxxxxxx $(a) yyyyyyyyyyyy $(b)\n\"@",
+        &[
+            (Construct::DollarParen, "$(", 0),
+            (Construct::DollarParen, "$(", 1),
+        ],
+    );
+}
+
+/// A doubled quote is one quote only inside quotes,
+///  and an empty quoted string ends at its second quote.
+#[test]
+fn an_empty_single_quoted_string_ends_at_its_second_quote() {
+    assert_hits("'' | x", &[(Construct::Pipe, "|", 0)]);
+    assert_hits("ab '' | x", &[(Construct::Pipe, "|", 0)]);
+}
+
+/// A comment starts after a space and not before one,
+///  and a block comment may close right after its opener.
+#[test]
+fn a_hash_comments_only_after_a_separator_and_a_block_comment_may_be_empty() {
+    assert_hits("a #b | c", &[]);
+    assert_hits("a# b | c", &[(Construct::Pipe, "|", 0)]);
+    assert_hits("xy <##>| d", &[(Construct::Pipe, "|", 0)]);
+}
+
+/// A call-like word in double quotes is text,
+///  and only `$(` runs code.
+#[test]
+fn a_parenthesis_in_double_quotes_is_text_unless_a_dollar_precedes_it() {
+    assert_hits("\"call(arg) | x\" | y", &[(Construct::Pipe, "|", 1)]);
+}

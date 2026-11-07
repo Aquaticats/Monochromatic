@@ -347,3 +347,11 @@ fn a_step_is_anchored_at_its_dash() {
         .collect::<Vec<usize>>();
     assert_eq!(anchors, dashes);
 }
+
+/// A structural key written with a value is refused at the value's own byte.
+#[test]
+fn a_refused_structural_value_is_reported_at_its_own_byte() {
+    let text: &str = "name: ci\njobs:\n  a: *job\n";
+    let error: WalkError = refused(text);
+    assert_eq!(error.offset, text.find("*job").expect("the value"));
+}
