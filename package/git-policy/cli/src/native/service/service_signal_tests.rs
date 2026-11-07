@@ -43,8 +43,10 @@ fn the_handled_signals_are_termination_interrupt_and_hangup() {
     assert_eq!(HANDLED, [libc::SIGTERM, libc::SIGINT, libc::SIGHUP]);
 }
 
-/// The entry the handler sends on the native socket is a journal entry with the message of the line, the priority and the
-/// time of the event as a field, and it fits the buffer at the extremes.
+/// The entry the handler sends on the native socket is a journal entry with the message of the line,
+/// the priority and the
+/// time of the event as a field,
+/// and it fits the buffer at the extremes.
 #[test]
 fn the_native_entry_carries_the_message_the_priority_and_the_time() {
     let at_ms: u64 = 1_793_648_794_987;
@@ -65,8 +67,10 @@ fn the_native_entry_carries_the_message_the_priority_and_the_time() {
     assert!(std::str::from_utf8(&largest[..largest_length]).expect("text").ends_with(format!("CLI_GIT_AT_MS={}\n", u64::MAX).as_str()));
 }
 
-/// On the journal's stream the fallback line starts with the priority the native entry has, so a unit with a level filter
-/// treats the two paths alike; elsewhere there is no prefix.
+/// On the journal's stream the fallback line starts with the priority the native entry has,
+/// so a unit with a level filter
+/// treats the two paths alike;
+/// elsewhere there is no prefix.
 #[test]
 fn the_line_on_the_journal_stream_carries_the_info_priority() {
     let (on_stream, on_length) = signal_line(libc::SIGTERM, 0, 1, true);

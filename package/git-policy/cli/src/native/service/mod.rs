@@ -6,32 +6,38 @@
 //!  journal,
 //!  provisioning and logging.
 //! Why:
-//!  The service is a mode of the one executable with a life of its own: the operating system starts it on demand.
+//!  The service is a mode of the one executable with a life of its own:
+//! the operating system starts it on demand.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // service/index.ts: one `export * from './file'` per module below.
 //! ```
 
-/// Whether a socket of an earlier release's unit listens, read from the table of unix sockets.
+/// Whether a socket of an earlier release's unit listens,
+/// read from the table of unix sockets.
 pub mod earlier_unix_sockets_that_listen;
 
 /// Messages between the wrapper and the resident commit service.
 pub mod service_protocol;
 
-/// The protocol messages as typed values, and the checks on the names they carry.
+/// The protocol messages as typed values,
+/// and the checks on the names they carry.
 pub mod service_protocol_messages_and_name_checks;
 
 /// Writes protocol messages as one JSON object per line.
 pub mod service_protocol_encode_messages_to_lines;
 
-/// Reads protocol lines as messages, checking every field.
+/// Reads protocol lines as messages,
+/// checking every field.
 pub mod service_protocol_decode_lines_to_messages;
 
-/// The longest the wrapper waits for each thing it waits for, with the measurement beside each number.
+/// The longest the wrapper waits for each thing it waits for,
+/// with the measurement beside each number.
 pub mod wait_ceilings;
 
-/// What the one landing thread is doing, shared with the threads that talk to waiting clients.
+/// What the one landing thread is doing,
+/// shared with the threads that talk to waiting clients.
 pub mod service_busy;
 
 /// The answers the landing board gives and the checks on the names it keeps.
@@ -40,13 +46,15 @@ pub mod service_busy_answers_and_name_checks;
 /// The step record a thread keeps while it is inside a write that is never ended.
 pub mod service_busy_step_record_on_this_thread;
 
-/// The connection of one waiting client, answered by the landing thread and kept alive by a beat from the reading thread.
+/// The connection of one waiting client,
+/// answered by the landing thread and kept alive by a beat from the reading thread.
 pub mod service_reply;
 
 /// The commit service's journal and its restart decisions.
 pub mod service_journal;
 
-/// The text form of a batch intent: written and parsed.
+/// The text form of a batch intent:
+/// written and parsed.
 pub mod service_journal_intent_text_and_parse;
 
 /// Test-only fault points of the commit service.
@@ -70,7 +78,8 @@ pub mod service_server;
 /// The loop of the commit service's work thread.
 pub mod service_server_work_loop;
 
-/// The shapes the connection threads and the landing thread pass between them, and the one-message send.
+/// The shapes the connection threads and the landing thread pass between them,
+/// and the one-message send.
 pub mod service_server_queue_types_and_send;
 
 /// Lands one group of queued requests as a batch and answers each client.
@@ -82,19 +91,23 @@ pub mod service_server_connection_handling;
 /// Gets the listening socket of the commit service.
 pub mod service_server_socket_binding;
 
-/// The service as a mode of the one executable: the words that select it and the start of the service.
+/// The service as a mode of the one executable:
+/// the words that select it and the start of the service.
 pub mod service_main;
 
 /// The wrapper's side of a commit through the commit service.
 pub mod service_client;
 
-/// Connecting to the service, reading one line from it, and asking an older service to retire.
+/// Connecting to the service,
+/// reading one line from it,
+/// and asking an older service to retire.
 pub mod service_client_listen_and_ask_to_retire;
 
 /// The settings of one client run and the watch on the service manager's answer.
 pub mod service_client_settings_and_watches;
 
-/// Reaching the commit service, starting it when nothing answers.
+/// Reaching the commit service,
+/// starting it when nothing answers.
 pub mod service_client_reach_service;
 
 /// The wrapper's own provisioning of the commit service's socket activation.
@@ -103,21 +116,31 @@ pub mod service_provision;
 /// Checks and writes on the unit files of the commit service.
 pub mod service_provision_unit_file_ownership_and_writes;
 
-/// A minimal D-Bus client for the user session bus, for the provisioning's two calls.
+/// A minimal D-Bus client for the user session bus,
+/// for the provisioning's two calls.
 pub mod systemd_dbus;
 
-/// The D-Bus wire format of the user manager client: calls written, replies read.
+/// The D-Bus wire format of the user manager client:
+/// calls written,
+/// replies read.
 pub mod systemd_dbus_wire_format;
 
-/// Which commit service instance belongs to a worktree: its name, socket and unit instances.
+/// Which commit service instance belongs to a worktree:
+/// its name,
+/// socket and unit instances.
 pub mod service_instance;
 
-/// One entry from the wrapper a person ran to the journal, sent without waiting.
+/// One entry from the wrapper a person ran to the journal,
+/// sent without waiting.
 #[cfg(target_os = "linux")]
 pub mod client_journal;
 
-/// The service's handler for a review work item, bounded by a call deadline and a total budget.
+/// The service's handler for a review work item,
+/// bounded by a call deadline and a total budget.
 pub mod service_review;
 
-/// The standards-review credential: redacted when printed, read from the wrapper's environment, sent in the work message.
+/// The standards-review credential:
+/// redacted when printed,
+/// read from the wrapper's environment,
+/// sent in the work message.
 pub mod service_review_key;

@@ -1,4 +1,6 @@
-//! Controls for the service protocol: messages survive a round trip, and every refusal the decoder promises is real.
+//! Controls for the service protocol:
+//! messages survive a round trip,
+//! and every refusal the decoder promises is real.
 
 use super::*;
 use crate::service_review_key::ReviewKey;
@@ -30,7 +32,8 @@ fn request() -> CommitRequest {
     };
 }
 
-/// A commit request survives encoding, with awkward text in the path and the message.
+/// A commit request survives encoding,
+/// with awkward text in the path and the message.
 #[test]
 fn a_commit_request_round_trips() {
     let sent: CommitRequest = request();
@@ -39,7 +42,8 @@ fn a_commit_request_round_trips() {
     assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(sent))));
 }
 
-/// Every service message survives encoding, and every failure code is reachable on the wire.
+/// Every service message survives encoding,
+/// and every failure code is reachable on the wire.
 #[test]
 fn service_messages_round_trip() {
     let mut messages: Vec<ServiceMessage> = vec![
@@ -62,7 +66,9 @@ fn service_messages_round_trip() {
     }
 }
 
-/// Unknown words, wrong versions and truncated or oversized lines are refused, never guessed.
+/// Unknown words,
+/// wrong versions and truncated or oversized lines are refused,
+/// never guessed.
 #[test]
 fn damaged_lines_are_refused() {
     let good: String = encode_client(&ClientMessage::Commit(Box::new(request())));
@@ -74,7 +80,9 @@ fn damaged_lines_are_refused() {
     assert!(decode_service("{\"type\":\"failed\",\"id\":\"x\",\"code\":\"made-up\"}").is_err());
 }
 
-/// Hostile paths, modes, object names and identities are refused.
+/// Hostile paths,
+/// modes,
+/// object names and identities are refused.
 #[test]
 fn unacceptable_requests_are_refused() {
     let hostile_paths = ["/etc/passwd", "../up", "a/../b", "a//b", "a/./b", ".git/config", "dir/.git/x", "", "a\nb"];
@@ -103,8 +111,11 @@ fn unacceptable_requests_are_refused() {
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(many))).as_str()).is_err());
 }
 
-/// The retire message round trips, and is accepted from a client of another protocol version, which is how a service of
-///  another protocol is replaced; a commit from that client is still refused.
+/// The retire message round trips,
+/// and is accepted from a client of another protocol version,
+/// which is how a service of
+///  another protocol is replaced;
+/// a commit from that client is still refused.
 #[test]
 fn retire_round_trips_and_crosses_protocol_versions() {
     let line: String = encode_client(&ClientMessage::Retire);
@@ -113,8 +124,10 @@ fn retire_round_trips_and_crosses_protocol_versions() {
     assert_eq!(decode_client(other.as_str()), Ok(ClientMessage::Retire));
 }
 
-/// A retire written for a service of another protocol version carries that version, which is what a service of an earlier
-///  release requires of it, and this build's reader accepts it too.
+/// A retire written for a service of another protocol version carries that version,
+/// which is what a service of an earlier
+///  release requires of it,
+/// and this build's reader accepts it too.
 #[test]
 fn retire_is_written_in_the_version_the_service_announced() {
     let earlier: u32 = PROTOCOL_VERSION - 1;
@@ -124,14 +137,19 @@ fn retire_is_written_in_the_version_the_service_announced() {
     assert_eq!(encode_retire(PROTOCOL_VERSION), encode_client(&ClientMessage::Retire));
 }
 
-/// A welcome without a release, as the services before the field send it, reads as no release.
+/// A welcome without a release,
+/// as the services before the field send it,
+/// reads as no release.
 #[test]
 fn a_welcome_without_a_release_reads_as_none() {
     let line: String = format!("{{\"type\":\"welcome\",\"version\":{PROTOCOL_VERSION}}}");
     assert_eq!(decode_service(line.as_str()), Ok(ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: None }));
 }
 
-/// A work message survives encoding; a relative or empty directory, and a missing one, are refused.
+/// A work message survives encoding;
+/// a relative or empty directory,
+/// and a missing one,
+/// are refused.
 #[test]
 fn a_work_message_round_trips_and_hostile_directories_are_refused() {
     let sent: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None };
@@ -145,7 +163,10 @@ fn a_work_message_round_trips_and_hostile_directories_are_refused() {
     assert!(decode_client(missing.as_str()).is_err());
 }
 
-/// A commit built elsewhere is named whole, alone or with an amend, never together with a tree; a name that is no object is refused.
+/// A commit built elsewhere is named whole,
+/// alone or with an amend,
+/// never together with a tree;
+/// a name that is no object is refused.
 #[test]
 fn a_prebuilt_commit_is_named_whole_and_never_with_a_tree() {
     let mut plain: CommitRequest = request();
@@ -165,7 +186,9 @@ fn a_prebuilt_commit_is_named_whole_and_never_with_a_tree() {
     assert!(!request().lands_alone());
 }
 
-/// An amend names its tree and nothing else does: the two fields survive encoding together, and a request that has one
+/// An amend names its tree and nothing else does:
+/// the two fields survive encoding together,
+/// and a request that has one
 ///  without the other is refused.
 #[test]
 fn an_amend_carries_its_tree_and_only_an_amend_does() {
@@ -185,7 +208,9 @@ fn an_amend_carries_its_tree_and_only_an_amend_does() {
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad_tree))).as_str()).is_err(), "a tree that is no object name");
 }
 
-/// A work message carries the review key when it has one and nothing otherwise; a key of another type is refused, and no
+/// A work message carries the review key when it has one and nothing otherwise;
+/// a key of another type is refused,
+/// and no
 /// printed form of the message shows the key.
 #[test]
 fn a_work_message_carries_the_review_key_and_hides_it_when_printed() {
@@ -203,7 +228,9 @@ fn a_work_message_carries_the_review_key_and_hides_it_when_printed() {
     assert_eq!(decode_client(empty.as_str()), Ok(without_key), "an empty key is no key");
 }
 
-/// A service that sends no list of landed captures, or a damaged one, tells nothing about their order.
+/// A service that sends no list of landed captures,
+/// or a damaged one,
+/// tells nothing about their order.
 #[test]
 fn a_retry_without_a_usable_list_of_landed_captures_reads_as_an_empty_one() {
     let bare: String = format!("{{\"type\":\"retry-prepare\",\"id\":\"x\",\"base\":\"{BLOB}\"}}");
@@ -234,8 +261,10 @@ fn a_scratch_announcement_round_trips() {
     assert_eq!(decode_client(line.as_str()), Ok(sent));
 }
 
-/// The service removes what a scratch announcement names, so only the wrapper's own directory names directly inside the
-///  worktree's own Git directory are accepted; every other path is refused at the decoder.
+/// The service removes what a scratch announcement names,
+/// so only the wrapper's own directory names directly inside the
+///  worktree's own Git directory are accepted;
+/// every other path is refused at the decoder.
 #[test]
 fn a_scratch_announcement_names_only_a_scratch_directory_of_the_worktree() {
     let git_dir: &str = "/work/repo/.git/worktrees/w";
@@ -262,7 +291,10 @@ fn a_scratch_announcement_names_only_a_scratch_directory_of_the_worktree() {
     assert!(decode_client(hostile.as_str()).is_err());
 }
 
-/// A commit request carries the worktree's own Git directory, which a request without it, or with a relative one, is refused for.
+/// A commit request carries the worktree's own Git directory,
+/// which a request without it,
+/// or with a relative one,
+/// is refused for.
 #[test]
 fn a_commit_request_names_its_worktrees_git_directory() {
     let sent: CommitRequest = request();
@@ -272,8 +304,11 @@ fn a_commit_request_names_its_worktrees_git_directory() {
     assert!(decode_client(line.replace(&sent.git_dir.display().to_string(), "relative/.git").as_str()).is_err(), "relative");
 }
 
-/// A request that changes as many paths as one may, each path as long as the 99th percentile of the paths of this repository's
-///  commits, still fits the line the service accepts; so the change bound and the line bound agree for ordinary paths.
+/// A request that changes as many paths as one may,
+/// each path as long as the 99th percentile of the paths of this repository's
+///  commits,
+/// still fits the line the service accepts;
+/// so the change bound and the line bound agree for ordinary paths.
 #[test]
 fn a_request_of_the_most_changes_at_the_ninety_ninth_percentile_path_fits_one_line() {
     let mut sent: CommitRequest = request();
@@ -283,7 +318,8 @@ fn a_request_of_the_most_changes_at_the_ninety_ninth_percentile_path_fits_one_li
     assert!(line.len() <= MAX_LINE_BYTES, "{} bytes must fit {MAX_LINE_BYTES}", line.len());
 }
 
-/// The most changes a request may carry is the most the decoder accepts, and one more is refused.
+/// The most changes a request may carry is the most the decoder accepts,
+/// and one more is refused.
 #[test]
 fn the_decoder_accepts_the_most_changes_and_refuses_one_more() {
     let mut sent: CommitRequest = request();
@@ -293,7 +329,8 @@ fn the_decoder_accepts_the_most_changes_and_refuses_one_more() {
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(sent))).as_str()).is_err());
 }
 
-/// A withdrawal round trips, and an empty or oversized identity in one is refused.
+/// A withdrawal round trips,
+/// and an empty or oversized identity in one is refused.
 #[test]
 fn a_withdrawal_round_trips_and_a_hostile_identity_is_refused() {
     let sent: ClientMessage = ClientMessage::Withdraw { id: String::from("0f0e0d0c-aaaa-bbbb-cccc-000000000001") };
@@ -306,8 +343,13 @@ fn a_withdrawal_round_trips_and_a_hostile_identity_is_refused() {
 
 /// A `waiting` line that says the client's request is inside the stuck branch write is the `waiting` message with one extra field,
 /// so a client of this release reads it as `InsideWrite` and a client that does not know the field reads the same line as the
-/// `waiting` notice it is (type and text unchanged); and a `waiting` line without the field, which is all an older service sends, is a
-/// plain `Waiting`. The protocol version stays, because neither side needs the other to know the field.
+/// `waiting` notice it is (type and text unchanged);
+/// and a `waiting` line without the field,
+/// which is all an older service sends,
+/// is a
+/// plain `Waiting`.
+/// The protocol version stays,
+/// because neither side needs the other to know the field.
 #[test]
 fn an_inside_write_notice_is_a_waiting_line_with_one_extra_field() {
     let inside: ServiceMessage = ServiceMessage::InsideWrite { text: String::from("monochromatic-git-policy-cli: the commit service has been inside a write") };

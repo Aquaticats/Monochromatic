@@ -1,5 +1,10 @@
-//! Controls for the wrapper's own provisioning: what is written, when the manager is asked to reload, what is removed or
-//!  refused, and that racing first commits agree through idempotence alone. The manager is a recorder.
+//! Controls for the wrapper's own provisioning:
+//! what is written,
+//! when the manager is asked to reload,
+//! what is removed or
+//!  refused,
+//! and that racing first commits agree through idempotence alone.
+//! The manager is a recorder.
 
 use super::*;
 use crate::service_messages::render;
@@ -11,18 +16,26 @@ use std::sync::{Arc, Mutex};
 pub(super) struct Recorder {
     calls: Arc<Mutex<Vec<String>>>,
     failure: Arc<Mutex<Option<CallError>>>,
-    /// What a stop is answered with, when it is not the general failure.
+    /// What a stop is answered with,
+    /// when it is not the general failure.
     stop_failure: Arc<Mutex<Option<CallError>>>,
-    /// What a stop that spares the units requiring the stopped one is answered with, when it fails.
+    /// What a stop that spares the units requiring the stopped one is answered with,
+    /// when it fails.
     stop_alone_failure: Arc<Mutex<Option<CallError>>>,
-    /// A socket file that the earlier wrapper's unit makes again after every answer about its socket and after every stop, as an
+    /// A socket file that the earlier wrapper's unit makes again after every answer about its socket and after every stop,
+    /// as an
     ///  earlier-release wrapper that sets its unit up again would.
     recreate: Arc<Mutex<Option<PathBuf>>>,
-    /// The states a unit reports in turn, the last one repeating; a unit without a script is not held by the manager.
+    /// The states a unit reports in turn,
+    /// the last one repeating;
+    /// a unit without a script is not held by the manager.
     states: Arc<Mutex<std::collections::HashMap<String, Vec<String>>>>,
-    /// What a state question is answered with instead of a state, when it is made to fail.
+    /// What a state question is answered with instead of a state,
+    /// when it is made to fail.
     state_failure: Arc<Mutex<Option<CallError>>>,
-    /// The times the calls that followed were given, in order, kept apart from the calls.
+    /// The times the calls that followed were given,
+    /// in order,
+    /// kept apart from the calls.
     budgets: Arc<Mutex<Vec<std::time::Duration>>>,
 }
 
@@ -74,8 +87,10 @@ impl Manager for Recorder {
     }
 }
 
-/// What provisioning asks last of a manager that holds no unit of the earlier release for the worktree: whether its service
-///  runs, then whether its socket listens.
+/// What provisioning asks last of a manager that holds no unit of the earlier release for the worktree:
+/// whether its service
+///  runs,
+/// then whether its socket listens.
 fn with_earlier_instance_questions(mut calls: Vec<String>) -> Vec<String> {
     calls.push(format!("state {}", earlier_service_unit_instance(INSTANCE)));
     calls.push(format!("state {}", earlier_socket_unit_instance(INSTANCE)));
@@ -85,7 +100,8 @@ fn with_earlier_instance_questions(mut calls: Vec<String>) -> Vec<String> {
 /// The instance the fixture machine's worktree has.
 const INSTANCE: &str = "0123456789abcdef0123456789abcdef";
 
-/// The units of the instance, as the manager is asked about them.
+/// The units of the instance,
+/// as the manager is asked about them.
 fn instance_socket() -> String {
     return socket_unit_instance(INSTANCE);
 }
@@ -133,7 +149,8 @@ fn written(machine: &Machine, name: &str) -> String {
 
 /// A unit file that an earlier release wrote and one this release writes are both the wrapper's own,
 ///  and a file of someone else is not;
-///  the units this release writes name only the new program, folder and identifier.
+///  the units this release writes name only the new program,
+/// folder and identifier.
 #[test]
 fn unit_files_of_both_spellings_are_the_wrappers_own_and_the_new_ones_name_the_new_program_only() {
     use crate::service_provision_unit_file_ownership_and_writes::carries_own_marker;
@@ -145,8 +162,12 @@ fn unit_files_of_both_spellings_are_the_wrappers_own_and_the_new_ones_name_the_n
     }
 }
 
-/// The first provisioning writes both units, filled in and marked, and only starts the socket: the manager finds a new file
-///  by itself, and a reload would interrupt its other clients.
+/// The first provisioning writes both units,
+/// filled in and marked,
+/// and only starts the socket:
+/// the manager finds a new file
+///  by itself,
+/// and a reload would interrupt its other clients.
 #[test]
 fn the_first_provisioning_writes_the_units_and_starts_without_a_reload() {
     let machine: Machine = machine("provision-first-lib");
@@ -162,8 +183,10 @@ fn the_first_provisioning_writes_the_units_and_starts_without_a_reload() {
     remove(machine.root.as_path());
 }
 
-/// A second provisioning changes no file and does not reload; it clears what a failed start may have left and asks again for
-///  the start, which is a no-op for a socket that already listens.
+/// A second provisioning changes no file and does not reload;
+/// it clears what a failed start may have left and asks again for
+///  the start,
+/// which is a no-op for a socket that already listens.
 #[test]
 fn a_second_provisioning_changes_nothing_and_clears_failed_state_before_the_start() {
     let machine: Machine = machine("provision-second-lib");
@@ -185,7 +208,8 @@ fn a_second_provisioning_changes_nothing_and_clears_failed_state_before_the_star
     remove(machine.root.as_path());
 }
 
-/// The socket the units activate, as the manager would have made it.
+/// The socket the units activate,
+/// as the manager would have made it.
 pub(super) fn add_socket(machine: &Machine) {
     let socket: PathBuf = socket_path(machine.host.runtime_dir.as_path(), machine.host.instance.as_str());
     std::fs::create_dir_all(socket.parent().expect("socket directory")).expect("directories");
@@ -193,7 +217,8 @@ pub(super) fn add_socket(machine: &Machine) {
 }
 
 /// The installed units count as in place only when both match what this wrapper would write and the socket is there:
-///  two small reads and one `stat`, no bus.
+///  two small reads and one `stat`,
+/// no bus.
 #[test]
 fn units_are_in_place_only_when_they_match_and_the_socket_exists() {
     let mut machine: Machine = machine("provision-in-place-lib");
@@ -209,7 +234,10 @@ fn units_are_in_place_only_when_they_match_and_the_socket_exists() {
     remove(machine.root.as_path());
 }
 
-/// An earlier unit of the wrapper's own, in either unit directory, keeps the installation from counting as in place; a file of
+/// An earlier unit of the wrapper's own,
+/// in either unit directory,
+/// keeps the installation from counting as in place;
+/// a file of
 ///  that name that something else wrote is not the wrapper's to retire and does not.
 #[test]
 fn only_the_wrappers_own_earlier_units_keep_an_installation_from_being_in_place() {
@@ -231,8 +259,13 @@ fn only_the_wrappers_own_earlier_units_keep_an_installation_from_being_in_place(
     remove(machine.root.as_path());
 }
 
-/// A provisioned unit that names a program an upgrade removed is not in place, and provisioning repairs it: the unit is
-///  rewritten with the program that exists, the manager reloaded, failed state cleared, and the socket started.
+/// A provisioned unit that names a program an upgrade removed is not in place,
+/// and provisioning repairs it:
+/// the unit is
+///  rewritten with the program that exists,
+/// the manager reloaded,
+/// failed state cleared,
+/// and the socket started.
 #[test]
 fn a_unit_naming_a_removed_program_is_repaired_with_a_reload_and_a_reset() {
     let machine: Machine = machine("provision-removed-lib");
@@ -258,7 +291,9 @@ fn a_unit_naming_a_removed_program_is_repaired_with_a_reload_and_a_reset() {
     remove(machine.root.as_path());
 }
 
-/// A unit another release wrote, whose text differs from this release's template and not only in the program path, is
+/// A unit another release wrote,
+/// whose text differs from this release's template and not only in the program path,
+/// is
 ///  rewritten as well.
 #[test]
 fn a_unit_from_another_release_is_rewritten() {
@@ -276,7 +311,9 @@ fn a_unit_from_another_release_is_rewritten() {
     remove(machine.root.as_path());
 }
 
-/// When the manager refuses after a unit was rewritten, the rewrite is withdrawn, so the next commit does not take a file the
+/// When the manager refuses after a unit was rewritten,
+/// the rewrite is withdrawn,
+/// so the next commit does not take a file the
 ///  manager never reloaded for an installed one.
 #[test]
 fn a_refused_reload_leaves_no_unit_that_looks_installed() {
@@ -302,7 +339,8 @@ fn a_refused_reload_leaves_no_unit_that_looks_installed() {
     remove(machine.root.as_path());
 }
 
-/// A moved service program (an upgrade) rewrites the service unit only, and reloads.
+/// A moved service program (an upgrade) rewrites the service unit only,
+/// and reloads.
 #[test]
 fn a_moved_program_rewrites_the_service_unit_and_reloads() {
     let mut machine: Machine = machine("provision-moved-lib");
@@ -317,7 +355,8 @@ fn a_moved_program_rewrites_the_service_unit_and_reloads() {
     remove(machine.root.as_path());
 }
 
-/// Units of an earlier release are recognized by their content and removed with their enabling link, then a reload follows.
+/// Units of an earlier release are recognized by their content and removed with their enabling link,
+/// then a reload follows.
 #[test]
 fn earlier_units_are_removed_with_their_link() {
     let machine: Machine = machine("provision-earlier-lib");
@@ -336,7 +375,9 @@ fn earlier_units_are_removed_with_their_link() {
     remove(machine.root.as_path());
 }
 
-/// A unit of the earlier single service's name that something else wrote is never touched, nothing else is written, the manager is not asked,
+/// A unit of the earlier single service's name that something else wrote is never touched,
+/// nothing else is written,
+/// the manager is not asked,
 ///  and the failure names the file.
 #[test]
 fn a_foreign_unit_is_left_alone_and_named() {
@@ -355,7 +396,8 @@ fn a_foreign_unit_is_left_alone_and_named() {
     remove(machine.root.as_path());
 }
 
-/// The manager's refusal reaches the person in plain words without the manager's internal error name, and a broken
+/// The manager's refusal reaches the person in plain words without the manager's internal error name,
+/// and a broken
 ///  connection is the no-manager failure.
 #[test]
 fn manager_failures_are_plain() {
@@ -371,7 +413,8 @@ fn manager_failures_are_plain() {
     remove(machine.root.as_path());
 }
 
-/// Many first commits provisioning at once agree through idempotence alone: every one succeeds and the files are whole.
+/// Many first commits provisioning at once agree through idempotence alone:
+/// every one succeeds and the files are whole.
 #[test]
 fn racing_first_commits_agree_without_a_lock() {
     let machine: Machine = machine("provision-race-lib");
@@ -407,9 +450,16 @@ fn the_unit_names_agree_with_the_templates() {
     assert!(SERVICE_UNIT.contains(BINARY_PLACEHOLDER) && SERVICE_UNIT.contains(GIT_PLACEHOLDER));
 }
 
-/// The single service of the earlier releases, which served every worktree, is retired by the first provisioning of the release
-///  that gives each worktree its own: its socket and service are stopped (socket first), its unit files and socket file are
-///  removed, the manager is reloaded, and the worktree's own instance is started. Nothing of it counts as in place.
+/// The single service of the earlier releases,
+/// which served every worktree,
+/// is retired by the first provisioning of the release
+///  that gives each worktree its own:
+/// its socket and service are stopped (socket first),
+/// its unit files and socket file are
+///  removed,
+/// the manager is reloaded,
+/// and the worktree's own instance is started.
+/// Nothing of it counts as in place.
 #[test]
 fn the_earlier_single_service_is_stopped_and_its_units_removed() {
     let machine: Machine = machine("provision-retire-earlier-lib");
@@ -443,7 +493,8 @@ fn the_earlier_single_service_is_stopped_and_its_units_removed() {
     remove(machine.root.as_path());
 }
 
-/// The wrapper's units of the earlier single service in `directory`, and the socket file it listened on.
+/// The wrapper's units of the earlier single service in `directory`,
+/// and the socket file it listened on.
 pub(super) fn earlier_service_files(machine: &Machine, directory: &Path) -> PathBuf {
     std::fs::create_dir_all(directory).expect("unit directory");
     for name in [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME] {
@@ -463,8 +514,10 @@ fn position(calls: &[String], wanted: &str) -> usize {
     return calls.iter().position(|call| { return call == wanted; }).unwrap_or_else(|| { panic!("{wanted} was not asked: {calls:?}") });
 }
 
-/// A stop job that is only queued has not stopped the service: the new instance starts after the manager reports the earlier
-///  service and its socket inactive, and not before.
+/// A stop job that is only queued has not stopped the service:
+/// the new instance starts after the manager reports the earlier
+///  service and its socket inactive,
+/// and not before.
 #[test]
 fn an_instance_starts_only_after_the_earlier_service_has_stopped() {
     let machine: Machine = machine("provision-retire-wait-lib");
@@ -481,7 +534,8 @@ fn an_instance_starts_only_after_the_earlier_service_has_stopped() {
     remove(machine.root.as_path());
 }
 
-/// A service that is still stopping when the wait ends fails the commit with nothing started and nothing removed, so the
+/// A service that is still stopping when the wait ends fails the commit with nothing started and nothing removed,
+/// so the
 ///  next commit finds the earlier service again.
 #[test]
 fn an_earlier_service_that_does_not_stop_in_time_fails_the_commit() {
@@ -497,8 +551,11 @@ fn an_earlier_service_that_does_not_stop_in_time_fails_the_commit() {
     remove(machine.root.as_path());
 }
 
-/// A question to the manager that runs out of the retirement budget is a service still stopping, told apart from a manager
-///  that is not there: the commit says what is stopping and how to stop it, and does not name a missing service manager.
+/// A question to the manager that runs out of the retirement budget is a service still stopping,
+/// told apart from a manager
+///  that is not there:
+/// the commit says what is stopping and how to stop it,
+/// and does not name a missing service manager.
 #[test]
 fn a_state_question_that_outlasts_the_retirement_wait_is_a_slow_stop_and_not_a_missing_manager() {
     let machine: Machine = machine("provision-retire-question-late-lib");
@@ -521,7 +578,9 @@ fn a_call_that_times_out_outside_the_retirement_wait_is_a_manager_that_does_not_
     remove(machine.root.as_path());
 }
 
-/// Each phase has a time of its own: the questions of the retirement wait never get more than the wait allows, and the start
+/// Each phase has a time of its own:
+/// the questions of the retirement wait never get more than the wait allows,
+/// and the start
 ///  that follows gets the whole exchange's time again however long the retirement took.
 #[test]
 fn the_retirement_questions_and_the_start_have_budgets_of_their_own() {
@@ -540,7 +599,8 @@ fn the_retirement_questions_and_the_start_have_budgets_of_their_own() {
     remove(machine.root.as_path());
 }
 
-/// A stop the manager refuses is a failure of the commit, not a retirement.
+/// A stop the manager refuses is a failure of the commit,
+/// not a retirement.
 #[test]
 fn a_refused_stop_of_the_earlier_service_fails_the_commit() {
     let machine: Machine = machine("provision-retire-refused-lib");
@@ -572,7 +632,8 @@ fn an_earlier_service_installed_in_the_persistent_unit_directory_is_stopped() {
 }
 
 /// The earlier service's socket file with no unit file left (a release removed the files and left the service running) still
-///  sends the stop, and a unit the manager does not hold counts as stopped.
+///  sends the stop,
+/// and a unit the manager does not hold counts as stopped.
 #[test]
 fn an_earlier_socket_file_without_unit_files_still_retires_the_service() {
     let machine: Machine = machine("provision-retire-socket-only-lib");
@@ -588,11 +649,14 @@ fn an_earlier_socket_file_without_unit_files_still_retires_the_service() {
     remove(machine.root.as_path());
 }
 
-/// The text of a unit the wrapper wrote, and of one something else wrote.
+/// The text of a unit the wrapper wrote,
+/// and of one something else wrote.
 const OWN_UNIT: &str = "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n";
 const FOREIGN_UNIT: &str = "[Service]\nExecStart=/usr/bin/true\n";
 
-/// An owned unit in the user's own directory is the unit that runs, so it is stopped and removed; an unrelated file of the
+/// An owned unit in the user's own directory is the unit that runs,
+/// so it is stopped and removed;
+/// an unrelated file of the
 ///  same name in the runtime directory is shadowed by it and is neither stopped for nor removed.
 #[test]
 fn an_owned_persistent_unit_does_not_authorize_removing_a_foreign_runtime_file() {
@@ -612,7 +676,9 @@ fn an_owned_persistent_unit_does_not_authorize_removing_a_foreign_runtime_file()
 }
 
 /// An owned file in the runtime directory does not make the unit ours when the user's own directory defines the unit with
-///  a file that is someone else's: the manager is not asked to stop it, and the commit names the file in the way.
+///  a file that is someone else's:
+/// the manager is not asked to stop it,
+/// and the commit names the file in the way.
 #[test]
 fn an_owned_runtime_file_does_not_authorize_stopping_a_foreign_persistent_unit() {
     let machine: Machine = machine("provision-retire-foreign-effective-lib");
@@ -631,7 +697,8 @@ fn an_owned_runtime_file_does_not_authorize_stopping_a_foreign_persistent_unit()
     remove(machine.root.as_path());
 }
 
-/// A unit file that is gone after the ownership check is a removal someone else finished, and any other refusal to remove
+/// A unit file that is gone after the ownership check is a removal someone else finished,
+/// and any other refusal to remove
 ///  one fails the commit with the file named.
 #[test]
 fn a_unit_file_that_vanished_after_the_ownership_check_is_a_finished_removal() {
@@ -658,8 +725,13 @@ fn an_earlier_unit_the_wrapper_did_not_write_is_not_stopped() {
     remove(machine.root.as_path());
 }
 
-/// A service that does not leave by itself when it is asked to retire may be in the middle of a landing, and the manager's stop
-/// ends the whole unit, Git children included (sol-1 round 2, upgrade): the stop is sent only to a service that has left, and a
+/// A service that does not leave by itself when it is asked to retire may be in the middle of a landing,
+/// and the manager's stop
+/// ends the whole unit,
+/// Git children included (sol-1 round 2,
+/// upgrade):
+/// the stop is sent only to a service that has left,
+/// and a
 /// service that is still there when the wait ends fails the commit with a sentence that names the stop for the person to choose.
 #[test]
 fn an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper() {
@@ -674,7 +746,8 @@ fn an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped
     remove(machine.root.as_path());
 }
 
-/// A service that leaves between the question and the stop is stopped after it left, never before.
+/// A service that leaves between the question and the stop is stopped after it left,
+/// never before.
 #[test]
 fn the_earlier_service_is_stopped_only_after_it_has_left() {
     let machine: Machine = machine("provision-retire-after-leaving-lib");
@@ -697,7 +770,8 @@ fn the_earlier_service_is_stopped_only_after_it_has_left() {
 /// The instance of another worktree of the same account.
 const OTHER_INSTANCE: &str = "fedcba9876543210fedcba9876543210";
 
-/// The earlier release's units of an instance, as the manager is asked about them.
+/// The earlier release's units of an instance,
+/// as the manager is asked about them.
 fn earlier_socket() -> String {
     return earlier_socket_unit_instance(INSTANCE);
 }
@@ -706,7 +780,9 @@ fn earlier_service() -> String {
     return earlier_service_unit_instance(INSTANCE);
 }
 
-/// What the earlier release wrote: its two templates, which every worktree's instance is made from.
+/// What the earlier release wrote:
+/// its two templates,
+/// which every worktree's instance is made from.
 fn earlier_templates(machine: &Machine) -> Vec<PathBuf> {
     let directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
     std::fs::create_dir_all(&directory).expect("unit directory");
@@ -727,7 +803,9 @@ fn earlier_socket_file(machine: &Machine, instance: &str) -> PathBuf {
     return file;
 }
 
-/// The earlier socket of the same worktree is stopped, after the instance of this release has started; the units it was made
+/// The earlier socket of the same worktree is stopped,
+/// after the instance of this release has started;
+/// the units it was made
 ///  from are shared with every other worktree and stay.
 #[test]
 fn the_same_worktrees_earlier_socket_is_stopped_after_the_new_instance_started() {
@@ -750,8 +828,11 @@ fn the_same_worktrees_earlier_socket_is_stopped_after_the_new_instance_started()
     remove(machine.root.as_path());
 }
 
-/// The stop spares the earlier service: the manager stops a service that requires the stopped socket, so the stop goes out in
-///  the mode that names the one unit, and no stop of the earlier service is ever sent.
+/// The stop spares the earlier service:
+/// the manager stops a service that requires the stopped socket,
+/// so the stop goes out in
+///  the mode that names the one unit,
+/// and no stop of the earlier service is ever sent.
 #[test]
 fn the_earlier_socket_is_stopped_without_stopping_the_unit_that_requires_it() {
     let machine: Machine = machine("provision-earlier-socket-alone-lib");
@@ -767,7 +848,8 @@ fn the_earlier_socket_is_stopped_without_stopping_the_unit_that_requires_it() {
     remove(machine.root.as_path());
 }
 
-/// The earlier socket of another worktree is not this worktree's to stop: no call names it.
+/// The earlier socket of another worktree is not this worktree's to stop:
+/// no call names it.
 #[test]
 fn another_worktrees_earlier_socket_is_left_alone() {
     let machine: Machine = machine("provision-earlier-socket-other-lib");
@@ -783,7 +865,8 @@ fn another_worktrees_earlier_socket_is_left_alone() {
     remove(machine.root.as_path());
 }
 
-/// A worktree that never had an earlier socket has nothing to stop, and a unit the manager has just unloaded is no error.
+/// A worktree that never had an earlier socket has nothing to stop,
+/// and a unit the manager has just unloaded is no error.
 #[test]
 fn a_missing_earlier_unit_is_not_an_error() {
     let machine: Machine = machine("provision-earlier-socket-missing-lib");
@@ -802,8 +885,11 @@ fn a_missing_earlier_unit_is_not_an_error() {
     remove(vanished.root.as_path());
 }
 
-/// A manager that cannot be asked, refuses, or runs out of time for the earlier socket never fails the commit ("Commits should
-///  never fail."): the failure is written to the log and the provisioning is done.
+/// A manager that cannot be asked,
+/// refuses,
+/// or runs out of time for the earlier socket never fails the commit ("Commits should
+///  never fail."):
+/// the failure is written to the log and the provisioning is done.
 #[test]
 fn a_failure_to_stop_the_earlier_socket_is_logged_and_never_fails_provisioning() {
     let failures: [CallError; 4] = [
@@ -831,7 +917,9 @@ fn a_failure_to_stop_the_earlier_socket_is_logged_and_never_fails_provisioning()
     remove(machine.root.as_path());
 }
 
-/// Every call about the earlier socket has a time of its own, as the reload and the start do, so that a bus that stalls delays
+/// Every call about the earlier socket has a time of its own,
+/// as the reload and the start do,
+/// so that a bus that stalls delays
 ///  the commit by no more than one exchange.
 #[test]
 fn the_questions_about_the_earlier_socket_have_a_budget_of_their_own() {
@@ -845,8 +933,12 @@ fn the_questions_about_the_earlier_socket_have_a_budget_of_their_own() {
     remove(machine.root.as_path());
 }
 
-/// A helper of the earlier release that is running (or starting, or stopping) finishes its batch: nothing is stopped, the log
-///  stays quiet, and the next provisioning looks again.
+/// A helper of the earlier release that is running (or starting,
+/// or stopping) finishes its batch:
+/// nothing is stopped,
+/// the log
+///  stays quiet,
+/// and the next provisioning looks again.
 #[test]
 fn a_running_earlier_helper_is_not_stopped_and_its_socket_is_kept() {
     for state in ["active", "activating", "deactivating", "reloading"] {
@@ -865,8 +957,12 @@ fn a_running_earlier_helper_is_not_stopped_and_its_socket_is_kept() {
     }
 }
 
-/// A socket file whose unit the manager no longer holds, with no helper running, is left as it is: an earlier-release wrapper
-///  may be making the unit listen again at that very path, and an unlink would take the live socket from it.
+/// A socket file whose unit the manager no longer holds,
+/// with no helper running,
+/// is left as it is:
+/// an earlier-release wrapper
+///  may be making the unit listen again at that very path,
+/// and an unlink would take the live socket from it.
 #[test]
 fn a_socket_file_left_by_an_unloaded_earlier_unit_is_not_unlinked() {
     let machine: Machine = machine("provision-earlier-socket-stale-lib");
@@ -879,9 +975,14 @@ fn a_socket_file_left_by_an_unloaded_earlier_unit_is_not_unlinked() {
     remove(machine.root.as_path());
 }
 
-/// Review finding of 2026-11-07 (cross-vendor, round 6): the socket-state answer and an unlink are separate steps, and an
-///  earlier-release wrapper can make its socket unit listen again in between, so the unlink would take the live socket from
-///  it and its next connect would fail. The earlier wrapper here makes the file again after every answer and every stop;
+/// Review finding of 2026-11-07 (cross-vendor,
+/// round 6):
+/// the socket-state answer and an unlink are separate steps,
+/// and an
+///  earlier-release wrapper can make its socket unit listen again in between,
+/// so the unlink would take the live socket from
+///  it and its next connect would fail.
+/// The earlier wrapper here makes the file again after every answer and every stop;
 ///  provisioning finishes with that file as the wrapper made it.
 #[test]
 fn a_socket_the_earlier_wrapper_makes_again_during_provisioning_is_left_whole() {
@@ -911,8 +1012,11 @@ fn socket_line(flags: &str, path: &str) -> String {
     return format!("000000002982a48d: 00000002 00000000 {flags} 0001 01 2269401 {path}\n");
 }
 
-/// The earlier socket of a worktree decides whether the installation is in place, by whether anything listens on it and not by
-///  whether its file is there: a stopped socket leaves the file, and that must not send every later commit to the bus.
+/// The earlier socket of a worktree decides whether the installation is in place,
+/// by whether anything listens on it and not by
+///  whether its file is there:
+/// a stopped socket leaves the file,
+/// and that must not send every later commit to the bus.
 #[test]
 fn an_earlier_socket_that_listens_keeps_the_installation_from_being_in_place_and_a_leftover_file_does_not() {
     let machine: Machine = machine("provision-earlier-socket-in-place-lib");
@@ -942,18 +1046,21 @@ fn an_earlier_socket_that_listens_keeps_the_installation_from_being_in_place_and
 //  `<runtime>/cli-git/service.sock` (tag `monochromatic-git-policy-cli-v0.5.34`, `service_instance.rs` line 26), a path of the
 //  earlier program, which the rename had turned into this release's folder name.
 
-/// The socket file of the single service of the first releases, spelled out.
+/// The socket file of the single service of the first releases,
+/// spelled out.
 fn shared_earlier_socket(machine: &Machine) -> PathBuf {
     return machine.host.runtime_dir.join("cli-git").join("service.sock");
 }
 
-/// The constant names that file, and not a file of this release's folder.
+/// The constant names that file,
+/// and not a file of this release's folder.
 #[test]
 fn the_shared_earlier_socket_is_in_the_earlier_programs_folder() {
     assert_eq!(LEGACY_SOCKET_RELATIVE, "cli-git/service.sock");
 }
 
-/// A socket file of the single service of the first releases keeps the installation from counting as in place, and a file of
+/// A socket file of the single service of the first releases keeps the installation from counting as in place,
+/// and a file of
 ///  that name in this release's folder (which nothing makes) does not.
 #[test]
 fn the_shared_earlier_socket_file_keeps_the_installation_from_being_in_place() {
@@ -973,7 +1080,9 @@ fn the_shared_earlier_socket_file_keeps_the_installation_from_being_in_place() {
 }
 
 /// The single service's socket file with no unit file anywhere is what a release that removed the files but not the service left
-///  behind: both unit names are stopped, and the file is removed afterwards.
+///  behind:
+/// both unit names are stopped,
+/// and the file is removed afterwards.
 #[test]
 fn a_shared_earlier_socket_file_without_unit_files_retires_the_service_at_its_own_path() {
     let machine: Machine = machine("provision-shared-earlier-retire-lib");

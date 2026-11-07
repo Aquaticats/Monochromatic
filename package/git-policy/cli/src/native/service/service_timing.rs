@@ -83,8 +83,11 @@ pub struct LandTiming {
     pub ref_update: Duration,
     /// Time to remove the conclusion state and to build and install the new index.
     pub index_update: Duration,
-    /// How long the index lock was held, from its placement to its release: the branch move and the index build.
-    /// Not a phase of its own (it overlaps `ref_update` and `index_update`), so it is not part of what `reads` subtracts.
+    /// How long the index lock was held,
+    /// from its placement to its release:
+    /// the branch move and the index build.
+    /// Not a phase of its own (it overlaps `ref_update` and `index_update`),
+    /// so it is not part of what `reads` subtracts.
     pub hold: Duration,
     /// Passes over the batch:
     /// one,
@@ -139,14 +142,19 @@ pub struct Answered<'record> {
     pub answer: Duration,
     /// Time from the acceptance of the connection to the answer.
     pub total: Duration,
-    /// The longest quiet gap of every Git step and tool the service ran since the previous answered line, by step name, taken
-    ///  from the ledger (`quiet_ledger.rs`). The landings of one service share the ledger, so the first answer of a batch holds
+    /// The longest quiet gap of every Git step and tool the service ran since the previous answered line,
+    /// by step name,
+    /// taken
+    ///  from the ledger (`quiet_ledger.rs`).
+    /// The landings of one service share the ledger,
+    /// so the first answer of a batch holds
     ///  what the batch's steps showed and the others of that batch hold nothing.
     pub quiet: &'record [(String, Duration)],
 }
 
 /// What:
-///  One quiet gap as a word: `name=milliseconds` with three decimals.
+///  One quiet gap as a word:
+/// `name=milliseconds` with three decimals.
 /// Why:
 ///  `quiet_steps` joins the words of all the gaps with semicolons.
 ///
@@ -159,7 +167,8 @@ fn quiet_step_word(figure: &(String, Duration)) -> String {
     return format!("{step}={:.3}", gap.as_micros() as f64 / 1000.0);
 }
 
-/// The text of the quiet gaps in the answered line: `name=milliseconds` joined by semicolons.
+/// The text of the quiet gaps in the answered line:
+/// `name=milliseconds` joined by semicolons.
 fn quiet_steps(figures: &[(String, Duration)]) -> String {
     let words: Vec<String> = figures.iter().map(quiet_step_word).collect();
     return words.join(";");
@@ -193,9 +202,16 @@ pub fn lock_notes_fields(notes: &WaitNotes) -> String {
 
 /// The wait for the index lock that is written down even when no holder was met:
 /// a flush of the marker or a wait that long is a slow landing's first suspect.
-///  Exempt from a citation under `LQM` (class: notice pacing): it times a line the person reads or a log threshold, and
-///  nothing waits on it beyond the wait that already exists. Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
+///  Exempt from a citation under `LQM` (class:
+/// notice pacing):
+/// it times a line the person reads or a log threshold,
+/// and
+///  nothing waits on it beyond the wait that already exists.
+/// Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 pub const SLOW_LOCK_STEP: Duration = Duration::from_secs(1);
 
 /// What:
@@ -231,11 +247,17 @@ pub fn wait_line(seq: u64, total: Duration, notes: &WaitNotes, taken: bool) -> O
 const LEGACY_INDEX_UPDATE_KEY: &str = "sync_ms";
 
 /// What:
-///  The duration, in whole milliseconds, that an `answered` line gives for removing the conclusion state and building and
+///  The duration,
+/// in whole milliseconds,
+/// that an `answered` line gives for removing the conclusion state and building and
 ///  installing the new index.
 /// Why:
-///   The step was first logged as `sync_ms`, which reads as a disk sync although it is the follow-up of the landing that holds
-///  the index lock; it is `index_update_ms` now. Lines already in the journal keep the old key, so a reader asks for the new
+///   The step was first logged as `sync_ms`,
+/// which reads as a disk sync although it is the follow-up of the landing that holds
+///  the index lock;
+/// it is `index_update_ms` now.
+/// Lines already in the journal keep the old key,
+/// so a reader asks for the new
 ///  key and falls back to the old one.
 ///
 /// In TS you'd write (pseudocode):
@@ -250,7 +272,8 @@ pub fn index_update_ms_of(line: &str) -> Option<u64> {
 }
 
 /// What:
-///  The number that follows ` key=` in a log line, nothing when the key is absent or no digits follow.
+///  The number that follows ` key=` in a log line,
+/// nothing when the key is absent or no digits follow.
 /// Why:
 ///  `index_update_ms_of` reads the current key first and the legacy key after it.
 ///
@@ -404,10 +427,13 @@ pub fn log(line: &str) {
 }
 
 /// What:
-///  Whether this process is the resident service, which names its release once at the start (`set_context`).
+///  Whether this process is the resident service,
+/// which names its release once at the start (`set_context`).
 /// Why:
-///   Code both programs run (the auto-push's fetch, the shadow's `init`) records Git's words in the service's log in the
-///  service and as a client entry in the wrapper; a control that captures the service's entries counts as the service.
+///   Code both programs run (the auto-push's fetch,
+/// the shadow's `init`) records Git's words in the service's log in the
+///  service and as a client entry in the wrapper;
+/// a control that captures the service's entries counts as the service.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -421,10 +447,14 @@ pub fn in_service() -> bool {
     return CONTEXT.get().is_some();
 }
 
-/// What the service says of itself in every entry: its release and, when it serves one worktree, its instance.
+/// What the service says of itself in every entry:
+/// its release and,
+/// when it serves one worktree,
+/// its instance.
 static CONTEXT: OnceLock<Vec<(&'static str, String)>> = OnceLock::new();
 
-/// Where entries go, decided at the first one.
+/// Where entries go,
+/// decided at the first one.
 static SINK: OnceLock<Sink> = OnceLock::new();
 
 /// The sink of this process.
@@ -432,7 +462,8 @@ pub fn sink() -> &'static Sink {
     return SINK.get_or_init(Sink::from_environment);
 }
 
-/// Names the release and instance every later entry carries as `CLI_GIT_RELEASE` and `CLI_GIT_INSTANCE`; the first call wins.
+/// Names the release and instance every later entry carries as `CLI_GIT_RELEASE` and `CLI_GIT_INSTANCE`;
+/// the first call wins.
 pub fn set_context(release: &str, instance: Option<&str>) {
     let mut fields: Vec<(&'static str, String)> = vec![("CLI_GIT_RELEASE", release.to_string())];
     if let Some(name) = instance {
@@ -442,12 +473,19 @@ pub fn set_context(release: &str, instance: Option<&str>) {
 }
 
 /// What:
-///  Writes one entry of a priority, with fields a reader can filter the journal on, and gives where it went.
+///  Writes one entry of a priority,
+/// with fields a reader can filter the journal on,
+/// and gives where it went.
 /// Why:
-///   The userinfo of every URL is masked (a push or a review reports what Git and a server said), the line on standard error
+///   The userinfo of every URL is masked (a push or a review reports what Git and a server said),
+/// the line on standard error
 ///  is one line,
-///  then it states its own time (`stamped_line`); a native entry also carries the time as `CLI_GIT_AT_MS`, the priority
-///  and the context. Nothing here waits: see `journald_native`.
+///  then it states its own time (`stamped_line`);
+/// a native entry also carries the time as `CLI_GIT_AT_MS`,
+/// the priority
+///  and the context.
+/// Nothing here waits:
+/// see `journald_native`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -483,9 +521,11 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
 }
 
 /// What:
-///  Writes one formatted line at the `warning` priority, with its time.
+///  Writes one formatted line at the `warning` priority,
+/// with its time.
 /// Why:
-///   Something did not go as intended and the service went on; `journalctl --priority=warning` shows it.
+///   Something did not go as intended and the service went on;
+/// `journalctl --priority=warning` shows it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -501,9 +541,11 @@ macro_rules! service_warn {
 }
 
 /// What:
-///  Writes one formatted line at the `err` priority, with its time.
+///  Writes one formatted line at the `err` priority,
+/// with its time.
 /// Why:
-///   Something the service needed failed; `journalctl --priority=err` shows it.
+///   Something the service needed failed;
+/// `journalctl --priority=err` shows it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -536,7 +578,8 @@ macro_rules! service_log {
     };
 }
 
-/// What a control sees of the entries the code under test writes, on the thread that runs it.
+/// What a control sees of the entries the code under test writes,
+/// on the thread that runs it.
 #[cfg(test)]
 #[path = "service_timing_capture_test_support.rs"]
 pub mod capture;

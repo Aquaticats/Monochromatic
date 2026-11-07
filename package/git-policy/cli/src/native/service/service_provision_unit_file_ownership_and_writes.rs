@@ -1,8 +1,13 @@
 //! What:
-//!  The checks and writes on the unit files of the commit service: which files carry the wrapper's marker, whether any
-//!  directory holds a file of a name, how a unit file is written atomically and how a settled one is removed.
+//!  The checks and writes on the unit files of the commit service:
+//! which files carry the wrapper's marker,
+//! whether any
+//!  directory holds a file of a name,
+//! how a unit file is written atomically and how a settled one is removed.
 //! Why:
-//!  The provisioning (`service_provision.rs`) decides what to write and stop; these steps need no host or manager, so they sit
+//!  The provisioning (`service_provision.rs`) decides what to write and stop;
+//! these steps need no host or manager,
+//! so they sit
 //!  in a file it uses.
 //!
 //! In TS you'd write (pseudocode):
@@ -12,12 +17,15 @@
 
 use crate::service_messages::ClientFailure;
 use std::path::{Path, PathBuf};
-/// The words that mark a unit file as written by this wrapper: the marker its units carry now, and the descriptions the
+/// The words that mark a unit file as written by this wrapper:
+/// the marker its units carry now,
+/// and the descriptions the
 ///  units of earlier releases carried.
 pub const OWN_MARKERS: [&str; 4] =
     ["(monochromatic-git-policy-cli-unit)", "(cli-git-unit)", "Description=Commit service socket for the git wrapper", "Description=Commit service for the git wrapper"];
 
-/// Writes `text` to `path` through a temporary file and a rename, so a reader sees the old file or the new one whole.
+/// Writes `text` to `path` through a temporary file and a rename,
+/// so a reader sees the old file or the new one whole.
 pub(crate) fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
     let number: u64 = TEMPORARY_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let temporary: PathBuf = path.with_extension(format!("tmp-{}-{number}", std::process::id()));
@@ -80,7 +88,8 @@ pub(crate) fn own_unit_file_in_runtime_or_user_directory(runtime_directory: &Pat
 /// What:
 ///  Whether any of the unit names has a file in any of the directories.
 /// Why:
-///  A socket file with no unit file of either name anywhere is what a release left behind; one that exists is someone else's.
+///  A socket file with no unit file of either name anywhere is what a release left behind;
+/// one that exists is someone else's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -98,10 +107,13 @@ pub(crate) fn any_named_anywhere(directories: &[PathBuf], names: &[&str]) -> boo
 }
 
 /// What:
-///  Removes a unit file whose ownership was just checked; a file that is gone by now is a removal someone else finished.
+///  Removes a unit file whose ownership was just checked;
+/// a file that is gone by now is a removal someone else finished.
 /// Why:
-///   Several commits provision at once without any lock, so two of them can read the same owned file and both remove it:
-///  the second one's removal finds nothing, and the cleanup it wanted is done.
+///   Several commits provision at once without any lock,
+/// so two of them can read the same owned file and both remove it:
+///  the second one's removal finds nothing,
+/// and the cleanup it wanted is done.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

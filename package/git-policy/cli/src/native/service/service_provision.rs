@@ -1,30 +1,72 @@
 //! What:
-//!  The wrapper makes socket activation for a worktree's commit service exist the first time a commit needs it: it writes
-//!  the two template unit files into the user's runtime unit directory, asks the user manager (through the session bus) to
-//!  reload and to start the worktree's socket instance, and returns. The manager, not the wrapper, starts the service when
+//!  The wrapper makes socket activation for a worktree's commit service exist the first time a commit needs it:
+//! it writes
+//!  the two template unit files into the user's runtime unit directory,
+//! asks the user manager (through the session bus) to
+//!  reload and to start the worktree's socket instance,
+//! and returns.
+//! The manager,
+//! not the wrapper,
+//! starts the service when
 //!  the first connection arrives.
 //! Why:
-//!  There is no install step to remember (`doc/planning/cli-git-resident-service.md`, "Provisioning"): like Bazel's
-//!  client, the wrapper sets up what it needs and tells nobody. One service runs per worktree, so the units are templates
-//!  (`cli-git@.socket`, `cli-git@.service`) and each worktree's instance is named by a hash of its own Git directory
-//!  (`service_instance.rs`). The units live under `$XDG_RUNTIME_DIR/systemd/user`, which disappears at logout, so nothing is
-//!  left behind in the home directory and the next first use provisions again. Every step is idempotent (a file is written,
-//!  by temporary file and rename, only when its content differs), so several commits racing to provision agree without any
-//!  lock. Every commit that goes to the service compares the two installed templates with what this wrapper would write
-//!  (two small reads) before it touches the bus, so an upgrade or a downgrade, which moves the executable the template
-//!  names, is repaired by the first commit that follows it: templates rewritten, manager reloaded, failed state cleared,
-//!  the worktree's socket started. The single service of the earlier releases (`cli-git.socket` and `cli-git.service`, one
-//!  socket for every worktree) is asked to retire and stopped, and its units and socket file are removed, by the first
-//!  commit of the new release; its open batches are finished by the instance of the worktree they belong to, and the work
-//!  it had claimed is claimed again by the next drain. Units this wrapper's earliest releases wrote into
-//!  `~/.config/systemd/user` outrank the runtime ones in the unit search path, so they are recognized by their content and
-//!  removed; a unit of the same name that something else wrote is never touched, and the commit stops with a message naming
+//!  There is no install step to remember (`doc/planning/cli-git-resident-service.md`,
+//! "Provisioning"):
+//! like Bazel's
+//!  client,
+//! the wrapper sets up what it needs and tells nobody.
+//! One service runs per worktree,
+//! so the units are templates
+//!  (`cli-git@.socket`,
+//! `cli-git@.service`) and each worktree's instance is named by a hash of its own Git directory
+//!  (`service_instance.rs`).
+//! The units live under `$XDG_RUNTIME_DIR/systemd/user`,
+//! which disappears at logout,
+//! so nothing is
+//!  left behind in the home directory and the next first use provisions again.
+//! Every step is idempotent (a file is written,
+//!  by temporary file and rename,
+//! only when its content differs),
+//! so several commits racing to provision agree without any
+//!  lock.
+//! Every commit that goes to the service compares the two installed templates with what this wrapper would write
+//!  (two small reads) before it touches the bus,
+//! so an upgrade or a downgrade,
+//! which moves the executable the template
+//!  names,
+//! is repaired by the first commit that follows it:
+//! templates rewritten,
+//! manager reloaded,
+//! failed state cleared,
+//!  the worktree's socket started.
+//! The single service of the earlier releases (`cli-git.socket` and `cli-git.service`,
+//! one
+//!  socket for every worktree) is asked to retire and stopped,
+//! and its units and socket file are removed,
+//! by the first
+//!  commit of the new release;
+//! its open batches are finished by the instance of the worktree they belong to,
+//! and the work
+//!  it had claimed is claimed again by the next drain.
+//! Units this wrapper's earliest releases wrote into
+//!  `~/.config/systemd/user` outrank the runtime ones in the unit search path,
+//! so they are recognized by their content and
+//!  removed;
+//! a unit of the same name that something else wrote is never touched,
+//! and the commit stops with a message naming
 //!  the file.
-//!  The socket that the earlier release set up for the same worktree (`cli-git@<instance>.socket`, the same instance text) is
-//!  stopped after this release's socket has started, so that the earlier helper cannot be started by a connection and the
-//!  batches it left open can be finished (`earlier_service_journal_adopted.rs`); see `stop_earlier_instance_socket`. The stop
-//!  never fails a commit. A helper of the earlier release that is running is not stopped and its socket stays; the next commit
-//!  looks again. The templates the earlier release wrote are shared by every worktree's instance and are left alone.
+//!  The socket that the earlier release set up for the same worktree (`cli-git@<instance>.socket`,
+//! the same instance text) is
+//!  stopped after this release's socket has started,
+//! so that the earlier helper cannot be started by a connection and the
+//!  batches it left open can be finished (`earlier_service_journal_adopted.rs`);
+//! see `stop_earlier_instance_socket`.
+//! The stop
+//!  never fails a commit.
+//! A helper of the earlier release that is running is not stopped and its socket stays;
+//! the next commit
+//!  looks again.
+//! The templates the earlier release wrote are shared by every worktree's instance and are left alone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -40,10 +82,12 @@ use crate::service_instance::{LEGACY_SOCKET_RELATIVE, earlier_service_unit_insta
 use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
 use std::path::{Path, PathBuf};
 
-/// The socket template's text, with the marker on its first line.
+/// The socket template's text,
+/// with the marker on its first line.
 pub const SOCKET_UNIT: &str = include_str!("service_units/monochromatic-git-policy-cli@.socket");
 
-/// The service template's text, with `@SERVICE_BINARY@` and `@GIT@` still to fill in.
+/// The service template's text,
+/// with `@SERVICE_BINARY@` and `@GIT@` still to fill in.
 pub const SERVICE_UNIT: &str = include_str!("service_units/monochromatic-git-policy-cli@.service");
 
 /// File name of the socket template.
@@ -64,13 +108,17 @@ const GIT_PLACEHOLDER: &str = "@GIT@";
 /// What provisioning needs to know about the machine.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProvisionHost {
-    /// The user's runtime directory, which holds the units and the service's socket.
+    /// The user's runtime directory,
+    /// which holds the units and the service's socket.
     pub runtime_dir: PathBuf,
-    /// The directory a user's own unit files live in (`~/.config/systemd/user`), where earlier releases wrote theirs.
+    /// The directory a user's own unit files live in (`~/.config/systemd/user`),
+    /// where earlier releases wrote theirs.
     pub user_unit_dir: Option<PathBuf>,
     /// The session bus socket.
     pub bus: PathBuf,
-    /// The program the service unit starts: the wrapper's own executable, which runs the service when the words after it ask
+    /// The program the service unit starts:
+    /// the wrapper's own executable,
+    /// which runs the service when the words after it ask
     ///  for that (`service_main.rs`).
     pub service_binary: PathBuf,
     /// The real Git the service runs.
@@ -81,14 +129,20 @@ pub struct ProvisionHost {
     pub retirement_wait: std::time::Duration,
 }
 
-/// How long the earlier single service may take to stop; it finishes the batch it holds first. The wait and every question to
-///  the manager in it share this one budget, set apart from the exchange's own, so a slow stop is reported as that and not as
+/// How long the earlier single service may take to stop;
+/// it finishes the batch it holds first.
+/// The wait and every question to
+///  the manager in it share this one budget,
+/// set apart from the exchange's own,
+/// so a slow stop is reported as that and not as
 ///  an unreachable manager.
 pub const RETIREMENT_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
-/// What the manager is asked to do, so a control can record it instead of reaching a manager.
+/// What the manager is asked to do,
+/// so a control can record it instead of reaching a manager.
 pub trait Manager {
-    /// Gives the calls that follow `wait` from now in all, so that each phase of provisioning has a time of its own.
+    /// Gives the calls that follow `wait` from now in all,
+    /// so that each phase of provisioning has a time of its own.
     fn within(&mut self, wait: std::time::Duration);
     /// Reloads the unit files.
     fn reload(&mut self) -> Result<(), CallError>;
@@ -100,7 +154,11 @@ pub trait Manager {
     fn stop(&mut self, unit: &str) -> Result<(), CallError>;
     /// Stops a unit and none of the units that require it.
     fn stop_alone(&mut self, unit: &str) -> Result<(), CallError>;
-    /// The unit's state as the manager reports it (`active`, `deactivating`, `inactive`, `failed`), or nothing when the
+    /// The unit's state as the manager reports it (`active`,
+    /// `deactivating`,
+    /// `inactive`,
+    /// `failed`),
+    /// or nothing when the
     ///  manager holds no such unit.
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError>;
 }
@@ -149,7 +207,8 @@ pub fn platform_without_manager() -> Platform {
     return Platform::Other;
 }
 
-/// The two unit files for a host, as written.
+/// The two unit files for a host,
+/// as written.
 pub fn unit_texts(host: &ProvisionHost) -> [(&'static str, String); 2] {
     let service: String = SERVICE_UNIT
         .replace(BINARY_PLACEHOLDER, host.service_binary.to_string_lossy().as_ref())
@@ -163,11 +222,18 @@ pub fn runtime_unit_dir(runtime_dir: &Path) -> PathBuf {
 }
 
 /// What:
-///  Whether the installed templates are the ones this wrapper would write, the worktree's socket is there, and nothing of
-///  the single service of the earlier releases is left, and no socket of the earlier release for this worktree listens.
+///  Whether the installed templates are the ones this wrapper would write,
+/// the worktree's socket is there,
+/// and nothing of
+///  the single service of the earlier releases is left,
+/// and no socket of the earlier release for this worktree listens.
 /// Why:
-///   The socket belongs to the manager and outlives every upgrade, so its presence says nothing about which program the
-///  service template names; the text does. A few small reads and two `stat` calls decide, and the bus is not touched when
+///   The socket belongs to the manager and outlives every upgrade,
+/// so its presence says nothing about which program the
+///  service template names;
+/// the text does.
+/// A few small reads and two `stat` calls decide,
+/// and the bus is not touched when
 ///  they agree.
 ///
 /// In TS you'd write (pseudocode):
@@ -236,13 +302,23 @@ fn clear_earlier_units(host: &ProvisionHost) -> Result<bool, ClientFailure> {
 }
 
 /// What:
-///  Retires the single service of the earlier releases: asks it to finish its batch and exit, stops its units, and removes
-///  its unit files and socket file. Whether the manager must reload.
+///  Retires the single service of the earlier releases:
+/// asks it to finish its batch and exit,
+/// stops its units,
+/// and removes
+///  its unit files and socket file.
+/// Whether the manager must reload.
 /// Why:
-///   One service for every worktree is what the owner replaced with one per worktree. Its socket and units belong to the
-///  runtime directory, which the wrapper owns; a unit file that does not carry the wrapper's marker is someone else's and is
-///  left alone. Work it had claimed stays in the work directories and is claimed again by the instance of its worktree; the
-///  batches it left open are in its journal, where the instance of their worktree finishes them.
+///   One service for every worktree is what the owner replaced with one per worktree.
+/// Its socket and units belong to the
+///  runtime directory,
+/// which the wrapper owns;
+/// a unit file that does not carry the wrapper's marker is someone else's and is
+///  left alone.
+/// Work it had claimed stays in the work directories and is claimed again by the instance of its worktree;
+/// the
+///  batches it left open are in its journal,
+/// where the instance of their worktree finishes them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -312,7 +388,8 @@ fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Manager) -> Re
     return Ok(!owned_files.is_empty());
 }
 
-/// Asks the manager to stop each unit; a unit it never loaded has nothing to stop.
+/// Asks the manager to stop each unit;
+/// a unit it never loaded has nothing to stop.
 fn stop_units(manager: &mut dyn Manager, units: &[&str]) -> Result<(), ClientFailure> {
     for name in units {
         match manager.stop(name) {
@@ -325,11 +402,15 @@ fn stop_units(manager: &mut dyn Manager, units: &[&str]) -> Result<(), ClientFai
 }
 
 /// What:
-///  The file that defines the unit `name` for the user's manager: the one in the user's own unit directory when there is
-///  one, else the one in the runtime unit directory.
+///  The file that defines the unit `name` for the user's manager:
+/// the one in the user's own unit directory when there is
+///  one,
+/// else the one in the runtime unit directory.
 /// Why:
-///   The user's own directory outranks the runtime one in the manager's search path (`systemd.unit(5)`, "Unit File Load
-///  Path"), so a runtime file of the same name is shadowed and says nothing about the unit that runs.
+///   The user's own directory outranks the runtime one in the manager's search path (`systemd.unit(5)`,
+/// "Unit File Load
+///  Path"),
+/// so a runtime file of the same name is shadowed and says nothing about the unit that runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -353,7 +434,8 @@ fn effective_unit_file(host: &ProvisionHost, name: &str) -> Option<PathBuf> {
 /// What:
 ///  The failure for an earlier commit service that is still running after the retirement wait.
 /// Why:
-///  The service may be in the middle of a landing that stopping it would cut, so the person is told to run the commit again or
+///  The service may be in the middle of a landing that stopping it would cut,
+/// so the person is told to run the commit again or
 ///  to stop it by hand.
 ///
 /// In TS you'd write (pseudocode):
@@ -368,12 +450,23 @@ fn still_stopping(host: &ProvisionHost, unit: &str) -> ClientFailure {
 }
 
 /// What:
-///  Waits until the manager reports each unit inactive, failed or not held, and fails when that takes longer than the host
+///  Waits until the manager reports each unit inactive,
+/// failed or not held,
+/// and fails when that takes longer than the host
 ///  allows.
 /// Why:
-///   A stop call returns when the job is queued, and a service that was asked to retire finishes the batch it holds, and its Git
-///  children, before it exits (the wait comes before the stop of the service, which would cut that batch); an instance started meanwhile would recover and claim work the earlier service is still doing, so the commit
-///  fails instead, naming what is still stopping. Its files stay, so the next commit finds the same state and tries again.
+///   A stop call returns when the job is queued,
+/// and a service that was asked to retire finishes the batch it holds,
+/// and its Git
+///  children,
+/// before it exits (the wait comes before the stop of the service,
+/// which would cut that batch);
+/// an instance started meanwhile would recover and claim work the earlier service is still doing,
+/// so the commit
+///  fails instead,
+/// naming what is still stopping.
+/// Its files stay,
+/// so the next commit finds the same state and tries again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -407,7 +500,10 @@ fn wait_until_stopped(host: &ProvisionHost, manager: &mut dyn Manager, units: &[
 /// How often the manager is asked whether the earlier service has stopped.
 const RETIREMENT_POLL: std::time::Duration = std::time::Duration::from_millis(50);
 
-/// What a refused call is to the person: the manager's own words, or a plain statement; its error name is internal vocabulary.
+/// What a refused call is to the person:
+/// the manager's own words,
+/// or a plain statement;
+/// its error name is internal vocabulary.
 fn refusal(error: CallError) -> ClientFailure {
     return match error {
         CallError::Manager { text, .. } if text.is_empty() => ClientFailure::CouldNotStart(String::from("the service manager refused the request")),
@@ -419,11 +515,18 @@ fn refusal(error: CallError) -> ClientFailure {
 }
 
 /// What:
-///  Makes socket activation exist: the earlier single service retired, current templates written where they differ, the
-///  manager reloaded when a unit it may hold changed or went away, and the worktree's socket instance started.
+///  Makes socket activation exist:
+/// the earlier single service retired,
+/// current templates written where they differ,
+/// the
+///  manager reloaded when a unit it may hold changed or went away,
+/// and the worktree's socket instance started.
 /// Why:
-///   Idempotent by construction: a second call with nothing to change only starts the socket, which is a no-op when it is
-///  already listening; two calls at once write identical content through renames and both succeed.
+///   Idempotent by construction:
+/// a second call with nothing to change only starts the socket,
+/// which is a no-op when it is
+///  already listening;
+/// two calls at once write identical content through renames and both succeed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -470,8 +573,12 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     return Ok(());
 }
 
-/// The calls provisioning makes: a reload when a held unit changed, a reset of failed state when a unit may have failed
-///  under the manager (the reset is best effort: a unit the manager does not hold has nothing to reset), and the start.
+/// The calls provisioning makes:
+/// a reload when a held unit changed,
+/// a reset of failed state when a unit may have failed
+///  under the manager (the reset is best effort:
+/// a unit the manager does not hold has nothing to reset),
+/// and the start.
 fn ask_manager(manager: &mut dyn Manager, reload: bool, known: bool, instance: &str) -> Result<(), CallError> {
     if reload {
         manager.reload()?;
@@ -486,7 +593,8 @@ fn ask_manager(manager: &mut dyn Manager, reload: bool, known: bool, instance: &
     return manager.start(socket_unit_instance(instance).as_str());
 }
 
-/// Whether a unit's state says it runs no process and listens on nothing: `inactive` or `failed`.
+/// Whether a unit's state says it runs no process and listens on nothing:
+/// `inactive` or `failed`.
 fn is_at_rest(state: &str) -> bool {
     return matches!(state, "inactive" | "failed");
 }
@@ -504,19 +612,39 @@ fn describe(error: &CallError) -> String {
 }
 
 /// What:
-///  Stops the socket unit `cli-git@<instance>.socket` that the earlier release set up for this very worktree, when no helper
-///  of that unit runs. Nothing here fails the commit.
+///  Stops the socket unit `cli-git@<instance>.socket` that the earlier release set up for this very worktree,
+/// when no helper
+///  of that unit runs.
+/// Nothing here fails the commit.
 /// Why:
-///   The owner's pick of 2026-11-07 ("Stop the old socket"): while that socket listens, a connection starts the earlier helper
-///  at any moment, which keeps the person's earlier batches from being settled on request
-///  (`earlier_service_journal_adopted.rs`). The instance name is the same text in both releases (the same hash of the same Git
-///  directory), so the unit is this worktree's and no other's. The earlier release wrote only two shared templates, from which
-///  every worktree's instance is made, so there is no file of this instance to remove and the templates stay; a stopped instance
-///  is unloaded by the manager. A helper that runs is left as it is: the earlier service `Requires=` its socket, so a plain stop
-///  of the socket stops it mid-batch, and the stop that is sent names the one unit. The socket file is never unlinked, because
+///   The owner's pick of 2026-11-07 ("Stop the old socket"):
+/// while that socket listens,
+/// a connection starts the earlier helper
+///  at any moment,
+/// which keeps the person's earlier batches from being settled on request
+///  (`earlier_service_journal_adopted.rs`).
+/// The instance name is the same text in both releases (the same hash of the same Git
+///  directory),
+/// so the unit is this worktree's and no other's.
+/// The earlier release wrote only two shared templates,
+/// from which
+///  every worktree's instance is made,
+/// so there is no file of this instance to remove and the templates stay;
+/// a stopped instance
+///  is unloaded by the manager.
+/// A helper that runs is left as it is:
+/// the earlier service `Requires=` its socket,
+/// so a plain stop
+///  of the socket stops it mid-batch,
+/// and the stop that is sent names the one unit.
+/// The socket file is never unlinked,
+/// because
 ///  an earlier-release wrapper can make its unit listen again at that path between any answer of the manager and an unlink.
-///  Whether the stop is still to be done is read from the table of listening sockets (`in_place_with`). Every failure is logged
-///  and ignored, each call is bounded by one exchange's time, and an earlier-release wrapper that sets the unit up again
+///  Whether the stop is still to be done is read from the table of listening sockets (`in_place_with`).
+/// Every failure is logged
+///  and ignored,
+/// each call is bounded by one exchange's time,
+/// and an earlier-release wrapper that sets the unit up again
 ///  undoes this (the owner accepted that).
 ///
 /// In TS you'd write (pseudocode):
@@ -554,7 +682,8 @@ fn stop_earlier_instance_socket(host: &ProvisionHost, manager: &mut dyn Manager)
     }
 }
 
-/// Provisions through the session bus, unless the units and the socket are already in place.
+/// Provisions through the session bus,
+/// unless the units and the socket are already in place.
 pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
     if in_place(host) {
         return Ok(());
@@ -571,7 +700,10 @@ pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
 #[path = "service_provision_tests.rs"]
 mod tests;
 
-/// The owner's rule that nothing of the wrapper starts at system startup or at login, held by guards that fail when a unit, a link, a
+/// The owner's rule that nothing of the wrapper starts at system startup or at login,
+/// held by guards that fail when a unit,
+/// a link,
+/// a
 ///  file outside the runtime directory or a call to the manager would make it so.
 #[cfg(test)]
 #[path = "service_provision_never_starts_at_login_tests.rs"]
