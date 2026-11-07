@@ -3608,7 +3608,25 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `mask_userinfo_text`). Plain pass-through of Git's own stderr is unchanged. Its first gate run had one failure,
   `program_rename_guard::both_names_of_a_kept_kind_use_the_new_and_report_the_earlier` (empty stderr), which passed on rerun
   and alone; handed to the fold agent, whose change owns that notice and test.
-- The diagnosis of the emptied link folders ran at the same time. Bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`)
+- The diagnosis of the emptied link folders ran at the same time.
+- Fold of the six earlier `.git` data names merged as `38d54f9b2b` (gate 5158 of 5158, lint clean). Not released;
+  it reaches this machine only with the next wrapper release. Logs are appended to the current log (earlier lines at the
+  end, every byte kept), folders merged entry by entry with `rename_noreplace`, a clash keeps both
+  (`<name>.from-earlier-release`); a journal plus `flock` makes every step restartable; it waits while this
+  worktree's earlier commit service runs (main's `cli-git@fc85fdf7a58f866b7f7a84b44fe0b69a` is running now), with about
+  10 ms per command while waiting. The old notice and its flaky test are gone. Known gap, must close before the next
+  wrapper release: a line an earlier-release wrapper writes into the moved-aside log after the last size check is lost
+  when the moved file is removed (about 216 checkouts lock older releases); agent on
+  `fix/git-policy-cli-fold-keeps-late-lines`. Another suite-only failure seen once in its gates:
+  `service::the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero` (passed alone and in three later
+  gates; cause not measured; queued). Its agent wrote a planning section into main's checkout by mistake and removed
+  exactly its own lines with `git apply --reverse`; main was clean after.
+- `core-exec` `depends.unit.test.ts`: no hang on an idle host (5.1 s); a hang was reproduced under a full process-count
+  ceiling (`TasksMax=150`; children stuck when their threads were refused) and every child wait in `task-depends` is
+  now bounded (60 s per query, 3600 s per command, measurements cited); branch
+  `fix/monorepo-task-core-exec-depends-test-time` (`b9bbbb4268`), not merged. Back with its agent for a process-group
+  kill (a timed-out pipeline survives today) and for the package lint, which fails on main with 16 warnings in
+  `daily-update-*.ts`, `mpm-shadow.unit.test.ts` and `playwright-image.unit.test.ts`. Bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`)
   started about 09:34. Still waiting for a slot: the terminal and music-player Containerfiles taking Zig from the lock row instead of `ZIG_VERSION=0.15.2`
   (`fix/containers-zig-from-lock`); both briefs are saved in
   `~/temp/agent/coordinator-briefs/waiting-for-a-slot.md` (scratch, lost on reboot).
