@@ -15,6 +15,7 @@ import {
   defaultTimeoutSeconds,
   defaultUnitCpuQuota,
   defaultUnitMemoryMax,
+  defaultUnitTasksMax,
   lockDirectoryEnvironmentVariable,
   rootEnvironmentVariable,
   scratchSegments,
@@ -60,6 +61,7 @@ export type LauncherOptions = {
   readonly gateSlotArguments: readonly string[];
   readonly unitMemoryMax: string;
   readonly unitCpuQuota: string;
+  readonly unitTasksMax: number;
   readonly timeoutSeconds: number;
   readonly buildTimeoutSeconds?: number;
   readonly examine: readonly string[];
@@ -99,6 +101,7 @@ export const launcherUsage: string = [
   'Unit:',
   `  --unit-memory-max <value> systemd MemoryMax of each unit (default: ${defaultUnitMemoryMax})`,
   `  --unit-cpu-quota <value>  systemd CPUQuota of each unit (default: ${defaultUnitCpuQuota})`,
+  `  --unit-tasks-max <count>  systemd TasksMax of each unit, threads and processes (default: ${String(defaultUnitTasksMax)})`,
   `  --unit-prefix <text>      unit name prefix (default: ${defaultNamePrefix})`,
   'Locations:',
   `  --root <dir>              working tree the units start in (default: $${rootEnvironmentVariable}, then this checkout)`,
@@ -179,6 +182,7 @@ export function parseLauncherOptions({
       'retry-marker': { type: 'string' },
       'unit-memory-max': { type: 'string' },
       'unit-cpu-quota': { type: 'string' },
+      'unit-tasks-max': { type: 'string' },
       'unit-prefix': { type: 'string' },
       'root': { type: 'string' },
       'log-dir': { type: 'string' },
@@ -301,6 +305,12 @@ export function parseLauncherOptions({
       option: '--unit-cpu-quota',
       value: values['unit-cpu-quota'] ?? defaultUnitCpuQuota,
     }),
+    unitTasksMax: values['unit-tasks-max'] === undefined
+      ? defaultUnitTasksMax
+      : positiveWholeNumber({
+        option: '--unit-tasks-max',
+        value: values['unit-tasks-max'],
+      }),
     timeoutSeconds: values.timeout === undefined
       ? defaultTimeoutSeconds
       : positiveWholeNumber({

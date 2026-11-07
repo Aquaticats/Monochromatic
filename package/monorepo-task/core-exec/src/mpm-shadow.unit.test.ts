@@ -1090,7 +1090,7 @@ await describe({
             const gone = spawnSync('true',).pid;
             const killed = join(toolDirectory, `.${LOCKED_VERSION}.staging.${String(gone,)}`,);
             mkdirSync(join(killed, 'half',), { recursive: true, },);
-            const olderThanTheStaleAge = new Date(Date.now() - 2 * STALE_LEFTOVER_AGE_MS,);
+            const olderThanTheStaleAge = new Date(Date.now() - (2 * STALE_LEFTOVER_AGE_MS),);
             utimesSync(killed, olderThanTheStaleAge, olderThanTheStaleAge,);
             // And one that is alive: this test process, also old.
             const alive = join(toolDirectory, `.0.1.0.staging.${String(process.pid,)}`,);

@@ -10,9 +10,12 @@
 
 import { stat, } from 'node:fs/promises';
 
-import spawn from 'nano-spawn';
 import dedent from 'string-dedent';
 
+import {
+  spawnBounded,
+  timeoutNote,
+} from './depends-bounded-wait.ts';
 import {
   extractCommand,
   isShellCommand,
@@ -128,6 +131,7 @@ async function resolveGlob({
    command: 'git log -1 --format=%ct',
    position: 'source',
    verbose: false,
+   queryTimeoutMs: 60_000,
  };
  ```
  */
@@ -144,6 +148,10 @@ type ResolveShellCommandOptions = {
    Whether to log diagnostic messages
    */
   readonly verbose: boolean;
+  /**
+   How long the command may run before it is ended, in milliseconds
+   */
+  readonly queryTimeoutMs: number;
 };
 
 /**
@@ -161,22 +169,25 @@ type ResolveShellCommandOptions = {
  
  @param verbose - Whether to log diagnostic messages
  
+ @param queryTimeoutMs - How long the command may run before it is ended
+ 
  @returns Resolved timestamp in milliseconds (possibly `Infinity` or `-Infinity`)
  
- @throws When command exits with non-zero code or {@link parseTimestamp} cannot parse stdout (see {@link UNPARSEABLE_TIMESTAMP})
+ @throws When command exits with non-zero code, runs past `queryTimeoutMs`, or {@link parseTimestamp} cannot parse stdout (see {@link UNPARSEABLE_TIMESTAMP})
  
  @example
  ```ts
  // Timestamp from stdout
- await resolveShellCommand({ command: 'git log -1 --format=%ct', position: 'source', verbose: false })
+ await resolveShellCommand({ command: 'git log -1 --format=%ct', position: 'source', verbose: false, queryTimeoutMs: 60_000 })
  // Gate pattern: explicit Infinity/-Infinity
- await resolveShellCommand({ command: 'podman image exists img && echo Infinity || echo -Infinity', position: 'output', verbose: false })
+ await resolveShellCommand({ command: 'podman image exists img && echo Infinity || echo -Infinity', position: 'output', verbose: false, queryTimeoutMs: 60_000 })
  ```
  */
 async function resolveShellCommand({
   command,
   position,
   verbose,
+  queryTimeoutMs,
 }: ResolveShellCommandOptions,): Promise<number> {
   /**
    Raw stdout from the command
@@ -187,14 +198,29 @@ async function resolveShellCommand({
     /**
      Captured subprocess result; only `stdout` is consumed because the command contract returns its timestamp there.
      */
-    const result = await spawn(
-      command,
-      { shell: true, },
-    );
+    const result = await spawnBounded({
+      file: command,
+      args: [],
+      options: { shell: true, },
+      timeoutMs: queryTimeoutMs,
+    },);
     stdout = result.stdout
       .trim();
   }
   catch (error) {
+    /**
+     Sentence naming the bound when it ended the command; empty when the command failed by itself.
+     */
+    const note = timeoutNote(error,);
+    if (note !== '') {
+      throw new Error(
+        dedent`
+          ${position} sh: "${command}" ${note}
+          Commands must print a timestamp within the bound; raise it with --query-timeout-seconds when the probe is slow
+        `,
+        { cause: error, },
+      );
+    }
     throw new Error(
       dedent`
         ${position} sh: "${command}" failed with non-zero exit code
@@ -242,6 +268,7 @@ async function resolveShellCommand({
    items: ['src/*.ts', 'sh:git log -1 --format=%ct'],
    position: 'source',
    verbose: false,
+   queryTimeoutMs: 60_000,
  };
  ```
  */
@@ -258,6 +285,10 @@ export type ResolveItemsOptions = {
    Whether to log diagnostic messages
    */
   readonly verbose: boolean;
+  /**
+   How long each `sh:` command may run before it is ended, in milliseconds
+   */
+  readonly queryTimeoutMs: number;
 };
 
 /**
@@ -272,17 +303,20 @@ export type ResolveItemsOptions = {
  
  @param verbose - Whether to log diagnostic messages
  
+ @param queryTimeoutMs - How long each `sh:` command may run before it is ended
+ 
  @returns Flat array of all resolved timestamps
  
  @example
  ```ts
- const ts = await resolveItems({ items: ['src/*.ts', 'sh:git log -1 --format=%ct'], position: 'source', verbose: false });
+ const ts = await resolveItems({ items: ['src/*.ts', 'sh:git log -1 --format=%ct'], position: 'source', verbose: false, queryTimeoutMs: 60_000 });
  ```
  */
 export async function resolveItems({
   items,
   position,
   verbose,
+  queryTimeoutMs,
 }: ResolveItemsOptions,): Promise<number[]> {
   /**
    Per-item timestamp arrays awaited concurrently; flattened below into a single timestamp set.
@@ -297,6 +331,7 @@ export async function resolveItems({
           command: extractCommand(item,),
           position,
           verbose,
+          queryTimeoutMs,
         },);
         return [ts,];
       }
