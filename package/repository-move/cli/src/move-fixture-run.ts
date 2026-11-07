@@ -130,6 +130,7 @@ export async function runCopyTool(
             .PATH
             ?? ''}`,
           BTRFS_DOUBLE_LOG: fixture.doubleLog,
+          BTRFS_DOUBLE_ROOT: fixture.base,
           ...env,
         },
       },

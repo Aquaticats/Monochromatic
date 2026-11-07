@@ -36,7 +36,8 @@ export type Subvolume = {
 
   /**
    The UUID of the subvolume this one was snapshotted from: the dash when it has none (a plain `subvolume create`), and
-   the question mark when the inventory was taken without the parent column.
+   the question mark when the inventory was taken without `-q`. Information only: no send starts from a related
+   subvolume (see `send-plan.ts`).
    */
   readonly parentUuid: string;
 };
@@ -509,17 +510,6 @@ export async function reconcileInventory(
   }
   if (main.path === '') {
     throw new MoveStopError(`the inventory has no row for the main checkout at ${canonical.inventoryMain}`,);
-  }
-  if (canonical.run && [
-    main,
-    ...nested,
-  ].some(function lacksParent(row,) {
-    return row.parentUuid === PARENT_UNKNOWN;
-  },)) {
-    throw new MoveStopError(
-      'the inventory was taken without the parent column, which decides what each send may start from; take it again '
-        + `with 'btrfs subvolume list -u -q' (root) and run again: ${canonical.inventoryFile}`,
-    );
   }
   log(`inventory agrees: ${String(nested.length,)} nested subvolumes`,);
   return [

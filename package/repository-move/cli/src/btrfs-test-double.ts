@@ -17,11 +17,13 @@
 import {
   appendFile,
   mkdir,
+  readdir,
   readFile,
   writeFile,
 } from 'node:fs/promises';
 import {
   basename,
+  dirname,
   join,
 } from 'node:path';
 import {
@@ -49,6 +51,11 @@ const SOURCE_MARKER = '.stub-subvolume';
  Name of the metadata file of every other subvolume.
  */
 const META_FILE = '.meta';
+
+/**
+ The ID of the first row `subvolume list` prints.
+ */
+const LIST_FIRST_ID = 300;
 
 /**
  Place of the subject path in the arguments of `property get` and `property set` (`property set -ts <path> ro true`).
@@ -141,6 +148,32 @@ async function readMeta(folder: string,): Promise<Meta> {
 }
 
 /**
+ Reads the metadata of a snapshot source. A folder with no marker and no metadata file that holds nothing is an empty
+ subvolume made by `subvolume create`, which this double does not mark (a marker would be a file for `rsync` to see).
+
+ @param folder - the source folder
+
+ @returns the metadata
+
+ @throws Error when the folder is neither a subvolume of this double nor empty
+ */
+async function readSourceMeta(folder: string,): Promise<Meta> {
+  if ((!await pathExists(metaPath(folder,),)) && (!await pathExists(join(
+    folder,
+    SOURCE_MARKER,
+  ),)) && ((await readdir(folder,)).length === 0)) {
+    return {
+      uuid: `u-${basename(folder,)}`,
+      parent: '-',
+      received: '-',
+      ro: 'false',
+      empty: 'true',
+    };
+  }
+  return await readMeta(folder,);
+}
+
+/**
  Writes the metadata of a subvolume.
 
  @param folder - the subvolume folder
@@ -201,14 +234,19 @@ async function snapshot(args: readonly string[],): Promise<void> {
     console.error(`stub: cannot snapshot ${source} to ${destination}`,);
     exit(1,);
   }
+  /**
+   The metadata of the source: an empty folder with no marker is an empty subvolume made by `subvolume create`.
+   */
+  const sourceMeta = await readSourceMeta(source,);
   await mkdir(destination,);
   await writeMeta({
     folder: destination,
     meta: {
       uuid: `u-${basename(destination,)}`,
-      parent: (await readMeta(source,)).uuid ?? '-',
+      parent: sourceMeta.uuid ?? '-',
       received: '-',
       ro: String(readOnly,),
+      empty: sourceMeta.empty ?? 'false',
     },
   },);
   await Promise.all((readOnly ? [] : (env.STUBS ?? '').split(',',))
@@ -267,6 +305,23 @@ async function send(args: readonly string[],): Promise<void> {
   ) {
     return option === '-c' ? [basename(options[index + 1] ?? '',),] : [];
   },);
+  if (options.includes('-p',)) {
+    /**
+     The metadata of the snapshot being sent.
+     */
+    const sentOnParent = await readMeta(snapshotPath,);
+    /**
+     The metadata of the parent.
+     */
+    const parentMeta = await readMeta(parent,);
+    // The real kernel tells two inodes apart by number and generation (`changed_inode` in `fs/btrfs/send.c`), so a
+    // parent that is not on the sent subvolume's own history can pair two different inodes made in one transaction. Only
+    // a snapshot of the same subvolume, or an empty subvolume (nothing to pair), is safe.
+    if ((parentMeta.empty !== 'true') && (parentMeta.parent !== sentOnParent.parent)) {
+      console.error(`ERROR: unsafe parent ${basename(parent,)} for ${name}: not a snapshot of the same subvolume and not empty`,);
+      exit(1,);
+    }
+  }
   if ((!options.includes('-p',)) && (clones.length > 0)) {
     /**
      The metadata of the snapshot being sent.
@@ -367,6 +422,51 @@ async function receive(args: readonly string[],): Promise<void> {
 }
 
 /**
+ Lists every subvolume of the double below a folder the way `btrfs subvolume list -R` prints it: one row each with its
+ received UUID, UUID and path from the folder.
+
+ @param root - the folder that stands for the filesystem
+
+ @returns the rows, one per line
+ */
+async function listSubvolumes(root: string,): Promise<string> {
+  /**
+   Every file below the folder, as paths from it.
+   */
+  const entries = await readdir(
+    root,
+    { recursive: true, },
+  );
+  /**
+   The folders that hold a metadata file.
+   */
+  const folders = entries.filter(function isMeta(entry,) {
+    return basename(entry,) === META_FILE;
+  },)
+    .map(function folderOf(entry,) {
+      return dirname(entry,);
+    },)
+    .toSorted();
+  /**
+   One row per subvolume.
+   */
+  const rows = await Promise.all(folders.map(async function rowOf(
+    folder,
+    index,
+  ) {
+    /**
+     The metadata of this subvolume.
+     */
+    const meta = await readMeta(join(
+      root,
+      folder,
+    ),);
+    return `ID ${String(LIST_FIRST_ID + index,)} gen 1 top level 5 received_uuid ${meta.received ?? '-'} uuid ${meta.uuid ?? '-'} path ${folder}`;
+  },),);
+  return rows.join('\n',);
+}
+
+/**
  Runs the subcommand the arguments name.
 
  @param args - the arguments after the program name
@@ -404,6 +504,9 @@ async function main(args: readonly string[],): Promise<void> {
   }
   else if (key === 'subvolume create') {
     await mkdir(folder,);
+  }
+  else if ((key === 'subvolume list') && (env.BTRFS_DOUBLE_ROOT !== undefined)) {
+    console.log(await listSubvolumes(env.BTRFS_DOUBLE_ROOT,),);
   }
   else if (key === 'property get') {
     console.log(`ro=${(await readMeta(args[SUBJECT_INDEX] ?? '',)).ro}`,);
