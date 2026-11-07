@@ -116,9 +116,13 @@ pub enum Point {
     /// by a reader (a recovery),
     /// fails.
     AcknowledgementDirectorySync,
-    /// The sync of a new journal's own directory, at the end of beginning a transaction, fails.
+    /// The sync of a new journal's own directory,
+    /// at the end of beginning a transaction,
+    /// fails.
     JournalDirectorySync,
-    /// The sync of the directory that lists a new journal, at the end of beginning a transaction, fails.
+    /// The sync of the directory that lists a new journal,
+    /// at the end of beginning a transaction,
+    /// fails.
     JournalParentSync,
     /// The wait for a killed discovery program reports an error instead of a status.
     ReapError,

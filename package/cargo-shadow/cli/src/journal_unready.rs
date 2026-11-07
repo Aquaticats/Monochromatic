@@ -199,8 +199,12 @@ enum Finding {
     ),
 }
 
-/// The first process id Linux never allocates: `PID_MAX_LIMIT` for 64-bit kernels (`include/linux/threads.h`), and the value of
-/// `/proc/sys/kernel/pid_max` is "one greater than the maximum PID" (`proc_sys_kernel(5)`). An acknowledgement naming zero, this number
+/// The first process id Linux never allocates:
+/// `PID_MAX_LIMIT` for 64-bit kernels (`include/linux/threads.h`),
+/// and the value of
+/// `/proc/sys/kernel/pid_max` is "one greater than the maximum PID" (`proc_sys_kernel(5)`).
+/// An acknowledgement naming zero,
+/// this number
 /// or a larger one was not written by a process.
 const FIRST_PROCESS_ID_LINUX_NEVER_ALLOCATES: u32 = 4_194_304;
 

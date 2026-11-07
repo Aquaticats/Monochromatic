@@ -55,7 +55,8 @@ fn bound(limit: Duration) -> Bound {
 /// The script of a program that starts a writer in a session of its own,
 /// waits until the writer says it is running,
 /// and exits.
-/// The groups file of the single journal of a repository, as text.
+/// The groups file of the single journal of a repository,
+/// as text.
 fn control_root_groups(root: &Path) -> String {
     return journal_dirs(root).into_iter().next().expect("a journal").join("groups").display().to_string();
 }

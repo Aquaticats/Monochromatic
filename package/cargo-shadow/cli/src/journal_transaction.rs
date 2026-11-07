@@ -901,10 +901,14 @@ fn is_kept_beside_a_lockfile(name: &str) -> bool {
 
 /// What:
 /// `pub fn announce_kept_files_for(root: &Path, crate_roots: &[String])` prints the kept-files warning for a run that starts no
-/// transaction, when the inventory is past the count.
+/// transaction,
+/// when the inventory is past the count.
 /// Why:
-/// The warning is promised on every run past the count, an ordinary run that finds every lockfile already satisfied included (sixth
-/// pass, group 7); a run that begins a transaction announces through the transaction instead.
+/// The warning is promised on every run past the count,
+/// an ordinary run that finds every lockfile already satisfied included (sixth
+/// pass,
+/// group 7);
+/// a run that begins a transaction announces through the transaction instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

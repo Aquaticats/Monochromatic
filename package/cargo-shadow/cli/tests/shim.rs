@@ -677,9 +677,16 @@ fn the_shadow_prints_the_kept_files_warning_on_stderr_every_completed_run_and_ke
     }
 }
 
-/// Acceptance row K1 (sixth pass, group 7): the warning is on the real standard error of an ordinary repeated run too, one that finds
-/// the lockfile already satisfied and changes nothing. The lockfile is made stale once; later runs leave the accepted lockfile as it is
-/// (the real cargo is not asked to update anything on them), and each still prints the warning exactly once, with the same inventory.
+/// Acceptance row K1 (sixth pass,
+/// group 7):
+/// the warning is on the real standard error of an ordinary repeated run too,
+/// one that finds
+/// the lockfile already satisfied and changes nothing.
+/// The lockfile is made stale once;
+/// later runs leave the accepted lockfile as it is
+/// (the real cargo is not asked to update anything on them),
+/// and each still prints the warning exactly once,
+/// with the same inventory.
 #[test]
 fn the_shadow_prints_the_kept_files_warning_on_a_run_that_finds_the_lockfile_already_satisfied() {
     let count: usize = cargo_shadow::journal::KEPT_FILES_WARNING_COUNT;
@@ -786,7 +793,9 @@ fn a_staged_copy_in_an_ignored_directory_is_left_to_cargo_and_the_tracked_crate_
 // What the region covers: a real cargo that is a compiled program (rustup's proxy is one) is started through the file the shadow
 // checked, by both of the shadow's own starts, and the descriptor stays open until the start.
 
-/// A compiled program that prints its arguments, and no script: the system's `echo`.
+/// A compiled program that prints its arguments,
+/// and no script:
+/// the system's `echo`.
 const COMPILED_PROGRAM: &str = "/usr/bin/echo";
 
 /// The fake cargo of the world is replaced by a copy of a compiled program with the given mode.
@@ -797,8 +806,10 @@ fn use_compiled_real_cargo(world: &World, mode: u32) {
     std::fs::set_permissions(&real, std::fs::Permissions::from_mode(mode)).expect("set the mode of the real cargo");
 }
 
-/// A command that resolves nothing is started by `exec`: the shadow's process becomes the real cargo.
-/// Red when the descriptor the compiled program is started through is closed before the `exec`: the start then fails.
+/// A command that resolves nothing is started by `exec`:
+/// the shadow's process becomes the real cargo.
+/// Red when the descriptor the compiled program is started through is closed before the `exec`:
+/// the start then fails.
 #[test]
 fn a_compiled_real_cargo_is_started_by_the_exec_branch_with_its_arguments() {
     let world = make_world();
@@ -822,9 +833,13 @@ fn a_compiled_real_cargo_is_started_by_the_child_branch_with_its_arguments() {
     assert_eq!(output.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&output.stderr));
 }
 
-/// Whether the real cargo of the world really cannot be read by this process: as the superuser (or with a capability that bypasses
-/// permissions) a file of mode `0o111` can still be opened, and a test of the execute-only case would pass without exercising it. Then
-/// the test fails unless `CARGO_SHADOW_ALLOW_SKIPS` is set, which makes it skip with a printed reason.
+/// Whether the real cargo of the world really cannot be read by this process:
+/// as the superuser (or with a capability that bypasses
+/// permissions) a file of mode `0o111` can still be opened,
+/// and a test of the execute-only case would pass without exercising it.
+/// Then
+/// the test fails unless `CARGO_SHADOW_ALLOW_SKIPS` is set,
+/// which makes it skip with a printed reason.
 fn cannot_read_real_cargo(world: &World) -> bool {
     if std::fs::File::open(world.fake_directory.join("cargo")).is_err() {
         return true;
@@ -837,8 +852,11 @@ fn cannot_read_real_cargo(world: &World) -> bool {
     return false;
 }
 
-/// A compiled program that can be executed and not read is still the real cargo: executing needs no read permission, and the PATH
-/// search accepts it, so the start must too (it was started by its path before the check was made on an open file).
+/// A compiled program that can be executed and not read is still the real cargo:
+/// executing needs no read permission,
+/// and the PATH
+/// search accepts it,
+/// so the start must too (it was started by its path before the check was made on an open file).
 #[test]
 fn an_execute_only_compiled_real_cargo_is_started_like_any_other() {
     let world = make_world();
@@ -853,9 +871,15 @@ fn an_execute_only_compiled_real_cargo_is_started_like_any_other() {
     assert_eq!(output.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&output.stderr));
 }
 
-/// An execute-only script is still the real cargo: the kernel reads the interpreter line itself, so the file runs when its
-/// interpreter needs nothing of it (here `echo`, which prints the script's name it is given). The interpreter is given the path the
-/// program was chosen under; a descriptor path (`/proc/self/fd/<n>`) is closed by then, so the start of anything that may be a script
+/// An execute-only script is still the real cargo:
+/// the kernel reads the interpreter line itself,
+/// so the file runs when its
+/// interpreter needs nothing of it (here `echo`,
+/// which prints the script's name it is given).
+/// The interpreter is given the path the
+/// program was chosen under;
+/// a descriptor path (`/proc/self/fd/<n>`) is closed by then,
+/// so the start of anything that may be a script
 /// keeps the pathname.
 #[test]
 fn an_execute_only_script_real_cargo_is_given_its_own_path_by_the_kernel() {

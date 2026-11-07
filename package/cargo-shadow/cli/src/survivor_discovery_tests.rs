@@ -110,9 +110,13 @@ fn a_journal_listing_that_fails_in_any_way_stops_a_new_transaction() {
     }
 }
 
-/// Sixth pass, group 5 (V1, the completed journals):
-/// a completed journal (`.done`) is examined like any other entry, so an examination that fails on it fails the listing too.
-/// Both journals here are completed, so the entry that fails is a completed one whichever the directory lists second.
+/// Sixth pass,
+/// group 5 (V1,
+/// the completed journals):
+/// a completed journal (`.done`) is examined like any other entry,
+/// so an examination that fails on it fails the listing too.
+/// Both journals here are completed,
+/// so the entry that fails is a completed one whichever the directory lists second.
 #[test]
 fn a_completed_journal_that_cannot_be_examined_fails_the_listing() {
     for fault in [Point::ListingInspection, Point::ListingEntryNotFound] {

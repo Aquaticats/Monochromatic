@@ -195,18 +195,22 @@ pub(crate) fn assert_reaped(pid: i32, what: &str) {
     assert!(matches!(result, Err(rustix::io::Errno::CHILD)), "{what}: the direct child {pid} can still be waited for, so it was not reaped: {result:?}");
 }
 
-/// The process id of the direct child the run spawned, from the events of the run's trace (exactly one "spawned" event is required).
+/// The process id of the direct child the run spawned,
+/// from the events of the run's trace (exactly one "spawned" event is required).
 /// Why:
-/// A process id a program prints for itself says nothing about which process this one spawned: a launcher that forks the program
+/// A process id a program prints for itself says nothing about which process this one spawned:
+/// a launcher that forks the program
 /// instead of replacing itself leaves the real direct child unreaped behind a program id that was never this process's child (sixth
-/// pass, group 1).
+/// pass,
+/// group 1).
 pub(crate) fn spawned_direct_child(events: &[String]) -> i32 {
     let spawned: Vec<i32> = events.iter().filter_map(|event| { return event.strip_prefix("spawned ").and_then(|text| { return text.parse::<i32>().ok(); }); }).collect();
     assert_eq!(spawned.len(), 1, "the run did not spawn exactly one direct child: {events:?}");
     return spawned[0];
 }
 
-/// Asserts that the process id the program published is the direct child the run spawned, and that this child was reaped.
+/// Asserts that the process id the program published is the direct child the run spawned,
+/// and that this child was reaped.
 pub(crate) fn assert_spawned_child_is_the_program_and_reaped(program_pid: i32, events: &[String], what: &str) {
     let spawned: i32 = spawned_direct_child(events);
     assert_eq!(program_pid, spawned, "{what}: the program is not the process this run spawned (a launcher forked it), so its id says nothing about the reap");

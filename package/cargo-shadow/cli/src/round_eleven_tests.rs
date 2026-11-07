@@ -285,9 +285,15 @@ fn a_gone_launcher_lets_the_recovery_read_the_scope_as_final() {
 }
 
 /// Acceptance rows A1,
-/// V2 (sixth pass, groups 3 and 10): a gone launcher and a scope that still exists and is empty go through the
-/// real recovery, which settles the journal without an acknowledgement (restoration and removal), and then through admission, which
-/// admits a new transaction. The scope directory is still there when the recovery runs.
+/// V2 (sixth pass,
+/// groups 3 and 10):
+/// a gone launcher and a scope that still exists and is empty go through the
+/// real recovery,
+/// which settles the journal without an acknowledgement (restoration and removal),
+/// and then through admission,
+/// which
+/// admits a new transaction.
+/// The scope directory is still there when the recovery runs.
 #[test]
 fn a_gone_launcher_with_an_existing_empty_scope_is_settled_by_the_real_recovery_and_admission() {
     let Some(route) = delegated_route() else {
@@ -316,7 +322,8 @@ fn a_gone_launcher_with_an_existing_empty_scope_is_settled_by_the_real_recovery_
     assert!(begin(root.path(), &[snapshot("original")], false).is_ok(), "a transaction was refused after the journal was settled");
 }
 
-/// Acceptance rows A1, V2 (11b 2.4):
+/// Acceptance rows A1,
+/// V2 (11b 2.4):
 /// a gone launcher does not clear a scope that has a member,
 /// and no acknowledgement overrides it:
 /// the descendants of a program that ended are still in the scope.
@@ -367,8 +374,13 @@ fn assert_entry_points_refuse_for_a_member(root: &Path, journal: &Path, label: &
     assert_eq!(journal_dirs(root).len(), 1, "{label}: the refused admission left a journal behind");
 }
 
-/// The real recovery and admission hold an uncertainty the launcher record cannot settle: the recovery says how to acknowledge, nothing
-/// is restored, the journal stays, and a new transaction is not admitted (sixth pass, group 3).
+/// The real recovery and admission hold an uncertainty the launcher record cannot settle:
+/// the recovery says how to acknowledge,
+/// nothing
+/// is restored,
+/// the journal stays,
+/// and a new transaction is not admitted (sixth pass,
+/// group 3).
 fn assert_entry_points_hold_for_uncertainty(root: &Path, journal: &Path, label: &str) {
     let messages: Vec<String> = recover(root, &refusing);
     assert!(messages.iter().any(|message| { return message.contains("cargo-shadow acknowledge"); }), "{label}: the recovery did not name the way out: {messages:?}");

@@ -206,7 +206,11 @@ fn a_frozen_install_passes_running_only_read_only_checks_when_every_lockfile_is_
     assert!(cargo.commands.borrow().iter().all(|command| { return command.ends_with("update --workspace --locked --offline"); }));
 }
 
-/// Sixth pass, group 7 (K1): a frozen run starts no transaction, and it still announces the kept files past the count, once.
+/// Sixth pass,
+/// group 7 (K1):
+/// a frozen run starts no transaction,
+/// and it still announces the kept files past the count,
+/// once.
 #[test]
 fn a_frozen_install_announces_the_kept_files_past_the_count() {
     let (root, dirs) = repository(&[("package/a/one", SATISFIED)]);

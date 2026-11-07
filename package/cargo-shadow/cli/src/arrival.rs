@@ -104,8 +104,14 @@ fn cargo_files(path_variable: &str, chosen: Option<&Path>) -> Vec<Found> {
 /// What:
 /// `fn launch_record_text(own_executable: &Path) -> String` is the whole text of the `.launch` record that names this program.
 /// Why:
-/// The printed command must write a record that parses whatever the path holds (quotation marks, backslashes, control characters), so
-/// the JSON is built by the serializer, never by filling a template (round 21, sixth pass, group 14).
+/// The printed command must write a record that parses whatever the path holds (quotation marks,
+/// backslashes,
+/// control characters),
+/// so
+/// the JSON is built by the serializer,
+/// never by filling a template (round 21,
+/// sixth pass,
+/// group 14).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

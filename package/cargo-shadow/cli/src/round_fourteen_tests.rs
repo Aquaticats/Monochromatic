@@ -68,11 +68,16 @@ impl Drop for Held {
     }
 }
 
-/// The live text of the lockfile the killed run left, which the recovery must not change while the launcher is uncertain.
+/// The live text of the lockfile the killed run left,
+/// which the recovery must not change while the launcher is uncertain.
 const LEFT_BY_THE_KILLED_RUN: &str = "unchecked output of the killed run";
 
-/// Asserts what the helper's real recovery and admission did in the other time namespace: the live output is unchanged, the journal is
-/// kept (and is the only one: the refused admission left none behind), and a new transaction is refused.
+/// Asserts what the helper's real recovery and admission did in the other time namespace:
+/// the live output is unchanged,
+/// the journal is
+/// kept (and is the only one:
+/// the refused admission left none behind),
+/// and a new transaction is refused.
 fn assert_entry_points_held(result: &str) {
     for line in ["entry lock unchanged true", "entry journal kept true", "entry admission refused true", "entry journals 1"] {
         assert!(result.lines().any(|found| { return found == line; }), "the real recovery or admission did not hold the uncertain launcher ({line} is missing): {result}");
