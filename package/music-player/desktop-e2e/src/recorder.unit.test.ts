@@ -187,6 +187,38 @@ await describe({
       },
     },),
     it({
+      name: 'skips the position ticks of a playing track, which would fill the file and hide what changed, and counts them',
+      fn: async ({ expect, }) => {
+        const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
+        const recorder = createRecorder({ only: '', evidenceDir, },);
+        const changes = statesOf(14,).map((state,) => ({ ...state, reason: `key-${state.seq}`, }),);
+        const ticks = Array.from({ length: 40, }, (_unused, index,): EvidenceState => ({
+          seq: 100 + index,
+          reason: 'position',
+          zone: 'surface',
+          focus: '',
+          route: 'Player',
+          unfolded: true,
+        }),);
+        recorder.attach({ label: 'wide', readStates: async () => [...changes, ...ticks,], },);
+        await recorder.verify({
+          id: 'a/ticks',
+          title: 'fails while a track plays',
+          body: async () => {
+            throw new CheckFailureError('broken',);
+          },
+        },);
+        const text = await readFile(recorder.outcomes()[0]?.evidence ?? '', 'utf8',);
+        await rm(evidenceDir, { recursive: true, force: true, },);
+        expect(text,).toContain('seq=14 reason=key-14',);
+        expect(text,).toContain('seq=5 reason=key-5',);
+        expect(text,).not.toContain('seq=4 reason=key-4',);
+        expect(text,).toContain('40 position ticks skipped',);
+        expect(text,).toContain('the final state, seq=139',);
+        expect(text,).not.toContain('seq=120 reason=position',);
+      },
+    },),
+    it({
       name: 'keeps the failure text when no session was attached, and says so',
       fn: async ({ expect, }) => {
         const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
