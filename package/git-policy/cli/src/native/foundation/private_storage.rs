@@ -771,3 +771,8 @@ mod tests;
 #[cfg(test)]
 #[path = "private_storage_publish_tests.rs"]
 mod publish_tests;
+
+/// The measurement of how long a name is held, kept out of the release executable.
+#[cfg(test)]
+#[path = "private_storage_hold_time_measurement_tests.rs"]
+mod hold_time_measurement_tests;

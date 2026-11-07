@@ -540,3 +540,8 @@ mod tests;
 #[cfg(test)]
 #[path = "child_watch_one_shot_through_pipes_tests.rs"]
 mod one_shot_through_pipes_tests;
+
+/// The measurement of how long dropping a watch takes, kept out of the release executable.
+#[cfg(test)]
+#[path = "child_watch_drop_time_measurement_tests.rs"]
+mod drop_time_measurement_tests;
