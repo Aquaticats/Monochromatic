@@ -797,16 +797,59 @@ fn a_compiled_real_cargo_is_started_by_the_child_branch_with_its_arguments() {
     assert_eq!(output.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&output.stderr));
 }
 
+/// Whether the real cargo of the world really cannot be read by this process: as the superuser (or with a capability that bypasses
+/// permissions) a file of mode `0o111` can still be opened, and a test of the execute-only case would pass without exercising it. Then
+/// the test fails unless `CARGO_SHADOW_ALLOW_SKIPS` is set, which makes it skip with a printed reason.
+fn cannot_read_real_cargo(world: &World) -> bool {
+    if std::fs::File::open(world.fake_directory.join("cargo")).is_err() {
+        return true;
+    }
+    assert!(
+        std::env::var_os("CARGO_SHADOW_ALLOW_SKIPS").is_some(),
+        "this process can read a file of mode 0o111, so the execute-only case is not exercised; set CARGO_SHADOW_ALLOW_SKIPS=1 to skip the test"
+    );
+    eprintln!("SKIPPED: this process can read a file of mode 0o111");
+    return false;
+}
+
 /// A compiled program that can be executed and not read is still the real cargo: executing needs no read permission, and the PATH
 /// search accepts it, so the start must too (it was started by its path before the check was made on an open file).
 #[test]
 fn an_execute_only_compiled_real_cargo_is_started_like_any_other() {
     let world = make_world();
     use_compiled_real_cargo(&world, 0o111);
+    if !cannot_read_real_cargo(&world) {
+        return;
+    }
 
     let output = run_shadow(&world, &["fmt", "--check"], "", 0);
 
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), "fmt --check", "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(output.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+}
+
+/// An execute-only script is still the real cargo: the kernel reads the interpreter line itself, so the file runs when its
+/// interpreter needs nothing of it (here `echo`, which prints the script's name it is given). The interpreter is given the path the
+/// program was chosen under; a descriptor path (`/proc/self/fd/<n>`) is closed by then, so the start of anything that may be a script
+/// keeps the pathname.
+#[test]
+fn an_execute_only_script_real_cargo_is_given_its_own_path_by_the_kernel() {
+    let world = make_world();
+    let real: PathBuf = world.fake_directory.join("cargo");
+    std::fs::write(&real, format!("#!{COMPILED_PROGRAM}\n")).expect("write the script");
+    std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o111)).expect("make it execute-only");
+    if !cannot_read_real_cargo(&world) {
+        return;
+    }
+
+    let output = run_shadow(&world, &["fmt", "--check"], "", 0);
+
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim_end(),
+        format!("{} fmt --check", real.display()),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(output.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&output.stderr));
 }
 //endregion
