@@ -187,6 +187,15 @@ which can keep a repository open and read objects without a start per commit.
 
 ### HTTP client choice
 
+Note 2026-11-07T04:07:54-05:00: superseded on the HTTP client by the owner's ruling of 2026-11-07
+("Adopt tokio, do not adopt ureq, use the `hyper` set of https libs.").
+The client is now `hyper` 1.x with `hyper-util`, `hyper-rustls` (rustls, embedded roots, nothing read from the system)
+and `http-body-util`, on `tokio` as the wrapper's async runtime.
+The hard constraint "blocking and in-process (the wrapper has no async runtime ...)" and the rejection of `hyper` with
+`hyper-rustls` in the ledger below were written before that ruling and are kept as written.
+The prototype and its measurements are in `doc/research/wrapper-git-free-jobs-and-published-crates.md`,
+section "Tokio as the runtime".
+
 Hard constraints:
 blocking and in-process (the wrapper has no async runtime and must start no program),
 TLS with roots that do not depend on the host,

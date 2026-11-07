@@ -41,6 +41,30 @@ A job that a vetted crate covers needs no crate of ours, and that changes the sp
   A candidate there is judged by correctness and by standard formats (RFC 3339 for time).
   Where this document says a test pins JavaScript-identical text only for its own sake, that test may change.
 
+## The owner's answers of 2026-11-07, and how they change this document
+
+The owner answered the open choices of the first version, verbatim:
+
+- Replace with published crates:
+  "Time stamps: jiff, Digests: sha1 + sha2, Linux calls: rustix, Memory headroom: sysinfo" (all four).
+- How many of our library crates remain:
+  "I'm not ready to answer this specific question yet."
+- D-Bus:
+  "zbus 6, and I suppose the lack of a blocking api can be worked around."
+  The words "I suppose" make it an assumption;
+  the section "Tokio as the runtime" below tests it.
+- Shell quoting:
+  "Keep ours (readable)."
+  So `shell_quote.rs` stays, and `shell-quote` of open choice 10 is not adopted.
+
+A second ruling the same day changed the D-Bus check:
+"Adopt tokio, do not adopt ureq, use the `hyper` set of https libs."
+The wrapper gets `tokio` as its async runtime, the standards-review call moves from `ureq` to `hyper` 1.x with
+`hyper-util`, `hyper-rustls` and `http-body-util`, and the search for a minimal executor and a `block_on` setup was
+dropped (what was learned before the second ruling is kept in the section below).
+Where an earlier line of this document recommends against `zbus` or for `ureq`, the owner's ruling governs;
+the earlier text is kept as the record of what was measured.
+
 ## Answer in short
 
 One line per job.
@@ -91,6 +115,9 @@ with the evidence;
   Keep the small `diagnostic_line`.
   Little is left to be a crate of ours.
 - Talking to the systemd user manager (`talking-to-the-systemd-user-manager`):
+  the owner chose `zbus` 6 on `tokio` (2026-11-07); the prototype in section "Tokio as the runtime" works on a
+  toolchain older than the one the repository pins and does not compile on the pinned one.
+  The first-version finding follows, kept as the record:
   keep the connection.
   `zbus` 5.19.0 adds 52 packages and 2.47 MB to the wrapper,
   and its blocking client has no deadline for connect and handshake;
@@ -861,6 +888,13 @@ The only open question is the version (open choice 2).
 
 ## Open choices for the owner
 
+Status after the owner's answers of 2026-11-07 (section "The owner's answers of 2026-11-07, and how they change this
+document"): choice 1 is not yet answered ("not ready"); the crates of choices 2 and 3 and the time stamps and memory
+headroom are chosen (the `sha1` and `sha2` version of choice 2 and the catalog pin are not stated);
+choice 4 is answered as `zbus` 6 on `tokio`, with the toolchain failure raised in choice 11;
+choice 10 is answered "Keep ours (readable)".
+Choices 5 to 9 are not answered. The text of each choice is kept as it was written.
+
 Each has options, pros and cons, and a ranking with a reason for each adjacent pair.
 
 ### 1. What to do with the crates this research shrinks
@@ -1015,6 +1049,229 @@ Ranking: (a) > (b) > (c), provisional.
 if the owner takes byte-exact escapes as fine, (b) first.
 (b) beats (c) because (c) keeps most of the code (b) would remove.
 
+## Tokio as the runtime
+
+Prototype of 2026-11-07, after the owner's rulings above.
+Nothing on `main` changed except documents.
+The code is a patch against `main` at `c3d037b3c8` in a throwaway worktree, kept at
+`${HOME}/temp/agent/published-crates/prototype.patch` (new file
+`lazy_tokio_runtime.rs` beside it); it is not for merging.
+
+### What does not hold: the repository's pinned toolchain cannot compile zbus 6
+
+- `toolchain.lock.json` pins `rust@nightly` as `nightly-2026-11-01`, whose compiler is
+  `rustc 1.101.0-nightly (f9ceb4a4d 2026-10-31)`.
+- With it, every build of `zbus` 6 that enables a connection fails in `zbus` itself:
+  `error[E0391]: cycle detected when computing when zbus_utils::signature::child::Child needs async drop`
+  (from `zbus_utils-6.1.0/src/signature/child.rs` line 7, reached through `zbus_utils::signature::Signature`).
+  Checked with `zbus` 6.2.1 and 6.0.0, with the feature `default-rt` and with the feature `tokio`, in a scratch crate
+  outside the repository (so the repository's own settings are not the cause).
+- The same crates compile on `nightly-2026-10-28` (`rustc 41089d07a 2026-10-27`), on `nightly-2026-10-17`, on the
+  installed `nightly` (`rustc 19833af72 2026-10-20`) and on stable 1.99.0.
+  The first toolchain that fails is the one with `f9ceb4a4d`.
+- Searches of the `zbus` issues for "async drop" and of `rust-lang/rust` issues for the cycle message found nothing,
+  so whether this is a compiler regression or a `zbus` defect, and whether a fix is coming, is not known.
+- The requirement it breaks: the wrapper must build with the repository's pinned toolchain.
+- `zbus` 5.19.0 fails the same way on the pinned nightly
+  (`cycle detected when computing when zvariant_utils::signature::child::Child needs async drop`,
+  `zvariant_utils-4.2.0/src/signature/child.rs` line 7), in a scratch crate;
+  it built on `nightly-2026-10-27` earlier in this study.
+  `package/nested-wayland-session/cli` locks `zbus` 5.19.0 (its `Cargo.lock`), so it very likely does not build on the
+  pinned toolchain either; that package was not built, and the music player (which also names `zbus`) was not looked at.
+  Going back to 5.x therefore does not avoid the problem.
+- Every number below comes from builds on `nightly-2026-10-28`, with the baseline rebuilt on it from the same source
+  (the baseline binary on that toolchain is 16,786,200 bytes; it includes the wired `ureq` call).
+  The owner's options: wait for a toolchain or `zbus` fix, pin an older nightly for the wrapper, or build the wrapper
+  on stable 1.99.0 (not tried for the whole wrapper).
+
+### How a caller without async code drives zbus 6, and the smallest setup (before the tokio ruling)
+
+- `zbus` 6 has no blocking module (a search of the 6.2.1 source for `mod blocking` found nothing).
+  It offers `zbus::block_on` (`src/utils.rs` lines 63 to 88): with `default-rt` it runs a future on the calling thread
+  and on `zruntime` 0.2, a single-thread runtime that `zbus` brings; "if the call returns while a connection is still
+  alive, a helper thread takes over that connection's work until the next call".
+  The smallest setup is `zbus` with `default-features = false, features = ["default-rt"]` and calls inside one
+  `zbus::block_on`.
+  In the wrapper's lock that setup added 27 packages and removed 2 (a `rustix` and `bitflags` bump);
+  it was not built inside the wrapper after the owner chose `tokio`.
+- With the feature `tokio`, `zbus` picks the runtime that is current on the thread
+  (`src/runtime/mod.rs`, `default_for_build`: "Tokio when the `tokio` feature is on and a runtime is current on this
+  thread"), needs `tokio` features `rt`, `net`, `time`, `sync` (`Cargo.toml` of 6.2.1), and its own `block_on` then
+  creates a process-global runtime, current-thread, or multi-thread with the feature `tokio-multithread`.
+  The prototype owns the runtime instead and enters it with `Runtime::block_on`, which is what the owner's ruling asks.
+
+### The prototype
+
+- `foundation/lazy_tokio_runtime.rs` (35 lines): one `OnceLock<io::Result<tokio::runtime::Runtime>>`,
+  built on the first call of `run(future)`; nothing runs at process start.
+  A cargo feature picks the flavour for the measurement: `new_current_thread`, `new_multi_thread` (default workers),
+  or `new_multi_thread` with 2 workers.
+- `service/systemd_dbus.rs`: the hand client `Bus` (the file was 377 lines) replaced by 106 lines of `zbus` calls:
+  `zbus::connection::Builder::address("unix:path=...").build()` (connect, authenticate, `Hello`),
+  `call_method` for `Reload`, `ResetFailedUnit`, `StartUnit`, `StopUnit` and `GetUnit`, and
+  `org.freedesktop.DBus.Properties.Get` for `ActiveState`.
+  Errors map to the old `CallError`: a method error to `Manager { name, text }`, a handshake error to
+  `Authentication`, an unreachable socket to `Connection`, an elapsed deadline to `TimedOut`.
+- One deadline over the whole exchange: `bounded(deadline, future)` runs the future under
+  `tokio::time::timeout(remaining, ...)`, for the connect (handshake and `Hello` are inside `build()`)
+  and for each call;
+  `within(wait)` replaces the deadline as before.
+- `standards_review/standards_review_client.rs`: `ureq` replaced (below).
+
+### The deadline test
+
+`a_bus_that_accepts_and_never_answers_ends_at_the_deadline`: a listener accepts the connection and holds it for 4 s
+without a byte; `Bus::connect(path, 1 s)` must return `CallError::TimedOut` after at least 1 s and less than 1.5 s.
+It passes (it ends inside the window).
+The existing `a_call_is_bounded_by_the_time_it_was_given_and_a_timeout_is_told_apart` and
+`a_new_time_replaces_what_was_left_of_the_connections` also pass on the new code.
+
+### The existing D-Bus tests against the new code
+
+Result: 18 passed, 0 failed, 1 ignored (`the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit`, which
+writes unit files to the real user manager and was not run), after these changes to the tests' fake bus, none to the
+code:
+
+- The fake bus must answer `NEGOTIATE_UNIX_FD` with `AGREE_UNIX_FD`.
+  `zbus` sends `AUTH EXTERNAL`, `NEGOTIATE_UNIX_FD` and `BEGIN` pipelined, and its handshake has no public option to
+  skip the negotiation (a search of `connection/builder.rs` found none).
+- The fake `NameAcquired` signal had only a member field; `zbus` refuses a signal without path and interface
+  ("A required field is missing from message headers"), as a real bus never sends one.
+  The hand client skipped any signal.
+- The fake bus sent `NameAcquired` before the reply to `Hello`; `zbus` reports `Unexpected message Signal` and the
+  exchange fails as an authentication error. A real bus replies first.
+- The fake bus must echo the serial of each call: `zbus` counts serials for the whole process, so a test cannot
+  assume 1, 2, 3 (it hung until the deadline otherwise).
+- Assertions that compare the exact bytes of each call with the hand encoder became checks of the member names, and
+  a missing socket needed an error mapping (`zbus` reports it as `failed to connect to ...` in a general failure).
+
+The wire-format controls (`damaged_replies_are_refused`, `the_reader_is_total_over_damaged_input`, the layout tests)
+still pass, but they test `systemd_dbus_wire_format.rs`, which the new `Bus` no longer calls;
+they prove nothing about the code in use, and would go with that file.
+
+### What the `dbus_reply` fuzz target becomes
+
+It calls `decode_reply` on arbitrary bytes and asserts totality and bounded names and texts
+(`package/git-policy/cli.fuzz/src/dbus_reply.rs`).
+With `zbus` there is no such function.
+Two replacements, neither built:
+a target on `zbus::Message::from_bytes` (an `unsafe fn` whose doc says "bytes may have an invalid encoding",
+`src/message/mod.rs` line 143) followed by the header accessors and the three body shapes the client reads
+(string, object path, variant holding a string), with the same totality assertion;
+or a socket-level target in which a fake bus finishes a valid handshake and then writes the input, asserting that
+`Bus::call` returns inside the deadline without a panic.
+The first checks `zbus`'s parser, which the owner now relies on; the second checks the wrapper's use of it, including
+the deadline.
+
+### Measured inside the wrapper
+
+Three release builds of the same prototype, differing in the runtime flavour, against today's binary rebuilt on the
+same toolchain.
+
+- Lockfile: 40 registry packages added and 5 removed against today's lock
+  (removed: `ureq`, `ureq-proto`, `utf8-zero`, `base64`, and an older `bitflags`).
+  Added: `tokio`, `mio`, `socket2`, `slab`, `hyper`, `hyper-util`, `hyper-rustls`, `tokio-rustls`, `http-body`,
+  `http-body-util`, `tower-service`, `want`, `try-lock`, `atomic-waker`, `zbus`, `zbus_macros`, `zbus_utils`,
+  `zcheapstr`, `zruntime`, `endi`, `winnow`, `hex`, `ordered-stream`, `async-trait`, `uuid`, `serde_repr`,
+  `signal-hook-registry`, `futures-*`, and, for platforms the owner said to ignore, `js-sys`, four `wasm-bindgen-*`
+  and `uds_windows`.
+- Binary size: today 16,786,200 bytes;
+  current-thread 18,023,096 (+1,236,896, +7.4%);
+  multi-thread with default workers 18,134,168 (+1,347,968, +8.0%);
+  multi-thread with 2 workers 18,134,080.
+  Dropping `ureq` is already counted.
+- Threads, read from `/proc/self/status` inside the binary around one real call:
+  D-Bus `GetUnit` plus `ActiveState` of `dbus.socket` on this host's session bus (read only), 2.2 ms with the
+  current-thread runtime: 1 thread before, during and 300 ms after dropping the `Bus`;
+  multi-thread default: 29 threads after the first call, still 29 after the `Bus` is dropped (the runtime is a process
+  static and is never dropped); multi-thread with 2 workers: 3.
+  The HTTP call to a loopback server by address: 1, 29 and 3 the same way.
+  By host name (`localhost`), the current-thread runtime shows 2 threads after the call, because
+  `hyper-util`'s resolver runs `getaddrinfo` on tokio's blocking pool; that thread stays idle for tokio's default
+  keep-alive (10 s) and was seen at 300 ms.
+- A command that never touches D-Bus or HTTPS does not pay for the runtime:
+  `strace -f -e trace=clone,clone3,execve` of `rev-parse HEAD` shows only the `execve` of Git for today's binary and for
+  the multi-thread build, and no `clone` or `clone3`.
+- Warm `rev-parse HEAD`, 300 runs each in rotating order, median: today 3.87 ms, current-thread 3.87, multi-thread
+  3.85, multi-thread with 2 workers 3.78, same-binary control (a byte copy of today's) 3.80;
+  p95 4.39, 4.34, 4.42, 4.28 and 4.34 ms.
+  The spread of the control against today's binary is 0.07 ms, so none of the differences is a signal.
+- Cold start, major page faults of `rev-parse HEAD` after dropping the binary's cached pages, five runs each:
+  today 5, current-thread 5, multi-thread 7, multi-thread with 2 workers 7 (one run 9).
+  Minor faults: about 480 for today, 487 to 497 for current-thread, 491 to 500 for multi-thread,
+  467 to 498 with 2 workers.
+  Fault counts moved by 2 for a change that adds no code to the start path in an earlier test of this study,
+  so a difference of 2 is within what layout alone does.
+- The HTTP call against a loopback server took about 23 to 25 ms in all flavours.
+  The same measurement on today's `ureq` build was not made.
+
+### Recommendation on the runtime
+
+Current-thread.
+Reasons:
+no thread at all in the wrapper's process for D-Bus or for an HTTP call by address,
+the smallest binary of the three (about 111 KB under the multi-thread builds),
+the same cold major faults as today, and the same warm median;
+the multi-thread flavour leaves 29 threads (3 with two workers) alive for the rest of the process after the first
+use, and the exchanges are sequential request and answer, where workers help nothing.
+One property to design around: with a current-thread runtime, `zbus` connection tasks (reading incoming messages) run
+only while a thread is inside `block_on`, so a `Bus` kept between calls reads nothing in the background and a signal
+that arrives between calls is read at the next call (the calls of the wrapper do not need signals).
+If the owner later wants concurrent exchanges, multi-thread with a small fixed `worker_threads` is the step up.
+The name resolution thread by host name stays in either flavour unless the resolver is replaced.
+
+### The standards-review call on `hyper`
+
+- Code: `standards_review_client.rs` rewritten on `hyper` 1.12 with `hyper-util`'s legacy client,
+  `hyper-rustls` 0.27.10 (features `http1`, `ring`, `webpki-tokio`, `tls12`; no `rustls-native-certs`, so nothing is
+  read from the system), `http-body-util`, `rustls` with the `ring` provider, and `webpki-roots` for the embedded roots;
+  `trusted_pem` still replaces them, parsed with `rustls`'s PEM reader.
+  The catalog entries exist (`rust-catalog.toml` lines 70 to 73, 112); `rustls`, `webpki-roots`, `bytes` and
+  `tower-service` are not in it and were added as literals in the throwaway manifest.
+- Deadline and errors: the ceiling is `tokio::time::timeout(ceiling, ...)` and ends with the same sentence as before.
+  The quiet window is a watchdog: a wrapper around the connection (`Marking`) records every read or write that
+  completes, and the call ends with "The operation was aborted due to timeout" when nothing has moved for the window,
+  connect and handshake included.
+  `ureq` set one timeout per phase and per read or write; the watchdog is one clock over "no byte moved",
+  which is the rule the module's doc states, and it also covers the time before a connection exists.
+  No redirect is followed (the legacy client follows none), no proxy variable is read, plain `http` is still accepted as
+  `ureq` accepted it, and the error text of a failed call now carries the whole cause chain.
+- Tests: the 9 existing client tests pass (loopback mock: request line, headers and body, error status as a reply,
+  chunked body, redirect not followed, silent server ends at the quiet window, refused connection, unreadable authority,
+  reply that keeps arriving is never cut off and is cut at the ceiling).
+  The mock is plain `http`, so none of them reaches TLS;
+  one added control starts a local TLS server with a throwaway CA and a leaf signed by it:
+  the trusted authority is reached and the request carries the bearer header, and the same server is refused with the
+  embedded roots.
+  (A first attempt with a self-signed certificate marked as a CA failed with `CaUsedAsEndEntity`, which is a rule of
+  the verifier and a fixture error, not a client defect.)
+- The structural guard `source_guard/standards_review_boundary_tests.rs` looks for the literal `ureq` in the client
+  file: `the_scan_sees_the_client_and_flags_a_planted_import` fails until its literal becomes the new library names.
+  A second guard test failed only because the prototype's measurement probe in `main.rs` names the client module,
+  which the guard forbids; the probe is not part of any implementation.
+- Selection run (`systemd_dbus`, `standards_review`, `source_guard`): 123 passed, 3 failed, 1 ignored on the prototype;
+  the two guard failures above, and `the_runner_waits_for_a_slow_job_and_contains_a_panic`
+  (`Busy` instead of `Finished(7)`).
+  The same selection on today's unchanged code in a second throwaway worktree: 123 passed, 1 failed, the same runner
+  test, with the same assertion.
+  It passes alone (run twice on the prototype).
+  So it is an ordering or shared-state defect of the existing suite, not an effect of this change.
+- Not done: `ureq`'s per-phase timeouts were not reproduced one by one; the HTTP call was not measured against `ureq`;
+  `hyper`'s `Client` pool was not studied (a client is built per call here, as the `ureq` agent was).
+
+### Summary of what holds and what does not
+
+- A deadline over the whole exchange, connection and handshake included: holds, with a test that ends inside the window.
+- No thread left behind: holds with the current-thread runtime for D-Bus and for HTTP by address (1 thread throughout);
+  does not hold for the multi-thread runtime (29 or 3 stay), and an HTTP call by host name leaves one blocking-pool
+  thread for about 10 s.
+- Startup: holds. No clone before the `execve` of Git, warm median equal within 0.07 ms of the control.
+- Size: +1.24 MB (+7.4%) net of dropping `ureq`, current-thread.
+- Does not hold: the repository's pinned toolchain `nightly-2026-11-01` cannot compile `zbus` 6.
+- Costs of the move that are not requirements: the fake-bus tests needed five changes because `zbus` is stricter than
+  the hand reader; the hand wire-format file and its fuzz target lose their purpose; 35 more packages in the lockfile
+  net of `ureq`'s.
+
 ## Cross-vendor review of this document
 
 Reviewed by `openai/gpt-6.1-sol` (no tools, reading only this document, run 2026-11-07, output in
@@ -1033,6 +1290,30 @@ rankings were restated with their conditions; omitted crates (`nix`, `duct`, `su
 Findings not taken as written: none rejected;
 the request to probe a full journal queue and to run the tempfile publish combinations was not done and is listed as
 not done.
+
+### 11. How to get past the toolchain failure of `zbus`
+
+The owner chose `zbus` 6 on `tokio`; the pinned `nightly-2026-11-01` cannot compile `zbus` 5 or 6
+(section "Tokio as the runtime").
+Options:
+(a) pin the wrapper to an older nightly that compiles it (`nightly-2026-10-28` was used here), with a `PIN` comment
+and the removal condition "the pinned toolchain compiles `zbus`";
+(b) build the wrapper on stable 1.99.0 (compiles `zbus` 6 in a scratch crate; the whole wrapper was not tried);
+(c) wait for a compiler or `zbus` fix and keep the hand client until then;
+(d) report it upstream first and decide after the answer.
+
+Pros and cons:
+(a) unblocks at once, but the wrapper then differs from the repository's toolchain, which other packages share, and
+may meet the sibling `zbus` users' same problem.
+(b) removes the nightly dependence for this package but changes how it is built and tested.
+(c) costs nothing now and delays the move.
+(d) is cheap and does not unblock by itself.
+
+Ranking: (d) > (c) > (a) > (b), as a plan of order rather than exclusive options:
+(d) first because it costs one report and tells whether a fix is near; (c) next because it keeps the working client
+meanwhile; (a) before (b) because a pinned older nightly changes one setting, where stable changes the build of the
+whole package.
+Which of them the owner takes is the owner's; nothing here was built on the pinned toolchain.
 
 ## Queries
 
@@ -1057,6 +1338,12 @@ for each job the decisive candidates were the ones the brief or the repository n
 and the sample only adds the crates listed above.
 
 ## Limits
+
+- The tokio prototype: every number is from `nightly-2026-10-28`; the repository's pinned nightly cannot build it.
+  The comparisons against `ureq` are for size and threads, not for time (the `ureq` HTTP call was not timed).
+  The suite run covered `systemd_dbus`, `standards_review` and `source_guard`, not the whole package; the real-manager
+  D-Bus test was not run; the fuzz target and the TLS path against a real host were not run.
+  Both throwaway worktrees were removed at the end.
 
 - Cold start wall times do not agree across runs.
   Run 1 (n=60): baseline 33.96 ms, control 33.73, zbus-linked 33.60.
