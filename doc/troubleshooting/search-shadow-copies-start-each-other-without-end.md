@@ -212,7 +212,7 @@ A shared crate is the broader option and is left to the owner.
   `src/control_group.rs`) and does not set the arrival marker on that start.
   That start keeps its vetting (`vet` refuses a shadow while the file is open, and `refuse_if_ourselves` runs again before the start),
   and the cargo it starts was chosen by a lookup that now skips every shadow by identity.
-  A shadow reached there by a path the lookup cannot see is stopped by `CARGO_SHADOW_GUARD` only when cargo-shadow itself is the starter.
+  Whether `CARGO_SHADOW_GUARD` reaches that start was not checked.
 - A candidate that cannot be opened, or a record that names a file that does not exist,
   is no verdict:
   the arrival stop is the backstop.
