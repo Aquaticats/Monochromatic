@@ -2552,6 +2552,16 @@ starts on demand; the wrapper never starts it, and typed by hand with no socket 
 and starts nothing. The release archive holds that one executable, as cargo-binstall requires of every `[[bin]]`. Commits queue in arrival order, a batch of whatever is queued lands with one
 durable write, and a commit that waits says how many commits go first. There is nothing to install and no setting.
 
+**The service never starts at system startup or at login** (owner, 2026-11-07: "Were you implying our wrapper or something in it
+auto starts itself on system startup or user login? It should never do that! Follow Bazel."; then: "Systemd units are fine.").
+It is started by the first command that needs it, and exits after three idle hours, like Bazel's server.
+The units are runtime units with no `[Install]` section (no `WantedBy=`, `RequiredBy=` or `Also=`), so `systemctl --user enable`
+has nothing to link; provisioning links nothing, writes only below `$XDG_RUNTIME_DIR/systemd/user` (the one other thing it does
+there is remove files an earlier release put in `~/.config/systemd/user`), and asks the manager only to reload, reset a failed
+unit, start, stop and report a state.
+Guard tests keep it so: `src/native/source_guard/no_start_at_login_tests.rs` and
+`src/native/service/service_provision_never_starts_at_login_tests.rs`.
+
 - The first commit that needs the service sets up its socket activation itself, and every later one checks it is still
   right: it compares the two installed units with what this release would write and, only when they differ (an upgrade or
   a downgrade moved the executable the units name), rewrites them, reloads the manager, clears failed state and starts the socket.
