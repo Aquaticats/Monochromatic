@@ -19,10 +19,12 @@ fn without_limits_the_workers_are_the_budgets() {
     assert_eq!(plan_runtime(&large, &NO_LIMITS), RuntimePlan::MultiThread { workers: expected, blocking_threads: expected });
 }
 
-/// A budget of one worker is the current-thread runtime, because a pool of one worker only adds a thread.
+/// A budget of one worker is a multi-thread runtime of one worker, because the watchers of waits run as tasks beside a thread that
+///  is blocked in a read or a wait, and a current-thread runtime has no thread to run them on. Only a limit that leaves no thread
+///  makes the plan the current-thread runtime.
 #[test]
-fn a_budget_of_one_worker_is_the_current_thread_runtime() {
-    assert_eq!(plan_runtime(&host(1), &NO_LIMITS), RuntimePlan::CurrentThread);
+fn a_budget_of_one_worker_is_a_multi_thread_runtime_of_one_worker() {
+    assert_eq!(plan_runtime(&host(1), &NO_LIMITS), RuntimePlan::MultiThread { workers: 1, blocking_threads: 1 });
 }
 
 /// The process limit bounds the workers: every worker and every blocking thread and the building thread must fit.
