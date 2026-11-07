@@ -134,6 +134,9 @@ pub mod child_watch_clock_marks_and_stopping;
 /// How a watched step may be ended and the errors that say it was.
 pub mod child_watch_step_bounds_and_errors;
 
+/// The loop of a child watch's task and the writing of its notices.
+pub mod child_watch_task_loop_and_notice;
+
 /// The paths of a dirty worktree and of a fast-forward,
 /// and their overlap.
 pub mod auto_push_dirty_paths;
