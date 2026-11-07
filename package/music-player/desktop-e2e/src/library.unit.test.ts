@@ -111,7 +111,7 @@ await describe({
         expect((await readdir(join(library, TRASH_FOLDER,),)).toSorted(),).toEqual([OMEGA_TONE_FILE, TRASH_TONE_FILE],);
         expect(
           (await stat(join(library, TONES_FOLDER, LONG_TONES[0].name,),)).size,
-        ).toBe(8 + RIFF_SIZE_OVERHEAD_BYTES + LONG_TONES[0].seconds * SAMPLE_RATE * BYTES_PER_SAMPLE);
+        ).toBe(8 + RIFF_SIZE_OVERHEAD_BYTES + (LONG_TONES[0].seconds * SAMPLE_RATE * BYTES_PER_SAMPLE));
         await rm(root, { recursive: true, force: true, },);
       },
       timeout: 60_000,

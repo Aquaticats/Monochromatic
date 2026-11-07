@@ -307,6 +307,18 @@ fn a_filesystem_that_refuses_hard_links_does_not_stop_a_commit() {
     commit_lands_while_calls_are_refused("links-refused", "link,linkat");
 }
 
+/// A repository on a filesystem that makes neither a hard link nor a rename that does not replace (a FUSE server such as `s3fs-fuse`
+///  answers `ENOTSUP` to both) must not stop a commit: Git creates `index.lock` by exclusive creation and needs neither call, so the
+///  service takes its lock that way too. The native control lands the same commit with real Git under the same fault.
+#[test]
+fn a_filesystem_with_neither_no_replace_rename_nor_links_does_not_stop_a_commit() {
+    commit_lands_while_calls_are_refused("neither-refused", "link,linkat,renameat2");
+}
+
+/// The service killed at each step of taking the lock on a filesystem that places no file whole, and at each point of a batch.
+#[path = "binary_fault_trace_lock_without_links_tests.rs"]
+mod lock_without_links;
+
 /// The wrapper under a tracer that injects `fault`, for the flow in `repo`.
 fn traced_wrapper(fixture: &Fixture, directory: &Path, arguments: &[&str], trace: &Path, syscall: &str, fault: Option<&Injection>) -> Command {
     let words: Vec<OsString> = tracer(trace, syscall, fault, false);

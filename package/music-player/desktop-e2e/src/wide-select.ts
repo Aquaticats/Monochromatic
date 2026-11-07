@@ -13,10 +13,7 @@
  @packageDocumentation
  */
 
-import {
-  rm,
-  writeFile,
-} from 'node:fs/promises';
+import { writeFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
@@ -39,6 +36,7 @@ import {
 } from './conditions.ts';
 import type { RunContext, } from './context.ts';
 import { expect, } from './errors.ts';
+import { plantFile, } from './files.ts';
 import { WIDE_POINTS, } from './layout.ts';
 import { waveBytes, } from './library.ts';
 import { press, } from './press.ts';
@@ -92,6 +90,27 @@ const REPAIRED_SECONDS = 30;
  Hertz of the tone in the file that replaces the unreadable one.
  */
 const REPAIRED_HERTZ = 330;
+
+/**
+ Condition: the unreadable file's row is selected, paused, with nothing loaded. Nothing is loaded for the unreadable row,
+ so its length is zero; its library index may equal the one the playing track had before the new file shifted the queue,
+ so the index cannot tell the two apart.
+
+ @param state - a state of the app
+
+ @returns whether the unreadable row is selected and paused with no length
+
+ @example
+ ```ts
+ brokenSelected(state,);
+ ```
+ */
+function brokenSelected(state: UiState,): boolean {
+  return (state.route === 'Player')
+    && (state.current_index !== NO_INDEX)
+    && (!state.playing)
+    && (state.duration === 0);
+}
 
 /**
  Types a query on the open Search page, waits for its answer, and moves the highlight down and up so the app reports the
@@ -239,6 +258,9 @@ export async function checkSelectOnly(
        The track that plays while the result is activated.
        */
       const before = await session.last();
+      /**
+       The state after the Search result selected another track, paused.
+       */
       const selected = await openResultFor({
         session,
         query: TONE_QUERY,
@@ -255,6 +277,9 @@ export async function checkSelectOnly(
         condition: (!(await session.last()).playing) && ((await session.last()).current_index === selected.current_index),
         message: 'the track started playing by itself after its Search result selected it',
       },);
+      /**
+       The state after the result of the current track played it.
+       */
       const playing = await openResultFor({
         session,
         query: TONE_QUERY,
@@ -282,77 +307,70 @@ export async function checkSelectOnly(
     title: 'a row whose file cannot be opened stays the selected row, and the next click on it loads it once it decodes (D128)',
     body: async function unreadableRowStays(): Promise<string> {
       /**
-       Path of the unreadable file, which the app finds while it runs.
+       The unreadable file in the library, which the app finds while it runs; leaving the check removes it and waits for
+       the watcher to see that.
        */
-      const broken = join(
-        context.library,
-        BROKEN_NAME,
-      );
+      await using broken = await plantFile({
+        path: join(
+          context.library,
+          BROKEN_NAME,
+        ),
+        content: 'not audio',
+        settleAfterRemovalMs: WATCHER_SETTLE_MS,
+      },);
+      /**
+       The state after the unreadable file's Search result selected it with nothing loaded.
+       */
+      const selected = await openResultFor({
+        session,
+        query: BROKEN_QUERY,
+        until: brokenSelected,
+        what: 'the unreadable file selected from its Search result with nothing loaded',
+      });
+      await session.shot('unreadable-selected',);
+      await wait(STAYS_MS,);
+      expect({
+        condition: (!(await session.last()).playing) && ((await session.last()).current_index === selected.current_index),
+        message: 'the selection left the unreadable row or something played after the select',
+      },);
+
+      // The row is the current row: the click is the toggle, which tries the file again and fails again.
+      await session.click(WIDE_POINTS.trackRow,);
+      await wait(STAYS_MS,);
+      expect({
+        condition: (!(await session.last()).playing) && ((await session.last()).current_index === selected.current_index),
+        message: 'a click on the unreadable current row moved the selection or played something',
+      },);
+      await session.shot('unreadable-clicked-again',);
+
+      // The file is repaired; the next click on the same row loads and plays it.
       await writeFile(
-        broken,
-        'not audio',
+        broken.path,
+        waveBytes({
+          seconds: REPAIRED_SECONDS,
+          hertz: REPAIRED_HERTZ,
+        },),
       );
-      try {
-        const selected = await openResultFor({
-          session,
-          query: BROKEN_QUERY,
-          until: function brokenSelected(state: UiState,): boolean {
-            // Nothing is loaded for the unreadable row, so its length is zero; its library index may equal the one the
-            // playing track had before the new file shifted the queue, so the index cannot tell the two apart.
-            return (state.route === 'Player') && (state.current_index !== NO_INDEX)
-              && (!state.playing)
-              && (state.duration === 0);
-          },
-          what: 'the unreadable file selected from its Search result with nothing loaded',
-        });
-        await session.shot('unreadable-selected',);
-        await wait(STAYS_MS,);
-        expect({
-          condition: (!(await session.last()).playing) && ((await session.last()).current_index === selected.current_index),
-          message: 'the selection left the unreadable row or something played after the select',
-        },);
-
-        // The row is the current row: the click is the toggle, which tries the file again and fails again.
-        await session.click(WIDE_POINTS.trackRow,);
-        await wait(STAYS_MS,);
-        expect({
-          condition: (!(await session.last()).playing) && ((await session.last()).current_index === selected.current_index),
-          message: 'a click on the unreadable current row moved the selection or played something',
-        },);
-        await session.shot('unreadable-clicked-again',);
-
-        // The file is repaired; the next click on the same row loads and plays it.
-        await writeFile(
-          broken,
-          waveBytes({
-            seconds: REPAIRED_SECONDS,
-            hertz: REPAIRED_HERTZ,
-          },),
-        );
-        await wait(WATCHER_SETTLE_MS,);
-        const played = await press({
-          session,
-          act: clickAt(WIDE_POINTS.trackRow,),
-          until: function repairedPlays(state: UiState,): boolean {
-            return (state.current_index === selected.current_index) && state.playing;
-          },
-          what: 'a click on the selected row playing the repaired file',
-        },);
-        await session.shot('unreadable-repaired-playing',);
-        await press({
-          session,
-          act: tapKey('space',),
-          until: isPaused,
-          what: 'playback pausing again',
-        },);
-        return `row ${selected.current_index} stayed selected and paused through two tries; after repair it played (${played.playing})`;
-      } finally {
-        await rm(
-          broken,
-          { force: true, },
-        );
-        await wait(WATCHER_SETTLE_MS,);
-      }
+      await wait(WATCHER_SETTLE_MS,);
+      /**
+       The state after the click on the repaired file's row that played it.
+       */
+      const played = await press({
+        session,
+        act: clickAt(WIDE_POINTS.trackRow,),
+        until: function repairedPlays(state: UiState,): boolean {
+          return (state.current_index === selected.current_index) && state.playing;
+        },
+        what: 'a click on the selected row playing the repaired file',
+      },);
+      await session.shot('unreadable-repaired-playing',);
+      await press({
+        session,
+        act: tapKey('space',),
+        until: isPaused,
+        what: 'playback pausing again',
+      },);
+      return `row ${selected.current_index} stayed selected and paused through two tries; after repair it played (${played.playing})`;
     },
   },);
 }

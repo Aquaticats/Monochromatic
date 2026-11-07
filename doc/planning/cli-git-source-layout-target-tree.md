@@ -174,6 +174,19 @@ verbatim:
     sync),
     never `std::fs::copy`,
     which replaces an existing file.
+  - Settled by the coordinator when the group checks merged (`62874c227d`),
+    from "One level of groups" and "Shelf + summaries (Recommended)" (not asked):
+    the linter knows a group by its structure,
+    any folder holding child source folders,
+    and needs no marker line;
+    under those two answers only a group holds folders,
+    so the structure already says it,
+    and a marker that someone forgets would switch the group checks off.
+    The one-folder entries' own `uses/` folders link the exact folder inside a group,
+    never the group,
+    because a one-folder entry is a folder like a group's children;
+    the entry lists in "One level of groups in the program" that name a group for a one-folder entry are read that way
+    and are reworded when the move reaches them.
   - On text identical to JavaScript output (the job of `text-time-and-log-line-formats` as drafted),
     verbatim:
     "\" text identical to JavaScript output\" - that's not needed."
@@ -5245,7 +5258,9 @@ and what was done:
 The owner answered the group rule,
 the count of libraries and how a library prints a log line on 2026-11-07T11:05:21-05:00
 (section "The owner's words and the rules that bind this").
-Still open from the owner: the test helpers and where the libraries live ("Not yet." to both).
+Still open from the owner:
+the test helpers and where the libraries live ("Not yet."
+to both).
 Next:
 the `monochromatic-lint` change for group summaries starts now (it touches no wrapper file);
 the tokio steps still to come land,
