@@ -1961,6 +1961,7 @@ mise run //package/git-policy/cli:native:test:container
   (`doc/planning/cli-git-commit-latency-under-disk-pressure.md`):
   `--shape <repository>` makes every fixture a reflink copy of a prepared repository without remotes (a clone of the main
   checkout, for example), refreshes its index and gives it the tracked file `README.md` to edit;
+  `--files <count>` edits and commits that many tracked text files by name in every sample (the size of the commit; one by default),
   `--hooks-from <git directory>` copies that repository's policy hooks, `--tool <path>` puts an executable such as `git-lfs`
   on the fixtures' PATH, and `--only <scenario,...>` measures the named scenarios.
   `--cold` drops the pack, index and packed-refs pages of the fixtures from the page cache before every sample on both sides,
