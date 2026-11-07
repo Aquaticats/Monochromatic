@@ -119,6 +119,76 @@ pub struct SearchIndex {
     top: TopCache,
 }
 
+/// What:
+/// `FirstCharacters` is the iterator over the first characters that have a bucket,
+/// each with the size of its bucket.
+/// Why:
+/// the warm-up thread walks them to find the characters whose cached answer is behind,
+/// and a named iterator avoids a closure over the buckets.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FirstCharacters = Iterator<[string, number]>;
+/// ```
+pub(crate) struct FirstCharacters<'index> {
+    /// The buckets still to visit.
+    buckets: std::collections::hash_map::Iter<'index, char, Vec<u32>>,
+}
+
+/// Iteration of the first-character buckets.
+impl Iterator for FirstCharacters<'_> {
+    /// Each step yields a character and the number of tracks in its bucket.
+    type Item = (char, usize);
+
+    /// What:
+    /// `next` gives the next bucket's character and size.
+    /// Why:
+    /// callers need the sizes without borrowing the lists.
+    fn next(&mut self) -> Option<(char, usize)> {
+        let (character, list) = self.buckets.next()?;
+        return Some((*character, list.len()));
+    }
+}
+
+/// What:
+/// `ListedFolders` is the iterator over the slots of the folders that Search lists.
+/// Why:
+/// a folder named like the unfiled bucket is listed only when a nested or prefixed track made it,
+/// and a named iterator avoids a closure over the folder records.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ListedFolders = Iterator<number>;
+/// ```
+pub(crate) struct ListedFolders<'index> {
+    /// The folder records still to visit,
+    /// each with its slot.
+    records: std::iter::Enumerate<std::slice::Iter<'index, FolderRecord>>,
+}
+
+/// Iteration of the listed folder slots.
+impl Iterator for ListedFolders<'_> {
+    /// Each step yields the slot of one listed folder.
+    type Item = usize;
+
+    /// What:
+    /// `next` gives the slot of the next listed folder.
+    /// Why:
+    /// the unfiled bucket is skipped unless it holds a nested or prefixed folder.
+    fn next(&mut self) -> Option<usize> {
+        loop {
+            match self.records.next() {
+                Some((slot, record)) => {
+                    if record.name != UNFILED || record.nested_or_prefixed {
+                        return Some(slot);
+                    }
+                }
+                None => return None,
+            }
+        }
+    }
+}
+
 /// Methods of `SearchIndex`.
 impl SearchIndex {
     /// What:
@@ -235,8 +305,8 @@ impl SearchIndex {
     /// with the bucket's size.
     /// Why:
     /// the warm-up pass starts with the largest buckets.
-    pub(crate) fn first_characters(&self) -> impl Iterator<Item = (char, usize)> + '_ {
-        return self.by_first.iter().map(|(character, list)| return (*character, list.len()));
+    pub(crate) fn first_characters(&self) -> FirstCharacters<'_> {
+        return FirstCharacters { buckets: self.by_first.iter() };
     }
 
     /// What:
@@ -255,13 +325,8 @@ impl SearchIndex {
     /// because
     /// otherwise it is indistinguishable from the root-level group,
     /// which is never offered.
-    pub(crate) fn listed_folders(&self) -> impl Iterator<Item = usize> + '_ {
-        return self
-            .folders
-            .iter()
-            .enumerate()
-            .filter(|(_, record)| return record.name != UNFILED || record.nested_or_prefixed)
-            .map(|(slot, _)| return slot);
+    pub(crate) fn listed_folders(&self) -> ListedFolders<'_> {
+        return ListedFolders { records: self.folders.iter().enumerate() };
     }
 
     /// What:
@@ -292,17 +357,29 @@ impl SearchIndex {
         let mut run_start: usize = 0;
         while run_start < batch.by_first.len() {
             let key: char = batch.by_first[run_start].0;
-            let run_len: usize = batch.by_first[run_start..].partition_point(|entry| return entry.0 == key);
+            let mut run_len: usize = 0;
+            while run_start + run_len < batch.by_first.len() && batch.by_first[run_start + run_len].0 == key {
+                run_len += 1;
+            }
             let bucket: &mut Vec<u32> = self.by_first.entry(key).or_default();
-            bucket.extend(batch.by_first[run_start..run_start + run_len].iter().map(|entry| return entry.1 + base));
+            bucket.reserve(run_len);
+            for entry in &batch.by_first[run_start..run_start + run_len] {
+                bucket.push(entry.1 + base);
+            }
             run_start += run_len;
         }
         run_start = 0;
         while run_start < batch.by_pair.len() {
             let key: (char, char) = batch.by_pair[run_start].0;
-            let run_len: usize = batch.by_pair[run_start..].partition_point(|entry| return entry.0 == key);
+            let mut run_len: usize = 0;
+            while run_start + run_len < batch.by_pair.len() && batch.by_pair[run_start + run_len].0 == key {
+                run_len += 1;
+            }
             let bucket: &mut Vec<u32> = self.by_pair.entry(key).or_default();
-            bucket.extend(batch.by_pair[run_start..run_start + run_len].iter().map(|entry| return entry.1 + base));
+            bucket.reserve(run_len);
+            for entry in &batch.by_pair[run_start..run_start + run_len] {
+                bucket.push(entry.1 + base);
+            }
             run_start += run_len;
         }
         for sighting in batch.folders {
@@ -331,8 +408,13 @@ impl SearchIndex {
     /// the scale tests and the report state the cost per million tracks.
     #[must_use]
     pub fn heap_bytes(&self) -> usize {
-        let buckets: usize = self.by_first.values().map(|list| return list.capacity() * 4).sum::<usize>()
-            + self.by_pair.values().map(|list| return list.capacity() * 4).sum::<usize>();
+        let mut buckets: usize = 0;
+        for list in self.by_first.values() {
+            buckets += list.capacity() * 4;
+        }
+        for list in self.by_pair.values() {
+            buckets += list.capacity() * 4;
+        }
         return self.paths.byte_len() + self.norm.byte_len() + self.nlen.capacity() * 12 + buckets;
     }
 }

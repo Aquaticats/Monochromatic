@@ -20,8 +20,9 @@ import {
   openRepositoryRoot,
   writeIdentity,
 } from '../dist/final/node/index.mjs';
-import { mkdtemp, mkdir, rm, } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { fileURLToPath, } from 'node:url';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 const LINK = '/home/u/Monochromatic';
@@ -102,6 +103,58 @@ function probeOf(world: World,): Probe {
 async function answerFor({ identity, world, }: { identity: LinkIdentity; world: World; },) {
   return await checkRepositoryLink({ read: { found: true, identity, }, probe: probeOf(world,), },);
 }
+
+// The rows below are shared with the Rust copy of the check in the Git wrapper: the Rust suite
+// package/git-policy/cli/src/native/repository_link_check/repository_link_shared_table_tests.rs runs the same file.
+// Edit a row in the JSON and both suites follow; the crate holds the file because the container gate copies only the crate.
+const SHARED_TABLE_PATH = fileURLToPath(new URL(
+  '../../../git-policy/cli/src/native/repository_link_check/repository_link_shared_table.json',
+  import.meta.url,
+),);
+
+/**
+ What a shared row changes of the table's base identity; each field is optional on its own because a row names only what it changes.
+ */
+type SharedIdentityChanges = {
+  readonly phase?: LinkIdentity['phase'];
+  readonly linkText?: string;
+  readonly canonicalRoot?: string;
+  readonly driveUuid?: string;
+  readonly rootCommit?: string;
+};
+
+type SharedRow = {
+  readonly name: string;
+  readonly found: boolean;
+  readonly identity: SharedIdentityChanges;
+  readonly world: World;
+  readonly expect: { readonly kind: string; readonly ready: boolean; readonly message?: string; readonly contains?: readonly string[]; };
+};
+
+type SharedTable = {
+  readonly baseIdentity: LinkIdentity;
+  readonly rowCount: number;
+  readonly rows: readonly SharedRow[];
+};
+
+/**
+ The table as read, or why it could not be: the test of the path then fails by name instead of the whole file failing at load.
+ */
+type SharedTableRead =
+  | { readonly kind: 'read'; readonly table: SharedTable; }
+    | { readonly kind: 'unreadable'; readonly cause: unknown; };
+
+async function readSharedTable(): Promise<SharedTableRead> {
+  try {
+    return { kind: 'read', table: JSON.parse(await readFile(SHARED_TABLE_PATH, 'utf8',),) as SharedTable, };
+  }
+  catch (error) {
+    return { kind: 'unreadable', cause: error, };
+  }
+}
+
+const sharedTable = await readSharedTable();
+const sharedRows: readonly SharedRow[] = sharedTable.kind === 'read' ? sharedTable.table.rows : [];
 
 await describe({
   name: checkRepositoryLink.name,
@@ -294,6 +347,45 @@ await describe({
               (await answerFor({ identity: BEFORE, world: { ...base, entries: { [LINK]: 'directory', }, }, },)).kind,
             ).toBe('not-a-repository',);
           },
+        },),
+      ],
+    },),
+    describe({
+      name: 'the table shared with the Git wrapper',
+      children: [
+        it({
+          name: 'resolves from this suite to the file inside the Git wrapper crate, with the row count it declares',
+          fn: async () => {
+            const read = await readSharedTable();
+            if (read.kind === 'unreadable') {
+              throw new Error(`the shared table ${SHARED_TABLE_PATH} does not resolve`, { cause: read.cause, },);
+            }
+            expect(read.table.rows.length,).toBe(read.table.rowCount,);
+            expect(read.table.rowCount,).toBeGreaterThan(0,);
+          },
+        },),
+        ...sharedRows.map(function rowTest(row,) {
+          return it({
+            name: row.name,
+            fn: async () => {
+              if (sharedTable.kind === 'unreadable') {
+                throw new Error(`the shared table ${SHARED_TABLE_PATH} does not resolve`,);
+              }
+              const identity: LinkIdentity = { ...sharedTable.table.baseIdentity, ...row.identity, };
+              const answer = await checkRepositoryLink({
+                read: { found: row.found, identity, },
+                probe: probeOf(row.world,),
+              },);
+              expect(answer.kind,).toBe(row.expect.kind,);
+              expect(answer.ready,).toBe(row.expect.ready,);
+              if (row.expect.message !== undefined) {
+                expect(answer.message,).toBe(row.expect.message,);
+              }
+              for (const part of row.expect.contains ?? []) {
+                expect(answer.message,).toContain(part,);
+              }
+            },
+          },);
         },),
       ],
     },),

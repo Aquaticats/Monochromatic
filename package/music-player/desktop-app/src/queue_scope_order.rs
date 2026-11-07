@@ -148,8 +148,12 @@ impl Queue {
         // ```ts
         // let remaining = scope.filter((i) => !played.has(i));
         // ```
-        let mut remaining: Vec<usize> =
-            scope.iter().copied().filter(|i| return !played.contains(i)).collect();
+        let mut remaining: Vec<usize> = Vec::new();
+        for index in scope.iter().copied() {
+            if !played.contains(&index) {
+                remaining.push(index);
+            }
+        }
         // What:     `if remaining.is_empty() { ... }`. Cycle exhausted: begin a new one.
         // Why:      Without replacement means a full cycle covers the whole scope; then reshuffle.
         //
@@ -175,7 +179,12 @@ impl Queue {
             // ```ts
             // remaining = scope.filter((i) => i !== current);
             // ```
-            remaining = scope.iter().copied().filter(|&i| return i != current).collect();
+            remaining.clear();
+            for index in scope.iter().copied() {
+                if index != current {
+                    remaining.push(index);
+                }
+            }
             // What:     `if remaining.is_empty() { remaining = scope; }`. A single-track scope
             //           has nothing else; replay it.
             // Why:      Avoid an empty candidate list when the scope is one track.
@@ -323,7 +332,13 @@ impl Queue {
             // ```ts
             // const p = scope.indexOf(anchor);
             // ```
-            let pos = scope.iter().position(|&x| return x == clamped_anchor);
+            let mut pos: Option<usize> = None;
+            for (at, member) in scope.iter().enumerate() {
+                if *member == clamped_anchor {
+                    pos = Some(at);
+                    break;
+                }
+            }
             // What:     `self.order = scope; self.pos = pos.or(Some(0));`. Adopt the sequential
             //           order and point the cursor at the anchor (or the start).
             // Why:      Off's `order` is the full scope, walked sequentially with looping.

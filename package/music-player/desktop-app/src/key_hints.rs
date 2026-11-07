@@ -273,7 +273,10 @@ pub fn badge_text(target: HintTarget, platform: KeyboardPlatform, visible: Optio
             continue;
         };
         if binding.required(platform) == held {
-            return binding.keys.first().map_or_else(String::new, |name| return key_label(name));
+            return match binding.keys.first() {
+                Some(name) => key_label(name),
+                None => String::new(),
+            };
         }
     }
     return String::new();

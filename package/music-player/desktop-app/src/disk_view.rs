@@ -421,53 +421,20 @@ impl Disk for RealDisk {
         // ```ts
         // return readdirSync(folder, { withFileTypes: true }).flatMap((entry) => { ...; return kind !== "Other" ? [[path, kind]] : []; });
         // ```
-        return listing
-            .flatten()
-            .filter_map(|entry| {
-                // What:     `let file_type = entry.file_type().ok()?;` asks the entry for its type. `file_type()` answers a
-                //           `Result`; `.ok()` converts it to an `Option` (`Some(value)` on success, `None` on failure,
-                //           dropping the error); and the trailing `?` leaves the closure early with `None` when the
-                //           `Option` is `None`, otherwise unwraps the value.
-                // Why:      An entry whose type cannot be read is skipped, which in this `filter_map` means `None`.
-                // Gotcha:   `?` is early return, not an optional-chaining dot as in TypeScript's `a?.b`.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // const fileType = tryFileType(entry); if (fileType == null) return null;
-                // ```
-                let file_type = entry.file_type().ok()?;
-                // What:     `let path: PathBuf = entry.path();` takes the entry's full path as an owned `PathBuf`.
-                // Why:      The pair that is returned must own its path, because the entry is dropped at the end of the
-                //           closure.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // const path: string = entry.path;
-                // ```
-                let path: PathBuf = entry.path();
-                // What:     `let kind: EntryKind = kind_of(&path, file_type);` classifies the entry. `&path` lends the path
-                //           read-only, so `path` can still be moved into the returned pair afterwards.
-                // Why:      The classification decides whether the entry is kept.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // const kind: EntryKind = kindOf(path, fileType);
-                // ```
-                let kind: EntryKind = kind_of(&path, file_type);
-                // What:     `return (kind != EntryKind::Other).then_some((path, kind));` turns a condition into an optional
-                //           value. `bool.then_some(x)` answers `Some(x)` when the bool is true and `None` when it is false.
-                //           `(path, kind)` is a tuple that moves `path` into the pair. `!=` is TypeScript's `!==`.
-                // Why:      Entries the queue does not list are dropped; the rest become `(path, kind)` pairs.
-                // Gotcha:   `then_some` builds its argument even when the bool is false (the pair is cheap); `.then(|| ...)`
-                //           would defer it.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // return kind !== "Other" ? [path, kind] : null;
-                // ```
-                return (kind != EntryKind::Other).then_some((path, kind));
-            })
-            .collect();
+        // What:     A loop over the readable entries that keeps each file and folder as a `(path, kind)` pair.
+        // Why:      An entry whose type cannot be read, and every entry the queue does not list, is skipped.
+        let mut found: Vec<(PathBuf, EntryKind)> = Vec::new();
+        for entry in listing.flatten() {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            let path: PathBuf = entry.path();
+            let kind: EntryKind = kind_of(&path, file_type);
+            if kind != EntryKind::Other {
+                found.push((path, kind));
+            }
+        }
+        return found;
     }
 
     /// What:
@@ -496,6 +463,6 @@ impl Disk for RealDisk {
         // ```ts
         // return scanStreaming(folder, Number.MAX_SAFE_INTEGER, () => {});
         // ```
-        return crate::scan_stream::scan_streaming(folder, usize::MAX, &mut |_batch| {});
+        return crate::scan_stream::scan_streaming(folder, usize::MAX, &mut crate::scan_stream::ignore_batch);
     }
 }

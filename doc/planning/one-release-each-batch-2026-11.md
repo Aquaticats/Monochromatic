@@ -2321,3 +2321,95 @@ not to crates.io.
   `releasable-crates.json`,
   `.github/workflows/crate-release.yml`,
   `.github/workflows/cargo-publish.yml`.
+
+### Release record: `monochromatic-cargo-shadow` 0.1.5-alpha.4, the closure rule and the long files (2026-11-07T18:13:23-05:00)
+
+The label gate again:
+an alpha goes to the GitHub release and the toolchain lock,
+not to crates.io.
+The coordinator's instruction of the session:
+go for the cargo-shadow release after the dry run.
+
+- The change it carries (branch `fix/rust-closures-in-five-packages`,
+  commits `06238fdaeb`,
+  `bcd589e5e3` and `2b46e31617`,
+  merged by `321b5328d1` and `50c6de73cf`):
+  the 243 `rust/avoidable-closure` findings and the six `rust/max-lines` findings of the crate are gone,
+  with no new suppression.
+  Callback APIs take values instead of closures:
+  `run_recording`,
+  `run_recording_manifests` and `timed` take `RecordedWork`,
+  `recover*` take `Judge` (the installer and the updater pass `PolicyJudge`),
+  `read_csv` takes `RowHandler`,
+  and `run_with_placeholder_lock*` take `PlaceholderBody`;
+  each trait has a blanket implementation for the closure shape.
+  The lazy trace takes a `format_args!` value,
+  the statements that compute their text exist in a test build only,
+  and `bounded_run_trace_guard_tests.rs` reads ten production sources to keep it so.
+  Ten files were split into sixteen sibling modules and re-exported from the original,
+  and `shadow_identity.rs` is byte-identical across the four shadow crates
+  (sha256 `284b52541e7066b250f0f9d93159570aeef78d6c9a3f66da3301c81ccc6fa4c1`).
+  The behaviour is unchanged;
+  the public functions that took closures are a design change on an alpha.
+- Gates at the merge:
+  `lint:clippy` with warnings denied clean,
+  `cargo nextest run --release` 710 passed,
+  18 skipped (708 passed before the two guard tests),
+  `monochromatic-lint` over the package finds nothing,
+  and `cargo publish --dry-run` of 0.1.5-alpha.3 aborted at the upload as asked.
+- Release dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42423709364`
+  (2026-11-07T18:06:33-05:00 to 18:07:40-05:00,
+  `success`;
+  the steps "Push the bump to main as a signed commit" and the publish job were skipped).
+  Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42423812481`
+  (`workflow_dispatch`,
+  2026-11-07T18:07:50-05:00 to 18:09:00-05:00,
+  `success`),
+  bump commit `5c133a0891`
+  (2026-11-07T18:08:50-05:00),
+  version 0.1.5-alpha.3 to 0.1.5-alpha.4.
+  The dispatcher printed no refusal,
+  so origin held every local commit.
+- Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42423898920`
+  (built from `5c133a0891`,
+  2026-11-07T18:08:58-05:00 to 18:11:13-05:00,
+  `success`).
+  `cgs-detect`,
+  `cgs-release-state`,
+  `cgs-publish-crate`,
+  both `cgs-build-binary` targets and `cgs-create-release` succeeded;
+  every other crate's job was skipped.
+- crates.io does not hold it:
+  `https://crates.io/api/v1/crates/monochromatic-cargo-shadow/0.1.5-alpha.4` answered HTTP 404 (user agent
+  `crate-release-plan-check`,
+  no token).
+  The wait task said `crates.io 0.1.5-alpha.4: skipped, the alpha label is not published to crates.io (only a plain number and -rc.N are)`.
+- GitHub release `monochromatic-cargo-shadow-v0.1.5-alpha.4` (published 2026-11-07T18:11:10-05:00):
+  `isPrerelease` false,
+  `isDraft` false;
+  assets are the aarch64 and x86_64 Linux tarballs and
+  `monochromatic-cargo-shadow-0.1.5-alpha.4-sha256sums.txt`.
+- Lock move (commit `83b1f14f6a`,
+  2026-11-07T18:12:33-05:00):
+  `mise run toolchain:update` reported `1 tools moved`:
+  `cargo:monochromatic-cargo-shadow` 0.1.5-alpha.3 to 0.1.5-alpha.4 and nothing else
+  (the diff is ten lines:
+  the version,
+  the two archive URLs and SHA-256 values in each of the two entries that hold them,
+  and the lock digest);
+  the SHA-256 values equal the release's checksums file
+  (aarch64 `72df31f2fb7ccae44b28c8b1f0e7c19f8eb2faa676ae322c483c02953ef2387f`,
+  x86_64 `0020724c368f68719cc632305910904c73f58d3e5b73b66950af505f7c18412e`).
+  `mise run toolchain:install` reported `1 installed, 65 unchanged, 0 failed`;
+  `.cache/cargo-shadow-bin/cargo --version` prints `cargo-shadow 0.1.5-alpha.4, shadowing cargo at .../.cache/toolchain-bin/cargo`.
+- Installed binary,
+  the same host proof as the 0.1.5-alpha.1 record
+  (`~/temp/agent/cargo-shadow-limits/prove.sh`,
+  log `~/temp/agent/cargo-shadow-limits/alpha4/installed-run.log`):
+  `cargo metadata` through `.cache/cargo-shadow-bin` inside
+  `systemd-run --user --scope -p MemoryMax=1G -p CPUQuota=100% -p TasksMax=64 -p IOWeight=5`
+  made the scope `app.slice/cargo-shadow-<token>.scope` read `memory.max=1073741824`,
+  `cpu.max=100000 100000`,
+  `pids.max=64`,
+  `io.weight=default 5`,
+  the same four values the caller scope read.

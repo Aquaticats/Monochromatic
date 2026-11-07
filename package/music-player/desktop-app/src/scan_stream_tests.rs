@@ -42,7 +42,7 @@ fn slash_joined(relative: &Path) -> String {
 #[test]
 fn the_streamed_walk_matches_expand_paths() {
     let root: PathBuf = fixture(7);
-    let streamed: Vec<PathBuf> = scan_streaming(&root, usize::MAX, &mut |_batch| {});
+    let streamed: Vec<PathBuf> = scan_streaming(&root, usize::MAX, &mut |_batch: &[PathBuf]| {});
     assert_eq!(streamed, expand_paths(vec![root.clone()]));
     // The fixture makes the symlinks on Unix only (creating one on Windows needs a privilege the test cannot assume).
     if cfg!(unix) {
@@ -58,7 +58,7 @@ fn the_streamed_walk_matches_expand_paths() {
 fn batches_concatenate_to_the_walk() {
     let root: PathBuf = fixture(10);
     let mut batches: Vec<Vec<PathBuf>> = Vec::new();
-    let all: Vec<PathBuf> = scan_streaming(&root, 8, &mut |batch| batches.push(batch.to_vec()));
+    let all: Vec<PathBuf> = scan_streaming(&root, 8, &mut |batch: &[PathBuf]| batches.push(batch.to_vec()));
     let joined: Vec<PathBuf> = batches.iter().flatten().cloned().collect();
     assert_eq!(joined, all);
     assert!(batches.len() >= 3, "a threshold of 8 over 50 files gives several batches, got {}", batches.len());
@@ -72,7 +72,7 @@ fn batches_concatenate_to_the_walk() {
 fn the_remainder_is_reported_at_the_end() {
     let root: PathBuf = fixture(3);
     let mut batches: Vec<usize> = Vec::new();
-    let all: Vec<PathBuf> = scan_streaming(&root, usize::MAX, &mut |batch| batches.push(batch.len()));
+    let all: Vec<PathBuf> = scan_streaming(&root, usize::MAX, &mut |batch: &[PathBuf]| batches.push(batch.len()));
     assert_eq!(batches.iter().sum::<usize>(), all.len());
     std::fs::remove_dir_all(&root).expect("the fixture is removed");
 }
@@ -82,7 +82,7 @@ fn the_remainder_is_reported_at_the_end() {
 #[test]
 fn a_missing_root_gives_an_empty_walk() {
     let mut reported: usize = 0;
-    let all: Vec<PathBuf> = scan_streaming(Path::new("/nonexistent/music-player/root"), 8, &mut |batch| reported += batch.len());
+    let all: Vec<PathBuf> = scan_streaming(Path::new("/nonexistent/music-player/root"), 8, &mut |batch: &[PathBuf]| reported += batch.len());
     assert!(all.is_empty());
     assert_eq!(reported, 0);
 }
@@ -158,7 +158,7 @@ fn the_walk_lists_numbered_names_in_natural_order() {
     for name in ["Loose 11.wav", "Loose 2.wav", "Loose 1.wav", "Loose 10.wav"] {
         std::fs::write(root.join(name), b"x").expect("the fixture file is written");
     }
-    let walked: Vec<PathBuf> = scan_streaming(&root, usize::MAX, &mut |_batch| {});
+    let walked: Vec<PathBuf> = scan_streaming(&root, usize::MAX, &mut |_batch: &[PathBuf]| {});
     let shown: Vec<String> = walked
         .iter()
         .map(|path| return slash_joined(path.strip_prefix(&root).expect("every track is under the root")))

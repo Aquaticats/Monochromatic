@@ -365,13 +365,15 @@ impl Controller {
             //           bars); the queue calls it once with the old list handed over by value, and it answers the new list.
             //           `&root` and `&plan` lend the values the closure reads.
             // Why:      The queue can move the paths out of its own list into the new one instead of copying a million paths.
-            // Gotcha:   The closure takes `old` by value, so the queue's list is empty while the closure runs.
+            // Gotcha:   `tracks_for_edit` takes the list by value, so the queue's list is empty until `install_edited_tracks`.
             //
             // In TS you'd write (pseudocode):
             // ```ts
             // this.queue.replaceTracksWith((old) => applyPlan(old, root, plan));
             // ```
-            self.queue.replace_tracks_with(|old| return apply_plan(old, &root, &plan));
+            let old_tracks = self.queue.tracks_for_edit();
+            let edited_tracks = apply_plan(old_tracks, &root, &plan);
+            self.queue.install_edited_tracks(edited_tracks);
             // What:     `let edited: std::time::Duration = started.elapsed();` measures the time since `started`.
             // Why:      It is the edit time for the log line.
             //
@@ -412,7 +414,7 @@ impl Controller {
         // ```ts
         // if (selectedPath != null && plan.touched.includes(selectedPath)) {
         // ```
-        if selected_path.as_ref().is_some_and(|selected| return plan.touched.contains(selected)) {
+        if matches!(selected_path.as_ref(), Some(selected) if plan.touched.contains(selected)) {
             // What:     `self.reload_current_when_its_file_changed();` calls the method of `controller_reload.rs`.
             // Why:      It swaps in the new file at the same position.
             //
@@ -659,7 +661,15 @@ impl Controller {
         // ```ts
         // for (const path of [...reported]) if (!existsLstat(path)) reported.delete(path);
         // ```
-        reported.retain(|path| return !matches!(std::fs::symlink_metadata(path), Err(error) if error.kind() == std::io::ErrorKind::NotFound));
+        let mut gone: Vec<PathBuf> = Vec::new();
+        for path in reported.iter() {
+            if matches!(std::fs::symlink_metadata(path), Err(error) if error.kind() == std::io::ErrorKind::NotFound) {
+                gone.push(path.clone());
+            }
+        }
+        for path in &gone {
+            reported.remove(path);
+        }
         // What:     `return reported.iter().cloned().collect();` copies the set into a list. `.iter()` walks by borrow, `.cloned()`
         //           copies each path, and `.collect()` gathers them into the return type `Vec<PathBuf>`.
         // Why:      The caller wants an owned list, and the lock must be released when the method returns.
@@ -692,43 +702,23 @@ impl Controller {
     /// private settleSelection(root: string, selectedPath: string | null): void { /* find it again, or clear and say it left */ }
     /// ```
     fn settle_selection(&mut self, root: &Path, selected_path: Option<PathBuf>) {
-        // What:     `let found: Option<usize> = selected_path.as_ref().and_then(|path| { ... });` looks for the selected track in the
-        //           new queue. `.as_ref()` borrows the inside of the `Option`; `.and_then(f)` runs the closure on the path when
-        //           there is one and answers the closure's own `Option<usize>` (an index, or `None`), and answers `None` without
-        //           calling it when there is no selected path.
+        // What:     `let found: Option<usize> = match selected_path.as_ref() { ... };` looks for the selected track in the new queue.
+        //           When there is a selected path, `locate` tries the binary search first: `Ok(index)` when found, `Err(_)` when not
+        //           (the insertion point is ignored), and the failure arm falls back to a scan by path.
         // Why:      The selected track is found again by its path, never by its old position, which an edit may have moved.
+        //           The binary search is cheap, but it relies on the queue being in walk order; the scan covers a queue that is not.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const found: number | null = selectedPath == null ? null : findIndex(selectedPath);
+        // const found: number | null = selectedPath == null ? null : (findIndex(selectedPath) ?? tracks.indexOf(selectedPath));
         // ```
-        let found: Option<usize> = selected_path.as_ref().and_then(|path| {
-            // What:     `return match locate(self.queue.tracks(), root, path) { Ok(index) => Some(index), Err(_) => ... };` first tries
-            //           the binary search. `locate` answers `Result<usize, usize>`: `Ok(index)` when found, `Err(place)` when not;
-            //           the success arm wraps the index in `Some`, the present case of `Option`, and the failure arm (`_` ignores
-            //           the insertion point) falls back to a scan.
-            // Why:      The binary search is cheap, but it relies on the queue being in walk order; the scan covers a queue that
-            //           is not.
-            // Gotcha:   `Err` here is not a failure of the program; it is the "not found" answer.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // const hit = locate(tracks, root, path); if (hit.found != null) return hit.found;
-            // ```
-            return match locate(self.queue.tracks(), root, path) {
+        let found: Option<usize> = match selected_path.as_ref() {
+            Some(path) => match locate(self.queue.tracks(), root, path) {
                 Ok(index) => Some(index),
-                // What:     `Err(_) => self.queue.tracks().iter().position(|track| return track == path),` scans the queue for the
-                //           path. `.iter()` walks by borrow and `.position(f)` answers `Some(index)` of the first item for which
-                //           the closure is true, or `None`. `track == path` compares two borrowed paths by content.
-                // Why:      The fallback finds the track even when the sorted-order search could not.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // return tracks.findIndex((track) => track === path); // -1 becomes null
-                // ```
-                Err(_) => self.queue.tracks().iter().position(|track| return track == path),
-            };
-        });
+                Err(_) => self.queue.position_of_path(path),
+            },
+            None => None,
+        };
         // What:     `match found { Some(index) => { ... } None => { ... } }` takes the optional index apart. `Some(index)` binds
         //           the index when the track was found, and `None` handles the case where it was not.
         // Why:      The two cases are the two things that can happen to the selected track: it stays, or it left.
@@ -1001,7 +991,12 @@ impl Controller {
                     // ```ts
                     // const announced: string[] = [...files.announce].filter((path) => path !== selected);
                     // ```
-                    let mut announced: Vec<PathBuf> = files.announce.into_iter().filter(|path| return Some(path) != selected.as_ref()).collect();
+                    let mut announced: Vec<PathBuf> = Vec::new();
+                    for path in files.announce {
+                        if Some(&path) != selected.as_ref() {
+                            announced.push(path);
+                        }
+                    }
                     // What:     `announced.sort();` sorts the announced list in place.
                     // Why:      Same reason as for the listed files: a repeatable order.
                     //

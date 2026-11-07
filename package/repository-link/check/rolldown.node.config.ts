@@ -6,7 +6,7 @@ import {
 /**
  Node build for `@monochromatic-dev/repository-link-check`.
 
- Entries are the library index the unit tests import and the three bins. Each
+ Entries are the library index the unit tests import and the four bins. Each
  bin chunk is one self-contained file (node built-ins only), so a copy of it
  outside the repository still runs when the repository is away.
  */
@@ -16,6 +16,7 @@ const config: NodeFlavorConfig = nodeConfig({
     'check': './src/check.ts',
     'run': './src/run.ts',
     'record': './src/record.ts',
+    'launch': './src/launch.ts',
   },
 },);
 

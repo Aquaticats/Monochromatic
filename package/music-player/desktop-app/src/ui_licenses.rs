@@ -21,7 +21,7 @@ use music_player::licenses::NOTICES;
 use slint::{ComponentHandle, Model, ModelRc, ModelTracker, SharedString};
 
 /// Imports the projection and the state accessors of the screen.
-use crate::ui_screen::{project, read_state, update_state};
+use crate::ui_screen::{project, read_screen, write_screen};
 /// Imports the route that tells which page is open.
 use crate::ui_screen_view::Route;
 /// Imports the window that shows the notices.
@@ -52,7 +52,9 @@ impl NoticeLines {
     pub(crate) fn new(full_text: &'static str) -> Self {
         let text = full_text.strip_suffix('\n').unwrap_or(full_text);
         let mut starts = vec![0];
-        starts.extend(text.match_indices('\n').map(|(index, _)| return index + 1));
+        for (index, _newline) in text.match_indices('\n') {
+            starts.push(index + 1);
+        }
         return Self { text, starts };
     }
 }
@@ -80,7 +82,10 @@ impl Model for NoticeLines {
     /// so a row is only sliced out.
     fn row_data(&self, row: usize) -> Option<SharedString> {
         let start = *self.starts.get(row)?;
-        let end = self.starts.get(row + 1).map_or(self.text.len(), |next| return next - 1);
+        let end = match self.starts.get(row + 1) {
+            Some(next) => next - 1,
+            None => self.text.len(),
+        };
         return Some(SharedString::from(self.text[start..end].trim_end_matches('\r')));
     }
 
@@ -127,7 +132,7 @@ pub(crate) fn wire_callbacks(app: &AppWindow) {
 /// that it lost focus,
 /// so the editor value and the focus zone are cleared of it.
 pub(crate) fn open_licenses(window: &AppWindow) {
-    if read_state(|state| return state.route) != Route::Settings {
+    if read_screen().route != Route::Settings {
         tracing::warn!("the Licenses row was activated while Settings was not open; nothing opens");
         return;
     }
@@ -136,12 +141,13 @@ pub(crate) fn open_licenses(window: &AppWindow) {
     let line_count = lines.row_count();
     window.set_licenses_lines(ModelRc::new(lines));
     window.set_settings_start_on_licenses(false);
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         if let Some(editor) = state.editor.as_ref() {
             state.editor = Some(editor.with_focus(false));
         }
         state.route = Route::Licenses;
-    });
+    }
     let focus = window.global::<crate::Focus>();
     if focus.get_zone() == 7 {
         focus.set_zone(0);
@@ -164,9 +170,10 @@ pub(crate) fn close_licenses(window: &AppWindow) {
     tracing::info!("closing the Licenses page");
     window.set_licenses_lines(ModelRc::default());
     window.set_settings_start_on_licenses(true);
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.route = Route::Settings;
-    });
+    }
     project(window);
     crate::ui_state_log::emit(window, "licenses-closed");
 }

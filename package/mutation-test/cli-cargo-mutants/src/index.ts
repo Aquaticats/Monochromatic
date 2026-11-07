@@ -20,6 +20,8 @@ export * from './gate-slot.ts';
 export * from './gate-slot-command.ts';
 export * from './gate-slot-run.ts';
 export * from './in-sequence.ts';
+export * from './launch-units.ts';
+export * from './launcher-main.ts';
 export * from './launcher-usage.ts';
 export * from './names.ts';
 export * from './owner-claim.ts';

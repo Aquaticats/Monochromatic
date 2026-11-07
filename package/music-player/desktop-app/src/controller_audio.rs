@@ -173,6 +173,47 @@ pub(crate) struct StagedTrack {
 }
 
 /// What:
+///      `struct ScanBatchAnnouncer { controller, root, next_index, pause }`.
+///  The listener that tells the window about each batch of tracks the folder walk finds.
+/// Why:
+///       Search works while the library is still being scanned (D111),
+/// so each batch is announced with its queue position as the walk goes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ScanBatchAnnouncer implements BatchListener { onBatch(batch) { emit({ firstIndex: this.nextIndex, names: batchNames(root, batch) }); this.nextIndex += batch.length; } }
+/// ```
+struct ScanBatchAnnouncer<'controller> {
+    /// The controller that sends the updates.
+    controller: &'controller Controller,
+    /// The opened folder that the names are relative to.
+    root: &'controller std::path::Path,
+    /// The queue position of the next batch's first track.
+    next_index: usize,
+    /// The pause after each batch,
+    /// which tests lengthen to imitate a slow scan.
+    pause: std::time::Duration,
+}
+
+/// The announcer receives the batches of the walk.
+impl crate::scan_stream::BatchListener for ScanBatchAnnouncer<'_> {
+    /// What:
+    /// `on_batch` announces one batch and advances the queue position.
+    /// Why:
+    /// the window and the Search index learn the new names while the walk goes on.
+    fn on_batch(&mut self, batch: &[PathBuf]) {
+        self.controller.emit(Update::ScanBatch {
+            first_index: self.next_index,
+            names: crate::scan_stream::batch_names(self.root, batch),
+        });
+        self.next_index += batch.len();
+        if !self.pause.is_zero() {
+            std::thread::sleep(self.pause);
+        }
+    }
+}
+
+/// What:
 ///      `impl Controller { ... }`.
 ///  The loading/audio half of the behaviour (a SECOND
 ///           inherent `impl` block for `Controller`,
@@ -326,7 +367,10 @@ impl Controller {
         // ```ts
         // const name = index != null ? names[index] ?? "" : "";
         // ```
-        let name = index.and_then(|i| return names.get(i).cloned()).unwrap_or_default();
+        let name = match index {
+            Some(position) => names.get(position).cloned().unwrap_or_default(),
+            None => String::new(),
+        };
         // What:     `let duration = if index.is_some() { self.spec...duration_secs } else { 0.0 };`.
         //           The loaded track's duration when a track stays selected, else 0.0.
         // Why:      A cleared selection (file left the root) has no duration; otherwise the
@@ -337,7 +381,10 @@ impl Controller {
         // const duration = index != null ? this.spec?.durationSecs ?? 0 : 0;
         // ```
         let duration = if index.is_some() {
-            self.audible_spec().map_or(0.0, |s| return s.duration_secs)
+            match self.audible_spec() {
+                Some(spec) => spec.duration_secs,
+                None => 0.0,
+            }
         } else {
             0.0
         };
@@ -474,18 +521,9 @@ impl Controller {
         // Why:      D111: Search works while the library is still being scanned. The batch's first position is its
         //           queue position, because the queue is exactly this list.
         let tracks: Vec<PathBuf> = if root.is_dir() {
-            let mut next_index: usize = 0;
             let pause: std::time::Duration = crate::scan_stream::pause_from_environment();
-            crate::scan_stream::scan_streaming(&root, crate::scan_stream::STREAM_BATCH, &mut |batch| {
-                self.emit(Update::ScanBatch {
-                    first_index: next_index,
-                    names: crate::scan_stream::batch_names(&root, batch),
-                });
-                next_index += batch.len();
-                if !pause.is_zero() {
-                    std::thread::sleep(pause);
-                }
-            })
+            let mut announcer = ScanBatchAnnouncer { controller: &*self, root: &root, next_index: 0, pause };
+            crate::scan_stream::scan_streaming(&root, crate::scan_stream::STREAM_BATCH, &mut announcer)
         } else {
             expand_paths(vec![root])
         };
@@ -715,7 +753,10 @@ impl Controller {
 
         // What:     `self.loaded_file = Some((path, fingerprint))`. Remember which file the decoder was opened on.
         // Why:      A rescan compares it with the file on disk, so a paused track whose file was replaced is loaded again (D113).
-        self.loaded_file = crate::peakcache::fingerprint(path).map(|key| return (path.to_path_buf(), key));
+        match crate::peakcache::fingerprint(path) {
+            Some(key) => self.loaded_file = Some((path.to_path_buf(), key)),
+            None => self.loaded_file = None,
+        }
 
         // What:     `self.prepare_peak_for_path(path);`. Start the current-track
         //           peak swap path: cache hit applies immediately; cache miss sets
@@ -868,9 +909,14 @@ impl Controller {
         // ```ts
         // const name = index != null ? this.queue.displayPaths()[index] : fileNameOf(path);
         // ```
-        let name = index
-            .and_then(|i| return self.queue.display_paths().into_iter().nth(i))
-            .unwrap_or_else(|| return file_name_of(path));
+        let shown = match index {
+            Some(position) => self.queue.display_paths().into_iter().nth(position),
+            None => None,
+        };
+        let name = match shown {
+            Some(display_path) => display_path,
+            None => file_name_of(path),
+        };
         // What:     `self.emit(Update::NowPlaying { index, name, duration: duration_secs });`.
         //           Tell the UI the new track (struct-variant literal).
         // Why:      Update the now-playing label and seek-bar maximum.
@@ -1301,7 +1347,11 @@ impl Controller {
         let Some(output) = self.output.as_ref() else {
             return;
         };
-        let Some(change) = reporter.take_change(std::time::Instant::now(), || return output.meter_snapshot()) else {
+        let now = std::time::Instant::now();
+        if !reporter.is_due(now) {
+            return;
+        }
+        let Some(change) = reporter.record(now, output.meter_snapshot()) else {
             return;
         };
         if change.short_callbacks > 0 {

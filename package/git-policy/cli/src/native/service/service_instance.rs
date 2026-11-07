@@ -67,25 +67,83 @@ const FNV_PRIME: u128 = 0x0000_0000_0100_0000_0000_0000_0000_013b;
 ///   The real path makes two spellings of one directory (a link,
 /// a relative part) one instance.
 /// A directory that cannot be
-///  resolved is hashed as given.
+///  resolved is hashed as given:
+/// never use this to name anything new (a socket,
+/// a unit instance,
+/// a journal directory);
+/// `try_instance_of` refuses such a directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// instanceOf(gitDir) // '3f9a...' (32 digits)
 /// ```
 pub fn instance_of(git_dir: &Path) -> String {
-    use std::os::unix::ffi::OsStrExt;
     // A directory that cannot be resolved is named as given.
     let real: PathBuf = match std::fs::canonicalize(git_dir) {
         Ok(resolved) => resolved,
         Err(_unresolvable) => git_dir.to_path_buf(),
     };
+    return instance_named_by(real.as_path());
+}
+
+/// The 32 hexadecimal digits of the FNV-1a hash of a path's bytes.
+fn instance_named_by(real: &Path) -> String {
+    use std::os::unix::ffi::OsStrExt;
     let mut hash: u128 = FNV_OFFSET;
     for byte in real.as_os_str().as_bytes() {
         hash ^= u128::from(*byte);
         hash = hash.wrapping_mul(FNV_PRIME);
     }
     return format!("{hash:032x}");
+}
+
+/// What:
+///  Why a Git directory has no instance name:
+/// it cannot be resolved to a real path.
+/// Why:
+///  A link to a drive that is not mounted names nothing,
+/// and a name made from its text would make a socket,
+/// a unit instance and a journal directory for a place that is not there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class GitDirUnreachable extends Error { path: string; }
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GitDirUnreachable {
+    /// The Git directory as given.
+    pub path: PathBuf,
+    /// The operating system's reason,
+    /// such as `No such file or directory (os error 2)`.
+    pub reason: String,
+}
+
+impl std::fmt::Display for GitDirUnreachable {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return write!(formatter, "the Git directory {} cannot be resolved: {}", self.path.display(), self.reason);
+    }
+}
+
+impl std::error::Error for GitDirUnreachable {}
+
+/// What:
+///  The instance name of a worktree,
+/// or why the Git directory has none.
+/// Why:
+///  Name a socket,
+/// a unit instance or a journal directory only through this function:
+/// it refuses a directory that cannot be resolved,
+/// where `instance_of` would hash the text as given.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// tryInstanceOf(gitDir) // '3f9a...' or throws GitDirUnreachable
+/// ```
+pub fn try_instance_of(git_dir: &Path) -> Result<String, GitDirUnreachable> {
+    return match std::fs::canonicalize(git_dir) {
+        Ok(real) => Ok(instance_named_by(real.as_path())),
+        Err(error) => Err(GitDirUnreachable { path: git_dir.to_path_buf(), reason: error.to_string() }),
+    };
 }
 
 /// The socket of an instance under the user's runtime directory.

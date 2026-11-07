@@ -4639,6 +4639,34 @@ and it can stop after any library.
   they are prose,
   not tooling.
 
+### Folders added after the scan
+
+The repository move to the 860 drive added code the scan did not see
+(`doc/planning/repository-on-the-860-drive.md`,
+item W2).
+It moves with the layout like every other folder,
+in the same commits as the files it sits beside.
+
+- The folder `src/native/repository_link_check/` moves as one unit
+  (the identity file reader,
+  the answers and messages,
+  the check with its deadline,
+  the probe,
+  the paths an invocation names,
+  the gate,
+  and the shared JSON table of fixture states).
+  It has no `uses/` folder yet;
+  the layout move gives it one with the others.
+  Its group is the program crate's startup step beside `startup_gate`,
+  which calls it.
+- The shared table `repository_link_shared_table.json` is read by relative path from the TypeScript suite
+  `package/repository-link/check/src/check-link.unit.test.ts`
+  (and by `include_str!` from the Rust suite);
+  the commit that moves the folder updates that path,
+  and a test of that suite fails when the path stops resolving.
+- `src/native/subvolume/fs_uuid_of_source.rs` (the filesystem UUID of a mount's source device)
+  moves with `fs_mount_options.rs` to `linux-file-and-disk-calls`.
+
 ## Open points for the owner
 
 Each has options with pros and cons and a ranking;

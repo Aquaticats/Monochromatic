@@ -440,10 +440,16 @@ pub struct ShortcutRequest {
 /// }
 /// ```
 pub fn shortcut_action(request: &ShortcutRequest) -> ShortcutAction {
-    return composing_or_popup_action(request)
-        .or_else(|| return table_action(request))
-        .or_else(|| return list_letter_action(request))
-        .unwrap_or_else(|| return owner_action(request));
+    if let Some(action) = composing_or_popup_action(request) {
+        return action;
+    }
+    if let Some(action) = table_action(request) {
+        return action;
+    }
+    if let Some(action) = list_letter_action(request) {
+        return action;
+    }
+    return owner_action(request);
 }
 
 /// What:

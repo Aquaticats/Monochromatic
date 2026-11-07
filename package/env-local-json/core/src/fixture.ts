@@ -13,9 +13,11 @@ import { spawn, } from 'node:child_process';
 import { once, } from 'node:events';
 import {
   chmod,
+  mkdir,
   mkdtemp,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
@@ -313,6 +315,103 @@ export async function createTempRoot({
         },
       );
     },
+  };
+}
+
+/**
+ A repository whose link to the 860 drive dangles: a link at `<root>/repolink` to a folder on a drive that is not mounted,
+ and a home whose repository link identity file (phase `after`) names that link.
+
+ @param root - disposable root that holds the link, the mount point stand-in and the home
+
+ @returns the link path, the store path through it, and the home
+
+ @example
+ ```ts
+ const gone = await createRepositoryOnGoneDrive({ root: temp.root });
+ ```
+ */
+export async function createRepositoryOnGoneDrive({
+  root,
+}: {
+  readonly root: string;
+},): Promise<{
+  readonly home: string;
+  readonly link: string;
+  readonly store: string;
+  readonly mountPoint: string
+}> {
+  /**
+   Stand-in for the mount point of a drive that is not mounted.
+   */
+  const mountPoint = join(
+    root,
+    'not-a-mount',
+  );
+  /**
+   Where the link points: a folder that is not there.
+   */
+  const target = join(
+    mountPoint,
+    'repository',
+    'Monochromatic',
+  );
+  /**
+   The repository's old path.
+   */
+  const link = join(
+    root,
+    'repolink',
+  );
+  /**
+   Home that holds the identity file.
+   */
+  const home = join(
+    root,
+    'identity-home',
+  );
+  await mkdir(
+    mountPoint,
+    { recursive: true, },
+  );
+  await symlink(
+    target,
+    link,
+  );
+  await mkdir(
+    join(
+      home,
+      '.config',
+      'monochromatic-dev',
+    ),
+    { recursive: true, },
+  );
+  await writeFile(
+    join(
+      home,
+      '.config',
+      'monochromatic-dev',
+      'repository-link.json',
+    ),
+    JSON.stringify({
+      linkPath: link,
+      linkText: target,
+      canonicalRoot: target,
+      mountPoint,
+      driveUuid: 'DRIVE',
+      nvmeUuid: 'NVME',
+      rootCommit: 'abc123',
+      phase: 'after',
+    },),
+  );
+  return {
+    home,
+    link,
+    mountPoint,
+    store: join(
+      link,
+      '.env.local.json',
+    ),
   };
 }
 

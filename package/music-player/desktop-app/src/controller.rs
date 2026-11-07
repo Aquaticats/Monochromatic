@@ -1042,7 +1042,7 @@ impl Controller {
                     // ```ts
                     // const idx = tracks.indexOf(sel);
                     // ```
-                    Some(sel) => match self.queue.tracks().iter().position(|p| return *p == sel) {
+                    Some(sel) => match self.queue.position_of_path(&sel) {
                         // What:     `Some(idx) => { ... }`. The file is in the scan: select,
                         //           load, and play only when `play` AND the load succeeded.
                         // Why:      A preselected file is cued; `--start-playing` plays it.
@@ -1324,7 +1324,11 @@ impl Controller {
                 // const idx = selected ? tracks.indexOf(selected) : -1;
                 // if (idx >= 0) this.queue.playIndex(idx); else this.queue.clearSelection();
                 // ```
-                match selected.and_then(|sel| return self.queue.tracks().iter().position(|p| return *p == sel)) {
+                let saved_position: Option<usize> = match selected {
+                    Some(sel) => self.queue.position_of_path(&sel),
+                    None => None,
+                };
+                match saved_position {
                     // What:     `Some(idx) => { self.queue.play_index(idx); }`. The saved track
                     //           is present: select it (rebuilding the scope around it).
                     // Why:      Resume where the user left off.

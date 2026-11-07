@@ -98,6 +98,10 @@ pub mod launcher;
 /// so a launcher never starts itself.
 pub mod launcher_chain;
 
+/// Whether a path is unreachable because the repository's link to the 860 drive dangles,
+/// by asking the installed check once.
+pub mod repository_link_cause;
+
 /// What a launcher runs when its record's program is gone:
 /// the program under `current`,
 /// or the sentence that names both versions and the command that fixes it.

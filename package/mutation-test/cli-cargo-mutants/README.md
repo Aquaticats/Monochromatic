@@ -31,7 +31,38 @@ so no two campaigns share an image.
 Before the first unit starts,
 the launcher makes sure every unit's image exists (see "Image tags").
 Output goes to `<log dir>/<log prefix>-<label>-<stem>.log.<attempt>`.
-The launcher prints one line per unit and a `systemctl --user is-active` command that waits for them.
+The launcher prints one line per unit and a `systemctl --user is-active` command that waits for the started ones.
+
+### Exit status and errors
+
+The launcher exits 0 only when every unit started.
+When `systemd-run` refuses a unit,
+the launcher still tries every other unit,
+prints that unit's line with the `systemd-run` error,
+then a summary that names each failed file and unit,
+and exits 1.
+The units that started keep running:
+they are independent,
+and a stopped one resumes when launched again.
+The wait command lists only the started units,
+and is left out when none started.
+To start the failed files,
+launch only them under another label:
+a tag belongs to a file's position in the list,
+so the same label would reuse the tags of the running units.
+(Before 2026-11-07 a refused unit left the exit status 0.)
+
+A launch that is refused before any unit starts
+(a wrong option,
+a missing image tag,
+two files with one unit name)
+prints only the message of the `CargoMutantsToolingError` to standard error and exits 1.
+Any other error is a defect of the launcher or a failure of the host,
+and keeps its stack trace
+(`runLauncherMain` in `src/launcher-main.ts`).
+An option the argument parser itself rejects (an unknown flag,
+a flag without its value) is one of those:
+it ends with the parser's `TypeError` and a stack trace.
 
 ### Image tags
 
@@ -848,6 +879,10 @@ never by a test.
   with `planUnits`,
   to start its own extra units beside the file units
   (the native wrapper starts its planted-controls unit that way).
+- `src/launch-units.ts` starts the planned units together and reports which started,
+  which failed and the exit status;
+  `src/launcher-main.ts` prints only the message of a tooling error.
+  The stand-in `systemd-run` of the tests (`src/fake-programs.ts`) fails for the unit named in `FAKE_SYSTEMD_FAIL_UNIT`.
 - `src/unit-images.ts` makes or checks every unit's image tag before any unit starts (see "Image tags");
   the stand-in `podman` of the tests (`src/fake-programs.ts`) keeps an image registry in `images.json` of its fixture
   for it.

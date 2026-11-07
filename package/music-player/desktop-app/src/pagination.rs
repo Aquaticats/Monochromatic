@@ -271,10 +271,10 @@ pub struct Page {
 /// Returns a stable page identity that distinguishes folder and root-letter pages.
 pub fn page_identity(page: &Page) -> String {
     let folder_prefix = format!("{}/", page.label);
-    let is_folder = page
-        .entries
-        .first()
-        .is_some_and(|entry| return entry.name.starts_with(&folder_prefix));
+    let is_folder = match page.entries.first() {
+        Some(entry) => entry.name.starts_with(&folder_prefix),
+        None => false,
+    };
     if is_folder {
         return format!("folder:{}", page.label);
     }
@@ -569,10 +569,11 @@ pub fn paginate(names: &[String]) -> Vec<Page> {
     // ```ts
     // return [...groups].map(([[, , label], entries]) => ({ label, entries }));
     // ```
-    return groups
-        .into_iter()
-        .map(|((_, _, label), entries)| return Page { label, entries })
-        .collect()
+    let mut pages: Vec<Page> = Vec::new();
+    for ((_group, _key, label), entries) in groups {
+        pages.push(Page { label, entries });
+    }
+    return pages
 }
 
 /// What:
@@ -608,9 +609,14 @@ pub fn page_of_index(pages: &[Page], index: usize) -> Option<usize> {
     // const p = pages.findIndex((page) => page.entries.some((e) => e.index === index));
     // return p < 0 ? null : p;
     // ```
-    return pages
-        .iter()
-        .position(|page| return page.entries.iter().any(|entry| return entry.index == index))
+    for (position, page) in pages.iter().enumerate() {
+        for entry in &page.entries {
+            if entry.index == index {
+                return Some(position);
+            }
+        }
+    }
+    return None
 }
 
 /// What:
