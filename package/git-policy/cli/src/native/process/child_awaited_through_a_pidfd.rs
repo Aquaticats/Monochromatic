@@ -89,6 +89,11 @@ impl OwnedChild {
         return self.child.as_ref().map_or(0, Child::id);
     }
 
+    /// Whether the wait uses the pidfd; `false` means the timer does it, as after a refused `pidfd_open`.
+    pub fn waits_on_a_pidfd(&self) -> bool {
+        return self.watch.is_some();
+    }
+
     /// What:
     ///  Waits for the child to exit and reaps it. The pidfd becomes readable at exit; with none, the child is looked at every
     ///  `POLL_INTERVAL` by a timer.
@@ -153,3 +158,8 @@ impl Drop for OwnedChild {
 #[cfg(test)]
 #[path = "child_awaited_through_a_pidfd_tests.rs"]
 mod tests;
+
+/// Descriptor-limit controls stay out of the release executable.
+#[cfg(test)]
+#[path = "child_awaited_through_a_pidfd_descriptor_limit_tests.rs"]
+mod descriptor_limit_tests;
