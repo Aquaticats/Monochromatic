@@ -523,8 +523,10 @@ satisfies the lint and documents the item;
  there is no second summary:
 
 ````rust
-/// What:     `const CEILING: f32 = ...` is the -1 dBTP linear-amplitude ceiling.
-/// Why:      Normalised output must never exceed it.
+/// What:
+///     `const CEILING: f32 = ...` is the -1 dBTP linear-amplitude ceiling.
+/// Why:
+///      Normalised output must never exceed it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
