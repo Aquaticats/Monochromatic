@@ -88,9 +88,6 @@ From a shell,
 
 - Setting `PATH` in the child environment alone:
   `~/.bashrc` replaces it after bash starts (shown above).
-- Clearing the environment (`env -i`):
-  `HOME` is still needed by the test and `~/.bashrc` is read from it;
-  an empty `HOME` only moved the failure to `$HOME must be set to run brew`.
 
 ## Upstream filing decision
 
