@@ -139,6 +139,41 @@ verbatim:
     taken by the coordinator without asking (option A),
     because the measured zero loops describe the tree of `f44d921e24`,
     not today's `main`.
+- 2026-11-07T11:05:21-05:00,
+  after the rescan and library verdicts (section "The eight libraries against published crates"),
+  in the question tool:
+  - How a group folder relates to its children:
+    "Shelf + summaries (Recommended)".
+    A group folder holds only its child folders and a top doc;
+    each child links exactly the folders it uses,
+    across groups too;
+    each group also gets a `uses/` folder that summarizes which other groups or one-folder entries its children use.
+    The summaries need a change to `monochromatic-lint`,
+    which today rejects a link no code in that folder uses.
+  - How many Git-free libraries stay:
+    "Four libraries (Recommended)":
+    `starting-and-watching-programs`,
+    `parallel-work-within-a-budget`,
+    `fix-packages-after-copying-a-folder`,
+    `dependent-version-bump-check`.
+    The rest of `safe-file-saving`,
+    `linux-file-and-disk-calls`,
+    `text-time-and-log-line-formats` and
+    `talking-to-the-systemd-user-manager` folds into the program.
+  - How a library writes log lines:
+    "tracing (Recommended)":
+    libraries emit through the `tracing` crate;
+    the program installs the output,
+    keeps today's line format and the URL credential masking in that output layer.
+  - Settled by the coordinator from those answers (not asked):
+    `shell_quote` (kept as ours by the earlier owner pick) lives in the lowest crate that uses it,
+    so the program uses it from there;
+    the exclusive copy that `private_storage::copy_file_exclusive` gives a library is specified on the adopted calls
+    (create-new open,
+    copy,
+    sync),
+    never `std::fs::copy`,
+    which replaces an existing file.
   - On text identical to JavaScript output (the job of `text-time-and-log-line-formats` as drafted),
     verbatim:
     "\" text identical to JavaScript output\" - that's not needed."
@@ -5207,10 +5242,13 @@ and what was done:
 
 ## Next
 
-The owner answers the open points,
-among them the rule for a group folder and its children,
-the count of libraries and how a library prints a log line;
-then the tokio steps still to come land,
+The owner answered the group rule,
+the count of libraries and how a library prints a log line on 2026-11-07T11:05:21-05:00
+(section "The owner's words and the rules that bind this").
+Still open from the owner: the test helpers and where the libraries live ("Not yet." to both).
+Next:
+the `monochromatic-lint` change for group summaries starts now (it touches no wrapper file);
+the tokio steps still to come land,
 the rescan runs again,
-and steps 3 to 6 of the move order start,
+and steps 2 to 6 of the move order start,
 each on its own branch.
