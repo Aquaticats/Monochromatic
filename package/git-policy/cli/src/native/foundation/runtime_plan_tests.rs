@@ -1,6 +1,7 @@
 //! The runtime plan: how many workers the budget and the limits allow, and when the plan is the current-thread runtime.
 
 use super::*;
+use crate::parallel_budget::cpu_margin;
 
 /// A host with this many threads, memory not limiting.
 fn host(parallelism: usize) -> HostResources {
