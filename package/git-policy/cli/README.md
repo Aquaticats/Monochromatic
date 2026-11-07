@@ -1600,6 +1600,11 @@ the highest is
  Rotated files that name no saved copy still on disk are kept up to four mebibytes,
 oldest removed first;
  a rotated file with a `saved-conflict` line whose copy still exists is never removed.
+ A rotation killed between taking the file and placing it leaves the file at a private name (`.moving-<process>-<count>`);
+ the next rotation gives it the next free number,
+ so every line is read by number,
+ and the time of a line is in the line,
+ not in its number.
  The four mebibytes are derived from the measured rate of this file (about 23 KB a day) and the 30 days copies are kept;
  the timing logs and the push trigger log keep one rotated file,
 `.1`.
