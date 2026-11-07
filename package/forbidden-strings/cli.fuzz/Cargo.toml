@@ -24,7 +24,7 @@ arbitrary = { workspace = true, features = ["derive"] }
 libfuzzer-sys = { workspace = true, features = ["arbitrary-derive"] }
 sha2 = { workspace = true }
 # One inline line, because the shared crate-release tool moves only an inline exact pin.
-forbidden-strings = { path = "../cli", features = ["fuzzing"], version = "=0.6.1" }
+forbidden-strings = { path = "../cli", features = ["fuzzing"], version = "=0.6.2" }
 
 # Use independent workspace for fuzzers
 [workspace]
