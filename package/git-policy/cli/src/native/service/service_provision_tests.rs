@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 /// A manager that records what it is asked and can be made to fail.
 #[derive(Clone, Default)]
-struct Recorder {
+pub(super) struct Recorder {
     calls: Arc<Mutex<Vec<String>>>,
     failure: Arc<Mutex<Option<CallError>>>,
     /// What a stop is answered with, when it is not the general failure.
@@ -103,17 +103,17 @@ impl Recorder {
         }
     }
 
-    fn calls(&self) -> Vec<String> {
+    pub(super) fn calls(&self) -> Vec<String> {
         return self.calls.lock().expect("lock").clone();
     }
 }
 
-struct Machine {
-    root: PathBuf,
-    host: ProvisionHost,
+pub(super) struct Machine {
+    pub(super) root: PathBuf,
+    pub(super) host: ProvisionHost,
 }
 
-fn machine(name: &str) -> Machine {
+pub(super) fn machine(name: &str) -> Machine {
     let root: PathBuf = fixture(name);
     let host: ProvisionHost = ProvisionHost {
         runtime_dir: root.join("run"),
@@ -186,7 +186,7 @@ fn a_second_provisioning_changes_nothing_and_clears_failed_state_before_the_star
 }
 
 /// The socket the units activate, as the manager would have made it.
-fn add_socket(machine: &Machine) {
+pub(super) fn add_socket(machine: &Machine) {
     let socket: PathBuf = socket_path(machine.host.runtime_dir.as_path(), machine.host.instance.as_str());
     std::fs::create_dir_all(socket.parent().expect("socket directory")).expect("directories");
     std::fs::write(&socket, b"").expect("socket stand-in");
@@ -444,7 +444,7 @@ fn the_earlier_single_service_is_stopped_and_its_units_removed() {
 }
 
 /// The wrapper's units of the earlier single service in `directory`, and the socket file it listened on.
-fn earlier_service_files(machine: &Machine, directory: &Path) -> PathBuf {
+pub(super) fn earlier_service_files(machine: &Machine, directory: &Path) -> PathBuf {
     std::fs::create_dir_all(directory).expect("unit directory");
     for name in [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME] {
         std::fs::write(directory.join(name), "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n").expect("earlier unit");
