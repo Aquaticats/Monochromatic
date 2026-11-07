@@ -112,10 +112,21 @@ const SHARED_TABLE_PATH = fileURLToPath(new URL(
   import.meta.url,
 ),);
 
+/**
+ What a shared row changes of the table's base identity; each field is optional on its own because a row names only what it changes.
+ */
+type SharedIdentityChanges = {
+  readonly phase?: LinkIdentity['phase'];
+  readonly linkText?: string;
+  readonly canonicalRoot?: string;
+  readonly driveUuid?: string;
+  readonly rootCommit?: string;
+};
+
 type SharedRow = {
   readonly name: string;
   readonly found: boolean;
-  readonly identity: Partial<LinkIdentity>;
+  readonly identity: SharedIdentityChanges;
   readonly world: World;
   readonly expect: { readonly kind: string; readonly ready: boolean; readonly message?: string; readonly contains?: readonly string[]; };
 };
@@ -126,24 +137,24 @@ type SharedTable = {
   readonly rows: readonly SharedRow[];
 };
 
-async function readSharedTable(): Promise<SharedTable> {
-  return JSON.parse(await readFile(SHARED_TABLE_PATH, 'utf8',),) as SharedTable;
-}
-
 /**
- The table, or nothing when the path no longer resolves: the test of the path then fails by name instead of the whole file
- failing at load.
+ The table as read, or why it could not be: the test of the path then fails by name instead of the whole file failing at load.
  */
-async function readSharedTableOrNothing(): Promise<SharedTable | undefined> {
+type SharedTableRead =
+  | { readonly kind: 'read'; readonly table: SharedTable; }
+    | { readonly kind: 'unreadable'; readonly cause: unknown; };
+
+async function readSharedTable(): Promise<SharedTableRead> {
   try {
-    return await readSharedTable();
+    return { kind: 'read', table: JSON.parse(await readFile(SHARED_TABLE_PATH, 'utf8',),) as SharedTable, };
   }
-  catch {
-    return undefined;
+  catch (error) {
+    return { kind: 'unreadable', cause: error, };
   }
 }
 
-const sharedTable = await readSharedTableOrNothing();
+const sharedTable = await readSharedTable();
+const sharedRows: readonly SharedRow[] = sharedTable.kind === 'read' ? sharedTable.table.rows : [];
 
 await describe({
   name: checkRepositoryLink.name,
@@ -345,19 +356,22 @@ await describe({
         it({
           name: 'resolves from this suite to the file inside the Git wrapper crate, with the row count it declares',
           fn: async () => {
-            const table = await readSharedTable();
-            expect(table.rows.length,).toBe(table.rowCount,);
-            expect(table.rowCount,).toBeGreaterThan(0,);
+            const read = await readSharedTable();
+            if (read.kind === 'unreadable') {
+              throw new Error(`the shared table ${SHARED_TABLE_PATH} does not resolve`, { cause: read.cause, },);
+            }
+            expect(read.table.rows.length,).toBe(read.table.rowCount,);
+            expect(read.table.rowCount,).toBeGreaterThan(0,);
           },
         },),
-        ...(sharedTable?.rows ?? []).map(function rowTest(row,) {
+        ...sharedRows.map(function rowTest(row,) {
           return it({
             name: row.name,
             fn: async () => {
-              if (sharedTable === undefined) {
+              if (sharedTable.kind === 'unreadable') {
                 throw new Error(`the shared table ${SHARED_TABLE_PATH} does not resolve`,);
               }
-              const identity: LinkIdentity = { ...sharedTable.baseIdentity, ...row.identity, };
+              const identity: LinkIdentity = { ...sharedTable.table.baseIdentity, ...row.identity, };
               const answer = await checkRepositoryLink({
                 read: { found: row.found, identity, },
                 probe: probeOf(row.world,),

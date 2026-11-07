@@ -14,13 +14,22 @@ The shared check that tells a tool whether the repository link to the 860 drive 
   checks,
   then replaces itself with the command (`process.execve`).
   With `--wait-seconds` it asks again every second until the deadline.
+- `repository-link-launch`, started through a link named like the program it stands for (`spawn-claude`, `spawn-pi`):
+  checks,
+  then replaces itself with that program (the table is `LAUNCHED_PROGRAMS` in `src/constants.ts`,
+  paths below the repository link),
+  run by the same Node with the arguments it was given.
+  A link in `~/.local/bin` to this bin tells the person why the program is not there
+  where a link into the repository would give the shell's bare "No such file or directory".
+  A link name it does not know exits 2.
 - `repository-link-record --phase=before|after`:
   the cut-over step that records the identity.
   The check only reads the file.
 
 ## Answers
 
-Ready in phase `after` (a link to the recorded root on the recorded filesystem, with the recorded marker
+Ready in phase `after` (a link to the recorded root on the recorded filesystem,
+with the recorded marker
 `.git/monochromatic-root-commit`) and in phase `before` (a real folder on the NVMe);
 the drive is not mounted;
 the drive is mounted but the folder is missing;

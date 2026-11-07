@@ -431,7 +431,9 @@ await describe({
               const ran = await run({ file: join(bin, 'spawn-claude',), args: ['a', 'b c',], env, },);
               expect(ran.status,).toBe(0,);
               expect(ran.stdout,).toContain('spawn-claude ran',);
-              expect(JSON.parse(await readFile(join(home, 'ran',), 'utf8',),),).toEqual(['a', 'b c',],);
+              expect(
+                JSON.parse(await readFile(join(home, 'ran',), 'utf8',),),
+              ).toEqual(['a', 'b c',],);
               await rm(join(home, 'ran',),);
               // A real folder where the link should be: the repository is not ready, so nothing runs.
               await writeIdentity({
