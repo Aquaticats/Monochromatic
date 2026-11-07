@@ -18,6 +18,43 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: what a stop of the commit service does to the Git a commit it is preparing has started (not asked yet)
+
+From the tokio work,
+step T7 (branch `feat/git-policy-cli-tokio-steps-6-onward`,
+gate 5224 of 5224;
+the plan `doc/planning/git-policy-cli-full-tokio.md`,
+open choice 12).
+The owner's earlier pick for choice 6 was "Only that operation's children (Recommended)".
+- A (built):
+  the service's stop has its own handling and signals no commit's Git;
+  that Git runs on after the service stops and holds its index lock until it ends.
+- B:
+  the stop signals every child of every operation
+  (the recipient rule the owner declined;
+  needs a bounded table with a proof).
+- C:
+  the stop handler only records the stop,
+  and the service's own shutdown signals the children it is waiting for,
+  through a registry
+  (not designed yet).
+The agent's ranking:
+C > A > B;
+C ends no stray Git and still treats the stop as an operation of its own,
+A is what the earlier rule says as worded,
+B is the rule the owner declined.
+Choosing C starts its design;
+saying nothing keeps A.
+
+Also open to veto,
+from the same step:
+`std::thread::sleep` stays in exactly one place,
+`sleep_for` in `push/start_retry.rs`,
+the pause before a forwarded command's start is retried,
+because a forwarded command builds no runtime
+(guarded by `binary_forwarded_command_makes_no_thread_tests.rs`);
+the T13 lint against `thread::sleep` allows that one function.
+
 ## Open: may the decision records get the linter's whitespace-only line breaks? (not asked yet)
 
 The repository-wide lint pass left `doc/decision/` alone (rule:
