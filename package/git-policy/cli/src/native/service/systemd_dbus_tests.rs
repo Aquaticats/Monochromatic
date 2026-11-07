@@ -12,6 +12,7 @@ fn short_directory(name: &str) -> std::path::PathBuf {
     std::fs::create_dir_all(&directory).expect("scratch directory");
     return directory;
 }
+use std::io::{Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 
 /// A string-like header field written out byte by byte: code, a one-character signature, the length, the text and its end.
@@ -616,7 +617,7 @@ fn a_stop_that_spares_the_dependent_units_names_the_mode_that_ignores_dependenci
     let (sender, receiver) = std::sync::mpsc::channel();
     let script: Script = Script {
         answers: vec![
-            vec![name_acquired(), string_return(1, ":1.42")],
+            vec![string_return(1, ":1.42"), name_acquired()],
             vec![hand_message(METHOD_RETURN, 12, &[serial_field(2)], &[])],
             vec![hand_message(METHOD_RETURN, 13, &[serial_field(3)], &[])],
         ],
@@ -626,8 +627,11 @@ fn a_stop_that_spares_the_dependent_units_names_the_mode_that_ignores_dependenci
     bus.stop_unit("a.socket").expect("stopped");
     bus.stop_unit_alone("b.socket").expect("stopped alone");
     let (_auth, calls) = receiver.recv().expect("seen");
-    assert_eq!(calls[1], encode_call(2, &STOP_UNIT, &["a.socket", "replace"]));
-    assert_eq!(calls[2], encode_call(3, &STOP_UNIT, &["b.socket", "ignore-dependencies"]));
+    // The layout of each call is zbus's own now; what the exchange must show is the member, the unit and the job mode of each call.
+    let shows = |call: &[u8], words: [&str; 3]| -> bool { return words.iter().all(|word| { return call.windows(word.len()).any(|window| { return window == word.as_bytes(); }); }); };
+    assert!(shows(calls[1].as_slice(), ["StopUnit", "a.socket", "replace"]));
+    assert!(shows(calls[2].as_slice(), ["StopUnit", "b.socket", "ignore-dependencies"]));
+    assert!(!shows(calls[1].as_slice(), ["StopUnit", "a.socket", "ignore-dependencies"]), "the plain stop must keep `replace`");
     remove(root.as_path());
 }
 
