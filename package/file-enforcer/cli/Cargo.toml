@@ -56,7 +56,7 @@ monochromatic-dependency-catalog = { path = "../../dependency-catalog/core-nativ
 # Resolves `.browserslistrc` against the pinned data lock for the `browserslist` rule kind.
 monochromatic-browserslist = { path = "../../browserslist/core-rust", version = "=0.1.1" }
 # Edits the JetBrains settings XML attribute by attribute for the `jetbrains-harper` rule kind.
-monochromatic-xml-edit = { path = "../../xml-edit/core-rust", version = "=0.1.0" }
+monochromatic-xml-edit = { path = "../../xml-edit/core-rust", version = "=0.1.1" }
 
 [dev-dependencies]
 # Disposable worktrees and runtime directories for the binary tests.
