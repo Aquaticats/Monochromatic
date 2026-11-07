@@ -1,6 +1,12 @@
-//! Controls for the fsmonitor section of `git monochromatic-git-policy-cli doctor`: parsing the listing, the wording for each state, and
-//! the doctor's output for real repositories. No control starts a fsmonitor daemon: the doctor only lists the
-//! configuration, and every home and global file is a fixture.
+//! Controls for the fsmonitor section of `git monochromatic-git-policy-cli doctor`:
+//! parsing the listing,
+//! the wording for each state,
+//! and
+//! the doctor's output for real repositories.
+//! No control starts a fsmonitor daemon:
+//! the doctor only lists the
+//! configuration,
+//! and every home and global file is a fixture.
 
 use super::*;
 use crate::action::Action;
@@ -45,7 +51,11 @@ fn on_finding(setting: &str, remedy: &str) -> String {
     );
 }
 
-/// Only entries of `core.fsmonitor` are kept, in listing order, with scope, origin and value; a key without `=` has
+/// Only entries of `core.fsmonitor` are kept,
+/// in listing order,
+/// with scope,
+/// origin and value;
+/// a key without `=` has
 /// no value.
 #[test]
 fn the_listing_keeps_the_fsmonitor_entries_with_scope_origin_and_value() {
@@ -67,13 +77,17 @@ fn the_listing_keeps_the_fsmonitor_entries_with_scope_origin_and_value() {
     assert_eq!(parse_fsmonitor_entries(b"global\0file:/x"), None, "a listing in another shape is refused whole");
 }
 
-/// No entry: off, and the line says the key is not set.
+/// No entry:
+/// off,
+/// and the line says the key is not set.
 #[test]
 fn an_unset_key_is_off_and_says_not_set() {
     assert_eq!(render_fsmonitor(&[]), off_line("core.fsmonitor is not set"));
 }
 
-/// The last entry decides: a later `false` turns an earlier `true` off, and the line names the entry that decided.
+/// The last entry decides:
+/// a later `false` turns an earlier `true` off,
+/// and the line names the entry that decided.
 #[test]
 fn the_last_entry_decides_and_false_is_off() {
     let entries: Vec<FsmonitorEntry> = vec![
@@ -83,7 +97,8 @@ fn the_last_entry_decides_and_false_is_off() {
     assert_eq!(render_fsmonitor(entries.as_slice()), off_line("core.fsmonitor is false in file:.git/config, local scope"));
 }
 
-/// `true` in the global file is a finding that names the file, the scope and the command for that scope.
+/// `true` in the global file is a finding that names the file,
+/// the scope and the command for that scope.
 #[test]
 fn true_in_the_global_file_names_the_file_the_scope_and_the_command() {
     let entries: Vec<FsmonitorEntry> =
@@ -97,7 +112,8 @@ fn true_in_the_global_file_names_the_file_the_scope_and_the_command() {
     );
 }
 
-/// A hook path and a key without a value are on too, and each scope has its own command flag.
+/// A hook path and a key without a value are on too,
+/// and each scope has its own command flag.
 #[test]
 fn a_hook_path_or_a_valueless_key_is_on_and_each_scope_has_its_command() {
     let hook: Vec<FsmonitorEntry> =
@@ -120,7 +136,8 @@ fn a_hook_path_or_a_valueless_key_is_on_and_each_scope_has_its_command() {
     );
 }
 
-/// A value from `-c` or the environment has no file to change, so the finding says where to remove it instead.
+/// A value from `-c` or the environment has no file to change,
+/// so the finding says where to remove it instead.
 #[test]
 fn a_command_scope_value_names_no_config_command() {
     let entries: Vec<FsmonitorEntry> =
@@ -143,7 +160,8 @@ fn doctor_says_fsmonitor_is_off_for_a_repository_that_does_not_set_it() {
     remove(root.as_path());
 }
 
-/// `false` in the repository's own file is off, and the line names that file's origin and scope.
+/// `false` in the repository's own file is off,
+/// and the line names that file's origin and scope.
 #[test]
 fn doctor_says_fsmonitor_is_off_when_the_repository_sets_false() {
     let root: PathBuf = fixture("doctor-fsmonitor-false");
@@ -156,8 +174,10 @@ fn doctor_says_fsmonitor_is_off_when_the_repository_sets_false() {
     remove(root.as_path());
 }
 
-/// `true` in the repository's own file is a finding with the local command; the exit status stays 0 because the
-/// finding is informational, like the retired-key notes.
+/// `true` in the repository's own file is a finding with the local command;
+/// the exit status stays 0 because the
+/// finding is informational,
+/// like the retired-key notes.
 #[test]
 fn doctor_names_the_repository_file_that_turns_fsmonitor_on() {
     let root: PathBuf = fixture("doctor-fsmonitor-local-true");
@@ -173,7 +193,9 @@ fn doctor_names_the_repository_file_that_turns_fsmonitor_on() {
     remove(root.as_path());
 }
 
-/// `true` in the global file of an injected home is found there, with the global command; nothing writes the file.
+/// `true` in the global file of an injected home is found there,
+/// with the global command;
+/// nothing writes the file.
 #[test]
 fn doctor_names_the_global_file_that_turns_fsmonitor_on_and_never_edits_it() {
     let root: PathBuf = fixture("doctor-fsmonitor-global-true");
@@ -193,7 +215,8 @@ fn doctor_names_the_global_file_that_turns_fsmonitor_on_and_never_edits_it() {
     remove(root.as_path());
 }
 
-/// Once the global file says `false`, doctor says it is off and names that file.
+/// Once the global file says `false`,
+/// doctor says it is off and names that file.
 #[test]
 fn doctor_names_the_global_file_that_holds_false() {
     let root: PathBuf = fixture("doctor-fsmonitor-global-false");
@@ -207,7 +230,9 @@ fn doctor_names_the_global_file_that_holds_false() {
     remove(root.as_path());
 }
 
-/// `0`, `off` and an empty value are false to Git, and the line names the value as written and says how Git reads it.
+/// `0`,
+/// `off` and an empty value are false to Git,
+/// and the line names the value as written and says how Git reads it.
 #[test]
 fn a_false_spelling_other_than_false_is_named_as_written() {
     for (written, shown) in [("0", "0 (Git reads it as false)"), ("off", "off (Git reads it as false)"), ("", "empty (Git reads it as false)")] {
@@ -220,7 +245,8 @@ fn a_false_spelling_other_than_false_is_named_as_written() {
     }
 }
 
-/// A Git that cannot start is said plainly in place of the line, and so is a configuration Git refuses to list.
+/// A Git that cannot start is said plainly in place of the line,
+/// and so is a configuration Git refuses to list.
 #[test]
 fn a_listing_that_cannot_be_read_is_said_plainly() {
     let root: PathBuf = fixture("doctor-fsmonitor-unreadable");

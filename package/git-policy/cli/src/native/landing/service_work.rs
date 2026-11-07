@@ -1,13 +1,29 @@
 //! What:
-//!  The service's consumer of after-commit work: pending `push` and `maintenance` work items of one repository are
-//!  claimed, coalesced, run, settled, and a push that failed leaves a record that the person's next wrapper command shows.
+//!  The service's consumer of after-commit work:
+//! pending `push` and `maintenance` work items of one repository are
+//!  claimed,
+//! coalesced,
+//! run,
+//! settled,
+//! and a push that failed leaves a record that the person's next wrapper command shows.
 //! Why:
-//!  A commit must not wait for the network or for upkeep, so the wrapper leaves a record and the resident service does
-//!  the work on its own thread (`doc/planning/cli-git-resident-service.md`, "After-commit work"). The service is the
-//!  only pusher of the repositories it serves, so no lock is needed: several pending pushes of one branch become one
-//!  push, and a service that died mid-push is noticed by the lease of its claims running out, never by a process id: the
-//!  holder renews the lease while it works, so a successor that starts beside a holder that is still running leaves its claims
-//!  alone, and one that starts after the holder died takes them back as soon as the lease is over. Other kinds of work
+//!  A commit must not wait for the network or for upkeep,
+//! so the wrapper leaves a record and the resident service does
+//!  the work on its own thread (`doc/planning/cli-git-resident-service.md`,
+//! "After-commit work").
+//! The service is the
+//!  only pusher of the repositories it serves,
+//! so no lock is needed:
+//! several pending pushes of one branch become one
+//!  push,
+//! and a service that died mid-push is noticed by the lease of its claims running out,
+//! never by a process id:
+//! the
+//!  holder renews the lease while it works,
+//! so a successor that starts beside a holder that is still running leaves its claims
+//!  alone,
+//! and one that starts after the holder died takes them back as soon as the lease is over.
+//! Other kinds of work
 //!  (the standards review) are never claimed here.
 //!
 //! In TS you'd write (pseudocode):
@@ -36,30 +52,66 @@ use crate::work_item_recovery::{next_claim_expiry, requeue_expired_reporting};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-/// How long a claim goes without a renewal before another instance runs its item again; the holder renews it three times in this
-/// span while it works (`service_claim_renewal.rs`), so a holder that is slow keeps its claim and one that died loses it
+/// How long a claim goes without a renewal before another instance runs its item again;
+/// the holder renews it three times in this
+/// span while it works (`service_claim_renewal.rs`),
+/// so a holder that is slow keeps its claim and one that died loses it
 /// after this long.
-///  Measured by killing a throwaway service during a claim: the service binary in a fixture repository claimed a push held by the
-///  remote's hook, was killed with SIGKILL 1.5 s after the claim (with its process group), and a new service was started and woken;
-///  the push was made again 119.57, 119.56 and 119.55 s after the kill in three runs (2026-11-03), so the cost of a kill is the lease
-///  to within half a second. No kill of a commit service appears in the user journal of this host (19 boots), so the kills a person
-///  meets were not counted. The renewal thread is independent of the landing (`service_claim_renewal.rs`), so a landing that stalled for
-///  119.8 s (the longest `total_ms` in the service journal) does not stop renewals; a stall of the whole process longer than the
-///  80 s a renewal may be late would. Kept at 120 s as the coordinator's pick under the owner's delegation, open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", batch size and claim lease, option B).
+///  Measured by killing a throwaway service during a claim:
+/// the service binary in a fixture repository claimed a push held by the
+///  remote's hook,
+/// was killed with SIGKILL 1.5 s after the claim (with its process group),
+/// and a new service was started and woken;
+///  the push was made again 119.57,
+/// 119.56 and 119.55 s after the kill in three runs (2026-11-03),
+/// so the cost of a kill is the lease
+///  to within half a second.
+/// No kill of a commit service appears in the user journal of this host (19 boots),
+/// so the kills a person
+///  meets were not counted.
+/// The renewal thread is independent of the landing (`service_claim_renewal.rs`),
+/// so a landing that stalled for
+///  119.8 s (the longest `total_ms` in the service journal) does not stop renewals;
+/// a stall of the whole process longer than the
+///  80 s a renewal may be late would.
+/// Kept at 120 s as the coordinator's pick under the owner's delegation,
+/// open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Picked for these follow-ups",
+/// batch size and claim lease,
+/// option B).
 pub const CLAIM_LEASE: Duration = Duration::from_secs(120);
 
 /// What:
-///  Runs everything pending for one repository: takes back the claims whose holder stopped renewing them, claims every pending
-///  push, maintenance and review item, runs one push per branch and one upkeep per repository, settles the items, and leaves a
-///  notice for each failed or skipped push. Gives how long until a claim another instance still holds runs out its lease, or
+///  Runs everything pending for one repository:
+/// takes back the claims whose holder stopped renewing them,
+/// claims every pending
+///  push,
+/// maintenance and review item,
+/// runs one push per branch and one upkeep per repository,
+/// settles the items,
+/// and leaves a
+///  notice for each failed or skipped push.
+/// Gives how long until a claim another instance still holds runs out its lease,
+/// or
 ///  nothing when there is none.
 /// Why:
-///   Coalescing keeps a burst of commits to one push; a handler that fails leaves the items in `failed`, not in a loop. A
-///  claim found in this directory may belong to a live instance (a restarted service starts beside the one it replaces, and the
-///  linked worktrees of a bare repository share a directory), so only its lease says it was abandoned; the caller is told when
-///  to look again, because nothing else would wake it once the lease is over. This keeps no retry plan: a push that could pass
-///  is reported as failed, as for handlers that do not retry. The service's rounds use `drain_planned` instead.
+///   Coalescing keeps a burst of commits to one push;
+/// a handler that fails leaves the items in `failed`,
+/// not in a loop.
+/// A
+///  claim found in this directory may belong to a live instance (a restarted service starts beside the one it replaces,
+/// and the
+///  linked worktrees of a bare repository share a directory),
+/// so only its lease says it was abandoned;
+/// the caller is told when
+///  to look again,
+/// because nothing else would wake it once the lease is over.
+/// This keeps no retry plan:
+/// a push that could pass
+///  is reported as failed,
+/// as for handlers that do not retry.
+/// The service's rounds use `drain_planned` instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -69,7 +121,8 @@ pub fn drain(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime) -> Op
     return drain_with_lease(git_dir, handlers, now, CLAIM_LEASE);
 }
 
-/// `drain` with the lease given, so a test can use a short one.
+/// `drain` with the lease given,
+/// so a test can use a short one.
 pub fn drain_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration) -> Option<Duration> {
     return drain_with_renewal(git_dir, handlers, now, lease, Renewal::Timed);
 }
@@ -80,8 +133,11 @@ pub fn drain_with_renewal(git_dir: &Path, handlers: &dyn WorkHandlers, now: &Cla
     return drain_planned_with(git_dir, handlers, now, lease, renewal, &Retrying::none()).wait;
 }
 
-/// `drain` for a service round: the pushes due again come with the request, and the changes the drain asks of the retry plan are
-/// given back with the wait, for the service loop to apply.
+/// `drain` for a service round:
+/// the pushes due again come with the request,
+/// and the changes the drain asks of the retry plan are
+/// given back with the wait,
+/// for the service loop to apply.
 pub fn drain_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, retrying: &Retrying) -> Drained {
     return drain_planned_with(git_dir, handlers, now, CLAIM_LEASE, Renewal::Timed, retrying);
 }
@@ -98,14 +154,24 @@ pub fn drain_planned_with(git_dir: &Path, handlers: &dyn WorkHandlers, now: &Cla
 }
 
 /// What:
-///  Runs the records the releases before one service per worktree left in the common directory of a bare repository, from the
-///  instance of a linked worktree: nothing for a repository with a main worktree, for a main worktree and for a directory with
+///  Runs the records the releases before one service per worktree left in the common directory of a bare repository,
+/// from the
+///  instance of a linked worktree:
+/// nothing for a repository with a main worktree,
+/// for a main worktree and for a directory with
 ///  no `commondir`.
 /// Why:
-///   Those releases kept every worktree's records in the common directory. A repository with a main worktree has an instance
-///  whose own directory that is, and it runs them (the main worktree's current records live there too), so a linked instance
-///  must not. A repository whose worktrees are all linked has no such instance, and its pushes would sit there with no notice.
-///   Several linked instances may drain the directory at once, so a claim is taken back only after its lease, which the holder
+///   Those releases kept every worktree's records in the common directory.
+/// A repository with a main worktree has an instance
+///  whose own directory that is,
+/// and it runs them (the main worktree's current records live there too),
+/// so a linked instance
+///  must not.
+/// A repository whose worktrees are all linked has no such instance,
+/// and its pushes would sit there with no notice.
+///   Several linked instances may drain the directory at once,
+/// so a claim is taken back only after its lease,
+/// which the holder
 ///  renews while it works.
 ///
 /// In TS you'd write (pseudocode):
@@ -116,14 +182,20 @@ pub fn drain_common_records(git_dir: &Path, handlers: &dyn WorkHandlers, now: &C
     return drain_common_records_with_lease(git_dir, handlers, now, CLAIM_LEASE);
 }
 
-/// `drain_common_records` with the lease given, so a test can use a short one.
+/// `drain_common_records` with the lease given,
+/// so a test can use a short one.
 pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration) -> Option<Duration> {
     return drain_common_records_planned(git_dir, handlers, now, lease, None).wait;
 }
 
-/// `drain_common_records` for a service round: `first` is the pause before the first new try of a push that could pass (nothing
-/// keeps no plan), and the plans the drain asks for are keyed by the common directory, which the service loop wakes by itself
-/// when one is due; that wake drains the common directory as a directory of its own, which has no `commondir`.
+/// `drain_common_records` for a service round:
+/// `first` is the pause before the first new try of a push that could pass (nothing
+/// keeps no plan),
+/// and the plans the drain asks for are keyed by the common directory,
+/// which the service loop wakes by itself
+/// when one is due;
+/// that wake drains the common directory as a directory of its own,
+/// which has no `commondir`.
 pub fn drain_common_records_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, first: Option<Duration>) -> Drained {
     let Some(common) = common_directory_of(git_dir) else {
         return Drained::default();
@@ -138,7 +210,8 @@ pub fn drain_common_records_planned(git_dir: &Path, handlers: &dyn WorkHandlers,
     return Drained { wait, changes: replanning.changes };
 }
 
-/// The common directory a linked worktree's Git directory names in its `commondir` file, or nothing for any other directory.
+/// The common directory a linked worktree's Git directory names in its `commondir` file,
+/// or nothing for any other directory.
 pub(crate) fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
     let text: String = std::fs::read_to_string(git_dir.join("commondir")).ok()?;
     let named: &Path = Path::new(text.trim_end_matches(['\n', '\r']));
@@ -166,21 +239,28 @@ pub(crate) fn common_directory_of(git_dir: &Path) -> Option<PathBuf> {
 pub struct GitHandlers {
     /// The context every Git child of the service runs in.
     pub context: GitContext,
-    /// The review credential of each repository whose wake message carried one, for the round these handlers were made for. Held
-    /// in memory only and never changed after the handlers are made: a round makes its own copy (`for_round`) and drops it when
-    /// the round ends, so the workers of a round only read it and nothing waits for it.
+    /// The review credential of each repository whose wake message carried one,
+    /// for the round these handlers were made for.
+    /// Held
+    /// in memory only and never changed after the handlers are made:
+    /// a round makes its own copy (`for_round`) and drops it when
+    /// the round ends,
+    /// so the workers of a round only read it and nothing waits for it.
     review_keys: std::collections::HashMap<PathBuf, ReviewKey>,
-    /// Where tests point the review's gateway call, so no test reaches the real endpoint.
+    /// Where tests point the review's gateway call,
+    /// so no test reaches the real endpoint.
     #[cfg(test)]
     review_endpoint: Option<String>,
-    /// Variables a test adds to the environment of the push, such as a short stall window.
+    /// Variables a test adds to the environment of the push,
+    /// such as a short stall window.
     #[cfg(test)]
     push_environment: Vec<(std::ffi::OsString, std::ffi::OsString)>,
 }
 
 /// Methods over the real handlers.
 impl GitHandlers {
-    /// Handlers that run real Git in `context`, with no review credential yet.
+    /// Handlers that run real Git in `context`,
+    /// with no review credential yet.
     pub fn new(context: GitContext) -> GitHandlers {
         return GitHandlers {
             context,
@@ -192,22 +272,27 @@ impl GitHandlers {
         };
     }
 
-    /// The same handlers with variables added to the environment of every push; tests only.
+    /// The same handlers with variables added to the environment of every push;
+    /// tests only.
     #[cfg(test)]
     pub fn with_push_environment(mut self, variables: &[(&str, &str)]) -> GitHandlers {
         self.push_environment = variables.iter().map(|(name, value)| { return (std::ffi::OsString::from(name), std::ffi::OsString::from(value)); }).collect();
         return self;
     }
 
-    /// The same handlers with the review's gateway call sent to `endpoint`; tests only.
+    /// The same handlers with the review's gateway call sent to `endpoint`;
+    /// tests only.
     #[cfg(test)]
     pub fn with_review_endpoint(mut self, endpoint: &str) -> GitHandlers {
         self.review_endpoint = Some(endpoint.to_string());
         return self;
     }
 
-    /// A copy of these handlers that holds `keys` as the review credentials of one round; the copy is dropped with the round.
-    /// The test-only settings (the review endpoint, the push environment) are carried into the copy, so a round runs the way the
+    /// A copy of these handlers that holds `keys` as the review credentials of one round;
+    /// the copy is dropped with the round.
+    /// The test-only settings (the review endpoint,
+    /// the push environment) are carried into the copy,
+    /// so a round runs the way the
     /// handlers it was made from are set to run.
     pub fn for_round(&self, keys: std::collections::HashMap<PathBuf, ReviewKey>) -> GitHandlers {
         return GitHandlers {
@@ -220,7 +305,8 @@ impl GitHandlers {
         };
     }
 
-    /// The credential held for this repository, if the round brought one.
+    /// The credential held for this repository,
+    /// if the round brought one.
     fn review_key_of(&self, git_dir: &Path) -> Option<ReviewKey> {
         return self.review_keys.get(git_dir).cloned();
     }
@@ -302,7 +388,8 @@ impl WorkHandlers for GitHandlers {
 #[path = "service_work_tests.rs"]
 mod tests;
 
-/// A push the service stopped is tried again on its own: the controls with a remote that stalls once.
+/// A push the service stopped is tried again on its own:
+/// the controls with a remote that stalls once.
 #[cfg(test)]
 #[path = "service_push_retry_tests.rs"]
 mod push_retry_tests;

@@ -1,13 +1,25 @@
 //! What:
-//!  A guard over every Git process the built wrapper starts for a command that has a pathspec: no option of the wrapper's
-//!  follows the `--` the person typed, and no `--quiet` or `-q` reaches Git unless the person typed one.
+//!  A guard over every Git process the built wrapper starts for a command that has a pathspec:
+//! no option of the wrapper's
+//!  follows the `--` the person typed,
+//! and no `--quiet` or `-q` reaches Git unless the person typed one.
 //! Why:
-//!  After `--` Git reads every token as a path, so an option the wrapper adds there is silently taken for a file name: it
-//!  commits a file named `--quiet`, or fails with `pathspec '--quiet' did not match`. The wrapper also adds no `--quiet`
-//!  of its own to a command (owner decision, "No the wrapper should never append --quiet. Letting native git emit whatever
-//!  it wants to is expected."), so what Git prints reaches the person as Git prints it.
-//!  A stand-in Git logs the arguments of each start and runs real Git, so the guard sees the commands the wrapper builds
-//!  and not only the commands the person typed. The checks are plain functions, tried on arguments with the fault planted.
+//!  After `--` Git reads every token as a path,
+//! so an option the wrapper adds there is silently taken for a file name:
+//! it
+//!  commits a file named `--quiet`,
+//! or fails with `pathspec '--quiet' did not match`.
+//! The wrapper also adds no `--quiet`
+//!  of its own to a command (owner decision,
+//! "No the wrapper should never append --quiet.
+//! Letting native git emit whatever
+//!  it wants to is expected."),
+//! so what Git prints reaches the person as Git prints it.
+//!  A stand-in Git logs the arguments of each start and runs real Git,
+//! so the guard sees the commands the wrapper builds
+//!  and not only the commands the person typed.
+//! The checks are plain functions,
+//! tried on arguments with the fault planted.
 
 use super::commit::{COMMIT_BOUND_SECONDS, remove_settled};
 use super::service_commit::{Running, runtime_for, start};
@@ -21,10 +33,13 @@ use std::process::Output;
 /// The variable that names the file the stand-in Git appends to.
 const LOG_VARIABLE: &str = "CLI_GIT_TEST_ARGV_LOG";
 
-/// The separator between the arguments of one logged start (unit separator), so no argument can be split.
+/// The separator between the arguments of one logged start (unit separator),
+/// so no argument can be split.
 const ARGUMENT_SEPARATOR: char = '\u{1f}';
 
-/// A stand-in Git that logs the arguments of every start, one line per start, then runs real Git.
+/// A stand-in Git that logs the arguments of every start,
+/// one line per start,
+/// then runs real Git.
 fn install_logging_git(fixture: &Fixture) {
     std::fs::create_dir(fixture.root.join("shim")).expect("shim directory");
     executable(
@@ -55,7 +70,8 @@ fn run_logged(fixture: &Fixture, repo: &Path, service: &str, arguments: &[&str])
     return (output, starts);
 }
 
-/// The index of the subcommand of a logged start: the first word that is not a global option or its value.
+/// The index of the subcommand of a logged start:
+/// the first word that is not a global option or its value.
 fn subcommand_index(start: &[String]) -> usize {
     let words: Vec<OsString> = start.iter().map(OsString::from).collect();
     return global_layout(words.as_slice()).prefix_len;
@@ -69,8 +85,10 @@ fn names_a_typed_path(word: &str, typed: &[&str]) -> bool {
 /// What:
 ///  The words of one logged start that follow a `--` and are not paths the person typed.
 /// Why:
-///   A start is judged only when a `--` is followed by a word carrying a path the person typed, which is the person's
-///  separator carried into the wrapper's command; a start whose `--` ends the wrapper's own pathspecs is not about it.
+///   A start is judged only when a `--` is followed by a word carrying a path the person typed,
+/// which is the person's
+///  separator carried into the wrapper's command;
+/// a start whose `--` ends the wrapper's own pathspecs is not about it.
 ///  Whatever else follows is a wrapper option read by Git as a path.
 fn wrapper_words_after_separator(start: &[String], typed: &[&str]) -> Vec<String> {
     let from: usize = subcommand_index(start) + 1;
@@ -84,7 +102,10 @@ fn wrapper_words_after_separator(start: &[String], typed: &[&str]) -> Vec<String
     return after.iter().filter(|word| { return !names_a_typed_path(word, typed); }).cloned().collect();
 }
 
-/// Whether a word asks for quiet: `--quiet`, or a short cluster holding `q` (`-q`, `-qn`).
+/// Whether a word asks for quiet:
+/// `--quiet`,
+/// or a short cluster holding `q` (`-q`,
+/// `-qn`).
 fn asks_quiet(word: &str) -> bool {
     return word == "--quiet" || (word.starts_with('-') && !word.starts_with("--") && word.len() > 1 && word[1..].chars().all(|letter| { return letter.is_ascii_lowercase(); }) && word.contains('q'));
 }
@@ -92,8 +113,12 @@ fn asks_quiet(word: &str) -> bool {
 /// What:
 ///  The quiet words of a start of the person's own subcommand when the person typed none.
 /// Why:
-///   The wrapper's other Git starts use `--quiet` for what it asks them (`rev-parse --verify --quiet`), which are not the
-///  person's command; a start of the same subcommand as the person's is, and carries only what they typed, before the
+///   The wrapper's other Git starts use `--quiet` for what it asks them (`rev-parse --verify --quiet`),
+/// which are not the
+///  person's command;
+/// a start of the same subcommand as the person's is,
+/// and carries only what they typed,
+/// before the
 ///  separator and after it.
 fn quiet_the_person_did_not_type(start: &[String], subcommand: &str, typed: &[&str]) -> Vec<String> {
     let at: usize = subcommand_index(start);
@@ -103,7 +128,8 @@ fn quiet_the_person_did_not_type(start: &[String], subcommand: &str, typed: &[&s
     return start[at + 1..].iter().filter(|word| { return asks_quiet(word); }).cloned().collect();
 }
 
-/// The check applied to every logged start of one command; the messages name the start.
+/// The check applied to every logged start of one command;
+/// the messages name the start.
 fn violations(starts: &[Vec<String>], subcommand: &str, typed_arguments: &[&str], typed_paths: &[&str]) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for start in starts {
@@ -123,8 +149,14 @@ fn words(text: &[&str]) -> Vec<String> {
     return text.iter().map(|word| { return (*word).to_string(); }).collect();
 }
 
-/// The checks catch the faults they exist for, and pass what they must: the fault planted in a start, the same words typed
-///  by the person, a `--` that ends the wrapper's own pathspecs, a query's own `--quiet`, and the person's own `-q`.
+/// The checks catch the faults they exist for,
+/// and pass what they must:
+/// the fault planted in a start,
+/// the same words typed
+///  by the person,
+/// a `--` that ends the wrapper's own pathspecs,
+/// a query's own `--quiet`,
+/// and the person's own `-q`.
 #[test]
 fn the_checks_catch_a_wrapper_option_after_the_separator_and_a_quiet_nobody_typed() {
     let planted: Vec<Vec<String>> = vec![words(&["-c", "k=v", "commit", "-o", "--message=undo", "--", "a.txt", "--quiet"])];
@@ -147,7 +179,8 @@ fn the_checks_catch_a_wrapper_option_after_the_separator_and_a_quiet_nobody_type
     assert_eq!(violations(&message_value, "commit", &["commit", "-m", "quick", "--", "a.txt"], &["a.txt"]), Vec::<String>::new());
 }
 
-/// The commands the guard runs besides commits, each with a pathspec after the person's `--`.
+/// The commands the guard runs besides commits,
+/// each with a pathspec after the person's `--`.
 const OTHER_COMMANDS: [&[&str]; 9] = [
     &["add", "--", "a.txt"],
     &["reset", "--", "a.txt"],
@@ -160,8 +193,11 @@ const OTHER_COMMANDS: [&[&str]; 9] = [
     &["stash", "push", "--message=guard", "--", "a.txt"],
 ];
 
-/// No Git process the wrapper starts for a commit with a pathspec, during a revert or a cherry-pick, carries a word of the
-///  wrapper's after the person's `--` or a `--quiet` the person did not type; a `--quiet` they typed reaches Git.
+/// No Git process the wrapper starts for a commit with a pathspec,
+/// during a revert or a cherry-pick,
+/// carries a word of the
+///  wrapper's after the person's `--` or a `--quiet` the person did not type;
+/// a `--quiet` they typed reaches Git.
 #[test]
 fn no_commit_the_wrapper_builds_has_its_own_option_after_the_separator() {
     let fixture: Fixture = fixture("option-order-commit");
@@ -195,7 +231,8 @@ fn no_commit_the_wrapper_builds_has_its_own_option_after_the_separator() {
 }
 
 /// No Git process the wrapper starts for another command with a pathspec carries a word of the wrapper's after the
-///  person's `--`, or a `--quiet` the person did not type in the person's own subcommand.
+///  person's `--`,
+/// or a `--quiet` the person did not type in the person's own subcommand.
 #[test]
 fn no_other_command_the_wrapper_builds_has_its_own_option_after_the_separator() {
     let fixture: Fixture = fixture("option-order-other");

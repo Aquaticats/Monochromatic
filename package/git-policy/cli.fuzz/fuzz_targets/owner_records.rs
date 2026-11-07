@@ -1,7 +1,12 @@
-//! What: Raw bytes and generated records through the owner lock, transaction owner and
+//! What:
+//! Raw bytes and generated records through the owner lock,
+//! transaction owner and
 //!       `/proc/<pid>/stat` readers.
-//! Why: Owner records are files any process can write, and a stat line carries a command name
-//!      the process chose; liveness decisions come from both.
+//! Why:
+//! Owner records are files any process can write,
+//! and a stat line carries a command name
+//!      the process chose;
+//! liveness decisions come from both.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

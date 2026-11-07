@@ -1,8 +1,12 @@
 //! What:
-//!  Runs one round of the service's work over several directories: hands each directory its due retries, drains them side by side,
+//!  Runs one round of the service's work over several directories:
+//! hands each directory its due retries,
+//! drains them side by side,
 //!  and returns the repositories to look at again with the wait for each.
 //! Why:
-//!  `service_round.rs` drains the directories of a round; this file calls it with the work of `service_work.rs`, so
+//!  `service_round.rs` drains the directories of a round;
+//! this file calls it with the work of `service_work.rs`,
+//! so
 //!  the two do not use each other in a circle.
 //!
 //! In TS you'd write (pseudocode):
@@ -20,15 +24,30 @@ use crate::service_round::{Assignment, RoundAnswer, RoundDrain, drain_directorie
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 /// What:
-///  Runs one round of wakes: holds each wake's review credential in memory for the round, drains each named repository once,
-///  repositories side by side, and drops the credentials when the round ends. Gives, for each repository that has a claim
-///  another instance holds, how long until that claim's lease runs out, in the order the repositories were named.
+///  Runs one round of wakes:
+/// holds each wake's review credential in memory for the round,
+/// drains each named repository once,
+///  repositories side by side,
+/// and drops the credentials when the round ends.
+/// Gives,
+/// for each repository that has a claim
+///  another instance holds,
+/// how long until that claim's lease runs out,
+/// in the order the repositories were named.
 /// Why:
-///   The credential is held only for the reviews of the round that brought it; a service that restarts before the round
-///  runs has none, and its reviews record the plain "no key" outcome. The service looks at such a repository again when the
-///  time is over, because the holder may have died and nothing else would wake the work. Repositories share nothing, so the
-///  round drains them side by side (`service_round.rs`); the credentials are passed to the workers as values in a copy of the
-///  handlers made for this round, so nothing is shared mutably and no lock is taken.
+///   The credential is held only for the reviews of the round that brought it;
+/// a service that restarts before the round
+///  runs has none,
+/// and its reviews record the plain "no key" outcome.
+/// The service looks at such a repository again when the
+///  time is over,
+/// because the holder may have died and nothing else would wake the work.
+/// Repositories share nothing,
+/// so the
+///  round drains them side by side (`service_round.rs`);
+/// the credentials are passed to the workers as values in a copy of the
+///  handlers made for this round,
+/// so nothing is shared mutably and no lock is taken.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -38,7 +57,8 @@ pub fn run_round(wakes: Vec<Wake>, handlers: &GitHandlers, retries: &mut PushRet
     return run_round_on(&HostResources::read(), wakes, handlers, retries, now);
 }
 
-/// `run_round` with the host's resources chosen by the caller, so a control states a host of any size.
+/// `run_round` with the host's resources chosen by the caller,
+/// so a control states a host of any size.
 pub fn run_round_on(host: &HostResources, wakes: Vec<Wake>, handlers: &GitHandlers, retries: &mut PushRetries, now: &ClaimTime) -> Vec<(PathBuf, Duration)> {
     let mut directories: Vec<PathBuf> = Vec::new();
     let mut keys: std::collections::HashMap<PathBuf, ReviewKey> = std::collections::HashMap::new();
@@ -55,13 +75,21 @@ pub fn run_round_on(host: &HostResources, wakes: Vec<Wake>, handlers: &GitHandle
 }
 
 /// What:
-///  Runs one round over `directories` with the retry plan: takes what is due for each directory out of the plan, hands it to
-///  that directory's worker as an owned value, applies the changes the workers ask once they are done, and gives for each
-///  directory when to look at it again, whichever is first of its leases and its plan.
+///  Runs one round over `directories` with the retry plan:
+/// takes what is due for each directory out of the plan,
+/// hands it to
+///  that directory's worker as an owned value,
+/// applies the changes the workers ask once they are done,
+/// and gives for each
+///  directory when to look at it again,
+/// whichever is first of its leases and its plan.
 /// Why:
-///   The plan is owned by the caller and changed here on the caller's thread only, so the workers share nothing and no lock is
-///  taken. A directory whose drain planned a push under another directory (a common directory of a bare repository) is named
-///  too, so that its wake is not lost.
+///   The plan is owned by the caller and changed here on the caller's thread only,
+/// so the workers share nothing and no lock is
+///  taken.
+/// A directory whose drain planned a push under another directory (a common directory of a bare repository) is named
+///  too,
+/// so that its wake is not lost.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

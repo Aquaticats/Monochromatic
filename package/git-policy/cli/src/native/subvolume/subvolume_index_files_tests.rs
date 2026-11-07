@@ -1,5 +1,11 @@
-//! Controls for the index rewrite on disk: which linked worktrees count, every outcome line of one index file (missing,
-//!  declined, locked, unreadable, rewritten), and the walk over the checkout's indexes.
+//! Controls for the index rewrite on disk:
+//! which linked worktrees count,
+//! every outcome line of one index file (missing,
+//!  declined,
+//! locked,
+//! unreadable,
+//! rewritten),
+//! and the walk over the checkout's indexes.
 
 use super::*;
 use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
@@ -9,7 +15,8 @@ use crate::subvolume_sync::{SyncOptions, sync_tree};
 use crate::subvolume_test_support::{PlainPlatform, make_checkout};
 use crate::test_support::{fixture, git, git_text, remove};
 
-/// A checkout with two linked worktrees inside it and one outside, and the three administrative directories.
+/// A checkout with two linked worktrees inside it and one outside,
+/// and the three administrative directories.
 fn checkout_with_worktrees(name: &str) -> (PathBuf, PathBuf) {
     let parent: PathBuf = fixture(name);
     let root: PathBuf = make_checkout(parent.as_path(), "checkout");
@@ -19,15 +26,21 @@ fn checkout_with_worktrees(name: &str) -> (PathBuf, PathBuf) {
     return (parent, root);
 }
 
-/// Copy a working tree and its Git directory with a pass, so every file has a new inode and change time.
+/// Copy a working tree and its Git directory with a pass,
+/// so every file has a new inode and change time.
 fn copy_of(source: &Path, destination: &Path) {
     std::fs::create_dir(destination).expect("destination");
     let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None };
     sync_tree(&PlainPlatform::new(), source, destination, options, &Interrupt::never()).expect("copy");
 }
 
-/// Only worktrees inside the checkout are found, sorted by path; the checkout itself, one outside it, one whose
-///  directory is gone, and an administrative directory with no `gitdir` file are not.
+/// Only worktrees inside the checkout are found,
+/// sorted by path;
+/// the checkout itself,
+/// one outside it,
+/// one whose
+///  directory is gone,
+/// and an administrative directory with no `gitdir` file are not.
 #[test]
 fn only_existing_linked_worktrees_inside_the_checkout_are_found() {
     let (parent, root) = checkout_with_worktrees("index-files-worktrees");
@@ -43,7 +56,10 @@ fn only_existing_linked_worktrees_inside_the_checkout_are_found() {
     remove(parent.as_path());
 }
 
-/// A file with no index is reported as such; a file that is not an index, or one Git cannot have written, is declined
+/// A file with no index is reported as such;
+/// a file that is not an index,
+/// or one Git cannot have written,
+/// is declined
 ///  with its reason and left as it was.
 #[test]
 fn a_missing_and_a_declined_index_are_reported_and_left_alone() {
@@ -68,8 +84,11 @@ fn an_unreadable_index_is_reported() {
     remove(parent.as_path());
 }
 
-/// A copied index is rewritten through its lock: the report counts the entries, every stat field now matches the file,
-///  Git finds the tree clean, and no lock stays behind.
+/// A copied index is rewritten through its lock:
+/// the report counts the entries,
+/// every stat field now matches the file,
+///  Git finds the tree clean,
+/// and no lock stays behind.
 #[test]
 fn a_copied_index_is_rewritten_through_its_lock() {
     let parent: PathBuf = fixture("index-files-rewrite");
@@ -101,7 +120,9 @@ fn a_held_lock_leaves_the_index_alone_and_says_so() {
     remove(parent.as_path());
 }
 
-/// The lock is taken before the index is read: with another command's lock in place the index is not even opened, so a
+/// The lock is taken before the index is read:
+/// with another command's lock in place the index is not even opened,
+/// so a
 ///  newer index installed by that command can never be replaced by a rewrite of the older one the read returned.
 #[test]
 fn the_lock_is_taken_before_the_index_is_read() {
@@ -114,8 +135,11 @@ fn the_lock_is_taken_before_the_index_is_read() {
     remove(parent.as_path());
 }
 
-/// Under a lock the migration holds, the index is rewritten and the lock stays for its owner to release; a lock that
-///  holds other text is another command's, and the index is left as copied.
+/// Under a lock the migration holds,
+/// the index is rewritten and the lock stays for its owner to release;
+/// a lock that
+///  holds other text is another command's,
+/// and the index is left as copied.
 #[test]
 fn a_rewrite_under_the_held_lock_keeps_the_lock_and_a_foreign_lock_blocks_it() {
     let parent: PathBuf = fixture("index-files-held");
@@ -154,13 +178,17 @@ fn a_directory_that_refuses_the_lock_is_reported() {
     remove(parent.as_path());
 }
 
-/// Whether the running user is root, which ignores directory permissions.
+/// Whether the running user is root,
+/// which ignores directory permissions.
 fn unsafe_effective_user_is_root() -> bool {
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     return unsafe { libc::geteuid() } == 0;
 }
 
-/// The walk reports the checkout's index first, then each linked worktree's, counts them, and refreshes each one.
+/// The walk reports the checkout's index first,
+/// then each linked worktree's,
+/// counts them,
+/// and refreshes each one.
 #[test]
 fn every_index_of_the_checkout_is_refreshed_and_reported() {
     let parent: PathBuf = fixture("index-files-all");
@@ -191,8 +219,11 @@ fn set_seconds(path: &Path, seconds: i64) {
 }
 
 /// A repository with two tracked files whose content is then replaced by the same number of bytes and the same
-///  modification time, as a tool that preserves times does: `racy.txt` has the time of the index file itself (Git cannot
-///  trust such an entry), `quiet.txt` has an older time (only its change time shows the edit).
+///  modification time,
+/// as a tool that preserves times does:
+/// `racy.txt` has the time of the index file itself (Git cannot
+///  trust such an entry),
+/// `quiet.txt` has an older time (only its change time shows the edit).
 fn repository_with_silent_edits(name: &str) -> (PathBuf, PathBuf) {
     let parent: PathBuf = fixture(name);
     let root: PathBuf = crate::test_support::repository(parent.as_path(), "checkout");
@@ -211,7 +242,9 @@ fn repository_with_silent_edits(name: &str) -> (PathBuf, PathBuf) {
     return (parent, root);
 }
 
-/// An entry modified in the same second as the index file is racy: the rewrite leaves its stat fields alone, so Git
+/// An entry modified in the same second as the index file is racy:
+/// the rewrite leaves its stat fields alone,
+/// so Git
 ///  hashes the file and sees the edit instead of finding the copy clean.
 #[test]
 fn a_racy_entry_is_left_for_git_to_hash() {
@@ -226,7 +259,8 @@ fn a_racy_entry_is_left_for_git_to_hash() {
 }
 
 /// A file that changed after Git recorded it (its change time moved while its size and time did not) is not refreshed
-///  when the tree it was copied from is given as the reference, so Git hashes it and sees the edit.
+///  when the tree it was copied from is given as the reference,
+/// so Git hashes it and sees the edit.
 #[test]
 fn a_file_that_changed_after_git_looked_is_not_refreshed_when_the_original_is_the_reference() {
     let (parent, root) = repository_with_silent_edits("index-files-reference");
@@ -241,7 +275,8 @@ fn a_file_that_changed_after_git_looked_is_not_refreshed_when_the_original_is_th
     remove(parent.as_path());
 }
 
-/// A linked worktree whose directory name is not UTF-8 is found, because the recorded path is read as bytes.
+/// A linked worktree whose directory name is not UTF-8 is found,
+/// because the recorded path is read as bytes.
 #[test]
 fn a_linked_worktree_with_a_non_utf8_name_is_found() {
     use std::os::unix::ffi::OsStrExt;
@@ -259,7 +294,10 @@ fn a_linked_worktree_with_a_non_utf8_name_is_found() {
     remove(parent.as_path());
 }
 
-/// The hash length comes from `extensions.objectformat`: 32 for sha256, 20 when the setting is absent or another, nothing
+/// The hash length comes from `extensions.objectformat`:
+/// 32 for sha256,
+/// 20 when the setting is absent or another,
+/// nothing
 ///  when there is no configuration file.
 #[test]
 fn the_hash_length_is_read_from_the_repository_configuration() {
@@ -279,15 +317,19 @@ fn the_hash_length_is_read_from_the_repository_configuration() {
     remove(parent.as_path());
 }
 
-/// The stat fields of a file as `lstat` reports them now, and the fields an index entry recorded for the same file.
+/// The stat fields of a file as `lstat` reports them now,
+/// and the fields an index entry recorded for the same file.
 fn recorded_and_present() -> (StatFields, StoredStat) {
     let now: StatFields = StatFields { ctime_seconds: 10, ctime_nanos: 11, mtime_seconds: 20, mtime_nanos: 21, dev: 5, ino: 30, uid: 40, gid: 50, size: 60 };
     let stored: StoredStat = StoredStat { ctime_seconds: 10, ctime_nanos: 11, mtime_seconds: 20, mtime_nanos: 21, ino: 30, uid: 40, gid: 50, size: 60 };
     return (now, stored);
 }
 
-/// An entry matches its file when every field it recorded agrees, whatever the device (a subvolume has its own), and each
-///  field that differs alone makes it stale; this is the positive control of the nanosecond rule that follows.
+/// An entry matches its file when every field it recorded agrees,
+/// whatever the device (a subvolume has its own),
+/// and each
+///  field that differs alone makes it stale;
+/// this is the positive control of the nanosecond rule that follows.
 #[test]
 fn an_entry_matches_a_file_when_every_recorded_field_agrees_and_not_when_one_differs() {
     let (now, stored) = recorded_and_present();
@@ -309,7 +351,9 @@ fn an_entry_matches_a_file_when_every_recorded_field_agrees_and_not_when_one_dif
 }
 
 /// A recorded nanosecond count of zero (an index written by a Git built without nanosecond support) matches any present
-///  count; a recorded non-zero count must equal the present one. Both rules apply to the change time and the modification
+///  count;
+/// a recorded non-zero count must equal the present one.
+/// Both rules apply to the change time and the modification
 ///  time on their own.
 #[test]
 fn a_recorded_zero_nanosecond_count_matches_any_and_a_non_zero_one_must_agree() {
@@ -325,7 +369,8 @@ fn a_recorded_zero_nanosecond_count_matches_any_and_a_non_zero_one_must_agree() 
     assert!(matches_stored(&now, &stored), "equal non-zero counts agree");
 }
 
-/// A seed index of a one-file repository, and an administrative directory with no index.
+/// A seed index of a one-file repository,
+/// and an administrative directory with no index.
 fn seed_and_admin(name: &str) -> (PathBuf, Vec<u8>, PathBuf, std::fs::File, StatFields) {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = std::fs::canonicalize(crate::test_support::repository(root.as_path(), "repo")).expect("canonical");
@@ -342,7 +387,8 @@ fn seed_and_admin(name: &str) -> (PathBuf, Vec<u8>, PathBuf, std::fs::File, Stat
     return (root, seed, admin, held, StatFields { ino: 6, ..real });
 }
 
-/// The index is installed under the lock with the stat fields of the provider, and no lock is left.
+/// The index is installed under the lock with the stat fields of the provider,
+/// and no lock is left.
 #[test]
 fn an_index_is_installed_under_the_lock_with_the_stat_fields_it_was_given() {
     let (root, seed, admin, held, fields) = seed_and_admin("install-index-ok");
@@ -364,7 +410,9 @@ fn an_entry_the_provider_does_not_know_keeps_its_stored_fields() {
     remove(root.as_path());
 }
 
-/// An index that stands, or a lock another process holds, ends the install with both left alone.
+/// An index that stands,
+/// or a lock another process holds,
+/// ends the install with both left alone.
 #[test]
 fn an_existing_index_or_a_held_lock_ends_the_install_untouched() {
     let (root, seed, admin, held, fields) = seed_and_admin("install-index-refused");
@@ -392,8 +440,10 @@ fn an_index_written_before_the_publication_is_not_replaced() {
     remove(root.as_path());
 }
 
-/// A lock name that another process took while the index was written does not change what is published: the file that was
-///  written is the one that gets the name of the index, and the other process's lock stays.
+/// A lock name that another process took while the index was written does not change what is published:
+/// the file that was
+///  written is the one that gets the name of the index,
+/// and the other process's lock stays.
 #[test]
 fn a_lock_replaced_before_the_publication_does_not_change_the_file_published() {
     let (root, seed, admin, held, fields) = seed_and_admin("install-index-lock-replaced");
@@ -423,7 +473,8 @@ fn a_lock_taken_right_after_the_publication_stays() {
     remove(root.as_path());
 }
 
-/// A refresh under its own lock never touches the lock name after the new index was renamed over the index: a Git command that
+/// A refresh under its own lock never touches the lock name after the new index was renamed over the index:
+/// a Git command that
 ///  takes the lock right after keeps it.
 #[test]
 fn a_refresh_leaves_the_lock_of_the_next_command_alone() {
@@ -440,7 +491,8 @@ fn a_refresh_leaves_the_lock_of_the_next_command_alone() {
     remove(parent.as_path());
 }
 
-/// A refresh that did not publish removes its own lock, and only if the name still holds it.
+/// A refresh that did not publish removes its own lock,
+/// and only if the name still holds it.
 #[test]
 fn a_refresh_that_published_nothing_removes_its_own_lock_only() {
     let parent: PathBuf = fixture("index-files-own-lock");
@@ -460,7 +512,10 @@ fn a_refresh_that_published_nothing_removes_its_own_lock_only() {
     remove(parent.as_path());
 }
 
-/// A staging name that already exists, as a link to a user's file or as a file, is neither followed nor overwritten: the
+/// A staging name that already exists,
+/// as a link to a user's file or as a file,
+/// is neither followed nor overwritten:
+/// the
 ///  refresh under a held lock is refused and the file the link names keeps its content.
 #[test]
 fn an_existing_staging_name_is_never_followed_or_overwritten() {
@@ -487,7 +542,8 @@ fn an_existing_staging_name_is_never_followed_or_overwritten() {
     remove(parent.as_path());
 }
 
-/// A lock name whose file was unlinked before the publication fails the install closed: nothing is published and the other
+/// A lock name whose file was unlinked before the publication fails the install closed:
+/// nothing is published and the other
 ///  process's lock stays.
 #[test]
 fn an_unlinked_lock_fails_the_install_closed() {

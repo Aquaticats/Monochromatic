@@ -1,29 +1,40 @@
 //! Reads a `strace` trace of one wrapped commit into the process starts and the fsync-class calls of each process.
 //! Why:
-//!  A budget test needs to say which Git subcommands started, how many times, and which process made each sync call,
+//!  A budget test needs to say which Git subcommands started,
+//! how many times,
+//! and which process made each sync call,
 //!  so a regression names its cause.
-//!  The method is the one of the scratch scripts that measured the commit: the trace lists `execve` calls, the
-//!  `clone`-family calls that give a thread or a new process its parent, and the sync calls;
-//!  a sync call belongs to the program its process last started, and a thread to the process that made it.
+//!  The method is the one of the scratch scripts that measured the commit:
+//! the trace lists `execve` calls,
+//! the
+//!  `clone`-family calls that give a thread or a new process its parent,
+//! and the sync calls;
+//!  a sync call belongs to the program its process last started,
+//! and a thread to the process that made it.
 
 use std::collections::{BTreeMap, HashMap};
 
-/// The syscalls the trace is asked for, as the value of `strace --trace=`.
+/// The syscalls the trace is asked for,
+/// as the value of `strace --trace=`.
 pub(super) const TRACED_CALLS: &str = "execve,clone,clone3,fork,vfork,fsync,fdatasync,syncfs,sync_file_range";
 
 /// How many parent links a process may be followed through before the trace is taken to be corrupt.
 const MAX_PARENT_HOPS: usize = 64;
 
-/// What a process is, for counting.
+/// What a process is,
+/// for counting.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum Program {
-    /// The test's own `timeout` that bounds the command; it is not part of the commit.
+    /// The test's own `timeout` that bounds the command;
+    /// it is not part of the commit.
     Harness,
     /// The wrapper under test.
     Wrapper,
-    /// A start of Git, by the subcommand it ran (with its first operand for the commands that need one).
+    /// A start of Git,
+    /// by the subcommand it ran (with its first operand for the commands that need one).
     Git(String),
-    /// A start of any other program, by file name.
+    /// A start of any other program,
+    /// by file name.
     Other(String),
 }
 
@@ -43,21 +54,28 @@ enum Event {
 pub(super) struct Counts {
     /// Starts of Git by subcommand.
     pub(super) git_starts: BTreeMap<String, usize>,
-    /// Starts of other programs by file name, the harness and the wrapper itself left out.
+    /// Starts of other programs by file name,
+    /// the harness and the wrapper itself left out.
     pub(super) other_starts: BTreeMap<String, usize>,
     /// Sync-class calls made by the wrapper process and its threads.
     pub(super) wrapper_syncs: usize,
-    /// Sync-class calls made by Git processes, by the subcommand that made them.
+    /// Sync-class calls made by Git processes,
+    /// by the subcommand that made them.
     pub(super) git_syncs: BTreeMap<String, usize>,
-    /// Sync-class calls made by other programs, by file name.
+    /// Sync-class calls made by other programs,
+    /// by file name.
     pub(super) other_syncs: BTreeMap<String, usize>,
-    /// Every started Git command line, in trace order, for failure messages.
+    /// Every started Git command line,
+    /// in trace order,
+    /// for failure messages.
     pub(super) commands: Vec<String>,
-    /// Threads and processes the wrapper (its program, not Git's) made with a `clone`-family call.
+    /// Threads and processes the wrapper (its program,
+    /// not Git's) made with a `clone`-family call.
     pub(super) wrapper_spawns: usize,
 }
 
-/// Decode a quoted `strace` string at the start of `text`; returns the string and the text after it and any `...`.
+/// Decode a quoted `strace` string at the start of `text`;
+/// returns the string and the text after it and any `...`.
 fn quoted(text: &str) -> Option<(String, &str)> {
     let body: &str = text.strip_prefix('"')?;
     let mut decoded: String = String::new();
@@ -78,7 +96,8 @@ fn quoted(text: &str) -> Option<(String, &str)> {
     return None;
 }
 
-/// The arguments of an `execve` call's `argv` array, from the text just after `[`.
+/// The arguments of an `execve` call's `argv` array,
+/// from the text just after `[`.
 fn arguments(text: &str) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     let mut rest: &str = text;
@@ -94,10 +113,13 @@ fn takes_value(token: &str) -> bool {
     return matches!(token, "-c" | "-C" | "--git-dir" | "--work-tree" | "--namespace" | "--config-env" | "--super-prefix");
 }
 
-/// The subcommands whose first operand names what they do, so a start reads `hook run` rather than `hook`.
+/// The subcommands whose first operand names what they do,
+/// so a start reads `hook run` rather than `hook`.
 const COMPOUND: [&str; 3] = ["hook", "maintenance", "multi-pack-index"];
 
-/// The name a Git start counts under: its subcommand, plus the operand that completes the compound ones.
+/// The name a Git start counts under:
+/// its subcommand,
+/// plus the operand that completes the compound ones.
 fn git_key(arguments_of_start: &[String]) -> String {
     let first: &str = arguments_of_start.first().map_or("git", String::as_str);
     let program_name: &str = first.rsplit('/').next().unwrap_or(first);
@@ -128,7 +150,8 @@ fn git_key(arguments_of_start: &[String]) -> String {
     return String::from(*subcommand);
 }
 
-/// What the program started at `path` is, given where the fixture keeps the wrapper and which file is real Git.
+/// What the program started at `path` is,
+/// given where the fixture keeps the wrapper and which file is real Git.
 fn program_of(path: &str, arguments_of_start: &[String], fixture_root: &str, real_git: &str) -> Program {
     if path.starts_with(fixture_root) {
         return Program::Wrapper;
@@ -143,12 +166,15 @@ fn program_of(path: &str, arguments_of_start: &[String], fixture_root: &str, rea
     return Program::Other(String::from(name));
 }
 
-/// The result of a call line: the text after its last `) = `, when the call returned.
+/// The result of a call line:
+/// the text after its last `) = `,
+/// when the call returned.
 fn result_of(rest: &str) -> Option<&str> {
     return rest.rsplit_once(") = ").map(|(_call, result)| { return result; });
 }
 
-/// The event a trace line shows, if it is one that matters.
+/// The event a trace line shows,
+/// if it is one that matters.
 fn parse_line(line: &str, fixture_root: &str, real_git: &str) -> Option<Event> {
     let (id, remainder) = line.split_once(char::is_whitespace)?;
     let tid: u32 = id.parse().ok()?;
@@ -187,7 +213,8 @@ fn parse_line(line: &str, fixture_root: &str, real_git: &str) -> Option<Event> {
     return None;
 }
 
-/// The program that thread or process `tid` was running at event `before`, found by following parents when it has
+/// The program that thread or process `tid` was running at event `before`,
+/// found by following parents when it has
 ///  not started one itself.
 fn program_at<'a>(
     starts: &'a HashMap<u32, Vec<(usize, Program)>>,
@@ -210,7 +237,8 @@ fn program_at<'a>(
     panic!("thread {tid}: parent chain longer than {MAX_PARENT_HOPS}, so the trace is corrupt");
 }
 
-/// Count the starts and the sync calls in `trace`, the text of a `strace --follow-forks` output file.
+/// Count the starts and the sync calls in `trace`,
+/// the text of a `strace --follow-forks` output file.
 ///  `fixture_root` marks the wrapper's files and `real_git` the Git executable.
 pub(super) fn count(trace: &str, fixture_root: &str, real_git: &str) -> Counts {
     let events: Vec<Event> = trace

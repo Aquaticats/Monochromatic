@@ -17,6 +17,14 @@
 //! program.name('cargo-shadow').command('install').option('--frozen-lockfile')...
 //! ```
 
+#![cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "clap's derive generates the missing-argument closures in its FromArgMatches implementation with the field type as their span, so no author-written closure exists to refactor; same cause as package/forbidden-strings/cli/doc/closure-lint-suppressions.md records"
+    )
+)]
+
 /// What:
 /// `use clap::{Parser, Subcommand};` imports `Parser`,
 /// `Subcommand` from the external crate `clap` so this file can name them unqualified.

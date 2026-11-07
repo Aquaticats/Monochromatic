@@ -1,7 +1,9 @@
 //! What:
-//! The accepted-specifier grammar: which text a dependency may hold in an install section or a peer section.
+//! The accepted-specifier grammar:
+//! which text a dependency may hold in an install section or a peer section.
 //! Why:
-//! The rule is syntax only (no catalog lookup), so it fits in two small functions that every consumer shares.
+//! The rule is syntax only (no catalog lookup),
+//! so it fits in two small functions that every consumer shares.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,10 +14,13 @@
 
 /// What:
 /// `pub enum SectionKind { Install, Peer }` is a type that is exactly one of two named cases.
-/// `#[derive(...)]` asks the compiler to write standard code: `Clone` and `Copy` (duplicate cheaply like a number),
-/// `Debug` (printable in tests), `Eq` and `PartialEq` (comparable with `==`).
+/// `#[derive(...)]` asks the compiler to write standard code:
+/// `Clone` and `Copy` (duplicate cheaply like a number),
+/// `Debug` (printable in tests),
+/// `Eq` and `PartialEq` (comparable with `==`).
 /// Why:
-/// Install sections and the peer section accept different literals, and a two-case type makes that choice explicit.
+/// Install sections and the peer section accept different literals,
+/// and a two-case type makes that choice explicit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -23,18 +28,29 @@
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SectionKind {
-    /// `dependencies`, `devDependencies` and `optionalDependencies`: also accept exactly `workspace:*`.
+    /// `dependencies`,
+    /// `devDependencies` and `optionalDependencies`:
+    /// also accept exactly `workspace:*`.
     Install,
-    /// `peerDependencies`: also accept exactly `*`.
+    /// `peerDependencies`:
+    /// also accept exactly `*`.
     Peer,
 }
 
 /// What:
 /// `fn is_catalog_name_character(character: char) -> bool` is a private function over one `char`.
-/// `char` is one Unicode character (4 bytes, not a UTF-16 unit like a TS string element). `&str` is a borrowed text view.
+/// `char` is one Unicode character (4 bytes,
+/// not a UTF-16 unit like a TS string element).
+/// `&str` is a borrowed text view.
 /// Why:
-/// The catalog-name grammar is "one or more of ASCII letters, digits, `.`, `_`, `-`", and this is the per-character test.
-/// `char` and not `u8` because Rust iterates text by character, and `u8` would let a multi-byte character through in pieces.
+/// The catalog-name grammar is "one or more of ASCII letters,
+/// digits,
+/// `.`,
+/// `_`,
+/// `-`",
+/// and this is the per-character test.
+/// `char` and not `u8` because Rust iterates text by character,
+/// and `u8` would let a multi-byte character through in pieces.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -53,9 +69,11 @@ fn is_catalog_name_character(character: char) -> bool {
 }
 
 /// What:
-/// `fn is_catalog_reference(specifier: &str) -> bool` is a private function. `&str` borrows the text read-only.
+/// `fn is_catalog_reference(specifier: &str) -> bool` is a private function.
+/// `&str` borrows the text read-only.
 /// Why:
-/// Both section kinds accept `catalog:` followed by an optional name, so the test lives once.
+/// Both section kinds accept `catalog:` followed by an optional name,
+/// so the test lives once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -85,8 +103,10 @@ fn is_catalog_reference(specifier: &str) -> bool {
 }
 
 /// What:
-/// `pub fn is_allowed_specifier(kind: SectionKind, specifier: &str) -> bool` is the public test. It takes the section kind
-/// by value (`Copy`, so free) and the text by borrow.
+/// `pub fn is_allowed_specifier(kind: SectionKind, specifier: &str) -> bool` is the public test.
+/// It takes the section kind
+/// by value (`Copy`,
+/// so free) and the text by borrow.
 /// Why:
 /// Exported so tests and callers that already hold a decoded string reach the rule without building a manifest.
 ///

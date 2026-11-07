@@ -1,9 +1,13 @@
 //! What:
-//!  The test-only entry that builds the process's runtime and runs one blocking job, then prints what happened.
+//!  The test-only entry that builds the process's runtime and runs one blocking job,
+//! then prints what happened.
 //! Why:
-//!  The runtime has no production caller yet (step T3 of `doc/planning/git-policy-cli-full-tokio.md`), so the controls that
-//!  start the built executable under `RLIMIT_NPROC` and `RLIMIT_AS` reach the builder through this entry, as
-//!  `CLI_GIT_TEST_ONLY_PHASE_SIGNAL` reaches the transaction phases. Nothing in production sets the variable.
+//!  The runtime has no production caller yet (step T3 of `doc/planning/git-policy-cli-full-tokio.md`),
+//! so the controls that
+//!  start the built executable under `RLIMIT_NPROC` and `RLIMIT_AS` reach the builder through this entry,
+//! as
+//!  `CLI_GIT_TEST_ONLY_PHASE_SIGNAL` reaches the transaction phases.
+//! Nothing in production sets the variable.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,10 +23,16 @@ pub const RUNTIME_PROBE_VARIABLE: &str = "CLI_GIT_TEST_ONLY_RUNTIME_PROBE";
 
 /// Whether `environment` asks for the probe.
 pub fn is_requested(environment: &[(OsString, OsString)]) -> bool {
-    return environment.iter().any(|(name, _value)| { return name.as_os_str() == RUNTIME_PROBE_VARIABLE; });
+    for (name, _value) in environment {
+        if name.as_os_str() == RUNTIME_PROBE_VARIABLE {
+            return true;
+        }
+    }
+    return false;
 }
 
-/// The text of a flavor, as the controls read it.
+/// The text of a flavor,
+/// as the controls read it.
 fn flavor_text(flavor: Option<BuiltFlavor>) -> String {
     return match flavor {
         None => String::from("none"),
@@ -33,10 +43,20 @@ fn flavor_text(flavor: Option<BuiltFlavor>) -> String {
     };
 }
 
-/// Builds the runtime, runs one blocking job on it, prints `flavor=...` and `blocking=...` lines, and returns the exit code:
-///  zero when a runtime was built, one when none could be.
+/// The blocking job the probe runs:
+/// a value that shows the job ran.
+fn the_probe_job() -> u8 {
+    return 7_u8;
+}
+
+/// Builds the runtime,
+/// runs one blocking job on it,
+/// prints `flavor=...` and `blocking=...` lines,
+/// and returns the exit code:
+///  zero when a runtime was built,
+/// one when none could be.
 pub fn run() -> i32 {
-    let blocking = run_on_runtime(run_blocking_job(|| { return 7_u8; }));
+    let blocking = run_on_runtime(run_blocking_job(the_probe_job));
     println!("flavor={}", flavor_text(built_flavor()));
     return match blocking {
         Ok(Ok(_value)) => {

@@ -1,8 +1,13 @@
 //! What:
-//!  The shapes the commit service's connection threads and landing thread pass between them (a queued request, the key that
-//!  groups requests, a job), the grouping of queued requests, and the one-message send to a client.
+//!  The shapes the commit service's connection threads and landing thread pass between them (a queued request,
+//! the key that
+//!  groups requests,
+//! a job),
+//! the grouping of queued requests,
+//! and the one-message send to a client.
 //! Why:
-//!  The connection handler and the group lander both take part in the queue and answer clients; keeping these in a file that
+//!  The connection handler and the group lander both take part in the queue and answer clients;
+//! keeping these in a file that
 //!  uses neither lets each of them use it without using the other.
 //!
 //! In TS you'd write (pseudocode):
@@ -66,12 +71,17 @@ pub(crate) fn place_in_groups<T>(groups: &mut Vec<(GroupKey, Vec<T>)>, key: Grou
 pub(crate) enum Job {
     Commit(Box<CommitRequest>, Reply, Arrival),
     Retire,
-    /// The client stopped waiting for the commit of this identity (its ceiling passed): answered with the landed commit, or
+    /// The client stopped waiting for the commit of this identity (its ceiling passed):
+    /// answered with the landed commit,
+    /// or
     ///  withdrawn so that it never lands.
     Withdraw(String, Reply),
-    /// After-commit work was announced; it only restarts the idle clock.
+    /// After-commit work was announced;
+    /// it only restarts the idle clock.
     Activity,
-    /// A client that held a commit's scratch directory is gone; the directory is removed between batches, never during a
+    /// A client that held a commit's scratch directory is gone;
+    /// the directory is removed between batches,
+    /// never during a
     ///  landing that may read it.
     Release(std::path::PathBuf),
 }

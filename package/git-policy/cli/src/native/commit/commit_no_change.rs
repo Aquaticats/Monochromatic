@@ -1,9 +1,13 @@
 //! What:
-//!  The normalization-only commit: a correction whose complete intended tree equals the recorded base ends without an empty
-//!  commit, and says so.
+//!  The normalization-only commit:
+//! a correction whose complete intended tree equals the recorded base ends without an empty
+//!  commit,
+//! and says so.
 //! Why:
-//!  The preparation (`service_prepare.rs`) decides it before anything is sent to the service; this module holds the finding's
-//!  identity and its message, so the words of the finding stay in one place
+//!  The preparation (`service_prepare.rs`) decides it before anything is sent to the service;
+//! this module holds the finding's
+//!  identity and its message,
+//! so the words of the finding stay in one place
 //!  (`src/policy-engine/commit-transaction-no-change.ts`).
 //!
 //! In TS you'd write (pseudocode):

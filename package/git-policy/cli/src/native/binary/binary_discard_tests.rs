@@ -1,9 +1,16 @@
 //! What:
-//!  Every command form that can discard uncommitted state, through the built executable: rejected in the main
-//!  worktree, rejected in a dirty linked worktree, allowed in a clean one, and allowed anywhere with the hatch.
+//!  Every command form that can discard uncommitted state,
+//! through the built executable:
+//! rejected in the main
+//!  worktree,
+//! rejected in a dirty linked worktree,
+//! allowed in a clean one,
+//! and allowed anywhere with the hatch.
 //! Why:
-//!  The policy exists because such a command once removed staged renames without any record. The controls also
-//!  prove that each documented way forward (the hatch, a clean linked worktree) really runs the command.
+//!  The policy exists because such a command once removed staged renames without any record.
+//! The controls also
+//!  prove that each documented way forward (the hatch,
+//! a clean linked worktree) really runs the command.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,7 +25,8 @@ use super::support::{
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
-/// A repository with one tracked file edited, and a second branch `topic`.
+/// A repository with one tracked file edited,
+/// and a second branch `topic`.
 fn dirty_repository(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
@@ -80,7 +88,8 @@ fn every_discarding_form_is_rejected_in_the_main_worktree() {
     remove(&fixture);
 }
 
-/// The hatch directly after the subcommand runs each form, and Git then does what it was asked.
+/// The hatch directly after the subcommand runs each form,
+/// and Git then does what it was asked.
 #[test]
 fn the_hatch_after_the_subcommand_runs_each_form() {
     let fixture: Fixture = fixture("discard-hatch");
@@ -115,7 +124,9 @@ fn the_hatch_after_the_subcommand_runs_each_form() {
     remove(&fixture);
 }
 
-/// A clean linked worktree runs the forms; a dirty one rejects them; a lone branch switch needs a clean tree.
+/// A clean linked worktree runs the forms;
+/// a dirty one rejects them;
+/// a lone branch switch needs a clean tree.
 #[test]
 fn a_linked_worktree_runs_the_forms_only_while_clean() {
     let fixture: Fixture = fixture("discard-linked");
@@ -221,7 +232,8 @@ fn runs_commit(fixture: &Fixture, repo: &std::path::Path, arguments: &[&str]) ->
     return observed;
 }
 
-/// Every alternative a rejection text names runs in the main worktree, so no normal workflow lacks a way forward.
+/// Every alternative a rejection text names runs in the main worktree,
+/// so no normal workflow lacks a way forward.
 #[test]
 fn every_named_alternative_runs_in_the_main_worktree() {
     let fixture: Fixture = fixture("discard-alternatives");
@@ -284,7 +296,8 @@ fn every_named_alternative_runs_in_the_main_worktree() {
     remove(&fixture);
 }
 
-/// Saving a patch and then using the hatch reverts a file, and the patch brings the edits back.
+/// Saving a patch and then using the hatch reverts a file,
+/// and the patch brings the edits back.
 #[test]
 fn a_saved_patch_makes_the_hatch_revert_reversible() {
     let fixture: Fixture = fixture("discard-patch");
@@ -313,8 +326,11 @@ fn a_saved_patch_makes_the_hatch_revert_reversible() {
     remove(&fixture);
 }
 
-/// Every decision about a discarding form leaves one line in the audit file of the common Git directory: the
-///  rejection in the main worktree, the run in a clean linked worktree, and the run under the hatch.
+/// Every decision about a discarding form leaves one line in the audit file of the common Git directory:
+/// the
+///  rejection in the main worktree,
+/// the run in a clean linked worktree,
+/// and the run under the hatch.
 #[test]
 fn each_decision_leaves_one_line_in_the_audit_file() {
     let fixture: Fixture = fixture("discard-audit");
@@ -362,7 +378,8 @@ fn each_decision_leaves_one_line_in_the_audit_file() {
     remove(&fixture);
 }
 
-/// A finding reaches the caller with its hint as a separate field, and the message stays the incumbent's text.
+/// A finding reaches the caller with its hint as a separate field,
+/// and the message stays the incumbent's text.
 #[test]
 fn a_finding_carries_its_hint_beside_an_unchanged_message() {
     let fixture: Fixture = fixture("hint-field");

@@ -35,18 +35,18 @@ fn three_rule_gate() -> SetGate {
 fn flags_only_rules_whose_literal_is_present() {
     let gate = three_rule_gate();
     let mut seen = Vec::new();
-    gate.for_each_candidate(b"xx AKIA yy", |rule, _pos| seen.push(rule));
+    gate.for_each_candidate(b"xx AKIA yy", &mut |rule, _pos| seen.push(rule));
     assert_eq!(seen, vec![0]);
 
     seen.clear();
-    gate.for_each_candidate(b"a ghp_ b", |rule, _pos| seen.push(rule));
+    gate.for_each_candidate(b"a ghp_ b", &mut |rule, _pos| seen.push(rule));
     assert_eq!(seen, vec![1]);
 }
 
 #[test]
 fn rejects_lines_without_any_seed() {
     let gate = three_rule_gate();
-    assert!(!gate.any_candidate(b"nothing relevant here", |_rule, _pos| return true));
+    assert!(!gate.any_candidate(b"nothing relevant here", &mut |_rule, _pos| return true));
     assert!(!gate.prefilter_present(b"nothing relevant here"));
     assert!(gate.prefilter_present(b"has AKIA"));
 }
@@ -63,7 +63,7 @@ fn seedless_rule_is_never_a_gate_candidate() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    gate.for_each_candidate(b"AKIA ghp_", |rule, _pos| seen.push(rule));
+    gate.for_each_candidate(b"AKIA ghp_", &mut |rule, _pos| seen.push(rule));
     assert!(!seen.contains(&2));
     assert!(seen.contains(&0));
     assert!(seen.contains(&1));
@@ -73,7 +73,7 @@ fn seedless_rule_is_never_a_gate_candidate() {
 fn reports_the_hit_position() {
     let gate = three_rule_gate();
     let mut positions = Vec::new();
-    gate.for_each_candidate(b"zzAKIA", |rule, pos| {
+    gate.for_each_candidate(b"zzAKIA", &mut |rule, pos| {
         if rule == 0 {
             positions.push(pos);
         }
@@ -84,7 +84,7 @@ fn reports_the_hit_position() {
 #[test]
 fn any_candidate_short_circuits_on_the_first_check_hit() {
     let gate = three_rule_gate();
-    assert!(gate.any_candidate(b"has AKIA", |rule, _pos| return rule == 0));
+    assert!(gate.any_candidate(b"has AKIA", &mut |rule, _pos| return rule == 0));
     // What:    A check that never accepts means no candidate "matches" even when a seed is
     //          present.
     // Why:     The test uses this setup or assertion to pin the behavior named by the test
@@ -94,12 +94,12 @@ fn any_candidate_short_circuits_on_the_first_check_hit() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    assert!(!gate.any_candidate(b"has AKIA", |_rule, _pos| return false));
+    assert!(!gate.any_candidate(b"has AKIA", &mut |_rule, _pos| return false));
 }
 
 #[test]
 fn an_all_seedless_gate_flags_nothing() {
     let gate = SetGate::build(&[None, None]);
-    assert!(!gate.any_candidate(b"anything at all", |_rule, _pos| return true));
+    assert!(!gate.any_candidate(b"anything at all", &mut |_rule, _pos| return true));
     assert!(!gate.prefilter_present(b"anything at all"));
 }

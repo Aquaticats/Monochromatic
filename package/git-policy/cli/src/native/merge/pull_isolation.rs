@@ -1,12 +1,27 @@
 //! What:
-//!  A `git pull` that merges, turned into the fetch it starts with and the `git merge FETCH_HEAD` it ends with, so the merge
+//!  A `git pull` that merges,
+//! turned into the fetch it starts with and the `git merge FETCH_HEAD` it ends with,
+//! so the merge
 //!  half goes through the same isolated merge as a typed `git merge`.
 //! Why:
-//!  Native Git's `git pull` runs its merge as a child of Git (`builtin/pull.c`, `run_merge`, `cmd.git_cmd = 1`), so the
-//!  wrapper never saw it and the merge kept native Git's failures: a staged index, a held `index.lock`, a late ref
-//!  update. The owner's rules are "Auto merging should never fail." and "Manual merge should never fail too."; the
-//!  pull's own decisions (which options, whether it rebases, whether `HEAD` moved under the fetch, how many heads
-//!  `FETCH_HEAD` holds) are mirrored here only where they can be mirrored exactly, and every other pull is left to native Git.
+//!  Native Git's `git pull` runs its merge as a child of Git (`builtin/pull.c`,
+//! `run_merge`,
+//! `cmd.git_cmd = 1`),
+//! so the
+//!  wrapper never saw it and the merge kept native Git's failures:
+//! a staged index,
+//! a held `index.lock`,
+//! a late ref
+//!  update.
+//! The owner's rules are "Auto merging should never fail."
+//! and "Manual merge should never fail too.";
+//! the
+//!  pull's own decisions (which options,
+//! whether it rebases,
+//! whether `HEAD` moved under the fetch,
+//! how many heads
+//!  `FETCH_HEAD` holds) are mirrored here only where they can be mirrored exactly,
+//! and every other pull is left to native Git.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,10 +30,12 @@
 //! return nativePull();
 //! ```
 
-/// The wait for any program's hold on the index lock, and for the commit service's own hold.
+/// The wait for any program's hold on the index lock,
+/// and for the commit service's own hold.
 use crate::index_holder_wait::wait_for_index_release_here;
 use crate::service_index_wait::wait_for_service_hold_here;
-/// The inherited environment, which decides whether the reflog message is already set.
+/// The inherited environment,
+/// which decides whether the reflog message is already set.
 use crate::child_environment::environment_value;
 /// Diagnostics for the log.
 use crate::diagnostic_log::debug;
@@ -30,7 +47,8 @@ use crate::index_writer_forward::{CoordinatedForward, CoordinatedRun};
 use crate::merge_isolation_message::fetch_head_merge_heads;
 /// Running real Git for the queries.
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
-/// Running real Git as a child that owns the terminal, for the fetch.
+/// Running real Git as a child that owns the terminal,
+/// for the fetch.
 use crate::worktree_copy_forward::{ForwardedRun, run_forwarded_git};
 /// The repository shape of the invocation.
 use crate::worktree_identity::WorktreeIdentity;
@@ -44,16 +62,19 @@ use std::path::Path;
 /// Module tag for diagnostics.
 const TAG: &str = "pullIsolation";
 
-/// Files and directories of the Git directory that show another operation is in progress; native Git's pull reports those.
+/// Files and directories of the Git directory that show another operation is in progress;
+/// native Git's pull reports those.
 const IN_PROGRESS_MARKERS: [&str; 6] = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply", "sequencer"];
 
-/// The options of `git pull` that go to its merge as typed (`builtin/pull.c`, `run_merge`).
+/// The options of `git pull` that go to its merge as typed (`builtin/pull.c`,
+/// `run_merge`).
 const MERGE_OPTIONS: [&str; 17] = [
     "--no-edit", "--edit", "--ff", "--no-ff", "--stat", "--no-stat", "-n", "--log", "--no-log", "--commit", "--no-commit",
     "--squash", "--no-squash", "--signoff", "--no-signoff", "--verify", "--no-verify",
 ];
 
-/// The options of `git pull` that go to its fetch as typed (`builtin/pull.c`, `run_fetch`).
+/// The options of `git pull` that go to its fetch as typed (`builtin/pull.c`,
+/// `run_fetch`).
 const FETCH_OPTIONS: [&str; 13] = [
     "--all", "--prune", "-p", "--no-prune", "--tags", "-t", "--no-tags", "--force", "-f", "--ipv4", "-4", "--ipv6", "-6",
 ];
@@ -61,15 +82,21 @@ const FETCH_OPTIONS: [&str; 13] = [
 /// The options that go to both halves (`argv_push_verbosity`).
 const SHARED_OPTIONS: [&str; 4] = ["-q", "--quiet", "-v", "--verbose"];
 
-/// The settings that make the wrapper leave the pull to native Git: they add steps this does not mirror (a stash around the
-/// pull, the update of submodules after it).
+/// The settings that make the wrapper leave the pull to native Git:
+/// they add steps this does not mirror (a stash around the
+/// pull,
+/// the update of submodules after it).
 const NATIVE_ONLY_SETTINGS: [&str; 3] = ["pull.autostash", "submodule.recurse", "fetch.recursesubmodules"];
 
 /// What:
-///  What a pull reads from its command line: the arguments of its fetch, of its merge, and where the choice of merging
+///  What a pull reads from its command line:
+/// the arguments of its fetch,
+/// of its merge,
+/// and where the choice of merging
 ///  was stated.
 /// Why:
-///   The two halves of a pull take different options, and a pull merges only when the command line or the settings say so.
+///   The two halves of a pull take different options,
+/// and a pull merges only when the command line or the settings say so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,23 +104,37 @@ const NATIVE_ONLY_SETTINGS: [&str; 3] = ["pull.autostash", "submodule.recurse", 
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PullPlan {
-    /// Options for `git fetch`, as typed.
+    /// Options for `git fetch`,
+    /// as typed.
     pub fetch: Vec<OsString>,
-    /// Options for `git merge`, as typed.
+    /// Options for `git merge`,
+    /// as typed.
     pub merge: Vec<OsString>,
-    /// The repository and refspecs, after the options.
+    /// The repository and refspecs,
+    /// after the options.
     pub places: Vec<OsString>,
-    /// `--no-rebase` or `--rebase=false` was typed, which overrides every setting.
+    /// `--no-rebase` or `--rebase=false` was typed,
+    /// which overrides every setting.
     pub merge_stated: bool,
-    /// `--ff` or `--no-ff` was typed, which is a stated way of reconciling divergent branches.
+    /// `--ff` or `--no-ff` was typed,
+    /// which is a stated way of reconciling divergent branches.
     pub fast_forward_stated: bool,
 }
 
 /// What:
-///  Read the arguments after `pull`, by exact spelling, or nothing when any of them is not read exactly.
+///  Read the arguments after `pull`,
+/// by exact spelling,
+/// or nothing when any of them is not read exactly.
 /// Why:
-///   Git accepts unambiguous abbreviations and options this does not mirror (`--rebase`, `--ff-only`, `-s`, `-X`,
-///  `--autostash`, `--dry-run`, `--recurse-submodules`); a pull with one of them is native Git's whole, and so is a refspec
+///   Git accepts unambiguous abbreviations and options this does not mirror (`--rebase`,
+/// `--ff-only`,
+/// `-s`,
+/// `-X`,
+///  `--autostash`,
+/// `--dry-run`,
+/// `--recurse-submodules`);
+/// a pull with one of them is native Git's whole,
+/// and so is a refspec
 ///  that could move the checked-out branch (it holds a colon).
 ///
 /// In TS you'd write (pseudocode):
@@ -131,9 +172,14 @@ pub fn plan_pull(region: &[OsString]) -> Option<PullPlan> {
 }
 
 /// What:
-///  Whether a boolean setting says "no", the way Git reads `false`, `no`, `off`, `0` and the empty value.
+///  Whether a boolean setting says "no",
+/// the way Git reads `false`,
+/// `no`,
+/// `off`,
+/// `0` and the empty value.
 /// Why:
-///   `pull.rebase` and `branch.<name>.rebase` are booleans or one of `merges` and `interactive`; only a "no" is a merge.
+///   `pull.rebase` and `branch.<name>.rebase` are booleans or one of `merges` and `interactive`;
+/// only a "no" is a merge.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,9 +192,17 @@ fn says_no(value: &str) -> bool {
 /// What:
 ///  Whether the command line and the settings state that this pull merges and mirror nothing else the pull would do.
 /// Why:
-///   Git's pull merges when `--no-rebase` is typed or `pull.rebase` / `branch.<name>.rebase` say no, or, with neither set, when
-///  a way of reconciling is typed (`--ff`, `--no-ff`); with nothing stated it refuses divergent branches with its advice, and
-///  that refusal stays native Git's. `pull.ff` is left to Git, because with `--no-rebase` it is rewritten by rules of its own.
+///   Git's pull merges when `--no-rebase` is typed or `pull.rebase` / `branch.<name>.rebase` say no,
+/// or,
+/// with neither set,
+/// when
+///  a way of reconciling is typed (`--ff`,
+/// `--no-ff`);
+/// with nothing stated it refuses divergent branches with its advice,
+/// and
+///  that refusal stays native Git's.
+/// `pull.ff` is left to Git,
+/// because with `--no-rebase` it is rewritten by rules of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -199,7 +253,9 @@ pub fn merge_is_stated(plan: &PullPlan, settings: &[(String, String)], branch: &
 /// What:
 ///  Run a read-only query against the invocation's repository.
 /// Why:
-///   Each query is one Git start; the answer is the output whatever its status, so a caller reads the code.
+///   Each query is one Git start;
+/// the answer is the output whatever its status,
+/// so a caller reads the code.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -211,9 +267,11 @@ fn ask(context: &GitContext, arguments: &[&str]) -> Option<GitOutput> {
 }
 
 /// What:
-///  The settings that decide whether a pull merges, as key and value pairs.
+///  The settings that decide whether a pull merges,
+/// as key and value pairs.
 /// Why:
-///   One `git config` call reads them all; a value-less key reads as `true` like Git does.
+///   One `git config` call reads them all;
+/// a value-less key reads as `true` like Git does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -247,7 +305,9 @@ fn pull_settings(context: &GitContext) -> Option<Vec<(String, String)>> {
 }
 
 /// What:
-///  The first line of a query's output, trimmed, when the query succeeded.
+///  The first line of a query's output,
+/// trimmed,
+/// when the query succeeded.
 /// Why:
 ///   Names and object names are one line.
 ///
@@ -264,9 +324,14 @@ fn line_of(output: Option<GitOutput>) -> Option<String> {
 }
 
 /// What:
-///  How a pull is handled: native Git's whole, already ended, or the merge that follows its fetch.
+///  How a pull is handled:
+/// native Git's whole,
+/// already ended,
+/// or the merge that follows its fetch.
 /// Why:
-///   The caller either forwards the pull unchanged, returns the end, or runs the merge forward it is given.
+///   The caller either forwards the pull unchanged,
+/// returns the end,
+/// or runs the merge forward it is given.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -276,21 +341,28 @@ fn line_of(output: Option<GitOutput>) -> Option<String> {
 pub enum PullStep {
     /// Native Git runs the whole pull.
     Native,
-    /// The pull ended here (its fetch failed, or the working tree could not follow the fetch).
+    /// The pull ended here (its fetch failed,
+    /// or the working tree could not follow the fetch).
     Ended(CoordinatedRun),
-    /// The fetch is done and this merge forward finishes the pull; boxed because a forward is large.
+    /// The fetch is done and this merge forward finishes the pull;
+    /// boxed because a forward is large.
     Merge {
         /// The `git merge FETCH_HEAD` that ends the pull.
         forward: Box<CoordinatedForward>,
-        /// Whether the merge creates a commit, and so is worth the isolated attempt; a fast-forward or a merge of nothing is not.
+        /// Whether the merge creates a commit,
+        /// and so is worth the isolated attempt;
+        /// a fast-forward or a merge of nothing is not.
         makes_commit: bool,
     },
 }
 
 /// What:
-///  The merge forward that finishes a pull: `git merge <options> FETCH_HEAD` with the invocation's global options.
+///  The merge forward that finishes a pull:
+/// `git merge <options> FETCH_HEAD` with the invocation's global options.
 /// Why:
-///   That is the command `run_merge` starts, so the isolated merge, the lock wait and the second pass handle it as they
+///   That is the command `run_merge` starts,
+/// so the isolated merge,
+/// the lock wait and the second pass handle it as they
 ///  handle a typed merge.
 ///
 /// In TS you'd write (pseudocode):
@@ -311,18 +383,27 @@ fn merge_forward(forward: &CoordinatedForward, plan: &PullPlan, overlay: Vec<(Os
     return CoordinatedForward { arguments, command, overlay, ..forward.clone() };
 }
 
-/// Whether one byte is the NUL byte that ends each entry of a `-z` listing. `&u8` borrows the byte, as `split` hands it over.
+/// Whether one byte is the NUL byte that ends each entry of a `-z` listing.
+/// `&u8` borrows the byte,
+/// as `split` hands it over.
 fn is_nul_byte(byte: &u8) -> bool {
     return *byte == 0;
 }
 
 /// What:
-///  Decide what to do with a `git pull`, and run its fetch when the merge half can be completed here; `real_index` is the index
+///  Decide what to do with a `git pull`,
+/// and run its fetch when the merge half can be completed here;
+/// `real_index` is the index
 ///  the working tree update waits on.
 /// Why:
-///   Everything before the fetch decides from the command line, the settings and the repository's state, so a pull this
-///  cannot mirror starts nothing; after the fetch, a `FETCH_HEAD` that does not list exactly one head goes back to native
-///  Git's whole pull, which fetches again and words the refusal itself.
+///   Everything before the fetch decides from the command line,
+/// the settings and the repository's state,
+/// so a pull this
+///  cannot mirror starts nothing;
+/// after the fetch,
+/// a `FETCH_HEAD` that does not list exactly one head goes back to native
+///  Git's whole pull,
+/// which fetches again and words the refusal itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

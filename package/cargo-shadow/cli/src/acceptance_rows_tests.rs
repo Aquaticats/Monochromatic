@@ -1,9 +1,13 @@
 //! What:
 //! Round 8 tests of acceptance rows that no other test file of the round holds:
-//! the actual completion rename and sync at the journal level (A3, A4), the kept-files warning (K1), repeated recovery (V5),
+//! the actual completion rename and sync at the journal level (A3,
+//! A4),
+//! the kept-files warning (K1),
+//! repeated recovery (V5),
 //! and the acknowledge command through the command line.
 //! Why:
-//! Contract `doc/planning/cargo-shadow-guarantees.md`, "Acceptance list".
+//! Contract `doc/planning/cargo-shadow-guarantees.md`,
+//! "Acceptance list".
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -40,9 +44,11 @@ fn refusing(_before: &[LockSnapshot], _live: &[LockSnapshot]) -> Vec<String> {
     return vec!["dep@1.0.1 refused".to_string()];
 }
 
-/// Acceptance row A3, A4:
+/// Acceptance row A3,
+/// A4:
 /// the real rename of the completion marker fails:
-/// the error is a mandatory one, and the journal keeps its active name.
+/// the error is a mandatory one,
+/// and the journal keeps its active name.
 #[test]
 fn a_failing_completion_rename_is_mandatory_and_leaves_the_journal_active() {
     let root = repository("original");
@@ -57,9 +63,11 @@ fn a_failing_completion_rename_is_mandatory_and_leaves_the_journal_active() {
     assert!(!journals[0].to_string_lossy().ends_with(".done"), "the journal was renamed although the rename failed");
 }
 
-/// Acceptance row A3, A4:
+/// Acceptance row A3,
+/// A4:
 /// the sync of the directory that lists the marker fails after the real rename:
-/// the error is a mandatory one, the journal is already named `.done`,
+/// the error is a mandatory one,
+/// the journal is already named `.done`,
 /// and a later recovery removes it without judging the run again.
 #[test]
 fn a_failing_completion_directory_sync_is_mandatory_and_a_later_recovery_only_removes_the_journal() {
@@ -79,8 +87,11 @@ fn a_failing_completion_directory_sync_is_mandatory_and_a_later_recovery_only_re
 }
 
 /// Acceptance row K1:
-/// the warning point is exact: nothing at or below the count, a notice above it,
-/// the same on repeated runs, and nothing is refused or deleted.
+/// the warning point is exact:
+/// nothing at or below the count,
+/// a notice above it,
+/// the same on repeated runs,
+/// and nothing is refused or deleted.
 #[test]
 fn the_kept_files_warning_point_is_exact_and_repeated_runs_agree() {
     for number in [KEPT_FILES_WARNING_COUNT - 1, KEPT_FILES_WARNING_COUNT, KEPT_FILES_WARNING_COUNT + 1] {
@@ -149,7 +160,8 @@ fn kept_names_beside_the_lockfile_and_stranded_temporaries_count_toward_the_warn
 }
 
 /// Acceptance row V5:
-/// a recovery is repeatable: the second pass finds nothing to do and changes nothing,
+/// a recovery is repeatable:
+/// the second pass finds nothing to do and changes nothing,
 /// and the refused leftover saved by the first pass is not overwritten.
 #[test]
 fn a_second_recovery_pass_changes_nothing_and_keeps_the_refused_copy() {
@@ -191,10 +203,20 @@ fn the_acknowledge_subcommand_acknowledges_the_journal_the_refusal_named() {
     let _ = Path::new("");
 }
 
-/// Acceptance row K1 (certification, third pass; "Warn past a count, never refuse"): kept entries with huge sparse lengths do not
-/// make the inventory panic or wrap: the total is the exact sum and the transaction is admitted.
-/// Three entries of `i64::MAX` bytes exceed `u64::MAX` together; no content is written or read, only the length is set.
-/// A file system that refuses a length that large cannot show the schedule; the test says so and stops (btrfs, this host, allows it).
+/// Acceptance row K1 (certification,
+/// third pass;
+/// "Warn past a count,
+/// never refuse"):
+/// kept entries with huge sparse lengths do not
+/// make the inventory panic or wrap:
+/// the total is the exact sum and the transaction is admitted.
+/// Three entries of `i64::MAX` bytes exceed `u64::MAX` together;
+/// no content is written or read,
+/// only the length is set.
+/// A file system that refuses a length that large cannot show the schedule;
+/// the test says so and stops (btrfs,
+/// this host,
+/// allows it).
 #[test]
 fn kept_entries_with_huge_sparse_lengths_are_summed_exactly_and_never_refuse() {
     let root = repository("original");
@@ -205,7 +227,7 @@ fn kept_entries_with_huge_sparse_lengths_are_summed_exactly_and_never_refuse() {
     for name in big_names {
         let file = fs::File::create(kept.join(name)).expect("a kept entry");
         if let Err(error) = file.set_len(huge) {
-            eprintln!("skipped: this file system refuses a length of {huge} bytes ({error}), so the overflow schedule cannot be built here");
+            crate::test_scratch::skip_or_fail(&format!("this file system refuses a length of {huge} bytes ({error}), so the overflow schedule cannot be built here"));
             return;
         }
     }
@@ -222,10 +244,17 @@ fn kept_entries_with_huge_sparse_lengths_are_summed_exactly_and_never_refuse() {
     drop(transaction);
 }
 
-/// Acceptance row K1 (certification, fourth pass; "Warn past a count, never refuse"): an inventory that could not be completed is
-/// never taken as small. The central folder lists but its entries cannot be examined (a directory without the search permission lists
-/// its names and refuses `lstat` of each), so the number kept there is unknown although far fewer than the threshold were counted:
-/// the warning says the inventory is unknown, and the transaction is admitted with every kept file retained.
+/// Acceptance row K1 (certification,
+/// fourth pass;
+/// "Warn past a count,
+/// never refuse"):
+/// an inventory that could not be completed is
+/// never taken as small.
+/// The central folder lists but its entries cannot be examined (a directory without the search permission lists
+/// its names and refuses `lstat` of each),
+/// so the number kept there is unknown although far fewer than the threshold were counted:
+/// the warning says the inventory is unknown,
+/// and the transaction is admitted with every kept file retained.
 #[test]
 fn an_inventory_that_could_not_be_read_is_reported_as_unknown_and_never_taken_as_small() {
     use std::os::unix::fs::PermissionsExt;
@@ -239,7 +268,7 @@ fn an_inventory_that_could_not_be_read_is_reported_as_unknown_and_never_taken_as
     let examinable: bool = fs::symlink_metadata(kept.join("Cargo.lock.displaced.0")).is_ok();
     if examinable {
         fs::set_permissions(&kept, fs::Permissions::from_mode(0o755)).expect("restore");
-        eprintln!("skipped: permissions do not stop this user from examining the entries, so the unreadable inventory cannot be built this way");
+        crate::test_scratch::skip_or_fail("permissions do not stop this user from examining the entries, so the unreadable inventory cannot be built this way");
         return;
     }
 

@@ -19,6 +19,9 @@
 
 /// Import the unused-directive settings the two reporting options resolve to.
 use crate::directive_options::{DirectiveOptions, UnusedDirectiveSeverity};
+/// Import the classes of fix a run may apply,
+///  which the two fix flags choose between.
+use crate::edits::FixScope;
 /// Import the incumbent CLI parser's trait and declaration macro.
 use clap::{CommandFactory, Parser};
 /// Import the non-zero count type so a worker limit of zero cannot be expressed.
@@ -58,9 +61,16 @@ pub struct CliOptions {
     /// Use exactly this JSONC configuration instead of searching ancestors.
     #[arg(long, value_name = "FILE")]
     pub config: Option<PathBuf>,
-    /// Apply compatible source fixes and recheck the resulting input.
+    /// Apply the fixes that change only whitespace and recheck the resulting input;
+    ///  a fix that rewrites content waits for `--fix-content`.
     #[arg(long, conflicts_with_all = ["print_config", "init", "rules"])]
     pub fix: bool,
+    /// Apply every compatible fix,
+    ///  the ones that rewrite content as well as the whitespace ones,
+    ///  and recheck the resulting input;
+    ///  it fixes without `--fix`.
+    #[arg(long, conflicts_with_all = ["print_config", "init", "rules"])]
+    pub fix_content: bool,
     /// Read one source from stdin instead of the filesystem.
     #[arg(long, requires = "stdin_filename", conflicts_with_all = ["print_config", "init", "rules"])]
     pub stdin: bool,
@@ -130,6 +140,21 @@ pub struct CliOptions {
 /// options.directiveOptions()
 /// ```
 impl CliOptions {
+    /// Whether this run rewrites sources at all:
+    ///  either fix flag turns fixing on.
+    pub fn fixing(&self) -> bool {
+        return self.fix || self.fix_content;
+    }
+
+    /// The classes of fix this run may apply:
+    ///  content fixes only under `--fix-content`.
+    pub fn fix_scope(&self) -> FixScope {
+        if self.fix_content {
+            return FixScope::WhitespaceAndContent;
+        }
+        return FixScope::WhitespaceOnly;
+    }
+
     /// Combine the plain flag and the severity option.
     pub fn directive_options(&self) -> DirectiveOptions {
         return DirectiveOptions::from_flags(

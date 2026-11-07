@@ -34,7 +34,9 @@ pub(crate) fn probe(directory: &Path) -> Probe {
 }
 
 /// What real Git answers for `symbolic-ref --quiet HEAD`:
-///  the branch, detached, or an error code.
+///  the branch,
+/// detached,
+/// or an error code.
 pub(crate) fn oracle(directory: &Path) -> Result<SymbolicHead, Option<i32>> {
     let output: Output = git_output(directory, &["symbolic-ref", "--quiet", "HEAD"]);
     return match output.status.code() {
@@ -67,7 +69,9 @@ fn write_head(found: &Probe, bytes: &[u8]) {
     std::fs::write(found.git_dir.join("HEAD"), bytes).expect("fixture");
 }
 
-/// A born branch, a slashed branch, an unborn branch and a detached `HEAD` are answered,
+/// A born branch,
+/// a slashed branch,
+/// an unborn branch and a detached `HEAD` are answered,
 ///  each equal to Git's answer.
 #[test]
 fn plain_spellings_are_answered_as_git_answers() {
@@ -166,7 +170,8 @@ fn a_symbolic_branch_is_left_to_git() {
     remove(root.as_path());
 }
 
-/// A loose branch file that is garbage, a directory or a link is left to Git.
+/// A loose branch file that is garbage,
+/// a directory or a link is left to Git.
 #[test]
 fn an_unusual_loose_branch_is_left_to_git() {
     let root: PathBuf = fixture("ref-files-loose");
@@ -261,7 +266,8 @@ fn a_reftable_repository_is_left_to_git() {
 
 /// The reftable placeholder is refused by its own name,
 ///  and the backend check refuses on its own too:
-///  a layout that says reftable is never answered from the `HEAD` file, whatever the file holds.
+///  a layout that says reftable is never answered from the `HEAD` file,
+/// whatever the file holds.
 #[test]
 fn the_backend_check_refuses_without_the_placeholder() {
     let root: PathBuf = fixture("ref-files-backend");

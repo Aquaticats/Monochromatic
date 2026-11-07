@@ -1,11 +1,17 @@
 //! What:
 //!  What a copy from a main checkout leaves out of the ignored state it hands over:
-//!  caches, optionally the records of earlier runs, and every directory that is another checkout.
+//!  caches,
+//! optionally the records of earlier runs,
+//! and every directory that is another checkout.
 //! Why:
-//!  A worktree added from the main checkout should work at once, so builds and installed dependencies are copied,
-//!  but a cache is rebuilt by its tool, a log of an earlier run is no input, and another checkout's files would make the
+//!  A worktree added from the main checkout should work at once,
+//! so builds and installed dependencies are copied,
+//!  but a cache is rebuilt by its tool,
+//! a log of an earlier run is no input,
+//! and another checkout's files would make the
 //!  new worktree a second claimant of that checkout's administrative state.
-//!  The rule is a handful of directory names rather than a list of paths, so a reader can predict it
+//!  The rule is a handful of directory names rather than a list of paths,
+//! so a reader can predict it
 //!  (`doc/planning/cli-git-main-worktree-ignored-copy.md` measures the set it leaves out).
 //!
 //! In TS you'd write (pseudocode):
@@ -15,9 +21,12 @@
 //! ```
 
 /// What:
-///  Whether the records of earlier runs (logs, mutation and test reports, verification output) are copied.
+///  Whether the records of earlier runs (logs,
+/// mutation and test reports,
+/// verification output) are copied.
 /// Why:
-///   The owner answered on 2026-11-02 "Skip run records (Recommended)", so they are left out;
+///   The owner answered on 2026-11-02 "Skip run records (Recommended)",
+/// so they are left out;
 ///  setting it to `true` is the one-line change that copies them.
 ///
 /// In TS you'd write (pseudocode):
@@ -50,9 +59,12 @@ const CACHE_NAMES: [&str; 4] = [".pnpm-store", ".gradle", ".kotlin", ".zig-cache
 const TARGET_CACHE_NAMES: [&str; 2] = ["incremental", "zig-global-cache"];
 
 /// What:
-///  Directory names that hold the output of earlier test, mutation and lint runs wherever they sit.
+///  Directory names that hold the output of earlier test,
+/// mutation and lint runs wherever they sit.
 /// Why:
-///   They are reports, not inputs; they are copied only while `COPY_RUN_RECORDS` is set.
+///   They are reports,
+/// not inputs;
+/// they are copied only while `COPY_RUN_RECORDS` is set.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -63,7 +75,10 @@ const RUN_RECORD_NAMES: [&str; 4] = ["mutants.out", "mutants.out.old", "playwrig
 /// What:
 ///  The name Git gives the entry that makes a directory a checkout of its own.
 /// Why:
-///   A directory that holds it, file or directory, is another checkout, never ignored state of this one.
+///   A directory that holds it,
+/// file or directory,
+/// is another checkout,
+/// never ignored state of this one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,7 +89,8 @@ const CHECKOUT_MARKER: &str = ".git";
 /// What:
 ///  The leave-out rule one copy applies while it walks a source.
 /// Why:
-///   A linked or bare source hands over everything it ignores, so only the main checkout has a rule.
+///   A linked or bare source hands over everything it ignores,
+/// so only the main checkout has a rule.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -84,7 +100,8 @@ const CHECKOUT_MARKER: &str = ".git";
 pub enum Prune {
     /// Nothing is left out beyond the registered worktrees and the stage.
     Never,
-    /// The main checkout's rule; `run_records` says whether the records of earlier runs are copied.
+    /// The main checkout's rule;
+    /// `run_records` says whether the records of earlier runs are copied.
     MainCheckout {
         /// Whether run records (reports and logs of earlier runs) are copied.
         run_records: bool,
@@ -111,9 +128,11 @@ fn names_checkout_marker(child_names: &[String]) -> bool {
 
 impl Prune {
     /// What:
-    ///  The rule the main checkout uses, with the run-record setting the crate ships.
+    ///  The rule the main checkout uses,
+    /// with the run-record setting the crate ships.
     /// Why:
-    ///   One place reads the shipped constant, so changing the owner's answer is a one-line change.
+    ///   One place reads the shipped constant,
+    /// so changing the owner's answer is a one-line change.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -124,9 +143,12 @@ impl Prune {
     }
 
     /// What:
-    ///  Whether the path, relative to the source root, and everything below it is left out.
+    ///  Whether the path,
+    /// relative to the source root,
+    /// and everything below it is left out.
     /// Why:
-    ///   The decision uses directory names only, so it is the same for a root Git listed and a child the walk found.
+    ///   The decision uses directory names only,
+    /// so it is the same for a root Git listed and a child the walk found.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -162,7 +184,8 @@ impl Prune {
     /// What:
     ///  Whether a directory with these child names is another checkout and is left out whole.
     /// Why:
-    ///   The registered worktrees are excluded by path; this also catches a clone or a stale worktree directory
+    ///   The registered worktrees are excluded by path;
+    /// this also catches a clone or a stale worktree directory
     ///  that Git no longer registers.
     ///
     /// In TS you'd write (pseudocode):

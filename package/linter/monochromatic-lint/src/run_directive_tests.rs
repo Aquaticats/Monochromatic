@@ -230,7 +230,7 @@ fn fix_skips_covered_findings() {
     write(&fixture.path, CONFIG, RULES);
     let source: &str = "# Title\n\n<!-- monochromatic-lint-disable-next-line markdown/no-bare-urls -- legacy -->\nSee http://a.example now.\nSee http://b.example now.\n";
     write(&fixture.path, "a.md", source);
-    let output: RunOutput = run(&fixture.path, &["--fix"], "");
+    let output: RunOutput = run(&fixture.path, &["--fix-content"], "");
     assert_eq!((output.exit_code, output.stdout.as_str()), (0, ""));
     assert_eq!(
         read(&fixture.path, "a.md"),
@@ -239,7 +239,7 @@ fn fix_skips_covered_findings() {
     // The control: without the directive both are fixed.
     let plain: &str = "# Title\n\nSee http://a.example now.\nSee http://b.example now.\n";
     write(&fixture.path, "b.md", plain);
-    run(&fixture.path, &["--fix", "b.md"], "");
+    run(&fixture.path, &["--fix-content", "b.md"], "");
     assert_eq!(
         read(&fixture.path, "b.md"),
         "# Title\n\nSee <http://a.example> now.\nSee <http://b.example> now.\n"
@@ -253,7 +253,7 @@ fn fix_skips_covered_findings_in_rustdoc_and_stdin() {
     write(&fixture.path, CONFIG, RULES);
     let source: &str = "//! File.\n\n// monochromatic-lint-disable-next-line markdown/no-bare-urls -- r\n/// See https://example.com/a for details.\n///\n/// See https://example.com/b for details.\nfn item() {}\n";
     write(&fixture.path, "lib.rs", source);
-    run(&fixture.path, &["--fix", "lib.rs"], "");
+    run(&fixture.path, &["--fix-content", "lib.rs"], "");
     assert_eq!(
         read(&fixture.path, "lib.rs"),
         "//! File.\n\n// monochromatic-lint-disable-next-line markdown/no-bare-urls -- r\n/// See https://example.com/a for details.\n///\n/// See <https://example.com/b> for details.\nfn item() {}\n"
@@ -261,7 +261,7 @@ fn fix_skips_covered_findings_in_rustdoc_and_stdin() {
     let stdin_source: &str = "# Title\n\n<!-- monochromatic-lint-disable-next-line markdown/no-bare-urls -- r -->\nSee http://a.example now.\nSee http://b.example now.\n";
     let piped: RunOutput = run(
         &fixture.path,
-        &["--stdin", "--stdin-filename", "n.md", "--fix"],
+        &["--stdin", "--stdin-filename", "n.md", "--fix-content"],
         stdin_source,
     );
     assert_eq!(piped.exit_code, 0);

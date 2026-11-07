@@ -21,7 +21,8 @@ fn cause_follows_message_with_separator() {
     assert_eq!(failure.0, "monochromatic-git-policy-cli: could not inspect. Cause: disk gone");
 }
 
-/// A raw failure keeps its own text, and an owned message is never worded again.
+/// A raw failure keeps its own text,
+/// and an owned message is never worded again.
 #[test]
 fn raw_failures_are_worded_only_once() {
     let cause: std::io::Error = std::io::Error::other("boom");
@@ -33,7 +34,8 @@ fn raw_failures_are_worded_only_once() {
     assert_eq!(wrap_raw(worded.clone(), "monochromatic-git-policy-cli: other."), worded);
 }
 
-/// The lifecycle words a raw failure with the generic sentence, and leaves an owned message as it is.
+/// The lifecycle words a raw failure with the generic sentence,
+/// and leaves an owned message as it is.
 #[test]
 fn lifecycle_uses_generic_sentence_for_raw_failures_only() {
     let raw: WorktreeCopyError = raw_failure(&std::io::Error::other("boom"));

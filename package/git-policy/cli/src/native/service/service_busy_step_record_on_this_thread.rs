@@ -1,8 +1,12 @@
 //! What:
-//!  The record a thread keeps of the write it is inside when that write is never ended: which landing board the thread
-//!  serves, the detail that says what the write does, and the step file that tells waiting clients what the service is stuck in.
+//!  The record a thread keeps of the write it is inside when that write is never ended:
+//! which landing board the thread
+//!  serves,
+//! the detail that says what the write does,
+//! and the step file that tells waiting clients what the service is stuck in.
 //! Why:
-//!  `service_busy.rs` holds the landing board that clients ask; this part is the thread-side writing of the step into it,
+//!  `service_busy.rs` holds the landing board that clients ask;
+//! this part is the thread-side writing of the step into it,
 //!  and depends on the board and not the other way round.
 //!
 //! In TS you'd write (pseudocode):
@@ -19,7 +23,8 @@ use crate::service_busy::{LandingBoard, STEP_FILE, now_millis};
 /// What:
 ///  Whether the calling thread has a landing board.
 /// Why:
-///  `on_landing_thread` asks the thread-local board slot, and `LocalKey::with` hands the slot to a function.
+///  `on_landing_thread` asks the thread-local board slot,
+/// and `LocalKey::with` hands the slot to a function.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -30,9 +35,11 @@ pub(crate) fn board_is_set(slot: &RefCell<Option<Arc<LandingBoard>>>) -> bool {
 }
 
 /// What:
-///  Text on one line: the words of `text` joined by single spaces.
+///  Text on one line:
+/// the words of `text` joined by single spaces.
 /// Why:
-///  The step record is a file of lines, so a command or detail with line breaks must not add lines.
+///  The step record is a file of lines,
+/// so a command or detail with line breaks must not add lines.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,13 +50,16 @@ pub(crate) fn one_line(text: &str) -> String {
 }
 
 thread_local! {
-    /// The board of the service whose landing runs on this thread; no other thread has one.
+    /// The board of the service whose landing runs on this thread;
+    /// no other thread has one.
     static BOARD: RefCell<Option<Arc<LandingBoard>>> = const { RefCell::new(None) };
-    /// What the landing knows about the next write that is never ended, for the words that name it.
+    /// What the landing knows about the next write that is never ended,
+    /// for the words that name it.
     static DETAIL: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
-/// Whether the calling thread is the commit service's landing thread, the one thread that waits for a write it cannot end.
+/// Whether the calling thread is the commit service's landing thread,
+/// the one thread that waits for a write it cannot end.
 pub fn on_landing_thread() -> bool {
     return BOARD.with(board_is_set);
 }
@@ -68,13 +78,16 @@ impl Drop for DetailGuard {
     }
 }
 
-/// Say what the write that follows does, for as long as the guard lives; the words of a stuck write carry it.
+/// Say what the write that follows does,
+/// for as long as the guard lives;
+/// the words of a stuck write carry it.
 pub fn detail(text: String) -> DetailGuard {
     DETAIL.set(Some(text));
     return DetailGuard;
 }
 
-/// Clears the running step when the write ends, however it ends.
+/// Clears the running step when the write ends,
+/// however it ends.
 pub struct StepGuard {
     /// The file that names the step.
     file: PathBuf,
@@ -86,7 +99,8 @@ impl Drop for StepGuard {
     }
 }
 
-/// Write `text` to `path` as a complete file or not at all: a rename of a file written beside it.
+/// Write `text` to `path` as a complete file or not at all:
+/// a rename of a file written beside it.
 pub(crate) fn publish(path: &Path, text: &str) -> bool {
     let beside: PathBuf = path.with_extension("tmp");
     let written: bool = match std::fs::File::create(beside.as_path()) {
@@ -97,10 +111,14 @@ pub(crate) fn publish(path: &Path, text: &str) -> bool {
 }
 
 /// What:
-///  Record that this thread is inside a write that is never ended, until the guard is dropped; nothing on a thread that has no
-///  board (the wrapper's own commands, the other threads of the service).
+///  Record that this thread is inside a write that is never ended,
+/// until the guard is dropped;
+/// nothing on a thread that has no
+///  board (the wrapper's own commands,
+/// the other threads of the service).
 /// Why:
-///   Only the landing thread holds the service up, so only its steps are recorded.
+///   Only the landing thread holds the service up,
+/// so only its steps are recorded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

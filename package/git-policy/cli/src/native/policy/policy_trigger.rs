@@ -166,9 +166,12 @@ pub fn policy_runs_on(id: PolicyId, trigger: Trigger) -> bool {
 /// What:
 ///  Whether this executable implements the lifecycle a trigger belongs to.
 /// Why:
-///  Every lifecycle is ported: the exhaustive match below answers true for each variant, and a new
+///  Every lifecycle is ported:
+/// the exhaustive match below answers true for each variant,
+/// and a new
 ///  variant fails to compile until it is answered here.
-///  The engine still checks this before running a lifecycle, so a future unported variant gets a typed
+///  The engine still checks this before running a lifecycle,
+/// so a future unported variant gets a typed
 ///  "unavailable" instead of running zero policies and looking clean.
 ///
 /// In TS you'd write (pseudocode):

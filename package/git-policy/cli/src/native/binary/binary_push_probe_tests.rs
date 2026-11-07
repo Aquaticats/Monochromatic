@@ -1,5 +1,8 @@
-//! Binary-level controls for the manual-push probe through the whole wrapper: the policies see a push however the caller
-//! spells it (`-q`, `--quiet`), and the options that set an upstream publish as they do in plain Git.
+//! Binary-level controls for the manual-push probe through the whole wrapper:
+//! the policies see a push however the caller
+//! spells it (`-q`,
+//! `--quiet`),
+//! and the options that set an upstream publish as they do in plain Git.
 
 use super::commit::remove_settled;
 use super::lfs_pre_push::{World, commit_directly, ref_of, wrapped, world};
@@ -24,7 +27,9 @@ fn blocked_world(fixture: &Fixture) -> World {
     return world;
 }
 
-/// The policy blocks the push with and without `-q`, `--quiet` and `--no-quiet` in any position, and publishes nothing.
+/// The policy blocks the push with and without `-q`,
+/// `--quiet` and `--no-quiet` in any position,
+/// and publishes nothing.
 #[test]
 fn a_policy_blocks_a_manual_push_whatever_its_verbosity() {
     let fixture: Fixture = fixture("push-probe-quiet");
@@ -45,7 +50,9 @@ fn a_policy_blocks_a_manual_push_whatever_its_verbosity() {
     remove_settled(&fixture);
 }
 
-/// `-u`, `--set-upstream` and `push.autoSetupRemote` publish and set the upstream, with the policies satisfied.
+/// `-u`,
+/// `--set-upstream` and `push.autoSetupRemote` publish and set the upstream,
+/// with the policies satisfied.
 #[test]
 fn the_ways_to_set_an_upstream_publish_and_set_it() {
     let fixture: Fixture = fixture("push-probe-upstream");

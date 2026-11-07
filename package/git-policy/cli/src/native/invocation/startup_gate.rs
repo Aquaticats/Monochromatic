@@ -1,12 +1,23 @@
 //! What:
-//!  The startup step of a wrapped, read-only or direct command: settle an isolated merge whose process died, stop on a
-//!  commit journal of the previous executable's format, and mention commit records an earlier release left behind.
+//!  The startup step of a wrapped,
+//! read-only or direct command:
+//! settle an isolated merge whose process died,
+//! stop on a
+//!  commit journal of the previous executable's format,
+//! and mention commit records an earlier release left behind.
 //! Why:
-//!  A commit is landed by the resident service, which recovers its own journal, so no commit transaction exists to
-//!  recover. What stays is state other code still writes (the intent record of an isolated merge) and state an earlier
-//!  release wrote (the single-journal directory and the registry of commit transactions): the first is settled before
-//!  anything reads the checkout, the others are named to the person, because nothing here reads them and an interrupted
-//!  commit of that release is for the person to look at. An empty registry costs one directory read and no Git process.
+//!  A commit is landed by the resident service,
+//! which recovers its own journal,
+//! so no commit transaction exists to
+//!  recover.
+//! What stays is state other code still writes (the intent record of an isolated merge) and state an earlier
+//!  release wrote (the single-journal directory and the registry of commit transactions):
+//! the first is settled before
+//!  anything reads the checkout,
+//! the others are named to the person,
+//! because nothing here reads them and an interrupted
+//!  commit of that release is for the person to look at.
+//! An empty registry costs one directory read and no Git process.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,10 +35,12 @@ use crate::worktree_identity::WorktreeIdentity;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-/// The directory an earlier release kept its commit transactions in, inside the worktree's Git directory.
+/// The directory an earlier release kept its commit transactions in,
+/// inside the worktree's Git directory.
 pub const REGISTRY_DIRECTORY_NAME: &str = "cli-git-transactions";
 
-/// The directory the previous executable kept one commit journal in, inside the worktree's Git directory.
+/// The directory the previous executable kept one commit journal in,
+/// inside the worktree's Git directory.
 pub const LEGACY_JOURNAL_DIRECTORY_NAME: &str = "cli-git-transaction";
 
 /// What:
@@ -43,7 +56,8 @@ pub const LEGACY_JOURNAL_DIRECTORY_NAME: &str = "cli-git-transaction";
 pub enum Gate {
     /// The command goes on.
     Clear,
-    /// The command stops; this is its standard error.
+    /// The command stops;
+    /// this is its standard error.
     Stop(String),
 }
 
@@ -51,7 +65,8 @@ pub enum Gate {
 ///  The message for a commit journal of the previous executable's format.
 /// Why:
 ///   The owner chose to stop with instructions instead of porting that recovery
-///  (`doc/planning/cli-git-rust-open-decisions.md`, "Legacy single-journal directory").
+///  (`doc/planning/cli-git-rust-open-decisions.md`,
+/// "Legacy single-journal directory").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -69,9 +84,17 @@ pub fn legacy_notice(directory: &Path) -> String {
 /// What:
 ///  The path as one shell word that a copied command line reads back as exactly that path.
 /// Why:
-///   The note below gives a command to paste, and a Git directory can sit under a name with spaces, quotes or bytes that are
-///  not UTF-8; a word cut by one of them would remove a different path. Text goes in single quotes, where only the quote
-///  itself needs the `'\''` spelling; bytes that are not UTF-8 go in the `$'...'` form that bash, zsh and ksh read, with
+///   The note below gives a command to paste,
+/// and a Git directory can sit under a name with spaces,
+/// quotes or bytes that are
+///  not UTF-8;
+/// a word cut by one of them would remove a different path.
+/// Text goes in single quotes,
+/// where only the quote
+///  itself needs the `'\''` spelling;
+/// bytes that are not UTF-8 go in the `$'...'` form that bash,
+/// zsh and ksh read,
+/// with
 ///  octal escapes for every byte outside plain printable ASCII.
 ///
 /// In TS you'd write (pseudocode):
@@ -106,11 +129,17 @@ pub fn shell_word(path: &Path) -> String {
 }
 
 /// What:
-///  The note about commit records an earlier release left in a registry directory, or nothing when it holds no transaction.
+///  The note about commit records an earlier release left in a registry directory,
+/// or nothing when it holds no transaction.
 /// Why:
-///   A transaction directory there is a commit that release did not finish. This release does not read it or use the
-///  directory for anything, so the person is told where it is, how to see whether the commit was made, and the exact command
-///  that removes the directory; lock directories and staging names carry nothing to look at.
+///   A transaction directory there is a commit that release did not finish.
+/// This release does not read it or use the
+///  directory for anything,
+/// so the person is told where it is,
+/// how to see whether the commit was made,
+/// and the exact command
+///  that removes the directory;
+/// lock directories and staging names carry nothing to look at.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -139,7 +168,8 @@ pub fn registry_note(registry: &Path) -> Option<String> {
 }
 
 /// What:
-///  The Git directory of the worktree an identity names, or nothing outside a worktree and in a bare repository.
+///  The Git directory of the worktree an identity names,
+/// or nothing outside a worktree and in a bare repository.
 /// Why:
 ///   Only worktrees hold merge records and commit records.
 ///
@@ -159,8 +189,10 @@ fn worktree_directories(identity: &WorktreeIdentity) -> Option<(&Path, &Path)> {
 /// What:
 ///  Settle the isolated merges of the worktree whose process died.
 /// Why:
-///   A merge killed between Git's checkout update and the branch move leaves the checkout half done, and the next command
-///  would read it as another session's staged work. A record of a merge that still runs is left alone.
+///   A merge killed between Git's checkout update and the branch move leaves the checkout half done,
+/// and the next command
+///  would read it as another session's staged work.
+/// A record of a merge that still runs is left alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -183,10 +215,14 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path) -> Res
 }
 
 /// What:
-///  The startup step for the invocation's worktree, and how the command may go on.
+///  The startup step for the invocation's worktree,
+/// and how the command may go on.
 /// Why:
-///   Shared by wrapped commands, read-only commands and direct commands. A recovery failure stops the command with exit 2,
-///  as the incumbent's `content-unavailable` engine failure does; the note about an earlier release's records goes to
+///   Shared by wrapped commands,
+/// read-only commands and direct commands.
+/// A recovery failure stops the command with exit 2,
+///  as the incumbent's `content-unavailable` engine failure does;
+/// the note about an earlier release's records goes to
 ///  standard error and does not stop it.
 ///
 /// In TS you'd write (pseudocode):
@@ -215,8 +251,11 @@ pub fn recover_for_command(context: &GitContext, identity: &WorktreeIdentity) ->
 /// What:
 ///  The stop for a failed read or recovery.
 /// Why:
-///   The code stays `content-unavailable` (state that could not be read), but the generic hint for that code tells the person
-///  to fetch history, which does not apply: the message itself names the file or directory and the ways out.
+///   The code stays `content-unavailable` (state that could not be read),
+/// but the generic hint for that code tells the person
+///  to fetch history,
+/// which does not apply:
+/// the message itself names the file or directory and the ways out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

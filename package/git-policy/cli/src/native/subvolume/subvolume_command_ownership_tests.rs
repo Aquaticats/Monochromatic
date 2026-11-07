@@ -1,4 +1,7 @@
-//! Controls for who owns a migration: one live command per checkout, whatever its mode, named in the refusal of the second,
+//! Controls for who owns a migration:
+//! one live command per checkout,
+//! whatever its mode,
+//! named in the refusal of the second,
 //!  and nothing left in the checkout's parent by a preview.
 
 use super::*;
@@ -9,15 +12,19 @@ use crate::test_support::remove;
 /// The exit status of a finished migration.
 const DONE: i32 = 0;
 
-/// The names in a directory, sorted.
+/// The names in a directory,
+/// sorted.
 fn names(directory: &Path) -> Vec<String> {
     let mut found: Vec<String> = std::fs::read_dir(directory).expect("listing").flatten().map(|item| { return item.file_name().to_string_lossy().into_owned(); }).collect();
     found.sort();
     return found;
 }
 
-/// A command of any mode that starts while a migration of the same checkout runs is refused, names the live owner by its
-///  process id, and changes nothing; the first command still finishes.
+/// A command of any mode that starts while a migration of the same checkout runs is refused,
+/// names the live owner by its
+///  process id,
+/// and changes nothing;
+/// the first command still finishes.
 #[test]
 fn a_second_command_on_one_checkout_is_refused_whatever_its_mode() {
     let (parent, root) = checkout_with_worktree("ownership-second-command");
@@ -56,8 +63,12 @@ fn a_preview_leaves_no_claim_behind() {
     remove(parent.as_path());
 }
 
-/// A conversion of a linked worktree that is running owns it: a migration of the checkout is refused before it starts, names
-///  the conversion's process, and creates nothing, even while the conversion holds no `index.lock` (during its first copy).
+/// A conversion of a linked worktree that is running owns it:
+/// a migration of the checkout is refused before it starts,
+/// names
+///  the conversion's process,
+/// and creates nothing,
+/// even while the conversion holds no `index.lock` (during its first copy).
 #[test]
 fn a_migration_is_refused_while_a_worktree_is_being_converted() {
     use crate::process_identity::process_birth_identity;

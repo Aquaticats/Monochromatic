@@ -19,8 +19,12 @@ const PUBLISHED: &str = "cargo:monochromatic-mpm-shadow";
 const THIRD_PARTY: &str = "cargo:fd-find";
 
 /// The two arguments that switch cargo-binstall's build-from-source fallback and its third-party prebuilt-binary host
-/// (quick-install) off, leaving only the crate's own published binstall metadata
-/// (owner decision 2026-11-04, "A: one flag, our crates").
+/// (quick-install) off,
+/// leaving only the crate's own published binstall metadata
+/// (owner decision 2026-11-04,
+/// "A:
+/// one flag,
+/// our crates").
 const DISABLE_COMPILE: [&str; 2] = ["--disable-strategies", "compile,quick-install"];
 
 /// The tool of `id` renamed to install the crate `crate_name`.
@@ -126,7 +130,8 @@ fn every_spelling_crates_io_treats_as_a_repository_crate_disables_the_compile_st
 
 /// What cargo-binstall 1.26.2 printed for the wrapper at 0.5.34 (measured in `cargo binstall --dry-run`):
 /// the archive was found but lacked a program the crate declares.
-/// The report wraps the sentence at the terminal width, as the real one did.
+/// The report wraps the sentence at the terminal width,
+/// as the real one did.
 const MISSING_PROGRAM_OUTPUT: &str = "\
 cargo-binstall:  INFO resolve: Resolving package: 'monochromatic-git-policy-cli@=0.5.34'
 cargo-binstall: ERROR resolve: When resolving monochromatic-git-policy-cli bin cli-git-service is not found. This binary is not optional so it must be included in the archive, please contact with upstream to fix this

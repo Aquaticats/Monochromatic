@@ -45,15 +45,15 @@ fn run() -> io::Result<String> {
     // What: `ok_or_else` converts a missing optional value into an error; `?` propagates it.
     // Why: Missing arguments must stop execution rather than choose an unrestricted default.
     // TypeScript equivalent: `const mode = args.next().value ?? throwError('...');`
-    let mode = arguments.next().ok_or_else(|| {
-        // Return the argument diagnostic from this zero-argument closure (`||`).
-        return io::Error::other("Expected --hook or --initialize followed by the worker slice path.");
-    })?;
+    let Some(mode) = arguments.next() else {
+        // Return the argument diagnostic.
+        return Err(io::Error::other("Expected --hook or --initialize followed by the worker slice path."));
+    };
     // Require the independently configured parent path.
-    let parent_text = arguments.next().ok_or_else(|| {
+    let Some(parent_text) = arguments.next() else {
         // Return a diagnostic naming the missing input.
-        return io::Error::other("The worker slice path is required.");
-    })?;
+        return Err(io::Error::other("The worker slice path is required."));
+    };
     if arguments.next().is_some() {
         // What: `Err` is the failure variant, paired with `Ok` for success.
         // Why: Reject accidental or unsupported arguments.

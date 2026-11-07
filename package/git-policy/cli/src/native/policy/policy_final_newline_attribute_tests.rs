@@ -179,7 +179,8 @@ fn a_plain_text_file_is_still_corrected() {
 
 /// The `.gitattributes` of `package/forbidden-strings/cli.fuzz`,
 ///  which is why the path list no longer names its seeds:
-///  its seed, corpus and artifact files keep their bytes with no other exemption.
+///  its seed,
+/// corpus and artifact files keep their bytes with no other exemption.
 #[test]
 fn the_forbidden_strings_fuzz_sidecar_declaration_preserves_its_files() {
     let root: PathBuf = fixture("final-newline-attribute-sidecar");
@@ -234,7 +235,8 @@ fn the_toml_edit_fixture_declaration_preserves_its_sources() {
 
 /// A `text` attribute that is set,
 ///  or set to `auto`,
-///  does not preserve the file: only an unset one does.
+///  does not preserve the file:
+/// only an unset one does.
 #[test]
 fn a_file_whose_text_attribute_is_set_is_still_corrected() {
     let root: PathBuf = fixture("final-newline-attribute-set");
@@ -301,7 +303,8 @@ fn a_gitattributes_staged_with_the_seed_applies_to_it() {
 }
 
 /// Staged candidates read the index's `.gitattributes`,
-///  not the worktree's: an unstaged edit does not preserve a staged file,
+///  not the worktree's:
+/// an unstaged edit does not preserve a staged file,
 ///  and an unstaged removal does not expose one.
 #[test]
 fn staged_candidates_read_the_index_attributes_not_the_worktree() {
@@ -326,7 +329,8 @@ fn staged_candidates_read_the_index_attributes_not_the_worktree() {
 }
 
 /// The candidates' paths are relative to the top level while Git resolves attribute paths from the directory
-///  it runs in, so a check started below the top level still finds a rule written at the top.
+///  it runs in,
+/// so a check started below the top level still finds a rule written at the top.
 #[test]
 fn a_check_started_below_the_top_level_resolves_top_level_paths() {
     let root: PathBuf = fixture("final-newline-attribute-subdirectory");

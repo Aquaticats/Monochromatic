@@ -1,10 +1,18 @@
 //! Answering a Search query from the index.
 //!
-//! What: `SearchIndex::search` turns a query into the same `SearchState` the replaced `search_library` produced:
-//! it picks the smallest bucket among the query terms, tiers its members, merges the matching folders, keeps the best
-//! five hundred in result order, and only then builds rows with parent context and highlights.
-//! Why: D112 requires the answer to be identical to the old matcher's while costing milliseconds at one million
-//! tracks. The work per keystroke is therefore the bucket size plus five hundred rows, not the library size.
+//! What:
+//! `SearchIndex::search` turns a query into the same `SearchState` the replaced `search_library` produced:
+//! it picks the smallest bucket among the query terms,
+//! tiers its members,
+//! merges the matching folders,
+//! keeps the best
+//! five hundred in result order,
+//! and only then builds rows with parent context and highlights.
+//! Why:
+//! D112 requires the answer to be identical to the old matcher's while costing milliseconds at one million
+//! tracks.
+//! The work per keystroke is therefore the bucket size plus five hundred rows,
+//! not the library size.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,7 +36,8 @@ use crate::track_entries::track_title_for;
 ///      `pub(crate) const PARALLEL_SCAN_FROM: usize = 32_768;`.
 ///  The bucket size from which a query is tiered by several threads.
 /// Why:
-///       Below it the scan takes under a millisecond and a thread would cost about as much; above it the scan is the
+///       Below it the scan takes under a millisecond and a thread would cost about as much;
+/// above it the scan is the
 ///  largest part of a keystroke.
 pub(crate) const PARALLEL_SCAN_FROM: usize = 32_768;
 
@@ -41,9 +50,11 @@ const SCAN_THREADS: usize = 4;
 
 /// What:
 ///      `fn parent_context_for(display_path: &str) -> Option<String>`.
-///  The folder path that holds a track, or `None` for a root-level track.
+///  The folder path that holds a track,
+/// or `None` for a root-level track.
 /// Why:
-///       The second line of a track result names its folder; a root-level track has no parent.
+///       The second line of a track result names its folder;
+/// a root-level track has no parent.
 fn parent_context_for(display_path: &str) -> Option<String> {
     let parent: &str = display_path
         .rsplit_once('/')
@@ -56,9 +67,11 @@ fn parent_context_for(display_path: &str) -> Option<String> {
 
 /// What:
 ///      `fn bucket_chunk(term: &str) -> Vec<char>`.
-///  The first one or two characters of a term, up to its first separator.
+///  The first one or two characters of a term,
+/// up to its first separator.
 /// Why:
-///       A match of the term starts at a word start and covers these characters, so they select the bucket.
+///       A match of the term starts at a word start and covers these characters,
+/// so they select the bucket.
 fn bucket_chunk(term: &str) -> Vec<char> {
     return term
         .chars()
@@ -69,9 +82,14 @@ fn bucket_chunk(term: &str) -> Vec<char> {
 
 /// Methods of `SearchIndex` that answer queries.
 impl SearchIndex {
-    /// What: `candidate_members` is the smallest bucket among the terms, or `None` when every term starts with
+    /// What:
+    /// `candidate_members` is the smallest bucket among the terms,
+    /// or `None` when every term starts with
     /// a separator and no bucket applies.
-    /// Why: every term must match, so any term's bucket holds every match; the shortest is the cheapest to test.
+    /// Why:
+    /// every term must match,
+    /// so any term's bucket holds every match;
+    /// the shortest is the cheapest to test.
     fn candidate_members(&self, terms: &[String]) -> Option<&[u32]> {
         let mut best: Option<&[u32]> = None;
         for term in terms {
@@ -88,10 +106,17 @@ impl SearchIndex {
         return best;
     }
 
-    /// What: `track_matches` ranks the tracks that match the terms and counts them.
-    /// Why: a single-character query reads the cached answer; any other query tiers its bucket, or every track when
-    /// no bucket applies. A bucket of `parallel_from` members or more is tiered by several threads, because that scan
-    /// is the largest part of a keystroke and the members are independent; the answer is the same in either case.
+    /// What:
+    /// `track_matches` ranks the tracks that match the terms and counts them.
+    /// Why:
+    /// a single-character query reads the cached answer;
+    /// any other query tiers its bucket,
+    /// or every track when
+    /// no bucket applies.
+    /// A bucket of `parallel_from` members or more is tiered by several threads,
+    /// because that scan
+    /// is the largest part of a keystroke and the members are independent;
+    /// the answer is the same in either case.
     fn track_matches(&self, terms: &[String], joined: &str, parallel_from: usize) -> (Vec<Ranked>, usize) {
         if let [only] = terms {
             let mut characters = only.chars();
@@ -114,8 +139,11 @@ impl SearchIndex {
         return (ranked, matched);
     }
 
-    /// What: `tier_one` appends the track at `position` to `into` when it matches the terms.
-    /// Why: the one place that turns a match into a ranked entry, shared by every scan shape.
+    /// What:
+    /// `tier_one` appends the track at `position` to `into` when it matches the terms.
+    /// Why:
+    /// the one place that turns a match into a ranked entry,
+    /// shared by every scan shape.
     fn tier_one(&self, position: usize, terms: &[String], joined: &str, into: &mut Vec<Ranked>) {
         if let Some(tier) = fast_tier(self.norm(position), terms, joined) {
             into.push(Ranked {
@@ -126,16 +154,22 @@ impl SearchIndex {
         }
     }
 
-    /// What: `tier_members` tiers a slice of bucket members on the calling thread.
-    /// Why: the sequential scan, and the work each thread of the parallel scan does.
+    /// What:
+    /// `tier_members` tiers a slice of bucket members on the calling thread.
+    /// Why:
+    /// the sequential scan,
+    /// and the work each thread of the parallel scan does.
     fn tier_members(&self, members: &[u32], terms: &[String], joined: &str) -> Vec<Ranked> {
         let mut ranked: Vec<Ranked> = Vec::new();
         members.iter().for_each(|member| self.tier_one(*member as usize, terms, joined, &mut ranked));
         return ranked;
     }
 
-    /// What: `tier_in_parallel` tiers a bucket in `SCAN_THREADS` slices at once and joins them in slice order.
-    /// Why: the joined vector equals the sequential one entry for entry, so the ranking and the counts are unchanged.
+    /// What:
+    /// `tier_in_parallel` tiers a bucket in `SCAN_THREADS` slices at once and joins them in slice order.
+    /// Why:
+    /// the joined vector equals the sequential one entry for entry,
+    /// so the ranking and the counts are unchanged.
     fn tier_in_parallel(&self, members: &[u32], terms: &[String], joined: &str) -> Vec<Ranked> {
         let slice_len: usize = members.len().div_ceil(SCAN_THREADS);
         tracing::debug!(members = members.len(), slice_len, "tiering a large bucket on several threads");
@@ -151,8 +185,12 @@ impl SearchIndex {
         });
     }
 
-    /// What: `folder_matches` ranks the listed folders that match the terms.
-    /// Why: folders are few, so each query tests all of them, and a folder never enters the cached track answers.
+    /// What:
+    /// `folder_matches` ranks the listed folders that match the terms.
+    /// Why:
+    /// folders are few,
+    /// so each query tests all of them,
+    /// and a folder never enters the cached track answers.
     fn folder_matches(&self, terms: &[String], joined: &str) -> Vec<Ranked> {
         let mut ranked: Vec<Ranked> = Vec::new();
         for slot in self.listed_folders() {
@@ -179,8 +217,12 @@ impl SearchIndex {
         return ranked;
     }
 
-    /// What: `result_for` builds the row of one ranked candidate.
-    /// Why: titles, parent context and highlights are computed for the five hundred rows that are shown, not for
+    /// What:
+    /// `result_for` builds the row of one ranked candidate.
+    /// Why:
+    /// titles,
+    /// parent context and highlights are computed for the five hundred rows that are shown,
+    /// not for
     /// every match.
     fn result_for(&self, ranked: Ranked, terms: &[String]) -> SearchResult {
         let tier: i32 = i32::from(ranked.tier);
@@ -226,8 +268,13 @@ impl SearchIndex {
         };
     }
 
-    /// What: `search` answers one query over every track appended so far.
-    /// Why: it is the whole of Search: the same states, order, cap and highlights as the replaced matcher.
+    /// What:
+    /// `search` answers one query over every track appended so far.
+    /// Why:
+    /// it is the whole of Search:
+    /// the same states,
+    /// order,
+    /// cap and highlights as the replaced matcher.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -238,8 +285,13 @@ impl SearchIndex {
         return self.search_with(query, PARALLEL_SCAN_FROM);
     }
 
-    /// What: `search_with` answers one query, tiering buckets of `parallel_from` members or more on several threads.
-    /// Why: tests force the parallel scan on small libraries, and the sequential scan on large ones, to prove both
+    /// What:
+    /// `search_with` answers one query,
+    /// tiering buckets of `parallel_from` members or more on several threads.
+    /// Why:
+    /// tests force the parallel scan on small libraries,
+    /// and the sequential scan on large ones,
+    /// to prove both
     /// give one answer.
     #[must_use]
     pub(crate) fn search_with(&self, query: &str, parallel_from: usize) -> SearchState {
@@ -266,8 +318,10 @@ impl SearchIndex {
         };
     }
 
-    /// What: `warm` brings the cached answer of one first character up to date.
-    /// Why: a background pass calls it so the first keystroke of a letter reads a cache entry.
+    /// What:
+    /// `warm` brings the cached answer of one first character up to date.
+    /// Why:
+    /// a background pass calls it so the first keystroke of a letter reads a cache entry.
     pub fn warm(&self, character: char) {
         if !WORD_SEPARATORS.contains(&character) {
             let _answer = single_character_tracks(self, character);

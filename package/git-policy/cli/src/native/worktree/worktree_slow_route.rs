@@ -1,13 +1,25 @@
 //! What:
-//!  The plain sentence that tells a person why a `git worktree add` was not made as a snapshot, and the places it goes:
-//!  one line on standard error unless `--quiet` was given, one warning entry in the journal, and the debug log that already
+//!  The plain sentence that tells a person why a `git worktree add` was not made as a snapshot,
+//! and the places it goes:
+//!  one line on standard error unless `--quiet` was given,
+//! one warning entry in the journal,
+//! and the debug log that already
 //!  holds the detail.
 //! Why:
-//!  A snapshot of the main checkout takes seconds and Git's checkout with the ignored-state copy takes minutes. The choice
-//!  between them was made silently, so two slow adds could not be explained afterwards. The sentence names the cause in the
-//!  person's words (a change, a running Git command, a stale index, a missing subvolume) and what makes the next add quick,
-//!  without the names of the ladder's steps. A filesystem that is not btrfs gets no sentence: nothing the person does there
-//!  would make the add a snapshot, so the line would only repeat itself.
+//!  A snapshot of the main checkout takes seconds and Git's checkout with the ignored-state copy takes minutes.
+//! The choice
+//!  between them was made silently,
+//! so two slow adds could not be explained afterwards.
+//! The sentence names the cause in the
+//!  person's words (a change,
+//! a running Git command,
+//! a stale index,
+//! a missing subvolume) and what makes the next add quick,
+//!  without the names of the ladder's steps.
+//! A filesystem that is not btrfs gets no sentence:
+//! nothing the person does there
+//!  would make the add a snapshot,
+//! so the line would only repeat itself.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,13 +42,16 @@ use std::path::Path;
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeSlowRoute";
 
-/// The start of the line on standard error and of the journal message; the cause and the remedy follow.
+/// The start of the line on standard error and of the journal message;
+/// the cause and the remedy follow.
 pub const LEAD: &str = "monochromatic-git-policy-cli: this worktree was not made as a snapshot, so it took longer, because ";
 
 /// What:
-///  What kept the add from being a snapshot, as a sentence for the person and a word for the journal.
+///  What kept the add from being a snapshot,
+/// as a sentence for the person and a word for the journal.
 /// Why:
-///   One sentence and one word per cause, chosen by what the cause is and never by the ladder's step that found it.
+///   One sentence and one word per cause,
+/// chosen by what the cause is and never by the ladder's step that found it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -44,11 +59,16 @@ pub const LEAD: &str = "monochromatic-git-policy-cli: this worktree was not made
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SlowRoute {
-    /// The journal field `CLI_GIT_SLOW_CAUSE`: a short word a reader can filter on.
+    /// The journal field `CLI_GIT_SLOW_CAUSE`:
+    /// a short word a reader can filter on.
     word: &'static str,
-    /// The journal field `CLI_GIT_SLOW_DETAIL`: the check's own reason, as the debug log has it.
+    /// The journal field `CLI_GIT_SLOW_DETAIL`:
+    /// the check's own reason,
+    /// as the debug log has it.
     detail: String,
-    /// The rest of the line after `LEAD`: the cause, then what makes the next add quick.
+    /// The rest of the line after `LEAD`:
+    /// the cause,
+    /// then what makes the next add quick.
     sentence: String,
 }
 
@@ -63,15 +83,19 @@ impl SlowRoute {
         return self.detail.as_str();
     }
 
-    /// The whole line, without its newline.
+    /// The whole line,
+    /// without its newline.
     pub fn line(&self) -> String {
         return format!("{LEAD}{}", self.sentence);
     }
 
     /// What:
-    ///  Tell the person on standard error unless the add was quiet, and tell the journal either way.
+    ///  Tell the person on standard error unless the add was quiet,
+    /// and tell the journal either way.
     /// Why:
-    ///   `--quiet` silences the terminal and nothing else; the journal is where the cause is found afterwards. A closed
+    ///   `--quiet` silences the terminal and nothing else;
+    /// the journal is where the cause is found afterwards.
+    /// A closed
     ///  standard error is no failure of the add.
     ///
     /// In TS you'd write (pseudocode):
@@ -95,9 +119,12 @@ impl SlowRoute {
 }
 
 /// What:
-///  How the source is called in a sentence: the main checkout, or the worktree the person ran the add from.
+///  How the source is called in a sentence:
+/// the main checkout,
+/// or the worktree the person ran the add from.
 /// Why:
-///   The person knows which checkout they sit in; the sentence names it the way they would.
+///   The person knows which checkout they sit in;
+/// the sentence names it the way they would.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -110,14 +137,18 @@ fn subject(identity: &WorktreeIdentity) -> &'static str {
     };
 }
 
-/// The closing words of a remedy: what the next add becomes.
+/// The closing words of a remedy:
+/// what the next add becomes.
 const THEN_QUICK: &str = "and the next add is a snapshot that takes seconds";
 
 /// What:
-///  The sentence for a source whose Git status could not be read, with the run that failed and what the person can do.
+///  The sentence for a source whose Git status could not be read,
+/// with the run that failed and what the person can do.
 /// Why:
-///   The status is what tells a real change from a record of file times that is out of date; without it neither cause can be
-///  named, and the person can read Git's own error by running the same command.
+///   The status is what tells a real change from a record of file times that is out of date;
+/// without it neither cause can be
+///  named,
+/// and the person can read Git's own error by running the same command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -136,9 +167,12 @@ fn status_failed(subject: &str, root: &Path, reason: &str) -> SlowRoute {
 }
 
 /// What:
-///  The cause and the sentence for an unclean source, chosen by the kind of the refusal.
+///  The cause and the sentence for an unclean source,
+/// chosen by the kind of the refusal.
 /// Why:
-///   A running command and an unfinished operation are told as such; an entry no reset can undo is told as that; otherwise
+///   A running command and an unfinished operation are told as such;
+/// an entry no reset can undo is told as that;
+/// otherwise
 ///  Git's own status decides between a real change and a record of file times that is out of date.
 ///
 /// In TS you'd write (pseudocode):
@@ -184,9 +218,12 @@ fn explain_unclean(context: &GitContext, root: &Path, subject: &str, kind: Clean
 }
 
 /// What:
-///  The sentence for a source the expensive checks refused, or nothing when no sentence would help.
+///  The sentence for a source the expensive checks refused,
+/// or nothing when no sentence would help.
 /// Why:
-///   The kind of the refusal chooses between the unclean sentence, which reads Git's status, and the plain statement of an
+///   The kind of the refusal chooses between the unclean sentence,
+/// which reads Git's status,
+/// and the plain statement of an
 ///  unsupported feature.
 ///
 /// In TS you'd write (pseudocode):
@@ -208,7 +245,9 @@ pub fn explain_refusal(context: &GitContext, identity: &WorktreeIdentity, refusa
 /// What:
 ///  The sentence for a feature of the source that a snapshot does not reproduce.
 /// Why:
-///   These reasons are already plain statements ("core.sparseCheckout is set"); the sentence adds nothing to them, and names
+///   These reasons are already plain statements ("core.sparseCheckout is set");
+/// the sentence adds nothing to them,
+/// and names
 ///  no remedy because the person's choice of feature is not the wrapper's to undo.
 ///
 /// In TS you'd write (pseudocode):
@@ -222,7 +261,10 @@ pub fn explain_unsupported(reason: &str) -> SlowRoute {
 /// What:
 ///  The sentence for a snapshot that started and could not be finished.
 /// Why:
-///   The add is whole, made by Git's checkout; the sentence says why the quick way ended, in the check's own words.
+///   The add is whole,
+/// made by Git's checkout;
+/// the sentence says why the quick way ended,
+/// in the check's own words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -233,11 +275,15 @@ pub fn explain_failure(reason: &str) -> SlowRoute {
 }
 
 /// What:
-///  The sentence for the cheap refusals (the source is no subvolume, or the two sides are not on one filesystem), or nothing
+///  The sentence for the cheap refusals (the source is no subvolume,
+/// or the two sides are not on one filesystem),
+/// or nothing
 ///  where the filesystem is not btrfs.
 /// Why:
-///   On a btrfs source that is no subvolume the person can convert it; on another filesystem nothing makes the add a
-///  snapshot, and a line on every add would be noise.
+///   On a btrfs source that is no subvolume the person can convert it;
+/// on another filesystem nothing makes the add a
+///  snapshot,
+/// and a line on every add would be noise.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

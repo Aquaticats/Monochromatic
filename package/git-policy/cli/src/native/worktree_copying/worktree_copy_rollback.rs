@@ -1,8 +1,10 @@
 //! What:
 //!  Removal of the paths one failed installation created,
-//!  child first, and only where the filesystem still proves they are monochromatic-git-policy-cli's own.
+//!  child first,
+//! and only where the filesystem still proves they are monochromatic-git-policy-cli's own.
 //! Why:
-//!  A failed installation must not leave a partial worktree, but it also must never delete a path
+//!  A failed installation must not leave a partial worktree,
+//! but it also must never delete a path
 //!  the user or another process put there after monochromatic-git-policy-cli created it.
 //!
 //! In TS you'd write (pseudocode):
@@ -22,7 +24,8 @@ use std::path::Path;
 /// What:
 ///  Where a recorded path stands relative to the identity monochromatic-git-policy-cli recorded for it.
 /// Why:
-///   Only an exact match may be removed; an absent path has nothing to remove and a changed one is someone else's.
+///   Only an exact match may be removed;
+/// an absent path has nothing to remove and a changed one is someone else's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -39,9 +42,11 @@ enum IdentityState {
 }
 
 /// What:
-///  The current identity state of one recorded path, read without following links.
+///  The current identity state of one recorded path,
+/// read without following links.
 /// Why:
-///   Checked immediately before each removal, so a path replaced during rollback is never removed.
+///   Checked immediately before each removal,
+/// so a path replaced during rollback is never removed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -64,9 +69,13 @@ fn identity_state(
 }
 
 /// What:
-///  The one removal of a proven path: a directory only when empty, a file or link by unlinking it.
+///  The one removal of a proven path:
+/// a directory only when empty,
+/// a file or link by unlinking it.
 /// Why:
-///   A directory is removed with `rmdir`, which refuses a non-empty one, so user files inside it survive.
+///   A directory is removed with `rmdir`,
+/// which refuses a non-empty one,
+/// so user files inside it survive.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -83,7 +92,8 @@ fn remove_proven(path: &Path, is_directory: bool) -> std::io::Result<()> {
 ///  Removes every path the failed installation created that still carries monochromatic-git-policy-cli's identity and content,
 ///  and returns a diagnostic for each path it had to keep.
 /// Why:
-///   Returning the kept paths lets the user see exactly what remains, instead of a silent partial removal.
+///   Returning the kept paths lets the user see exactly what remains,
+/// instead of a silent partial removal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -124,7 +134,8 @@ pub fn rollback_created(
 /// What:
 ///  The rollback decision for one created path.
 /// Why:
-///   Each proof is checked in order, and the result names the first one that failed.
+///   Each proof is checked in order,
+/// and the result names the first one that failed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

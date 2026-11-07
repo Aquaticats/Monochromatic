@@ -1,10 +1,19 @@
 //! What:
-//!  The landing's index update without a Git process: read the private index file, reset the commit's paths to the commit
-//!  as `index_reset.rs` does, write the file back, and say whether it did.
+//!  The landing's index update without a Git process:
+//! read the private index file,
+//! reset the commit's paths to the commit
+//!  as `index_reset.rs` does,
+//! write the file back,
+//! and say whether it did.
 //! Why:
 //!  The follow-up `git reset <commit> --pathspec-from-file=- --pathspec-file-nul` took a minute under the landing's index lock
-//!  on a large checkout. Everything it needed is in the repository files the wrapper already reads in process: the index, the
-//!  commit's trees and the configuration. Any index form, configuration or hook the port does not reproduce returns `None`
+//!  on a large checkout.
+//! Everything it needed is in the repository files the wrapper already reads in process:
+//! the index,
+//! the
+//!  commit's trees and the configuration.
+//! Any index form,
+//! configuration or hook the port does not reproduce returns `None`
 //!  and the caller runs Git's own command (`doc/planning/cli-git-main-commit-within-native-plus-five.md`).
 //!
 //! In TS you'd write (pseudocode):
@@ -35,7 +44,10 @@ use crate::transaction_git::GitContext;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-/// The most bytes of index file this reads: the bound the in-process query layer already puts on the same file (`repo_read_query.rs`, `Context::index`), not a new measurement.
+/// The most bytes of index file this reads:
+/// the bound the in-process query layer already puts on the same file (`repo_read_query.rs`,
+/// `Context::index`),
+/// not a new measurement.
 const INDEX_LIMIT: u64 = 1 << 30;
 
 /// The hook Git runs after it writes an index.
@@ -56,7 +68,8 @@ fn sha256_bytes(bytes: &[u8]) -> Vec<u8> {
     return sha256(bytes).to_vec();
 }
 
-/// The names (top-relative, as bytes) the update resets.
+/// The names (top-relative,
+/// as bytes) the update resets.
 fn names_of(database: &ObjectDatabase, layout: &RepoLayout, new_tree: &[u8], paths: IndexPaths<'_>) -> Option<Vec<Vec<u8>>> {
     return match paths {
         IndexPaths::Listed(listed) => {
@@ -74,7 +87,9 @@ fn names_of(database: &ObjectDatabase, layout: &RepoLayout, new_tree: &[u8], pat
     };
 }
 
-/// Everything the update reads besides the index file: the layout, the settings and the object database.
+/// Everything the update reads besides the index file:
+/// the layout,
+/// the settings and the object database.
 struct Surroundings {
     /// Where the repository is.
     layout: RepoLayout,
@@ -84,7 +99,8 @@ struct Surroundings {
     database: ObjectDatabase,
 }
 
-/// This process's environment with `added` laid over it, minus the two variables that would point Git at other files.
+/// This process's environment with `added` laid over it,
+/// minus the two variables that would point Git at other files.
 fn effective_environment(added: Vec<(OsString, OsString)>) -> Vec<(OsString, OsString)> {
     let mut effective: Vec<(OsString, OsString)> = Vec::new();
     for (name, value) in std::env::vars_os() {
@@ -110,7 +126,8 @@ fn effective_environment(added: Vec<(OsString, OsString)>) -> Vec<(OsString, OsS
     return kept;
 }
 
-/// Whether the environment sets `GIT_TEST_FSMONITOR` to something, which would turn a file system monitor on.
+/// Whether the environment sets `GIT_TEST_FSMONITOR` to something,
+/// which would turn a file system monitor on.
 fn turns_monitor_on(effective: &[(OsString, OsString)]) -> bool {
     for (name, value) in effective {
         if name == "GIT_TEST_FSMONITOR" && !value.is_empty() {
@@ -120,7 +137,9 @@ fn turns_monitor_on(effective: &[(OsString, OsString)]) -> bool {
     return false;
 }
 
-/// Read the layout, the configuration and the objects, or decline.
+/// Read the layout,
+/// the configuration and the objects,
+/// or decline.
 fn surroundings(git: &GitContext, repository: &Path) -> Option<Surroundings> {
     let added: Vec<(OsString, OsString)> = crate::git_system_config::with_real_git(git.overlay.as_slice(), git.real_git.as_path());
     if !enabled(added.as_slice()) {
@@ -142,7 +161,9 @@ fn surroundings(git: &GitContext, repository: &Path) -> Option<Surroundings> {
     return Some(Surroundings { layout, settings, database });
 }
 
-/// The index of the file, its modification time in whole seconds, or `None` when the checksum or the layout is not plain.
+/// The index of the file,
+/// its modification time in whole seconds,
+/// or `None` when the checksum or the layout is not plain.
 fn read_index(file: &Path, format: ObjectFormat) -> Option<(FullIndex, u32)> {
     let bytes: Vec<u8> = crate::private_storage::read_regular_file(file, INDEX_LIMIT).ok()?;
     let hash_length: usize = name_length(format);
@@ -156,7 +177,8 @@ fn read_index(file: &Path, format: ObjectFormat) -> Option<(FullIndex, u32)> {
     return Some((parse_full_index(bytes.as_slice(), hash_length)?, seconds as u32));
 }
 
-/// The update, with every decline as `None`.
+/// The update,
+/// with every decline as `None`.
 fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, built: &Path) -> Option<()> {
     let around: Surroundings = surroundings(git, repository)?;
     let (mut index, timestamp) = read_index(built, around.layout.object_format)?;
@@ -174,17 +196,29 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     return publish(built, bytes.as_slice(), around.settings.shared_repository).ok();
 }
 
-/// The update of `reset_file`, as the guard calls it with the Git context, the repository, the commit, the paths and the copy.
+/// The update of `reset_file`,
+/// as the guard calls it with the Git context,
+/// the repository,
+/// the commit,
+/// the paths and the copy.
 fn reset_file_guarded((git, repository, new, paths, built): (&GitContext, &Path, &str, IndexPaths<'_>, &Path)) -> Option<()> {
     return reset_file(git, repository, new, paths, built);
 }
 
 /// What:
-///  Reset the index entries of `paths` in the landing's private copy to the commit `new` without starting Git; whether it did.
+///  Reset the index entries of `paths` in the landing's private copy to the commit `new` without starting Git;
+/// whether it did.
 /// Why:
-///   The private index is the copy the landing made while it holds the live index lock: the function takes a borrow of that
-///  lock, so only the holder can call it, and the copy, a file the landing created exclusively, so it works on no other file. A `false` leaves the file as it was (the new file replaces it only by rename
-///  after it is complete), so the caller can run `git reset --no-refresh` on the same file.
+///   The private index is the copy the landing made while it holds the live index lock:
+/// the function takes a borrow of that
+///  lock,
+/// so only the holder can call it,
+/// and the copy,
+/// a file the landing created exclusively,
+/// so it works on no other file.
+/// A `false` leaves the file as it was (the new file replaces it only by rename
+///  after it is complete),
+/// so the caller can run `git reset --no-refresh` on the same file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -203,17 +237,20 @@ pub fn reset_index_file(git: &GitContext, repository: &Path, new: &str, paths: I
     return done;
 }
 
-/// Fixtures for the differential controls; never part of the release executable.
+/// Fixtures for the differential controls;
+/// never part of the release executable.
 #[cfg(test)]
 #[path = "index_reset_support.rs"]
 pub(crate) mod support;
 
-/// Differential controls against `git reset`; never part of the release executable.
+/// Differential controls against `git reset`;
+/// never part of the release executable.
 #[cfg(test)]
 #[path = "index_reset_file_tests.rs"]
 mod tests;
 
-/// Controls for the forms the update leaves to Git; never part of the release executable.
+/// Controls for the forms the update leaves to Git;
+/// never part of the release executable.
 #[cfg(test)]
 #[path = "index_reset_fallback_tests.rs"]
 mod fallback_tests;

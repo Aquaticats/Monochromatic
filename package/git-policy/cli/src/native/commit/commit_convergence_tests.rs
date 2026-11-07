@@ -16,7 +16,8 @@ use crate::transaction_git::{GitRequest, run_git};
 use crate::wrapper_controls::no_controls;
 use std::path::{Path, PathBuf};
 
-/// The private index variable name, as the overlay of every private Git command carries it.
+/// The private index variable name,
+/// as the overlay of every private Git command carries it.
 const INDEX_VARIABLE: &str = "GIT_INDEX_FILE";
 
 /// The overlay that points every Git command of the facts at the repository and its private index.
@@ -28,7 +29,8 @@ fn overlay(repo: &Path, index: &Path) -> Vec<(OsString, OsString)> {
     ];
 }
 
-/// A repository whose `HEAD` holds `a.txt` with `base\n`, and whose private index holds `staged` for it.
+/// A repository whose `HEAD` holds `a.txt` with `base\n`,
+/// and whose private index holds `staged` for it.
 fn scene(name: &str, staged: &[u8]) -> (PathBuf, PathBuf, PathBuf) {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
@@ -57,7 +59,8 @@ fn scene(name: &str, staged: &[u8]) -> (PathBuf, PathBuf, PathBuf) {
     return (root, repo, index);
 }
 
-/// The blob the private index holds for `a.txt`, read through the private index.
+/// The blob the private index holds for `a.txt`,
+/// read through the private index.
 fn private_text(repo: &Path, index: &Path) -> String {
     let mut show: GitRequest = GitRequest::new(repo, &["show", ":a.txt"]);
     show.without_prefix = true;
@@ -94,7 +97,8 @@ fn converge_index(repo: &Path, index: &Path, object_directory: Option<&Path>) ->
     });
 }
 
-/// The final-newline correction is written into the private index, and the path is reported once.
+/// The final-newline correction is written into the private index,
+/// and the path is reported once.
 #[test]
 fn the_final_newline_correction_lands_in_the_private_index() {
     let (root, repo, index): (PathBuf, PathBuf, PathBuf) = scene("commit-convergence-newline", b"changed");
@@ -126,7 +130,8 @@ fn names_conflict(events: &[PolicyEvent], path_name: &str) -> bool {
     return false;
 }
 
-/// A correction whose blob cannot be written stops the path as `patch-conflict`, naming the path.
+/// A correction whose blob cannot be written stops the path as `patch-conflict`,
+/// naming the path.
 #[test]
 fn a_correction_the_index_cannot_take_is_a_patch_conflict() {
     let (root, repo, index): (PathBuf, PathBuf, PathBuf) = scene("commit-convergence-conflict", b"changed");
@@ -187,7 +192,8 @@ fn stored_states_compare_equal_exactly_when_the_corrected_bytes_match() {
     remove(root.as_path());
 }
 
-/// A correction names its file by bytes, so a name that is not UTF-8 reaches the private index unchanged
+/// A correction names its file by bytes,
+/// so a name that is not UTF-8 reaches the private index unchanged
 ///  and is listed back with the same bytes.
 #[test]
 fn a_correction_of_a_name_that_is_not_utf8_is_written_by_its_bytes() {

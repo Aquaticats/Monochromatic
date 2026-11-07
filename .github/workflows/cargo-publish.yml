@@ -95,8 +95,8 @@ jobs:
         cargo_toml='package/forbidden-strings/cli/Cargo.toml'
         after=$(awk -F'"' '/^version = / { print $2; exit }' "$cargo_toml")
         before=''
-        if [ -n "${BEFORE_SHA:-}" ] \
-          && [ "$BEFORE_SHA" != '0000000000000000000000000000000000000000' ]; then
+        # An unset or empty `before` reads as the all-zero revision of a first push, so one comparison covers both.
+        if [ "${BEFORE_SHA:-0000000000000000000000000000000000000000}" != '0000000000000000000000000000000000000000' ]; then
           # A push can carry several generations, such as a merge whose second parent
           # holds commits that were not on origin yet, so the pre-push head can lie
           # outside the depth-2 checkout. Fetch it instead of reading its absence as
@@ -131,14 +131,8 @@ jobs:
             publish=false
           fi
         fi
-        if [ "$publish" = 'true' ]; then
-          {
-            echo "should_publish=true"
-            echo "version=$after"
-          } >> "$GITHUB_OUTPUT"
-        else
-          echo "should_publish=false" >> "$GITHUB_OUTPUT"
-        fi
+        # `version` is written in both cases; only the jobs that run when `should_publish` is true read it.
+        printf 'should_publish=%s\nversion=%s\n' "$publish" "$after" >> "$GITHUB_OUTPUT"
 
   publish-crate:
     needs: detect

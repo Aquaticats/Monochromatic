@@ -1,9 +1,16 @@
 //! What:
-//!  Controls of the folder of saved copies opened through descriptors: which links it refuses, what a walk counts and removes,
-//!  how deep it goes, and that walks which meet the same directory share its files without a lock.
+//!  Controls of the folder of saved copies opened through descriptors:
+//! which links it refuses,
+//! what a walk counts and removes,
+//!  how deep it goes,
+//! and that walks which meet the same directory share its files without a lock.
 //! Why:
-//!  The removal is only as safe as the steps under it, so each step is checked on a real directory in a fixture: a link is
-//!  never entered or followed, a name that is another directory now is noticed, and a tree that is too deep is kept.
+//!  The removal is only as safe as the steps under it,
+//! so each step is checked on a real directory in a fixture:
+//! a link is
+//!  never entered or followed,
+//! a name that is another directory now is noticed,
+//! and a tree that is too deep is kept.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,7 +22,9 @@ use crate::command_test_support::{fixture, remove};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-/// The folder of a fixture repository, made, and the common directory above it.
+/// The folder of a fixture repository,
+/// made,
+/// and the common directory above it.
 fn folder_in(root: &Path) -> (PathBuf, PathBuf) {
     let common: PathBuf = root.join("repo.git");
     let folder: PathBuf = common.join("monochromatic-git-policy-cli/discarded");
@@ -23,7 +32,9 @@ fn folder_in(root: &Path) -> (PathBuf, PathBuf) {
     return (common, folder);
 }
 
-/// A folder is opened when it exists, is nothing when it is absent, and is refused when a link stands in it.
+/// A folder is opened when it exists,
+/// is nothing when it is absent,
+/// and is refused when a link stands in it.
 #[test]
 fn a_link_at_either_component_is_refused_and_an_absent_folder_is_nothing() {
     let root: PathBuf = fixture("store-open");
@@ -41,7 +52,9 @@ fn a_link_at_either_component_is_refused_and_an_absent_folder_is_nothing() {
     remove(root.as_path());
 }
 
-/// The common directory may be reached through a link, because Git names it; only what is below it is refused.
+/// The common directory may be reached through a link,
+/// because Git names it;
+/// only what is below it is refused.
 #[test]
 fn a_link_at_the_common_directory_itself_is_followed() {
     let root: PathBuf = fixture("store-common-link");
@@ -52,7 +65,8 @@ fn a_link_at_the_common_directory_itself_is_followed() {
     remove(root.as_path());
 }
 
-/// A survey counts files by their sizes with relative names and never enters a link; a removal takes the same files and the
+/// A survey counts files by their sizes with relative names and never enters a link;
+/// a removal takes the same files and the
 /// subdirectories and leaves the directory itself.
 #[test]
 fn a_survey_counts_and_a_removal_takes_the_same_files_and_never_enters_a_link() {
@@ -81,7 +95,8 @@ fn a_survey_counts_and_a_removal_takes_the_same_files_and_never_enters_a_link() 
     remove(root.as_path());
 }
 
-/// A file of a directory is removed before any of its subdirectories, so a failure below leaves the same remainder each run.
+/// A file of a directory is removed before any of its subdirectories,
+/// so a failure below leaves the same remainder each run.
 #[test]
 fn files_go_before_subdirectories() {
     let root: PathBuf = fixture("store-order");
@@ -97,7 +112,8 @@ fn files_go_before_subdirectories() {
     remove(root.as_path());
 }
 
-/// A name that is a link or a file is not opened as a directory, and a name that is gone is nothing.
+/// A name that is a link or a file is not opened as a directory,
+/// and a name that is gone is nothing.
 #[test]
 fn a_link_a_file_and_a_gone_name_are_not_directories() {
     let root: PathBuf = fixture("store-kinds");
@@ -117,7 +133,9 @@ fn a_link_a_file_and_a_gone_name_are_not_directories() {
     remove(root.as_path());
 }
 
-/// A directory replaced under its name is another directory: the identity differs, and the removal of the name refuses.
+/// A directory replaced under its name is another directory:
+/// the identity differs,
+/// and the removal of the name refuses.
 #[test]
 fn a_replaced_directory_has_another_identity_and_its_name_is_not_removed() {
     let root: PathBuf = fixture("store-identity");
@@ -148,7 +166,9 @@ fn a_directory_with_content_is_not_removed_as_empty() {
     remove(root.as_path());
 }
 
-/// A tree deeper than the bound is stopped at, with what was met before it, and nothing below the bound is entered.
+/// A tree deeper than the bound is stopped at,
+/// with what was met before it,
+/// and nothing below the bound is entered.
 #[test]
 fn a_tree_deeper_than_the_bound_is_stopped_at() {
     let root: PathBuf = fixture("store-deep");
@@ -168,7 +188,8 @@ fn a_tree_deeper_than_the_bound_is_stopped_at() {
     remove(root.as_path());
 }
 
-/// Two walks of one directory share its files without a lock: each file is counted by the walk whose removal of it succeeded,
+/// Two walks of one directory share its files without a lock:
+/// each file is counted by the walk whose removal of it succeeded,
 /// so across the walks every file is counted once and neither fails on a file or a directory the other removed.
 #[test]
 fn walks_emptying_one_directory_together_count_each_file_once() {
@@ -204,6 +225,7 @@ fn walks_emptying_one_directory_together_count_each_file_once() {
     remove(root.as_path());
 }
 
-/// How many walks empty one directory together, and how many files each of its two levels holds.
+/// How many walks empty one directory together,
+/// and how many files each of its two levels holds.
 const SHARED_WALKS: usize = 4;
 const SHARED_FILES: usize = 400;

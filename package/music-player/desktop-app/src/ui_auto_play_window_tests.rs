@@ -1,12 +1,35 @@
-//! Window tests of Auto-play on select (D129): what a click, Enter and the menu Play do with the setting on and off, and
-//! the Settings switch row (default, click, Space, Enter, the state it shows, the two-pane form, the ring).
+//! Window tests of Auto-play on select (D129):
+//! what a click,
+//! Enter and the menu Play do with the setting on and off,
+//! and
+//! the Settings switch row (default,
+//! click,
+//! Space,
+//! Enter,
+//! the state it shows,
+//! the two-pane form,
+//! the ring).
 //!
-//! What: each test builds the real window on the testing backend or the software renderer, sends real pointer and key
-//! events, and reads what reached the recording host, what the switch row says to assistive technology, where its parts
-//! sit, and what it draws. The Search result cases are in `ui_search_activation_tests.rs`.
-//! Why: the rule is one pure function, but the wiring from the window to it (the click, Enter, the switch, the saved
+//! What:
+//! each test builds the real window on the testing backend or the software renderer,
+//! sends real pointer and key
+//! events,
+//! and reads what reached the recording host,
+//! what the switch row says to assistive technology,
+//! where its parts
+//! sit,
+//! and what it draws.
+//! The Search result cases are in `ui_search_activation_tests.rs`.
+//! Why:
+//! the rule is one pure function,
+//! but the wiring from the window to it (the click,
+//! Enter,
+//! the switch,
+//! the saved
 //! value) only exists in the composed window.
-//! Note: element lookup by id needs `SLINT_EMIT_DEBUG_INFO=1` at build time, which the repo test task sets.
+//! Note:
+//! element lookup by id needs `SLINT_EMIT_DEBUG_INFO=1` at build time,
+//! which the repo test task sets.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -28,27 +51,37 @@ use crate::ui_screen_view::Route;
 use crate::ui_settings::{close_settings, open_settings, replace_auto_play_saver};
 use crate::ui_test_support::{RecordingHost, chord, fresh_window_at, load_library, settle, tap};
 
-/// Height of the section heading above a group: 16 above the label, the label, and 8 below.
+/// Height of the section heading above a group:
+/// 16 above the label,
+/// the label,
+/// and 8 below.
 const HEADING_HEIGHT: f32 = 44.0;
 
 thread_local! {
-    /// The values each save of the setting received on this test thread, so a test sees what would reach the session file.
+    /// The values each save of the setting received on this test thread,
+    /// so a test sees what would reach the session file.
     static SAVED: RefCell<Vec<bool>> = const { RefCell::new(Vec::new()) };
 }
 
-/// What: `record_save` stands in for the session file: it keeps the value it is given and writes nothing.
+/// What:
+/// `record_save` stands in for the session file:
+/// it keeps the value it is given and writes nothing.
 fn record_save(enabled: bool) -> std::io::Result<()> {
     SAVED.with(|saved| saved.borrow_mut().push(enabled));
     return Ok(());
 }
 
-/// What: `saved_values` lists the saves of this test so far.
+/// What:
+/// `saved_values` lists the saves of this test so far.
 fn saved_values() -> Vec<bool> {
     return SAVED.with(|saved| return saved.borrow().clone());
 }
 
-/// What: `window_at` builds a window with the library loaded and the setting saver replaced by the recording one.
-/// Why: a click on the switch must never write the user's session file, and the test reads what would have been written.
+/// What:
+/// `window_at` builds a window with the library loaded and the setting saver replaced by the recording one.
+/// Why:
+/// a click on the switch must never write the user's session file,
+/// and the test reads what would have been written.
 fn window_at(width: f32, height: f32) -> (AppWindow, Rc<RecordingHost>) {
     let (app, host) = fresh_window_at(width, height);
     SAVED.with(|saved| saved.borrow_mut().clear());
@@ -57,7 +90,9 @@ fn window_at(width: f32, height: f32) -> (AppWindow, Rc<RecordingHost>) {
     return (app, host);
 }
 
-/// What: `with_setting` turns Auto-play on select on or off in the screen state, as loading a saved session does.
+/// What:
+/// `with_setting` turns Auto-play on select on or off in the screen state,
+/// as loading a saved session does.
 fn with_setting(app: &AppWindow, enabled: bool) {
     update_state(|state| {
         state.auto_play_on_select = enabled;
@@ -66,26 +101,31 @@ fn with_setting(app: &AppWindow, enabled: bool) {
     settle();
 }
 
-/// What: `elements` lists the elements with a qualified id, in tree order.
+/// What:
+/// `elements` lists the elements with a qualified id,
+/// in tree order.
 fn elements(app: &AppWindow, id: &str) -> Vec<ElementHandle> {
     return ElementHandle::find_by_element_id(app, id).collect();
 }
 
-/// What: `only` gives the single element with a qualified id.
+/// What:
+/// `only` gives the single element with a qualified id.
 fn only(app: &AppWindow, id: &str) -> ElementHandle {
     let mut found = elements(app, id);
     assert_eq!(found.len(), 1, "exactly one {id}, found {}", found.len());
     return found.remove(0);
 }
 
-/// What: `box_of` gives an element's window position and size as `(x, y, width, height)`.
+/// What:
+/// `box_of` gives an element's window position and size as `(x, y, width, height)`.
 fn box_of(element: &ElementHandle) -> (f32, f32, f32, f32) {
     let position = element.absolute_position();
     let size = element.size();
     return (position.x, position.y, size.width, size.height);
 }
 
-/// What: `click_center` presses and releases the left pointer button at the center of an element.
+/// What:
+/// `click_center` presses and releases the left pointer button at the center of an element.
 fn click_center(app: &AppWindow, element: &ElementHandle) {
     let (x, y, width, height) = box_of(element);
     let position = LogicalPosition::new(x + width / 2.0, y + height / 2.0);
@@ -95,8 +135,11 @@ fn click_center(app: &AppWindow, element: &ElementHandle) {
     settle();
 }
 
-/// What: `track_row` finds the right pane's track row whose accessible checked state is `current`.
-/// Why: the window builds both layouts, and the one on screen at 1200 wide is the right pane.
+/// What:
+/// `track_row` finds the right pane's track row whose accessible checked state is `current`.
+/// Why:
+/// the window builds both layouts,
+/// and the one on screen at 1200 wide is the right pane.
 fn track_row(app: &AppWindow, current: bool) -> ElementHandle {
     return elements(app, "TrackListPane::row-touch")
         .into_iter()
@@ -105,12 +148,15 @@ fn track_row(app: &AppWindow, current: bool) -> ElementHandle {
         .expect("a track row in the wanted state");
 }
 
-/// What: `switch_touch` is the touch area of the switch row, which carries its accessibility.
+/// What:
+/// `switch_touch` is the touch area of the switch row,
+/// which carries its accessibility.
 fn switch_touch(app: &AppWindow) -> ElementHandle {
     return only(app, "SettingsPage::switch-touch");
 }
 
-/// What: `open_settings_at` builds a window of the given width and opens Settings on it.
+/// What:
+/// `open_settings_at` builds a window of the given width and opens Settings on it.
 fn open_settings_at(width: f32) -> AppWindow {
     let (app, _host) = window_at(width, 900.0);
     open_settings(&app);
@@ -401,7 +447,8 @@ fn a_narrow_list_pane_puts_the_switch_under_the_text_and_a_wide_one_after_it() {
 
 //region What the switch draws
 
-/// What: `settings_window` builds a software-rendered window of the given width with Settings open.
+/// What:
+/// `settings_window` builds a software-rendered window of the given width with Settings open.
 fn settings_window(width: usize) -> Rendered {
     let rendered = Rendered::new(width, 900);
     chord(&rendered.app, &["Ctrl", "Alt"], "s");
@@ -410,12 +457,14 @@ fn settings_window(width: usize) -> Rendered {
     return rendered;
 }
 
-/// What: `color_of` reads a theme color as `[red, green, blue]`.
+/// What:
+/// `color_of` reads a theme color as `[red, green, blue]`.
 fn color_of(color: slint::Color) -> [u8; 3] {
     return [color.red(), color.green(), color.blue()];
 }
 
-/// What: `count_pixels` counts the pixels of a window box that have exactly one color.
+/// What:
+/// `count_pixels` counts the pixels of a window box that have exactly one color.
 fn count_pixels(frame: &Frame, area: (f32, f32, f32, f32), color: [u8; 3]) -> usize {
     let (left, top) = (area.0.round() as usize, area.1.round() as usize);
     let (width, height) = (area.2.round() as usize, area.3.round() as usize);

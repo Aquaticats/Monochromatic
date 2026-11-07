@@ -1,12 +1,23 @@
 //! What:
-//!  The service's side of one waiting client: the queue of messages the landing thread answers with, and the loop that writes
+//!  The service's side of one waiting client:
+//! the queue of messages the landing thread answers with,
+//! and the loop that writes
 //!  them to the client's connection together with a heartbeat while nothing else is to say.
 //! Why:
-//!  A client waits for its answer with no clock of its own (`service_client.rs`), so the only thing that ends its wait is
-//!  silence. The thread that read the request has nothing else to do while the request is queued or landing, so it writes
-//!  the heartbeats, and a long batch, a long queue or a slow disk in front of the landing never reads as a dead service. The
-//!  landing thread hands its messages to that same thread through a channel instead of writing the connection itself, so the
-//!  connection has one writer, a line is written whole, and no lock guards it.
+//!  A client waits for its answer with no clock of its own (`service_client.rs`),
+//! so the only thing that ends its wait is
+//!  silence.
+//! The thread that read the request has nothing else to do while the request is queued or landing,
+//! so it writes
+//!  the heartbeats,
+//! and a long batch,
+//! a long queue or a slow disk in front of the landing never reads as a dead service.
+//! The
+//!  landing thread hands its messages to that same thread through a channel instead of writing the connection itself,
+//! so the
+//!  connection has one writer,
+//! a line is written whole,
+//! and no lock guards it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,7 +33,10 @@ use std::time::Duration;
 /// What:
 ///  The landing thread's end of one client's messages.
 /// Why:
-///   Dropping it is what answering the request ends with: the writer sees the channel closed, writes what is left, and closes
+///   Dropping it is what answering the request ends with:
+/// the writer sees the channel closed,
+/// writes what is left,
+/// and closes
 ///  the connection.
 ///
 /// In TS you'd write (pseudocode):
@@ -41,13 +55,15 @@ impl Reply {
         return (Self { sender }, receiver);
     }
 
-    /// Queues `message` for the client; a client that went away has nothing to be told.
+    /// Queues `message` for the client;
+    /// a client that went away has nothing to be told.
     pub fn send(&self, message: &ServiceMessage) {
         let _queued = self.sender.send(message.clone());
     }
 }
 
-/// Writes `message` and a newline to `stream` as one write; false when the client is gone.
+/// Writes `message` and a newline to `stream` as one write;
+/// false when the client is gone.
 fn write_line(stream: &UnixStream, message: &ServiceMessage) -> bool {
     let mut line: String = encode_service(message);
     line.push('\n');
@@ -56,10 +72,15 @@ fn write_line(stream: &UnixStream, message: &ServiceMessage) -> bool {
 }
 
 /// What:
-///  Writes each queued message to the client, and a heartbeat whenever `every` passes with nothing queued, until the reply is
+///  Writes each queued message to the client,
+/// and a heartbeat whenever `every` passes with nothing queued,
+/// until the reply is
 ///  dropped or the client is gone.
 /// Why:
-///   The heartbeat is the proof of life the client's wait rests on; the queued messages come first, in order, so a beat never
+///   The heartbeat is the proof of life the client's wait rests on;
+/// the queued messages come first,
+/// in order,
+/// so a beat never
 ///  stands between a notice and the answer that follows it.
 ///
 /// In TS you'd write (pseudocode):
@@ -72,9 +93,13 @@ pub fn write_until_answered(stream: &UnixStream, messages: &Receiver<ServiceMess
 
 /// What:
 ///  Where a connection's beat asks for a message to write before the beat.
-///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+///  A `trait` is a named set of methods that different types can each supply,
+/// like a TypeScript `interface`.
 /// Why:
-///   The beat asks at most once; what it asks (the board, the request's identity, the last words said) is the state of a small
+///   The beat asks at most once;
+/// what it asks (the board,
+/// the request's identity,
+/// the last words said) is the state of a small
 ///  struct that implements this.
 ///
 /// In TS you'd write (pseudocode):
@@ -82,7 +107,8 @@ pub fn write_until_answered(stream: &UnixStream, messages: &Receiver<ServiceMess
 /// interface NoteSource { note(): ServiceMessage | undefined }
 /// ```
 pub trait NoteSource {
-    /// The message to write before the beat, or nothing.
+    /// The message to write before the beat,
+    /// or nothing.
     fn note(&mut self) -> Option<ServiceMessage>;
 }
 
@@ -104,11 +130,15 @@ impl NoteSource for NothingToSay {
 }
 
 /// What:
-///  `write_until_answered`, where `note` is asked for a message whenever the beat is due, and what it returns is written before the
+///  `write_until_answered`,
+/// where `note` is asked for a message whenever the beat is due,
+/// and what it returns is written before the
 ///  beat.
 /// Why:
-///   A client queued behind a write that never ends is told what the service is stuck in (`service_busy.rs`); the beat is the
-///  one moment this thread has nothing queued to write, so the notice rides on it and is asked for at most once a beat.
+///   A client queued behind a write that never ends is told what the service is stuck in (`service_busy.rs`);
+/// the beat is the
+///  one moment this thread has nothing queued to write,
+/// so the notice rides on it and is asked for at most once a beat.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

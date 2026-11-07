@@ -1,5 +1,6 @@
 //! What:
-//!  Run the auto-push's real `git push` (and its fetch and Git LFS upload) until it ends, or stops showing any sign of work
+//!  Run the auto-push's real `git push` (and its fetch and Git LFS upload) until it ends,
+//! or stops showing any sign of work
 //!  with no connection to a remote open.
 //! Why:
 //!  A push that shows nothing and holds no connection would otherwise hold the service's push of that branch forever,
@@ -7,9 +8,15 @@
 //!  Such a push is stopped when its stall window passes,
 //!  the commit stays saved locally,
 //!  and the failure is reported like any other failed push.
-//!  A push whose connection to the remote is open is never stopped for time (owner, 2026-11-03: "Wait while connected
-//!  (Recommended)"; pick 5 of `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the owner's delegation and
-//!  open to the owner's veto): it has no ceiling, and the wrapper sets no low-speed abort for it.
+//!  A push whose connection to the remote is open is never stopped for time (owner,
+//! 2026-11-03:
+//! "Wait while connected
+//!  (Recommended)";
+//! pick 5 of `doc/planning/cli-git-shipped-limits-audit.md`,
+//! the coordinator's under the owner's delegation and
+//!  open to the owner's veto):
+//! it has no ceiling,
+//! and the wrapper sets no low-speed abort for it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,25 +27,33 @@
 use crate::auto_push_single_flight::{PushAttempt, SingleFlightError};
 /// The diagnostic log of the wrapper.
 use crate::diagnostic_log::{debug, warn};
-/// How to allow a push longer, in the words of the program that runs it.
+/// How to allow a push longer,
+/// in the words of the program that runs it.
 use crate::push_deadline_advice::extend_clause;
-/// The clock that stops a push on a stall, and the wait it lets pass instead.
+/// The clock that stops a push on a stall,
+/// and the wait it lets pass instead.
 use crate::push_progress::{Clock, WaitReport};
 /// The helpers and hooks a stopped push leaves running.
 use crate::stop_waits_while_a_member_cannot_be_interrupted::escalation_waits;
 use crate::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
-/// The lock files a stopped push leaves, and the ledger that finds them.
+/// The lock files a stopped push leaves,
+/// and the ledger that finds them.
 use crate::stopped_git_locks::LockLedger;
 /// Starts that ride out a short shortage of processes.
-/// The anonymous output file of the push, made in the per-user scratch directory.
+/// The anonymous output file of the push,
+/// made in the per-user scratch directory.
 use crate::scratch_location::scratch_file;
 use crate::start_retry::RetryStart;
 /// Owned OS strings of the child environment.
 use std::ffi::OsString;
-/// `File` is the shared anonymous output file; `Read`, `Seek` and `SeekFrom` read it back from its start.
+/// `File` is the shared anonymous output file;
+/// `Read`,
+/// `Seek` and `SeekFrom` read it back from its start.
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
-/// `Child` is the running push; `Command` describes it; `Stdio` connects its streams.
+/// `Child` is the running push;
+/// `Command` describes it;
+/// `Stdio` connects its streams.
 use std::process::{Child, Command, ExitStatus, Stdio};
 /// Time spans and the monotonic clock.
 use std::time::{Duration, Instant};
@@ -47,28 +62,47 @@ pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli";
 
-/// What a person is told when a push is ended for showing no progress: the owner's answer of 2026-11-03, "Bound it, keep retrying
-///  (Recommended)", is that the service's retry plan keeps the push and tries it again, and the line says so.
+/// What a person is told when a push is ended for showing no progress:
+/// the owner's answer of 2026-11-03,
+/// "Bound it,
+/// keep retrying
+///  (Recommended)",
+/// is that the service's retry plan keeps the push and tries it again,
+/// and the line says so.
 pub const PUSH_QUEUED_LINE: &str = "The push is queued: the commit service keeps it in its retry plan and tries it again.";
 
 /// How long a stopped push gets to end after the polite stop signal before it is killed.
-///  Citation: partial. The helpers of a stopped push were measured on 2026-11-03 to outlive it for 60 seconds, and a `git-lfs` that
-///  never answers for good, and empty tracking-ref locks appeared about 37 seconds after a stop; those justify the kill that
-///  follows the grace and the sweep, not five seconds, and no measurement of how long Git takes to remove its own locks on a
-///  polite stop exists. An open question for the owner.
+///  Citation:
+/// partial.
+/// The helpers of a stopped push were measured on 2026-11-03 to outlive it for 60 seconds,
+/// and a `git-lfs` that
+///  never answers for good,
+/// and empty tracking-ref locks appeared about 37 seconds after a stop;
+/// those justify the kill that
+///  follows the grace and the sweep,
+/// not five seconds,
+/// and no measurement of how long Git takes to remove its own locks on a
+///  polite stop exists.
+/// An open question for the owner.
 pub const STOP_GRACE: Duration = Duration::from_secs(5);
 
 /// The most output bytes kept from one push;
 ///  a push that writes more is stopped.
-///  Citation: none yet. The owner decided "Keep all lines" for push output, which this cap limits, and no measurement of the
-///  size of a push's output is logged; the audit lists it as a memory bound to be measured.
+///  Citation:
+/// none yet.
+/// The owner decided "Keep all lines" for push output,
+/// which this cap limits,
+/// and no measurement of the
+///  size of a push's output is logged;
+/// the audit lists it as a memory bound to be measured.
 pub const MAX_PUSH_OUTPUT: u64 = 4 * 1024 * 1024;
 
 /// Exit code recorded for a push that this wrapper stopped,
 ///  the convention of `timeout(1)`.
 pub const STOPPED_EXIT_CODE: i64 = 124;
 
-/// What the line a push's output gains has after the name of the program, when it waited with its connection open.
+/// What the line a push's output gains has after the name of the program,
+/// when it waited with its connection open.
 pub const WAIT_NOTE_PHRASE: &str = "is waiting for the server";
 
 /// Pause between two looks at the running push.
@@ -106,7 +140,8 @@ fn grace_remains(asked: Duration, grace: Duration) -> bool {
     return asked < grace;
 }
 
-/// Whether an output of this size is a flood: only a size past the cap is.
+/// Whether an output of this size is a flood:
+/// only a size past the cap is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -116,7 +151,9 @@ fn is_flood(size: u64) -> bool {
     return size > MAX_PUSH_OUTPUT;
 }
 
-/// Wait, bounded by `grace`, until every member of a stopped tree has ended.
+/// Wait,
+/// bounded by `grace`,
+/// until every member of a stopped tree has ended.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,7 +166,9 @@ fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
     }
 }
 
-/// What a clock keeps as the longest quiet gap: its figure when it reads anything, nothing when it reads nothing.
+/// What a clock keeps as the longest quiet gap:
+/// its figure when it reads anything,
+/// nothing when it reads nothing.
 fn quiet_gap_kept(watched: &Clock) -> Option<Duration> {
     if watched.measures() {
         return Some(watched.longest_quiet());
@@ -138,12 +177,19 @@ fn quiet_gap_kept(watched: &Clock) -> Option<Duration> {
 }
 
 /// What:
-///  Collect a killed child that the kernel has not released, and sweep the locks it leaves, on a thread of its own.
+///  Collect a killed child that the kernel has not released,
+/// and sweep the locks it leaves,
+/// on a thread of its own.
 /// Why:
 ///   A killed process in an uninterruptible call (a stalled disk or file system) ends only when the kernel lets it go,
-///  and on its way out it can create a lock file that nothing will remove (measured on 2026-11-03: empty tracking-ref
-///  locks born about 37 seconds after the stop). The push is reported at its deadline and does not wait for that, so
-///  the child is collected here, and its locks are swept when it is gone. The thread holds no lock and ends with the child.
+///  and on its way out it can create a lock file that nothing will remove (measured on 2026-11-03:
+/// empty tracking-ref
+///  locks born about 37 seconds after the stop).
+/// The push is reported at its deadline and does not wait for that,
+/// so
+///  the child is collected here,
+/// and its locks are swept when it is gone.
+/// The thread holds no lock and ends with the child.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -171,14 +217,17 @@ pub fn sweep_after_exit(mut child: Child, tree: Vec<TreeMember>, locks: LockLedg
 }
 
 /// What:
-///  Stop a running push: ask politely,
+///  Stop a running push:
+/// ask politely,
 ///  wait the grace,
 ///  then kill and collect it,
 ///  and judge the reference locks it may have left.
 /// Why:
 ///   Git's own signal handling ends the helpers it started and removes its lock files,
 ///  and a push that ignores the request cannot outlive the kill.
-///  A killed push leaves its lock files, which fail every later Git command on the same refs, so once the push and
+///  A killed push leaves its lock files,
+/// which fail every later Git command on the same refs,
+/// so once the push and
 ///  what it started are gone the locks they hold are swept.
 ///
 /// In TS you'd write (pseudocode):
@@ -231,11 +280,18 @@ pub fn stop_push(mut child: Child, grace: Duration, locks: LockLedger) {
 }
 
 /// What:
-///  Remove the locks of a stopped tree now when it has ended, or on a thread of its own when it has not.
+///  Remove the locks of a stopped tree now when it has ended,
+/// or on a thread of its own when it has not.
 /// Why:
-///   A killed process ends only when the kernel has run it once more, which a loaded or stalled host may not do within the
-///  grace; a sweep before that finds the tree running and removes nothing, and nothing would try again. The thread waits for
-///  the whole tree and then sweeps. Returns the thread, if one was started.
+///   A killed process ends only when the kernel has run it once more,
+/// which a loaded or stalled host may not do within the
+///  grace;
+/// a sweep before that finds the tree running and removes nothing,
+/// and nothing would try again.
+/// The thread waits for
+///  the whole tree and then sweeps.
+/// Returns the thread,
+/// if one was started.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -269,10 +325,13 @@ fn read_output(file: &mut File) -> Result<String, SingleFlightError> {
     return Ok(String::from_utf8_lossy(&bytes).into_owned());
 }
 
-/// What a stop reports: the limit that was hit, what the push had moved and how long it had run.
+/// What a stop reports:
+/// the limit that was hit,
+/// what the push had moved and how long it had run.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct StopReport {
-    /// The limit that was hit: the stall window.
+    /// The limit that was hit:
+    /// the stall window.
     pub limit: Duration,
     /// The bytes the push and everything it started had read and written.
     pub moved: u64,
@@ -291,14 +350,27 @@ pub enum StopCause {
 }
 
 /// What:
-///  Look at a running read-only query until it ends, stalls or floods its output, and say how quiet it got.
+///  Look at a running read-only query until it ends,
+/// stalls or floods its output,
+/// and say how quiet it got.
 /// Why:
 ///   `std` has no timed wait,
 ///  so the parent looks with `try_wait`,
-///  which never blocks; the clock reads the signs of work a few times a second. A query that works is waited for however
-///  long it takes: it has no wall-clock bound (owner, 2026-11-03: "Stop only on no progress"; the coordinator's scope addition
-///  to picks 4 and 9 of `doc/planning/cli-git-shipped-limits-audit.md`, open to the owner's veto), and on a system that counts
-///  nothing it is never judged stalled. `quiet` receives the longest quiet gap seen, for the ledger, and nothing where the system counts nothing.
+///  which never blocks;
+/// the clock reads the signs of work a few times a second.
+/// A query that works is waited for however
+///  long it takes:
+/// it has no wall-clock bound (owner,
+/// 2026-11-03:
+/// "Stop only on no progress";
+/// the coordinator's scope addition
+///  to picks 4 and 9 of `doc/planning/cli-git-shipped-limits-audit.md`,
+/// open to the owner's veto),
+/// and on a system that counts
+///  nothing it is never judged stalled.
+/// `quiet` receives the longest quiet gap seen,
+/// for the ledger,
+/// and nothing where the system counts nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -316,10 +388,14 @@ pub fn wait_until_done(
 }
 
 /// What:
-///  The same wait as `wait_until_done` for a push, handing over the wait of a push that is waiting for its remote with the
+///  The same wait as `wait_until_done` for a push,
+/// handing over the wait of a push that is waiting for its remote with the
 ///  connection open.
 /// Why:
-///   The push is not stopped while it waits; the caller says so once, in a line, and the wait ends the way any other does.
+///   The push is not stopped while it waits;
+/// the caller says so once,
+/// in a line,
+/// and the wait ends the way any other does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -337,7 +413,8 @@ pub fn wait_until_done_noting(
     return wait_with_clock(child, outputs, clock, label, waits, &mut unused);
 }
 
-/// The loop of both waits, over a clock the caller made.
+/// The loop of both waits,
+/// over a clock the caller made.
 fn wait_with_clock(
     child: &mut Child,
     outputs: &[&File],
@@ -376,10 +453,15 @@ fn wait_with_clock(
 }
 
 /// What:
-///  The name a run goes by in the lines about it: the program's file name and its first word that is not an option, as in
-///  `git push`, `git fetch` or `git-lfs push`.
+///  The name a run goes by in the lines about it:
+/// the program's file name and its first word that is not an option,
+/// as in
+///  `git push`,
+/// `git fetch` or `git-lfs push`.
 /// Why:
-///   The wait line must say which of the wrapper's network runs is waiting, and the command is the only thing that knows. The
+///   The wait line must say which of the wrapper's network runs is waiting,
+/// and the command is the only thing that knows.
+/// The
 ///  values of Git's `-c` and `-C` options are skipped with them.
 ///
 /// In TS you'd write (pseudocode):
@@ -407,8 +489,12 @@ pub fn command_label(command: &Command) -> String {
 /// What:
 ///  The line that names a run's wait for its remote.
 /// Why:
-///   The person or the journal reads that the run is not stuck: the connection to the remote is open, and what ends the wait.
-///  No time ends it: only the remote's answer, the connection closing or TCP giving up.
+///   The person or the journal reads that the run is not stuck:
+/// the connection to the remote is open,
+/// and what ends the wait.
+///  No time ends it:
+/// only the remote's answer,
+/// the connection closing or TCP giving up.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -425,10 +511,13 @@ fn wait_line(label: &str, report: &WaitReport) -> String {
 }
 
 /// What:
-///  Run a push command to its end or its deadline and capture its interleaved output, after the reference locks that a
+///  Run a push command to its end or its deadline and capture its interleaved output,
+/// after the reference locks that a
 ///  killed Git left in its repository have been cleared when their holder is proven gone.
 /// Why:
-///   Every start of the wrapper's own fetch and push, the repetitions of a push included, goes through here
+///   Every start of the wrapper's own fetch and push,
+/// the repetitions of a push included,
+/// goes through here
 ///  (`push_lock_clearing.rs`).
 ///
 /// In TS you'd write (pseudocode):

@@ -1,9 +1,11 @@
 # Concurrent commits implementation plan
 
-Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
 the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
-and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
 (the list is in `doc/planning/git-policy-cli-program-rename.md`).
 The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
@@ -11,9 +13,21 @@ This record keeps the names of its time.
 
 ## Status and sources
 
-Historical: the transaction this plan maps (owner and landing locks, registry, recovery, replay, the reservation) was deleted
-in step 4d of the resident commit service (`doc/planning/cli-git-resident-service.md`, "Step 4d, part 2"); every commit now
-lands through that service, and `SPEC.md`, "Commit protocol", states what a commit does. The plan stays as the record of
+Historical:
+the transaction this plan maps (owner and landing locks,
+registry,
+recovery,
+replay,
+the reservation) was deleted
+in step 4d of the resident commit service (`doc/planning/cli-git-resident-service.md`,
+"Step 4d,
+part 2");
+every commit now
+lands through that service,
+and `SPEC.md`,
+"Commit protocol",
+states what a commit does.
+The plan stays as the record of
 the design the service replaced.
 
 Code map for issue #571,
@@ -579,8 +593,12 @@ the shadow repository keeps branch-name-aware hooks working as well.
 
 ### Hook dispatcher shim
 
-Superseded for the native wrapper: it supports no external hook at all, so there is no dispatcher, hook lock or lease
-(`doc/planning/cli-git-no-self-invocation-dispatcher.md`). The text below records the original design.
+Superseded for the native wrapper:
+it supports no external hook at all,
+so there is no dispatcher,
+hook lock or lease
+(`doc/planning/cli-git-no-self-invocation-dispatcher.md`).
+The text below records the original design.
 
 The shim is a runtime-generated Node program,
 not a shell script,

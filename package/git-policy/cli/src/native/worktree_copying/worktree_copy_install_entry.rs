@@ -24,9 +24,11 @@ use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 use std::path::{Path, PathBuf};
 
 /// What:
-///  The permission bits of a directory monochromatic-git-policy-cli creates for a selected entry, before modes are applied.
+///  The permission bits of a directory monochromatic-git-policy-cli creates for a selected entry,
+/// before modes are applied.
 /// Why:
-///   Restrictive modes can block the children installation still has to create, so modes come last.
+///   Restrictive modes can block the children installation still has to create,
+/// so modes come last.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -37,7 +39,8 @@ const PRIVATE_DIRECTORY_MODE: u32 = 0o700;
 /// What:
 ///  The operating-system errors that mean the filesystem cannot hard-link the staged file.
 /// Why:
-///   Only these refusals fall back to a copy; any other failure is reported as it is.
+///   Only these refusals fall back to a copy;
+/// any other failure is reported as it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -53,7 +56,8 @@ const LINK_UNSUPPORTED_CODES: [i32; 6] = [
 ];
 
 /// What:
-///  One path monochromatic-git-policy-cli created, with the identity the filesystem gave it.
+///  One path monochromatic-git-policy-cli created,
+/// with the identity the filesystem gave it.
 /// Why:
 ///   Rollback removes a path only when its device and inode still match this record.
 ///
@@ -74,9 +78,11 @@ pub struct InstalledPath {
 }
 
 /// What:
-///  The no-follow identity of a path, read right after its creation.
+///  The no-follow identity of a path,
+/// read right after its creation.
 /// Why:
-///   The identity names the exact object monochromatic-git-policy-cli made, not whatever later sits at the same path.
+///   The identity names the exact object monochromatic-git-policy-cli made,
+/// not whatever later sits at the same path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -98,9 +104,12 @@ pub fn capture_installed_path(
 }
 
 /// What:
-///  Creates each missing unselected parent directory of one entry, shallow first, recording what it created.
+///  Creates each missing unselected parent directory of one entry,
+/// shallow first,
+/// recording what it created.
 /// Why:
-///   An entry's parents are scaffolding that rollback must be able to remove again, so each one is recorded.
+///   An entry's parents are scaffolding that rollback must be able to remove again,
+/// so each one is recorded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -115,9 +124,12 @@ pub fn ensure_parents(
 }
 
 /// What:
-///  Creates each missing unselected parent directory of one entry, skipping every parent an earlier call already proved.
+///  Creates each missing unselected parent directory of one entry,
+/// skipping every parent an earlier call already proved.
 /// Why:
-///   Entries arrive parent first, so almost every entry's parent was just proved or created; asking the filesystem about
+///   Entries arrive parent first,
+/// so almost every entry's parent was just proved or created;
+/// asking the filesystem about
 ///  each ancestor of each of hundreds of thousands of entries costs more than the clones themselves.
 ///
 /// In TS you'd write (pseudocode):
@@ -173,7 +185,8 @@ pub fn ensure_parents_remembering(
 /// What:
 ///  Whether a hard-link failure means the filesystem cannot link the staged file.
 /// Why:
-///   Only a refusal of the link itself falls back to a copy; a missing source or a full disk does not.
+///   Only a refusal of the link itself falls back to a copy;
+/// a missing source or a full disk does not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -187,9 +200,12 @@ fn is_link_unsupported(error: &std::io::Error) -> bool {
 }
 
 /// What:
-///  Installs one staged regular file: a hard link when the filesystem allows it, otherwise an exclusive copy with the entry's mode.
+///  Installs one staged regular file:
+/// a hard link when the filesystem allows it,
+/// otherwise an exclusive copy with the entry's mode.
 /// Why:
-///   The link shares the staged bytes and mode in one step; the copy is the fallback the contract requires.
+///   The link shares the staged bytes and mode in one step;
+/// the copy is the fallback the contract requires.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -220,9 +236,11 @@ fn install_file(
 }
 
 /// What:
-///  Creates one absent selected entry from the private stage, as its kind requires.
+///  Creates one absent selected entry from the private stage,
+/// as its kind requires.
 /// Why:
-///   Directories are created private and changed later; links are recreated with their exact target text.
+///   Directories are created private and changed later;
+/// links are recreated with their exact target text.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

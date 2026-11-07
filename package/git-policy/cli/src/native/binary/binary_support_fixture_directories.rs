@@ -1,7 +1,10 @@
 //! What:
-//!  Making and removing the disposable directory of a fixture, and the wrapper link inside it.
+//!  Making and removing the disposable directory of a fixture,
+//! and the wrapper link inside it.
 //! Why:
-//!  Making a fixture needs the fixture type and the limits, and nothing in the file of the helpers that run commands uses anything but its result, so the directory work lives in a file of its own.
+//!  Making a fixture needs the fixture type and the limits,
+//! and nothing in the file of the helpers that run commands uses anything but its result,
+//! so the directory work lives in a file of its own.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,12 +17,16 @@ use crate::support_fixture_service::Fixture;
 use crate::support_program_names_and_time_bound::WRAPPER;
 use crate::support_resource_limits::ServiceLaunch;
 
-/// Environment variable that moves the fixture root, for example onto a tmpfs for speed.
+/// Environment variable that moves the fixture root,
+/// for example onto a tmpfs for speed.
 pub const FIXTURE_ROOT_VARIABLE: &str = "CLI_GIT_TEST_ROOT";
 
 /// The directory fixtures are created in.
-///  Cargo's per-target scratch directory, never `/tmp`: a shared tmpfs with a per-user quota fills up
-///  when failing tests leave fixtures behind (issue 1809), and then every command of every session fails.
+///  Cargo's per-target scratch directory,
+/// never `/tmp`:
+/// a shared tmpfs with a per-user quota fills up
+///  when failing tests leave fixtures behind (issue 1809),
+/// and then every command of every session fails.
 pub fn fixture_root() -> PathBuf {
     let root: PathBuf = std::env::var_os(FIXTURE_ROOT_VARIABLE)
         .map_or_else(|| { return PathBuf::from(env!("CARGO_TARGET_TMPDIR")); }, PathBuf::from);
@@ -28,12 +35,17 @@ pub fn fixture_root() -> PathBuf {
 }
 
 /// What:
-///  Read the fixture's wrapper once per test process, so its pages are in the page cache before any bounded command
-///  starts it, and the wait for a slow disk happens here and not under the 5-second test hang guard.
+///  Read the fixture's wrapper once per test process,
+/// so its pages are in the page cache before any bounded command
+///  starts it,
+/// and the wait for a slow disk happens here and not under the 5-second test hang guard.
 /// Why:
-///  Every fixture's wrapper is a hard link of the built executable, so all fixtures of all test processes share one
-///  set of cached pages. Starting an executable that is not cached reads most of the file in its first fault (a 22 MB
-///  debug build read 16 MiB; `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`).
+///  Every fixture's wrapper is a hard link of the built executable,
+/// so all fixtures of all test processes share one
+///  set of cached pages.
+/// Starting an executable that is not cached reads most of the file in its first fault (a 22 MB
+///  debug build read 16 MiB;
+/// `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`).
 pub fn warm_wrapper(linked: &Path) {
     /// Set once the executable has been read by this process.
     static WARMED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
@@ -46,14 +58,22 @@ pub fn warm_wrapper(linked: &Path) {
 }
 
 /// What:
-///  Give a fixture its wrapper path: a hard link of the built executable; when the link fails because the fixture is on
-///  another filesystem (`EXDEV`), a hard link of the one stored copy of the build in `store_root`; and a data copy
+///  Give a fixture its wrapper path:
+/// a hard link of the built executable;
+/// when the link fails because the fixture is on
+///  another filesystem (`EXDEV`),
+/// a hard link of the one stored copy of the build in `store_root`;
+/// and a data copy
 ///  only where neither link works.
 /// Why:
 ///  The wrapper never reads its own path except to recognise itself by file identity and to find hook entries by
-///  the name it was started under (`real_git_candidate::same_file`, `main.rs`), and no control writes to it, so a
+///  the name it was started under (`real_git_candidate::same_file`,
+/// `main.rs`),
+/// and no control writes to it,
+/// so a
 ///  private copy bought nothing but 22 MB of writes per fixture and a cold first start of a new inode per test.
-///  The fallback follows the link's own failure and not a comparison of device numbers, which bind mounts defeat.
+///  The fallback follows the link's own failure and not a comparison of device numbers,
+/// which bind mounts defeat.
 ///  169 fixtures that each copied wrote about 3.7 GB (169 times 21.9 MB) in one wave
 ///  (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`).
 pub fn link_built_wrapper(built: &Path, to: &Path, store_root: &Path) {
@@ -79,7 +99,9 @@ pub fn fixture(name: &str) -> Fixture {
     return fixture_in(fixture_root().as_path(), name);
 }
 
-/// Create a fixture in `directory`, which may be on another filesystem than the build; see `fixture`.
+/// Create a fixture in `directory`,
+/// which may be on another filesystem than the build;
+/// see `fixture`.
 pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
     forbid_core_dumps();
     std::fs::create_dir_all(directory).expect("fixture directory root");
@@ -143,7 +165,8 @@ pub fn remove(fixture: &Fixture) {
     remove_patiently(&fixture.root, &|root| { return std::fs::remove_dir_all(root); }, REMOVAL_TRIES, REMOVAL_PAUSE).expect("remove only the fixture");
 }
 
-/// The one writer of executable fixture files, shared with the unit tests.
+/// The one writer of executable fixture files,
+/// shared with the unit tests.
 #[path = "../testing/fixture_executable.rs"]
 mod fixture_executable;
 
@@ -156,13 +179,22 @@ pub use fixture_executable::executable;
 ///   A copy made by this process would be open for writing here,
 ///  with the same
 ///       "Text file busy" window as `executable` describes.
-///  Fixtures reach the wrapper through a hard link (`fixture`), so this is for controls that need a second file with
+///  Fixtures reach the wrapper through a hard link (`fixture`),
+/// so this is for controls that need a second file with
 ///  the wrapper's bytes and a different identity.
-///  The copy is a real data copy (`--reflink=never`): on btrfs, which also backs overlay storage, the default
-///  `cp` clones the extents, and the clone has no pages in the page cache, so the first start of the copy reads
+///  The copy is a real data copy (`--reflink=never`):
+/// on btrfs,
+/// which also backs overlay storage,
+/// the default
+///  `cp` clones the extents,
+/// and the clone has no pages in the page cache,
+/// so the first start of the copy reads
 ///  most of the executable from disk inside the 5-second test hang guard (a 22 MB debug build read 16 MiB in 4 major faults;
-///  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`). A data copy leaves the pages
-///  it wrote in the cache, and a slow read of the original happens here, outside any bound.
+///  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`).
+/// A data copy leaves the pages
+///  it wrote in the cache,
+/// and a slow read of the original happens here,
+/// outside any bound.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -181,11 +213,17 @@ pub fn copy_executable(from: &Path, to: &Path) {
 }
 
 /// What:
-///  Forbid core dumps for this test process and everything it starts, once.
+///  Forbid core dumps for this test process and everything it starts,
+/// once.
 /// Why:
-///   The binary tests kill services and abort wrappers on purpose, and each dump costs the system's core-dump handler processor
-///  time and disk writes on a disk other sessions share. The limit is inherited across `fork` and `exec`, and the hard limit
-///  stops a child from raising it; it is the harness's, and the product sets none.
+///   The binary tests kill services and abort wrappers on purpose,
+/// and each dump costs the system's core-dump handler processor
+///  time and disk writes on a disk other sessions share.
+/// The limit is inherited across `fork` and `exec`,
+/// and the hard limit
+///  stops a child from raising it;
+/// it is the harness's,
+/// and the product sets none.
 pub fn forbid_core_dumps() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {

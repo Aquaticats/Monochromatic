@@ -103,6 +103,29 @@ pub(crate) struct RuntimeRuleInput {
     pub(crate) kind: RuntimeRuleKind,
 }
 
+/// The runtime rule one parsed rule becomes:
+/// an exact literal when it has one,
+/// a restricted regex otherwise.
+fn runtime_input_of(rule: sections::ParsedRule) -> RuntimeRuleInput {
+    let kind = if let Some(literal) = rule.literal {
+        RuntimeRuleKind::ExactLiteral(literal)
+    } else {
+        RuntimeRuleKind::RestrictedRegex(rule.pattern)
+    };
+    return RuntimeRuleInput { name: rule.name, kind };
+}
+
+/// The name and the pattern of one parsed rule,
+/// as the two columns `compile_rules` unzips.
+fn name_and_pattern_of(rule: sections::ParsedRule) -> (Option<String>, String) {
+    return (rule.name, rule.pattern);
+}
+
+/// The redacted error for a precompiled set that failed to decode or validate.
+fn precompiled_failure(reason: CompileError) -> LoadError {
+    return LoadError::Precompiled { reason };
+}
+
 /// Parses runtime source while preserving bare-literal distinction.
 pub(crate) fn parse_runtime_rules(
     text: &str,
@@ -110,14 +133,7 @@ pub(crate) fn parse_runtime_rules(
     let rules = format::parse_rules(text)?;
     return Ok(rules
         .into_iter()
-        .map(|rule| {
-            let kind = if let Some(literal) = rule.literal {
-                RuntimeRuleKind::ExactLiteral(literal)
-            } else {
-                RuntimeRuleKind::RestrictedRegex(rule.pattern)
-            };
-            return RuntimeRuleInput { name: rule.name, kind }
-        })
+        .map(runtime_input_of)
         .collect())
 }
 
@@ -140,7 +156,7 @@ pub(crate) fn parse_runtime_rules(
 pub fn compile_rules(text: &str) -> Result<CompiledRules, LoadError> {
     let rules = format::parse_rules(text)?;
     let (names, patterns): (Vec<Option<String>>, Vec<String>) =
-        rules.into_iter().map(|rule| return (rule.name, rule.pattern)).unzip();
+        rules.into_iter().map(name_and_pattern_of).unzip();
     // Validate rule by rule first: `RegexSet::new` over the whole slice reports
     // only its first error without the offending index, so a per-rule pass
     // recovers the index for the redacted diagnostic. Each single-rule set is
@@ -153,10 +169,10 @@ pub fn compile_rules(text: &str) -> Result<CompiledRules, LoadError> {
     // Every rule compiled individually, so assembly cannot fail on a rule; any
     // error here is a genuine engine invariant break, surfaced fail-closed with a
     // sentinel index and the engine's static reason (still no rule text).
-    let set = RegexSet::new(&patterns).map_err(|reason| return LoadError::Compile {
-        index: patterns.len(),
-        reason,
-    })?;
+    let set = match RegexSet::new(&patterns) {
+        Ok(set) => set,
+        Err(reason) => return Err(LoadError::Compile { index: patterns.len(), reason }),
+    };
     return Ok(CompiledRules { set, names });
 }
 
@@ -168,7 +184,8 @@ pub fn compile_rules(text: &str) -> Result<CompiledRules, LoadError> {
 ///  the runtime loader uses
 /// [`compile_rules`] so findings can carry rule names.
 pub fn compile_from_text(text: &str) -> Result<RegexSet, LoadError> {
-    return compile_rules(text).map(|compiled| return compiled.set);
+    let compiled = compile_rules(text)?;
+    return Ok(compiled.set);
 }
 
 /// Loads a precompiled serialized `RegexSet` from bytes.
@@ -184,8 +201,7 @@ pub fn compile_from_text(text: &str) -> Result<RegexSet, LoadError> {
 ///  A
 /// decode or validation failure becomes a redacted `Precompiled` error.
 pub fn load_precompiled(bytes: &[u8]) -> Result<RegexSet, LoadError> {
-    return RegexSet::from_bytes(bytes)
-        .map_err(|reason: CompileError| return LoadError::Precompiled { reason });
+    return RegexSet::from_bytes(bytes).map_err(precompiled_failure);
 }
 
 /// Registers the compile,

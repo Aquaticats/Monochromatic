@@ -1,7 +1,10 @@
 //! What:
-//!  A point where several threads must all arrive, for controls that prove work really overlapped.
+//!  A point where several threads must all arrive,
+//! for controls that prove work really overlapped.
 //! Why:
-//!  A bare barrier hangs a run that is serial; this one gives up after a stated patience and says so, so a serial run fails
+//!  A bare barrier hangs a run that is serial;
+//! this one gives up after a stated patience and says so,
+//! so a serial run fails
 //!  the control instead of stalling it.
 //!
 //! In TS you'd write (pseudocode):
@@ -19,7 +22,8 @@ pub(crate) const PATIENCE: Duration = Duration::from_secs(10);
 /// How long the control for a serial run waits at a point it can never pass.
 pub(crate) const SERIAL_PATIENCE: Duration = Duration::from_millis(200);
 
-/// A point where a number of threads must all arrive: it can be passed only if they overlap in time.
+/// A point where a number of threads must all arrive:
+/// it can be passed only if they overlap in time.
 pub(crate) struct Rendezvous {
     /// How many threads have arrived.
     arrived: Mutex<usize>,
@@ -42,7 +46,9 @@ impl Rendezvous {
         return Rendezvous { patience, ..Rendezvous::new(target) };
     }
 
-    /// Arrive and wait for the others; false when they did not all come within the patience, which is what a serial run sees.
+    /// Arrive and wait for the others;
+    /// false when they did not all come within the patience,
+    /// which is what a serial run sees.
     pub(crate) fn arrive(&self) -> bool {
         let mut count = self.arrived.lock().expect("lock");
         *count += 1;
@@ -50,7 +56,8 @@ impl Rendezvous {
         return self.wait_while_short(count);
     }
 
-    /// Wait without arriving until the target number have arrived; false after the patience.
+    /// Wait without arriving until the target number have arrived;
+    /// false after the patience.
     pub(crate) fn wait_for_target(&self) -> bool {
         let count = self.arrived.lock().expect("lock");
         return self.wait_while_short(count);
@@ -63,7 +70,8 @@ impl Rendezvous {
         self.changed.notify_all();
     }
 
-    /// Wait on a held count until it reaches the target; false when the patience ran out first.
+    /// Wait on a held count until it reaches the target;
+    /// false when the patience ran out first.
     fn wait_while_short(&self, count: std::sync::MutexGuard<'_, usize>) -> bool {
         let (guard, timeout) = self.changed.wait_timeout_while(count, self.patience, |seen: &mut usize| { return *seen < self.target; }).expect("wait");
         drop(guard);

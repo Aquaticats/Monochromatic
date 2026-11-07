@@ -149,7 +149,8 @@ fn reading_a_plan_file_decodes_it() {
 /// The machine-global plan keeps the id `cargo:monochromatic-git-policy-cli` for an entry that moved to the `archive` route
 /// and reads its releases through `options.tagPrefix`;
 /// a binary that reported `tools.cargo:monochromatic-git-policy-cli.options.tagPrefix is not a known field` predated the option
-/// (`monochromatic-mpm-shadow` 0.2.0), not this decoder.
+/// (`monochromatic-mpm-shadow` 0.2.0),
+/// not this decoder.
 #[test]
 fn an_entry_with_a_cargo_id_on_the_archive_route_takes_a_tag_prefix_and_a_postinstall_link() {
     let source = "{ \"schemaVersion\": 1, \"tools\": { \"cargo:monochromatic-git-policy-cli\": {\n\

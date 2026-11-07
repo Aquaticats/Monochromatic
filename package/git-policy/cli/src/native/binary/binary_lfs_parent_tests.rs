@@ -1,6 +1,12 @@
 //! Binary-level controls for who starts and who explains the Git LFS upload.
-//! The wrapper runs `git-lfs push` itself, as a child, before the push; the wrapper is never started for it, the push
-//!  carries no hook, and the parent that ran the child prints the explanation, so no output text or trace is read.
+//! The wrapper runs `git-lfs push` itself,
+//! as a child,
+//! before the push;
+//! the wrapper is never started for it,
+//! the push
+//!  carries no hook,
+//! and the parent that ran the child prints the explanation,
+//! so no output text or trace is read.
 
 use super::commit::{remove_settled, wrapped_commit};
 use super::lfs_pre_push::{World, commit_directly, ref_of, runs, wrapped, world};
@@ -10,14 +16,17 @@ use std::path::Path;
 /// The sentence of the failure explanation that no other text of the wrapper contains.
 const EXPLANATION: &str = "so this push was not started and nothing was published";
 
-/// Make the origin refuse every push after the upload, printing `message` as its own report.
+/// Make the origin refuse every push after the upload,
+/// printing `message` as its own report.
 fn refusing_origin(world: &World, message: &str) {
     let hook: std::path::PathBuf = world.origin.join("hooks/pre-receive");
     std::fs::create_dir_all(hook.parent().expect("hooks directory")).expect("hooks directory");
     executable(hook.as_path(), format!("#!/bin/sh\ncat > /dev/null\nprintf '%s\\n' '{message}' >&2\nexit 1\n").as_bytes());
 }
 
-/// A stand-in `git-lfs` that records the executable names of its ancestors, nearest first, then succeeds.
+/// A stand-in `git-lfs` that records the executable names of its ancestors,
+/// nearest first,
+/// then succeeds.
 fn ancestry_stand_in(fixture: &Fixture, record: &Path) {
     let source: String = format!(
         "#!/bin/sh\npid=$$\nwhile [ \"$pid\" -gt 1 ]; do\n  pid=$(ps -o ppid= -p \"$pid\" | tr -d ' ')\n  \
@@ -27,7 +36,8 @@ fn ancestry_stand_in(fixture: &Fixture, record: &Path) {
     executable(fixture.root.join("bin/git-lfs").as_path(), source.as_bytes());
 }
 
-/// The upload is a child of the one wrapper the caller started, and the push that follows carries no hook.
+/// The upload is a child of the one wrapper the caller started,
+/// and the push that follows carries no hook.
 #[test]
 fn the_wrapper_runs_the_upload_itself_and_the_push_carries_no_hook() {
     let fixture: Fixture = fixture("lfs-parent-chain");
@@ -66,7 +76,9 @@ fn the_wrapper_runs_the_upload_itself_and_the_push_carries_no_hook() {
     remove_settled(&fixture);
 }
 
-/// A failed upload is explained by the parent once, with the child's own status, and the push is never started.
+/// A failed upload is explained by the parent once,
+/// with the child's own status,
+/// and the push is never started.
 #[test]
 fn a_failed_upload_is_explained_once_and_the_push_is_not_started() {
     let fixture: Fixture = fixture("lfs-parent-explains");
@@ -82,7 +94,8 @@ fn a_failed_upload_is_explained_once_and_the_push_is_not_started() {
     remove_settled(&fixture);
 }
 
-/// A remote refusal after a good upload is not blamed on the upload, whatever text the remote prints.
+/// A remote refusal after a good upload is not blamed on the upload,
+/// whatever text the remote prints.
 #[test]
 fn a_remote_refusal_is_not_blamed_on_the_upload_even_when_it_imitates_the_explanation() {
     let fixture: Fixture = fixture("lfs-parent-forged");
@@ -96,7 +109,8 @@ fn a_remote_refusal_is_not_blamed_on_the_upload_even_when_it_imitates_the_explan
     remove_settled(&fixture);
 }
 
-/// Another configured `pre-push` hook of the caller does not run (the wrapper runs no configured hook), so its failure
+/// Another configured `pre-push` hook of the caller does not run (the wrapper runs no configured hook),
+/// so its failure
 ///  can neither stop the push nor be blamed on the upload.
 #[test]
 fn another_configured_pre_push_hook_does_not_run_and_is_not_blamed_on_the_upload() {
@@ -114,7 +128,8 @@ fn another_configured_pre_push_hook_does_not_run_and_is_not_blamed_on_the_upload
     remove_settled(&fixture);
 }
 
-/// With `git-lfs` missing from `PATH` the push is refused before anything starts, unless it bypasses the upload.
+/// With `git-lfs` missing from `PATH` the push is refused before anything starts,
+/// unless it bypasses the upload.
 #[test]
 fn a_missing_program_is_refused_before_anything_starts_unless_the_upload_is_bypassed() {
     let fixture: Fixture = fixture("lfs-parent-missing");
@@ -130,7 +145,8 @@ fn a_missing_program_is_refused_before_anything_starts_unless_the_upload_is_bypa
     remove_settled(&fixture);
 }
 
-/// `GIT_LFS_SKIP_PUSH` skips the upload, as the explanation promises.
+/// `GIT_LFS_SKIP_PUSH` skips the upload,
+/// as the explanation promises.
 #[test]
 fn the_skip_variable_skips_the_upload() {
     let fixture: Fixture = fixture("lfs-parent-skip");
@@ -143,7 +159,9 @@ fn the_skip_variable_skips_the_upload() {
     remove_settled(&fixture);
 }
 
-/// A forced push, which is never integrated, still has a parent that explains a failed upload once.
+/// A forced push,
+/// which is never integrated,
+/// still has a parent that explains a failed upload once.
 #[test]
 fn a_forced_push_that_is_never_integrated_still_has_a_parent_that_explains() {
     let fixture: Fixture = fixture("lfs-parent-forced");
@@ -156,7 +174,8 @@ fn a_forced_push_that_is_never_integrated_still_has_a_parent_that_explains() {
     remove_settled(&fixture);
 }
 
-/// A bare push resolves its remote and branch from the repository's configuration, and `-C` selects the directory the
+/// A bare push resolves its remote and branch from the repository's configuration,
+/// and `-C` selects the directory the
 ///  upload runs in.
 #[test]
 fn a_bare_push_and_a_directory_option_select_the_remote_branch_and_directory() {

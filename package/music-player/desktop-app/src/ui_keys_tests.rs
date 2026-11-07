@@ -1,7 +1,13 @@
 //! Tests for the pure keyboard mapping in `ui_keys` and for the pure parts of `ui_keys_actions`.
 //!
-//! What: key names, the macOS modifier swap, the classifier request, the mode cycle and the seek target.
-//! Why: the window tests press real key events; these pin the small pure mappings they rely on.
+//! What:
+//! key names,
+//! the macOS modifier swap,
+//! the classifier request,
+//! the mode cycle and the seek target.
+//! Why:
+//! the window tests press real key events;
+//! these pin the small pure mappings they rely on.
 
 use music_player::command::PlaybackMode;
 use music_player::keymap::ShortcutAction;
@@ -9,7 +15,8 @@ use music_player::keymap::ShortcutAction;
 use super::*;
 use crate::ui_keys_actions::{next_mode, seek_target};
 
-/// What: `input(key)` builds a plain key press with no modifiers.
+/// What:
+/// `input(key)` builds a plain key press with no modifiers.
 fn input(key: &str) -> KeyInput {
     return KeyInput {
         key: key.to_string(),
@@ -22,7 +29,8 @@ fn input(key: &str) -> KeyInput {
     };
 }
 
-/// What: `context_on(route, zone)` builds the context of a page with a focus zone.
+/// What:
+/// `context_on(route, zone)` builds the context of a page with a focus zone.
 fn context_on(route: Route, zone: FocusZone) -> KeyContext {
     return KeyContext { route, zone, picker_overlay: false, popup_open: false };
 }

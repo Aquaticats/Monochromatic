@@ -1,24 +1,44 @@
 //! Reads the files a rules list names once and joins them into the one text the scanner compiles.
 //!
-//! The joined text is the only input of the compiled-rules cache key, because the compiled rules are a pure function
-//! of it: two lists whose present files join to the same text compile to the same rules and may share an artifact.
+//! The joined text is the only input of the compiled-rules cache key,
+//! because the compiled rules are a pure function
+//! of it:
+//! two lists whose present files join to the same text compile to the same rules and may share an artifact.
 //! The join is therefore the place that keeps the joined text equal in meaning to the files read separately:
-//! each file is BOM-stripped, every file ends in a newline before the next begins, and files in different formats
-//! (tail sections against legacy lines) are refused, because the later file's lines would otherwise become the body
+//! each file is BOM-stripped,
+//! every file ends in a newline before the next begins,
+//! and files in different formats
+//! (tail sections against legacy lines) are refused,
+//! because the later file's lines would otherwise become the body
 //! of the earlier file's last section.
-//! A compile failure of the joined text is re-diagnosed file by file, so the error names the file and a line
+//! A compile failure of the joined text is re-diagnosed file by file,
+//! so the error names the file and a line
 //! number local to it.
 
+/// Reads the format of each file's text,
+/// strips its byte order mark,
+/// and parses it,
+/// so the joined text keeps one format
+/// and a compile failure can be re-diagnosed file by file.
 use crate::rule::frx::{parse_runtime_rules, source_format, strip_source_bom, SourceFormat};
+/// One entry of the rules list,
+/// a path and whether the file may be absent.
 use crate::rules_list::RulesEntry;
+/// The compiled rules that the joined text becomes.
 use crate::runtime_matcher::RuntimeRules;
+/// Builds the errors that name a file,
+/// and the `Result` every step returns.
 use anyhow::{anyhow, Result};
+/// Remembers which file declared each rule,
+/// so a duplicate names both files.
 use std::collections::HashMap;
+/// Borrowed and owned paths of the rules files read.
 use std::path::{Path, PathBuf};
 
 /// A file that was present when read.
 struct Present {
-    /// The file's exact bytes, compared again before an artifact is published.
+    /// The file's exact bytes,
+    /// compared again before an artifact is published.
     bytes: Vec<u8>,
     /// The same bytes decoded as UTF-8.
     text: String,
@@ -28,40 +48,80 @@ struct Present {
 struct ReadEntry {
     /// The file the entry names.
     path: PathBuf,
-    /// The file's content, or `None` when an optional entry was absent.
+    /// The file's content,
+    /// or `None` when an optional entry was absent.
     present: Option<Present>,
 }
 
-/// The files of one rules list, read once, with their joined text.
+/// The files of one rules list,
+/// read once,
+/// with their joined text.
 pub(crate) struct RulesSnapshot {
-    /// Every entry in list order, including the absent optional ones.
+    /// Every entry in list order,
+    /// including the absent optional ones.
     entries: Vec<ReadEntry>,
-    /// The text the scanner compiles: the present files joined in list order.
+    /// The text the scanner compiles:
+    /// the present files joined in list order.
     text: String,
+}
+
+/// Whether an optional entry was absent when the list was read.
+fn is_absent(entry: &ReadEntry) -> bool {
+    return entry.present.is_none();
+}
+
+/// The path of an entry as display text.
+fn path_text_of(entry: &ReadEntry) -> String {
+    return entry.path.display().to_string();
+}
+
+/// Whether the file system still agrees with what one entry held:
+/// the same bytes for a present file,
+/// still absent for a skipped one.
+fn holds_what_was_read(entry: &ReadEntry) -> bool {
+    return match (&entry.present, std::fs::read(&entry.path)) {
+        (Some(expected), Ok(now)) => expected.bytes == now,
+        (None, Err(error)) => error.kind() == std::io::ErrorKind::NotFound,
+        _ => false,
+    };
+}
+
+/// The `(path, text)` pair of an entry that was present,
+/// or `None` for a skipped one.
+fn present_pair(entry: &ReadEntry) -> Option<(&Path, &str)> {
+    let file = entry.present.as_ref()?;
+    return Some((entry.path.as_path(), file.text.as_str()));
 }
 
 /// Reads and joins a rules list.
 impl RulesSnapshot {
     /// Reads every entry in list order.
     ///
-    /// A required entry that cannot be read, and any entry that is present but unreadable or not UTF-8, fails the
+    /// A required entry that cannot be read,
+    /// and any entry that is present but unreadable or not UTF-8,
+    /// fails the
     /// read with an error naming that path.
-    /// An optional entry whose file is absent is skipped; [`RulesSnapshot::skipped`] lists it.
+    /// An optional entry whose file is absent is skipped;
+    /// [`RulesSnapshot::skipped`] lists it.
     ///
     /// # Errors
     ///
-    /// Fails on the first entry that cannot be read, and when the present files are in different formats.
+    /// Fails on the first entry that cannot be read,
+    /// and when the present files are in different formats.
     pub(crate) fn read(entries: &[RulesEntry]) -> Result<Self> {
         let mut read_entries: Vec<ReadEntry> = Vec::with_capacity(entries.len());
         for entry in entries {
             match std::fs::read(&entry.path) {
                 Ok(bytes) => {
-                    let text: String = String::from_utf8(bytes.clone()).map_err(|_| {
-                        return anyhow!(
-                            "read rules {}: stream did not contain valid UTF-8",
-                            entry.path.display(),
-                        );
-                    })?;
+                    let text: String = match String::from_utf8(bytes.clone()) {
+                        Ok(text) => text,
+                        Err(_) => {
+                            return Err(anyhow!(
+                                "read rules {}: stream did not contain valid UTF-8",
+                                entry.path.display(),
+                            ));
+                        }
+                    };
                     read_entries.push(ReadEntry {
                         path: entry.path.clone(),
                         present: Some(Present { bytes, text }),
@@ -82,25 +142,31 @@ impl RulesSnapshot {
         return &self.text;
     }
 
-    /// Whether no file was present, so there is no rules text at all.
+    /// Whether no file was present,
+    /// so there is no rules text at all.
     pub(crate) fn is_empty(&self) -> bool {
-        return self.entries.iter().all(|entry| return entry.present.is_none());
+        return self.entries.iter().all(is_absent);
     }
 
-    /// The optional entries that were absent, in list order.
+    /// The optional entries that were absent,
+    /// in list order.
     pub(crate) fn skipped(&self) -> Vec<PathBuf> {
-        return self
-            .entries
-            .iter()
-            .filter(|entry| return entry.present.is_none())
-            .map(|entry| return entry.path.clone())
-            .collect();
+        let mut skipped: Vec<PathBuf> = Vec::new();
+        for entry in &self.entries {
+            if is_absent(entry) {
+                skipped.push(entry.path.clone());
+            }
+        }
+        return skipped;
     }
 
-    /// Fails when no file was present, naming every listed path.
+    /// Fails when no file was present,
+    /// naming every listed path.
     ///
-    /// Every entry being optional and absent leaves nothing to scan with, and scanning with no rules would pass
-    /// every file, so the caller that has no other rule source refuses it.
+    /// Every entry being optional and absent leaves nothing to scan with,
+    /// and scanning with no rules would pass
+    /// every file,
+    /// so the caller that has no other rule source refuses it.
     ///
     /// # Errors
     ///
@@ -110,57 +176,65 @@ impl RulesSnapshot {
             return Ok(());
         }
         let listed: Vec<String> =
-            self.entries.iter().map(|entry| return entry.path.display().to_string()).collect();
+            self.entries.iter().map(path_text_of).collect();
         return Err(anyhow!(
             "rules {}: no rules loaded, because every entry is optional and none of those files exists",
             listed.join(", "),
         ));
     }
 
-    /// The present files' paths as one label for an error: one path, or the paths separated by `, `.
+    /// The present files' paths as one label for an error:
+    /// one path,
+    /// or the paths separated by `, `.
     pub(crate) fn label(&self) -> String {
-        let names: Vec<String> = self
-            .entries
-            .iter()
-            .filter(|entry| return entry.present.is_some())
-            .map(|entry| return entry.path.display().to_string())
-            .collect();
+        let mut names: Vec<String> = Vec::new();
+        for entry in &self.entries {
+            if !is_absent(entry) {
+                names.push(path_text_of(entry));
+            }
+        }
         return names.join(", ");
     }
 
-    /// Whether every entry still holds what was read: same bytes for a present file, still absent for a skipped one.
+    /// Whether every entry still holds what was read:
+    /// same bytes for a present file,
+    /// still absent for a skipped one.
     ///
-    /// A cache artifact is published only while this holds, so a file edited, removed, or created while the rules
+    /// A cache artifact is published only while this holds,
+    /// so a file edited,
+    /// removed,
+    /// or created while the rules
     /// compiled never publishes an artifact for text that no longer exists.
     pub(crate) fn still_current(&self) -> bool {
-        return self.entries.iter().all(|entry| match (&entry.present, std::fs::read(&entry.path)) {
-            (Some(expected), Ok(now)) => return expected.bytes == now,
-            (None, Err(error)) => return error.kind() == std::io::ErrorKind::NotFound,
-            _ => return false,
-        });
+        return self.entries.iter().all(holds_what_was_read);
     }
 
-    /// Compiles the joined text, attributing a failure to the file that caused it.
+    /// Compiles the joined text,
+    /// attributing a failure to the file that caused it.
     ///
     /// # Errors
     ///
-    /// Fails with `rules <path>: <reason>`, the reason carrying no rule text.
+    /// Fails with `rules <path>: <reason>`,
+    /// the reason carrying no rule text.
     pub(crate) fn compile(&self) -> Result<RuntimeRules> {
         match RuntimeRules::compile(&self.text) {
             Ok(compiled) => return Ok(compiled),
             Err(joined_error) => {
                 let attributed: Option<anyhow::Error> = self.attribute_failure();
-                return Err(attributed.unwrap_or_else(|| {
-                    return anyhow!("rules {}: {}", self.label(), joined_error);
-                }));
+                match attributed {
+                    Some(error) => return Err(error),
+                    None => return Err(anyhow!("rules {}: {}", self.label(), joined_error)),
+                }
             }
         }
     }
 
     /// Re-diagnoses a failed join file by file.
     ///
-    /// Returns the first file that fails alone, or the file that repeats a section name another file declared,
-    /// or `None` when fewer than two files are present, or every file compiles alone and no name repeats,
+    /// Returns the first file that fails alone,
+    /// or the file that repeats a section name another file declared,
+    /// or `None` when fewer than two files are present,
+    /// or every file compiles alone and no name repeats,
     /// leaving the caller to report the joined failure.
     fn attribute_failure(&self) -> Option<anyhow::Error> {
         let present: Vec<(&Path, &str)> = present_files(&self.entries);
@@ -199,17 +273,13 @@ impl RulesSnapshot {
 
 /// The present files as `(path, text)` pairs in list order.
 fn present_files(entries: &[ReadEntry]) -> Vec<(&Path, &str)> {
-    return entries
-        .iter()
-        .filter_map(|entry| {
-            return entry.present.as_ref().map(|file| return (entry.path.as_path(), file.text.as_str()));
-        })
-        .collect();
+    return entries.iter().filter_map(present_pair).collect();
 }
 
 /// Joins the present files in list order.
 ///
-/// One file joins to its exact text, so a single-file list keeps the cache key it had before lists existed.
+/// One file joins to its exact text,
+/// so a single-file list keeps the cache key it had before lists existed.
 fn join(present: &[(&Path, &str)]) -> Result<String> {
     if let [(_, only)] = present {
         return Ok((*only).to_string());
@@ -254,7 +324,10 @@ fn format_name(format: SourceFormat) -> &'static str {
     }
 }
 
-/// Registers the snapshot, join, and attribution tests (sidecar, lint-exempt).
+/// Registers the snapshot,
+/// join,
+/// and attribution tests (sidecar,
+/// lint-exempt).
 #[cfg(test)]
 #[path = "rules_snapshot_tests.rs"]
 mod tests;

@@ -8,7 +8,8 @@ fn parsed(line: &str) -> serde_json::Value {
     return serde_json::from_str(line).expect("a JSON line");
 }
 
-/// An overlap names the paths and every way forward, and blocks as a core finding.
+/// An overlap names the paths and every way forward,
+/// and blocks as a core finding.
 #[test]
 fn the_overlap_finding_names_the_paths_and_the_ways_forward() {
     let paths: Vec<Vec<u8>> = vec![b"src/a.rs".to_vec(), b"b \"q\".txt".to_vec()];

@@ -1,4 +1,7 @@
-//! Controls of the entry the wrapper sends to the journal: it carries the client's identifier, priority, message and fields,
+//! Controls of the entry the wrapper sends to the journal:
+//! it carries the client's identifier,
+//! priority,
+//! message and fields,
 //! and an address nobody listens at costs the command nothing.
 
 use super::*;
@@ -18,14 +21,17 @@ fn parsed(bytes: &[u8]) -> BTreeMap<String, String> {
         .collect();
 }
 
-/// A bound receiving socket on a fresh abstract name, and the target that names it.
+/// A bound receiving socket on a fresh abstract name,
+/// and the target that names it.
 fn receiver(name: &str) -> (UnixDatagram, Target) {
     let abstract_name: String = format!("cli-git-test-client-journal-{}-{name}", std::process::id());
     let address: SocketAddr = SocketAddr::from_abstract_name(abstract_name.as_bytes()).expect("an abstract address");
     return (UnixDatagram::bind_addr(&address).expect("bind the receiving socket"), Target::Abstract(abstract_name));
 }
 
-/// An entry reaches the receiver with the client's identifier, its priority, its message and each field.
+/// An entry reaches the receiver with the client's identifier,
+/// its priority,
+/// its message and each field.
 #[test]
 fn an_entry_reaches_the_receiver_as_the_client() {
     let (socket, target) = receiver("reach");
@@ -42,7 +48,8 @@ fn an_entry_reaches_the_receiver_as_the_client() {
     assert_eq!(found["CLI_GIT_SLOW_CAUSE"], "uncommitted-changes");
 }
 
-/// An address nobody listens at is no failure of the command: the entry is not sent and the answer says so.
+/// An address nobody listens at is no failure of the command:
+/// the entry is not sent and the answer says so.
 #[test]
 fn an_address_nobody_listens_at_takes_no_entry() {
     let nobody: Target = Target::Abstract(format!("cli-git-test-client-journal-nobody-{}", std::process::id()));
@@ -64,7 +71,8 @@ fn a_unit_test_without_a_stand_in_reaches_nothing() {
     }
 }
 
-/// An entry sent as the service carries the service's identifier, and the same send as the client keeps the client's.
+/// An entry sent as the service carries the service's identifier,
+/// and the same send as the client keeps the client's.
 #[test]
 fn an_entry_can_carry_the_services_identifier() {
     let (socket, target) = receiver("service");

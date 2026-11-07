@@ -33,7 +33,9 @@ use std::io::{ErrorKind, Write};
 /// Why:
 ///       The Windows release is a single executable with nothing beside it,
 ///  so the notices must travel inside the program.
-///  It is a `static`, not a `const`: a `const` is copied into every crate that uses it,
+///  It is a `static`,
+/// not a `const`:
+/// a `const` is copied into every crate that uses it,
 ///  and the Licenses page of the window (the binary crate) and `--licenses` (this crate) would each carry the 2 MB text.
 ///
 /// In TS you'd write (pseudocode):

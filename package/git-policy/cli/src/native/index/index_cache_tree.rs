@@ -1,9 +1,17 @@
 //! What:
-//!  The `TREE` (cache-tree) index extension: read, written back byte for byte, and invalidated along a path
-//!  (`cache-tree.c`: `read_one`, `write_one`, `do_invalidate_path`).
+//!  The `TREE` (cache-tree) index extension:
+//! read,
+//! written back byte for byte,
+//! and invalidated along a path
+//!  (`cache-tree.c`:
+//! `read_one`,
+//! `write_one`,
+//! `do_invalidate_path`).
 //! Why:
-//!  Git marks every directory above a changed path as not valid and drops a subtree that the path names; an in-process
-//!  index update must leave the extension exactly as that does, or the next `write-tree` would trust a stale tree name.
+//!  Git marks every directory above a changed path as not valid and drops a subtree that the path names;
+//! an in-process
+//!  index update must leave the extension exactly as that does,
+//! or the next `write-tree` would trust a stale tree name.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,21 +20,27 @@
 
 use crate::index_byte_search::{first_index_of_byte, leading_digit_count, leading_run_length};
 
-/// The deepest nesting the reader follows: the depth the tree reader follows (`TREE_DEPTH_LIMIT` in `repo_read_tree.rs`).
+/// The deepest nesting the reader follows:
+/// the depth the tree reader follows (`TREE_DEPTH_LIMIT` in `repo_read_tree.rs`).
 const DEPTH_LIMIT: usize = 256;
 
 /// One directory of the cache-tree.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CacheTree {
-    /// The number of index entries below, or -1 when the directory is not valid.
+    /// The number of index entries below,
+    /// or -1 when the directory is not valid.
     pub entry_count: i64,
-    /// The tree object name; present exactly when `entry_count` is not negative.
+    /// The tree object name;
+    /// present exactly when `entry_count` is not negative.
     pub id: Vec<u8>,
-    /// The subdirectories by name, in the byte order the file keeps.
+    /// The subdirectories by name,
+    /// in the byte order the file keeps.
     pub subtrees: Vec<(Vec<u8>, CacheTree)>,
 }
 
-/// The decimal number at the start of `bytes` (with `-` signs, as `parse_int`), the bytes after it.
+/// The decimal number at the start of `bytes` (with `-` signs,
+/// as `parse_int`),
+/// the bytes after it.
 fn parse_number(bytes: &[u8]) -> Option<(i64, &[u8])> {
     let signs: usize = leading_run_length(bytes, b'-');
     let digits: usize = leading_digit_count(&bytes[signs..]);
@@ -36,7 +50,8 @@ fn parse_number(bytes: &[u8]) -> Option<(i64, &[u8])> {
     return Some((value, &bytes[signs + digits..]));
 }
 
-/// Read one directory and the subdirectories after it; the bytes left and the name of the directory.
+/// Read one directory and the subdirectories after it;
+/// the bytes left and the name of the directory.
 fn read_one<'a>(bytes: &'a [u8], hash_length: usize, depth: usize) -> Option<(Vec<u8>, CacheTree, &'a [u8])> {
     if depth > DEPTH_LIMIT {
         return None;
@@ -81,7 +96,8 @@ fn write_one(out: &mut Vec<u8>, name: &[u8], tree: &CacheTree) {
 }
 
 impl CacheTree {
-    /// The tree of an extension's bytes, or `None` for any malformed or trailing content (Git would drop the extension).
+    /// The tree of an extension's bytes,
+    /// or `None` for any malformed or trailing content (Git would drop the extension).
     pub fn read(bytes: &[u8], hash_length: usize) -> Option<CacheTree> {
         let (_, tree, rest) = read_one(bytes, hash_length, 0)?;
         if !rest.is_empty() {

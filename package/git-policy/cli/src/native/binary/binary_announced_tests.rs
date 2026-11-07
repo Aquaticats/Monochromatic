@@ -1,7 +1,11 @@
 //! What:
-//!  The text the built executable adds after real Git's answer to `--version`, `-v`, `--help` and `-h`.
+//!  The text the built executable adds after real Git's answer to `--version`,
+//! `-v`,
+//! `--help` and `-h`.
 //! Why:
-//!  A caller must see Git's own output byte for byte, then the wrapper's lines, and must see nothing added
+//!  A caller must see Git's own output byte for byte,
+//! then the wrapper's lines,
+//! and must see nothing added
 //!  when Git itself failed.
 //!
 //! In TS you'd write (pseudocode):
@@ -15,7 +19,8 @@ use super::support::{Fixture, Observed, REAL_GIT, bounded, direct, executable, f
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-/// The crate version, read where the test is compiled.
+/// The crate version,
+/// read where the test is compiled.
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The banner of `--version` and `-v` for this Git path.
@@ -35,14 +40,17 @@ fn help_section(real_git: &Path) -> String {
     );
 }
 
-/// Real Git's answer to these arguments and the wrapper's answer, run in the fixture root.
+/// Real Git's answer to these arguments and the wrapper's answer,
+/// run in the fixture root.
 fn answers(fixture: &Fixture, arguments: &[&str]) -> (Observed, Observed) {
     let through_wrapper: Observed = observe(wrapped(fixture).current_dir(&fixture.root).args(arguments), b"");
     let through_git: Observed = observe(direct(fixture).current_dir(&fixture.root).args(arguments), b"");
     return (through_wrapper, through_git);
 }
 
-/// Both version spellings, with and without a global prefix, add one banner line after Git's line.
+/// Both version spellings,
+/// with and without a global prefix,
+/// add one banner line after Git's line.
 #[test]
 fn version_spellings_add_one_banner_line() {
     let fixture: Fixture = fixture("announce-version");
@@ -117,7 +125,8 @@ fn a_failing_git_prints_nothing_extra() {
 }
 
 /// Positive control for the control above:
-///  the same stand-in exiting 0 gets the text, naming the stand-in as the Git it shadows.
+///  the same stand-in exiting 0 gets the text,
+/// naming the stand-in as the Git it shadows.
 #[test]
 fn a_succeeding_stand_in_gets_the_text_naming_its_path() {
     for (name, arguments, version) in [
@@ -138,7 +147,8 @@ fn a_succeeding_stand_in_gets_the_text_naming_its_path() {
 }
 
 /// A subcommand's own help is untouched:
-///  it is not a top-level query, so no section follows it.
+///  it is not a top-level query,
+/// so no section follows it.
 #[test]
 fn subcommand_help_stays_exact() {
     let fixture: Fixture = fixture("announce-subcommand");

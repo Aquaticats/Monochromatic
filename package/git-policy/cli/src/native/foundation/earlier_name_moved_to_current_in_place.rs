@@ -6,12 +6,19 @@
 //!  moved there from its earlier name with one atomic rename in the same folder.
 //! Why:
 //!  The owner renamed the folders and files the wrapper keeps inside the Git directory and said "never discard user data"
-//!  (`doc/planning/git-policy-cli-program-rename.md`). One rename that refuses to replace copies nothing and leaves no
-//!  second name; a process that loses the race finds the winner's result; a failure is a notice and never an error,
-//!  because "commits should never fail". When both names exist the current one is used and the fold of the earlier one into it
+//!  (`doc/planning/git-policy-cli-program-rename.md`).
+//! One rename that refuses to replace copies nothing and leaves no
+//!  second name;
+//! a process that loses the race finds the winner's result;
+//! a failure is a notice and never an error,
+//!  because "commits should never fail".
+//! When both names exist the current one is used and the fold of the earlier one into it
 //!  (`earlier_names_folded_into_current.rs`) takes over.
-//!  No lock is taken: the kernel serializes the rename, and a crash between the check and the rename leaves the earlier
-//!  name, which the next run moves.
+//!  No lock is taken:
+//! the kernel serializes the rename,
+//! and a crash between the check and the rename leaves the earlier
+//!  name,
+//! which the next run moves.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

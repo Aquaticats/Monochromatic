@@ -23,8 +23,12 @@ use std::sync::{Mutex, PoisonError};
 
 // What:     `fn temp_cache(tag: &str) -> PathBuf`. A fresh throwaway cache-file path.
 // Why:      Point the cache at disposable state, never the real config dir.
-/// What: `fn sweep_job(tracks, cache) -> SweepJob` builds a sweep with no current track and no sink.
-/// Why: the sweep tests check the cache, not the reports, so the reports go nowhere.
+/// What:
+/// `fn sweep_job(tracks, cache) -> SweepJob` builds a sweep with no current track and no sink.
+/// Why:
+/// the sweep tests check the cache,
+/// not the reports,
+/// so the reports go nowhere.
 fn sweep_job(tracks: Vec<PathBuf>, cache: CacheHandle) -> SweepJob {
     return SweepJob {
         tracks,
@@ -171,8 +175,11 @@ fn parallel_sweep_measures_every_track() {
     let _ = std::fs::remove_file(path.with_extension("db-shm"));
 }
 
-/// What: `collecting_sink` builds a sink that keeps every report, and the list it fills.
-/// Why: the gate tests read the progress reports to tell a finished sweep from a parked one.
+/// What:
+/// `collecting_sink` builds a sink that keeps every report,
+/// and the list it fills.
+/// Why:
+/// the gate tests read the progress reports to tell a finished sweep from a parked one.
 fn collecting_sink() -> (SweepSink, Arc<Mutex<Vec<SweepReport>>>) {
     let reports = Arc::new(Mutex::new(Vec::new()));
     let log = Arc::clone(&reports);
@@ -182,8 +189,11 @@ fn collecting_sink() -> (SweepSink, Arc<Mutex<Vec<SweepReport>>>) {
     return (sink, reports);
 }
 
-/// What: `final_progress_seen` is true once the sweep has reported `done == total` for `total` tracks.
-/// Why: the coordinator sends that report after every worker has been joined, so it marks the sweep's end.
+/// What:
+/// `final_progress_seen` is true once the sweep has reported `done == total` for `total` tracks.
+/// Why:
+/// the coordinator sends that report after every worker has been joined,
+/// so it marks the sweep's end.
 fn final_progress_seen(reports: &Arc<Mutex<Vec<SweepReport>>>, total: usize) -> bool {
     return reports
         .lock()
@@ -192,8 +202,10 @@ fn final_progress_seen(reports: &Arc<Mutex<Vec<SweepReport>>>, total: usize) -> 
         .any(|report| return matches!(report, SweepReport::Progress { done, total: all, .. } if *done == total && *all == total));
 }
 
-/// What: `three_fixture_tracks` lists three short decodable fixtures.
-/// Why: the gate tests need a few distinct tracks to claim.
+/// What:
+/// `three_fixture_tracks` lists three short decodable fixtures.
+/// Why:
+/// the gate tests need a few distinct tracks to claim.
 fn three_fixture_tracks() -> Vec<PathBuf> {
     return vec![
         PathBuf::from("fixture/tone.flac"),
@@ -202,8 +214,11 @@ fn three_fixture_tracks() -> Vec<PathBuf> {
     ];
 }
 
-/// What: `wait_for` polls `condition` every 25 ms up to `seconds` seconds.
-/// Why: the sweep runs on detached threads, so tests wait for its effects.
+/// What:
+/// `wait_for` polls `condition` every 25 ms up to `seconds` seconds.
+/// Why:
+/// the sweep runs on detached threads,
+/// so tests wait for its effects.
 fn wait_for(seconds: u64, mut condition: impl FnMut() -> bool) -> bool {
     for _ in 0..(seconds * 40) {
         if condition() {
@@ -296,8 +311,10 @@ fn closing_the_gate_while_paused_ends_the_sweep_without_hanging() {
     let _ = std::fs::remove_file(path.with_extension("db-shm"));
 }
 
-/// What: `peak_reports_for` counts the measures with a true peak that the reports carry for tracks whose path ends with `name`.
-/// Why: one such measure is one decode of that file.
+/// What:
+/// `peak_reports_for` counts the measures with a true peak that the reports carry for tracks whose path ends with `name`.
+/// Why:
+/// one such measure is one decode of that file.
 fn peak_reports_for(reports: &Arc<Mutex<Vec<SweepReport>>>, name: &str) -> usize {
     return reports
         .lock()
@@ -393,9 +410,15 @@ fn a_file_that_cannot_be_decoded_is_tried_again_by_the_next_sweep_of_the_same_lo
     let _ = std::fs::remove_file(&path);
 }
 
-/// What: `lower_current_thread_to_idle` leaves the calling thread, and only that thread, in `SCHED_IDLE`.
-/// Why: musl's `sched_setscheduler` wrapper always fails with ENOSYS, so a call through the C library would leave
-/// the sweep at normal priority on Alpine while still passing on glibc; reading the policy back from the kernel
+/// What:
+/// `lower_current_thread_to_idle` leaves the calling thread,
+/// and only that thread,
+/// in `SCHED_IDLE`.
+/// Why:
+/// musl's `sched_setscheduler` wrapper always fails with ENOSYS,
+/// so a call through the C library would leave
+/// the sweep at normal priority on Alpine while still passing on glibc;
+/// reading the policy back from the kernel
 /// proves the direct system call took effect on whichever libc the test runs on.
 #[cfg(target_os = "linux")]
 #[test]

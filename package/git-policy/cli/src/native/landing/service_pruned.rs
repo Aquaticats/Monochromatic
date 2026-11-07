@@ -1,19 +1,38 @@
 //! What:
 //!  How a commit headed for the service notices that the content it prepared was removed from the repository before it
-//!  landed: the policy read that fails on a missing object, the check of the request's objects after the service could not
-//!  land it, and the numbered phase markers a test uses to remove content at a chosen instant.
+//!  landed:
+//! the policy read that fails on a missing object,
+//! the check of the request's objects after the service could not
+//!  land it,
+//! and the numbered phase markers a test uses to remove content at a chosen instant.
 //! Why:
-//!  A commit's blobs, trees and commit object are unreferenced until the branch moves, and `git gc --prune=now` deletes every
-//!  unreferenced object at once. The Git manual for `git gc` (the installed 2.56.0 manual and
-//!  <https://git-scm.com/docs/git-gc>, section NOTES, checked 2026-11-01) says: "when git gc runs concurrently with another
-//!  process, there is a risk of it deleting an object that the other process is using but hasn't created a reference to.
+//!  A commit's blobs,
+//! trees and commit object are unreferenced until the branch moves,
+//! and `git gc --prune=now` deletes every
+//!  unreferenced object at once.
+//! The Git manual for `git gc` (the installed 2.56.0 manual and
+//!  <https://git-scm.com/docs/git-gc>,
+//! section NOTES,
+//! checked 2026-11-01) says:
+//! "when git gc runs concurrently with another
+//!  process,
+//! there is a risk of it deleting an object that the other process is using but hasn't created a reference to.
 //!  This may just cause the other process to fail or may corrupt the repository if the other process later adds a
-//!  reference to the deleted object", and for the option itself: "--prune=now prunes loose objects regardless of their age
-//!  and increases the risk of corruption if another process is writing to the repository concurrently". Git's own
-//!  mitigation is the two-week grace of the default `--prune` date, which `--prune=now` removes. This commit path therefore
-//!  says plainly what happened and what to do (`ClientFailure::ContentPruned`), instead of showing a policy event for a
-//!  machine or a failure of the service. It does not prepare the commit again: the bytes the command captured are what is
-//!  gone, and reading the worktree again would commit whatever it holds by then.
+//!  reference to the deleted object",
+//! and for the option itself:
+//! "--prune=now prunes loose objects regardless of their age
+//!  and increases the risk of corruption if another process is writing to the repository concurrently".
+//! Git's own
+//!  mitigation is the two-week grace of the default `--prune` date,
+//! which `--prune=now` removes.
+//! This commit path therefore
+//!  says plainly what happened and what to do (`ClientFailure::ContentPruned`),
+//! instead of showing a policy event for a
+//!  machine or a failure of the service.
+//! It does not prepare the commit again:
+//! the bytes the command captured are what is
+//!  gone,
+//! and reading the worktree again would commit whatever it holds by then.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -37,14 +56,17 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli-service";
 
-/// Counts how often this process reached `ServiceStaged`, which numbers the marker files of a commit prepared again.
+/// Counts how often this process reached `ServiceStaged`,
+/// which numbers the marker files of a commit prepared again.
 static STAGED_REACHED: AtomicU64 = AtomicU64::new(0);
 
 /// Counts how often this process reached `ServicePrepared`.
 static PREPARED_REACHED: AtomicU64 = AtomicU64::new(0);
 
 /// What:
-///  Whether an event says the content to check was removed: an engine failure that the content is unavailable, naming a missing object.
+///  Whether an event says the content to check was removed:
+/// an engine failure that the content is unavailable,
+/// naming a missing object.
 /// Why:
 ///  `content_was_removed` asks it of every event of a check.
 ///
@@ -62,8 +84,10 @@ fn is_removed_content(event: &PolicyEvent) -> bool {
 /// What:
 ///  Whether a policy run stopped because an object it had to read is missing from the repository.
 /// Why:
-///   That is the instant a pruning `git gc` is seen from the policies; preparing the commit again writes the content anew.
-///   Other content failures (a Git that did not start, an object of the wrong kind) are not this and keep their event.
+///   That is the instant a pruning `git gc` is seen from the policies;
+/// preparing the commit again writes the content anew.
+///   Other content failures (a Git that did not start,
+/// an object of the wrong kind) are not this and keep their event.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -84,11 +108,13 @@ pub const CLOSURE_ENTRY_BUDGET: usize = 5_000_000;
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ClosureEnd {
-    /// Every tree and blob below every root is present, or is left to Git as unreadable.
+    /// Every tree and blob below every root is present,
+    /// or is left to Git as unreadable.
     Intact,
     /// An object below a root is gone from the object store.
     Missing,
-    /// The budget ran out first, so nothing is known about the rest.
+    /// The budget ran out first,
+    /// so nothing is known about the rest.
     OutOfBudget,
 }
 
@@ -97,21 +123,40 @@ enum ClosureEnd {
 struct ClosureWalk {
     /// How it ended.
     end: ClosureEnd,
-    /// Entries and trees examined, which is what the budget counts.
+    /// Entries and trees examined,
+    /// which is what the budget counts.
     examined: usize,
 }
 
 /// What:
-///  Whether a tree, a tree below it or a blob in any of them is gone from the object store, for every root of a batch.
+///  Whether a tree,
+/// a tree below it or a blob in any of them is gone from the object store,
+/// for every root of a batch.
 /// Why:
-///   An amendment carries a whole tree and no list of blobs, and a prune can remove a blob from under a tree that survives
-///  until the branch moves. One work stack and one set of examined objects serve the whole batch, so a tree that several
-///  requests share (the usual amendment batch changes few files of one large tree) is walked once, and a blob that several
-///  trees list is looked up once: the cost is linear in the batch's distinct objects, with no recursion. A found loss ends
-///  the whole walk, so a shared set never hides one. The budget counts every tree and entry examined, not only distinct
-///  trees; when it runs out the answer is "not known", as for an object that cannot be read here, because holding the
-///  landing for an unbounded walk delays every later commit of the worktree. A submodule entry names a commit of another
-///  repository and is skipped, and an object that is present but cannot be read here (unreadable, beyond the reader's size
+///   An amendment carries a whole tree and no list of blobs,
+/// and a prune can remove a blob from under a tree that survives
+///  until the branch moves.
+/// One work stack and one set of examined objects serve the whole batch,
+/// so a tree that several
+///  requests share (the usual amendment batch changes few files of one large tree) is walked once,
+/// and a blob that several
+///  trees list is looked up once:
+/// the cost is linear in the batch's distinct objects,
+/// with no recursion.
+/// A found loss ends
+///  the whole walk,
+/// so a shared set never hides one.
+/// The budget counts every tree and entry examined,
+/// not only distinct
+///  trees;
+/// when it runs out the answer is "not known",
+/// as for an object that cannot be read here,
+/// because holding the
+///  landing for an unbounded walk delays every later commit of the worktree.
+/// A submodule entry names a commit of another
+///  repository and is skipped,
+/// and an object that is present but cannot be read here (unreadable,
+/// beyond the reader's size
 ///  limit) is left to Git.
 ///
 /// In TS you'd write (pseudocode):
@@ -164,7 +209,9 @@ fn walk_tree_closures(database: &ObjectDatabase, roots: &[&str], format: ObjectF
     return ClosureWalk { end: ClosureEnd::Intact, examined };
 }
 
-/// Whether the walk found a loss; an exhausted budget is logged and counts as "not known", which is `false`.
+/// Whether the walk found a loss;
+/// an exhausted budget is logged and counts as "not known",
+/// which is `false`.
 fn tree_closures_missing(database: &ObjectDatabase, roots: &[&str], format: ObjectFormat) -> bool {
     let walk: ClosureWalk = walk_tree_closures(database, roots, format, CLOSURE_ENTRY_BUDGET);
     if walk.end == ClosureEnd::OutOfBudget {
@@ -174,12 +221,18 @@ fn tree_closures_missing(database: &ObjectDatabase, roots: &[&str], format: Obje
 }
 
 /// What:
-///  Whether an object the request depends on (a blob it names, the tree of an amend with everything below it, the commit
+///  Whether an object the request depends on (a blob it names,
+/// the tree of an amend with everything below it,
+/// the commit
 ///  Git built) is gone from the object store the client wrote it to.
 /// Why:
-///   When the service cannot land a request it answers with a general failure; whether the cause is removed content is
-///  something only the objects can say, and reading them here starts no Git. A store the in-process reader cannot open
-///  answers `false`, which leaves the general failure as it is.
+///   When the service cannot land a request it answers with a general failure;
+/// whether the cause is removed content is
+///  something only the objects can say,
+/// and reading them here starts no Git.
+/// A store the in-process reader cannot open
+///  answers `false`,
+/// which leaves the general failure as it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -207,9 +260,11 @@ pub fn prepared_content_missing(common_dir: &Path, objects_dir: &Path, object_fo
 }
 
 /// What:
-///  The blob a change names, nothing for a deletion.
+///  The blob a change names,
+/// nothing for a deletion.
 /// Why:
-///  The objects a request depends on are its blobs, its tree and its commit.
+///  The objects a request depends on are its blobs,
+/// its tree and its commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -222,7 +277,8 @@ fn blob_of_change(change: &Change) -> Option<&str> {
 /// What:
 ///  Whether the loose object file of a name is in the objects directory.
 /// Why:
-///  A loose object needs no reader of the object store; only the others are looked up in the packs.
+///  A loose object needs no reader of the object store;
+/// only the others are looked up in the packs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -235,10 +291,17 @@ fn is_loose(objects: &std::path::Path, name: &str) -> bool {
 /// What:
 ///  Whether any object the requests of a batch depend on is gone from the repository's object store.
 /// Why:
-///   The landing asks this before it imports anything or moves the branch: `fast-import` dies on a missing blob and leaves a
-///  crash report in the Git directory, and Git moves a branch to a commit whose objects are gone without looking. Loose
-///  objects are found with one lookup each; the packs are opened only when an object is not loose. A store the in-process
-///  reader cannot open answers `false`, which leaves the decision to Git, as for the client's own check.
+///   The landing asks this before it imports anything or moves the branch:
+/// `fast-import` dies on a missing blob and leaves a
+///  crash report in the Git directory,
+/// and Git moves a branch to a commit whose objects are gone without looking.
+/// Loose
+///  objects are found with one lookup each;
+/// the packs are opened only when an object is not loose.
+/// A store the in-process
+///  reader cannot open answers `false`,
+/// which leaves the decision to Git,
+/// as for the client's own check.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -277,10 +340,13 @@ pub fn batch_content_missing(common_dir: &Path, requests: &[&CommitRequest]) -> 
 }
 
 /// What:
-///  Reaches a service-commit phase marker, numbering the files by how often this process reached the phase.
+///  Reaches a service-commit phase marker,
+/// numbering the files by how often this process reached the phase.
 /// Why:
-///   A commit prepared again reaches each phase again, and a test that removes content at the phase must be able to answer
-///  each time separately (`<phase>-<n>.reached`, `<phase>-<n>.release`).
+///   A commit prepared again reaches each phase again,
+/// and a test that removes content at the phase must be able to answer
+///  each time separately (`<phase>-<n>.reached`,
+/// `<phase>-<n>.release`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,19 +1,41 @@
 //! What:
-//!  Keeps the lease of the claims one service instance holds fresh while it works, so a claim is taken over only when its holder
-//!  stopped, never because its holder is slow, and tells the holder when its claim was taken over anyway.
+//!  Keeps the lease of the claims one service instance holds fresh while it works,
+//! so a claim is taken over only when its holder
+//!  stopped,
+//! never because its holder is slow,
+//! and tells the holder when its claim was taken over anyway.
 //! Why:
 //!  A claim's lease starts at the clock reading in its file name and the other instances run a claim again once the lease ran
-//!  out. A push can take longer than any fixed lease, and an item can wait behind other claimed work; a claim that is never
-//!  renewed would make both look abandoned. A holder that dies stops renewing, so its claims still expire, and no lock file is
-//!  involved: the claim's file name is the whole protocol. A renewal renames the claim from the name the renewal last wrote, so
-//!  it can only reach its own claim, and a claim that was taken over is found gone instead of being renewed or settled on
+//!  out.
+//! A push can take longer than any fixed lease,
+//! and an item can wait behind other claimed work;
+//! a claim that is never
+//!  renewed would make both look abandoned.
+//! A holder that dies stops renewing,
+//! so its claims still expire,
+//! and no lock file is
+//!  involved:
+//! the claim's file name is the whole protocol.
+//! A renewal renames the claim from the name the renewal last wrote,
+//! so
+//!  it can only reach its own claim,
+//! and a claim that was taken over is found gone instead of being renewed or settled on
 //!  another instance's behalf.
-//!  Claim kept: the lease stays because a killed holder's claims are recognised as abandoned only by their reading (no process
-//!  identity or lock file is involved), and because the linked worktrees of a bare repository drain one common directory.
-//!  No lock is held in the process either. The renewal thread is the one owner of the claims' current names (the drain never
-//!  renames a claim except to settle it); the drain tells the thread of a claim it takes over a channel, and the two share only
-//!  atomic flags per claim. A settlement finds the claim's file by its id and generation, which a renewal never changes, and
-//!  asks again when a renewal renamed the file between the look and the rename, so neither side ever waits for the other.
+//!  Claim kept:
+//! the lease stays because a killed holder's claims are recognised as abandoned only by their reading (no process
+//!  identity or lock file is involved),
+//! and because the linked worktrees of a bare repository drain one common directory.
+//!  No lock is held in the process either.
+//! The renewal thread is the one owner of the claims' current names (the drain never
+//!  renames a claim except to settle it);
+//! the drain tells the thread of a claim it takes over a channel,
+//! and the two share only
+//!  atomic flags per claim.
+//! A settlement finds the claim's file by its id and generation,
+//! which a renewal never changes,
+//! and
+//!  asks again when a renewal renamed the file between the look and the rename,
+//! so neither side ever waits for the other.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,12 +52,15 @@ use std::sync::{Arc, OnceLock};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-/// How many times inside one lease a holder renews, so a renewal that is late by up to two intervals still beats the lease.
+/// How many times inside one lease a holder renews,
+/// so a renewal that is late by up to two intervals still beats the lease.
 pub const RENEWALS_PER_LEASE: u32 = 3;
 
 /// How many times a look for a claim's file is repeated before the claim is called gone.
-/// A rename inside a directory during a listing can make the listing miss the entry once, and a renewal renames the claim at most
-/// once per interval, so a claim that is still there is found within a few looks.
+/// A rename inside a directory during a listing can make the listing miss the entry once,
+/// and a renewal renames the claim at most
+/// once per interval,
+/// so a claim that is still there is found within a few looks.
 const LOOKS: usize = 3;
 
 /// How often a holder renews its claims for a lease of `lease`:
@@ -50,10 +75,18 @@ pub fn renewal_interval(lease: Duration) -> Duration {
 }
 
 /// What:
-///  One claim this drain holds: its id, its generation, and the two flags the drain and the renewal share.
+///  One claim this drain holds:
+/// its id,
+/// its generation,
+/// and the two flags the drain and the renewal share.
 /// Why:
-///   The id and the generation never change over the claim's life, so they are plain data both sides read; only the file name
-///  changes (with each renewal), and the renewal alone knows it. The flags are atomic, so neither side waits for the other.
+///   The id and the generation never change over the claim's life,
+/// so they are plain data both sides read;
+/// only the file name
+///  changes (with each renewal),
+/// and the renewal alone knows it.
+/// The flags are atomic,
+/// so neither side waits for the other.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -63,31 +96,45 @@ pub fn renewal_interval(lease: Duration) -> Duration {
 struct Claim {
     /// The item's id.
     id: String,
-    /// The claim's generation, the part of its file name that a renewal keeps.
+    /// The claim's generation,
+    /// the part of its file name that a renewal keeps.
     token: String,
-    /// Set by the renewal when the file was not there under the name it last wrote: another instance took the claim over.
+    /// Set by the renewal when the file was not there under the name it last wrote:
+    /// another instance took the claim over.
     lost: AtomicBool,
-    /// Set by the drain when it settled or released the claim, so the renewal stops renewing it.
+    /// Set by the drain when it settled or released the claim,
+    /// so the renewal stops renewing it.
     settled: AtomicBool,
 }
 
-/// A claim the drain took, with the file name it was taken under: what the drain tells the renewal of a new claim.
+/// A claim the drain took,
+/// with the file name it was taken under:
+/// what the drain tells the renewal of a new claim.
 type Taken = (Arc<Claim>, String);
 
 /// What a controller tells the renewal thread.
 enum Control {
-    /// Renew every claim held now at this reading, and say so on the channel when done, if one is given.
+    /// Renew every claim held now at this reading,
+    /// and say so on the channel when done,
+    /// if one is given.
     Renew(ClaimTime, Option<SyncSender<()>>),
     /// Stop the thread.
     Stop,
 }
 
 /// What:
-///  The claims one drain holds right now, kept by the drain thread, which alone settles them.
+///  The claims one drain holds right now,
+/// kept by the drain thread,
+/// which alone settles them.
 /// Why:
-///   The drain must refuse to run an item whose claim was taken over, and settle a claim under the name it has now. The list is
-///  the drain thread's own, so nothing locks it; what the renewal thread learns of a claim reaches the drain as the claim's
-///  flags, and what the drain learns of a new claim reaches the renewal as a command.
+///   The drain must refuse to run an item whose claim was taken over,
+/// and settle a claim under the name it has now.
+/// The list is
+///  the drain thread's own,
+/// so nothing locks it;
+/// what the renewal thread learns of a claim reaches the drain as the claim's
+///  flags,
+/// and what the drain learns of a new claim reaches the renewal as a command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -95,16 +142,21 @@ enum Control {
 /// ```
 #[derive(Debug)]
 pub struct HeldClaims {
-    /// The claims held, in the order they were taken.
+    /// The claims held,
+    /// in the order they were taken.
     claims: RefCell<Vec<Arc<Claim>>>,
     /// The way to tell the renewal of a claim just taken.
     holds: Sender<Taken>,
 }
 
 /// What:
-///  The renewal's half of a drain's claims: the names it last wrote, and the way the drain tells it of new ones.
+///  The renewal's half of a drain's claims:
+/// the names it last wrote,
+/// and the way the drain tells it of new ones.
 /// Why:
-///   Only the renewal renames a held claim, so only it needs the current name; the drain finds the file by id and generation.
+///   Only the renewal renames a held claim,
+/// so only it needs the current name;
+/// the drain finds the file by id and generation.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -115,11 +167,13 @@ pub struct Renewer {
     work_dir: PathBuf,
     /// The claims the drain took.
     holds: Receiver<Taken>,
-    /// The claims being kept fresh, each with the file name this renewer last wrote.
+    /// The claims being kept fresh,
+    /// each with the file name this renewer last wrote.
     names: Vec<(Arc<Claim>, String)>,
 }
 
-/// The two halves of the claims of a drain of `work_dir`: the drain's list and the renewer that keeps them fresh.
+/// The two halves of the claims of a drain of `work_dir`:
+/// the drain's list and the renewer that keeps them fresh.
 pub fn held_claims(work_dir: &Path) -> (HeldClaims, Renewer) {
     let (holds, taken) = channel::<Taken>();
     return (
@@ -131,7 +185,8 @@ pub fn held_claims(work_dir: &Path) -> (HeldClaims, Renewer) {
 /// What:
 ///  Whether a held claim is still unsettled.
 /// Why:
-///  The renewal drops the claims the drain settled, and `Vec::retain` hands each entry to a function.
+///  The renewal drops the claims the drain settled,
+/// and `Vec::retain` hands each entry to a function.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -156,10 +211,13 @@ fn names_claim(name: &str, claim: &Claim) -> bool {
 }
 
 /// What:
-///  The file name that holds `claim` in `claimed` now, or nothing when no file does.
+///  The file name that holds `claim` in `claimed` now,
+/// or nothing when no file does.
 /// Why:
-///   A renewal changes the reading in the name and nothing else, so the id and the generation find the claim whatever its
-///  reading is, and a claim that was taken over and claimed again by another instance has another generation and is not found.
+///   A renewal changes the reading in the name and nothing else,
+/// so the id and the generation find the claim whatever its
+///  reading is,
+/// and a claim that was taken over and claimed again by another instance has another generation and is not found.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -183,7 +241,8 @@ fn current_name(work_dir: &Path, claim: &Claim) -> Option<String> {
 
 /// Methods over the held claims.
 impl HeldClaims {
-    /// Add a claim the drain took, and tell the renewal thread to keep it fresh.
+    /// Add a claim the drain took,
+    /// and tell the renewal thread to keep it fresh.
     pub fn hold(&self, claimed: &Claimed) {
         // A claim by an earlier release has no generation, so its token is empty.
         let token: String = match parse_claim_name(claimed.name.as_str()) {
@@ -196,7 +255,8 @@ impl HeldClaims {
         let _sent = self.holds.send((claim, claimed.name.clone()));
     }
 
-    /// Forget a claim the drain gave up, so it is no longer renewed.
+    /// Forget a claim the drain gave up,
+    /// so it is no longer renewed.
     pub fn release(&self, id: &str) {
         // The claims of other ids are kept in order; the ones of this id are marked settled and dropped.
         let mut claims = self.claims.borrow_mut();
@@ -211,7 +271,8 @@ impl HeldClaims {
         *claims = kept;
     }
 
-    /// The ids held at this moment, including claims found taken over.
+    /// The ids held at this moment,
+    /// including claims found taken over.
     pub fn snapshot(&self) -> Vec<String> {
         let mut ids: Vec<String> = Vec::new();
         for claim in self.claims.borrow().iter() {
@@ -231,7 +292,8 @@ impl HeldClaims {
     }
 
     /// What:
-    ///  Whether the claim of `id` is held and its file is in `claimed` now, found by its id and generation.
+    ///  Whether the claim of `id` is held and its file is in `claimed` now,
+    /// found by its id and generation.
     /// Why:
     ///   A renewal that has not run since another instance took the claim over has not found it gone,
     /// so the flag of `is_held` still says held.
@@ -267,11 +329,19 @@ impl HeldClaims {
     }
 
     /// What:
-    ///  Move the claim of `id` to `state` and stop holding it; an error says so when another instance took the claim over.
+    ///  Move the claim of `id` to `state` and stop holding it;
+    /// an error says so when another instance took the claim over.
     /// Why:
-    ///   The rename names the claim's current file, found by its generation, so a claim that was taken over, or taken over and
-    ///  claimed again by another instance, is not moved: that instance's work is its own to settle. A renewal that renames the
-    ///  file between the look and the rename makes the rename find nothing, and the look is made again.
+    ///   The rename names the claim's current file,
+    /// found by its generation,
+    /// so a claim that was taken over,
+    /// or taken over and
+    ///  claimed again by another instance,
+    /// is not moved:
+    /// that instance's work is its own to settle.
+    /// A renewal that renames the
+    ///  file between the look and the rename makes the rename find nothing,
+    /// and the look is made again.
     pub fn settle(&self, work_dir: &Path, id: &str, state: &str) -> Result<(), String> {
         let claim: Arc<Claim> = {
             let mut claims = self.claims.borrow_mut();
@@ -313,7 +383,9 @@ impl Renewer {
         }
     }
 
-    /// Renew every claim held at the reading `now`; a claim whose file is not there under its name is marked taken over, and a
+    /// Renew every claim held at the reading `now`;
+    /// a claim whose file is not there under its name is marked taken over,
+    /// and a
     /// claim the drain settled is dropped.
     pub fn renew(&mut self, now: &ClaimTime) {
         self.take_in();
@@ -329,7 +401,8 @@ impl Renewer {
         }
     }
 
-    /// The file names of the claims being kept fresh, as this renewer last wrote them.
+    /// The file names of the claims being kept fresh,
+    /// as this renewer last wrote them.
     pub fn names(&mut self) -> Vec<String> {
         self.take_in();
         let mut names: Vec<String> = Vec::new();
@@ -354,7 +427,8 @@ pub enum Renewal<'a> {
 }
 
 /// What:
-///  The way a control renews the claims of a drain it started, at the reading it chooses.
+///  The way a control renews the claims of a drain it started,
+/// at the reading it chooses.
 /// Why:
 ///   The renewal thread's timing is real time,
 /// and a control of what a renewal protects cannot be told apart from a slow host by waiting.
@@ -366,18 +440,22 @@ pub enum Renewal<'a> {
 /// ```
 #[derive(Debug, Default)]
 pub struct DrivenRenewal {
-    /// The way to the renewal thread of the drain that registered, once it has. A driver serves one drain.
+    /// The way to the renewal thread of the drain that registered,
+    /// once it has.
+    /// A driver serves one drain.
     ticks: OnceLock<Sender<Control>>,
 }
 
 /// Methods over a driver.
 impl DrivenRenewal {
-    /// Register the renewal thread of a drain; the first drain to register is the one the driver serves.
+    /// Register the renewal thread of a drain;
+    /// the first drain to register is the one the driver serves.
     fn attach(&self, control: Sender<Control>) {
         let _first: Result<(), Sender<Control>> = self.ticks.set(control);
     }
 
-    /// Renew every claim the registered drain holds at the reading `now`, and return once that is done;
+    /// Renew every claim the registered drain holds at the reading `now`,
+    /// and return once that is done;
     /// false when no drain has registered or its thread is gone.
     pub fn renew(&self, now: &ClaimTime) -> bool {
         let Some(control) = self.ticks.get() else { return false };
@@ -387,9 +465,12 @@ impl DrivenRenewal {
 }
 
 /// What:
-///  A running renewal: a thread that stamps every held claim again each interval until this value is dropped.
+///  A running renewal:
+/// a thread that stamps every held claim again each interval until this value is dropped.
 /// Why:
-///   Dropping stops and joins the thread, so a drain that returns or unwinds leaves no thread behind, and a drain that ended
+///   Dropping stops and joins the thread,
+/// so a drain that returns or unwinds leaves no thread behind,
+/// and a drain that ended
 ///  renews nothing.
 ///
 /// In TS you'd write (pseudocode):
@@ -399,11 +480,13 @@ impl DrivenRenewal {
 pub struct ClaimRenewal {
     /// The way to tell the thread to stop.
     control: Sender<Control>,
-    /// The thread, taken when it is joined.
+    /// The thread,
+    /// taken when it is joined.
     worker: Option<JoinHandle<()>>,
 }
 
-/// Does what a controller asked of the renewal thread; whether the thread goes on.
+/// Does what a controller asked of the renewal thread;
+/// whether the thread goes on.
 fn obey(renewer: &mut Renewer, control: Control) -> bool {
     return match control {
         Control::Renew(now, done) => {
@@ -419,7 +502,9 @@ fn obey(renewer: &mut Renewer, control: Control) -> bool {
 
 /// Methods over a renewal.
 impl ClaimRenewal {
-    /// Start renewing the claims the drain tells `renewer` of, every `every`, by the real clock.
+    /// Start renewing the claims the drain tells `renewer` of,
+    /// every `every`,
+    /// by the real clock.
     pub fn start(mut renewer: Renewer, every: Duration) -> ClaimRenewal {
         let (control, requests) = channel::<Control>();
         // A host with no thread to spare renews nothing: the claims then expire with their lease, as for a service that died.
@@ -452,7 +537,9 @@ impl ClaimRenewal {
         return ClaimRenewal { control, worker };
     }
 
-    /// Start the thread of a driven renewal: it renews only when `driver` is told to, and registers with it.
+    /// Start the thread of a driven renewal:
+    /// it renews only when `driver` is told to,
+    /// and registers with it.
     pub fn driven(mut renewer: Renewer, driver: &DrivenRenewal) -> ClaimRenewal {
         let (control, requests) = channel::<Control>();
         driver.attach(control.clone());

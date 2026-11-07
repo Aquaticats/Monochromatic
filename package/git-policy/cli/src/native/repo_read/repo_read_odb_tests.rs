@@ -1,12 +1,17 @@
 //! Differential controls for the in-process object database:
-//!  every object of fixture repositories (loose, packed with deltas, SHA-256, alternates) reads as `git cat-file` prints it,
+//!  every object of fixture repositories (loose,
+//! packed with deltas,
+//! SHA-256,
+//! alternates) reads as `git cat-file` prints it,
 //!  and every repository whose object names mean more than the files say is declined.
 
 use super::*;
 use crate::repo_read_object::{ObjectKind, from_hex};
 use crate::test_support::{fixture, git, git_output, remove};
 
-/// A repository with a large file edited many times (so a repack makes deltas), a subtree, a tag and a merge.
+/// A repository with a large file edited many times (so a repack makes deltas),
+/// a subtree,
+/// a tag and a merge.
 fn history(root: &Path, name: &str, format: &str) -> PathBuf {
     let repo = root.join(name);
     std::fs::create_dir(&repo).expect("dir");
@@ -47,7 +52,8 @@ fn format_of(repo: &Path) -> ObjectFormat {
     return if named.trim() == "sha256" { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
 }
 
-/// Require the database to return every object exactly as Git prints it; returns how many were compared.
+/// Require the database to return every object exactly as Git prints it;
+/// returns how many were compared.
 fn all_equal(repo: &Path, label: &str) -> usize {
     let format = format_of(repo);
     let database = ObjectDatabase::open(repo.join(".git").as_path(), None, format).expect("plain database");
@@ -71,7 +77,10 @@ fn loose_objects_are_read() {
     remove(root.as_path());
 }
 
-/// Packed objects, with deltas, read as Git prints them, in a SHA-1 and a SHA-256 repository.
+/// Packed objects,
+/// with deltas,
+/// read as Git prints them,
+/// in a SHA-1 and a SHA-256 repository.
 #[test]
 fn packed_objects_with_deltas_are_read() {
     let root = fixture("repo-read-odb-packed");
@@ -129,7 +138,10 @@ fn a_damaged_pack_and_a_hostile_alternates_file_are_declined() {
     remove(root.as_path());
 }
 
-/// Replace refs, a shallow file, grafts, a missing object and a damaged loose file are declined.
+/// Replace refs,
+/// a shallow file,
+/// grafts,
+/// a missing object and a damaged loose file are declined.
 #[test]
 fn what_cannot_be_trusted_is_declined() {
     let root = fixture("repo-read-odb-declined");
@@ -163,8 +175,12 @@ fn what_cannot_be_trusted_is_declined() {
     remove(root.as_path());
 }
 
-/// Reading every version of a file kept as one long delta chain decodes each stored entry about once: a base that one read
-/// decoded is not decoded again for the next version. Without that, n versions cost about n squared entry decodes, which is
+/// Reading every version of a file kept as one long delta chain decodes each stored entry about once:
+/// a base that one read
+/// decoded is not decoded again for the next version.
+/// Without that,
+/// n versions cost about n squared entry decodes,
+/// which is
 /// what made the in-process listing of a large repository's trees slower than starting Git.
 #[test]
 fn a_delta_chain_is_decoded_about_once_for_all_its_versions() {
@@ -204,9 +220,15 @@ fn a_delta_chain_is_decoded_about_once_for_all_its_versions() {
     remove(root.as_path());
 }
 
-/// An object that a pack holds is found in the pack without a look at the loose path first: a commit reads about two thousand
-/// objects of its base tree, and each loose look is a system call that fails for a packed object (Git searches packs first, then
-/// the loose files). Positive control: an object that is only loose is still read, after the packs were searched.
+/// An object that a pack holds is found in the pack without a look at the loose path first:
+/// a commit reads about two thousand
+/// objects of its base tree,
+/// and each loose look is a system call that fails for a packed object (Git searches packs first,
+/// then
+/// the loose files).
+/// Positive control:
+/// an object that is only loose is still read,
+/// after the packs were searched.
 #[test]
 fn a_packed_object_is_read_without_looking_for_a_loose_file() {
     let root = fixture("repo-read-odb-pack-first");

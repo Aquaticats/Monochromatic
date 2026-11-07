@@ -1,15 +1,21 @@
-//! Differential controls: the in-process reset and `git reset --no-refresh --pathspec-from-file` run on two copies of one
-//! repository, and the two index files must be equal byte for byte.
+//! Differential controls:
+//! the in-process reset and `git reset --no-refresh --pathspec-from-file` run on two copies of one
+//! repository,
+//! and the two index files must be equal byte for byte.
 //!
-//! `--no-refresh` is the comparison because the in-process update never refreshes: a refresh rewrites the stat data of the
-//! entries a copy's changed inode numbers made stale, which the landing does not want and the fallback command does not do.
+//! `--no-refresh` is the comparison because the in-process update never refreshes:
+//! a refresh rewrites the stat data of the
+//! entries a copy's changed inode numbers made stale,
+//! which the landing does not want and the fallback command does not do.
 
 use super::support::{Edit, Plan, Scene, copy_of, finish, git_reset, git_with, index_bytes, landing_reset, listing, named, scene};
 use super::*;
 use crate::test_support::{git, git_context, git_text};
 use std::path::PathBuf;
 
-/// The two index files after the same reset by Git and in process, equal; `label` names the case.
+/// The two index files after the same reset by Git and in process,
+/// equal;
+/// `label` names the case.
 fn same_as_git(scene: &Scene, names: &[Vec<u8>], label: &str) {
     let copy: PathBuf = copy_of(scene);
     let before: Vec<u8> = index_bytes(scene.repo.as_path());
@@ -31,7 +37,10 @@ const BASE: [(&str, &[u8], bool); 6] = [
     ("z", b"z one\n", false),
 ];
 
-/// Added, changed, removed and renamed paths, and a named path that did not change.
+/// Added,
+/// changed,
+/// removed and renamed paths,
+/// and a named path that did not change.
 #[test]
 fn added_changed_removed_and_renamed_paths_equal_git() {
     let edits: Vec<Edit<'_>> = vec![
@@ -47,7 +56,8 @@ fn added_changed_removed_and_renamed_paths_equal_git() {
     finish(scene);
 }
 
-/// A directory name selects everything below it, in the tree and in the index.
+/// A directory name selects everything below it,
+/// in the tree and in the index.
 #[test]
 fn a_directory_pathspec_selects_what_is_below_it() {
     let edits: Vec<Edit<'_>> = vec![Edit::Delete("d/x"), Edit::Put { path: "d/y", mode: "100644", content: b"y two\n" }, Edit::Put { path: "d/n/m", mode: "100644", content: b"m\n" }];
@@ -56,7 +66,8 @@ fn a_directory_pathspec_selects_what_is_below_it() {
     finish(scene);
 }
 
-/// Mode changes in both directions, content unchanged and changed.
+/// Mode changes in both directions,
+/// content unchanged and changed.
 #[test]
 fn mode_changes_equal_git() {
     let edits: Vec<Edit<'_>> = vec![
@@ -69,7 +80,9 @@ fn mode_changes_equal_git() {
     finish(scene);
 }
 
-/// A new symbolic link, a file that became one, and one that became a file.
+/// A new symbolic link,
+/// a file that became one,
+/// and one that became a file.
 #[test]
 fn symbolic_links_equal_git() {
     let edits: Vec<Edit<'_>> = vec![
@@ -84,7 +97,11 @@ fn symbolic_links_equal_git() {
     finish(scene);
 }
 
-/// Submodule entries: one added, one moved to another commit, one removed, one replaced by a file.
+/// Submodule entries:
+/// one added,
+/// one moved to another commit,
+/// one removed,
+/// one replaced by a file.
 #[test]
 fn submodule_entries_equal_git() {
     let first: String = "1".repeat(40);
@@ -107,7 +124,8 @@ fn submodule_entries_equal_git() {
     finish(scene);
 }
 
-/// Unmerged entries of a path that the pathspec does not name stay as they are, with the extensions Git keeps.
+/// Unmerged entries of a path that the pathspec does not name stay as they are,
+/// with the extensions Git keeps.
 #[test]
 fn an_unmerged_path_outside_the_pathspec_is_left_alone() {
     let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }];
@@ -117,7 +135,9 @@ fn an_unmerged_path_outside_the_pathspec_is_left_alone() {
     finish(scene);
 }
 
-/// Unmerged entries of a named path are replaced by the tree's entry, or removed when the tree has none, and resolve-undo
+/// Unmerged entries of a named path are replaced by the tree's entry,
+/// or removed when the tree has none,
+/// and resolve-undo
 /// records the sides.
 #[test]
 fn unmerged_paths_inside_the_pathspec_equal_git() {
@@ -154,7 +174,8 @@ fn every_index_version_equals_git() {
     }
 }
 
-/// Extended flags: intent-to-add and skip-worktree entries (version 3) and the assume-unchanged bit.
+/// Extended flags:
+/// intent-to-add and skip-worktree entries (version 3) and the assume-unchanged bit.
 #[test]
 fn extended_and_assume_unchanged_flags_equal_git() {
     let edits: Vec<Edit<'_>> = vec![
@@ -172,7 +193,8 @@ fn extended_and_assume_unchanged_flags_equal_git() {
     finish(scene);
 }
 
-/// The cache-tree and the untracked cache are kept and invalidated as Git does, and an fsmonitor extension is dropped because
+/// The cache-tree and the untracked cache are kept and invalidated as Git does,
+/// and an fsmonitor extension is dropped because
 /// the fixture has no monitor.
 #[test]
 fn kept_extensions_equal_git() {
@@ -197,7 +219,9 @@ fn kept_extensions_equal_git() {
     finish(scene);
 }
 
-/// Parse an index, give it an fsmonitor extension that lists its first entry as dirty, and write it back.
+/// Parse an index,
+/// give it an fsmonitor extension that lists its first entry as dirty,
+/// and write it back.
 pub(crate) fn add_monitor_extension(repo: &Path) {
     let path: PathBuf = repo.join(".git").join("index");
     let bytes: Vec<u8> = std::fs::read(&path).expect("index");
@@ -210,7 +234,8 @@ pub(crate) fn add_monitor_extension(repo: &Path) {
     std::fs::write(path, written).expect("index written");
 }
 
-/// `core.untrackedCache=false` makes Git drop the extension while reading; so does the update.
+/// `core.untrackedCache=false` makes Git drop the extension while reading;
+/// so does the update.
 #[test]
 fn a_configuration_that_removes_the_untracked_cache_equals_git() {
     let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }];
@@ -223,7 +248,9 @@ fn a_configuration_that_removes_the_untracked_cache_equals_git() {
     finish(scene);
 }
 
-/// A SHA-256 repository: names, checksum and extensions use the longer hash.
+/// A SHA-256 repository:
+/// names,
+/// checksum and extensions use the longer hash.
 #[test]
 fn a_sha256_repository_equals_git() {
     let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }, Edit::Delete("b")];
@@ -232,7 +259,9 @@ fn a_sha256_repository_equals_git() {
     finish(scene);
 }
 
-/// The follow-up's third way to name paths, the ones that differ between two commits, resets the same entries Git's reset of
+/// The follow-up's third way to name paths,
+/// the ones that differ between two commits,
+/// resets the same entries Git's reset of
 /// `diff-tree`'s list does.
 #[test]
 fn paths_derived_from_two_commits_equal_git() {
@@ -262,7 +291,8 @@ fn a_root_commit_resets_every_path_it_holds() {
     finish(scene);
 }
 
-/// Directories whose names differ in length keep the cache-tree in Git's order (shorter name first), which byte order is not.
+/// Directories whose names differ in length keep the cache-tree in Git's order (shorter name first),
+/// which byte order is not.
 #[test]
 fn directories_of_different_name_lengths_equal_git() {
     let files: [(&str, &[u8], bool); 7] = [("b/x", b"1", false), ("aa/x", b"1", false), ("ab/x", b"1", false), ("c/y", b"1", false), ("longer-name/z", b"1", false), ("longer-name/inner/q", b"1", false), ("top", b"1", false)];
@@ -276,8 +306,11 @@ fn directories_of_different_name_lengths_equal_git() {
 }
 
 /// An intent-to-add entry whose mode and object name equal the tree's (an empty file removed from the index and added again
-/// with `-N`) is no difference to `git reset`: the review expected Git to replace it, and Git 2.56.0 keeps the entry with its
-/// flag, so the update keeps it too and the two index files are equal.
+/// with `-N`) is no difference to `git reset`:
+/// the review expected Git to replace it,
+/// and Git 2.56.0 keeps the entry with its
+/// flag,
+/// so the update keeps it too and the two index files are equal.
 #[test]
 fn an_intent_to_add_entry_equal_to_the_tree_is_left_as_git_leaves_it() {
     let files: [(&str, &[u8], bool); 3] = [("e", b"", false), ("a", b"a one\n", false), ("z", b"z one\n", false)];
@@ -298,7 +331,8 @@ fn an_intent_to_add_entry_equal_to_the_tree_is_left_as_git_leaves_it() {
     finish(scene);
 }
 
-/// The modes of the index file after a reset in `repo` with `core.sharedRepository` set to each value, in Git and in process,
+/// The modes of the index file after a reset in `repo` with `core.sharedRepository` set to each value,
+/// in Git and in process,
 /// under the mask this process runs with (the callers run it in a child process that starts with the mask).
 fn check_shared_modes(label: &str, expectations: &[(&str, u32)]) {
     use std::os::unix::fs::PermissionsExt as _;
@@ -315,8 +349,10 @@ fn check_shared_modes(label: &str, expectations: &[(&str, u32)]) {
     }
 }
 
-/// The index Git writes through its lock file takes the mode `core.sharedRepository` gives it (`adjust_shared_perm`); the
-/// published file has the same mode, under a mask of 077 that narrows what the value widens.
+/// The index Git writes through its lock file takes the mode `core.sharedRepository` gives it (`adjust_shared_perm`);
+/// the
+/// published file has the same mode,
+/// under a mask of 077 that narrows what the value widens.
 #[test]
 fn the_file_mode_with_a_shared_repository_under_a_narrow_mask_equals_git() {
     if crate::umask_child_test_support::ran_in_child(module_path!(), "the_file_mode_with_a_shared_repository_under_a_narrow_mask_equals_git", 0o077) {
@@ -325,8 +361,11 @@ fn the_file_mode_with_a_shared_repository_under_a_narrow_mask_equals_git() {
     check_shared_modes("narrow", &[("group", 0o660), ("all", 0o664), ("0640", 0o640), ("umask", 0o600)]);
 }
 
-/// The same under the usual mask of 022, where a file mode value is narrower than the mask gives: the file is never readable by
-/// the world, and the bytes are never written before its mode is set.
+/// The same under the usual mask of 022,
+/// where a file mode value is narrower than the mask gives:
+/// the file is never readable by
+/// the world,
+/// and the bytes are never written before its mode is set.
 #[test]
 fn the_file_mode_with_a_shared_repository_under_the_usual_mask_equals_git() {
     if crate::umask_child_test_support::ran_in_child(module_path!(), "the_file_mode_with_a_shared_repository_under_the_usual_mask_equals_git", 0o022) {
@@ -342,9 +381,16 @@ fn status_and_diff(repo: &Path) -> (String, String) {
     return (status, diff);
 }
 
-/// After the update without a refresh, entries made from the tree have no stat data, so Git compares the files' bytes: an edit
-/// of a selected or an unselected path, a same-size edit with the old modification time, and an empty file are all seen, and
-/// what a path that matches shows as clean is clean. The output equals the output after real Git's `reset --no-refresh`.
+/// After the update without a refresh,
+/// entries made from the tree have no stat data,
+/// so Git compares the files' bytes:
+/// an edit
+/// of a selected or an unselected path,
+/// a same-size edit with the old modification time,
+/// and an empty file are all seen,
+/// and
+/// what a path that matches shows as clean is clean.
+/// The output equals the output after real Git's `reset --no-refresh`.
 #[test]
 fn later_status_and_diff_are_right_after_a_reset_without_a_refresh() {
     let files: [(&str, &[u8], bool); 5] = [("a", b"a one\n", false), ("b", b"b one\n", false), ("keep", b"keep\n", false), ("empty", b"", false), ("z", b"z one\n", false)];
@@ -379,8 +425,11 @@ fn later_status_and_diff_are_right_after_a_reset_without_a_refresh() {
     finish(scene);
 }
 
-/// Sets the default ACL `u::rwx,g::---,o::---` (with the mask `setfacl` would add) on a directory, the way `setfacl --default
-/// --modify` does, through the extended attribute the kernel keeps it in, so the gate's image needs no ACL tool.
+/// Sets the default ACL `u::rwx,g::---,o::---` (with the mask `setfacl` would add) on a directory,
+/// the way `setfacl --default
+/// --modify` does,
+/// through the extended attribute the kernel keeps it in,
+/// so the gate's image needs no ACL tool.
 fn set_default_acl(directory: &Path) -> std::io::Result<()> {
     use std::os::unix::ffi::OsStrExt as _;
     const ACL_VERSION: u32 = 2;
@@ -405,8 +454,11 @@ fn set_default_acl(directory: &Path) -> std::io::Result<()> {
     return if status == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) };
 }
 
-/// With a default ACL on the Git directory that takes the group's and the world's bits away, Linux gives the file Git creates
-/// the mode 0600 whatever the mask says, and `core.sharedRepository = group` makes it 0660. The published file has the same mode
+/// With a default ACL on the Git directory that takes the group's and the world's bits away,
+/// Linux gives the file Git creates
+/// the mode 0600 whatever the mask says,
+/// and `core.sharedRepository = group` makes it 0660.
+/// The published file has the same mode
 /// (a mask-only calculation would give 0664 and let the world read it).
 #[test]
 fn the_file_mode_under_a_default_acl_equals_git() {

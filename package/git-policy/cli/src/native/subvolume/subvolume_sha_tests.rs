@@ -1,4 +1,6 @@
-//! Controls for the SHA functions: the published vectors of FIPS 180-4 and RFC 3174, and the block boundaries.
+//! Controls for the SHA functions:
+//! the published vectors of FIPS 180-4 and RFC 3174,
+//! and the block boundaries.
 
 use super::*;
 
@@ -7,7 +9,8 @@ fn hex(bytes: &[u8]) -> String {
     return bytes.iter().map(|byte| { return format!("{byte:02x}"); }).collect();
 }
 
-/// The vectors for the empty message, "abc" and the 56-byte two-block message of the standards.
+/// The vectors for the empty message,
+/// "abc" and the 56-byte two-block message of the standards.
 #[test]
 fn sha1_matches_the_published_vectors() {
     assert_eq!(hex(&sha1(b"")), "da39a3ee5e6b4b0d3255bfef95601890afd80709");
@@ -37,8 +40,12 @@ fn a_million_a_characters_hash_to_the_published_values() {
     assert_eq!(hex(&sha256(message.as_slice())), "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0");
 }
 
-/// Lengths around the padding boundaries (55, 56, 63, 64 and 65 bytes) hash without panicking and differ from each
-///  other, which a wrong padding loop would not guarantee.
+/// Lengths around the padding boundaries (55,
+/// 56,
+/// 63,
+/// 64 and 65 bytes) hash without panicking and differ from each
+///  other,
+/// which a wrong padding loop would not guarantee.
 #[test]
 fn the_padding_boundaries_hash_to_distinct_digests() {
     let mut seen: Vec<String> = Vec::new();
@@ -52,7 +59,8 @@ fn the_padding_boundaries_hash_to_distinct_digests() {
     }
 }
 
-/// Bytes from a fixed xorshift sequence, so a failing length can be rebuilt.
+/// Bytes from a fixed xorshift sequence,
+/// so a failing length can be rebuilt.
 fn pseudo_random(length: usize, seed: u64) -> Vec<u8> {
     let mut state: u64 = seed | 1;
     let mut bytes: Vec<u8> = Vec::with_capacity(length);
@@ -66,7 +74,8 @@ fn pseudo_random(length: usize, seed: u64) -> Vec<u8> {
     return bytes;
 }
 
-/// What the system's `sha1sum` prints for `bytes`, the reference these controls compare with.
+/// What the system's `sha1sum` prints for `bytes`,
+/// the reference these controls compare with.
 fn reference_sha1(bytes: Vec<u8>) -> String {
     use std::io::Write as _;
     let mut command: std::process::Command = std::process::Command::new("sha1sum");
@@ -80,7 +89,16 @@ fn reference_sha1(bytes: Vec<u8>) -> String {
     return String::from_utf8(output.stdout).expect("UTF-8").split_whitespace().next().expect("a digest").to_string();
 }
 
-/// Every length from empty to a few blocks, which includes the padding boundaries (55, 56, 63, 64, 65, 119, 120, 127, 128),
+/// Every length from empty to a few blocks,
+/// which includes the padding boundaries (55,
+/// 56,
+/// 63,
+/// 64,
+/// 65,
+/// 119,
+/// 120,
+/// 127,
+/// 128),
 /// equals the system's `sha1sum`.
 #[test]
 fn sha1_equals_the_reference_at_every_length_to_a_few_blocks() {
@@ -100,8 +118,13 @@ fn sha1_equals_the_reference_on_random_multiblock_inputs() {
     }
 }
 
-/// An input longer than 512 MiB, so the bit count passes 32 bits, equals the reference. It hashes the input twice, so it runs
-/// on request: `--run-ignored only`.
+/// An input longer than 512 MiB,
+/// so the bit count passes 32 bits,
+/// equals the reference.
+/// It hashes the input twice,
+/// so it runs
+/// on request:
+/// `--run-ignored only`.
 #[test]
 #[ignore = "hashes 512 MiB twice; run once with --run-ignored only"]
 fn sha1_of_more_than_512_mib_equals_the_reference() {
@@ -109,8 +132,13 @@ fn sha1_of_more_than_512_mib_equals_the_reference() {
     assert_eq!(hex(&sha1(message.as_slice())), reference_sha1(message));
 }
 
-/// The owner's ruling of 2026-11-07 ("Digests: sha1 + sha2") replaces the hand-written compression functions with the published
-///  crates, so the module holds none: no round constant, no rotation, no wrapping addition of words.
+/// The owner's ruling of 2026-11-07 ("Digests:
+/// sha1 + sha2") replaces the hand-written compression functions with the published
+///  crates,
+/// so the module holds none:
+/// no round constant,
+/// no rotation,
+/// no wrapping addition of words.
 #[test]
 fn the_module_holds_no_hand_written_compression_function() {
     let source: &str = include_str!("subvolume_sha.rs");

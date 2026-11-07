@@ -1,20 +1,27 @@
 //! Scheduling priority for the decode thread.
-//!  On Linux, the engine thread asks rtkit (the system daemon PipeWire already uses)
-//!  to raise its nice level. On other platforms the function does nothing.
+//!  On Linux,
+//! the engine thread asks rtkit (the system daemon PipeWire already uses)
+//!  to raise its nice level.
+//! On other platforms the function does nothing.
 //! Why:
 //!  Under CPU load a normal-priority decode thread can get too little time,
-//!  and the ring buffer runs dry. A modest nice raise keeps decoding ahead of the load.
-//!  Real-time scheduling is not requested: it would let a runaway decode starve the desktop.
+//!  and the ring buffer runs dry.
+//! A modest nice raise keeps decoding ahead of the load.
+//!  Real-time scheduling is not requested:
+//! it would let a runaway decode starve the desktop.
 //!
 //! Mental model for a TypeScript reader:
-//!  there is no TS equivalent. This is a request to the OS scheduler,
-//!  made over D-Bus, that changes how often the kernel picks this thread to run.
+//!  there is no TS equivalent.
+//! This is a request to the OS scheduler,
+//!  made over D-Bus,
+//! that changes how often the kernel picks this thread to run.
 
 /// What:
 ///      `pub const DECODE_NICE_LEVEL: i32 = -10;`.
 ///  The nice level requested for the decode thread.
 /// Why:
-///       rtkit allows down to -15 on this host (`MinNiceLevel`); -10 gives the decoder about
+///       rtkit allows down to -15 on this host (`MinNiceLevel`);
+/// -10 gives the decoder about
 ///           nine times the share of a normal thread without taking everything.
 ///
 /// In TS you'd write (pseudocode):
@@ -27,7 +34,8 @@ pub const DECODE_NICE_LEVEL: i32 = -10;
 ///      `pub fn nice_level_is_allowed(nice: i32) -> bool`.
 ///  Whether a nice level is inside the range rtkit accepts (-15 to 0 on Linux).
 /// Why:
-///       Keeps the requested constant honest; a request outside the range would only fail at runtime.
+///       Keeps the requested constant honest;
+/// a request outside the range would only fail at runtime.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,7 +51,8 @@ pub fn nice_level_is_allowed(nice: i32) -> bool {
 ///  Asks rtkit to set the calling thread's nice level to `DECODE_NICE_LEVEL`.
 ///  Returns whether rtkit accepted the request.
 /// Why:
-///       rtkit is the only unprivileged way to lower a nice value, since this user has no RLIMIT_NICE.
+///       rtkit is the only unprivileged way to lower a nice value,
+/// since this user has no RLIMIT_NICE.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -98,9 +107,11 @@ pub fn raise_current_thread_for_decode() -> bool {
 #[cfg(not(target_os = "linux"))]
 /// What:
 ///      `pub fn raise_current_thread_for_decode() -> bool`.
-///  No-op on this platform: always returns `false`.
+///  No-op on this platform:
+/// always returns `false`.
 /// Why:
-///       Only Linux has rtkit; macOS and Windows keep their own scheduling.
+///       Only Linux has rtkit;
+/// macOS and Windows keep their own scheduling.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

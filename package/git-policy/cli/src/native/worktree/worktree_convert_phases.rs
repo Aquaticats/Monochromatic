@@ -1,8 +1,13 @@
 //! What:
-//!  The journaled phases of one worktree conversion: the claim on the stage, the copy and its proof, the swap, the index
+//!  The journaled phases of one worktree conversion:
+//! the claim on the stage,
+//! the copy and its proof,
+//! the swap,
+//! the index
 //!  refresh and the removal of the old tree.
 //! Why:
-//!  Each phase is recorded before the next begins, so a rerun after a kill resumes at the phase the journal names and
+//!  Each phase is recorded before the next begins,
+//! so a rerun after a kill resumes at the phase the journal names and
 //!  nothing is deleted that the journal does not prove this conversion made.
 //!
 //! In TS you'd write (pseudocode):
@@ -27,7 +32,8 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  Everything one conversion needs besides the platform.
 /// Why:
-///   The phases share the same facts, so they travel together.
+///   The phases share the same facts,
+/// so they travel together.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -38,7 +44,8 @@ pub struct Job<'a> {
     pub candidate: &'a Candidate,
     /// The sibling the copy is built at.
     pub converting: PathBuf,
-    /// The journal, updated in step with the phases.
+    /// The journal,
+    /// updated in step with the phases.
     pub journal: Journal,
 }
 
@@ -49,7 +56,8 @@ impl Job<'_> {
         return self.journal.save(self.candidate.admin.as_path());
     }
 
-    /// The directory that holds the worktree and its converting sibling, held open.
+    /// The directory that holds the worktree and its converting sibling,
+    /// held open.
     pub fn parent(&self) -> Result<std::fs::File, MigrateError> {
         return held_parent(self.candidate.path.as_path());
     }
@@ -59,25 +67,31 @@ impl Job<'_> {
         return self.converting.file_name().unwrap_or_default();
     }
 
-    /// The identity of the object at the converting name, if there is one.
+    /// The identity of the object at the converting name,
+    /// if there is one.
     pub fn stage_identity(&self) -> Result<Option<ObjectId>, MigrateError> {
         return stage_identity_of(self.candidate.path.as_path());
     }
 }
 
-/// The identity of the object at `path`, a link not followed, or nothing when it cannot be examined.
+/// The identity of the object at `path`,
+/// a link not followed,
+/// or nothing when it cannot be examined.
 pub fn identity_of_path(path: &Path) -> Option<ObjectId> {
     let parent: std::fs::File = held_parent(path).ok()?;
     return identity_at(&parent, path.file_name()?).ok();
 }
 
-/// The identity, with the birth time, of the directory at `path`.
+/// The identity,
+/// with the birth time,
+/// of the directory at `path`.
 pub fn stage_free_identity(path: &Path) -> Result<ObjectId, MigrateError> {
     let parent: std::fs::File = held_parent(path)?;
     return io_step(identity_at(&parent, path.file_name().unwrap_or_default()), "examine", path);
 }
 
-/// The directory that holds `path`, held open so that names below it mean the same objects for as long as it is held.
+/// The directory that holds `path`,
+/// held open so that names below it mean the same objects for as long as it is held.
 pub fn held_parent(path: &Path) -> Result<std::fs::File, MigrateError> {
     let Some(parent) = path.parent() else {
         return Err(MigrateError::Journal(format!("{} has no parent directory", path.display())));
@@ -85,7 +99,8 @@ pub fn held_parent(path: &Path) -> Result<std::fs::File, MigrateError> {
     return io_step(open_root(parent), "hold the directory of the worktree", parent);
 }
 
-/// The identity of the object at the converting name of `path`, or nothing when the name is free.
+/// The identity of the object at the converting name of `path`,
+/// or nothing when the name is free.
 pub fn stage_identity_of(path: &Path) -> Result<Option<ObjectId>, MigrateError> {
     let converting: PathBuf = converting_path(path);
     let parent: std::fs::File = held_parent(path)?;
@@ -97,11 +112,16 @@ pub fn stage_identity_of(path: &Path) -> Result<Option<ObjectId>, MigrateError> 
 }
 
 /// What:
-///  Make sure the converting subvolume exists and is the one this command made: create it and record its identity, or find
+///  Make sure the converting subvolume exists and is the one this command made:
+/// create it and record its identity,
+/// or find
 ///  the recorded identity at the name.
 /// Why:
-///   A directory at the converting name that the journal has no identity for is foreign, whether someone made it or this
-///  command was killed between creating it and recording it; it is never synced into, exchanged or destroyed.
+///   A directory at the converting name that the journal has no identity for is foreign,
+/// whether someone made it or this
+///  command was killed between creating it and recording it;
+/// it is never synced into,
+/// exchanged or destroyed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,12 +153,16 @@ pub fn ensure_stage(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Inte
     return job.journal.save(job.candidate.admin.as_path());
 }
 
-/// Whether a sync pass changed anything: it copied, deleted, recreated or lost a file or link.
+/// Whether a sync pass changed anything:
+/// it copied,
+/// deleted,
+/// recreated or lost a file or link.
 pub fn pass_changed(stats: &SyncStats) -> bool {
     return stats.files_copied > 0 || stats.deleted > 0 || stats.vanished > 0 || stats.symlinks > 0 || stats.fifos > 0;
 }
 
-/// Fail with the unreadable files a pass could not copy, because a copy that leaves them out would lose them at the swap.
+/// Fail with the unreadable files a pass could not copy,
+/// because a copy that leaves them out would lose them at the swap.
 pub fn require_complete(stats: &SyncStats, path: &Path) -> Result<(), MigrateError> {
     if let Some(first) = stats.unreadable.first() {
         return Err(MigrateError::Journal(format!(
@@ -151,12 +175,14 @@ pub fn require_complete(stats: &SyncStats, path: &Path) -> Result<(), MigrateErr
     return Ok(());
 }
 
-/// Take Git's `index.lock` of the worktree with this conversion's token, or accept the one an earlier run of it took.
+/// Take Git's `index.lock` of the worktree with this conversion's token,
+/// or accept the one an earlier run of it took.
 pub fn hold_index_lock(job: &Job<'_>) -> Result<(), MigrateError> {
     return acquire(job.candidate.admin.join("index.lock").as_path(), job.journal.token.as_str());
 }
 
-/// Remove Git's `index.lock` of the worktree when it holds this conversion's token; a lock that holds other text is a Git
+/// Remove Git's `index.lock` of the worktree when it holds this conversion's token;
+/// a lock that holds other text is a Git
 ///  command's and stays.
 pub fn release_index_lock(job: &Job<'_>) -> Result<(), MigrateError> {
     let lock: PathBuf = job.candidate.admin.join("index.lock");
@@ -171,10 +197,16 @@ pub fn release_index_lock(job: &Job<'_>) -> Result<(), MigrateError> {
 }
 
 /// What:
-///  The copy phase: create the subvolume if needed, copy with cloned data, and prove the copy equals the original.
+///  The copy phase:
+/// create the subvolume if needed,
+/// copy with cloned data,
+/// and prove the copy equals the original.
 /// Why:
-///   It runs again on every resume before the swap, whatever the journal says: `Synced` only records that the copy once
-///  equalled the original, and a writer may have acted since.
+///   It runs again on every resume before the swap,
+/// whatever the journal says:
+/// `Synced` only records that the copy once
+///  equalled the original,
+/// and a writer may have acted since.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -218,7 +250,8 @@ pub fn copy_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interr
 /// What:
 ///  Whether the object at `path` is the old tree this conversion recorded.
 /// Why:
-///   The swap and the removal act only on the object the journal names, wherever it is now.
+///   The swap and the removal act only on the object the journal names,
+/// wherever it is now.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -232,11 +265,15 @@ pub fn is_old_tree(journal: &Journal, path: &Path) -> bool {
 }
 
 /// What:
-///  Which of the two directories holds the old tree: the worktree path (the swap has not happened) or the converting name
+///  Which of the two directories holds the old tree:
+/// the worktree path (the swap has not happened) or the converting name
 ///  (it has).
 /// Why:
-///   The swap is one atomic exchange and the journal is written after it, so a kill between the two leaves the journal one phase
-///  behind; the identity the journal recorded for the old root says where the old tree is now, so a rerun neither exchanges back
+///   The swap is one atomic exchange and the journal is written after it,
+/// so a kill between the two leaves the journal one phase
+///  behind;
+/// the identity the journal recorded for the old root says where the old tree is now,
+/// so a rerun neither exchanges back
 ///  nor loses track.
 ///
 /// In TS you'd write (pseudocode):
@@ -253,18 +290,24 @@ pub fn old_tree_is_at(journal: &Journal, path: &Path, converting: &Path) -> Wher
     return Where::Nowhere;
 }
 
-/// Where the old tree is, relative to the swap.
+/// Where the old tree is,
+/// relative to the swap.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Where {
-    /// At the worktree path: the swap has not happened.
+    /// At the worktree path:
+    /// the swap has not happened.
     AtPath,
-    /// At the converting name: the swap has happened.
+    /// At the converting name:
+    /// the swap has happened.
     AtConverting,
-    /// At neither: something else replaced it.
+    /// At neither:
+    /// something else replaced it.
     Nowhere,
 }
 
-/// The swap phase: exchange the two directories (unless a killed run already did), then record it.
+/// The swap phase:
+/// exchange the two directories (unless a killed run already did),
+/// then record it.
 pub fn swap_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interrupt) -> Result<(), MigrateError> {
     match old_tree_is_at(&job.journal, job.candidate.path.as_path(), job.converting.as_path()) {
         Where::AtPath => {
@@ -289,7 +332,10 @@ pub fn swap_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Interr
     return Ok(());
 }
 
-/// The reasons that still bind just before the swap: a process that appeared, a lock that was taken, a file that changed.
+/// The reasons that still bind just before the swap:
+/// a process that appeared,
+/// a lock that was taken,
+/// a file that changed.
 pub fn refusals_after_lock(_platform: &dyn Platform, candidate: &Candidate) -> Vec<String> {
     let mut reasons: Vec<String> = Vec::new();
     let scan = processes_using(&UseTarget::Inside(candidate.path.as_path()));
@@ -302,7 +348,8 @@ pub fn refusals_after_lock(_platform: &dyn Platform, candidate: &Candidate) -> V
     return reasons;
 }
 
-/// The checks after the swap: the path is the subvolume this command created and its `.git` file holds the bytes it held before.
+/// The checks after the swap:
+/// the path is the subvolume this command created and its `.git` file holds the bytes it held before.
 pub fn verify_swap(platform: &dyn Platform, job: &Job<'_>) -> Result<(), MigrateError> {
     let path: &Path = job.candidate.path.as_path();
     if !platform.is_subvolume_root(path)? {
@@ -320,8 +367,11 @@ pub fn verify_swap(platform: &dyn Platform, job: &Job<'_>) -> Result<(), Migrate
     return Ok(());
 }
 
-/// The index phase: rewrite the stat fields of the index to the files of the subvolume, so the first status stays fast.
-/// A refresh that did not install the new index stops the conversion with the old tree kept, and the journal stays at the swap.
+/// The index phase:
+/// rewrite the stat fields of the index to the files of the subvolume,
+/// so the first status stays fast.
+/// A refresh that did not install the new index stops the conversion with the old tree kept,
+/// and the journal stays at the swap.
 pub fn index_phase(job: &mut Job<'_>, interrupt: &Interrupt, say: &mut dyn LineSink) -> Result<(), MigrateError> {
     let references: Vec<PathBuf> = vec![job.converting.clone()];
     let report = refresh_index_file_report(
@@ -345,13 +395,23 @@ pub fn index_phase(job: &mut Job<'_>, interrupt: &Interrupt, say: &mut dyn LineS
 }
 
 /// What:
-///  The removal phase: keep the old tree when a process still holds it or when the installed tree does not hold all of it, and
-///  otherwise delete it, but only when it is the very directory the journal recorded.
+///  The removal phase:
+/// keep the old tree when a process still holds it or when the installed tree does not hold all of it,
+/// and
+///  otherwise delete it,
+/// but only when it is the very directory the journal recorded.
 /// Why:
-///   The old tree sits at the converting name from the exchange on, so nothing opens it by a name that anything uses; a process
-///  that already held it open is found in the process table. The comparison with the installed tree is read-only and copies
-///  nothing, so an edit made to the installed worktree is never overwritten; a difference keeps the old tree and is reported,
-///  and a person decides which version is wanted. Anything that leaves the old tree in place is an incomplete conversion: the
+///   The old tree sits at the converting name from the exchange on,
+/// so nothing opens it by a name that anything uses;
+/// a process
+///  that already held it open is found in the process table.
+/// The comparison with the installed tree is read-only and copies
+///  nothing,
+/// so an edit made to the installed worktree is never overwritten;
+/// a difference keeps the old tree and is reported,
+///  and a person decides which version is wanted.
+/// Anything that leaves the old tree in place is an incomplete conversion:
+/// the
 ///  journal stays and the run says so.
 ///
 /// In TS you'd write (pseudocode):
@@ -388,7 +448,8 @@ pub fn removal_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Int
     return Ok(());
 }
 
-/// Release the lock and drop the journal, the last step of a finished conversion.
+/// Release the lock and drop the journal,
+/// the last step of a finished conversion.
 pub fn finish(job: &Job<'_>) -> Result<(), MigrateError> {
     release_index_lock(job)?;
     let journal: PathBuf = job.candidate.admin.join(JOURNAL_NAME);

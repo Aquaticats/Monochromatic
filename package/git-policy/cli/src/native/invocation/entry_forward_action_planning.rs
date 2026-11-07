@@ -1,8 +1,12 @@
 //! What:
 //!  Plans what a forwarded Git command does once the wrapper has stripped its own controls:
-//!  plain forward, forward with a settled worktree copy, or forward under the index-writer coordination.
+//!  plain forward,
+//! forward with a settled worktree copy,
+//! or forward under the index-writer coordination.
 //! Why:
-//!  `entry.rs` decides the whole invocation; this part decides only the forwarded command, so each file stays small and
+//!  `entry.rs` decides the whole invocation;
+//! this part decides only the forwarded command,
+//! so each file stays small and
 //!  neither uses the other in a circle.
 //!
 //! In TS you'd write (pseudocode):
@@ -157,10 +161,13 @@ pub(crate) fn forward_action(
 }
 
 /// What:
-///  The plan of a `git worktree add` in a form the cheap-worktree ladder serves, read from the resolved command and the
+///  The plan of a `git worktree add` in a form the cheap-worktree ladder serves,
+/// read from the resolved command and the
 ///  process's working directory.
 /// Why:
-///   The destination is relative to the directory Git starts in, which the global `-C` options move; an unreadable
+///   The destination is relative to the directory Git starts in,
+/// which the global `-C` options move;
+/// an unreadable
 ///  working directory or a form outside the table leaves the command to plain Git.
 ///
 /// In TS you'd write (pseudocode):
@@ -174,11 +181,15 @@ fn plan_worktree_add(command: &ResolvedCommand) -> Option<AddPlan> {
 }
 
 /// What:
-///  The destination of a `git worktree add` in any form of Git's documented options, read from the resolved command and the
+///  The destination of a `git worktree add` in any form of Git's documented options,
+/// read from the resolved command and the
 ///  process's working directory.
 /// Why:
-///   The ignored-state copy goes to the worktree this command created, which the command line names; a form the reading
-///  does not know leaves the destination unknown, and the copy then says it did not run.
+///   The ignored-state copy goes to the worktree this command created,
+/// which the command line names;
+/// a form the reading
+///  does not know leaves the destination unknown,
+/// and the copy then says it did not run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -191,10 +202,13 @@ fn plan_copy_destination(command: &ResolvedCommand) -> Option<PathBuf> {
 }
 
 /// What:
-///  The plan of a plain `git worktree remove <directory>`, read from the resolved command and the process's working
+///  The plan of a plain `git worktree remove <directory>`,
+/// read from the resolved command and the process's working
 ///  directory.
 /// Why:
-///   The directory is relative to where Git starts, which the global `-C` options move; anything else is Git's.
+///   The directory is relative to where Git starts,
+/// which the global `-C` options move;
+/// anything else is Git's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -209,7 +223,8 @@ fn plan_worktree_remove(command: &ResolvedCommand) -> Option<RemovePlan> {
 /// What:
 ///  Whether the forwarded command needs the repository configuration.
 /// Why:
-///   An index writer reads its patience from it; the copy of a main checkout's ignored state reads none,
+///   An index writer reads its patience from it;
+/// the copy of a main checkout's ignored state reads none,
 ///  so a command that only creates a worktree loads nothing.
 ///
 /// In TS you'd write (pseudocode):

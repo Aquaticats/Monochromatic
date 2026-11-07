@@ -1,10 +1,20 @@
 //! What:
-//!  The selection command lines landed through the service, compared field by field with native Git: `-i` and `--include`,
-//!  `-p` and `--patch`, `--interactive`, and `--pathspec-from-file`, and the dry run and the status formats, which need
+//!  The selection command lines landed through the service,
+//! compared field by field with native Git:
+//! `-i` and `--include`,
+//!  `-p` and `--patch`,
+//! `--interactive`,
+//! and `--pathspec-from-file`,
+//! and the dry run and the status formats,
+//! which need
 //!  neither the transaction nor the service.
 //! Why:
-//!  Each of these lines used to be declined to the transaction. Real Git does the staging in the private index, the service
-//!  lands the result, and the person must find the commit, the index and the worktree exactly as native Git leaves them.
+//!  Each of these lines used to be declined to the transaction.
+//! Real Git does the staging in the private index,
+//! the service
+//!  lands the result,
+//! and the person must find the commit,
+//! the index and the worktree exactly as native Git leaves them.
 
 use super::commit::{remove_settled, wrapped_commit};
 use super::service_commit::{Running, start};
@@ -17,12 +27,14 @@ fn write(repo: &Path, name: &str, text: &str) {
     std::fs::write(repo.join(name), text).expect("write");
 }
 
-/// Thirty numbered lines, so an edit at each end is two hunks.
+/// Thirty numbered lines,
+/// so an edit at each end is two hunks.
 fn numbered() -> String {
     return (1..=30).map(|number| { return format!("line {number}\n"); }).collect();
 }
 
-/// A repository with three tracked files, the first long enough to hold two hunks.
+/// A repository with three tracked files,
+/// the first long enough to hold two hunks.
 pub(super) fn base_repository(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     write(&repo, "a.txt", numbered().as_str());
@@ -34,7 +46,8 @@ pub(super) fn base_repository(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
-/// Edits at both ends of the first file, and a staged edit of the second.
+/// Edits at both ends of the first file,
+/// and a staged edit of the second.
 fn two_hunks_and_a_staged_file(fixture: &Fixture, repo: &Path) {
     write(repo, "a.txt", numbered().replace("line 1\n", "line 1 changed\n").replace("line 30\n", "line 30 changed\n").as_str());
     write(repo, "b.txt", "other\nstaged\n");
@@ -68,7 +81,8 @@ fn include_patch_and_interactive_selections_equal_the_native_commit() {
     remove_settled(&fixture);
 }
 
-/// A file named by `--pathspec-from-file` is committed like the paths it lists, with NUL or newline separators and from
+/// A file named by `--pathspec-from-file` is committed like the paths it lists,
+/// with NUL or newline separators and from
 ///  standard input.
 #[test]
 fn a_pathspec_file_selects_the_paths_it_names() {
@@ -102,8 +116,13 @@ fn a_pathspec_file_selects_the_paths_it_names() {
     remove_settled(&fixture);
 }
 
-/// The dry run and every status format commit nothing, answer as native Git answers, and need neither the transaction nor
-///  the service: no service is running, no runtime directory is given, and the repository gains no area of ours.
+/// The dry run and every status format commit nothing,
+/// answer as native Git answers,
+/// and need neither the transaction nor
+///  the service:
+/// no service is running,
+/// no runtime directory is given,
+/// and the repository gains no area of ours.
 #[test]
 fn a_dry_run_and_the_status_formats_need_neither_the_transaction_nor_the_service() {
     let fixture: Fixture = fixture("landing-dry-run");

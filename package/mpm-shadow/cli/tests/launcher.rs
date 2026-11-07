@@ -325,7 +325,8 @@ impl MovedArchive {
         return moved;
     }
 
-    /// The program of `version` through the `current` link, the way a record names it.
+    /// The program of `version` through the `current` link,
+    /// the way a record names it.
     fn program_of(&self, version: &str) -> PathBuf {
         return self.tool_dir.join("current").join(format!("demo-release-{version}-linux")).join("tool");
     }
@@ -379,4 +380,35 @@ fn a_launcher_that_finds_no_program_under_current_names_both_versions_and_the_on
     assert!(stderr.contains("0.1.5"), "the version current names is named: {stderr}");
     assert!(stderr.contains(&format!("`mpm install` in {tree}")), "the one command and where to run it: {stderr}");
     let _ = &moved.directory;
+}
+
+#[test]
+fn a_launcher_rewrites_a_stale_record_to_the_program_it_started_so_a_shadow_behind_it_can_see_where_it_leads() {
+    let moved = MovedArchive::new("0.1.5", "0.1.4", "0.1.5");
+    let launched = run(&moved.launcher, &["x"], &[]);
+    assert_eq!(launched.status.code(), Some(0), "{}", String::from_utf8_lossy(&launched.stderr));
+    let text = fs::read_to_string(record_path(&moved.launcher)).expect("the record");
+    let record = mpm_shadow::toolchain::launcher::parse_record(&text).expect("a record");
+    assert_eq!(record.real, moved.program_of("0.1.5"), "the record names the program that ran");
+    assert!(record.real.exists());
+    assert_eq!(record.lock_file, moved.lock_file, "only the program changes");
+    assert_eq!(record.tool_id, "demo-release");
+    let again = run(&moved.launcher, &["x"], &[]);
+    assert_eq!(again.stdout, launched.stdout);
+    assert_eq!(again.stderr, launched.stderr, "a repeat run changes nothing");
+}
+
+#[test]
+fn a_record_that_cannot_be_rewritten_is_a_warning_and_the_program_still_runs() {
+    let moved = MovedArchive::new("0.1.5", "0.1.4", "0.1.5");
+    let directory = moved.launcher.parent().expect("a parent").to_path_buf();
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o555)).expect("make the launcher directory read-only");
+    let direct = run(&moved.program_of("0.1.5"), &["x"], &[]);
+    let launched = run(&moved.launcher, &["x"], &[]);
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o755)).expect("restore");
+    assert_eq!(launched.status.code(), Some(0));
+    assert_eq!(launched.stdout, direct.stdout);
+    let stderr = String::from_utf8_lossy(&launched.stderr);
+    assert!(stderr.contains("could not update the launcher record"), "{stderr}");
+    assert!(stderr.ends_with(&*String::from_utf8_lossy(&direct.stderr)), "{stderr}");
 }

@@ -23,7 +23,8 @@ pub(crate) const REAL_GIT: &str = "/usr/bin/git";
 pub(crate) struct SharedSink(pub(crate) std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
 
 impl SharedSink {
-    /// Everything written so far, as text.
+    /// Everything written so far,
+    /// as text.
     pub(crate) fn text(&self) -> String {
         let bytes: Vec<u8> = self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
         return String::from_utf8_lossy(bytes.as_slice()).into_owned();
@@ -45,7 +46,8 @@ impl std::io::Write for SharedSink {
 }
 
 /// What:
-///  A sink that keeps what is written in a shared buffer and runs an action once, when the `after`th line is finished.
+///  A sink that keeps what is written in a shared buffer and runs an action once,
+/// when the `after`th line is finished.
 /// Why:
 ///   A control of a repeated notice ends the wait it watches from inside the notice that counts:
 ///  the wait stops on that event and not on a timer,
@@ -57,7 +59,8 @@ pub(crate) struct ActionSink {
     lines: usize,
     /// The line after which the action runs.
     after: usize,
-    /// The action, until it has run.
+    /// The action,
+    /// until it has run.
     action: Option<Box<dyn FnOnce() + Send>>,
 }
 
@@ -68,9 +71,12 @@ impl ActionSink {
     }
 }
 
-/// Writes are copied, and the action runs when the counted line is finished.
+/// Writes are copied,
+/// and the action runs when the counted line is finished.
 impl std::io::Write for ActionSink {
-    /// Append the bytes, count finished lines, run the action at the counted one.
+    /// Append the bytes,
+    /// count finished lines,
+    /// run the action at the counted one.
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         std::io::Write::write(&mut self.shared, bytes)?;
         self.lines += bytes.iter().filter(|byte| { return **byte == b'\n'; }).count();
@@ -87,13 +93,15 @@ impl std::io::Write for ActionSink {
 }
 
 /// How long the whole unit-test run may last before the watchdog ends it.
-/// The run takes under a minute, so a run past this limit has a test stuck behind something that never happens.
+/// The run takes under a minute,
+/// so a run past this limit has a test stuck behind something that never happens.
 const RUN_LIMIT: std::time::Duration = std::time::Duration::from_secs(120);
 
 /// Ends the test process with a message once the run has lasted `RUN_LIMIT`.
 /// Without it a mutant that leaves a lock held or ignores a deadline hangs the run until an outside timeout,
 /// which the mutation tool records as a timeout instead of a failed test.
-/// The first fixture of the run arms it; later calls do nothing.
+/// The first fixture of the run arms it;
+/// later calls do nothing.
 pub(crate) fn arm_watchdog() {
     static ARMED: std::sync::Once = std::sync::Once::new();
     ARMED.call_once(|| {
@@ -107,12 +115,17 @@ pub(crate) fn arm_watchdog() {
 }
 
 /// What:
-///  Forbid core dumps for this test process and everything it starts, once.
+///  Forbid core dumps for this test process and everything it starts,
+/// once.
 /// Why:
-///   Tests make services abort or kill them on purpose, and each dump costs the system's core-dump handler processor time and
-///  disk writes on a disk other sessions share (several hundred dumps of `cli-git-service` from test runs on 2026-11-03). A
-///  process limit is inherited across `fork` and `exec` and the hard limit stops a child from raising it; this is the
-///  harness's, and the product sets none.
+///   Tests make services abort or kill them on purpose,
+/// and each dump costs the system's core-dump handler processor time and
+///  disk writes on a disk other sessions share (several hundred dumps of `cli-git-service` from test runs on 2026-11-03).
+/// A
+///  process limit is inherited across `fork` and `exec` and the hard limit stops a child from raising it;
+/// this is the
+///  harness's,
+/// and the product sets none.
 pub(crate) fn forbid_core_dumps() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
@@ -122,15 +135,20 @@ pub(crate) fn forbid_core_dumps() {
     });
 }
 
-/// Environment variable that keeps every fixture on disk after its test ends, for looking at a failure.
+/// Environment variable that keeps every fixture on disk after its test ends,
+/// for looking at a failure.
 pub(crate) const KEEP_FIXTURES_VARIABLE: &str = "CLI_GIT_KEEP_FIXTURES";
 
-/// Environment variable that moves the fixture root, for example onto a tmpfs for speed.
+/// Environment variable that moves the fixture root,
+/// for example onto a tmpfs for speed.
 pub(crate) const FIXTURE_ROOT_VARIABLE: &str = "CLI_GIT_TEST_ROOT";
 
-/// The directory fixtures are created in: `test-fixtures` beside the build output of the running test executable
-///  (`<target>/debug/deps/<test>` has the target directory three levels up), never `/tmp`.
-/// A shared tmpfs with a per-user quota fills up when failing tests leave fixtures behind (issue 1809), and then
+/// The directory fixtures are created in:
+/// `test-fixtures` beside the build output of the running test executable
+///  (`<target>/debug/deps/<test>` has the target directory three levels up),
+/// never `/tmp`.
+/// A shared tmpfs with a per-user quota fills up when failing tests leave fixtures behind (issue 1809),
+/// and then
 /// every command of every session fails.
 pub(crate) fn fixture_root() -> PathBuf {
     let root: PathBuf = std::env::var_os(FIXTURE_ROOT_VARIABLE).map_or_else(
@@ -149,10 +167,13 @@ pub(crate) fn fixture_root() -> PathBuf {
 }
 
 /// What:
-///  Remove a fixture tree unless the person asked to keep it, trying again for up to five seconds.
+///  Remove a fixture tree unless the person asked to keep it,
+/// trying again for up to five seconds.
 /// Why:
-///   A landed commit may leave a maintenance child finishing for a moment; a tree already gone is the explicit
-///  `remove` having run first, not a failure.
+///   A landed commit may leave a maintenance child finishing for a moment;
+/// a tree already gone is the explicit
+///  `remove` having run first,
+/// not a failure.
 pub(crate) fn settle_fixture(root: &Path, keep: bool) {
     if keep {
         return;
@@ -166,15 +187,18 @@ pub(crate) fn settle_fixture(root: &Path, keep: bool) {
     }
 }
 
-/// The fixtures one test thread created, removed when the thread ends however the test ended.
+/// The fixtures one test thread created,
+/// removed when the thread ends however the test ended.
 struct ThreadFixtures {
     /// Roots to remove.
     roots: std::cell::RefCell<Vec<PathBuf>>,
-    /// Process groups of the helper processes the thread started with `spawn_owned`, killed when the thread ends.
+    /// Process groups of the helper processes the thread started with `spawn_owned`,
+    /// killed when the thread ends.
     groups: std::cell::RefCell<Vec<libc::pid_t>>,
 }
 
-/// A panic unwinds the test thread, which runs this.
+/// A panic unwinds the test thread,
+/// which runs this.
 impl Drop for ThreadFixtures {
     fn drop(&mut self) {
         // The helpers die first, so no process is left in a directory that is about to be removed.
@@ -196,11 +220,17 @@ thread_local! {
 }
 
 /// What:
-///  Start a helper process that dies with the test thread that started it, whether the test passes, fails or panics.
+///  Start a helper process that dies with the test thread that started it,
+/// whether the test passes,
+/// fails or panics.
 /// Why:
-///   A shell loop that a failing push-progress test never reached the end of ran for 87 minutes in a deleted fixture. The
-///  helper leads a process group of its own, so what it starts (a `sleep` of the loop) is killed with it, and the group is
-///  killed when the thread's fixtures are dropped, the same moment the fixture directories go.
+///   A shell loop that a failing push-progress test never reached the end of ran for 87 minutes in a deleted fixture.
+/// The
+///  helper leads a process group of its own,
+/// so what it starts (a `sleep` of the loop) is killed with it,
+/// and the group is
+///  killed when the thread's fixtures are dropped,
+/// the same moment the fixture directories go.
 pub(crate) fn spawn_owned(command: &mut Command) -> std::io::Result<std::process::Child> {
     use std::os::unix::process::CommandExt as _;
     command.process_group(0);
@@ -210,41 +240,26 @@ pub(crate) fn spawn_owned(command: &mut Command) -> std::io::Result<std::process
 }
 
 /// What:
-///  Make the process group a child leads die with the test thread, as `spawn_owned` does for the children it starts.
+///  Make the process group a child leads die with the test thread,
+/// as `spawn_owned` does for the children it starts.
 /// Why:
 ///   A helper that must become a session leader (a terminal helper calls `setsid` between `fork` and `exec`) cannot also be put in
-///  a group by `spawn_owned`, because a group leader cannot start a session. Such a child leads a group of its own already,
+///  a group by `spawn_owned`,
+/// because a group leader cannot start a session.
+/// Such a child leads a group of its own already,
 ///  so only the thread's list of groups to end needs its number.
 pub(crate) fn own_group(child: &std::process::Child) {
     let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
     THREAD_FIXTURES.with(|fixtures| { fixtures.groups.borrow_mut().push(group); });
 }
 
-/// How long `end_with_its_group` waits for the processes of an ended group to be gone before it stops looking.
-const GROUP_GONE_PATIENCE: std::time::Duration = std::time::Duration::from_secs(5);
-
-/// What:
-///  Kill a child that `spawn_owned` started together with every process of its group, reap the child, and look until the group has
-///  no process left.
-/// Why:
-///   `Child::kill` signals only the leader, so a background subshell it started outlives it and can write into the fixture while the
-///  test removes it (`DirectoryNotEmpty`); `spawn_owned` ends the group only when the test thread's fixtures drop, after the removal.
-///  A killed process ends asynchronously, so the group is looked at until `kill(-group, 0)` says it is empty.
-pub(crate) fn end_with_its_group(mut child: std::process::Child) {
-    let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
-    // SAFETY: `killpg` takes two integers and reads no memory; the group is the one `spawn_owned` made for this child.
-    let _signalled: libc::c_int = unsafe { libc::killpg(group, libc::SIGKILL) };
-    child.wait().expect("reap the child");
-    let began: std::time::Instant = std::time::Instant::now();
-    // SAFETY: as above; signal 0 only asks whether a process of the group exists.
-    while unsafe { libc::kill(-group, 0) } == 0 && began.elapsed() < GROUP_GONE_PATIENCE {
-        std::thread::sleep(std::time::Duration::from_millis(5));
-    }
-}
-
-/// This test process's own executable, for the helper processes a control starts from the test binary.
-///  A test starts the test binary, never the wrapper: the ban on `std::env::current_exe` (`clippy.toml`) is about the
-///  wrapper starting itself, so this is the one place the lint is excused for tests.
+/// This test process's own executable,
+/// for the helper processes a control starts from the test binary.
+///  A test starts the test binary,
+/// never the wrapper:
+/// the ban on `std::env::current_exe` (`clippy.toml`) is about the
+///  wrapper starting itself,
+/// so this is the one place the lint is excused for tests.
 #[allow(clippy::disallowed_methods, reason = "identifies the running test binary so a control can start a helper copy of it; the wrapper is never started this way")]
 pub(crate) fn this_test_binary() -> std::io::Result<PathBuf> {
     return std::env::current_exe();
@@ -274,7 +289,8 @@ pub(crate) fn fixture(name: &str) -> PathBuf {
 /// What:
 ///  Move a path's modification time two minutes into the past without following a symbolic link.
 /// Why:
-///   An index entry whose file is as new as the index file proves nothing by its stat fields (Git hashes it again), so a
+///   An index entry whose file is as new as the index file proves nothing by its stat fields (Git hashes it again),
+/// so a
 ///  control that needs a provably clean worktree ages its files before the index records them.
 pub(crate) fn age(path: &Path) {
     use std::os::unix::ffi::OsStrExt as _;
@@ -338,7 +354,8 @@ pub(crate) fn repository(parent: &Path, name: &str) -> PathBuf {
     return root;
 }
 
-/// The one writer of executable fixture files, shared with the binary-level controls.
+/// The one writer of executable fixture files,
+/// shared with the binary-level controls.
 #[cfg(unix)]
 #[path = "fixture_executable.rs"]
 mod fixture_executable;
@@ -440,7 +457,8 @@ pub(crate) fn git_text<S: AsRef<OsStr>>(directory: &Path, arguments: &[S]) -> St
     return String::from(text.strip_suffix('\n').unwrap_or(text.as_str()));
 }
 
-/// The lines without their additive `hint` fields, which the incumbent's shape does not have.
+/// The lines without their additive `hint` fields,
+/// which the incumbent's shape does not have.
 pub(crate) fn strip_hint_fields(text: &str) -> String {
     let marker: &str = ",\"hint\":\"";
     let mut rest: String = text.to_owned();
@@ -459,11 +477,15 @@ pub(crate) fn strip_hint_fields(text: &str) -> String {
 pub(crate) const LIMITED_DIRECTORY_VARIABLE: &str = "CLI_GIT_LIMITED_CHILD_DIRECTORY";
 
 /// What:
-///  Run one `#[ignore]` child test in a process that may write no file past `limit` bytes, and return how it ended.
+///  Run one `#[ignore]` child test in a process that may write no file past `limit` bytes,
+/// and return how it ended.
 /// Why:
-///  A file-size limit is the privilege-free way to make a write fail half way: the bytes below the limit are written
+///  A file-size limit is the privilege-free way to make a write fail half way:
+/// the bytes below the limit are written
 ///  and the rest fails with `EFBIG` (`SIGXFSZ` is ignored so that the error reaches the caller instead of ending the
-///  process). The limit is a property of the whole process, so the child runs alone and the parent's other tests
+///  process).
+/// The limit is a property of the whole process,
+/// so the child runs alone and the parent's other tests
 ///  never see it.
 ///
 /// In TS you'd write (pseudocode):
@@ -497,9 +519,12 @@ pub(crate) fn run_child_under_file_size_limit(test_name: &str, limit: u64, direc
 mod tests;
 
 /// What:
-///  The owner of a process that really started, had its birth identity read while it ran, and was then killed and reaped.
+///  The owner of a process that really started,
+/// had its birth identity read while it ran,
+/// and was then killed and reaped.
 /// Why:
-///   An interrupted copy is a journal or a claim whose owner is gone; a control builds one with this owner instead of
+///   An interrupted copy is a journal or a claim whose owner is gone;
+/// a control builds one with this owner instead of
 ///  waiting for a real crash.
 ///
 /// In TS you'd write (pseudocode):

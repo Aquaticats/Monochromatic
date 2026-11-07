@@ -17,9 +17,12 @@ use crate::replay_patch::PatchHunk;
 
 /// What:
 ///  One zero-context hunk in base line coordinates:
-///       the first replaced base line (zero-based), the line after the last replaced one, and the new lines.
+///       the first replaced base line (zero-based),
+/// the line after the last replaced one,
+/// and the new lines.
 /// Why:
-///   Covering and extension comparisons happen in base coordinates, not in each hunk's own numbering.
+///   Covering and extension comparisons happen in base coordinates,
+/// not in each hunk's own numbering.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -27,11 +30,15 @@ use crate::replay_patch::PatchHunk;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct BaseChange {
-    /// First replaced base line, zero-based; for an insertion, the line it goes before.
+    /// First replaced base line,
+    /// zero-based;
+    /// for an insertion,
+    /// the line it goes before.
     start: usize,
     /// Line after the last replaced base line.
     end: usize,
-    /// New lines, each with its newline.
+    /// New lines,
+    /// each with its newline.
     added: Vec<Vec<u8>>,
 }
 
@@ -69,7 +76,9 @@ fn base_change(hunk: &PatchHunk) -> BaseChange {
 }
 
 /// What:
-///  Whether `lines` appear in order, not necessarily adjacent, within `within`:
+///  Whether `lines` appear in order,
+/// not necessarily adjacent,
+/// within `within`:
 ///       one greedy pass.
 /// Why:
 ///   Own lines may sit between landed lines when the prepared hunk covers exactly the landed range.
@@ -93,7 +102,8 @@ fn is_subsequence(lines: &[Vec<u8>], within: &[Vec<u8>]) -> bool {
 ///  Whether one prepared hunk's new text is the covered landed hunks extended on at most one side.
 /// Why:
 ///   The landed text of the region is the landed lines joined by the base lines between them;
-///       the prepared text must hold it as a prefix or suffix, or the exact range with own lines between.
+///       the prepared text must hold it as a prefix or suffix,
+/// or the exact range with own lines between.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -139,7 +149,8 @@ fn region_contains(prepared: &BaseChange, landed: &[BaseChange], base: &[Vec<u8>
 ///  Whether the prepared change contains the landed change region by region:
 ///       every landed hunk lies inside one prepared hunk that extends it on at most one side.
 /// Why:
-///   This is the one-sided extension of subsumption, which strict reverse application cannot express.
+///   This is the one-sided extension of subsumption,
+/// which strict reverse application cannot express.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

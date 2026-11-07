@@ -16,7 +16,7 @@
 ///  excludes U+0085).
 use crate::{
     markdown_lfs_endpoint::{LfsUrlRejection, lfs_object_base},
-    markdown_table_text::trim_space,
+    markdown_trim_space::trim_space,
 };
 /// Import native paths and I/O error classification.
 use std::{io::ErrorKind, path::Path};

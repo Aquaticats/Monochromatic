@@ -1,6 +1,8 @@
-//! Tests for the notifier thread in `unplayable_notification.rs`, pulled in by
+//! Tests for the notifier thread in `unplayable_notification.rs`,
+//! pulled in by
 //! `#[cfg(test)] #[path = "unplayable_notification_tests.rs"] mod tests;` at the bottom of that file.
-//! They run against a private bus with a recording notification service; the user's session bus is never used.
+//! They run against a private bus with a recording notification service;
+//! the user's session bus is never used.
 
 use std::path::PathBuf;
 use std::sync::Arc;

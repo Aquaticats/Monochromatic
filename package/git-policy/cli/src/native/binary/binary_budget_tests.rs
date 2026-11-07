@@ -1,12 +1,23 @@
-//! Ratchet budgets for the cost of the wrapper's side of one commit: how many processes it starts and how many fsync-class
-//!  calls it makes, so a change that makes a commit dearer fails a test that names the cause. The service lands the commit
-//!  and runs the work after it in a process of its own, outside this trace.
+//! Ratchet budgets for the cost of the wrapper's side of one commit:
+//! how many processes it starts and how many fsync-class
+//!  calls it makes,
+//! so a change that makes a commit dearer fails a test that names the cause.
+//! The service lands the commit
+//!  and runs the work after it in a process of its own,
+//! outside this trace.
 //! Each control runs the real wrapped binary under `strace` on a disposable repository (an explicit-path commit,
-//!  `git commit --quiet --message=x -- a.txt`), reads every `execve` and sync call of the whole process tree, and
+//!  `git commit --quiet --message=x -- a.txt`),
+//! reads every `execve` and sync call of the whole process tree,
+//! and
 //!  compares exact per-subcommand counts with the budget constants below.
-//! The counts are exact, not upper bounds: a commit that got cheaper fails too, so the constant is lowered in the
+//! The counts are exact,
+//! not upper bounds:
+//! a commit that got cheaper fails too,
+//! so the constant is lowered in the
 //!  same change and the saving cannot be given back unnoticed.
-//! The controls need `strace`; a host without it reports that and checks nothing, so the host suite is where they run.
+//! The controls need `strace`;
+//! a host without it reports that and checks nothing,
+//! so the host suite is where they run.
 
 use super::budget_trace::{Counts, TRACED_CALLS, count};
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
@@ -38,7 +49,8 @@ struct Budget {
     other_starts: &'static [(&'static str, usize)],
     /// Sync-class calls made by the wrapper process and its threads.
     wrapper_syncs: usize,
-    /// Sync-class calls made by Git processes, by the subcommand that made them.
+    /// Sync-class calls made by Git processes,
+    /// by the subcommand that made them.
     git_syncs: &'static [(&'static str, usize)],
 }
 
@@ -77,8 +89,10 @@ const NO_HOOKS: Budget = Budget {
     git_syncs: &[("index-pack", 0)],
 };
 
-/// A commit in a repository that configures a `post-commit` hook: the hook is switched off and the loud notice costs
-///  no process, so every count equals the commit with no hooks.
+/// A commit in a repository that configures a `post-commit` hook:
+/// the hook is switched off and the loud notice costs
+///  no process,
+/// so every count equals the commit with no hooks.
 const CONFIGURED_HOOK: Budget = Budget {
     git_starts: &[
         ("add", 1),
@@ -148,8 +162,13 @@ const AMEND: Budget = Budget {
     git_syncs: &[("index-pack", 0)],
 };
 
-/// A second wrapped commit in the repository, no hooks: what a first commit creates exists already, and the work after
-///  the landing (the push, the upkeep) is the service's, not the wrapper's.
+/// A second wrapped commit in the repository,
+/// no hooks:
+/// what a first commit creates exists already,
+/// and the work after
+///  the landing (the push,
+/// the upkeep) is the service's,
+/// not the wrapper's.
 const WARM: Budget = Budget {
     git_starts: &[
         ("add", 1),
@@ -190,26 +209,35 @@ const WARM: Budget = Budget {
 /// Which scenario to measure.
 #[derive(Clone, Copy)]
 enum Scenario {
-    /// A new commit, no hooks.
+    /// A new commit,
+    /// no hooks.
     NoHooks,
-    /// A new commit, no hooks, in a repository with `extensions.worktreeConfig` on and a `config.worktree`.
+    /// A new commit,
+    /// no hooks,
+    /// in a repository with `extensions.worktreeConfig` on and a `config.worktree`.
     WorktreeConfig,
     /// A new commit,
     /// no hooks,
     /// in a repository whose configuration has `core.fsmonitor = true`.
     MonitorOn,
-    /// A new commit in a repository that configures a `post-commit` hook, which never runs.
+    /// A new commit in a repository that configures a `post-commit` hook,
+    /// which never runs.
     ConfiguredHook,
-    /// The second wrapped commit of the repository, no hooks.
+    /// The second wrapped commit of the repository,
+    /// no hooks.
     Warm,
-    /// `--amend` of the commit before it, no hooks.
+    /// `--amend` of the commit before it,
+    /// no hooks.
     Amend,
 }
 
 /// A repository whose `a.txt` is ready for the explicit-path commit of `scenario`.
-///  Automatic maintenance stays in the foreground: Git 2.56.0 otherwise detaches a `repack` or
-///  `multi-pack-index` after a landing, which may or may not have started when the trace ends and would make the
-///  counts differ from run to run; in the foreground its children belong to the commit and are counted with it.
+///  Automatic maintenance stays in the foreground:
+/// Git 2.56.0 otherwise detaches a `repack` or
+///  `multi-pack-index` after a landing,
+/// which may or may not have started when the trace ends and would make the
+///  counts differ from run to run;
+/// in the foreground its children belong to the commit and are counted with it.
 fn prepared_repository(fixture: &Fixture, scenario: Scenario) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("budget"));
     keep_maintenance_in_the_foreground(fixture, repo.as_path());
@@ -255,7 +283,8 @@ fn prepared_repository(fixture: &Fixture, scenario: Scenario) -> PathBuf {
     return repo;
 }
 
-/// The same command run under `strace` with the traced calls written to `trace`, in the environment and directory of
+/// The same command run under `strace` with the traced calls written to `trace`,
+/// in the environment and directory of
 ///  `inner`.
 fn traced(inner: &Command, trace: &Path) -> Command {
     let mut outer: Command = Command::new(strace_program().expect("strace is installed"));
@@ -281,7 +310,8 @@ fn traced(inner: &Command, trace: &Path) -> Command {
     return outer;
 }
 
-/// Every figure of a budget or of a trace, keyed by what it counts.
+/// Every figure of a budget or of a trace,
+/// keyed by what it counts.
 type Figures = BTreeMap<String, usize>;
 
 /// The figures a trace shows.
@@ -303,7 +333,8 @@ fn observed_figures(counts: &Counts) -> Figures {
     return figures;
 }
 
-/// The figures a budget allows; `other_starts` is its list after the filesystem adjustment.
+/// The figures a budget allows;
+/// `other_starts` is its list after the filesystem adjustment.
 fn budget_figures(budget: &Budget, other_starts: &[(&str, usize)]) -> Figures {
     let mut figures: Figures = Figures::new();
     for (name, allowed) in budget.git_starts {
@@ -319,7 +350,9 @@ fn budget_figures(budget: &Budget, other_starts: &[(&str, usize)]) -> Figures {
     return figures;
 }
 
-/// One line for each figure that differs, naming what it counts; a figure missing on one side counts as zero there.
+/// One line for each figure that differs,
+/// naming what it counts;
+/// a figure missing on one side counts as zero there.
 fn differences(budgeted: &Figures, observed: &Figures) -> Vec<String> {
     let mut keys: Vec<&String> = budgeted.keys().chain(observed.keys()).collect();
     keys.sort();
@@ -406,8 +439,11 @@ fn a_commit_with_no_hooks_stays_within_its_budget() {
     require_budget("no-hooks", Scenario::NoHooks, &NO_HOOKS);
 }
 
-/// A commit in a repository with a per-worktree configuration costs exactly what a commit without one costs: the
-///  layout, the configuration listing and the upstream are read in process, so no extra `rev-parse` or `config` starts.
+/// A commit in a repository with a per-worktree configuration costs exactly what a commit without one costs:
+/// the
+///  layout,
+/// the configuration listing and the upstream are read in process,
+/// so no extra `rev-parse` or `config` starts.
 #[test]
 fn a_commit_with_a_worktree_config_costs_what_one_without_costs() {
     require_budget("worktree-config", Scenario::WorktreeConfig, &NO_HOOKS);
@@ -446,10 +482,16 @@ fn an_amending_commit_stays_within_its_budget() {
     require_budget("amend", Scenario::Amend, &AMEND);
 }
 
-/// The wrapped commit with the system configuration file left in play (no `GIT_CONFIG_NOSYSTEM`), run under `strace`.
-///  The wrapper process itself reads the repository in process (the transaction, the landing, the repository facts) and
-///  must know which system file the real Git would read; it learns that from the real Git named by the forward-target
-///  variable in the environment `entry.rs` builds, once per executable, and keeps it in the user's cache directory.
+/// The wrapped commit with the system configuration file left in play (no `GIT_CONFIG_NOSYSTEM`),
+/// run under `strace`.
+///  The wrapper process itself reads the repository in process (the transaction,
+/// the landing,
+/// the repository facts) and
+///  must know which system file the real Git would read;
+/// it learns that from the real Git named by the forward-target
+///  variable in the environment `entry.rs` builds,
+/// once per executable,
+/// and keeps it in the user's cache directory.
 fn traced_commit_with_the_system_file(label: &str, learned_before: bool) -> Counts {
     let fixture: Fixture = fixture(format!("budget-{label}").as_str());
     let repo: PathBuf = prepared_repository(&fixture, Scenario::NoHooks);
@@ -474,8 +516,11 @@ fn traced_commit_with_the_system_file(label: &str, learned_before: bool) -> Coun
     return counts;
 }
 
-/// With the system file in play the in-process reads still answer: the read-only starts equal the budget of a commit
-///  whose system file is switched off, and the one extra start is the question for the compiled-in path, asked once.
+/// With the system file in play the in-process reads still answer:
+/// the read-only starts equal the budget of a commit
+///  whose system file is switched off,
+/// and the one extra start is the question for the compiled-in path,
+/// asked once.
 #[test]
 fn the_wrapper_learns_the_system_config_path_once_and_its_reads_still_answer() {
     if !strace_available() {
@@ -496,12 +541,15 @@ fn the_wrapper_learns_the_system_config_path_once_and_its_reads_still_answer() {
     }
 }
 
-/// How many times Git was started for `var`, whichever variable it was asked for.
+/// How many times Git was started for `var`,
+/// whichever variable it was asked for.
 fn var_starts(counts: &Counts) -> usize {
     return counts.git_starts.iter().filter(|(name, _)| { return name.starts_with("var"); }).map(|(_, seen)| { return *seen; }).sum();
 }
 
-/// Runs the wrapped commit under `strace`, with a service listening for it, and returns what the trace shows.
+/// Runs the wrapped commit under `strace`,
+/// with a service listening for it,
+/// and returns what the trace shows.
 fn traced_through_the_service(label: &str, detached: bool) -> (Counts, Output) {
     let fixture: Fixture = fixture(format!("budget-service-{label}").as_str());
     let repo: PathBuf = prepared_repository(&fixture, Scenario::NoHooks);
@@ -523,8 +571,11 @@ fn traced_through_the_service(label: &str, detached: bool) -> (Counts, Output) {
     return (counts, run);
 }
 
-/// A commit the service builds from the command line asks Git for the two identities, and a commit it declines (here a
-///  detached head, which the transaction commits) asks for none: the cheap declines come before anything starts Git for a
+/// A commit the service builds from the command line asks Git for the two identities,
+/// and a commit it declines (here a
+///  detached head,
+/// which the transaction commits) asks for none:
+/// the cheap declines come before anything starts Git for a
 ///  message or an identity.
 #[test]
 fn a_commit_the_service_declines_starts_no_git_for_an_identity() {

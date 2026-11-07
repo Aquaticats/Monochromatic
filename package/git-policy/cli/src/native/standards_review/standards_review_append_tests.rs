@@ -1,4 +1,8 @@
-//! Controls for appending to the shared live log: append only, created when missing, once per commit, and whole under
+//! Controls for appending to the shared live log:
+//! append only,
+//! created when missing,
+//! once per commit,
+//! and whole under
 //! concurrent appenders.
 
 use super::*;
@@ -6,13 +10,16 @@ use crate::test_support::{fixture, remove};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-/// Threads that deliver at the same time, each through its own descriptor, as separate processes would.
+/// Threads that deliver at the same time,
+/// each through its own descriptor,
+/// as separate processes would.
 const APPENDERS: usize = 6;
 
 /// Entries each thread delivers.
 const ENTRIES_PER_APPENDER: usize = 5;
 
-/// Lines in one concurrent entry; long enough that a writer splitting an entry into several writes is overtaken.
+/// Lines in one concurrent entry;
+/// long enough that a writer splitting an entry into several writes is overtaken.
 const LINES_PER_ENTRY: usize = 200;
 
 /// A commit name whose first characters are `tag`.
@@ -25,12 +32,15 @@ fn entry(tag: &str) -> String {
     return format!("- Date:\n  D\n  Subject:\n  {} `s`\n\n", token(sha(tag).as_str()));
 }
 
-/// A log path inside a fixture directory that does not exist yet, as the live log is before the first review.
+/// A log path inside a fixture directory that does not exist yet,
+/// as the live log is before the first review.
 fn absent_log(root: &Path) -> PathBuf {
     return root.join("monochromatic-git-policy-cli").join("standards-review-shadow.md");
 }
 
-/// An entry is added after what the log holds, whatever its ending, and nothing already there changes.
+/// An entry is added after what the log holds,
+/// whatever its ending,
+/// and nothing already there changes.
 #[test]
 fn an_entry_goes_after_the_existing_content() {
     let root: PathBuf = fixture("append-after");
@@ -42,7 +52,8 @@ fn an_entry_goes_after_the_existing_content() {
     remove(root.as_path());
 }
 
-/// A missing log and its missing directory are created by the first delivery, and the next one appends to the same file.
+/// A missing log and its missing directory are created by the first delivery,
+/// and the next one appends to the same file.
 #[test]
 fn a_missing_log_and_its_directory_are_created() {
     let root: PathBuf = fixture("append-created");
@@ -54,7 +65,8 @@ fn a_missing_log_and_its_directory_are_created() {
     remove(root.as_path());
 }
 
-/// A log the service creates is readable by its owner only, because entries carry commit subjects.
+/// A log the service creates is readable by its owner only,
+/// because entries carry commit subjects.
 #[cfg(unix)]
 #[test]
 fn a_created_log_is_private() {
@@ -68,7 +80,8 @@ fn a_created_log_is_private() {
     remove(root.as_path());
 }
 
-/// Delivering the same commit again adds nothing, even when its entry was reflowed by another tool in between.
+/// Delivering the same commit again adds nothing,
+/// even when its entry was reflowed by another tool in between.
 #[test]
 fn a_commit_is_added_once_even_after_a_reflow() {
     let root: PathBuf = fixture("append-once");
@@ -81,7 +94,8 @@ fn a_commit_is_added_once_even_after_a_reflow() {
     remove(root.as_path());
 }
 
-/// A log that exists but cannot be read is reported and appended to nowhere, because appending blind could repeat an entry.
+/// A log that exists but cannot be read is reported and appended to nowhere,
+/// because appending blind could repeat an entry.
 #[test]
 fn an_unreadable_log_is_reported_and_left_alone() {
     let root: PathBuf = fixture("append-unreadable");
@@ -94,7 +108,8 @@ fn an_unreadable_log_is_reported_and_left_alone() {
     remove(root.as_path());
 }
 
-/// The expected entry of appender `thread`'s `index`th delivery: a header naming it and many lines that each name it again,
+/// The expected entry of appender `thread`'s `index`th delivery:
+/// a header naming it and many lines that each name it again,
 /// so an entry that was split across writes shows another entry's lines inside it.
 fn concurrent_entry(thread: usize, index: usize) -> (String, String) {
     let tag: String = format!("{thread:06}{index:06}");
@@ -102,8 +117,14 @@ fn concurrent_entry(thread: usize, index: usize) -> (String, String) {
     return (tag.clone(), format!("- Entry {tag}:\n{lines}\n"));
 }
 
-/// Several threads deliver at once to one log that does not exist yet, each through its own open file, and every entry
-/// lands whole, once, with no lock: no entry has another entry's lines inside it, and none is missing or repeated.
+/// Several threads deliver at once to one log that does not exist yet,
+/// each through its own open file,
+/// and every entry
+/// lands whole,
+/// once,
+/// with no lock:
+/// no entry has another entry's lines inside it,
+/// and none is missing or repeated.
 #[test]
 fn concurrent_appends_land_whole() {
     let root: PathBuf = fixture("append-concurrent");

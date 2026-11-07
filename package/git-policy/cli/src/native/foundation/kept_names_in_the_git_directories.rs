@@ -3,10 +3,18 @@
 //!  each one an earlier release wrote under its earlier name is renamed in place to the current name,
 //!  and a reader that must not move anything finds the one that exists.
 //! Why:
-//!  The owner renamed the folders and files the wrapper keeps (`doc/planning/git-policy-cli-program-rename.md`), and the
-//!  code that reads and writes them spells only the current name. The move runs once, when the wrapper first learns which
-//!  Git directories a command works in, so no other file repeats the rule, and a name that was never needed is never
-//!  touched. A log that rotates keeps its numbered older copies (`<log>.1`), and they move with it, because the audit log
+//!  The owner renamed the folders and files the wrapper keeps (`doc/planning/git-policy-cli-program-rename.md`),
+//! and the
+//!  code that reads and writes them spells only the current name.
+//! The move runs once,
+//! when the wrapper first learns which
+//!  Git directories a command works in,
+//! so no other file repeats the rule,
+//! and a name that was never needed is never
+//!  touched.
+//! A log that rotates keeps its numbered older copies (`<log>.1`),
+//! and they move with it,
+//! because the audit log
 //!  copies name saved files still on disk.
 //!
 //! In TS you'd write (pseudocode):

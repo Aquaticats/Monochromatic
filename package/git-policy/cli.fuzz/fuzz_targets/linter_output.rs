@@ -1,5 +1,9 @@
-//! What: Raw bytes and generated findings through the reader of one in-process linter run.
-//! Why: The linter's failure status, fixed source and findings are untrusted values, and only a
+//! What:
+//! Raw bytes and generated findings through the reader of one in-process linter run.
+//! Why:
+//! The linter's failure status,
+//! fixed source and findings are untrusted values,
+//! and only a
 //!      run the contract accepts may reach a candidate.
 //!
 //! In TS you'd write (pseudocode):

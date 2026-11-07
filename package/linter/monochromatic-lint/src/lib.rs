@@ -231,9 +231,10 @@ pub mod markdown_semantic_breaks;
 /// Internal native Markdown/MDX parser interface.
 #[doc(hidden)]
 pub mod markdown_source;
-/// HTML/MDX cell-text encoding at the generated table boundary.
-mod markdown_table_text;
-/// Pipe-table reporting and source-preserving HTML fallback.
+/// The whitespace set of JavaScript trim,
+/// shared by the LFS rules.
+mod markdown_trim_space;
+/// Pipe-table reporting.
 #[doc(hidden)]
 pub mod markdown_tables;
 /// Validated arena traversal lists built by the source adapter's walk.
@@ -278,6 +279,8 @@ pub mod run_lfs;
 ///  starter configuration and effective-configuration printing.
 #[doc(hidden)]
 pub mod run_modes;
+/// The table of every shipped rule and its capabilities.
+mod run_modes_rule_table;
 /// JSONL routing,
 ///  stdin-fix source output and exit-status accounting.
 #[doc(hidden)]

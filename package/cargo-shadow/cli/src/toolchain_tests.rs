@@ -4,7 +4,8 @@
 use crate::test_scratch::scratch;
 use crate::toolchain::{cargo_toolchain, rust_toolchain_from_lock};
 
-/// The Rust toolchain the repository's own `toolchain.lock.json` records, read with `serde_json` alone (not the function
+/// The Rust toolchain the repository's own `toolchain.lock.json` records,
+/// read with `serde_json` alone (not the function
 /// under test) so the tests follow the lock instead of a hand-kept date.
 fn pinned() -> String {
     let lock_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../toolchain.lock.json");

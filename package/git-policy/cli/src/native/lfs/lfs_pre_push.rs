@@ -1,11 +1,18 @@
 //! What:
-//!  When a push needs the Git LFS upload, and the texts the parent prints around it.
+//!  When a push needs the Git LFS upload,
+//! and the texts the parent prints around it.
 //! Why:
-//!  Traditional hook files are unsupported, so the `pre-push` shim `git lfs install` writes cannot be relied on.
+//!  Traditional hook files are unsupported,
+//! so the `pre-push` shim `git lfs install` writes cannot be relied on.
 //!  Without an upload step a push publishes pointer files whose objects the LFS server never received.
-//!  The wrapper therefore runs `git-lfs push <remote> <refs>` itself, as a child it owns, before it starts the push
-//!  (`lfs_upload.rs`), only when the Git configuration holds LFS keys; the push carries no hook and no injected
-//!  configuration, the wrapper never starts itself and writes no shell text
+//!  The wrapper therefore runs `git-lfs push <remote> <refs>` itself,
+//! as a child it owns,
+//! before it starts the push
+//!  (`lfs_upload.rs`),
+//! only when the Git configuration holds LFS keys;
+//! the push carries no hook and no injected
+//!  configuration,
+//! the wrapper never starts itself and writes no shell text
 //!  (`doc/planning/cli-git-no-self-invocation.md`).
 //!
 //! In TS you'd write (pseudocode):
@@ -20,27 +27,37 @@ use std::ffi::{OsStr, OsString};
 /// Where `PATH` entries are looked at.
 use std::path::Path;
 
-/// The name the caller's switch uses: `-c hook.cli-git-lfs-pre-push.enabled=false` skips the upload for one command,
+/// The name the caller's switch uses:
+/// `-c hook.cli-git-lfs-pre-push.enabled=false` skips the upload for one command,
 ///  as it turned off the hook an earlier version put in effect.
 pub const SWITCH_NAME: &str = "cli-git-lfs-pre-push";
 
-/// The program the upload runs, found on `PATH` as the shim `git lfs install` wrote found it.
+/// The program the upload runs,
+/// found on `PATH` as the shim `git lfs install` wrote found it.
 pub const LFS_PROGRAM: &str = "git-lfs";
 
 /// Key prefixes whose presence means the repository is set up for Git LFS.
 const LFS_KEY_PREFIXES: [&str; 2] = ["filter.lfs.", "lfs."];
 
-/// Scopes that describe the machine or the account, not this repository.
+/// Scopes that describe the machine or the account,
+/// not this repository.
 const MACHINE_SCOPES: [&str; 2] = ["system", "global"];
 
 /// What:
-///  Whether a configuration entry of this repository, its worktree or the command line belongs to Git LFS.
+///  Whether a configuration entry of this repository,
+/// its worktree or the command line belongs to Git LFS.
 /// Why:
-///   `git lfs install` in an account writes `filter.lfs.*` to the global file, which every repository then sees, so a
+///   `git lfs install` in an account writes `filter.lfs.*` to the global file,
+/// which every repository then sees,
+/// so a
 ///  global key says nothing about this repository.
-///  The filter's first run in a repository writes `lfs.repositoryformatversion` to its local file, and a server is
-///  named by `lfs.url`; one such key in the local, worktree or command scope is the sign that pushed pointers need
-///  their objects uploaded first, without making every repository of the machine an LFS repository.
+///  The filter's first run in a repository writes `lfs.repositoryformatversion` to its local file,
+/// and a server is
+///  named by `lfs.url`;
+/// one such key in the local,
+/// worktree or command scope is the sign that pushed pointers need
+///  their objects uploaded first,
+/// without making every repository of the machine an LFS repository.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -61,10 +78,13 @@ pub fn uses_lfs(snapshot: &ConfigSnapshot) -> bool {
 }
 
 /// What:
-///  The number the environment gives in `GIT_CONFIG_COUNT`: how many `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` pairs
-///  it holds, or zero when the variable is missing or is not a plain number.
+///  The number the environment gives in `GIT_CONFIG_COUNT`:
+/// how many `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` pairs
+///  it holds,
+/// or zero when the variable is missing or is not a plain number.
 /// Why:
-///   Both the switch reader and the pair builder of the upload start from this count, and a function stands where a
+///   Both the switch reader and the pair builder of the upload start from this count,
+/// and a function stands where a
 ///  chain of closures stood.
 ///
 /// In TS you'd write (pseudocode):
@@ -81,12 +101,14 @@ pub fn environment_config_count(environment: &[(OsString, OsString)]) -> usize {
     return text.parse::<usize>().unwrap_or(0);
 }
 
-/// One numbered variable of the environment's configuration pairs: `GIT_CONFIG_KEY_3` for kind `KEY` and index 3.
+/// One numbered variable of the environment's configuration pairs:
+/// `GIT_CONFIG_KEY_3` for kind `KEY` and index 3.
 fn numbered_config_variable(environment: &[(OsString, OsString)], kind: &str, index: usize) -> Option<OsString> {
     return crate::child_environment::environment_value(environment, &format!("GIT_CONFIG_{kind}_{index}"));
 }
 
-/// Whether a configuration name is the switch: Git reads the section and the variable case-insensitively and the
+/// Whether a configuration name is the switch:
+/// Git reads the section and the variable case-insensitively and the
 ///  subsection exactly.
 fn is_switch_key(name: &str) -> bool {
     const VARIABLE: &str = ".enabled";
@@ -118,12 +140,20 @@ fn reads_as_false(value: &str) -> bool {
 }
 
 /// What:
-///  Whether the caller switched the upload off for this push, with `-c hook.cli-git-lfs-pre-push.enabled=false` among
+///  Whether the caller switched the upload off for this push,
+/// with `-c hook.cli-git-lfs-pre-push.enabled=false` among
 ///  the global options or the same pair in `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`.
 /// Why:
-///   It is a documented way to push without the upload, so a missing `git-lfs` must not stop such a push. The last
-///  setting decides, as Git reads them, and `-c` options come after the environment's pairs. A repository or account
-///  configuration file is not read: that would cost a Git start for every push; use `--no-verify` or
+///   It is a documented way to push without the upload,
+/// so a missing `git-lfs` must not stop such a push.
+/// The last
+///  setting decides,
+/// as Git reads them,
+/// and `-c` options come after the environment's pairs.
+/// A repository or account
+///  configuration file is not read:
+/// that would cost a Git start for every push;
+/// use `--no-verify` or
 ///  `GIT_LFS_SKIP_PUSH` for a standing choice in the environment.
 ///
 /// In TS you'd write (pseudocode):
@@ -169,10 +199,15 @@ pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, O
 }
 
 /// What:
-///  The first executable file named `git-lfs` in the directories of a `PATH` value, in order.
+///  The first executable file named `git-lfs` in the directories of a `PATH` value,
+/// in order.
 /// Why:
-///   A stat per directory answers it without starting any process; an empty entry means the current directory, as
-///  `PATH` lookup treats it. The upload starts exactly this file, so the pre-check and the start agree about which
+///   A stat per directory answers it without starting any process;
+/// an empty entry means the current directory,
+/// as
+///  `PATH` lookup treats it.
+/// The upload starts exactly this file,
+/// so the pre-check and the start agree about which
 ///  `git-lfs` runs even though the child's `PATH` leads with the real Git's directory.
 ///
 /// In TS you'd write (pseudocode):
@@ -209,7 +244,9 @@ pub fn program_on_path(path: &OsStr) -> bool {
 /// What:
 ///  Whether the environment asks to skip the upload (`GIT_LFS_SKIP_PUSH` set to a true value).
 /// Why:
-///   `git lfs push` does not read that variable (only the hook form did), so the parent honours it, as the explanation
+///   `git lfs push` does not read that variable (only the hook form did),
+/// so the parent honours it,
+/// as the explanation
 ///  texts promise.
 ///
 /// In TS you'd write (pseudocode):
@@ -229,8 +266,11 @@ pub fn skip_requested(environment: &[(std::ffi::OsString, std::ffi::OsString)]) 
 /// What:
 ///  The refusal printed when `git-lfs` is not on `PATH`.
 /// Why:
-///   Without the program the objects cannot be uploaded, and pushing anyway would publish pointers the server cannot
-///  serve; every valid way forward is named, including leaving LFS if the repository does not need it.
+///   Without the program the objects cannot be uploaded,
+/// and pushing anyway would publish pointers the server cannot
+///  serve;
+/// every valid way forward is named,
+/// including leaving LFS if the repository does not need it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -252,7 +292,8 @@ pub fn missing_program_message() -> String {
 /// What:
 ///  The refusal printed when the wrapper cannot work out which objects a push needs uploaded.
 /// Why:
-///   Running the push without an upload could publish pointers whose objects the server lacks, so the push is not started;
+///   Running the push without an upload could publish pointers whose objects the server lacks,
+/// so the push is not started;
 ///  every way forward is named.
 ///
 /// In TS you'd write (pseudocode):
@@ -272,7 +313,9 @@ pub fn plan_failed_message(why: &str) -> String {
 /// What:
 ///  The explanation printed after `git-lfs push` failed.
 /// Why:
-///   `git-lfs` prints its own error first (a refused credential, an unreachable server, a missing local object);
+///   `git-lfs` prints its own error first (a refused credential,
+/// an unreachable server,
+/// a missing local object);
 ///  this text says what that means for the push and every way forward.
 ///
 /// In TS you'd write (pseudocode):

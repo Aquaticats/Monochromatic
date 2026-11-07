@@ -1,4 +1,7 @@
-//! The unit tests of the loop guard: the text round trip, rejection of foreign text, and which process a guard is meant for.
+//! The unit tests of the loop guard:
+//! the text round trip,
+//! rejection of foreign text,
+//! and which process a guard is meant for.
 
 /// Imports the functions and types under test.
 use crate::guard::{Guard, GuardKind, format_guard, is_meant_for, parse_guard};
@@ -6,7 +9,8 @@ use crate::guard::{Guard, GuardKind, format_guard, is_meant_for, parse_guard};
 /// Imports the owned path type.
 use std::path::PathBuf;
 
-/// A process id chosen apart from the ones a test asks about, so equality is never an accident.
+/// A process id chosen apart from the ones a test asks about,
+/// so equality is never an accident.
 const WRITER_PID: u32 = 4242;
 
 fn sample(kind: GuardKind) -> Guard {

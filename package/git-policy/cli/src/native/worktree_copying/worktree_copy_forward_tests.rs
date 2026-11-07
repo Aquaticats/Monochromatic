@@ -1,10 +1,13 @@
-//! Forwarding-run checks against real Git: which invocations the copy applies to, and how a settled run ends.
+//! Forwarding-run checks against real Git:
+//! which invocations the copy applies to,
+//! and how a settled run ends.
 
 use super::*;
 use crate::test_support::{REAL_GIT, fixture, git, isolated_overlay, remove, repository};
 use std::path::Path;
 
-/// A repository with an ignored rules file, returned with its canonical root and common directory.
+/// A repository with an ignored rules file,
+/// returned with its canonical root and common directory.
 fn source(root: &Path) -> (PathBuf, PathBuf) {
     let main: PathBuf = repository(root, "main");
     std::fs::write(main.join(".gitignore"), b".cache/\n").expect("gitignore");
@@ -28,7 +31,8 @@ fn arguments(values: &[&str]) -> Vec<OsString> {
     return values.iter().map(OsString::from).collect();
 }
 
-/// The copy applies to linked and bare repositories always, to the main checkout only for a creation,
+/// The copy applies to linked and bare repositories always,
+/// to the main checkout only for a creation,
 /// and never outside a repository.
 #[test]
 fn the_copy_applies_by_repository_shape() {
@@ -51,7 +55,9 @@ fn the_copy_applies_by_repository_shape() {
     assert!(!copy_applies(&main, false), "a main checkout command that creates nothing");
 }
 
-/// Without a copy the run is plain Git: its exit status passes through, and an unstartable Git is an engine failure.
+/// Without a copy the run is plain Git:
+/// its exit status passes through,
+/// and an unstartable Git is an engine failure.
 #[test]
 fn a_plain_run_reports_git_status_or_the_start_failure() {
     let root: PathBuf = fixture("forward-plain");
@@ -89,7 +95,9 @@ fn a_plain_run_reports_git_status_or_the_start_failure() {
     remove(root.as_path());
 }
 
-/// A settled creation from the main checkout runs Git, copies its ignored state, and keeps Git's status.
+/// A settled creation from the main checkout runs Git,
+/// copies its ignored state,
+/// and keeps Git's status.
 #[cfg(unix)]
 #[test]
 fn a_settled_creation_from_the_main_checkout_copies_its_ignored_state() {

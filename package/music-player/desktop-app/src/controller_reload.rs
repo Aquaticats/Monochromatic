@@ -1,29 +1,48 @@
-//! Loads the selected track again when its file was replaced on disk, where it was.
+//! Loads the selected track again when its file was replaced on disk,
+//! where it was.
 //!
-//! What: `impl Controller` methods that notice a replaced selected file and swap its decoder, peak and gain in place.
-//! Why: D113 makes the library follow the disk. A playing file that was replaced used to keep the old audio, peak and gain
-//! until the next load, and a paused one restarted from zero; now both follow the new file without a toast or a jump.
+//! What:
+//! `impl Controller` methods that notice a replaced selected file and swap its decoder,
+//! peak and gain in place.
+//! Why:
+//! D113 makes the library follow the disk.
+//! A playing file that was replaced used to keep the old audio,
+//! peak and gain
+//! until the next load,
+//! and a paused one restarted from zero;
+//! now both follow the new file without a toast or a jump.
 
-/// What: `use crate::command::Update;` brings the engine-to-window message enum into scope. `crate::` means "from the
-/// root of this crate" (the package being compiled), and `command` is the sibling file `src/command.rs`. Sibling forms:
+/// What:
+/// `use crate::command::Update;` brings the engine-to-window message enum into scope.
+/// `crate::` means "from the
+/// root of this crate" (the package being compiled),
+/// and `command` is the sibling file `src/command.rs`.
+/// Sibling forms:
 /// `super::` (the parent module) and `self::` (this module).
-/// Why: the reload ends by telling the window the new length and position, and those are `Update` values.
+/// Why:
+/// the reload ends by telling the window the new length and position,
+/// and those are `Update` values.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { Update } from "./command";
 /// ```
 use crate::command::Update;
-/// What: `use crate::controller::Controller;` imports the playback state machine type that the methods of this impl block attach to.
-/// Why: Rust only allows `impl` blocks on a type that is named in the file, so the type must be imported.
+/// What:
+/// `use crate::controller::Controller;` imports the playback state machine type that the methods of this impl block attach to.
+/// Why:
+/// Rust only allows `impl` blocks on a type that is named in the file,
+/// so the type must be imported.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { Controller } from "./controller";
 /// ```
 use crate::controller::Controller;
-/// What: `use crate::decode::Source;` imports the trait (an interface) that every audio decoder implements.
-/// Why: `Box<dyn Source>` in the method names the type of the freshly opened decoder.
+/// What:
+/// `use crate::decode::Source;` imports the trait (an interface) that every audio decoder implements.
+/// Why:
+/// `Box<dyn Source>` in the method names the type of the freshly opened decoder.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -31,17 +50,41 @@ use crate::controller::Controller;
 /// ```
 use crate::decode::Source;
 
-/// What: `pub(crate) fn resume_position(position: f64, new_duration: f64, was_playing: bool) -> f64` says where the
-/// replaced file starts: the old position when the new file reaches it, else the end (playing) or zero (paused).
-/// `pub(crate)` makes the function visible inside this crate only (siblings: plain `pub` is visible to other crates,
-/// and no keyword is private to the file). `f64` is a 64-bit floating point number, the same kind as TypeScript's
-/// `number` (siblings: `f32` is half the width, `i32` and `u64` are integers). `bool` is TypeScript's `boolean`.
-/// Why: a playing track keeps its place and, when the new file is shorter, ends as if it had played out. A paused track
-/// has no end to reach, so a position the new file does not contain is meaningless and it starts again. An unknown new
-/// length (zero) cannot clamp anything. `f64` is used, not `f32`, because the audio clock counts seconds over hours and
-/// an `f32` would lose sub-millisecond places; a position is never an integer, so `u64` does not fit.
-/// Gotcha: the function is pure (no `&mut`, no I/O), so unlike a TypeScript method it cannot read or change any
-/// controller state; every input arrives as an argument.
+/// What:
+/// `pub(crate) fn resume_position(position: f64, new_duration: f64, was_playing: bool) -> f64` says where the
+/// replaced file starts:
+/// the old position when the new file reaches it,
+/// else the end (playing) or zero (paused).
+/// `pub(crate)` makes the function visible inside this crate only (siblings:
+/// plain `pub` is visible to other crates,
+/// and no keyword is private to the file).
+/// `f64` is a 64-bit floating point number,
+/// the same kind as TypeScript's
+/// `number` (siblings:
+/// `f32` is half the width,
+/// `i32` and `u64` are integers).
+/// `bool` is TypeScript's `boolean`.
+/// Why:
+/// a playing track keeps its place and,
+/// when the new file is shorter,
+/// ends as if it had played out.
+/// A paused track
+/// has no end to reach,
+/// so a position the new file does not contain is meaningless and it starts again.
+/// An unknown new
+/// length (zero) cannot clamp anything.
+/// `f64` is used,
+/// not `f32`,
+/// because the audio clock counts seconds over hours and
+/// an `f32` would lose sub-millisecond places;
+/// a position is never an integer,
+/// so `u64` does not fit.
+/// Gotcha:
+/// the function is pure (no `&mut`,
+/// no I/O),
+/// so unlike a TypeScript method it cannot read or change any
+/// controller state;
+/// every input arrives as an argument.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -83,10 +126,18 @@ pub(crate) fn resume_position(position: f64, new_duration: f64, was_playing: boo
     return if was_playing { new_duration } else { 0.0 };
 }
 
-/// What: `impl Controller { ... }` opens a block of methods for the `Controller` struct. A struct holds data; the
-/// methods that work on it are written in separate `impl` blocks, and one type may have many such blocks, even in
+/// What:
+/// `impl Controller { ... }` opens a block of methods for the `Controller` struct.
+/// A struct holds data;
+/// the
+/// methods that work on it are written in separate `impl` blocks,
+/// and one type may have many such blocks,
+/// even in
 /// different files.
-/// Why: the controller is large, so its methods are split over several files; this block holds the ones for a replaced
+/// Why:
+/// the controller is large,
+/// so its methods are split over several files;
+/// this block holds the ones for a replaced
 /// selected file.
 ///
 /// In TS you'd write (pseudocode):
@@ -95,14 +146,28 @@ pub(crate) fn resume_position(position: f64, new_duration: f64, was_playing: boo
 /// interface Controller { reloadCurrentWhenItsFileChanged(): void }
 /// ```
 impl Controller {
-    /// What: `pub(crate) fn reload_current_when_its_file_changed(&mut self)` opens the selected track's file again when
-    /// its size or modified time differs from the file the decoder was opened on, and swaps it in at the same position,
-    /// keeping the playing state, the page and the volume. `&mut self` means "this method borrows the controller and may
-    /// change it", the way a TypeScript method may assign to `this`.
-    /// Why: D113. The file is opened first and swapped only when it opens, so a replacement that is still being written
-    /// leaves the old audio playing and is tried again at the next event; nothing is skipped and no toast is shown. The
-    /// peak and gain are worked out again for the new file, and the seek bar takes the new length.
-    /// Gotcha: `&mut self` is an exclusive borrow, so no other code can touch the controller while this method runs; the
+    /// What:
+    /// `pub(crate) fn reload_current_when_its_file_changed(&mut self)` opens the selected track's file again when
+    /// its size or modified time differs from the file the decoder was opened on,
+    /// and swaps it in at the same position,
+    /// keeping the playing state,
+    /// the page and the volume.
+    /// `&mut self` means "this method borrows the controller and may
+    /// change it",
+    /// the way a TypeScript method may assign to `this`.
+    /// Why:
+    /// D113.
+    /// The file is opened first and swapped only when it opens,
+    /// so a replacement that is still being written
+    /// leaves the old audio playing and is tried again at the next event;
+    /// nothing is skipped and no toast is shown.
+    /// The
+    /// peak and gain are worked out again for the new file,
+    /// and the seek bar takes the new length.
+    /// Gotcha:
+    /// `&mut self` is an exclusive borrow,
+    /// so no other code can touch the controller while this method runs;
+    /// the
     /// compiler enforces what TypeScript leaves to discipline.
     ///
     /// In TS you'd write (pseudocode):
@@ -350,10 +415,16 @@ impl Controller {
     }
 }
 
-/// What: `#[cfg(test)] #[path = "controller_reload_tests.rs"] mod tests;` declares the module `tests`, whose source is the
-/// file `controller_reload_tests.rs`. `#[cfg(test)]` compiles it only for `cargo test`, and `#[path = "..."]` names the
+/// What:
+/// `#[cfg(test)] #[path = "controller_reload_tests.rs"] mod tests;` declares the module `tests`,
+/// whose source is the
+/// file `controller_reload_tests.rs`.
+/// `#[cfg(test)]` compiles it only for `cargo test`,
+/// and `#[path = "..."]` names the
 /// file because it does not follow the default naming.
-/// Why: the unit tests live in their own file to keep this one short, and stay out of the production build.
+/// Why:
+/// the unit tests live in their own file to keep this one short,
+/// and stay out of the production build.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

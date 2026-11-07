@@ -1,11 +1,16 @@
-//! Controls for the findings of the cross-vendor review of the leave-out and its disposal: what pruning may move, what a
-//!  disposal may delete, and what a failed cleanup must report.
+//! Controls for the findings of the cross-vendor review of the leave-out and its disposal:
+//! what pruning may move,
+//! what a
+//!  disposal may delete,
+//! and what a failed cleanup must report.
 
 use super::*;
 use crate::fs_btrfs_ioctl::snapshot_create_at;
 use std::os::unix::ffi::OsStrExt;
 
-/// A snapshot of the main checkout at a stage name beside the repository, taken without the leave-out, for the controls that
+/// A snapshot of the main checkout at a stage name beside the repository,
+/// taken without the leave-out,
+/// for the controls that
 ///  run the leave-out themselves.
 fn unpruned_snapshot(root: &Path, repo: &Path) -> (PathBuf, crate::worktree_snapshot_source::SnapshotSource) {
     git(repo, &["worktree", "add", "--quiet", "--no-checkout", "-b", "topic", "../topic"]);
@@ -31,8 +36,11 @@ fn main_with_tracked_file_in_nested_worktree(root: &Path) -> PathBuf {
     return repo;
 }
 
-/// Finding 9: a registered nested worktree that holds a file the main index tracks cannot be left out of the snapshot, so the
-///  leave-out refuses before it unlinks a pointer or moves a directory, and says which path holds the tracked file.
+/// Finding 9:
+/// a registered nested worktree that holds a file the main index tracks cannot be left out of the snapshot,
+/// so the
+///  leave-out refuses before it unlinks a pointer or moves a directory,
+/// and says which path holds the tracked file.
 #[test]
 fn btrfs_a_registered_nested_worktree_that_holds_a_tracked_file_is_refused() {
     let Some(root) = btrfs_fixture("trash-nested-tracked") else { return };
@@ -48,7 +56,9 @@ fn btrfs_a_registered_nested_worktree_that_holds_a_tracked_file_is_refused() {
     remove(root.as_path());
 }
 
-/// Finding 9, at the level of the whole snapshot: the reason the rung gives names the nested worktree and the tracked file
+/// Finding 9,
+/// at the level of the whole snapshot:
+/// the reason the rung gives names the nested worktree and the tracked file
 ///  inside it.
 #[test]
 fn btrfs_a_snapshot_over_a_nested_worktree_with_a_tracked_file_says_why() {
@@ -66,8 +76,12 @@ fn btrfs_a_snapshot_over_a_nested_worktree_with_a_tracked_file_says_why() {
     remove(root.as_path());
 }
 
-/// Finding 10: a directory the index holds as a gitlink is protected at its own path, so it is not set aside as a copied
-///  checkout. (A source whose index holds a gitlink is refused before a snapshot is taken; the leave-out still must not rely on that.)
+/// Finding 10:
+/// a directory the index holds as a gitlink is protected at its own path,
+/// so it is not set aside as a copied
+///  checkout.
+/// (A source whose index holds a gitlink is refused before a snapshot is taken;
+/// the leave-out still must not rely on that.)
 #[test]
 fn btrfs_a_directory_the_index_holds_as_a_gitlink_is_not_set_aside() {
     let Some(root) = btrfs_fixture("trash-gitlink") else { return };
@@ -84,8 +98,11 @@ fn btrfs_a_directory_the_index_holds_as_a_gitlink_is_not_set_aside() {
     remove(root.as_path());
 }
 
-/// Finding 11: a directory in the trash parent that the leave-out did not make (the main checkout's own, carried by the
-///  snapshot) is not the snapshot's trash and is never emptied, whatever its name looks like.
+/// Finding 11:
+/// a directory in the trash parent that the leave-out did not make (the main checkout's own,
+/// carried by the
+///  snapshot) is not the snapshot's trash and is never emptied,
+/// whatever its name looks like.
 #[test]
 fn btrfs_a_hex_named_directory_the_snapshot_carried_is_never_emptied() {
     let Some(root) = btrfs_fixture("trash-carried") else { return };
@@ -107,7 +124,8 @@ fn btrfs_a_hex_named_directory_the_snapshot_carried_is_never_emptied() {
     remove(root.as_path());
 }
 
-/// A worktree with a `.git` file and a planted trash of `count` entries, with the admin directory and the manifest.
+/// A worktree with a `.git` file and a planted trash of `count` entries,
+/// with the admin directory and the manifest.
 fn worktree_with_planted_trash(label: &str, name: &str, count: usize) -> (PathBuf, PathBuf, PathBuf, TrashManifest) {
     let root: PathBuf = fixture(label);
     let worktree: PathBuf = root.join("topic");
@@ -119,8 +137,10 @@ fn worktree_with_planted_trash(label: &str, name: &str, count: usize) -> (PathBu
     return (root, worktree, git_dir, manifest);
 }
 
-/// A worktree with a planted trash that was then moved outside: the worktree holds only a `.git` file and an empty `.claude`,
-///  and the outside directory holds `cli-git-trash/<name>`; the manifest still describes it.
+/// A worktree with a planted trash that was then moved outside:
+/// the worktree holds only a `.git` file and an empty `.claude`,
+///  and the outside directory holds `cli-git-trash/<name>`;
+/// the manifest still describes it.
 fn worktree_with_trash_moved_out(label: &str, name: &str) -> (PathBuf, PathBuf, PathBuf, PathBuf, TrashManifest) {
     let (root, worktree, git_dir, manifest) = worktree_with_planted_trash(label, name, 1);
     let outside: PathBuf = root.join("outside");
@@ -129,7 +149,8 @@ fn worktree_with_trash_moved_out(label: &str, name: &str) -> (PathBuf, PathBuf, 
     return (root, worktree, git_dir, outside, manifest);
 }
 
-/// Finding 11: the trash directory named in a record is emptied only while it is the object the leave-out made.
+/// Finding 11:
+/// the trash directory named in a record is emptied only while it is the object the leave-out made.
 #[test]
 fn a_trash_directory_that_was_replaced_is_not_emptied() {
     let name: String = "1".repeat(40);
@@ -144,7 +165,10 @@ fn a_trash_directory_that_was_replaced_is_not_emptied() {
     remove(root.as_path());
 }
 
-/// Finding 11: an entry of the trash that was replaced by a link is left alone, what it points at is untouched, and the other
+/// Finding 11:
+/// an entry of the trash that was replaced by a link is left alone,
+/// what it points at is untouched,
+/// and the other
 ///  entries are still emptied.
 #[test]
 fn a_trash_entry_that_was_replaced_by_a_link_is_not_followed() {
@@ -162,8 +186,10 @@ fn a_trash_entry_that_was_replaced_by_a_link_is_not_followed() {
     remove(root.as_path());
 }
 
-/// Finding 11: an entry of the trash that was replaced by another real directory under the same name is not the object the
-///  leave-out moved there, so it is left alone and reported.
+/// Finding 11:
+/// an entry of the trash that was replaced by another real directory under the same name is not the object the
+///  leave-out moved there,
+/// so it is left alone and reported.
 #[test]
 fn a_trash_entry_that_was_replaced_by_another_directory_is_not_emptied() {
     let name: String = "4".repeat(40);
@@ -178,7 +204,9 @@ fn a_trash_entry_that_was_replaced_by_another_directory_is_not_emptied() {
     remove(root.as_path());
 }
 
-/// Finding 11: something in the trash that the leave-out did not put there stays, and so does the trash directory.
+/// Finding 11:
+/// something in the trash that the leave-out did not put there stays,
+/// and so does the trash directory.
 #[test]
 fn something_in_the_trash_that_was_not_moved_there_stays() {
     let name: String = "3".repeat(40);
@@ -192,7 +220,9 @@ fn something_in_the_trash_that_was_not_moved_there_stays() {
     remove(root.as_path());
 }
 
-/// Finding 12: the service's handler does not follow a link at `.claude`, so a trash that is only reached through a link is
+/// Finding 12:
+/// the service's handler does not follow a link at `.claude`,
+/// so a trash that is only reached through a link is
 ///  refused and what the link points at is untouched.
 #[test]
 fn the_handler_does_not_follow_a_link_at_the_claude_directory() {
@@ -206,7 +236,9 @@ fn the_handler_does_not_follow_a_link_at_the_claude_directory() {
     remove(root.as_path());
 }
 
-/// Finding 12: the foreground fallback does not follow a link at the trash parent either, and says so.
+/// Finding 12:
+/// the foreground fallback does not follow a link at the trash parent either,
+/// and says so.
 #[test]
 fn the_foreground_fallback_does_not_follow_a_link_at_the_trash_parent() {
     let name: String = "e".repeat(40);
@@ -220,7 +252,8 @@ fn the_foreground_fallback_does_not_follow_a_link_at_the_trash_parent() {
     remove(root.as_path());
 }
 
-/// Finding 12: a worktree whose `.git` file points at another administrative directory is not the worktree of the record.
+/// Finding 12:
+/// a worktree whose `.git` file points at another administrative directory is not the worktree of the record.
 #[test]
 fn the_handler_refuses_a_worktree_that_points_at_another_administrative_directory() {
     let name: String = "f".repeat(40);
@@ -232,8 +265,11 @@ fn the_handler_refuses_a_worktree_that_points_at_another_administrative_director
     remove(root.as_path());
 }
 
-/// Finding 12: the leave-out does not make its trash through a link at `.claude` in the snapshot, which would put the
-///  left-out directories somewhere outside the new worktree; it removes them in place instead.
+/// Finding 12:
+/// the leave-out does not make its trash through a link at `.claude` in the snapshot,
+/// which would put the
+///  left-out directories somewhere outside the new worktree;
+/// it removes them in place instead.
 #[test]
 fn btrfs_the_leave_out_does_not_make_its_trash_through_a_link_at_the_claude_directory() {
     let Some(root) = btrfs_fixture("trash-link-stage") else { return };
@@ -252,7 +288,9 @@ fn btrfs_the_leave_out_does_not_make_its_trash_through_a_link_at_the_claude_dire
     remove(root.as_path());
 }
 
-/// Finding 13: a directory whose name is not UTF-8 and a link named with the replacement character are two entries, and the
+/// Finding 13:
+/// a directory whose name is not UTF-8 and a link named with the replacement character are two entries,
+/// and the
 ///  walk never acts on the link's target for the directory.
 #[test]
 fn btrfs_a_directory_with_a_non_utf8_name_is_not_taken_for_a_link_named_with_the_replacement_character() {
@@ -272,7 +310,9 @@ fn btrfs_a_directory_with_a_non_utf8_name_is_not_taken_for_a_link_named_with_the
     remove(root.as_path());
 }
 
-/// Finding 13: a cache below a directory whose name is not UTF-8 is still found, and a name that only looks like a cache once
+/// Finding 13:
+/// a cache below a directory whose name is not UTF-8 is still found,
+/// and a name that only looks like a cache once
 ///  its bytes are replaced is not one.
 #[test]
 fn btrfs_non_utf8_names_are_judged_by_their_bytes() {
@@ -291,8 +331,11 @@ fn btrfs_non_utf8_names_are_judged_by_their_bytes() {
     remove(root.as_path());
 }
 
-/// Finding 14: a worktree whose path is not UTF-8 is never named by a work item that spells another path; its trash is
-///  emptied here, by the bytes of the path.
+/// Finding 14:
+/// a worktree whose path is not UTF-8 is never named by a work item that spells another path;
+/// its trash is
+///  emptied here,
+/// by the bytes of the path.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_non_utf8_worktree_is_emptied_here_and_no_work_item_names_another_path() {
@@ -319,7 +362,8 @@ fn a_non_utf8_worktree_is_emptied_here_and_no_work_item_names_another_path() {
     remove(root.as_path());
 }
 
-/// Restores the mode of a directory when dropped, so a failed control still leaves a fixture that can be removed.
+/// Restores the mode of a directory when dropped,
+/// so a failed control still leaves a fixture that can be removed.
 struct RestoreMode {
     /// The directory.
     path: PathBuf,
@@ -331,7 +375,9 @@ impl Drop for RestoreMode {
     }
 }
 
-/// Finding 15: a trash that cannot be emptied here is reported with its path and the reason, and the record that names it
+/// Finding 15:
+/// a trash that cannot be emptied here is reported with its path and the reason,
+/// and the record that names it
 ///  stays for a later service.
 #[test]
 fn a_trash_that_cannot_be_emptied_here_is_reported_and_keeps_its_work_item() {
@@ -353,7 +399,9 @@ fn a_trash_that_cannot_be_emptied_here_is_reported_and_keeps_its_work_item() {
     remove(root.as_path());
 }
 
-/// Finding 15: the handler reports a trash it cannot remove as a failure, never as done.
+/// Finding 15:
+/// the handler reports a trash it cannot remove as a failure,
+/// never as done.
 #[test]
 fn the_handler_reports_a_trash_it_cannot_remove() {
     let name: String = "6".repeat(40);
@@ -367,7 +415,8 @@ fn the_handler_reports_a_trash_it_cannot_remove() {
     remove(root.as_path());
 }
 
-/// A provisioning host that no control reaches: the provisioner of a control is a closure.
+/// A provisioning host that no control reaches:
+/// the provisioner of a control is a closure.
 fn unreachable_host() -> crate::service_provision::ProvisionHost {
     return crate::service_provision::ProvisionHost {
         runtime_dir: PathBuf::from("/nonexistent-runtime"),
@@ -380,9 +429,14 @@ fn unreachable_host() -> crate::service_provision::ProvisionHost {
     };
 }
 
-/// A new worktree has a commit service instance of its own and no socket until something sets it up: the hand-over sets it
-///  up first, as a commit does, and the service then takes the work item. (Without that step the wake waited out the whole
-///  start for a socket that nothing would create, and the trash was then emptied in the foreground for minutes.)
+/// A new worktree has a commit service instance of its own and no socket until something sets it up:
+/// the hand-over sets it
+///  up first,
+/// as a commit does,
+/// and the service then takes the work item.
+/// (Without that step the wake waited out the whole
+///  start for a socket that nothing would create,
+/// and the trash was then emptied in the foreground for minutes.)
 #[cfg(target_os = "linux")]
 #[test]
 fn the_sockets_of_a_new_worktree_are_set_up_before_the_service_is_woken() {
@@ -423,8 +477,10 @@ fn the_sockets_of_a_new_worktree_are_set_up_before_the_service_is_woken() {
     remove(root.as_path());
 }
 
-/// When the worktree cannot be provisioned, the trash is emptied here after one plain line that says what is done and why,
-///  and the reason is the manager's own, not an internal term.
+/// When the worktree cannot be provisioned,
+/// the trash is emptied here after one plain line that says what is done and why,
+///  and the reason is the manager's own,
+/// not an internal term.
 #[test]
 fn a_provisioning_failure_is_said_once_before_the_foreground_removal() {
     let name: String = "8".repeat(40);
@@ -451,7 +507,8 @@ fn a_provisioning_failure_is_said_once_before_the_foreground_removal() {
     remove(root.as_path());
 }
 
-/// When no service can be started from the session, the trash is emptied here after one plain line.
+/// When no service can be started from the session,
+/// the trash is emptied here after one plain line.
 #[test]
 fn no_route_is_said_once_before_the_foreground_removal() {
     let name: String = "4".repeat(40);

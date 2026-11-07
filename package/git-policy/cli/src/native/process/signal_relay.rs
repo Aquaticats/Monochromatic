@@ -1,11 +1,14 @@
 //! What:
-//!  Catching `SIGINT`, `SIGTERM`, `SIGHUP` and `SIGQUIT` while the wrapper waits for a Git child,
+//!  Catching `SIGINT`,
+//! `SIGTERM`,
+//! `SIGHUP` and `SIGQUIT` while the wrapper waits for a Git child,
 //!  relaying a signal to that child only when a process sent it,
 //!  and reporting how the child ended.
 //!  `SignalGuard` owns the handlers for its lifetime and restores the previous dispositions on drop.
 //! Why:
 //!  A wrapper that dies on a signal leaves its commit transaction for recovery and Git running;
-//!  one that catches the signal can end Git, release its locks and remove the transaction first.
+//!  one that catches the signal can end Git,
+//! release its locks and remove the transaction first.
 //!  A signal from the terminal already reached Git as part of the foreground process group,
 //!  so relaying it again would deliver it twice.
 //!
@@ -20,16 +23,19 @@
 //! ```
 //!
 //! Limits:
-//!  Handlers are process-wide, so one guard may be active at a time;
+//!  Handlers are process-wide,
+//! so one guard may be active at a time;
 //!  `SA_RESTART` keeps other system calls from failing with `EINTR`.
-//!  Only Linux reads the child's exit without reaping it, so the PID is cleared before reaping there;
+//!  Only Linux reads the child's exit without reaping it,
+//! so the PID is cleared before reaping there;
 //!  elsewhere a signal that arrives in the instant between the child's exit and its reaping
 //!  could reach a recycled PID.
 
 /// What:
 ///  The typed reason a second signal guard is refused while one is active.
 /// Why:
-///   Callers that wait for the guard to be free must recognize this refusal by its type, not by its wording
+///   Callers that wait for the guard to be free must recognize this refusal by its type,
+/// not by its wording
 ///  (issue 1346).
 ///
 /// In TS you'd write (pseudocode):
@@ -52,7 +58,8 @@ impl std::error::Error for SignalGuardActive {}
 /// What:
 ///  Whether an installation failure is the refusal of a second guard.
 /// Why:
-///   Only this refusal clears by itself when the other holder lets go; every other failure is final.
+///   Only this refusal clears by itself when the other holder lets go;
+/// every other failure is final.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -73,16 +80,20 @@ use std::ffi::c_int;
 use std::io;
 /// Starts that ride out a short shortage of processes.
 use crate::start_retry::RetryStart;
-/// `Command` builds the child, and `ExitStatus` is how it ended.
+/// `Command` builds the child,
+/// and `ExitStatus` is how it ended.
 use std::process::{Command, ExitStatus};
 
-/// The Git child's end, with the exit-code mapping the wrapper's exit uses.
+/// The Git child's end,
+/// with the exit-code mapping the wrapper's exit uses.
 use crate::forwarding::ChildOutcome;
 
 /// What:
 ///  Whether the kernel recorded a signal as sent by a process rather than by the terminal or the kernel.
 /// Why:
-///   `si_code` values `SI_USER`, `SI_QUEUE` and (Linux) `SI_TKILL` come from `kill`, `sigqueue` and `tkill`;
+///   `si_code` values `SI_USER`,
+/// `SI_QUEUE` and (Linux) `SI_TKILL` come from `kill`,
+/// `sigqueue` and `tkill`;
 ///  a terminal interrupt carries `SI_KERNEL`.
 ///
 /// In TS you'd write (pseudocode):
@@ -95,12 +106,18 @@ pub fn is_process_sender(code: c_int) -> bool {
 }
 
 /// What:
-///  Whether a signal counts as sent by a process; on macOS every signal does.
+///  Whether a signal counts as sent by a process;
+/// on macOS every signal does.
 /// Why:
-///   The macOS kernel reports `si_code` 0 for `kill`, for a signal from a forked child and for a Ctrl-C written to a
-///  pseudo-terminal master (measured on Darwin arm64), so the code cannot tell a terminal sender from a process one.
-///  Relaying all of them is the safe side: a missed relay orphans the Git child,
-///  while a second `SIGINT`, `SIGTERM`, `SIGHUP` or `SIGQUIT` reaching Git is harmless.
+///   The macOS kernel reports `si_code` 0 for `kill`,
+/// for a signal from a forked child and for a Ctrl-C written to a
+///  pseudo-terminal master (measured on Darwin arm64),
+/// so the code cannot tell a terminal sender from a process one.
+///  Relaying all of them is the safe side:
+/// a missed relay orphans the Git child,
+///  while a second `SIGINT`,
+/// `SIGTERM`,
+/// `SIGHUP` or `SIGQUIT` reaching Git is harmless.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -111,11 +128,13 @@ pub fn is_process_sender(_code: c_int) -> bool {
     return true;
 }
 
-/// Sender codes that mean a process sent the signal, on Linux.
+/// Sender codes that mean a process sent the signal,
+/// on Linux.
 #[cfg(target_os = "linux")]
 const PROCESS_SENDER_CODES: [c_int; 3] = [libc::SI_USER, libc::SI_QUEUE, libc::SI_TKILL];
 
-/// Sender codes that mean a process sent the signal, on other Unix systems.
+/// Sender codes that mean a process sent the signal,
+/// on other Unix systems.
 #[cfg(all(unix, not(target_os = "linux"), not(target_os = "macos")))]
 const PROCESS_SENDER_CODES: [c_int; 2] = [libc::SI_USER, libc::SI_QUEUE];
 
@@ -132,14 +151,18 @@ const PROCESS_SENDER_CODES: [c_int; 2] = [libc::SI_USER, libc::SI_QUEUE];
 pub const RELAYED_SIGNALS: [c_int; 4] = [libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGQUIT];
 
 /// What:
-///  PID of the Git child being waited for, or zero when none is.
+///  PID of the Git child being waited for,
+/// or zero when none is.
 /// Why:
-///   The handler runs asynchronously, so it can only read state through atomics.
+///   The handler runs asynchronously,
+/// so it can only read state through atomics.
 #[cfg(unix)]
 static CHILD_PID: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
 /// What:
-///  One slot per relayed signal, holding a signal number that has not been relayed yet, or zero.
+///  One slot per relayed signal,
+/// holding a signal number that has not been relayed yet,
+/// or zero.
 /// Why:
 ///   A signal that arrives before the child exists is relayed as soon as its PID is recorded.
 #[cfg(unix)]
@@ -149,32 +172,40 @@ static PENDING: [std::sync::atomic::AtomicI32; 4] =
 /// What:
 ///  Whether a guard is installed in this process.
 /// Why:
-///   Handlers and their saved dispositions are process-wide, so two guards would overwrite each other's record.
+///   Handlers and their saved dispositions are process-wide,
+/// so two guards would overwrite each other's record.
 #[cfg(unix)]
 static GUARD_ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// What:
-///  The first three fields of `siginfo_t` on every Unix system: signal number, error number and code.
+///  The first three fields of `siginfo_t` on every Unix system:
+/// signal number,
+/// error number and code.
 /// Why:
-///   The C struct's fields differ in name and union layout across systems; these three share one layout,
+///   The C struct's fields differ in name and union layout across systems;
+/// these three share one layout,
 ///  and reading them through this view avoids the platform accessors.
 #[cfg(unix)]
 #[repr(C)]
 struct SignalHeader {
     /// Signal number.
     signal: c_int,
-    /// Error number, unused here.
+    /// Error number,
+    /// unused here.
     error: c_int,
-    /// Sender code, `SI_USER` for `kill` and so on.
+    /// Sender code,
+    /// `SI_USER` for `kill` and so on.
     code: c_int,
 }
 
 /// What:
 ///  The handler for each relayed signal.
 /// Why:
-///   Relaying inside the handler delivers the signal at once, even while the wrapper is blocked in a wait,
+///   Relaying inside the handler delivers the signal at once,
+/// even while the wrapper is blocked in a wait,
 ///  where a flag would not wake it;
-///  `kill` is async-signal-safe, and the handler touches only atomics and `kill`.
+///  `kill` is async-signal-safe,
+/// and the handler touches only atomics and `kill`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -210,9 +241,11 @@ extern "C" fn relay_handler(
 }
 
 /// What:
-///  Send every pending signal to the recorded child, claiming each slot so it is sent once.
+///  Send every pending signal to the recorded child,
+/// claiming each slot so it is sent once.
 /// Why:
-///   Both the handler and the waiting code call this; the atomic swap decides which one sends a given signal.
+///   Both the handler and the waiting code call this;
+/// the atomic swap decides which one sends a given signal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -234,10 +267,13 @@ fn relay_pending() {
 }
 
 /// What:
-///  Install one relaying handler, returning the disposition it replaced.
-///  A signal the parent ignores stays ignored, so `None` is returned and nothing is saved.
+///  Install one relaying handler,
+/// returning the disposition it replaced.
+///  A signal the parent ignores stays ignored,
+/// so `None` is returned and nothing is saved.
 /// Why:
-///   Git inherits ignored signals, so replacing an ignore with a handler would change Git's environment.
+///   Git inherits ignored signals,
+/// so replacing an ignore with a handler would change Git's environment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -287,7 +323,8 @@ fn restore(saved: &[(c_int, libc::sigaction)]) {
 }
 
 /// What:
-///  Wait for the child to exit without reaping it, so its PID still names it.
+///  Wait for the child to exit without reaping it,
+/// so its PID still names it.
 /// Why:
 ///   Clearing the recorded PID before reaping stops a relay to a PID that the system may have reused.
 ///  `waitid` with `WNOWAIT` reports the exit and leaves the child waitable.
@@ -325,7 +362,8 @@ fn wait_without_reaping(pid: libc::pid_t) -> io::Result<()> {
 /// What:
 ///  Non-Linux Unix placeholder for the wait that leaves the child unreaped.
 /// Why:
-///   `waitid` is not in the `libc` crate for these systems; the window it closes is documented on the module.
+///   `waitid` is not in the `libc` crate for these systems;
+/// the window it closes is documented on the module.
 #[cfg(all(unix, not(target_os = "linux")))]
 fn wait_without_reaping(_pid: libc::pid_t) -> io::Result<()> {
     return Ok(());
@@ -333,9 +371,12 @@ fn wait_without_reaping(_pid: libc::pid_t) -> io::Result<()> {
 
 /// What:
 ///  Owns the relaying handlers for its lifetime.
-///  Install one guard, run the Git child through it, then drop it after cleanup.
+///  Install one guard,
+/// run the Git child through it,
+/// then drop it after cleanup.
 /// Why:
-///   Dropping it restores the previous dispositions, so a signal after cleanup behaves as it did before.
+///   Dropping it restores the previous dispositions,
+/// so a signal after cleanup behaves as it did before.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -344,7 +385,8 @@ fn wait_without_reaping(_pid: libc::pid_t) -> io::Result<()> {
 #[cfg(unix)]
 #[must_use = "the handlers last only while the guard lives"]
 pub struct SignalGuard {
-    /// Dispositions to restore on drop, one per signal that was replaced.
+    /// Dispositions to restore on drop,
+    /// one per signal that was replaced.
     saved: Vec<(c_int, libc::sigaction)>,
 }
 
@@ -355,7 +397,8 @@ impl SignalGuard {
     ///  Install the relaying handlers.
     ///  Fails when another guard is already active in this process.
     /// Why:
-    ///   The handlers are process-wide, so a second guard would record the first one's handler as the old disposition.
+    ///   The handlers are process-wide,
+    /// so a second guard would record the first one's handler as the old disposition.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -390,8 +433,12 @@ impl SignalGuard {
     }
 
     /// What:
-    ///  Start `command`, wait for it while relaying signals, and return how it ended.
-    ///  The guard does not exit the process; the caller releases its locks and removes its state, then exits.
+    ///  Start `command`,
+    /// wait for it while relaying signals,
+    /// and return how it ended.
+    ///  The guard does not exit the process;
+    /// the caller releases its locks and removes its state,
+    /// then exits.
     /// Why:
     ///   Signals that arrived before the child started are relayed as soon as it has a PID.
     ///
@@ -404,10 +451,13 @@ impl SignalGuard {
     }
 }
 
-/// Spawns the child, then relays any signal that was caught before the child existed.
+/// Spawns the child,
+/// then relays any signal that was caught before the child existed.
 ///
 /// A handler that runs before the spawn keeps its signal in `PENDING` and finds no child.
-/// The PID is published before the drain, so that signal is relayed here, not lost.
+/// The PID is published before the drain,
+/// so that signal is relayed here,
+/// not lost.
 #[cfg(unix)]
 fn run_relayed(command: &mut Command) -> io::Result<ChildOutcome> {
     let mut child: std::process::Child = command.spawn_retrying()?;
@@ -435,7 +485,9 @@ impl Drop for SignalGuard {
     /// What:
     ///  Restore the saved dispositions and clear the active flag.
     /// Why:
-    ///   The next guard, or the process default after the guard, must see the original handlers.
+    ///   The next guard,
+    /// or the process default after the guard,
+    /// must see the original handlers.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -448,9 +500,12 @@ impl Drop for SignalGuard {
 }
 
 /// What:
-///  Non-Unix guard: no signal relay exists, so the child runs and the wrapper waits.
+///  Non-Unix guard:
+/// no signal relay exists,
+/// so the child runs and the wrapper waits.
 /// Why:
-///   Callers keep one API; Windows ends a console child differently and is not covered by these controls.
+///   Callers keep one API;
+/// Windows ends a console child differently and is not covered by these controls.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(unix))]
 pub struct SignalGuard;
@@ -475,7 +530,8 @@ impl SignalGuard {
     /// What:
     ///  Start `command` and wait for it.
     /// Why:
-    ///   Without relaying, the wait is the whole job.
+    ///   Without relaying,
+    /// the wait is the whole job.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

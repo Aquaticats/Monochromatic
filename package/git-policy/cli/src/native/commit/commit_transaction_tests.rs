@@ -15,7 +15,10 @@ fn selection(values: &[&str]) -> Selection {
     return decide_selection(&region(values), Conclusion::None);
 }
 
-/// A pathless commit, `--no-only`, `-a`, a selection UI and a sequencer conclusion use the index;
+/// A pathless commit,
+/// `--no-only`,
+/// `-a`,
+/// a selection UI and a sequencer conclusion use the index;
 ///  named paths use explicit-path mode.
 #[test]
 fn the_mode_follows_the_selection() {
@@ -49,7 +52,8 @@ fn only_a_merge_cherry_pick_or_revert_concludes_a_sequencer() {
     assert!(decide_selection(&plain, Conclusion::Revert).concludes_sequencer);
 }
 
-/// The selection UI makes the policies read-only; `-a` stages privately only without a path or a UI or an explicit `--only`.
+/// The selection UI makes the policies read-only;
+/// `-a` stages privately only without a path or a UI or an explicit `--only`.
 #[test]
 fn the_selection_flags_follow_the_options() {
     assert!(selection(&["-i", "a.txt"]).read_only);
@@ -66,7 +70,8 @@ fn the_selection_flags_follow_the_options() {
     assert!(!selection(&["-m", "x"]).selects_paths);
 }
 
-/// A candidate request names each path literally and rooted at the top, and carries the base.
+/// A candidate request names each path literally and rooted at the top,
+/// and carries the base.
 #[test]
 fn the_candidate_request_names_paths_literally() {
     let request: CandidateRequest = staged_at_base(None, &[b"a[1].txt".to_vec(), b"dir/b.txt".to_vec()]);
@@ -99,7 +104,9 @@ fn failures_map_to_their_endings() {
     ));
 }
 
-/// The base of an unborn branch is no object; a commit base is its object name; garbage is a failure.
+/// The base of an unborn branch is no object;
+/// a commit base is its object name;
+/// garbage is a failure.
 #[test]
 fn the_base_object_follows_the_capture() {
     use crate::capture_invocation::InvocationLayout;
@@ -134,7 +141,8 @@ fn the_base_object_follows_the_capture() {
     assert!(base_object(&capture(Base::Commit(String::from("nope")))).is_err());
 }
 
-/// A settled convergence counts its changed passes; every other ending counts none.
+/// A settled convergence counts its changed passes;
+/// every other ending counts none.
 #[test]
 fn only_a_settled_convergence_counts_passes() {
     assert_eq!(settled_passes(&Convergence::Settled { changed_passes: 3 }), 3);
@@ -144,7 +152,8 @@ fn only_a_settled_convergence_counts_passes() {
     assert_eq!(settled_passes(&Convergence::FixPassLimit), 0);
 }
 
-/// A path that is not UTF-8 reaches Git byte for byte in its literal, rooted pathspec.
+/// A path that is not UTF-8 reaches Git byte for byte in its literal,
+/// rooted pathspec.
 #[cfg(unix)]
 #[test]
 fn the_candidate_request_keeps_the_bytes_of_a_name_that_is_not_utf8() {

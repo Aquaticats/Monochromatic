@@ -84,6 +84,8 @@ use crate::rule_linked_worktree::{
     GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision, decide_linked_worktree,
     dirty_scope, dirty_worktree_message, resolve_linked_worktree,
 };
+/// Whether a Git directory has no index file yet.
+use crate::rule_worktree_dirty::index_file_is_absent;
 /// The require-root rule core.
 use crate::rule_require_root::{
     NOT_AT_ROOT_CODE, RequireRootDecision, RequireRootFacts, RequireRootVerdict,
@@ -126,7 +128,8 @@ use std::path::PathBuf;
 /// type ShippedChecks<F extends RepositoryFacts> = { facts: F; arguments: string[]; candidates: LifecycleContent; allowedWorktreeDirs: string[]; content: ContentState; markdown: MarkdownState };
 /// ```
 pub struct ShippedChecks<F: RepositoryFacts> {
-    /// Whether a pass may propose corrections that its caller applies; the commit path's convergence sets it.
+    /// Whether a pass may propose corrections that its caller applies;
+    /// the commit path's convergence sets it.
     pub can_apply_patches: bool,
     /// Where repository facts come from.
     pub facts: F,
@@ -139,7 +142,8 @@ pub struct ShippedChecks<F: RepositoryFacts> {
     pub candidates: LifecycleContent,
     /// Tool-cache directories exempt from linked-worktree enforcement.
     pub allowed_worktree_dirs: Vec<PathBuf>,
-    /// The limits of the folder of saved copies of conflicted files, from `discardedCopies` in `monochromatic-git-policy-cli.config.jsonc`.
+    /// The limits of the folder of saved copies of conflicted files,
+    /// from `discardedCopies` in `monochromatic-git-policy-cli.config.jsonc`.
     pub discarded_limits: Limits,
     /// The candidates once a content policy prepared them,
     ///  shared by every later one.
@@ -153,7 +157,8 @@ pub struct ShippedChecks<F: RepositoryFacts> {
     /// The Markdown autofix policy's options,
     ///  linter and exclude patterns.
     pub markdown: MarkdownState,
-    /// Plain notices the checks produced for the person (a saved copy of a conflicted file), shown before Git runs.
+    /// Plain notices the checks produced for the person (a saved copy of a conflicted file),
+    /// shown before Git runs.
     pub notices: Vec<String>,
 }
 
@@ -307,7 +312,8 @@ fn check_require_root(
     }
 }
 
-/// The clock reading the conflict copies are named with, in milliseconds since the Unix epoch.
+/// The clock reading the conflict copies are named with,
+/// in milliseconds since the Unix epoch.
 fn now_milliseconds() -> i64 {
     let elapsed: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
     return i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
@@ -317,9 +323,12 @@ fn now_milliseconds() -> i64 {
 ///  The linked-worktree-only check.
 ///  `&[PathBuf]` borrows the exempt tool caches.
 /// Why:
-///   A guarded form that overwrites is rejected at once in the main worktree and outside any worktree, and in a
-///  linked worktree only while uncommitted state exists; a form that only moves `HEAD` is rejected in the main or
-///  a linked worktree only while uncommitted state exists. Only these need the worktree kind or the status.
+///   A guarded form that overwrites is rejected at once in the main worktree and outside any worktree,
+/// and in a
+///  linked worktree only while uncommitted state exists;
+/// a form that only moves `HEAD` is rejected in the main or
+///  a linked worktree only while uncommitted state exists.
+/// Only these need the worktree kind or the status.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -383,6 +392,12 @@ fn check_linked_worktree(
     }
     if target == EffectiveTarget::Allowlisted {
         record_audit(&location.identity, command, AuditOutcome::Exempt, arguments, None);
+        return clean();
+    }
+    // A checkout that only moves `HEAD` in a Git directory with no index file is Git's own initial checkout (a clone made with
+    // `--no-checkout`): there is no tracked work to carry over, so the status, which lists every file as a staged deletion, is not read.
+    if moves_head_only && index_file_is_absent(facts.known_git_dir().as_deref(), std::env::var_os("GIT_INDEX_FILE").as_deref()) {
+        record_audit(&location.identity, command, AuditOutcome::Allowed, arguments, Some(false));
         return clean();
     }
     match facts.worktree_dirty(dirty_scope(command)) {

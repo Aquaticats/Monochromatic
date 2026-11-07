@@ -1,6 +1,12 @@
-//! Controls for the refusals of the migration: the paths of a layout, every condition that stops a migration with its
-//!  cause and remedy, the leftovers of an earlier run that the journal explains, and the refusals of the rollback and of
-//!  the deletion of the old tree. They run on the stand-in platform, so no btrfs is needed.
+//! Controls for the refusals of the migration:
+//! the paths of a layout,
+//! every condition that stops a migration with its
+//!  cause and remedy,
+//! the leftovers of an earlier run that the journal explains,
+//! and the refusals of the rollback and of
+//!  the deletion of the old tree.
+//! They run on the stand-in platform,
+//! so no btrfs is needed.
 
 use super::*;
 use crate::fs_primitive_error::PrimitiveError;
@@ -8,7 +14,9 @@ use crate::subvolume_test_support::PlainPlatform;
 use crate::test_support::{fixture, remove};
 use std::fs::File;
 
-/// A directory with a `.git` directory, as a bare-minimum checkout, and its layout.
+/// A directory with a `.git` directory,
+/// as a bare-minimum checkout,
+/// and its layout.
 fn checkout(name: &str) -> (PathBuf, Layout) {
     let parent: PathBuf = fixture(name);
     let root: PathBuf = parent.join("checkout");
@@ -17,12 +25,14 @@ fn checkout(name: &str) -> (PathBuf, Layout) {
     return (parent, layout);
 }
 
-/// The journal of a layout, empty.
+/// The journal of a layout,
+/// empty.
 fn empty_journal(layout: &Layout) -> Journal {
     return Journal::load(layout.journal_path.as_path()).expect("journal");
 }
 
-/// The causes of the refusals, joined for substring checks.
+/// The causes of the refusals,
+/// joined for substring checks.
 fn causes(found: &[Refusal]) -> String {
     return found.iter().map(|refusal: &Refusal| { return refusal.cause.as_str(); }).collect::<Vec<&str>>().join("\n");
 }
@@ -30,7 +40,8 @@ fn causes(found: &[Refusal]) -> String {
 /// A platform that cannot identify any filesystem.
 struct Blind(PlainPlatform);
 
-/// Everything is delegated except the filesystem question, which fails.
+/// Everything is delegated except the filesystem question,
+/// which fails.
 impl Platform for Blind {
     fn filesystem_facts(&self, path: &Path) -> Result<(FilesystemKind, u64), PrimitiveError> {
         return Err(PrimitiveError { operation: "statfs", path: path.to_path_buf(), errno: libc::EIO });
@@ -58,7 +69,8 @@ impl Platform for Blind {
     }
 }
 
-/// The names beside the checkout derive from the checkout's own name, and a root with no name has no layout.
+/// The names beside the checkout derive from the checkout's own name,
+/// and a root with no name has no layout.
 #[test]
 fn the_layout_derives_every_path_from_the_checkout_name() {
     let layout: Layout = layout_of(Path::new("/work/repo")).expect("layout");
@@ -97,7 +109,9 @@ fn a_missing_root_and_a_non_directory_root_are_refused_alone() {
     remove(parent.as_path());
 }
 
-/// A filesystem that is not btrfs is named (overlayfs separately), with a remedy; one that cannot be identified is
+/// A filesystem that is not btrfs is named (overlayfs separately),
+/// with a remedy;
+/// one that cannot be identified is
 ///  reported with the operating system's words.
 #[test]
 fn the_filesystem_conditions_are_named() {
@@ -115,8 +129,10 @@ fn the_filesystem_conditions_are_named() {
     remove(parent.as_path());
 }
 
-/// The requirement grows with the entries of the checkout: one byte under it is refused with the entry count and both
-///  numbers, exactly the requirement is accepted.
+/// The requirement grows with the entries of the checkout:
+/// one byte under it is refused with the entry count and both
+///  numbers,
+/// exactly the requirement is accepted.
 #[test]
 fn free_space_is_compared_with_the_requirement_of_the_entries() {
     let (parent, layout) = checkout("preflight-space");
@@ -140,7 +156,8 @@ fn free_space_is_compared_with_the_requirement_of_the_entries() {
     remove(parent.as_path());
 }
 
-/// A small checkout does not need a fixed gibibytes: the need is the entries times the measured cost of one.
+/// A small checkout does not need a fixed gibibytes:
+/// the need is the entries times the measured cost of one.
 #[test]
 fn a_small_checkout_needs_only_the_space_of_its_entries() {
     let (parent, layout) = checkout("preflight-small");
@@ -159,7 +176,8 @@ fn the_requirement_is_linear_in_entries_and_saturates() {
     assert_eq!(required_free_bytes(u64::MAX), u64::MAX);
 }
 
-/// A mount point cannot be swapped, and a root on another device than its parent says so.
+/// A mount point cannot be swapped,
+/// and a root on another device than its parent says so.
 #[test]
 fn a_mount_point_and_a_root_on_another_device_are_refused() {
     let (parent, layout) = checkout("preflight-mount");
@@ -182,7 +200,10 @@ fn a_mount_point_and_a_root_on_another_device_are_refused() {
     assert!(device_text.contains("are on different devices"), "{device_text}");
 }
 
-/// A checkout that is a subvolume already, with no record of this command, is not migrated again; a recorded exchange
+/// A checkout that is a subvolume already,
+/// with no record of this command,
+/// is not migrated again;
+/// a recorded exchange
 ///  explains it.
 #[test]
 fn an_unrecorded_subvolume_root_is_refused_and_a_recorded_one_is_not() {
@@ -218,7 +239,8 @@ fn leftovers_beside_the_checkout_are_refused_unless_the_journal_explains_them() 
     remove(parent.as_path());
 }
 
-/// A `.git` that is not a directory (a linked worktree, or nothing) is refused with the way forward and nothing else
+/// A `.git` that is not a directory (a linked worktree,
+/// or nothing) is refused with the way forward and nothing else
 ///  about Git is asked.
 #[test]
 fn a_checkout_without_a_git_directory_is_refused() {
@@ -231,7 +253,8 @@ fn a_checkout_without_a_git_directory_is_refused() {
     remove(parent.as_path());
 }
 
-/// Every in-progress name refuses in the main Git directory and in a linked worktree's administrative directory, and the
+/// Every in-progress name refuses in the main Git directory and in a linked worktree's administrative directory,
+/// and the
 ///  refusal names the file.
 #[test]
 fn every_in_progress_marker_is_refused_where_git_keeps_it() {
@@ -252,8 +275,12 @@ fn every_in_progress_marker_is_refused_where_git_keeps_it() {
     remove(parent.as_path());
 }
 
-/// The migration's own locks (the main one and a linked worktree's) are accepted when they hold the journal's token, and
-///  no other lock is: an empty file, another migration's token, or a Git command's text are all someone else's.
+/// The migration's own locks (the main one and a linked worktree's) are accepted when they hold the journal's token,
+/// and
+///  no other lock is:
+/// an empty file,
+/// another migration's token,
+/// or a Git command's text are all someone else's.
 #[test]
 fn the_migrations_own_lock_is_accepted_only_when_it_holds_its_token() {
     let (parent, layout) = checkout("preflight-own-lock");
@@ -274,7 +301,10 @@ fn the_migrations_own_lock_is_accepted_only_when_it_holds_its_token() {
     remove(parent.as_path());
 }
 
-/// Unfinished commit-service work in either queue, of the main Git directory or of a linked worktree's, is refused; an
+/// Unfinished commit-service work in either queue,
+/// of the main Git directory or of a linked worktree's,
+/// is refused;
+/// an
 ///  empty queue directory is not.
 #[test]
 fn unfinished_service_work_is_refused_in_both_queues() {
@@ -297,7 +327,8 @@ fn unfinished_service_work_is_refused_in_both_queues() {
     remove(parent.as_path());
 }
 
-/// A rollback needs a journal; with one it has no refusal.
+/// A rollback needs a journal;
+/// with one it has no refusal.
 #[test]
 fn a_rollback_needs_a_journal() {
     let (parent, layout) = checkout("preflight-rollback");
@@ -310,7 +341,8 @@ fn a_rollback_needs_a_journal() {
     remove(parent.as_path());
 }
 
-/// The deletion of the old tree needs a finished migration and an old tree; each missing part is its own refusal.
+/// The deletion of the old tree needs a finished migration and an old tree;
+/// each missing part is its own refusal.
 #[test]
 fn deleting_the_old_tree_needs_a_finished_migration_and_an_old_tree() {
     let (parent, layout) = checkout("preflight-remove-old");
@@ -328,8 +360,10 @@ fn deleting_the_old_tree_needs_a_finished_migration_and_an_old_tree() {
     remove(parent.as_path());
 }
 
-/// Free space only matters where the copy writes btrfs metadata, so a filesystem that is not btrfs is refused for that and not
-///  also for space, and its tree is not listed to be counted.
+/// Free space only matters where the copy writes btrfs metadata,
+/// so a filesystem that is not btrfs is refused for that and not
+///  also for space,
+/// and its tree is not listed to be counted.
 #[test]
 fn free_space_is_not_checked_where_the_filesystem_is_not_btrfs() {
     let (parent, layout) = checkout("preflight-space-other");

@@ -87,6 +87,11 @@ pub struct ByteSet {
     words: [u64; WORDS],
 }
 
+/// Whether one word of the set holds no member.
+fn is_zero_word(word: &u64) -> bool {
+    return *word == 0;
+}
+
 /// What:
 ///     Construction,
 ///  mutation,
@@ -274,7 +279,7 @@ impl ByteSet {
     /// }
     /// ```
     pub fn is_empty(&self) -> bool {
-        return self.words.iter().all(|w| return *w == 0)
+        return self.words.iter().all(is_zero_word)
     }
 
     /// Returns the sole member byte when the set holds exactly one.
@@ -295,7 +300,10 @@ impl ByteSet {
     /// }
     /// ```
     pub fn as_singleton(&self) -> Option<u8> {
-        let total: u32 = self.words.iter().map(|w| return w.count_ones()).sum();
+        let mut total: u32 = 0;
+        for word in &self.words {
+            total += word.count_ones();
+        }
         if total != 1 {
             return None;
         }

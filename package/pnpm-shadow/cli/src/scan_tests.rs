@@ -15,20 +15,23 @@ use std::path::{Path, PathBuf};
 /// A manifest the rule accepts.
 const CLEAN: &str = r#"{ "name": "clean", "dependencies": { "x": "catalog:", "y": "workspace:*" } }"#;
 
-/// A manifest the rule rejects: one literal version.
+/// A manifest the rule rejects:
+/// one literal version.
 const LITERAL: &str = r#"{ "name": "literal", "dependencies": { "left-pad": "1.3.0" } }"#;
 
 /// Text that is not JSON at all.
 const BROKEN: &str = "{ not json";
 
-/// Writes `content` at `relative` under `root`, creating the directories.
+/// Writes `content` at `relative` under `root`,
+/// creating the directories.
 fn write(root: &Path, relative: &str, content: &str) {
     let path: PathBuf = root.join(relative);
     std::fs::create_dir_all(path.parent().expect("a parent directory")).expect("make the directories");
     std::fs::write(&path, content).expect("write the file");
 }
 
-/// The paths of a report's findings, in report order.
+/// The paths of a report's findings,
+/// in report order.
 fn finding_paths(root: &Path) -> Vec<String> {
     let mut paths: Vec<String> = Vec::new();
     for finding in scan_workspace(root).findings {

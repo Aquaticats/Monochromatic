@@ -1,11 +1,17 @@
 //! What:
-//!  A landing through the service while a foreign `git commit` holds the repository's index lock, with its editor open.
+//!  A landing through the service while a foreign `git commit` holds the repository's index lock,
+//! with its editor open.
 //! Why:
-//!  Git's own commit takes the index lock before it moves the branch and gives it up after the index is written. A landing that
+//!  Git's own commit takes the index lock before it moves the branch and gives it up after the index is written.
+//! A landing that
 //!  moves the branch first and takes the lock afterwards leaves the index showing content a landed commit replaced for as long
 //!  as the foreign holder keeps the lock (found by the concurrent end-to-end scenarios `foreign-index-lock-holder` and
-//!  `foreign-index-lock-unproven`). The service therefore takes the lock first and waits for a holder without polling: for as
-//!  long as a holder proven alive, or an owner nothing proves alive, keeps the lock.
+//!  `foreign-index-lock-unproven`).
+//! The service therefore takes the lock first and waits for a holder without polling:
+//! for as
+//!  long as a holder proven alive,
+//! or an owner nothing proves alive,
+//! keeps the lock.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::runtime_for;
@@ -17,7 +23,8 @@ use std::time::{Duration, Instant};
 
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// A service process that is stopped when the control ends, whether it passed or panicked.
+/// A service process that is stopped when the control ends,
+/// whether it passed or panicked.
 pub(super) struct Held(Child);
 
 impl Drop for Held {
@@ -27,7 +34,9 @@ impl Drop for Held {
     }
 }
 
-/// A service for the control, started the way the unit file starts it, repeating its notices every `notice_seconds`.
+/// A service for the control,
+/// started the way the unit file starts it,
+/// repeating its notices every `notice_seconds`.
 fn service_for(fixture: &Fixture, name: &str, notice_seconds: &str) -> Held {
     return service_with_arguments(fixture, name, notice_seconds, &[]);
 }
@@ -64,7 +73,8 @@ pub(super) fn service_with_arguments(fixture: &Fixture, name: &str, notice_secon
 }
 
 /// A foreign `git commit` of `b.txt` whose editor runs `editor_body` (a shell script that ends by writing the message into
-///  its first argument), started once its lock exists.
+///  its first argument),
+/// started once its lock exists.
 /// The commit leads a process group of its own that dies with the test.
 fn foreign_commit_with_editor(fixture: &Fixture, repo: &Path, editor_body: &str) -> Child {
     let editor: PathBuf = fixture.root.join("holding-editor");
@@ -82,7 +92,8 @@ fn foreign_commit_with_editor(fixture: &Fixture, repo: &Path, editor_body: &str)
     return child;
 }
 
-/// A foreign `git commit` of `b.txt` whose editor stays open for `hold` seconds, started once its lock exists.
+/// A foreign `git commit` of `b.txt` whose editor stays open for `hold` seconds,
+/// started once its lock exists.
 pub(super) fn foreign_commit(fixture: &Fixture, repo: &Path, hold: u32) -> Child {
     return foreign_commit_with_editor(fixture, repo, format!("sleep {hold}\n").as_str());
 }
@@ -91,17 +102,24 @@ pub(super) fn foreign_commit(fixture: &Fixture, repo: &Path, hold: u32) -> Child
 ///  A foreign `git commit` of `b.txt` that keeps its lock until the returned file exists and then for `hold` more seconds,
 /// started once its lock exists.
 /// Why:
-///   The commit that is to wait for the lock may reach it at any time on a loaded host; a holder that lets go after a fixed time
-///  can be gone before it does. This holder lets go only after the test has seen the commit waiting and created the file, and
-///  it lets go on its own if the test ends first, so the wait never depends on how fast the host runs the commit.
+///   The commit that is to wait for the lock may reach it at any time on a loaded host;
+/// a holder that lets go after a fixed time
+///  can be gone before it does.
+/// This holder lets go only after the test has seen the commit waiting and created the file,
+/// and
+///  it lets go on its own if the test ends first,
+/// so the wait never depends on how fast the host runs the commit.
 pub(super) fn foreign_commit_until_released(fixture: &Fixture, repo: &Path, hold: u32) -> (Child, PathBuf) {
     let release: PathBuf = fixture.root.join("holder-release");
     let body: String = format!("while [ ! -e '{}' ] && {}; do sleep 0.02; done\nsleep {hold}\n", release.display(), while_test_lives(fixture.root.as_path()));
     return (foreign_commit_with_editor(fixture, repo, body.as_str()), release);
 }
 
-/// The holder keeps the lock for longer than the old five tries of a tenth of a second: the commit waits, lands on top of the
-///  holder's commit with an index that shows both, and the holder's own commit succeeds.
+/// The holder keeps the lock for longer than the old five tries of a tenth of a second:
+/// the commit waits,
+/// lands on top of the
+///  holder's commit with an index that shows both,
+/// and the holder's own commit succeeds.
 #[test]
 fn a_commit_waits_for_a_foreign_commit_that_holds_the_index_and_lands_on_top_of_it() {
     let fixture: Fixture = fixture("landing-lock-holder");
@@ -123,16 +141,26 @@ fn a_commit_waits_for_a_foreign_commit_that_holds_the_index_and_lands_on_top_of_
     remove_settled(&fixture);
 }
 
-/// The seconds the foreign commit keeps the lock after the control has released it, so that its commit ends on its own.
+/// The seconds the foreign commit keeps the lock after the control has released it,
+/// so that its commit ends on its own.
 const RELEASED_HOLD_SECONDS: u32 = 0;
 
-/// The notices of the holder a control reads before it lets the holder go: at one notice a second, more seconds of waiting than
-///  the second an owner nothing proves alive used to be given, so only a wait with no bound lasts this long.
+/// The notices of the holder a control reads before it lets the holder go:
+/// at one notice a second,
+/// more seconds of waiting than
+///  the second an owner nothing proves alive used to be given,
+/// so only a wait with no bound lasts this long.
 const NOTICES_BEYOND_BACKOFF: usize = 4;
 
-/// The holder is proven alive (Git's lock PID file names it), so the commit waits for it however long it holds the lock, with
-///  the holder named, and lands on top of the holder's commit when the holder lets go: nothing fails, nothing is given up.
-/// The control releases the holder on the commit's own fourth notice, so the outcome does not depend on how fast the host runs
+/// The holder is proven alive (Git's lock PID file names it),
+/// so the commit waits for it however long it holds the lock,
+/// with
+///  the holder named,
+/// and lands on top of the holder's commit when the holder lets go:
+/// nothing fails,
+/// nothing is given up.
+/// The control releases the holder on the commit's own fourth notice,
+/// so the outcome does not depend on how fast the host runs
 ///  the commit and the wait is known to have gone on past that second.
 #[test]
 fn a_foreign_holder_proven_alive_is_waited_for_with_no_bound_and_the_commit_lands_on_top() {
@@ -157,18 +185,24 @@ fn a_foreign_holder_proven_alive_is_waited_for_with_no_bound_and_the_commit_land
     remove_settled(&fixture);
 }
 
-/// The notice interval of the service in the heartbeat control: far beyond the control, so no notice of the wait reaches the
-///  client after the first, and only heartbeats keep it from hearing nothing.
+/// The notice interval of the service in the heartbeat control:
+/// far beyond the control,
+/// so no notice of the wait reaches the
+///  client after the first,
+/// and only heartbeats keep it from hearing nothing.
 const QUIET_NOTICE_SECONDS: &str = "3600";
 
-/// How long the foreign holder keeps the lock after the queued request has been told to wait: more than twice the silence bound
-///  the client under test is given, so only a service that goes on sending heartbeats keeps the client from calling it stopped.
+/// How long the foreign holder keeps the lock after the queued request has been told to wait:
+/// more than twice the silence bound
+///  the client under test is given,
+/// so only a service that goes on sending heartbeats keeps the client from calling it stopped.
 const HOLD_AFTER_NOTICE: Duration = Duration::from_secs(8);
 
 /// How long the client under test takes no message from the service for a stopped one.
 const CLIENT_SILENCE: Duration = Duration::from_secs(3);
 
-/// A writer that tells the control when the client first prints a notice, and keeps the text.
+/// A writer that tells the control when the client first prints a notice,
+/// and keeps the text.
 struct SignalOnNotice {
     told: Option<std::sync::mpsc::Sender<()>>,
     text: Vec<u8>,
@@ -189,8 +223,12 @@ impl std::io::Write for SignalOnNotice {
 }
 
 /// The real service sends its heartbeats while a request waits behind a foreign hold that lasts several times the client's
-///  silence bound: the client is never silent, waits it out, and the commit lands.
-/// This is the control of the service's side of the heartbeat; the fake services of `binary_service_heartbeat_tests.rs` are
+///  silence bound:
+/// the client is never silent,
+/// waits it out,
+/// and the commit lands.
+/// This is the control of the service's side of the heartbeat;
+/// the fake services of `binary_service_heartbeat_tests.rs` are
 ///  the control of the client's side.
 #[test]
 fn the_service_sends_heartbeats_to_a_request_that_waits_behind_a_long_foreign_hold() {

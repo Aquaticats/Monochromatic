@@ -30,7 +30,8 @@ pub mod policy_events;
 ///  plus base64 `pathBytes` when it is not UTF-8.
 pub mod event_path;
 
-/// Exact repository path bytes as the operating system takes them, and as text for messages.
+/// Exact repository path bytes as the operating system takes them,
+/// and as text for messages.
 pub mod path_bytes;
 
 /// Ordered policy execution for one lifecycle point.
@@ -39,7 +40,8 @@ pub mod policy_engine;
 /// The bounded loop that repeats a pass after corrections changed candidate content.
 pub mod policy_convergence;
 
-/// The intent-guessing hint that follows a finding, an engine failure or a notice.
+/// The intent-guessing hint that follows a finding,
+/// an engine failure or a notice.
 pub mod event_hints;
 
 /// The shipped policies as checks over rule cores and repository facts.

@@ -1,13 +1,22 @@
 //! What:
-//!  The paths of one migration and the refusals that stop it before anything is created: every refusal names its cause
+//!  The paths of one migration and the refusals that stop it before anything is created:
+//! every refusal names its cause
 //!  and every remedy that applies.
 //! Why:
-//!  Converting a checkout swaps its directory under every process and worktree, so the migration starts only when the
-//!  filesystem, the checkout and the state left by an earlier run allow it. The conditions are those of the proven
-//!  script (`doc/handover/cli-git-subvolume-migration-script.md`, "Refusals") with the rest of the owner's rules:
-//!  nothing is spawned, and a refusal is text a person can act on. A condition checks only metadata (the dry run reads
-//!  `.git` and `.git/worktrees/*/gitdir`, and lists every directory of the tree once to count its entries for the free-space
-//!  check, without opening a file).
+//!  Converting a checkout swaps its directory under every process and worktree,
+//! so the migration starts only when the
+//!  filesystem,
+//! the checkout and the state left by an earlier run allow it.
+//! The conditions are those of the proven
+//!  script (`doc/handover/cli-git-subvolume-migration-script.md`,
+//! "Refusals") with the rest of the owner's rules:
+//!  nothing is spawned,
+//! and a refusal is text a person can act on.
+//! A condition checks only metadata (the dry run reads
+//!  `.git` and `.git/worktrees/*/gitdir`,
+//! and lists every directory of the tree once to count its entries for the free-space
+//!  check,
+//! without opening a file).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,25 +33,44 @@ use crate::subvolume_platform::Platform;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
-/// The metadata the copy writes for one entry, in bytes of the filesystem's own accounting: the `Metadata, DUP` figure of
+/// The metadata the copy writes for one entry,
+/// in bytes of the filesystem's own accounting:
+/// the `Metadata, DUP` figure of
 ///  `btrfs filesystem df --block-size=1` read before and after reflink-copying a tree of 22,719 entries eight times
-///  (181,752 entries) on this host, three alternating rounds against a no-copy control of the same wall time:
-///  957.9, 979.0 and 984.8 bytes per entry, while the control moved by at most 9.9 MB against 174 MB to 179 MB for a copy.
-///  Rounded up to one kibibyte. Recorded in `doc/planning/cli-git-shipped-limits-audit.md`, "The free-space preflight". This is
-///  the coordinator's pick under the owner's delegation ("Pick options as if I had picked them"), open to the owner's veto.
+///  (181,752 entries) on this host,
+/// three alternating rounds against a no-copy control of the same wall time:
+///  957.9,
+/// 979.0 and 984.8 bytes per entry,
+/// while the control moved by at most 9.9 MB against 174 MB to 179 MB for a copy.
+///  Rounded up to one kibibyte.
+/// Recorded in `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "The free-space preflight".
+/// This is
+///  the coordinator's pick under the owner's delegation ("Pick options as if I had picked them"),
+/// open to the owner's veto.
 pub const METADATA_BYTES_PER_ENTRY: u64 = 1024;
 
-/// How many physical copies of the metadata the filesystem keeps: the `DUP` profile of this host writes each metadata byte twice
-///  (`Metadata ratio: 2.00` in `btrfs filesystem usage`), and the free space the check reads is physical. A filesystem with a
-///  single copy is over-estimated by this factor, which only refuses earlier.
+/// How many physical copies of the metadata the filesystem keeps:
+/// the `DUP` profile of this host writes each metadata byte twice
+///  (`Metadata ratio: 2.00` in `btrfs filesystem usage`),
+/// and the free space the check reads is physical.
+/// A filesystem with a
+///  single copy is over-estimated by this factor,
+/// which only refuses earlier.
 pub const METADATA_COPIES: u64 = 2;
 
 /// What:
 ///  The free bytes the migration needs for the metadata of `entries` entries.
 /// Why:
-///   The copy shares data blocks and writes one metadata record per entry, so the need grows with the entries, not with a fixed
-///  floor; the measured cost of an entry and the copies of the metadata are the two named constants above. A count so large
-///  that the product overflows saturates at the largest `u64`, which no filesystem has free, so it refuses.
+///   The copy shares data blocks and writes one metadata record per entry,
+/// so the need grows with the entries,
+/// not with a fixed
+///  floor;
+/// the measured cost of an entry and the copies of the metadata are the two named constants above.
+/// A count so large
+///  that the product overflows saturates at the largest `u64`,
+/// which no filesystem has free,
+/// so it refuses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -76,10 +104,14 @@ pub const IN_PROGRESS_NAMES: [&str; 12] = [
 ];
 
 /// What:
-///  Every path of one migration, derived from the checkout's path.
+///  Every path of one migration,
+/// derived from the checkout's path.
 /// Why:
-///   The new tree and the old tree sit beside the checkout (one parent, so the exchange stays on one filesystem), and
-///  the journal and the unreadable-file list sit beside them, outside the tree that is exchanged.
+///   The new tree and the old tree sit beside the checkout (one parent,
+/// so the exchange stays on one filesystem),
+/// and
+///  the journal and the unreadable-file list sit beside them,
+/// outside the tree that is exchanged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -91,27 +123,36 @@ pub struct Layout {
     pub root: PathBuf,
     /// Its parent directory.
     pub parent: PathBuf,
-    /// `<root>.subvol-new`: the subvolume being filled, and after the exchange the old tree until it is renamed.
+    /// `<root>.subvol-new`:
+    /// the subvolume being filled,
+    /// and after the exchange the old tree until it is renamed.
     pub new_path: PathBuf,
-    /// `<root>.before-subvolume`: the original tree, kept until removed on request.
+    /// `<root>.before-subvolume`:
+    /// the original tree,
+    /// kept until removed on request.
     pub old_path: PathBuf,
     /// `<parent>/.cli-git-migrate-<name>.journal.json`.
     pub journal_path: PathBuf,
     /// `<parent>/.cli-git-migrate-<name>.unreadable.txt`.
     pub unreadable_path: PathBuf,
-    /// `.cli-git-migrate-<name>.owner`: the name, in the parent directory, of the numbered claim files that give one command
+    /// `.cli-git-migrate-<name>.owner`:
+    /// the name,
+    /// in the parent directory,
+    /// of the numbered claim files that give one command
     ///  at a time the migration of this checkout.
     pub claim_prefix: std::ffi::OsString,
 }
 
-/// `parent/<name><suffix>`: the name of a file kept beside the root under a fixed suffix.
+/// `parent/<name><suffix>`:
+/// the name of a file kept beside the root under a fixed suffix.
 fn with_suffix(parent: &Path, name: &std::ffi::OsStr, suffix: &str) -> PathBuf {
     let mut text: std::ffi::OsString = name.to_os_string();
     text.push(suffix);
     return parent.join(text);
 }
 
-/// `parent/.cli-git-migrate-<name><suffix>`: the name of a hidden file kept beside the root under a fixed suffix.
+/// `parent/.cli-git-migrate-<name><suffix>`:
+/// the name of a hidden file kept beside the root under a fixed suffix.
 fn dotted(parent: &Path, name: &std::ffi::OsStr, suffix: &str) -> PathBuf {
     let mut text: std::ffi::OsString = std::ffi::OsString::from(".cli-git-migrate-");
     text.push(name);
@@ -123,7 +164,8 @@ fn dotted(parent: &Path, name: &std::ffi::OsStr, suffix: &str) -> PathBuf {
 ///  The layout for a checkout path.
 ///  A root with no parent or no name (`/`) has no layout.
 /// Why:
-///   The names are fixed by the root's name, so a rerun finds the same files.
+///   The names are fixed by the root's name,
+/// so a rerun finds the same files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -147,7 +189,9 @@ pub fn layout_of(root: &Path) -> Option<Layout> {
 /// What:
 ///  One refusal.
 /// Why:
-///   The cause says what is wrong with which path; the remedy lists every way forward, so the person never has to guess.
+///   The cause says what is wrong with which path;
+/// the remedy lists every way forward,
+/// so the person never has to guess.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -167,10 +211,15 @@ fn refuse(cause: String, remedy: &str) -> Refusal {
 }
 
 /// What:
-///  The refusals of a fresh or resumed migration; empty means it may start or continue.
+///  The refusals of a fresh or resumed migration;
+/// empty means it may start or continue.
 /// Why:
-///   See the module description. The journal says which leftovers are this migration's own: the new tree after its
-///  `create` step began, the old tree after the `exchange` step began, `.git/index.lock` after the `lock` step began.
+///   See the module description.
+/// The journal says which leftovers are this migration's own:
+/// the new tree after its
+///  `create` step began,
+/// the old tree after the `exchange` step began,
+/// `.git/index.lock` after the `lock` step began.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -232,7 +281,9 @@ pub fn migrate_refusals(platform: &dyn Platform, layout: &Layout, journal: &Jour
     return found;
 }
 
-/// The refusals about what an earlier run, or someone else, left beside the checkout.
+/// The refusals about what an earlier run,
+/// or someone else,
+/// left beside the checkout.
 fn state_refusals(platform: &dyn Platform, layout: &Layout, journal: &Journal) -> Vec<Refusal> {
     let mut found: Vec<Refusal> = Vec::new();
     let is_root_subvolume: bool = platform.is_subvolume_root(layout.root.as_path()).unwrap_or(false);
@@ -263,7 +314,8 @@ fn state_refusals(platform: &dyn Platform, layout: &Layout, journal: &Journal) -
     return found;
 }
 
-/// The refusal for a conversion of the linked worktree whose administrative directory this is, when its command is running.
+/// The refusal for a conversion of the linked worktree whose administrative directory this is,
+/// when its command is running.
 fn conversion_refusal(administrative: &Path) -> Option<Refusal> {
     return match live_owner_of(administrative, std::ffi::OsStr::new(crate::worktree_convert_journal::CLAIM_PREFIX)) {
         Ok(None) => None,
@@ -326,7 +378,8 @@ fn git_state_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
 }
 
 /// What:
-///  The refusals of a rollback: it needs a journal.
+///  The refusals of a rollback:
+/// it needs a journal.
 /// Why:
 ///   Without a record the command cannot tell which directory is the original and which the copy.
 ///
@@ -345,10 +398,14 @@ pub fn rollback_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
 }
 
 /// What:
-///  The refusals of deleting the old tree: the migration must have finished and the old tree must exist.
+///  The refusals of deleting the old tree:
+/// the migration must have finished and the old tree must exist.
 /// Why:
-///   The old tree is the only copy of the files this user could not read, and of anything not yet carried over; it is
-///  deleted only when the person asks, after a verified migration.
+///   The old tree is the only copy of the files this user could not read,
+/// and of anything not yet carried over;
+/// it is
+///  deleted only when the person asks,
+/// after a verified migration.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,5 +1,10 @@
-//! The conversion of a linked worktree into a subvolume on the stand-in platform (any filesystem): the whole sequence, every
-//! refusal, a kill at every phase followed by a rerun, the abandon, and the guarantee that nothing foreign is deleted.
+//! The conversion of a linked worktree into a subvolume on the stand-in platform (any filesystem):
+//! the whole sequence,
+//! every
+//! refusal,
+//! a kill at every phase followed by a rerun,
+//! the abandon,
+//! and the guarantee that nothing foreign is deleted.
 
 use super::*;
 use crate::subvolume_test_support::{Hooked, PlainPlatform, backdate, checkout_with_worktree, index_inode};
@@ -9,7 +14,8 @@ use std::os::unix::fs::MetadataExt;
 /// The options of a real run.
 const RUN: ConvertOptions = ConvertOptions { dry_run: false, abandon: false, command_line_attributes: false };
 
-/// A checkout with one linked worktree whose tracked files are old and whose index is fresh, so it is quiet.
+/// A checkout with one linked worktree whose tracked files are old and whose index is fresh,
+/// so it is quiet.
 fn quiet_worktree(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     let (parent, root) = checkout_with_worktree(name);
     let worktree: PathBuf = root.join("wt");
@@ -35,7 +41,10 @@ fn admin_of(worktree: &Path) -> PathBuf {
     return inspect(worktree).expect("registered").admin;
 }
 
-/// Nothing of the conversion is left: no converting directory, no journal, no lock of its token.
+/// Nothing of the conversion is left:
+/// no converting directory,
+/// no journal,
+/// no lock of its token.
 fn assert_nothing_left(worktree: &Path) {
     assert!(std::fs::symlink_metadata(converting_path(worktree)).is_err(), "the converting directory is gone");
     let admin: PathBuf = admin_of(worktree);
@@ -43,8 +52,12 @@ fn assert_nothing_left(worktree: &Path) {
     assert!(!admin.join("index.lock").exists(), "the lock is released");
 }
 
-/// The state every successful conversion ends in: a subvolume at the same path with the same bytes, a clean quick status, a
-///  registration Git still lists, and an index that describes the new files.
+/// The state every successful conversion ends in:
+/// a subvolume at the same path with the same bytes,
+/// a clean quick status,
+/// a
+///  registration Git still lists,
+/// and an index that describes the new files.
 fn assert_converted(platform: &PlainPlatform, root: &Path, worktree: &Path, git_file: &[u8]) {
     assert!(platform.is_subvolume_root(worktree).expect("examined"));
     assert_eq!(std::fs::read(worktree.join(".git")).expect(".git"), git_file, "the .git file is byte for byte the same");
@@ -58,7 +71,8 @@ fn assert_converted(platform: &PlainPlatform, root: &Path, worktree: &Path, git_
     assert_nothing_left(worktree);
 }
 
-/// A worktree is converted from start to end, and everything about it survives.
+/// A worktree is converted from start to end,
+/// and everything about it survives.
 #[test]
 fn a_worktree_is_converted_in_place() {
     let (parent, root, worktree) = quiet_worktree("convert-whole");
@@ -77,7 +91,8 @@ fn a_worktree_is_converted_in_place() {
     remove(parent.as_path());
 }
 
-/// A dry run changes nothing at all, and says it would convert.
+/// A dry run changes nothing at all,
+/// and says it would convert.
 #[test]
 fn a_dry_run_changes_nothing() {
     let (parent, _root, worktree) = quiet_worktree("convert-dry");
@@ -91,7 +106,8 @@ fn a_dry_run_changes_nothing() {
     remove(parent.as_path());
 }
 
-/// The reasons the verdict lists when something stands in the way, and the worktree is untouched.
+/// The reasons the verdict lists when something stands in the way,
+/// and the worktree is untouched.
 fn skipped_with(verdict: Result<Verdict, MigrateError>, fragment: &str) {
     match verdict.expect("no failure") {
         Verdict::Skipped(reasons) => assert!(reasons.iter().any(|reason: &String| { return reason.contains(fragment); }), "{reasons:?} should mention {fragment}"),
@@ -99,8 +115,15 @@ fn skipped_with(verdict: Result<Verdict, MigrateError>, fragment: &str) {
     }
 }
 
-/// Every refusal is reported, with the worktree untouched: locked, modified, an index lock, a foreign converting directory, a
-///  process inside, and a worktree registered inside.
+/// Every refusal is reported,
+/// with the worktree untouched:
+/// locked,
+/// modified,
+/// an index lock,
+/// a foreign converting directory,
+/// a
+///  process inside,
+/// and a worktree registered inside.
 #[test]
 fn each_refusal_leaves_the_worktree_untouched() {
     let (parent, root, worktree) = quiet_worktree("convert-refusals");
@@ -145,7 +168,8 @@ fn each_refusal_leaves_the_worktree_untouched() {
     remove(parent.as_path());
 }
 
-/// A kill at every phase is finished by running the command again, with the same final state and nothing foreign deleted.
+/// A kill at every phase is finished by running the command again,
+/// with the same final state and nothing foreign deleted.
 #[test]
 fn a_kill_at_every_phase_is_finished_by_a_rerun() {
     for point in ["journaled", "created", "verified", "exchanged", "refreshed", "removed"] {
@@ -163,8 +187,10 @@ fn a_kill_at_every_phase_is_finished_by_a_rerun() {
     }
 }
 
-/// Abandoning before the swap destroys only the subvolume this command created and leaves the original whole; after the swap
-///  there is nothing to undo, and a rerun finishes.
+/// Abandoning before the swap destroys only the subvolume this command created and leaves the original whole;
+/// after the swap
+///  there is nothing to undo,
+/// and a rerun finishes.
 #[test]
 fn abandon_undoes_before_the_swap_and_refuses_after() {
     let (parent, _root, worktree) = quiet_worktree("convert-abandon");
@@ -191,8 +217,11 @@ fn abandon_undoes_before_the_swap_and_refuses_after() {
     remove(parent.as_path());
 }
 
-/// The final removal deletes the directory the journal recorded and nothing else: a different directory at the converting
-///  name is left alone, the run says it is not finished, and the journal stays so that the next run can finish it.
+/// The final removal deletes the directory the journal recorded and nothing else:
+/// a different directory at the converting
+///  name is left alone,
+/// the run says it is not finished,
+/// and the journal stays so that the next run can finish it.
 #[test]
 fn a_directory_that_is_not_the_recorded_old_tree_is_never_removed() {
     let (parent, _root, worktree) = quiet_worktree("convert-foreign-old");
@@ -217,7 +246,8 @@ fn a_directory_that_is_not_the_recorded_old_tree_is_never_removed() {
     remove(parent.as_path());
 }
 
-/// A process that appears after the copy was made stops the swap on the rerun, and nothing is swapped.
+/// A process that appears after the copy was made stops the swap on the rerun,
+/// and nothing is swapped.
 #[test]
 fn a_process_inside_stops_the_swap_of_a_resumed_conversion() {
     let (parent, _root, worktree) = quiet_worktree("convert-process");
@@ -234,7 +264,8 @@ fn a_process_inside_stops_the_swap_of_a_resumed_conversion() {
     remove(parent.as_path());
 }
 
-/// A file that changes while the copy is made is caught by the proving pass, and nothing is swapped.
+/// A file that changes while the copy is made is caught by the proving pass,
+/// and nothing is swapped.
 #[test]
 fn a_change_during_the_copy_is_caught_before_the_swap() {
     let (parent, _root, worktree) = quiet_worktree("convert-change");
@@ -254,8 +285,11 @@ fn a_change_during_the_copy_is_caught_before_the_swap() {
     remove(parent.as_path());
 }
 
-/// On a real btrfs filesystem the same conversion creates a real subvolume (root inode 256), clones the file data, keeps the
-///  registration and the index fast; elsewhere the control prints its one loud line and returns.
+/// On a real btrfs filesystem the same conversion creates a real subvolume (root inode 256),
+/// clones the file data,
+/// keeps the
+///  registration and the index fast;
+/// elsewhere the control prints its one loud line and returns.
 #[test]
 fn a_real_conversion_makes_a_subvolume_and_clones_file_data() {
     use crate::fs_btrfs_test_support::btrfs_fixture;

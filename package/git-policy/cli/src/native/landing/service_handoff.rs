@@ -1,11 +1,17 @@
 //! What:
-//!  The wrapper's side of after-commit work: leave the push and upkeep records for a commit the service landed and wake
+//!  The wrapper's side of after-commit work:
+//! leave the push and upkeep records for a commit the service landed and wake
 //!  the service.
 //! Why:
-//!  The commit returns as soon as it is saved. The push (which can take as long as the network does) and the upkeep run
-//!  in the service afterwards; a push that fails is reported by the person's next wrapper command (`push_failure_notice.rs`)
-//!  (`doc/planning/cli-git-resident-service.md`, "After-commit work"). The wrapper starts no program and waits for no
-//!  one: it writes whole files and sends one message.
+//!  The commit returns as soon as it is saved.
+//! The push (which can take as long as the network does) and the upkeep run
+//!  in the service afterwards;
+//! a push that fails is reported by the person's next wrapper command (`push_failure_notice.rs`)
+//!  (`doc/planning/cli-git-resident-service.md`,
+//! "After-commit work").
+//! The wrapper starts no program and waits for no
+//!  one:
+//! it writes whole files and sends one message.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,7 +35,8 @@ pub struct ServiceHandoff {
     pub config: ClientConfig,
     /// The worktree root.
     pub repository: PathBuf,
-    /// The worktree's own Git directory, which holds the work records and names the service instance.
+    /// The worktree's own Git directory,
+    /// which holds the work records and names the service instance.
     pub git_dir: PathBuf,
     /// The branch the commit went to.
     pub reference: String,
@@ -41,7 +48,8 @@ pub struct ServiceHandoff {
 pub const HANDED_OVER: [WorkKind; 2] = [WorkKind::Push, WorkKind::Maintenance];
 
 /// What:
-///  The value of an environment variable, nothing when it is unset or not text.
+///  The value of an environment variable,
+/// nothing when it is unset or not text.
 /// Why:
 ///  `hand_over` reads the review key from the process environment through it.
 ///
@@ -56,7 +64,9 @@ fn environment_variable(name: &str) -> Option<String> {
 /// What:
 ///  Writes the work records for a landed commit and wakes the service.
 /// Why:
-///   The records are written before the message is sent, so a service that wakes always finds them; records that were
+///   The records are written before the message is sent,
+/// so a service that wakes always finds them;
+/// records that were
 ///  written but not announced stay pending and are run by the next wake for the repository.
 ///
 /// In TS you'd write (pseudocode):
@@ -69,11 +79,17 @@ pub fn hand_over(handoff: &ServiceHandoff, landed: &str, notices: &mut dyn Write
 }
 
 /// What:
-///  `hand_over` with the standards-review credential given. The records written to disk never hold it; the wake message
-///  carries it to the service, which keeps it in memory for the review.
+///  `hand_over` with the standards-review credential given.
+/// The records written to disk never hold it;
+/// the wake message
+///  carries it to the service,
+/// which keeps it in memory for the review.
 /// Why:
-///   A systemd user service does not inherit the wrapper's environment, and the credential must not be stored in a work
-///  item, a unit file or the manager's environment. The wrapper therefore sends it over the user-only socket.
+///   A systemd user service does not inherit the wrapper's environment,
+/// and the credential must not be stored in a work
+///  item,
+/// a unit file or the manager's environment.
+/// The wrapper therefore sends it over the user-only socket.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -100,10 +116,16 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 }
 
 /// What:
-///  Writes the push record for a branch tip that a command other than a commit moved, and wakes the service.
+///  Writes the push record for a branch tip that a command other than a commit moved,
+/// and wakes the service.
 /// Why:
-///   A merge, a cherry-pick, a revert, an applied patch or a pull's merge adds commits that the next commit would otherwise
-///  be the first to push. Only the push is left: the review and the upkeep belong to a commit.
+///   A merge,
+/// a cherry-pick,
+/// a revert,
+/// an applied patch or a pull's merge adds commits that the next commit would otherwise
+///  be the first to push.
+/// Only the push is left:
+/// the review and the upkeep belong to a commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -57,6 +57,9 @@ use std::path::Path;
 /// the builder for starting another program.
 use std::process::Command;
 
+/// Imports the check of the chosen program and the arrival marker of its start.
+use crate::shadow_identity::{StartMode, Vetted, mark_start, vet};
+
 /// What:
 /// `pub fn replace_process(program: &Path, arguments: &[OsString]) -> io::Error` declares a public function.
 /// It returns an `io::Error` and never returns at all when everything works.
@@ -76,18 +79,25 @@ use std::process::Command;
 /// }
 /// ```
 pub fn replace_process(program: &Path, arguments: &[OsString]) -> io::Error {
-    // What:     `let mut command = Command::new(program);` creates a description of the program to run. `mut`
-    // lets the next line change it.
-    // Why:      We add the arguments before launching.
+    // What:     `vet(program)` opens the chosen program and refuses it when it is a shadow or leads to one;
+    // `vetted.command()` then builds the command that starts the very file that was checked.
+    // Why:      A path can be made to name a shadow between the lookup and the start (`shadow_identity.rs`).
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const command = { program, args: [] as string[] };
+    // const command = vet(program).command();
     // ```
-    let mut command: Command = Command::new(program);
+    let vetted: Vetted = match vet(program) {
+        Ok(checked) => checked,
+        Err(reason) => return io::Error::other(reason),
+    };
+    let mut command: Command = vetted.command();
 
     // `command.args(arguments)` appends every argument; `arguments` is already a borrowed list.
     command.args(arguments);
+
+    // The arrival marker: a shadow that this start reaches finds that a shadow started it, and stops.
+    mark_start(&mut command, StartMode::Exec);
 
     // What:     `command.exec()` asks the operating system to replace this process with the program. It returns an
     // `io::Error` only when that failed.

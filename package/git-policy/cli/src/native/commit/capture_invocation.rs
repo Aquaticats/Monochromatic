@@ -21,23 +21,30 @@
 //! ```
 
 /// Journal enums shared with the transaction record:
-///  the base, the symbolic `HEAD`, the conclusion and the ref backend.
+///  the base,
+/// the symbolic `HEAD`,
+/// the conclusion and the ref backend.
 use crate::transaction_journal::{Base, Conclusion, RefFormat, SymbolicHead};
 /// Failure text of one Git start that the layout reports as unusable.
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git, run_git_checked};
 /// The files-backend `HEAD` reader and where one worktree's ref files live.
 use crate::ref_files::{RefFilesLayout, read_symbolic_head};
-/// The in-process repository layout, tried before the `rev-parse` report.
+/// The in-process repository layout,
+/// tried before the `rev-parse` report.
 use crate::repo_read_adapter::invocation_report;
 use crate::git_system_config::with_real_git;
 use crate::repo_read_layout::read_layout_in;
-/// Proof that a sequencer marker names nothing, without a Git process.
+/// Proof that a sequencer marker names nothing,
+/// without a Git process.
 use crate::sequencer_marker::markers_maybe_present;
-/// The empty tree's name per object format, known without a Git process.
+/// The empty tree's name per object format,
+/// known without a Git process.
 use crate::empty_tree::empty_tree_name;
-/// Trim with JavaScript's whitespace rules, as `String.prototype.trim` does.
+/// Trim with JavaScript's whitespace rules,
+/// as `String.prototype.trim` does.
 use crate::js_text::trim_javascript;
-/// Invocation start time, ISO-8601 with milliseconds.
+/// Invocation start time,
+/// ISO-8601 with milliseconds.
 use crate::iso_time::now_iso;
 /// The one configuration read the invocation's consumers share.
 use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
@@ -87,12 +94,14 @@ pub struct InvocationLayout {
     pub empty_tree_oid: String,
     /// ISO-8601 invocation start time.
     pub invoked_at: String,
-    /// The Git configuration read once with the caller's global options, or `None` when Git must answer per key.
+    /// The Git configuration read once with the caller's global options,
+    /// or `None` when Git must answer per key.
     pub config_snapshot: Option<ConfigSnapshot>,
 }
 
 /// What:
-///  Every invocation fact, including the preparation base.
+///  Every invocation fact,
+/// including the preparation base.
 /// Why:
 ///   `InvocationCapture` in the incumbent is the layout plus the base read after it.
 ///
@@ -102,17 +111,20 @@ pub struct InvocationLayout {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InvocationCapture {
-    /// Target commit at invocation, or unborn.
+    /// Target commit at invocation,
+    /// or unborn.
     pub base: Base,
     /// Facts other than the base.
     pub layout: InvocationLayout,
 }
 
 /// What:
-///  One required Git report, decoded and trimmed.
+///  One required Git report,
+/// decoded and trimmed.
 /// Why:
 ///   Git output is strict UTF-8 in the incumbent;
-///  a non-UTF-8 report is a failure, not a lossy text.
+///  a non-UTF-8 report is a failure,
+/// not a lossy text.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -199,7 +211,8 @@ fn required_line(lines: &[&str], index: usize) -> Result<String, GitFailure> {
 /// What:
 ///  Resolves one reported path against the invocation directory.
 /// Why:
-///   Git may report a relative path; the transaction stores absolute ones.
+///   Git may report a relative path;
+/// the transaction stores absolute ones.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -217,8 +230,11 @@ fn absolute_reported(cwd: &Path, lines: &[&str], index: usize) -> Result<PathBuf
 /// What:
 ///  Reports whether a pseudoref names an object in the owning worktree.
 /// Why:
-///   `MERGE_HEAD`, `CHERRY_PICK_HEAD` and `REVERT_HEAD` decide the conclusion kind
-///  by resolution, not by file presence, so a reftable repository answers the same way.
+///   `MERGE_HEAD`,
+/// `CHERRY_PICK_HEAD` and `REVERT_HEAD` decide the conclusion kind
+///  by resolution,
+/// not by file presence,
+/// so a reftable repository answers the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -234,7 +250,9 @@ fn pseudoref_exists(context: &GitContext, cwd: &Path, name: &str) -> Result<bool
 ///   An amend always wins;
 ///  otherwise the first present marker in the incumbent's order decides.
 ///  A marker whose every lookup place is empty on the files backend is absent without asking Git;
-///  any entry in any place, of any content, is resolved by `rev-parse --verify`,
+///  any entry in any place,
+/// of any content,
+/// is resolved by `rev-parse --verify`,
 ///  so a marker naming a missing object stays a conclusion.
 ///
 /// In TS you'd write (pseudocode):
@@ -328,11 +346,16 @@ pub fn resolve_ref_format(context: &GitContext, cwd: &Path) -> Result<RefFormat,
 }
 
 /// What:
-///  Reads the ref storage backend, from the configuration snapshot when it proves `files`.
+///  Reads the ref storage backend,
+/// from the configuration snapshot when it proves `files`.
 /// Why:
 ///   `rev-parse --show-ref-format` prints `reftable` only for a repository whose configuration names
-///  `extensions.refStorage`, so a snapshot read without global options that has no such key proves `files`
-///  without starting Git; any other snapshot, and a missing one, asks Git.
+///  `extensions.refStorage`,
+/// so a snapshot read without global options that has no such key proves `files`
+///  without starting Git;
+/// any other snapshot,
+/// and a missing one,
+/// asks Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -354,8 +377,10 @@ pub fn resolve_ref_format_with(
 /// What:
 ///  The empty tree's object name under the repository's object format.
 /// Why:
-///   The name is a constant per object format, so a known format needs no Git process;
-///  a format the table does not know is hashed by Git, which stays the authority.
+///   The name is a constant per object format,
+/// so a known format needs no Git process;
+///  a format the table does not know is hashed by Git,
+/// which stays the authority.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -475,7 +500,8 @@ pub fn capture_invocation_base(
 
 /// What:
 ///  The revision the transaction reads as its baseline tree:
-///  the base commit, or the empty tree when unborn.
+///  the base commit,
+/// or the empty tree when unborn.
 /// Why:
 ///   Every baseline read of the transaction uses this one revision.
 ///

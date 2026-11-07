@@ -1,7 +1,8 @@
 //! What:
 //!  The grammar of `git monochromatic-git-policy-cli convert-worktree-to-subvolume`.
 //! Why:
-//!  The grammar is parsed on every platform by the management namespace; only the run needs Linux and btrfs.
+//!  The grammar is parsed on every platform by the management namespace;
+//! only the run needs Linux and btrfs.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -37,7 +38,8 @@ another process from changing the worktree while it works. A process that writes
 renames or replaces a path, between a check and the step that relies on it can lose its data; stop such processes first.
 ";
 
-/// The one line printed on standard error when a conversion runs, before anything is removed.
+/// The one line printed on standard error when a conversion runs,
+/// before anything is removed.
 pub const RISK_NOTICE: &str = "monochromatic-git-policy-cli: this deletes the old directory of each worktree after the copy is verified. A process that changes a worktree while it is converted can lose data, and that risk is yours; stop such processes first.";
 
 /// What:
@@ -61,13 +63,16 @@ pub struct ConvertArguments {
     pub paths: Vec<std::ffi::OsString>,
     /// Print the help.
     pub help: bool,
-    /// The invocation chose an attribute source before the command (`--attr-source`, `-c attr.tree`).
+    /// The invocation chose an attribute source before the command (`--attr-source`,
+    /// `-c attr.tree`).
     pub command_line_attributes: bool,
-    /// The most worktrees converted at once (`--jobs`), or nothing for the budget the host allows.
+    /// The most worktrees converted at once (`--jobs`),
+    /// or nothing for the budget the host allows.
     pub jobs: Option<usize>,
 }
 
-/// The count after `--jobs`: a whole number of at least one.
+/// The count after `--jobs`:
+/// a whole number of at least one.
 fn parse_jobs(value: &str) -> Result<usize, String> {
     return match value.parse::<usize>() {
         Ok(count) if count >= 1 => Ok(count),
@@ -126,10 +131,14 @@ pub fn parse_convert_arguments(rest: &[std::ffi::OsString]) -> Result<ConvertArg
 }
 
 /// What:
-///  Whether the global options before `monochromatic-git-policy-cli` choose an attribute source: `--attr-source`, `-c attr.tree=...` or
+///  Whether the global options before `monochromatic-git-policy-cli` choose an attribute source:
+/// `--attr-source`,
+/// `-c attr.tree=...` or
 ///  `--config-env=attr.tree=...`.
 /// Why:
-///   Git would then take its attributes from a tree, which the conversion's content check does not read, so the check refuses
+///   Git would then take its attributes from a tree,
+/// which the conversion's content check does not read,
+/// so the check refuses
 ///  to decide by content.
 ///
 /// In TS you'd write (pseudocode):

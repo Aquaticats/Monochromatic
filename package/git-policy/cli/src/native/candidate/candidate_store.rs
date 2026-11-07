@@ -94,7 +94,9 @@ pub struct CandidateStore {
     ///  by source.
     versions: Vec<(CandidateSource, Rc<CandidateVersion>)>,
     /// The commit every "against `HEAD`" listing compares with instead of the live `HEAD`:
-    ///  `Some(Some(commit))` for a recorded base, `Some(None)` for a recorded unborn branch, `None` for live `HEAD`.
+    ///  `Some(Some(commit))` for a recorded base,
+    /// `Some(None)` for a recorded unborn branch,
+    /// `None` for live `HEAD`.
     baseline: Option<Option<ObjectId>>,
 }
 
@@ -178,9 +180,11 @@ impl CandidateStore {
 
     /// What:
     ///  The commit the "against `HEAD`" listings compare with:
-    ///  the recorded baseline when one was set, otherwise the commit `HEAD` names now.
+    ///  the recorded baseline when one was set,
+    /// otherwise the commit `HEAD` names now.
     /// Why:
-    ///   One place decides the baseline, so the listings and the `HEAD` tree always agree.
+    ///   One place decides the baseline,
+    /// so the listings and the `HEAD` tree always agree.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -479,9 +483,13 @@ impl CandidateStore {
         return parse_raw_records(output.as_slice());
     }
 
-    /// What: The commit the "against `HEAD`" listings compare with: the recorded base or the commit
-    ///       `HEAD` names now; nothing when the branch has no commit yet.
-    /// Why:  A policy that skips content the baseline already holds names the commit in its log
+    /// What:
+    /// The commit the "against `HEAD`" listings compare with:
+    /// the recorded base or the commit
+    ///       `HEAD` names now;
+    /// nothing when the branch has no commit yet.
+    /// Why:
+    ///  A policy that skips content the baseline already holds names the commit in its log
     ///       record and lists its files through `commit_tree_records`.
     ///
     /// In TS you'd write (pseudocode):
@@ -492,10 +500,15 @@ impl CandidateStore {
         return self.baseline_commit();
     }
 
-    /// What: A version of the current generation built from records the caller derived.
-    ///       `Vec<CandidateRecord>` is taken by value: the records move into the version.
-    /// Why:  A predicted staging operation has no single listing command; its candidates
-    ///       come from comparing index states. The version is not remembered by source,
+    /// What:
+    /// A version of the current generation built from records the caller derived.
+    ///       `Vec<CandidateRecord>` is taken by value:
+    /// the records move into the version.
+    /// Why:
+    ///  A predicted staging operation has no single listing command;
+    /// its candidates
+    ///       come from comparing index states.
+    /// The version is not remembered by source,
     ///       because no source names it.
     ///
     /// In TS you'd write (pseudocode):

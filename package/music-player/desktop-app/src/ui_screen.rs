@@ -1,8 +1,12 @@
-//! Window binding for the library screen: applies engine updates to the UI-thread state and pushes
+//! Window binding for the library screen:
+//! applies engine updates to the UI-thread state and pushes
 //! the projected view into `AppWindow`.
 //!
-//! What: `apply_update` is the single entry for engine messages on the event-loop thread.
-//! Why: the page rules and the row and picker models stay in the pure modules; this file only
+//! What:
+//! `apply_update` is the single entry for engine messages on the event-loop thread.
+//! Why:
+//! the page rules and the row and picker models stay in the pure modules;
+//! this file only
 //! converts them into Slint values and writes window properties.
 
 use std::cell::RefCell;
@@ -20,13 +24,20 @@ use crate::ui_screen_view::{ScreenState, ScreenView, view};
 use crate::{AppWindow, DeckState, FolderName, FolderRailCell, TrackListRow, format_time};
 
 thread_local! {
-    /// What: the UI thread's copy of the engine facts, read and written only on the event-loop thread.
-    /// Why: `invoke_from_event_loop` runs every update on that thread, so no lock is needed.
+    /// What:
+    /// the UI thread's copy of the engine facts,
+    /// read and written only on the event-loop thread.
+    /// Why:
+    /// `invoke_from_event_loop` runs every update on that thread,
+    /// so no lock is needed.
     static SCREEN: RefCell<ScreenState> = RefCell::new(ScreenState::default());
 }
 
-/// What: `apply_update` applies one engine message to the state and the window.
-/// Why: queue changes reset the folder selection, playing-track changes follow the playing folder,
+/// What:
+/// `apply_update` applies one engine message to the state and the window.
+/// Why:
+/// queue changes reset the folder selection,
+/// playing-track changes follow the playing folder,
 /// and position and playing changes only touch their own window properties.
 ///
 /// In TS you'd write (pseudocode):
@@ -169,11 +180,19 @@ pub(crate) fn apply_update(app: &AppWindow, update: &Update) {
     }
 }
 
-/// What: `set_now_playing` records and shows the playing track's name, duration and queue index.
-/// Why: the window title, the seek bar and the row highlight all read these values.
-/// What: `reset_position` puts the seek bar and the elapsed label back to the start.
-/// Why: when the playing file leaves the folder no `NowPlaying` follows, and the rate-limited `Position` reset can be
-/// dropped, which left `0:02` next to `0:00` (the polish review finding PB2).
+/// What:
+/// `set_now_playing` records and shows the playing track's name,
+/// duration and queue index.
+/// Why:
+/// the window title,
+/// the seek bar and the row highlight all read these values.
+/// What:
+/// `reset_position` puts the seek bar and the elapsed label back to the start.
+/// Why:
+/// when the playing file leaves the folder no `NowPlaying` follows,
+/// and the rate-limited `Position` reset can be
+/// dropped,
+/// which left `0:02` next to `0:00` (the polish review finding PB2).
 fn reset_position(app: &AppWindow) {
     update_state(|state| {
         state.position = 0.0;
@@ -194,8 +213,10 @@ pub(crate) fn set_now_playing(app: &AppWindow, index: Option<usize>, name: &str,
     app.set_current_index(index.map_or(-1, |i| return i32::try_from(i).unwrap_or(-1)));
 }
 
-/// What: `follow_playing` moves the selected folder to the folder that holds the playing track.
-/// Why: the list keeps the playing track visible when playback moves to another folder.
+/// What:
+/// `follow_playing` moves the selected folder to the folder that holds the playing track.
+/// Why:
+/// the list keeps the playing track visible when playback moves to another folder.
 fn follow_playing(index: Option<usize>) {
     let Some(queue_index) = index else {
         return;
@@ -208,8 +229,12 @@ fn follow_playing(index: Option<usize>) {
     });
 }
 
-/// What: `apply_scroll_request` moves the track list for one pending request by writing its offset and bumping the tick.
-/// Why: the offset is written before the tick, so the list reads the new offset when the tick changes; without a
+/// What:
+/// `apply_scroll_request` moves the track list for one pending request by writing its offset and bumping the tick.
+/// Why:
+/// the offset is written before the tick,
+/// so the list reads the new offset when the tick changes;
+/// without a
 /// request the list keeps its scroll position.
 fn apply_scroll_request(app: &AppWindow, pending: Option<ScrollRequest>, rows: &[crate::ui_screen_rows::ListRow]) {
     let Some(request) = pending else {
@@ -219,8 +244,12 @@ fn apply_scroll_request(app: &AppWindow, pending: Option<ScrollRequest>, rows: &
     app.set_scroll_tick(app.get_scroll_tick() + 1);
 }
 
-/// What: `project` rebuilds the window's view models from the state and writes them to the window.
-/// Why: every list, picker and deck value comes from one projection, so the window never mixes stale models.
+/// What:
+/// `project` rebuilds the window's view models from the state and writes them to the window.
+/// Why:
+/// every list,
+/// picker and deck value comes from one projection,
+/// so the window never mixes stale models.
 pub(crate) fn project(app: &AppWindow) {
     let started = std::time::Instant::now();
     let (screen, request): (ScreenView, Option<ScrollRequest>) = SCREEN.with(|cell| {
@@ -293,8 +322,11 @@ pub(crate) fn project(app: &AppWindow) {
     tracing::debug!(rows = screen.rows.len(), view_ms, total_ms = started.elapsed().as_millis(), "the library screen was projected");
 }
 
-/// What: `track_row` converts one plain list row into the window's `TrackListRow`.
-/// Why: the window struct carries Slint strings, which the pure row model does not.
+/// What:
+/// `track_row` converts one plain list row into the window's `TrackListRow`.
+/// Why:
+/// the window struct carries Slint strings,
+/// which the pure row model does not.
 fn track_row(row: &crate::ui_screen_rows::ListRow) -> TrackListRow {
     return TrackListRow {
         kind: row.kind,
@@ -305,20 +337,28 @@ fn track_row(row: &crate::ui_screen_rows::ListRow) -> TrackListRow {
     };
 }
 
-/// What: `model_of` wraps a vector in a shared Slint model.
-/// Why: Slint list properties take `ModelRc` values, and the rows are rebuilt on every projection.
+/// What:
+/// `model_of` wraps a vector in a shared Slint model.
+/// Why:
+/// Slint list properties take `ModelRc` values,
+/// and the rows are rebuilt on every projection.
 pub(crate) fn model_of<T: Clone + 'static>(items: Vec<T>) -> ModelRc<T> {
     return Rc::new(VecModel::from(items)).into();
 }
 
-/// What: `read_state` runs a read-only closure over the UI-thread state.
-/// Why: callers read the state without taking ownership of it.
+/// What:
+/// `read_state` runs a read-only closure over the UI-thread state.
+/// Why:
+/// callers read the state without taking ownership of it.
 pub(crate) fn read_state<T>(read: impl FnOnce(&ScreenState) -> T) -> T {
     return SCREEN.with(|cell| return read(&cell.borrow()));
 }
 
-/// What: `update_state` runs a mutating closure over the UI-thread state.
-/// Why: all writes go through this one function, so the borrow stays short.
+/// What:
+/// `update_state` runs a mutating closure over the UI-thread state.
+/// Why:
+/// all writes go through this one function,
+/// so the borrow stays short.
 pub(crate) fn update_state(update: impl FnOnce(&mut ScreenState)) {
     SCREEN.with(|cell| {
         update(&mut cell.borrow_mut());

@@ -1,9 +1,16 @@
 //! What:
-//! Decides from pnpm's arguments whether the manifest warning makes sense for this run: only when pnpm is about to resolve
-//! or change dependencies from `package.json`, and never for a help or version request.
+//! Decides from pnpm's arguments whether the manifest warning makes sense for this run:
+//! only when pnpm is about to resolve
+//! or change dependencies from `package.json`,
+//! and never for a help or version request.
 //! Why:
-//! A warning about a literal version helps at the moment pnpm would act on it (`pnpm add`, `pnpm install`) and is noise,
-//! plus a directory walk, before `pnpm run`, `pnpm list` or `pnpm --version`. The user's words: "only when the warning would
+//! A warning about a literal version helps at the moment pnpm would act on it (`pnpm add`,
+//! `pnpm install`) and is noise,
+//! plus a directory walk,
+//! before `pnpm run`,
+//! `pnpm list` or `pnpm --version`.
+//! The user's words:
+//! "only when the warning would
 //! make sense".
 //!
 //! In TS you'd write (pseudocode):
@@ -12,18 +19,43 @@
 //! export function warningMakesSense(args: string[]): boolean { ... }
 //! ```
 
-/// Imports the owned operating-system text type: arguments may be invalid UTF-8.
+/// Imports the owned operating-system text type:
+/// arguments may be invalid UTF-8.
 use std::ffi::OsString;
 
 /// What:
-/// `pub const INSTALL_CLASS_VERBS: [&str; 23] = [...]` is the fixed list of pnpm commands, with their aliases, that resolve
-/// or change dependencies from `package.json`. A fixed-size array (sibling: `Vec<&str>`) because the list never grows at
+/// `pub const INSTALL_CLASS_VERBS: [&str; 23] = [...]` is the fixed list of pnpm commands,
+/// with their aliases,
+/// that resolve
+/// or change dependencies from `package.json`.
+/// A fixed-size array (sibling:
+/// `Vec<&str>`) because the list never grows at
 /// run time.
 /// Why:
-/// Read from `pnpm --help` of pnpm 12.16.1: `add`, `install` (`i`), `install-test` (`it`), `update` (`up`, `upgrade`),
-/// `remove` (`rm`, `uninstall`, `un`, `uni`), `dedupe`, `import`, `link` (`ln`), `unlink` (`dislink`), and `ci`
-/// (`clean-install`, `ic`, `install-clean`). `fetch`, `prune`, `deploy` and the read-only commands read the lockfile or
-/// the installed tree, not the specifiers, so a warning there would not make sense.
+/// Read from `pnpm --help` of pnpm 12.16.1:
+/// `add`,
+/// `install` (`i`),
+/// `install-test` (`it`),
+/// `update` (`up`,
+/// `upgrade`),
+/// `remove` (`rm`,
+/// `uninstall`,
+/// `un`,
+/// `uni`),
+/// `dedupe`,
+/// `import`,
+/// `link` (`ln`),
+/// `unlink` (`dislink`),
+/// and `ci`
+/// (`clean-install`,
+/// `ic`,
+/// `install-clean`).
+/// `fetch`,
+/// `prune`,
+/// `deploy` and the read-only commands read the lockfile or
+/// the installed tree,
+/// not the specifiers,
+/// so a warning there would not make sense.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,15 +87,20 @@ pub const INSTALL_CLASS_VERBS: [&str; 23] = [
     "install-clean",
 ];
 
-/// The commands that run another command over every project: `pnpm recursive install` is an install, so the word after
+/// The commands that run another command over every project:
+/// `pnpm recursive install` is an install,
+/// so the word after
 /// one of these is the verb.
 pub const RECURSIVE_VERBS: [&str; 3] = ["recursive", "multi", "m"];
 
 /// What:
 /// `pub const VALUE_OPTIONS: [&str; 20] = [...]` lists the pnpm options that take the next argument as their value.
 /// Why:
-/// The verb is the first word that is not an option, so the value of `--dir x` or `--filter y` must not be mistaken for it.
-/// Read from `pnpm --help` of pnpm 12.16.1; an option written `--name=value` is one word and needs no entry. A new pnpm
+/// The verb is the first word that is not an option,
+/// so the value of `--dir x` or `--filter y` must not be mistaken for it.
+/// Read from `pnpm --help` of pnpm 12.16.1;
+/// an option written `--name=value` is one word and needs no entry.
+/// A new pnpm
 /// option that takes a value must be added here (the same rule `mpm-shadow` keeps for mpm).
 ///
 /// In TS you'd write (pseudocode):
@@ -93,13 +130,15 @@ pub const VALUE_OPTIONS: [&str; 20] = [
     "--workspace-concurrency",
 ];
 
-/// A word anywhere before `--` that makes pnpm print help or its version and stop, so nothing is installed.
+/// A word anywhere before `--` that makes pnpm print help or its version and stop,
+/// so nothing is installed.
 pub const HELP_OR_VERSION_WORDS: [&str; 4] = ["--help", "-h", "--version", "-v"];
 
 /// What:
 /// `fn words_before_double_dash(arguments: &[OsString]) -> Vec<String>` turns the arguments into text and stops at a literal `--`.
 /// Why:
-/// Everything after `--` belongs to a script or a tool, never to pnpm's own grammar.
+/// Everything after `--` belongs to a script or a tool,
+/// never to pnpm's own grammar.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -119,11 +158,15 @@ fn words_before_double_dash(arguments: &[OsString]) -> Vec<String> {
 }
 
 /// What:
-/// `pub fn find_verb(arguments: &[OsString]) -> Option<String>` returns the command word: the first word that is not an
-/// option or an option's value, looking through one `recursive` word.
+/// `pub fn find_verb(arguments: &[OsString]) -> Option<String>` returns the command word:
+/// the first word that is not an
+/// option or an option's value,
+/// looking through one `recursive` word.
 /// Why:
-/// `pnpm --filter app add zod` and `pnpm -C ../x install` have the verb after options; `None` means there is none
-/// (`pnpm` alone, or only options).
+/// `pnpm --filter app add zod` and `pnpm -C ../x install` have the verb after options;
+/// `None` means there is none
+/// (`pnpm` alone,
+/// or only options).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -157,8 +200,12 @@ pub fn find_verb(arguments: &[OsString]) -> Option<String> {
 /// What:
 /// `pub fn warning_makes_sense(arguments: &[OsString]) -> bool` says whether the manifest warning belongs to this run.
 /// Why:
-/// True only for an install-class verb with no help or version word in front of `--`: `pnpm install --help` and
-/// `pnpm add -h` install nothing, so a warning there would not make sense. An unrecognised command line says no, because a
+/// True only for an install-class verb with no help or version word in front of `--`:
+/// `pnpm install --help` and
+/// `pnpm add -h` install nothing,
+/// so a warning there would not make sense.
+/// An unrecognised command line says no,
+/// because a
 /// missed advisory costs less than a walk and a message nobody asked for.
 ///
 /// In TS you'd write (pseudocode):

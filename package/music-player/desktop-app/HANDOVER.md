@@ -35,8 +35,11 @@ Approved plan:
 - Audio output:
    native `pipewire-rs` client (crate `pipewire = "0.8"`),
    not cpal/rodio.
-  > Superseded 2026-06-03: the crate moved to `pipewire = "0.10"` (`Cargo.toml`, locked at 0.10.1 in `Cargo.lock`).
-  > The Linux backend is still the native client; macOS and Windows use `cpal` (`src/output_cpal.rs`).
+  > Superseded 2026-06-03:
+  > the crate moved to `pipewire = "0.10"` (`Cargo.toml`,
+  > locked at 0.10.1 in `Cargo.lock`).
+  > The Linux backend is still the native client;
+  > macOS and Windows use `cpal` (`src/output_cpal.rs`).
 - Codecs:
    all symphonia 0.5.
   x codecs via `features = ["all"]` (FLAC,
@@ -49,8 +52,12 @@ Approved plan:
    AIFF),
   plus Opus via the `opus` crate (libopus).
    See "Opus" below.
-  > Superseded 2026-06-01: the crate moved to `symphonia = "0.6"` the day it was scaffolded (`Cargo.toml`, locked at
-  > 0.6.1 in `Cargo.lock`); its API differs from 0.5, and `src/decode.rs` is written against 0.6.
+  > Superseded 2026-06-01:
+  > the crate moved to `symphonia = "0.6"` the day it was scaffolded (`Cargo.toml`,
+  > locked at
+  > 0.6.1 in `Cargo.lock`);
+  > its API differs from 0.5,
+  > and `src/decode.rs` is written against 0.6.
 - Sample rate:
    per-track native rate declared to PipeWire;
    PipeWire resamples to the device.
@@ -114,9 +121,13 @@ The host is an immutable-style Fedora (`/home` -> `var/home`) and the user refus
  `clang` are absent).
  All cargo work runs inside a Fedora podman container.
 
-> Superseded: `opus-devel` is no longer needed anywhere.
-> Since 2026-06-08 the `opus` crate (`opus = "0.4"`, locked at 0.4.0) builds libopus 1.6.1 from source through
-> `opusic-sys` (locked at 0.7.5), which needs `cmake` and `ninja-build`; the `Containerfile` installs those and no
+> Superseded:
+> `opus-devel` is no longer needed anywhere.
+> Since 2026-06-08 the `opus` crate (`opus = "0.4"`,
+> locked at 0.4.0) builds libopus 1.6.1 from source through
+> `opusic-sys` (locked at 0.7.5),
+> which needs `cmake` and `ninja-build`;
+> the `Containerfile` installs those and no
 > `opus-devel`.
 > The mise tasks now run cargo on the host when `cargo` and the PipeWire and font `pkg-config` libraries are present,
 > and fall back to the container otherwise (see the header of `mise.toml`).
@@ -126,7 +137,9 @@ The host is an immutable-style Fedora (`/home` -> `var/home`) and the user refus
   clang+clang-devel for the libspa-sys bindgen,
    pkgconf,
    pipewire-devel,
-   opus-devel (superseded 2026-06-08: replaced by cmake and ninja-build, see the note above),
+   opus-devel (superseded 2026-06-08:
+  replaced by cmake and ninja-build,
+  see the note above),
    and GUI runtime libs for `run`).
   The Rust toolchain is rustup's current stable (rustc 1.96 at last rebuild),
    NOT Fedora's `rust` package (1.91.1):
@@ -143,8 +156,10 @@ The host is an immutable-style Fedora (`/home` -> `var/home`) and the user refus
   io `version` once a Slint release including #11338 ships.
    See
   `doc/troubleshooting/slint-flickable-smooth-scroll.md`.
-  > Superseded: the git pin moved to crates.io Slint 1.17 on 2026-06-24 and to crates.io 1.18.1 on 2026-10-11.
-  > `Cargo.toml` and `Cargo.lock` hold 1.18.1, so the revert described above is done.
+  > Superseded:
+  > the git pin moved to crates.io Slint 1.17 on 2026-06-24 and to crates.io 1.18.1 on 2026-10-11.
+  > `Cargo.toml` and `Cargo.lock` hold 1.18.1,
+  > so the revert described above is done.
 - `mise.toml` tasks wrap `podman run` (mount package dir at `/work`,
    cargo registry in named volume `music-player-cargo`,
   `--security-opt label=disable`):
@@ -275,8 +290,11 @@ to confirm `command`/`queue`/`session`/`error` compile (high confidence;
 
 ## Verified API facts (researched this session; do not re-research)
 
-> Superseded: the symphonia facts in this section describe 0.5.4, which the app left on 2026-06-01.
-> The shipped crate is 0.6.1 and `src/decode.rs` uses the 0.6 API, so read that file for the calls in use.
+> Superseded:
+> the symphonia facts in this section describe 0.5.4,
+> which the app left on 2026-06-01.
+> The shipped crate is 0.6.1 and `src/decode.rs` uses the 0.6 API,
+> so read that file for the calls in use.
 > The `opus` crate facts stay current for `opus = "0.4"`.
 
 Sources cloned at `/tmp/agent/symphonia-20260601` (checked out tag `v0.5.4`) and `/tmp/agent/opus-rs-20260601`.
@@ -286,7 +304,8 @@ Sources cloned at `/tmp/agent/symphonia-20260601` (checked out tag `v0.5.4`) and
 - We pin stable `symphonia = "0.5"` (0.5.4) and use its 0.5.
   x API,
    NOT the master/0.6 API (the master examples differ).
-  Superseded 2026-06-01: the app uses `symphonia = "0.6"` (0.6.1 locked) and its 0.6 API.
+  Superseded 2026-06-01:
+  the app uses `symphonia = "0.6"` (0.6.1 locked) and its 0.6 API.
 - symphonia 0.5.4 decode loop:
   - `let probed = symphonia::default::get_probe().format(&hint, mss, &fmt_opts, &meta_opts)?; let mut format = probed.format;`
   - find track:

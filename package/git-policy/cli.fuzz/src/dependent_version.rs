@@ -1,9 +1,16 @@
-//! What: Generators and invariants for the dependent-version planner's two text scanners:
+//! What:
+//! Generators and invariants for the dependent-version planner's two text scanners:
 //!       the manifest version rewrite and the module-specifier scan.
-//! Why: Both read repository content byte by byte. Generated manifests come with the exact
-//!      text the rewrite must produce, built beside the input rather than by the subject;
-//!      raw text checks the round trip and, where the manifest reader accepts the text, that
-//!      a plainly spelled version is always found. The specifier scan is compared with an
+//! Why:
+//! Both read repository content byte by byte.
+//! Generated manifests come with the exact
+//!      text the rewrite must produce,
+//! built beside the input rather than by the subject;
+//!      raw text checks the round trip and,
+//! where the manifest reader accepts the text,
+//! that
+//!      a plainly spelled version is always found.
+//! The specifier scan is compared with an
 //!      independent restatement of its rule that uses no iterator adaptors.
 //!
 //! In TS you'd write (pseudocode):
@@ -11,7 +18,8 @@
 //! // const { before, after, from, to } = generatedManifest(data); expect(replaceManifestVersion({ text: before, from, to })).toBe(after);
 //! ```
 
-/// Import the scanners under test, the manifest reader and the JSONC parser.
+/// Import the scanners under test,
+/// the manifest reader and the JSONC parser.
 use git_policy_cli::dependent_version_content::PolicyIncomplete;
 use git_policy_cli::dependent_version_imports::imports_package;
 use git_policy_cli::dependent_version_manifest::read_manifest_facts;
@@ -23,8 +31,14 @@ use monochromatic_jsonc_edit::{JsoncKind, parse_jsonc};
 /// The path the rewrite names in its messages.
 const PATH: &[u8] = b"package/module/a/package.json";
 
-/// What: A generated manifest: its text, the text after the rewrite, and the versions.
-/// Why:  `after` is assembled from the same parts as `before`, so it is an expectation
+/// What:
+/// A generated manifest:
+/// its text,
+/// the text after the rewrite,
+/// and the versions.
+/// Why:
+///  `after` is assembled from the same parts as `before`,
+/// so it is an expectation
 ///       the rewrite did not compute.
 ///
 /// In TS you'd write (pseudocode):
@@ -43,7 +57,8 @@ pub struct GeneratedManifest {
     pub to: String,
 }
 
-/// Members that may precede or follow the version, including look-alikes of its key.
+/// Members that may precede or follow the version,
+/// including look-alikes of its key.
 const DECOYS: &[&str] = &[
     "\"name\":\"@s/a\"",
     "\"publishConfig\":{\"version\":\"9.9.9\"}",
@@ -60,9 +75,15 @@ const DECOYS: &[&str] = &[
 /// Whitespace JSON allows between tokens.
 const SPACES: &[&str] = &["", " ", "\n  ", "\r\n\t", "  "];
 
-/// What: Build a manifest from input bytes: decoys before and after a top-level version, in
-///       a byte-chosen layout. `.get(i)` reads a byte or nothing past the end.
-/// Why:  Every layout has exactly one top-level `"version"` key, so the rewrite must
+/// What:
+/// Build a manifest from input bytes:
+/// decoys before and after a top-level version,
+/// in
+///       a byte-chosen layout.
+/// `.get(i)` reads a byte or nothing past the end.
+/// Why:
+///  Every layout has exactly one top-level `"version"` key,
+/// so the rewrite must
 ///       succeed and must produce `after`.
 ///
 /// In TS you'd write (pseudocode):
@@ -101,9 +122,12 @@ pub fn generated_manifest(data: &[u8]) -> GeneratedManifest {
     };
 }
 
-/// What: The rewrite of a generated manifest is exactly its expectation, and the manifest
+/// What:
+/// The rewrite of a generated manifest is exactly its expectation,
+/// and the manifest
 ///       reader then sees the new version.
-/// Why:  This is the differential check of the rewrite against an independent builder.
+/// Why:
+///  This is the differential check of the rewrite against an independent builder.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -116,9 +140,15 @@ pub fn check_generated_manifest(generated: &GeneratedManifest) {
     check_version_edit(&generated.before, &generated.from, &generated.to);
 }
 
-/// What: Split raw input into `from`, `to` and the text at the first two NUL bytes, with
-///       default versions when there are fewer parts. Text that is not UTF-8 is replaced.
-/// Why:  Raw input reaches every scanner state, including unterminated literals.
+/// What:
+/// Split raw input into `from`,
+/// `to` and the text at the first two NUL bytes,
+/// with
+///       default versions when there are fewer parts.
+/// Text that is not UTF-8 is replaced.
+/// Why:
+///  Raw input reaches every scanner state,
+/// including unterminated literals.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,11 +163,18 @@ pub fn version_edit_view(data: &[u8]) -> (String, String, String) {
     }
 }
 
-/// What: The rewrite's invariants on any text: a success replaces exactly one occurrence of
-///       the quoted `from` and the reverse rewrite restores the text; a failure is a shape
-///       problem; a parsable manifest with one plainly spelled top-level version is found.
-/// Why:  Together these say that only the version's literal changes, that it is the first
-///       top-level one, and that nothing parsable is refused for its layout.
+/// What:
+/// The rewrite's invariants on any text:
+/// a success replaces exactly one occurrence of
+///       the quoted `from` and the reverse rewrite restores the text;
+/// a failure is a shape
+///       problem;
+/// a parsable manifest with one plainly spelled top-level version is found.
+/// Why:
+///  Together these say that only the version's literal changes,
+/// that it is the first
+///       top-level one,
+/// and that nothing parsable is refused for its layout.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -210,9 +247,15 @@ pub fn check_version_edit(text: &str, from: &str, to: &str) -> Option<bool> {
     return Some(plain);
 }
 
-/// What: Whether the bytes before `end`, after trailing JSON whitespace, end with a whole
-///       keyword. Written with index loops, independently of the subject.
-/// Why:  The reference rule for specifier position.
+/// What:
+/// Whether the bytes before `end`,
+/// after trailing JSON whitespace,
+/// end with a whole
+///       keyword.
+/// Written with index loops,
+/// independently of the subject.
+/// Why:
+///  The reference rule for specifier position.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -237,9 +280,12 @@ fn keyword_before(text: &[u8], end: usize, keywords: &[&str]) -> bool {
     return false;
 }
 
-/// What: The reference specifier scan: visit each non-overlapping occurrence from the left
+/// What:
+/// The reference specifier scan:
+/// visit each non-overlapping occurrence from the left
 ///       (every character boundary for an empty name) and apply the quote and position rules.
-/// Why:  An independent restatement to compare the subject with.
+/// Why:
+///  An independent restatement to compare the subject with.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -274,8 +320,11 @@ pub fn reference_imports(source: &str, name: &str) -> bool {
     return false;
 }
 
-/// What: Split raw input into a package name and source text at the first NUL byte.
-/// Why:  Raw names include empty and odd ones; raw text includes every byte.
+/// What:
+/// Split raw input into a package name and source text at the first NUL byte.
+/// Why:
+///  Raw names include empty and odd ones;
+/// raw text includes every byte.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -288,8 +337,10 @@ pub fn import_view(data: &[u8]) -> (String, String) {
     return (name, source);
 }
 
-/// What: The subject's scan agrees with the reference on any name and text.
-/// Why:  The differential check of the specifier scan.
+/// What:
+/// The subject's scan agrees with the reference on any name and text.
+/// Why:
+///  The differential check of the specifier scan.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

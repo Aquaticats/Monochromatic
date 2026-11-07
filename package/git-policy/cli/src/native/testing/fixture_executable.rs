@@ -1,7 +1,9 @@
 //! What:
-//!  The one writer of executable fixture files, shared by the unit tests and the binary-level controls.
+//!  The one writer of executable fixture files,
+//! shared by the unit tests and the binary-level controls.
 //! Why:
-//!  Both test crates need the same race-free write, and two copies could drift apart.
+//!  Both test crates need the same race-free write,
+//! and two copies could drift apart.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

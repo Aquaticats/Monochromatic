@@ -1,12 +1,18 @@
-//! The Win32 half of the startup failure report (compiled on Windows only; the text and the decisions are in
+//! The Win32 half of the startup failure report (compiled on Windows only;
+//! the text and the decisions are in
 //! `startup_failure.rs`).
 //!
-//! Calls used, from `user32.dll` and `kernel32.dll` through the `windows` crate:
+//! Calls used,
+//! from `user32.dll` and `kernel32.dll` through the `windows` crate:
 //! - `GetStdHandle(STD_ERROR_HANDLE)` (feature `Win32_System_Console`) tells whether stderr reaches anybody at the time
-//!   of the failure. The crate maps a null and an invalid handle to `Err`.
+//!   of the failure.
+//!   The crate maps a null and an invalid handle to `Err`.
 //! - `MessageBoxW` (feature `Win32_UI_WindowsAndMessaging`) shows the text with a stop-sign icon and one OK button.
-//!   `MB_SETFOREGROUND` brings the box to the front, because the program has no window of its own at that point, and
-//!   `MB_TASKMODAL` keeps it modal without an owner window. Alacritty shows its Windows panic message with the same flags
+//!   `MB_SETFOREGROUND` brings the box to the front,
+//!   because the program has no window of its own at that point,
+//!   and
+//!   `MB_TASKMODAL` keeps it modal without an owner window.
+//!   Alacritty shows its Windows panic message with the same flags
 //!   (`alacritty/src/panic.rs`).
 
 use crate::startup_failure::{
@@ -18,9 +24,11 @@ use windows::core::{HSTRING, PCWSTR};
 
 /// What:
 ///      `fn stderr_handle() -> Option<isize>`.
-///  The raw value of the standard error handle now, or `None` when it is null or invalid.
+///  The raw value of the standard error handle now,
+/// or `None` when it is null or invalid.
 /// Why:
-///       Read at the time of the failure, after the console attach repaired what it could.
+///       Read at the time of the failure,
+/// after the console attach repaired what it could.
 fn stderr_handle() -> Option<isize> {
     // SAFETY: `GetStdHandle` only reads the process parameters and has no preconditions.
     return unsafe { GetStdHandle(STD_ERROR_HANDLE) }.ok().map(|handle| return handle.0 as isize);
@@ -28,9 +36,12 @@ fn stderr_handle() -> Option<isize> {
 
 /// What:
 ///      `fn executable_path() -> String`.
-///  The path of this program, for the Command Prompt line in the message.
+///  The path of this program,
+/// for the Command Prompt line in the message.
 /// Why:
-///       The person can type the line as it is shown. When Windows cannot tell the path, the release file name stands in.
+///       The person can type the line as it is shown.
+/// When Windows cannot tell the path,
+/// the release file name stands in.
 fn executable_path() -> String {
     return match std::env::current_exe() {
         Ok(path) => path.display().to_string(),
@@ -63,10 +74,15 @@ fn show_message_box(title: &str, text: &str) {
 
 /// What:
 ///      `pub fn report_startup_failure(step: StartupStep, detail: &str)`.
-///  Tells the person that a startup step failed: in a message box when stderr reaches nobody, on stderr otherwise.
+///  Tells the person that a startup step failed:
+/// in a message box when stderr reaches nobody,
+/// on stderr otherwise.
 /// Why:
-///       A double-click start has no console, so the error `main` returns is written nowhere. Started from a terminal
-///           or a script, the same text is printed there and nothing waits for a click.
+///       A double-click start has no console,
+/// so the error `main` returns is written nowhere.
+/// Started from a terminal
+///           or a script,
+/// the same text is printed there and nothing waits for a click.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -88,8 +104,12 @@ pub fn report_startup_failure(step: StartupStep, detail: &str) {
 ///      `pub fn install_panic_message_box()`.
 ///  Adds a panic hook that shows the panic in a message box when the main thread panics and stderr reaches nobody.
 /// Why:
-///       A panic of the main thread ends the program; without a console its message is written nowhere. The previous
-///           hook still runs first, so a terminal start prints the panic as before. Panics of other threads do not end
+///       A panic of the main thread ends the program;
+/// without a console its message is written nowhere.
+/// The previous
+///           hook still runs first,
+/// so a terminal start prints the panic as before.
+/// Panics of other threads do not end
 ///           the program and show no box.
 pub fn install_panic_message_box() {
     let previous = std::panic::take_hook();

@@ -1,6 +1,8 @@
-//! Controls for the manual-push probe against real repositories and bare remotes, with Git writing the report.
+//! Controls for the manual-push probe against real repositories and bare remotes,
+//! with Git writing the report.
 //! The TypeScript corpus is `src/policy-engine/manual-push.integration.unit.test.ts` (probe and ls-remote cases)
-//! and `src/policy-engine/manual-push-scope.unit.test.ts`; the update-discovery cases are reproduced here.
+//! and `src/policy-engine/manual-push-scope.unit.test.ts`;
+//! the update-discovery cases are reproduced here.
 
 use super::*;
 use crate::auto_push_single_flight::PushGit;
@@ -26,12 +28,15 @@ fn fixture_environment() -> Vec<(OsString, OsString)> {
     .collect();
 }
 
-/// The home directory of a fixture repository at `root`, beside it, where the per-user scratch directory is made.
+/// The home directory of a fixture repository at `root`,
+/// beside it,
+/// where the per-user scratch directory is made.
 fn home_beside(root: &Path) -> PathBuf {
     return root.parent().expect("fixture root").join("home");
 }
 
-/// Coordinator Git for a fixture repository at `root`, with a home beside the repository.
+/// Coordinator Git for a fixture repository at `root`,
+/// with a home beside the repository.
 fn git_for(root: &Path) -> PushGit {
     let mut environment = fixture_environment();
     environment.push((OsString::from("HOME"), home_beside(root).into_os_string()));
@@ -77,7 +82,8 @@ fn head_of(repo: &Path) -> String {
         .to_owned();
 }
 
-/// The object a ref names in a bare remote, or nothing.
+/// The object a ref names in a bare remote,
+/// or nothing.
 fn remote_value(origin: &Path, reference: &str) -> Option<String> {
     let output = std::process::Command::new("/usr/bin/git")
         .current_dir(origin)
@@ -97,7 +103,10 @@ fn post(arguments: &[&str]) -> Vec<OsString> {
     return arguments.iter().map(OsString::from).collect();
 }
 
-/// A new branch pushed by the probe is one update: a local object, no remote object, the named remote.
+/// A new branch pushed by the probe is one update:
+/// a local object,
+/// no remote object,
+/// the named remote.
 #[test]
 fn a_new_branch_is_one_update_with_no_remote_object() {
     let (repo, origin, _base) = repository_with_origin("mp-probe-new");
@@ -177,7 +186,8 @@ fn an_up_to_date_push_has_no_updates() {
     remove(repo.parent().expect("root"));
 }
 
-/// A destination Git cannot reach yields no capture, so the probe fails instead of reporting no updates.
+/// A destination Git cannot reach yields no capture,
+/// so the probe fails instead of reporting no updates.
 #[test]
 fn an_unreachable_destination_fails_the_probe() {
     let (repo, _origin, _base) = repository_with_origin("mp-probe-unreachable");
@@ -195,7 +205,8 @@ fn an_unreachable_destination_fails_the_probe() {
     remove(repo.parent().expect("root"));
 }
 
-/// A push Git refuses before it reports any destination carries Git's own status and words, taken from a plain run.
+/// A push Git refuses before it reports any destination carries Git's own status and words,
+/// taken from a plain run.
 #[test]
 fn a_push_git_refuses_carries_gits_status_and_words() {
     let (repo, _origin, _base) = repository_with_origin("mp-probe-refusal");
@@ -222,8 +233,11 @@ fn a_push_git_refuses_carries_gits_status_and_words() {
     remove(repo.parent().expect("root"));
 }
 
-/// A failure of the probe's own reading is no refusal by Git: a Git that fails without a word, and a report the probe
-///  cannot parse, stay failures of the wrapper.
+/// A failure of the probe's own reading is no refusal by Git:
+/// a Git that fails without a word,
+/// and a report the probe
+///  cannot parse,
+/// stay failures of the wrapper.
 #[test]
 fn a_failure_without_gits_words_stays_a_failure_of_the_probe() {
     let (repo, _origin, _base) = repository_with_origin("mp-probe-no-refusal");
@@ -238,8 +252,11 @@ fn a_failure_without_gits_words_stays_a_failure_of_the_probe() {
     remove(repo.parent().expect("root"));
 }
 
-/// A `--` that is the value of an option is not the terminator, and `--end-of-options` ends the options as `--` does: the
-///  probe's own options go before the one Git reads, never between an option and its value or among the refs.
+/// A `--` that is the value of an option is not the terminator,
+/// and `--end-of-options` ends the options as `--` does:
+/// the
+///  probe's own options go before the one Git reads,
+/// never between an option and its value or among the refs.
 #[test]
 fn probe_arguments_place_their_options_before_the_terminator_git_reads() {
     let own: [&str; 3] = ["--no-quiet", "--dry-run", "--porcelain"];
@@ -260,7 +277,8 @@ fn probe_arguments_place_their_options_before_the_terminator_git_reads() {
     }
 }
 
-/// The probe's arguments keep Git's options before the terminator, switch every hook off and ask for full names.
+/// The probe's arguments keep Git's options before the terminator,
+/// switch every hook off and ask for full names.
 #[test]
 fn probe_arguments_keep_git_options_before_the_terminator() {
     let arguments: Vec<OsString> = probe_arguments(&post(&["-C", "dir"]), &post(&["--force", "origin", "--", "main"]));
@@ -292,7 +310,8 @@ fn probe_arguments_keep_git_options_before_the_terminator() {
     assert_eq!(&text[..2], ["-C", "dir"], "the caller's global options come first");
 }
 
-/// A configured `pre-push` hook of the repository does not run for the probe, and a dry run publishes nothing.
+/// A configured `pre-push` hook of the repository does not run for the probe,
+/// and a dry run publishes nothing.
 #[test]
 fn a_configured_pre_push_hook_does_not_run_for_the_probe() {
     let (repo, origin, _base) = repository_with_origin("mp-probe-hook-off");
@@ -307,7 +326,8 @@ fn a_configured_pre_push_hook_does_not_run_for_the_probe() {
     remove(repo.parent().expect("root"));
 }
 
-/// A bare push resolves the remote the way Git does, and a tag is reported with its own object.
+/// A bare push resolves the remote the way Git does,
+/// and a tag is reported with its own object.
 #[test]
 fn a_bare_push_and_a_tag_are_reported_with_the_remote_git_picks() {
     let (repo, _origin, _base) = repository_with_origin("mp-probe-bare");
@@ -347,8 +367,11 @@ fn confirmation_refuses_a_remote_ref_that_changed_after_the_report() {
     remove(repo.parent().expect("root"));
 }
 
-/// A Git stand-in that answers `ls-remote` as an unreachable remote would, with a password in the address it names, and
-///  runs the real Git for every other query. Returns its path.
+/// A Git stand-in that answers `ls-remote` as an unreachable remote would,
+/// with a password in the address it names,
+/// and
+///  runs the real Git for every other query.
+/// Returns its path.
 fn git_that_cannot_list_the_remote(root: &Path) -> PathBuf {
     let stand_in = root.join("git-stand-in");
     let script = "#!/bin/sh\nfor word in \"$@\"; do\n  if [ \"$word\" = ls-remote ]; then\n    echo \"fatal: unable to access 'https://person:hunter2@example.invalid/r.git/': could not resolve host\" >&2\n    exit 128\n  fi\ndone\nexec /usr/bin/git \"$@\"\n";
@@ -357,7 +380,8 @@ fn git_that_cannot_list_the_remote(root: &Path) -> PathBuf {
     return stand_in;
 }
 
-/// A remote whose refs cannot be read is the unreachable-remote cause, and the message never carries the address's password.
+/// A remote whose refs cannot be read is the unreachable-remote cause,
+/// and the message never carries the address's password.
 #[test]
 fn an_unreadable_remote_is_the_unreachable_cause_and_masks_the_password() {
     let (repo, _origin, _base) = repository_with_origin("mp-cause-unreachable");
@@ -372,7 +396,8 @@ fn an_unreadable_remote_is_the_unreachable_cause_and_masks_the_password() {
     remove(repo.parent().expect("root"));
 }
 
-/// A Git that cannot be started is its own cause, a silent failure and an unreadable report are theirs.
+/// A Git that cannot be started is its own cause,
+/// a silent failure and an unreadable report are theirs.
 #[test]
 fn git_that_cannot_start_or_say_why_or_be_read_has_its_own_cause() {
     let (repo, _origin, _base) = repository_with_origin("mp-cause-git");
@@ -398,8 +423,11 @@ fn the_probe_error_displays_its_message() {
     assert_eq!(probe_error(ManualPushCause::SelfExplained, String::from("why")).to_string(), "why");
 }
 
-/// `-u`, `--set-upstream` and `push.autoSetupRemote` add a line to Git's own report; the probe still reads the update
-///  (real Git output, in a repository whose branch has no upstream yet).
+/// `-u`,
+/// `--set-upstream` and `push.autoSetupRemote` add a line to Git's own report;
+/// the probe still reads the update
+///  (real Git output,
+/// in a repository whose branch has no upstream yet).
 #[test]
 fn the_three_ways_to_set_an_upstream_do_not_stop_the_probe() {
     for (name, prefix, region) in [
@@ -418,7 +446,8 @@ fn the_three_ways_to_set_an_upstream_do_not_stop_the_probe() {
     }
 }
 
-/// `-q` and `--quiet` silence the report the probe reads unless the probe cancels them; every spelling still reports.
+/// `-q` and `--quiet` silence the report the probe reads unless the probe cancels them;
+/// every spelling still reports.
 #[test]
 fn a_quiet_push_is_probed_like_any_other() {
     let (repo, _origin, _base) = repository_with_origin("mp-probe-quiet");
@@ -432,7 +461,8 @@ fn a_quiet_push_is_probed_like_any_other() {
     remove(repo.parent().expect("root"));
 }
 
-/// A destination typed as a path or URL is its own location and starts no query for push URLs; a remote name does,
+/// A destination typed as a path or URL is its own location and starts no query for push URLs;
+/// a remote name does,
 ///  because Git's printed address has credentials removed and is never used to reach the remote.
 #[test]
 fn only_a_remote_name_needs_the_push_url_query() {
@@ -478,7 +508,8 @@ fn a_location_is_told_from_a_remote_name_by_its_shape() {
     }
 }
 
-/// A source selected by a message search holds a colon; the probe still reports the commit it names (real Git output).
+/// A source selected by a message search holds a colon;
+/// the probe still reports the commit it names (real Git output).
 #[test]
 fn a_revision_expression_with_a_colon_is_probed_as_the_commit_it_names() {
     let (repo, _origin, _base) = repository_with_origin("mp-probe-colon-source");
@@ -493,7 +524,8 @@ fn a_revision_expression_with_a_colon_is_probed_as_the_commit_it_names() {
     remove(repo.parent().expect("root"));
 }
 
-/// The estimate covers the measured peak of a query for the whole history, and is that measurement rounded up to a power of two.
+/// The estimate covers the measured peak of a query for the whole history,
+/// and is that measurement rounded up to a power of two.
 #[test]
 fn the_query_estimate_is_the_measured_whole_history_peak_rounded_up_to_a_power_of_two() {
     const { assert!(QUERY_MEMORY >= MEASURED_WHOLE_HISTORY_QUERY, "the query estimate must cover the measured whole-history query") };

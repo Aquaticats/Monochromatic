@@ -1,5 +1,9 @@
-//! Controls for the reading of Git's `--no-checkout` result and the tree-difference step: the line, the commit, whether the
-//!  trees differ, and each refusal.
+//! Controls for the reading of Git's `--no-checkout` result and the tree-difference step:
+//! the line,
+//! the commit,
+//! whether the
+//!  trees differ,
+//! and each refusal.
 
 use super::*;
 use crate::config_snapshot::ConfigEntry;
@@ -8,7 +12,8 @@ use crate::test_support::{fixture, git, git_context, git_text, remove, repositor
 use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, tracked};
 use crate::worktree_snapshot_source::{SnapshotSource, common_source};
 
-/// Bind the add and read the target, as the ladder does.
+/// Bind the add and read the target,
+/// as the ladder does.
 fn prepare(source: &SnapshotSource, plan: &AddPlan) -> Result<Target, String> {
     let bound: Bound = bind_registration(source.common_dir.as_path(), plan.destination.as_path())?;
     return prepare_target(source, plan, &git_context(), &bound);
@@ -31,7 +36,8 @@ fn fixture_with_worktree(root: &Path, older: bool) -> (PathBuf, PathBuf, Snapsho
     return (repo, destination, source);
 }
 
-/// A worktree at the source's own commit differs in nothing and gets Git's line, or none for `--quiet`.
+/// A worktree at the source's own commit differs in nothing and gets Git's line,
+/// or none for `--quiet`.
 #[test]
 fn the_source_commit_is_the_target_and_the_line_is_gits() {
     let root: PathBuf = fixture("target-same");
@@ -48,7 +54,8 @@ fn the_source_commit_is_the_target_and_the_line_is_gits() {
     remove(root.as_path());
 }
 
-/// An older commit differs, and the step that applies the difference asks Git for `read-tree -m -u` between the two commits
+/// An older commit differs,
+/// and the step that applies the difference asks Git for `read-tree -m -u` between the two commits
 ///  in the work tree with Git's own git directory and work tree variables.
 #[test]
 fn an_older_commit_differs_and_the_step_names_both_commits() {
@@ -85,7 +92,8 @@ fn equal_trees_need_no_step() {
     remove(root.as_path());
 }
 
-/// A stray file in the destination, differing attributes and a subject that needs Git each end the reading with a reason.
+/// A stray file in the destination,
+/// differing attributes and a subject that needs Git each end the reading with a reason.
 #[test]
 fn each_refusal_names_its_reason() {
     let root: PathBuf = fixture("target-refused");
@@ -110,7 +118,8 @@ fn each_refusal_names_its_reason() {
     remove(root.as_path());
 }
 
-/// A repository whose local configuration includes `topic.cfg` on the branch `topic` only, with the filter that file sets.
+/// A repository whose local configuration includes `topic.cfg` on the branch `topic` only,
+/// with the filter that file sets.
 fn conditional_filter_fixture(root: &Path) -> (PathBuf, PathBuf, SnapshotSource) {
     let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
     tracked(repo.as_path(), "shared.txt", b"first\n");
@@ -125,8 +134,11 @@ fn conditional_filter_fixture(root: &Path) -> (PathBuf, PathBuf, SnapshotSource)
     return (repo, destination, source);
 }
 
-/// A filter that only the new branch's conditional include sets would convert files differently from the source's bytes: the
-///  reading of the target refuses, naming the setting; the same filter in both is the same conversion.
+/// A filter that only the new branch's conditional include sets would convert files differently from the source's bytes:
+/// the
+///  reading of the target refuses,
+/// naming the setting;
+/// the same filter in both is the same conversion.
 #[test]
 fn a_filter_only_the_new_branch_sets_ends_the_reading_and_a_shared_one_does_not() {
     let root: PathBuf = fixture("target-conditional-filter");
@@ -140,7 +152,8 @@ fn a_filter_only_the_new_branch_sets_ends_the_reading_and_a_shared_one_does_not(
     remove(shared.as_path());
 }
 
-/// Settings that are not about conversion may differ: the branch the new worktree gets its own section for.
+/// Settings that are not about conversion may differ:
+/// the branch the new worktree gets its own section for.
 #[test]
 fn a_setting_that_is_not_a_conversion_may_differ() {
     let entry = |key: &str, value: &str| -> ConfigEntry { return ConfigEntry { scope: String::from("local"), key: String::from(key), value: Some(value.as_bytes().to_vec()) }; };
@@ -154,7 +167,9 @@ fn a_setting_that_is_not_a_conversion_may_differ() {
     }
 }
 
-/// A repository whose local configuration is `config`, with the tracked attributes `attributes`, and a `--no-checkout`
+/// A repository whose local configuration is `config`,
+/// with the tracked attributes `attributes`,
+/// and a `--no-checkout`
 ///  worktree of its branch.
 fn configured_fixture(root: &Path, attributes: &str, config: &str) -> (PathBuf, SnapshotSource) {
     let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
@@ -171,8 +186,11 @@ fn configured_fixture(root: &Path, attributes: &str, config: &str) -> (PathBuf, 
     return (std::fs::canonicalize(root.join("topic")).expect("destination"), source);
 }
 
-/// The last value of a key wins, so the same values in another order are another configuration: a set comparison called the
-///  two equal, the sequence does not.
+/// The last value of a key wins,
+/// so the same values in another order are another configuration:
+/// a set comparison called the
+///  two equal,
+/// the sequence does not.
 #[test]
 fn the_same_filter_values_in_another_order_are_another_configuration() {
     let root: PathBuf = fixture("target-filter-order");
@@ -191,7 +209,8 @@ fn the_same_filter_values_in_another_order_are_another_configuration() {
     remove(root.as_path());
 }
 
-/// A filter that an attribute selects is refused unless it is the standard Git LFS filter, whatever the equal settings say.
+/// A filter that an attribute selects is refused unless it is the standard Git LFS filter,
+/// whatever the equal settings say.
 #[test]
 fn a_filter_an_attribute_selects_is_refused_except_the_standard_lfs_filter() {
     let demo: &str = "[filter \"demo\"]\n\tclean = cat\n\tsmudge = cat\n";
@@ -216,8 +235,10 @@ fn a_filter_an_attribute_selects_is_refused_except_the_standard_lfs_filter() {
     remove(changed.as_path());
 }
 
-/// An attributes file named by a relative path means another file in another worktree and is refused; an absolute path is the
-///  same file in both, and a filter its text selects is refused like a tracked one.
+/// An attributes file named by a relative path means another file in another worktree and is refused;
+/// an absolute path is the
+///  same file in both,
+/// and a filter its text selects is refused like a tracked one.
 #[test]
 fn an_attributes_file_by_a_relative_path_is_refused() {
     let root: PathBuf = fixture("target-attributes-file");
@@ -232,15 +253,19 @@ fn an_attributes_file_by_a_relative_path_is_refused() {
     remove(absolute.as_path());
 }
 
-/// The text of an attributes file names the filters it selects, comments excluded.
+/// The text of an attributes file names the filters it selects,
+/// comments excluded.
 #[test]
 fn filters_are_read_from_attribute_lines() {
     assert_eq!(filters_named("*.a filter=one\n# *.b filter=two\n*.c text filter=three -diff\n"), vec![String::from("one"), String::from("three")]);
     assert_eq!(filters_named("*.d -filter\n*.e text\n"), Vec::<String>::new());
 }
 
-/// A destination that was replaced after the add was bound is no longer the directory Git made, even though the held handle
-///  still names the old one: the path is asked, not the handle.
+/// A destination that was replaced after the add was bound is no longer the directory Git made,
+/// even though the held handle
+///  still names the old one:
+/// the path is asked,
+/// not the handle.
 #[test]
 fn a_destination_replaced_after_the_binding_ends_the_reading() {
     let root: PathBuf = fixture("target-replaced-after-binding");

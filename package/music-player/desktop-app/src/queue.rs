@@ -138,7 +138,8 @@ pub struct Queue {
     /// private tracks: string[];
     /// ```
     tracks: Vec<PathBuf>,
-    /// The opened folder that display names and pages are relative to, or `None` to strip the shared directory.
+    /// The opened folder that display names and pages are relative to,
+    /// or `None` to strip the shared directory.
     display_root: Option<PathBuf>,
     /// What:
     ///      `order: Vec<usize>`.
@@ -531,8 +532,12 @@ impl Queue {
     ///      `pub fn set_display_root(&mut self, root: Option<PathBuf>)` names the opened folder that display names and
     ///  pages are relative to.
     /// Why:
-    ///       A library with one top-level folder must keep that folder in its names, and loose files must form one
-    ///  page; both need the opened folder, not the longest directory the tracks share (LS1). Set it before the tracks.
+    ///       A library with one top-level folder must keep that folder in its names,
+    /// and loose files must form one
+    ///  page;
+    /// both need the opened folder,
+    /// not the longest directory the tracks share (LS1).
+    /// Set it before the tracks.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -668,13 +673,19 @@ impl Queue {
 
     /// What:
     ///      `pub(crate) fn replace_tracks_with(&mut self, edit: impl FnOnce(Vec<PathBuf>) -> Vec<PathBuf>)`.
-    ///  Replaces the track list by an edited copy of itself, moving the paths instead of cloning them when no page is selected.
+    ///  Replaces the track list by an edited copy of itself,
+    /// moving the paths instead of cloning them when no page is selected.
     ///  The scope order is stale until the caller re-anchors the cursor (`restore_index_preserving_page` or `clear_selection`),
     ///  which it must do at once.
     /// Why:
-    ///       D113: a refresh that adds or removes a few tracks of a million must not clone a million paths or rebuild the
-    ///  scope twice (the caller re-anchors the selection right after, which rebuilds it). With a page selected the page has to
-    ///  be carried over by name, which `set_tracks` does, so that case hands it a copy.
+    ///       D113:
+    /// a refresh that adds or removes a few tracks of a million must not clone a million paths or rebuild the
+    ///  scope twice (the caller re-anchors the selection right after,
+    /// which rebuilds it).
+    /// With a page selected the page has to
+    ///  be carried over by name,
+    /// which `set_tracks` does,
+    /// so that case hands it a copy.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1425,9 +1436,13 @@ impl Queue {
 
     /// What:
     ///      `pub fn peek_next_natural(&mut self) -> Option<usize>`.
-    ///  The load-order index that `advance(true)` will return next, without moving the cursor.
-    ///  In the shuffle modes, when the history has no forward entry, the random pick is appended to the
-    ///  history now (the cursor stays), so the later `advance(true)` steps onto exactly this pick.
+    ///  The load-order index that `advance(true)` will return next,
+    /// without moving the cursor.
+    ///  In the shuffle modes,
+    /// when the history has no forward entry,
+    /// the random pick is appended to the
+    ///  history now (the cursor stays),
+    /// so the later `advance(true)` steps onto exactly this pick.
     /// Why:
     ///       The player opens the next track a moment before the current one ends so the two play without a gap,
     ///  but the queue must keep pointing at the track that is still audible until then.
@@ -1469,10 +1484,13 @@ impl Queue {
     }
 
     /// What:
-    ///      `pub fn first_in_scope(&self) -> Option<usize>` is the first track of the displayed page, or the first
-    ///  track of the queue when no page has been shown to the engine yet; `None` for an empty queue.
+    ///      `pub fn first_in_scope(&self) -> Option<usize>` is the first track of the displayed page,
+    /// or the first
+    ///  track of the queue when no page has been shown to the engine yet;
+    /// `None` for an empty queue.
     /// Why:
-    ///       Play with nothing selected starts here (the polish review finding EM2): the button used to flip to Pause
+    ///       Play with nothing selected starts here (the polish review finding EM2):
+    /// the button used to flip to Pause
     ///  and nothing played.
     ///
     /// In TS you'd write (pseudocode):
@@ -1491,10 +1509,14 @@ impl Queue {
 
     /// What:
     ///      `pub fn rewind_scope(&mut self) -> Option<usize>` puts the cursor on the first track of the scope and returns
-    ///  it, or `None` when nothing is queued.
+    ///  it,
+    /// or `None` when nothing is queued.
     /// Why:
-    ///       After In order has played its scope to the end and stopped, Play must start the folder again from its first
-    ///  track, as a disc player does; leaving the cursor on the last track would end again at once.
+    ///       After In order has played its scope to the end and stopped,
+    /// Play must start the folder again from its first
+    ///  track,
+    /// as a disc player does;
+    /// leaving the cursor on the last track would end again at once.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

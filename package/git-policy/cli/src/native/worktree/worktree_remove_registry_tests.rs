@@ -1,10 +1,15 @@
-//! Controls for the registration lookup of a worktree removal: Git's match by last components, the scope of the
-//!  registration to the invoking repository, and the pointers that must name each other.
+//! Controls for the registration lookup of a worktree removal:
+//! Git's match by last components,
+//! the scope of the
+//!  registration to the invoking repository,
+//! and the pointers that must name each other.
 
 use super::*;
 use crate::test_support::{fixture, git, remove, repository};
 
-/// Git's suffix match starts at a directory boundary, ignores nothing but ASCII case, and needs a non-empty name.
+/// Git's suffix match starts at a directory boundary,
+/// ignores nothing but ASCII case,
+/// and needs a non-empty name.
 #[test]
 fn the_last_components_match_at_a_directory_boundary() {
     for (candidate, operand, expected) in [
@@ -21,7 +26,8 @@ fn the_last_components_match_at_a_directory_boundary() {
     }
 }
 
-/// A linked worktree is found in the repository that registered it and in no other; a pointer pair that disagrees is not
+/// A linked worktree is found in the repository that registered it and in no other;
+/// a pointer pair that disagrees is not
 ///  a registration.
 #[test]
 fn a_registration_belongs_to_the_invoking_repository_and_the_pointers_agree() {
@@ -50,7 +56,8 @@ fn a_registration_belongs_to_the_invoking_repository_and_the_pointers_agree() {
     remove(root.as_path());
 }
 
-/// A name that Git would match to a different registered worktree is refused with both paths named; a name that matches
+/// A name that Git would match to a different registered worktree is refused with both paths named;
+/// a name that matches
 ///  only the target is accepted.
 #[test]
 fn a_name_that_matches_another_registered_worktree_is_refused() {

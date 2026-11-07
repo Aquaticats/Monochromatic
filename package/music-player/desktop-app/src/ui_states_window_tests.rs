@@ -1,8 +1,21 @@
-//! Window tests of the empty, reading and failure states: what the pane, the deck, the rows and the messages show.
+//! Window tests of the empty,
+//! reading and failure states:
+//! what the pane,
+//! the deck,
+//! the rows and the messages show.
 //!
-//! What: each test builds a window on the testing backend, feeds it engine updates and reads the window's properties.
-//! Why: EM1, EM2, EM5, PB1 and PB2 of the second polish review are about what the window shows when the library is
-//! being read, empty, or has a file that fails; a unit test of the model alone would not see the pane or the deck.
+//! What:
+//! each test builds a window on the testing backend,
+//! feeds it engine updates and reads the window's properties.
+//! Why:
+//! EM1,
+//! EM2,
+//! EM5,
+//! PB1 and PB2 of the second polish review are about what the window shows when the library is
+//! being read,
+//! empty,
+//! or has a file that fails;
+//! a unit test of the model alone would not see the pane or the deck.
 
 use music_player::command::Update;
 use slint::{ComponentHandle, Model};
@@ -11,8 +24,10 @@ use std::path::PathBuf;
 use crate::DeckState;
 use crate::ui_test_support::{fresh_window_at, load_library, settle};
 
-/// What: `feedback_texts` lists the texts of the visible messages.
-/// Why: the tests read what the user is told.
+/// What:
+/// `feedback_texts` lists the texts of the visible messages.
+/// Why:
+/// the tests read what the user is told.
 fn feedback_texts(app: &crate::AppWindow) -> Vec<String> {
     return app.get_feedback_items().iter().map(|item| return item.text.to_string()).collect();
 }

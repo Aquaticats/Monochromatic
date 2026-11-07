@@ -1,8 +1,14 @@
 //! What:
-//!  Controls of the native journal entry, of the detection that standard error is the journal, and of the fallback.
+//!  Controls of the native journal entry,
+//! of the detection that standard error is the journal,
+//! and of the fallback.
 //! Why:
-//!  A message that starts a field of its own, a sink chosen from a variable that a redirection left behind, or an entry
-//!  that waits for a full socket each cost a commit or a record; none touches the real journal socket here: every
+//!  A message that starts a field of its own,
+//! a sink chosen from a variable that a redirection left behind,
+//! or an entry
+//!  that waits for a full socket each cost a commit or a record;
+//! none touches the real journal socket here:
+//! every
 //!  socket is a disposable one in a fixture directory.
 //!
 //! In TS you'd write (pseudocode):
@@ -20,7 +26,9 @@ use std::sync::atomic::{AtomicU32, Ordering};
 const DEVICE: u64 = 64_769;
 const INODE: u64 = 123_456_789;
 
-/// The `NAME=value` lines of a datagram, in simple form; a repeated name keeps its last value.
+/// The `NAME=value` lines of a datagram,
+/// in simple form;
+/// a repeated name keeps its last value.
 fn parsed(bytes: &[u8]) -> BTreeMap<String, String> {
     let text: &str = std::str::from_utf8(bytes).expect("an entry is text");
     return text
@@ -35,8 +43,10 @@ fn parsed(bytes: &[u8]) -> BTreeMap<String, String> {
 /// Distinguishes the abstract names of the receivers of one test process.
 static RECEIVERS: AtomicU32 = AtomicU32::new(0);
 
-/// A bound receiving socket on a fresh abstract name (a fixture path can be longer than a socket path may be, and an
-/// abstract socket leaves nothing behind), and the target that names it.
+/// A bound receiving socket on a fresh abstract name (a fixture path can be longer than a socket path may be,
+/// and an
+/// abstract socket leaves nothing behind),
+/// and the target that names it.
 fn receiver(name: &str) -> (UnixDatagram, Target) {
     let abstract_name: String = format!("cli-git-test-journal-{}-{}-{name}", std::process::id(), RECEIVERS.fetch_add(1, Ordering::Relaxed));
     let address: SocketAddr = SocketAddr::from_abstract_name(abstract_name.as_bytes()).expect("an abstract address");
@@ -48,7 +58,10 @@ fn variable() -> String {
     return format!("{DEVICE}:{INODE}");
 }
 
-/// An entry names its priority, its identifier, its message and each field, one `NAME=value` line each.
+/// An entry names its priority,
+/// its identifier,
+/// its message and each field,
+/// one `NAME=value` line each.
 #[test]
 fn an_entry_carries_priority_identifier_message_and_fields() {
     let fields: [(&str, String); 2] = [("CLI_GIT_REQUEST_ID", String::from("r-1")), ("CLI_GIT_BRANCH", String::from("refs/heads/main"))];
@@ -60,13 +73,16 @@ fn an_entry_carries_priority_identifier_message_and_fields() {
     assert_eq!(found["CLI_GIT_BRANCH"], "refs/heads/main");
 }
 
-/// Priorities are syslog's numbers, so `journalctl --priority=err` and `--priority=warning` select them.
+/// Priorities are syslog's numbers,
+/// so `journalctl --priority=err` and `--priority=warning` select them.
 #[test]
 fn priorities_are_the_syslog_levels() {
     assert_eq!((Priority::Error.number(), Priority::Warning.number(), Priority::Info.number()), (3, 4, 6));
 }
 
-/// A message or a field value with a newline cannot start a field: the entry has exactly the fields it was given, and the
+/// A message or a field value with a newline cannot start a field:
+/// the entry has exactly the fields it was given,
+/// and the
 /// newline is part of the value that held it.
 #[test]
 fn a_newline_in_a_message_or_a_value_cannot_start_a_field() {
@@ -80,7 +96,8 @@ fn a_newline_in_a_message_or_a_value_cannot_start_a_field() {
     assert_eq!(found[3].1, hostile.as_bytes());
 }
 
-/// A name journald would refuse (a leading underscore is the journal's own, a lower-case letter is not allowed) is left out.
+/// A name journald would refuse (a leading underscore is the journal's own,
+/// a lower-case letter is not allowed) is left out.
 #[test]
 fn a_field_name_journald_refuses_is_left_out() {
     let fields: [(&str, String); 3] = [("_SYSTEMD_UNIT", String::from("x")), ("lower", String::from("y")), ("CLI_GIT_OK", String::from("z"))];
@@ -90,7 +107,8 @@ fn a_field_name_journald_refuses_is_left_out() {
     assert!(valid_field_name("CLI_GIT_AT_MS") && !valid_field_name("") && !valid_field_name("9A") && !valid_field_name("A=B"));
 }
 
-/// A message longer than the limit is cut and says so; one at the limit is whole.
+/// A message longer than the limit is cut and says so;
+/// one at the limit is whole.
 #[test]
 fn a_long_message_is_cut_at_the_limit_and_says_so() {
     let whole: String = "a".repeat(MESSAGE_LIMIT);
@@ -111,7 +129,8 @@ fn the_stream_is_the_journal_only_when_device_and_inode_both_match() {
     assert!(!stream_matches(Some("garbage"), DEVICE, INODE) && !stream_matches(Some("1:x"), 1, 0), "unreadable variable");
 }
 
-/// A sink whose standard error is the journal sends a datagram a receiver can read, and writes nothing to standard error.
+/// A sink whose standard error is the journal sends a datagram a receiver can read,
+/// and writes nothing to standard error.
 #[test]
 fn a_journal_stream_sends_the_entry_as_a_datagram() {
     let (socket, target) = receiver("journald-native-send");
@@ -128,8 +147,12 @@ fn a_journal_stream_sends_the_entry_as_a_datagram() {
     assert_eq!((found["PRIORITY"].as_str(), found["MESSAGE"].as_str(), found["CLI_GIT_REQUEST_ID"].as_str()), ("3", "failed x", "r-2"));
 }
 
-/// Standard error that is not the journal (a terminal, a file, a pipe) keeps its plain line, with no priority prefix and
-/// no socket, even when the variable is set.
+/// Standard error that is not the journal (a terminal,
+/// a file,
+/// a pipe) keeps its plain line,
+/// with no priority prefix and
+/// no socket,
+/// even when the variable is set.
 #[test]
 fn standard_error_that_is_not_the_journal_keeps_the_plain_line() {
     let (socket, target) = receiver("journald-native-plain");
@@ -142,7 +165,9 @@ fn standard_error_that_is_not_the_journal_keeps_the_plain_line() {
     assert!(socket.recv(&mut [0_u8; 16]).is_err(), "nothing was sent to the socket");
 }
 
-/// A journal that is not listening (restarting, or gone) costs no entry: it goes to standard error with the priority prefix
+/// A journal that is not listening (restarting,
+/// or gone) costs no entry:
+/// it goes to standard error with the priority prefix
 /// the journal's stream reads.
 #[test]
 fn a_journal_that_is_not_listening_falls_back_to_standard_error_with_the_priority() {
@@ -153,7 +178,8 @@ fn a_journal_that_is_not_listening_falls_back_to_standard_error_with_the_priorit
     assert_eq!(String::from_utf8(stderr).expect("text"), "<4>monochromatic-git-policy-cli-service: m at_ms=1\n");
 }
 
-/// A receiver whose queue is full never makes the sender wait: the entry falls back at once.
+/// A receiver whose queue is full never makes the sender wait:
+/// the entry falls back at once.
 #[test]
 fn a_full_journal_queue_falls_back_instead_of_waiting() {
     let (_socket, target) = receiver("journald-native-full");
@@ -170,8 +196,11 @@ fn a_full_journal_queue_falls_back_instead_of_waiting() {
     assert!(started.elapsed() < std::time::Duration::from_secs(20), "filling the queue and falling back took {:?}", started.elapsed());
 }
 
-/// The address a signal handler sends to is the C form of the target: an abstract name starts with a zero byte and
-/// counts only its own bytes, a path ends in a zero byte, and a name that cannot fit is refused.
+/// The address a signal handler sends to is the C form of the target:
+/// an abstract name starts with a zero byte and
+/// counts only its own bytes,
+/// a path ends in a zero byte,
+/// and a name that cannot fit is refused.
 #[test]
 fn the_raw_address_follows_the_target() {
     let named: SocketAddr = Target::Abstract(String::from("abc")).address().expect("an address");
@@ -185,14 +214,17 @@ fn the_raw_address_follows_the_target() {
     assert_eq!(raw_path.sun_path[0].to_ne_bytes()[0], b'/');
 }
 
-/// A target given as `@name` is abstract; anything else is a path.
+/// A target given as `@name` is abstract;
+/// anything else is a path.
 #[test]
 fn a_test_target_with_an_at_sign_is_abstract() {
     assert_eq!(Target::parse("@x"), Target::Abstract(String::from("x")));
     assert_eq!(Target::parse("/run/systemd/journal/socket"), Target::Path(String::from("/run/systemd/journal/socket")));
 }
 
-/// An abstract name may fill the whole address field (one zero byte and 107 bytes of name); one byte more does not fit, and a
+/// An abstract name may fill the whole address field (one zero byte and 107 bytes of name);
+/// one byte more does not fit,
+/// and a
 /// path needs room for the zero byte that ends it.
 #[test]
 fn the_longest_abstract_name_fits_the_raw_address_and_one_more_byte_does_not() {
@@ -204,7 +236,9 @@ fn the_longest_abstract_name_fits_the_raw_address_and_one_more_byte_does_not() {
     assert!(raw_address(&longest_path).is_some());
 }
 
-/// A stream whose reader has stopped never makes the writer wait: the line that finds no room is refused at once, and once
+/// A stream whose reader has stopped never makes the writer wait:
+/// the line that finds no room is refused at once,
+/// and once
 /// the reader reads again the same writer sends.
 #[test]
 fn a_full_journal_stream_drops_the_line_instead_of_waiting() {
@@ -231,8 +265,12 @@ fn a_full_journal_stream_drops_the_line_instead_of_waiting() {
     assert!(writer.write_all(b"after\n").is_ok(), "room again");
 }
 
-/// Standard error that is a file or a pipe, not a socket (a test, a redirection that left `$JOURNAL_STREAM` set), still gets
-/// the line: the writer falls back to an ordinary write.
+/// Standard error that is a file or a pipe,
+/// not a socket (a test,
+/// a redirection that left `$JOURNAL_STREAM` set),
+/// still gets
+/// the line:
+/// the writer falls back to an ordinary write.
 #[test]
 fn a_stream_writer_on_a_file_writes_the_line() {
     use std::io::Write;
@@ -246,8 +284,13 @@ fn a_stream_writer_on_a_file_writes_the_line() {
     crate::command_test_support::remove(root.as_path());
 }
 
-/// One field of a native entry as journald reads it: the simple form `NAME=value\n`, or the binary form `NAME\n`, eight
-/// bytes of little-endian length, the value and `\n` (journald-native.c, `manager_process_entry`).
+/// One field of a native entry as journald reads it:
+/// the simple form `NAME=value\n`,
+/// or the binary form `NAME\n`,
+/// eight
+/// bytes of little-endian length,
+/// the value and `\n` (journald-native.c,
+/// `manager_process_entry`).
 fn decoded(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
     let mut fields: Vec<(String, Vec<u8>)> = Vec::new();
     let mut rest: &[u8] = bytes;
@@ -268,7 +311,10 @@ fn decoded(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
     return fields;
 }
 
-/// A value with a newline in it reaches the journal as it was, in the length-prefixed form, and starts no field; control
+/// A value with a newline in it reaches the journal as it was,
+/// in the length-prefixed form,
+/// and starts no field;
+/// control
 /// bytes other than the newline are carried as they are.
 #[test]
 fn a_value_with_a_newline_is_carried_whole_in_the_length_prefixed_form() {
@@ -284,9 +330,14 @@ fn a_value_with_a_newline_is_carried_whole_in_the_length_prefixed_form() {
     assert_eq!(found[4].1, b"no newline");
 }
 
-/// A name journald would take is 1 to 64 characters of upper-case letters, digits and underscores, starting with a letter:
-/// systemd's `journal_field_valid` refuses a digit first and a leading underscore (the journal's own fields), and a name over
-/// 64 characters. (The review said a name may start with a digit; the source it points at says it may not.)
+/// A name journald would take is 1 to 64 characters of upper-case letters,
+/// digits and underscores,
+/// starting with a letter:
+/// systemd's `journal_field_valid` refuses a digit first and a leading underscore (the journal's own fields),
+/// and a name over
+/// 64 characters.
+/// (The review said a name may start with a digit;
+/// the source it points at says it may not.)
 #[test]
 fn a_field_name_follows_systemds_rule_including_its_length_and_its_first_character() {
     assert!(valid_field_name(&"A".repeat(64)), "64 is the longest");
@@ -297,11 +348,13 @@ fn a_field_name_follows_systemds_rule_including_its_length_and_its_first_charact
     assert!(!valid_field_name("") && !valid_field_name("a") && !valid_field_name("A-B") && !valid_field_name("É"));
 }
 
-/// A writer that takes only part of what it is given and then has no room, until it is given room.
+/// A writer that takes only part of what it is given and then has no room,
+/// until it is given room.
 struct Tight {
     /// What the stream has taken.
     taken: Vec<u8>,
-    /// How many more bytes it takes before it is full; `usize::MAX` for no limit.
+    /// How many more bytes it takes before it is full;
+    /// `usize::MAX` for no limit.
     room: usize,
 }
 
@@ -321,8 +374,10 @@ impl std::io::Write for Tight {
     }
 }
 
-/// A line the stream took only in part is finished before the next one starts: the stream never carries half of one line into
-/// the next, and a later line is not lost to the unfinished one.
+/// A line the stream took only in part is finished before the next one starts:
+/// the stream never carries half of one line into
+/// the next,
+/// and a later line is not lost to the unfinished one.
 #[test]
 fn a_line_taken_in_part_is_finished_before_the_next_starts() {
     let nobody: Target = Target::Abstract(format!("cli-git-test-journal-partial-{}", std::process::id()));
@@ -334,7 +389,8 @@ fn a_line_taken_in_part_is_finished_before_the_next_starts() {
     assert_eq!(String::from_utf8(stream.taken).expect("text"), "<6>first line\n<6>second line\n");
 }
 
-/// A standard error that is a blocking pipe with no room never makes the writer wait: the write is refused at once.
+/// A standard error that is a blocking pipe with no room never makes the writer wait:
+/// the write is refused at once.
 #[test]
 fn a_full_blocking_pipe_refuses_the_write_instead_of_waiting() {
     use std::io::Write;
@@ -368,7 +424,9 @@ fn a_full_blocking_pipe_refuses_the_write_instead_of_waiting() {
     }
 }
 
-/// A value is cut at its limit and the cut says so, but is otherwise unchanged: a newline and a control byte stay.
+/// A value is cut at its limit and the cut says so,
+/// but is otherwise unchanged:
+/// a newline and a control byte stay.
 #[test]
 fn a_cut_keeps_the_text_it_keeps() {
     assert_eq!(cut("a\nb\u{1}c", 10), "a\nb\u{1}c");
@@ -378,7 +436,10 @@ fn a_cut_keeps_the_text_it_keeps() {
     assert_eq!(FIELD_NAME_LIMIT, 64);
 }
 
-/// An entry that finds no room is dropped, not waited for, and counted: the next entry that gets through says how many.
+/// An entry that finds no room is dropped,
+/// not waited for,
+/// and counted:
+/// the next entry that gets through says how many.
 #[test]
 fn a_dropped_entry_is_counted_and_the_next_stream_line_says_so() {
     let nobody: Target = Target::Abstract(format!("cli-git-test-journal-dropped-{}", std::process::id()));
@@ -397,7 +458,8 @@ fn a_dropped_entry_is_counted_and_the_next_stream_line_says_so() {
     assert_eq!(String::from_utf8(after.taken).expect("text"), "<6>fourth line\n", "the count is said once");
 }
 
-/// The line that is still unfinished when no room comes back blocks the lines after it from starting, and each of those is
+/// The line that is still unfinished when no room comes back blocks the lines after it from starting,
+/// and each of those is
 /// counted as dropped.
 #[test]
 fn a_line_that_stays_unfinished_drops_the_lines_behind_it() {
@@ -414,7 +476,8 @@ fn a_line_that_stays_unfinished_drops_the_lines_behind_it() {
     assert!(text.ends_with("\n<6>third line\n"), "{text}");
 }
 
-/// A native entry that follows dropped ones carries their count as a field, and the count is said once.
+/// A native entry that follows dropped ones carries their count as a field,
+/// and the count is said once.
 #[test]
 fn a_native_entry_after_dropped_ones_carries_their_count() {
     let (socket, target) = receiver("journald-native-lost");
@@ -431,7 +494,8 @@ fn a_native_entry_after_dropped_ones_carries_their_count() {
     assert!(!decoded(&buffer[..second]).iter().any(|(name, _)| { return name == LOST_FIELD; }), "said once");
 }
 
-/// A stream that takes the start of a line and nothing more is not waited for: the call returns at once with what it took.
+/// A stream that takes the start of a line and nothing more is not waited for:
+/// the call returns at once with what it took.
 #[test]
 fn a_stream_socket_with_room_for_part_returns_what_it_took_without_waiting() {
     use std::io::{Read, Write};
@@ -450,7 +514,8 @@ fn a_stream_socket_with_room_for_part_returns_what_it_took_without_waiting() {
     assert_eq!(writer.write(big.as_slice()).expect_err("then no room").kind(), std::io::ErrorKind::WouldBlock);
 }
 
-/// Two entries that each said the same count of dropped ones leave the count at zero, never wrapped below it.
+/// Two entries that each said the same count of dropped ones leave the count at zero,
+/// never wrapped below it.
 #[test]
 fn counting_the_same_dropped_entries_twice_stops_at_zero() {
     let nobody: Target = Target::Abstract(format!("cli-git-test-journal-twice-{}", std::process::id()));
@@ -461,7 +526,8 @@ fn counting_the_same_dropped_entries_twice_stops_at_zero() {
     assert_eq!(sink.lost.load(Ordering::Relaxed), 0);
 }
 
-/// The send that a signal handler uses takes at most a page into a pipe with room, refuses a full pipe with `EAGAIN` at once,
+/// The send that a signal handler uses takes at most a page into a pipe with room,
+/// refuses a full pipe with `EAGAIN` at once,
 /// and does the same for a stream socket.
 #[test]
 fn the_send_without_waiting_takes_a_page_and_refuses_a_full_pipe_and_a_full_socket() {

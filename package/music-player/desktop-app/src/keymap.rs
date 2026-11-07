@@ -172,7 +172,8 @@ pub enum ShortcutOwner {
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyRoute {
-    /// The player: folder picker,
+    /// The player:
+    /// folder picker,
     ///  track list and transport deck.
     Player,
     /// The Search page.
@@ -222,7 +223,8 @@ pub enum FocusZone {
     ///  Back,
     ///  Clear or Reset.
     Button,
-    /// A text field: the Search query or the template line.
+    /// A text field:
+    /// the Search query or the template line.
     TextField,
     /// The Settings list.
     SettingsList,
@@ -607,9 +609,14 @@ fn popup_action(request: &ShortcutRequest) -> ShortcutAction {
 /// What:
 ///      `menu_access_action` maps a plain letter pressed while the track menu is open to the row it runs.
 /// Why:
-///      D114 gives every menu row an access letter; the letters come from the one table in `track_menu`, so the underline
-///  the window draws and the key this accepts cannot disagree. A letter held with Control, Alt or Meta is not an access
-///  key, and a held-down letter does not run the row twice.
+///      D114 gives every menu row an access letter;
+/// the letters come from the one table in `track_menu`,
+/// so the underline
+///  the window draws and the key this accepts cannot disagree.
+/// A letter held with Control,
+/// Alt or Meta is not an access
+///  key,
+/// and a held-down letter does not run the row twice.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

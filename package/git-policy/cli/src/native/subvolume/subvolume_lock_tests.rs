@@ -1,10 +1,14 @@
-//! Controls for the migration's lock files: the paths of a tree, creation, recognition of the migration's own lock,
+//! Controls for the migration's lock files:
+//! the paths of a tree,
+//! creation,
+//! recognition of the migration's own lock,
 //!  and release that never touches another lock.
 
 use super::*;
 use crate::test_support::{fixture, remove};
 
-/// A tree with a main `.git`, two administrative directories of linked worktrees and a stray file among them.
+/// A tree with a main `.git`,
+/// two administrative directories of linked worktrees and a stray file among them.
 fn tree_with_worktrees(name: &str) -> (PathBuf, PathBuf) {
     let parent: PathBuf = fixture(name);
     let tree: PathBuf = parent.join("tree");
@@ -14,7 +18,9 @@ fn tree_with_worktrees(name: &str) -> (PathBuf, PathBuf) {
     return (parent, tree);
 }
 
-/// The lock paths are the main one and one per administrative directory, sorted, and relative forms strip the tree.
+/// The lock paths are the main one and one per administrative directory,
+/// sorted,
+/// and relative forms strip the tree.
 #[test]
 fn the_lock_paths_are_the_main_one_and_one_per_linked_worktree() {
     let (parent, tree) = tree_with_worktrees("lock-paths");
@@ -27,7 +33,10 @@ fn the_lock_paths_are_the_main_one_and_one_per_linked_worktree() {
     remove(parent.as_path());
 }
 
-/// A lock is created with the token, accepted again with the same token, refused with another, and a foreign lock is
+/// A lock is created with the token,
+/// accepted again with the same token,
+/// refused with another,
+/// and a foreign lock is
 ///  never accepted or released.
 #[test]
 fn only_a_lock_holding_the_token_is_accepted_and_released() {
@@ -47,7 +56,8 @@ fn only_a_lock_holding_the_token_is_accepted_and_released() {
     remove(parent.as_path());
 }
 
-/// A directory where a lock would be is an error from the operating system, named with the path.
+/// A directory where a lock would be is an error from the operating system,
+/// named with the path.
 #[test]
 fn a_lock_that_cannot_be_created_names_the_path() {
     let (parent, tree) = tree_with_worktrees("lock-error");

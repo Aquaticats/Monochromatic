@@ -1,14 +1,24 @@
-//! The tree clone: contents, modes, times, links kept verbatim, an existing destination refused, parallel and serial agree.
+//! The tree clone:
+//! contents,
+//! modes,
+//! times,
+//! links kept verbatim,
+//! an existing destination refused,
+//! parallel and serial agree.
 
 use super::*;
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
 use std::path::PathBuf;
 
-/// More files than any single worker slice, so the parallel path really splits the work.
+/// More files than any single worker slice,
+/// so the parallel path really splits the work.
 const MANY_FILES: usize = 64;
 
-/// A source with nested directories, an executable, a link with a relative target, and an old modification time.
+/// A source with nested directories,
+/// an executable,
+/// a link with a relative target,
+/// and an old modification time.
 fn build_source(root: &Path) -> PathBuf {
     let source: PathBuf = root.join("source");
     std::fs::create_dir_all(source.join("deps/nested")).expect("directories");
@@ -25,7 +35,9 @@ fn build_source(root: &Path) -> PathBuf {
     return source;
 }
 
-/// Contents, modes and modification times are the source's; a link keeps its exact target text.
+/// Contents,
+/// modes and modification times are the source's;
+/// a link keeps its exact target text.
 #[test]
 fn clones_contents_modes_times_and_links() {
     let root: PathBuf = fixture("tree-clone-faithful");
@@ -43,7 +55,8 @@ fn clones_contents_modes_times_and_links() {
     remove(&root);
 }
 
-/// The clone shares no hard link with the source: changing the clone leaves the source alone.
+/// The clone shares no hard link with the source:
+/// changing the clone leaves the source alone.
 #[test]
 fn a_changed_clone_leaves_the_source_alone() {
     let root: PathBuf = fixture("tree-clone-independent");
@@ -95,7 +108,11 @@ fn a_missing_source_is_an_error() {
     remove(&root);
 }
 
-/// Every entry of a tree as its path below `root`, its mode and, for a readable file, its bytes; the source must come out of a
+/// Every entry of a tree as its path below `root`,
+/// its mode and,
+/// for a readable file,
+/// its bytes;
+/// the source must come out of a
 ///  clone exactly as it went in.
 fn describe(root: &Path) -> Vec<(PathBuf, u32, Option<Vec<u8>>)> {
     let mut found: Vec<(PathBuf, u32, Option<Vec<u8>>)> = Vec::new();
@@ -114,8 +131,11 @@ fn describe(root: &Path) -> Vec<(PathBuf, u32, Option<Vec<u8>>)> {
     return found;
 }
 
-/// A file a test left with no read permission stops nothing: every other file is cloned, the unreadable one is named as left
-///  out and is not in the destination, and the source is exactly as it was.
+/// A file a test left with no read permission stops nothing:
+/// every other file is cloned,
+/// the unreadable one is named as left
+///  out and is not in the destination,
+/// and the source is exactly as it was.
 #[test]
 fn an_unreadable_file_is_left_out_and_everything_else_is_cloned() {
     let root: PathBuf = fixture("tree-clone-unreadable-file");
@@ -136,7 +156,8 @@ fn an_unreadable_file_is_left_out_and_everything_else_is_cloned() {
     remove(&root);
 }
 
-/// A directory with no read permission is made empty with its own mode and named as left out; its siblings are cloned.
+/// A directory with no read permission is made empty with its own mode and named as left out;
+/// its siblings are cloned.
 #[test]
 fn an_unreadable_directory_is_made_empty_and_left_out() {
     let root: PathBuf = fixture("tree-clone-unreadable-directory");
@@ -170,7 +191,8 @@ fn the_clone_threshold_is_the_measured_break_even() {
     assert_eq!(PARALLEL_MIN_ENTRIES, crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES);
 }
 
-/// Where the system starts no thread the clone is made by the calling thread and equals the serial one. The body runs in a child that
+/// Where the system starts no thread the clone is made by the calling thread and equals the serial one.
+/// The body runs in a child that
 /// is refused every thread.
 #[test]
 fn a_parallel_clone_where_no_thread_can_start_is_made_in_turn() {

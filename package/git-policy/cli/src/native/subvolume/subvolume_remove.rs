@@ -1,14 +1,25 @@
 //! What:
-//!  Remove a directory tree, making each directory the user owns writable on the way down, and never going into a nested
+//!  Remove a directory tree,
+//! making each directory the user owns writable on the way down,
+//! and never going into a nested
 //!  subvolume or a mount point.
 //! Why:
-//!  The migration preserves permission bits, so a checkout can hold a mode-555 directory with files in it. Unlinking a
-//!  file needs write permission on its directory, so `std::fs::remove_dir_all` stops at the first such directory and
-//!  both the deletion of the old tree and the emptying of a subvolume fail partway. Every directory is opened below its
-//!  parent's descriptor without following links and given the owner's read, write and search bits through its
-//!  descriptor before the tree is removed; a directory the user does not own keeps its mode and the removal reports the
-//!  operating system's refusal. A nested subvolume or a mount point inside the tree is not part of it (to the kernel it is
-//!  a directory, and `remove_dir_all` would delete what it holds), so the removal refuses before it deletes anything
+//!  The migration preserves permission bits,
+//! so a checkout can hold a mode-555 directory with files in it.
+//! Unlinking a
+//!  file needs write permission on its directory,
+//! so `std::fs::remove_dir_all` stops at the first such directory and
+//!  both the deletion of the old tree and the emptying of a subvolume fail partway.
+//! Every directory is opened below its
+//!  parent's descriptor without following links and given the owner's read,
+//! write and search bits through its
+//!  descriptor before the tree is removed;
+//! a directory the user does not own keeps its mode and the removal reports the
+//!  operating system's refusal.
+//! A nested subvolume or a mount point inside the tree is not part of it (to the kernel it is
+//!  a directory,
+//! and `remove_dir_all` would delete what it holds),
+//! so the removal refuses before it deletes anything
 //!  (`subvolume_remove_walk.rs`).
 //!
 //! In TS you'd write (pseudocode):
@@ -21,10 +32,16 @@ use crate::subvolume_remove_walk::{empty_directory, verify_below};
 use std::path::Path;
 
 /// What:
-///  Remove `path`, whatever it is: a file or link is unlinked, a directory is emptied and removed.
+///  Remove `path`,
+/// whatever it is:
+/// a file or link is unlinked,
+/// a directory is emptied and removed.
 /// Why:
-///   Links are never followed; see the module description for the permissions and the boundaries. The empty directory
-///  that remains is removed by name from the parent that was opened first, which succeeds only if it is still empty.
+///   Links are never followed;
+/// see the module description for the permissions and the boundaries.
+/// The empty directory
+///  that remains is removed by name from the parent that was opened first,
+/// which succeeds only if it is still empty.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

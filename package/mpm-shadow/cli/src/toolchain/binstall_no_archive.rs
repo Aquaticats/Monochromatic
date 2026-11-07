@@ -5,7 +5,8 @@
 //! Why:
 //! cargo-binstall prints its reasons as `WARN resolve:` and `ERROR resolve:` lines and then stops with
 //! `Fallback to cargo-install is disabled`;
-//! alone, that last line names no cause and no way forward.
+//! alone,
+//! that last line names no cause and no way forward.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,10 +28,35 @@ const REASON_MARKERS: [&str; 2] = ["WARN resolve:", "ERROR resolve:"];
 /// The characters cargo-binstall's error report draws around wrapped text.
 const REPORT_DRAWING: [&str; 3] = ["\u{2502}", "\u{d7}", "\u{2570}\u{2500}\u{25b6}"];
 
+/// Whether a word of cargo-binstall's report is text and not a drawing character of the error frame.
+fn is_not_report_drawing(word: &&str) -> bool {
+    return !REPORT_DRAWING.contains(word);
+}
+
+/// Whether a line holds one of the markers that introduce a reason.
+fn has_reason_marker(line: &str) -> bool {
+    for marker in REASON_MARKERS {
+        if line.contains(marker) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Whether the line is already among the reasons collected.
+fn is_listed(reasons: &[String], line: &str) -> bool {
+    for seen in reasons {
+        if seen == line {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// Whether cargo-binstall's output says it stopped because compiling is disabled,
 /// however its error report wrapped the sentence.
 fn stopped_for_disabled_compile(text: &str) -> bool {
-    let words: Vec<&str> = text.split_whitespace().filter(|word| return !REPORT_DRAWING.contains(word)).collect();
+    let words: Vec<&str> = text.split_whitespace().filter(is_not_report_drawing).collect();
     return words.join(" ").contains(COMPILE_DISABLED_TEXT);
 }
 
@@ -40,7 +66,7 @@ fn reason_lines(text: &str) -> Vec<String> {
     let mut reasons: Vec<String> = Vec::new();
     for line in text.lines() {
         let trimmed: &str = line.trim();
-        if REASON_MARKERS.iter().any(|marker| return trimmed.contains(marker)) && !reasons.iter().any(|seen| return seen == trimmed) {
+        if has_reason_marker(trimmed) && !is_listed(&reasons, trimmed) {
             reasons.push(trimmed.to_string());
         }
     }
@@ -85,7 +111,9 @@ pub fn no_archive_failure(tool_id: &str, crate_name: &str, version: &str, outcom
         lines.push("cargo-binstall printed no reason line.".to_string());
     } else {
         lines.push("cargo-binstall gave these reasons:".to_string());
-        lines.extend(reasons.iter().map(|reason| return format!("  {reason}")));
+        for reason in &reasons {
+            lines.push(format!("  {reason}"));
+        }
     }
     lines.push(format!("It then stopped with: {COMPILE_DISABLED_TEXT}."));
     lines.push("Ways to proceed:".to_string());

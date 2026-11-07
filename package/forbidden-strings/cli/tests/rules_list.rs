@@ -1,6 +1,9 @@
-//! Binary-boundary tests for the rules list: `--rules` and `FORBIDDEN_STRINGS_RULES` naming several files,
-//! the optional marker, and the cache keyed over the joined text.
-//! Every fixture is a disposable directory with its own cache root; no test reads the real environment.
+//! Binary-boundary tests for the rules list:
+//! `--rules` and `FORBIDDEN_STRINGS_RULES` naming several files,
+//! the optional marker,
+//! and the cache keyed over the joined text.
+//! Every fixture is a disposable directory with its own cache root;
+//! no test reads the real environment.
 
 /// Imports ordinary filesystem operations for isolated fixtures.
 use std::fs;
@@ -83,7 +86,9 @@ fn a_single_path_still_names_one_required_file() {
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
-/// Both files' rules apply, in list order, as one rule set.
+/// Both files' rules apply,
+/// in list order,
+/// as one rule set.
 #[test]
 fn two_files_scan_as_one_rule_set() {
     let root = two_file_fixture("two");
@@ -95,7 +100,8 @@ fn two_files_scan_as_one_rule_set() {
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
-/// The variable carries the same list, and the flag replaces it instead of adding to it.
+/// The variable carries the same list,
+/// and the flag replaces it instead of adding to it.
 #[test]
 fn the_variable_carries_a_list_and_the_flag_replaces_it() {
     let root = two_file_fixture("variable");
@@ -132,7 +138,8 @@ fn a_present_optional_entry_applies() {
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
-/// An absent optional entry is skipped and logged, and the scan still passes or fails on the rest.
+/// An absent optional entry is skipped and logged,
+/// and the scan still passes or fails on the rest.
 #[test]
 fn an_absent_optional_entry_is_skipped_and_logged() {
     let root = two_file_fixture("optional-absent");
@@ -150,7 +157,8 @@ fn an_absent_optional_entry_is_skipped_and_logged() {
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
-/// A missing required entry exits 2 and names its path, whatever precedes it.
+/// A missing required entry exits 2 and names its path,
+/// whatever precedes it.
 #[test]
 fn a_missing_required_entry_exits_2_naming_its_path() {
     let root = two_file_fixture("required-missing");
@@ -198,7 +206,8 @@ fn a_doubled_question_mark_names_a_path_that_ends_in_one() {
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
-/// A comma separates entries, so a path holding one is not found as one file.
+/// A comma separates entries,
+/// so a path holding one is not found as one file.
 #[test]
 fn a_comma_in_a_path_splits_the_entry() {
     let root = two_file_fixture("comma");
@@ -210,7 +219,8 @@ fn a_comma_in_a_path_splits_the_entry() {
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
-/// A list with no file present fails closed, and the baseline can stand in for them only when asked for.
+/// A list with no file present fails closed,
+/// and the baseline can stand in for them only when asked for.
 #[test]
 fn only_absent_optional_entries_fail_unless_the_baseline_is_on() {
     let root = two_file_fixture("all-absent");
@@ -231,7 +241,8 @@ fn only_absent_optional_entries_fail_unless_the_baseline_is_on() {
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
-/// Files in different formats are refused, naming both.
+/// Files in different formats are refused,
+/// naming both.
 #[test]
 fn files_in_different_formats_are_refused() {
     let root = two_file_fixture("mixed");
@@ -323,7 +334,9 @@ fn a_changed_order_is_a_cache_miss() {
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
-/// `compile-rules` takes the same list, warms the artifact a scan then reuses, and fails on a missing required entry.
+/// `compile-rules` takes the same list,
+/// warms the artifact a scan then reuses,
+/// and fails on a missing required entry.
 #[test]
 fn compile_rules_takes_a_list() {
     let root = two_file_fixture("compile");
@@ -355,7 +368,9 @@ fn compile_rules_takes_a_list() {
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
-/// `--all` skips every listed rules file, not only the first, so a tracked second file does not self-match.
+/// `--all` skips every listed rules file,
+/// not only the first,
+/// so a tracked second file does not self-match.
 #[test]
 fn all_mode_skips_every_listed_rules_file() {
     let root = two_file_fixture("all");
@@ -390,7 +405,8 @@ fn a_listed_file_that_is_not_utf8_exits_2() {
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
-/// The implicit default file may still be absent under the baseline, with no log line for it.
+/// The implicit default file may still be absent under the baseline,
+/// with no log line for it.
 #[test]
 fn the_implicit_default_stays_quiet_when_absent() {
     let root = fixture("implicit-default");

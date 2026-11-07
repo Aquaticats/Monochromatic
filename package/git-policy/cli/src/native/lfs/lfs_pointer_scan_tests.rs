@@ -1,11 +1,13 @@
-//! Controls for finding the pointers a push introduces, against repositories built by real Git.
+//! Controls for finding the pointers a push introduces,
+//! against repositories built by real Git.
 
 use super::*;
 use crate::repo_read_object::from_hex;
 use crate::test_support::{fixture, git, git_output, remove};
 use std::path::{Path, PathBuf};
 
-/// The object name that the `n`-th fixture pointer names: 64 hexadecimal digits.
+/// The object name that the `n`-th fixture pointer names:
+/// 64 hexadecimal digits.
 fn oid(n: u8) -> String {
     return format!("{n:02x}").repeat(32);
 }
@@ -15,7 +17,9 @@ fn pointer(n: u8) -> String {
     return format!("version https://git-lfs.github.com/spec/v1\noid sha256:{}\nsize {}\n", oid(n), 100 + u32::from(n));
 }
 
-/// Write `files` (path, text) into the repository and commit them; the commit's name.
+/// Write `files` (path,
+/// text) into the repository and commit them;
+/// the commit's name.
 fn commit(repo: &Path, files: &[(&str, &str)], message: &str) -> String {
     for (path, text) in files {
         let target: PathBuf = repo.join(path);
@@ -32,8 +36,12 @@ fn name_of(repo: &Path, revision: &str) -> String {
     return String::from_utf8(git_output(repo, &["rev-parse", revision]).stdout).expect("UTF-8").trim().to_owned();
 }
 
-/// A repository with the commits `base` (a pointer 1 and plain text), `added` (pointer 2 beside it), `removed` (pointer 2
-///  gone again, a plain edit) and a plain `tip`; their names in that order.
+/// A repository with the commits `base` (a pointer 1 and plain text),
+/// `added` (pointer 2 beside it),
+/// `removed` (pointer 2
+///  gone again,
+/// a plain edit) and a plain `tip`;
+/// their names in that order.
 fn history(root: &Path) -> (PathBuf, [String; 4]) {
     let repo: PathBuf = root.join("repo");
     std::fs::create_dir(&repo).expect("dir");
@@ -46,7 +54,8 @@ fn history(root: &Path) -> (PathBuf, [String; 4]) {
     return (repo, [base, added, removed, tip]);
 }
 
-/// The scan from `include` tips and `stop` tips, in the repository's own format.
+/// The scan from `include` tips and `stop` tips,
+/// in the repository's own format.
 fn scan(repo: &Path, include: &[&str], stop: &[&str]) -> Option<Vec<String>> {
     let format = ObjectFormat::Sha1;
     let database = ObjectDatabase::open(repo.join(".git").as_path(), None, format).expect("plain database");
@@ -56,7 +65,8 @@ fn scan(repo: &Path, include: &[&str], stop: &[&str]) -> Option<Vec<String>> {
     return new_pointer_objects(&database, format, names(include).as_slice(), names(stop).as_slice(), SCAN_BUDGET);
 }
 
-/// Commits that touch no pointer introduce none, whatever pointers the history behind them holds.
+/// Commits that touch no pointer introduce none,
+/// whatever pointers the history behind them holds.
 #[test]
 fn commits_without_a_pointer_introduce_none() {
     let root = fixture("lfs-scan-none");
@@ -67,7 +77,8 @@ fn commits_without_a_pointer_introduce_none() {
     remove(root.as_path());
 }
 
-/// A push that adds one pointer names exactly that object, and not the ones the destination already has.
+/// A push that adds one pointer names exactly that object,
+/// and not the ones the destination already has.
 #[test]
 fn a_new_pointer_is_named_and_a_known_one_is_not() {
     let root = fixture("lfs-scan-one");
@@ -76,7 +87,8 @@ fn a_new_pointer_is_named_and_a_known_one_is_not() {
     remove(root.as_path());
 }
 
-/// A pointer that one commit adds and the next removes is still uploaded: the destination will receive both commits.
+/// A pointer that one commit adds and the next removes is still uploaded:
+/// the destination will receive both commits.
 #[test]
 fn a_pointer_added_and_removed_inside_the_range_is_still_named() {
     let root = fixture("lfs-scan-transient");
@@ -85,7 +97,8 @@ fn a_pointer_added_and_removed_inside_the_range_is_still_named() {
     remove(root.as_path());
 }
 
-/// With nothing known to the destination the whole history is read and every pointer in it is named, once.
+/// With nothing known to the destination the whole history is read and every pointer in it is named,
+/// once.
 #[test]
 fn without_known_tips_the_whole_history_is_scanned() {
     let root = fixture("lfs-scan-all");
@@ -94,7 +107,8 @@ fn without_known_tips_the_whole_history_is_scanned() {
     remove(root.as_path());
 }
 
-/// A merge of an old side branch names only the side branch's own pointer: the history behind the known tip is known.
+/// A merge of an old side branch names only the side branch's own pointer:
+/// the history behind the known tip is known.
 #[test]
 fn a_merge_names_what_neither_parent_holds_and_each_object_once() {
     let root = fixture("lfs-scan-merge");
@@ -129,9 +143,12 @@ fn dated(repo: &Path, arguments: &[&str], date: &str) {
     assert!(output.status.success(), "git {arguments:?}: {}", String::from_utf8_lossy(output.stderr.as_slice()));
 }
 
-/// A side branch cut from an old commit and merged after a long known chain: the history behind the known tip is not
-///  read as new. The committer times order the walk so that the known chain reaches the shared ancestor before the walk
-///  decides it is done; the chain is longer than the few extra pops the walk allows for clock skew.
+/// A side branch cut from an old commit and merged after a long known chain:
+/// the history behind the known tip is not
+///  read as new.
+/// The committer times order the walk so that the known chain reaches the shared ancestor before the walk
+///  decides it is done;
+/// the chain is longer than the few extra pops the walk allows for clock skew.
 #[test]
 fn an_old_side_branch_merged_late_drags_no_known_history() {
     let root = fixture("lfs-scan-order");
@@ -158,9 +175,13 @@ fn an_old_side_branch_merged_late_drags_no_known_history() {
     remove(root.as_path());
 }
 
-/// The walk goes newest first and stops soon after the new commits are done, so the history far behind the known tip is
-///  never read: a commit deep in that history is deleted from the store (as a shallow clone lacks it), and the scan of
-///  what lies above the tip still answers. A walk that read oldest first would reach the hole and decline.
+/// The walk goes newest first and stops soon after the new commits are done,
+/// so the history far behind the known tip is
+///  never read:
+/// a commit deep in that history is deleted from the store (as a shallow clone lacks it),
+/// and the scan of
+///  what lies above the tip still answers.
+/// A walk that read oldest first would reach the hole and decline.
 #[test]
 fn history_far_behind_the_known_tip_is_never_read() {
     let root = fixture("lfs-scan-deep");
@@ -187,7 +208,9 @@ fn history_far_behind_the_known_tip_is_never_read() {
     remove(root.as_path());
 }
 
-/// Blobs that are not pointers (large, or lookalikes) are never named, whatever their path.
+/// Blobs that are not pointers (large,
+/// or lookalikes) are never named,
+/// whatever their path.
 #[test]
 fn lookalikes_and_large_files_are_not_named() {
     let root = fixture("lfs-scan-lookalike");
@@ -199,8 +222,11 @@ fn lookalikes_and_large_files_are_not_named() {
     remove(root.as_path());
 }
 
-/// Whatever the readers cannot answer declines instead of guessing: an unknown tip, a stop that is not a commit's parent
-///  chain in the store, a spent budget and a pointer with an extension line.
+/// Whatever the readers cannot answer declines instead of guessing:
+/// an unknown tip,
+/// a stop that is not a commit's parent
+///  chain in the store,
+/// a spent budget and a pointer with an extension line.
 #[test]
 fn what_the_readers_cannot_answer_declines() {
     let root = fixture("lfs-scan-decline");

@@ -2,13 +2,22 @@
 //!  The system configuration file that one real Git executable reads when `GIT_CONFIG_SYSTEM` is not set,
 //!  learned once per executable identity and cached beside the `git version` cache.
 //! Why:
-//!  Git compiles the path in (`ETC_GITCONFIG`, `/etc/gitconfig` for a build with prefix `/usr`, and under the prefix
-//!  for any other build, resolved against the executable's own location in a runtime-prefix build), so no reader may
+//!  Git compiles the path in (`ETC_GITCONFIG`,
+//! `/etc/gitconfig` for a build with prefix `/usr`,
+//! and under the prefix
+//!  for any other build,
+//! resolved against the executable's own location in a runtime-prefix build),
+//! so no reader may
 //!  assume `/etc/gitconfig`.
-//!  `git var GIT_CONFIG_SYSTEM` prints the path the executable would read, with the environment's own overrides
-//!  removed from its start, so the path is a property of the executable's bytes and location, which the identity of
+//!  `git var GIT_CONFIG_SYSTEM` prints the path the executable would read,
+//! with the environment's own overrides
+//!  removed from its start,
+//! so the path is a property of the executable's bytes and location,
+//! which the identity of
 //!  `git_version_cache` captures.
-//!  An executable without an identity (a script, a shim) or an answer that is not an absolute path is unknown, and
+//!  An executable without an identity (a script,
+//! a shim) or an answer that is not an absolute path is unknown,
+//! and
 //!  the readers then leave the question to Git.
 //!
 //! In TS you'd write (pseudocode):
@@ -31,9 +40,12 @@ pub const SYSTEM_ATTRIBUTES_KIND: &str = "git-system-attributes";
 const PATH_LIMIT: usize = 4096;
 
 /// What:
-///  The path text `git var GIT_CONFIG_SYSTEM` printed, when it is one absolute path on one line.
+///  The path text `git var GIT_CONFIG_SYSTEM` printed,
+/// when it is one absolute path on one line.
 /// Why:
-///   Any other output (nothing, a relative path, several lines) is not a fact the readers can use.
+///   Any other output (nothing,
+/// a relative path,
+/// several lines) is not a fact the readers can use.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -75,10 +87,13 @@ fn ask_git_var(real_git: &Path, variable: &str) -> Option<Vec<u8>> {
 }
 
 /// What:
-///  The system configuration path of the executable at `real_git`: from the cache when the identity matches,
-///  otherwise from `ask`, recorded for the next start.
+///  The system configuration path of the executable at `real_git`:
+/// from the cache when the identity matches,
+///  otherwise from `ask`,
+/// recorded for the next start.
 /// Why:
-///   The question runs once per executable; `ask` is a parameter so a control can count the starts and give a Git
+///   The question runs once per executable;
+/// `ask` is a parameter so a control can count the starts and give a Git
 ///  whose prefix is not `/usr`.
 ///
 /// In TS you'd write (pseudocode):
@@ -90,10 +105,13 @@ pub fn system_config_of(real_git: &Path, cache: Option<&Path>, ask: &dyn Fn(&Pat
 }
 
 /// What:
-///  The system attributes file of the executable at `real_git`, learned like the system configuration path.
+///  The system attributes file of the executable at `real_git`,
+/// learned like the system configuration path.
 /// Why:
-///   `GIT_CONFIG_SYSTEM` moves the configuration file and nothing else: the attributes file is at `$(prefix)/etc/gitattributes`
-///  of that build, which only the executable itself reports (`git var GIT_ATTR_SYSTEM`).
+///   `GIT_CONFIG_SYSTEM` moves the configuration file and nothing else:
+/// the attributes file is at `$(prefix)/etc/gitattributes`
+///  of that build,
+/// which only the executable itself reports (`git var GIT_ATTR_SYSTEM`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -103,7 +121,8 @@ pub fn system_attributes_of(real_git: &Path, cache: Option<&Path>, ask: &dyn Fn(
     return learned_path(real_git, cache, SYSTEM_ATTRIBUTES_KIND, ask);
 }
 
-/// A path the executable at `real_git` reports for itself, cached under `kind` for its identity.
+/// A path the executable at `real_git` reports for itself,
+/// cached under `kind` for its identity.
 fn learned_path(real_git: &Path, cache: Option<&Path>, kind: &str, ask: &dyn Fn(&Path) -> Option<Vec<u8>>) -> Option<PathBuf> {
     let identity: BinaryIdentity = binary_identity(real_git)?;
     if let Some(directory) = cache
@@ -127,8 +146,11 @@ fn learned_path(real_git: &Path, cache: Option<&Path>, kind: &str, ask: &dyn Fn(
 ///  `variables` with the forward-target variable added for `real_git` when the variables do not name one.
 /// Why:
 ///   The wrapper process learns the system configuration path from the real Git named by that variable.
-///  The environment `entry.rs` builds always carries it, but a resident process (the service) and callers that hold only a
-///  Git path and a bare overlay do not, and without it every read there would decline; the caller knows the Git it runs.
+///  The environment `entry.rs` builds always carries it,
+/// but a resident process (the service) and callers that hold only a
+///  Git path and a bare overlay do not,
+/// and without it every read there would decline;
+/// the caller knows the Git it runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -143,10 +165,13 @@ pub fn with_real_git(variables: &[(OsString, OsString)], real_git: &Path) -> Vec
 }
 
 /// What:
-///  The system configuration path the Git a child would run reads, learned from the forward-target variable the wrapper
+///  The system configuration path the Git a child would run reads,
+/// learned from the forward-target variable the wrapper
 ///  puts in every child's environment.
 /// Why:
-///   `None` (no variable, no identity, no answer) makes the readers decline whenever the system file would be read.
+///   `None` (no variable,
+/// no identity,
+/// no answer) makes the readers decline whenever the system file would be read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -158,9 +183,12 @@ pub fn system_config_for(variables: &[(OsString, OsString)]) -> Option<PathBuf> 
 }
 
 /// What:
-///  The system attributes path the Git a child would run reads, learned from the forward-target variable.
+///  The system attributes path the Git a child would run reads,
+/// learned from the forward-target variable.
 /// Why:
-///   `None` (no variable, no identity, no answer) makes the content decision refuse whenever that file would be read.
+///   `None` (no variable,
+/// no identity,
+/// no answer) makes the content decision refuse whenever that file would be read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,7 +1,11 @@
 //! What:
-//!  The writing half of an isolated merge: the merge tree, the merge commit, and the two-way update that applies it to the checkout.
+//!  The writing half of an isolated merge:
+//! the merge tree,
+//! the merge commit,
+//! and the two-way update that applies it to the checkout.
 //! Why:
-//!  `merge_isolation.rs` decides and loops over rounds; the steps that write objects and move the checkout are a file of their own that it imports and that imports nothing from it.
+//!  `merge_isolation.rs` decides and loops over rounds;
+//! the steps that write objects and move the checkout are a file of their own that it imports and that imports nothing from it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,7 +20,8 @@ use crate::diagnostic_log::debug;
 use crate::inner_git_words::record_streams;
 /// The failure rendering for state that cannot be read.
 use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
-/// The word-level second pass over the conflicts of the merge tree, and the attribute tree it reads.
+/// The word-level second pass over the conflicts of the merge tree,
+/// and the attribute tree it reads.
 use crate::merge_second_pass::{ContextRunner, GitReply, GitRunner, Merged, config_options, conflicts_of_merge_tree};
 use crate::journald_native::CLIENT_IDENTIFIER;
 use crate::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables, resolve_tree};
@@ -37,7 +42,8 @@ use crate::merge_isolation_recovery::RecoveryPlace;
 use crate::transaction_phase::{Phase, reach_transaction_phase};
 /// Real Git.
 use crate::transaction_git::{GitContext, GitOutput};
-/// The owner of the intent record, and its identifier.
+/// The owner of the intent record,
+/// and its identifier.
 use crate::transaction_owner::current_transaction_owner;
 /// Unique identifiers and the clock.
 use crate::iso_time::now_iso;
@@ -52,9 +58,12 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// What:
-///  The finished merge with the lines that list the files the second pass merged by word, ahead of Git's own words.
+///  The finished merge with the lines that list the files the second pass merged by word,
+/// ahead of Git's own words.
 /// Why:
-///   The journal entries and the lines are produced only now, after the merge is in the checkout, so neither says a merge
+///   The journal entries and the lines are produced only now,
+/// after the merge is in the checkout,
+/// so neither says a merge
 ///  happened that was refused or undone.
 ///
 /// In TS you'd write (pseudocode):
@@ -76,13 +85,24 @@ pub fn with_second_pass_report(done: IsolatedMerge, merged: &[Merged]) -> Isolat
 }
 
 /// What:
-///  Compute the merge from objects and return its tree and the files the word pass merged, or refuse a conflict.
+///  Compute the merge from objects and return its tree and the files the word pass merged,
+/// or refuse a conflict.
 /// Why:
-///   `merge-tree --write-tree` exits 1 for a conflicted merge and prints the tree with the conflicted files' stages; nothing
-///  is written to the worktree or the index. The conflicts get the word-level second pass, and the merge continues only when
-///  every conflicted file resolved; otherwise it is refused as before, naming the paths. The attributes of the first side's
-///  tip apply, because no worktree is read. A conflict with a clean index is not computed here at all: native Git writes
-///  the markers for the person, and the second pass then runs on the stopped merge.
+///   `merge-tree --write-tree` exits 1 for a conflicted merge and prints the tree with the conflicted files' stages;
+/// nothing
+///  is written to the worktree or the index.
+/// The conflicts get the word-level second pass,
+/// and the merge continues only when
+///  every conflicted file resolved;
+/// otherwise it is refused as before,
+/// naming the paths.
+/// The attributes of the first side's
+///  tip apply,
+/// because no worktree is read.
+/// A conflict with a clean index is not computed here at all:
+/// native Git writes
+///  the markers for the person,
+/// and the second pass then runs on the stopped merge.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -139,9 +159,11 @@ pub fn merge_tree(
 }
 
 /// What:
-///  Create the merge commit with its parents in Git's order, signing it as the options and settings ask.
+///  Create the merge commit with its parents in Git's order,
+/// signing it as the options and settings ask.
 /// Why:
-///   `commit-tree` signs only when given `-S` and never reads `commit.gpgSign`; a merge on a signed branch must not
+///   `commit-tree` signs only when given `-S` and never reads `commit.gpgSign`;
+/// a merge on a signed branch must not
 ///  be the one unsigned commit.
 ///
 /// In TS you'd write (pseudocode):
@@ -174,10 +196,14 @@ pub fn commit_merge(
 }
 
 /// What:
-///  Record the intent, let Git move the checkout to the merge commit, and report.
+///  Record the intent,
+/// let Git move the checkout to the merge commit,
+/// and report.
 /// Why:
-///   Git's fast-forward is the two-way update that keeps every other staged entry and unstaged change, refuses an
-///  untracked file in the way, and moves the branch only after the checkout is updated.
+///   Git's fast-forward is the two-way update that keeps every other staged entry and unstaged change,
+/// refuses an
+///  untracked file in the way,
+/// and moves the branch only after the checkout is updated.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -277,9 +303,11 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
 }
 
 /// What:
-///  Reach a marker phase, failing the invocation when the marker variable is malformed.
+///  Reach a marker phase,
+/// failing the invocation when the marker variable is malformed.
 /// Why:
-///   The crash controls arm a phase by environment; a malformed value must not be ignored.
+///   The crash controls arm a phase by environment;
+/// a malformed value must not be ignored.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

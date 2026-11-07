@@ -1,11 +1,16 @@
-//! The Cargo repair: metadata parsing, one repair per workspace, the plan for each layout, and the clean arguments.
+//! The Cargo repair:
+//! metadata parsing,
+//! one repair per workspace,
+//! the plan for each layout,
+//! and the clean arguments.
 
 use super::*;
 use crate::package_repair_cargo_concurrent::map_concurrent;
 use crate::package_repair_cargo_workspaces::{distinct_workspaces, parse_metadata, read_workspace};
 use std::path::PathBuf;
 
-/// The `cargo metadata --no-deps` text of a workspace, built from the fields the repair reads (the paths are plain text).
+/// The `cargo metadata --no-deps` text of a workspace,
+/// built from the fields the repair reads (the paths are plain text).
 fn metadata(root: &str, build: &str, target: &str, members: &[&str]) -> String {
     let packages: Vec<String> = members.iter().map(|name| { return format!("{{\"name\":\"{name}\",\"version\":\"0.1.0\",\"id\":\"path+file://{root}/{name}#0.1.0\"}}"); }).collect();
     return format!("{{\"packages\":[{}],\"workspace_root\":\"{root}\",\"build_directory\":\"{build}\",\"target_directory\":\"{target}\",\"workspace_members\":[]}}", packages.join(","));
@@ -23,7 +28,8 @@ fn parses_the_directories_and_the_member_names() {
     assert_eq!(found, Workspace { root: PathBuf::from("/w/ws"), build_directory: PathBuf::from("/cache/ab/cd"), target_directory: PathBuf::from("/w/ws/target"), members: vec![String::from("app"), String::from("lib")] });
 }
 
-/// A Cargo too old to name the build directory falls back to the target directory, where it has always been.
+/// A Cargo too old to name the build directory falls back to the target directory,
+/// where it has always been.
 #[test]
 fn a_missing_build_directory_is_the_target_directory() {
     let text: &str = "{\"packages\":[],\"workspace_root\":\"/w/ws\",\"target_directory\":\"/w/ws/target\"}";
@@ -38,7 +44,8 @@ fn malformed_metadata_is_an_error() {
     assert!(error.contains("workspace_root"), "{error}");
 }
 
-/// A workspace seen through several of its manifests is repaired once, in root order.
+/// A workspace seen through several of its manifests is repaired once,
+/// in root order.
 #[test]
 fn a_workspace_is_listed_once_in_root_order() {
     let found: Vec<Workspace> = vec![workspace("/w/b", "/c/b", &["b"]), workspace("/w/a", "/c/a", &["a1", "a2"]), workspace("/w/a", "/c/a", &["a1", "a2"])];
@@ -51,7 +58,8 @@ fn facts(source_build: &str) -> StateFacts {
     return StateFacts { source_build: Some(PathBuf::from(source_build)), source_build_exists: true, destination_build_exists: false, destination_target_exists: true };
 }
 
-/// An external build directory that the copy did not carry is cloned, then the members are cleaned.
+/// An external build directory that the copy did not carry is cloned,
+/// then the members are cleaned.
 #[test]
 fn an_external_build_directory_is_cloned_then_cleaned() {
     let destination: Workspace = workspace("/w/new/ws", "/cache/new", &["app"]);
@@ -59,7 +67,8 @@ fn an_external_build_directory_is_cloned_then_cleaned() {
     assert_eq!(plan, BuildStatePlan::CloneThenClean { from: PathBuf::from("/cache/old"), to: PathBuf::from("/cache/new") });
 }
 
-/// Under the default layout the build directory is inside the worktree and arrived with `target/`: only the clean remains.
+/// Under the default layout the build directory is inside the worktree and arrived with `target/`:
+/// only the clean remains.
 #[test]
 fn an_in_tree_build_directory_is_only_cleaned() {
     let destination: Workspace = workspace("/w/new/ws", "/w/new/ws/target", &["app"]);
@@ -76,14 +85,17 @@ fn an_absent_in_tree_state_needs_nothing() {
     assert!(matches!(plan_build_state(&destination, Path::new("/w/new"), &absent), BuildStatePlan::Nothing(_)));
 }
 
-/// A build directory shared by source and worktree is never cleaned: that would remove state the source still uses.
+/// A build directory shared by source and worktree is never cleaned:
+/// that would remove state the source still uses.
 #[test]
 fn a_shared_build_directory_is_left_alone() {
     let destination: Workspace = workspace("/w/new/ws", "/cache/shared", &["app"]);
     assert!(matches!(plan_build_state(&destination, Path::new("/w/new"), &facts("/cache/shared")), BuildStatePlan::Nothing(_)));
 }
 
-/// A workspace the source does not have, and a worktree build directory that already holds state, are left alone.
+/// A workspace the source does not have,
+/// and a worktree build directory that already holds state,
+/// are left alone.
 #[test]
 fn a_new_workspace_and_existing_state_are_left_alone() {
     let destination: Workspace = workspace("/w/new/ws", "/cache/new", &["app"]);
@@ -95,7 +107,8 @@ fn a_new_workspace_and_existing_state_are_left_alone() {
     assert!(matches!(plan_build_state(&destination, Path::new("/w/new"), &existing), BuildStatePlan::Nothing(_)));
 }
 
-/// A source with no build state clones nothing, and a worktree with a copied target is still cleaned.
+/// A source with no build state clones nothing,
+/// and a worktree with a copied target is still cleaned.
 #[test]
 fn an_empty_source_clones_nothing() {
     let destination: Workspace = workspace("/w/new/ws", "/cache/new", &["app"]);
@@ -106,7 +119,8 @@ fn an_empty_source_clones_nothing() {
     assert!(matches!(plan_build_state(&destination, Path::new("/w/new"), &empty), BuildStatePlan::Nothing(_)));
 }
 
-/// Every member gets its own `--package` and the clean never uses the network; `--locked` would make a stale lock fail it.
+/// Every member gets its own `--package` and the clean never uses the network;
+/// `--locked` would make a stale lock fail it.
 #[test]
 fn the_clean_names_every_member_and_stays_offline() {
     let members: Vec<String> = vec![String::from("app"), String::from("lib")];
@@ -120,7 +134,9 @@ fn the_clean_names_every_member_and_stays_offline() {
     }
 }
 
-/// The report says how many entries the clone left out, in the singular and the plural, and nothing when none.
+/// The report says how many entries the clone left out,
+/// in the singular and the plural,
+/// and nothing when none.
 #[test]
 fn the_report_counts_the_entries_left_out() {
     assert_eq!(left_out_words(0), "");
@@ -128,7 +144,9 @@ fn the_report_counts_the_entries_left_out() {
     assert_eq!(left_out_words(3), "; 3 unreadable entries were left out");
 }
 
-/// A worker that panics on one item gives that item a failure naming it; every other item still has its result, in item order.
+/// A worker that panics on one item gives that item a failure naming it;
+/// every other item still has its result,
+/// in item order.
 #[test]
 fn a_panicking_worker_is_a_failure_naming_its_item() {
     let items: Vec<usize> = (0..6).collect();
@@ -147,7 +165,8 @@ fn a_panicking_worker_is_a_failure_naming_its_item() {
     }
 }
 
-/// Without a panic every item has its result in item order, for any number of workers.
+/// Without a panic every item has its result in item order,
+/// for any number of workers.
 #[test]
 fn every_item_has_its_result_in_item_order() {
     let items: Vec<usize> = (0..9).collect();
@@ -157,7 +176,9 @@ fn every_item_has_its_result_in_item_order() {
     }
 }
 
-/// Where the system starts no thread the workers' items are done on the calling thread, each with its result in item order. The body
+/// Where the system starts no thread the workers' items are done on the calling thread,
+/// each with its result in item order.
+/// The body
 /// runs in a child that is refused every thread.
 #[test]
 fn concurrent_items_where_no_thread_can_start_are_done_in_turn() {
@@ -167,8 +188,11 @@ fn concurrent_items_where_no_thread_can_start_are_done_in_turn() {
     every_item_has_its_result_in_item_order();
 }
 
-/// Output that was cut is never read as the metadata (sol-1 round 4: nothing exercised the refusal): a cargo that succeeds with more
-/// output than the snapshot keeps is an error that says the output could not be taken whole, not a parse of its tail.
+/// Output that was cut is never read as the metadata (sol-1 round 4:
+/// nothing exercised the refusal):
+/// a cargo that succeeds with more
+/// output than the snapshot keeps is an error that says the output could not be taken whole,
+/// not a parse of its tail.
 #[test]
 fn metadata_that_was_cut_is_not_parsed() {
     let root: std::path::PathBuf = crate::test_support::fixture("cargo-metadata-cut");

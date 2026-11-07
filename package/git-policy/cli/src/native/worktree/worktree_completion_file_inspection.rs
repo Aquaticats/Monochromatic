@@ -1,8 +1,13 @@
 //! What:
-//!  The descriptor-bound look at one added path's worktree copy: its identity, whether it still holds the original bytes, the
-//!  landed bytes or something else, and the result of installing every added path.
+//!  The descriptor-bound look at one added path's worktree copy:
+//! its identity,
+//! whether it still holds the original bytes,
+//! the
+//!  landed bytes or something else,
+//! and the result of installing every added path.
 //! Why:
-//!  A copy is replaced only while it still holds the original bytes, so every replacement starts from an inspection that
+//!  A copy is replaced only while it still holds the original bytes,
+//! so every replacement starts from an inspection that
 //!  reads through an open descriptor and never follows a link.
 //!
 //! In TS you'd write (pseudocode):

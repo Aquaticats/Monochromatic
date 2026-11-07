@@ -1,11 +1,18 @@
 //! What:
-//!  Remove the old tree of a conversion, but only the directory the journal recorded, pinned by a descriptor from the moment
+//!  Remove the old tree of a conversion,
+//! but only the directory the journal recorded,
+//! pinned by a descriptor from the moment
 //!  its identity is checked until its last entry is gone.
 //! Why:
-//!  A device and inode read from a path say nothing about what the path names a moment later: another process can rename the
-//!  recorded directory away and put an unrelated one at the name before a recursive delete resolves it again. The directory
-//!  is opened below its parent without following a link, its identity is read from that descriptor, its entries are removed
-//!  through the descriptor's own path, and the last step removes the name only while it still names the same object and only
+//!  A device and inode read from a path say nothing about what the path names a moment later:
+//! another process can rename the
+//!  recorded directory away and put an unrelated one at the name before a recursive delete resolves it again.
+//! The directory
+//!  is opened below its parent without following a link,
+//! its identity is read from that descriptor,
+//! its entries are removed
+//!  through the descriptor's own path,
+//! and the last step removes the name only while it still names the same object and only
 //!  if that object is empty (a directory removal cannot take a tree).
 //!
 //! In TS you'd write (pseudocode):
@@ -30,15 +37,22 @@ pub enum Removal {
     Removed,
     /// Nothing was at the name.
     Absent,
-    /// The name holds something else, or the directory moved; nothing was deleted, for this reason.
+    /// The name holds something else,
+    /// or the directory moved;
+    /// nothing was deleted,
+    /// for this reason.
     Kept(String),
-    /// The old tree holds something the installed tree does not hold in the same form, or something this command does not
-    ///  delete; nothing was deleted or copied, for this reason.
+    /// The old tree holds something the installed tree does not hold in the same form,
+    /// or something this command does not
+    ///  delete;
+    /// nothing was deleted or copied,
+    /// for this reason.
     Differs(String),
 }
 
 /// What:
-///  Remove the directory `name` of `parent` if it is the old root, deleting beneath a descriptor on it.
+///  Remove the directory `name` of `parent` if it is the old root,
+/// deleting beneath a descriptor on it.
 /// Why:
 ///   See the module description.
 ///
@@ -51,9 +65,11 @@ pub fn remove_recorded_old_tree(platform: &dyn Platform, parent: &std::fs::File,
 }
 
 /// What:
-///  A function that does nothing, for the call that runs between pinning the old tree and listing it.
+///  A function that does nothing,
+/// for the call that runs between pinning the old tree and listing it.
 /// Why:
-///   The real conversion has nothing to do at that point; only a control puts work there.
+///   The real conversion has nothing to do at that point;
+/// only a control puts work there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -61,7 +77,8 @@ pub fn remove_recorded_old_tree(platform: &dyn Platform, parent: &std::fs::File,
 /// ```
 fn do_nothing() {}
 
-/// `remove_recorded_old_tree` with a call right after the directory was pinned and judged to be the old tree, where a control
+/// `remove_recorded_old_tree` with a call right after the directory was pinned and judged to be the old tree,
+/// where a control
 ///  moves it away and puts another directory at the name.
 pub fn remove_recorded_old_tree_seamed(platform: &dyn Platform, parent: &std::fs::File, name: &OsStr, old: ObjectId, installed: &Path, after_pinned: &mut dyn FnMut()) -> Result<Removal, MigrateError> {
     let shown: PathBuf = PathBuf::from(name);

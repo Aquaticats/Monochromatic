@@ -1,9 +1,13 @@
 //! What:
-//!  Test-only fault points of the resident service: `CLI_GIT_TEST_ONLY_SERVICE_FAULT=<point>` ends the service with
+//!  Test-only fault points of the resident service:
+//! `CLI_GIT_TEST_ONLY_SERVICE_FAULT=<point>` ends the service with
 //!  `SIGKILL` the moment it reaches the named point of a batch.
 //! Why:
-//!  The kill tests need a deterministic instant, as the transaction phase markers give the wrapper
-//!  (`transaction_phase.rs`). The marker is compiled into the release executable, and only the explicit variable arms it.
+//!  The kill tests need a deterministic instant,
+//! as the transaction phase markers give the wrapper
+//!  (`transaction_phase.rs`).
+//! The marker is compiled into the release executable,
+//! and only the explicit variable arms it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,7 +17,8 @@
 /// Environment variable arming one fault point.
 pub const FAULT_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_FAULT";
 
-/// The instants of a batch at which a kill is tested, in the order a batch reaches them.
+/// The instants of a batch at which a kill is tested,
+/// in the order a batch reaches them.
 pub const FAULT_POINTS: [&str; 5] = ["after-objects", "after-intent", "after-ref", "after-index", "before-ack"];
 
 /// The instant after `index.lock` was created by exclusive creation
@@ -51,9 +56,12 @@ pub fn reach(point: &str) {
 }
 
 /// What:
-///  Says that a step of a landing happened, for a control that checks the order of durable steps.
+///  Says that a step of a landing happened,
+/// for a control that checks the order of durable steps.
 /// Why:
-///   A directory sync cannot be seen from outside the process, so a control reads the order the landing reports; the release
+///   A directory sync cannot be seen from outside the process,
+/// so a control reads the order the landing reports;
+/// the release
 ///  executable keeps nothing.
 ///
 /// In TS you'd write (pseudocode):
@@ -70,8 +78,11 @@ pub fn note(event: &str) {
 /// What:
 ///  Whether a control made the step at `point` fail.
 /// Why:
-///   A landing whose index update fails after the branch moved is the case recovery exists for, and Git cannot be made to fail
-///  there on demand. A control names the point; the release executable never fails a step this way.
+///   A landing whose index update fails after the branch moved is the case recovery exists for,
+/// and Git cannot be made to fail
+///  there on demand.
+/// A control names the point;
+/// the release executable never fails a step this way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -91,9 +102,12 @@ pub fn fails(point: &str) -> bool {
 pub const QUEUED_DIRECTORY_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_QUEUED_DIRECTORY";
 
 /// What:
-///  A character as one that may sit in a file name: ASCII letters and digits stay, anything else becomes an underscore.
+///  A character as one that may sit in a file name:
+/// ASCII letters and digits stay,
+/// anything else becomes an underscore.
 /// Why:
-///  `queued` names a marker file after a request identity, which must not name a path.
+///  `queued` names a marker file after a request identity,
+/// which must not name a path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -104,11 +118,17 @@ fn file_name_character(character: char) -> char {
 }
 
 /// What:
-///  Leaves a file named for request `id` in the directory the variable names, when it is armed.
+///  Leaves a file named for request `id` in the directory the variable names,
+/// when it is armed.
 /// Why:
-///   A control that sends requests in a set order needs to know that the service holds one before it sends the next; a pause
-///  of its own can only guess. The file appears after the request is in the queue, so what the control sees is the service's own
-///  state. Only the explicit variable arms it, as with the fault points.
+///   A control that sends requests in a set order needs to know that the service holds one before it sends the next;
+/// a pause
+///  of its own can only guess.
+/// The file appears after the request is in the queue,
+/// so what the control sees is the service's own
+///  state.
+/// Only the explicit variable arms it,
+/// as with the fault points.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -123,14 +143,20 @@ pub fn queued(id: &str) {
     }
 }
 
-/// Environment variable pinning the number the service counts its batches from, in place of the clock reading it starts from.
+/// Environment variable pinning the number the service counts its batches from,
+/// in place of the clock reading it starts from.
 pub const FIRST_BATCH_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_FIRST_BATCH";
 
 /// What:
-///  The number the variable pins the service's batch count to, when it is armed with a number.
+///  The number the variable pins the service's batch count to,
+/// when it is armed with a number.
 /// Why:
-///   Two services that share a journal count from clock readings, which are equal only by chance; a control that needs them equal
-///  pins both. Only the explicit variable arms it, as with the fault points.
+///   Two services that share a journal count from clock readings,
+/// which are equal only by chance;
+/// a control that needs them equal
+///  pins both.
+/// Only the explicit variable arms it,
+/// as with the fault points.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -143,7 +169,9 @@ pub fn pinned_first_batch() -> Option<u64> {
     };
 }
 
-/// Hooks a control sets to run its own code at a point of a landing, on the thread that reaches the point; never part of the
+/// Hooks a control sets to run its own code at a point of a landing,
+/// on the thread that reaches the point;
+/// never part of the
 ///  release executable.
 #[cfg(test)]
 #[path = "service_fault_hooks_test_support.rs"]

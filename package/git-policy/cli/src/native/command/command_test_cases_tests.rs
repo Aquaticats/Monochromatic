@@ -33,7 +33,8 @@ fn a_link_in_the_source_is_refused() {
     remove(directory.as_path());
 }
 
-/// Every item is handled exactly once, whatever the number of items against the number of workers.
+/// Every item is handled exactly once,
+/// whatever the number of items against the number of workers.
 #[test]
 fn every_item_is_handled_exactly_once() {
     for count in [0, 1, WORKER_CAP, WORKER_CAP * 3 + 1] {

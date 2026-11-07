@@ -3,7 +3,10 @@
 use super::*;
 use std::os::unix::net::UnixStream;
 
-/// A directory of this test's own, short enough for a socket path: a socket path holds about a hundred bytes, which a fixture
+/// A directory of this test's own,
+/// short enough for a socket path:
+/// a socket path holds about a hundred bytes,
+/// which a fixture
 ///  root the person points the tests at would not leave.
 fn short_directory(name: &str) -> std::path::PathBuf {
     let home: std::path::PathBuf = std::path::PathBuf::from(std::env::var_os("HOME").expect("a home directory for the short directory"));
@@ -18,7 +21,8 @@ fn remove_short(directory: &std::path::Path) {
     let _removed = std::fs::remove_dir_all(directory);
 }
 
-/// A socket file nobody listens on any more, as a service that was killed leaves it.
+/// A socket file nobody listens on any more,
+/// as a service that was killed leaves it.
 fn stale_socket(directory: &std::path::Path) -> std::path::PathBuf {
     let path: std::path::PathBuf = directory.join("service.sock");
     let listener: UnixListener = UnixListener::bind(&path).expect("first bind");
@@ -38,7 +42,8 @@ fn a_path_whose_socket_file_is_stale_is_bound_again() {
     remove_short(root.as_path());
 }
 
-/// A socket some service still listens on is never taken over: the second bind fails and the first keeps answering.
+/// A socket some service still listens on is never taken over:
+/// the second bind fails and the first keeps answering.
 #[test]
 fn a_path_whose_socket_a_service_listens_on_is_not_taken_over() {
     let root = short_directory("live");
@@ -159,8 +164,11 @@ fn a_request_that_lands_alone_neither_joins_nor_is_joined() {
     assert_eq!(members_of(groups.as_slice()), vec![vec![1], vec![2], vec![3], vec![4], vec![5], vec![6]]);
 }
 
-/// A batch an earlier service left open and the restart settled is said, once each, at the `warning` priority with the
-/// batch number as a field: an open batch means a service stopped between its intent and its end.
+/// A batch an earlier service left open and the restart settled is said,
+/// once each,
+/// at the `warning` priority with the
+/// batch number as a field:
+/// an open batch means a service stopped between its intent and its end.
 #[test]
 fn a_restart_says_each_batch_it_settled() {
     use crate::journald_native::Priority;
@@ -203,7 +211,8 @@ fn a_restart_says_each_batch_it_settled() {
     crate::test_support::remove(root.as_path());
 }
 
-/// The batch cap is the size the measured landing cost had not yet doubled at, so a change of either is made with the other.
+/// The batch cap is the size the measured landing cost had not yet doubled at,
+/// so a change of either is made with the other.
 #[test]
 fn the_batch_cap_is_the_measured_cost_knee() {
     assert_eq!(MAX_BATCH, BATCH_COST_KNEE);

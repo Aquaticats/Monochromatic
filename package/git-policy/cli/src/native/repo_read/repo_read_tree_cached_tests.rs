@@ -1,6 +1,12 @@
-//! Controls for the comparison of a tree with an index beside its cache-tree: the answers equal real Git's in every state of the
-//!  cache-tree (valid everywhere, invalid along a path, absent, naming another tree than the one compared), the directories that
-//!  are equal are not read, and every state the cache-tree says nothing of is read in full or declined.
+//! Controls for the comparison of a tree with an index beside its cache-tree:
+//! the answers equal real Git's in every state of the
+//!  cache-tree (valid everywhere,
+//! invalid along a path,
+//! absent,
+//! naming another tree than the one compared),
+//! the directories that
+//!  are equal are not read,
+//! and every state the cache-tree says nothing of is read in full or declined.
 
 use super::*;
 use crate::repo_read_index::parse_index_with_tree;
@@ -8,13 +14,18 @@ use crate::repo_read_query::tests::{answered, declined, mine, text};
 use crate::test_support::{fixture, git, git_output, remove};
 use std::path::{Path, PathBuf};
 
-/// A repository of `directories` directories, each `d<n>/sub/f.txt`, in two commits (the second edits `d1/sub/f.txt`), with the
-/// objects packed, so `HEAD~1` is a tree the cache-tree of the committed index does not name.
+/// A repository of `directories` directories,
+/// each `d<n>/sub/f.txt`,
+/// in two commits (the second edits `d1/sub/f.txt`),
+/// with the
+/// objects packed,
+/// so `HEAD~1` is a tree the cache-tree of the committed index does not name.
 fn committed_repository(root: &Path, name: &str, format: &str, directories: usize) -> PathBuf {
     return repository_with(root, name, format, directories, true);
 }
 
-/// `committed_repository`, packed or left as the loose objects Git wrote.
+/// `committed_repository`,
+/// packed or left as the loose objects Git wrote.
 fn repository_with(root: &Path, name: &str, format: &str, directories: usize, packed: bool) -> PathBuf {
     let repo = root.join(name);
     std::fs::create_dir(&repo).expect("dir");
@@ -36,7 +47,9 @@ fn repository_with(root: &Path, name: &str, format: &str, directories: usize, pa
     return repo;
 }
 
-/// The cached comparisons of one state, against `HEAD` and against the commit before it, in the spellings the wrapper issues.
+/// The cached comparisons of one state,
+/// against `HEAD` and against the commit before it,
+/// in the spellings the wrapper issues.
 fn cached_shapes(root: &Path, repo: &Path) {
     let head = text(repo, &["rev-parse", "HEAD"]);
     let before = text(repo, &["rev-parse", "HEAD~1"]);
@@ -49,7 +62,8 @@ fn cached_shapes(root: &Path, repo: &Path) {
     }
 }
 
-/// An index of the same entries with no cache-tree: a fresh index has none until something writes a tree.
+/// An index of the same entries with no cache-tree:
+/// a fresh index has none until something writes a tree.
 fn without_cache_tree(repo: &Path) {
     let listing = git_output(repo, &["ls-files", "--stage", "-z"]);
     let mut update = std::process::Command::new(crate::test_support::REAL_GIT)
@@ -114,7 +128,9 @@ fn the_answers_equal_git_in_every_state_of_the_cache_tree() {
     remove(root.as_path());
 }
 
-/// A path that became a directory, an intent-to-add entry and an unmerged path stay with Git or equal it: the cache-tree says
+/// A path that became a directory,
+/// an intent-to-add entry and an unmerged path stay with Git or equal it:
+/// the cache-tree says
 /// nothing of them.
 #[test]
 fn states_the_cache_tree_says_nothing_of_are_read_in_full_or_left_to_git() {
@@ -167,9 +183,16 @@ fn a_sparse_index_is_left_to_git() {
     remove(root.as_path());
 }
 
-/// With one staged file the directories that did not change are not read: the entries decoded are those of the trees along the
-/// changed path, not one per directory, and the answer still equals Git's. Positive control: a state with no cache-tree reads every
-/// before `HEAD`, whose trees the cache-tree does not name, reads far more.
+/// With one staged file the directories that did not change are not read:
+/// the entries decoded are those of the trees along the
+/// changed path,
+/// not one per directory,
+/// and the answer still equals Git's.
+/// Positive control:
+/// a state with no cache-tree reads every
+/// before `HEAD`,
+/// whose trees the cache-tree does not name,
+/// reads far more.
 #[test]
 fn the_directories_the_cache_tree_proves_equal_are_not_read() {
     let root = fixture("repo-read-cached-reads");
@@ -196,7 +219,9 @@ fn the_directories_the_cache_tree_proves_equal_are_not_read() {
     remove(root.as_path());
 }
 
-/// A node whose count is not the number of index entries below the directory is not trusted: the walk declines, and the caller
+/// A node whose count is not the number of index entries below the directory is not trusted:
+/// the walk declines,
+/// and the caller
 /// reads the whole tree.
 #[test]
 fn a_count_that_does_not_match_the_index_declines_the_walk() {
@@ -215,8 +240,11 @@ fn a_count_that_does_not_match_the_index_declines_the_walk() {
     remove(root.as_path());
 }
 
-/// A matching cache-tree must not hide a tree object that is gone: Git reads the tree it compares with and fails when it is
-/// missing, so the readers decline (both diff paths, both object formats) and Git gives the error.
+/// A matching cache-tree must not hide a tree object that is gone:
+/// Git reads the tree it compares with and fails when it is
+/// missing,
+/// so the readers decline (both diff paths,
+/// both object formats) and Git gives the error.
 #[test]
 fn a_root_tree_that_is_gone_is_not_hidden_by_a_matching_cache_tree() {
     let root = fixture("repo-read-cached-missing-root");
@@ -234,8 +262,11 @@ fn a_root_tree_that_is_gone_is_not_hidden_by_a_matching_cache_tree() {
     remove(root.as_path());
 }
 
-/// A split index and a sparse index are left to Git on both diff paths, in SHA-1 and SHA-256 repositories: the reader declines
-/// the extensions it does not read, and the cache-tree is never consulted for them.
+/// A split index and a sparse index are left to Git on both diff paths,
+/// in SHA-1 and SHA-256 repositories:
+/// the reader declines
+/// the extensions it does not read,
+/// and the cache-tree is never consulted for them.
 #[test]
 fn split_and_sparse_indexes_are_left_to_git_in_both_object_formats() {
     let root = fixture("repo-read-cached-split-sparse");

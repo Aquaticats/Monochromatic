@@ -1,5 +1,6 @@
 //! What:
-//!  Which candidate paths have their `text` Git attribute unset (`-text`, which the `binary` macro includes),
+//!  Which candidate paths have their `text` Git attribute unset (`-text`,
+//! which the `binary` macro includes),
 //!  resolved by `git check-attr` against the same state the candidates were listed from.
 //! Why:
 //!  A path whose `text` attribute is unset declares that its exact bytes matter,
@@ -40,9 +41,15 @@ use std::path::PathBuf;
 
 /// How many paths one `git check-attr` command names,
 ///  as many as one pathspec command of the candidate layer.
-///  Exempt from a citation under `LQM` (class: chunk size): it splits one command into several starts of the same
-///  command, so the result is the same and only the number of starts changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  Exempt from a citation under `LQM` (class:
+/// chunk size):
+/// it splits one command into several starts of the same
+///  command,
+/// so the result is the same and only the number of starts changes.
+/// Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
 pub const ATTRIBUTE_CHUNK_SIZE: usize = crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE;
 
@@ -117,7 +124,8 @@ fn attribute_failure(failure: CandidateFailure, detail: &str) -> CandidateError 
 
 /// What:
 ///  Whether one byte is the NUL byte that ends each field of `git check-attr -z` output.
-///  `&u8` borrows the byte, as `split` hands it over.
+///  `&u8` borrows the byte,
+/// as `split` hands it over.
 /// Why:
 ///   `split` takes this function by path where a closure would otherwise stand.
 ///
@@ -136,10 +144,13 @@ fn is_nul_byte(byte: &u8) -> bool {
 ///  `paths` the candidate pathnames in the same order.
 /// Why:
 ///   Each record is three NUL-terminated fields,
-///  path, attribute name and value,
+///  path,
+/// attribute name and value,
 ///  in the order asked.
 ///  Only the exact value `unset` preserves a file:
-///  `set`, `auto`, `unspecified` and any other value leave it checked.
+///  `set`,
+/// `auto`,
+/// `unspecified` and any other value leave it checked.
 ///  A record that does not match what was asked is an error,
 ///  never a default to text or to binary.
 ///
@@ -290,7 +301,8 @@ impl CandidateAttributes {
     ///  which reads `.gitattributes` from the private index and ignores the worktree.
     ///  A tree source adds `--source`,
     ///  which reads them from that commit or tree.
-    ///  The names follow `--`, so none can be read as an option.
+    ///  The names follow `--`,
+    /// so none can be read as an option.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

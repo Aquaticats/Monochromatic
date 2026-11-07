@@ -1,4 +1,5 @@
-//! Controls for the service's after-commit work consumer, with handlers that record what they are asked.
+//! Controls for the service's after-commit work consumer,
+//! with handlers that record what they are asked.
 
 use crate::work_item_recovery::requeue_expired;
 use crate::work_item::{DONE, FAILED, WorkKind, claim_next_of};
@@ -50,7 +51,8 @@ impl WorkHandlers for Recorder {
     }
 }
 
-/// A repository directory standing in for a common Git directory, with a worktree directory beside it.
+/// A repository directory standing in for a common Git directory,
+/// with a worktree directory beside it.
 struct Repo {
     root: PathBuf,
     common: PathBuf,
@@ -93,12 +95,15 @@ fn names(repo: &Repo, state: &str) -> Vec<String> {
     return found;
 }
 
-/// The ids of the claimed items; a claim's file name has the id, a generation and a clock reading.
+/// The ids of the claimed items;
+/// a claim's file name has the id,
+/// a generation and a clock reading.
 fn claimed_ids(repo: &Repo) -> Vec<String> {
     return names(repo, CLAIMED).iter().map(|name| { return id_of_entry(name.as_str()).to_owned(); }).collect();
 }
 
-/// Several pending pushes of one branch are one push of the newest commit, and every item is settled as done.
+/// Several pending pushes of one branch are one push of the newest commit,
+/// and every item is settled as done.
 #[test]
 fn pending_pushes_of_one_branch_become_one_push() {
     let repo: Repo = repo("work-coalesce");
@@ -114,7 +119,8 @@ fn pending_pushes_of_one_branch_become_one_push() {
     remove(repo.root.as_path());
 }
 
-/// Pushes of different branches stay separate, and upkeep runs once per repository however many items it has.
+/// Pushes of different branches stay separate,
+/// and upkeep runs once per repository however many items it has.
 #[test]
 fn different_branches_push_separately_and_upkeep_runs_once() {
     let repo: Repo = repo("work-branches");
@@ -134,7 +140,9 @@ fn different_branches_push_separately_and_upkeep_runs_once() {
     remove(repo.root.as_path());
 }
 
-/// A failed push is settled as failed and leaves one record that names the branch, the commit and what Git said, shown once.
+/// A failed push is settled as failed and leaves one record that names the branch,
+/// the commit and what Git said,
+/// shown once.
 #[test]
 fn a_failed_push_leaves_a_notice_that_is_shown_once() {
     let repo: Repo = repo("work-notice");
@@ -148,7 +156,8 @@ fn a_failed_push_leaves_a_notice_that_is_shown_once() {
     remove(repo.root.as_path());
 }
 
-/// A later push of the branch that goes through removes the branch's records that nobody has seen yet; another branch's
+/// A later push of the branch that goes through removes the branch's records that nobody has seen yet;
+/// another branch's
 ///  record stays.
 #[test]
 fn a_later_successful_push_of_the_branch_clears_its_unshown_failure() {
@@ -164,8 +173,12 @@ fn a_later_successful_push_of_the_branch_clears_its_unshown_failure() {
     remove(repo.root.as_path());
 }
 
-/// A skipped push settles as done, because nothing is left to retry, and leaves a notice that says so; an earlier failure of
-///  the branch is still true and stays beside it, where a successful push would have removed it.
+/// A skipped push settles as done,
+/// because nothing is left to retry,
+/// and leaves a notice that says so;
+/// an earlier failure of
+///  the branch is still true and stays beside it,
+/// where a successful push would have removed it.
 #[test]
 fn a_skipped_push_leaves_a_notice_and_keeps_an_earlier_failure() {
     let repo: Repo = repo("work-notice-skipped");
@@ -185,7 +198,9 @@ fn a_skipped_push_leaves_a_notice_and_keeps_an_earlier_failure() {
     remove(repo.root.as_path());
 }
 
-/// Each review item is its own review (never coalesced), settled as done, and it runs after the pushes of the same round.
+/// Each review item is its own review (never coalesced),
+/// settled as done,
+/// and it runs after the pushes of the same round.
 #[test]
 fn every_review_item_is_reviewed_once_after_the_pushes() {
     let repo: Repo = repo("work-review");
@@ -208,7 +223,9 @@ fn every_review_item_is_reviewed_once_after_the_pushes() {
     remove(repo.root.as_path());
 }
 
-/// A review that fails is settled as failed (a plain record), leaves no notice for the person, and is not run again.
+/// A review that fails is settled as failed (a plain record),
+/// leaves no notice for the person,
+/// and is not run again.
 #[test]
 fn a_failed_review_is_a_plain_record_not_a_stuck_item() {
     let repo: Repo = repo("work-review-failed");
@@ -242,8 +259,12 @@ fn an_item_for_another_repository_or_with_a_bad_reference_is_refused() {
     remove(repo.root.as_path());
 }
 
-/// A claim a service left when it died is run again by the next service's drain once its lease is over, not before: the
-///  holder may be alive beside the new instance. The drain says how long to wait, so the service looks again then.
+/// A claim a service left when it died is run again by the next service's drain once its lease is over,
+/// not before:
+/// the
+///  holder may be alive beside the new instance.
+/// The drain says how long to wait,
+/// so the service looks again then.
 #[test]
 fn a_claim_left_by_an_earlier_service_is_run_again_when_its_lease_is_over() {
     let repo: Repo = repo("work-lease");
@@ -267,7 +288,9 @@ fn a_claim_left_by_an_earlier_service_is_run_again_when_its_lease_is_over() {
     remove(repo.root.as_path());
 }
 
-/// A handler that holds its push open until the test lets it go, and says when the push began; the other handler of a pair
+/// A handler that holds its push open until the test lets it go,
+/// and says when the push began;
+/// the other handler of a pair
 /// drains the same directory meanwhile.
 struct Gate {
     began: std::sync::mpsc::Sender<()>,
@@ -294,7 +317,9 @@ impl WorkHandlers for Gate {
 }
 
 /// A restarted service that drains while the instance it replaces is still in a slow push leaves that push's claim alone for
-/// as long as the holder renews it, however many leases the push outlasts; the push runs once and the holder settles it.
+/// as long as the holder renews it,
+/// however many leases the push outlasts;
+/// the push runs once and the holder settles it.
 /// The renewal is driven by the control and the clocks are readings it makes,
 /// so the host's scheduling decides nothing:
 /// the holder renews at every third of the lease while twelve thirds pass,
@@ -358,8 +383,10 @@ fn a_holder_that_does_not_renew_loses_its_claim_to_the_next_instance() {
     remove(repo.root.as_path());
 }
 
-/// A push that every try of was cut short by a stopped service is given up by recovery with nothing having said why, so the
-///  drain leaves the notice for it; an item that still has tries is simply run again.
+/// A push that every try of was cut short by a stopped service is given up by recovery with nothing having said why,
+/// so the
+///  drain leaves the notice for it;
+/// an item that still has tries is simply run again.
 #[test]
 fn a_push_given_up_by_recovery_leaves_a_notice() {
     let repo: Repo = repo("work-given-up");
@@ -377,7 +404,9 @@ fn a_push_given_up_by_recovery_leaves_a_notice() {
     remove(repo.root.as_path());
 }
 
-/// A skip with nothing to say settles as done and leaves no notice, but it is not a successful push: an earlier failure of the
+/// A skip with nothing to say settles as done and leaves no notice,
+/// but it is not a successful push:
+/// an earlier failure of the
 ///  branch stays.
 #[test]
 fn a_silent_skip_keeps_an_earlier_failure_and_adds_no_notice() {
@@ -393,8 +422,11 @@ fn a_silent_skip_keeps_an_earlier_failure_and_adds_no_notice() {
     remove(repo.root.as_path());
 }
 
-/// A skip whose notice cannot be written does not settle as done: the item stays in `failed`, where the missing notice can be
-///  found, instead of the person never hearing of it.
+/// A skip whose notice cannot be written does not settle as done:
+/// the item stays in `failed`,
+/// where the missing notice can be
+///  found,
+/// instead of the person never hearing of it.
 #[test]
 fn a_skip_whose_notice_cannot_be_written_settles_as_failed() {
     let repo: Repo = repo("work-skip-unrecorded");
@@ -408,7 +440,8 @@ fn a_skip_whose_notice_cannot_be_written_settles_as_failed() {
     remove(repo.root.as_path());
 }
 
-/// A linked worktree's Git directory, whose `commondir` file names the repository's common directory the way Git writes it.
+/// A linked worktree's Git directory,
+/// whose `commondir` file names the repository's common directory the way Git writes it.
 fn linked_git_dir(repo: &Repo) -> PathBuf {
     let linked: PathBuf = repo.common.join("worktrees").join("w");
     std::fs::create_dir_all(&linked).expect("linked git directory");
@@ -416,13 +449,15 @@ fn linked_git_dir(repo: &Repo) -> PathBuf {
     return linked;
 }
 
-/// Marks the common directory as the one of a bare repository, the way `git clone --bare` writes it.
+/// Marks the common directory as the one of a bare repository,
+/// the way `git clone --bare` writes it.
 fn make_bare(repo: &Repo) {
     std::fs::write(repo.common.join("config"), "[core]\n\tbare = true\n").expect("config");
 }
 
 /// Records the releases before one service per worktree left in the common directory are run by the instance of a linked
-///  worktree of a bare repository, which has no main worktree whose instance would run them.
+///  worktree of a bare repository,
+/// which has no main worktree whose instance would run them.
 #[test]
 fn a_linked_worktrees_wake_drains_the_records_left_in_the_common_directory_of_a_bare_repository() {
     let repo: Repo = repo("work-common-legacy");
@@ -436,7 +471,8 @@ fn a_linked_worktrees_wake_drains_the_records_left_in_the_common_directory_of_a_
     remove(repo.root.as_path());
 }
 
-/// A claim in the common directory of a bare repository is only taken back after its lease: another linked worktree's
+/// A claim in the common directory of a bare repository is only taken back after its lease:
+/// another linked worktree's
 ///  instance may be running it.
 #[test]
 fn a_claim_in_the_common_directory_is_taken_back_only_after_its_lease() {
@@ -457,7 +493,8 @@ fn a_claim_in_the_common_directory_is_taken_back_only_after_its_lease() {
     remove(repo.root.as_path());
 }
 
-/// The main worktree's instance drains the common directory as its own, so a wake from it adds nothing here.
+/// The main worktree's instance drains the common directory as its own,
+/// so a wake from it adds nothing here.
 #[test]
 fn the_common_directory_is_not_drained_twice_from_the_main_worktree() {
     let repo: Repo = repo("work-common-main");
@@ -469,8 +506,11 @@ fn the_common_directory_is_not_drained_twice_from_the_main_worktree() {
     remove(repo.root.as_path());
 }
 
-/// A repository with a main worktree keeps its common directory for the main worktree's instance, which has its own records
-///  there: a linked worktree's instance neither runs them nor takes back a claim the main instance holds, however old.
+/// A repository with a main worktree keeps its common directory for the main worktree's instance,
+/// which has its own records
+///  there:
+/// a linked worktree's instance neither runs them nor takes back a claim the main instance holds,
+/// however old.
 #[test]
 fn a_linked_worktrees_wake_leaves_the_common_directory_of_a_repository_with_a_main_worktree_alone() {
     let repo: Repo = repo("work-common-main-owned");
@@ -490,8 +530,10 @@ fn a_linked_worktrees_wake_leaves_the_common_directory_of_a_repository_with_a_ma
     remove(repo.root.as_path());
 }
 
-/// The common directory of a bare repository is shared by its linked instances, so its own drain does not take back a claim
-///  at once either; only the lease does.
+/// The common directory of a bare repository is shared by its linked instances,
+/// so its own drain does not take back a claim
+///  at once either;
+/// only the lease does.
 #[test]
 fn a_bare_repositorys_common_directory_is_not_drained_with_the_claims_of_a_live_instance_taken_back() {
     let repo: Repo = repo("work-bare-own");
@@ -510,7 +552,8 @@ fn a_bare_repositorys_common_directory_is_not_drained_with_the_claims_of_a_live_
     remove(repo.root.as_path());
 }
 
-/// Only `core.bare` of the common file makes a directory bare, in Git's boolean spellings.
+/// Only `core.bare` of the common file makes a directory bare,
+/// in Git's boolean spellings.
 #[test]
 fn a_common_directory_is_bare_only_when_its_config_says_so() {
     let repo: Repo = repo("work-bare-spellings");
@@ -530,10 +573,16 @@ fn a_common_directory_is_bare_only_when_its_config_says_so() {
     remove(repo.root.as_path());
 }
 
-/// With `extensions.worktreeConfig` on, Git reads `core.bare` from the common directory's `config.worktree` after its `config`
-///  (checked by hand with Git 2.56.0: `git rev-parse --is-bare-repository` prints `true` for a bare repository whose `config`
-///  has no `core.bare` and whose `config.worktree` has it), so that spelling makes the directory bare too, and the last of the
-///  two files decides. Without the extension Git does not read the file, and neither does this reader.
+/// With `extensions.worktreeConfig` on,
+/// Git reads `core.bare` from the common directory's `config.worktree` after its `config`
+///  (checked by hand with Git 2.56.0:
+/// `git rev-parse --is-bare-repository` prints `true` for a bare repository whose `config`
+///  has no `core.bare` and whose `config.worktree` has it),
+/// so that spelling makes the directory bare too,
+/// and the last of the
+///  two files decides.
+/// Without the extension Git does not read the file,
+/// and neither does this reader.
 #[test]
 fn a_common_directory_is_bare_when_config_worktree_says_so_and_the_extension_is_on() {
     let repo: Repo = repo("work-bare-worktree-config");
@@ -570,7 +619,8 @@ fn a_linked_worktrees_wake_drains_the_records_of_a_bare_repository_that_says_bar
     remove(repo.root.as_path());
 }
 
-/// Handlers whose push waits until every claim of the round has been renewed, which only a running renewal does.
+/// Handlers whose push waits until every claim of the round has been renewed,
+/// which only a running renewal does.
 struct RenewalProbe {
     work_dir: PathBuf,
     ids: Vec<String>,
@@ -578,7 +628,8 @@ struct RenewalProbe {
 }
 
 impl RenewalProbe {
-    /// The file name each of the round's claims has now; nothing for a claim that was settled by an earlier push of the round.
+    /// The file name each of the round's claims has now;
+    /// nothing for a claim that was settled by an earlier push of the round.
     fn names_now(&self) -> Vec<Option<String>> {
         return self
             .ids
@@ -612,7 +663,9 @@ impl WorkHandlers for RenewalProbe {
     }
 }
 
-/// A drain renews every claim it holds while it runs the first push, including the claim of an item that waits behind it, so
+/// A drain renews every claim it holds while it runs the first push,
+/// including the claim of an item that waits behind it,
+/// so
 ///  none of them looks abandoned to another instance however long the push takes.
 #[test]
 fn a_drain_renews_the_claims_it_holds_while_it_works() {
@@ -629,7 +682,8 @@ fn a_drain_renews_the_claims_it_holds_while_it_works() {
     remove(repo.root.as_path());
 }
 
-/// A handler whose first push is the moment another instance takes over every claim of the directory, and that waits for this
+/// A handler whose first push is the moment another instance takes over every claim of the directory,
+/// and that waits for this
 /// instance's renewal to notice.
 struct TakenOver<'a> {
     work_dir: PathBuf,
@@ -667,7 +721,8 @@ impl WorkHandlers for TakenOver<'_> {
 }
 
 /// A claim that another instance took over while an earlier push of the round ran is not run from this instance's old claim:
-/// the item is claimed again and run once from the new claim, and the first push settles nothing of it.
+/// the item is claimed again and run once from the new claim,
+/// and the first push settles nothing of it.
 /// The renewal that finds the claims gone is driven by the control,
 /// so no wait decides the result.
 #[test]
@@ -716,7 +771,9 @@ fn a_claim_taken_over_when_no_renewal_has_run_is_not_run_from_the_old_claim() {
     remove(repo.root.as_path());
 }
 
-/// The credential a wake brought is held for that repository only, in the copy of the handlers made for its round; the handlers
+/// The credential a wake brought is held for that repository only,
+/// in the copy of the handlers made for its round;
+/// the handlers
 ///  the service keeps never hold one.
 #[test]
 fn the_review_key_is_held_per_repository_in_the_round_copy_only() {
@@ -731,8 +788,11 @@ fn the_review_key_is_held_per_repository_in_the_round_copy_only() {
     assert_eq!(handlers.review_key_of(first.as_path()), None, "the handlers the service keeps hold none");
 }
 
-/// A round keeps a wake's credential only for itself: nothing of it is left in the service's handlers afterwards, for the
-/// repository that brought it or any other, and a repeated directory is drained once.
+/// A round keeps a wake's credential only for itself:
+/// nothing of it is left in the service's handlers afterwards,
+/// for the
+/// repository that brought it or any other,
+/// and a repeated directory is drained once.
 #[test]
 fn a_round_leaves_no_credential_in_the_handlers() {
     let first: Repo = repo("work-round");
@@ -751,9 +811,15 @@ fn a_round_leaves_no_credential_in_the_handlers() {
     remove(second.root.as_path());
 }
 
-/// A review runs end to end through the real handlers with the context the service really has, which names no
-/// repository: the work item is claimed, the commit is read with real Git (the patch, and the file texts through a
-/// Git command that takes input), the loopback gateway is asked with the key from the wake, and the entry is appended.
+/// A review runs end to end through the real handlers with the context the service really has,
+/// which names no
+/// repository:
+/// the work item is claimed,
+/// the commit is read with real Git (the patch,
+/// and the file texts through a
+/// Git command that takes input),
+/// the loopback gateway is asked with the key from the wake,
+/// and the entry is appended.
 #[test]
 fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     use crate::standards_review_input::{TRACKED_LOG_RELATIVE, shared_log_path};
@@ -809,8 +875,13 @@ fn entry_starting<'a>(entries: &'a [crate::service_timing::capture::Captured], s
     return entries.iter().find(|entry| { return entry.message.starts_with(start); }).unwrap_or_else(|| { panic!("no entry starting {start:?} in {entries:?}") });
 }
 
-/// Every push the service runs leaves one entry with the branch, the commit, how many items it covered and how it ended,
-/// at the priority that fits: `info` for a push that went through, `warning` for one that failed, with Git's words after it.
+/// Every push the service runs leaves one entry with the branch,
+/// the commit,
+/// how many items it covered and how it ended,
+/// at the priority that fits:
+/// `info` for a push that went through,
+/// `warning` for one that failed,
+/// with Git's words after it.
 #[test]
 fn every_push_leaves_an_entry_that_names_the_branch_and_how_it_ended() {
     use crate::journald_native::Priority;
@@ -831,7 +902,8 @@ fn every_push_leaves_an_entry_that_names_the_branch_and_how_it_ended() {
     remove(repo.root.as_path());
 }
 
-/// Upkeep that ran and a review that finished each leave an entry too, so a quiet repository is told from a service that did
+/// Upkeep that ran and a review that finished each leave an entry too,
+/// so a quiet repository is told from a service that did
 /// nothing.
 #[test]
 fn upkeep_and_review_that_ran_leave_entries() {
@@ -875,8 +947,10 @@ fn lock_pid_files_enabled(environment: &[(OsString, OsString)]) -> bool {
     return enabled;
 }
 
-/// Every Git the service starts for a push writes the `~pid.lock` file beside each lock, so a lock left by a stopped push
-/// names its owner; without it such a lock cannot be told from another process's.
+/// Every Git the service starts for a push writes the `~pid.lock` file beside each lock,
+/// so a lock left by a stopped push
+/// names its owner;
+/// without it such a lock cannot be told from another process's.
 #[test]
 fn the_service_starts_its_push_git_with_lock_pid_files_on() {
     let repo: Repo = repo("service-push-lock-pid");

@@ -1,30 +1,45 @@
-//! The Text size setting: one pixel size for each of four texts the human tuned (desktop only; Android follows the
+//! The Text size setting:
+//! one pixel size for each of four texts the human tuned (desktop only;
+//! Android follows the
 //! system font size).
 //!
-//! What: `TextElement` names the four texts, `TextSizes` holds one size for each, and every change goes through
-//! `TextSizes::stepped`, which keeps the size inside `MIN_TEXT_SIZE_PX` to `MAX_TEXT_SIZE_PX`.
-//! Why: the Settings steppers, the session file and the window all need the same limits, defaults and element order,
+//! What:
+//! `TextElement` names the four texts,
+//! `TextSizes` holds one size for each,
+//! and every change goes through
+//! `TextSizes::stepped`,
+//! which keeps the size inside `MIN_TEXT_SIZE_PX` to `MAX_TEXT_SIZE_PX`.
+//! Why:
+//! the Settings steppers,
+//! the session file and the window all need the same limits,
+//! defaults and element order,
 //! so the rules live here and the glue only maps them to controls.
 
 use serde::Serialize;
 
-/// What: `MIN_TEXT_SIZE_PX` is the smallest size a stepper reaches.
-/// Why: under 10 px the Inter glyphs stop being legible at scale 1.
+/// What:
+/// `MIN_TEXT_SIZE_PX` is the smallest size a stepper reaches.
+/// Why:
+/// under 10 px the Inter glyphs stop being legible at scale 1.
 pub const MIN_TEXT_SIZE_PX: u16 = 10;
 
-/// What: `MAX_TEXT_SIZE_PX` is the largest size a stepper reaches.
-/// Why: at 32 px a track title still fits the 72 px row pitch with its caption (see the layout checks in
+/// What:
+/// `MAX_TEXT_SIZE_PX` is the largest size a stepper reaches.
+/// Why:
+/// at 32 px a track title still fits the 72 px row pitch with its caption (see the layout checks in
 /// `ui_text_size_tests.rs`).
 pub const MAX_TEXT_SIZE_PX: u16 = 32;
 
-/// The four texts that have a size of their own, in the order of the Settings rows.
+/// The four texts that have a size of their own,
+/// in the order of the Settings rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TextElement {
     /// The titles of the left and the right pane (the opened folder and the shown folder).
     PaneTitle,
     /// The letter that heads a group of folder names.
     GroupHeading,
-    /// The folder names in the picker, and their width probe.
+    /// The folder names in the picker,
+    /// and their width probe.
     FolderName,
     /// The track titles in the track list.
     TrackTitle,
@@ -32,12 +47,16 @@ pub enum TextElement {
 
 /// Methods of `TextElement`.
 impl TextElement {
-    /// Every element in the order of the Settings rows, which is also the index the window uses for a stepper.
+    /// Every element in the order of the Settings rows,
+    /// which is also the index the window uses for a stepper.
     pub const ALL: [TextElement; 4] =
         [TextElement::PaneTitle, TextElement::GroupHeading, TextElement::FolderName, TextElement::TrackTitle];
 
-    /// What: `default_px` is the size the app drew the text at before the setting existed.
-    /// Why: the defaults are today's values, so nothing changes until the human changes a stepper.
+    /// What:
+    /// `default_px` is the size the app drew the text at before the setting existed.
+    /// Why:
+    /// the defaults are today's values,
+    /// so nothing changes until the human changes a stepper.
     #[must_use]
     pub const fn default_px(self) -> u16 {
         return match self {
@@ -46,8 +65,10 @@ impl TextElement {
         };
     }
 
-    /// What: `label` is the name of the row in Settings.
-    /// Why: the window and the tests share one text.
+    /// What:
+    /// `label` is the name of the row in Settings.
+    /// Why:
+    /// the window and the tests share one text.
     #[must_use]
     pub const fn label(self) -> &'static str {
         return match self {
@@ -58,8 +79,10 @@ impl TextElement {
         };
     }
 
-    /// What: `session_key` is the name of the element's field in the session file.
-    /// Why: the load path reads the four fields by name so a corrupt one is reported with its key.
+    /// What:
+    /// `session_key` is the name of the element's field in the session file.
+    /// Why:
+    /// the load path reads the four fields by name so a corrupt one is reported with its key.
     #[must_use]
     pub const fn session_key(self) -> &'static str {
         return match self {
@@ -70,15 +93,19 @@ impl TextElement {
         };
     }
 
-    /// What: `from_index` maps a stepper index of the window to its element.
-    /// Why: the window reports a plain number; an index outside the four is no element.
+    /// What:
+    /// `from_index` maps a stepper index of the window to its element.
+    /// Why:
+    /// the window reports a plain number;
+    /// an index outside the four is no element.
     #[must_use]
     pub fn from_index(index: i32) -> Option<TextElement> {
         return usize::try_from(index).ok().and_then(|position| return TextElement::ALL.get(position).copied());
     }
 }
 
-/// One size in pixels for each element, always inside the stepper limits.
+/// One size in pixels for each element,
+/// always inside the stepper limits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct TextSizes {
     /// Size of the pane titles.
@@ -108,10 +135,13 @@ impl Default for TextSizes {
     }
 }
 
-/// Reads, changes and judges sizes.
+/// Reads,
+/// changes and judges sizes.
 impl TextSizes {
-    /// What: `get` is the size of `element` in pixels.
-    /// Why: the window reads each size by element.
+    /// What:
+    /// `get` is the size of `element` in pixels.
+    /// Why:
+    /// the window reads each size by element.
     #[must_use]
     pub const fn get(&self, element: TextElement) -> u16 {
         return match element {
@@ -122,8 +152,12 @@ impl TextSizes {
         };
     }
 
-    /// What: `with` gives these sizes with `element` set to `px`, held inside the limits.
-    /// Why: no caller can build a size outside the limits, so the window never draws one.
+    /// What:
+    /// `with` gives these sizes with `element` set to `px`,
+    /// held inside the limits.
+    /// Why:
+    /// no caller can build a size outside the limits,
+    /// so the window never draws one.
     #[must_use]
     pub fn with(self, element: TextElement, px: u16) -> TextSizes {
         let held = px.clamp(MIN_TEXT_SIZE_PX, MAX_TEXT_SIZE_PX);
@@ -137,8 +171,11 @@ impl TextSizes {
         return next;
     }
 
-    /// What: `stepped` moves `element` by `delta` pixels and stops at the limits.
-    /// Why: a stepper changes a size by one pixel, and a press past the end changes nothing.
+    /// What:
+    /// `stepped` moves `element` by `delta` pixels and stops at the limits.
+    /// Why:
+    /// a stepper changes a size by one pixel,
+    /// and a press past the end changes nothing.
     #[must_use]
     pub fn stepped(self, element: TextElement, delta: i32) -> TextSizes {
         let moved = i32::from(self.get(element)).saturating_add(delta);
@@ -146,32 +183,47 @@ impl TextSizes {
         return self.with(element, u16::try_from(held).unwrap_or(element.default_px()));
     }
 
-    /// What: `can_decrease` tells whether the minus button of `element` still does anything.
-    /// Why: the button draws as disabled at the lower limit.
+    /// What:
+    /// `can_decrease` tells whether the minus button of `element` still does anything.
+    /// Why:
+    /// the button draws as disabled at the lower limit.
     #[must_use]
     pub const fn can_decrease(&self, element: TextElement) -> bool {
         return self.get(element) > MIN_TEXT_SIZE_PX;
     }
 
-    /// What: `can_increase` tells whether the plus button of `element` still does anything.
-    /// Why: the button draws as disabled at the upper limit.
+    /// What:
+    /// `can_increase` tells whether the plus button of `element` still does anything.
+    /// Why:
+    /// the button draws as disabled at the upper limit.
     #[must_use]
     pub const fn can_increase(&self, element: TextElement) -> bool {
         return self.get(element) < MAX_TEXT_SIZE_PX;
     }
 
-    /// What: `is_default` tells whether every element is at its default.
-    /// Why: the Reset text sizes row has nothing to do then, and says so.
+    /// What:
+    /// `is_default` tells whether every element is at its default.
+    /// Why:
+    /// the Reset text sizes row has nothing to do then,
+    /// and says so.
     #[must_use]
     pub fn is_default(&self) -> bool {
         return *self == TextSizes::default();
     }
 }
 
-/// What: `size_or_default` reads one session field: an integer inside the limits is the size; a missing field or
+/// What:
+/// `size_or_default` reads one session field:
+/// an integer inside the limits is the size;
+/// a missing field or
 /// anything else is the element's default.
-/// Why: the field of one element must never cost the other fields, so a wrong type, a fraction or an out-of-range
-/// number falls back to the default of that element alone, and is reported with its key and value. A missing field is a
+/// Why:
+/// the field of one element must never cost the other fields,
+/// so a wrong type,
+/// a fraction or an out-of-range
+/// number falls back to the default of that element alone,
+/// and is reported with its key and value.
+/// A missing field is a
 /// session file written before the setting existed and stays quiet.
 #[must_use]
 pub fn size_or_default(element: TextElement, stored: Option<&serde_json::Value>) -> u16 {
@@ -194,7 +246,9 @@ pub fn size_or_default(element: TextElement, stored: Option<&serde_json::Value>)
     return element.default_px();
 }
 
-/// Tests for the limits, the defaults, the stepping and the reading of a stored field in `text_size_tests.rs`.
+/// Tests for the limits,
+/// the defaults,
+/// the stepping and the reading of a stored field in `text_size_tests.rs`.
 #[cfg(test)]
 #[path = "text_size_tests.rs"]
 mod tests;

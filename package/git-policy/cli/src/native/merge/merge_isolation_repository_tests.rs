@@ -1,5 +1,9 @@
-//! Controls for the decisions of the isolated merge that read a repository: the settings, the staged-work check, and
-//! the first decisions of an attempt. Each runs real Git in a disposable repository.
+//! Controls for the decisions of the isolated merge that read a repository:
+//! the settings,
+//! the staged-work check,
+//! and
+//! the first decisions of an attempt.
+//! Each runs real Git in a disposable repository.
 
 use super::*;
 use crate::forwarded_command::ResolvedCommand;
@@ -10,14 +14,16 @@ use crate::forwarded_command::Route;
 use crate::test_support::{REAL_GIT, fixture, git, git_context, git_text, isolated_overlay, remove, repository};
 use crate::worktree_identity::resolve_worktree_identity;
 
-/// A session over the repository at `repo`, the way `attempt` makes one.
+/// A session over the repository at `repo`,
+/// the way `attempt` makes one.
 fn session_in(repo: &Path) -> Session {
     let mut context: GitContext = git_context();
     context.global_prefix = vec![OsString::from("-C"), repo.as_os_str().to_owned()];
     return Session { context };
 }
 
-/// The settings read from a repository that holds the given `git config` entries, in the order given.
+/// The settings read from a repository that holds the given `git config` entries,
+/// in the order given.
 fn config_with(name: &str, entries: &[(&str, &str)]) -> MergeConfig {
     let parent: PathBuf = fixture(name);
     let repo: PathBuf = repository(parent.as_path(), "repo");
@@ -30,7 +36,10 @@ fn config_with(name: &str, entries: &[(&str, &str)]) -> MergeConfig {
 }
 
 /// A setting that changes the merge in a way this path does not reproduce defers the whole command to native Git,
-/// whichever setting it is and wherever it falls among the others; a setting that is off, or none, defers nothing.
+/// whichever setting it is and wherever it falls among the others;
+/// a setting that is off,
+/// or none,
+/// defers nothing.
 #[test]
 fn only_the_settings_the_path_cannot_reproduce_defer_the_merge() {
     let deferring: [(&str, &[(&str, &str)]); 5] = [
@@ -67,7 +76,9 @@ fn the_honored_settings_are_read_from_the_repository() {
     assert!(only.fast_forward_only && only.fast_forward.is_none());
 }
 
-/// Index entries of one path at the given stages, written with `update-index --index-info`: what a conflict leaves.
+/// Index entries of one path at the given stages,
+/// written with `update-index --index-info`:
+/// what a conflict leaves.
 fn unmerge(repo: &Path, path: &str, stages: &[u8]) {
     let mut lines: String = String::new();
     for stage in stages {
@@ -90,7 +101,9 @@ fn unmerge(repo: &Path, path: &str, stages: &[u8]) {
     assert!(child.wait().expect("git finishes").success(), "the entries of {path} were written");
 }
 
-/// An unmerged path means a conflict is in progress, which native Git reports itself, so the command is forwarded;
+/// An unmerged path means a conflict is in progress,
+/// which native Git reports itself,
+/// so the command is forwarded;
 /// each way Git names an unmerged state is one of them.
 #[test]
 fn every_unmerged_state_is_forwarded() {
@@ -117,7 +130,9 @@ fn every_unmerged_state_is_forwarded() {
     }
 }
 
-/// Ordinary staged and unstaged work is not a conflict: its paths are returned, one per entry.
+/// Ordinary staged and unstaged work is not a conflict:
+/// its paths are returned,
+/// one per entry.
 #[test]
 fn staged_and_unstaged_work_is_listed_by_path() {
     let parent: PathBuf = fixture("merge-unsaved-listed");
@@ -147,8 +162,10 @@ fn diverged_with_staged_work(name: &str) -> (PathBuf, PathBuf) {
     return diverged_with_files(name, &[]);
 }
 
-/// A repository where `feature` and `main` have diverged and another session staged `u.txt`, whose base commit also
-/// holds the `extra` files, which the merge does not touch.
+/// A repository where `feature` and `main` have diverged and another session staged `u.txt`,
+/// whose base commit also
+/// holds the `extra` files,
+/// which the merge does not touch.
 fn diverged_with_files(name: &str, extra: &[&str]) -> (PathBuf, PathBuf) {
     let parent: PathBuf = fixture(name);
     let repo: PathBuf = repository(parent.as_path(), "repo");
@@ -171,7 +188,8 @@ fn diverged_with_files(name: &str, extra: &[&str]) -> (PathBuf, PathBuf) {
     return (parent, repo);
 }
 
-/// What `run_isolated_merge` makes of `arguments`, run as a command of the given route in `repo`.
+/// What `run_isolated_merge` makes of `arguments`,
+/// run as a command of the given route in `repo`.
 fn attempted(
     repo: &Path,
     route: Route,
@@ -181,7 +199,8 @@ fn attempted(
     return attempted_with(Path::new(REAL_GIT), repo, route, arguments, environment);
 }
 
-/// `attempted` with the Git executable given, so a control can stand in for it.
+/// `attempted` with the Git executable given,
+/// so a control can stand in for it.
 fn attempted_with(
     real_git: &Path,
     repo: &Path,
@@ -216,8 +235,13 @@ fn is_completed(outcome: &IsolatedMerge) -> bool {
     return matches!(outcome, IsolatedMerge::Finished { code: 0, .. });
 }
 
-/// Only a built-in `merge` is completed: the same words under another command, or under a name that is not a
-/// built-in, are native Git's, whatever the staged work, and nothing is written.
+/// Only a built-in `merge` is completed:
+/// the same words under another command,
+/// or under a name that is not a
+/// built-in,
+/// are native Git's,
+/// whatever the staged work,
+/// and nothing is written.
 #[test]
 fn only_a_builtin_merge_is_completed() {
     let (parent, repo): (PathBuf, PathBuf) = diverged_with_staged_work("merge-attempt-only-merges");
@@ -234,8 +258,13 @@ fn only_a_builtin_merge_is_completed() {
     remove(parent.as_path());
 }
 
-/// A name that is a range, not one commit, resolves to more than the two commits the merge needs; the command is
-/// native Git's, which refuses it, and nothing is written.
+/// A name that is a range,
+/// not one commit,
+/// resolves to more than the two commits the merge needs;
+/// the command is
+/// native Git's,
+/// which refuses it,
+/// and nothing is written.
 #[test]
 fn a_range_in_place_of_a_commit_is_native_gits() {
     let (parent, repo): (PathBuf, PathBuf) = diverged_with_staged_work("merge-attempt-range");
@@ -249,8 +278,13 @@ fn a_range_in_place_of_a_commit_is_native_gits() {
     remove(parent.as_path());
 }
 
-/// A staged rename lists its original path as a field of its own, with no status letters, and a path may begin with
-/// the letters of an unmerged state; such a rename is other work to keep, not a conflict, and the merge is completed.
+/// A staged rename lists its original path as a field of its own,
+/// with no status letters,
+/// and a path may begin with
+/// the letters of an unmerged state;
+/// such a rename is other work to keep,
+/// not a conflict,
+/// and the merge is completed.
 #[test]
 fn a_staged_rename_is_no_conflict_whatever_its_source_is_called() {
     for source in ["Uold.txt", "xUold.txt", "AAold.txt", "DDold.txt", "UUold.txt"] {
@@ -288,8 +322,10 @@ fn a_conflict_after_a_staged_rename_is_still_forwarded() {
     remove(parent.as_path());
 }
 
-/// A branch with no history in common is merged only when `--allow-unrelated-histories` says so; without it the
-/// command is native Git's, which refuses with its own words.
+/// A branch with no history in common is merged only when `--allow-unrelated-histories` says so;
+/// without it the
+/// command is native Git's,
+/// which refuses with its own words.
 #[test]
 fn unrelated_histories_are_merged_only_when_allowed() {
     let parent: PathBuf = fixture("merge-attempt-unrelated");
@@ -318,7 +354,9 @@ fn unrelated_histories_are_merged_only_when_allowed() {
     remove(parent.as_path());
 }
 
-/// An attempt recovers a dead merge's record first, before it reads the index: the checkout the dead merge left half
+/// An attempt recovers a dead merge's record first,
+/// before it reads the index:
+/// the checkout the dead merge left half
 /// applied would otherwise read as another session's staged paths and refuse the merge.
 #[test]
 fn an_attempt_recovers_a_dead_merge_before_it_checks_the_staged_work() {
@@ -349,8 +387,11 @@ fn an_attempt_recovers_a_dead_merge_before_it_checks_the_staged_work() {
     remove(parent.as_path());
 }
 
-/// `--no-edit` settles the question of the editor whatever `GIT_MERGE_AUTOEDIT` says, and without it the variable
-/// decides: `yes` forwards with the notice, `no` completes the merge.
+/// `--no-edit` settles the question of the editor whatever `GIT_MERGE_AUTOEDIT` says,
+/// and without it the variable
+/// decides:
+/// `yes` forwards with the notice,
+/// `no` completes the merge.
 #[test]
 fn the_editor_decision_follows_no_edit_then_the_environment() {
     let variable = |value: &str| -> Vec<(OsString, OsString)> {
@@ -380,10 +421,16 @@ fn the_editor_decision_follows_no_edit_then_the_environment() {
     }
 }
 
-/// The branch moves inside Git's own fast-forward, after it installed the merge's paths and before its ref update, which
-/// then fails (`cannot lock ref 'HEAD': is at <winner> but expected <old>`): the stand-in for Git plays the winner's commit
-/// and the loser's install once, then reports Git's failure. The paths go back to the winner's content and the merge is made
-/// again on the winner, so it lands with the winner as its first parent and nothing half applied.
+/// The branch moves inside Git's own fast-forward,
+/// after it installed the merge's paths and before its ref update,
+/// which
+/// then fails (`cannot lock ref 'HEAD': is at <winner> but expected <old>`):
+/// the stand-in for Git plays the winner's commit
+/// and the loser's install once,
+/// then reports Git's failure.
+/// The paths go back to the winner's content and the merge is made
+/// again on the winner,
+/// so it lands with the winner as its first parent and nothing half applied.
 #[test]
 fn a_ref_update_that_loses_the_race_inside_gits_fast_forward_is_made_again_on_the_new_head() {
     let (parent, repo): (PathBuf, PathBuf) = diverged_with_staged_work("merge-attempt-inside-race");

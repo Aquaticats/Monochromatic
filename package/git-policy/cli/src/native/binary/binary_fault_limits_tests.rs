@@ -1,17 +1,36 @@
 //! What:
-//!  Descriptor, process and address-space limits close to exhaustion, and a single processor, set as resource limits on the
-//!  wrapper or on the commit service (`setrlimit` and `sched_setaffinity` between `fork` and `exec`, no privilege), with the
+//!  Descriptor,
+//! process and address-space limits close to exhaustion,
+//! and a single processor,
+//! set as resource limits on the
+//!  wrapper or on the commit service (`setrlimit` and `sched_setaffinity` between `fork` and `exec`,
+//! no privilege),
+//! with the
 //!  pressure ended afterwards.
 //! Why:
 //!  The README promises that limits close to exhaustion and a starved host do not strand the repository or leave a command
-//!  that never ends. A resource limit is the real mechanism: `RLIMIT_NOFILE` makes every open, pipe and socket fail with
-//!  `EMFILE` from some point on, `RLIMIT_NPROC` makes every thread and process start fail with `EAGAIN`, and `RLIMIT_AS`
-//!  makes an allocation fail, which ends a Rust program with an abort. The limit is set on one side at a time, because the
-//!  wrapper and the service are separate programs with separate limits in production. The pressure ends when a person
-//!  closes something else, so each control ends it (a service restarted by the manager, or the limit raised in place) and
+//!  that never ends.
+//! A resource limit is the real mechanism:
+//! `RLIMIT_NOFILE` makes every open,
+//! pipe and socket fail with
+//!  `EMFILE` from some point on,
+//! `RLIMIT_NPROC` makes every thread and process start fail with `EAGAIN`,
+//! and `RLIMIT_AS`
+//!  makes an allocation fail,
+//! which ends a Rust program with an abort.
+//! The limit is set on one side at a time,
+//! because the
+//!  wrapper and the service are separate programs with separate limits in production.
+//! The pressure ends when a person
+//!  closes something else,
+//! so each control ends it (a service restarted by the manager,
+//! or the limit raised in place) and
 //!  requires that the next ordinary command succeeds with nothing left behind (`verify_recovery`).
-//!  Sizes are measured, never assumed: the smallest limit under which a program starts and the smallest under which a commit
-//!  lands are found by running them, so a change of the build moves the sweep with it.
+//!  Sizes are measured,
+//! never assumed:
+//! the smallest limit under which a program starts and the smallest under which a commit
+//!  lands are found by running them,
+//! so a change of the build moves the sweep with it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,24 +48,32 @@ use std::process::{Command, Output, Stdio};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// The unit of the address-space sweeps: a mebibyte, so that the search for the smallest working size takes few runs.
+/// The unit of the address-space sweeps:
+/// a mebibyte,
+/// so that the search for the smallest working size takes few runs.
 const MEBIBYTE: u64 = 1 << 20;
 
-/// The most address space the searches try, in mebibytes.
+/// The most address space the searches try,
+/// in mebibytes.
 const MOST_MEBIBYTES: u64 = 1 << 16;
 
 /// How many steps a memory sweep takes between its smallest and its largest limit.
 const MEMORY_STEPS: u64 = 10;
 
-/// One limit on one side: what, the soft value and the hard value.
+/// One limit on one side:
+/// what,
+/// the soft value and the hard value.
 type Limit = (LimitKind, u64, u64);
 
-/// A limit that lets a person raise it again, as closing other programs would: the hard limit stays what it was.
+/// A limit that lets a person raise it again,
+/// as closing other programs would:
+/// the hard limit stays what it was.
 fn soft(kind: LimitKind, value: u64) -> Limit {
     return (kind, value, kind.current_hard());
 }
 
-/// The wrapper's side of a case: the limits its process (and the Git processes it starts) runs under.
+/// The wrapper's side of a case:
+/// the limits its process (and the Git processes it starts) runs under.
 fn limited_commit(fixture: &Fixture, repo: &Path, wrapper: &[Limit]) -> Output {
     let mut command: Command = unbounded_wrapper(fixture, repo, &COMMIT_ARGUMENTS);
     for &(kind, soft_value, hard_value) in wrapper {
@@ -58,9 +85,15 @@ fn limited_commit(fixture: &Fixture, repo: &Path, wrapper: &[Limit]) -> Output {
     return run_watched(fixture, &mut command);
 }
 
-/// What the first run of a limited commit must have shown its caller: it ended (the watchdog did not), as the wrapper (exit 0,
-///  1 or 2) or as a process that never started (126 or 127), or, when `may_abort`, by the abort that a failed allocation ends a
-///  Rust program with; a failed run says why.
+/// What the first run of a limited commit must have shown its caller:
+/// it ended (the watchdog did not),
+/// as the wrapper (exit 0,
+///  1 or 2) or as a process that never started (126 or 127),
+/// or,
+/// when `may_abort`,
+/// by the abort that a failed allocation ends a
+///  Rust program with;
+/// a failed run says why.
 pub(super) fn check_limited_run(label: &str, output: &Output, may_abort: bool) -> Result<(), String> {
     let text: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
     if let Some(signal) = output.status.signal() {
@@ -83,12 +116,18 @@ pub(super) fn check_limited_run(label: &str, output: &Output, may_abort: bool) -
 struct Case {
     /// Whether the commit landed under the limit.
     landed: bool,
-    /// Whether the first run ended with a check failure, or the recovery after it did not hold.
+    /// Whether the first run ended with a check failure,
+    /// or the recovery after it did not hold.
     verdict: Result<(), String>,
 }
 
-/// One commit with `service` limits on the commit service and `wrapper` limits on the wrapper, then the pressure ends (and, when
-///  `verify` is set, the repository must recover): the services are stopped (the manager starts a new one at the next command), and the repository must recover.
+/// One commit with `service` limits on the commit service and `wrapper` limits on the wrapper,
+/// then the pressure ends (and,
+/// when
+///  `verify` is set,
+/// the repository must recover):
+/// the services are stopped (the manager starts a new one at the next command),
+/// and the repository must recover.
 fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, verify: bool) -> Case {
     let fixture: Fixture = fixture(label);
     *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch { limits: service.to_vec(), ..ServiceLaunch::default() };
@@ -107,7 +146,9 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
     return Case { landed, verdict };
 }
 
-/// The smallest value in `low..=high` for which `works` holds, found by halving; `works` is taken to hold from some value on.
+/// The smallest value in `low..=high` for which `works` holds,
+/// found by halving;
+/// `works` is taken to hold from some value on.
 fn smallest_working(low: u64, high: u64, works: &dyn Fn(u64) -> bool) -> u64 {
     let (mut below, mut above): (u64, u64) = (low, high);
     while below < above {
@@ -121,8 +162,12 @@ fn smallest_working(low: u64, high: u64, works: &dyn Fn(u64) -> bool) -> u64 {
     return above;
 }
 
-/// Runs a case for each value, `SWEEP_WIDTH` at a time, and requires that every repository recovered. `limits_for` gives the
-///  service's and the wrapper's limits for a value. Returns how many cases landed their commit and how many did not.
+/// Runs a case for each value,
+/// `SWEEP_WIDTH` at a time,
+/// and requires that every repository recovered.
+/// `limits_for` gives the
+///  service's and the wrapper's limits for a value.
+/// Returns how many cases landed their commit and how many did not.
 fn sweep(label: &str, values: &[u64], limits_for: fn(u64) -> (Vec<Limit>, Vec<Limit>), may_abort: bool) -> (usize, usize) {
     let failures: Mutex<Vec<String>> = Mutex::new(Vec::new());
     let landed: AtomicUsize = AtomicUsize::new(0);
@@ -152,7 +197,8 @@ fn sweep(label: &str, values: &[u64], limits_for: fn(u64) -> (Vec<Limit>, Vec<Li
     return (landed.load(Ordering::SeqCst), refused.load(Ordering::SeqCst));
 }
 
-/// Whether a commit lands with this side limited to `value`, for the search for the smallest value that lets it land.
+/// Whether a commit lands with this side limited to `value`,
+/// for the search for the smallest value that lets it land.
 fn lands_with(label: &str, value: u64, limits_for: fn(u64) -> (Vec<Limit>, Vec<Limit>)) -> bool {
     let (service, wrapper): (Vec<Limit>, Vec<Limit>) = limits_for(value);
     return run_case(format!("{label}-probe-{value}").as_str(), service.as_slice(), wrapper.as_slice(), true, false).landed;
@@ -186,20 +232,31 @@ const GREETING_READ: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// What one start of the commit service under a limit showed.
 struct StartOutcome {
-    /// Whether a client was greeted: the service bound its socket, started its acceptor and answered.
+    /// Whether a client was greeted:
+    /// the service bound its socket,
+    /// started its acceptor and answered.
     greeted: bool,
     /// What the service wrote to its log before it ended or was stopped.
     log: String,
 }
 
 /// What:
-///  Starts the commit service under `limit` of `kind` (bytes for the address space), and reports whether it greeted a client.
+///  Starts the commit service under `limit` of `kind` (bytes for the address space),
+/// and reports whether it greeted a client.
 /// Why:
-///   A service that cannot start its acceptor thread still binds its socket first, and then exits within a millisecond, so
-///  its socket accepts a connection only in that moment. A probe that counted any connection as starting gave an answer
-///  that depended on whether the poll landed in that moment, which a loaded host changes: the sweep then began below the
-///  limits at which a service can run, and the fixture waited for services that had ended. Only a greeting proves the
-///  service runs, and a service that ended without one does not start at this limit.
+///   A service that cannot start its acceptor thread still binds its socket first,
+/// and then exits within a millisecond,
+/// so
+///  its socket accepts a connection only in that moment.
+/// A probe that counted any connection as starting gave an answer
+///  that depended on whether the poll landed in that moment,
+/// which a loaded host changes:
+/// the sweep then began below the
+///  limits at which a service can run,
+/// and the fixture waited for services that had ended.
+/// Only a greeting proves the
+///  service runs,
+/// and a service that ended without one does not start at this limit.
 fn start_service_under(kind: LimitKind, limit: u64, directory: &Path) -> StartOutcome {
     let name: String = format!("cli-git-limit-probe-{}-{limit}-{}", std::process::id(), START_COUNTER.fetch_add(1, Ordering::SeqCst));
     let journal: PathBuf = directory.join(name.as_str());
@@ -242,11 +299,14 @@ fn start_service_under(kind: LimitKind, limit: u64, directory: &Path) -> StartOu
     return StartOutcome { greeted, log };
 }
 
-/// Numbers the starts of one test process, so that no two services share an abstract socket name.
+/// Numbers the starts of one test process,
+/// so that no two services share an abstract socket name.
 static START_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-/// The smallest value of `kind` (mebibytes for the address space) under which the commit service starts and greets a client: the sweep of the service's limits begins
-///  here, because a service that cannot greet has no commit to fail (the manager reports it as a failed unit).
+/// The smallest value of `kind` (mebibytes for the address space) under which the commit service starts and greets a client:
+/// the sweep of the service's limits begins
+///  here,
+/// because a service that cannot greet has no commit to fail (the manager reports it as a failed unit).
 fn smallest_service_limit(kind: LimitKind, high: u64) -> u64 {
     let probes: Fixture = fixture("limit-probe");
     let starts = |limit: u64| -> bool {
@@ -258,15 +318,21 @@ fn smallest_service_limit(kind: LimitKind, high: u64) -> u64 {
     return smallest;
 }
 
-/// `count` values from `low` to `high`, evenly spaced, both ends included, each once.
+/// `count` values from `low` to `high`,
+/// evenly spaced,
+/// both ends included,
+/// each once.
 fn spread(low: u64, high: u64, count: u64) -> Vec<u64> {
     let mut values: Vec<u64> = (0..=count).map(|step| { return low + (high - low) * step / count; }).collect();
     values.dedup();
     return values;
 }
 
-/// A descriptor limit of each size on the wrapper, from the smallest under which a commit lands downward: the commit fails with a
-///  message or lands, and the repository recovers either way.
+/// A descriptor limit of each size on the wrapper,
+/// from the smallest under which a commit lands downward:
+/// the commit fails with a
+///  message or lands,
+/// and the repository recovers either way.
 #[test]
 fn a_descriptor_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_repository() {
     let lands_at: u64 = smallest_working(3, 1024, &|value| { return lands_with("nofile-wrapper", value, wrapper_descriptors); });
@@ -276,8 +342,12 @@ fn a_descriptor_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_re
     assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion");
 }
 
-/// A descriptor limit of each size on the commit service, from the smallest under which it starts, up to the smallest under which a
-///  commit lands: the commit fails with a message or lands, and the repository recovers either way.
+/// A descriptor limit of each size on the commit service,
+/// from the smallest under which it starts,
+/// up to the smallest under which a
+///  commit lands:
+/// the commit fails with a message or lands,
+/// and the repository recovers either way.
 #[test]
 fn a_descriptor_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository() {
     let starts_at: u64 = smallest_service_limit(LimitKind::OpenFiles, 1024);
@@ -288,9 +358,12 @@ fn a_descriptor_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_re
     assert!(landed > 0, "no descriptor limit let the commit land, so none was close to exhaustion");
 }
 
-/// Whether a process limit makes the next start fail for this user (a privileged test run is exempt from `RLIMIT_NPROC`), so
-///  the controls that need the limit to bite can say they did not run instead of passing without testing. The probe is a shell
-///  that must start a second process: with the limit at one it cannot.
+/// Whether a process limit makes the next start fail for this user (a privileged test run is exempt from `RLIMIT_NPROC`),
+/// so
+///  the controls that need the limit to bite can say they did not run instead of passing without testing.
+/// The probe is a shell
+///  that must start a second process:
+/// with the limit at one it cannot.
 fn process_limit_bites() -> bool {
     let mut command: Command = Command::new("/bin/sh");
     command.args(["-c", "/bin/true && echo started"]).stdin(Stdio::null()).stderr(Stdio::null());
@@ -302,8 +375,11 @@ fn process_limit_bites() -> bool {
     return !String::from_utf8_lossy(output.stdout.as_slice()).contains("started");
 }
 
-/// A process limit that is exhausted for the commit service: the commit fails with a message and ends; once the limit is raised
-///  in place (the service is not restarted), the next commit lands through the same service and nothing is left behind.
+/// A process limit that is exhausted for the commit service:
+/// the commit fails with a message and ends;
+/// once the limit is raised
+///  in place (the service is not restarted),
+/// the next commit lands through the same service and nothing is left behind.
 #[test]
 fn a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_is_raised() {
     if !process_limit_bites() {
@@ -333,8 +409,12 @@ fn a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_
     remove_settled(&fixture);
 }
 
-/// A process limit that is exhausted for the wrapper, which then cannot start any Git: the commit fails with a message and ends,
-///  and the next command, once the limit is gone, succeeds.
+/// A process limit that is exhausted for the wrapper,
+/// which then cannot start any Git:
+/// the commit fails with a message and ends,
+///  and the next command,
+/// once the limit is gone,
+/// succeeds.
 #[test]
 fn a_wrapper_at_its_process_limit_fails_plainly_and_leaves_a_recoverable_repository() {
     if !process_limit_bites() {
@@ -346,8 +426,12 @@ fn a_wrapper_at_its_process_limit_fails_plainly_and_leaves_a_recoverable_reposit
     assert!(!case.landed, "the wrapper could start no process, so the commit cannot have landed through it");
 }
 
-/// An address space of each size on the wrapper, from the smallest under which a commit lands downward (sizes in mebibytes): a failed allocation ends
-///  a Rust program with an abort, whatever it was doing, and the repository recovers after each.
+/// An address space of each size on the wrapper,
+/// from the smallest under which a commit lands downward (sizes in mebibytes):
+/// a failed allocation ends
+///  a Rust program with an abort,
+/// whatever it was doing,
+/// and the repository recovers after each.
 #[test]
 fn a_memory_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_repository() {
     let lands_at: u64 = smallest_working(1, MOST_MEBIBYTES, &|value| { return lands_with("as-wrapper", value, wrapper_memory); });
@@ -357,7 +441,8 @@ fn a_memory_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_reposi
     assert!(landed > 0, "no address-space limit let the commit land, so none was close to exhaustion");
 }
 
-/// An address space of each size on the commit service, from the smallest under which it starts up to the smallest under which a
+/// An address space of each size on the commit service,
+/// from the smallest under which it starts up to the smallest under which a
 ///  commit lands.
 #[test]
 fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository() {
@@ -369,16 +454,22 @@ fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_reposi
     assert!(landed > 0, "no address-space limit let the commit land, so none was close to exhaustion");
 }
 
-/// How many times the service is started under a limit it cannot run under, for the test that it is never counted as starting.
+/// How many times the service is started under a limit it cannot run under,
+/// for the test that it is never counted as starting.
 const BAND_STARTS: usize = 100;
 
 /// What:
 ///  A limit under which the service binds its socket but cannot start its acceptor is never counted as one under which it
-///  starts, even when the poll and the service share one processor.
+///  starts,
+/// even when the poll and the service share one processor.
 /// Why:
-///   The service listens for about a millisecond before it exits there. On one processor the poll lands in that moment
-///  often (a few starts in a hundred on the measured host, none on an idle many-processor host), so a probe that counted a
-///  connection as starting began the sweep below the working limits on a loaded host, and the fixture then waited a minute
+///   The service listens for about a millisecond before it exits there.
+/// On one processor the poll lands in that moment
+///  often (a few starts in a hundred on the measured host,
+/// none on an idle many-processor host),
+/// so a probe that counted a
+///  connection as starting began the sweep below the working limits on a loaded host,
+/// and the fixture then waited a minute
 ///  for each service that had already ended.
 #[test]
 fn a_limit_that_lets_the_service_bind_but_not_run_is_never_counted_as_starting() {
@@ -401,9 +492,16 @@ fn a_limit_that_lets_the_service_bind_but_not_run_is_never_counted_as_starting()
     }
 }
 
-/// The wrapper, the service and every Git they start share one processor, as on a host with no other free capacity: the commit
-///  lands, the next one lands, and nothing is left behind. The processes then wait for each other instead of running side by
-///  side, which is where an assumption about timing between them shows.
+/// The wrapper,
+/// the service and every Git they start share one processor,
+/// as on a host with no other free capacity:
+/// the commit
+///  lands,
+/// the next one lands,
+/// and nothing is left behind.
+/// The processes then wait for each other instead of running side by
+///  side,
+/// which is where an assumption about timing between them shows.
 #[test]
 fn a_commit_on_a_single_processor_lands_and_leaves_nothing() {
     let fixture: Fixture = fixture("single-cpu");

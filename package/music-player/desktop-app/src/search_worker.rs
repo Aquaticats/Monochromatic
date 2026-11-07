@@ -1,8 +1,17 @@
-//! Search worker threads: the query worker, the warm-up thread and what they share.
+//! Search worker threads:
+//! the query worker,
+//! the warm-up thread and what they share.
 //!
-//! What: `Shared` holds the index lock, the generation and the queues; `work` answers the newest query and re-answers
-//! it after appends; `warm` refreshes single-character answers once the library is quiet.
-//! Why: see `search_service.rs`; this file is the thread side of that service, split out to keep each file short.
+//! What:
+//! `Shared` holds the index lock,
+//! the generation and the queues;
+//! `work` answers the newest query and re-answers
+//! it after appends;
+//! `warm` refreshes single-character answers once the library is quiet.
+//! Why:
+//! see `search_service.rs`;
+//! this file is the thread side of that service,
+//! split out to keep each file short.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,7 +32,8 @@ use crate::search_results::SearchState;
 ///      `pub const WRITE_POLL: Duration`.
 ///  How long the appender sleeps between attempts to take the write lock.
 /// Why:
-///       Polling with `try_write` lets readers keep entering while a long ranking runs, which a blocked `write`
+///       Polling with `try_write` lets readers keep entering while a long ranking runs,
+/// which a blocked `write`
 ///  would prevent on platforms whose locks prefer a waiting writer.
 pub const WRITE_POLL: Duration = Duration::from_micros(200);
 
@@ -31,29 +41,34 @@ pub const WRITE_POLL: Duration = Duration::from_micros(200);
 ///      `pub const WRITE_PATIENCE: Duration`.
 ///  How long the appender polls before it waits for the lock.
 /// Why:
-///       Polling must end, or a stream of readers could starve the appender and the scan would never finish.
+///       Polling must end,
+/// or a stream of readers could starve the appender and the scan would never finish.
 pub const WRITE_PATIENCE: Duration = Duration::from_millis(50);
 
 /// What:
 ///      `pub const REFRESH_INTERVAL: Duration`.
 ///  The fewest time between two refresh answers.
 /// Why:
-///       A scan appends many batches per second; re-answering after each one would only repaint the same rows.
+///       A scan appends many batches per second;
+/// re-answering after each one would only repaint the same rows.
 pub const REFRESH_INTERVAL: Duration = Duration::from_millis(120);
 
 /// What:
 ///      `pub const WARM_DELAY: Duration`.
 ///  How long the worker sits idle before it refreshes single-character answers.
 /// Why:
-///       Warming holds the read lock for a ranking, so it waits until the user has stopped typing.
+///       Warming holds the read lock for a ranking,
+/// so it waits until the user has stopped typing.
 pub const WARM_DELAY: Duration = Duration::from_millis(250);
 
 /// What:
 ///      `pub struct SearchAnswer`.
 ///  One answer delivered to the window.
 /// Why:
-///       The window needs the sequence to drop answers to an older query, the refresh flag to choose between
-///  replacing the list and updating it in place, and the completeness flag because a partial scan cannot
+///       The window needs the sequence to drop answers to an older query,
+/// the refresh flag to choose between
+///  replacing the list and updating it in place,
+/// and the completeness flag because a partial scan cannot
 ///  establish "no match" (D69).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SearchAnswer {
@@ -75,7 +90,8 @@ pub struct SearchAnswer {
 ///      `enum Request`.
 ///  Messages to the worker.
 /// Why:
-///       Queries, refresh signals and stop all arrive on one queue so the worker can coalesce them.
+///       Queries,
+/// refresh signals and stop all arrive on one queue so the worker can coalesce them.
 pub(crate) enum Request {
     /// A new query with its sequence number.
     Query(u64, String),
@@ -87,11 +103,14 @@ pub(crate) enum Request {
 
 /// What:
 ///      `struct Shared`.
-///  State shared by the service handle, the worker and feeder threads.
+///  State shared by the service handle,
+/// the worker and feeder threads.
 /// Why:
-///       Everything that crosses threads is here, behind `Arc`.
+///       Everything that crosses threads is here,
+/// behind `Arc`.
 pub(crate) struct Shared {
-    /// The index; replaced when a new library starts.
+    /// The index;
+    /// replaced when a new library starts.
     pub(crate) index: RwLock<SearchIndex>,
     /// Serializes appenders so batch positions stay contiguous.
     pub(crate) append_order: Mutex<()>,
@@ -103,7 +122,8 @@ pub(crate) struct Shared {
     pub(crate) requests: Sender<Request>,
     /// Queue to the warmer.
     pub(crate) warm_signals: Sender<Request>,
-    /// Number of the newest library feed; an older feeder stops when it sees a larger number.
+    /// Number of the newest library feed;
+    /// an older feeder stops when it sees a larger number.
     pub(crate) feed_epoch: AtomicU64,
     /// Queue to the stream thread.
     pub(crate) stream: Sender<crate::search_stream::StreamRequest>,
@@ -111,8 +131,11 @@ pub(crate) struct Shared {
 
 /// Methods of `Shared`.
 impl Shared {
-    /// What: `signal_grew` tells the worker to re-answer and the warmer to start its quiet wait.
-    /// Why: both react to every append, reset and finish.
+    /// What:
+    /// `signal_grew` tells the worker to re-answer and the warmer to start its quiet wait.
+    /// Why:
+    /// both react to every append,
+    /// reset and finish.
     pub(crate) fn signal_grew(&self) {
         let _refresh = self.requests.send(Request::Refresh);
         let _warm = self.warm_signals.send(Request::Refresh);
@@ -121,9 +144,11 @@ impl Shared {
 
 /// What:
 ///      `pub(crate) fn read_index(shared: &Shared) -> RwLockReadGuard<'_, SearchIndex>`.
-///  Takes the read lock, ignoring poisoning.
+///  Takes the read lock,
+/// ignoring poisoning.
 /// Why:
-///       The index is append-only, so a panic in another thread leaves it consistent.
+///       The index is append-only,
+/// so a panic in another thread leaves it consistent.
 pub(crate) fn read_index(shared: &Shared) -> RwLockReadGuard<'_, SearchIndex> {
     return shared.index.read().unwrap_or_else(PoisonError::into_inner);
 }
@@ -184,9 +209,13 @@ fn warm_one(shared: &Shared) -> bool {
 
 /// What:
 ///      `fn work(shared: Arc<Shared>, requests: Receiver<Request>, deliver: Box<dyn Fn(SearchAnswer) + Send>)`.
-///  The query worker: coalesces requests, answers the latest query, and throttles refreshes.
+///  The query worker:
+/// coalesces requests,
+/// answers the latest query,
+/// and throttles refreshes.
 /// Why:
-///       Search must run off the window thread, and only the newest query matters.
+///       Search must run off the window thread,
+/// and only the newest query matters.
 pub(crate) fn work(shared: Arc<Shared>, requests: Receiver<Request>, deliver: Box<dyn Fn(SearchAnswer) + Send>) {
     let mut current: Option<(u64, String)> = None;
     let mut refresh_due: Option<Instant> = None;
@@ -237,9 +266,12 @@ pub(crate) fn work(shared: Arc<Shared>, requests: Receiver<Request>, deliver: Bo
 
 /// What:
 ///      `fn warm(shared: Arc<Shared>, signals: Receiver<Request>)`.
-///  The warmer: after the library has been quiet for `WARM_DELAY`, refreshes every stale single-character answer.
+///  The warmer:
+/// after the library has been quiet for `WARM_DELAY`,
+/// refreshes every stale single-character answer.
 /// Why:
-///       Doing it on its own thread means a keystroke never waits for a warm-up ranking, and read locks are shared.
+///       Doing it on its own thread means a keystroke never waits for a warm-up ranking,
+/// and read locks are shared.
 pub(crate) fn warm(shared: Arc<Shared>, signals: Receiver<Request>) {
     let mut pending: bool = false;
     loop {

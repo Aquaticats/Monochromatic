@@ -1,9 +1,19 @@
 //! What:
-//!  How one reference lock is judged: too new, held, stale on a proof, or unproven.
+//!  How one reference lock is judged:
+//! too new,
+//! held,
+//! stale on a proof,
+//! or unproven.
 //! Why:
-//!  Git writes no holder into a lock, so only a few facts prove a holder gone; everything else is left alone. The order of
-//!  the checks and the reason for each are in `SPEC.md`, "Reference locks left by a Git that was killed". A time stamp is not
-//!  among the proofs: a correction of the wall clock moves every time that a lock and the boot are compared by (finding S-2 of
+//!  Git writes no holder into a lock,
+//! so only a few facts prove a holder gone;
+//! everything else is left alone.
+//! The order of
+//!  the checks and the reason for each are in `SPEC.md`,
+//! "Reference locks left by a Git that was killed".
+//! A time stamp is not
+//!  among the proofs:
+//! a correction of the wall clock moves every time that a lock and the boot are compared by (finding S-2 of
 //!  the cross-vendor review of 2026-11-03T11:33:50-05:00).
 //!
 //! In TS you'd write (pseudocode):
@@ -23,28 +33,60 @@ pub use crate::stale_ref_lock_identity::{Identity, identity_of};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-/// The longest step of a landing that updates a reference, in a live service: 3,438 ms, the largest `ref_ms` of 1,302 `answered`
-///  entries of the service journal (`journalctl --user SYSLOG_IDENTIFIER=cli-git-service`, 2026-11-02T09:01:38Z to
-///  2026-11-03T15:11:58Z; 1 entry above 2,000 ms and 2 at or above 1,000 ms; median 2 ms, 99th percentile 64 ms). The step starts
-///  Git, takes the reference lock, fills it and renames it, so a lock a live Git holds is gone within it. Real Git on a
-///  throwaway repository, traced with `strace`, held a lock for at most 2.8 ms (7,700 updates, load average 3 to 14), so this
-///  is the loaded tail, not the common case.
+/// The longest step of a landing that updates a reference,
+/// in a live service:
+/// 3,438 ms,
+/// the largest `ref_ms` of 1,302 `answered`
+///  entries of the service journal (`journalctl --user SYSLOG_IDENTIFIER=cli-git-service`,
+/// 2026-11-02T09:01:38Z to
+///  2026-11-03T15:11:58Z;
+/// 1 entry above 2,000 ms and 2 at or above 1,000 ms;
+/// median 2 ms,
+/// 99th percentile 64 ms).
+/// The step starts
+///  Git,
+/// takes the reference lock,
+/// fills it and renames it,
+/// so a lock a live Git holds is gone within it.
+/// Real Git on a
+///  throwaway repository,
+/// traced with `strace`,
+/// held a lock for at most 2.8 ms (7,700 updates,
+/// load average 3 to 14),
+/// so this
+///  is the loaded tail,
+/// not the common case.
 pub const LONGEST_LIVE_REF_STEP: Duration = Duration::from_millis(3438);
 
-/// How many times the longest live reference step the margin allows: twice, because the longest of a sample understates the
-///  tail (one entry of 1,302 reached 3,438 ms, so the next sample may reach more). Option B of the question on the margin, "twice
-///  the sample maximum, seven seconds", picked by the coordinator under the owner's delegation, open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups").
+/// How many times the longest live reference step the margin allows:
+/// twice,
+/// because the longest of a sample understates the
+///  tail (one entry of 1,302 reached 3,438 ms,
+/// so the next sample may reach more).
+/// Option B of the question on the margin,
+/// "twice
+///  the sample maximum,
+/// seven seconds",
+/// picked by the coordinator under the owner's delegation,
+/// open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Picked for these follow-ups").
 pub const MARGIN_MULTIPLE: u64 = 2;
 
-/// How old a lock must be before it is judged: long enough for a live Git to have filled and renamed a lock it just made. The
-///  whole seconds at or above `MARGIN_MULTIPLE` times the longest step measured in `LONGEST_LIVE_REF_STEP` (6.876 s, so 7 s),
-///  because a lock younger than the longest live hold may still be live. A stale lock is left that long before it is cleared,
-///  which is a few seconds of a failing update, against a live lock removed (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// How old a lock must be before it is judged:
+/// long enough for a live Git to have filled and renamed a lock it just made.
+/// The
+///  whole seconds at or above `MARGIN_MULTIPLE` times the longest step measured in `LONGEST_LIVE_REF_STEP` (6.876 s,
+/// so 7 s),
+///  because a lock younger than the longest live hold may still be live.
+/// A stale lock is left that long before it is cleared,
+///  which is a few seconds of a failing update,
+/// against a live lock removed (`doc/planning/cli-git-shipped-limits-audit.md`,
 ///  "Margins for removing left-behind locks").
 pub const MARGIN: Duration = Duration::from_secs((LONGEST_LIVE_REF_STEP.as_millis() as u64 * MARGIN_MULTIPLE).div_ceil(1000));
 
-/// The kernel's name for the initial PID namespace, where every process of the machine has the number it is seen by.
+/// The kernel's name for the initial PID namespace,
+/// where every process of the machine has the number it is seen by.
 const INITIAL_PID_NAMESPACE: &str = "pid:[4026531836]";
 
 /// The mount point of the process table the judge reads.
@@ -56,26 +98,48 @@ const HIDEPID_OPTION: &str = "hidepid=";
 /// The values of `hidepid` that hide nothing.
 const HIDEPID_OFF: [&str; 2] = ["0", "off"];
 
-/// The file system types a lock may sit on: disks and memory of this machine. A network or user-space file system can be
-///  written by a Git on another machine, whose process numbers mean nothing here.
+/// The file system types a lock may sit on:
+/// disks and memory of this machine.
+/// A network or user-space file system can be
+///  written by a Git on another machine,
+/// whose process numbers mean nothing here.
 const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
 
-/// How far a file's birth may precede the clock reading taken before a child started, for the file to count as born after
-///  the child started. The kernel stamps files from a coarse clock that lags the one `SystemTime` reads by up to one tick.
-///  Measured on this host (`CONFIG_HZ=1000`, so a tick is 1 ms): a new file's birth time lagged a clock read taken just before
-///  the create by at most 1.684 ms and 1.729 ms in two runs of 10,000 creates each, so 50 ms is about thirty times the
-///  longest lag. Kept; recorded in `doc/planning/cli-git-shipped-limits-audit.md`, "Margins for removing left-behind locks"
-///  (the coordinator's pick under the owner's delegation, open to the owner's veto).
+/// How far a file's birth may precede the clock reading taken before a child started,
+/// for the file to count as born after
+///  the child started.
+/// The kernel stamps files from a coarse clock that lags the one `SystemTime` reads by up to one tick.
+///  Measured on this host (`CONFIG_HZ=1000`,
+/// so a tick is 1 ms):
+/// a new file's birth time lagged a clock read taken just before
+///  the create by at most 1.684 ms and 1.729 ms in two runs of 10,000 creates each,
+/// so 50 ms is about thirty times the
+///  longest lag.
+/// Kept;
+/// recorded in `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Margins for removing left-behind locks"
+///  (the coordinator's pick under the owner's delegation,
+/// open to the owner's veto).
 pub const COARSE_CLOCK_SLACK: Duration = Duration::from_millis(50);
 
-/// How far after the lock's birth a process must have started to count as a later user of the same number, beyond the
-///  clock's resolution. Measured: the start time derived from `/proc/<pid>/stat`, `/proc/uptime` and the clock read together
-///  exceeded the clock read just before the process was spawned by at most 2.331 ms and 2.329 ms in two runs of 1,000 spawns, so
-///  100 ms is over forty times the longest error beyond the 20 ms resolution. Kept; the coordinator's pick under the owner's
-///  delegation, open to the owner's veto.
+/// How far after the lock's birth a process must have started to count as a later user of the same number,
+/// beyond the
+///  clock's resolution.
+/// Measured:
+/// the start time derived from `/proc/<pid>/stat`,
+/// `/proc/uptime` and the clock read together
+///  exceeded the clock read just before the process was spawned by at most 2.331 ms and 2.329 ms in two runs of 1,000 spawns,
+/// so
+///  100 ms is over forty times the longest error beyond the 20 ms resolution.
+/// Kept;
+/// the coordinator's pick under the owner's
+///  delegation,
+/// open to the owner's veto.
 const REUSE_SLACK_MS: f64 = 100.0;
 
-/// The command name of Git, and of its helpers (`git-remote-https`), as the kernel reports it.
+/// The command name of Git,
+/// and of its helpers (`git-remote-https`),
+/// as the kernel reports it.
 const GIT_COMMAND_PREFIX: &str = "git";
 
 /// Why a lock may be removed.
@@ -90,29 +154,42 @@ pub enum Proof {
         /// The command name of the process that has it now.
         command: String,
     },
-    /// The staging file `packed-refs.new` has no lock beside it, and Git creates it only while holding that lock.
+    /// The staging file `packed-refs.new` has no lock beside it,
+    /// and Git creates it only while holding that lock.
     OrphanStaging,
 }
 
 /// What a judgement concluded.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Verdict {
-    /// Younger than the margin, or not a regular file: left, and not mentioned.
+    /// Younger than the margin,
+    /// or not a regular file:
+    /// left,
+    /// and not mentioned.
     TooNew,
-    /// A running process holds it; the text names the process and how that is known.
+    /// A running process holds it;
+    /// the text names the process and how that is known.
     Held(String),
-    /// Nothing proves the holder gone; the text says why.
+    /// Nothing proves the holder gone;
+    /// the text says why.
     Unproven(String),
-    /// Removable, on this proof.
+    /// Removable,
+    /// on this proof.
     Stale(Proof),
 }
 
 /// What:
-///  The processes the wrapper itself started, stopped and saw end, and when the first of them started.
+///  The processes the wrapper itself started,
+/// stopped and saw end,
+/// and when the first of them started.
 /// Why:
-///   A pid file that such a process wrote holds a number of the wrapper's own PID namespace, whatever view of the machine the
-///  judge has (a container has a view of its own), and the wrapper knows the process is gone. This is the one proof that
-///  needs no inference about namespaces, and it covers only locks born after the child started.
+///   A pid file that such a process wrote holds a number of the wrapper's own PID namespace,
+/// whatever view of the machine the
+///  judge has (a container has a view of its own),
+/// and the wrapper knows the process is gone.
+/// This is the one proof that
+///  needs no inference about namespaces,
+/// and it covers only locks born after the child started.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -126,7 +203,8 @@ pub struct OwnEnded {
     pub since: SystemTime,
 }
 
-/// The evidence a judgement may use, and the limits of what it can see.
+/// The evidence a judgement may use,
+/// and the limits of what it can see.
 #[derive(Clone, Debug)]
 pub struct Judge {
     /// The process table.
@@ -135,12 +213,16 @@ pub struct Judge {
     pub margin: Duration,
     /// Whether the process numbers read here mean the same processes as in the pid files.
     pub pid_view_complete: bool,
-    /// When the machine booted by the wall clock, where known. Used only to say that a lock looks older than the boot,
-    ///  never as a proof: a correction of the clock moves it.
+    /// When the machine booted by the wall clock,
+    /// where known.
+    /// Used only to say that a lock looks older than the boot,
+    ///  never as a proof:
+    /// a correction of the clock moves it.
     pub boot: Option<SystemTime>,
     /// The file system types a lock may sit on.
     pub local_file_systems: Vec<String>,
-    /// The ended processes of a child this wrapper stopped, where the judgement follows a stop.
+    /// The ended processes of a child this wrapper stopped,
+    /// where the judgement follows a stop.
     pub own_ended: Option<OwnEnded>,
 }
 
@@ -153,12 +235,16 @@ pub struct Examined {
     pub pid_file: PidFile,
     /// The lock's identity when it was judged.
     pub identity: Identity,
-    /// When the lock was born, where known.
+    /// When the lock was born,
+    /// where known.
     pub born: Option<SystemTime>,
 }
 
 impl Judge {
-    /// The judge of this process: the real process table, the real boot time, and a complete view of the process numbers
+    /// The judge of this process:
+    /// the real process table,
+    /// the real boot time,
+    /// and a complete view of the process numbers
     ///  only where this process runs in the initial PID namespace and its process table hides no process.
     pub fn here() -> Self {
         let mut local_file_systems: Vec<String> = Vec::new();
@@ -175,7 +261,8 @@ impl Judge {
         };
     }
 
-    /// Whether the file system holding `path` is on the local list; the reason when it is not or cannot be told.
+    /// Whether the file system holding `path` is on the local list;
+    /// the reason when it is not or cannot be told.
     fn local_check(&self, path: &Path) -> Result<(), String> {
         let facts = read_mount_facts(path)?;
         let Some(mount) = facts else {
@@ -187,7 +274,8 @@ impl Judge {
         return Err(format!("it sits on a `{}` file system, which a Git on another machine may share", mount.filesystem_type));
     }
 
-    /// The pid file beside `lock`, as evidence about this lock's holder.
+    /// The pid file beside `lock`,
+    /// as evidence about this lock's holder.
     fn pid_file_state(lock: &Path, lock_born: Option<SystemTime>) -> PidFile {
         let pid_path: PathBuf = pid_file_beside(lock);
         let Some(pid) = pid_named_by(pid_path.as_path()) else {
@@ -204,9 +292,14 @@ impl Judge {
         };
     }
 
-    /// What the pid file's process is now: gone, a program that is not Git, a Git, or not known.
+    /// What the pid file's process is now:
+    /// gone,
+    /// a program that is not Git,
+    /// a Git,
+    /// or not known.
     ///  A number that is gone or reused here proves the writer gone only when no process of the table has that number
-    ///  inside a PID namespace of its own, because the pid file holds the number its writer had in the writer's namespace.
+    ///  inside a PID namespace of its own,
+    /// because the pid file holds the number its writer had in the writer's namespace.
     fn judge_pid(&self, pid: i64, lock_born: Option<SystemTime>) -> Verdict {
         if !self.pid_view_complete {
             if self.names_ended_own_child(pid, lock_born) {
@@ -232,8 +325,11 @@ impl Judge {
         };
     }
 
-    /// Whether the pid file names a process of the tree this wrapper stopped and saw end, and the lock was born after that
-    ///  child started: then the number is the wrapper's own namespace's, and it was the child's.
+    /// Whether the pid file names a process of the tree this wrapper stopped and saw end,
+    /// and the lock was born after that
+    ///  child started:
+    /// then the number is the wrapper's own namespace's,
+    /// and it was the child's.
     fn names_ended_own_child(&self, pid: i64, lock_born: Option<SystemTime>) -> bool {
         let Some(own) = self.own_ended.as_ref() else {
             return false;
@@ -247,8 +343,11 @@ impl Judge {
         };
     }
 
-    /// The verdict for a number of a process this wrapper saw end, when the table is not known to be the machine's: it is
-    ///  gone if the table shows nothing with that number now, and anything running with it is left alone.
+    /// The verdict for a number of a process this wrapper saw end,
+    /// when the table is not known to be the machine's:
+    /// it is
+    ///  gone if the table shows nothing with that number now,
+    /// and anything running with it is left alone.
     fn judge_own_ended_pid(&self, pid: i64) -> Verdict {
         return match linux_start(pid, self.proc_root.as_path(), now_ms()) {
             ProcessStart::Missing => Verdict::Stale(Proof::PidGone(pid)),
@@ -257,7 +356,11 @@ impl Judge {
         };
     }
 
-    /// What the pid file's process is in the process table as listed: gone, a program that is not Git, a Git, or not known.
+    /// What the pid file's process is in the process table as listed:
+    /// gone,
+    /// a program that is not Git,
+    /// a Git,
+    /// or not known.
     fn judge_listed_pid(&self, pid: i64, lock_born: Option<SystemTime>) -> Verdict {
         return match linux_start(pid, self.proc_root.as_path(), now_ms()) {
             ProcessStart::Missing => Verdict::Stale(Proof::PidGone(pid)),
@@ -289,8 +392,11 @@ impl Judge {
         };
     }
 
-    /// Whether the lock looks older than the boot by the wall clock. Only words the notice: a forward correction of the clock
-    ///  during the boot makes a lock that a live Git holds look older than the boot, so no lock is removed on it.
+    /// Whether the lock looks older than the boot by the wall clock.
+    /// Only words the notice:
+    /// a forward correction of the clock
+    ///  during the boot makes a lock that a live Git holds look older than the boot,
+    /// so no lock is removed on it.
     fn looks_older_than_boot(&self, born: Option<SystemTime>, identity: &Identity) -> bool {
         let Some(boot) = self.boot else {
             return false;
@@ -303,7 +409,11 @@ impl Judge {
     }
 
     /// The first process of this account that the scan could not look into and that is a Git (or whose name cannot be read
-    ///  back): a program that is not Git, such as the user's service manager, cannot hold a Git lock. The reason text of the
+    ///  back):
+    /// a program that is not Git,
+    /// such as the user's service manager,
+    /// cannot hold a Git lock.
+    /// The reason text of the
     ///  scan starts `PID <number>`.
     fn unreadable_git(&self, scan: &UseScan) -> Option<String> {
         for reason in &scan.unreadable {
@@ -324,8 +434,13 @@ impl Judge {
         return None;
     }
 
-    /// Judge the staging file `packed-refs.new` at `staging`, which has no lock beside it: old enough, on a local disk, and
-    ///  open in no process. The caller has checked that the lock is absent.
+    /// Judge the staging file `packed-refs.new` at `staging`,
+    /// which has no lock beside it:
+    /// old enough,
+    /// on a local disk,
+    /// and
+    ///  open in no process.
+    /// The caller has checked that the lock is absent.
     pub fn examine_staging(&self, staging: &Path) -> Option<Examined> {
         let identity: Identity = identity_of(staging)?;
         let born: Option<SystemTime> = std::fs::symlink_metadata(staging).ok()?.created().ok();
@@ -346,7 +461,8 @@ impl Judge {
         return verdict_with(Verdict::Stale(Proof::OrphanStaging), PidFile::Absent, identity, born);
     }
 
-    /// Judge the lock at `lock`; nothing when it is not a regular file any more.
+    /// Judge the lock at `lock`;
+    /// nothing when it is not a regular file any more.
     pub fn examine(&self, lock: &Path) -> Option<Examined> {
         let identity: Identity = identity_of(lock)?;
         let metadata: std::fs::Metadata = std::fs::symlink_metadata(lock).ok()?;
@@ -389,8 +505,12 @@ impl Judge {
     }
 }
 
-/// Whether the mount of `/proc` shows this account every process: it has no `hidepid` option, or one that hides nothing.
-///  A table that hides processes lists fewer than exist, so a number missing from it is no proof. Where the mount cannot be
+/// Whether the mount of `/proc` shows this account every process:
+/// it has no `hidepid` option,
+/// or one that hides nothing.
+///  A table that hides processes lists fewer than exist,
+/// so a number missing from it is no proof.
+/// Where the mount cannot be
 ///  read the answer is no.
 fn proc_hides_no_process() -> bool {
     let Ok(Some(mount)) = read_mount_facts(Path::new(PROC_MOUNT_POINT)) else {
@@ -415,7 +535,8 @@ fn newest_time(born: Option<SystemTime>, identity: &Identity) -> SystemTime {
     };
 }
 
-/// The result of judging one file: the verdict with the facts gathered on the way.
+/// The result of judging one file:
+/// the verdict with the facts gathered on the way.
 fn verdict_with(verdict: Verdict, pid_file: PidFile, identity: Identity, born: Option<SystemTime>) -> Option<Examined> {
     return Some(Examined { verdict, pid_file, identity, born });
 }
@@ -426,7 +547,9 @@ fn nanoseconds_to_time(nanoseconds: i128) -> SystemTime {
     return if nanoseconds >= 0 { SystemTime::UNIX_EPOCH + Duration::from_nanos(magnitude) } else { SystemTime::UNIX_EPOCH - Duration::from_nanos(magnitude) };
 }
 
-/// When the machine booted: the `btime` line of `/proc/stat`, in whole seconds since the epoch.
+/// When the machine booted:
+/// the `btime` line of `/proc/stat`,
+/// in whole seconds since the epoch.
 fn boot_time() -> Option<SystemTime> {
     let text: String = std::fs::read_to_string("/proc/stat").ok()?;
     for line in text.lines() {

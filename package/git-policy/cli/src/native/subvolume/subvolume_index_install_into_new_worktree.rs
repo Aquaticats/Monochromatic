@@ -1,10 +1,16 @@
 //! What:
-//!  The install of a first index into a new worktree: written into `index.lock`, linked under the name `index` without
-//!  replacing anything, and the lock released only if the name still holds the file made here.
+//!  The install of a first index into a new worktree:
+//! written into `index.lock`,
+//! linked under the name `index` without
+//!  replacing anything,
+//! and the lock released only if the name still holds the file made here.
 //! Why:
-//!  The index of a new worktree must never be written in place and never replace one that exists; the steps and their
-//!  reasons are on `install_index_in`. The code sits in a file of its own so `subvolume_index_files.rs` stays under the
-//!  line limit, and it uses nothing from that file (that file re-exports it).
+//!  The index of a new worktree must never be written in place and never replace one that exists;
+//! the steps and their
+//!  reasons are on `install_index_in`.
+//! The code sits in a file of its own so `subvolume_index_files.rs` stays under the
+//!  line limit,
+//! and it uses nothing from that file (that file re-exports it).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,18 +21,30 @@ use crate::subvolume_file_write_steps::write_all_then_sync;
 use crate::subvolume_index::{AcceptEveryStat, IndexOutcome, RewriteContext, StatLookup, rewrite_index_stat_with};
 use std::ffi::OsStr;
 
-/// The call the install makes at a seam when no control wants one: none.
+/// The call the install makes at a seam when no control wants one:
+/// none.
 fn do_nothing() {}
 
 /// What:
-///  Install `seed` as the index of the new worktree whose administrative directory is the open handle `admin`, with the stat
-///  fields of `stats` for the entries it knows, and nothing for the others.
+///  Install `seed` as the index of the new worktree whose administrative directory is the open handle `admin`,
+/// with the stat
+///  fields of `stats` for the entries it knows,
+/// and nothing for the others.
 /// Why:
-///   The index of a new worktree must never be written in place and never replace one that exists: `index.lock` is created
-///  first (exclusively), the absence of an index is checked under it, the finished index is written into the lock, and
-///  that open file is linked under the name of the index without replacing anything; the lock name is released afterwards
-///  only if it still holds that file, because once it is released it is another Git process's to take. The stat fields come from the objects the caller made, so an entry whose file was
-///  replaced afterwards no longer matches its inode and Git hashes it. Everything is done through the handle.
+///   The index of a new worktree must never be written in place and never replace one that exists:
+/// `index.lock` is created
+///  first (exclusively),
+/// the absence of an index is checked under it,
+/// the finished index is written into the lock,
+/// and
+///  that open file is linked under the name of the index without replacing anything;
+/// the lock name is released afterwards
+///  only if it still holds that file,
+/// because once it is released it is another Git process's to take.
+/// The stat fields come from the objects the caller made,
+/// so an entry whose file was
+///  replaced afterwards no longer matches its inode and Git hashes it.
+/// Everything is done through the handle.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -85,7 +103,9 @@ pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn
     return Ok(format!("{updated} of {total} entries refreshed"));
 }
 
-/// Before the publication the lock is ours to remove, but only if the name still holds the file made here; the error is `reason`.
+/// Before the publication the lock is ours to remove,
+/// but only if the name still holds the file made here;
+/// the error is `reason`.
 fn give_up(admin: &std::fs::File, lock: &OsStr, ours: crate::fs_beneath::ObjectId, reason: String) -> Result<String, String> {
     let _kept = crate::fs_beneath::remove_if_identical(admin, lock, ours);
     return Err(reason);

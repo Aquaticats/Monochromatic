@@ -1,10 +1,16 @@
 //! What:
 //! Rounds 7 and 8 tests of what a journal records about containment and what a recovery and an admission do with it:
-//! the weaker path and its acknowledgement, the capability classes, the views of amended assumption c, the record before the start,
+//! the weaker path and its acknowledgement,
+//! the capability classes,
+//! the views of amended assumption c,
+//! the record before the start,
 //! and the windows of a wrapper that is killed during a start.
 //! Why:
 //! The contract (`doc/planning/cargo-shadow-guarantees.md`) says what each of these promises;
-//! the acceptance rows "V2, amended c", "V3, V4" and "Weaker path" are shown here.
+//! the acceptance rows "V2,
+//! amended c",
+//! "V3,
+//! V4" and "Weaker path" are shown here.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -59,7 +65,8 @@ fn bound() -> Bound {
     return Bound { limit: Duration::from_secs(20), what: "the contained command".to_string(), rerun: "contained-command".to_string() };
 }
 
-/// A judge that refuses the live lockfile, so that a recovery which goes ahead restores the snapshot.
+/// A judge that refuses the live lockfile,
+/// so that a recovery which goes ahead restores the snapshot.
 fn refusing(_before: &[LockSnapshot], _live: &[LockSnapshot]) -> Vec<String> {
     return vec!["dep@1.0.1 refused".to_string()];
 }
@@ -77,7 +84,8 @@ fn journal_with_records(root: &Path, records: &str) -> PathBuf {
     return journal;
 }
 
-/// The settings of the host classes that lack a capability, with the words the reason must hold.
+/// The settings of the host classes that lack a capability,
+/// with the words the reason must hold.
 fn missing_capability_classes(plain: &Path) -> Vec<(&'static str, RouteSettings, &'static str)> {
     return vec![
         ("no systemd-run", RouteSettings { systemd_run: "cargo-shadow-no-such-program".to_string(), ..RouteSettings::default() }, "is not installed"),
@@ -149,8 +157,10 @@ const FIXTURE_CLASS: &str = "CARGO_SHADOW_NOTICE_FIXTURE_CLASS";
 /// The environment variable that gives the notice helper process a directory that is not a cgroup mount.
 const FIXTURE_PLAIN: &str = "CARGO_SHADOW_NOTICE_FIXTURE_PLAIN";
 
-/// The helper process of the notice test: it runs one bounded command under the settings of one capability class and exits.
-/// A fresh process per class, because the notice is given once per process.
+/// The helper process of the notice test:
+/// it runs one bounded command under the settings of one capability class and exits.
+/// A fresh process per class,
+/// because the notice is given once per process.
 /// Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of each_missing_capability_class_prints_the_notice_on_the_real_standard_error"]
@@ -164,9 +174,15 @@ fn weaker_notice_fixture() {
     output_within(Command::new("sh").args(["-c", "echo ok"]), None, &bound()).expect("the command runs on the weaker path");
 }
 
-/// Acceptance row "Weaker path" (certification, third pass): the notice reaches the real standard error of the run, once, as one line
-/// with the reason of the class, for every missing-capability class including the manager group without `cgroup.kill`.
-/// Each class runs in a fresh process whose standard error is captured; the trace of the other test shows which notice a run selects,
+/// Acceptance row "Weaker path" (certification,
+/// third pass):
+/// the notice reaches the real standard error of the run,
+/// once,
+/// as one line
+/// with the reason of the class,
+/// for every missing-capability class including the manager group without `cgroup.kill`.
+/// Each class runs in a fresh process whose standard error is captured;
+/// the trace of the other test shows which notice a run selects,
 /// this shows that it is printed (a test that removed the printing and kept the trace would pass that one).
 #[test]
 fn each_missing_capability_class_prints_the_notice_on_the_real_standard_error() {
@@ -191,9 +207,15 @@ fn each_missing_capability_class_prints_the_notice_on_the_real_standard_error() 
     }
 }
 
-/// Acceptance row "Weaker path" (certification, third pass): an acknowledgement that cannot be read is not an acknowledgement.
-/// The marker is a directory, so opening it succeeds and reading it fails on every system and for every user; the real recovery and the
-/// real admission both stay blocked, the journal stays and nothing is restored; a real acknowledgement in its place (the control)
+/// Acceptance row "Weaker path" (certification,
+/// third pass):
+/// an acknowledgement that cannot be read is not an acknowledgement.
+/// The marker is a directory,
+/// so opening it succeeds and reading it fails on every system and for every user;
+/// the real recovery and the
+/// real admission both stay blocked,
+/// the journal stays and nothing is restored;
+/// a real acknowledgement in its place (the control)
 /// lets the recovery go on.
 #[test]
 fn an_unreadable_acknowledgement_does_not_count_for_the_recovery_or_the_admission() {
@@ -263,10 +285,15 @@ fn the_weaker_path_still_stops_the_process_group_at_the_bound() {
     drop(transaction);
 }
 
-/// Acceptance row "Weaker path" (certification, third pass): an acknowledgement overrides neither a failed enumeration of the journals
-/// nor a failed mandatory step of finishing the recovery. Two acknowledged journals (the second makes the listing fail at its entry):
-/// the recovery changes nothing and keeps both; one acknowledged journal whose completion marker cannot be made durable is a
-/// mandatory failure, with the journal retained.
+/// Acceptance row "Weaker path" (certification,
+/// third pass):
+/// an acknowledgement overrides neither a failed enumeration of the journals
+/// nor a failed mandatory step of finishing the recovery.
+/// Two acknowledged journals (the second makes the listing fail at its entry):
+/// the recovery changes nothing and keeps both;
+/// one acknowledged journal whose completion marker cannot be made durable is a
+/// mandatory failure,
+/// with the journal retained.
 #[test]
 fn an_acknowledged_journal_is_still_held_by_a_failed_listing_and_a_failed_mandatory_finish() {
     use crate::failpoints::{Point, arm, fires};
@@ -300,9 +327,14 @@ fn an_acknowledged_journal_is_still_held_by_a_failed_listing_and_a_failed_mandat
     assert_eq!(journal_dirs(other.path()).len(), 1, "the journal was not retained");
 }
 
-/// Acceptance row "Weaker path" (certification, third pass): the process group is stopped at the normal exit as well as at the bound.
-/// A same-group writer announces itself (a handshake), the direct payload exits successfully with the writer still running, and the
-/// writer would write into the workspace later; after the run returns the marker must never appear and the writer must be gone.
+/// Acceptance row "Weaker path" (certification,
+/// third pass):
+/// the process group is stopped at the normal exit as well as at the bound.
+/// A same-group writer announces itself (a handshake),
+/// the direct payload exits successfully with the writer still running,
+/// and the
+/// writer would write into the workspace later;
+/// after the run returns the marker must never appear and the writer must be gone.
 #[test]
 fn the_weaker_path_stops_a_writer_of_the_process_group_at_a_normal_exit() {
     let plain = scratch();
@@ -355,7 +387,8 @@ fn a_weaker_path_journal_is_refused_by_recovery_and_admission_before_it_is_ackno
 }
 
 /// Acceptance row "Weaker path":
-/// the command works under the workspace lock, durably acknowledges exactly one journal,
+/// the command works under the workspace lock,
+/// durably acknowledges exactly one journal,
 /// and a recovery then settles that journal like any other,
 /// while the other journal keeps blocking.
 #[test]
@@ -448,7 +481,8 @@ fn an_acknowledgement_does_not_override_a_live_group_or_unrelated_validation() {
 }
 
 /// Acceptance row "Weaker path":
-/// the command refuses a path that is not a journal of a workspace, and a finished journal.
+/// the command refuses a path that is not a journal of a workspace,
+/// and a finished journal.
 #[test]
 fn acknowledge_refuses_what_is_not_an_open_journal_of_a_workspace() {
     let root = repository();
@@ -463,9 +497,12 @@ fn acknowledge_refuses_what_is_not_an_open_journal_of_a_workspace() {
     assert!(!finished.join("acknowledged").exists());
 }
 
-/// Acceptance row "V2, amended c" (the journal view):
+/// Acceptance row "V2,
+/// amended c" (the journal view):
 /// a journal seen with another mount id or inode than the one recorded when it was made
-/// is refused, with the reason, and kept;
+/// is refused,
+/// with the reason,
+/// and kept;
 /// an absent recorded scope is not read as gone.
 #[test]
 fn a_journal_seen_through_another_view_is_refused_and_kept() {
@@ -506,9 +543,12 @@ fn a_journal_seen_through_another_view_is_refused_and_kept() {
     assert_eq!(live_lock(root.path()), "original", "the control: the journal in its recorded view was not settled: {settled:?}");
 }
 
-/// Acceptance row "V2, amended c" (the cgroup-parent view):
+/// Acceptance row "V2,
+/// amended c" (the cgroup-parent view):
 /// a scope record made where the directory that held the scope is seen with another mount id or inode
-/// is refused, with the reason, even though the scope path is absent.
+/// is refused,
+/// with the reason,
+/// even though the scope path is absent.
 #[test]
 fn a_recorded_scope_whose_parent_is_seen_differently_is_refused_instead_of_read_as_gone() {
     let Some(route) = delegated_route() else {
@@ -564,9 +604,14 @@ fn recovery_in_another_mount_namespace_fixture() {
     fs::write(root.join("fixture-messages"), messages.join("\n")).expect("write the messages");
 }
 
-/// Acceptance row "V2, amended c", the same-cgroup-namespace schedule of 7a F6:
-/// a recovery in another mount namespace (a new user and mount namespace, the cgroup namespace unchanged)
-/// refuses, says why, and keeps the journal and the lockfile.
+/// Acceptance row "V2,
+/// amended c",
+/// the same-cgroup-namespace schedule of 7a F6:
+/// a recovery in another mount namespace (a new user and mount namespace,
+/// the cgroup namespace unchanged)
+/// refuses,
+/// says why,
+/// and keeps the journal and the lockfile.
 #[test]
 fn a_recovery_in_another_mount_namespace_refuses_and_keeps_the_journal() {
     let Some(route) = delegated_route() else {
@@ -593,7 +638,8 @@ fn a_recovery_in_another_mount_namespace_refuses_and_keeps_the_journal() {
     assert!(journal.exists(), "the journal was not retained");
 }
 
-/// Acceptance row "V3, V4":
+/// Acceptance row "V3,
+/// V4":
 /// the record of a scope is on disk before the program starts,
 /// seen at the boundary by a hook that runs inside the start,
 /// and the program writes a marker only after that.
@@ -625,7 +671,8 @@ fn the_scope_record_is_visible_before_the_program_starts() {
 
 /// Acceptance row "V3":
 /// a record that cannot be published (a pipe where the record file was) stops the start at once,
-/// without waiting for a reader, in both containments.
+/// without waiting for a reader,
+/// in both containments.
 #[test]
 fn a_record_that_cannot_be_published_starts_no_program_and_does_not_wait() {
     for weaker in [false, true] {
@@ -677,10 +724,13 @@ fn wrapper_held_inside_its_start_fixture() {
     let _ = output_within(&mut Command::new("true"), None, &Bound { limit: Duration::from_secs(600), ..bound() });
 }
 
-/// Acceptance row "V3, V4":
-/// a wrapper killed at the boundary inside its start, after the record and before the program,
+/// Acceptance row "V3,
+/// V4":
+/// a wrapper killed at the boundary inside its start,
+/// after the record and before the program,
 /// is recovered conservatively:
-/// a scope that was never made is absent but unsettled, so the recovery refuses and names the missing end record,
+/// a scope that was never made is absent but unsettled,
+/// so the recovery refuses and names the missing end record,
 /// while a weaker-path start that only announced a child blocks until acknowledged.
 #[test]
 fn a_wrapper_killed_inside_its_start_is_recovered_conservatively() {
@@ -737,7 +787,8 @@ fn a_recovery_removes_an_empty_journal_directory() {
     assert!(!cut_off.exists(), "the empty directory stayed: {messages:?}");
 }
 
-/// Acceptance row "V3, V4":
+/// Acceptance row "V3,
+/// V4":
 /// a nonempty journal that lost its record is not read as empty.
 #[test]
 fn a_nonempty_journal_without_its_record_is_not_treated_as_empty() {
@@ -750,7 +801,8 @@ fn a_nonempty_journal_without_its_record_is_not_treated_as_empty() {
     assert!(note.is_some_and(|text| { return text.contains("missing"); }));
 }
 
-/// Advisor finding on the weaker path (the shape of 6b2 2), kept under the round 8 rule:
+/// Advisor finding on the weaker path (the shape of 6b2 2),
+/// kept under the round 8 rule:
 /// a wrapper killed after announcing a child and before recording its process group
 /// leaves a journal that a recovery must read as a possible survivor.
 #[test]
@@ -766,9 +818,13 @@ fn a_started_child_whose_process_group_was_never_recorded_is_a_possible_survivor
 /// The environment variable that tells the notice-concurrency helper process to run.
 const FIXTURE_NOTICE_RACE: &str = "CARGO_SHADOW_NOTICE_RACE_FIXTURE";
 
-/// The helper process of the notice-concurrency test (a fresh process, because the notice is given once per process): the first
-/// weaker-path run wins the notice and is held inside its emission; a second weaker-path run on another thread must complete while
-/// the winner is still held. Run on its own it does nothing.
+/// The helper process of the notice-concurrency test (a fresh process,
+/// because the notice is given once per process):
+/// the first
+/// weaker-path run wins the notice and is held inside its emission;
+/// a second weaker-path run on another thread must complete while
+/// the winner is still held.
+/// Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of a_run_does_not_wait_for_another_runs_slow_notice"]
 fn notice_concurrency_fixture() {
@@ -794,9 +850,14 @@ fn notice_concurrency_fixture() {
     assert!(first.join().expect("first thread").is_ok_and(|output| { return output.status.success(); }));
 }
 
-/// Acceptance rows V6 and "Weaker path" (fifth certification pass): the weaker-path notice, given once per process, does not make
-/// another run wait for the winner's slow write. A helper process holds the winner inside the emission and requires the second run to
-/// answer; the notice is on standard error exactly once.
+/// Acceptance rows V6 and "Weaker path" (fifth certification pass):
+/// the weaker-path notice,
+/// given once per process,
+/// does not make
+/// another run wait for the winner's slow write.
+/// A helper process holds the winner inside the emission and requires the second run to
+/// answer;
+/// the notice is on standard error exactly once.
 #[test]
 fn a_run_does_not_wait_for_another_runs_slow_notice() {
     let output = Command::new(std::env::current_exe().expect("this test executable"))

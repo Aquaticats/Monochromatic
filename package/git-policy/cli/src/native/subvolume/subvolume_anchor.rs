@@ -1,14 +1,26 @@
 //! What:
-//!  An open directory used as the fixed point of every operation inside it: the directory is opened one component at
-//!  a time without following symbolic links, and names inside it are then addressed through its descriptor.
+//!  An open directory used as the fixed point of every operation inside it:
+//! the directory is opened one component at
+//!  a time without following symbolic links,
+//! and names inside it are then addressed through its descriptor.
 //! Why:
 //!  The tree passes write into a checkout that other programs may be changing (the catch-up and the carry-back run
-//!  against a tree in use). A path such as `destination/d/file` is resolved again for every call, so a directory `d`
-//!  replaced by a symbolic link between two calls would send the write, the removal or the permission change outside
-//!  the tree. Opening each directory without following links and addressing its children through
-//!  `/proc/self/fd/<descriptor>/<name>` makes every call land in the directory that was checked, whatever happens to
-//!  its path afterwards. Only the last component of a child path is still looked up by name, and the operations on it
-//!  (exclusive create, rename, unlink, `lstat`) never follow a link there.
+//!  against a tree in use).
+//! A path such as `destination/d/file` is resolved again for every call,
+//! so a directory `d`
+//!  replaced by a symbolic link between two calls would send the write,
+//! the removal or the permission change outside
+//!  the tree.
+//! Opening each directory without following links and addressing its children through
+//!  `/proc/self/fd/<descriptor>/<name>` makes every call land in the directory that was checked,
+//! whatever happens to
+//!  its path afterwards.
+//! Only the last component of a child path is still looked up by name,
+//! and the operations on it
+//!  (exclusive create,
+//! rename,
+//! unlink,
+//! `lstat`) never follow a link there.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -39,7 +51,8 @@ pub struct Anchor {
     directory: File,
 }
 
-/// The path text of a name given as bytes, or the error a name with an interior NUL deserves.
+/// The path text of a name given as bytes,
+/// or the error a name with an interior NUL deserves.
 fn c_name(name: &OsStr) -> std::io::Result<CString> {
     return match CString::new(name.as_bytes()) {
         Ok(text) => Ok(text),
@@ -47,7 +60,9 @@ fn c_name(name: &OsStr) -> std::io::Result<CString> {
     };
 }
 
-/// `openat` for a directory, with the given extra flags, returning the descriptor as a file.
+/// `openat` for a directory,
+/// with the given extra flags,
+/// returning the descriptor as a file.
 fn open_directory(parent: RawFd, name: &OsStr, flags: libc::c_int) -> std::io::Result<File> {
     let text: CString = c_name(name)?;
     // SAFETY: `text` is a NUL-terminated string that outlives the call, and `parent` is `AT_FDCWD` or an open descriptor.
@@ -60,11 +75,16 @@ fn open_directory(parent: RawFd, name: &OsStr, flags: libc::c_int) -> std::io::R
 }
 
 /// What:
-///  Open the directory `name` inside `parent`, never following a link, and make it searchable by its owner when the
+///  Open the directory `name` inside `parent`,
+/// never following a link,
+/// and make it searchable by its owner when the
 ///  mode forbids reading it.
 /// Why:
-///   A copied directory can be mode 000 or 555; the pass has to enter it to fill it. The owner's bits are changed
-///  through the descriptor of the directory just opened, so a swapped path cannot redirect the change.
+///   A copied directory can be mode 000 or 555;
+/// the pass has to enter it to fill it.
+/// The owner's bits are changed
+///  through the descriptor of the directory just opened,
+/// so a swapped path cannot redirect the change.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -96,10 +116,15 @@ impl Anchor {
     }
 
     /// What:
-    ///  Open `root` (links in `root` itself are followed, because the caller names it) and then each component of
+    ///  Open `root` (links in `root` itself are followed,
+    /// because the caller names it) and then each component of
     ///  `relative` below it without following a link.
     /// Why:
-    ///   A component that is a symbolic link, a file or gone is an error (`ELOOP`, `ENOTDIR`, `ENOENT`), so the caller
+    ///   A component that is a symbolic link,
+    /// a file or gone is an error (`ELOOP`,
+    /// `ENOTDIR`,
+    /// `ENOENT`),
+    /// so the caller
     ///  can tell a replaced directory from a failure.
     ///
     /// In TS you'd write (pseudocode):
@@ -115,7 +140,8 @@ impl Anchor {
         return Ok(Anchor { directory: current });
     }
 
-    /// The open directory, for the operations that take a descriptor.
+    /// The open directory,
+    /// for the operations that take a descriptor.
     pub fn file(&self) -> &File {
         return &self.directory;
     }

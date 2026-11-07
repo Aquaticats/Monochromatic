@@ -5,7 +5,9 @@ use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 
-/// The two magic numbers map to their kinds, in the signed and the unsigned spelling, and others are `Other`.
+/// The two magic numbers map to their kinds,
+/// in the signed and the unsigned spelling,
+/// and others are `Other`.
 #[test]
 fn the_magic_numbers_map_to_their_kinds() {
     assert_eq!(classify_magic(libc::BTRFS_SUPER_MAGIC as u64), FilesystemKind::Btrfs);
@@ -22,7 +24,8 @@ fn a_sign_extended_f_type_still_classifies() {
     assert_eq!(classify_magic(extended), FilesystemKind::Btrfs);
 }
 
-/// A real directory answers with some kind and free space; a missing path is a typed error that names `statfs`.
+/// A real directory answers with some kind and free space;
+/// a missing path is a typed error that names `statfs`.
 #[test]
 fn the_kind_of_a_real_directory_is_read_and_a_missing_path_is_a_typed_error() {
     let root: PathBuf = fixture("fs-kind-real");
@@ -33,8 +36,10 @@ fn the_kind_of_a_real_directory_is_read_and_a_missing_path_is_a_typed_error() {
     remove(root.as_path());
 }
 
-/// Whatever the fixture filesystem is, a plain directory made inside it is not a subvolume root unless it is on btrfs
-///  with inode 256, and on a filesystem other than btrfs inode 256 never counts.
+/// Whatever the fixture filesystem is,
+/// a plain directory made inside it is not a subvolume root unless it is on btrfs
+///  with inode 256,
+/// and on a filesystem other than btrfs inode 256 never counts.
 #[test]
 fn a_plain_directory_is_not_a_subvolume_root() {
     let root: PathBuf = fixture("fs-kind-plain");
@@ -44,7 +49,10 @@ fn a_plain_directory_is_not_a_subvolume_root() {
     remove(root.as_path());
 }
 
-/// The positive control on btrfs: a created subvolume is a root, its parent directory is not, and a file is not.
+/// The positive control on btrfs:
+/// a created subvolume is a root,
+/// its parent directory is not,
+/// and a file is not.
 #[test]
 fn btrfs_a_created_subvolume_is_a_root_and_a_plain_directory_beside_it_is_not() {
     let Some(root) = btrfs_fixture("fs-kind-btrfs") else { return };

@@ -4,7 +4,8 @@
 //!       changes worktree registrations.
 //! Why:
 //!  The worktree-copy opt-out is written after `git worktree add` or `git worktree move`,
-//!  so the flag is recognized after that second word; only an add is a source of ignored-state
+//!  so the flag is recognized after that second word;
+//! only an add is a source of ignored-state
 //!      synchronization.
 //!
 //! In TS you'd write (pseudocode):

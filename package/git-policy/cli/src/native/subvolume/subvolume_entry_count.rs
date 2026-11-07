@@ -1,9 +1,17 @@
 //! What:
-//!  The count of the entries under a checkout: every file, directory and link below its root, counted once each.
+//!  The count of the entries under a checkout:
+//! every file,
+//! directory and link below its root,
+//! counted once each.
 //! Why:
-//!  The free space a migration needs is the metadata of its entries (`subvolume_preflight.rs`), so the refusal for too little
-//!  space starts from how many entries the copy will write. The walk reads directory listings only, no file contents, and
-//!  follows no link, as the copy pass does not.
+//!  The free space a migration needs is the metadata of its entries (`subvolume_preflight.rs`),
+//! so the refusal for too little
+//!  space starts from how many entries the copy will write.
+//! The walk reads directory listings only,
+//! no file contents,
+//! and
+//!  follows no link,
+//! as the copy pass does not.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,15 +22,23 @@ use std::path::{Path, PathBuf};
 
 /// What:
 ///  How many entries are below `root`.
-///  `&Path` borrows the path read-only (TS: a `string` argument); `u64` is an unsigned 64-bit integer (siblings: `u32`,
+///  `&Path` borrows the path read-only (TS:
+/// a `string` argument);
+/// `u64` is an unsigned 64-bit integer (siblings:
+/// `u32`,
 ///  `usize`).
 /// Why:
-///   A directory that cannot be listed (gone, or not readable) adds nothing, because the copy reports an unreadable
-///  directory with its own message and the preflight must not duplicate it. `u64` rather than `usize` because the figure
+///   A directory that cannot be listed (gone,
+/// or not readable) adds nothing,
+/// because the copy reports an unreadable
+///  directory with its own message and the preflight must not duplicate it.
+/// `u64` rather than `usize` because the figure
 ///  is multiplied into a byte count that is stored as `u64` in the filesystem facts.
 /// Gotcha:
-///   A link to a directory counts as one entry and its target is not walked, unlike a TS `readdir` recursion that follows
-///  `stat`; the work stack below replaces recursion so a deep tree cannot overflow the call stack.
+///   A link to a directory counts as one entry and its target is not walked,
+/// unlike a TS `readdir` recursion that follows
+///  `stat`;
+/// the work stack below replaces recursion so a deep tree cannot overflow the call stack.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

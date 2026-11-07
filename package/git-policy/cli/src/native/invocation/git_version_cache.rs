@@ -1,5 +1,6 @@
 //! What:
-//!  A private, per-user cache of the text `git version` prints,
+//!  A private,
+//! per-user cache of the text `git version` prints,
 //!  keyed by the identity of the Git executable that printed it.
 //! Why:
 //!  Every commit starts `git version` to learn whether Git is new enough.
@@ -10,7 +11,8 @@
 //!  modification time,
 //!  change time,
 //!  device and inode:
-//!  an upgrade replaces the file (new inode) or rewrites it (new size, times),
+//!  an upgrade replaces the file (new inode) or rewrites it (new size,
+//! times),
 //!  so a replaced Git is noticed on the next start and a stale entry is never trusted.
 //!  The cache is used only for a real compiled executable named `git`:
 //!  a script,
@@ -38,7 +40,9 @@ use std::path::{Path, PathBuf};
 pub const VERSION_KIND: &str = "git-version";
 
 /// The first line of every cache file of `kind`;
-///  a file in another layout, or of another kind, is ignored.
+///  a file in another layout,
+/// or of another kind,
+/// is ignored.
 fn file_tag(kind: &str) -> String {
     return format!("monochromatic-git-policy-cli {kind} cache 1\n");
 }
@@ -64,7 +68,10 @@ const TAG: &str = "git-version-cache";
 pub struct BinaryIdentity {
     /// The canonical path of the executable.
     pub path: String,
-    /// The path, size, times, device and inode joined into one line.
+    /// The path,
+    /// size,
+    /// times,
+    /// device and inode joined into one line.
     pub text: String,
 }
 
@@ -139,7 +146,8 @@ pub fn binary_identity(real_git: &Path) -> Option<BinaryIdentity> {
 ///  or under `.cache` in the home directory.
 /// Why:
 ///   The injected environment decides the location,
-///  never a fixed path; a relative `XDG_CACHE_HOME` is ignored as the XDG rules say.
+///  never a fixed path;
+/// a relative `XDG_CACHE_HOME` is ignored as the XDG rules say.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -163,7 +171,8 @@ pub fn cache_directory(environment: &[(OsString, OsString)]) -> Option<PathBuf> 
 ///  The cache file of one executable inside `directory`.
 /// Why:
 ///   One file per canonical path keeps concurrent commits of different Gits apart;
-///  the name is a hash, and the file records the full identity to catch a collision.
+///  the name is a hash,
+/// and the file records the full identity to catch a collision.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -236,8 +245,10 @@ pub fn read_version_text(directory: &Path, identity: &BinaryIdentity) -> Option<
 ///  foreign,
 ///  unreadable or stale entry.
 /// Why:
-///   Every fact that is a property of the executable's bytes (its version, its compiled-in configuration path)
-///  shares the identity check and the private-file check; only the file name and tag differ.
+///   Every fact that is a property of the executable's bytes (its version,
+/// its compiled-in configuration path)
+///  shares the identity check and the private-file check;
+/// only the file name and tag differ.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -273,7 +284,9 @@ pub fn store_version_text(directory: &Path, identity: &BinaryIdentity, text: &[u
     store_cached_text(directory, identity, VERSION_KIND, text);
 }
 
-/// Record `text` of `kind` for this identity, replacing any earlier entry; see `store_version_text`.
+/// Record `text` of `kind` for this identity,
+/// replacing any earlier entry;
+/// see `store_version_text`.
 pub fn store_cached_text(directory: &Path, identity: &BinaryIdentity, kind: &str, text: &[u8]) {
     if text.len() > TEXT_LIMIT {
         return;

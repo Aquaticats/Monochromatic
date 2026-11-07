@@ -1,11 +1,26 @@
 //! What:
-//!  The real commit service, a foreign program that holds the repository's index, and clients whose waits reach their bound:
-//!  what lands, what never lands, and what a restart of the service does.
+//!  The real commit service,
+//! a foreign program that holds the repository's index,
+//! and clients whose waits reach their bound:
+//!  what lands,
+//! what never lands,
+//! and what a restart of the service does.
 //! Why:
-//!  The owner, 2026-11-03: "nothing should ever wait forever or indefinitely", and for a wait that reaches its bound,
-//!  "Return with an error" with "No, keep it for a retry (Recommended)": the commit is withdrawn so that nothing lands later by
-//!  itself, the staged changes stay staged, and the commit is kept on a side ref. A withdrawal and a landing that start at the
-//!  same moment must agree: either the commit landed, and the client reports success, or it never will.
+//!  The owner,
+//! 2026-11-03:
+//! "nothing should ever wait forever or indefinitely",
+//! and for a wait that reaches its bound,
+//!  "Return with an error" with "No,
+//! keep it for a retry (Recommended)":
+//! the commit is withdrawn so that nothing lands later by
+//!  itself,
+//! the staged changes stay staged,
+//! and the commit is kept on a side ref.
+//! A withdrawal and a landing that start at the
+//!  same moment must agree:
+//! either the commit landed,
+//! and the client reports success,
+//! or it never will.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,19 +41,26 @@ use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::time::Duration;
 
-/// The longest a control waits for anything: far beyond what a healthy run needs, so only a hang reaches it.
+/// The longest a control waits for anything:
+/// far beyond what a healthy run needs,
+/// so only a hang reaches it.
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// The ceiling a client of the controls gives the service's answer: short, so a control ends in seconds.
+/// The ceiling a client of the controls gives the service's answer:
+/// short,
+/// so a control ends in seconds.
 const CLIENT_CEILING: Duration = Duration::from_secs(1);
 
 /// The ceiling the controls give the service's wait for a foreign lock when a control needs the service to give up first.
 const SERVICE_CEILING_MILLIS: &str = "3000";
 
-/// The notice interval of the service in these controls: far beyond them, so only the first notice of a wait is heard.
+/// The notice interval of the service in these controls:
+/// far beyond them,
+/// so only the first notice of a wait is heard.
 const QUIET_NOTICE_SECONDS: &str = "3600";
 
-/// A request that sets `path` to `content`, prepared against the branch as it is now.
+/// A request that sets `path` to `content`,
+/// prepared against the branch as it is now.
 fn request_for(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) -> CommitRequest {
     std::fs::write(repo.join(path), content).expect("write");
     let blob: String = git_text(fixture, repo, &["hash-object", "-w", "--", path]).trim().to_string();
@@ -63,7 +85,8 @@ fn request_for(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &s
     };
 }
 
-/// The client configuration for the service of `name`, with the given ceiling for the answer.
+/// The client configuration for the service of `name`,
+/// with the given ceiling for the answer.
 fn config_for(fixture: &Fixture, name: &str, answer_ceiling: Duration) -> ClientConfig {
     let git_dir: PathBuf = fixture.root.join("repo/.git");
     let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime_for(name).as_path(), git_dir.as_path());
@@ -90,12 +113,14 @@ fn submit_on_a_thread(config: ClientConfig, request: CommitRequest) -> std::thre
     });
 }
 
-/// The subjects on the branch after `base`, oldest first.
+/// The subjects on the branch after `base`,
+/// oldest first.
 fn subjects_since(fixture: &Fixture, repo: &Path, base: &str) -> String {
     return git_text(fixture, repo, &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]);
 }
 
-/// How many batches the service's journal still holds open: an open batch is one a restart would finish.
+/// How many batches the service's journal still holds open:
+/// an open batch is one a restart would finish.
 fn open_batches(fixture: &Fixture) -> usize {
     let journal: PathBuf = fixture.root.join("journal");
     return std::fs::read_dir(journal).map_or(0, |entries| {
@@ -103,9 +128,16 @@ fn open_batches(fixture: &Fixture) -> usize {
     });
 }
 
-/// A request that is queued behind a landing that waits for a foreign lock, and whose client reaches its bound meanwhile, is
-/// withdrawn: when the foreign program lets go, the landing in progress ends, the withdrawal is answered before the queued request is
-/// looked at, the request never lands, and a restart of the service lands nothing either.
+/// A request that is queued behind a landing that waits for a foreign lock,
+/// and whose client reaches its bound meanwhile,
+/// is
+/// withdrawn:
+/// when the foreign program lets go,
+/// the landing in progress ends,
+/// the withdrawal is answered before the queued request is
+/// looked at,
+/// the request never lands,
+/// and a restart of the service lands nothing either.
 #[test]
 fn a_request_withdrawn_at_its_bound_never_lands_not_even_after_a_restart() {
     let fixture: Fixture = fixture("withdraw-never-lands");
@@ -140,8 +172,12 @@ fn a_request_withdrawn_at_its_bound_never_lands_not_even_after_a_restart() {
     remove_settled(&fixture);
 }
 
-/// The race: the foreign lock goes just after the client's bound, so the landing begins at about the moment of the withdrawal.
-/// The withdrawal waits for the landing in progress, and the answer is that the commit landed: the command reports success and
+/// The race:
+/// the foreign lock goes just after the client's bound,
+/// so the landing begins at about the moment of the withdrawal.
+/// The withdrawal waits for the landing in progress,
+/// and the answer is that the commit landed:
+/// the command reports success and
 /// the commit is on the branch exactly once.
 #[test]
 fn a_landing_that_starts_as_the_bound_passes_is_reported_as_landed() {
@@ -163,9 +199,14 @@ fn a_landing_that_starts_as_the_bound_passes_is_reported_as_landed() {
     remove_settled(&fixture);
 }
 
-/// The service's own wait for a foreign lock reaches its ceiling before the client's: the landing is withdrawn before anything
-/// moved, the built commit is kept on a side ref that the message names, the person's staged changes stand, and the client ends
-/// with the error that names the foreign program and says what to run; a restart lands nothing.
+/// The service's own wait for a foreign lock reaches its ceiling before the client's:
+/// the landing is withdrawn before anything
+/// moved,
+/// the built commit is kept on a side ref that the message names,
+/// the person's staged changes stand,
+/// and the client ends
+/// with the error that names the foreign program and says what to run;
+/// a restart lands nothing.
 #[test]
 fn a_foreign_lock_that_outlasts_the_service_ceiling_withdraws_the_commit_and_keeps_it() {
     let fixture: Fixture = fixture("withdraw-service-ceiling");

@@ -1,11 +1,17 @@
 //! What:
-//!  Where a plain `git push` of one named branch would send it, decided from the configuration and the local refs,
+//!  Where a plain `git push` of one named branch would send it,
+//! decided from the configuration and the local refs,
 //!  or why Git would send it nowhere.
 //! Why:
-//!  The service pushes the branch a record names, which may not be the branch checked out, so it must name both sides of
-//!  the push itself; naming them from a partial reading of Git's rules pushed to places a plain `git push` refuses
-//!  or never goes (a `matching` push recreating a branch the remote deleted, one of several upstream branches chosen at
-//!  random, a destination that another configured refspec had already taken).
+//!  The service pushes the branch a record names,
+//! which may not be the branch checked out,
+//! so it must name both sides of
+//!  the push itself;
+//! naming them from a partial reading of Git's rules pushed to places a plain `git push` refuses
+//!  or never goes (a `matching` push recreating a branch the remote deleted,
+//! one of several upstream branches chosen at
+//!  random,
+//! a destination that another configured refspec had already taken).
 //!  Everything here follows `setup_default_push_refspecs` in Git's `builtin/push.c` and `match_push_refs` in `remote.c`;
 //!  a setting Git refuses or a form this module does not interpret becomes a skip with a note that names the setting,
 //!  never a push.
@@ -20,10 +26,12 @@ use crate::config_snapshot::{ConfigSnapshot, Lookup};
 use std::ffi::OsString;
 use crate::auto_push_refspec_judging::{Judged, judge, parse_refspec};
 
-/// Start of every note this module words, so the terminal filter keeps it and a person sees which tool spoke.
+/// Start of every note this module words,
+/// so the terminal filter keeps it and a person sees which tool spoke.
 const NOTE_PREFIX: &str = "monochromatic-git-policy-cli: auto-push: ";
 
-/// Where the plain push goes: the branch's push remote and the ref it updates there.
+/// Where the plain push goes:
+/// the branch's push remote and the ref it updates there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -33,7 +41,8 @@ const NOTE_PREFIX: &str = "monochromatic-git-policy-cli: auto-push: ";
 pub struct Destination {
     /// Remote name the push goes to.
     pub remote: String,
-    /// Full ref the push updates there, for example `refs/heads/main`.
+    /// Full ref the push updates there,
+    /// for example `refs/heads/main`.
     pub merge_ref: String,
 }
 
@@ -53,16 +62,20 @@ pub enum NamedPush {
         /// The full refs that receive the branch.
         targets: Vec<String>,
     },
-    /// `push.default=matching`: the plain `git push <remote>` with no refspec, so Git matches the branches itself.
+    /// `push.default=matching`:
+    /// the plain `git push <remote>` with no refspec,
+    /// so Git matches the branches itself.
     Matching {
         /// The remote the push goes to.
         remote: String,
     },
-    /// Git pushes the branch nowhere or refuses; the note says why and what to do.
+    /// Git pushes the branch nowhere or refuses;
+    /// the note says why and what to do.
     Skip(String),
 }
 
-/// The settings that decide where one branch is pushed, read once.
+/// The settings that decide where one branch is pushed,
+/// read once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -71,15 +84,22 @@ pub enum NamedPush {
 struct PushSettings {
     /// Short name of the branch.
     branch: String,
-    /// The remote the push goes to, in Git's order (`branch.<name>.pushRemote`, `remote.pushDefault`, `branch.<name>.remote`).
+    /// The remote the push goes to,
+    /// in Git's order (`branch.<name>.pushRemote`,
+    /// `remote.pushDefault`,
+    /// `branch.<name>.remote`).
     push_remote: String,
-    /// `branch.<name>.remote`, empty when unset.
+    /// `branch.<name>.remote`,
+    /// empty when unset.
     tracked_remote: String,
-    /// Every `branch.<name>.merge` value, in order.
+    /// Every `branch.<name>.merge` value,
+    /// in order.
     merges: Vec<String>,
-    /// The value of `push.default`, empty when unset.
+    /// The value of `push.default`,
+    /// empty when unset.
     mode: String,
-    /// Every `remote.<push remote>.push` value, in order.
+    /// Every `remote.<push remote>.push` value,
+    /// in order.
     refspecs: Vec<String>,
     /// Whether `remote.<push remote>.mirror` is true.
     mirror: bool,
@@ -95,7 +115,9 @@ fn argv(parts: &[&str]) -> Vec<OsString> {
     return parts.iter().map(OsString::from).collect();
 }
 
-/// Every value of `key` in the snapshot, in listing order; a key written without `=` reads as an empty value.
+/// Every value of `key` in the snapshot,
+/// in listing order;
+/// a key written without `=` reads as an empty value.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -115,7 +137,8 @@ fn values_of(snapshot: &ConfigSnapshot, key: &str) -> Vec<String> {
     return values;
 }
 
-/// The last value of `key`, empty when it is not set.
+/// The last value of `key`,
+/// empty when it is not set.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -126,12 +149,16 @@ fn last_of(snapshot: &ConfigSnapshot, key: &str) -> String {
 }
 
 /// What:
-///  The settings that decide where the plain push of a branch goes, or nothing for a branch outside `refs/heads`
+///  The settings that decide where the plain push of a branch goes,
+/// or nothing for a branch outside `refs/heads`
 ///  and for the remote `.` or no remote.
 /// Why:
-///   One listing of the configuration (`config --list -z --show-scope`, answered without a Git process where the
-///  in-process reader can) gives every value of the multi-valued keys, which a `config --get` (the last value only)
-///  cannot: `branch.<name>.merge` and `remote.<name>.push` hold several.
+///   One listing of the configuration (`config --list -z --show-scope`,
+/// answered without a Git process where the
+///  in-process reader can) gives every value of the multi-valued keys,
+/// which a `config --get` (the last value only)
+///  cannot:
+/// `branch.<name>.merge` and `remote.<name>.push` hold several.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -175,7 +202,9 @@ fn read_push_settings(git: &PushGit, branch_ref: &str) -> Result<Option<PushSett
     }));
 }
 
-/// A note for a branch that is not pushed: what was seen, and what to do about it.
+/// A note for a branch that is not pushed:
+/// what was seen,
+/// and what to do about it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -185,7 +214,8 @@ fn note(branch: &str, reason: &str) -> String {
     return format!("{NOTE_PREFIX}{branch} was not pushed: {reason} Nothing was pushed or changed; the commit is saved locally.");
 }
 
-/// The skip of a branch, with its note.
+/// The skip of a branch,
+/// with its note.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -199,13 +229,17 @@ fn skip(branch: &str, reason: &str) -> NamedPush {
 enum ByMode {
     /// The ref the branch updates on the push remote.
     Target(String),
-    /// `matching`: Git pairs the branches itself, so the plain push is run.
+    /// `matching`:
+    /// Git pairs the branches itself,
+    /// so the plain push is run.
     Matching,
-    /// Git pushes nothing or refuses; the note says why.
+    /// Git pushes nothing or refuses;
+    /// the note says why.
     Refused(NamedPush),
 }
 
-/// The target when the push goes to the branch's upstream: refused when the push remote is not the tracked remote or the
+/// The target when the push goes to the branch's upstream:
+/// refused when the push remote is not the tracked remote or the
 /// branch has not exactly one `merge` value that names a branch.
 fn upstream_target(settings: &PushSettings, triangular: bool, mode_name: &str) -> ByMode {
     let branch = settings.branch.as_str();
@@ -234,13 +268,20 @@ fn upstream_target(settings: &PushSettings, triangular: bool, mode_name: &str) -
 }
 
 /// What:
-///  The ref `push.default` sends the branch to, or why Git sends it nowhere.
+///  The ref `push.default` sends the branch to,
+/// or why Git sends it nowhere.
 /// Why:
 ///   `current` and a push remote other than the tracked one (a triangular `simple`) use the branch's own name.
-///  `upstream` and `simple` on the tracked remote use the upstream branch, and Git dies when the branch has none or
-///  several (`get_upstream_ref` in `builtin/push.c`); a differently named single upstream, which `simple` also refuses,
-///  is where the person tracked the branch (a linked worktree branch created from `origin/main`), so it is pushed.
-///   `nothing` and a triangular `upstream` name no single ref; `matching` names none either, and Git is left to match.
+///  `upstream` and `simple` on the tracked remote use the upstream branch,
+/// and Git dies when the branch has none or
+///  several (`get_upstream_ref` in `builtin/push.c`);
+/// a differently named single upstream,
+/// which `simple` also refuses,
+///  is where the person tracked the branch (a linked worktree branch created from `origin/main`),
+/// so it is pushed.
+///   `nothing` and a triangular `upstream` name no single ref;
+/// `matching` names none either,
+/// and Git is left to match.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -268,12 +309,19 @@ fn by_mode(branch_ref: &str, settings: &PushSettings) -> ByMode {
 }
 
 /// What:
-///  The remote and the branch ref that the plain `git push` of this branch updates, when the settings name one.
+///  The remote and the branch ref that the plain `git push` of this branch updates,
+/// when the settings name one.
 /// Why:
-///   The reconcile of a rejected push merges the tip of the branch the rejected push targeted, which with a push remote,
+///   The reconcile of a rejected push merges the tip of the branch the rejected push targeted,
+/// which with a push remote,
 ///  a triangular setup or `push.default=current` is not the tracked branch.
-///   The remote `.`, a `remote.<name>.push` refspec, `matching`, `nothing`, several upstream branches and a target
-///  outside `refs/heads` name none, because the rejection then came from a destination this module cannot name.
+///   The remote `.`,
+/// a `remote.<name>.push` refspec,
+/// `matching`,
+/// `nothing`,
+/// several upstream branches and a target
+///  outside `refs/heads` name none,
+/// because the rejection then came from a destination this module cannot name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -293,11 +341,16 @@ pub fn read_destination(git: &PushGit, branch_ref: &str) -> Result<Option<Destin
 }
 
 /// What:
-///  What the service does for a named branch whose upstream resolves: the remote and refs it pushes to, the one remote
-///  question that decides, or the note that explains why it pushes nothing.
+///  What the service does for a named branch whose upstream resolves:
+/// the remote and refs it pushes to,
+/// the one remote
+///  question that decides,
+/// or the note that explains why it pushes nothing.
 /// Why:
-///   The plain `git push` pushes the checked-out branch, so a push of a branch that is not checked out names both sides;
-///  the destination follows Git's rules for the branch as if it were checked out, and a setting under which Git
+///   The plain `git push` pushes the checked-out branch,
+/// so a push of a branch that is not checked out names both sides;
+///  the destination follows Git's rules for the branch as if it were checked out,
+/// and a setting under which Git
 ///  refuses or pushes nothing for it is a skip.
 ///
 /// In TS you'd write (pseudocode):
@@ -327,9 +380,11 @@ pub fn named_push(git: &PushGit, branch_ref: &str) -> Result<NamedPush, SingleFl
 }
 
 /// What:
-///  The destinations of the configured push refspecs for the branch, or the note for why there are none.
+///  The destinations of the configured push refspecs for the branch,
+/// or the note for why there are none.
 /// Why:
-///   The local refs the refspecs can name are asked for in one `for-each-ref`; everything else is decided here.
+///   The local refs the refspecs can name are asked for in one `for-each-ref`;
+/// everything else is decided here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

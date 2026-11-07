@@ -1,13 +1,31 @@
 //! What:
-//!  The retry plan on disk: one small file per branch whose push waits for a new try, in a directory of the service instance's own
-//!  journal, written when a try is planned, removed when the plan ends, and read when a service starts.
+//!  The retry plan on disk:
+//! one small file per branch whose push waits for a new try,
+//! in a directory of the service instance's own
+//!  journal,
+//! written when a try is planned,
+//! removed when the plan ends,
+//! and read when a service starts.
 //! Why:
-//!  A service that is stopped (a release, a restart of the unit, a crash) must not forget the pushes it keeps trying: the defect
-//!  the retry mends is a stopped push that is never tried again, and a restart that forgot the plan would bring it back. The
-//!  person's failure record cannot carry the plan: the person's next command shows it and removes it. The journal is the
-//!  instance's own and survives a restart (`%S/monochromatic-git-policy-cli/service/%i`), and one instance is the only writer of its plan, so no lock
-//!  is taken. A plan is replaced by publishing the new file whole before the old one is removed, so a kill leaves one of them,
-//!  never none; when a kill leaves both, the newer one is the plan.
+//!  A service that is stopped (a release,
+//! a restart of the unit,
+//! a crash) must not forget the pushes it keeps trying:
+//! the defect
+//!  the retry mends is a stopped push that is never tried again,
+//! and a restart that forgot the plan would bring it back.
+//! The
+//!  person's failure record cannot carry the plan:
+//! the person's next command shows it and removes it.
+//! The journal is the
+//!  instance's own and survives a restart (`%S/monochromatic-git-policy-cli/service/%i`),
+//! and one instance is the only writer of its plan,
+//! so no lock
+//!  is taken.
+//! A plan is replaced by publishing the new file whole before the old one is removed,
+//! so a kill leaves one of them,
+//!  never none;
+//! when a kill leaves both,
+//! the newer one is the plan.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,7 +45,8 @@ pub const PLAN_VERSION: u64 = 1;
 /// The extension of a plan file.
 const PLAN_EXTENSION: &str = "plan";
 
-/// Separates the parts of a plan file's name; it is not a character a hexadecimal digit can be.
+/// Separates the parts of a plan file's name;
+/// it is not a character a hexadecimal digit can be.
 const NAME_SEPARATOR: char = '~';
 
 /// One plan as it is kept on disk.
@@ -46,7 +65,9 @@ fn branch_key(git_dir: &Path, branch_ref: &str) -> String {
     return fnv_hex(format!("{}\n{branch_ref}", git_dir.display()).as_str());
 }
 
-/// The file name of one plan: the branch's key, the try number and a hash of the commit.
+/// The file name of one plan:
+/// the branch's key,
+/// the try number and a hash of the commit.
 fn plan_name(plan: &StoredPlan) -> String {
     return format!("{}{NAME_SEPARATOR}{}{NAME_SEPARATOR}{}.{PLAN_EXTENSION}", branch_key(plan.git_dir.as_path(), plan.item.branch_ref.as_str()), plan.attempt, fnv_hex(plan.item.oid.as_str()));
 }
@@ -61,7 +82,8 @@ fn encode(plan: &StoredPlan) -> String {
     return format!("{}\n", Value::Object(fields));
 }
 
-/// The plan a file's text holds, or why it holds none.
+/// The plan a file's text holds,
+/// or why it holds none.
 fn decode(text: &str) -> Result<StoredPlan, String> {
     let value: Value = match serde_json::from_str(text) {
         Ok(parsed) => parsed,
@@ -89,7 +111,9 @@ fn decode(text: &str) -> Result<StoredPlan, String> {
 /// What:
 ///  Writes the plan of a branch and removes the files of its earlier plans.
 /// Why:
-///   The new file is published whole before the old ones go, so a kill between the two leaves a plan, not nothing.
+///   The new file is published whole before the old ones go,
+/// so a kill between the two leaves a plan,
+/// not nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -110,12 +134,14 @@ pub fn save(directory: &Path, plan: &StoredPlan) -> Result<(), String> {
     return Ok(());
 }
 
-/// Removes the files of the plan of a branch; one that cannot be removed stays and is read again by the next start.
+/// Removes the files of the plan of a branch;
+/// one that cannot be removed stays and is read again by the next start.
 pub fn remove(directory: &Path, git_dir: &Path, branch_ref: &str) {
     remove_files_of(directory, branch_key(git_dir, branch_ref).as_str(), None);
 }
 
-/// Removes the plan files of one branch key, except the one named `keep`.
+/// Removes the plan files of one branch key,
+/// except the one named `keep`.
 fn remove_files_of(directory: &Path, key: &str, keep: Option<&str>) {
     let Ok(listing) = std::fs::read_dir(directory) else { return };
     let prefix: String = format!("{key}{NAME_SEPARATOR}");
@@ -127,16 +153,22 @@ fn remove_files_of(directory: &Path, key: &str, keep: Option<&str>) {
     }
 }
 
-/// Order two stored plans with the one written later first; equal times keep their order (the sort is stable).
+/// Order two stored plans with the one written later first;
+/// equal times keep their order (the sort is stable).
 fn newest_first(left: &(SystemTime, StoredPlan), right: &(SystemTime, StoredPlan)) -> std::cmp::Ordering {
     return right.0.cmp(&left.0);
 }
 
 /// What:
-///  Reads every plan in the directory, one per branch, the newest file winning; a file that holds no plan is said and removed.
+///  Reads every plan in the directory,
+/// one per branch,
+/// the newest file winning;
+/// a file that holds no plan is said and removed.
 /// Why:
-///   A restarted service rebuilds its plan from these. Older files of a branch are what a kill between a save and its cleanup
-///  leaves, and a file that cannot be read would otherwise be said at every start.
+///   A restarted service rebuilds its plan from these.
+/// Older files of a branch are what a kill between a save and its cleanup
+///  leaves,
+/// and a file that cannot be read would otherwise be said at every start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

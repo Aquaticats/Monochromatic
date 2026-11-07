@@ -11,8 +11,11 @@ use crate::sweep_report::SweepReport;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-/// What: `Bench` is a controller over the real library with the sweep reports it received and the updates it emitted.
-/// Why: every measurement needs the controller, the reports to pump and the updates to read.
+/// What:
+/// `Bench` is a controller over the real library with the sweep reports it received and the updates it emitted.
+/// Why:
+/// every measurement needs the controller,
+/// the reports to pump and the updates to read.
 struct Bench {
     controller: Controller,
     reports: Arc<Mutex<Vec<SweepReport>>>,
@@ -22,8 +25,10 @@ struct Bench {
 
 /// Methods of `Bench`.
 impl Bench {
-    /// What: `new` builds the controller with the persistent cache file.
-    /// Why: the load's sweep must not decode a million files in every run.
+    /// What:
+    /// `new` builds the controller with the persistent cache file.
+    /// Why:
+    /// the load's sweep must not decode a million files in every run.
     fn new(cache_file: &str) -> Bench {
         let reports: Arc<Mutex<Vec<SweepReport>>> = Arc::new(Mutex::new(Vec::new()));
         let updates: Arc<Mutex<Vec<Update>>> = Arc::new(Mutex::new(Vec::new()));
@@ -42,8 +47,10 @@ impl Bench {
         return Bench { controller, reports, updates, pumped: 0 };
     }
 
-    /// What: `pump` hands the controller the sweep reports that arrived since the last call.
-    /// Why: the engine's loop does the same.
+    /// What:
+    /// `pump` hands the controller the sweep reports that arrived since the last call.
+    /// Why:
+    /// the engine's loop does the same.
     fn pump(&mut self) {
         let waiting: Vec<SweepReport> = {
             let all = self.reports.lock().expect("the sink is not poisoned");
@@ -55,8 +62,11 @@ impl Bench {
         }
     }
 
-    /// What: `wait_for_peak` pumps until a measure with a peak arrived for `path` since `from`, and says how long it took.
-    /// Why: the person sees the new peak when that update arrives.
+    /// What:
+    /// `wait_for_peak` pumps until a measure with a peak arrived for `path` since `from`,
+    /// and says how long it took.
+    /// Why:
+    /// the person sees the new peak when that update arrives.
     fn wait_for_peak(&mut self, path: &Path, started: Instant) -> Option<Duration> {
         let deadline = Instant::now() + Duration::from_secs(20);
         while Instant::now() < deadline {
@@ -72,15 +82,19 @@ impl Bench {
         return None;
     }
 
-    /// What: `clear_updates` forgets the updates so far.
-    /// Why: each run looks only at its own.
+    /// What:
+    /// `clear_updates` forgets the updates so far.
+    /// Why:
+    /// each run looks only at its own.
     fn clear_updates(&self) {
         self.updates.lock().expect("the sink is not poisoned").clear();
     }
 }
 
-/// What: `summary` prints the median with the minimum and maximum of the samples in milliseconds.
-/// Why: the report quotes the spread of five runs.
+/// What:
+/// `summary` prints the median with the minimum and maximum of the samples in milliseconds.
+/// Why:
+/// the report quotes the spread of five runs.
 fn summary(label: &str, samples: &mut [Duration]) {
     samples.sort();
     let ms = |value: Duration| return value.as_secs_f64() * 1000.0;
@@ -93,8 +107,13 @@ fn summary(label: &str, samples: &mut [Duration]) {
     );
 }
 
-/// What: `cpu_seconds` is the CPU time (user and system) this process has used so far, in seconds.
-/// Why: a refresh sweep runs at idle priority on other threads, so its cost on a busy host is its CPU time, not its latency.
+/// What:
+/// `cpu_seconds` is the CPU time (user and system) this process has used so far,
+/// in seconds.
+/// Why:
+/// a refresh sweep runs at idle priority on other threads,
+/// so its cost on a busy host is its CPU time,
+/// not its latency.
 #[cfg(not(windows))]
 fn cpu_seconds() -> f64 {
     let mut usage: libc::rusage = unsafe { std::mem::zeroed() };
@@ -104,8 +123,14 @@ fn cpu_seconds() -> f64 {
     return seconds(usage.ru_utime) + seconds(usage.ru_stime);
 }
 
-/// What: `cpu_seconds` is the CPU time (user and kernel) this process has used so far, in seconds, from `GetProcessTimes`.
-/// Why: the same measurement as on Unix. The `libc` crate is not a dependency on Windows, so the test module did not compile
+/// What:
+/// `cpu_seconds` is the CPU time (user and kernel) this process has used so far,
+/// in seconds,
+/// from `GetProcessTimes`.
+/// Why:
+/// the same measurement as on Unix.
+/// The `libc` crate is not a dependency on Windows,
+/// so the test module did not compile
 ///      there until this version existed.
 #[cfg(windows)]
 fn cpu_seconds() -> f64 {
@@ -118,9 +143,14 @@ fn cpu_seconds() -> f64 {
     return seconds(kernel) + seconds(user);
 }
 
-/// What: `dispatch` tells the controller that `paths` changed, the way the watcher does; with `MP_REFRESH_EVERYTHING` set it
-/// sends the lost-events command instead, which walks and refreshes the whole library.
-/// Why: the same measurements then show the cost of one event and the cost of the fallback.
+/// What:
+/// `dispatch` tells the controller that `paths` changed,
+/// the way the watcher does;
+/// with `MP_REFRESH_EVERYTHING` set it
+/// sends the lost-events command instead,
+/// which walks and refreshes the whole library.
+/// Why:
+/// the same measurements then show the cost of one event and the cost of the fallback.
 fn dispatch(controller: &mut Controller, paths: &[PathBuf], structural: bool) {
     if std::env::var("MP_REFRESH_EVERYTHING").is_ok() {
         controller.handle_command(Command::Rescan);

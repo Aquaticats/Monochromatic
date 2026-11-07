@@ -1,16 +1,23 @@
 //! What:
-//!  The manual-push candidate scope of one `git push`: the commits and trees the destination lacks.
+//!  The manual-push candidate scope of one `git push`:
+//! the commits and trees the destination lacks.
 //! Why:
-//!  The manual-push policies (`final-newline`, `forbidden-strings`) scan the content a push publishes.
-//!  The incumbent (`src/policy-engine/manual-push-lifecycle.ts`) discovers the updates, bounds each by what its
-//!  destination already has, and hands the scan to the policy engine; a failure stops the push with exit `2`.
+//!  The manual-push policies (`final-newline`,
+//! `forbidden-strings`) scan the content a push publishes.
+//!  The incumbent (`src/policy-engine/manual-push-lifecycle.ts`) discovers the updates,
+//! bounds each by what its
+//!  destination already has,
+//! and hands the scan to the policy engine;
+//! a failure stops the push with exit `2`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const updates = await probeManualPushUpdates({ gitPath, cwd, args });
 //! ```
 
-/// The probe, the published set and the range, and the candidate request they feed.
+/// The probe,
+/// the published set and the range,
+/// and the candidate request they feed.
 use crate::auto_push_single_flight::PushGit;
 use crate::candidate_object::parse_object_id;
 use crate::candidate_prediction::PushedScope;
@@ -40,14 +47,17 @@ use std::ffi::OsString;
 pub struct ManualPushFailure {
     /// Diagnostic naming the failed step.
     pub message: String,
-    /// Git's refusal when Git itself ended the dry run: the push then ends as Git ends it.
+    /// Git's refusal when Git itself ended the dry run:
+    /// the push then ends as Git ends it.
     pub refusal: Option<GitRefusal>,
-    /// What the person can do about it, which the engine failure's hint is chosen by.
+    /// What the person can do about it,
+    /// which the engine failure's hint is chosen by.
     pub cause: ManualPushCause,
 }
 
 impl ManualPushFailure {
-    /// A failure of the wrapper's own step, which is no refusal by Git.
+    /// A failure of the wrapper's own step,
+    /// which is no refusal by Git.
     pub fn step(cause: ManualPushCause, message: String) -> Self {
         return Self { message, refusal: None, cause };
     }
@@ -87,7 +97,8 @@ fn from_range(error: &ManualPushRangeError) -> ManualPushFailure {
 }
 
 /// What:
-///  The scope of every update of one push, in the order Git negotiated the updates.
+///  The scope of every update of one push,
+/// in the order Git negotiated the updates.
 /// Why:
 ///   Each update is bounded by the published tips of its own destination remote only.
 ///
@@ -103,18 +114,22 @@ pub fn scopes_of_updates(
 }
 
 /// What:
-///  The scope of one update, run by a worker of the ordered runner.
+///  The scope of one update,
+/// run by a worker of the ordered runner.
 /// Why:
-///   The Git context and the published tips are what each update reads; the runner shares them among its worker threads.
+///   The Git context and the published tips are what each update reads;
+/// the runner shares them among its worker threads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class ScopeOfEachUpdate implements OrderedWork<PushUpdate, Result<UpdateScope>> { run(i, update) { return updateScope(git, update, tips.get(update.remoteName) ?? []); } }
 /// ```
 struct ScopeOfEachUpdate<'a> {
-    /// The coordinator's Git, whose queries are bounded.
+    /// The coordinator's Git,
+    /// whose queries are bounded.
     git: &'a PushGit,
-    /// The tips already published at each destination, by remote name.
+    /// The tips already published at each destination,
+    /// by remote name.
     tips: &'a BTreeMap<String, Vec<String>>,
 }
 
@@ -126,9 +141,12 @@ impl OrderedWork<PushUpdate, Result<UpdateScope, ManualPushRangeError>> for Scop
 }
 
 /// What:
-///  Keeps the scopes in update order and the first failure; once an update has failed, later results are dropped.
+///  Keeps the scopes in update order and the first failure;
+/// once an update has failed,
+/// later results are dropped.
 /// Why:
-///   The runner reports on the calling thread only and in update order, so the first update that fails decides the error.
+///   The runner reports on the calling thread only and in update order,
+/// so the first update that fails decides the error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -137,7 +155,8 @@ impl OrderedWork<PushUpdate, Result<UpdateScope, ManualPushRangeError>> for Scop
 struct KeepScopesUntilTheFirstFailure<'a> {
     /// The scopes so far.
     scopes: &'a mut Vec<UpdateScope>,
-    /// The first failure, when an update has failed.
+    /// The first failure,
+    /// when an update has failed.
     failure: &'a mut Option<ManualPushRangeError>,
 }
 
@@ -153,7 +172,8 @@ impl OrderedEvents<Result<UpdateScope, ManualPushRangeError>> for KeepScopesUnti
     }
 }
 
-/// `scopes_of_updates` with the host's resources chosen by the caller, so a control states a host of any size.
+/// `scopes_of_updates` with the host's resources chosen by the caller,
+/// so a control states a host of any size.
 pub fn scopes_of_updates_on(
     host: &HostResources,
     git: &PushGit,
@@ -206,7 +226,8 @@ pub fn scopes_of_updates_on(
 /// What:
 ///  Collect the commits and trees the candidate layer must list for a set of scopes.
 /// Why:
-///   Each commit is listed once even when several updates publish it, so the scan never repeats a delta.
+///   Each commit is listed once even when several updates publish it,
+/// so the scan never repeats a delta.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -246,7 +267,8 @@ pub fn pushed_scope(scopes: &[UpdateScope]) -> Result<PushedScope, ManualPushFai
 /// What:
 ///  Discover the updates of one push and the candidate scope they publish.
 /// Why:
-///   The whole chain runs before any policy reads content, so a failure in any step refuses the push
+///   The whole chain runs before any policy reads content,
+/// so a failure in any step refuses the push
 ///  with its diagnostic and no partial scan.
 ///
 /// In TS you'd write (pseudocode):

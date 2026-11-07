@@ -1,12 +1,30 @@
-//! Window tests of the interaction defects of the second polish review: click-through on Search and on a toast, the
-//! track menu's position and width, the Play focus ring, the seek handle at the ends, the accessible names of track and
-//! menu rows, the header geometry, the Reset button, the editor's layout while typing, and the fade on appearing.
+//! Window tests of the interaction defects of the second polish review:
+//! click-through on Search and on a toast,
+//! the
+//! track menu's position and width,
+//! the Play focus ring,
+//! the seek handle at the ends,
+//! the accessible names of track and
+//! menu rows,
+//! the header geometry,
+//! the Reset button,
+//! the editor's layout while typing,
+//! and the fade on appearing.
 //!
-//! What: each test builds the real window on the testing backend, sends real pointer and key events at coordinates, and
+//! What:
+//! each test builds the real window on the testing backend,
+//! sends real pointer and key events at coordinates,
+//! and
 //! reads what reached the recording host or where an element sits.
-//! Why: these defects live in the composed window (a touch area that is missing, a coordinate frame that is wrong), so a
-//! test of pure logic cannot see them. The end-to-end run repeats the main ones through the nested compositor.
-//! Note: element lookup by id needs `SLINT_EMIT_DEBUG_INFO=1` at build time, which the repo test task sets.
+//! Why:
+//! these defects live in the composed window (a touch area that is missing,
+//! a coordinate frame that is wrong),
+//! so a
+//! test of pure logic cannot see them.
+//! The end-to-end run repeats the main ones through the nested compositor.
+//! Note:
+//! element lookup by id needs `SLINT_EMIT_DEBUG_INFO=1` at build time,
+//! which the repo test task sets.
 
 use i_slint_backend_testing::{AccessibleRole, ElementHandle, ElementQuery};
 use slint::platform::{PointerEventButton, WindowEvent};
@@ -20,26 +38,31 @@ use crate::ui_test_support::{
     RecordingHost, advance, chord, focus_label, fresh_window_at, load_library, settle, tab_labels, tap,
 };
 
-/// What: `library_window` builds a window of the given size with the library loaded.
+/// What:
+/// `library_window` builds a window of the given size with the library loaded.
 fn library_window(width: f32, height: f32) -> (AppWindow, std::rc::Rc<RecordingHost>) {
     let (app, host) = fresh_window_at(width, height);
     load_library(&app);
     return (app, host);
 }
 
-/// What: `box_of` gives an element's window position and size as `(x, y, width, height)`.
+/// What:
+/// `box_of` gives an element's window position and size as `(x, y, width, height)`.
 fn box_of(element: &ElementHandle) -> (f32, f32, f32, f32) {
     let position = element.absolute_position();
     let size = element.size();
     return (position.x, position.y, size.width, size.height);
 }
 
-/// What: `elements` lists the elements with a qualified id, in tree order.
+/// What:
+/// `elements` lists the elements with a qualified id,
+/// in tree order.
 fn elements(app: &AppWindow, id: &str) -> Vec<ElementHandle> {
     return ElementHandle::find_by_element_id(app, id).collect();
 }
 
-/// What: `click` presses and releases a pointer button at a window position.
+/// What:
+/// `click` presses and releases a pointer button at a window position.
 fn click(app: &AppWindow, x: f32, y: f32, button: PointerEventButton) {
     let position = LogicalPosition::new(x, y);
     app.window().dispatch_event(WindowEvent::PointerMoved { position });
@@ -48,12 +71,15 @@ fn click(app: &AppWindow, x: f32, y: f32, button: PointerEventButton) {
     settle();
 }
 
-/// What: `left_click` clicks the left button at a window position.
+/// What:
+/// `left_click` clicks the left button at a window position.
 fn left_click(app: &AppWindow, x: f32, y: f32) {
     click(app, x, y, PointerEventButton::Left);
 }
 
-/// What: `open_search` opens the Search page with Ctrl+F, as a user does.
+/// What:
+/// `open_search` opens the Search page with Ctrl+F,
+/// as a user does.
 fn open_search(app: &AppWindow) {
     chord(app, &["Ctrl"], "f");
     advance(200);
@@ -118,7 +144,8 @@ fn the_back_button_of_the_search_page_still_takes_clicks() {
 
 // ---- CT2 and MN3: a toast takes its own clicks, stays in its pane and stays long enough to read ----
 
-/// What: `toast_card` finds the first toast card.
+/// What:
+/// `toast_card` finds the first toast card.
 fn toast_card(app: &AppWindow) -> ElementHandle {
     return elements(app, "FeedbackOverlay::card").into_iter().next().expect("a toast is showing");
 }
@@ -174,7 +201,8 @@ fn on_the_two_pane_layout_a_toast_stays_over_the_track_pane() {
 
 // ---- MN1 and MN2: the track menu opens at the pointer and shows its whole shortcut ----
 
-/// What: `row_point` gives a point inside the first track row of the visible track list.
+/// What:
+/// `row_point` gives a point inside the first track row of the visible track list.
 fn row_point(app: &AppWindow, unfolded: bool) -> (f32, f32) {
     let rows: Vec<ElementHandle> = elements(app, "TrackListPane::row-touch");
     let wanted_x = if unfolded { 600.0 } else { 0.0 };
@@ -421,12 +449,14 @@ fn reset_to_default_sits_in_the_header_and_only_while_the_template_differs() {
 
 // ---- TE2: typing moves nothing ----
 
-/// What: `editor_field_top` gives the top of the template field.
+/// What:
+/// `editor_field_top` gives the top of the template field.
 fn editor_field_top(app: &AppWindow) -> f32 {
     return box_of(&elements(app, "TemplateEditor::field-input")[0]).1;
 }
 
-/// What: `first_field_row_top` gives the top of the first row of the Fields list.
+/// What:
+/// `first_field_row_top` gives the top of the first row of the Fields list.
 fn first_field_row_top(app: &AppWindow) -> f32 {
     return box_of(&elements(app, "TemplateEditor::field-touch")[0]).1;
 }
@@ -504,7 +534,8 @@ fn a_draft_that_does_not_apply_survives_leaving_and_reopening_the_editor() {
 
 // ---- VD4: pages, the picker overlay, the menu and a toast fade in, in 150 ms or less ----
 
-/// What: `opacity_of` gives the opacity of the first element matching a type name or a qualified id.
+/// What:
+/// `opacity_of` gives the opacity of the first element matching a type name or a qualified id.
 fn opacity_of(app: &AppWindow, wanted: &str) -> f32 {
     let element = if wanted.contains("::") {
         elements(app, wanted).into_iter().next()
@@ -514,7 +545,9 @@ fn opacity_of(app: &AppWindow, wanted: &str) -> f32 {
     return element.unwrap_or_else(|| panic!("no {wanted} element")).computed_opacity();
 }
 
-/// What: `assert_fades_in` checks an element starts transparent, is part way after 60 ms and is fully opaque within 150 ms.
+/// What:
+/// `assert_fades_in` checks an element starts transparent,
+/// is part way after 60 ms and is fully opaque within 150 ms.
 fn assert_fades_in(app: &AppWindow, wanted: &str) {
     // The change handler that restarts the fade runs on the event loop's next turn, as it does before a frame is drawn.
     settle();
@@ -568,8 +601,11 @@ fn the_menu_card_fades_in_when_the_menu_opens() {
 
 // ---- MN3 and MN4: the menu actions that change nothing visible answer with a toast ----
 
-/// What: `FakeEffects` answers the two file effects at once and records what it was asked.
-/// Why: the real ones write the clipboard and start a file manager, which a test must not do.
+/// What:
+/// `FakeEffects` answers the two file effects at once and records what it was asked.
+/// Why:
+/// the real ones write the clipboard and start a file manager,
+/// which a test must not do.
 struct FakeEffects {
     /// Whether both effects fail.
     fail: bool,
@@ -581,7 +617,9 @@ struct FakeEffects {
 
 /// The fake file effects.
 impl crate::ui_menu::FileEffects for FakeEffects {
-    /// What: `copy_text` records the text, or fails.
+    /// What:
+    /// `copy_text` records the text,
+    /// or fails.
     fn copy_text(&self, text: &str) -> Result<(), crate::ui_files::FileActionError> {
         if self.fail {
             return Err(crate::ui_files::FileActionError::Clipboard("no clipboard here".to_string()));
@@ -590,7 +628,9 @@ impl crate::ui_menu::FileEffects for FakeEffects {
         return Ok(());
     }
 
-    /// What: `show_in_file_manager` counts the request, or fails.
+    /// What:
+    /// `show_in_file_manager` counts the request,
+    /// or fails.
     fn show_in_file_manager(&self, _path: &std::path::Path) -> Result<(), crate::ui_files::FileActionError> {
         if self.fail {
             return Err(crate::ui_files::FileActionError::Spawn("no file manager here".to_string()));
@@ -600,12 +640,14 @@ impl crate::ui_menu::FileEffects for FakeEffects {
     }
 }
 
-/// What: `toast_texts` lists the texts of the toasts on screen.
+/// What:
+/// `toast_texts` lists the texts of the toasts on screen.
 fn toast_texts(app: &AppWindow) -> Vec<String> {
     return app.get_feedback_items().iter().map(|item| return item.text.to_string()).collect();
 }
 
-/// What: `run_menu_action` opens the menu on the first track row and runs one action with the fake effects.
+/// What:
+/// `run_menu_action` opens the menu on the first track row and runs one action with the fake effects.
 fn run_menu_action(fail: bool, action: music_player::track_menu::TrackMenuAction) -> (AppWindow, std::rc::Rc<RecordingHost>, FakeEffects) {
     let (app, host) = library_window(1200.0, 800.0);
     let (_x, y) = row_point(&app, true);
@@ -655,7 +697,8 @@ fn file_details_names_the_file_its_size_and_a_short_folder() {
 
 // ---- MN3: how long a toast stays ----
 
-/// What: `stays_about` asserts the first toast has about `low` to `high` milliseconds left.
+/// What:
+/// `stays_about` asserts the first toast has about `low` to `high` milliseconds left.
 fn stays_about(low: i64, high: i64) {
     let left = crate::ui_overlays::first_message_expires_in_ms().expect("a toast is showing");
     assert!((low..=high).contains(&left), "the toast has {left} ms left, expected {low} to {high}");

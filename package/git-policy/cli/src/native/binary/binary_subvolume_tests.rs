@@ -1,9 +1,13 @@
 //! What:
 //!  `git monochromatic-git-policy-cli migrate-to-subvolume` and the doctor's filesystem section through the built executable.
 //! Why:
-//!  The command is a promise about the program a caller runs as `git`: its grammar answers without a repository, a
-//!  refusal and a preview change nothing, a real run on btrfs ends with the checkout as a subvolume root and Git clean,
-//!  and the rollback and the deletion of the old tree finish the job. The runs that need btrfs print one loud line and
+//!  The command is a promise about the program a caller runs as `git`:
+//! its grammar answers without a repository,
+//! a
+//!  refusal and a preview change nothing,
+//! a real run on btrfs ends with the checkout as a subvolume root and Git clean,
+//!  and the rollback and the deletion of the old tree finish the job.
+//! The runs that need btrfs print one loud line and
 //!  stop when the fixture root is elsewhere and the run says that is known (`CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED`);
 //!  without the variable they fail with the filesystem they found.
 //!
@@ -33,7 +37,9 @@ fn stdout_text(observed: &Observed) -> String {
     return String::from_utf8_lossy(&observed.stdout).into_owned();
 }
 
-/// A repository with tracked files, a subdirectory and an ignored directory, committed with real Git.
+/// A repository with tracked files,
+/// a subdirectory and an ignored directory,
+/// committed with real Git.
 fn populated_repository(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::create_dir_all(repo.join("src/deep")).expect("directories");
@@ -47,7 +53,10 @@ fn populated_repository(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
-/// Whether the fixture root is on btrfs; where it is not, the run must have said so, and one loud line names the control.
+/// Whether the fixture root is on btrfs;
+/// where it is not,
+/// the run must have said so,
+/// and one loud line names the control.
 fn on_btrfs_or_acknowledged(fixture: &Fixture, control: &str) -> bool {
     let kind = filesystem_kind(fixture.root.as_path());
     if kind == Ok(FilesystemKind::Btrfs) {
@@ -68,7 +77,8 @@ fn inode(path: &Path) -> u64 {
     return std::fs::metadata(path).expect("metadata").ino();
 }
 
-/// The help prints on standard output with status 0 and names every option, in a directory that is no repository.
+/// The help prints on standard output with status 0 and names every option,
+/// in a directory that is no repository.
 #[test]
 fn the_help_answers_anywhere() {
     let fixture: Fixture = fixture("subvolume-help");
@@ -81,8 +91,10 @@ fn the_help_answers_anywhere() {
     remove(&fixture);
 }
 
-/// A malformed invocation exits 2 with the reason and the way to the help; an invocation outside a repository exits 1
-///  with the instruction. Neither creates anything.
+/// A malformed invocation exits 2 with the reason and the way to the help;
+/// an invocation outside a repository exits 1
+///  with the instruction.
+/// Neither creates anything.
 #[test]
 fn a_malformed_invocation_and_a_run_outside_a_repository_are_refused() {
     let fixture: Fixture = fixture("subvolume-refused");
@@ -99,8 +111,14 @@ fn a_malformed_invocation_and_a_run_outside_a_repository_are_refused() {
     remove(&fixture);
 }
 
-/// The whole life of the command through the executable: preview, migration, a repeat, and the deletion of the old
-///  tree, each with the status and the words a person sees, on a fixture that is on btrfs.
+/// The whole life of the command through the executable:
+/// preview,
+/// migration,
+/// a repeat,
+/// and the deletion of the old
+///  tree,
+/// each with the status and the words a person sees,
+/// on a fixture that is on btrfs.
 #[test]
 fn the_command_migrates_a_checkout_previews_repeats_and_deletes_the_old_tree() {
     let fixture: Fixture = fixture("subvolume-life");
@@ -155,8 +173,10 @@ fn from_filesystem_section(text: &str) -> String {
     return String::from(&text[start..]);
 }
 
-/// The doctor ends its standard error with the filesystem section for the checkout's own filesystem, keeps its exit
-///  status, and the section names the command that applies.
+/// The doctor ends its standard error with the filesystem section for the checkout's own filesystem,
+/// keeps its exit
+///  status,
+/// and the section names the command that applies.
 #[test]
 fn the_doctor_ends_with_the_filesystem_section_and_keeps_its_status() {
     let fixture: Fixture = fixture("subvolume-doctor");

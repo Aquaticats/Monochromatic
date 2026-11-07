@@ -67,7 +67,8 @@ fn close(services: &PlasmaServices, id: u32, reason: u32) -> Response {
     }
 }
 
-/// Lists the action keys of a `Notify` call: the even elements of its alternating key and label list.
+/// Lists the action keys of a `Notify` call:
+/// the even elements of its alternating key and label list.
 fn offered_keys(actions: &[String]) -> Vec<&str> {
     let mut keys = Vec::new();
     for key in actions.iter().step_by(2) {

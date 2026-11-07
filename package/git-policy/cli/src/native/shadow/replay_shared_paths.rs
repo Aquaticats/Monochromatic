@@ -2,7 +2,8 @@
 //!  The paths both the prepared commit and the landed history changed since the preparation base,
 //!       with the three tree entries subsumption compares.
 //! Why:
-//!  Subsumption decides per shared path; the listing is two `git diff-tree` runs whatever the history length,
+//!  Subsumption decides per shared path;
+//! the listing is two `git diff-tree` runs whatever the history length,
 //!       and paths stay Latin-1 decoded so every byte survives and encodes back exactly.
 //!
 //! In TS you'd write (pseudocode):
@@ -21,9 +22,11 @@ use std::path::Path;
 const ABSENT_MODE: &str = "000000";
 
 /// What:
-///  One tree entry: its mode and object ID.
+///  One tree entry:
+/// its mode and object ID.
 /// Why:
-///   Subsumption compares modes as well as objects, and a regular file's mode decides the synthetic base.
+///   Subsumption compares modes as well as objects,
+/// and a regular file's mode decides the synthetic base.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -31,16 +34,19 @@ const ABSENT_MODE: &str = "000000";
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TreeEntry {
-    /// Git mode, such as `100644`.
+    /// Git mode,
+    /// such as `100644`.
     pub mode: String,
     /// Object ID.
     pub oid: String,
 }
 
 /// What:
-///  One change of a raw diff record: the path and its entries before and after.
+///  One change of a raw diff record:
+/// the path and its entries before and after.
 /// Why:
-///   Both listings produce these; a path missing from one side has an absent entry.
+///   Both listings produce these;
+/// a path missing from one side has an absent entry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -48,18 +54,24 @@ pub struct TreeEntry {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RawChange {
-    /// Path, Latin-1 decoded.
+    /// Path,
+    /// Latin-1 decoded.
     pub path: String,
-    /// Entry before the change, absent for an addition.
+    /// Entry before the change,
+    /// absent for an addition.
     pub from: Option<TreeEntry>,
-    /// Entry after the change, absent for a deletion.
+    /// Entry after the change,
+    /// absent for a deletion.
     pub to: Option<TreeEntry>,
 }
 
 /// What:
-///  One path both sides changed, with its three entries.
+///  One path both sides changed,
+/// with its three entries.
 /// Why:
-///   The subsumption rules read the base, landed, and prepared entries together.
+///   The subsumption rules read the base,
+/// landed,
+/// and prepared entries together.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -67,20 +79,25 @@ pub struct RawChange {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SharedPath {
-    /// Repository path, Latin-1 decoded.
+    /// Repository path,
+    /// Latin-1 decoded.
     pub path: String,
-    /// Preparation base entry, absent when the path was added after it.
+    /// Preparation base entry,
+    /// absent when the path was added after it.
     pub base: Option<TreeEntry>,
-    /// Landed entry, absent when the landed history deleted the path.
+    /// Landed entry,
+    /// absent when the landed history deleted the path.
     pub landed: Option<TreeEntry>,
-    /// Prepared entry, absent when the prepared commit deleted the path.
+    /// Prepared entry,
+    /// absent when the prepared commit deleted the path.
     pub prepared: Option<TreeEntry>,
 }
 
 /// What:
 ///  Raw diff output that does not have the expected shape.
 /// Why:
-///   A malformed record cannot be attributed, so the replay fails rather than guess.
+///   A malformed record cannot be attributed,
+/// so the replay fails rather than guess.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -90,7 +107,8 @@ pub struct SharedPath {
 pub struct RawFormatError(pub String);
 
 /// What:
-///  Converts one raw mode and object ID into an entry, absent for the all-zero mode.
+///  Converts one raw mode and object ID into an entry,
+/// absent for the all-zero mode.
 /// Why:
 ///   Git writes `000000` for an absent side of a raw record.
 ///
@@ -110,9 +128,11 @@ fn entry_of(mode: &str, oid: &str) -> Option<TreeEntry> {
 
 /// What:
 ///  Parses `git diff-tree -r -z --raw --no-renames --no-abbrev` output:
-///       a `:` header of five fields followed by the path, both NUL-terminated.
+///       a `:` header of five fields followed by the path,
+/// both NUL-terminated.
 /// Why:
-///   Each path appears once because renames are off, so the parser keeps records in output order.
+///   Each path appears once because renames are off,
+/// so the parser keeps records in output order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -150,7 +170,9 @@ pub fn parse_raw_changes(output: &str) -> Result<Vec<RawChange>, RawFormatError>
 /// What:
 ///  Lists the raw changes between two commits in the shadow.
 /// Why:
-///   Two runs, one per side of the replay, keep the process count fixed.
+///   Two runs,
+/// one per side of the replay,
+/// keep the process count fixed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -188,7 +210,8 @@ fn raw_changes(
 
 /// What:
 ///  A shared-path listing failure:
-///       a Git command failed, or its output had an unexpected shape.
+///       a Git command failed,
+/// or its output had an unexpected shape.
 /// Why:
 ///   Replay reports either as `transaction-failed`.
 ///
@@ -206,7 +229,8 @@ pub enum SharedPathError {
 
 /// What:
 ///  Lists the paths both the landed history and the prepared commit changed since the preparation base,
-///       in the landed listing's order, with the three entries.
+///       in the landed listing's order,
+/// with the three entries.
 /// Why:
 ///   The landed listing decides the order subsumption and the synthetic base follow.
 ///
@@ -248,7 +272,8 @@ pub fn list_shared_paths(
 }
 
 /// What:
-///  Whether two entries name the same mode and object, or are both absent.
+///  Whether two entries name the same mode and object,
+/// or are both absent.
 /// Why:
 ///   An identical prepared and landed entry is subsumed without any text check.
 ///
@@ -260,7 +285,8 @@ pub fn same_entry(left: &Option<TreeEntry>, right: &Option<TreeEntry>) -> bool {
     return left == right;
 }
 
-/// Whether one side of a shared path is present and a regular file. An absent side is not.
+/// Whether one side of a shared path is present and a regular file.
+/// An absent side is not.
 fn is_regular_entry(side: &Option<TreeEntry>) -> bool {
     return match side {
         Some(entry) => is_regular_mode(entry.mode.as_str()),
@@ -269,7 +295,8 @@ fn is_regular_entry(side: &Option<TreeEntry>) -> bool {
 }
 
 /// What:
-///  Whether all three entries are regular files, so only their bytes can decide the path.
+///  Whether all three entries are regular files,
+/// so only their bytes can decide the path.
 /// Why:
 ///   Symbolic links and submodules never take the text check.
 ///
@@ -288,9 +315,11 @@ pub fn is_regular_triple(shared: &SharedPath) -> bool {
 
 /// What:
 ///  Whether the text check can decide a path:
-///       landed and prepared are regular files, and the base is one too or absent.
+///       landed and prepared are regular files,
+/// and the base is one too or absent.
 /// Why:
-///   An addition on both sides is read against an empty base, so it is a candidate.
+///   An addition on both sides is read against an empty base,
+/// so it is a candidate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -306,7 +335,8 @@ pub fn is_text_candidate(shared: &SharedPath) -> bool {
 }
 
 /// What:
-///  Whether a mode is a regular file mode, `100644` or `100755`.
+///  Whether a mode is a regular file mode,
+/// `100644` or `100755`.
 /// Why:
 ///   Only these modes are text candidates.
 ///

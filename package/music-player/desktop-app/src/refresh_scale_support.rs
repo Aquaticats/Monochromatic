@@ -10,12 +10,20 @@ use crate::natural_order::natural_cmp;
 use crate::scale_library_tests::build_library;
 use crate::walk_order::walk_cmp;
 
-/// What: the folder the pretend library lives in.
-/// Why: the planner needs a root to strip from paths.
+/// What:
+/// the folder the pretend library lives in.
+/// Why:
+/// the planner needs a root to strip from paths.
 pub(crate) const ROOT: &str = "/library";
 
-/// What: `million_library` is 1,000 artists of 1,000 tracks, absolute paths, in the walk's order.
-/// Why: the planner binary-searches the list, so the order must be exactly the walk's; the function proves it.
+/// What:
+/// `million_library` is 1,000 artists of 1,000 tracks,
+/// absolute paths,
+/// in the walk's order.
+/// Why:
+/// the planner binary-searches the list,
+/// so the order must be exactly the walk's;
+/// the function proves it.
 pub(crate) fn million_library() -> Vec<PathBuf> {
     let library = build_library(1000, 1000);
     let mut loose: Vec<PathBuf> = Vec::new();

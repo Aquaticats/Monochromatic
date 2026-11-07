@@ -1,8 +1,12 @@
 //! What:
-//!  How long a Git step is waited for and what happens at the bound: ended at the class ceiling, never ended but left
-//!  running after the ceiling plus a short wait, or unbounded on the landing thread.
+//!  How long a Git step is waited for and what happens at the bound:
+//! ended at the class ceiling,
+//! never ended but left
+//!  running after the ceiling plus a short wait,
+//! or unbounded on the landing thread.
 //! Why:
-//!  The runner (`transaction_git.rs`) asks for the bound of each step it watches; the choice depends on the step's
+//!  The runner (`transaction_git.rs`) asks for the bound of each step it watches;
+//! the choice depends on the step's
 //!  class and on the rules for which steps may be ended (`transaction_git_step_rerun_and_end_rules.rs`).
 //!
 //! In TS you'd write (pseudocode):
@@ -10,23 +14,36 @@
 //! // stepBound(request): StepBound
 //! ```
 
-/// The kind of step a command belongs to, and its bounded waits.
+/// The kind of step a command belongs to,
+/// and its bounded waits.
 use crate::child_class::{ChildClass, class_of};
 use crate::child_watch::StepBound;
 use crate::transaction_git_request_and_reply_types::GitRequest;
 use crate::transaction_git_step_rerun_and_end_rules::{is_side_ref_write, may_be_ended};
 use crate::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING};
-/// A span of time, for the ceilings.
+/// A span of time,
+/// for the ceilings.
 use std::time::Duration;
 
 /// What:
-///  How long the request's step is waited for, and what happens then.
+///  How long the request's step is waited for,
+/// and what happens then.
 /// Why:
-///   A step that can be run twice is ended at the ceiling of its class, whatever it shows. A step that cannot is never ended
-///  (owner, 2026-11-04: "Never cut a branch write (Recommended)"): on the commit service's landing thread it is waited for, and the
-///  clients that wait behind it are told what it is stuck in (`service_busy.rs`); anywhere else the command that started it stops
-///  waiting at the bound of the step's class plus the short extra wait, with an error saying the result is not known, and the step is
-///  left running. In a unit test the bound of the class can be shortened for the thread that runs the control.
+///   A step that can be run twice is ended at the ceiling of its class,
+/// whatever it shows.
+/// A step that cannot is never ended
+///  (owner,
+/// 2026-11-04:
+/// "Never cut a branch write (Recommended)"):
+/// on the commit service's landing thread it is waited for,
+/// and the
+///  clients that wait behind it are told what it is stuck in (`service_busy.rs`);
+/// anywhere else the command that started it stops
+///  waiting at the bound of the step's class plus the short extra wait,
+/// with an error saying the result is not known,
+/// and the step is
+///  left running.
+/// In a unit test the bound of the class can be shortened for the thread that runs the control.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -53,7 +70,9 @@ pub(crate) fn step_bound(request: &GitRequest) -> StepBound {
     return not_ended_bound(class_ceiling);
 }
 
-/// The bound of a step that is never ended and never waited for without a bound, on any thread: left running after the class ceiling
+/// The bound of a step that is never ended and never waited for without a bound,
+/// on any thread:
+/// left running after the class ceiling
 ///  plus the short extra wait.
 fn leave_running_bound(class_ceiling: Duration) -> StepBound {
     #[cfg(test)]
@@ -64,7 +83,9 @@ fn leave_running_bound(class_ceiling: Duration) -> StepBound {
 }
 
 /// What:
-///  The bound of a step that is never ended: unbounded on the landing thread, else left running after the class ceiling plus the
+///  The bound of a step that is never ended:
+/// unbounded on the landing thread,
+/// else left running after the class ceiling plus the
 ///  short extra wait.
 /// Why:
 ///   Both `step_bound` and `step_bound_checked` give a step this bound.
@@ -82,7 +103,8 @@ fn not_ended_bound(class_ceiling: Duration) -> StepBound {
 
 #[cfg(test)]
 thread_local! {
-    /// A shortened ceiling for the steps the current thread starts, so a control ends a step in a moment.
+    /// A shortened ceiling for the steps the current thread starts,
+    /// so a control ends a step in a moment.
     pub(crate) static STEP_CEILING_FOR_THIS_THREAD: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
     /// A shortened extra wait for the steps the current thread leaves running.
     pub(crate) static EXTRA_WAIT_FOR_THIS_THREAD: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };

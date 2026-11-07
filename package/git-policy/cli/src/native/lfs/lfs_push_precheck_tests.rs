@@ -1,4 +1,6 @@
-//! Controls for the refusal made before a push that carries the upload hook: when `git-lfs` is missing from `PATH`, and
+//! Controls for the refusal made before a push that carries the upload hook:
+//! when `git-lfs` is missing from `PATH`,
+//! and
 //! the push shapes that never need it.
 
 use super::*;
@@ -14,7 +16,9 @@ fn path_environment(directory: &std::path::Path) -> Vec<(OsString, OsString)> {
     return vec![(OsString::from("PATH"), directory.as_os_str().to_owned())];
 }
 
-/// A `PATH` without the program refuses a push that carries the hook, with the explanation, and a `PATH` with it does not.
+/// A `PATH` without the program refuses a push that carries the hook,
+/// with the explanation,
+/// and a `PATH` with it does not.
 #[test]
 fn a_push_is_refused_only_when_the_program_is_missing() {
     let root = fixture("lfs-precheck-missing");
@@ -31,7 +35,9 @@ fn a_push_is_refused_only_when_the_program_is_missing() {
     remove(root.as_path());
 }
 
-/// A push that bypasses the hook, sends nothing, or switched the hook off never needs the program.
+/// A push that bypasses the hook,
+/// sends nothing,
+/// or switched the hook off never needs the program.
 #[test]
 fn a_push_that_runs_no_hook_is_never_refused() {
     let root = fixture("lfs-precheck-bypass");

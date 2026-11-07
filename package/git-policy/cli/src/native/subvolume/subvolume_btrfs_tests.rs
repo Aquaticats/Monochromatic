@@ -1,6 +1,11 @@
-//! Controls that run the migration on the real platform: the btrfs ioctls, `FICLONE` and the kernel's exchange on a
-//!  real btrfs filesystem. Each needs a btrfs fixture root; on the container gate (an overlay) they print one line each
-//!  and the run states that this is known (`fs_btrfs_test_support`), and the host task `native:test:host` runs them.
+//! Controls that run the migration on the real platform:
+//! the btrfs ioctls,
+//! `FICLONE` and the kernel's exchange on a
+//!  real btrfs filesystem.
+//! Each needs a btrfs fixture root;
+//! on the container gate (an overlay) they print one line each
+//!  and the run states that this is known (`fs_btrfs_test_support`),
+//! and the host task `native:test:host` runs them.
 
 use crate::fs_btrfs_test_support::{btrfs_fixture, removal_allowed};
 use crate::fs_kind::BTRFS_SUBVOLUME_ROOT_INODE;
@@ -19,14 +24,16 @@ const DONE: i32 = 0;
 /// The exit status of a failure after the journal began.
 const FAILED: i32 = 2;
 
-/// A checkout with a linked worktree inside a fresh btrfs fixture, or `None` after the loud report.
+/// A checkout with a linked worktree inside a fresh btrfs fixture,
+/// or `None` after the loud report.
 fn btrfs_checkout(name: &str) -> Option<(PathBuf, PathBuf)> {
     let parent: PathBuf = btrfs_fixture(name)?;
     remove(parent.as_path());
     return Some(checkout_with_worktree(name));
 }
 
-/// The inode of a path, which is 256 for the root of every btrfs subvolume.
+/// The inode of a path,
+/// which is 256 for the root of every btrfs subvolume.
 fn inode(path: &Path) -> u64 {
     return std::fs::metadata(path).expect("metadata").ino();
 }
@@ -38,8 +45,11 @@ fn cloned_in(lines: &[String], label: &str) -> u64 {
     return before.rsplit('(').next().expect("a number").parse::<u64>().expect("a clone count");
 }
 
-/// The migration on the real platform: the root and the nested worktree are subvolume roots (inode 256), file data was
-///  cloned, Git is clean and the old tree is kept.
+/// The migration on the real platform:
+/// the root and the nested worktree are subvolume roots (inode 256),
+/// file data was
+///  cloned,
+/// Git is clean and the old tree is kept.
 #[test]
 fn a_real_migration_makes_subvolumes_and_clones_file_data() {
     let Some((parent, root)) = btrfs_checkout("btrfs-migrate") else { return };
@@ -72,8 +82,10 @@ fn a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange() {
     }
 }
 
-/// The rollback on the real platform restores an ordinary directory and removes both subvolumes, by the destroy call where
-///  the mount allows it and by emptying and `rmdir` where it does not; the test checks whichever applies on this mount.
+/// The rollback on the real platform restores an ordinary directory and removes both subvolumes,
+/// by the destroy call where
+///  the mount allows it and by emptying and `rmdir` where it does not;
+/// the test checks whichever applies on this mount.
 #[test]
 fn a_real_rollback_removes_the_subvolumes_whatever_the_mount_option_is() {
     let Some((parent, root)) = btrfs_checkout("btrfs-rollback") else { return };
@@ -107,9 +119,14 @@ fn a_real_deletion_of_the_old_tree_keeps_the_subvolumes() {
     remove(parent.as_path());
 }
 
-/// Two names of one file, one inside a linked worktree and one outside it, are valid before the migration and cannot be
-///  linked afterwards (the worktree is a nested subvolume, and a hard link cannot cross a subvolume): the migration
-///  copies the second name instead of failing, and both names keep the content.
+/// Two names of one file,
+/// one inside a linked worktree and one outside it,
+/// are valid before the migration and cannot be
+///  linked afterwards (the worktree is a nested subvolume,
+/// and a hard link cannot cross a subvolume):
+/// the migration
+///  copies the second name instead of failing,
+/// and both names keep the content.
 #[test]
 fn a_hard_link_across_a_future_subvolume_boundary_becomes_a_copy_on_a_real_migration() {
     let Some((parent, root)) = btrfs_checkout("btrfs-hard-link-boundary") else { return };

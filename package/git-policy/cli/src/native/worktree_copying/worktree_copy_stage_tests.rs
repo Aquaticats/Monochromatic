@@ -1,4 +1,5 @@
-//! Staging checks against real Git repositories: what the private stage holds and how it is cleaned up.
+//! Staging checks against real Git repositories:
+//! what the private stage holds and how it is cleaned up.
 
 use super::*;
 use crate::parallel_budget::HostResources;
@@ -6,7 +7,9 @@ use crate::worktree_copy_manifest::{EntryKind, stamp_of};
 use crate::worktree_copy_stage_leaf_copying::*;
 use crate::test_support::{fixture, git, git_context, remove, repository};
 
-/// A source with ignored files, a symbolic link, an executable and a nested private-looking name.
+/// A source with ignored files,
+/// a symbolic link,
+/// an executable and a nested private-looking name.
 fn source_with_ignored_state(parent: &Path) -> PathBuf {
     let root: PathBuf = repository(parent, "source");
     std::fs::write(
@@ -36,7 +39,9 @@ fn source_with_ignored_state(parent: &Path) -> PathBuf {
     return root;
 }
 
-/// The staged container is private, beside the destination, and holds the payload that mirrors the source.
+/// The staged container is private,
+/// beside the destination,
+/// and holds the payload that mirrors the source.
 #[cfg(unix)]
 #[test]
 fn stage_mirrors_selected_entries_with_modes_and_links() {
@@ -154,7 +159,8 @@ fn nested_registered_worktree_is_not_copied() {
     remove(root.as_path());
 }
 
-/// A source with an ignored FIFO fails the copy, and the private stage is removed so nothing is left beside the destination.
+/// A source with an ignored FIFO fails the copy,
+/// and the private stage is removed so nothing is left beside the destination.
 #[cfg(unix)]
 #[test]
 fn failed_copy_removes_its_stage() {
@@ -213,7 +219,8 @@ fn copied_file_has_identical_bytes() {
     remove(root.as_path());
 }
 
-/// A private container under a missing parent is never created, and the failure names the cause.
+/// A private container under a missing parent is never created,
+/// and the failure names the cause.
 #[test]
 fn staging_under_a_missing_parent_fails_with_cause() {
     let root: PathBuf = fixture("stage-missing-parent");
@@ -245,7 +252,8 @@ fn clone_refuses(_source: &std::fs::File, _destination: &std::fs::File) -> bool 
 }
 
 /// The bytes are copied exactly when the clone is refused:
-///  an accepted clone is trusted to have filled the file, and a refused one never leaves it empty.
+///  an accepted clone is trusted to have filled the file,
+/// and a refused one never leaves it empty.
 #[test]
 fn bytes_are_copied_exactly_when_the_clone_is_refused() {
     let root: PathBuf = fixture("stage-clone-choice");
@@ -268,7 +276,8 @@ fn bytes_are_copied_exactly_when_the_clone_is_refused() {
 }
 
 /// The real clone request says it cloned exactly when the destination holds the source's bytes,
-///  on any filesystem: a refusal leaves the new file empty and an acceptance fills it.
+///  on any filesystem:
+/// a refusal leaves the new file empty and an acceptance fills it.
 #[cfg(target_os = "linux")]
 #[test]
 fn the_clone_request_reports_what_it_did() {
@@ -290,9 +299,12 @@ fn the_clone_request_reports_what_it_did() {
     remove(root.as_path());
 }
 
-/// Where the filesystem accepts a clone, the clone request accepts it too.
-///  The probe asks the kernel directly on a separate pair of files, so the answer does not depend on `try_clone`;
-///  on a filesystem without clones (tmpfs, overlay) both sides are refusals and the test shows nothing.
+/// Where the filesystem accepts a clone,
+/// the clone request accepts it too.
+///  The probe asks the kernel directly on a separate pair of files,
+/// so the answer does not depend on `try_clone`;
+///  on a filesystem without clones (tmpfs,
+/// overlay) both sides are refusals and the test shows nothing.
 #[cfg(target_os = "linux")]
 #[test]
 fn the_clone_request_succeeds_where_the_filesystem_clones() {
@@ -318,7 +330,8 @@ fn the_clone_request_succeeds_where_the_filesystem_clones() {
     remove(root.as_path());
 }
 
-/// Only the roots strictly inside the source are nested, and the source itself and its neighbours are not.
+/// Only the roots strictly inside the source are nested,
+/// and the source itself and its neighbours are not.
 #[test]
 fn only_strictly_nested_roots_are_nested() {
     let source: PathBuf = PathBuf::from("/work/source");
@@ -334,7 +347,8 @@ fn only_strictly_nested_roots_are_nested() {
     );
 }
 
-/// A clone request that the filesystem accepts and that fills the file, so the stamp logic sees a real clone.
+/// A clone request that the filesystem accepts and that fills the file,
+/// so the stamp logic sees a real clone.
 fn clone_accepts_and_copies(source: &std::fs::File, destination: &std::fs::File) -> bool {
     use std::io::{Seek, SeekFrom};
     let mut from: &std::fs::File = source;
@@ -344,8 +358,10 @@ fn clone_accepts_and_copies(source: &std::fs::File, destination: &std::fs::File)
     return true;
 }
 
-/// A refused clone proves nothing and leaves no stamp; an accepted clone of a settled file returns the source's stamp;
-///  an accepted clone of a file changed within the timestamp granularity returns none, so its bytes are compared later.
+/// A refused clone proves nothing and leaves no stamp;
+/// an accepted clone of a settled file returns the source's stamp;
+///  an accepted clone of a file changed within the timestamp granularity returns none,
+/// so its bytes are compared later.
 #[cfg(unix)]
 #[test]
 fn a_stamp_comes_only_from_a_clone_of_a_settled_file() {
@@ -369,7 +385,9 @@ fn a_stamp_comes_only_from_a_clone_of_a_settled_file() {
     remove(root.as_path());
 }
 
-/// A manifest past the threshold is copied by several slices and arrives whole: every file, in every directory.
+/// A manifest past the threshold is copied by several slices and arrives whole:
+/// every file,
+/// in every directory.
 #[cfg(unix)]
 #[test]
 fn a_large_manifest_is_copied_in_slices_and_arrives_whole() {
@@ -400,7 +418,8 @@ fn a_large_manifest_is_copied_in_slices_and_arrives_whole() {
     remove(root.as_path());
 }
 
-/// The stage records the unreadable entries it left out, and a root that is another checkout is no root of the stage.
+/// The stage records the unreadable entries it left out,
+/// and a root that is another checkout is no root of the stage.
 #[cfg(unix)]
 #[test]
 fn unreadable_entries_and_other_checkouts_are_left_out_of_a_main_stage() {
@@ -436,7 +455,9 @@ fn unreadable_entries_and_other_checkouts_are_left_out_of_a_main_stage() {
     remove(root.as_path());
 }
 
-/// A copy of few entries uses one thread; a large one takes the host's budget up to the ceiling, with the margin left free.
+/// A copy of few entries uses one thread;
+/// a large one takes the host's budget up to the ceiling,
+/// with the margin left free.
 #[test]
 fn the_copy_workers_follow_the_hosts_budget_up_to_the_ceiling() {
     let small_host: HostResources = HostResources { parallelism: PARALLEL_COPY_MAX_WORKERS, memory_available: None };
@@ -452,7 +473,8 @@ fn the_copy_threshold_is_the_measured_break_even() {
     assert_eq!(PARALLEL_COPY_MIN_ENTRIES, crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES);
 }
 
-/// Where the system starts no thread the copy workers' slices are copied in turn and every file arrives with its bytes. The body runs
+/// Where the system starts no thread the copy workers' slices are copied in turn and every file arrives with its bytes.
+/// The body runs
 /// in a child that is refused every thread.
 #[test]
 fn a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn() {

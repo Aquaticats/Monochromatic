@@ -44,7 +44,8 @@ and the match-rule builder no longer returns a
 
 ## Verification
 
-The ports are in the Resolution section; `mise run //package/nested-wayland-session/cli:test` and
+The ports are in the Resolution section;
+`mise run //package/nested-wayland-session/cli:test` and
 `mise run //package/music-player/desktop-app:test` pass on zbus 6.2.1.
 
 ## Resolution

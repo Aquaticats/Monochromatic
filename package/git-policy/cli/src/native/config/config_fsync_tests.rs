@@ -1,20 +1,29 @@
-//! Controls for reading `core.fsync`: every reading is checked against the flushes real Git makes with the same value, counted
-//!  from Git's own trace2 `fsync` counters, so a reading that drifts from Git's fails here.
+//! Controls for reading `core.fsync`:
+//! every reading is checked against the flushes real Git makes with the same value,
+//! counted
+//!  from Git's own trace2 `fsync` counters,
+//! so a reading that drifts from Git's fails here.
 
 use super::*;
 use crate::test_support::{fixture, git_context, remove, repository};
 use crate::transaction_git::{GitRequest, run_git};
 use std::path::{Path, PathBuf};
 
-/// The values checked: every word, groupings, removals that a later word undoes, `none` in and out of the last place,
-///  prefixes, and words Git ignores.
+/// The values checked:
+/// every word,
+/// groupings,
+/// removals that a later word undoes,
+/// `none` in and out of the last place,
+///  prefixes,
+/// and words Git ignores.
 const VALUES: [&str; 22] = [
     "", "none", "all", "added", "committed", "objects", "loose-object", "pack", "-pack", "-all", "all,-pack", "pack-metadata",
     "derived-metadata", "loose-object,none", "none,loose-object", "p", "reference,-reference", "bogus", "  pack ,\tnone", "-",
     "pack,-pack-metadata", "commit-graph,pack-metadata,none",
 ];
 
-/// How many flushes Git reports (trace2 `fsync` counters) for one start of `arguments` with `core.fsync` set to `value`, or
+/// How many flushes Git reports (trace2 `fsync` counters) for one start of `arguments` with `core.fsync` set to `value`,
+/// or
 ///  not set at all for `None`.
 fn flushes(repo: &Path, trace: &Path, value: Option<&str>, arguments: &[&str], input: Option<&[u8]>) -> u64 {
     let _gone = std::fs::remove_file(trace);
@@ -37,21 +46,30 @@ fn flushes(repo: &Path, trace: &Path, value: Option<&str>, arguments: &[&str], i
         .sum();
 }
 
-/// The flushes of `index-pack` storing `pack`: the pack and its index, no reference.
+/// The flushes of `index-pack` storing `pack`:
+/// the pack and its index,
+/// no reference.
 fn pack_flushes(repo: &Path, trace: &Path, value: Option<&str>, pack: &[u8]) -> u64 {
     return flushes(repo, trace, value, &["index-pack", "--stdin", "--strict"], Some(pack));
 }
 
-/// A pack of the repository's history, to give `index-pack`.
+/// A pack of the repository's history,
+/// to give `index-pack`.
 fn history_pack(repo: &Path) -> Vec<u8> {
     let mut request: GitRequest = GitRequest::new(repo, &["pack-objects", "--stdout", "--revs", "--quiet"]);
     request.input = Some(b"HEAD\n".to_vec());
     return run_git(&git_context(), &request).expect("pack-objects starts").stdout;
 }
 
-/// The flushes of the import step of a landing, which also updates a reference: `fast-import` with `fastimport.unpackLimit=0`,
-///  which keeps even a small pack, so the pack and its index are written. The message and the file hold `name`, so no earlier
-///  probe wrote the same objects (an object that exists is not written again, and a pack of none is not made).
+/// The flushes of the import step of a landing,
+/// which also updates a reference:
+/// `fast-import` with `fastimport.unpackLimit=0`,
+///  which keeps even a small pack,
+/// so the pack and its index are written.
+/// The message and the file hold `name`,
+/// so no earlier
+///  probe wrote the same objects (an object that exists is not written again,
+/// and a pack of none is not made).
 fn import_flushes(repo: &Path, trace: &Path, value: Option<&str>, name: &str) -> u64 {
     let stream: String = format!("commit refs/probe/import-{name}\nmark :1\ncommitter T <t@example.invalid> 1793535889 +0000\ndata {length}\n{name}\nM 100644 inline f\ndata {length}\n{name}\n\ndone\n", length = name.len());
     return flushes(repo, trace, value, &["-c", "fastimport.unpackLimit=0", "fast-import", "--quiet", "--done"], Some(stream.as_bytes()));
@@ -67,7 +85,8 @@ fn reference_flushes(repo: &Path, trace: &Path, value: Option<&str>, name: &str)
     return flushes(repo, trace, value, &["update-ref", format!("refs/probe/{name}").as_str(), "HEAD"], None);
 }
 
-/// Each reading of a value agrees with Git: a component is named exactly when Git flushes its writes.
+/// Each reading of a value agrees with Git:
+/// a component is named exactly when Git flushes its writes.
 #[test]
 fn a_value_names_the_components_git_flushes() {
     let root: PathBuf = fixture("config-fsync-reading");
@@ -88,7 +107,8 @@ fn a_value_names_the_components_git_flushes() {
     remove(root.as_path());
 }
 
-/// The unset key is the default: the pack is flushed and the loose object and the reference are not.
+/// The unset key is the default:
+/// the pack is flushed and the loose object and the reference are not.
 #[test]
 fn an_unset_key_is_the_default_set() {
     let root: PathBuf = fixture("config-fsync-default");
@@ -103,8 +123,11 @@ fn an_unset_key_is_the_default_set() {
     remove(root.as_path());
 }
 
-/// The value that drops the packs keeps every other component and flushes no pack, under every value checked: the pack of
-///  `fast-import` makes no flush, the loose object and the reference are flushed exactly as under the person's own value.
+/// The value that drops the packs keeps every other component and flushes no pack,
+/// under every value checked:
+/// the pack of
+///  `fast-import` makes no flush,
+/// the loose object and the reference are flushed exactly as under the person's own value.
 #[test]
 fn the_value_without_packs_keeps_the_other_components_and_flushes_no_pack() {
     let root: PathBuf = fixture("config-fsync-without-packs");
@@ -134,7 +157,8 @@ fn the_value_without_packs_keeps_the_other_components_and_flushes_no_pack() {
     remove(root.as_path());
 }
 
-/// The index is named by `index`, `added` and `all` only.
+/// The index is named by `index`,
+/// `added` and `all` only.
 #[test]
 fn only_index_added_and_all_name_the_index() {
     for value in VALUES {
@@ -148,8 +172,10 @@ fn only_index_added_and_all_name_the_index() {
     assert!(!FsyncComponents::parse("-index").names_index());
 }
 
-/// The value that adds the packs keeps every other component and flushes the pack and its index as well: `index-pack` makes
-/// as many flushes under it as under a value that names the packs alone, and the loose object and the reference are flushed
+/// The value that adds the packs keeps every other component and flushes the pack and its index as well:
+/// `index-pack` makes
+/// as many flushes under it as under a value that names the packs alone,
+/// and the loose object and the reference are flushed
 /// exactly as under the person's own value.
 #[test]
 fn the_value_with_packs_flushes_the_pack_and_its_index_and_keeps_the_other_components() {

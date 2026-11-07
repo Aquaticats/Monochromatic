@@ -8,9 +8,13 @@ use slint::{Color, ComponentHandle};
 
 use super::*;
 
-/// What: `init_platform` installs the testing backend once per test thread.
-/// Why:  `init_no_event_loop` installs a thread-local platform, and the test harness runs each test on its own
-///       thread, so every thread installs its own once.
+/// What:
+/// `init_platform` installs the testing backend once per test thread.
+/// Why:
+///  `init_no_event_loop` installs a thread-local platform,
+/// and the test harness runs each test on its own
+///       thread,
+/// so every thread installs its own once.
 fn init_platform() {
     thread_local! {
         static INSTALLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -21,7 +25,9 @@ fn init_platform() {
     }
 }
 
-/// What: `window_with_scheme(scheme)` builds the window forced to a scheme (1 light, 2 dark).
+/// What:
+/// `window_with_scheme(scheme)` builds the window forced to a scheme (1 light,
+/// 2 dark).
 fn window_with_scheme(scheme: i32) -> AppWindow {
     init_platform();
     let app = AppWindow::new().expect("the window should build on the testing backend");
@@ -29,12 +35,15 @@ fn window_with_scheme(scheme: i32) -> AppWindow {
     return app;
 }
 
-/// What: `color_of(hex)` builds an opaque Slint color from `0xRRGGBB`.
+/// What:
+/// `color_of(hex)` builds an opaque Slint color from `0xRRGGBB`.
 fn color_of(hex: u32) -> Color {
     return Color::from_rgb_u8(((hex >> 16) & 0xFF) as u8, ((hex >> 8) & 0xFF) as u8, (hex & 0xFF) as u8);
 }
 
-/// What: `settle()` lets Slint run its pending `changed` handlers, as the event loop does before each frame.
+/// What:
+/// `settle()` lets Slint run its pending `changed` handlers,
+/// as the event loop does before each frame.
 fn settle() {
     slint::platform::update_timers_and_animations();
 }
@@ -139,9 +148,16 @@ fn the_scheme_choice_stays_in_slint_and_needs_no_rust_round_trip() {
     assert_eq!(theme.get_canvas(), color_of(0x000000));
 }
 
-/// What: `forbidden_color_calls(source)` lists the sRGB color operations D108 bans in a `.slint` source.
-/// Why:  `mix`, `brighter`, `darker` and `transparentize` change lightness, chroma or hue in sRGB; `with-alpha` is
-///       alpha-only layering, which D108 allows.
+/// What:
+/// `forbidden_color_calls(source)` lists the sRGB color operations D108 bans in a `.slint` source.
+/// Why:
+///  `mix`,
+/// `brighter`,
+/// `darker` and `transparentize` change lightness,
+/// chroma or hue in sRGB;
+/// `with-alpha` is
+///       alpha-only layering,
+/// which D108 allows.
 fn forbidden_color_calls(source: &str) -> Vec<&'static str> {
     let mut found: Vec<&'static str> = Vec::new();
     for call in [".mix(", ".brighter(", ".darker(", ".transparentize("] {

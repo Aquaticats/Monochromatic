@@ -19,7 +19,9 @@ fn hook_switches() -> String {
     return HOOK_EVENTS.iter().map(|event| { return format!("[hook \"{event}\"]\n\tenabled = false\n"); }).collect();
 }
 
-/// Every hook event is switched off in the shadow's config, after the include, so the real config cannot turn one on.
+/// Every hook event is switched off in the shadow's config,
+/// after the include,
+/// so the real config cannot turn one on.
 #[test]
 fn the_shadow_config_switches_every_hook_event_off_after_the_include() {
     let format: RepositoryFormat = RepositoryFormat { version: String::from("0"), extensions: Vec::new() };
@@ -63,7 +65,8 @@ fn config_without_extensions_has_the_fixed_layout() {
     );
 }
 
-/// Extensions are copied under their own section, before the include.
+/// Extensions are copied under their own section,
+/// before the include.
 #[test]
 fn config_copies_extensions_before_the_include() {
     let format: RepositoryFormat = RepositoryFormat {
@@ -101,7 +104,8 @@ fn sha256_repository_copies_its_object_format() {
     remove(root.as_path());
 }
 
-/// A valueless extension reads as `true`, and a non-extension key is not copied.
+/// A valueless extension reads as `true`,
+/// and a non-extension key is not copied.
 #[test]
 fn valueless_extension_reads_as_true_and_other_keys_are_skipped() {
     let root: PathBuf = fixture("shadow-config-valueless");
@@ -174,7 +178,9 @@ fn entries_from_other_scopes_do_not_enter_the_snapshot_format() {
     remove(root.as_path());
 }
 
-/// An include of any kind, or a read made with global options, leaves the format to Git.
+/// An include of any kind,
+/// or a read made with global options,
+/// leaves the format to Git.
 #[test]
 fn includes_and_global_options_leave_the_format_to_git() {
     let root: PathBuf = fixture("shadow-config-snapshot-includes");

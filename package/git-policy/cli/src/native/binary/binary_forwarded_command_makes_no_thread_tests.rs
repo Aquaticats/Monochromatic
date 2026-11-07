@@ -1,11 +1,21 @@
 //! What:
-//!  Controls that a forwarded Git command makes no `clone`, `clone3`, `fork` or `vfork` call of its own before real Git
+//!  Controls that a forwarded Git command makes no `clone`,
+//! `clone3`,
+//! `fork` or `vfork` call of its own before real Git
 //!  replaces the wrapper.
 //! Why:
-//!  The wrapper is moving onto tokio (`doc/planning/git-policy-cli-full-tokio.md`, step T2). The owner's rule is that a
-//!  forwarded command pays for nothing it does not use: a runtime, and above all its worker threads, is built only by
-//!  code that needs it, never in `main`. A snapshot of `/proc/<pid>/status` cannot show that a thread was never
-//!  started, so these controls read the system calls of the whole run under `strace`.
+//!  The wrapper is moving onto tokio (`doc/planning/git-policy-cli-full-tokio.md`,
+//! step T2).
+//! The owner's rule is that a
+//!  forwarded command pays for nothing it does not use:
+//! a runtime,
+//! and above all its worker threads,
+//! is built only by
+//!  code that needs it,
+//! never in `main`.
+//! A snapshot of `/proc/<pid>/status` cannot show that a thread was never
+//!  started,
+//! so these controls read the system calls of the whole run under `strace`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,9 +36,11 @@ use std::process::{Command, Output};
 
 /// What:
 ///  `fn traced_wrapper_spawns(...)` runs one wrapped command under `strace` and returns how many `clone`-family calls
-///  the wrapper's own program made, plus what the command printed.
+///  the wrapper's own program made,
+/// plus what the command printed.
 /// Why:
-///  Every control below needs the same run; one function keeps the trace options in one place.
+///  Every control below needs the same run;
+/// one function keeps the trace options in one place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -71,9 +83,12 @@ fn traced_wrapper_spawns(label: &str, arguments: &[&str]) -> (usize, Output) {
 }
 
 /// What:
-///  `rev-parse HEAD` and `status --short` are forwarded commands: the wrapper plans them and replaces itself with Git.
+///  `rev-parse HEAD` and `status --short` are forwarded commands:
+/// the wrapper plans them and replaces itself with Git.
 /// Why:
-///  Neither needs a runtime, a thread or a child, so the wrapper process makes no `clone`-family call at all.
+///  Neither needs a runtime,
+/// a thread or a child,
+/// so the wrapper process makes no `clone`-family call at all.
 #[test]
 fn a_forwarded_command_makes_no_clone_before_git_replaces_the_wrapper() {
     if !strace_available() {
@@ -92,7 +107,9 @@ fn a_forwarded_command_makes_no_clone_before_git_replaces_the_wrapper() {
     }
 }
 
-/// The planted control: a trace in which the wrapper starts a thread and a child, and Git starts one too.
+/// The planted control:
+/// a trace in which the wrapper starts a thread and a child,
+/// and Git starts one too.
 const TRACE_WITH_WRAPPER_THREADS: &str = "\
 100 execve(\"/usr/bin/timeout\", [\"timeout\"], 0x0) = 0
 100 clone3({flags=CLONE_VM}, 88) = 101
@@ -104,7 +121,9 @@ const TRACE_WITH_WRAPPER_THREADS: &str = "\
 ";
 
 /// What:
-///  The counter attributes a spawn to the program of the process that made it: two by the wrapper, none by the
+///  The counter attributes a spawn to the program of the process that made it:
+/// two by the wrapper,
+/// none by the
 ///  harness's `timeout` and none by Git.
 /// Why:
 ///  A control that cannot count a wrapper thread would pass whatever the wrapper does (the guard must be shown to fail).

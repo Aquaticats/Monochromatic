@@ -1,11 +1,23 @@
 //! What:
-//!  A `git pull` that merges, through the built executable: with another session's staged work in the index it ends as
-//!  native Git's pull ends on a clean copy, and every pull the wrapper does not complete keeps native Git's own run.
+//!  A `git pull` that merges,
+//! through the built executable:
+//! with another session's staged work in the index it ends as
+//!  native Git's pull ends on a clean copy,
+//! and every pull the wrapper does not complete keeps native Git's own run.
 //! Why:
-//!  Native Git's pull runs `git merge` as a child of Git (`builtin/pull.c`, `run_merge`), so the merge never reached the
-//!  wrapper and kept native Git's failures: a staged index, a held `index.lock`, a late ref update. The owner's rules are
-//!  "Auto merging should never fail." and "Manual merge should never fail too.", so the merge phase of a pull goes
-//!  through the same isolated merge as `git merge` (`doc/planning/cli-git-merge-auto-resolution.md`, "Pull").
+//!  Native Git's pull runs `git merge` as a child of Git (`builtin/pull.c`,
+//! `run_merge`),
+//! so the merge never reached the
+//!  wrapper and kept native Git's failures:
+//! a staged index,
+//! a held `index.lock`,
+//! a late ref update.
+//! The owner's rules are
+//!  "Auto merging should never fail."
+//! and "Manual merge should never fail too.",
+//! so the merge phase of a pull goes
+//!  through the same isolated merge as `git merge` (`doc/planning/cli-git-merge-auto-resolution.md`,
+//! "Pull").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,7 +31,8 @@ use super::merge_isolation::{copy_of, diverged, snapshot, stage_unrelated_work};
 use super::support::{Fixture, Observed, direct, fixture, git, observe, repository, without_wait_notices};
 use std::path::{Path, PathBuf};
 
-/// A repository whose `main` follows a bare remote that holds the `feature` history as its `main`, so a pull merges.
+/// A repository whose `main` follows a bare remote that holds the `feature` history as its `main`,
+/// so a pull merges.
 fn diverged_with_remote(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = diverged(fixture, "dirty");
     let remote: PathBuf = fixture.root.join("remote.git");
@@ -31,18 +44,24 @@ fn diverged_with_remote(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
-/// Run a wrapped command to its end, without the wait notices a slow step may print.
+/// Run a wrapped command to its end,
+/// without the wait notices a slow step may print.
 fn run(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
     let observed: Observed = observe(&mut wrapped_commit(fixture, repo, arguments), b"");
     return Observed { stderr: without_wait_notices(observed.stderr.as_slice()), ..observed };
 }
 
-/// Run native Git directly, the oracle on a clean copy.
+/// Run native Git directly,
+/// the oracle on a clean copy.
 fn native(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
     return observe(direct(fixture).current_dir(repo).args(arguments), b"");
 }
 
-/// The parts of a merge commit that must equal native Git's: tree, both parents, message, author and committer names.
+/// The parts of a merge commit that must equal native Git's:
+/// tree,
+/// both parents,
+/// message,
+/// author and committer names.
 fn commit_shape(fixture: &Fixture, repo: &Path) -> Vec<String> {
     return vec![
         git_text(fixture, repo, &["rev-parse", "HEAD^{tree}"]),
@@ -52,7 +71,11 @@ fn commit_shape(fixture: &Fixture, repo: &Path) -> Vec<String> {
     ];
 }
 
-/// What the commit at `HEAD` holds apart from the time it was made: its tree, how many parents it has, and its words and names. Two pulls made
+/// What the commit at `HEAD` holds apart from the time it was made:
+/// its tree,
+/// how many parents it has,
+/// and its words and names.
+/// Two pulls made
 ///  in different seconds make commits that differ in name only.
 fn head_shape(fixture: &Fixture, repo: &Path) -> Vec<String> {
     return vec![
@@ -62,8 +85,12 @@ fn head_shape(fixture: &Fixture, repo: &Path) -> Vec<String> {
     ];
 }
 
-/// A pull that merges over another session's staged work is completed, leaves that work as it was, and equals native Git's
-///  pull on a clean copy in tree, parents, message and words.
+/// A pull that merges over another session's staged work is completed,
+/// leaves that work as it was,
+/// and equals native Git's
+///  pull on a clean copy in tree,
+/// parents,
+/// message and words.
 #[test]
 fn a_pull_that_merges_is_completed_over_staged_work_and_equals_native_gits() {
     let fixture: Fixture = fixture("pull-isolated-oracle");
@@ -85,7 +112,9 @@ fn a_pull_that_merges_is_completed_over_staged_work_and_equals_native_gits() {
     remove_settled(&fixture);
 }
 
-/// The same pull into a clean index, which the isolated merge completes since it completes a clean-index merge, equals native Git's.
+/// The same pull into a clean index,
+/// which the isolated merge completes since it completes a clean-index merge,
+/// equals native Git's.
 #[test]
 fn a_pull_into_a_clean_index_equals_native_gits() {
     let fixture: Fixture = fixture("pull-isolated-clean");
@@ -101,7 +130,10 @@ fn a_pull_into_a_clean_index_equals_native_gits() {
     remove_settled(&fixture);
 }
 
-/// A pull the wrapper does not read exactly, or that Git refuses by its own advice, is native Git's whole, in words and status.
+/// A pull the wrapper does not read exactly,
+/// or that Git refuses by its own advice,
+/// is native Git's whole,
+/// in words and status.
 #[test]
 fn a_pull_native_git_refuses_or_the_wrapper_does_not_read_is_native_gits() {
     let cases: [(&str, &[&str]); 4] = [
@@ -126,7 +158,8 @@ fn a_pull_native_git_refuses_or_the_wrapper_does_not_read_is_native_gits() {
     }
 }
 
-/// A repository whose `main` is one commit behind a bare remote and whose fetch refspec updates the branches, so a fetch moves
+/// A repository whose `main` is one commit behind a bare remote and whose fetch refspec updates the branches,
+/// so a fetch moves
 ///  the checked-out branch.
 fn behind_with_mirror_refspec(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, std::ffi::OsStr::new("repo"));
@@ -146,7 +179,9 @@ fn behind_with_mirror_refspec(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
-/// A fetch that moves the checked-out branch takes the working tree along, then the pull merges, as in native Git.
+/// A fetch that moves the checked-out branch takes the working tree along,
+/// then the pull merges,
+/// as in native Git.
 #[test]
 fn a_fetch_that_moves_the_checked_out_branch_updates_the_working_tree_as_native_git_does() {
     let fixture: Fixture = fixture("pull-moved-head");
@@ -164,8 +199,10 @@ fn a_fetch_that_moves_the_checked_out_branch_updates_the_working_tree_as_native_
     remove_settled(&fixture);
 }
 
-/// A fetch that moves the checked-out branch while another program holds `index.lock`: the pull says what it waits for and
-///  takes the working tree along when the lock is gone, where native Git's `read-tree` step would have died on the lock.
+/// A fetch that moves the checked-out branch while another program holds `index.lock`:
+/// the pull says what it waits for and
+///  takes the working tree along when the lock is gone,
+/// where native Git's `read-tree` step would have died on the lock.
 #[test]
 fn a_pull_whose_fetch_moved_the_branch_waits_for_a_held_index_lock() {
     let fixture: Fixture = fixture("pull-moved-head-lock");
@@ -183,17 +220,28 @@ fn a_pull_whose_fetch_moved_the_branch_waits_for_a_held_index_lock() {
     remove_settled(&fixture);
 }
 
-/// The elapsed times of one arm, in milliseconds, sorted.
+/// The elapsed times of one arm,
+/// in milliseconds,
+/// sorted.
 fn sorted_milliseconds(times: &[std::time::Duration]) -> Vec<u128> {
     let mut milliseconds: Vec<u128> = times.iter().map(std::time::Duration::as_millis).collect();
     milliseconds.sort_unstable();
     return milliseconds;
 }
 
-/// A measurement for the handover, not a control: the same pull timed with native Git (twice, so the spread of one arm shows),
-///  with the wrapper's split pull, with a pull the wrapper leaves to native Git (`--autostash`) and with the typed merge of the
-///  fetched branch, run in turns on fresh copies of one repository, each with a remote of its own, under the load the host has.
-///  Once for a pull that merges and once for a pull that fast-forwards. It prints the sorted times; nothing is asserted.
+/// A measurement for the handover,
+/// not a control:
+/// the same pull timed with native Git (twice,
+/// so the spread of one arm shows),
+///  with the wrapper's split pull,
+/// with a pull the wrapper leaves to native Git (`--autostash`) and with the typed merge of the
+///  fetched branch,
+/// run in turns on fresh copies of one repository,
+/// each with a remote of its own,
+/// under the load the host has.
+///  Once for a pull that merges and once for a pull that fast-forwards.
+/// It prints the sorted times;
+/// nothing is asserted.
 #[test]
 #[ignore = "a measurement for the handover, not a control"]
 fn measure_the_split_pull_against_native_git() {

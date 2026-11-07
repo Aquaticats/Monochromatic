@@ -1,8 +1,12 @@
 //! What:
 //! The text a shadow prints about its post-run cleanup of superseded cached crates.
 //! Why:
-//! A run that removes many files must say that this is cleanup, after the mpm command, and not list every path
-//! unless asked; a failed removal is always said, with its reason.
+//! A run that removes many files must say that this is cleanup,
+//! after the mpm command,
+//! and not list every path
+//! unless asked;
+//! a failed removal is always said,
+//! with its reason.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,14 +22,17 @@ use crate::prune::PruneReport;
 /// The environment variable that asks for one line per removed path.
 pub const VERBOSE_ENV: &str = "MPM_SHADOW_VERBOSE";
 
-/// The units of `format_size`, smallest first; each is 1024 times the one before.
+/// The units of `format_size`,
+/// smallest first;
+/// each is 1024 times the one before.
 const SIZE_UNITS: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
 
 /// How many of the smaller unit make one of the next.
 const UNIT_STEP: f64 = 1024.0;
 
 /// What:
-/// A byte count in the largest binary unit that keeps it at or above one, with one decimal place (`12.3 MiB`);
+/// A byte count in the largest binary unit that keeps it at or above one,
+/// with one decimal place (`12.3 MiB`);
 /// plain bytes below one KiB.
 /// Why:
 /// The summary line gives a reader a sense of how much was removed without a long number.
@@ -52,10 +59,12 @@ pub fn format_size(bytes: u64) -> String {
 /// nothing when it removed and failed nothing;
 /// otherwise one summary line that says it is post-run cleanup after the mpm command,
 /// then (only when `verbose`) one `deleted stale` line per removed path,
-/// then (always) one line per path that could not be removed, with the system's reason.
+/// then (always) one line per path that could not be removed,
+/// with the system's reason.
 /// Why:
 /// A run that removes many paths must not bury the mpm command's own output,
-/// and must not read as part of the command; a failure is never hidden.
+/// and must not read as part of the command;
+/// a failure is never hidden.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

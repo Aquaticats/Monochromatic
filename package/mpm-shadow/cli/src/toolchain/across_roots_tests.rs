@@ -637,7 +637,8 @@ fn a_release_archive_tools_older_copy_in_the_other_root_goes_with_its_downloads_
 /// Why:
 ///  The hint is a command the person pastes into a shell,
 ///  so it must name exactly the tool whatever its id holds,
-///  and mise is being retired, so the hint names mpm's own pnpm-style verb.
+///  and mise is being retired,
+/// so the hint names mpm's own pnpm-style verb.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

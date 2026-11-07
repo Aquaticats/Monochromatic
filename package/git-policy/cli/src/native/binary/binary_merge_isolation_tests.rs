@@ -1,12 +1,17 @@
 //! What:
 //!  A true `git merge` run through the built executable in a checkout whose index holds another session's staged
-//!  changes, checked against native Git on a clean copy of the same repository.
+//!  changes,
+//! checked against native Git on a clean copy of the same repository.
 //! Why:
 //!  Native Git refuses every merge that creates a commit while the index differs from `HEAD`
 //!  (`doc/planning/cli-git-merge-with-staged-index.md`).
-//!  The wrapper completes the merge without disturbing the staged or unstaged work, so the merge commit must equal
-//!  what native Git writes on a clean checkout, every entry and file that is not the merge's must stay byte for byte,
-//!  and a merge that would write over someone's work, or that conflicts, must change nothing.
+//!  The wrapper completes the merge without disturbing the staged or unstaged work,
+//! so the merge commit must equal
+//!  what native Git writes on a clean checkout,
+//! every entry and file that is not the merge's must stay byte for byte,
+//!  and a merge that would write over someone's work,
+//! or that conflicts,
+//! must change nothing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,8 +31,11 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Paths of the fixture repository and what each side of the history does to them:
-///  `feature` changes `f.txt` and `g.txt`, deletes `gone.txt` and adds `dir/new.txt`; `main` changes `h.txt`;
-///  `u.txt`, `v.txt` and `w.txt` are untouched by the merge.
+///  `feature` changes `f.txt` and `g.txt`,
+/// deletes `gone.txt` and adds `dir/new.txt`;
+/// `main` changes `h.txt`;
+///  `u.txt`,
+/// `v.txt` and `w.txt` are untouched by the merge.
 pub(super) fn diverged(fixture: &Fixture, name: &str) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
     for file in ["u.txt", "v.txt", "w.txt", "f.txt", "g.txt", "h.txt", "gone.txt"] {
@@ -55,7 +63,8 @@ pub(super) fn diverged(fixture: &Fixture, name: &str) -> PathBuf {
     return repo;
 }
 
-/// A byte-for-byte copy of a repository, for the clean checkout the oracle merges in.
+/// A byte-for-byte copy of a repository,
+/// for the clean checkout the oracle merges in.
 pub(super) fn copy_of(fixture: &Fixture, from: &Path, name: &str) -> PathBuf {
     let to: PathBuf = fixture.root.join(name);
     let copied = Command::new("cp").arg("--archive").arg("--").arg(from).arg(&to).status().expect("cp starts");
@@ -63,7 +72,9 @@ pub(super) fn copy_of(fixture: &Fixture, from: &Path, name: &str) -> PathBuf {
     return to;
 }
 
-/// Another session's staged work: a modification, an addition and a deletion of paths the merge does not touch.
+/// Another session's staged work:
+/// a modification,
+/// an addition and a deletion of paths the merge does not touch.
 pub(super) fn stage_unrelated_work(fixture: &Fixture, repo: &Path) {
     std::fs::write(repo.join("u.txt"), b"u.txt staged by another session\n").expect("file");
     std::fs::write(repo.join("new.txt"), b"added by another session\n").expect("file");
@@ -76,7 +87,8 @@ pub(super) fn stage_unrelated_work(fixture: &Fixture, repo: &Path) {
 pub(super) struct Snapshot {
     /// The branch tip.
     pub(super) head: String,
-    /// The index file, every byte.
+    /// The index file,
+    /// every byte.
     pub(super) index: Vec<u8>,
     /// Every index entry with its stat data.
     pub(super) entries: String,
@@ -99,14 +111,17 @@ fn wrapped_in(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Command {
     return wrapped_commit(fixture, repo, arguments);
 }
 
-/// Run a wrapped command to its end, without the wait notices a slow step may print (`without_wait_notices`):
-///  these controls compare the merge's diagnostics with native Git's words, which a loaded host does not change.
+/// Run a wrapped command to its end,
+/// without the wait notices a slow step may print (`without_wait_notices`):
+///  these controls compare the merge's diagnostics with native Git's words,
+/// which a loaded host does not change.
 fn run(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
     let observed: Observed = observe(&mut wrapped_in(fixture, repo, arguments), b"");
     return Observed { stderr: without_wait_notices(observed.stderr.as_slice()), ..observed };
 }
 
-/// Wait notices go and nothing else does, so the comparisons above still see every other diagnostic.
+/// Wait notices go and nothing else does,
+/// so the comparisons above still see every other diagnostic.
 #[test]
 fn only_wait_notice_lines_are_left_out_of_the_diagnostics() {
     let notice: String = format!(
@@ -120,12 +135,17 @@ fn only_wait_notice_lines_are_left_out_of_the_diagnostics() {
     assert_eq!(without_wait_notices(b"no newline at the end"), b"no newline at the end");
 }
 
-/// Run native Git directly, whatever its exit status.
+/// Run native Git directly,
+/// whatever its exit status.
 fn native(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
     return observe(direct(fixture).current_dir(repo).args(arguments), b"");
 }
 
-/// The parts of a merge commit that must equal native Git's: tree, both parents, message, author and committer names.
+/// The parts of a merge commit that must equal native Git's:
+/// tree,
+/// both parents,
+/// message,
+/// author and committer names.
 fn commit_shape(fixture: &Fixture, repo: &Path) -> Vec<String> {
     return vec![
         git_text(fixture, repo, &["rev-parse", "HEAD^{tree}"]),
@@ -156,8 +176,11 @@ fn text(bytes: &[u8]) -> String {
     return String::from_utf8_lossy(bytes).into_owned();
 }
 
-/// For each way of asking for a merge, the wrapper's merge over another session's staged work has the tree, the
-/// parents, the message and the output that native Git's merge has on a clean copy.
+/// For each way of asking for a merge,
+/// the wrapper's merge over another session's staged work has the tree,
+/// the
+/// parents,
+/// the message and the output that native Git's merge has on a clean copy.
 #[test]
 fn the_merge_equals_what_native_git_writes_on_a_clean_checkout() {
     let cases: [(&str, &[&str]); 9] = [
@@ -189,7 +212,8 @@ fn the_merge_equals_what_native_git_writes_on_a_clean_checkout() {
     }
 }
 
-/// A tag, a remote-tracking branch and an abbreviated commit name are described the way native Git describes them.
+/// A tag,
+/// a remote-tracking branch and an abbreviated commit name are described the way native Git describes them.
 #[test]
 fn every_kind_of_merged_name_is_worded_as_native_git_words_it() {
     for kind in ["tag", "remote-tracking", "abbreviated-commit"] {
@@ -217,8 +241,10 @@ fn every_kind_of_merged_name_is_worded_as_native_git_words_it() {
     }
 }
 
-/// The staged entries, the unstaged edits and the untracked files of the other session are exactly as they were:
-/// the same index entries with the same stat data, the same bytes on disk.
+/// The staged entries,
+/// the unstaged edits and the untracked files of the other session are exactly as they were:
+/// the same index entries with the same stat data,
+/// the same bytes on disk.
 #[test]
 fn other_sessions_work_is_byte_identical_afterwards() {
     let fixture: Fixture = fixture("merge-keeps-other-work");
@@ -258,8 +284,12 @@ fn finding_of(observed: &Observed) -> serde_json::Value {
     return serde_json::from_str(stderr.as_str()).expect("a JSON event");
 }
 
-/// A merge that changes a path the other session staged is refused with the path and the ways forward named, and
-/// nothing is changed: not the branch, not one byte of the index, not a file.
+/// A merge that changes a path the other session staged is refused with the path and the ways forward named,
+/// and
+/// nothing is changed:
+/// not the branch,
+/// not one byte of the index,
+/// not a file.
 #[test]
 fn a_merge_over_a_staged_path_is_refused_and_changes_nothing() {
     let fixture: Fixture = fixture("merge-refuses-staged-overlap");
@@ -341,8 +371,11 @@ fn a_conflicting_merge_changes_nothing_and_names_the_paths() {
     remove_settled(&fixture);
 }
 
-/// An untracked file where the merge adds one is Git's own refusal at the last step: the merge commit stays
-/// unreachable, the record is gone, and the checkout is as it was.
+/// An untracked file where the merge adds one is Git's own refusal at the last step:
+/// the merge commit stays
+/// unreachable,
+/// the record is gone,
+/// and the checkout is as it was.
 #[test]
 fn an_untracked_file_in_the_way_is_refused_by_git_and_changes_nothing() {
     let fixture: Fixture = fixture("merge-refuses-untracked");
@@ -363,8 +396,11 @@ fn an_untracked_file_in_the_way_is_refused_by_git_and_changes_nothing() {
     remove_settled(&fixture);
 }
 
-/// With nothing staged the wrapper completes the merge itself, because native Git's merge stashes first and moves the
-/// branch only after it changed the checkout: the merge commit, the output and the checkout equal what native Git
+/// With nothing staged the wrapper completes the merge itself,
+/// because native Git's merge stashes first and moves the
+/// branch only after it changed the checkout:
+/// the merge commit,
+/// the output and the checkout equal what native Git
 /// writes on a clean copy.
 #[test]
 fn a_clean_index_merge_is_completed_and_equals_what_native_git_writes() {
@@ -380,7 +416,8 @@ fn a_clean_index_merge_is_completed_and_equals_what_native_git_writes() {
     remove_settled(&fixture);
 }
 
-/// A conflict with nothing staged is native Git's: it writes the markers for the person to resolve in the worktree.
+/// A conflict with nothing staged is native Git's:
+/// it writes the markers for the person to resolve in the worktree.
 #[test]
 fn a_clean_index_conflict_is_native_gits() {
     let fixture: Fixture = fixture("merge-clean-index-conflict");
@@ -397,7 +434,8 @@ fn a_clean_index_conflict_is_native_gits() {
     remove_settled(&fixture);
 }
 
-/// A fast-forward with unrelated staged work is native Git's own two-way update, which keeps the staged work.
+/// A fast-forward with unrelated staged work is native Git's own two-way update,
+/// which keeps the staged work.
 #[test]
 fn a_fast_forward_over_unrelated_staged_work_is_native_gits() {
     let fixture: Fixture = fixture("merge-fast-forward");
@@ -420,7 +458,9 @@ fn a_fast_forward_over_unrelated_staged_work_is_native_gits() {
     remove_settled(&fixture);
 }
 
-/// `--no-ff` over a fast-forward is a true merge, which native Git refuses with staged work; the wrapper completes it.
+/// `--no-ff` over a fast-forward is a true merge,
+/// which native Git refuses with staged work;
+/// the wrapper completes it.
 #[test]
 fn no_ff_over_a_fast_forward_is_completed() {
     let fixture: Fixture = fixture("merge-no-ff");
@@ -444,7 +484,8 @@ fn no_ff_over_a_fast_forward_is_completed() {
     remove_settled(&fixture);
 }
 
-/// Shapes whose result the wrapper does not reproduce reach native Git unchanged, with its refusal.
+/// Shapes whose result the wrapper does not reproduce reach native Git unchanged,
+/// with its refusal.
 #[test]
 fn shapes_that_cannot_be_made_exact_fall_back_to_native_git() {
     let cases: [(&str, &[&str]); 7] = [
@@ -473,7 +514,8 @@ fn shapes_that_cannot_be_made_exact_fall_back_to_native_git() {
     }
 }
 
-/// Two branches at once is not one merge commit of two parents; native Git refuses it and the wrapper does not guess.
+/// Two branches at once is not one merge commit of two parents;
+/// native Git refuses it and the wrapper does not guess.
 #[test]
 fn an_octopus_merge_falls_back_to_native_git() {
     let fixture: Fixture = fixture("merge-fallback-octopus");
@@ -488,7 +530,8 @@ fn an_octopus_merge_falls_back_to_native_git() {
     remove_settled(&fixture);
 }
 
-/// A branch that is already merged is native Git's answer, whatever is staged.
+/// A branch that is already merged is native Git's answer,
+/// whatever is staged.
 #[test]
 fn an_up_to_date_merge_is_native_gits() {
     let fixture: Fixture = fixture("merge-up-to-date");
@@ -510,8 +553,12 @@ fn marker_hook(fixture: &Fixture, repo: &Path, event: &str) -> PathBuf {
     return marker;
 }
 
-/// The merge runs no configured hook at all, `post-merge` included: the wrapper supports no external hook program, and
-/// the merge commit is made from objects, as the auto-push merge is.
+/// The merge runs no configured hook at all,
+/// `post-merge` included:
+/// the wrapper supports no external hook program,
+/// and
+/// the merge commit is made from objects,
+/// as the auto-push merge is.
 #[test]
 fn no_configured_hook_runs_on_the_isolated_merge() {
     let fixture: Fixture = fixture("merge-hooks");
@@ -529,7 +576,8 @@ fn no_configured_hook_runs_on_the_isolated_merge() {
     remove_settled(&fixture);
 }
 
-/// A repository that signs commits gets a signed merge, as `commit-tree` never reads `commit.gpgSign` by itself.
+/// A repository that signs commits gets a signed merge,
+/// as `commit-tree` never reads `commit.gpgSign` by itself.
 #[test]
 fn a_signing_repository_gets_a_signed_merge() {
     let fixture: Fixture = fixture("merge-signed");
@@ -549,11 +597,14 @@ fn a_signing_repository_gets_a_signed_merge() {
 }
 
 /// What:
-///  Run `command` to its end like `observe`, and create the file `release` as soon as a wait notice is read from its
+///  Run `command` to its end like `observe`,
+/// and create the file `release` as soon as a wait notice is read from its
 ///  standard error.
 /// Why:
-///  A child process held until its release file exists is still running when the wrapper's watcher prints, whatever
-///  the host's load, so a control for the notice depends on no sleep and no schedule.
+///  A child process held until its release file exists is still running when the wrapper's watcher prints,
+/// whatever
+///  the host's load,
+/// so a control for the notice depends on no sleep and no schedule.
 fn observe_releasing_on_notice(command: &mut Command, release: &Path) -> Observed {
     use std::io::{BufRead, Read};
     let mut child = command
@@ -595,20 +646,31 @@ fn observe_releasing_on_notice(command: &mut Command, release: &Path) -> Observe
 }
 
 /// What:
-///  A healthy `git commit-tree` that outlasts the notice grace makes the wrapper print its wait notice, and the
+///  A healthy `git commit-tree` that outlasts the notice grace makes the wrapper print its wait notice,
+/// and the
 ///  controls that compare diagnostics leave that notice out.
 /// Why:
-///  A loaded host makes any step slow, so the notice is correct behaviour and its absence cannot be asserted. A signer
-///  that merely sleeps longer than the grace proves nothing about a loaded host, where the wrapper's watcher can resume
-///  after the signer has ended and find nothing to announce. The signer stand-in therefore waits for a release file,
-///  and the control writes that file only when the notice has reached the wrapper's standard error, so the step is
+///  A loaded host makes any step slow,
+/// so the notice is correct behaviour and its absence cannot be asserted.
+/// A signer
+///  that merely sleeps longer than the grace proves nothing about a loaded host,
+/// where the wrapper's watcher can resume
+///  after the signer has ended and find nothing to announce.
+/// The signer stand-in therefore waits for a release file,
+///  and the control writes that file only when the notice has reached the wrapper's standard error,
+/// so the step is
 ///  still running when the notice is due on every host.
 #[test]
 fn a_slow_commit_tree_prints_a_wait_notice_that_the_comparison_leaves_out() {
-    /// The notice interval, in seconds, and so the grace of the first notice.
+    /// The notice interval,
+    /// in seconds,
+    /// and so the grace of the first notice.
     const NOTICE_SECONDS: u64 = 1;
-    /// How long the signer stand-in waits for its release at most; it ends sooner as soon as the release exists, and
-    /// only a wrapper that never prints the notice makes it run out, so that the control fails instead of hanging.
+    /// How long the signer stand-in waits for its release at most;
+    /// it ends sooner as soon as the release exists,
+    /// and
+    /// only a wrapper that never prints the notice makes it run out,
+    /// so that the control fails instead of hanging.
     const HOLD_LIMIT_SECONDS: u64 = 60;
     /// The tenths of a second the signer stand-in sleeps between two looks for its release.
     const LOOK_TENTHS: u64 = 1;
@@ -682,7 +744,8 @@ fn a_linked_worktree_with_staged_work_merges_too() {
     remove_settled(&fixture);
 }
 
-/// Start a merge that a phase marker kills, and return what the killed process left.
+/// Start a merge that a phase marker kills,
+/// and return what the killed process left.
 fn killed_merge_at(fixture: &Fixture, repo: &Path, phase: &str) -> PathBuf {
     let markers: PathBuf = fixture.root.join(format!("markers-{phase}"));
     std::fs::create_dir(&markers).expect("marker directory");
@@ -710,8 +773,10 @@ pub(super) fn records_in(directory: &Path) -> Vec<PathBuf> {
     return files;
 }
 
-/// A process killed after it wrote its record and before Git touched the checkout: the next command discards the
-/// merge, and the checkout is exactly as it was.
+/// A process killed after it wrote its record and before Git touched the checkout:
+/// the next command discards the
+/// merge,
+/// and the checkout is exactly as it was.
 #[test]
 fn a_kill_before_the_checkout_changes_is_discarded() {
     let fixture: Fixture = fixture("merge-kill-intent");
@@ -732,7 +797,8 @@ fn a_kill_before_the_checkout_changes_is_discarded() {
     remove_settled(&fixture);
 }
 
-/// A process killed after Git moved the branch and before it removed its record: the next command only removes it.
+/// A process killed after Git moved the branch and before it removed its record:
+/// the next command only removes it.
 #[test]
 fn a_kill_after_the_branch_moved_leaves_a_consistent_checkout() {
     let fixture: Fixture = fixture("merge-kill-applied");
@@ -750,8 +816,10 @@ fn a_kill_after_the_branch_moved_leaves_a_consistent_checkout() {
     remove_settled(&fixture);
 }
 
-/// Git updated the worktree and the index and the process died before the branch moved: the next command
-/// finishes the merge, and another session's staged work is untouched.
+/// Git updated the worktree and the index and the process died before the branch moved:
+/// the next command
+/// finishes the merge,
+/// and another session's staged work is untouched.
 #[test]
 fn a_kill_inside_gits_update_is_completed_by_the_next_command() {
     for stage in ["checkout-and-index", "worktree-only"] {
@@ -788,8 +856,12 @@ fn a_kill_inside_gits_update_is_completed_by_the_next_command() {
     }
 }
 
-/// A record damaged the way a power loss damages files: emptied or cut in half, recovery fails closed naming the
-/// record and keeps it; deleted, there is nothing to recover and the checkout is whatever Git left.
+/// A record damaged the way a power loss damages files:
+/// emptied or cut in half,
+/// recovery fails closed naming the
+/// record and keeps it;
+/// deleted,
+/// there is nothing to recover and the checkout is whatever Git left.
 #[test]
 fn a_damaged_record_fails_closed_and_a_missing_one_recovers_nothing() {
     for damage in ["empty", "half", "delete"] {
@@ -818,7 +890,8 @@ fn a_damaged_record_fails_closed_and_a_missing_one_recovers_nothing() {
 }
 
 /// A merge that starts while another merge's record is live waits for the landing lock instead of recovering it;
-/// here, a record of a live process (this test) is left alone by a command that runs meanwhile.
+/// here,
+/// a record of a live process (this test) is left alone by a command that runs meanwhile.
 #[test]
 fn a_live_merges_record_is_left_alone() {
     let fixture: Fixture = fixture("merge-live-record");
@@ -845,8 +918,11 @@ fn a_live_merges_record_is_left_alone() {
     remove_settled(&fixture);
 }
 
-/// `merge.ff=only` refuses a merge that cannot fast-forward, which is native Git's answer; `--no-ff` and `--ff` on
-/// the command line choose otherwise, and the wrapper completes those over staged work as native Git does on a
+/// `merge.ff=only` refuses a merge that cannot fast-forward,
+/// which is native Git's answer;
+/// `--no-ff` and `--ff` on
+/// the command line choose otherwise,
+/// and the wrapper completes those over staged work as native Git does on a
 /// clean copy.
 #[test]
 fn merge_ff_only_is_native_gits_unless_the_command_line_chooses() {
@@ -873,8 +949,12 @@ fn merge_ff_only_is_native_gits_unless_the_command_line_chooses() {
     }
 }
 
-/// The directory a global `-C` names, relative to where the command runs, reaches the queries of the merge but not
-/// the recovery of a merge Git refused: that one runs from the repository root, where the same relative name would
+/// The directory a global `-C` names,
+/// relative to where the command runs,
+/// reaches the queries of the merge but not
+/// the recovery of a merge Git refused:
+/// that one runs from the repository root,
+/// where the same relative name would
 /// name nothing.
 #[test]
 fn a_relative_directory_option_does_not_break_the_settling_of_a_refused_merge() {
@@ -893,7 +973,8 @@ fn a_relative_directory_option_does_not_break_the_settling_of_a_refused_merge() 
     remove_settled(&fixture);
 }
 
-/// A merge that starts while a dead merge's record is waiting recovers it first, before it looks at the staged work:
+/// A merge that starts while a dead merge's record is waiting recovers it first,
+/// before it looks at the staged work:
 /// the half-applied checkout of the dead merge would otherwise read as another session's staged paths.
 #[test]
 fn a_merge_recovers_a_dead_merge_before_it_checks_the_staged_work() {
@@ -922,7 +1003,9 @@ fn a_merge_recovers_a_dead_merge_before_it_checks_the_staged_work() {
     remove_settled(&fixture);
 }
 
-/// A pseudo-terminal: the master end the test keeps open, and the slave end a child can use as a terminal.
+/// A pseudo-terminal:
+/// the master end the test keeps open,
+/// and the slave end a child can use as a terminal.
 struct Terminal {
     /// Kept so the slave stays open for the child's whole run.
     _master: std::fs::File,
@@ -955,7 +1038,9 @@ fn terminal() -> Terminal {
     return Terminal { _master: master, slave };
 }
 
-/// Run a wrapped command with the given standard input and output, standard error piped, to its end.
+/// Run a wrapped command with the given standard input and output,
+/// standard error piped,
+/// to its end.
 fn run_on(
     fixture: &Fixture,
     repo: &Path,
@@ -974,8 +1059,11 @@ fn run_on(
     return Observed { code: finished.status.code(), stdout: finished.stdout, stderr: finished.stderr };
 }
 
-/// Without `--no-edit` or `GIT_MERGE_AUTOEDIT`, a merge opens an editor only when standard input and output are one
-/// terminal; then the wrapper hands it to native Git with the notice, and in any other arrangement it completes it.
+/// Without `--no-edit` or `GIT_MERGE_AUTOEDIT`,
+/// a merge opens an editor only when standard input and output are one
+/// terminal;
+/// then the wrapper hands it to native Git with the notice,
+/// and in any other arrangement it completes it.
 #[test]
 fn the_editor_opens_only_when_input_and_output_are_one_terminal() {
     let one: Terminal = terminal();
@@ -1026,12 +1114,18 @@ fn the_editor_opens_only_when_input_and_output_are_one_terminal() {
 }
 
 /// What:
-///  The Git starts of a wrapped true merge over staged work, recorded by a stand-in that runs the real Git.
+///  The Git starts of a wrapped true merge over staged work,
+/// recorded by a stand-in that runs the real Git.
 /// Why:
-///   The owner's rule is that no Git start of the wrapper gets `--quiet` or `-q`. The merge the wrapper completes ends in a
+///   The owner's rule is that no Git start of the wrapper gets `--quiet` or `-q`.
+/// The merge the wrapper completes ends in a
 ///  fast-forward of the checkout to the merge commit it built (Git 2.56.0 `builtin/merge.c` reads the option as less
-///  output and nothing else), and that start is looked at. The stand-in stands where the wrapper looks for the real Git, ahead
-///  of the conventional locations, so every start the wrapper makes passes through it.
+///  output and nothing else),
+/// and that start is looked at.
+/// The stand-in stands where the wrapper looks for the real Git,
+/// ahead
+///  of the conventional locations,
+/// so every start the wrapper makes passes through it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1062,11 +1156,17 @@ fn the_fast_forward_to_the_merge_commit_starts_without_quiet() {
 }
 
 /// What:
-///  What Git says of the wrapper's own fast-forward reaches the journal, and the person's merge prints what native Git's does.
+///  What Git says of the wrapper's own fast-forward reaches the journal,
+/// and the person's merge prints what native Git's does.
 /// Why:
-///   The owner dropped `--quiet` from every run the wrapper starts, so the fast-forward says "Updating a..b" and "Fast-forward";
-///  those words are about the wrapper's step, not the merge the person asked for, whose output is compared with native Git's
-///  in `the_merge_equals_what_native_git_writes_on_a_clean_checkout`. They go to the journal, as one entry that names the command.
+///   The owner dropped `--quiet` from every run the wrapper starts,
+/// so the fast-forward says "Updating a..b" and "Fast-forward";
+///  those words are about the wrapper's step,
+/// not the merge the person asked for,
+/// whose output is compared with native Git's
+///  in `the_merge_equals_what_native_git_writes_on_a_clean_checkout`.
+/// They go to the journal,
+/// as one entry that names the command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

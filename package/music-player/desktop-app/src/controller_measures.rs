@@ -1,8 +1,14 @@
-//! Controller side of the per-track measures: forwards sweep reports, refreshes them when files change, and names the opened folder.
+//! Controller side of the per-track measures:
+//! forwards sweep reports,
+//! refreshes them when files change,
+//! and names the opened folder.
 //!
-//! What: `impl Controller` methods that turn sweep reports into `Update::Measures` and `Update::Analysis`,
+//! What:
+//! `impl Controller` methods that turn sweep reports into `Update::Measures` and `Update::Analysis`,
 //! and announce the opened folder's display name.
-//! Why: the controller owns the queue generation and the cache handle, so stale reports are dropped here.
+//! Why:
+//! the controller owns the queue generation and the cache handle,
+//! so stale reports are dropped here.
 
 use std::path::{Path, PathBuf};
 #[cfg(test)]
@@ -17,9 +23,11 @@ use crate::track_measure::measure_from_decision;
 
 /// What:
 ///      `fn display_name_of(root: &Path) -> String`.
-///  The folder's last path component, or its whole path when it has none.
+///  The folder's last path component,
+/// or its whole path when it has none.
 /// Why:
-///       A root such as `/` has no file name, and the first-run copy still needs a name to show.
+///       A root such as `/` has no file name,
+/// and the first-run copy still needs a name to show.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -34,7 +42,8 @@ pub(crate) fn display_name_of(root: &Path) -> String {
 impl Controller {
     /// What:
     ///      `pub(crate) fn emit_source_root(&self)`.
-    ///  Sends the opened folder's display name, or `None` when no folder is open.
+    ///  Sends the opened folder's display name,
+    /// or `None` when no folder is open.
     /// Why:
     ///       The first-run copy depends on whether a folder is open and what it is called.
     ///
@@ -51,7 +60,8 @@ impl Controller {
     ///      `pub(crate) fn handle_sweep_report(&mut self, report: SweepReport)`.
     ///  Forwards a sweep report to the window when it belongs to the newest queue load.
     /// Why:
-    ///       Sweeps are never cancelled, so a report from a replaced queue must not update the rows or the bar.
+    ///       Sweeps are never cancelled,
+    /// so a report from a replaced queue must not update the rows or the bar.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -89,7 +99,8 @@ impl Controller {
     ///      `pub(crate) fn publish_decision_measure(&self, path: &Path, decision: &Decision)`.
     ///  Sends the measure of the track that was just measured on the current-track worker.
     /// Why:
-    ///       The playing track is measured outside the sweep, so its row and deck would otherwise stay blank until the next load.
+    ///       The playing track is measured outside the sweep,
+    /// so its row and deck would otherwise stay blank until the next load.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -103,10 +114,17 @@ impl Controller {
     ///      `pub(crate) fn report_unplayable_once(&self, files: Vec<PathBuf>)`.
     ///  Tells the window about the files it has not yet been told about.
     /// Why:
-    ///       D113 and D83: a failure is reported once per file in plain words. The same broken file fails again at every
-    ///  later sweep, and a person who already saw the message does not need it again. A file that is still being written
-    ///  fails with each partial state it passes through, so the report is per file and not per state of the file; it is
-    ///  forgotten when a peak is measured for the file (it decodes now), so a file that breaks again is told again.
+    ///       D113 and D83:
+    /// a failure is reported once per file in plain words.
+    /// The same broken file fails again at every
+    ///  later sweep,
+    /// and a person who already saw the message does not need it again.
+    /// A file that is still being written
+    ///  fails with each partial state it passes through,
+    /// so the report is per file and not per state of the file;
+    /// it is
+    ///  forgotten when a peak is measured for the file (it decodes now),
+    /// so a file that breaks again is told again.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -128,7 +146,8 @@ impl Controller {
     ///      `fn forget_reports_of_decoded(&self, measures: &[(PathBuf, TrackMeasure)])`.
     ///  Forgets the failure report of every file that now has a measured peak.
     /// Why:
-    ///       A file that decodes again was fixed or replaced; if it breaks later the person is told again (D113).
+    ///       A file that decodes again was fixed or replaced;
+    /// if it breaks later the person is told again (D113).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

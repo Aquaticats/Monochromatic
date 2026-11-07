@@ -1,15 +1,20 @@
 //! What:
 //!  The linked worktree a `git worktree add` registered at the destination its command line names:
-//!  whether that destination was a registered worktree before real Git ran, and whether it is one registered by this
-//!  command after Git returned, with the canonical root of every registered worktree.
+//!  whether that destination was a registered worktree before real Git ran,
+//! and whether it is one registered by this
+//!  command after Git returned,
+//! with the canonical root of every registered worktree.
 //! Why:
 //!  The destination is read from the command line and its registration is found by following the pointer in its `.git`
-//!  file, so a concurrent add in the same repository can neither be mistaken for this one's worktree nor make this one wait
+//!  file,
+//! so a concurrent add in the same repository can neither be mistaken for this one's worktree nor make this one wait
 //!  (the earlier comparison of the whole set of registrations needed a lock to keep other adds out of its window).
 //!  A worktree that Git registered before failing still receives the ignored files,
 //!  so the check runs after Git returns whatever its status was.
-//!  The main worktree is observed only through `observe_copy_source`, which the caller reaches only for a command that
-//!  creates a worktree, so its other invocations cost no filesystem reads.
+//!  The main worktree is observed only through `observe_copy_source`,
+//! which the caller reaches only for a command that
+//!  creates a worktree,
+//! so its other invocations cost no filesystem reads.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,8 +33,11 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  The facts captured before real Git runs for an applicable invocation.
 /// Why:
-///   The copy after Git needs the common directory that owns the journals, the source worktree and which of its ignored
-///  paths are taken; nothing of the repository's other worktrees is read, so a concurrent add is none of its business.
+///   The copy after Git needs the common directory that owns the journals,
+/// the source worktree and which of its ignored
+///  paths are taken;
+/// nothing of the repository's other worktrees is read,
+/// so a concurrent add is none of its business.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -37,7 +45,8 @@ use std::path::{Path, PathBuf};
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorktreeCopyObservation {
-    /// Canonical common Git directory, which owns the journals.
+    /// Canonical common Git directory,
+    /// which owns the journals.
     pub common_dir: PathBuf,
     /// Working directory the Git queries run in.
     pub effective_cwd: PathBuf,
@@ -64,7 +73,9 @@ pub struct CreatedWorktree {
 }
 
 /// What:
-///  The worktree this command created, if any, and every registered root that recursive copying must exclude.
+///  The worktree this command created,
+/// if any,
+/// and every registered root that recursive copying must exclude.
 /// Why:
 ///   A nested registered worktree is never copied into its parent's copy.
 ///
@@ -74,7 +85,8 @@ pub struct CreatedWorktree {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CreatedWorktrees {
-    /// The linked worktree registered at the destination, absent when this command registered none.
+    /// The linked worktree registered at the destination,
+    /// absent when this command registered none.
     pub created: Vec<CreatedWorktree>,
     /// Every registered root that exists on the filesystem.
     pub registered_roots: Vec<PathBuf>,
@@ -118,10 +130,13 @@ pub fn observe_worktree_repository(
 }
 
 /// What:
-///  The observation that also covers a main checkout, which takes part only when the caller's command creates a worktree.
+///  The observation that also covers a main checkout,
+/// which takes part only when the caller's command creates a worktree.
 /// Why:
-///   A main checkout hands over its ignored state under its leave-out rule, so a worktree added from it works at once;
-///  the caller observes it only for a creating command, so the main checkout's other invocations cost no filesystem reads.
+///   A main checkout hands over its ignored state under its leave-out rule,
+/// so a worktree added from it works at once;
+///  the caller observes it only for a creating command,
+/// so the main checkout's other invocations cost no filesystem reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -152,7 +167,8 @@ pub fn observe_copy_source(
 /// What:
 ///  The observation of one repository with its optional source worktree.
 /// Why:
-///   Both repository kinds share it; only the source differs.
+///   Both repository kinds share it;
+/// only the source differs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -175,9 +191,13 @@ fn observation(
 /// What:
 ///  Whether `destination` is a registered worktree of the repository right now.
 /// Why:
-///   It is asked before real Git runs: a destination already registered then is not this command's creation, whatever Git
-///  does with it. The answer follows the pointer in the destination's `.git` file and checks that the registration it names
-///  names the destination back, so no other worktree is read.
+///   It is asked before real Git runs:
+/// a destination already registered then is not this command's creation,
+/// whatever Git
+///  does with it.
+/// The answer follows the pointer in the destination's `.git` file and checks that the registration it names
+///  names the destination back,
+/// so no other worktree is read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -188,9 +208,11 @@ pub fn destination_is_registered(common_dir: &Path, destination: &Path) -> bool 
 }
 
 /// What:
-///  Whether a byte is NUL, the end of each field of Git's `-z` output.
+///  Whether a byte is NUL,
+/// the end of each field of Git's `-z` output.
 /// Why:
-///   Git's worktree listing is split on it, and a path may hold any other byte.
+///   Git's worktree listing is split on it,
+/// and a path may hold any other byte.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -205,7 +227,8 @@ fn is_nul_byte(byte: &u8) -> bool {
 ///  or `None` when Git still lists a root that no longer exists.
 /// Why:
 ///   Git keeps a registration after its directory is deleted;
-///  such a root cannot be copied into or excluded by identity, so it is skipped.
+///  such a root cannot be copied into or excluded by identity,
+/// so it is skipped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -220,7 +243,8 @@ fn canonical_registered_root(root: &Path) -> Result<Option<PathBuf>, WorktreeCop
 }
 
 /// What:
-///  The roots of the worktrees Git lists right now, those that exist.
+///  The roots of the worktrees Git lists right now,
+/// those that exist.
 /// Why:
 ///   Git's porcelain listing with NUL separators is the one authority for registered roots,
 ///  so the copy never guesses a root from the administrative directory name.
@@ -269,11 +293,16 @@ fn read_registered_roots(
 }
 
 /// What:
-///  The worktree this command registered at `destination`, with every registered root.
+///  The worktree this command registered at `destination`,
+/// with every registered root.
 /// Why:
-///   Runs after real Git returned, whatever its status was, so a worktree Git registered before failing still counts.
-///  It is this command's when the destination was not registered before Git ran and is registered now: the destination is
-///  the one the command line named, so another add's worktree is never taken for it.
+///   Runs after real Git returned,
+/// whatever its status was,
+/// so a worktree Git registered before failing still counts.
+///  It is this command's when the destination was not registered before Git ran and is registered now:
+/// the destination is
+///  the one the command line named,
+/// so another add's worktree is never taken for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

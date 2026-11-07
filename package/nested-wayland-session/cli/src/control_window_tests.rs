@@ -3,7 +3,9 @@
 /// Brings the escaping rule into scope.
 use super::*;
 
-/// Plain titles, including spaces and non-ASCII text, pass through unchanged.
+/// Plain titles,
+/// including spaces and non-ASCII text,
+/// pass through unchanged.
 #[test]
 fn plain_text_is_unchanged() {
     assert_eq!(escape_text("Untitled - Editor"), "Untitled - Editor");
@@ -11,7 +13,8 @@ fn plain_text_is_unchanged() {
     assert_eq!(escape_text(""), "");
 }
 
-/// Line breaks become two-character escapes, so the answer stays on one line.
+/// Line breaks become two-character escapes,
+/// so the answer stays on one line.
 #[test]
 fn line_breaks_are_escaped() {
     let escaped = escape_text("first\nsecond\r\nthird");

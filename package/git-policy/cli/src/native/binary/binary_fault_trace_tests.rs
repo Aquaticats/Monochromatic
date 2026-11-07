@@ -1,14 +1,32 @@
 //! What:
-//!  Slow storage, a full disk, failing writes and a process killed at any call, injected into the commit service and into the
-//!  wrapper's own merge and worktree-copy flows with `strace --inject` (a `ptrace` of the program: no privilege, no load).
+//!  Slow storage,
+//! a full disk,
+//! failing writes and a process killed at any call,
+//! injected into the commit service and into the
+//!  wrapper's own merge and worktree-copy flows with `strace --inject` (a `ptrace` of the program:
+//! no privilege,
+//! no load).
 //! Why:
-//!  The README promises that a full disk, slow storage and a process killed at any instruction do not strand the repository.
-//!  A kill at a chosen phase marker or journal point shows that the recovery for that point works; these controls cover the
-//!  places between them. Each control counts the calls of one kind that the flow makes (a run with no fault), then repeats the
-//!  flow with the fault at a spread of those positions, first and last included, and requires after every run that the command
-//!  ended on its own, that the next ordinary command succeeds without a person repairing anything, that the repository passes
-//!  `git fsck`, and that nothing of the wrapper stays behind. The counters of `strace` are per process, so a position is the
-//!  `n`th call of the busiest process. A host without `strace` reports that and checks nothing, as the budget controls do.
+//!  The README promises that a full disk,
+//! slow storage and a process killed at any instruction do not strand the repository.
+//!  A kill at a chosen phase marker or journal point shows that the recovery for that point works;
+//! these controls cover the
+//!  places between them.
+//! Each control counts the calls of one kind that the flow makes (a run with no fault),
+//! then repeats the
+//!  flow with the fault at a spread of those positions,
+//! first and last included,
+//! and requires after every run that the command
+//!  ended on its own,
+//! that the next ordinary command succeeds without a person repairing anything,
+//! that the repository passes
+//!  `git fsck`,
+//! and that nothing of the wrapper stays behind.
+//! The counters of `strace` are per process,
+//! so a position is the
+//!  `n`th call of the busiest process.
+//! A host without `strace` reports that and checks nothing,
+//! as the budget controls do.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,26 +45,43 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// How many runs one sweep makes at most: the positions are spread over the calls the flow makes, first and last included.
+/// How many runs one sweep makes at most:
+/// the positions are spread over the calls the flow makes,
+/// first and last included.
 const POSITIONS_PER_SWEEP: usize = 48;
 
-/// How long each call of the slow-storage control returns late, in microseconds: a slow disk's flush.
+/// How long each call of the slow-storage control returns late,
+/// in microseconds:
+/// a slow disk's flush.
 const SLOW_FLUSH_MICROSECONDS: u64 = 100_000;
 
-/// The calls that write to storage or set a name, for the sweeps of a service. Removing a name is left out: a disk that is full
-///  or failing makes a write, a flush or a rename fail, while the lock files that a failed removal would leave behind need a
-///  person to remove them, with native Git as with the wrapper.
+/// The calls that write to storage or set a name,
+/// for the sweeps of a service.
+/// Removing a name is left out:
+/// a disk that is full
+///  or failing makes a write,
+/// a flush or a rename fail,
+/// while the lock files that a failed removal would leave behind need a
+///  person to remove them,
+/// with native Git as with the wrapper.
 const STORAGE_CALLS: [&str; 6] = ["write", "pwrite64", "fsync", "fdatasync", "rename", "renameat2"];
 
-/// The calls a kill of the service is swept over: the writes and name changes above, directory changes and process starts.
+/// The calls a kill of the service is swept over:
+/// the writes and name changes above,
+/// directory changes and process starts.
 const KILL_CALLS: [&str; 12] =
     ["write", "pwrite64", "fsync", "fdatasync", "rename", "renameat2", "unlink", "unlinkat", "mkdir", "mkdirat", "clone3", "vfork"];
 
 /// The calls a kill of the wrapper is swept over in its own flows.
 const WRAPPER_KILL_CALLS: [&str; 10] = ["write", "pwrite64", "fsync", "rename", "renameat2", "unlink", "unlinkat", "mkdirat", "clone3", "vfork"];
 
-/// The `strace` words that run a program under a tracer, in front of the program: the tracer, whether its children are traced,
-///  the file it writes, the calls it watches and the fault it injects, if any.
+/// The `strace` words that run a program under a tracer,
+/// in front of the program:
+/// the tracer,
+/// whether its children are traced,
+///  the file it writes,
+/// the calls it watches and the fault it injects,
+/// if any.
 fn tracer(trace: &Path, syscall: &str, fault: Option<&Injection>, follow: bool) -> Vec<OsString> {
     let mut words: Vec<OsString> = vec![strace_program().expect("strace is installed").into_os_string()];
     if follow {
@@ -61,8 +96,10 @@ fn tracer(trace: &Path, syscall: &str, fault: Option<&Injection>, follow: bool) 
     return words;
 }
 
-/// How many calls of `syscall` the busiest process of a trace made: the trace of a followed tree has the process ID first on
-///  each line, and a trace of one process has none.
+/// How many calls of `syscall` the busiest process of a trace made:
+/// the trace of a followed tree has the process ID first on
+///  each line,
+/// and a trace of one process has none.
 fn busiest_count(trace: &str, syscall: &str) -> usize {
     let mut per_process: HashMap<&str, usize> = HashMap::new();
     for line in trace.lines() {
@@ -78,7 +115,9 @@ fn busiest_count(trace: &str, syscall: &str) -> usize {
     return per_process.values().copied().max().unwrap_or(0);
 }
 
-/// Up to `budget` positions in `1..=count`, evenly spread, the first and the last included.
+/// Up to `budget` positions in `1..=count`,
+/// evenly spread,
+/// the first and the last included.
 fn positions(count: usize, budget: usize) -> Vec<usize> {
     if count <= budget {
         return (1..=count).collect();
@@ -88,7 +127,9 @@ fn positions(count: usize, budget: usize) -> Vec<usize> {
     return spread;
 }
 
-/// Every `(call, position)` of a sweep over `counts`, the budget shared in proportion to how often each call is made, each
+/// Every `(call, position)` of a sweep over `counts`,
+/// the budget shared in proportion to how often each call is made,
+/// each
 ///  call that is made at all getting at least its first and last.
 fn sweep_points(counts: &[(&'static str, usize)], budget: usize) -> Vec<(&'static str, usize)> {
     let total: usize = counts.iter().map(|(_, count)| { return *count; }).sum();
@@ -103,18 +144,28 @@ fn sweep_points(counts: &[(&'static str, usize)], budget: usize) -> Vec<(&'stati
     return points;
 }
 
-/// What must hold after the first run met its fault and the pressure ended: the label, the repository and what the first run said.
+/// What must hold after the first run met its fault and the pressure ended:
+/// the label,
+/// the repository and what the first run said.
 type Recovery = fn(&Fixture, &Path, &str, &str) -> Result<(), String>;
 
-/// Recovery as the first commands a person runs after a full or failing disk: stage another file, commit it.
+/// Recovery as the first commands a person runs after a full or failing disk:
+/// stage another file,
+/// commit it.
 fn recovers_any_way(fixture: &Fixture, repo: &Path, label: &str, said: &str) -> Result<(), String> {
     return verify_recovery_with(fixture, repo, label, said, run_unsettled);
 }
 
-/// Recovery after the service itself was killed. A service killed holding Git's index lock leaves the lock with its mark and its
-///  process identity; the next landing removes it, because only the service can prove the lock is its own dead instance's
-///  (`service_index_lock.rs`). A `git add` before that landing meets the lock as Git does, so the first command after the
-///  kill is the commit, and the staging of another file follows it.
+/// Recovery after the service itself was killed.
+/// A service killed holding Git's index lock leaves the lock with its mark and its
+///  process identity;
+/// the next landing removes it,
+/// because only the service can prove the lock is its own dead instance's
+///  (`service_index_lock.rs`).
+/// A `git add` before that landing meets the lock as Git does,
+/// so the first command after the
+///  kill is the commit,
+/// and the staging of another file follows it.
 fn recovers_after_service_death(fixture: &Fixture, repo: &Path, label: &str, said: &str) -> Result<(), String> {
     let status = run_unsettled(fixture, repo, &["status", "--porcelain"]);
     if status.code != Some(0) {
@@ -135,7 +186,9 @@ fn recovers_after_service_death(fixture: &Fixture, repo: &Path, label: &str, sai
     return verify_recovery_with(fixture, repo, label, said, run_unsettled);
 }
 
-/// What a sweep of a service found: how many runs the fault reached, and how many commits landed despite it.
+/// What a sweep of a service found:
+/// how many runs the fault reached,
+/// and how many commits landed despite it.
 struct Found {
     /// Runs in which the tracer reports an injected call or a killed process.
     reached: AtomicUsize,
@@ -148,8 +201,11 @@ fn took_effect(trace: &str) -> bool {
     return trace.contains("(INJECTED)") || trace.contains("(DELAYED)") || trace.contains("+++ killed by SIGKILL +++");
 }
 
-/// One commit with the service under a tracer that injects `fault`, then the fault ends (the service is stopped, the next one
-///  runs as in production), and the repository must recover.
+/// One commit with the service under a tracer that injects `fault`,
+/// then the fault ends (the service is stopped,
+/// the next one
+///  runs as in production),
+/// and the repository must recover.
 fn service_case(label: &str, fault: &Injection, found: &Found, recover: Recovery) -> Result<(), String> {
     let fixture: Fixture = fixture(label);
     let trace: PathBuf = fixture.root.join("service-trace.txt");
@@ -195,7 +251,8 @@ fn service_call_count(syscall: &'static str, follow: bool) -> usize {
     return count;
 }
 
-/// Sweeps one fault over the service's calls: `effect` at each position of each call in `calls`.
+/// Sweeps one fault over the service's calls:
+/// `effect` at each position of each call in `calls`.
 fn sweep_service(label: &str, calls: &[&'static str], effect: Effect, when: fn(usize) -> When, follow: bool, recover: Recovery) {
     if !strace_available() {
         eprintln!("skipped: strace is not installed, so no call was faulted");
@@ -218,26 +275,38 @@ fn sweep_service(label: &str, calls: &[&'static str], effect: Effect, when: fn(u
     );
 }
 
-/// The disk is full from the `n`th write on: every write, in the service and in each Git it starts, fails with no space left.
+/// The disk is full from the `n`th write on:
+/// every write,
+/// in the service and in each Git it starts,
+/// fails with no space left.
 #[test]
 fn a_disk_that_fills_during_a_commit_leaves_a_recoverable_repository() {
     sweep_service("full-disk", &STORAGE_CALLS, Effect::Fail("ENOSPC"), When::FromNth, true, recovers_any_way);
 }
 
-/// The storage fails with an input/output error from the `n`th call on, in the service and in each Git it starts.
+/// The storage fails with an input/output error from the `n`th call on,
+/// in the service and in each Git it starts.
 #[test]
 fn storage_that_fails_during_a_commit_leaves_a_recoverable_repository() {
     sweep_service("io-error", &STORAGE_CALLS, Effect::Fail("EIO"), When::FromNth, true, recovers_any_way);
 }
 
-/// The service is killed at the `n`th call of each kind, in the service itself or in a Git it started: the manager starts a new
-///  service, the client's request is answered or fails plainly, and no commit is lost or doubled.
+/// The service is killed at the `n`th call of each kind,
+/// in the service itself or in a Git it started:
+/// the manager starts a new
+///  service,
+/// the client's request is answered or fails plainly,
+/// and no commit is lost or doubled.
 #[test]
 fn a_service_killed_at_any_call_leaves_a_recoverable_repository() {
     sweep_service("service-kill", &KILL_CALLS, Effect::Kill, When::Nth, false, recovers_after_service_death);
 }
 
-/// Every flush returns late, as on slow storage with a slow fsync: the commit lands, later than it would, and leaves nothing.
+/// Every flush returns late,
+/// as on slow storage with a slow fsync:
+/// the commit lands,
+/// later than it would,
+/// and leaves nothing.
 #[test]
 fn slow_flushes_delay_a_commit_and_change_nothing_else() {
     if !strace_available() {
@@ -260,9 +329,14 @@ fn slow_flushes_delay_a_commit_and_change_nothing_else() {
     remove_settled(&fixture);
 }
 
-/// One commit through the service while every call in `calls` fails from the first on with `EOPNOTSUPP`, in the service and in each
-///  Git it starts: the commit still lands. The native control runs the same commit with real Git under the same fault, and must
-///  land too ("what Git completes, we complete").
+/// One commit through the service while every call in `calls` fails from the first on with `EOPNOTSUPP`,
+/// in the service and in each
+///  Git it starts:
+/// the commit still lands.
+/// The native control runs the same commit with real Git under the same fault,
+/// and must
+///  land too ("what Git completes,
+/// we complete").
 fn commit_lands_while_calls_are_refused(label: &str, calls: &'static str) {
     if !strace_available() {
         eprintln!("skipped: strace is not installed, so no call was refused");
@@ -301,25 +375,31 @@ fn commit_lands_while_calls_are_refused(label: &str, calls: &'static str) {
 }
 
 /// A state directory on a filesystem that refuses hard links (a FUSE server such as `s3fs-fuse` answers `ENOTSUP`) must not stop
-///  a commit: the service's decision file is published without a link where the kernel's exclusive rename works.
+///  a commit:
+/// the service's decision file is published without a link where the kernel's exclusive rename works.
 #[test]
 fn a_filesystem_that_refuses_hard_links_does_not_stop_a_commit() {
     commit_lands_while_calls_are_refused("links-refused", "link,linkat");
 }
 
 /// A repository on a filesystem that makes neither a hard link nor a rename that does not replace (a FUSE server such as `s3fs-fuse`
-///  answers `ENOTSUP` to both) must not stop a commit: Git creates `index.lock` by exclusive creation and needs neither call, so the
-///  service takes its lock that way too. The native control lands the same commit with real Git under the same fault.
+///  answers `ENOTSUP` to both) must not stop a commit:
+/// Git creates `index.lock` by exclusive creation and needs neither call,
+/// so the
+///  service takes its lock that way too.
+/// The native control lands the same commit with real Git under the same fault.
 #[test]
 fn a_filesystem_with_neither_no_replace_rename_nor_links_does_not_stop_a_commit() {
     commit_lands_while_calls_are_refused("neither-refused", "link,linkat,renameat2");
 }
 
-/// The service killed at each step of taking the lock on a filesystem that places no file whole, and at each point of a batch.
+/// The service killed at each step of taking the lock on a filesystem that places no file whole,
+/// and at each point of a batch.
 #[path = "binary_fault_trace_lock_without_links_tests.rs"]
 mod lock_without_links;
 
-/// The wrapper under a tracer that injects `fault`, for the flow in `repo`.
+/// The wrapper under a tracer that injects `fault`,
+/// for the flow in `repo`.
 fn traced_wrapper(fixture: &Fixture, directory: &Path, arguments: &[&str], trace: &Path, syscall: &str, fault: Option<&Injection>) -> Command {
     let words: Vec<OsString> = tracer(trace, syscall, fault, false);
     let mut command: Command = Command::new(&words[0]);
@@ -332,16 +412,22 @@ fn traced_wrapper(fixture: &Fixture, directory: &Path, arguments: &[&str], trace
     return command;
 }
 
-/// A flow of the wrapper that runs in its own process: a way to set up a fresh fixture, the command line, and what must hold
+/// A flow of the wrapper that runs in its own process:
+/// a way to set up a fresh fixture,
+/// the command line,
+/// and what must hold
 ///  after the wrapper was killed in it and the next commands ran.
 struct Flow {
-    /// The name of the flow, for labels.
+    /// The name of the flow,
+    /// for labels.
     name: &'static str,
-    /// Makes the repository the flow runs in, and returns it.
+    /// Makes the repository the flow runs in,
+    /// and returns it.
     setup: fn(&Fixture) -> PathBuf,
     /// The command line the wrapper runs.
     arguments: &'static [&'static str],
-    /// Runs the next commands and requires that the repository recovered; the command line's first run is `killed`.
+    /// Runs the next commands and requires that the repository recovered;
+    /// the command line's first run is `killed`.
     recovered: fn(&Fixture, &Path, &Output) -> Result<(), String>,
 }
 
@@ -357,7 +443,9 @@ fn flow_call_count(flow: &Flow, syscall: &'static str) -> usize {
     return count;
 }
 
-/// The wrapper is killed at the `n`th call of each kind in `flow`; the processes it started end by themselves; the next commands
+/// The wrapper is killed at the `n`th call of each kind in `flow`;
+/// the processes it started end by themselves;
+/// the next commands
 ///  recover the repository.
 fn sweep_wrapper_kill(flow: &Flow) {
     if !strace_available() {
@@ -387,15 +475,21 @@ fn sweep_wrapper_kill(flow: &Flow) {
     assert!(killed.load(Ordering::SeqCst) > 0, "no run was killed, so the sweep tested nothing (call counts {counts:?})");
 }
 
-/// A repository with another session's work staged and a feature branch to merge, as the merge controls make it.
+/// A repository with another session's work staged and a feature branch to merge,
+/// as the merge controls make it.
 fn merge_setup(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = super::merge_isolation::diverged(fixture, "repo");
     super::merge_isolation::stage_unrelated_work(fixture, repo.as_path());
     return repo;
 }
 
-/// After a merge killed anywhere: the next command recovers; either nothing changed or the merge is whole; the other session's
-///  staged work is intact; nothing is left; the merge can be asked for again.
+/// After a merge killed anywhere:
+/// the next command recovers;
+/// either nothing changed or the merge is whole;
+/// the other session's
+///  staged work is intact;
+/// nothing is left;
+/// the merge can be asked for again.
 fn merge_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(), String> {
     let status = run_unsettled(fixture, repo, &["status", "--porcelain=v1"]);
     if status.code != Some(0) {
@@ -444,19 +538,28 @@ fn merge_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<()
     return Ok(());
 }
 
-/// A merge over another session's staged work, killed at the `n`th call of each kind of the wrapper's own flow.
+/// A merge over another session's staged work,
+/// killed at the `n`th call of each kind of the wrapper's own flow.
 #[test]
 fn a_merge_killed_at_any_call_leaves_a_recoverable_checkout() {
     sweep_wrapper_kill(&Flow { name: "merge", setup: merge_setup, arguments: &["merge", "--no-edit", "feature"], recovered: merge_recovered });
 }
 
-/// A repository whose committed configuration names an ignored rules file, as the worktree-copy controls make it.
+/// A repository whose committed configuration names an ignored rules file,
+/// as the worktree-copy controls make it.
 fn copy_setup(fixture: &Fixture) -> PathBuf {
     return super::worktree_copy::repository_with_rules(fixture, true);
 }
 
-/// After a worktree add killed anywhere: the next command in the repository recovers any copy; the worktree, if Git made it, has
-///  its ignored rules file; if it was not made, asking again makes it; no staging directory or pending journal is left.
+/// After a worktree add killed anywhere:
+/// the next command in the repository recovers any copy;
+/// the worktree,
+/// if Git made it,
+/// has
+///  its ignored rules file;
+/// if it was not made,
+/// asking again makes it;
+/// no staging directory or pending journal is left.
 fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(), String> {
     let status = run_unsettled(fixture, repo, &["status", "--porcelain=v1"]);
     if status.code != Some(0) {
@@ -490,7 +593,8 @@ fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(),
     return Ok(());
 }
 
-/// A worktree add with the ignored-state copy, killed at the `n`th call of each kind of the wrapper's own flow.
+/// A worktree add with the ignored-state copy,
+/// killed at the `n`th call of each kind of the wrapper's own flow.
 #[test]
 fn a_worktree_copy_killed_at_any_call_leaves_a_recoverable_repository() {
     sweep_wrapper_kill(&Flow {

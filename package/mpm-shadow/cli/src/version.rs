@@ -277,7 +277,8 @@ fn pre_release(version: &str) -> Option<&str> {
 /// `fn is_numeric_identifier(identifier: &str) -> bool` declares a private function that is true when a
 ///           pre-release identifier is made only of ASCII digits and is not empty.
 /// Why:
-/// Semantic Versioning 2.0.0, item 11,
+/// Semantic Versioning 2.0.0,
+/// item 11,
 /// compares such identifiers as numbers and every other identifier as text,
 /// so the comparison first has to tell the two kinds apart.
 /// An empty identifier is not valid semver,
@@ -340,7 +341,8 @@ fn compare_numeric_identifiers(left: &str, right: &str) -> Ordering {
 
 /// What:
 /// `fn compare_identifiers(left: &str, right: &str) -> Ordering` declares a private function comparing two
-///           single pre-release identifiers by the rules of Semantic Versioning 2.0.0, item 11.
+///           single pre-release identifiers by the rules of Semantic Versioning 2.0.0,
+/// item 11.
 /// Why:
 /// Identifiers of digits only compare as numbers,
 /// identifiers with letters or hyphens compare as ASCII text,
@@ -374,9 +376,11 @@ fn compare_identifiers(left: &str, right: &str) -> Ordering {
 
 /// What:
 /// `fn compare_pre_releases(left: &str, right: &str) -> Ordering` declares a private function comparing two
-///           pre-release texts (the part after the first hyphen, such as `alpha.10`).
+///           pre-release texts (the part after the first hyphen,
+/// such as `alpha.10`).
 /// Why:
-/// Semantic Versioning 2.0.0, item 11:
+/// Semantic Versioning 2.0.0,
+/// item 11:
 /// the dot-separated identifiers compare from left to right until one differs,
 /// and when every identifier of the shorter set equals the start of the longer one,
 /// the larger set is higher.
@@ -439,11 +443,14 @@ fn compare_pre_releases(left: &str, right: &str) -> Ordering {
 /// Why:
 /// The prune keeps the newest cached version of a crate that cargo has no install record for,
 /// and the resolver and the lock check pick the highest of several releases.
-/// The order is the precedence of Semantic Versioning 2.0.0, item 11:
+/// The order is the precedence of Semantic Versioning 2.0.0,
+/// item 11:
 /// the three numbers first,
 /// then a release above its own pre-release,
-/// then two pre-releases identifier by identifier (digits as numbers, the rest as ASCII text,
-/// numbers below text, a shorter set below a longer one with the same start).
+/// then two pre-releases identifier by identifier (digits as numbers,
+/// the rest as ASCII text,
+/// numbers below text,
+/// a shorter set below a longer one with the same start).
 /// Build metadata after a plus sign does not take part.
 ///
 /// In TS you'd write (pseudocode):

@@ -1,8 +1,14 @@
 //! Plain sentences for the template editor's mistake lines.
 //!
-//! The parser and the evaluator record each mistake as a short developer note (`mi: unknown field nope`), and the tests
-//! pin those notes. The editor shows something else: one sentence per problem, with the name of the call and what to
-//! do. This module is that translation, so the engine keeps its stable notes and the page keeps its wording.
+//! The parser and the evaluator record each mistake as a short developer note (`mi: unknown field nope`),
+//! and the tests
+//! pin those notes.
+//! The editor shows something else:
+//! one sentence per problem,
+//! with the name of the call and what to
+//! do.
+//! This module is that translation,
+//! so the engine keeps its stable notes and the page keeps its wording.
 
 /// What:
 ///  imports the mistake record.
@@ -12,16 +18,22 @@ use crate::template_model::TemplateError;
 /// What:
 ///  imports the template splitter and its part type.
 /// Why:
-///  A half-written formula records several follow-on mistakes, and grouping them needs each formula's span.
+///  A half-written formula records several follow-on mistakes,
+/// and grouping them needs each formula's span.
 use crate::template_parse::{TemplatePart, parse_template};
 
 /// What:
 ///  `pub fn plain_lines(text: &str, errors: &[TemplateError]) -> Vec<String>` writes one plain sentence per problem,
 ///  in template order.
 /// Why:
-///  A formula that is not finished, such as `$mi(`, makes the parser record three mistakes that are one problem, so
-///  the editor keeps the first mistake of each formula that does not parse. Formulas that parse but misuse a call
-///  keep every mistake, because each is its own fix.
+///  A formula that is not finished,
+/// such as `$mi(`,
+/// makes the parser record three mistakes that are one problem,
+/// so
+///  the editor keeps the first mistake of each formula that does not parse.
+/// Formulas that parse but misuse a call
+///  keep every mistake,
+/// because each is its own fix.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -58,7 +70,8 @@ pub fn plain_lines(text: &str, errors: &[TemplateError]) -> Vec<String> {
 /// What:
 ///  `fn plain_sentence(error: &TemplateError) -> String` writes one mistake as a sentence that names the call and says what to do.
 /// Why:
-///  The recorded note says what the engine found; the user needs to know what to change.
+///  The recorded note says what the engine found;
+/// the user needs to know what to change.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,8 +1,15 @@
 //! What:
 //!  Disposable-repository controls for the settling of every name the program keeps in the Git directories.
 //! Why:
-//!  Each kind the wrapper keeps (saved copies, notices, work records, logs, merge records, copy records) must move in place
-//!  with its content intact when only the earlier name exists, be used when only the current name exists, and leave the
+//!  Each kind the wrapper keeps (saved copies,
+//! notices,
+//! work records,
+//! logs,
+//! merge records,
+//! copy records) must move in place
+//!  with its content intact when only the earlier name exists,
+//! be used when only the current name exists,
+//! and leave the
 //!  earlier one untouched and reported when both exist.
 //!
 //! In TS you'd write (pseudocode):
@@ -195,7 +202,9 @@ fn awkward_directory_names_are_settled_like_any_other() {
 const KINDS_EXISTING_TWICE: [RenamedName; 6] =
     [DATA_FOLDER, WORKTREE_COPY_RECORD_FOLDER, DISCARD_AUDIT_LOG, COMMIT_TIMING_LOG, WORKTREE_ADD_TIMING_LOG, PUSH_TRIGGER_LOG];
 
-/// The lines a log of `name` holds under one spelling: each carries a time stamp, as the real records do.
+/// The lines a log of `name` holds under one spelling:
+/// each carries a time stamp,
+/// as the real records do.
 fn log_lines(spelling: &str, first_minute: u32) -> Vec<String> {
     return (0..3)
         .map(|index: u32| {
@@ -204,7 +213,9 @@ fn log_lines(spelling: &str, first_minute: u32) -> Vec<String> {
         .collect();
 }
 
-/// Plant every kind under both spellings: a log with its own lines under each, a folder with its own entry under each,
+/// Plant every kind under both spellings:
+/// a log with its own lines under each,
+/// a folder with its own entry under each,
 ///  and one entry name that both folders hold.
 fn plant_both_spellings(directory: &Path) {
     for kind in KINDS_EXISTING_TWICE {
@@ -222,7 +233,9 @@ fn plant_both_spellings(directory: &Path) {
     }
 }
 
-/// Every file below `root`, as its bytes, in no particular order.
+/// Every file below `root`,
+/// as its bytes,
+/// in no particular order.
 fn all_file_contents(root: &Path) -> Vec<Vec<u8>> {
     let mut found: Vec<Vec<u8>> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
@@ -238,7 +251,8 @@ fn all_file_contents(root: &Path) -> Vec<Vec<u8>> {
     return found;
 }
 
-/// The measured state: after one settling no earlier name is left beside its current one,
+/// The measured state:
+/// after one settling no earlier name is left beside its current one,
 ///  so the six lines that every command printed are gone.
 #[test]
 fn both_spellings_of_every_kept_name_leave_no_earlier_name_and_no_notice() {
@@ -254,7 +268,9 @@ fn both_spellings_of_every_kept_name_leave_no_earlier_name_and_no_notice() {
 }
 
 /// The history that the split left under the earlier names is not orphaned:
-///  every line of both logs, byte for byte, is in the log under the current name.
+///  every line of both logs,
+/// byte for byte,
+/// is in the log under the current name.
 #[test]
 fn every_line_of_both_logs_survives_under_the_current_name() {
     let root: PathBuf = fixture("fold-lines");
@@ -272,7 +288,9 @@ fn every_line_of_both_logs_survives_under_the_current_name() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// The folders keep every entry of both: a name only the earlier folder holds moves in, and a name both hold is kept twice.
+/// The folders keep every entry of both:
+/// a name only the earlier folder holds moves in,
+/// and a name both hold is kept twice.
 #[test]
 fn every_entry_of_both_folders_survives_under_the_current_name() {
     let root: PathBuf = fixture("fold-folders");

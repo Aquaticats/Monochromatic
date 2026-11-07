@@ -1,8 +1,17 @@
-//! Window tests of the focus model on the testing backend (D106): the Tab order, the reverse order, no keyboard trap, the
-//! lists reachable by Alt+1 and Alt+2, and where the focus ring turns on and off.
+//! Window tests of the focus model on the testing backend (D106):
+//! the Tab order,
+//! the reverse order,
+//! no keyboard trap,
+//! the
+//! lists reachable by Alt+1 and Alt+2,
+//! and where the focus ring turns on and off.
 //!
-//! What: the real window receives real key events, and each test reads the name of the element that holds focus.
-//! Why: the order is declared in the markup, so only the composed window shows it.
+//! What:
+//! the real window receives real key events,
+//! and each test reads the name of the element that holds focus.
+//! Why:
+//! the order is declared in the markup,
+//! so only the composed window shows it.
 
 use i_slint_backend_testing::ElementHandle;
 use slint::platform::{PointerEventButton, WindowEvent};
@@ -13,7 +22,11 @@ use crate::ui_screen::read_state;
 use crate::ui_screen_view::Route;
 use crate::ui_test_support::{advance, chord, fresh_window_at, focus_label, load_library, settle, tab_labels, tap};
 
-/// The unfolded Tab order D106 asks for: the folder picker, the track list, the deck controls, then Search and Settings.
+/// The unfolded Tab order D106 asks for:
+/// the folder picker,
+/// the track list,
+/// the deck controls,
+/// then Search and Settings.
 const UNFOLDED_ORDER: [&str; 10] = [
     "open-pill",
     "folder-list",
@@ -27,8 +40,11 @@ const UNFOLDED_ORDER: [&str; 10] = [
     "settings",
 ];
 
-/// The folded Tab order with the track list showing: the folder trigger and the Open pill (the folder picker's controls),
-/// the track list, the deck, then Search and Settings.
+/// The folded Tab order with the track list showing:
+/// the folder trigger and the Open pill (the folder picker's controls),
+/// the track list,
+/// the deck,
+/// then Search and Settings.
 const FOLDED_ORDER: [&str; 10] = [
     "folder-trigger",
     "open-pill",
@@ -180,4 +196,29 @@ fn the_settings_page_keeps_tab_inside_it_and_a_template_line_does_not_swallow_ta
     assert!(labels.contains(&"template-field".to_owned()), "the template line is reachable: {labels:?}");
     let after_field = labels.iter().position(|label| return label == "template-field").expect("reached");
     assert_ne!(labels.get(after_field + 1).map(String::as_str), Some("template-field"), "Tab leaves the template line");
+}
+
+#[test]
+fn a_track_list_made_again_while_settings_is_open_leaves_the_keyboard_on_the_settings_list() {
+    let (app, _host) = fresh_window_at(850.0, 900.0);
+    load_library(&app);
+    chord(&app, &["Alt"], "2");
+    advance(64);
+    assert_eq!(focus_label(&app), "track-list", "Alt+2 asks for the track list and it takes the keyboard");
+    chord(&app, &["Ctrl", "Alt"], "s");
+    assert_eq!(app.get_route(), Route::Settings.to_int());
+    assert_eq!(focus_label(&app), "settings-list", "Settings opens with its list focused");
+    // The track list stays asked for (the request is kept until another one replaces it). A rescan of the library shows the
+    // first-run pane for a moment and then makes the track list again; the new list's focus timer fires one frame later,
+    // while the Settings page covers the player and the list refuses focus.
+    app.set_first_run_state(1);
+    advance(32);
+    app.set_first_run_state(0);
+    advance(200);
+    assert_eq!(app.get_route(), Route::Settings.to_int(), "Settings is still open");
+    assert_eq!(
+        focus_label(&app),
+        "settings-list",
+        "a track list made again under the Settings page must not move the keyboard to the Back button"
+    );
 }

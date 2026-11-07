@@ -24,7 +24,8 @@ pub mod transaction_journal;
 ///  recovery and landing work.
 pub mod transaction_git;
 
-/// The request, reply and failure types of the Git runner and the text of a command line.
+/// The request,
+/// reply and failure types of the Git runner and the text of a command line.
 pub mod transaction_git_request_and_reply_types;
 
 /// Which Git steps may be run again after a refused process and which may be ended at a ceiling.
@@ -36,5 +37,6 @@ pub mod transaction_git_step_bounds;
 /// No-follow file operations recovery and landing share.
 pub mod recovery_files;
 
-/// Test-only transaction phase markers, compiled into the release executable and armed only by an environment variable.
+/// Test-only transaction phase markers,
+/// compiled into the release executable and armed only by an environment variable.
 pub mod transaction_phase;

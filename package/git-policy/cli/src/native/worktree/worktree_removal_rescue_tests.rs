@@ -1,5 +1,9 @@
-//! Controls for keeping the records of a removed worktree: what is copied before a removal, what a later settle makes of it,
-//!  that a removal still under way is never settled, that a failure keeps what is left and is told to the person, and that a
+//! Controls for keeping the records of a removed worktree:
+//! what is copied before a removal,
+//! what a later settle makes of it,
+//!  that a removal still under way is never settled,
+//! that a failure keeps what is left and is told to the person,
+//! and that a
 //!  worktree which stays loses nothing and shows nothing.
 
 use super::*;
@@ -12,14 +16,16 @@ const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 const OTHER_COMMIT: &str = "89abcdef0123456789abcdef0123456789abcdef";
 const BRANCH: &str = "refs/heads/feature";
 
-/// What a process that is not running is recorded as: no process has this birth identity.
+/// What a process that is not running is recorded as:
+/// no process has this birth identity.
 const ENDED_IDENTITY: &str = "ended:0";
 
 fn plain(commit: &str) -> String {
     return commit.to_string();
 }
 
-/// A common directory with one linked worktree's Git directory in it, and the checkout that Git directory names.
+/// A common directory with one linked worktree's Git directory in it,
+/// and the checkout that Git directory names.
 struct Repo {
     root: PathBuf,
     common: PathBuf,
@@ -61,21 +67,27 @@ fn snapshot_of(repo: &Repo) -> PathBuf {
     return repo.common.join(SNAPSHOT_DIRECTORY).join(instance_of(repo.linked.as_path()));
 }
 
-/// Makes every command that took the snapshot a command that has ended, as it is once Git has refused or finished.
+/// Makes every command that took the snapshot a command that has ended,
+/// as it is once Git has refused or finished.
 fn end_attempts(repo: &Repo) {
     for path in files_of(snapshot_of(repo).join(ATTEMPTS).as_path()) {
         std::fs::write(path, ENDED_IDENTITY).expect("the recorded command has ended");
     }
 }
 
-/// The record of a failed push and a pending push, both under the fixture's worktree.
+/// The record of a failed push and a pending push,
+/// both under the fixture's worktree.
 fn records(repo: &Repo) {
     record_push_failure(repo.linked.as_path(), BRANCH, COMMIT, "refused by test policy").expect("notice");
     enqueue(work_directory(repo.linked.as_path()).as_path(), &item(WorkKind::Push, OTHER_COMMIT)).expect("pending push");
 }
 
-/// A failed push nobody saw and a push still pending, both under a worktree that is then removed, are shown by whoever asks
-///  next: the failure with Git's words, the pending push as one that may not have finished.
+/// A failed push nobody saw and a push still pending,
+/// both under a worktree that is then removed,
+/// are shown by whoever asks
+///  next:
+/// the failure with Git's words,
+/// the pending push as one that may not have finished.
 #[test]
 fn the_records_of_a_removed_worktree_are_shown_to_the_next_command() {
     let repo: Repo = repo("rescue-removed");
@@ -95,7 +107,10 @@ fn the_records_of_a_removed_worktree_are_shown_to_the_next_command() {
     remove(repo.root.as_path());
 }
 
-/// A removal that did not happen (Git refused, or a dry run) leaves the worktree, its records and no notice of loss, once the
+/// A removal that did not happen (Git refused,
+/// or a dry run) leaves the worktree,
+/// its records and no notice of loss,
+/// once the
 ///  command that took the snapshot has ended.
 #[test]
 fn a_worktree_that_stays_loses_nothing_and_shows_nothing_extra() {
@@ -110,8 +125,11 @@ fn a_worktree_that_stays_loses_nothing_and_shows_nothing_extra() {
     remove(repo.root.as_path());
 }
 
-/// Another command that settles while Git is still removing the worktree does not discard the snapshot: the registration is
-///  still there, but the command that took the snapshot is still running, and the originals go with the removal.
+/// Another command that settles while Git is still removing the worktree does not discard the snapshot:
+/// the registration is
+///  still there,
+/// but the command that took the snapshot is still running,
+/// and the originals go with the removal.
 #[test]
 fn a_command_that_settles_while_the_removal_is_under_way_keeps_the_snapshot() {
     let repo: Repo = repo("rescue-under-way");
@@ -128,7 +146,9 @@ fn a_command_that_settles_while_the_removal_is_under_way_keeps_the_snapshot() {
     remove(repo.root.as_path());
 }
 
-/// A removal cut short after Git deleted the checkout leaves a registration with no checkout: that is not a refusal, so the
+/// A removal cut short after Git deleted the checkout leaves a registration with no checkout:
+/// that is not a refusal,
+/// so the
 ///  snapshot is kept until the registration goes too.
 #[test]
 fn a_removal_cut_short_after_the_checkout_was_deleted_keeps_the_snapshot() {
@@ -161,7 +181,9 @@ fn a_recorded_failure_keeps_its_words_over_the_pending_push_of_the_same_commit()
     remove(repo.root.as_path());
 }
 
-/// A claimed push counts as unfinished, and work of another kind (upkeep, a review) is not a backup and is not reported.
+/// A claimed push counts as unfinished,
+/// and work of another kind (upkeep,
+/// a review) is not a backup and is not reported.
 #[test]
 fn a_claimed_push_is_reported_and_other_work_is_not() {
     let repo: Repo = repo("rescue-claimed");
@@ -179,7 +201,8 @@ fn a_claimed_push_is_reported_and_other_work_is_not() {
     remove(repo.root.as_path());
 }
 
-/// A worktree with no records is not snapshotted, so the commands that find nothing pay nothing.
+/// A worktree with no records is not snapshotted,
+/// so the commands that find nothing pay nothing.
 #[test]
 fn a_worktree_without_records_has_no_snapshot() {
     let repo: Repo = repo("rescue-nothing");
@@ -190,8 +213,11 @@ fn a_worktree_without_records_has_no_snapshot() {
     remove(repo.root.as_path());
 }
 
-/// A directory for the notices of removed worktrees that cannot be made keeps what the snapshot holds and says so, for the
-///  notice and for the push alike; once it can be made, the next command shows both and the snapshot goes.
+/// A directory for the notices of removed worktrees that cannot be made keeps what the snapshot holds and says so,
+/// for the
+///  notice and for the push alike;
+/// once it can be made,
+/// the next command shows both and the snapshot goes.
 #[test]
 fn notices_that_cannot_be_promoted_stay_in_the_snapshot_and_are_told() {
     let repo: Repo = repo("rescue-blocked");
@@ -214,7 +240,8 @@ fn notices_that_cannot_be_promoted_stay_in_the_snapshot_and_are_told() {
     remove(repo.root.as_path());
 }
 
-/// A push that was promoted is not promoted again when another record of the same snapshot had to wait: it is removed from
+/// A push that was promoted is not promoted again when another record of the same snapshot had to wait:
+/// it is removed from
 ///  the snapshot as it is promoted.
 #[test]
 fn a_promoted_push_is_not_recorded_again_when_the_snapshot_is_tried_again() {
@@ -241,8 +268,11 @@ fn a_promoted_push_is_not_recorded_again_when_the_snapshot_is_tried_again() {
     remove(repo.root.as_path());
 }
 
-/// A snapshot that cannot be made at all is told to the person, and so is one that could only be made in part, which keeps
-///  what was copied: the push is still shown after the removal though the notice could not be copied.
+/// A snapshot that cannot be made at all is told to the person,
+/// and so is one that could only be made in part,
+/// which keeps
+///  what was copied:
+/// the push is still shown after the removal though the notice could not be copied.
 #[test]
 fn a_snapshot_that_could_not_be_taken_is_told_and_what_was_copied_is_kept() {
     let whole: Repo = repo("rescue-uncreatable");
@@ -267,7 +297,8 @@ fn a_snapshot_that_could_not_be_taken_is_told_and_what_was_copied_is_kept() {
     remove(partial.root.as_path());
 }
 
-/// A second snapshot of a worktree adds to the first and does not replace it, so records the removal in progress has already
+/// A second snapshot of a worktree adds to the first and does not replace it,
+/// so records the removal in progress has already
 ///  deleted from the worktree are still in the snapshot.
 #[test]
 fn a_second_snapshot_keeps_what_the_first_copied() {
@@ -286,8 +317,10 @@ fn a_second_snapshot_keeps_what_the_first_copied() {
     remove(repo.root.as_path());
 }
 
-/// An attempt left by an earlier process that had this process's number does not stand for this process: the snapshot names
-///  the identity of the process that took it now, so the removal it starts is not read as one that has ended.
+/// An attempt left by an earlier process that had this process's number does not stand for this process:
+/// the snapshot names
+///  the identity of the process that took it now,
+/// so the removal it starts is not read as one that has ended.
 #[test]
 fn an_attempt_left_by_an_earlier_process_of_the_same_number_is_replaced() {
     let repo: Repo = repo("rescue-reused-number");
@@ -303,8 +336,10 @@ fn an_attempt_left_by_an_earlier_process_of_the_same_number_is_replaced() {
     remove(repo.root.as_path());
 }
 
-/// A push record is found in whichever state it is in now: the service moves it from `pending` to `claimed` between the
-///  listing and the read, and a record that finished is in neither.
+/// A push record is found in whichever state it is in now:
+/// the service moves it from `pending` to `claimed` between the
+///  listing and the read,
+/// and a record that finished is in neither.
 #[test]
 fn a_push_record_that_moved_between_states_is_found_where_it_is() {
     let repo: Repo = repo("rescue-moved");
@@ -323,7 +358,9 @@ fn a_push_record_that_moved_between_states_is_found_where_it_is() {
     remove(repo.root.as_path());
 }
 
-/// A file that is gone by the time it is copied was shown or finished by someone quicker: nothing to keep, nothing wrong.
+/// A file that is gone by the time it is copied was shown or finished by someone quicker:
+/// nothing to keep,
+/// nothing wrong.
 #[test]
 fn a_file_that_vanished_before_it_was_copied_is_not_a_failure() {
     let repo: Repo = repo("rescue-vanished");

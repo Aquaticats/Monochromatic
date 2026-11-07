@@ -90,7 +90,7 @@ fn main() {
         // const first = process.argv[2];
         // if (first !== undefined && namesADeclaredVerb(first)) process.exit(runCli(textOf(process.argv.slice(1))));
         // ```
-        if let Some(first) = all_arguments.get(1).and_then(|word| return word.to_str())
+        if let Some(first) = all_arguments.get(1).map(std::ffi::OsString::as_os_str).and_then(std::ffi::OsStr::to_str)
             && names_a_declared_verb(first)
         {
             // argv[0] stays `mpm`, so the usage lines say `mpm install`, the command the person typed.
@@ -107,7 +107,8 @@ fn main() {
 
 /// What:
 /// `fn text_of(arguments: Vec<OsString>) -> Vec<String>` declares a private function that turns the raw
-///           arguments (`OsString`, the operating system's bytes) into owned texts (`String`),
+///           arguments (`OsString`,
+/// the operating system's bytes) into owned texts (`String`),
 ///           replacing bytes that are not UTF-8 with the replacement character.
 /// Why:
 /// The command-line tool wants plain text;

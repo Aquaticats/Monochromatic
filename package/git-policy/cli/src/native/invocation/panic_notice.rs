@@ -113,31 +113,54 @@ pub fn payload_free_panic_hook(information: &PanicHookInfo<'_>) {
 }
 
 std::thread_local! {
-    /// How many calls on this thread are inside `while_panics_are_expected`. A panic hook runs on the thread that panics,
+    /// How many calls on this thread are inside `while_panics_are_expected`.
+    /// A panic hook runs on the thread that panics,
     ///  so this thread's count is the right one for its hook to read.
     static EXPECTED_PANIC_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
+/// Whether a thread's count of expected calls is above zero.
+fn has_expected_call(calls: &std::cell::Cell<usize>) -> bool {
+    return calls.get() > 0;
+}
+
+/// One more expected call on this thread.
+fn enter_expected_call(calls: &std::cell::Cell<usize>) {
+    calls.set(calls.get() + 1);
+}
+
+/// One expected call fewer on this thread.
+fn leave_expected_call(calls: &std::cell::Cell<usize>) {
+    calls.set(calls.get() - 1);
+}
+
 /// Whether the calling thread is inside a call whose panic its caller catches and reports itself.
 pub fn panics_are_expected_here() -> bool {
-    return EXPECTED_PANIC_CALLS.with(|calls| { return calls.get() > 0; });
+    return EXPECTED_PANIC_CALLS.with(has_expected_call);
 }
 
 /// What:
-///  Runs `call` and returns what `std::panic::catch_unwind` returns, with the notice of the hook silenced for a panic inside it.
+///  Runs `call(state)` and returns what `std::panic::catch_unwind` returns,
+/// with the notice of the hook silenced for a panic inside it.
 /// Why:
-///  tokio panics, instead of returning an error, when the system refuses a thread (`doc/planning/git-policy-cli-full-tokio.md`,
-///  "A multi-thread runtime panics, then hangs"). The caller turns that panic into a plain error value of its own, so the
-///  notice "run it again, report this location" would tell the person of a defect on a command that went on to succeed.
+///  tokio panics,
+/// instead of returning an error,
+/// when the system refuses a thread (`doc/planning/git-policy-cli-full-tokio.md`,
+///  "A multi-thread runtime panics,
+/// then hangs").
+/// The caller turns that panic into a plain error value of its own,
+/// so the
+///  notice "run it again,
+/// report this location" would tell the person of a defect on a command that went on to succeed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// try { return Ok(call()); } catch (error) { return Err(error); } // with no uncaughtException message printed
 /// ```
-pub fn while_panics_are_expected<T>(call: impl FnOnce() -> T) -> std::thread::Result<T> {
-    EXPECTED_PANIC_CALLS.with(|calls| { calls.set(calls.get() + 1); });
-    let outcome: std::thread::Result<T> = std::panic::catch_unwind(std::panic::AssertUnwindSafe(call));
-    EXPECTED_PANIC_CALLS.with(|calls| { calls.set(calls.get() - 1); });
+pub fn while_panics_are_expected<S, R>(state: S, call: fn(S) -> R) -> std::thread::Result<R> {
+    EXPECTED_PANIC_CALLS.with(enter_expected_call);
+    let outcome: std::thread::Result<R> = crate::call_catching_panics::call_catching_panics(state, call);
+    EXPECTED_PANIC_CALLS.with(leave_expected_call);
     return outcome;
 }
 

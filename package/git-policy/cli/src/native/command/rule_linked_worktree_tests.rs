@@ -206,7 +206,10 @@ fn only_main_and_absent_worktrees_are_rejected() {
     }
 }
 
-/// Every text names the form, what it destroys, a sanctioned alternative, and the deliberate way to discard.
+/// Every text names the form,
+/// what it destroys,
+/// a sanctioned alternative,
+/// and the deliberate way to discard.
 #[test]
 fn every_text_names_the_loss_an_alternative_and_the_hatch() {
     for command in ALL_COMMANDS {
@@ -255,7 +258,8 @@ fn each_intent_gets_its_own_alternative() {
     assert!(dirty_worktree_message(GuardedCommand::SwitchMove).contains("git worktree add <path> <branch>"));
 }
 
-/// The README documents the alternative that each rejection text names, in the same words.
+/// The README documents the alternative that each rejection text names,
+/// in the same words.
 #[test]
 fn the_readme_documents_what_the_texts_recommend() {
     let readme: &str = include_str!("../../../README.md");

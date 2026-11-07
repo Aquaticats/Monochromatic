@@ -1,13 +1,23 @@
-//! Guard for the ban on Git starting the wrapper for a hook, and on the wrapper running external hook programs.
+//! Guard for the ban on Git starting the wrapper for a hook,
+//! and on the wrapper running external hook programs.
 //!
-//! The commit path must write no hook entry that names the wrapper, point `core.hooksPath` at a directory of its own
-//! making, start Git's hook runner, or dispatch on the name the executable was started under.
-//! The binary controls (`binary_external_hook_tests.rs`) prove the behavior end to end: no configured hook runs, a
-//! declared action does, and a wrapper link named like a former entry behaves as `git`.
-//! These controls prove the source shape, so a reintroduced entry writer, hook runner or `argv[0]` branch fails here
+//! The commit path must write no hook entry that names the wrapper,
+//! point `core.hooksPath` at a directory of its own
+//! making,
+//! start Git's hook runner,
+//! or dispatch on the name the executable was started under.
+//! The binary controls (`binary_external_hook_tests.rs`) prove the behavior end to end:
+//! no configured hook runs,
+//! a
+//! declared action does,
+//! and a wrapper link named like a former entry behaves as `git`.
+//! These controls prove the source shape,
+//! so a reintroduced entry writer,
+//! hook runner or `argv[0]` branch fails here
 //! before any repository is built.
 
-/// The executable entry point, which must hand its arguments to the wrapper without reading its start name.
+/// The executable entry point,
+/// which must hand its arguments to the wrapper without reading its start name.
 const MAIN_SOURCE: &str = include_str!("../main.rs");
 
 /// Every source of the commit path that decides what Git is started with.
@@ -22,8 +32,13 @@ const COMMIT_PATH_SOURCES: &[(&str, &str)] = &[
     ("shadow/shadow_config.rs", include_str!("../shadow/shadow_config.rs")),
 ];
 
-/// What a commit-path source must never contain: a way to write an entry, a way to name this executable, Git's hook
-///  runner, a hooks path built from a transaction directory, or the former entry vocabulary.
+/// What a commit-path source must never contain:
+/// a way to write an entry,
+/// a way to name this executable,
+/// Git's hook
+///  runner,
+/// a hooks path built from a transaction directory,
+/// or the former entry vocabulary.
 const FORBIDDEN_IN_COMMIT_PATH: &[&str] = &[
     "symlink(",
     "hard_link(",
@@ -39,7 +54,9 @@ const FORBIDDEN_IN_COMMIT_PATH: &[&str] = &[
     "Command::new(r",
 ];
 
-/// The code lines of a source: comments and doc comments are explanation, not behavior.
+/// The code lines of a source:
+/// comments and doc comments are explanation,
+/// not behavior.
 fn code_lines(source: &str) -> Vec<&str> {
     return source
         .lines()
@@ -48,7 +65,10 @@ fn code_lines(source: &str) -> Vec<&str> {
         .collect();
 }
 
-/// The executable never reads its start name: it collects `args_os` once, skipping the program name, and calls the
+/// The executable never reads its start name:
+/// it collects `args_os` once,
+/// skipping the program name,
+/// and calls the
 ///  wrapper's entry.
 #[test]
 fn main_does_not_dispatch_on_its_start_name() {
@@ -62,7 +82,10 @@ fn main_does_not_dispatch_on_its_start_name() {
     assert!(joined.contains("entry::run_process("), "main.rs hands over to the wrapper's entry");
 }
 
-/// No source of the commit path can write an entry, name this executable, run Git's hook runner or a shell, or build a
+/// No source of the commit path can write an entry,
+/// name this executable,
+/// run Git's hook runner or a shell,
+/// or build a
 ///  hooks path of the transaction.
 #[test]
 fn the_commit_path_writes_no_entry_and_runs_no_hook_program() {
@@ -74,13 +97,17 @@ fn the_commit_path_writes_no_entry_and_runs_no_hook_program() {
     }
 }
 
-/// The forbidden tokens a source contains, comments excluded.
+/// The forbidden tokens a source contains,
+/// comments excluded.
 fn violations(source: &str) -> Vec<&'static str> {
     let joined: String = code_lines(source).join("\n");
     return FORBIDDEN_IN_COMMIT_PATH.iter().copied().filter(|forbidden| { return joined.contains(forbidden); }).collect();
 }
 
-/// The scan flags each kind of violation it exists for, one planted source per token, and ignores comments: a guard
+/// The scan flags each kind of violation it exists for,
+/// one planted source per token,
+/// and ignores comments:
+/// a guard
 ///  that flagged nothing would pass every real source.
 #[test]
 fn the_scan_flags_every_forbidden_token_in_code_and_none_in_comments() {

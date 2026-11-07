@@ -33,7 +33,8 @@ fn bound(limit: Duration) -> Bound {
 
 /// The script of a parent that starts a writer in a session of its own (it also closes every standard stream,
 /// so no pipe reaches it),
-/// waits until the writer says it escaped (its process id is in a file, then a ready file exists),
+/// waits until the writer says it escaped (its process id is in a file,
+/// then a ready file exists),
 /// and then does `after`.
 /// The writer lives on until it is stopped.
 fn script_with_escaped_writer(directory: &Path, after: &str) -> String {
@@ -160,9 +161,14 @@ fn nested_transactions_keep_their_own_records() {
 
 /// Round 6 (5a F2):
 /// a run that returns an error does not leave a worker reading the pipe.
-/// Certification, third pass: the program is known to have started (it writes its pid file before it ignores its input), the input
-/// is larger than any pipe buffer so the feeder is blocked by backpressure when the bound passes, and the answer is the bound's
-/// `TimedOut`, not an error of the start that spent the budget.
+/// Certification,
+/// third pass:
+/// the program is known to have started (it writes its pid file before it ignores its input),
+/// the input
+/// is larger than any pipe buffer so the feeder is blocked by backpressure when the bound passes,
+/// and the answer is the bound's
+/// `TimedOut`,
+/// not an error of the start that spent the budget.
 #[test]
 fn a_timeout_returns_promptly_even_when_the_child_ignores_its_input() {
     let directory = crate::test_scratch::scratch();

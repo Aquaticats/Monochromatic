@@ -1,12 +1,18 @@
 //! What:
-//!  The merged configuration listing of `git config --list -z --show-scope`, built in process from the system, global
-//!  and repository files, their `include.path` files, and the environment's `GIT_CONFIG_COUNT` entries.
+//!  The merged configuration listing of `git config --list -z --show-scope`,
+//! built in process from the system,
+//! global
+//!  and repository files,
+//! their `include.path` files,
+//! and the environment's `GIT_CONFIG_COUNT` entries.
 //! Why:
 //!  The wrapper reads this listing once per commit and asks several single-key questions Git answers from the same
 //!  files.
 //!  The per-worktree `config.worktree` is listed under the scope `worktree` after the repository's own file when
 //!  `extensions.worktreeConfig` is on.
-//!  The reader declines conditional includes (whose condition Git evaluates), command-line `-c` entries (`GIT_CONFIG_PARAMETERS`), a file it cannot parse and an environment entry it cannot canonicalize.
+//!  The reader declines conditional includes (whose condition Git evaluates),
+//! command-line `-c` entries (`GIT_CONFIG_PARAMETERS`),
+//! a file it cannot parse and an environment entry it cannot canonicalize.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,7 +24,8 @@ use crate::repo_read_config_text::{ConfigEntry, last_entry, parse_bool, parse_co
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-/// How many nested includes are followed; Git's own limit.
+/// How many nested includes are followed;
+/// Git's own limit.
 const INCLUDE_DEPTH_LIMIT: usize = 10;
 
 /// How many environment-supplied entries are read.
@@ -27,13 +34,18 @@ const ENV_ENTRY_LIMIT: u64 = 1024;
 /// One listed entry with the scope name `--show-scope` prints.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ListedEntry {
-    /// `system`, `global`, `local`, `worktree` or `command`.
+    /// `system`,
+    /// `global`,
+    /// `local`,
+    /// `worktree` or `command`.
     pub scope: &'static str,
     /// The entry.
     pub entry: ConfigEntry,
 }
 
-/// Append the entries of the file at `path` and, in place, of every file it includes.
+/// Append the entries of the file at `path` and,
+/// in place,
+/// of every file it includes.
 fn add_file(path: &Path, scope: &'static str, home: Option<&Path>, depth: usize, listed: &mut Vec<ListedEntry>) -> Option<()> {
     if depth > INCLUDE_DEPTH_LIMIT {
         return None;
@@ -58,7 +70,9 @@ fn add_file(path: &Path, scope: &'static str, home: Option<&Path>, depth: usize,
     return Some(());
 }
 
-/// Whether a section or key name is made only of letters, digits and `-`, and is not empty.
+/// Whether a section or key name is made only of letters,
+/// digits and `-`,
+/// and is not empty.
 fn is_plain_key_part(text: &str) -> bool {
     if text.is_empty() {
         return false;
@@ -71,7 +85,9 @@ fn is_plain_key_part(text: &str) -> bool {
     return true;
 }
 
-/// The canonical spelling of a key given in the environment: lower-case section and variable name, subsection kept.
+/// The canonical spelling of a key given in the environment:
+/// lower-case section and variable name,
+/// subsection kept.
 fn canonical_key(key: &str) -> Option<String> {
     let (section, rest) = key.split_once('.')?;
     let (middle, name) = match rest.rsplit_once('.') {
@@ -113,9 +129,15 @@ fn add_environment(variables: &[(OsString, OsString)], listed: &mut Vec<ListedEn
 }
 
 /// What:
-///  Every entry Git would list, in its order, or `None` when Git must be asked.
+///  Every entry Git would list,
+/// in its order,
+/// or `None` when Git must be asked.
 /// Why:
-///   The order is system, global, local, command; included files follow their `include.path` entry.
+///   The order is system,
+/// global,
+/// local,
+/// command;
+/// included files follow their `include.path` entry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -159,7 +181,8 @@ pub fn list_config(common_dir: &Path, git_dir: &Path, scope: &ScopeEnvironment, 
     return Some(listed);
 }
 
-/// The listing as `git config --list -z --show-scope` prints it: `scope\0key\nvalue\0` for each entry.
+/// The listing as `git config --list -z --show-scope` prints it:
+/// `scope\0key\nvalue\0` for each entry.
 pub fn listing_bytes(listed: &[ListedEntry]) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::new();
     for item in listed {

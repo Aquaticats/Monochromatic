@@ -120,8 +120,10 @@ fn protection_sets_the_requested_mode() {
     remove(root.as_path());
 }
 
-/// Child of the controls below: write a record larger than the process's file-size limit with each writer.
-///  Both writers must fail, because only part of the record fits.
+/// Child of the controls below:
+/// write a record larger than the process's file-size limit with each writer.
+///  Both writers must fail,
+/// because only part of the record fits.
 #[cfg(unix)]
 #[test]
 #[ignore = "started as a child process, under a file-size limit, by the controls of the writers"]
@@ -132,8 +134,11 @@ fn child_writes_a_record_past_the_size_limit() {
     assert!(write_exclusive_synced(directory.join("synced.json").as_path(), record.as_slice()).is_err());
 }
 
-/// A record whose write is cut half way by a full disk or a size limit leaves nothing at its name, not the part
-///  that fitted: a record that recovery finds must be whole, and a half-written one stops every later command.
+/// A record whose write is cut half way by a full disk or a size limit leaves nothing at its name,
+/// not the part
+///  that fitted:
+/// a record that recovery finds must be whole,
+/// and a half-written one stops every later command.
 #[cfg(unix)]
 #[test]
 fn a_write_cut_half_way_leaves_nothing_behind() {
@@ -153,8 +158,10 @@ fn a_write_cut_half_way_leaves_nothing_behind() {
     remove(root.as_path());
 }
 
-/// A filesystem that cannot sync a directory (procfs answers `EINVAL`) is not a failure of the write: the entry cannot
-///  be made durable there, and every other filesystem call of the commit works.
+/// A filesystem that cannot sync a directory (procfs answers `EINVAL`) is not a failure of the write:
+/// the entry cannot
+///  be made durable there,
+/// and every other filesystem call of the commit works.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_directory_that_cannot_be_synced_is_not_an_error() {

@@ -1,5 +1,9 @@
-//! A round over several repositories: the drains overlap in time, the retry list keeps the order the directories were named, the
-//!  directories of one repository are drained one after another, and the host budget bounds the overlap.
+//! A round over several repositories:
+//! the drains overlap in time,
+//! the retry list keeps the order the directories were named,
+//! the
+//!  directories of one repository are drained one after another,
+//! and the host budget bounds the overlap.
 
 use super::*;
 use crate::parallel_test_support::{PATIENCE, Rendezvous, SERIAL_PATIENCE};
@@ -18,7 +22,8 @@ const LARGE_HOST: HostResources = HostResources { parallelism: REPOSITORIES * 8,
 /// The branch every item names.
 const BRANCH: &str = "refs/heads/main";
 
-/// A repository directory standing in for a common Git directory, with a worktree directory beside it and one pending push.
+/// A repository directory standing in for a common Git directory,
+/// with a worktree directory beside it and one pending push.
 struct Repository {
     /// The fixture root.
     root: PathBuf,
@@ -26,7 +31,9 @@ struct Repository {
     common: PathBuf,
 }
 
-/// Make `count` repositories, each with a pending push, under one fixture.
+/// Make `count` repositories,
+/// each with a pending push,
+/// under one fixture.
 fn repositories(name: &str, count: usize) -> (PathBuf, Vec<Repository>) {
     let root: PathBuf = fixture(name);
     let made: Vec<Repository> = (0..count)
@@ -53,11 +60,13 @@ fn repositories(name: &str, count: usize) -> (PathBuf, Vec<Repository>) {
     return (root, made);
 }
 
-/// Handlers that run `on_push` for every push and answer done; they hold only what several threads may share.
+/// Handlers that run `on_push` for every push and answer done;
+/// they hold only what several threads may share.
 struct Handlers<'a> {
     /// Called with the Git directory of the pushed repository.
     on_push: Box<dyn Fn(&str) + Sync + 'a>,
-    /// The Git directories pushed, in the order the pushes began.
+    /// The Git directories pushed,
+    /// in the order the pushes began.
     began: Mutex<Vec<String>>,
 }
 
@@ -89,8 +98,10 @@ fn settled(repository: &Repository) -> usize {
     return std::fs::read_dir(state_directory(work_directory(repository.common.as_path()).as_path(), DONE)).map_or(0, |listing| { return listing.flatten().count(); });
 }
 
-/// The pushes of all the repositories start before any has finished: a point that needs all of them at once is passed only by
-///  parallel work, and a serial round waits there until its patience ends.
+/// The pushes of all the repositories start before any has finished:
+/// a point that needs all of them at once is passed only by
+///  parallel work,
+/// and a serial round waits there until its patience ends.
 #[test]
 fn repositories_are_drained_side_by_side() {
     let (root, made) = repositories("round-overlap", REPOSITORIES);
@@ -110,7 +121,8 @@ fn repositories_are_drained_side_by_side() {
     remove(root.as_path());
 }
 
-/// The host's budget bounds the overlap: on a host that may run few threads the overlap reaches that many and no more.
+/// The host's budget bounds the overlap:
+/// on a host that may run few threads the overlap reaches that many and no more.
 #[test]
 fn the_budget_of_the_host_bounds_the_overlap() {
     let (root, made) = repositories("round-budget", REPOSITORIES * 2);
@@ -134,8 +146,11 @@ fn the_budget_of_the_host_bounds_the_overlap() {
     remove(root.as_path());
 }
 
-/// The retry list names the directories in the order they were named, whichever drain finishes first. A claim another instance
-///  holds gives a wait, so the first repository holds one while the others finish ahead of it.
+/// The retry list names the directories in the order they were named,
+/// whichever drain finishes first.
+/// A claim another instance
+///  holds gives a wait,
+/// so the first repository holds one while the others finish ahead of it.
 #[test]
 fn the_retry_list_keeps_the_order_the_directories_were_named() {
     let (root, made) = repositories("round-order", REPOSITORIES);
@@ -172,7 +187,8 @@ fn the_retry_list_keeps_the_order_the_directories_were_named() {
     remove(root.as_path());
 }
 
-/// Two directories of one repository (the common directory and a linked worktree's) are drained one after another, never at once.
+/// Two directories of one repository (the common directory and a linked worktree's) are drained one after another,
+/// never at once.
 #[test]
 fn the_directories_of_one_repository_are_drained_one_after_another() {
     let (root, made) = repositories("round-lane", 1);
@@ -207,14 +223,16 @@ fn the_directories_of_one_repository_are_drained_one_after_another() {
     remove(root.as_path());
 }
 
-/// The estimate is at least the measured peak of one repository's service, so a budget never admits more drains than the memory
+/// The estimate is at least the measured peak of one repository's service,
+/// so a budget never admits more drains than the memory
 ///  they were measured to hold.
 #[test]
 fn the_repository_estimate_covers_the_measured_peak() {
     const { assert!(REPOSITORY_MEMORY >= MEASURED_REPOSITORY_PEAK, "the repository estimate must cover the measured peak") };
 }
 
-/// The estimate is the measurement rounded up to a power of two and not more, so it stays tied to the figure it cites.
+/// The estimate is the measurement rounded up to a power of two and not more,
+/// so it stays tied to the figure it cites.
 #[test]
 fn the_repository_estimate_is_the_measurement_rounded_up_to_a_power_of_two() {
     assert_eq!(REPOSITORY_MEMORY, MEASURED_REPOSITORY_PEAK.next_power_of_two());

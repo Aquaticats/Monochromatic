@@ -1,12 +1,23 @@
 //! What:
-//!  The drain of several repositories in one round of the service's after-commit work, side by side.
+//!  The drain of several repositories in one round of the service's after-commit work,
+//! side by side.
 //! Why:
-//!  Repositories share nothing: each has its own work directory, its own claims and its own pushes, so one repository's slow
-//!  push or review never needs to hold up another's. The round's thread hands each repository to a worker and takes the answers
-//!  back in the order the repositories were named (`parallel_runner.rs`), so the retry list is the one a drain of one after
-//!  another gives. No lock is taken (`service_lock_inventory_tests.rs`): the handlers are shared read-only, every claim is made
-//!  by an atomic rename as before, and the directories of one repository (a main checkout and its linked worktrees) share a lane
-//!  and are drained one after another there, because they share a work directory and its upkeep.
+//!  Repositories share nothing:
+//! each has its own work directory,
+//! its own claims and its own pushes,
+//! so one repository's slow
+//!  push or review never needs to hold up another's.
+//! The round's thread hands each repository to a worker and takes the answers
+//!  back in the order the repositories were named (`parallel_runner.rs`),
+//! so the retry list is the one a drain of one after
+//!  another gives.
+//! No lock is taken (`service_lock_inventory_tests.rs`):
+//! the handlers are shared read-only,
+//! every claim is made
+//!  by an atomic rename as before,
+//! and the directories of one repository (a main checkout and its linked worktrees) share a lane
+//!  and are drained one after another there,
+//! because they share a work directory and its upkeep.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,22 +34,39 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// The 90th percentile of `MemoryPeak` over the 28 commit-service units of this host that `systemctl --user show 'cli-git@*.service'
-///  --property=MemoryPeak` reported on 2026-11-03 (the units' peaks since each one's last start; the Git processes a service
-///  starts are inside the unit): 130,482,176 bytes. The median was 33,000,000 bytes, the 75th percentile 49,000,000 bytes, and the
-///  largest 1,073,766,400 bytes, a unit that had run under the one-gibibyte cap this build no longer sets. A unit serves one
-///  worktree for its whole life, so a unit's peak is an upper bound of what one repository's drain holds at once.
+///  --property=MemoryPeak` reported on 2026-11-03 (the units' peaks since each one's last start;
+/// the Git processes a service
+///  starts are inside the unit):
+/// 130,482,176 bytes.
+/// The median was 33,000,000 bytes,
+/// the 75th percentile 49,000,000 bytes,
+/// and the
+///  largest 1,073,766,400 bytes,
+/// a unit that had run under the one-gibibyte cap this build no longer sets.
+/// A unit serves one
+///  worktree for its whole life,
+/// so a unit's peak is an upper bound of what one repository's drain holds at once.
 pub const MEASURED_REPOSITORY_PEAK: u64 = 130_482_176;
 
-/// The bytes the drain of one repository holds at its peak: `MEASURED_REPOSITORY_PEAK` rounded up to a power of two, as
-///  `CONVERSION_MEMORY` rounds its measurement. The coordinator's pick under the owner's delegation, open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps and memory estimates").
+/// The bytes the drain of one repository holds at its peak:
+/// `MEASURED_REPOSITORY_PEAK` rounded up to a power of two,
+/// as
+///  `CONVERSION_MEMORY` rounds its measurement.
+/// The coordinator's pick under the owner's delegation,
+/// open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Parallelism caps and memory estimates").
 pub const REPOSITORY_MEMORY: u64 = MEASURED_REPOSITORY_PEAK.next_power_of_two();
 
 /// What:
-///  One directory of a round, with the pushes of it that are due again.
+///  One directory of a round,
+/// with the pushes of it that are due again.
 /// Why:
-///   The service loop owns the retry plan; it takes what is due for the directory out of the plan before the round and hands it to
-///  the directory's worker inside the request, as an owned value, so no worker reads the plan.
+///   The service loop owns the retry plan;
+/// it takes what is due for the directory out of the plan before the round and hands it to
+///  the directory's worker inside the request,
+/// as an owned value,
+/// so no worker reads the plan.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -54,17 +82,22 @@ pub struct Assignment {
 
 /// Methods over an assignment.
 impl Assignment {
-    /// A directory with no plan: a push that could pass is reported as failed.
+    /// A directory with no plan:
+    /// a push that could pass is reported as failed.
     pub fn plain(directory: PathBuf) -> Self {
         return Self { directory, retrying: Retrying::none() };
     }
 }
 
 /// What:
-///  What a round gives back: when to look again at the directories that have a claim another instance holds, and the changes the
+///  What a round gives back:
+/// when to look again at the directories that have a claim another instance holds,
+/// and the changes the
 ///  workers ask of the retry plan.
 /// Why:
-///   The waits keep the order the directories were named; the changes are in that order too, so applying them in sequence gives
+///   The waits keep the order the directories were named;
+/// the changes are in that order too,
+/// so applying them in sequence gives
 ///  the plan a drain of one directory after another would.
 ///
 /// In TS you'd write (pseudocode):
@@ -73,7 +106,9 @@ impl Assignment {
 /// ```
 #[derive(Debug, Default)]
 pub struct RoundAnswer {
-    /// For each directory that has such a claim, how long until its lease runs out, in the order the directories were named.
+    /// For each directory that has such a claim,
+    /// how long until its lease runs out,
+    /// in the order the directories were named.
     pub waits: Vec<(PathBuf, Duration)>,
     /// What the workers ask of the retry plan.
     pub changes: Vec<RetryChange>,
@@ -82,16 +117,21 @@ pub struct RoundAnswer {
 /// What:
 ///  What a round needs to drain its repositories.
 /// Why:
-///   One value names the inputs, so the call reads as a list of facts.
+///   One value names the inputs,
+/// so the call reads as a list of facts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type RoundDrain<H> = { directories: string[]; handlers: H; now: ClaimTime; host: HostResources };
 /// ```
 pub struct RoundDrain<'a, H: WorkHandlers + Sync> {
-    /// The Git directories named by the round's wakes, each once, in the order they were first named, each with what is due again.
+    /// The Git directories named by the round's wakes,
+    /// each once,
+    /// in the order they were first named,
+    /// each with what is due again.
     pub directories: &'a [Assignment],
-    /// What runs each kind of work; shared read-only by every worker.
+    /// What runs each kind of work;
+    /// shared read-only by every worker.
     pub handlers: &'a H,
     /// The reading of the clock the round started at.
     pub now: &'a ClaimTime,
@@ -100,9 +140,12 @@ pub struct RoundDrain<'a, H: WorkHandlers + Sync> {
 }
 
 /// What:
-///  The lane of a directory: the common directory of its repository when it names one, else the directory itself.
+///  The lane of a directory:
+/// the common directory of its repository when it names one,
+/// else the directory itself.
 /// Why:
-///   The directories of one repository share a work directory and its upkeep, so they are drained one after another.
+///   The directories of one repository share a work directory and its upkeep,
+/// so they are drained one after another.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -116,9 +159,11 @@ fn lane_key(directory: &Path) -> PathBuf {
 }
 
 /// What:
-///  The drain of one directory, run by a worker of the ordered runner.
+///  The drain of one directory,
+/// run by a worker of the ordered runner.
 /// Why:
-///   The handlers and the time are what each drain reads; the runner shares them among its worker threads.
+///   The handlers and the time are what each drain reads;
+/// the runner shares them among its worker threads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -141,16 +186,20 @@ impl<H: WorkHandlers + Sync> OrderedWork<Assignment, (Option<Duration>, Vec<Retr
 }
 
 /// What:
-///  Collects, in the order the directories were named, the wait of each claim another instance holds and every retry change.
+///  Collects,
+/// in the order the directories were named,
+/// the wait of each claim another instance holds and every retry change.
 /// Why:
-///   The runner reports on the calling thread only and in input order, so the answer needs no lock.
+///   The runner reports on the calling thread only and in input order,
+/// so the answer needs no lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class CollectWaitsAndChanges implements OrderedEvents<[Duration | undefined, RetryChange[]]> { answer: RoundAnswer }
 /// ```
 struct CollectWaitsAndChanges<'a> {
-    /// The directories, in the order they were named.
+    /// The directories,
+    /// in the order they were named.
     directories: &'a [Assignment],
     /// The answer being built.
     answer: &'a mut RoundAnswer,
@@ -168,8 +217,13 @@ impl OrderedEvents<(Option<Duration>, Vec<RetryChange>)> for CollectWaitsAndChan
 }
 
 /// What:
-///  Drain every directory, repositories side by side, and give, for each directory that has a claim another instance holds, how
-///  long until that claim's lease runs out, in the order the directories were named.
+///  Drain every directory,
+/// repositories side by side,
+/// and give,
+/// for each directory that has a claim another instance holds,
+/// how
+///  long until that claim's lease runs out,
+/// in the order the directories were named.
 /// Why:
 ///   See the module description.
 ///

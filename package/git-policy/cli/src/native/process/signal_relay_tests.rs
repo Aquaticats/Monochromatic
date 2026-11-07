@@ -1,6 +1,7 @@
 //! Controls for the signal guard.
 //!
-//! Handlers are process-wide, so every test that installs one runs in a helper process:
+//! Handlers are process-wide,
+//! so every test that installs one runs in a helper process:
 //! the test executable re-runs this file's `helper_entry` test with a mode in the environment,
 //! as `scanner_test_support.rs` re-runs the executable.
 //! Outside that mode `helper_entry` returns at once.
@@ -11,15 +12,19 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus};
 use std::time::{Duration, Instant};
 
-/// The sender codes the tests feed in; macOS relays every signal whatever its code, so its tests need none.
+/// The sender codes the tests feed in;
+/// macOS relays every signal whatever its code,
+/// so its tests need none.
 #[cfg(all(unix, not(target_os = "macos")))]
 use libc::{SI_QUEUE, SI_USER};
 
-/// A code that no process sends: the kernel's own on Linux.
+/// A code that no process sends:
+/// the kernel's own on Linux.
 #[cfg(target_os = "linux")]
 const KERNEL_CODE: std::ffi::c_int = libc::SI_KERNEL;
 
-/// A code that no process sends: the empty code on Unix systems other than Linux and macOS.
+/// A code that no process sends:
+/// the empty code on Unix systems other than Linux and macOS.
 #[cfg(all(unix, not(target_os = "linux"), not(target_os = "macos")))]
 const KERNEL_CODE: std::ffi::c_int = 0;
 
@@ -110,7 +115,8 @@ fn describe(outcome: ChildOutcome) -> String {
     }
 }
 
-/// Wait until `path` exists, or fail after the step timeout.
+/// Wait until `path` exists,
+/// or fail after the step timeout.
 fn wait_for(path: &Path) {
     let started: Instant = Instant::now();
     while !path.exists() {
@@ -134,7 +140,8 @@ fn spawn_helper(mode: &str, directory: &Path) -> Child {
     .expect("helper starts");
 }
 
-/// Send one signal from this test process, so the kernel records it as sent by a process.
+/// Send one signal from this test process,
+/// so the kernel records it as sent by a process.
 fn send(pid: u32, signal: libc::c_int) {
     let target: libc::pid_t = libc::pid_t::try_from(pid).expect("helper pid fits");
     // SAFETY: `kill` names a child this test started and sends one signal; it reads no memory.
@@ -154,7 +161,9 @@ fn finish(mut helper: Child) -> ExitStatus {
     }
 }
 
-/// The incumbent-facing contract: a process sender is relayed, the terminal is not.
+/// The incumbent-facing contract:
+/// a process sender is relayed,
+/// the terminal is not.
 #[cfg(all(unix, not(target_os = "macos")))]
 #[test]
 fn only_process_senders_are_relayed() {
@@ -163,7 +172,8 @@ fn only_process_senders_are_relayed() {
     assert!(!is_process_sender(KERNEL_CODE));
 }
 
-/// macOS reports `si_code` 0 for a real `kill`, so every code counts as a process sender there.
+/// macOS reports `si_code` 0 for a real `kill`,
+/// so every code counts as a process sender there.
 #[cfg(target_os = "macos")]
 #[test]
 fn every_signal_is_relayed_on_macos() {
@@ -188,9 +198,11 @@ fn guard_catches_the_four_signals() {
     );
 }
 
-/// The handler marks a signal for relay only when a process sent it, so a terminal sender leaves the slot empty.
+/// The handler marks a signal for relay only when a process sent it,
+/// so a terminal sender leaves the slot empty.
 ///
-/// The handler runs directly with no child recorded, so nothing is sent and the slot shows the decision.
+/// The handler runs directly with no child recorded,
+/// so nothing is sent and the slot shows the decision.
 #[cfg(all(unix, not(target_os = "macos")))]
 #[test]
 fn handler_marks_a_signal_only_for_a_process_sender() {
@@ -217,7 +229,8 @@ fn handler_marks_a_signal_only_for_a_process_sender() {
     PENDING[0].store(0, std::sync::atomic::Ordering::SeqCst);
 }
 
-/// On macOS the handler marks a signal for relay whatever `si_code` it carries, including the 0 a real `kill` gives.
+/// On macOS the handler marks a signal for relay whatever `si_code` it carries,
+/// including the 0 a real `kill` gives.
 #[cfg(target_os = "macos")]
 #[test]
 fn handler_marks_a_signal_with_the_code_macos_gives_a_kill() {
@@ -233,15 +246,19 @@ fn handler_marks_a_signal_with_the_code_macos_gives_a_kill() {
     PENDING[0].store(0, std::sync::atomic::Ordering::SeqCst);
 }
 
-/// Serializes the in-process tests that touch the relay statics (`CHILD_PID`, `PENDING`).
+/// Serializes the in-process tests that touch the relay statics (`CHILD_PID`,
+/// `PENDING`).
 #[cfg(unix)]
 static RELAY_STATICS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// A signal caught before the child exists is relayed the moment the child's PID is published.
 ///
-/// The pending slot is set directly, as the handler would set it, and no child is recorded yet.
+/// The pending slot is set directly,
+/// as the handler would set it,
+/// and no child is recorded yet.
 /// Without the relay after publication the child runs its full 30 seconds and exits normally,
-/// so the assertion names the outcome: a child that was not signaled exits normally after its sleep.
+/// so the assertion names the outcome:
+/// a child that was not signaled exits normally after its sleep.
 #[cfg(unix)]
 #[test]
 fn a_signal_pending_before_spawn_is_relayed_when_the_pid_is_published() {
@@ -269,7 +286,8 @@ fn a_second_guard_is_refused_until_the_first_is_dropped() {
     drop(again);
 }
 
-/// A process signal reaching the waiting wrapper ends the child with that signal, and the wrapper continues.
+/// A process signal reaching the waiting wrapper ends the child with that signal,
+/// and the wrapper continues.
 #[cfg(unix)]
 #[test]
 fn process_signal_is_relayed_and_the_child_outcome_is_reported() {
@@ -306,10 +324,14 @@ fn signal_during_start_is_relayed_after_the_child_starts() {
     remove(root.as_path());
 }
 
-/// A terminal interrupt reaches the child once, from the terminal, and is not relayed again.
+/// A terminal interrupt reaches the child once,
+/// from the terminal,
+/// and is not relayed again.
 ///
-/// The helper runs its child on a pseudo-terminal, and the test writes the interrupt character to the
-/// terminal's master side; the kernel then sends `SIGINT` to the foreground group with a kernel sender.
+/// The helper runs its child on a pseudo-terminal,
+/// and the test writes the interrupt character to the
+/// terminal's master side;
+/// the kernel then sends `SIGINT` to the foreground group with a kernel sender.
 #[cfg(target_os = "linux")]
 #[test]
 fn terminal_interrupt_is_not_relayed_a_second_time() {
@@ -380,7 +402,9 @@ fn spawn_terminal_helper(directory: &Path) -> (std::fs::File, Child) {
     return (master_file, helper);
 }
 
-/// Acceptance in miniature: a held pre-commit ends Git on `SIGTERM` to the wrapper, the wrapper reports 143 and continues.
+/// Acceptance in miniature:
+/// a held pre-commit ends Git on `SIGTERM` to the wrapper,
+/// the wrapper reports 143 and continues.
 #[cfg(unix)]
 #[test]
 fn term_during_a_held_pre_commit_ends_git_and_reports_143() {
@@ -405,7 +429,8 @@ fn term_during_a_held_pre_commit_ends_git_and_reports_143() {
     remove(root.as_path());
 }
 
-/// The handler address `signal` currently has, read without changing it.
+/// The handler address `signal` currently has,
+/// read without changing it.
 #[cfg(unix)]
 fn disposition_of(signal: libc::c_int) -> libc::sighandler_t {
     // SAFETY: a zeroed `sigaction` is a valid buffer for the kernel to fill.
@@ -415,11 +440,13 @@ fn disposition_of(signal: libc::c_int) -> libc::sighandler_t {
     return current.sa_sigaction;
 }
 
-/// A handler that does nothing, standing in for a disposition the process had before the guard.
+/// A handler that does nothing,
+/// standing in for a disposition the process had before the guard.
 #[cfg(unix)]
 extern "C" fn earlier_handler(_signal: libc::c_int) {}
 
-/// Dropping the guard puts back the disposition each signal had before, not the default.
+/// Dropping the guard puts back the disposition each signal had before,
+/// not the default.
 #[cfg(unix)]
 #[test]
 fn dropping_the_guard_restores_the_previous_dispositions() {
@@ -442,7 +469,8 @@ fn dropping_the_guard_restores_the_previous_dispositions() {
     unsafe { libc::signal(libc::SIGHUP, libc::SIG_DFL) };
 }
 
-/// The wait returns when the child has exited and leaves the child unreaped, so its PID still names it.
+/// The wait returns when the child has exited and leaves the child unreaped,
+/// so its PID still names it.
 #[cfg(target_os = "linux")]
 #[test]
 fn waiting_ends_at_the_childs_exit_and_leaves_it_unreaped() {
@@ -461,16 +489,20 @@ fn waiting_ends_at_the_childs_exit_and_leaves_it_unreaped() {
     assert!(child.wait().expect("the child is still waitable").success());
 }
 
-/// A PID that is not this process's child has nothing to wait for, which is success, not an error.
+/// A PID that is not this process's child has nothing to wait for,
+/// which is success,
+/// not an error.
 #[cfg(target_os = "linux")]
 #[test]
 fn waiting_for_a_process_that_is_not_a_child_ends_without_error() {
     wait_without_reaping(libc::pid_t::MAX).expect("no such child means nothing to wait for");
 }
 
-/// A signal that interrupts the wait does not end it; the wait goes on until the child exits.
+/// A signal that interrupts the wait does not end it;
+/// the wait goes on until the child exits.
 ///
-/// The test handler is installed without `SA_RESTART`, so the interrupted `waitid` reports `EINTR`.
+/// The test handler is installed without `SA_RESTART`,
+/// so the interrupted `waitid` reports `EINTR`.
 #[cfg(target_os = "linux")]
 #[test]
 fn an_interrupted_wait_continues_until_the_child_exits() {
@@ -506,7 +538,8 @@ fn an_interrupted_wait_continues_until_the_child_exits() {
     assert!(child.wait().expect("the child is still waitable").success());
 }
 
-/// The refusal of a second guard carries its type, and nothing else is taken for it.
+/// The refusal of a second guard carries its type,
+/// and nothing else is taken for it.
 #[cfg(unix)]
 #[test]
 fn only_the_refusal_of_a_second_guard_is_recognized_as_such() {

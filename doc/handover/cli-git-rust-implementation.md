@@ -3993,12 +3993,29 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     and the test asserts the queued answer is the first line (`service_reply_tests.rs:65-71`),
     so a test thread scheduled more than 20 ms late reads a beat first;
     the tokio agent fixes the test with a sleep control proving the race;
-    back with the tokio agent for measured causes of the four push failures;
-    the coordinator's unmeasured hypothesis is that stops now wait up to 18 s whenever a member is in `D` under disk pressure,
-    which would be a production regression too;
-    not merged;
-    after a clean gate:
-    merge into main,
+    the coordinator's hypothesis that stops now wait up to 18 s whenever a member is in `D` was measured false
+    (stop controls took 2.6 to 8.1 s before and after the change;
+    a temporary probe counted zero looks finding a member in `D` across 86 stop controls at load 24 to 47;
+    the three aborted push controls log no stop at all);
+    those three were victims of a host stall episode
+    (tests needing no wait took 0.04 s to 122 s,
+    0.02 s to 35 s;
+    total test time 2108 s against 1289 s;
+    alone afterwards at normal speed);
+    `bounded_push` sweep control and the `service_reply` control fixed red-first;
+    the tokio agent's narrowing proposal (wait past the grace for a member in `D` only while the ledger names an unproven
+    lock born since the step began) is recorded in the plan,
+    not built,
+    because nothing measured shows the owner's 3x costing anything.
+    Clean gate on `9afcac4a26`:
+    5217 of 5217,
+    Clippy and lint clean;
+    main merged again `8b8c9440de` without conflict.
+    Order:
+    the branch stays frozen until the wrapper alpha cut from main `d2598b2842` is out
+    (the release tool releases whatever main holds),
+    then merge into main,
+    gate,
     `native:perf`,
     a wrapper alpha,
     and the mutation campaign over the changed files;
@@ -4131,14 +4148,16 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The rule has been `error` since at least
   `0b49ae109e` (2026-10-06);
   the package `lint` task never ran `monochromatic-lint`.
-  Agent running on
-  `fix/git-policy-cli-passes-the-repository-linter` (start recorded by `9ccef551a8`):
-  wire it into the package lint,
-  the
-  repository fixer for line breaks (whitespace-only proof),
-  hand fixes for the rest,
-  and a conflict recipe for the
-  tokio and held-settle branches.
+  The wrapper package passes the repository linter since merge `4365ac97bc` (gate 5199 of 5199):
+  the package `lint` runs `lint:monochromatic-lint` at `--max-warnings 0`.
+  Open:
+  the tokio branch (`feat/git-policy-cli-on-tokio`) still meets doc-comment conflicts on its next merge of main,
+  and its recipe is in the wrapper README,
+  section "Merging main into a branch that edited doc comments".
+  Open:
+  `fault_limits::a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_is_raised` failed once in a
+  gate and passed on the rerun of the same tree and in two other gates,
+  cause not measured (rule SUF).
   Repo-wide baseline on main `136a40fe69`
   (log `~/temp/agent/repo-wide-monochromatic-lint-136a40fe69.log`,
   `mise` exit 2):
@@ -4212,11 +4231,21 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     start recorded by `f191d45681`),
     with an alpha release
     and lock move.
-    Separately unmerged since 2026-11-04:
-    round 21 `feat/cargo-shadow-check-to-start-race`
-    (16 commits,
-    worktree `.claude/worktrees/cargo-shadow-r21`,
-    no agent on it).
+    Round 21 `feat/cargo-shadow-check-to-start-race` merged to main 2026-11-07T14:01:31-05:00 (`4c31f33751`),
+    released as 0.1.5-alpha.2 and locked (`62d3f69165`);
+    what it did,
+    the review and the open sixth-pass list (groups 5,
+    8 to 14,
+    the fifth-pass list,
+    packets cert7):
+    `doc/planning/cargo-shadow-update.md`,
+    "Round 21 merge record (2026-11-07)".
+    Worktree `.claude/worktrees/cargo-shadow-r21` is merged and can be removed.
+    Open defect found on the way,
+    not cargo-shadow's:
+    `search-shadow` links of two versions on `PATH` (a worktree's stale `.cache/search-shadow-bin` and main's)
+    each pick the other as the real `grep` and re-`execve` forever at about 89 percent CPU;
+    a stale worktree `.cache` is refreshed by `mise run toolchain:install` in that worktree.
   - Guardrail bundle `package/claude-code-plugin/guardrail/bundle/node/index.mjs` still has the old refusal text;
     a
     rebuild also pulls about 300 KB of unrelated source drift (patch at `~/temp/agent/guardrail-bundle-rebuild.patch`).
@@ -4349,8 +4378,149 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   an injected overflow event with a small fixed count,
   never writes scaled by a host limit,
   and a search for other tests sized from `/proc/sys`.
-  The music-player ellipsis test passed three times for the zbus agent;
-  its cause is still unmeasured.
+- Incident (self-recursion,
+  found by the cargo-shadow round 21 agent,
+  2026-11-07):
+  a `cargo-shadow` test hung more than twelve minutes because two `search-shadow` `grep` links of different versions
+  (main's `.cache/search-shadow-bin` 0.2.2 and a worktree's stale 0.2.1)
+  each took the other for the real `grep` and re-executed it in a loop at about 89% CPU
+  (`strace -e execve`);
+  refreshing the worktree's links ended it.
+  Against the owner's "We should never invoke ourselves recursively" and "nothing should ever wait forever or indefinitely".
+  Fixed and merged (`ec70e4cf26`):
+  every shadow (`search-shadow`,
+  `pnpm-shadow`,
+  `cargo-shadow`,
+  `mpm-shadow`) carries
+  `MONOCHROMATIC-SHADOW-IDENTITY/1 <crate> <version>` in an ELF section,
+  skips a candidate that carries it,
+  follows launcher records up to 8 hops,
+  starts a vetted program through `/proc/self/fd/N`,
+  and stops on arrival (`MONOCHROMATIC_SHADOW_STARTED_BY`);
+  `mpm-shadow`'s launcher refuses circular records (exit 126);
+  `src/shadow_identity.rs` is byte-identical in the four crates (a test fails otherwise).
+  Before:
+  419 execs in 4 s;
+  after:
+  2 execs and the real `grep`.
+  Released as `mpm-shadow` 0.2.7-alpha.5,
+  `search-shadow` 0.2.3-alpha.1,
+  `pnpm-shadow` 0.1.3-alpha.1 and `cargo-shadow` 0.1.5-alpha.3,
+  locked `2b9a1589ae`,
+  installed;
+  about +0.2 ms per call.
+  Open:
+  cargo-shadow's install-step cargo starts without the arrival marker;
+  `round_fourteen_tests::a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone` failed twice
+  (it needs a freed time-namespace number reused,
+  shared by every session on the host).
+  Round 21 itself is merged (`4c31f33751`) and installed as `cargo-shadow` 0.1.5-alpha.2 (lock `62d3f69165`);
+  its worktree and branch are removed.
+- Repository-wide `monochromatic-lint`:
+  merged into main in small merges,
+  the last `cc34dc6faf`;
+  174,916 findings (main `136a40fe69`) down to 38,466.
+  Left:
+  `package/git-policy/cli` 35,006 (its own branch,
+  ready,
+  merges after the alpha);
+  `doc/decision` 1,785 (owner question in `doc/handover/questions-for-the-owner.md`);
+  about 1,675 in scope
+  (`music-player/desktop-app` rustdoc 664,
+  closures 610 across `cargo-shadow`,
+  `forbidden-strings`,
+  `file-manager` and others,
+  fenced-Rust rustdoc warnings in docs 263,
+  shell 96 in `catalog-specifiers.yml`,
+  `playwright-image.yml` and `repo-tools-setup`,
+  `max-lines` 13,
+  fuzz seeds 4 that need an approved ignore);
+  the closure check skipped five packages whose dependencies were not in the cargo cache,
+  so the closure count is low.
+  The fixer's content-changing defects (URL in a code span,
+  pipe table to HTML,
+  `///` inside fenced Rust,
+  `>` in blockquotes) are given to an agent (`fix/monochromatic-lint-fix-changes-only-whitespace`);
+  commits that only added markers are separate and revertable
+  (`c9d4e2dde5`,
+  `18b830ea58`,
+  `2f11a41621`,
+  `8a7ca6e81f`,
+  `102099f24b`,
+  `265cdbbc0c`,
+  `4b367c4a37`).
+  Why nothing caught it:
+  the commit path checks one Markdown rule,
+  CI's lint step cannot find the tool,
+  `mise run lint` runs nowhere;
+  proposal `doc/planning/repository-linter-stays-at-zero.md` (owner question).
+  It also changed release-path files after the wrapper's release gate started:
+  `.github/workflows/cargo-publish.yml` (trimmed under its ratchet)
+  and the crates.io decision action (now a Node step,
+  agreeing with the old bash on 21 manifests);
+  the release dry run exercises both.
+- Commit stalls,
+  measured 2026-11-07 from `.git/monochromatic-git-policy-cli-commit-timing.jsonl`
+  (`~/temp/agent/commit-timing-today.ts`):
+  450 commits,
+  442 landed,
+  7 stopped,
+  1 ended;
+  `totalMs` p50 2066,
+  p90 13710,
+  p99 416760,
+  max 1228797;
+  141 over 5 s.
+  The four longest (678 to 1229 s,
+  worktree `repository-passes-monochromatic-lint`) ended `stopped` after `answerWaitMs` 1200776 with `lockHolderKind`
+  `unproven`;
+  the holder was an orphaned `git commit` holding that worktree's `index.lock`.
+  Against "Commits should never fail" and the 5 s rule;
+  given to an agent (`fix/git-policy-cli-commits-never-stall-on-an-unproven-lock`).
+- Music player:
+  merged into main `9944c1ffe8` (1601 of 1601 desktop-app tests,
+  Clippy and e2e lint clean;
+  worktree and branch removed).
+  The ellipsis test failed only in release builds,
+  because the Search page's fade-in read the wall clock and a release build drew before the fade ended
+  (red `80e9ead693`,
+  fix `96c1da743a`:
+  the test clock advances by `Theme.motion-enter` per draw pass);
+  `src/ui_render_support.rs` also reads the wall clock.
+  `click-through/unreadable-row` raced a fixed 1500 ms pause;
+  the app now writes a state line on each search answer and the check waits for it
+  (red `25c717f5b9`,
+  fixes `c0d7b7dcf6`,
+  `6f2c48339e`).
+  `settings/licenses-row` and `settings/escape-ladder` did not reproduce headless,
+  and no failure text was kept from the reported runs,
+  which used the visible nested window;
+  `browse/alt-down-up` failed once and is untouched.
+  Docs:
+  `doc/troubleshooting/slint-render-test-fade-in-reads-the-wall-clock.md`,
+  `doc/troubleshooting/music-player-e2e-search-answer-and-headless-start.md`.
+  The follow-up is merged (`8f12e9c0ba`):
+  the runner starts the nested session headless unless `--visible` or `E2E_VISIBLE=1`,
+  picks the render node from the compositor's `--list-gpus`,
+  and removes `WAYLAND_DISPLAY`,
+  `WAYLAND_SOCKET`,
+  `DISPLAY` and `XAUTHORITY` from the unit (tests assert both modes);
+  the start stall was a cold page cache (socket 9.9 to 34.9 s cold against 0.06 to 0.26 s warm),
+  now bounded by `COLD_START_BOUND_MS` (120 s,
+  measurements cited) with a message naming how far a start got;
+  each failing check writes its text and last ten `ui_state` changes under `<E2E_OUT>/failures/`;
+  the settings pair failed 9 of 15 headless runs because the track and folder lists' focus timers called `focus()` while
+  Settings covered the player and Slint moved the keyboard to Back
+  (red test first;
+  fix requires `Focus.player-active`;
+  after:
+  60 of 60 settings checks,
+  40 of 40 browse checks);
+  `ui_render_support.rs` no longer reads the wall clock (1603 of 1603).
+  Open:
+  one `session/wide` click-through setup timeout,
+  seen once on both the fixed and the earlier binary,
+  cause not measured.
 - Held settle message:
   merged into main `66dbb1ca27` (gate 5194 of 5194,
   lint clean).
@@ -4397,8 +4567,25 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   a new `file-enforcer` rule kind;
   C:
   a commit-time guard) is in `package/claude-code-plugin/guardrail/README.md` "Maintenance";
-  not built,
-  for the owner.
+  not built.
+  Owner,
+  2026-11-07:
+  "Open a gh issue.
+  Do not address it in this session as we need to focus on our git wrapper."
+  Opened as issue #6265.
+  Old against new bundle on 3000 commands sampled evenly from 386294 distinct Bash commands in 1725 local transcripts
+  (owner:
+  "I approve personal data and transcript corpus commands.";
+  scratch `~/temp/agent/gbm`,
+  `extract-streaming.ts`,
+  `diff-run.ts`,
+  `diff-run2.ts`):
+  guardrail 3000 commands,
+  one deny on each side for the same command (an `until ! pgrep` loop),
+  differing only in the refusal text (`2619ea3af7`),
+  no non-zero exit;
+  `bash-output-filter` 1620 of 1620 identical;
+  `terminal-title` 800 of 800 identical title bytes on a private pty.
   A leftover:
   `.claude/worktrees/guardrail-bundle-matches-sources` holds two uncommitted,
   regenerable sibling builds.
@@ -4738,7 +4925,27 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The old notice and its flaky test are gone.
   The late-line gap is closed in main
   (`baf4c039f2`).
-  The next wrapper release waits only for the tokio agent's measured cause of the leftover ref lock.
+  The next wrapper release waited for the tokio agent's measured cause of the leftover ref lock;
+  that cause is measured
+  (Git's own SIGTERM cleanup removes the lock's pid file and then the lock,
+  and a 5 s stop can land between the two),
+  and the race is the same in the installed 0.6.0,
+  so the alpha no longer waits for the tokio branch.
+  Measured 2026-11-07:
+  the installed 0.6.0 still prints six old-name lines on every command;
+  the old files in the main Git directory were last written between 07:06 and 08:24
+  and nothing under `.git/cli-git` changed after 08:25.
+  Next:
+  after the no-checkout clone fix merges,
+  one container gate on main,
+  then a wrapper alpha from main (fold,
+  late-line fix,
+  no-checkout fix,
+  held message,
+  index-lock fallback),
+  lock,
+  install,
+  and a check that the six lines are gone and the old logs' lines are in the current logs.
   Another suite-only failure seen once in its gates:
   `service::the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero` (passed alone and in three later
   gates;
@@ -4999,10 +5206,58 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `R0` inventory,
   first pass,
   then the final pass and the link at the chosen moment).
-  Next:
-  build that script with the `wizard` skill from the plan's runbook and its `move-repository.ts`,
-  dry-run it in print mode,
-  at the first free agent slot.
+  The guided script is merged (`4980c200ea`):
+  `doc/runbook/repository-on-the-860-drive-guided-root-script.sh` and its `.md`,
+  commands `prepare` (25 stages,
+  fixture test to first pass) and `cutover` (24 stages,
+  window clock,
+  freeze,
+  final pass,
+  verification,
+  guard,
+  swap,
+  release),
+  dry runs and a failing stand-in step checked without root.
+  Not ready to run:
+  W1 to W15 (the dangling-link checks per tool) are not built,
+  the 860 lacks `user_subvol_rm_allowed`,
+  `move-repository.ts` keys its records by position (a resume after a worktree change refuses),
+  the window maximum's allowance is the agent's choice,
+  the 860's free space leaves about 160 GiB against the plan's 150,
+  and the two scripts the wizard needs live in `~/temp/agent/dangling`.
+  The plan's own commands had defects the script works around (`sudo node` with mise's node,
+  F5 reusing F3's folders,
+  `list -o` not recursive,
+  `--freeze` joined to the copy,
+  no `--delete` in the second external pass,
+  root `git` in verification).
+  Incident:
+  that agent ran `sudo -n true` once to check for passwordless sudo
+  (a no-op that changed nothing,
+  against the brief's "No sudo");
+  the guardrail has no `sudo` rule (`package/claude-code-plugin/guardrail/src/index.ts`,
+  searched).
+  Preparation merged (`d393987084`):
+  `package/repository-move/cli` (copy tool with records by UUID plus path,
+  separate freeze and thaw passes,
+  a total deadline,
+  external passes that report deletions;
+  the TypeScript runner `repository-move-run`,
+  run by the coordinator)
+  and `package/repository-link/check` (W1);
+  runbook `doc/runbook/repository-on-the-860-drive-guided-runner.md`.
+  The coordinator ran `prepare` (unit `repository-move-prepare`,
+  log `~/temp/agent/860-prepare.log`):
+  `i1-install-link-check`,
+  `i2-record-before` and `f1a-folder` completed;
+  `f1-images` stopped because the runner built the fixture path at plan time
+  (the dry-run placeholder `send-fixture.DRYRUN`)
+  instead of reading `f1a`'s folder (`send-fixture.zyCVij`);
+  nothing was mounted.
+  The fix goes test-first to the W2 to W15 agent (`feat/repository-move-dangling-link-items`),
+  which also builds W2 to W15 and makes the two new packages lint-clean (both exit 1 on warnings today).
+  The swap waits for W2 to W15 (owner:
+  "take care of dangling links").
 
 - The symlink plan is committed (`4f430a0683`,
   `837fc9a6eb`) in `doc/planning/repository-on-the-860-drive.md`;

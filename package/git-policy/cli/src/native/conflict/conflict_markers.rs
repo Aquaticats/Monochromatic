@@ -1,11 +1,18 @@
 //! What:
-//!  Which committed files still hold conflict marker lines, read from the committed content, and the one line that tells a
+//!  Which committed files still hold conflict marker lines,
+//! read from the committed content,
+//! and the one line that tells a
 //!  person a commit of named paths left their merge open.
 //! Why:
-//!  A commit of a path that was in conflict used to claim markers for every such path, so a file the person had resolved by
-//!  editing (and not staged) was reported as full of markers although its committed blob held none, and the remedy it gave,
-//!  another commit of the path, never finished the merge. The claim is now made only for a blob that holds a marker line as
-//!  Git writes it, and the open merge is said on its own with the commands that finish it.
+//!  A commit of a path that was in conflict used to claim markers for every such path,
+//! so a file the person had resolved by
+//!  editing (and not staged) was reported as full of markers although its committed blob held none,
+//! and the remedy it gave,
+//!  another commit of the path,
+//! never finished the merge.
+//! The claim is now made only for a blob that holds a marker line as
+//!  Git writes it,
+//! and the open merge is said on its own with the commands that finish it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,13 +28,17 @@ use std::os::unix::ffi::OsStringExt;
 /// Borrowed filesystem paths.
 use std::path::Path;
 
-/// Git's default marker size (`DEFAULT_CONFLICT_MARKER_SIZE`, `ll-merge.h`), used when the attribute gives none.
+/// Git's default marker size (`DEFAULT_CONFLICT_MARKER_SIZE`,
+/// `ll-merge.h`),
+/// used when the attribute gives none.
 pub const DEFAULT_MARKER_SIZE: usize = 7;
 
 /// What:
 ///  The marker size a `git check-attr conflict-marker-size` value stands for.
 /// Why:
-///   Git reads the attribute as a number and uses its default for anything else, zero included (`ll_merge`, `ll-merge.c`).
+///   Git reads the attribute as a number and uses its default for anything else,
+/// zero included (`ll_merge`,
+/// `ll-merge.c`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -44,9 +55,17 @@ pub fn marker_size_of(value: &str) -> usize {
 /// What:
 ///  Whether `content` has a marker line of `size` characters that opens or closes a conflict (`<` or `>`).
 /// Why:
-///   Git's own test of a marker line (`is_conflict_marker`, `xdiff-interface.c`) is `size` equal characters from `<`, `=`, `>` or
-///  `|`, then white space; a line of `=` alone also underlines a heading, so it is not by itself a sign of a conflict, while a
-///  conflict always has an opening and a closing line, and a leftover keeps at least one of them.
+///   Git's own test of a marker line (`is_conflict_marker`,
+/// `xdiff-interface.c`) is `size` equal characters from `<`,
+/// `=`,
+/// `>` or
+///  `|`,
+/// then white space;
+/// a line of `=` alone also underlines a heading,
+/// so it is not by itself a sign of a conflict,
+/// while a
+///  conflict always has an opening and a closing line,
+/// and a leftover keeps at least one of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,20 +96,25 @@ pub fn has_marker_lines(content: &[u8], size: usize) -> bool {
     return false;
 }
 
-/// Whether one byte is the line feed that ends a line. `&u8` borrows the byte, as `split_inclusive` hands it over.
+/// Whether one byte is the line feed that ends a line.
+/// `&u8` borrows the byte,
+/// as `split_inclusive` hands it over.
 fn is_line_feed_byte(byte: &u8) -> bool {
     return *byte == b'\n';
 }
 
-/// Whether one byte is the NUL byte that ends each field of `git check-attr -z`. `&u8` borrows the byte.
+/// Whether one byte is the NUL byte that ends each field of `git check-attr -z`.
+/// `&u8` borrows the byte.
 fn is_nul_byte(byte: &u8) -> bool {
     return *byte == 0;
 }
 
 /// What:
-///  The marker size of every path, one `git check-attr` start for all of them.
+///  The marker size of every path,
+/// one `git check-attr` start for all of them.
 /// Why:
-///   The attribute is read from the working tree as Git reads it when it writes the markers; a failed start gives the default.
+///   The attribute is read from the working tree as Git reads it when it writes the markers;
+/// a failed start gives the default.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -122,8 +146,12 @@ fn marker_sizes(context: &GitContext, root: &Path, paths: &[Vec<u8>]) -> Vec<usi
 /// What:
 ///  The paths among `paths` whose blob in `commit` still holds marker lines.
 /// Why:
-///   A path whose committed content has none is resolved, and no marker is claimed for it; a path the commit deleted has no blob
-///  and is resolved too. With no path to look at, no Git starts.
+///   A path whose committed content has none is resolved,
+/// and no marker is claimed for it;
+/// a path the commit deleted has no blob
+///  and is resolved too.
+/// With no path to look at,
+/// no Git starts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -155,7 +183,9 @@ pub fn paths_with_markers(context: &GitContext, root: &Path, commit: &str, paths
 /// What:
 ///  The line a commit of named paths prints when it leaves a merge or a cherry-pick open.
 /// Why:
-///   The commit takes only the named paths, so the operation is still in progress; a person who resolved the last file and
+///   The commit takes only the named paths,
+/// so the operation is still in progress;
+/// a person who resolved the last file and
 ///  committed it by name would otherwise never learn that the operation needs its own conclusion.
 ///
 /// In TS you'd write (pseudocode):
@@ -170,7 +200,8 @@ pub fn open_operation_line(merge: bool) -> String {
     );
 }
 
-/// Controls for the marker test, the size and the lines.
+/// Controls for the marker test,
+/// the size and the lines.
 #[cfg(test)]
 #[path = "conflict_markers_tests.rs"]
 mod tests;

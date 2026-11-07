@@ -140,6 +140,49 @@ pub struct SetGate {
     literal_rule: Vec<usize>,
 }
 
+/// Where a span starts.
+fn start_of(span: Span) -> usize {
+    return span.start;
+}
+
+/// Decides,
+/// for one candidate of the gate,
+/// whether the line matches there,
+/// so `any_candidate` can stop at the first rule that does.
+///
+/// A struct implements it when the decision needs state,
+/// and any `FnMut(usize, usize) -> bool` implements it as well.
+pub trait CandidateCheck {
+    /// Whether the line matches the rule whose seed starts at `pos`.
+    fn check(&mut self, rule: usize, pos: usize) -> bool;
+}
+
+/// Lets a plain function or closure stand in for a candidate check.
+impl<Check: FnMut(usize, usize) -> bool> CandidateCheck for Check {
+    /// Runs the function.
+    fn check(&mut self, rule: usize, pos: usize) -> bool {
+        return self(rule, pos);
+    }
+}
+
+/// Receives every candidate of the gate in order,
+/// so `for_each_candidate` can collect the rules that match.
+///
+/// A struct implements it when the visit needs state,
+/// and any `FnMut(usize, usize)` implements it as well.
+pub trait CandidateVisit {
+    /// Handles the rule whose seed starts at `pos`.
+    fn visit(&mut self, rule: usize, pos: usize);
+}
+
+/// Lets a plain function or closure stand in for a candidate visit.
+impl<Visit: FnMut(usize, usize)> CandidateVisit for Visit {
+    /// Runs the function.
+    fn visit(&mut self, rule: usize, pos: usize) {
+        self(rule, pos);
+    }
+}
+
 /// What:
 ///     Construction and candidate selection.
 /// Why:
@@ -219,7 +262,7 @@ impl SetGate {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn any_candidate(&self, line: &[u8], mut check: impl FnMut(usize, usize) -> bool) -> bool {
+    pub fn any_candidate(&self, line: &[u8], check: &mut impl CandidateCheck) -> bool {
         let Some(matcher) = &self.matcher else {
             return false;
         };
@@ -240,7 +283,7 @@ impl SetGate {
             return false;
         }
         for found in matcher.find_overlapping_iter(line) {
-            if check(self.literal_rule[found.pattern().as_usize()], found.start()) {
+            if check.check(self.literal_rule[found.pattern().as_usize()], found.start()) {
                 return true;
             }
         }
@@ -291,7 +334,7 @@ impl SetGate {
     /// ```
     pub fn prefilter_find_from(&self, buf: &[u8], at: usize) -> Option<usize> {
         let prefilter = self.prefilter.as_ref()?;
-        return prefilter.find(buf, Span::from(at..buf.len())).map(|span| return span.start)
+        return prefilter.find(buf, Span::from(at..buf.len())).map(start_of)
     }
 
     /// Calls `visit` for each seeded rule whose literal occurs in `line`.
@@ -310,10 +353,10 @@ impl SetGate {
     ///   // Rust body below is the implementation.
     /// }
     /// ```
-    pub fn for_each_candidate(&self, line: &[u8], mut visit: impl FnMut(usize, usize)) {
+    pub fn for_each_candidate(&self, line: &[u8], visit: &mut impl CandidateVisit) {
         if let Some(matcher) = &self.matcher {
             for found in matcher.find_overlapping_iter(line) {
-                visit(self.literal_rule[found.pattern().as_usize()], found.start());
+                visit.visit(self.literal_rule[found.pattern().as_usize()], found.start());
             }
         }
     }

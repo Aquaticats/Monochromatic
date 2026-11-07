@@ -1,18 +1,40 @@
 //! What:
 //!  What happens to the unshown push-failure notices and the unfinished backup pushes of a linked worktree when Git removes
-//!  that worktree: before `git worktree remove` or `git worktree prune` runs, the wrapper copies those records into a snapshot
-//!  under the common Git directory, and a later wrapper command settles each snapshot, turning it into notices that any
+//!  that worktree:
+//! before `git worktree remove` or `git worktree prune` runs,
+//! the wrapper copies those records into a snapshot
+//!  under the common Git directory,
+//! and a later wrapper command settles each snapshot,
+//! turning it into notices that any
 //!  worktree shows when the worktree is gone and discarding it when the removal did not happen.
 //! Why:
-//!  A worktree keeps its records in its own Git directory, which Git deletes with the worktree. Without this a failed push
-//!  nobody had seen yet, or a push the service had not run yet, would vanish with no word, and the person would never learn that a
-//!  branch is not on the remote. The wrapper hands the process over to Git for the removal, so it cannot look afterwards; the
-//!  snapshot is taken for every linked worktree that has records and settled later. A Git directory that is gone proves the
-//!  removal. A Git directory that is still there proves a refusal only once the command that took the snapshot has ended
-//!  (the process keeps its identity when it becomes Git, so the snapshot names it) and the worktree's checkout is intact;
-//!  while that command lives, or a checkout is missing from a Git directory that is still registered, the removal may be
-//!  under way or cut short, and the snapshot is kept. A snapshot that cannot be fully promoted, or fully taken, is kept as far as
-//!  it goes and reported on standard error, because a line in the diagnostic log is not a word to the person.
+//!  A worktree keeps its records in its own Git directory,
+//! which Git deletes with the worktree.
+//! Without this a failed push
+//!  nobody had seen yet,
+//! or a push the service had not run yet,
+//! would vanish with no word,
+//! and the person would never learn that a
+//!  branch is not on the remote.
+//! The wrapper hands the process over to Git for the removal,
+//! so it cannot look afterwards;
+//! the
+//!  snapshot is taken for every linked worktree that has records and settled later.
+//! A Git directory that is gone proves the
+//!  removal.
+//! A Git directory that is still there proves a refusal only once the command that took the snapshot has ended
+//!  (the process keeps its identity when it becomes Git,
+//! so the snapshot names it) and the worktree's checkout is intact;
+//!  while that command lives,
+//! or a checkout is missing from a Git directory that is still registered,
+//! the removal may be
+//!  under way or cut short,
+//! and the snapshot is kept.
+//! A snapshot that cannot be fully promoted,
+//! or fully taken,
+//! is kept as far as
+//!  it goes and reported on standard error,
+//! because a line in the diagnostic log is not a word to the person.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -35,37 +57,54 @@ const TAG: &str = "worktreeRemovalRescue";
 /// Directory under the common Git directory that holds the snapshots.
 pub const SNAPSHOT_DIRECTORY: &str = "monochromatic-git-policy-cli/removal-snapshots";
 
-/// File in a snapshot that names the Git directory it was taken from; written last, so a snapshot that has it is whole.
+/// File in a snapshot that names the Git directory it was taken from;
+/// written last,
+/// so a snapshot that has it is whole.
 const GIT_DIR_FILE: &str = "gitdir";
 
 /// Directory in a snapshot that holds copies of the notices.
 const NOTICES: &str = "notices";
 
-/// Directory in a snapshot that holds copies of the unfinished push records, named `<state>-<record>`.
+/// Directory in a snapshot that holds copies of the unfinished push records,
+/// named `<state>-<record>`.
 const WORK: &str = "work";
 
-/// Directory in a snapshot that holds one file per command that took or retook it, named by the command's process number
+/// Directory in a snapshot that holds one file per command that took or retook it,
+/// named by the command's process number
 ///  and holding the process's birth identity.
 const ATTEMPTS: &str = "attempts";
 
-/// How many rounds of looks a push record gets: `pending`, then the claim. A record moves from the first to the second when the
-///  service claims it and back when a claim is given up; the second round catches a record that moved away and back during
+/// How many rounds of looks a push record gets:
+/// `pending`,
+/// then the claim.
+/// A record moves from the first to the second when the
+///  service claims it and back when a claim is given up;
+/// the second round catches a record that moved away and back during
 ///  the first.
 const LOOK_ROUNDS: usize = 2;
 
-/// What a Git directory, the process that took a snapshot, and the checkout say about a removal.
+/// What a Git directory,
+/// the process that took a snapshot,
+/// and the checkout say about a removal.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Removal {
-    /// The Git directory is gone: Git removed the worktree.
+    /// The Git directory is gone:
+    /// Git removed the worktree.
     Done,
-    /// Every command that took the snapshot has ended and the checkout is intact: Git refused, or it was a dry run.
+    /// Every command that took the snapshot has ended and the checkout is intact:
+    /// Git refused,
+    /// or it was a dry run.
     Refused,
-    /// A command that took the snapshot may still be removing, the checkout is missing from a registered worktree, or the
-    ///  evidence cannot be read: not decided yet.
+    /// A command that took the snapshot may still be removing,
+    /// the checkout is missing from a registered worktree,
+    /// or the
+    ///  evidence cannot be read:
+    /// not decided yet.
     Undecided,
 }
 
-/// The files of a directory, or none when it cannot be read.
+/// The files of a directory,
+/// or none when it cannot be read.
 fn files_of(directory: &Path) -> Vec<PathBuf> {
     let Ok(listing) = std::fs::read_dir(directory) else { return Vec::new() };
     let mut paths: Vec<PathBuf> = Vec::new();
@@ -87,7 +126,8 @@ fn name_of(path: &Path) -> String {
     };
 }
 
-/// Writes a file into a snapshot unless a file of that name is already there, which an earlier snapshot of the same worktree
+/// Writes a file into a snapshot unless a file of that name is already there,
+/// which an earlier snapshot of the same worktree
 ///  left and which holds the same record.
 fn save_once(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     return match write_private_file_unsynced(path, bytes) {
@@ -96,7 +136,9 @@ fn save_once(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     };
 }
 
-/// Copies one file into `directory` under `name`; `false` when the file is gone, because whoever shows or finishes it was
+/// Copies one file into `directory` under `name`;
+/// `false` when the file is gone,
+/// because whoever shows or finishes it was
 ///  quicker than the copy and there is nothing left to keep.
 fn copy_into(directory: &Path, name: &str, source: &Path) -> std::io::Result<bool> {
     let bytes: Vec<u8> = match std::fs::read(source) {
@@ -109,8 +151,12 @@ fn copy_into(directory: &Path, name: &str, source: &Path) -> std::io::Result<boo
     return Ok(true);
 }
 
-/// The ids of the push records of a worktree, in any state a push is unfinished in, once each and in order. A claim's file name
-///  carries its generation and clock reading, so the id is the part before them.
+/// The ids of the push records of a worktree,
+/// in any state a push is unfinished in,
+/// once each and in order.
+/// A claim's file name
+///  carries its generation and clock reading,
+/// so the id is the part before them.
 fn push_record_names(work_directory: &Path) -> Vec<String> {
     let prefix: String = format!("{}-", WorkKind::Push.name());
     let mut names: Vec<String> = Vec::new();
@@ -128,11 +174,18 @@ fn push_record_names(work_directory: &Path) -> Vec<String> {
 }
 
 /// What:
-///  The state a push record is in now and its bytes, or nothing when it is in neither state.
+///  The state a push record is in now and its bytes,
+/// or nothing when it is in neither state.
 /// Why:
-///   The service moves a record from `pending` to `claimed` at any moment, and renames a claim each time it renews it. A record
-///  listed in one state may be in the other by the time it is read, so the claim is found by its id each time, and a record in
-///  neither has finished, so there is nothing to keep. Only a failure to read a record that is there is an error.
+///   The service moves a record from `pending` to `claimed` at any moment,
+/// and renames a claim each time it renews it.
+/// A record
+///  listed in one state may be in the other by the time it is read,
+/// so the claim is found by its id each time,
+/// and a record in
+///  neither has finished,
+/// so there is nothing to keep.
+/// Only a failure to read a record that is there is an error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -159,7 +212,9 @@ fn locate_push_record(work_directory: &Path, name: &str) -> std::io::Result<Opti
     return Ok(None);
 }
 
-/// Records, in the snapshot, that this process took it and so may be about to remove the worktree.
+/// Records,
+/// in the snapshot,
+/// that this process took it and so may be about to remove the worktree.
 fn register_attempt(snapshot: &Path) -> std::io::Result<()> {
     let identity: String = match current_birth_identity() {
         Ok(found) => found,
@@ -178,10 +233,16 @@ fn register_attempt(snapshot: &Path) -> std::io::Result<()> {
 }
 
 /// What:
-///  Whether a command that took the snapshot may still be running, which a process that cannot be told apart from it counts as.
+///  Whether a command that took the snapshot may still be running,
+/// which a process that cannot be told apart from it counts as.
 /// Why:
-///   A process number alone can be reused, so the birth identity recorded with it decides. A record that cannot be read, or a
-///  process that cannot be inspected, is an owner that may be alive: discarding the snapshot on a guess would lose the records.
+///   A process number alone can be reused,
+/// so the birth identity recorded with it decides.
+/// A record that cannot be read,
+/// or a
+///  process that cannot be inspected,
+/// is an owner that may be alive:
+/// discarding the snapshot on a guess would lose the records.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -197,7 +258,8 @@ fn attempt_may_be_running(snapshot: &Path) -> bool {
     return false;
 }
 
-/// Whether the command that wrote one attempt file may still be running; a file that cannot be understood counts as running.
+/// Whether the command that wrote one attempt file may still be running;
+/// a file that cannot be understood counts as running.
 fn attempt_file_may_be_running(path: &Path) -> bool {
     let Ok(pid) = name_of(path).parse::<i64>() else { return false };
     let Ok(recorded) = std::fs::read_to_string(path) else { return true };
@@ -215,7 +277,8 @@ fn attempt_file_may_be_running(path: &Path) -> bool {
     };
 }
 
-/// Whether the checkout a registered worktree's Git directory names is still there; nothing when the Git directory does not say.
+/// Whether the checkout a registered worktree's Git directory names is still there;
+/// nothing when the Git directory does not say.
 fn checkout_present(git_dir: &Path) -> Option<bool> {
     let text: String = std::fs::read_to_string(git_dir.join("gitdir")).ok()?;
     let marker: &Path = Path::new(text.trim_end());
@@ -226,11 +289,17 @@ fn checkout_present(git_dir: &Path) -> Option<bool> {
 }
 
 /// What:
-///  What a snapshot's Git directory, its taker and its checkout show of the removal it was taken for.
+///  What a snapshot's Git directory,
+/// its taker and its checkout show of the removal it was taken for.
 /// Why:
-///   Git deletes the checkout first and the Git directory last, and refuses before it deletes anything. So a missing Git
-///  directory is a removal; an intact checkout whose taker has ended is a refusal; anything else may be a removal in progress
-///  or one that was cut short, and deciding on it would either lose the records or keep them for nothing.
+///   Git deletes the checkout first and the Git directory last,
+/// and refuses before it deletes anything.
+/// So a missing Git
+///  directory is a removal;
+/// an intact checkout whose taker has ended is a refusal;
+/// anything else may be a removal in progress
+///  or one that was cut short,
+/// and deciding on it would either lose the records or keep them for nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -249,13 +318,23 @@ fn removal_of(git_dir: &Path, snapshot: &Path) -> Removal {
 }
 
 /// What:
-///  Copies the unshown notices and the unfinished push records of each linked worktree into a snapshot of that worktree, and
+///  Copies the unshown notices and the unfinished push records of each linked worktree into a snapshot of that worktree,
+/// and
 ///  says what could not be copied.
 /// Why:
-///   Taken before a command that may remove worktrees; a worktree with no records has no snapshot. A snapshot taken before is
-///  added to and not replaced: the command that took it may still be removing, and its records are what a copy made now,
-///  from a half-removed worktree, could lack. A record that vanished while it was being copied was shown or finished and needs
-///  no copy; any other failure is reported to the person, never hidden in the diagnostic log, and what was copied is kept.
+///   Taken before a command that may remove worktrees;
+/// a worktree with no records has no snapshot.
+/// A snapshot taken before is
+///  added to and not replaced:
+/// the command that took it may still be removing,
+/// and its records are what a copy made now,
+///  from a half-removed worktree,
+/// could lack.
+/// A record that vanished while it was being copied was shown or finished and needs
+///  no copy;
+/// any other failure is reported to the person,
+/// never hidden in the diagnostic log,
+/// and what was copied is kept.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -326,7 +405,8 @@ pub fn snapshot_linked_worktrees(common_dir: &Path) -> Vec<String> {
     return problems;
 }
 
-/// Moves one saved notice to the notices any worktree shows; a notice another command already moved is not a failure.
+/// Moves one saved notice to the notices any worktree shows;
+/// a notice another command already moved is not a failure.
 fn promote_notice(orphans: &Path, path: &Path) -> std::io::Result<()> {
     create_private_directory_all(orphans)?;
     return match std::fs::rename(path, orphans.join(name_of(path))) {
@@ -336,12 +416,17 @@ fn promote_notice(orphans: &Path, path: &Path) -> std::io::Result<()> {
 }
 
 /// What:
-///  Turns what a snapshot of a removed worktree kept into notices any worktree shows, and removes what it promoted; whether
+///  Turns what a snapshot of a removed worktree kept into notices any worktree shows,
+/// and removes what it promoted;
+/// whether
 ///  everything was promoted.
 /// Why:
-///   Each item is removed from the snapshot as soon as it is promoted, so a snapshot kept after a failure promotes only what is
-///  left on the next try and a notice already shown is not made again. A failure is reported to the person and the snapshot
-///  stays, because the snapshot is then the last copy of that record.
+///   Each item is removed from the snapshot as soon as it is promoted,
+/// so a snapshot kept after a failure promotes only what is
+///  left on the next try and a notice already shown is not made again.
+/// A failure is reported to the person and the snapshot
+///  stays,
+/// because the snapshot is then the last copy of that record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -409,12 +494,19 @@ fn promote(common_dir: &Path, snapshot: &Path, problems: &mut Vec<String>) -> bo
 }
 
 /// What:
-///  Settles every snapshot whose removal is decided: one whose worktree is still registered and whose taker has ended is
-///  discarded; one whose worktree is gone turns its notices into notices any worktree shows, and each unfinished push into a
-///  record that says the push may not have finished. Gives what could not be settled, for the person.
+///  Settles every snapshot whose removal is decided:
+/// one whose worktree is still registered and whose taker has ended is
+///  discarded;
+/// one whose worktree is gone turns its notices into notices any worktree shows,
+/// and each unfinished push into a
+///  record that says the push may not have finished.
+/// Gives what could not be settled,
+/// for the person.
 /// Why:
-///   Whether the removal happened is known only now (`removal_of`). A snapshot whose removal may be under way is left alone,
-///  and one that could not be fully promoted is kept for the next try. When nothing was snapshotted this is one directory read.
+///   Whether the removal happened is known only now (`removal_of`).
+/// A snapshot whose removal may be under way is left alone,
+///  and one that could not be fully promoted is kept for the next try.
+/// When nothing was snapshotted this is one directory read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

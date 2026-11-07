@@ -9,7 +9,7 @@
 //! ```
 
 /// Import the production edit planner and owned input types.
-use super::{Edit, Fix, apply_fixes};
+use super::{Edit, Fix, FixClass, apply_fixes};
 
 /// Build a fixture replacement while keeping byte ranges explicit at every call.
 fn edit(start: usize, end: usize, replacement: &str) -> Edit {
@@ -28,6 +28,7 @@ fn empty_and_reversed_edit_plans_preserve_source_order() {
     assert_eq!(original.source, "abc");
     assert!(original.applied.is_empty());
     let fixes = [Fix {
+        class: FixClass::Content,
         edits: vec![edit(3, 3, "]"), edit(0, 0, "[")],
     }];
     let snapshot = fixes.clone();
@@ -43,12 +44,15 @@ fn empty_and_reversed_edit_plans_preserve_source_order() {
 fn conflicting_multi_edit_fix_is_never_applied_partly() {
     let fixes = [
         Fix {
+            class: FixClass::Content,
             edits: vec![edit(2, 4, "X")],
         },
         Fix {
+            class: FixClass::Content,
             edits: vec![edit(0, 1, "A"), edit(3, 5, "Y")],
         },
         Fix {
+            class: FixClass::Content,
             edits: vec![edit(0, 1, "Z")],
         },
     ];
@@ -63,9 +67,11 @@ fn conflicting_multi_edit_fix_is_never_applied_partly() {
 fn later_interval_conflict_rejects_the_new_fix() {
     let fixes = [
         Fix {
+            class: FixClass::Content,
             edits: vec![edit(4, 5, "E")],
         },
         Fix {
+            class: FixClass::Content,
             edits: vec![edit(1, 6, "whole")],
         },
     ];
@@ -80,12 +86,15 @@ fn later_interval_conflict_rejects_the_new_fix() {
 fn insertion_boundaries_have_explicit_ordering() {
     let fixes = [
         Fix {
+            class: FixClass::Content,
             edits: vec![edit(0, 1, "A")],
         },
         Fix {
+            class: FixClass::Content,
             edits: vec![edit(1, 1, "X")],
         },
         Fix {
+            class: FixClass::Content,
             edits: vec![edit(1, 1, "Y")],
         },
     ];
@@ -99,6 +108,7 @@ fn insertion_boundaries_have_explicit_ordering() {
 #[test]
 fn adjacency_is_not_overlap_in_either_selection_order() {
     let adjacent = [Fix {
+        class: FixClass::Content,
         edits: vec![edit(0, 1, "A"), edit(1, 2, "B")],
     }];
     assert_eq!(
@@ -107,9 +117,11 @@ fn adjacency_is_not_overlap_in_either_selection_order() {
     );
     let reverse = [
         Fix {
+            class: FixClass::Content,
             edits: vec![edit(1, 1, "X")],
         },
         Fix {
+            class: FixClass::Content,
             edits: vec![edit(0, 1, "A")],
         },
     ];
@@ -126,7 +138,14 @@ fn internal_overlap_and_duplicate_insertions_are_rejected() {
         vec![edit(0, 2, "A"), edit(1, 3, "B")],
         vec![edit(1, 1, "A"), edit(1, 1, "B")],
     ] {
-        let error = apply_fixes("abc", &[Fix { edits }]).expect_err("internal conflict");
+        let error = apply_fixes(
+            "abc",
+            &[Fix {
+                class: FixClass::Content,
+                edits,
+            }],
+        )
+        .expect_err("internal conflict");
         assert!(error.message.contains("overlapping"));
     }
 }
@@ -142,6 +161,7 @@ fn invalid_ranges_are_errors_not_panics() {
         let error = apply_fixes(
             "abc",
             &[Fix {
+                class: FixClass::Content,
                 edits: vec![invalid],
             }],
         )
@@ -152,6 +172,7 @@ fn invalid_ranges_are_errors_not_panics() {
         let error = apply_fixes(
             "é",
             &[Fix {
+                class: FixClass::Content,
                 edits: vec![invalid],
             }],
         )
@@ -162,6 +183,7 @@ fn invalid_ranges_are_errors_not_panics() {
         apply_fixes(
             "éx",
             &[Fix {
+                class: FixClass::Content,
                 edits: vec![edit(0, 2, "a")]
             }]
         )
@@ -178,6 +200,7 @@ fn nonempty_sources_cannot_be_erased() {
     let error = apply_fixes(
         source.as_str(),
         &[Fix {
+            class: FixClass::Content,
             edits: vec![edit(0, 3, "")],
         }],
     )
@@ -190,6 +213,7 @@ fn nonempty_sources_cannot_be_erased() {
         apply_fixes(
             "",
             &[Fix {
+                class: FixClass::Content,
                 edits: vec![edit(0, 0, "new")]
             }]
         )
@@ -203,8 +227,12 @@ fn nonempty_sources_cannot_be_erased() {
 #[test]
 fn empty_groups_and_identical_replacements_are_stable() {
     let fixes = [
-        Fix { edits: Vec::new() },
         Fix {
+            class: FixClass::Content,
+            edits: Vec::new(),
+        },
+        Fix {
+            class: FixClass::Content,
             edits: vec![edit(0, 1, "a")],
         },
     ];

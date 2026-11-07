@@ -37,6 +37,26 @@ use crate::ast::node::Node;
 /// ```
 use crate::context::Ctx;
 
+/// Whether every part matches the empty string.
+fn all_nullable(parts: &[Node], ctx: Ctx) -> bool {
+    for part in parts {
+        if !nullable(part, ctx) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// Whether some part matches the empty string.
+fn any_nullable(parts: &[Node], ctx: Ctx) -> bool {
+    for part in parts {
+        if nullable(part, ctx) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// Reports whether `node` accepts the empty string at the given boundary.
 ///
 /// What:
@@ -75,8 +95,8 @@ pub fn nullable(node: &Node, ctx: Ctx) -> bool {
     match node {
         Node::Empty | Node::Top => return true,
         Node::Fail | Node::Class(_) => return false,
-        Node::Concat(parts) | Node::Inter(parts) => return parts.iter().all(|p| return nullable(p, ctx)),
-        Node::Alt(parts) => return parts.iter().any(|p| return nullable(p, ctx)),
+        Node::Concat(parts) | Node::Inter(parts) => return all_nullable(parts, ctx),
+        Node::Alt(parts) => return any_nullable(parts, ctx),
         Node::Comp(inner) => return !nullable(inner, ctx),
         Node::Repeat { node: body, min, .. } => return *min == 0 || nullable(body, ctx),
         Node::LineStart => return ctx.line_start,

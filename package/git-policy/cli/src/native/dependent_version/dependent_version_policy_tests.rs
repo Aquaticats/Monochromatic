@@ -1,13 +1,19 @@
-//! What: The trigger rule, the candidate rule and the findings, with every
+//! What:
+//! The trigger rule,
+//! the candidate rule and the findings,
+//! with every
 //!       `findDependentBumps` case of `dependent-version-bump-policy.unit.test.ts`.
-//! Why: The policy decides when a commit is blocked and what its fix adds.
+//! Why:
+//! The policy decides when a commit is blocked and what its fix adds.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // expect((await findDependentBumps(contextOf(files))).map(f => f.path)).toEqual([...]);
 //! ```
 
-/// The decision, its request and finding types, and the in-memory workspace.
+/// The decision,
+/// its request and finding types,
+/// and the in-memory workspace.
 use super::{
     Candidate, CandidateChange, DEPENDENT_VERSION_STALE_CODE, DEPENDENT_VERSION_UNSUPPORTED_CODE,
     DependentFinding, DependentRequest, find_dependent_bumps, should_plan,
@@ -23,7 +29,8 @@ fn manifest(fields: &str) -> String {
     return manifest_text(fields);
 }
 
-/// Candidates as the incumbent's fixture derives them: files whose text differs from the base.
+/// Candidates as the incumbent's fixture derives them:
+/// files whose text differs from the base.
 fn candidates(files: &[MemoryFile]) -> Vec<Candidate> {
     return files
         .iter()
@@ -73,7 +80,8 @@ fn raised_base() -> MemoryFile {
     );
 }
 
-/// `@s/runtime` at a version, depending on `@s/base` at run time.
+/// `@s/runtime` at a version,
+/// depending on `@s/base` at run time.
 fn runtime(version: &str) -> MemoryFile {
     return unchanged(
         "package/module/runtime/package.json",
@@ -104,7 +112,9 @@ fn paths(findings: &[DependentFinding]) -> Vec<String> {
         .collect();
 }
 
-/// Ported: runtime and bundled dependents are patched; unbundled and test-only ones are not.
+/// Ported:
+/// runtime and bundled dependents are patched;
+/// unbundled and test-only ones are not.
 #[test]
 fn patches_runtime_and_bundled_dependents_only() {
     let findings: Vec<DependentFinding> = commit_findings(vec![
@@ -153,7 +163,9 @@ fn patches_runtime_and_bundled_dependents_only() {
     assert!(replacement.contains("\n  \"version\": \"2.0.1\",\n"));
 }
 
-/// Ported: a forwarded command other than commit stays silent; commit does not.
+/// Ported:
+/// a forwarded command other than commit stays silent;
+/// commit does not.
 #[test]
 fn stays_silent_for_forwarded_commands_other_than_commit() {
     let files: Vec<MemoryFile> = vec![
@@ -168,7 +180,9 @@ fn stays_silent_for_forwarded_commands_other_than_commit() {
     assert_eq!(commit_findings(files).len(), 1);
 }
 
-/// Ported: direct fix proposes the bumps; direct check and other points plan regardless of
+/// Ported:
+/// direct fix proposes the bumps;
+/// direct check and other points plan regardless of
 /// the command word.
 #[test]
 fn plans_for_direct_commands_whatever_the_command_word() {
@@ -192,7 +206,8 @@ fn plans_for_direct_commands_whatever_the_command_word() {
     }
 }
 
-/// Ported: nothing is reported when no manifest version changed.
+/// Ported:
+/// nothing is reported when no manifest version changed.
 #[test]
 fn reports_nothing_without_a_version_change() {
     let described: MemoryFile = changed(
@@ -213,7 +228,8 @@ fn reports_nothing_without_a_version_change() {
     assert_eq!(commit_findings(vec![config(&[])]), Vec::new());
 }
 
-/// Ported: the policy settles once the dependents are bumped too.
+/// Ported:
+/// the policy settles once the dependents are bumped too.
 #[test]
 fn settles_once_dependents_are_bumped() {
     let mut bumped_runtime: MemoryFile = runtime("2.0.1");
@@ -228,7 +244,8 @@ fn settles_once_dependents_are_bumped() {
     );
 }
 
-/// Ported: a dependent on a prerelease is reported without a patch.
+/// Ported:
+/// a dependent on a prerelease is reported without a patch.
 #[test]
 fn reports_an_unsupported_dependent_without_a_patch() {
     assert_eq!(
@@ -248,7 +265,8 @@ fn reports_an_unsupported_dependent_without_a_patch() {
     );
 }
 
-/// Ported: without the registry configuration nothing is reported.
+/// Ported:
+/// without the registry configuration nothing is reported.
 #[test]
 fn reports_nothing_without_the_configuration() {
     assert_eq!(
@@ -289,7 +307,8 @@ fn plans_only_for_a_modified_workspace_manifest() {
     ));
 }
 
-/// A bump of a manifest that is not an ordinary file is dropped; an executable one is kept.
+/// A bump of a manifest that is not an ordinary file is dropped;
+/// an executable one is kept.
 #[test]
 fn drops_bumps_of_manifests_that_are_not_ordinary_files() {
     for (mode, kept) in [

@@ -184,7 +184,9 @@ fn abbreviation_cluster_and_value_readings_match_git() {
     remove(directory.as_path());
 }
 
-/// The option tokens a stacked push repeats, or nothing, for a region written as `values`.
+/// The option tokens a stacked push repeats,
+/// or nothing,
+/// for a region written as `values`.
 fn stackable(values: &[&str]) -> Option<Vec<String>> {
     return stackable_option_tokens(os_arguments(values).as_slice()).map(|tokens| {
         return tokens
@@ -214,7 +216,10 @@ fn a_plain_push_keeps_its_options_and_drops_its_positionals() {
     );
 }
 
-/// Every option that rewrites, removes or widens what is sent, or changes what the caller reads back, is never stacked.
+/// Every option that rewrites,
+/// removes or widens what is sent,
+/// or changes what the caller reads back,
+/// is never stacked.
 #[test]
 fn forms_that_rewrite_remove_widen_or_redirect_a_push_are_never_stacked() {
     for option in [

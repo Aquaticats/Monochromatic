@@ -1,10 +1,19 @@
 //! What:
-//!  The `UNTR` (untracked cache) index extension as a tree of directories, and its invalidation along a path
-//!  (`dir.c`: `invalidate_one_component`, `lookup_untracked`, `invalidate_one_directory`).
+//!  The `UNTR` (untracked cache) index extension as a tree of directories,
+//! and its invalidation along a path
+//!  (`dir.c`:
+//! `invalidate_one_component`,
+//! `lookup_untracked`,
+//! `invalidate_one_directory`).
 //! Why:
-//!  Git clears the cached listing of the directory of every path it adds or removes in the index, and past it up to the top
-//!  when the cache lists whole untracked directories; an in-process index update must clear exactly those, creating the
-//!  directories along the path that the cache did not know, as `lookup_untracked` does. Reading and writing the extension
+//!  Git clears the cached listing of the directory of every path it adds or removes in the index,
+//! and past it up to the top
+//!  when the cache lists whole untracked directories;
+//! an in-process index update must clear exactly those,
+//! creating the
+//!  directories along the path that the cache did not know,
+//! as `lookup_untracked` does.
+//! Reading and writing the extension
 //!  are in `index_untracked_io.rs`.
 //!
 //! In TS you'd write (pseudocode):
@@ -21,9 +30,12 @@ pub const SHOW_OTHER_DIRECTORIES: u32 = 1 << 1;
 /// One directory of the cache.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UntrackedDir {
-    /// The directory's name, without a slash; empty for the top.
+    /// The directory's name,
+    /// without a slash;
+    /// empty for the top.
     pub name: Vec<u8>,
-    /// Whether the directory is written out; a directory made while invalidating a path is not.
+    /// Whether the directory is written out;
+    /// a directory made while invalidating a path is not.
     pub recurse: bool,
     /// Whether the cached listing and `stat` are trusted.
     pub valid: bool,
@@ -31,7 +43,8 @@ pub struct UntrackedDir {
     pub check_only: bool,
     /// The directory's stat data when `valid`.
     pub stat: StatData,
-    /// The object name of its ignore file, all zero when none.
+    /// The object name of its ignore file,
+    /// all zero when none.
     pub exclude_id: Vec<u8>,
     /// The untracked files listed in it.
     pub untracked: Vec<Vec<u8>>,
@@ -52,12 +65,15 @@ pub struct Untracked {
     pub dir_flags: u32,
     /// The per-directory ignore file name (`.gitignore`).
     pub exclude_per_dir: Vec<u8>,
-    /// The top directory; none until a status run has listed the worktree.
+    /// The top directory;
+    /// none until a status run has listed the worktree.
     pub root: Option<UntrackedDir>,
 }
 
 impl UntrackedDir {
-    /// A directory `lookup_untracked` makes: unknown, so neither valid nor written.
+    /// A directory `lookup_untracked` makes:
+    /// unknown,
+    /// so neither valid nor written.
     fn created(name: &[u8], hash_length: usize) -> UntrackedDir {
         return UntrackedDir {
             name: name.to_vec(),
@@ -77,7 +93,9 @@ impl UntrackedDir {
         self.untracked.clear();
     }
 
-    /// The position of the subdirectory `name`, or the position to insert it at, by the same halving as `lookup_untracked`.
+    /// The position of the subdirectory `name`,
+    /// or the position to insert it at,
+    /// by the same halving as `lookup_untracked`.
     fn position_of(&self, name: &[u8]) -> Result<usize, usize> {
         let (mut first, mut last): (usize, usize) = (0, self.dirs.len());
         while last > first {
@@ -91,7 +109,8 @@ impl UntrackedDir {
         return Err(first);
     }
 
-    /// Invalidate along `path`; whether the parent directory must be invalidated too (`invalidate_one_component`).
+    /// Invalidate along `path`;
+    /// whether the parent directory must be invalidated too (`invalidate_one_component`).
     fn invalidate_component(&mut self, path: &[u8], show_other: bool, hash_length: usize) -> bool {
         let Some(slash) = first_index_of_byte(path, b'/') else {
             self.invalidate_one();

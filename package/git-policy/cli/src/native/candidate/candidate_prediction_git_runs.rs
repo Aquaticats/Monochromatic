@@ -1,9 +1,13 @@
 //! What:
-//!  The Git runs a candidate prediction makes: one captured command with its failure messages, and the path of the
+//!  The Git runs a candidate prediction makes:
+//! one captured command with its failure messages,
+//! and the path of the
 //!  real index.
 //! Why:
-//!  The prediction replays `git add` on a private copy of the index and needs the real index path first; both steps
-//!  run Git the same way and report a failed or unstarted command the same way, so they live in a file of their own
+//!  The prediction replays `git add` on a private copy of the index and needs the real index path first;
+//! both steps
+//!  run Git the same way and report a failed or unstarted command the same way,
+//! so they live in a file of their own
 //!  that the prediction imports and that imports nothing from it.
 //!
 //! In TS you'd write (pseudocode):
@@ -13,11 +17,14 @@
 
 /// Import the layer's failure type and its closed list of causes.
 use crate::candidate_error::{CandidateError, CandidateFailure};
-/// The captured output of a Git run, the run itself, and the helpers that read a printed path.
+/// The captured output of a Git run,
+/// the run itself,
+/// and the helpers that read a printed path.
 use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git, strip_git_line};
 /// The real Git executable is put first in the child environment.
 use crate::git_system_config::with_real_git;
-/// The in-process repository layout, tried before the `rev-parse --git-path` query.
+/// The in-process repository layout,
+/// tried before the `rev-parse --git-path` query.
 use crate::repo_read_layout::{git_path, read_layout};
 /// `OsString` is owned operating-system text of raw OS bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;

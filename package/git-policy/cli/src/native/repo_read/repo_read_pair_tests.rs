@@ -1,15 +1,27 @@
 //! Differential controls for the tree-to-tree listings the commit service and the post-commit gate ask Git for:
 //!  `diff-tree` names between two commits or between a commit and its parent.
-//!  Each answered command line prints what real Git prints in the same repository, and every state Git words
-//!  differently (a root commit, a merge commit, a file that became a directory, a gitlink) is declined.
+//!  Each answered command line prints what real Git prints in the same repository,
+//! and every state Git words
+//!  differently (a root commit,
+//! a merge commit,
+//! a file that became a directory,
+//! a gitlink) is declined.
 
 use super::tests::{answered, declined, text};
 use crate::test_support::{fixture, git, remove};
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
-/// A history of three linear commits over varied entries (nested directories, a space, a non-UTF-8 name, an executable, a
-/// symbolic link), a root commit, and a merge commit on top; returns the repository and the commit names, oldest first.
+/// A history of three linear commits over varied entries (nested directories,
+/// a space,
+/// a non-UTF-8 name,
+/// an executable,
+/// a
+/// symbolic link),
+/// a root commit,
+/// and a merge commit on top;
+/// returns the repository and the commit names,
+/// oldest first.
 fn history(root: &Path, name: &str, format: &str) -> (PathBuf, Vec<String>) {
     let repo = root.join(name);
     std::fs::create_dir(&repo).expect("dir");
@@ -38,7 +50,10 @@ fn history(root: &Path, name: &str, format: &str) -> (PathBuf, Vec<String>) {
     return (repo, names);
 }
 
-/// Every pair of commits of the history, in both directions, equals Git, with and without the rename switch the service
+/// Every pair of commits of the history,
+/// in both directions,
+/// equals Git,
+/// with and without the rename switch the service
 /// spells in one of its two questions.
 #[test]
 fn name_lists_between_two_commits_equal_git() {
@@ -70,7 +85,9 @@ fn name_lists_of_one_commit_equal_git() {
     remove(root.as_path());
 }
 
-/// A root commit, a merge commit, a file that became a directory and a gitlink are left to Git.
+/// A root commit,
+/// a merge commit,
+/// a file that became a directory and a gitlink are left to Git.
 #[test]
 fn states_that_need_git_are_declined() {
     let root = fixture("repo-read-pair-declined");

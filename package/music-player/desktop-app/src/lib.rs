@@ -86,9 +86,14 @@ pub mod queue;
 /// ```
 pub mod session;
 
-/// What: `pub mod text_size;` the Text size setting module (`src/text_size.rs`).
-/// Why: the four text elements, their limits and defaults, and the stepping rule are pure logic shared by the session
-/// file and the Settings page, so they live in the library where they are tested without a window.
+/// What:
+/// `pub mod text_size;` the Text size setting module (`src/text_size.rs`).
+/// Why:
+/// the four text elements,
+/// their limits and defaults,
+/// and the stepping rule are pure logic shared by the session
+/// file and the Settings page,
+/// so they live in the library where they are tested without a window.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -158,12 +163,16 @@ pub mod output;
 
 /// What:
 ///      `#[cfg(all(target_os = "linux", feature = "alsa-fallback"))]` compiles the next item only on Linux builds
-///           made with the `alsa-fallback` cargo feature (the Alpine build). `all(...)` is true when every listed
-///           predicate is true. `#[path = "output_linux.rs"]` sources the `output` module from the file that tries
+///           made with the `alsa-fallback` cargo feature (the Alpine build).
+/// `all(...)` is true when every listed
+///           predicate is true.
+/// `#[path = "output_linux.rs"]` sources the `output` module from the file that tries
 ///           PipeWire first and falls back to ALSA.
 /// Why:
-///       Alpine and other minimal Linux installs run no sound server by default, so a PipeWire-only build is silent
-///           there. The feature keeps every other Linux build exactly as it was (no new link-time dependency) while
+///       Alpine and other minimal Linux installs run no sound server by default,
+/// so a PipeWire-only build is silent
+///           there.
+/// The feature keeps every other Linux build exactly as it was (no new link-time dependency) while
 ///           exposing the IDENTICAL `output::Output` surface to the engine and the controller.
 ///
 /// In TS you'd write (pseudocode):
@@ -205,7 +214,8 @@ pub mod output;
 ///      `pub mod audio_meter;` the underrun and late-callback counters (`src/audio_meter.rs`)
 ///           that the realtime output writes and the engine thread reports once a second.
 /// Why:
-///       Stutter must be measurable; the counters live apart from PipeWire so they compile on every platform.
+///       Stutter must be measurable;
+/// the counters live apart from PipeWire so they compile on every platform.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -217,7 +227,8 @@ pub mod audio_meter;
 ///      `pub mod thread_priority;` the decode thread's nice-level request to rtkit (Linux)
 ///           (`src/thread_priority.rs`).
 /// Why:
-///       Keeps the scheduling call in one place, with a no-op body on platforms without nice levels.
+///       Keeps the scheduling call in one place,
+/// with a no-op body on platforms without nice levels.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -343,7 +354,8 @@ pub mod controller_audio;
 /// What:
 ///      `pub mod controller_flow;` the third `impl Controller` block (`src/controller_flow.rs`).
 /// Why:
-///       Play with nothing selected, the stop at the end of a folder and the report of unplayable files.
+///       Play with nothing selected,
+/// the stop at the end of a folder and the report of unplayable files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -354,7 +366,9 @@ pub mod controller_flow;
 /// What:
 ///      `pub mod default_library;` the choice of the folder to open when no session names one (`src/default_library.rs`).
 /// Why:
-///       D95: a library is always open, so the home `Music` folder is the last place to look.
+///       D95:
+/// a library is always open,
+/// so the home `Music` folder is the last place to look.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -388,7 +402,8 @@ pub mod engine;
 ///      `pub mod watch;` the Source Root file watcher (`src/watch.rs`).
 /// Why:
 ///       Watches the current Source Root and reports the paths that changed (`Command::SourceChanged`) after a
-///           debounce, or everything (`Command::Rescan`) when events were lost,
+///           debounce,
+/// or everything (`Command::Rescan`) when events were lost,
 ///  so the queue live-updates while the app runs.
 ///
 /// In TS you'd write (pseudocode):
@@ -401,7 +416,8 @@ pub mod watch;
 ///      `pub mod pagination;` the queue-pagination module (`src/pagination.rs`).
 /// Why:
 ///       Pure grouping of display paths into folder pages (subfolder tracks) and
-///           A-Z + `#` letter pages (root-level tracks, virtual folders named by their letter),
+///           A-Z + `#` letter pages (root-level tracks,
+/// virtual folders named by their letter),
 ///  unit-tested.
 ///
 /// In TS you'd write (pseudocode):
@@ -487,10 +503,13 @@ pub mod logging;
 
 /// What:
 ///      `pub mod console_attach;` the pure part of the Windows console attachment (`src/console_attach.rs`):
-///           which standard handles need repair after attaching to the parent console, and the startup report.
+///           which standard handles need repair after attaching to the parent console,
+/// and the startup report.
 /// Why:
 ///       The Windows executable is a GUI-subsystem program (no console window on double-click) that still has to print
-///           in a terminal; the decisions are pure, so they are tested on every host.
+///           in a terminal;
+/// the decisions are pure,
+/// so they are tested on every host.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -502,7 +521,9 @@ pub mod console_attach;
 ///      `#[cfg(windows)] pub mod console_attach_win32;` the Win32 calls of the console attachment
 ///           (`src/console_attach_win32.rs`).
 /// Why:
-///       `AttachConsole`, `GetStdHandle` and `SetStdHandle` exist on Windows only, so the module is gated out of the
+///       `AttachConsole`,
+/// `GetStdHandle` and `SetStdHandle` exist on Windows only,
+/// so the module is gated out of the
 ///           Linux and macOS builds.
 ///
 /// In TS you'd write (pseudocode):
@@ -515,14 +536,18 @@ pub mod console_attach_win32;
 /// What:
 ///      `pub mod console_color;` whether the Windows build writes ANSI colors on stdout and stderr (`src/console_color.rs`).
 /// Why:
-///       A Windows console without VT processing shows escape sequences as text and a file keeps them, so the logger and
-///           clap write colors only to a console that interprets them; the decisions are pure and tested on every host.
+///       A Windows console without VT processing shows escape sequences as text and a file keeps them,
+/// so the logger and
+///           clap write colors only to a console that interprets them;
+/// the decisions are pure and tested on every host.
 pub mod console_color;
 
 /// What:
 ///      `pub mod startup_failure;` the text and the decisions of the startup failure report (`src/startup_failure.rs`).
 /// Why:
-///       A double-click start on Windows has no console, so a failed start shows its text in a message box; the text
+///       A double-click start on Windows has no console,
+/// so a failed start shows its text in a message box;
+/// the text
 ///           and the decisions are pure and tested on every host.
 pub mod startup_failure;
 
@@ -530,7 +555,8 @@ pub mod startup_failure;
 ///      `#[cfg(windows)] pub mod startup_failure_win32;` the message box and the panic hook of the startup failure report
 ///           (`src/startup_failure_win32.rs`).
 /// Why:
-///       `MessageBoxW` exists on Windows only, so the module is gated out of the Linux and macOS builds.
+///       `MessageBoxW` exists on Windows only,
+/// so the module is gated out of the Linux and macOS builds.
 #[cfg(windows)]
 pub mod startup_failure_win32;
 
@@ -835,7 +861,8 @@ mod search_index_top;
 mod search_index_query;
 
 /// What:
-///      `pub mod search_service;` the Search worker thread, append path and refresh signal (`src/search_service.rs`).
+///      `pub mod search_service;` the Search worker thread,
+/// append path and refresh signal (`src/search_service.rs`).
 /// Why:
 ///       D111 and D112 need queries answered off the window thread while a scan appends tracks under a short lock.
 ///
@@ -854,27 +881,33 @@ mod search_worker;
 /// What:
 ///      `mod search_stream;` the thread that appends streamed scan batches (`src/search_stream.rs`).
 /// Why:
-///       The engine thread only hands names over; preparing and pushing them happen here.
+///       The engine thread only hands names over;
+/// preparing and pushing them happen here.
 mod search_stream;
 
 /// What:
 ///      `pub mod search_feed;` feeding a whole library into the Search service (`src/search_feed.rs`).
 /// Why:
-///       A library that arrives as one list must reach the index in batches, off the window thread.
+///       A library that arrives as one list must reach the index in batches,
+/// off the window thread.
 pub mod search_feed;
 
 /// What:
 ///      `pub(crate) mod scan_stream;` the folder walk that reports tracks while it walks (`src/scan_stream.rs`).
 /// Why:
-///       D111: Search must work while the library is still being scanned, so the walk hands out batches as it goes.
+///       D111:
+/// Search must work while the library is still being scanned,
+/// so the walk hands out batches as it goes.
 pub(crate) mod scan_stream;
 
-/// Synthetic libraries for the scale tests (`src/scale_library_tests.rs`), compiled for tests only.
+/// Synthetic libraries for the scale tests (`src/scale_library_tests.rs`),
+/// compiled for tests only.
 #[cfg(test)]
 #[path = "scale_library_tests.rs"]
 mod scale_library_tests;
 
-/// Search index scale tests (`src/search_scale_tests.rs`): 1,000 to 1,000,000 tracks.
+/// Search index scale tests (`src/search_scale_tests.rs`):
+/// 1,000 to 1,000,000 tracks.
 #[cfg(test)]
 #[path = "search_scale_tests.rs"]
 mod search_scale_tests;
@@ -990,88 +1023,146 @@ pub mod track_menu;
 /// ```
 pub mod feedback;
 
-/// What: `pub mod track_measure;` the per-track length and true peak, and their formatting.
-/// Why: the rows and the deck read these values through the template fields.
+/// What:
+/// `pub mod track_measure;` the per-track length and true peak,
+/// and their formatting.
+/// Why:
+/// the rows and the deck read these values through the template fields.
 pub mod track_measure;
 
-/// What: `pub(crate) mod track_measure_page;` the in-place measure writer and the page lookup.
-/// Why: they live beside `track_measure`, which re-exports them, to keep that file short.
+/// What:
+/// `pub(crate) mod track_measure_page;` the in-place measure writer and the page lookup.
+/// Why:
+/// they live beside `track_measure`,
+/// which re-exports them,
+/// to keep that file short.
 pub(crate) mod track_measure_page;
 
-/// What: `pub mod duration_probe;` reads a file length from its container header.
-/// Why: rows show lengths before the slow true-peak measurement finishes.
+/// What:
+/// `pub mod duration_probe;` reads a file length from its container header.
+/// Why:
+/// rows show lengths before the slow true-peak measurement finishes.
 pub mod duration_probe;
 
-/// What: `pub mod measure_peek;` reads each track's cached decision and header length without decoding.
-/// Why: the sweep reports lengths and cached peaks as soon as a queue loads.
+/// What:
+/// `pub mod measure_peek;` reads each track's cached decision and header length without decoding.
+/// Why:
+/// the sweep reports lengths and cached peaks as soon as a queue loads.
 pub mod measure_peek;
 
-/// What: `pub mod change_set;` what the file watcher saw change: some paths, or everything (D113).
-/// Why: the refresh looks at the named paths instead of walking the library.
+/// What:
+/// `pub mod change_set;` what the file watcher saw change:
+/// some paths,
+/// or everything (D113).
+/// Why:
+/// the refresh looks at the named paths instead of walking the library.
 pub mod change_set;
 
-/// What: `pub(crate) mod walk_order;` the folder walk's order as a comparison, for binary search in the queue.
-/// Why: deciding whether a named path is listed must cost a few comparisons at a million tracks.
+/// What:
+/// `pub(crate) mod walk_order;` the folder walk's order as a comparison,
+/// for binary search in the queue.
+/// Why:
+/// deciding whether a named path is listed must cost a few comparisons at a million tracks.
 pub(crate) mod walk_order;
 
-/// What: `pub(crate) mod disk_view;` the questions the refresh planner asks the disk.
-/// Why: the planner is tested at a million tracks without a million files.
+/// What:
+/// `pub(crate) mod disk_view;` the questions the refresh planner asks the disk.
+/// Why:
+/// the planner is tested at a million tracks without a million files.
 pub(crate) mod disk_view;
 
-/// What: `pub(crate) mod change_plan;` from named paths to queue edits.
-/// Why: a replaced file must cost lookups for that file only.
+/// What:
+/// `pub(crate) mod change_plan;` from named paths to queue edits.
+/// Why:
+/// a replaced file must cost lookups for that file only.
 pub(crate) mod change_plan;
 
-/// What: `pub(crate) mod refresh_coalescer;` at most one refresh sweep runs, with one merged follow-up.
-/// Why: overlapping sweeps would stat the same files twice.
+/// What:
+/// `pub(crate) mod refresh_coalescer;` at most one refresh sweep runs,
+/// with one merged follow-up.
+/// Why:
+/// overlapping sweeps would stat the same files twice.
 pub(crate) mod refresh_coalescer;
 
-/// What: `pub mod controller_refresh;` the controller side of refreshing the library when the watcher reports changes.
-/// Why: the cost of a refresh follows what changed.
+/// What:
+/// `pub mod controller_refresh;` the controller side of refreshing the library when the watcher reports changes.
+/// Why:
+/// the cost of a refresh follows what changed.
 pub mod controller_refresh;
 
-/// What: `refresh_test_support`, shared helpers of the refresh tests (test builds only).
-/// Why: the planner, coalescer and controller tests share a disposable folder, a random generator and an in-memory disk.
+/// What:
+/// `refresh_test_support`,
+/// shared helpers of the refresh tests (test builds only).
+/// Why:
+/// the planner,
+/// coalescer and controller tests share a disposable folder,
+/// a random generator and an in-memory disk.
 #[cfg(test)]
 pub(crate) mod refresh_test_support;
 
-/// What: `refresh_scale_support`, the million-track library of the refresh tests (test builds only).
-/// Why: the planner and the controller are measured at normal operation's largest size.
+/// What:
+/// `refresh_scale_support`,
+/// the million-track library of the refresh tests (test builds only).
+/// Why:
+/// the planner and the controller are measured at normal operation's largest size.
 #[cfg(test)]
 pub(crate) mod refresh_scale_support;
 
-/// What: `refresh_scale_tests`, one refresh event at a million tracks (test builds only).
-/// Why: 1,000,000 tracks is normal operation, so this test belongs to the normal suite.
+/// What:
+/// `refresh_scale_tests`,
+/// one refresh event at a million tracks (test builds only).
+/// Why:
+/// 1,000,000 tracks is normal operation,
+/// so this test belongs to the normal suite.
 #[cfg(test)]
 #[path = "refresh_scale_tests.rs"]
 mod refresh_scale_tests;
 
-/// What: `pub mod controller_reload;` loads the selected track again where it was when its file was replaced.
-/// Why: a replaced file that plays keeps its place, peak and gain current without a toast.
+/// What:
+/// `pub mod controller_reload;` loads the selected track again where it was when its file was replaced.
+/// Why:
+/// a replaced file that plays keeps its place,
+/// peak and gain current without a toast.
 pub mod controller_reload;
 
-/// What: `pub mod sweep_report;` the reports a background sweep sends to the engine.
-/// Why: the controller needs the generation of each report to drop stale ones.
+/// What:
+/// `pub mod sweep_report;` the reports a background sweep sends to the engine.
+/// Why:
+/// the controller needs the generation of each report to drop stale ones.
 pub mod sweep_report;
 
-/// What: `pub mod color_scheme;` the environment override of the window color scheme.
-/// Why: verification runs need a fixed light or dark window.
+/// What:
+/// `pub mod color_scheme;` the environment override of the window color scheme.
+/// Why:
+/// verification runs need a fixed light or dark window.
 pub mod color_scheme;
 
-/// What: `pub mod oklch;` OKLCH color math, gamut mapping and WCAG contrast (D108).
-/// Why: every derived theme color is computed there, in one pure place.
+/// What:
+/// `pub mod oklch;` OKLCH color math,
+/// gamut mapping and WCAG contrast (D108).
+/// Why:
+/// every derived theme color is computed there,
+/// in one pure place.
 pub mod oklch;
 
-/// What: `pub mod accent_override;` the environment override of the theme root color.
-/// Why: renders and verification runs need a deterministic accent.
+/// What:
+/// `pub mod accent_override;` the environment override of the theme root color.
+/// Why:
+/// renders and verification runs need a deterministic accent.
 pub mod accent_override;
 
-/// What: `pub mod theme_roles;` the theme roles derived from one root color (A3, D108).
-/// Why: the accent-following palette and its contrast guarantee are pure logic that is unit-tested.
+/// What:
+/// `pub mod theme_roles;` the theme roles derived from one root color (A3,
+/// D108).
+/// Why:
+/// the accent-following palette and its contrast guarantee are pure logic that is unit-tested.
 pub mod theme_roles;
 
-/// What: `pub mod controller_measures;` the controller side of the per-track measures.
-/// Why: sweep reports are filtered by queue generation there, before they reach the window.
+/// What:
+/// `pub mod controller_measures;` the controller side of the per-track measures.
+/// Why:
+/// sweep reports are filtered by queue generation there,
+/// before they reach the window.
 pub mod controller_measures;
 
 /// What:
@@ -1086,46 +1177,79 @@ pub mod controller_measures;
 /// ```
 pub mod scan_indicator;
 
-/// What: `pub mod sweep_gate;` the pause gate of the background true-peak sweep (`src/sweep_gate.rs`).
-/// Why: the analysis indicator's Pause and Resume stop and restart the sweep workers through it (D107).
+/// What:
+/// `pub mod sweep_gate;` the pause gate of the background true-peak sweep (`src/sweep_gate.rs`).
+/// Why:
+/// the analysis indicator's Pause and Resume stop and restart the sweep workers through it (D107).
 pub mod sweep_gate;
 
-/// What: `pub mod analysis_notification_logic;` the pure rules of the analysis indicator.
-/// Why: what to show, when to send it and when to open, pause or close it need no bus, so they are tested without one.
+/// What:
+/// `pub mod analysis_notification_logic;` the pure rules of the analysis indicator.
+/// Why:
+/// what to show,
+/// when to send it and when to open,
+/// pause or close it need no bus,
+/// so they are tested without one.
 pub mod analysis_notification_logic;
 
-/// What: `pub mod analysis_notification_wire;` the D-Bus messages of the analysis indicator, Linux only.
-/// Why: the Plasma job view and the freedesktop notification exist only on Linux desktops; `zbus` is a Linux-only
+/// What:
+/// `pub mod analysis_notification_wire;` the D-Bus messages of the analysis indicator,
+/// Linux only.
+/// Why:
+/// the Plasma job view and the freedesktop notification exist only on Linux desktops;
+/// `zbus` is a Linux-only
 /// dependency.
 #[cfg(target_os = "linux")]
 pub mod analysis_notification_wire;
 
-/// What: `pub mod analysis_notification;` the analysis indicator's handle and its D-Bus thread (D107).
-/// Why: the system notification replaces the in-app banner; off Linux the handle does nothing.
+/// What:
+/// `pub mod analysis_notification;` the analysis indicator's handle and its D-Bus thread (D107).
+/// Why:
+/// the system notification replaces the in-app banner;
+/// off Linux the handle does nothing.
 pub mod analysis_notification;
 
-/// What: `pub mod dbus_step_bound;` the time bound on every D-Bus step a synchronous thread takes, Linux only.
-/// Why: zbus 6 has no blocking API, so each thread drives the async API with `zbus::block_on`, and no step may wait
+/// What:
+/// `pub mod dbus_step_bound;` the time bound on every D-Bus step a synchronous thread takes,
+/// Linux only.
+/// Why:
+/// zbus 6 has no blocking API,
+/// so each thread drives the async API with `zbus::block_on`,
+/// and no step may wait
 /// without a bound.
 #[cfg(target_os = "linux")]
 pub mod dbus_step_bound;
 
-/// What: `pub mod unplayable_notification_logic;` the wording and the told-before rule of the "cannot be played" report.
-/// Why: D122 sends that report to the desktop instead of drawing it in the window; what it says and when it repeats need
-/// no bus, so they are tested without one.
+/// What:
+/// `pub mod unplayable_notification_logic;` the wording and the told-before rule of the "cannot be played" report.
+/// Why:
+/// D122 sends that report to the desktop instead of drawing it in the window;
+/// what it says and when it repeats need
+/// no bus,
+/// so they are tested without one.
 pub mod unplayable_notification_logic;
 
-/// What: `pub mod unplayable_notification_wire;` the D-Bus call of the "cannot be played" notification, Linux only.
-/// Why: the freedesktop notification service exists only on Linux desktops; `zbus` is a Linux-only dependency.
+/// What:
+/// `pub mod unplayable_notification_wire;` the D-Bus call of the "cannot be played" notification,
+/// Linux only.
+/// Why:
+/// the freedesktop notification service exists only on Linux desktops;
+/// `zbus` is a Linux-only dependency.
 #[cfg(target_os = "linux")]
 pub mod unplayable_notification_wire;
 
-/// What: `pub mod unplayable_notification;` the "cannot be played" notification's handle and its D-Bus thread (D122).
-/// Why: the report leaves the engine thread without waiting on the bus; off Linux the handle does nothing.
+/// What:
+/// `pub mod unplayable_notification;` the "cannot be played" notification's handle and its D-Bus thread (D122).
+/// Why:
+/// the report leaves the engine thread without waiting on the bus;
+/// off Linux the handle does nothing.
 pub mod unplayable_notification;
 
-/// What: `unplayable_notification_bus_support`, a private session bus and a recording notification service (test builds).
-/// Why: the wire and thread tests of the "cannot be played" notification must never touch the user's session bus.
+/// What:
+/// `unplayable_notification_bus_support`,
+/// a private session bus and a recording notification service (test builds).
+/// Why:
+/// the wire and thread tests of the "cannot be played" notification must never touch the user's session bus.
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) mod unplayable_notification_bus_support;
 
@@ -1142,9 +1266,11 @@ pub(crate) mod unplayable_notification_bus_support;
 pub mod settings_layout;
 
 /// What:
-///      `pub mod row_activation;` the rule for a click, Enter or Search result on a track (`src/row_activation.rs`).
+///      `pub mod row_activation;` the rule for a click,
+/// Enter or Search result on a track (`src/row_activation.rs`).
 /// Why:
-///       Auto-play on select (D129) changes what that activation does, and the window wiring asks one pure function.
+///       Auto-play on select (D129) changes what that activation does,
+/// and the window wiring asks one pure function.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1152,6 +1278,7 @@ pub mod settings_layout;
 /// ```
 pub mod row_activation;
 
-/// Registers the unit-test scratch root, placed in the build directory instead of `/tmp`.
+/// Registers the unit-test scratch root,
+/// placed in the build directory instead of `/tmp`.
 #[cfg(test)]
 mod test_scratch;

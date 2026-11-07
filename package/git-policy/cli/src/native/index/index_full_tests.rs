@@ -1,4 +1,5 @@
-//! Controls for the whole-index reader on files real Git writes: reading then writing gives Git's bytes back.
+//! Controls for the whole-index reader on files real Git writes:
+//! reading then writing gives Git's bytes back.
 
 use super::*;
 use crate::index_full_write::write_full_index;
@@ -22,7 +23,11 @@ fn git_written_indexes_round_trip_in_versions_two_and_four() {
     }
 }
 
-/// Damage and forms Git answers are not read: a wrong signature, a bad version, a cut file, an unsorted pair and a split index.
+/// Damage and forms Git answers are not read:
+/// a wrong signature,
+/// a bad version,
+/// a cut file,
+/// an unsorted pair and a split index.
 #[test]
 fn damaged_and_unusual_files_are_not_read() {
     let bytes: Vec<u8> = index_with_extensions("index-full-damaged", "2");

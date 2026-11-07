@@ -1,10 +1,15 @@
-//! Controls for the memory of landed captures: what is kept, what is forgotten, and that worktrees stay apart.
+//! Controls for the memory of landed captures:
+//! what is kept,
+//! what is forgotten,
+//! and that worktrees stay apart.
 
 use super::*;
 
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
-/// Entries come back oldest first, an unknown stamp is not kept, and one worktree's entries are not another's.
+/// Entries come back oldest first,
+/// an unknown stamp is not kept,
+/// and one worktree's entries are not another's.
 #[test]
 fn entries_are_kept_per_worktree_and_an_unknown_stamp_is_not_kept() {
     let common: PathBuf = PathBuf::from("/captures/one/repo-dir");
@@ -33,7 +38,9 @@ fn the_oldest_entries_are_forgotten_first() {
     assert_eq!(kept.first().map(|entry| { return entry.captured; }), Some(extra + 1));
 }
 
-/// Two memories are two values: nothing is shared between them, which is what a table behind a lock in the process would have
+/// Two memories are two values:
+/// nothing is shared between them,
+/// which is what a table behind a lock in the process would have
 /// done to two services (or two tests) that run in one process.
 #[test]
 fn a_memory_is_a_value_and_not_shared_with_another() {

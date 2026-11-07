@@ -1,9 +1,16 @@
 //! What:
-//!  Index commits and `commit -a` landed through the service, compared with the commit native `git commit` makes from the
-//!  same working state, including what is left staged, modified and untracked afterwards.
+//!  Index commits and `commit -a` landed through the service,
+//! compared with the commit native `git commit` makes from the
+//!  same working state,
+//! including what is left staged,
+//! modified and untracked afterwards.
 //! Why:
-//!  The service takes the whole index (and, for `-a`, every tracked change); it must leave the index and the worktree
-//!  exactly as native Git does, so the next command of the person sees the same repository.
+//!  The service takes the whole index (and,
+//! for `-a`,
+//! every tracked change);
+//! it must leave the index and the worktree
+//!  exactly as native Git does,
+//! so the next command of the person sees the same repository.
 
 use super::commit::{git_text, remove_settled};
 use super::service_commit::{Running, query, start, through_service};
@@ -22,7 +29,10 @@ fn finished(fixture: &Fixture) -> usize {
     });
 }
 
-/// What a commit left behind: the stored tree and message, the short status, and the staged difference from the commit.
+/// What a commit left behind:
+/// the stored tree and message,
+/// the short status,
+/// and the staged difference from the commit.
 fn left_behind(fixture: &Fixture, repo: &Path) -> Vec<String> {
     return vec![
         git_text(fixture, repo, &["log", "-1", "--format=%T%n%B"]),
@@ -34,7 +44,8 @@ fn left_behind(fixture: &Fixture, repo: &Path) -> Vec<String> {
 
 type Setup = fn(&Path);
 
-/// One working state, and whether anything can be committed from it.
+/// One working state,
+/// and whether anything can be committed from it.
 struct Case {
     name: &'static str,
     command: &'static [&'static str],
@@ -69,7 +80,8 @@ fn nothing_staged(repo: &Path) {
     write(repo, "a.txt", "base\nunstaged only\n");
 }
 
-/// Each working state commits the same through the service as natively, and what is left behind is the same.
+/// Each working state commits the same through the service as natively,
+/// and what is left behind is the same.
 #[test]
 fn index_commits_and_commit_all_through_the_service_equal_the_native_commit() {
     let fixture: Fixture = fixture("service-selection");

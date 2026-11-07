@@ -1,16 +1,30 @@
 //! What:
-//!  The service's hold on Git's own `index.lock` across a landing: taken first, by exclusive creation, waited for without
-//!  polling when another program holds it, and released by moving the new index over the real one.
+//!  The service's hold on Git's own `index.lock` across a landing:
+//! taken first,
+//! by exclusive creation,
+//! waited for without
+//!  polling when another program holds it,
+//! and released by moving the new index over the real one.
 //! Why:
-//!  Git's own `commit` takes the index lock before it moves the branch and gives it up after the index is written. A landing
+//!  Git's own `commit` takes the index lock before it moves the branch and gives it up after the index is written.
+//! A landing
 //!  that moved the branch first and took the lock afterwards left the index showing content a landed commit had replaced for
-//!  as long as a foreign `git` held the lock, and a commit prepared from that index could land a revert. The wait for a
-//!  foreign holder is event-driven: an inotify watch on the Git directory wakes the service when the lock itself is removed or
-//!  moved away, and the only timer is the repetition of the holder's notice. On
-//!  platforms without inotify a held lock fails at once with the plain message. The lock carries a marker with the batch
-//!  number and the holding process from the moment it exists until it is removed after the new index is in place, so a
-//!  restart can tell its own stale lock from a foreign one wherever the service was killed, and never takes over a lock
-//!  whose holder still runs (`doc/planning/cli-git-resident-service.md`, "Landing every command line").
+//!  as long as a foreign `git` held the lock,
+//! and a commit prepared from that index could land a revert.
+//! The wait for a
+//!  foreign holder is event-driven:
+//! an inotify watch on the Git directory wakes the service when the lock itself is removed or
+//!  moved away,
+//! and the only timer is the repetition of the holder's notice.
+//! On
+//!  platforms without inotify a held lock fails at once with the plain message.
+//! The lock carries a marker with the batch
+//!  number and the holding process from the moment it exists until it is removed after the new index is in place,
+//! so a
+//!  restart can tell its own stale lock from a foreign one wherever the service was killed,
+//! and never takes over a lock
+//!  whose holder still runs (`doc/planning/cli-git-resident-service.md`,
+//! "Landing every command line").
 //! The marker,
 //! the inotify watch,
 //! the placement of the marked file,
@@ -47,15 +61,25 @@ pub use crate::service_index_reclaim::{Reclaimed, foreign_words, remove_stale, s
 use crate::service_index_staging::{refresh_age, remove_dead_staging, stage_marker_synced};
 
 /// How often the holder's notice is repeated while the wait lasts.
-///  Exempt from a citation under `LQM` (class: notice pacing): it times a line the person reads or a log threshold, and
-///  nothing waits on it beyond the wait that already exists. Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
+///  Exempt from a citation under `LQM` (class:
+/// notice pacing):
+/// it times a line the person reads or a log threshold,
+/// and
+///  nothing waits on it beyond the wait that already exists.
+/// Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 pub const NOTICE_EVERY: Duration = Duration::from_secs(10);
 
-/// The environment variable that sets how often the holder's line is repeated, in whole seconds.
+/// The environment variable that sets how often the holder's line is repeated,
+/// in whole seconds.
 pub const NOTICE_VARIABLE: &str = "CLI_GIT_WAIT_NOTICE_SECONDS";
 
-/// How often the holder's line is repeated: the variable when it holds a positive number of seconds, ten seconds otherwise.
+/// How often the holder's line is repeated:
+/// the variable when it holds a positive number of seconds,
+/// ten seconds otherwise.
 pub(crate) fn notice_every() -> Duration {
     return notice_interval(std::env::var(NOTICE_VARIABLE).ok().as_deref());
 }
@@ -80,17 +104,22 @@ pub(crate) fn notice_interval(setting: Option<&str>) -> Duration {
 /// What the wait tells the clients of the batch.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Announce {
-    /// A line for the person's terminal: who holds the lock and how long the wait lasts.
+    /// A line for the person's terminal:
+    /// who holds the lock and how long the wait lasts.
     Waiting(String),
-    /// Who held the lock when the wait ran out, in words that fit "... is using this repository's index".
+    /// Who held the lock when the wait ran out,
+    /// in words that fit "... is using this repository's index".
     Holder(String),
 }
 
 /// What:
 ///  Where the wait for the index lock tells the clients of the batch what it waits for.
-///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+///  A `trait` is a named set of methods that different types can each supply,
+/// like a TypeScript `interface`.
 /// Why:
-///   The wait and the landing take the announcer as a value, so a control can stand in for it; the state the announcement needs
+///   The wait and the landing take the announcer as a value,
+/// so a control can stand in for it;
+/// the state the announcement needs
 ///  (the streams of the batch) is a small struct that implements this.
 ///
 /// In TS you'd write (pseudocode):
@@ -110,10 +139,14 @@ pub struct LockFailure {
 }
 
 /// What:
-///  One attempt to take the lock, with no wait.
+///  One attempt to take the lock,
+/// with no wait.
 /// Why:
-///   Finishing a batch a killed service left open must not hold up the next batch for the whole limit; a foreign holder, or
-///  a service holder that still runs, leaves the batch open for the next round.
+///   Finishing a batch a killed service left open must not hold up the next batch for the whole limit;
+/// a foreign holder,
+/// or
+///  a service holder that still runs,
+/// leaves the batch open for the next round.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -170,13 +203,24 @@ pub fn lock_path_of(index: &Path) -> PathBuf {
 }
 
 /// What:
-///  Takes `index.lock` by exclusive creation, waiting for a foreign holder until it lets go.
+///  Takes `index.lock` by exclusive creation,
+/// waiting for a foreign holder until it lets go.
 /// Why:
-///   Git's own protocol: creation fails while any process holds the lock. The wait blocks on an inotify watch set before the
-///  first attempt, so a release between the attempt and the wait is not missed, and it wakes only for the lock itself. The
-///  marker is written once, before the first attempt, so the attempts themselves create and remove nothing in the watched
-///  directory. A holder is waited for however long it holds, and a dead owner (a PID file naming a process that is gone) ends the wait at once with
-///  nothing changed; the clients learn who held the lock.
+///   Git's own protocol:
+/// creation fails while any process holds the lock.
+/// The wait blocks on an inotify watch set before the
+///  first attempt,
+/// so a release between the attempt and the wait is not missed,
+/// and it wakes only for the lock itself.
+/// The
+///  marker is written once,
+/// before the first attempt,
+/// so the attempts themselves create and remove nothing in the watched
+///  directory.
+/// A holder is waited for however long it holds,
+/// and a dead owner (a PID file naming a process that is gone) ends the wait at once with
+///  nothing changed;
+/// the clients learn who held the lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -185,7 +229,8 @@ pub fn lock_path_of(index: &Path) -> PathBuf {
 ///
 /// # Errors
 ///
-/// `LockFailure` with `IndexInUse` when the lock's owner is dead, and with the storage
+/// `LockFailure` with `IndexInUse` when the lock's owner is dead,
+/// and with the storage
 ///  code when the lock cannot be created.
 pub fn acquire(index: &Path, seq: u64, announce: &dyn Announcer) -> Result<IndexLock, LockFailure> {
     return acquire_noting_holder(index, seq, announce, &mut None);
@@ -240,7 +285,8 @@ pub fn acquire_noting_wait(index: &Path, seq: u64, announce: &dyn Announcer, not
 ///
 /// # Errors
 ///
-/// As `acquire`, and `IndexInUse` when the lock was still held at the ceiling.
+/// As `acquire`,
+/// and `IndexInUse` when the lock was still held at the ceiling.
 pub fn acquire_noting_wait_within(index: &Path, seq: u64, ceiling: Duration, announce: &dyn Announcer, notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
     // The whole of the preparation counts as staging time: taking the marker made ahead, waiting for a flush that fails or is
     //  for another batch, and the cold staging that follows; `acquire_placing` adds its own cold staging to this.
@@ -261,11 +307,13 @@ pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, announce: &dyn An
     return acquire_placing(platform, index, seq, LOCK_CEILING, announce, &mut WaitNotes::default(), None);
 }
 
-/// `acquire_on` that gives up on a foreign holder after `ceiling`, leaving in `notes` what the wait was for.
+/// `acquire_on` that gives up on a foreign holder after `ceiling`,
+/// leaving in `notes` what the wait was for.
 ///
 /// # Errors
 ///
-/// As `acquire_on`, and `IndexInUse` when the lock was still held at the ceiling.
+/// As `acquire_on`,
+/// and `IndexInUse` when the lock was still held at the ceiling.
 pub fn acquire_within(platform: &Platform, index: &Path, seq: u64, ceiling: Duration, announce: &dyn Announcer) -> Result<IndexLock, LockFailure> {
     return acquire_placing(platform, index, seq, ceiling, announce, &mut WaitNotes::default(), None);
 }

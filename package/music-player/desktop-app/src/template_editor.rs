@@ -95,7 +95,8 @@ pub const TEMPLATE_KEPT_NOTE: &str = "Rows keep the last valid template.";
 /// What:
 ///  `pub const TEMPLATE_KEPT_EMPTY_NOTE: &str` says the rows keep the last valid template and that it shows nothing.
 /// Why:
-///  A cleared template is valid and shows no second line, so a rejected draft typed after it leaves empty rows,
+///  A cleared template is valid and shows no second line,
+/// so a rejected draft typed after it leaves empty rows,
 ///  and the note must say that this is the kept template and not a broken preview.
 ///
 /// In TS you'd write (pseudocode):

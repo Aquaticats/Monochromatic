@@ -1,7 +1,9 @@
 //! What:
-//!  The guard that every finding code and every engine failure code carries a hint, and the wording of the hints.
+//!  The guard that every finding code and every engine failure code carries a hint,
+//! and the wording of the hints.
 //! Why:
-//!  A new code added without a hint would ship a block that leaves the next move to guesswork; the exhaustive match
+//!  A new code added without a hint would ship a block that leaves the next move to guesswork;
+//! the exhaustive match
 //!  makes adding a variant a compile error here until the new code is listed.
 //!
 //! In TS you'd write (pseudocode):
@@ -20,7 +22,8 @@ use crate::policy_root_context::ROOT_CONTEXT_CODE;
 use crate::rule_add_explicit::BULK_ADD_CODE;
 use crate::traditional_hook_warning::TRADITIONAL_HOOKS_UNSUPPORTED_CODE;
 
-/// Every engine failure code, with an exhaustive match so a new variant stops compilation here.
+/// Every engine failure code,
+/// with an exhaustive match so a new variant stops compilation here.
 fn every_engine_failure() -> Vec<EngineFailureCode> {
     let all = vec![
         EngineFailureCode::ConfigInvalid,
@@ -65,7 +68,8 @@ fn every_engine_failure_code_has_a_hint() {
     assert_eq!(engine_failure_hint("not-a-code"), None);
 }
 
-/// Every finding code of every policy has a hint, or its message carries its own and is listed as self-hinted.
+/// Every finding code of every policy has a hint,
+/// or its message carries its own and is listed as self-hinted.
 #[test]
 fn every_finding_code_has_a_hint_or_its_own() {
     let hinted: [(&str, &str); 14] = [
@@ -97,7 +101,8 @@ fn every_finding_code_has_a_hint_or_its_own() {
     assert_eq!(finding_hint("final-newline", "unknown", false), None);
 }
 
-/// The final-newline hint differs by whether a correction exists, and names the direct fix only when it does.
+/// The final-newline hint differs by whether a correction exists,
+/// and names the direct fix only when it does.
 #[test]
 fn the_final_newline_hint_follows_the_availability_of_a_fix() {
     let with: &str = finding_hint("final-newline", FINAL_NEWLINE_CODE, true).expect("hint");
@@ -106,7 +111,8 @@ fn the_final_newline_hint_follows_the_availability_of_a_fix() {
     assert!(!without.contains("git monochromatic-git-policy-cli fix"));
 }
 
-/// The hint field is appended as escaped JSON, and nothing is appended without a hint.
+/// The hint field is appended as escaped JSON,
+/// and nothing is appended without a hint.
 #[test]
 fn the_hint_field_is_escaped_json_and_absent_without_a_hint() {
     let mut line: String = String::from("{\"message\":\"m\"");
@@ -117,7 +123,8 @@ fn the_hint_field_is_escaped_json_and_absent_without_a_hint() {
     assert!(WARN_UNSAFE_HINT.starts_with("Hint: if you"));
 }
 
-/// Every cause of a manual-push discovery failure is listed here, so a new cause cannot be added without a decision about its hint.
+/// Every cause of a manual-push discovery failure is listed here,
+/// so a new cause cannot be added without a decision about its hint.
 fn every_manual_push_cause() -> Vec<ManualPushCause> {
     let mut all: Vec<ManualPushCause> = Vec::new();
     for cause in [
@@ -145,7 +152,9 @@ fn every_manual_push_cause() -> Vec<ManualPushCause> {
     return all;
 }
 
-/// Each cause of a manual-push discovery failure has its own hint, except the one whose message says what to do, and only
+/// Each cause of a manual-push discovery failure has its own hint,
+/// except the one whose message says what to do,
+/// and only
 ///  the missing-content cause keeps the hint of the `content-unavailable` code.
 #[test]
 fn each_manual_push_cause_has_its_own_hint() {
@@ -172,8 +181,13 @@ fn each_manual_push_cause_has_its_own_hint() {
     }
 }
 
-/// The remedy each hint names is the one for its cause: run again, check the network and credentials, run Git's own
-///  dry run, report the defect with the Git version, push a commit.
+/// The remedy each hint names is the one for its cause:
+/// run again,
+/// check the network and credentials,
+/// run Git's own
+///  dry run,
+/// report the defect with the Git version,
+/// push a commit.
 #[test]
 fn each_hint_names_the_remedy_of_its_cause() {
     let hint = |cause: ManualPushCause| -> &'static str { return manual_push_failure_hint(cause).expect("a hint"); };

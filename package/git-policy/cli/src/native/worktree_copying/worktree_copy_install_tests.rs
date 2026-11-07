@@ -1,4 +1,7 @@
-//! Installation checks on real filesystem trees: preflight, batching, modes and rollback on failure.
+//! Installation checks on real filesystem trees:
+//! preflight,
+//! batching,
+//! modes and rollback on failure.
 
 use super::*;
 use crate::test_support::{fixture, remove};
@@ -11,9 +14,11 @@ struct CountingRecorder {
     intents: Vec<usize>,
     /// Sizes of each creation batch.
     creations: Vec<usize>,
-    /// Creation call number that fails, counted from one.
+    /// Creation call number that fails,
+    /// counted from one.
     fail_creation_call: Option<usize>,
-    /// Creation call number that first rewrites a path in place, then fails.
+    /// Creation call number that first rewrites a path in place,
+    /// then fails.
     tamper: Option<(usize, PathBuf)>,
 }
 
@@ -50,7 +55,8 @@ impl InstallRecorder for CountingRecorder {
     }
 }
 
-/// A stage directory holding one tree, with its manifest.
+/// A stage directory holding one tree,
+/// with its manifest.
 fn stage_tree(root: &Path) -> (PathBuf, Vec<WorktreeCopyEntry>) {
     let stage: PathBuf = root.join("stage");
     std::fs::create_dir_all(stage.join("cache/deep")).expect("stage tree");
@@ -61,7 +67,8 @@ fn stage_tree(root: &Path) -> (PathBuf, Vec<WorktreeCopyEntry>) {
     return (stage, entries);
 }
 
-/// Every existing entry must be identical; absent entries are reported in manifest order.
+/// Every existing entry must be identical;
+/// absent entries are reported in manifest order.
 #[test]
 fn preflight_accepts_identical_entries_and_lists_absent_ones() {
     let root: PathBuf = fixture("install-preflight");
@@ -83,7 +90,9 @@ fn preflight_accepts_identical_entries_and_lists_absent_ones() {
     remove(root.as_path());
 }
 
-/// A differing entry stops the installation, names the entry and the destination, and is never overwritten.
+/// A differing entry stops the installation,
+/// names the entry and the destination,
+/// and is never overwritten.
 #[test]
 fn preflight_refuses_differing_entries_without_overwriting() {
     let root: PathBuf = fixture("install-preflight-differs");
@@ -112,7 +121,8 @@ fn preflight_refuses_differing_entries_without_overwriting() {
     remove(root.as_path());
 }
 
-/// A directory this transaction claimed is accepted whatever its contents, so an interrupted run can resume.
+/// A directory this transaction claimed is accepted whatever its contents,
+/// so an interrupted run can resume.
 #[test]
 fn claimed_directory_is_accepted_for_resumption() {
     let root: PathBuf = fixture("install-preflight-claimed");
@@ -130,7 +140,9 @@ fn claimed_directory_is_accepted_for_resumption() {
     remove(root.as_path());
 }
 
-/// A complete installation copies content, links and modes, and reports the selected entries it created.
+/// A complete installation copies content,
+/// links and modes,
+/// and reports the selected entries it created.
 #[cfg(unix)]
 #[test]
 fn installation_copies_every_entry_and_applies_modes() {
@@ -177,12 +189,17 @@ fn installation_copies_every_entry_and_applies_modes() {
     remove(root.as_path());
 }
 
-/// Full batches of files that the batching control installs, plus one file more so the last batch is a short one.
+/// Full batches of files that the batching control installs,
+/// plus one file more so the last batch is a short one.
 const FULL_BATCHES_OF_FILES: usize = 2;
 
-/// Selected paths are claimed and settled in batches of at most the batch size, so the record count grows by batch, not by entry.
-///  The tree holds more entries than the batch size several times over: a tree that fits in one batch cannot tell batching from
-///  its absence, which is how this control once stopped noticing the removal of the split after the batch size grew.
+/// Selected paths are claimed and settled in batches of at most the batch size,
+/// so the record count grows by batch,
+/// not by entry.
+///  The tree holds more entries than the batch size several times over:
+/// a tree that fits in one batch cannot tell batching from
+///  its absence,
+/// which is how this control once stopped noticing the removal of the split after the batch size grew.
 #[cfg(unix)]
 #[test]
 fn records_grow_by_batch_not_by_entry() {
@@ -232,7 +249,8 @@ fn records_grow_by_batch_not_by_entry() {
     remove(root.as_path());
 }
 
-/// A recorder failure after a parallel batch rolls back every file the workers created, none left behind.
+/// A recorder failure after a parallel batch rolls back every file the workers created,
+/// none left behind.
 #[cfg(unix)]
 #[test]
 fn a_failed_parallel_batch_rolls_back_every_file_its_workers_created() {
@@ -303,7 +321,8 @@ fn failed_installation_rolls_back_its_own_paths() {
     remove(root.as_path());
 }
 
-/// A path replaced after its creation is kept by rollback, and the failure names it.
+/// A path replaced after its creation is kept by rollback,
+/// and the failure names it.
 #[cfg(unix)]
 #[test]
 fn retained_paths_are_named_in_the_failure() {
@@ -342,7 +361,9 @@ fn the_install_threshold_is_the_measured_break_even() {
     assert_eq!(PARALLEL_INSTALL_MIN_LEAVES, crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES);
 }
 
-/// Where the system starts no thread the install workers' slices are installed in turn, with the same rollback. The body runs in a
+/// Where the system starts no thread the install workers' slices are installed in turn,
+/// with the same rollback.
+/// The body runs in a
 /// child that is refused every thread.
 #[cfg(unix)]
 #[test]

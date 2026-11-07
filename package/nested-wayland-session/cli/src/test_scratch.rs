@@ -1,9 +1,15 @@
-//! The directory unit-test fixtures are created in, placed in the build directory so no test writes under `/tmp`.
+//! The directory unit-test fixtures are created in,
+//! placed in the build directory so no test writes under `/tmp`.
 
+/// `Path` to walk up from the test executable to its build directory,
+/// and `PathBuf` for the scratch root handed to tests.
 use std::path::{Path, PathBuf};
 
-/// The directory fixtures are created in: `test-scratch` in the build directory of the running test executable
-///  (three levels above it, the package's build directory in the current Cargo layout), never the system temporary
+/// The directory fixtures are created in:
+/// `test-scratch` in the build directory of the running test executable
+///  (three levels above it,
+/// the package's build directory in the current Cargo layout),
+/// never the system temporary
 ///  directory.
 /// A shared tmpfs with a per-user quota fills up when tests leave fixtures behind (issue 1809).
 pub(crate) fn scratch_root() -> PathBuf {
@@ -17,16 +23,7 @@ pub(crate) fn scratch_root() -> PathBuf {
     return root;
 }
 
-/// The test reads the system temporary directory only to prove the scratch root is not inside it.
-#[test]
-#[expect(clippy::disallowed_methods, reason = "compares against the banned location without writing there")]
-fn the_scratch_root_is_not_under_the_system_temporary_directory() {
-    let temporary: PathBuf = std::fs::canonicalize(std::env::temp_dir()).expect("system temporary directory");
-    let created: PathBuf = std::fs::canonicalize(scratch_root()).expect("scratch root");
-    assert!(
-        !created.starts_with(&temporary),
-        "{} is under {}",
-        created.display(),
-        temporary.display()
-    );
-}
+/// The unit test of the scratch root's location.
+#[cfg(test)]
+#[path = "test_scratch_tests.rs"]
+mod tests;

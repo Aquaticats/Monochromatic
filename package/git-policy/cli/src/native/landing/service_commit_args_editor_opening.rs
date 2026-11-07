@@ -1,9 +1,14 @@
 //! What:
-//!  Whether a `commit` command line opens an editor: the long options that never decide it, the options that take a value, and
+//!  Whether a `commit` command line opens an editor:
+//! the long options that never decide it,
+//! the options that take a value,
+//! and
 //!  the walk over the arguments.
 //! Why:
-//!  `service_commit_args.rs` parses the options the service covers; the question whether an editor opens is a large part of it
-//!  and depends on nothing in it, so it is a file the other uses.
+//!  `service_commit_args.rs` parses the options the service covers;
+//! the question whether an editor opens is a large part of it
+//!  and depends on nothing in it,
+//! so it is a file the other uses.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,9 +28,15 @@ pub(crate) const NEUTRAL_VALUE_LONG: [&str; 7] = ["--author", "--date", "--trail
 /// What:
 ///  Whether `git commit` with these arguments may open an editor.
 /// Why:
-///   The answer decides what happens to a commit Git built when the branch moved meanwhile: with no editor it is built
-///  again on the new tip, with an editor the typed message is saved for the person instead of being lost. It errs towards
-///  "may open": an option this reading does not know, or a spelling Git accepts as an abbreviation, counts as an editor,
+///   The answer decides what happens to a commit Git built when the branch moved meanwhile:
+/// with no editor it is built
+///  again on the new tip,
+/// with an editor the typed message is saved for the person instead of being lost.
+/// It errs towards
+///  "may open":
+/// an option this reading does not know,
+/// or a spelling Git accepts as an abbreviation,
+/// counts as an editor,
 ///  because a message saved without need costs nothing and a message lost costs the person's typing.
 ///
 /// In TS you'd write (pseudocode):
