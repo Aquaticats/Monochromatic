@@ -3655,9 +3655,10 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   Every worktree's Git dir lives in that subvolume, so commits anywhere would have been refused for about a minute.
   The coordinator re-checked after the report: `ro=false`, no `*.lock` files under `.git` dated 06:50 to 06:54, no probe
   processes left, main's `git status` clean. A refused attempt in that minute can be neither confirmed nor excluded.
-- Root-only scratch for the owner to delete (the 860 lacks `user_subvol_rm_allowed`):
-  `svfix`, `svfix-snap`, `svfix-snap-ro`, `svfix-asm` and the subvolumes nested in `svfix` and `svfix-asm`,
-  all in `/var/home/user/temp/agent/dangling`; they go without sudo once the adopted mount option is added.
+- The plan's scratch subvolumes in `/var/home/user/temp/agent/dangling` (`svfix`, `svfix-snap`, `svfix-snap-ro`,
+  `svfix-asm` and two nested ones) are deleted, without sudo: the owner said "I don't think they need sudo.",
+  and emptying then `rmdir` works (kernel feature `rmdir_subvol`). The plan's reason for adding
+  `user_subvol_rm_allowed` is corrected to the wrapper's one-step subvolume removal.
 - Its guard fixture mounted a tmpfs at `/dev/shm/dangling-world` inside `podman unshare`, outside the scratch rule;
   the mount ended with the namespace and the empty folder was removed.
 

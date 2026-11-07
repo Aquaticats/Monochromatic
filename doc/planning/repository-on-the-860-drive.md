@@ -342,8 +342,15 @@ None needs an answer for the plan to proceed.
 - `user_subvol_rm_allowed` on the 860 (was Q3):
   add it.
   Reason:
-  measured that the user cannot delete a subvolume on the 860 without it (`EPERM`),
-  and 243 of the nested worktrees are subvolumes.
+  the wrapper removes a worktree that is a subvolume with `BTRFS_IOC_SNAP_DESTROY` when the mount allows it
+  (`package/git-policy/cli/src/native/subvolume/subvolume_rollback.rs:91` checks `removal_allowed` first),
+  and 243 of the nested worktrees are subvolumes,
+  so without the option every such removal on the 860 takes the slower path.
+  Deletion itself does not need the option:
+  `btrfs subvolume delete` as the user fails with `EPERM`,
+  but `rmdir` of an empty subvolume works (kernel feature `rmdir_subvol`, present here;
+  `btrfs(5)`: "Since 4.18, the rmdir(2) syscall can delete an empty subvolume just like an ordinary directory").
+  An earlier version of this item said the user cannot delete a subvolume without the option; that was wrong.
 - Rule hooks when their script is missing (was Q4):
   non-blocking for the output filter,
   `onFailure: block` for hooks that enforce a rule.
@@ -1473,15 +1480,14 @@ repository directory present
   and today they dangle whenever the 860 is away.
   The design extends an existing pattern;
   it does not introduce a first one.
-- Subvolumes on the 860 cannot be deleted by the user:
+- Subvolumes on the 860 and the user:
   the 860 is mounted without `user_subvol_rm_allowed` (`findmnt`),
-  and `btrfs subvolume delete` as the user printed `deletion failed with EPERM`.
-  Two scratch subvolumes made by that test,
-  `/var/home/user/temp/agent/dangling/svfix` and `.../svfix-snap`,
-  are left for the owner to delete with `sudo btrfs subvolume delete`.
-  Removing a worktree that is a subvolume (243 of the 248 nested worktrees)
-  needs that option after the move.
-  See the adopted decision on `user_subvol_rm_allowed`.
+  so `btrfs subvolume delete` as the user printed `deletion failed with EPERM`.
+  Emptying a subvolume and then `rmdir` works without the option (kernel feature `rmdir_subvol`):
+  the coordinator deleted the plan's six scratch subvolumes in `/var/home/user/temp/agent/dangling`
+  that way as the user, after clearing `ro` on the read-only one, at 2026-11-07T07:22:58-05:00.
+  The option still decides whether the wrapper's one-step subvolume removal works;
+  see the adopted decision on `user_subvol_rm_allowed`.
 - Mount-time facts:
   the 860 is mounted whole (`subvolid=5`),
   options `compress=zstd:3,noatime,ssd,space_cache=v2`.
@@ -3011,9 +3017,8 @@ so its length depends on what changed since the first pass.
   the scan is one snapshot and is repeated after the freeze.
 - The systemd source was read at the `main` branch,
   not at the installed 262.1 tag (history section).
-- Scratch subvolumes on the 860 that the user cannot delete without root
-  (the 860 is mounted without `user_subvol_rm_allowed`):
-  `svfix`,
+- Scratch subvolumes `svfix`,
   `svfix-snap`,
   `svfix-snap-ro`,
-  `svfix-asm` and the nested subvolumes inside `svfix` and `svfix-asm` in `/var/home/user/temp/agent/dangling`.
+  `svfix-asm` and the nested subvolumes inside `svfix` and `svfix-asm` in `/var/home/user/temp/agent/dangling`
+  were deleted without root (emptied, then `rmdir`), so none remain.
