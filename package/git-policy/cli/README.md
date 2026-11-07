@@ -3193,6 +3193,78 @@ The release profile keeps `panic = "unwind"` and `overflow-checks = true`.
 The linked scanner turns a matcher panic into a failing finding by catching the unwind,
 and the crate refuses to compile under `panic = "abort"`.
 
+### Lint
+
+```sh
+# Run from the repository top level.
+mise run //package/git-policy/cli:lint
+mise run //package/git-policy/cli:lint:monochromatic-lint
+mise run //:format:monochromatic-lint -- package/git-policy/cli
+```
+
+- `lint` runs every `lint:*` task of the package,
+  and `lint:monochromatic-lint` is one of them.
+  It runs the repository linter,
+  `monochromatic-lint --max-warnings 0 package/git-policy/cli`,
+  under the root
+  `monochromatic-lint.config.jsonc`,
+  and fails on any error or any warning.
+  The package's own paths are the Rust sources,
+  the rustdoc inside them and every Markdown file.
+- The three rules that fail most often are `markdown/semantic-line-breaks` (also for the `///` and `//!` text of Rust
+  files,
+  through the `**/*.rs/*.md` block of the configuration),
+  `rust/max-lines` (300 code lines per Rust file,
+  blank and comment lines excluded) and `rust/avoidable-closure` (a closure that a named function,
+  a loop or a match
+  can replace).
+- `format:monochromatic-lint` is the fixer.
+  It breaks lines at semantic boundaries and changes nothing but whitespace,
+  line breaks and the `>` or comment marker
+  that a new line needs.
+  Run it over the paths you edited before every commit.
+  It cannot split a file or replace a closure.
+- A file over the line limit is split into sibling files whose names say what they hold,
+  by what the parts use:
+  the leaf goes first in the folder's `mod.rs`,
+  and the parent that uses it re-exports what other files import.
+- The package's own `lint` is also reached from the root `lint`,
+  so the root run lints this package twice,
+  once through the package task and once in the repository-wide pass,
+  as `package/ide/app` does.
+
+### Merging main into a branch that edited doc comments
+
+The line-break pass rewrote the `///` and `//!` text and the Markdown of the whole package,
+so a branch that edited a
+comment before the pass meets conflicts that are only about where lines break.
+Resolve them this way:
+
+1. Run `git merge main`.
+   Collect the conflicted files with `git diff --name-only --diff-filter=U`.
+2. In each conflicted hunk,
+   keep your branch's side of the comment lines (the first side,
+   `HEAD`).
+   Their line breaks do not matter,
+   because step 4 breaks them again.
+   Where the same hunk holds code,
+   merge the code by hand as for any conflict,
+   taking main's code and your own.
+3. When main and your branch changed the words of the same comment,
+   merge the words by hand:
+   the fixer does not choose between two wordings.
+4. Run `mise run //:format:monochromatic-lint -- <the conflicted files>`.
+   It must print nothing and exit 0.
+5. Search the files for leftover markers (`<<<<<<<`,
+   `=======`,
+   `>>>>>>>`),
+   run `mise run //package/git-policy/cli:lint:monochromatic-lint`,
+   stage the files by name and finish the merge.
+
+The wrapper's word-level second merge pass (see "Word-level second merge pass") may already have resolved some of the
+hunks;
+check them with `git diff --cached -- <file>`.
+
 ### Git commands that may need a login
 
 NDG:
