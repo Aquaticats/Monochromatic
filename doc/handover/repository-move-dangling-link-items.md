@@ -226,6 +226,22 @@ from the brief and the plan:
   `prepare --redo=f1-images` and every later fixture stage id from the list in the runbook (a fresh image is made only when the file
   does not exist,
   so delete the old `source.img` and `dest.img` from the list the last fixture stage prints first).
+- W12 to W15:
+  runner stages `c23-link-check` to `c28-ide-through-link` after the release in the cut-over (as the user,
+  none with sudo):
+  the link check again (W15),
+  `mise trust --all` and `--show` (W14),
+  a fresh worktree with `pnpm install --frozen-lockfile --offline` and
+  `find node_modules -xtype l` (W14),
+  the first kopia snapshot of the source (W12),
+  a container with a read-only bind through the
+  link on the first local image (W13),
+  and an assertion stage for the IDE (W13).
+  The wrapper's doctor prints
+  `repository link: <message>` (W15) through `filesystem_section_with_link_line` in `invocation/management.rs`.
+  None of these ran for real:
+  they run at the cut-over,
+  and the stage data is tested by the runner's unit tests and its dry run.
 - Lint fixed on the way:
   `package/repository-link/check/README.md`,
   `package/repository-move/cli/doc/lint/sequential-awaits.md`,
