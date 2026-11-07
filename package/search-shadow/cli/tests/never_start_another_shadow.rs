@@ -289,3 +289,17 @@ fn an_arrival_marker_left_for_the_direct_parent_stops_the_shadow_and_one_left_fo
     let passed_again = finished(run_bounded(reused));
     assert!(passed_again.status.success(), "stderr: {}", String::from_utf8_lossy(&passed_again.stderr));
 }
+
+#[test]
+fn link_does_not_take_the_link_of_another_shadow_version_for_a_real_tool() {
+    let root = scratch();
+    let (second, links) = (root.path().join("second"), root.path().join("links"));
+    copy_of_another_version(&second.join("search-shadow"));
+    link_as(&second, "grep");
+
+    // The only `grep` on PATH is the link of another shadow: there is no real tool, so no link is made.
+    let output = Command::new(SHADOW_EXECUTABLE).arg("link").arg(&links).env_clear().env("PATH", &second).output().expect("run link");
+
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(links.join("grep").symlink_metadata().is_err(), "a link was made for a tool whose only candidate is a shadow");
+}
