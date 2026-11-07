@@ -1043,8 +1043,11 @@ whichever route installed them.
 - `<toolchain root>/cargo/<crate>/current` (for a release archive,
   `<toolchain root>/<tool id>/current`) is a link to the newest finished version.
   Every tree's exposed link goes through it,
-  so deleting an older version never leaves a dangling link,
   and two trees syncing at once converge on the newest.
+  The link itself never dangles when an older version is deleted,
+  but for a release archive the program below it sits in a folder whose name carries the version,
+  so a launcher record that names that path would dangle;
+  see "The launcher" for how the launcher follows `current` instead.
 - A running `mpm-shadow` that installs a newer `mpm-shadow` has just deleted its own file;
   on Linux the launcher it makes afterwards is copied through `/proc/self/exe`.
   Elsewhere no deleted running program can be read,
@@ -1170,6 +1173,35 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   exit code and signals are the real program's own,
   and standard output is never written.
   An unreadable lock or record never blocks a run.
+- The program is the one the record names,
+  or, when that file no longer exists, the program of the same file name under the `current` link above it.
+  A release archive of this repository unpacks into a folder named after the version
+  (`monochromatic-cargo-shadow-0.1.4-x86_64-unknown-linux-gnu`),
+  so a record written while `current` named 0.1.4 holds a path through that folder,
+  and installing 0.1.5 in any tree deletes it.
+  Before this rule every other tree's launcher then exited 127 with `mpm-shadow: could not start <path>: No such file or directory`
+  although `current` named a working program
+  (measured 2026-11-07: 122 of the 853 launcher records in this repository's checkouts named a deleted folder).
+  A launcher whose record is stale therefore runs the newest copy without a new `install` in its tree,
+  and the older-lock warning still names the locked version and the version that runs.
+  The launcher file is a hard link of the `mpm-shadow` that last ran `install` in that tree,
+  so a tree that has not run `install` since this rule shipped still has the older launcher binary,
+  which exits 127 for a deleted folder until `mise run toolchain:install` or `mpm install` runs in that tree
+  (that run rewrites the record from `current`).
+- When no program of that name exists under `current` either,
+  the launcher exits 127 and prints, after the `could not start` line, one sentence naming the tool,
+  the version the lock pins,
+  the version `current` names
+  and the command to run:
+  `mpm install` in the tree (`mpm install -g` for the machine-global launcher).
+  An unreadable lock or link leaves out the version it would have named.
+- The launcher never reads `PATH` or the working directory,
+  so which tree's launcher runs depends only on the path it was started by.
+  Mise puts the tree's own `.cache/*-bin` directories first on `PATH` for `mise run`, `mise exec` and an activated shell in it,
+  so a task started that way runs the tree's own launchers,
+  and a process started from another checkout's shell without mise (an agent session begun in the main checkout, for one)
+  finds that checkout's `.cache/*-bin` first.
+  Both run the same newest copy; they differ only in which lock the older-lock warning compares.
 - Measured 2026-10-31 with `hyperfine` 2.0.0,
   400 runs per arm,
   `cli-git-native --version`

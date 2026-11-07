@@ -126,3 +126,48 @@ export {
   takeRunLock,
 } from './daily-update-lock.ts';
 export { runCommandBounded, } from './daily-update-command.ts';
+export {
+  CHECK_PASS_DEADLINE_MS,
+  RUST_CHECK_PARALLEL,
+  TYPESCRIPT_CHECK_PARALLEL,
+} from './daily-update-check-bounds.ts';
+export { compareChecks, } from './daily-update-check-comparison.ts';
+export { runChecks, } from './daily-update-check-run.ts';
+export {
+  runUpdateWithChecks,
+  type UpdateWithChecksResult,
+} from './daily-update-check-phase.ts';
+export {
+  issueMarker,
+  MAXIMUM_MOVE_LINES,
+  renderIssue,
+} from './daily-update-issue-text.ts';
+export { publishIssues, } from './daily-update-issue-publish.ts';
+export {
+  causeOf,
+  firstErrorOf,
+  NO_ERROR_IN_OUTPUT,
+} from './daily-update-first-error.ts';
+export {
+  cargoLockMoves,
+  pnpmImporterMoves,
+  toolchainLockMoves,
+} from './daily-update-lock-moves.ts';
+export { checksFromTaskNames, } from './daily-update-package-check-discovery.ts';
+export type {
+  CheckComparison,
+  CheckEffects,
+  CheckOutcome,
+  CheckReport,
+  CheckResult,
+  FirstError,
+  GhRequest,
+  GhResult,
+  LockMove,
+  MoveSource,
+  PackageCheck,
+  PublishOutcome,
+  RenderedIssue,
+} from './daily-update-package-check-types.ts';
+export { LISTED_ISSUE_LINES, } from './daily-update-check-after-update.ts';
+export { notifierEnvironment, } from './daily-update-effects.ts';
