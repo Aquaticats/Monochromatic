@@ -203,7 +203,8 @@ fn layout_a_reexport_in_the_index_of_a_group_is_reported() {
     );
 }
 
-/// A child that links its group, and not the folder inside it that it uses,
+/// A child that links its group,
+/// and not the folder inside it that it uses,
 /// is told the group is never linked.
 #[cfg(unix)]
 #[test]

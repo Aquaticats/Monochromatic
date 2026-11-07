@@ -120,7 +120,8 @@ fn folders_that_use_each_other_are_one_loop_finding() {
     assert!(found[0].starts_with("src/a/mod.rs:1 These folders use each other in a loop"));
 }
 
-/// A folder that holds child folders is a group, so its own code is a finding,
+/// A folder that holds child folders is a group,
+/// so its own code is a finding,
 /// and a child that reaches into it names the group itself,
 /// which a child never does (the group rules are in `layout_group_folders_tests.rs`).
 #[test]
