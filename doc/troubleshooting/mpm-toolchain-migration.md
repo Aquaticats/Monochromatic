@@ -188,6 +188,9 @@ ExecStart=|@rclone version
 ```
 
 Its journal printed `rclone v1.76.0`.
+An additional `ExecStart=|@echo LOGIN_SHELL=$$0 BASH_VERSION=$$BASH_VERSION`
+reported `LOGIN_SHELL=-/bin/bash BASH_VERSION=5.3.15(1)-release`,
+confirming the actual login shell rather than relying on the manager's displayed executable path.
 A separate systemd probe running `/bin/bash --login -c 'type -a rclone && exec rclone version'`
 listed the global toolchain exposure command before the retired Mise shim
 and exited with status `0`.
@@ -204,8 +207,16 @@ The current unit recipe is in
 Tradeoff:
 service startup now executes the account's login initialization,
 so those startup files must work without an interactive terminal.
-The fixture proves command resolution and startup;
-the production sync result remains to be checked after reloading the unit.
+`systemd-analyze --user verify` accepted the changed unit.
+After `systemctl --user daemon-reload`,
+the production service ran from `2026-11-07T10:41:27-05:00`
+to `2026-11-07T10:41:47-05:00`
+and exited with `Result=success` and `ExecMainStatus=0`.
+Its journal reported `Bisync successful`,
+`20 / 20` transfers totaling `335.743 MiB`,
+and `21061 / 21061` checks.
+The service is idle after completion;
+the hourly timer remains the scheduler for subsequent runs.
 
 No upstream filing is warranted:
 this is the previously documented retired-shim failure at a user-service call site,
