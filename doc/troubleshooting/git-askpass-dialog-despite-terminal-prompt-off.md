@@ -283,14 +283,29 @@ The probe did not run this form.
 - Running without a terminal: Git does not need a terminal to run a prompt program,
   and the dialog needs only the inherited `DISPLAY` or `WAYLAND_DISPLAY`.
 
-## Open question for this repository
+## What this repository does about it
 
-The wrapper's production code sets neither `GIT_ASKPASS` nor `GIT_TERMINAL_PROMPT`
-(`rg 'GIT_ASKPASS|GIT_TERMINAL_PROMPT' package/git-policy/cli/src` finds them only in tests and in the list of
+The wrapper's production code set neither `GIT_ASKPASS` nor `GIT_TERMINAL_PROMPT` on 2026-11-07
+(`rg 'GIT_ASKPASS|GIT_TERMINAL_PROMPT' package/git-policy/cli/src` found them only in tests and in the list of
 names a plain read tolerates, `repo_read_layout_environment_rules.rs`).
 Its background service runs under the systemd user manager, which carries `SSH_ASKPASS` and a display,
 so a background push whose credential helper gives no answer could open this dialog.
-That is a reading of the code, not a run; whether background Git may ever open a desktop dialog is the owner's decision.
+That was a reading of the code, not a run.
+
+The owner's answers on 2026-11-07:
+
+- Asked what the wrapper's background Git should do, the owner picked "Never prompt (Recommended)":
+  background Git and git-lfs run with `GIT_ASKPASS=` and `GIT_TERMINAL_PROMPT=0`,
+  so a missing credential fails at once and is reported,
+  built with a test that first reproduces the dialog.
+  Foreground commands the user types and the wrapper forwards keep Git's normal prompting.
+  The work is on branch `fix/git-policy-cli-background-git-never-prompts`.
+- Asked how agents should be kept from opening the dialog, the owner answered "Neither, rule pkg-local.":
+  no rule in the root `AGENTS.md` and no Claude Code settings change,
+  but a tagged rule in each affected package's own docs.
+  The `package/git-policy/cli` rule comes with the branch named in the previous answer.
+  `package/config/lfs-r2-worker`, the package the LFS work that ran the dialog-opening test is about,
+  gets its rule when the owner lifts the pause on that work ("pause the lfs thread until I say unpause lfs").
 
 ## Upstream filing decision
 
