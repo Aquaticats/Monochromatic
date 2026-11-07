@@ -1949,6 +1949,56 @@ for that one case only: the publish answered by neither `renameat2` with `RENAME
   `src/native/push/child_watch.rs`, `src/native/push/child_watch_clock_marks_and_stopping.rs`; and for the decide fix
   `src/native/foundation/name_held_while_one_thread_publishes_it.rs` and `src/native/foundation/private_storage.rs`.
 
+### The coordinator's three settlements after T5, 2026-11-07T10:20:00-05:00 to 2026-11-07T11:10:00-05:00
+
+Each is a red commit, then a green commit; none is a new owner question.
+
+- (a) The T5 one-shot form on an `AsyncFd` pipe reader that keeps all the output. Red `8c1e3a2c2b`, green `79b21d6382` (Clippy fix
+  `3c707c0b04`). `process/step_output_read_whole_through_pipes.rs`: the two pipes are made with `std::io::pipe` and their read ends are
+  registered with the reactor (`tokio::net::unix::pipe::Receiver::from_owned_fd`, which sets them non-blocking) before the child starts,
+  so a refusal (a descriptor limit, a call from inside the runtime) starts no child; after the start the command's write ends are
+  replaced (`release_write_ends`), because a write end held by this process keeps the readers from ever seeing the end of the output.
+  `read_until_the_child_ends` joins both reads to their end with the pidfd wait of `OwnedChild`, as `wait_with_output` does (a child
+  that fills a pipe is never waited for first), closes the child's input first as `wait_with_output` does, and ends the child when a read
+  fails. `output_watched_within` uses it for `StepBound::EndAt`; `wait_with_output` is gone from `push/child_watch.rs`. Not changed, by
+  design of the settlement: the `Capture` files of `LeaveRunning` and `Unbounded`, the `Unbounded` blocking `wait`, and the `LeaveRunning`
+  waiter thread (leaving a child running past a command needs a reaper that does not end the child when dropped, which the one-shot
+  settlement did not ask for). Controls (`push/child_watch_one_shot_through_pipes_tests.rs`): both streams of more than the kept tail come
+  back whole (planted control, run by hand and reverted: the read truncated to `STEP_OUTPUT_LIMIT` failed it), a call from inside the
+  runtime is refused with no child started (red before), no descriptor stays open after a run, and a source guard that `wait_with_output`
+  is gone (red before). The 24 controls of `push/child_watch_tests.rs` pass unchanged (28 of 28 with the new four).
+- (b) The name claim's wait is a wake on the flag. Red `b171ba0d9e`, green `d60cf655ca`. `foundation/name_held_while_one_thread_publishes_it.rs`:
+  each slot is an `AtomicU32` (free, held, held with a sleeper); a thread that finds the name held marks a sleeper and sleeps on the word
+  with `rustix::thread::futex::wait` (private, with the time left of the bound); the release swaps the word to free and wakes one sleeper
+  if one is marked. `yield_now` and `thread::sleep` are gone from the module (a source control guards it), so the T13 guard needs no
+  exception for it. The first version took the name after a sleep with a compare-and-swap to plain held, which loses the wake of the
+  other sleepers; two of the new controls failed by hanging (60 and 90 seconds) and caught it, so a thread that has slept takes the name
+  with the word still marked. Controls added: the bound holds with no one to wake the sleeper, and no wake is lost among eight threads
+  taking and giving back one name three hundred times. The `thread` feature of `rustix` was added to `Cargo.toml` (no new locked package;
+  `sync:files` wrote nothing). Where the platform has no futex (macOS, Windows) the sleeper parks for a millisecond slice and looks again;
+  the crate does not build for Windows (README, Requirements) and the owner said to ignore both.
+- (c) `HELD_NAME_WAIT` and `WATCHER_END_BOUND`, measured. Measurement and red controls `e15dd2bfb5`, values `9dee521668`. Both measurements are
+  `#[ignore]` tests run by hand (`--run-ignored only --no-capture measure_how_long`), on this host's btrfs under the load there was
+  (the logs are `${HOME}/temp/agent/tokio-steps/c-measure1.log` to `c-measure3.log` and the earlier run that stalled):
+  - A name's hold (claim, check, rename): 20,000 publishes by one thread under a load average of about 70: median 181 us, 99.9th percentile
+    312143 us, longest 6031986 us (the 120 second watchdog then ended that run before its crowd part). Three runs of 4,000 under a load
+    average of 15 to 22: medians 24 to 25 us, longest 93, 179 and 296227 us. Eight threads at once (2,000 publishes): median 143 to 156 us,
+    longest 497 to 1126 us. So a hold of 6.03 s happened, and the previous five seconds was below it: a thread that waited for that holder
+    would have given up and published nothing. `HELD_NAME_WAIT` is now `LONGEST_HOLD_SEEN` times `HOLD_MARGIN` (ten, because the tail moved
+    by a factor of twenty between runs), 60.3 seconds. No filesystem with neither exclusive publish was available (an S3 bucket through
+    `s3fs-fuse`); a measurement there can only raise the figure. The factor ten is the agent's choice, open to the owner's veto.
+  - Dropping a watch: between waits median 28 to 32 us and longest 505 us; in the middle of a wait median 72 to 94 us and longest 389 us;
+    the lock sweep alone in a repository of forty branches median 309 to 340 us and longest 569 us; a whole stop of a child that answers the
+    request, past the window until the call returns: median 30.6 to 37.2 ms, longest 41680 us. The task can legitimately outlast these only
+    inside a stop's grace (`STOP_GRACE`, five seconds, the wait for a descendant that ignores the request before the kill), and a drop that
+    aborted the task earlier would cancel that kill for a descendant that holds no pipe. `WATCHER_END_BOUND` is now `STOP_GRACE` plus
+    `STOP_TAIL_ALLOWANCE` (one second, twenty-four times the longest tail measured), six seconds; before, it was five seconds, which equals
+    the grace and so could cut it. A notice written to a terminal that never takes the line is the other stall that bound exists for; it
+    has no measurable length, so it is the bound itself.
+  - Controls: `the_wait_for_a_held_name_outlasts_the_longest_hold_ever_measured_with_its_margin` and
+    `the_end_bound_covers_a_stop_with_its_whole_grace_and_the_longest_tail_measured` (both red before the values changed).
+  - What the host load did: nothing was waited for to go quiet; the load average read 15 to 70 during these runs and is part of the figures.
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`, the `try_wait` loops of
@@ -1957,7 +2007,7 @@ for that one case only: the publish answered by neither `renameat2` with `RENAME
   thread) does not shorten these: a sleep or a poll in sequential code becomes a `tokio::time` call only when its caller is itself
   asynchronous, so they are in practice the T11 conversion of the callers, done leaf first. They were not started.
 - Two steps need no async callers and could go first: T9 (the standards review on `hyper`, which needs new locked crates through the
-  toolchain tasks) and the `zbus` 6 client of T8 (the lock names `zbus@5.19.0` in the release-age exclusion and the catalog floor).
+  toolchain tasks) and the `zbus` 6 client of T8 (the catalog already names `zbus >=6.2.1` and `hyper >=1.12.0`; the "floor 5.19" of the first plan text and of the earlier handover is gone, and no release-age exclusion names `zbus@5.19.0`).
 
 ### What is left
 
