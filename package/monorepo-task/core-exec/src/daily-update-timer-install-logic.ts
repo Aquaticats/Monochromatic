@@ -40,8 +40,8 @@ export const TIMER_UNIT_NAME = 'toolchain-daily-update.timer';
  */
 export const SERVICE_LIMITS: Readonly<Record<string, string>> = {
   CPU_QUOTA: '200%',
-  MEMORY_MAX: '4G',
-  TASKS_MAX: '1024',
+  MEMORY_MAX: '8G',
+  TASKS_MAX: '2048',
   TIMEOUT_START: '2h',
 };
 
