@@ -18,6 +18,36 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: port the wrapper package's TypeScript to Rust now? (not asked yet)
+
+You paused "the TypeScript port" on 2026-11-04 in favour of layout and lint fixes.
+A proposal is now written and reviewed cross-vendor,
+with no code changed:
+`doc/planning/git-policy-cli-typescript-to-rust.md` (merged `9460b145ad`).
+It covers all 145 TypeScript files (34,741 lines:
+the container gate,
+mutation campaigns,
+latency benchmark and end-to-end suite;
+nothing must stay JavaScript)
+as four sidecar crates beside the wrapper,
+deleted in an import-graph order checked by simulation,
+each step proven against the TypeScript's recorded results first.
+Accepting the plan does not lift the pause;
+the first question is whether to lift it,
+and when (after the layout move,
+or now).
+If yes,
+the proposal's section on owner choices lists eleven choices,
+each with a recommended first option and the reason for every adjacent pair;
+the ones with the widest effect:
+the shared mutation engine as a Rust crate in the existing `package/mutation-test/cli-cargo-mutants` (recommended),
+one sidecar crate per kind (`cli.container-tests`,
+`cli.mutation`,
+`cli.e2e`,
+`cli.bench`),
+and the number of seeds in the committed end-to-end seed corpus.
+Saying "accept the recommendations" answers all eleven.
+
 ## Coordinator picks made 2026-11-07 with your veto open (not asked yet)
 
 Each is built and in main;
