@@ -1,0 +1,23 @@
+# Source of the user service that updates every lock and commits what moved.
+# `mise run toolchain:timer:install` renders the at-sign placeholders and copies it to ~/.config/systemd/user.
+# There is deliberately no [Install] section: only toolchain-daily-update.timer starts this service,
+# never a login or a boot.
+[Unit]
+Description=Update the toolchain locks and the dependency locks of @REPOSITORY@, then commit what moved
+Documentation=file://@REPOSITORY@/doc/planning/toolchain-always-latest.md
+
+[Service]
+Type=oneshot
+WorkingDirectory=@REPOSITORY@
+# The desktop notification of a failed step needs the session bus; the journal gets the same text.
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus
+Environment=PATH=@HOME@/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=@MISE@ run toolchain:update:daily
+# Nothing here may wait forever: each command in the run has its own bound and this bounds the whole run.
+TimeoutStartSec=@TIMEOUT_START@
+# Caps sized from the measured run in doc/planning/toolchain-always-latest.md ("Measured run").
+CPUQuota=@CPU_QUOTA@
+MemoryMax=@MEMORY_MAX@
+TasksMax=@TASKS_MAX@
+IOWeight=10
+Nice=10
