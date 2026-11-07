@@ -13,16 +13,17 @@ use std::time::Instant;
 ///  312143 us; three later runs of 4,000 under a load average of 15 to 22 saw at most 296227 us). `HELD_NAME_WAIT` must outlast it.
 const LONGEST_HOLD_SEEN_MICROS: u64 = 6_031_986;
 
-/// How many times the longest hold seen the wait for a held name must cover: the tail moved by a factor of twenty between runs of
-///  the same code on one disk, so the wait covers a tail ten times the worst seen, not the worst itself.
-const HOLD_MARGIN: u32 = 10;
+/// The multiple of the longest hold seen that the wait for a held name covers: the owner's pick, 2026-11-07, "3x worst case", when
+///  asked how much longer than the measured worst case (6.03 s) the wrapper waits before giving up.
+const OWNER_MARGIN: u32 = 3;
 
-/// The wait for a held name is longer than the longest hold ever measured, with the margin: a thread that waits for a name whose
-///  holder is stalled in a slow rename must not give up while the holder is merely slow, because giving up publishes nothing.
+/// The wait for a held name is the longest hold ever measured times the owner's margin, exactly: a thread that waits for a name whose
+///  holder is delayed in a slow rename does not give up while the holder is within the owner's multiple of the worst case, and no
+///  longer than it, because giving up publishes nothing and "nothing should ever wait forever or indefinitely".
 #[test]
-fn the_wait_for_a_held_name_outlasts_the_longest_hold_ever_measured_with_its_margin() {
-    let covered: Duration = Duration::from_micros(LONGEST_HOLD_SEEN_MICROS) * HOLD_MARGIN;
-    assert!(HELD_NAME_WAIT >= covered, "{HELD_NAME_WAIT:?} does not cover {covered:?}");
+fn the_wait_for_a_held_name_is_the_longest_hold_ever_measured_times_the_owners_margin() {
+    let covered: Duration = Duration::from_micros(LONGEST_HOLD_SEEN_MICROS) * OWNER_MARGIN;
+    assert_eq!(HELD_NAME_WAIT, covered);
 }
 
 /// How many publishes the alone measurement times.

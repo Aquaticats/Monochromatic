@@ -234,12 +234,11 @@ fn a_push_stop_of_a_responsive_holder_leaves_no_lock() {
     bounded_run_leaves_no_lock(Holder::Responsive, "stop-lock-push-responsive");
 }
 
-/// REPRODUCTION, not a control: a holder whose handler is slow to finish is killed between Git's two unlinks, which leaves the lock
-///  without its pid file, and the sweep leaves that lock alone because nothing proves its holder gone. It fails today, which is the
-///  exposure of `STOP_GRACE` that needs a decision (plan, "The two gate failures of main at `85e6d2ab99`"); it is ignored so that it
-///  does not hold the gate, and run by hand with `--run-ignored only`.
+/// A holder whose handler is slow to finish is not killed between Git's two unlinks: the stop waits, up to its ceiling, while a member
+///  of the tree cannot be interrupted, so the lock goes with its pid file. Before the wait the kill at the end of the grace left the
+///  lock without its pid file and the sweep left it alone, because nothing proves its holder gone (the gate of `85e6d2ab99`; plan,
+///  "The two gate failures of main at `85e6d2ab99`").
 #[test]
-#[ignore = "reproduces an open exposure (a kill between Git's two unlinks); needs a decision on STOP_GRACE"]
 fn a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock() {
     bounded_run_leaves_no_lock(Holder::SlowToFinishCleanup, "stop-lock-push-slow-cleanup");
 }

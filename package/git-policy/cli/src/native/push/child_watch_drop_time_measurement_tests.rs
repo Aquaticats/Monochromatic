@@ -16,12 +16,21 @@ const LONGEST_STOP_TAIL_SEEN_MICROS: u64 = 41_680;
 ///  followed by a kill, a sweep and the drop.
 const STOP_TAIL_MARGIN: u32 = 20;
 
-/// Dropping a watch may wait for the watcher task for as long as a stop can legitimately last: the whole grace of the stop (a
-///  descendant that ignores the request is killed only when it ends), then the longest tail measured with its margin. A bound
-///  below that would cancel the kill of a stubborn descendant that holds no pipe.
+/// The longest delay seen of a check and a rename, in microseconds, on which the owner's margin below is applied to a stop
+///  (`foundation/private_storage_hold_time_measurement_tests.rs`, `LONGEST_HOLD_SEEN_MICROS`).
+const LONGEST_DELAY_SEEN_MICROS: u64 = 6_031_986;
+
+/// The owner's pick, 2026-11-07, "3x worst case", for how long a stop waits for a Git that cannot be interrupted before it forces the
+///  end.
+const OWNER_MARGIN: u32 = 3;
+
+/// Dropping a watch may wait for the watcher task for as long as a stop can legitimately last: the longest a stop waits for a member
+///  that cannot be interrupted (the owner's multiple of the longest delay seen), then the longest tail measured with its margin.
+///  A bound below that would cancel the kill of a stubborn descendant that holds no pipe.
 #[test]
-fn the_end_bound_covers_a_stop_with_its_whole_grace_and_the_longest_tail_measured() {
-    let covered: Duration = crate::bounded_push::STOP_GRACE + Duration::from_micros(LONGEST_STOP_TAIL_SEEN_MICROS) * STOP_TAIL_MARGIN;
+fn the_end_bound_covers_a_stop_at_its_longest_and_the_longest_tail_measured() {
+    let longest_stop: Duration = Duration::from_micros(LONGEST_DELAY_SEEN_MICROS) * OWNER_MARGIN;
+    let covered: Duration = longest_stop + Duration::from_micros(LONGEST_STOP_TAIL_SEEN_MICROS) * STOP_TAIL_MARGIN;
     assert!(WATCHER_END_BOUND >= covered, "{WATCHER_END_BOUND:?} does not cover {covered:?}");
 }
 
