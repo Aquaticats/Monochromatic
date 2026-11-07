@@ -17,7 +17,7 @@ struct Home {
 
 impl Home {
     fn new() -> Home {
-        return Home { directory: tempfile::tempdir().expect("make a fixture home") };
+        return Home { directory: crate::test_scratch::scratch() };
     }
 
     fn path(&self) -> &Path {
@@ -98,7 +98,7 @@ fn a_check_that_fails_gives_its_message() {
     home.record_identity();
     home.install_check("echo \"the 860 drive is not mounted yet (home $HOME)\" >&2\nexit 75");
     let verdict: LinkVerdict = repository_link_verdict(home.path(), home.link().join("x").as_path(), DEADLINE);
-    let LinkVerdict::NotReady(message) = verdict else { panic!("not ready expected, got {verdict:?}") };
+    let LinkVerdict::NotReady { message } = verdict else { panic!("not ready expected, got {verdict:?}") };
     assert_eq!(message, format!("the 860 drive is not mounted yet (home {})", home.path().display()));
 }
 
@@ -108,7 +108,7 @@ fn a_missing_check_program_is_unavailable() {
     let home = Home::new();
     home.record_identity();
     let verdict: LinkVerdict = repository_link_verdict(home.path(), home.link().join("x").as_path(), DEADLINE);
-    assert!(matches!(verdict, LinkVerdict::CheckUnavailable(_)), "{verdict:?}");
+    assert!(matches!(verdict, LinkVerdict::CheckUnavailable { .. }), "{verdict:?}");
 }
 
 /// A check that never answers is killed at the deadline and the verdict says so.
@@ -119,7 +119,7 @@ fn a_check_that_hangs_is_given_up_on_at_the_deadline() {
     home.install_check("exec sleep 30");
     let started = Instant::now();
     let verdict: LinkVerdict = repository_link_verdict(home.path(), home.link().join("x").as_path(), Duration::from_millis(300));
-    let LinkVerdict::NotReady(message) = verdict else { panic!("not ready expected, got {verdict:?}") };
+    let LinkVerdict::NotReady { message } = verdict else { panic!("not ready expected, got {verdict:?}") };
     assert!(message.contains("did not answer"), "{message}");
     assert!(started.elapsed() < Duration::from_secs(5), "the wait took {:?}", started.elapsed());
 }
@@ -143,4 +143,18 @@ fn every_spelling_of_the_repository_is_under_it_and_no_neighbour_is() {
     for outside in [home.path().join("Monochromatic2"), home.path().join("elsewhere"), PathBuf::from("/usr/bin")] {
         assert!(!under_repository_link(home.path(), outside.as_path()), "{} is not under it", outside.display());
     }
+}
+
+/// A repository the check said is usable is asked about once per process,
+/// so an install that makes many launchers starts the check once.
+#[test]
+fn a_ready_answer_is_not_asked_for_again() {
+    let home = Home::new();
+    home.record_identity();
+    home.install_check(&format!("echo started >> {}", home.started_marker().display()));
+    for _ in 0..3 {
+        assert_eq!(repository_link_verdict(home.path(), home.link().join("x").as_path(), DEADLINE), LinkVerdict::Ready);
+    }
+    let starts: String = fs::read_to_string(home.started_marker()).expect("the marker");
+    assert_eq!(starts.lines().count(), 1, "{starts}");
 }
