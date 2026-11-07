@@ -1,9 +1,14 @@
-//! Controls for the byte-level lexer and matcher of attributes lines: Git's blanks and NUL rule, the byte order mark, ASCII
-//!  case folding only, and "may apply" for every spelling the matcher does not model.
+//! Controls for the byte-level lexer and matcher of attributes lines:
+//! Git's blanks and NUL rule,
+//! the byte order mark,
+//! ASCII
+//!  case folding only,
+//! and "may apply" for every spelling the matcher does not model.
 
 use super::*;
 
-/// `*` and `?` stop at a slash, every other byte stands for itself.
+/// `*` and `?` stop at a slash,
+/// every other byte stands for itself.
 #[test]
 fn a_wildcard_matches_like_a_shell_pattern_without_crossing_a_slash() {
     assert!(wildcard(b"*.dat", b"data.dat"));
@@ -16,7 +21,9 @@ fn a_wildcard_matches_like_a_shell_pattern_without_crossing_a_slash() {
     assert!(!wildcard(b"", b"x"));
 }
 
-/// `?` matches one byte, whatever the byte is, and the two bytes of a letter outside ASCII are two bytes.
+/// `?` matches one byte,
+/// whatever the byte is,
+/// and the two bytes of a letter outside ASCII are two bytes.
 #[test]
 fn a_question_mark_matches_one_byte_of_any_value() {
     assert!(wildcard(b"?.txt", &[0xFF, b'.', b't', b'x', b't']));
@@ -25,14 +32,17 @@ fn a_question_mark_matches_one_byte_of_any_value() {
     assert!(may_apply(b"??.txt", b"", "\u{130}.txt".as_bytes()));
 }
 
-/// Only ASCII letters fold, so a letter outside ASCII never matches a different byte sequence.
+/// Only ASCII letters fold,
+/// so a letter outside ASCII never matches a different byte sequence.
 #[test]
 fn only_ascii_letters_fold() {
     assert!(wildcard(b"DATA.DAT", b"data.dat"));
     assert!(!wildcard("\u{130}".as_bytes(), b"i"));
 }
 
-/// A pattern without a slash matches the name at any depth below its directory, one with a slash is anchored there, and a
+/// A pattern without a slash matches the name at any depth below its directory,
+/// one with a slash is anchored there,
+/// and a
 ///  spelling the matcher does not model answers yes.
 #[test]
 fn a_pattern_applies_by_name_or_by_path_below_its_directory() {
@@ -49,7 +59,8 @@ fn a_pattern_applies_by_name_or_by_path_below_its_directory() {
     assert!(may_apply(b"DATA.DAT", b"", b"data.dat"), "case never makes a match less likely");
 }
 
-/// A comment, a blank line and a macro definition are told apart from a pattern line.
+/// A comment,
+/// a blank line and a macro definition are told apart from a pattern line.
 #[test]
 fn attribute_lines_are_split_into_patterns_macros_and_tokens() {
     let lines: Vec<AttributeLine> = parse_attribute_lines(b"# comment\n\n*.dat filter=x -text\n[attr]scrambled ident\n");
@@ -60,7 +71,10 @@ fn attribute_lines_are_split_into_patterns_macros_and_tokens() {
     assert_eq!(attribute_name(b"working-tree-encoding=UTF-16"), b"working-tree-encoding");
 }
 
-/// Git's blanks are space, tab, carriage return and line feed: a no-break space belongs to the pattern.
+/// Git's blanks are space,
+/// tab,
+/// carriage return and line feed:
+/// a no-break space belongs to the pattern.
 #[test]
 fn only_the_four_blanks_separate_tokens() {
     let lines: Vec<AttributeLine> = parse_attribute_lines("a\u{a0}b ident\r\n".as_bytes());
@@ -71,7 +85,8 @@ fn only_the_four_blanks_separate_tokens() {
     assert_eq!(tabbed[0].tokens, vec![b"ident".to_vec()]);
 }
 
-/// A line's text ends at its first NUL, as a C string does.
+/// A line's text ends at its first NUL,
+/// as a C string does.
 #[test]
 fn a_nul_ends_the_text_of_a_line() {
     let lines: Vec<AttributeLine> = parse_attribute_lines(b"target ident\0junk\nother -text\n");
@@ -79,7 +94,8 @@ fn a_nul_ends_the_text_of_a_line() {
     assert_eq!(lines[1].subject, b"other");
 }
 
-/// The byte order mark of the first line is skipped, as `read_attr_from_file` skips it.
+/// The byte order mark of the first line is skipped,
+/// as `read_attr_from_file` skips it.
 #[test]
 fn a_byte_order_mark_is_not_part_of_the_first_pattern() {
     let lines: Vec<AttributeLine> = parse_attribute_lines(b"\xEF\xBB\xBF*.dat ident\n*.rs ident\n");
@@ -87,7 +103,9 @@ fn a_byte_order_mark_is_not_part_of_the_first_pattern() {
     assert_eq!(lines[1].subject, b"*.rs");
 }
 
-/// A quoted line is flagged and is never a macro definition, whatever its text holds: the caller refuses on the quote.
+/// A quoted line is flagged and is never a macro definition,
+/// whatever its text holds:
+/// the caller refuses on the quote.
 #[test]
 fn a_quoted_line_is_flagged_and_never_a_macro() {
     let lines: Vec<AttributeLine> = parse_attribute_lines(b"\"target\" ident note=[attr]x\n\"[attr]m\" ident\n\"target\"ident\n");
@@ -101,7 +119,8 @@ const LONG_PATTERN_BYTES: usize = 100_000;
 /// How many bytes the path of the work-budget control has.
 const LONG_PATH_BYTES: usize = 4_000;
 
-/// A pattern and a path whose comparison would take more work than the budget say the pattern may apply, at once.
+/// A pattern and a path whose comparison would take more work than the budget say the pattern may apply,
+/// at once.
 #[test]
 fn work_past_the_budget_answers_may_apply() {
     let mut pattern: Vec<u8> = b"a/".to_vec();

@@ -1,11 +1,18 @@
-//! Controls for the binding of an add: the pair the repository confirms is bound, every pair it does not confirm is refused,
-//!  and the binding is verified again before anything is written: a moved, replaced or edited object stops the step.
+//! Controls for the binding of an add:
+//! the pair the repository confirms is bound,
+//! every pair it does not confirm is refused,
+//!  and the binding is verified again before anything is written:
+//! a moved,
+//! replaced or edited object stops the step.
 
 use super::*;
 use crate::test_support::{fixture, git, remove, repository};
 use crate::worktree_ladder_test_support::{commit_all, tracked};
 
-/// An ordinary repository with a worktree registered without a checkout beside it: the repository, the destination, and the
+/// An ordinary repository with a worktree registered without a checkout beside it:
+/// the repository,
+/// the destination,
+/// and the
 ///  administrative directory.
 fn registered(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
     let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
@@ -17,8 +24,12 @@ fn registered(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
     return (repo, destination, admin);
 }
 
-/// A pair the repository does not confirm is not bound: a pointer outside this repository's worktrees, one that names another
-///  worktree's registration (an edited pointer), a registration that names another place, and a destination reached through a
+/// A pair the repository does not confirm is not bound:
+/// a pointer outside this repository's worktrees,
+/// one that names another
+///  worktree's registration (an edited pointer),
+/// a registration that names another place,
+/// and a destination reached through a
 ///  link.
 #[test]
 fn a_pair_the_repository_does_not_confirm_is_not_bound() {
@@ -51,7 +62,9 @@ fn a_pair_the_repository_does_not_confirm_is_not_bound() {
     remove(root.as_path());
 }
 
-/// The binding of a fresh worktree holds, and holds again after a failed look: the verification changes nothing.
+/// The binding of a fresh worktree holds,
+/// and holds again after a failed look:
+/// the verification changes nothing.
 #[test]
 fn a_binding_holds_until_an_object_it_names_changes() {
     let root: PathBuf = fixture("binding-holds");
@@ -63,8 +76,12 @@ fn a_binding_holds_until_an_object_it_names_changes() {
     remove(root.as_path());
 }
 
-/// A destination that was moved away, with another worktree made at its path, is not the bound one: the verification names
-///  it, and the replacement is untouched.
+/// A destination that was moved away,
+/// with another worktree made at its path,
+/// is not the bound one:
+/// the verification names
+///  it,
+/// and the replacement is untouched.
 #[test]
 fn a_destination_moved_and_replaced_no_longer_verifies() {
     let root: PathBuf = fixture("binding-replaced");
@@ -79,7 +96,9 @@ fn a_destination_moved_and_replaced_no_longer_verifies() {
     remove(root.as_path());
 }
 
-/// A worktree moved to another path changes its registration: the verification refuses, and nothing is changed.
+/// A worktree moved to another path changes its registration:
+/// the verification refuses,
+/// and nothing is changed.
 #[test]
 fn a_moved_worktree_no_longer_verifies() {
     let root: PathBuf = fixture("binding-moved");
@@ -91,7 +110,8 @@ fn a_moved_worktree_no_longer_verifies() {
     remove(root.as_path());
 }
 
-/// A registration replaced by another directory, a pointer edited after the binding and a registration re-pointed each stop
+/// A registration replaced by another directory,
+/// a pointer edited after the binding and a registration re-pointed each stop
 ///  the verification with a reason of their own.
 #[test]
 fn a_replaced_registration_an_edited_pointer_and_a_repointed_registration_stop_the_verification() {
@@ -112,7 +132,9 @@ fn a_replaced_registration_an_edited_pointer_and_a_repointed_registration_stop_t
     remove(root.as_path());
 }
 
-/// The record text of an add round-trips, a name with a newline cannot forge a field, and anything unreadable is nothing.
+/// The record text of an add round-trips,
+/// a name with a newline cannot forge a field,
+/// and anything unreadable is nothing.
 #[test]
 fn a_record_round_trips_and_a_forged_one_is_nothing() {
     let planned: PathBuf = PathBuf::from("/base/line\nphase=registered");
@@ -132,8 +154,11 @@ fn a_record_round_trips_and_a_forged_one_is_nothing() {
     assert_eq!(decode_record(missing_field.as_str()), None);
 }
 
-/// A pointer that reaches the registration through a link is refused at the binding, with a message that names the pointer and
-///  the remedy: Git resolves the same text again at every use, and the link can be retargeted to another registration.
+/// A pointer that reaches the registration through a link is refused at the binding,
+/// with a message that names the pointer and
+///  the remedy:
+/// Git resolves the same text again at every use,
+/// and the link can be retargeted to another registration.
 #[test]
 fn a_pointer_through_a_link_is_not_bound_and_the_message_names_the_remedy() {
     let root: PathBuf = fixture("binding-alias");
@@ -163,7 +188,9 @@ fn a_relative_pointer_without_links_is_bound() {
     remove(root.as_path());
 }
 
-/// The verification resolves the pointer again: a binding whose pointer text goes through a link fails even when the bytes, the
+/// The verification resolves the pointer again:
+/// a binding whose pointer text goes through a link fails even when the bytes,
+/// the
 ///  identities and the back-link all still hold.
 #[test]
 fn verification_resolves_the_pointer_again() {
@@ -181,8 +208,11 @@ fn verification_resolves_the_pointer_again() {
     remove(root.as_path());
 }
 
-/// A worktree Git registered with relative paths (`--relative-paths`, or `worktree.useRelativePaths`) is bound and stays
-///  verified: the registration's `gitdir` file names the destination relative to the registration, and the pair is the same.
+/// A worktree Git registered with relative paths (`--relative-paths`,
+/// or `worktree.useRelativePaths`) is bound and stays
+///  verified:
+/// the registration's `gitdir` file names the destination relative to the registration,
+/// and the pair is the same.
 #[test]
 fn a_registration_written_with_relative_paths_is_bound_and_verified() {
     let root: PathBuf = fixture("binding-relative-paths");

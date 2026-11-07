@@ -1,14 +1,31 @@
 //! What:
-//!  The decision, by content and without a Git process, whether a tracked file that its index entry's stat data cannot
-//!  vouch for (a racily clean entry, a stale stat) still equals the committed blob: hash the file as a blob and compare it
-//!  with the entry's object name, refusing where a content conversion could make the two differ.
+//!  The decision,
+//! by content and without a Git process,
+//! whether a tracked file that its index entry's stat data cannot
+//!  vouch for (a racily clean entry,
+//! a stale stat) still equals the committed blob:
+//! hash the file as a blob and compare it
+//!  with the entry's object name,
+//! refusing where a content conversion could make the two differ.
 //! Why:
-//!  Git settles those entries by hashing the file; stat data alone cannot tell a modified file from a copied or cloned one
-//!  that kept the index's old inode and times. The hash of the raw bytes is conclusive only when Git's own conversion on the
-//!  way into the index (`filter`, `ident`, `working-tree-encoding`, or a line-ending conversion that strips a carriage
-//!  return) leaves the bytes alone, so a path such an attribute applies to, and a file with a carriage return, are refused
-//!  with that reason instead of guessed. The file is read through a handle opened below the worktree root without following a
-//!  link, its type and mode are judged on that handle, and its state is compared before and after the read, so the bytes that
+//!  Git settles those entries by hashing the file;
+//! stat data alone cannot tell a modified file from a copied or cloned one
+//!  that kept the index's old inode and times.
+//! The hash of the raw bytes is conclusive only when Git's own conversion on the
+//!  way into the index (`filter`,
+//! `ident`,
+//! `working-tree-encoding`,
+//! or a line-ending conversion that strips a carriage
+//!  return) leaves the bytes alone,
+//! so a path such an attribute applies to,
+//! and a file with a carriage return,
+//! are refused
+//!  with that reason instead of guessed.
+//! The file is read through a handle opened below the worktree root without following a
+//!  link,
+//! its type and mode are judged on that handle,
+//! and its state is compared before and after the read,
+//! so the bytes that
 //!  were hashed are the bytes of the one file that was judged.
 //!
 //! In TS you'd write (pseudocode):
@@ -34,10 +51,13 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
-/// The largest file read into memory to be hashed; a larger one is refused with that reason.
+/// The largest file read into memory to be hashed;
+/// a larger one is refused with that reason.
 pub const CONTENT_LIMIT: u64 = 32 << 20;
 
-/// The largest attributes file read; Git ignores a larger one, which here is a refusal.
+/// The largest attributes file read;
+/// Git ignores a larger one,
+/// which here is a refusal.
 pub const ATTRIBUTES_LIMIT: u64 = 4 << 20;
 
 /// The object name of `data` stored as a blob.
@@ -51,10 +71,14 @@ fn blob_name(data: &[u8], format: ObjectFormat) -> Vec<u8> {
 }
 
 /// What:
-///  Everything `reader` yields, or nothing when it yields more than `limit` bytes; it is never asked for more than
+///  Everything `reader` yields,
+/// or nothing when it yields more than `limit` bytes;
+/// it is never asked for more than
 ///  `limit + 1`.
 /// Why:
-///   A file can grow after its size was looked at; the bound is on the read, not on an earlier look.
+///   A file can grow after its size was looked at;
+/// the bound is on the read,
+/// not on an earlier look.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -66,7 +90,10 @@ pub fn read_at_most(reader: impl Read, limit: u64) -> std::io::Result<Option<Vec
     return Ok(if data.len() as u64 > limit { None } else { Some(data) });
 }
 
-/// Whether two metadata describe one unchanged file: same object, size, mode and times.
+/// Whether two metadata describe one unchanged file:
+/// same object,
+/// size,
+/// mode and times.
 fn same_state(first: &std::fs::Metadata, second: &std::fs::Metadata) -> bool {
     return first.dev() == second.dev()
         && first.ino() == second.ino()
@@ -105,7 +132,8 @@ fn too_large_to_compare(shown: &str) -> String {
 }
 
 /// What:
-///  The refusal for attributes Git takes from a tree and not from the files read here, with the reason it does.
+///  The refusal for attributes Git takes from a tree and not from the files read here,
+/// with the reason it does.
 /// Why:
 ///   What such a tree sets cannot be ruled out by reading files.
 ///
@@ -118,7 +146,8 @@ fn unmodelled(reason: &str) -> String {
 }
 
 /// What:
-///  Do nothing; the seams of the content read run this unless a control puts work there.
+///  Do nothing;
+/// the seams of the content read run this unless a control puts work there.
 /// Why:
 ///   The real read has nothing to do between its steps.
 ///
@@ -129,16 +158,21 @@ fn unmodelled(reason: &str) -> String {
 fn do_nothing() {}
 
 /// What:
-///  Decides, one entry at a time, whether a file equals its committed blob by content.
+///  Decides,
+/// one entry at a time,
+/// whether a file equals its committed blob by content.
 /// Why:
-///   The attributes files are read once, on the first entry that needs them, and the per-directory ones are cached.
+///   The attributes files are read once,
+/// on the first entry that needs them,
+/// and the per-directory ones are cached.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class ContentJudge { agrees(args: Place & { entry: StatEntry; id: Uint8Array; indexSeconds: number }): void /* throws the reason */ }
 /// ```
 pub struct ContentJudge<'a> {
-    /// The worktree root, held open.
+    /// The worktree root,
+    /// held open.
     root: &'a std::fs::File,
     /// The worktree's Git directory.
     git_dir: &'a Path,
@@ -150,7 +184,10 @@ pub struct ContentJudge<'a> {
     format: ObjectFormat,
     /// The attributes files that do not depend on the path.
     fixed: Option<Result<FixedSources, String>>,
-    /// The `.gitattributes` of each directory, keyed by its path, read at most once; `None` when it has none.
+    /// The `.gitattributes` of each directory,
+    /// keyed by its path,
+    /// read at most once;
+    /// `None` when it has none.
     directories: HashMap<Vec<u8>, Option<AttributeFile>>,
 }
 
@@ -164,9 +201,12 @@ pub struct ReadSeams<'a> {
     pub after_read: &'a mut dyn FnMut(),
 }
 
-/// Where a tracked file is: the held directory that contains it, the names above it and its own name.
+/// Where a tracked file is:
+/// the held directory that contains it,
+/// the names above it and its own name.
 pub struct Place<'a> {
-    /// The directory holding the file, opened below the root without following a link.
+    /// The directory holding the file,
+    /// opened below the root without following a link.
     pub directory: &'a std::fs::File,
     /// The names of the directories between the root and the file.
     pub parents: &'a [OsString],
@@ -180,7 +220,9 @@ impl<'a> ContentJudge<'a> {
         return ContentJudge { root, git_dir, common_dir, environment, format, fixed: None, directories: HashMap::new() };
     }
 
-    /// Read an attributes file at an absolute path the way Git does, following a link; absent is `None`.
+    /// Read an attributes file at an absolute path the way Git does,
+    /// following a link;
+    /// absent is `None`.
     fn read_outside(path: &Path, label: String) -> Result<Option<AttributeFile>, String> {
         // Without blocking, so a named pipe is found out by its type instead of waiting for a writer.
         let file = match std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC).open(path) {
@@ -191,7 +233,9 @@ impl<'a> ContentJudge<'a> {
         return Self::parse_open(file, label, Vec::new());
     }
 
-    /// Read the `.gitattributes` of the held directory `directory`; absent is `None`, a link or anything but a file is a refusal.
+    /// Read the `.gitattributes` of the held directory `directory`;
+    /// absent is `None`,
+    /// a link or anything but a file is a refusal.
     fn read_in(directory: &std::fs::File, label: String, base: Vec<u8>) -> Result<Option<AttributeFile>, String> {
         let file = match open_file_at(directory, OsStr::new(".gitattributes")) {
             Ok(opened) => opened,
@@ -201,7 +245,8 @@ impl<'a> ContentJudge<'a> {
         return Self::parse_open(file, label, base);
     }
 
-    /// Parse an attributes file that is open, refusing one that is not a plain file or is larger than the limit.
+    /// Parse an attributes file that is open,
+    /// refusing one that is not a plain file or is larger than the limit.
     fn parse_open(file: std::fs::File, label: String, base: Vec<u8>) -> Result<Option<AttributeFile>, String> {
         let metadata: std::fs::Metadata = subject_failure(file.metadata(), &label, "cannot be examined")?;
         if !metadata.file_type().is_file() {
@@ -213,7 +258,8 @@ impl<'a> ContentJudge<'a> {
         return Ok(Some(AttributeFile { label, base, lines: parse_attribute_lines(bytes.as_slice()) }));
     }
 
-    /// The configuration Git would list, read in process.
+    /// The configuration Git would list,
+    /// read in process.
     fn config_entries(&self) -> Result<Vec<ConfigEntry>, String> {
         let Some(listed) = list_config(self.common_dir, self.git_dir, &self.environment.scope, self.environment.variables.as_slice()) else {
             return Err(String::from("the Git configuration cannot be read without running Git, so a global attributes file cannot be ruled out"));
@@ -225,7 +271,9 @@ impl<'a> ContentJudge<'a> {
         return Ok(entries);
     }
 
-    /// The attributes file `core.attributesFile` names, or the default one, from the configuration entries.
+    /// The attributes file `core.attributesFile` names,
+    /// or the default one,
+    /// from the configuration entries.
     fn global_attributes_path(&self, entries: &[ConfigEntry]) -> Result<Option<PathBuf>, String> {
         if let Some(entry) = last_entry(entries, "core.attributesfile") {
             let Some(value) = entry.value.as_deref() else {
@@ -250,7 +298,8 @@ impl<'a> ContentJudge<'a> {
         });
     }
 
-    /// The attributes files that apply whatever the path is, with the macros among them that set a converting attribute.
+    /// The attributes files that apply whatever the path is,
+    /// with the macros among them that set a converting attribute.
     fn load_fixed(&self) -> Result<FixedSources, String> {
         if let Some(reason) = self.environment.alternate_attribute_source.as_deref() {
             return Err(unmodelled(reason));
@@ -281,7 +330,8 @@ impl<'a> ContentJudge<'a> {
         return Ok(FixedSources { files, macros });
     }
 
-    /// The `.gitattributes` of the directory below the root named by `parents`, read once.
+    /// The `.gitattributes` of the directory below the root named by `parents`,
+    /// read once.
     fn directory_file(&mut self, parents: &[OsString]) -> Result<Option<AttributeFile>, String> {
         let mut names: Vec<Vec<u8>> = Vec::new();
         for name in parents {
@@ -300,7 +350,8 @@ impl<'a> ContentJudge<'a> {
         return Ok(self.directories.get(&key).cloned().flatten());
     }
 
-    /// The first converting attribute that may apply to the file at `path` and where it is set, or nothing.
+    /// The first converting attribute that may apply to the file at `path` and where it is set,
+    /// or nothing.
     fn converting_attribute(&mut self, path: &[u8], parents: &[OsString]) -> Result<Option<(String, String)>, String> {
         if self.fixed.is_none() {
             self.fixed = Some(self.load_fixed());
@@ -339,10 +390,16 @@ impl<'a> ContentJudge<'a> {
     }
 
     /// What:
-    ///  The bytes of the file at `place`, judged to be the one file its entry describes: opened below the held directory
-    ///  without following a link, its type and mode judged on the open handle, and its state the same before and after.
+    ///  The bytes of the file at `place`,
+    /// judged to be the one file its entry describes:
+    /// opened below the held directory
+    ///  without following a link,
+    /// its type and mode judged on the open handle,
+    /// and its state the same before and after.
     /// Why:
-    ///   A swap, a `chmod` or a write while the file is read must refuse instead of passing, and the read is bounded.
+    ///   A swap,
+    /// a `chmod` or a write while the file is read must refuse instead of passing,
+    /// and the read is bounded.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -393,10 +450,14 @@ impl<'a> ContentJudge<'a> {
     }
 
     /// What:
-    ///  Whether the file at `place` equals the blob named `id`; the reason it cannot be proven so when it does not.
+    ///  Whether the file at `place` equals the blob named `id`;
+    /// the reason it cannot be proven so when it does not.
     /// Why:
-    ///   Where a conversion applies, or the file has a carriage return, the bytes alone prove nothing and the answer is a
-    ///  refusal that says so; a file that really differs says it differs.
+    ///   Where a conversion applies,
+    /// or the file has a carriage return,
+    /// the bytes alone prove nothing and the answer is a
+    ///  refusal that says so;
+    /// a file that really differs says it differs.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -431,7 +492,8 @@ impl<'a> ContentJudge<'a> {
 #[path = "worktree_clean_content_tests.rs"]
 mod tests;
 
-/// Controls for the findings of the review of the content decision, on real Git repositories.
+/// Controls for the findings of the review of the content decision,
+/// on real Git repositories.
 #[cfg(test)]
 #[path = "worktree_clean_content_safety_tests.rs"]
 mod safety_tests;

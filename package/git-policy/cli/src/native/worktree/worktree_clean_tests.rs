@@ -1,13 +1,25 @@
-//! Controls for the cleanliness check against real Git 2.56.0 repositories: a clean worktree is proven clean, and each
-//!  kind of difference (content, mode, type, deletion, staging, untracked file, operation in progress, submodule,
-//!  racy entry) is refused with its reason, while an ignored file changes nothing.
+//! Controls for the cleanliness check against real Git 2.56.0 repositories:
+//! a clean worktree is proven clean,
+//! and each
+//!  kind of difference (content,
+//! mode,
+//! type,
+//! deletion,
+//! staging,
+//! untracked file,
+//! operation in progress,
+//! submodule,
+//!  racy entry) is refused with its reason,
+//! while an ignored file changes nothing.
 
 use super::*;
 use crate::subvolume_index::StatFields;
 use crate::test_support::{age, fixture, git, git_context, git_text, remove, repository};
 use std::path::PathBuf;
 
-/// A repository with two tracked files, a tracked symbolic link and an ignored directory, all older than the index.
+/// A repository with two tracked files,
+/// a tracked symbolic link and an ignored directory,
+/// all older than the index.
 fn aged_repository(root: &Path) -> PathBuf {
     let repo: PathBuf = repository(root, "repo");
     std::fs::write(repo.join(".gitignore"), b"ignored/\n").expect("gitignore");
@@ -23,13 +35,15 @@ fn aged_repository(root: &Path) -> PathBuf {
     return repo;
 }
 
-/// The check for a main checkout, whose Git directory is its `.git`.
+/// The check for a main checkout,
+/// whose Git directory is its `.git`.
 fn check(repo: &Path) -> Result<CleanSource, CleanRefusal> {
     let git_dir: PathBuf = repo.join(".git");
     return check_clean(&git_context(), repo, git_dir.as_path(), git_dir.as_path());
 }
 
-/// A clean, aged worktree is clean and reports the commit and tree of `HEAD`.
+/// A clean,
+/// aged worktree is clean and reports the commit and tree of `HEAD`.
 #[test]
 fn a_clean_worktree_is_clean_and_names_its_head() {
     let root: PathBuf = fixture("clean-ok");
@@ -48,7 +62,8 @@ fn to_hex_for_test(name: &[u8]) -> String {
     return name.iter().map(|byte: &u8| { return format!("{byte:02x}"); }).collect();
 }
 
-/// Each difference is refused, and the reason names the path or the state.
+/// Each difference is refused,
+/// and the reason names the path or the state.
 #[test]
 fn each_difference_is_refused_with_its_reason() {
     let root: PathBuf = fixture("clean-dirty");
@@ -97,7 +112,8 @@ fn each_difference_is_refused_with_its_reason() {
     remove(root.as_path());
 }
 
-/// An entry written in the same second as the index proves nothing by its stat fields, so it is refused.
+/// An entry written in the same second as the index proves nothing by its stat fields,
+/// so it is refused.
 #[test]
 fn a_racy_entry_is_refused() {
     let root: PathBuf = fixture("clean-racy");
@@ -111,7 +127,8 @@ fn a_racy_entry_is_refused() {
     remove(root.as_path());
 }
 
-/// A submodule entry is refused: its working directory would point at the source's module directory.
+/// A submodule entry is refused:
+/// its working directory would point at the source's module directory.
 #[test]
 fn a_submodule_entry_is_refused() {
     let root: PathBuf = fixture("clean-submodule");
@@ -145,8 +162,10 @@ fn a_linked_worktree_is_checked_against_its_own_git_directory() {
     remove(root.as_path());
 }
 
-/// The comparison below a held directory finds a tracked directory that was replaced by a link, which a walk by path would
-///  follow to a copy; with the real directories it agrees with the path comparison.
+/// The comparison below a held directory finds a tracked directory that was replaced by a link,
+/// which a walk by path would
+///  follow to a copy;
+/// with the real directories it agrees with the path comparison.
 #[test]
 fn the_comparison_below_a_handle_refuses_a_link_in_place_of_a_directory() {
     let root: PathBuf = fixture("clean-beneath");
@@ -180,7 +199,9 @@ fn metadata_of_a_file_in_hand_is_judged_like_its_path() {
     remove(root.as_path());
 }
 
-/// Which kinds a reset can undo: ordinary changes, and neither an operation in progress nor an entry Git keeps outside the files.
+/// Which kinds a reset can undo:
+/// ordinary changes,
+/// and neither an operation in progress nor an entry Git keeps outside the files.
 #[test]
 fn only_ordinary_changes_are_restorable() {
     let restorable = [CleanRefusalKind::StagedChange, CleanRefusalKind::FileChanged, CleanRefusalKind::StatStale, CleanRefusalKind::Racy, CleanRefusalKind::Untracked];
@@ -189,8 +210,12 @@ fn only_ordinary_changes_are_restorable() {
     assert!(kept.iter().all(|kind: &CleanRefusalKind| { return !kind.restorable(); }));
 }
 
-/// A staged change that comes first in the index does not hide a skip-worktree, assume-unchanged or submodule entry that
-///  comes later, and an operation in progress is never restorable; an ordinary change is, and names `HEAD` with no index bytes.
+/// A staged change that comes first in the index does not hide a skip-worktree,
+/// assume-unchanged or submodule entry that
+///  comes later,
+/// and an operation in progress is never restorable;
+/// an ordinary change is,
+/// and names `HEAD` with no index bytes.
 #[test]
 fn a_dirty_source_is_found_only_when_nothing_a_reset_cannot_undo_hides_in_it() {
     let root: PathBuf = fixture("clean-dirty-source");
@@ -225,7 +250,9 @@ staged
 }
 
 /// One walk below a held directory both judges every tracked file against its entry and returns the stat fields the snapshot's
-///  index takes, equal to what a lookup of each path alone returns, so the files are looked at once.
+///  index takes,
+/// equal to what a lookup of each path alone returns,
+/// so the files are looked at once.
 #[test]
 fn one_walk_judges_the_files_and_returns_their_stat_fields() {
     let root: PathBuf = fixture("clean-one-walk");
@@ -272,7 +299,8 @@ fn the_one_walk_refuses_a_link_in_place_of_a_directory() {
     remove(root.as_path());
 }
 
-/// A cursor keeps the directory it opened for the next path in it, and opens another when the parent changes.
+/// A cursor keeps the directory it opened for the next path in it,
+/// and opens another when the parent changes.
 #[test]
 fn the_cursor_answers_like_a_lookup_of_each_path_alone() {
     let root: PathBuf = fixture("clean-cursor");

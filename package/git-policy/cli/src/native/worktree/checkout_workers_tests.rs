@@ -1,4 +1,6 @@
-//! Controls for the decision to pass `checkout.workers=0`: each place the person can set the key, the position of the option,
+//! Controls for the decision to pass `checkout.workers=0`:
+//! each place the person can set the key,
+//! the position of the option,
 //! and the one step that is a checkout.
 
 use super::*;
@@ -9,7 +11,10 @@ fn words(values: &[&str]) -> Vec<OsString> {
     return values.iter().map(OsString::from).collect();
 }
 
-/// A typed `-c`, in both spellings, and `--config-env` stop the addition; options after the subcommand do not count.
+/// A typed `-c`,
+/// in both spellings,
+/// and `--config-env` stop the addition;
+/// options after the subcommand do not count.
 #[test]
 fn a_typed_option_before_the_subcommand_is_the_persons() {
     assert!(typed_before_subcommand(words(&["-c", "checkout.workers=3", "worktree", "add"]).as_slice()));
@@ -19,7 +24,8 @@ fn a_typed_option_before_the_subcommand_is_the_persons() {
     assert!(!typed_before_subcommand(words(&["worktree", "add", "-b", "checkout.workers"]).as_slice()), "a branch named like the key");
 }
 
-/// The environment variables that carry configuration stop the addition; unrelated variables do not.
+/// The environment variables that carry configuration stop the addition;
+/// unrelated variables do not.
 #[test]
 fn an_exported_value_is_the_persons() {
     let key: OsString = OsString::from("GIT_CONFIG_KEY_0");
@@ -42,7 +48,9 @@ fn the_option_goes_before_the_subcommand_and_after_the_global_options() {
     assert_eq!(arguments, words(&["-C", "/r", "-c", "core.hooksPath=/x", "-c", "checkout.workers=0", "worktree", "add", "../w"]));
 }
 
-/// A global option with a separate value (`--git-dir <path>`, `--work-tree <path>`) is skipped, so the option still lands before `worktree`.
+/// A global option with a separate value (`--git-dir <path>`,
+/// `--work-tree <path>`) is skipped,
+/// so the option still lands before `worktree`.
 #[test]
 fn separate_valued_global_options_do_not_move_the_subcommand() {
     let mut arguments: Vec<OsString> = words(&["--git-dir", "/r/.git", "--work-tree", "/r", "worktree", "add", "--quiet", "w"]);
@@ -61,7 +69,9 @@ fn only_the_reset_to_head_is_a_checkout_step() {
     assert!(!is_fallback_checkout(words(&["-C", "/w", "clean", "--force", "--hard"]).as_slice()));
 }
 
-/// Any value in a configuration file of the repository stops the addition, whatever the value; none lets it through.
+/// Any value in a configuration file of the repository stops the addition,
+/// whatever the value;
+/// none lets it through.
 #[test]
 fn a_value_in_the_repository_configuration_is_the_persons() {
     let root = fixture("workers-config-read");
