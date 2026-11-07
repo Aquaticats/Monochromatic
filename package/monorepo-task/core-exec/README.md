@@ -97,6 +97,7 @@ and the command after `--` is ended after `--command-timeout-seconds` (default 3
 Both accept fractions of a second.
 An ended child is a failure with exit code 1,
  and the message names the bound and the option that changes it.
+The child runs in its own process group and the whole group is killed, so a pipeline leaves no member behind.
 The glob reads of `-s` and `-o` run inside task-depends itself and have no bound of their own.
 
 ```sh

@@ -10,11 +10,10 @@
 
 import { stat, } from 'node:fs/promises';
 
-import spawn from 'nano-spawn';
 import dedent from 'string-dedent';
 
 import {
-  boundedSpawnOptions,
+  spawnBounded,
   timeoutNote,
 } from './depends-bounded-wait.ts';
 import {
@@ -199,13 +198,12 @@ async function resolveShellCommand({
     /**
      Captured subprocess result; only `stdout` is consumed because the command contract returns its timestamp there.
      */
-    const result = await spawn(
-      command,
-      {
-        shell: true,
-        ...boundedSpawnOptions({ timeoutMs: queryTimeoutMs, },),
-      },
-    );
+    const result = await spawnBounded({
+      file: command,
+      args: [],
+      options: { shell: true, },
+      timeoutMs: queryTimeoutMs,
+    },);
     stdout = result.stdout
       .trim();
   }
@@ -213,10 +211,7 @@ async function resolveShellCommand({
     /**
      Sentence naming the bound when it ended the command; empty when the command failed by itself.
      */
-    const note = timeoutNote({
-      error,
-      timeoutMs: queryTimeoutMs,
-    },);
+    const note = timeoutNote(error,);
     if (note !== '') {
       throw new Error(
         dedent`

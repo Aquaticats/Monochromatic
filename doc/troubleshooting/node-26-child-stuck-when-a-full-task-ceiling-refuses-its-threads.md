@@ -62,11 +62,12 @@ and 47 `FAIL` records, with no process left in the unit; the 60 s is the test fi
 
 Bound every wait on a child process, so a child that never exits turns into a failure:
 
-- `nano-spawn` and `node:child_process` accept `signal: AbortSignal.timeout(ms)` with `killSignal: 'SIGKILL'`;
-  `isCanceled` on the thrown `SubprocessError` tells the bound from a plain failure
-  (`node_modules/nano-spawn/source/result.js:44-47`).
+- Spawn the child detached (its own process group) and, when the bound passes, kill the group with `process.kill(-pid, 'SIGKILL')`
+  (`spawnBounded` in `package/monorepo-task/core-exec/src/depends-bounded-wait.ts`).
   `SIGKILL` is needed: a child stuck before it installs a handler, or one that ignores `SIGTERM`, keeps the wait alive.
-  Tradeoff: a command run through a shell (`shell: true`) loses only the shell, and a pipeline's other members survive until they end by themselves.
+  Killing only the child is not enough with `shell: true`: the other members of a pipeline survive and their open pipe keeps the wait going.
+  Tradeoffs: the detached group no longer receives the terminal's interrupt, so the parent passes `SIGINT`, `SIGTERM` and `SIGHUP` on to it;
+  Windows has no process groups, so only the child itself ends there (not tested).
 - Give test files their own bound on every spawned command (`COMMAND_TIMEOUT_MS` in `depends.unit.test.ts`).
   Tradeoff: under a ceiling the file fails after the bound instead of passing, which is correct but still slow.
 

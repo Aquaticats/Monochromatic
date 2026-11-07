@@ -7,11 +7,10 @@
  @module
  */
 
-import spawn from 'nano-spawn';
 import dedent from 'string-dedent';
 
 import {
-  boundedSpawnOptions,
+  spawnBounded,
   timeoutNote,
 } from './depends-bounded-wait.ts';
 import {
@@ -110,13 +109,12 @@ async function runStrategyCommand({
     /**
      Captured subprocess result; only `stdout` is consumed because the strategy contract returns its answer there.
      */
-    const result = await spawn(
-      fullCommand,
-      {
-        shell: true,
-        ...boundedSpawnOptions({ timeoutMs: queryTimeoutMs, },),
-      },
-    );
+    const result = await spawnBounded({
+      file: fullCommand,
+      args: [],
+      options: { shell: true, },
+      timeoutMs: queryTimeoutMs,
+    },);
     stdout = result.stdout
       .trim();
   }
@@ -124,10 +122,7 @@ async function runStrategyCommand({
     /**
      Sentence naming the bound when it ended the command; empty when the command failed by itself.
      */
-    const note = timeoutNote({
-      error,
-      timeoutMs: queryTimeoutMs,
-    },);
+    const note = timeoutNote(error,);
     if (note !== '') {
       throw new Error(
         dedent`

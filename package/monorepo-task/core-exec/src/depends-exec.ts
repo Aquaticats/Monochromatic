@@ -17,11 +17,10 @@
  ```
  */
 
-import spawn from 'nano-spawn';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 import {
-  boundedSpawnOptions,
+  spawnBounded,
   timeoutNote,
 } from './depends-bounded-wait.ts';
 
@@ -108,11 +107,12 @@ export async function executeWithCollapsedOutput({
 
   try {
     // nano-spawn defaults to 'pipe', capturing stdout/stderr
-    await spawn(
-      command,
-      [...commandArgs,],
-      boundedSpawnOptions({ timeoutMs: commandTimeoutMs, },),
-    );
+    await spawnBounded({
+      file: command,
+      args: commandArgs,
+      options: {},
+      timeoutMs: commandTimeoutMs,
+    },);
 
     if (verbose)
       console.error('[task-depends] command completed successfully',);
@@ -121,10 +121,7 @@ export async function executeWithCollapsedOutput({
     /**
      Sentence naming the bound when it ended the command; empty when the command failed by itself.
      */
-    const note = timeoutNote({
-      error,
-      timeoutMs: commandTimeoutMs,
-    },);
+    const note = timeoutNote(error,);
     if (note !== '') {
       console.error(
         `[task-depends] command ${note} (raise it with --command-timeout-seconds): ${command} ${commandArgs.join(' ',)}`,

@@ -14,6 +14,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join, } from 'node:path';
+import { setInterval as everyMs, } from 'node:timers/promises';
 
 //region Bounds: no test waits forever on a child process
 
@@ -46,6 +47,16 @@ const STUCK_CHILD_SLEEP_SECONDS = 30;
  Exclusive upper bound of the random fraction that makes a stuck pipeline's `sleep` argument unique to one test run.
  */
 const RANDOM_SUFFIX_RANGE = 1_000_000;
+
+/**
+ How long in milliseconds the stop test looks for the pipeline it started before it stops the CLI anyway.
+ */
+const SLEEP_APPEARS_WITHIN_MS = 5_000;
+
+/**
+ Milliseconds between two looks of the stop test.
+ */
+const SLEEP_APPEARS_POLL_MS = 50;
 
 /**
  How long the harness lets one bounded-wait test run, in milliseconds; above the CLI bound plus the Node start of both
@@ -117,14 +128,17 @@ async function stderrOfFailure(command: string,): Promise<string> {
 function sleepPidsWithArgument(seconds: string,): readonly number[] {
   return readdirSync('/proc',)
     .filter(function isProcessEntry(entry,): boolean {
-      return /^\d+$/u.test(entry,);
+      return Number.isInteger(Number(entry,),);
     },)
     .filter(function hasSleepArgument(entry,): boolean {
       try {
         return readFileSync(`/proc/${entry}/cmdline`, 'utf8',) === `sleep\0${seconds}\0`;
       }
-      catch {
-        return false;
+      catch (error) {
+        // The process ended between listing and reading: it is not alive, so it does not count.
+        if ((Error.isError(error,)) && ('code' in error) && (error.code === 'ENOENT'))
+          return false;
+        throw error;
       }
     },)
     .map(Number,);
@@ -1249,6 +1263,53 @@ await describe({
             for (const pid of leftover)
               process.kill(pid, 'SIGKILL',);
 
+            expect(leftover,).toEqual([],);
+
+            teardown(fixtures,);
+          },
+        },),
+        it({
+          name: 'ends the command and its pipeline when task-depends itself is told to stop',
+          timeout: BOUNDED_WAIT_TEST_TIMEOUT_MS,
+          fn: async () => {
+            const fixtures = setup();
+            const { cliPath, } = fixtures;
+            const pipelineSleep = `${STUCK_CHILD_SLEEP_SECONDS + 1}.${Math.floor(Math.random() * RANDOM_SUFFIX_RANGE,)}`;
+            /**
+             The CLI, running a pipeline that would outlive the test.
+             */
+            const running = spawn(
+              'node',
+              [
+                cliPath,
+                '-s',
+                'sh:echo Infinity',
+                '-o',
+                'sh:echo -Infinity',
+                '--',
+                'sh',
+                '-c',
+                `sleep ${pipelineSleep} | cat`,
+              ],
+            );
+            const cli = await running.nodeChildProcess;
+            /**
+             Moment after which the stop test gives up waiting for its pipeline to appear.
+             */
+            const lookUntil = Date.now() + SLEEP_APPEARS_WITHIN_MS;
+            for await (const _tick of everyMs(SLEEP_APPEARS_POLL_MS,)) {
+              if ((sleepPidsWithArgument(pipelineSleep,).length > 0) || (Date.now() > lookUntil))
+                break;
+            }
+            const startedBeforeStop = sleepPidsWithArgument(pipelineSleep,);
+            cli.kill('SIGTERM',);
+            // The CLI was stopped on purpose, so its outcome is not the point; only what it left behind matters.
+            await Promise.allSettled([running,],);
+            const leftover = sleepPidsWithArgument(pipelineSleep,);
+            for (const pid of leftover)
+              process.kill(pid, 'SIGKILL',);
+
+            expect(startedBeforeStop.length,).toBeGreaterThan(0,);
             expect(leftover,).toEqual([],);
 
             teardown(fixtures,);
