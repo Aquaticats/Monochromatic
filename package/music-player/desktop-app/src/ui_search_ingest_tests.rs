@@ -234,3 +234,50 @@ fn an_answer_to_an_older_query_is_dropped() {
     apply_answer(&scan.app, old_answer);
     assert_eq!(scan.app.get_search_rows().row_count(), 50);
 }
+
+/// What: `LogSink` is a writer that appends to a shared buffer, so a test can read what the log wrote.
+/// Why: the state lines of the end-to-end run exist only in the log.
+struct LogSink(Arc<Mutex<Vec<u8>>>);
+
+/// Methods of `LogSink` as a writer.
+impl std::io::Write for LogSink {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().expect("the log buffer lock is not poisoned").extend_from_slice(bytes);
+        return Ok(bytes.len());
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// What: `logged_by` runs `action` with a log subscriber for this thread that records every level, and returns the log text.
+/// Why: `apply_answer` runs on the calling thread, so its state lines land in this thread's subscriber.
+fn logged_by(action: impl FnOnce()) -> String {
+    let buffer: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+    let writer: Arc<Mutex<Vec<u8>>> = Arc::clone(&buffer);
+    let subscriber = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::TRACE)
+        .with_ansi(false)
+        .with_writer(move || return LogSink(Arc::clone(&writer)))
+        .finish();
+    tracing::subscriber::with_default(subscriber, action);
+    return String::from_utf8(buffer.lock().expect("the log buffer lock is not poisoned").clone()).expect("the log is UTF-8");
+}
+
+/// What: An applied answer writes one `ui_state` line that carries the query and the highlighted result.
+/// Why: the end-to-end run waits for that line to know the answer is on screen; without it the run had to sleep, and a
+/// key pressed before the answer moved the keyboard off the query field.
+#[test]
+fn an_applied_answer_writes_a_state_line_with_the_query_and_the_highlighted_result() {
+    let scan: Scan = Scan::new();
+    let running = service().expect("the service is installed");
+    feed_library(&running, Arc::new(library(1, 50, 0)), 50, Duration::ZERO);
+    scan.pump(|_| return running.track_count() >= 50);
+    scan.type_query("trk");
+    let log: String = logged_by(|| scan.pump(|app| return app.get_search_rows().row_count() > 0));
+    let answered: bool = log
+        .lines()
+        .any(|line| return line.contains("ui_state ") && line.contains("\"reason\":\"search-answer\"") && line.contains("\"search_query\":\"trk\"") && line.contains("\"search_ring\":0"));
+    assert!(answered, "a search-answer state line with the query and ring 0 was logged: {log}");
+}

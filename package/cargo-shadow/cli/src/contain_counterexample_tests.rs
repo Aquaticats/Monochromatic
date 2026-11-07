@@ -195,6 +195,24 @@ pub(crate) fn assert_reaped(pid: i32, what: &str) {
     assert!(matches!(result, Err(rustix::io::Errno::CHILD)), "{what}: the direct child {pid} can still be waited for, so it was not reaped: {result:?}");
 }
 
+/// The process id of the direct child the run spawned, from the events of the run's trace (exactly one "spawned" event is required).
+/// Why:
+/// A process id a program prints for itself says nothing about which process this one spawned: a launcher that forks the program
+/// instead of replacing itself leaves the real direct child unreaped behind a program id that was never this process's child (sixth
+/// pass, group 1).
+pub(crate) fn spawned_direct_child(events: &[String]) -> i32 {
+    let spawned: Vec<i32> = events.iter().filter_map(|event| { return event.strip_prefix("spawned ").and_then(|text| { return text.parse::<i32>().ok(); }); }).collect();
+    assert_eq!(spawned.len(), 1, "the run did not spawn exactly one direct child: {events:?}");
+    return spawned[0];
+}
+
+/// Asserts that the process id the program published is the direct child the run spawned, and that this child was reaped.
+pub(crate) fn assert_spawned_child_is_the_program_and_reaped(program_pid: i32, events: &[String], what: &str) {
+    let spawned: i32 = spawned_direct_child(events);
+    assert_eq!(program_pid, spawned, "{what}: the program is not the process this run spawned (a launcher forked it), so its id says nothing about the reap");
+    assert_reaped(spawned, what);
+}
+
 /// Stops a helper process the test started and does not mind if it is gone.
 pub(crate) fn stop_quietly(pid: i32) {
     if let Some(found) = Pid::from_raw(pid) {
@@ -318,7 +336,8 @@ fn zombie_leader_run(at_the_bound: bool) {
     let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(limit));
     // The stop went through the authoritative emptiness proof before the run returned (fourth certification pass): the kernel's
     // `populated 0` after the kill (or a verified absence), not a snapshot of the members that were signalled.
-    let proofs: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("scope proved "); }).collect();
+    let events: Vec<String> = crate::bounded_run::take_trace_for_test();
+    let proofs: Vec<String> = events.iter().filter(|event| { return event.starts_with("scope proved "); }).cloned().collect();
     assert_eq!(proofs.len(), 1, "the stop did not go through the emptiness proof exactly once (at the bound: {at_the_bound}): {proofs:?}");
 
     let tid: i32 = worker_tid(&ready);
@@ -330,7 +349,7 @@ fn zombie_leader_run(at_the_bound: bool) {
     assert!(!thread_is_alive(tid), "the worker thread of a process whose leader had ended is still alive after the run returned (at the bound: {at_the_bound})");
     let _ = read_pid(&pid_file);
     assert_ran_in_recorded_scope(&journal.join("groups").display().to_string(), &fs::read_to_string(&group_file).expect("the program's group"), &wrapper);
-    assert_reaped(read_pid(&direct_file), if at_the_bound { "at the bound" } else { "after a normal exit" });
+    assert_spawned_child_is_the_program_and_reaped(read_pid(&direct_file), &events, if at_the_bound { "at the bound" } else { "after a normal exit" });
     drop(transaction);
 }
 

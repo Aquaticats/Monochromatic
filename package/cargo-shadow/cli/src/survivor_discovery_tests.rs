@@ -12,7 +12,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::crates::LockSnapshot;
-use crate::failpoints::{Point, arm};
+use crate::failpoints::{Point, arm, fires};
 use crate::journal::{begin, recover};
 use crate::journal_recover::survivor_note;
 use crate::journal_support::{journal_dirs, plant};
@@ -101,8 +101,34 @@ fn a_journal_listing_that_fails_in_any_way_stops_a_new_transaction() {
 
         let started = begin(root.path(), &[snapshot("second")], false);
 
-        assert!(started.is_err(), "{fault:?}: a transaction started on a journal set it could not list");
+        // Sixth pass, group 5: the refusal is the listing's own (the fault was reached, and the reason says the journals could not be
+        // listed), not a refusal that two journals already exist.
+        assert!(!fires(fault), "{fault:?}: the listing fault was never reached");
+        let reason: String = started.err().map(|error| { return error.to_string(); }).unwrap_or_else(|| { panic!("{fault:?}: a transaction started on a journal set it could not list"); });
+        assert!(reason.contains("could not be listed"), "{fault:?}: the refusal is not the listing's: {reason}");
         assert_eq!(journal_dirs(root.path()).len(), 2, "{fault:?}: the refused transaction left a journal");
+    }
+}
+
+/// Sixth pass, group 5 (V1, the completed journals):
+/// a completed journal (`.done`) is examined like any other entry, so an examination that fails on it fails the listing too.
+/// Both journals here are completed, so the entry that fails is a completed one whichever the directory lists second.
+#[test]
+fn a_completed_journal_that_cannot_be_examined_fails_the_listing() {
+    for fault in [Point::ListingInspection, Point::ListingEntryNotFound] {
+        let root = repository();
+        let first = plant(root.path(), &[snapshot("original")], &[]);
+        let second = plant(root.path(), &[snapshot("original")], &[]);
+        for journal in [&first, &second] {
+            let done: std::path::PathBuf = std::path::PathBuf::from(format!("{}{}", journal.display(), crate::journal::DONE_SUFFIX));
+            fs::rename(journal, &done).expect("mark the journal done");
+        }
+        arm(fault);
+
+        let listed = crate::journal_recover::list_journals(&root.path().join(crate::journal::JOURNAL_DIR));
+
+        assert!(!fires(fault), "{fault:?}: the listing fault was never reached");
+        assert!(listed.is_err(), "{fault:?}: a completed journal that could not be examined was listed without examination");
     }
 }
 

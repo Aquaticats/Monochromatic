@@ -162,6 +162,8 @@ pub(crate) fn show_view(window: &AppWindow, view: SearchView, query: &str, ancho
         };
     });
     window.set_search_ring(read_state(|state| return state.search_ring).and_then(|row| return i32::try_from(row).ok()).unwrap_or(-1));
+    // The state line says that this answer is on screen: the end-to-end run waits for it instead of pausing for a guessed time.
+    crate::ui_state_log::emit(window, "search-answer");
 }
 
 /// What:

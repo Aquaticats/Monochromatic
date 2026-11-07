@@ -23,7 +23,7 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use crate::bounded_run::{Bound, RunError, on_start_for_test, on_startup_for_test, output_within};
-use crate::cgroup_test_support::{assert_scope_record, delegated_route, scope_directory_of, wait_until};
+use crate::cgroup_test_support::{assert_ran_in_recorded_scope, assert_scope_record, delegated_route, scope_directory_of, wait_until};
 use crate::control_group::{RouteSettings, detect_route};
 use crate::crates::LockSnapshot;
 use crate::failpoints::{Point, arm};
@@ -55,9 +55,16 @@ fn bound(limit: Duration) -> Bound {
 /// The script of a program that starts a writer in a session of its own,
 /// waits until the writer says it is running,
 /// and exits.
+/// The groups file of the single journal of a repository, as text.
+fn control_root_groups(root: &Path) -> String {
+    return journal_dirs(root).into_iter().next().expect("a journal").join("groups").display().to_string();
+}
+
 fn script_leaving_a_writer(ready: &Path) -> String {
     return format!(
-        "setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
+        // The handshake is inside the payload (sixth certification pass): the writer's ready marker is seen first, then the payload
+        // records its own control group and that it saw the marker, and only then ends, so the stop (and a fault in it) comes after.
+        "setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; cat /proc/self/cgroup > {ready}.group; : > {ready}.seen; exit 0",
         ready = ready.display()
     );
 }
@@ -99,6 +106,9 @@ fn a_failure_after_the_start_to_stop_inspect_or_empty_the_scope_is_not_quiescent
         let control_ready: PathBuf = control_root.path().join("writer-ready");
         let control = output_within(Command::new("sh").args(["-c", &script_leaving_a_writer(&control_ready)]), None, &bound(Duration::from_secs(30)));
         assert!(control.is_ok(), "{fault:?}: the control without the fault was refused, so the refusal below has another cause: {control:?}");
+        // The control's writer is gone when the run returned: its scope is absent or empty.
+        let control_scope: PathBuf = scope_directory_of(&control_root_groups(control_root.path()));
+        assert!(!control_scope.exists() || fs::read_to_string(control_scope.join("cgroup.procs")).is_ok_and(|text| { return text.trim().is_empty(); }), "{fault:?}: the control's writer still runs after the run returned");
         assert!(control_ready.exists() && !control_transaction.writers_may_remain(), "{fault:?}: the control did not run its writer or reported writers that may remain");
         drop(control_transaction);
 
@@ -118,6 +128,10 @@ fn a_failure_after_the_start_to_stop_inspect_or_empty_the_scope_is_not_quiescent
         clean_up(&scope);
         assert!(consumed, "{fault:?}: the armed fault was never reached, so the refusal has another cause");
         assert!(ready.exists(), "{fault:?}: the writer was not ready before the fault");
+        // The payload saw the writer ready before it ended (and so before the stop that the fault is in), and it ran in the very scope
+        // the journal recorded, so the writer that is left is a member of the scope under test.
+        assert!(root.path().join("writer-ready.seen").exists(), "{fault:?}: the payload ended without having seen the writer ready");
+        assert_ran_in_recorded_scope(&groups, &fs::read_to_string(root.path().join("writer-ready.group")).expect("the payload's group"), &crate::cgroup_test_support::wrapper_group());
         assert!(matches!(result, Err(RunError::NotQuiescent { .. })), "{fault:?}: {result:?}");
         if !matches!(fault, Point::ContainmentInspection) {
             assert!(writer_alive, "{fault:?}: the writer was not left in the scope, so the test shows nothing");

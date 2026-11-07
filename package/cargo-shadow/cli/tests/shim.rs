@@ -439,7 +439,7 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its
     assert_eq!(String::from_utf8_lossy(&after_a.stdout).trim_end(), format!("{FAKE_MARKER} check -q"));
 
     // Fix B, copied as printed: the record command writes the launcher's `.launch` file, after which the original PATH works.
-    let record_command: &str = said.lines().map(str::trim).find(|line| { return line.starts_with("printf '{"); }).expect("a record line");
+    let record_command: &str = said.lines().map(str::trim).find(|line| { return line.starts_with("printf %s '{"); }).expect("a record line");
     let written = Command::new("/bin/sh").arg("-c").arg(record_command).output().expect("runs the record line");
     assert!(written.status.success(), "the record line does not run as printed: {record_command}: {}", String::from_utf8_lossy(&written.stderr));
     assert!(launcher_directory.join("cargo.launch").exists(), "the record line did not write the record beside the launcher");
@@ -677,6 +677,38 @@ fn the_shadow_prints_the_kept_files_warning_on_stderr_every_completed_run_and_ke
     }
 }
 
+/// Acceptance row K1 (sixth pass, group 7): the warning is on the real standard error of an ordinary repeated run too, one that finds
+/// the lockfile already satisfied and changes nothing. The lockfile is made stale once; later runs leave the accepted lockfile as it is
+/// (the real cargo is not asked to update anything on them), and each still prints the warning exactly once, with the same inventory.
+#[test]
+fn the_shadow_prints_the_kept_files_warning_on_a_run_that_finds_the_lockfile_already_satisfied() {
+    let count: usize = cargo_shadow::journal::KEPT_FILES_WARNING_COUNT;
+    let world = make_world();
+    let central: PathBuf = world.repository.join(cargo_shadow::journal::QUARANTINE_DIR);
+    std::fs::create_dir_all(&central).expect("the central folder");
+    for index in 0..=count {
+        std::fs::write(central.join(format!("Cargo.lock.displaced.{index}")), "kept").expect("a central kept file");
+    }
+    write_lock(&world, STALE);
+    let first = run_shadow(&world, &["check", "-q"], "", 0);
+    assert_eq!(first.status.code(), Some(0), "{}", String::from_utf8_lossy(&first.stderr));
+    let accepted: String = read_lock(&world);
+    assert_ne!(accepted, STALE, "the first run did not update the stale lockfile, so the later runs would not be unchanged ones");
+
+    for run in 1..3 {
+        std::fs::remove_file(&world.log).ok();
+        let output = run_shadow(&world, &["check", "-q"], "", 0);
+
+        assert_eq!(output.status.code(), Some(0), "run {run}: {}", String::from_utf8_lossy(&output.stderr));
+        let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+        let notices: usize = stderr.lines().filter(|line| { return line.contains("They were moved aside instead of deleted"); }).count();
+        assert_eq!(notices, 1, "run {run}: the warning was not printed exactly once on a run that changed nothing: {stderr}");
+        assert_eq!(read_lock(&world), accepted, "run {run}: an unchanged run rewrote the accepted lockfile");
+        assert!(log_lines(&world).iter().all(|line| { return !line.contains("update"); }), "run {run}: the real cargo was asked to update on a run that found the lockfile satisfied: {:?}", log_lines(&world));
+        assert_eq!(std::fs::read_dir(&central).expect("lists").count(), count + 1, "run {run}: a kept file was deleted");
+    }
+}
+
 /// A catalog repository that is a real git repository,
 /// with `ignored/` ignored by git,
 /// a tracked crate and,
@@ -749,3 +781,100 @@ fn a_staged_copy_in_an_ignored_directory_is_left_to_cargo_and_the_tracked_crate_
     assert_eq!(tracked.status.code(), Some(0), "{}", String::from_utf8_lossy(&tracked.stderr));
     assert_eq!(read_lock(&world), SATISFIED, "the tracked crate was not taken on, so the staged copy's passing proves nothing");
 }
+
+//region a compiled real cargo
+// What the region covers: a real cargo that is a compiled program (rustup's proxy is one) is started through the file the shadow
+// checked, by both of the shadow's own starts, and the descriptor stays open until the start.
+
+/// A compiled program that prints its arguments, and no script: the system's `echo`.
+const COMPILED_PROGRAM: &str = "/usr/bin/echo";
+
+/// The fake cargo of the world is replaced by a copy of a compiled program with the given mode.
+fn use_compiled_real_cargo(world: &World, mode: u32) {
+    let real: PathBuf = world.fake_directory.join("cargo");
+    std::fs::remove_file(&real).expect("remove the script");
+    std::fs::copy(COMPILED_PROGRAM, &real).expect("copy a compiled program as the real cargo");
+    std::fs::set_permissions(&real, std::fs::Permissions::from_mode(mode)).expect("set the mode of the real cargo");
+}
+
+/// A command that resolves nothing is started by `exec`: the shadow's process becomes the real cargo.
+/// Red when the descriptor the compiled program is started through is closed before the `exec`: the start then fails.
+#[test]
+fn a_compiled_real_cargo_is_started_by_the_exec_branch_with_its_arguments() {
+    let world = make_world();
+    use_compiled_real_cargo(&world, 0o755);
+
+    let output = run_shadow(&world, &["fmt", "--check"], "", 0);
+
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), "fmt --check", "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(output.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+}
+
+/// A command that is followed by a notice (`add`) is started as a child that the shadow waits for.
+#[test]
+fn a_compiled_real_cargo_is_started_by_the_child_branch_with_its_arguments() {
+    let world = make_world();
+    use_compiled_real_cargo(&world, 0o755);
+
+    let output = run_shadow(&world, &["add", "serde"], "", 0);
+
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), "add serde", "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(output.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+}
+
+/// Whether the real cargo of the world really cannot be read by this process: as the superuser (or with a capability that bypasses
+/// permissions) a file of mode `0o111` can still be opened, and a test of the execute-only case would pass without exercising it. Then
+/// the test fails unless `CARGO_SHADOW_ALLOW_SKIPS` is set, which makes it skip with a printed reason.
+fn cannot_read_real_cargo(world: &World) -> bool {
+    if std::fs::File::open(world.fake_directory.join("cargo")).is_err() {
+        return true;
+    }
+    assert!(
+        std::env::var_os("CARGO_SHADOW_ALLOW_SKIPS").is_some(),
+        "this process can read a file of mode 0o111, so the execute-only case is not exercised; set CARGO_SHADOW_ALLOW_SKIPS=1 to skip the test"
+    );
+    eprintln!("SKIPPED: this process can read a file of mode 0o111");
+    return false;
+}
+
+/// A compiled program that can be executed and not read is still the real cargo: executing needs no read permission, and the PATH
+/// search accepts it, so the start must too (it was started by its path before the check was made on an open file).
+#[test]
+fn an_execute_only_compiled_real_cargo_is_started_like_any_other() {
+    let world = make_world();
+    use_compiled_real_cargo(&world, 0o111);
+    if !cannot_read_real_cargo(&world) {
+        return;
+    }
+
+    let output = run_shadow(&world, &["fmt", "--check"], "", 0);
+
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), "fmt --check", "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(output.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+}
+
+/// An execute-only script is still the real cargo: the kernel reads the interpreter line itself, so the file runs when its
+/// interpreter needs nothing of it (here `echo`, which prints the script's name it is given). The interpreter is given the path the
+/// program was chosen under; a descriptor path (`/proc/self/fd/<n>`) is closed by then, so the start of anything that may be a script
+/// keeps the pathname.
+#[test]
+fn an_execute_only_script_real_cargo_is_given_its_own_path_by_the_kernel() {
+    let world = make_world();
+    let real: PathBuf = world.fake_directory.join("cargo");
+    std::fs::write(&real, format!("#!{COMPILED_PROGRAM}\n")).expect("write the script");
+    std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o111)).expect("make it execute-only");
+    if !cannot_read_real_cargo(&world) {
+        return;
+    }
+
+    let output = run_shadow(&world, &["fmt", "--check"], "", 0);
+
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim_end(),
+        format!("{} fmt --check", real.display()),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(output.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+}
+//endregion

@@ -94,6 +94,11 @@ pub mod archive_staging;
 /// The per-tree launcher for repository-published tools.
 pub mod launcher;
 
+/// What a launcher runs when its record's program is gone:
+/// the program under `current`,
+/// or the sentence that names both versions and the command that fixes it.
+pub mod launcher_current_link;
+
 /// Where tools install and how their binaries are found.
 pub mod layout;
 

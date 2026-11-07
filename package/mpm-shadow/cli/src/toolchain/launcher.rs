@@ -4,7 +4,9 @@
 //! plus a `<name>.launch` record beside it.
 //! Started under that path it reads the record and the tree's lock,
 //! prints a warning on standard error when the tool that will run is newer than the lock pins,
-//! then replaces itself with the real binary,
+//! then replaces itself with the real binary
+//! (the one its record names,
+//! or the one under the tool's `current` link when that file was deleted by a newer install),
 //! passing argv,
 //! environment and standard streams through.
 //! Why:
@@ -24,7 +26,7 @@
 //! ```
 
 /// Imports `OsString` from `std::ffi`.
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
@@ -39,13 +41,13 @@ use serde_json::{Map, Value};
 use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE};
 
 /// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{CURRENT_LINK_NAME, is_newer_than_locked, older_lock_message_for};
+use super::cargo_installs::{is_newer_than_locked, older_lock_message_for};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports what this module uses from `super::launcher_current_link`.
+use super::launcher_current_link::{MissingProgram, locked_version, missing_program_advice, program_to_run, version_that_runs};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{Scope, ScopeKind};
-/// Imports `file_name_text` from `super::util`.
-use super::util::file_name_text;
 
 /// The suffix of the record beside a launcher.
 pub const RECORD_SUFFIX: &str = ".launch";
@@ -263,40 +265,6 @@ pub struct Launch {
     pub program: PathBuf,
 }
 
-/// The version the lock pins for the tool,
-/// read from the lock's text.
-fn locked_version(lock_text: &str, tool_id: &str) -> Option<String> {
-    let lock: Value = serde_json::from_str(lock_text).ok()?;
-    return lock.get("tools")?.get(tool_id)?.get("version")?.as_str().map(str::to_string);
-}
-
-/// Whether a path is a link named `current`,
-/// the link of a repository-published tool
-/// (an archive folder that happens to be called `current` is a directory and does not count).
-fn is_current_link(candidate: &&Path) -> bool {
-    return candidate.file_name() == Some(OsStr::new(CURRENT_LINK_NAME)) && candidate.is_symlink();
-}
-
-/// The version the tool's `current` link names,
-/// found from the real binary's path:
-/// `<crate directory>/current/bin/<name>` for a crate,
-/// `<tool directory>/current/<archive folder>/<name>` for a release archive,
-/// so the link is the nearest ancestor of the binary that is named `current`.
-fn version_that_runs(real: &Path) -> Option<String> {
-    let link: &Path = real.ancestors().skip(1).find(is_current_link)?;
-    // The final directory's name, so a `current` that forwards to the other toolchain root's `current` still names the
-    // version that runs; a link that does not resolve falls back to its own target.
-    let target: PathBuf = match fs::canonicalize(link) {
-        Ok(resolved) => resolved,
-        Err(_) => fs::read_link(link).ok()?,
-    };
-    let name: String = file_name_text(&target);
-    if name.is_empty() {
-        return None;
-    }
-    return Some(name);
-}
-
 /// What:
 /// Compares the version that runs (the target of the crate's `current` link) with the lock's and says what to print.
 /// Why:
@@ -318,7 +286,7 @@ pub fn prepare_launch(record: &LaunchRecord, lock_text: Option<&str>) -> Launch 
     {
         warning = Some(older_lock_message_for(record.scope, &record.tool_id, &locked, &used));
     }
-    return Launch { warning, program: record.real.clone() };
+    return Launch { warning, program: program_to_run(&record.real) };
 }
 
 /// Replaces this process with `program`,
@@ -347,6 +315,33 @@ fn exec_program(program: &Path, arguments: &[OsString]) -> std::io::Error {
 }
 
 /// What:
+/// Rewrites this launcher's record so that it names `program`,
+/// when the record names another path and `program` exists.
+/// Why:
+/// The shadows a launcher starts (`cargo-shadow`, `pnpm-shadow`, `search-shadow`, `mpm-shadow` in its shim mode) skip a `PATH` candidate
+/// that is a launcher whose record leads back to themselves,
+/// and they read the path the record names.
+/// A record that names a deleted release folder leads nowhere they can resolve,
+/// so the shadow took the launcher for the real tool, started it, and its recursion guard stopped the run.
+/// Naming the program that ran keeps the record true after every version move.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refreshStaleRecord(record: LaunchRecord, program: string): void  // throws
+/// ```
+fn refresh_stale_record(record: &LaunchRecord, program: &Path) -> Result<(), ToolchainError> {
+    if program == record.real || !program.exists() {
+        return Ok(());
+    }
+    let executable: PathBuf = match std::env::current_exe() {
+        Ok(found) => found,
+        Err(error) => return Err(ToolchainError::failure(format!("cannot find this launcher's own path: {error}"))),
+    };
+    let refreshed: LaunchRecord = LaunchRecord { real: program.to_path_buf(), ..record.clone() };
+    return write_atomically(&record_path(&executable), render_record(&refreshed).as_bytes());
+}
+
+/// What:
 /// Runs a launcher:
 /// warns when the lock pins an older version than the one that runs,
 /// then becomes the real binary.
@@ -364,9 +359,22 @@ pub fn run_launcher(record: &LaunchRecord, arguments: &[OsString]) -> i32 {
     if let Some(warning) = &launch.warning {
         eprintln!("mpm-shadow: warning: {warning}");
     }
+    if let Err(error) = refresh_stale_record(record, &launch.program) {
+        eprintln!("mpm-shadow: warning: could not update the launcher record, so it keeps naming a program that no longer exists: {error}");
+    }
     let error: std::io::Error = exec_program(&launch.program, arguments);
     eprintln!("mpm-shadow: could not start {}: {error}", launch.program.display());
     if error.kind() == std::io::ErrorKind::NotFound {
+        eprintln!(
+            "mpm-shadow: {}",
+            missing_program_advice(MissingProgram {
+                tool_id: &record.tool_id,
+                scope: record.scope,
+                lock_file: &record.lock_file,
+                real: &record.real,
+                lock_text: lock_text.as_deref(),
+            })
+        );
         return NOT_FOUND_EXIT_CODE;
     }
     return EXEC_FAILED_EXIT_CODE;

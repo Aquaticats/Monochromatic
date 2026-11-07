@@ -130,18 +130,25 @@ fn another_boot() -> Identity {
 /// the discovery's failure says that the killed program could not be reaped.
 #[test]
 fn a_wait_that_fails_is_not_a_reap() {
+    // A bound long enough that a fresh budget on the wait-error path (the old two seconds, or one more of the same length) cannot be
+    // mistaken for scheduling overhead (sixth certification pass): one deadline returns at about the bound.
+    let bound: Duration = Duration::from_millis(1500);
     let settings: RouteSettings = RouteSettings {
         systemctl: "sh".to_string(),
         question: Some(vec!["-c".to_string(), "exec sleep 30".to_string()]),
-        discovery_bound: Duration::from_millis(300),
+        discovery_bound: bound,
         ..RouteSettings::default()
     };
     arm(Point::ReapError);
+    let started = std::time::Instant::now();
 
     let refused = detect_route(&settings).expect_err("a manager that does not answer is a missing capability");
+    let elapsed: Duration = started.elapsed();
 
     assert!(!crate::failpoints::fires(Point::ReapError), "the wait fault was never reached");
     assert!(refused.to_string().contains("could not be reaped"), "a failed wait was counted as a reap: {refused}");
+    assert!(elapsed >= bound, "the discovery returned after {elapsed:?}, before its deadline of {bound:?}");
+    assert!(elapsed < bound + Duration::from_millis(700), "the discovery returned after {elapsed:?}: a fresh budget was spent after a failed wait, past its deadline of {bound:?}");
 }
 
 /// Acceptance rows V2,

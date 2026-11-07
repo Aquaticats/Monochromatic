@@ -146,6 +146,7 @@ function fakeWorld({
       world.commits.push({ message, paths, },);
       return Promise.resolve();
     },
+    headCommit: () => Promise.resolve(`commit-${world.commits.length}`,),
     notify: (request,) => {
       world.notifications.push(request,);
       return Promise.resolve();

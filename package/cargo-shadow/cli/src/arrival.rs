@@ -102,6 +102,24 @@ fn cargo_files(path_variable: &str, chosen: Option<&Path>) -> Vec<Found> {
 }
 
 /// What:
+/// `fn launch_record_text(own_executable: &Path) -> String` is the whole text of the `.launch` record that names this program.
+/// Why:
+/// The printed command must write a record that parses whatever the path holds (quotation marks, backslashes, control characters), so
+/// the JSON is built by the serializer, never by filling a template (round 21, sixth pass, group 14).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const launchRecordText = (ownExecutable: string): string => JSON.stringify({ toolId: 'cargo-shadow', lockFile: '/dev/null', real: ownExecutable, scope: 'repo' });
+/// ```
+fn launch_record_text(own_executable: &Path) -> String {
+    let mut fields = serde_json::Map::new();
+    for (name, value) in [("toolId", "cargo-shadow"), ("lockFile", "/dev/null"), ("real", &own_executable.to_string_lossy()), ("scope", "repo")] {
+        fields.insert(name.to_string(), serde_json::Value::String(value.to_string()));
+    }
+    return serde_json::Value::Object(fields).to_string();
+}
+
+/// What:
 /// `pub fn arrival_message(guard: &Guard, own_executable: &Path, path_variable: &str) -> String` is the whole text printed when
 /// this cargo-shadow was started by another one.
 /// Why:
@@ -150,10 +168,10 @@ pub fn arrival_message(guard: &Guard, own_executable: &Path, path_variable: &str
         Some(path) => format!(
             "  Fix B, tell cargo-shadow that the file it chose is a launcher of cargo-shadow (the permanent fix, done once):\n\
              \x20   1. Type this line exactly and press Enter (it writes the file {record}):\n\
-             \x20        printf '{{\"toolId\":\"cargo-shadow\",\"lockFile\":\"/dev/null\",\"real\":\"%s\",\"scope\":\"repo\"}}' {exe} > {record_quoted}\n\
+             \x20        printf %s {record_text} > {record_quoted}\n\
              \x20   2. Check that it worked: type `cargo --version` and press Enter.\n",
             record = format_args!("{}{}", path.display(), LAUNCH_RECORD_SUFFIX),
-            exe = shell_quote(&own_executable.display().to_string()),
+            record_text = shell_quote(&launch_record_text(own_executable)),
             record_quoted = shell_quote(&format!("{}{}", path.display(), LAUNCH_RECORD_SUFFIX)),
         ),
         None => String::new(),

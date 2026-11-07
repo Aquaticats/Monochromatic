@@ -419,6 +419,8 @@ mod round_sixteen_tests;
 mod round_seventeen_tests;
 /// Round 8 tests of acceptance rows no other test file of the round holds.
 #[cfg(test)]
+mod round_twentyone_tests;
+#[cfg(test)]
 mod acceptance_rows_tests;
 /// Round 8 tests of the failures on the containment path after a program started,
 /// and of the bounds on the waits.

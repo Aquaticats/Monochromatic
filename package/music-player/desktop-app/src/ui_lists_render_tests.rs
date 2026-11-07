@@ -16,7 +16,9 @@
 //! as the testing backend does,
 //! so these tests run beside the others.
 
+use std::cell::Cell;
 use std::rc::Rc;
+use std::time::Duration;
 
 use music_player::command::Update;
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
@@ -26,6 +28,14 @@ use slint::{ComponentHandle, PlatformError, Rgb8Pixel};
 use crate::AppWindow;
 use crate::ui_screen::{project, update_state};
 use crate::ui_screen_view::ScreenState;
+
+thread_local! {
+    /// What: `CLOCK` is how long the test thread's Slint clock says the program has run.
+    /// Why: Slint animations read the platform's clock, and the default clock is the wall clock, so how far a fade-in has gone
+    /// when a frame is drawn depended on how fast the build runs: a debug build (slow) drew a page at full ink, a release build
+    /// (fast) drew it still faded. The test clock moves only when the test moves it.
+    static CLOCK: Cell<Duration> = const { Cell::new(Duration::ZERO) };
+}
 
 /// What:
 /// `SoftwarePlatform` hands one software window to every window the test creates.
@@ -43,6 +53,11 @@ impl Platform for SoftwarePlatform {
     /// `create_window_adapter` gives the shared software window.
     fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, PlatformError> {
         return Ok(self.window.clone());
+    }
+
+    /// What: `duration_since_start` gives the test clock, which stands still until the test moves it.
+    fn duration_since_start(&self) -> Duration {
+        return CLOCK.get();
     }
 }
 
@@ -142,7 +157,11 @@ fn render_window_with(width: usize, height: usize, names: &[String], playing: Op
     let mut pixels = vec![Rgb8Pixel::default(); width * height];
     // The first draw builds what the properties asked for (a page that has just become visible, a list that has just been given
     // rows), and the second draws it.
+    // Each pass moves the clock by one fade-in, so a fade that starts during a pass has ended by the next one, whatever the
+    // speed of the build.
+    let fade_in = Duration::from_millis(u64::try_from(app.global::<crate::Theme>().get_motion_enter()).unwrap_or(0));
     for _ in 0..3 {
+        CLOCK.set(CLOCK.get() + fade_in);
         slint::platform::update_timers_and_animations();
         window.request_redraw();
         window.draw_if_needed(|renderer| {

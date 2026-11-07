@@ -68,6 +68,17 @@ impl Drop for Held {
     }
 }
 
+/// The live text of the lockfile the killed run left, which the recovery must not change while the launcher is uncertain.
+const LEFT_BY_THE_KILLED_RUN: &str = "unchecked output of the killed run";
+
+/// Asserts what the helper's real recovery and admission did in the other time namespace: the live output is unchanged, the journal is
+/// kept (and is the only one: the refused admission left none behind), and a new transaction is refused.
+fn assert_entry_points_held(result: &str) {
+    for line in ["entry lock unchanged true", "entry journal kept true", "entry admission refused true", "entry journals 1"] {
+        assert!(result.lines().any(|found| { return found == line; }), "the real recovery or admission did not hold the uncertain launcher ({line} is missing): {result}");
+    }
+}
+
 /// Stops a process by its id when it drops,
 /// so a failed assertion leaves no launcher behind.
 struct StopOnDrop(
@@ -143,10 +154,23 @@ fn time_namespace_fixture() {
     let own_start: String = process_start(pid).map_or_else(|error| { return format!("err {error}"); }, |found| { return found.to_string(); });
     let journal: PathBuf = crate::journal_support::journal_dirs(&root).into_iter().next().expect("a journal");
     let note: String = survivor_note(&journal).unwrap_or_else(|| { return "no survivor".to_string(); });
+    // The real recovery and the real admission in this namespace (sixth pass, group 3): what they leave and what they decide.
+    let refusing = |_before: &[LockSnapshot], _live: &[LockSnapshot]| -> Vec<String> { return vec!["dep@1.0.1 refused".to_string()]; };
+    let recovered: Vec<String> = crate::journal::recover(&root, &refusing);
+    let live: String = fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).unwrap_or_default();
+    let admitted = crate::journal::begin(&root, &[snapshot("original")], false);
+    let held: String = format!(
+        "entry lock unchanged {}\nentry journal kept {}\nentry admission refused {}\nentry journals {}\nentry messages {}\n",
+        live == LEFT_BY_THE_KILLED_RUN,
+        journal.exists(),
+        admitted.is_err(),
+        crate::journal_support::journal_dirs(&root).len(),
+        recovered.len()
+    );
     fs::write(
         root.join("fixture-result"),
         format!(
-            "own start {own_start}\ntime namespace here {}\nquestion {:?}\nrecovery {}\n",
+            "{held}own start {own_start}\ntime namespace here {}\nquestion {:?}\nrecovery {}\n",
             fs::metadata("/proc/self/ns/time").map_or_else(|error| { return format!("err {error}"); }, |found| { return std::os::unix::fs::MetadataExt::ino(&found).to_string(); }),
             launcher_state(pid, start, pid_namespace),
             note.lines().next().unwrap_or("")
@@ -180,6 +204,7 @@ fn run_time_fixture_in(root: &Path, identity: &str, shifted: bool, user_namespac
     } else {
         Command::new(&executable)
     };
+    fs::write(root.join(CRATE_DIR).join("Cargo.lock"), LEFT_BY_THE_KILLED_RUN).expect("the output of the killed run");
     let status = command
         .args(["--ignored", "--exact", "round_fourteen_tests::time_namespace_fixture", "--nocapture"])
         .env(FIXTURE_ROOT, root)
@@ -243,6 +268,7 @@ fn a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone() {
     // The recovery's refusal names the cause (14 section 3), with the other views equal: it is the start-time comparison that is refused.
     let recovery: &str = shifted.lines().find_map(|line| { return line.strip_prefix("recovery "); }).expect("the recovery line");
     assert!(recovery != "no survivor" && recovery.contains("start time"), "the recovery in another time namespace did not refuse for the start times: {recovery}");
+    assert_entry_points_held(&shifted);
 }
 
 /// The helper that stands for the wrapper in the review's schedule (14 section 2):
@@ -340,6 +366,7 @@ fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
     assert!(!result.contains("Gone"), "a live launcher was read as gone through a recycled time namespace number: {result}");
     let recovery: &str = result.lines().find_map(|line| { return line.strip_prefix("recovery "); }).expect("the recovery line");
     assert!(recovery != "no survivor" && recovery.contains("start time"), "the recovery did not refuse for the start times: {recovery}");
+    assert_entry_points_held(result);
 }
 
 /// What one attempt at the recycled-number schedule saw.

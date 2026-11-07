@@ -64,6 +64,10 @@ thread_local! {
     /// Whether the next use of this step on this thread fails.
     static COMPLETION_SYNC: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
+    static JOURNAL_DIRECTORY_SYNC: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
+    static JOURNAL_PARENT_SYNC: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
     static COMPLETION_RENAME: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
     static LISTING_ENTRY_NOT_FOUND: Cell<bool> = const { Cell::new(false) };
@@ -112,6 +116,10 @@ pub enum Point {
     /// by a reader (a recovery),
     /// fails.
     AcknowledgementDirectorySync,
+    /// The sync of a new journal's own directory, at the end of beginning a transaction, fails.
+    JournalDirectorySync,
+    /// The sync of the directory that lists a new journal, at the end of beginning a transaction, fails.
+    JournalParentSync,
     /// The wait for a killed discovery program reports an error instead of a status.
     ReapError,
     /// The sync of the temporary file of an atomic publication (the writer's side of an acknowledgement) fails.
@@ -185,6 +193,8 @@ pub fn arm(point: Point) {
         Point::AcknowledgementDurability => ACKNOWLEDGEMENT_DURABILITY.with(|slot| { slot.set(true); }),
         Point::AcknowledgementFileSync => ACKNOWLEDGEMENT_FILE_SYNC.with(|slot| { slot.set(true); }),
         Point::AcknowledgementDirectorySync => ACKNOWLEDGEMENT_DIRECTORY_SYNC.with(|slot| { slot.set(true); }),
+        Point::JournalDirectorySync => JOURNAL_DIRECTORY_SYNC.with(|slot| { slot.set(true); }),
+        Point::JournalParentSync => JOURNAL_PARENT_SYNC.with(|slot| { slot.set(true); }),
         Point::ContainmentSurvivor => CONTAINMENT_SURVIVOR.with(|slot| { slot.set(true); }),
         Point::ReapError => REAP_ERROR.with(|slot| { slot.set(true); }),
         Point::PublicationFileSync => PUBLICATION_FILE_SYNC.with(|slot| { slot.set(true); }),
@@ -228,6 +238,8 @@ pub fn fires(point: Point) -> bool {
         Point::AcknowledgementDurability => ACKNOWLEDGEMENT_DURABILITY.with(Cell::take),
         Point::AcknowledgementFileSync => ACKNOWLEDGEMENT_FILE_SYNC.with(Cell::take),
         Point::AcknowledgementDirectorySync => ACKNOWLEDGEMENT_DIRECTORY_SYNC.with(Cell::take),
+        Point::JournalDirectorySync => JOURNAL_DIRECTORY_SYNC.with(Cell::take),
+        Point::JournalParentSync => JOURNAL_PARENT_SYNC.with(Cell::take),
         Point::ContainmentSurvivor => CONTAINMENT_SURVIVOR.with(Cell::take),
         Point::ReapError => REAP_ERROR.with(Cell::take),
         Point::PublicationFileSync => PUBLICATION_FILE_SYNC.with(Cell::take),
