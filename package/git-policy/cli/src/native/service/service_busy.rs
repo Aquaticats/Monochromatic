@@ -126,8 +126,9 @@ impl LandingBoard {
     /// Why:
     ///   The file is written whole beside its name and then published without replacing it, so it never shows partly written, and
     ///  the publish fails when the name exists, so exactly one side makes the decision (on a filesystem that has neither an exclusive
-    ///  rename nor hard links, the check then rename can let both sides think they won, as the owner was told when he kept that
-    ///  fallback, 2026-11-07). Any other failure is an error: nothing was decided.
+    ///  rename nor hard links, the checked rename is made one step to the threads of this service by an in-memory claim,
+    ///  `name_held_while_one_thread_publishes_it.rs`, so the landing thread and a connection thread never both win; only another
+    ///  program could still overwrite the file there, as the owner was told when he kept that fallback, 2026-11-07). Any other failure is an error: nothing was decided.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

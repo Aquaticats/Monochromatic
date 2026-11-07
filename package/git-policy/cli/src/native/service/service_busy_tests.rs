@@ -410,3 +410,59 @@ fn the_memory_of_withdrawals_stays_bounded_while_the_landing_is_stuck() {
     assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_RETAINED);
     assert!(matches!(record.withdraw_early("after"), EarlyAnswer::Withdrawn(_)));
 }
+
+/// How long the landing thread, paused between the check and the rename of a publish, gives the connection thread to finish its own
+///  publish of the same name: far above the microseconds a publish takes, so a connection thread that nothing holds back has
+///  finished, and a held one is still waiting.
+#[cfg(unix)]
+const TIME_FOR_THE_OTHER_PUBLISHER: Duration = Duration::from_millis(500);
+
+/// How long a control waits for a decision that is certain to come once the landing thread has let go: far above a publish, so
+///  only a decision that never comes ends the wait.
+#[cfg(unix)]
+const TIME_FOR_A_DECISION_TO_COME: Duration = Duration::from_secs(30);
+
+/// On a filesystem that answers neither an exclusive rename nor a hard link, the landing thread and a connection thread of one
+///  service race for one decision with the checked rename (a check, then a rename). The landing thread is paused between its
+///  check and its rename; a connection thread decides the same request meanwhile. Exactly one of them may see itself the winner,
+///  and the other reads what the winner wrote (the plan, "Safe file saving: the publish replaced", fact 1 and its settlement).
+#[cfg(unix)]
+#[test]
+fn on_a_disk_without_exclusive_publish_the_landing_thread_and_a_connection_thread_never_both_win_a_decision() {
+    use crate::private_storage::{BETWEEN_THE_CHECK_AND_THE_RENAME, THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    let record: Arc<LandingBoard> = board();
+    let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<Decision>>();
+    // What the connection thread decided, when it finished while the landing thread was paused.
+    let decided_while_paused: Rc<RefCell<Option<std::io::Result<Decision>>>> = Rc::new(RefCell::new(None));
+    THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH.with(|flag| { flag.set(true); });
+    let pause_record: Arc<LandingBoard> = Arc::clone(&record);
+    let pause_result: Rc<RefCell<Option<std::io::Result<Decision>>>> = Rc::clone(&decided_while_paused);
+    let pause_receiver = Rc::new(receiver);
+    let later_receiver = Rc::clone(&pause_receiver);
+    BETWEEN_THE_CHECK_AND_THE_RENAME.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            let (shared_record, shared_sender) = (Arc::clone(&pause_record), sender.clone());
+            std::thread::spawn(move || {
+                THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH.with(|flag| { flag.set(true); });
+                let _sent = shared_sender.send(shared_record.decide("request", "withdrawn:token"));
+            });
+            *pause_result.borrow_mut() = pause_receiver.recv_timeout(TIME_FOR_THE_OTHER_PUBLISHER).ok();
+        }));
+    });
+    let landing: Decision = record.decide("request", LANDING).expect("the landing thread's decision");
+    BETWEEN_THE_CHECK_AND_THE_RENAME.with(|hook| { *hook.borrow_mut() = None; });
+    let withdrawing: Decision = match decided_while_paused.borrow_mut().take() {
+        Some(early) => early,
+        None => later_receiver.recv_timeout(TIME_FOR_A_DECISION_TO_COME).expect("the connection thread's decision comes once the landing thread has let go"),
+    }
+    .expect("the connection thread's decision");
+    let content: String = std::fs::read_to_string(record.decision_path("request")).expect("the decision file");
+    match (landing, withdrawing) {
+        (Decision::Won, Decision::Lost(read)) => assert_eq!(read, LANDING, "the loser reads what the winner wrote"),
+        (Decision::Lost(read), Decision::Won) => assert_eq!(read, content, "the loser reads what the winner wrote"),
+        (Decision::Won, Decision::Won) => panic!("both threads saw themselves the winner; the file says `{content}`"),
+        (Decision::Lost(_), Decision::Lost(_)) => panic!("neither thread won; the file says `{content}`"),
+    }
+}

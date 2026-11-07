@@ -659,3 +659,30 @@ fn the_hint_names_the_tool_as_one_shell_word_and_names_no_mise_task() {
     let plain: String = older_lock_message_for(ScopeKind::Global, GIT_TOOL, "0.4.4", "0.4.5");
     assert!(plain.contains(&format!("`mpm update -g {GIT_TOOL}`")), "{plain}");
 }
+
+#[test]
+fn the_winning_copy_across_both_roots_is_the_longer_alpha_number() {
+    let duo = Duo::new();
+    let lock = duo.lock_repository("0.4.5-alpha.10");
+    duo.install_under(&duo.repository_root(), "0.4.5-alpha.10");
+    duo.install_under(&duo.global_root(), "0.4.5-alpha.9");
+    let winner = winning_copy(&duo.rig.scope, &lock.tools[0]).expect("a winner");
+    assert_eq!(winner.version, "0.4.5-alpha.10");
+    assert_eq!(winner.root, duo.repository_root());
+}
+
+#[test]
+fn the_older_copy_in_the_other_root_is_planned_for_removal_by_the_alpha_number_read_as_a_number() {
+    let duo = Duo::new();
+    let lock = duo.lock_repository("0.4.5-alpha.10");
+    duo.install_under(&duo.repository_root(), "0.4.5-alpha.10");
+    duo.install_under(&duo.global_root(), "0.4.5-alpha.9");
+    duo.list_own_worktree();
+    let plans = plan_old_copies(&duo.context(&duo.rig.scope, &lock), &[]);
+    assert_eq!(plans.losers.len(), 1, "{plans:?}");
+    assert_eq!(plans.losers[0].kept, None, "{plans:?}");
+    assert_eq!(plans.losers[0].winner_version, "0.4.5-alpha.10", "{plans:?}");
+    assert_eq!(plans.losers[0].root, duo.global_root(), "the copy to remove is in the other root: {plans:?}");
+    assert_eq!(plans.losers[0].copies.len(), 1, "{plans:?}");
+    assert_eq!(plans.losers[0].copies[0].version, "0.4.5-alpha.9", "{plans:?}");
+}

@@ -349,6 +349,21 @@ fn scan(look: &ServiceLook, proc_root: &Path) -> Option<Hold> {
     if let Some(hold) = earlier_socket_that_listens(look, proc_root) {
         return Some(hold);
     }
+    return scan_processes(look, proc_root);
+}
+
+/// What:
+///  The processes half of `scan`: every process of the user other than this one, until one is a service of the worktree.
+/// Why:
+///   A caller that only needs to know whether an earlier program is running now (the fold of the earlier data names, which a
+///  socket that listens cannot write to) must not be held back by a socket whose unit stays active for good.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const pid of readdir(procRoot)) { if (isServiceOf(read(`${pid}/cmdline`))) return true }
+/// ```
+#[cfg(unix)]
+fn scan_processes(look: &ServiceLook, proc_root: &Path) -> Option<Hold> {
     // A journal folder that cannot be looked at for a reason other than its absence leaves the question open.
     if journal_identities(look.journals.as_slice()).is_none() {
         return Some(Hold::CannotLook);
@@ -389,6 +404,12 @@ fn scan(_look: &ServiceLook, _proc_root: &Path) -> Option<Hold> {
     return Some(Hold::CannotLook);
 }
 
+/// Without `/proc` and Unix users there is no look to make, so a service may be running.
+#[cfg(not(unix))]
+fn scan_processes(_look: &ServiceLook, _proc_root: &Path) -> Option<Hold> {
+    return Some(Hold::CannotLook);
+}
+
 /// The user this process runs as, whose processes are looked at.
 #[cfg(unix)]
 pub fn effective_user() -> u32 {
@@ -416,11 +437,32 @@ pub fn effective_user() -> u32 {
 /// async function earlierServiceHold(look: ServiceLook, procRoot: string): Promise<Hold | undefined>;
 /// ```
 pub fn earlier_service_hold(look: ServiceLook, proc_root: &Path) -> Option<Hold> {
+    return hold_within_ceiling(look, proc_root, scan);
+}
+
+/// What:
+///  Why a service of the worktree is running now, or nothing when no process has a service's start arguments: the sockets of the
+///  earlier units are not looked at.
+/// Why:
+///   A socket that listens starts a service only when a program connects to it; for the fold of the earlier data names the
+///  question is whether a program that writes them runs, and the sockets of a worktree's earlier units stay listening for good.
+///  The same ceiling applies, and a look that cannot be made counts as a hold.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function earlierServiceProcessHold(look: ServiceLook, procRoot: string): Promise<Hold | undefined>;
+/// ```
+pub fn earlier_service_process_hold(look: ServiceLook, proc_root: &Path) -> Option<Hold> {
+    return hold_within_ceiling(look, proc_root, scan_processes);
+}
+
+/// `earlier_service_hold` and `earlier_service_process_hold` with the scan they run on the thread of their own.
+fn hold_within_ceiling(look: ServiceLook, proc_root: &Path, scanner: fn(&ServiceLook, &Path) -> Option<Hold>) -> Option<Hold> {
     let ceiling: Duration = look.ceiling;
     let root: PathBuf = proc_root.to_path_buf();
     let (sender, receiver) = std::sync::mpsc::channel::<Option<Hold>>();
     let started = std::thread::Builder::new().name(String::from("earlier-service-process-look")).spawn(move || {
-        let _sent = sender.send(scan(&look, root.as_path()));
+        let _sent = sender.send(scanner(&look, root.as_path()));
     });
     if let Err(error) = started {
         crate::service_error!("cannot start the look at the processes ({error}), so a service of the worktree may be running");

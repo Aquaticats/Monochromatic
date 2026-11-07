@@ -109,3 +109,61 @@ fn ranks_a_release_above_its_pre_release() {
 fn reports_equal_versions_as_equal() {
     assert_eq!(compare_versions("1.0.0", "1.0.0"), Ordering::Equal);
 }
+
+/// Semantic Versioning 2.0.0, item 11, lists this chain in ascending precedence:
+/// every version is older than the ones after it,
+/// and a list in that order is the order `compare_versions` must give for each pair.
+#[test]
+fn orders_the_pre_release_chain_of_the_semver_specification() {
+    let ascending: [&str; 8] =
+        ["1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-alpha.beta", "1.0.0-beta", "1.0.0-beta.2", "1.0.0-beta.11", "1.0.0-rc.1", "1.0.0"];
+    for (earlier_index, earlier) in ascending.iter().enumerate() {
+        for (later_index, later) in ascending.iter().enumerate() {
+            assert_eq!(compare_versions(earlier, later), earlier_index.cmp(&later_index), "{earlier} against {later}");
+        }
+    }
+}
+
+/// Identifiers made only of digits compare as numbers,
+/// so the number after `alpha` with more digits is the larger one,
+/// even when it starts with a smaller digit.
+#[test]
+fn compares_numeric_pre_release_identifiers_as_numbers() {
+    assert_eq!(compare_versions("0.2.7-alpha.10", "0.2.7-alpha.9"), Ordering::Greater);
+    assert_eq!(compare_versions("0.2.7-alpha.9", "0.2.7-alpha.10"), Ordering::Less);
+    assert_eq!(compare_versions("0.2.7-alpha.2.1", "0.2.7-alpha.10.0"), Ordering::Less);
+}
+
+/// A number longer than any machine integer still compares as a number, and never overflows into an equal one.
+#[test]
+fn compares_numeric_identifiers_longer_than_a_machine_integer() {
+    let smaller: &str = "1.0.0-rc.99999999999999999999999999";
+    let larger: &str = "1.0.0-rc.100000000000000000000000000";
+    assert_eq!(compare_versions(larger, smaller), Ordering::Greater);
+    assert_eq!(compare_versions(smaller, larger), Ordering::Less);
+}
+
+/// A numeric identifier is lower than an identifier with letters or hyphens,
+/// and the identifiers with letters compare as ASCII text (capitals before lower case letters).
+#[test]
+fn ranks_numeric_identifiers_below_alphanumeric_ones_and_compares_those_as_ascii_text() {
+    assert_eq!(compare_versions("1.0.0-1", "1.0.0-a"), Ordering::Less);
+    assert_eq!(compare_versions("1.0.0-99999", "1.0.0--"), Ordering::Less);
+    assert_eq!(compare_versions("1.0.0-Beta", "1.0.0-alpha"), Ordering::Less);
+    assert_eq!(compare_versions("1.0.0-alpha.beta", "1.0.0-alpha.1"), Ordering::Greater);
+}
+
+/// A larger set of identifiers is higher when every earlier identifier is equal.
+#[test]
+fn ranks_a_longer_identifier_set_above_a_shorter_one_with_equal_leading_identifiers() {
+    assert_eq!(compare_versions("1.0.0-alpha.1", "1.0.0-alpha"), Ordering::Greater);
+    assert_eq!(compare_versions("1.0.0-alpha.1.1", "1.0.0-alpha.1"), Ordering::Greater);
+    assert_eq!(compare_versions("1.0.0-alpha", "1.0.0-alpha.1"), Ordering::Less);
+}
+
+/// Build metadata after a plus sign never figures into precedence.
+#[test]
+fn ignores_build_metadata() {
+    assert_eq!(compare_versions("1.0.0-alpha.1+build.9", "1.0.0-alpha.1+build.10"), Ordering::Equal);
+    assert_eq!(compare_versions("1.0.0+a", "1.0.0"), Ordering::Equal);
+}

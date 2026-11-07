@@ -42,6 +42,15 @@ use std::ffi::OsString;
 use std::path::Path;
 /// Diagnostics for a decision no failure reports.
 use crate::diagnostic_log::debug;
+/// The in-memory claim that makes the checked rename one step to the other threads of the process.
+use crate::name_held_while_one_thread_publishes_it::{HeldName, hold_name_while_publishing};
+use std::time::Duration;
+
+/// How long the checked rename waits for another thread of this process that is publishing the same name: the bound of "nothing
+///  should ever wait forever" for a step that takes a check and a rename. No measurement picked it; it is the budget the start
+///  retry gives a refused start (`push/start_retry.rs`, `START_RETRY_BUDGET`), open to the owner's veto, and it is only reached by a
+///  rename that stalls on a disk that has neither exclusive publish.
+const HELD_NAME_WAIT: Duration = Duration::from_secs(5);
 
 /// Mode of every private directory the wrapper creates:
 ///  owner only.
@@ -195,9 +204,14 @@ fn staging_beside(path: &Path) -> std::io::Result<tempfile::NamedTempFile> {
 /// if (await exists(path)) throw alreadyExists(path); await rename(staged, path);
 /// ```
 fn publish_by_checked_rename(staged: &Path, path: &Path) -> std::io::Result<()> {
+    // The check and the rename are one step to every other thread of this process that publishes the name by this fallback; the
+    //  claim ends when this function returns, on every way out. `TimedOut` means nothing was published.
+    let _held: HeldName = hold_name_while_publishing(path, HELD_NAME_WAIT)?;
     if std::fs::symlink_metadata(path).is_ok() {
         return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists));
     }
+    #[cfg(test)]
+    BETWEEN_THE_CHECK_AND_THE_RENAME.with(|hook| { if let Some(pause) = hook.borrow().as_ref() { pause(); } });
     return std::fs::rename(staged, path);
 }
 
@@ -299,6 +313,13 @@ fn write_then_publish(path: &Path, bytes: &[u8], mode: Option<u32>, durable: boo
     protect_when_asked(staged.path(), mode)?;
     #[cfg(test)]
     AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { return hook.borrow().as_ref().map_or(Ok(()), |fail| { return fail(); }); })?;
+    #[cfg(test)]
+    let outcome: Result<File, tempfile::PersistError> = if THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH.with(std::cell::Cell::get) {
+        Err(tempfile::PersistError { error: std::io::Error::from_raw_os_error(libc::ENOTSUP), file: staged })
+    } else {
+        staged.persist_noclobber(path)
+    };
+    #[cfg(not(test))]
     let outcome: Result<File, tempfile::PersistError> = staged.persist_noclobber(path);
     return settle_exclusive_publish(path, outcome);
 }
@@ -529,6 +550,16 @@ thread_local! {
     /// A control may fail a publish on this thread after the staging file was made and written, which is where a full disk or a
     ///  kill ends one.
     pub(crate) static AFTER_THE_STAGING_FILE_IS_WRITTEN: std::cell::RefCell<Option<Box<dyn Fn() -> std::io::Result<()>>>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A control may make every exclusive publish on this thread get the refusal of a filesystem with neither `renameat2` with
+    ///  `RENAME_NOREPLACE` nor hard links (`s3fs-fuse` answers `ENOTSUP`), which no filesystem of a test host gives.
+    pub(crate) static THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// A control may stop the checked rename on this thread between its check and its rename, where a second publisher of the
+    ///  same name can slip in.
+    pub(crate) static BETWEEN_THE_CHECK_AND_THE_RENAME: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
 #[cfg(test)]

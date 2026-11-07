@@ -4,6 +4,7 @@ import {
 } from 'node:path';
 
 import { buildCommitMessage } from './commit-message.ts';
+import { goesToCratesIo } from './crates-io-version-label.ts';
 import {
   cargoProgram,
   gitProgram,
@@ -259,7 +260,48 @@ export function buildCommitArguments({
 }
 
 /**
- Plan the program calls of a release, in the order they run: check, lockfile refreshes, publish dry run, commit.
+ Plan the step that dry-runs the publish of the crate to crates.io.
+
+ @param options - validated release options
+
+ @param crateRoot - absolute directory of the crate
+
+ @returns the step: a capped transient unit on a local host, cargo directly on a runner
+
+ @example
+ ```ts
+ publishDryRunStep({ options, crateRoot: '/r/package/c' });
+ ```
+ */
+function publishDryRunStep({
+  options,
+  crateRoot,
+}: {
+  readonly options: ReleaseOptions;
+  readonly crateRoot: string;
+}): ReleaseStep {
+  return options.host === 'local'
+    ? {
+      label: 'publish dry run',
+      program: systemdRunProgram,
+      args: buildPublishDryRunArguments({
+        unitName: options.unitName,
+        workingDirectory: crateRoot,
+        memoryMax: options.memoryMax,
+      }),
+      cwd: crateRoot,
+    }
+    : {
+      label: 'publish dry run',
+      program: cargoProgram,
+      args: buildPublishDryRunTail(),
+      cwd: crateRoot,
+    };
+}
+
+/**
+ Plan the program calls of a release, in the order they run: check, lockfile refreshes, publish dry run, commit. A
+ version that never goes to crates.io (alpha, beta, and every form the label rule does not name) has no publish dry run.
 
  A local host keeps cargo offline and runs the dry run in a capped transient unit; a runner lets cargo use the network
  and runs the dry run directly, because the runner is a disposable machine of its own.
@@ -303,23 +345,11 @@ export function buildReleaseSteps(options: ReleaseOptions): readonly ReleaseStep
           ),
         };
       }),
-    options.host === 'local'
-      ? {
-        label: 'publish dry run',
-        program: systemdRunProgram,
-        args: buildPublishDryRunArguments({
-          unitName: options.unitName,
-          workingDirectory: crateRoot,
-          memoryMax: options.memoryMax,
-        }),
-        cwd: crateRoot,
-      }
-      : {
-        label: 'publish dry run',
-        program: cargoProgram,
-        args: buildPublishDryRunTail(),
-        cwd: crateRoot,
-      },
+    // The dry run asks crates.io, which never holds an alpha or a beta, so those versions skip it.
+    ...(goesToCratesIo(options.to) ? [publishDryRunStep({
+      options,
+      crateRoot
+    })] : []),
     {
       label: 'commit',
       program: gitProgram,

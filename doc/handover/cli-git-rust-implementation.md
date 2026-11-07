@@ -3563,6 +3563,32 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The nested-launch guard and the EAGAIN retry of issue 6259 are covered by package tests but were never exercised
   live.
 
+### Claude Code restart (2026-11-07, about 10:00 -05:00; owner raising the subagent limit to 8)
+
+- Owner: "Do whatever you need to do, but don't abandon any work."
+- Five agents were told to commit their work in progress, write a resume note and stop their units: tokio T5 onward,
+  the crate-release label gate plus the `mpm-shadow` `0.2.7-alpha.1` release, Zig from the lock in two Containerfiles,
+  the `core-exec` depends follow-ups, and the fold's late-line fix.
+- Resume instructions, the six briefs and the common constraints are in
+  `~/temp/agent/coordinator-briefs/resume-after-restart.md` (scratch: survives a restart, not a reboot); the waiting
+  briefs are beside it in `waiting-for-a-slot.md`. Each branch and its commits are the durable record.
+- Checkpoints reported:
+  - tokio `feat/git-policy-cli-on-tokio` at `783f8d8887` (`decide` race fixed, T5 done, both gated; user unit
+    `tokio-gate-merge2` still running, log `~/temp/agent/tokio-steps/gate-merge2.log`);
+  - label gate and SemVer ordering merged into main `4fd9c70572`; `mpm-shadow` `0.2.7-alpha.1` dispatched (release run
+    42384727529 succeeded, publish run 42384840600 in progress at about 10:10); lock not moved yet;
+  - fold late lines: red test `ead9d7463c` only (design: read-lease probe for open writers);
+  - `core-exec` depends: process-group kill done (`8a19368c49`), lint fixes half done, tip `69ac4ed029` does not
+    compile (WIP);
+  - Zig containers `fix/containers-zig-from-lock`: lock-driven Zig and cargo-about (`92d5749e4b`), 0.17.1 shown in
+    every proof image; Zig 0.17.1 broke `libghostty-vt-sys` 0.2.2, fixed forward to a pinned `libghostty-rs` revision
+    (WIP `a92fae96d3`); lint, terminal Clippy and nextest, main merge still open. Found separately: the music-player
+    release build fails on nightly-2026-11-07 in crate `branches` 0.4.6 (`core::intrinsics::abort` gone), and two
+    decision records pin Zig against "always latest" (`ide-releases.md:948`, `desktop-app-podman-build.md:67`; owner
+    approval needed to amend).
+- Commit comment posted on `c5b4559b88` (its message overstates removed timeouts):
+  https://github.com/Aquaticats/Monochromatic/commit/c5b4559b88f4582103acc18cd3fe6294aab42734#commitcomment-208645485
+
 ### After the release: agents at work (2026-11-07, resumed after a usage-limit stop)
 
 - Post-release steps are done (lock on the archive route `c048f3a566`, live commit through 0.6.0, 14 yanks, daily timer on,
@@ -3608,7 +3634,25 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `mask_userinfo_text`). Plain pass-through of Git's own stderr is unchanged. Its first gate run had one failure,
   `program_rename_guard::both_names_of_a_kept_kind_use_the_new_and_report_the_earlier` (empty stderr), which passed on rerun
   and alone; handed to the fold agent, whose change owns that notice and test.
-- The diagnosis of the emptied link folders ran at the same time. Bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`)
+- The diagnosis of the emptied link folders ran at the same time.
+- Fold of the six earlier `.git` data names merged as `38d54f9b2b` (gate 5158 of 5158, lint clean). Not released;
+  it reaches this machine only with the next wrapper release. Logs are appended to the current log (earlier lines at the
+  end, every byte kept), folders merged entry by entry with `rename_noreplace`, a clash keeps both
+  (`<name>.from-earlier-release`); a journal plus `flock` makes every step restartable; it waits while this
+  worktree's earlier commit service runs (main's `cli-git@fc85fdf7a58f866b7f7a84b44fe0b69a` is running now), with about
+  10 ms per command while waiting. The old notice and its flaky test are gone. Known gap, must close before the next
+  wrapper release: a line an earlier-release wrapper writes into the moved-aside log after the last size check is lost
+  when the moved file is removed (about 216 checkouts lock older releases); agent on
+  `fix/git-policy-cli-fold-keeps-late-lines`. Another suite-only failure seen once in its gates:
+  `service::the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero` (passed alone and in three later
+  gates; cause not measured; queued). Its agent wrote a planning section into main's checkout by mistake and removed
+  exactly its own lines with `git apply --reverse`; main was clean after.
+- `core-exec` `depends.unit.test.ts`: no hang on an idle host (5.1 s); a hang was reproduced under a full process-count
+  ceiling (`TasksMax=150`; children stuck when their threads were refused) and every child wait in `task-depends` is
+  now bounded (60 s per query, 3600 s per command, measurements cited); branch
+  `fix/monorepo-task-core-exec-depends-test-time` (`b9bbbb4268`), not merged. Back with its agent for a process-group
+  kill (a timed-out pipeline survives today) and for the package lint, which fails on main with 16 warnings in
+  `daily-update-*.ts`, `mpm-shadow.unit.test.ts` and `playwright-image.unit.test.ts`. Bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`)
   started about 09:34. Still waiting for a slot: the terminal and music-player Containerfiles taking Zig from the lock row instead of `ZIG_VERSION=0.15.2`
   (`fix/containers-zig-from-lock`); both briefs are saved in
   `~/temp/agent/coordinator-briefs/waiting-for-a-slot.md` (scratch, lost on reboot).
