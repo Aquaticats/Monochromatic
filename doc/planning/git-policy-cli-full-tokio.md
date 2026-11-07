@@ -146,7 +146,7 @@ and every number here comes from
   minus the `testing/` and `source_guard/` folders,
   and minus `*_tests.rs` and `*_test_support.rs`:
   623 files (the folder holds 1288 `.rs` files;
-  659 are test files).
+  the other 665 are test files).
   The brief said about 580;
   the count by this rule is 623 (`classify.ts` prints it).
 - Counts are lines that match,
@@ -556,27 +556,56 @@ eagerly.
   and hung again at 30,
   40
   and 60 MiB.
-- Consequence for the design:
-  the worker count must be chosen with the address-space and process limits in view before `build()`
-  (`getrlimit` for `RLIMIT_AS` and `RLIMIT_NPROC`,
-  which `foundation/parallel_budget.rs` does not read today),
-  the arena count must be capped before the first worker starts (`mallopt(M_ARENA_MAX, ...)`,
-  to be measured for
-  allocation contention),
-  and a limit that leaves no room must select the current-thread runtime.
+- Consequence for the design (the cross-vendor review found the first version of this item too confident):
+  reading the limits before `build()` lowers the chance of the failure and cannot remove it.
+  Other processes use threads and memory between the check and the build;
+  `RLIMIT_NPROC` counts the threads of all
+  processes of the user,
+  not only processes;
+  the address-space figure must leave room for what the build and the
+  blocking pool allocate after it;
+  and cgroup `pids.max` counts every ancestor.
+  So the build also needs a bound that does not depend on the check being right:
+  the multi-thread runtime is built on a helper thread,
+  and the caller waits for it with a deadline;
+  when the deadline passes,
+  the caller selects the current-thread runtime and leaves the helper thread (it may be hung
+  in the unwind) running until the process ends.
+  Where not even the helper thread can start,
+  the current-thread runtime is selected at once.
+  That makes the wait bounded,
+  which is "nothing should ever wait forever";
+  it does not make the build infallible,
+  and nothing in this plan claims it does.
+  The inputs of the check are the limits `foundation/parallel_budget.rs` does not read today (`getrlimit` for
+  `RLIMIT_AS` and `RLIMIT_NPROC`,
+  with the threads of the user counted,
+  and the `pids.max` of the cgroup and its
+  ancestors),
+  and the arena count is capped before the first worker starts (`mallopt(M_ARENA_MAX, ...)`).
+  An in-process `mallopt(M_ARENA_MAX, 1)` called before the build gave the same virtual sizes in the probe as the
+  environment variable (28 workers:
+  +57,936 KiB;
+  a blocking thread +2,064 KiB),
+  but it was not tried in the wrapper,
+  and
+  neither its contention cost nor the deadline-bounded build is measured.
   The existing suites already run the wrapper under such limits
   (`binary/binary_fault_limits_tests.rs`:
   descriptor,
   address-space and process limits on the wrapper and on the
   service),
-  so the proof exists once the runtime is in the binary.
+  so a proof harness exists once the runtime is in the binary (open choice 9).
 
 ### Blocking-pool work panics, not errors, when no thread can start
 
-- `tokio::task::spawn_blocking` panics with the same message (`pool.rs:385-387`);
+- `tokio::task::spawn_blocking` panics with the same message (`pool.rs:385-387`) when the OS refuses a thread and no
+  blocking thread exists;
   `tokio::fs` calls it (`src/fs/mod.rs:323-330`,
   `asyncify`),
-  so every `tokio::fs` operation panics under the same limit.
+  so a `tokio::fs` operation panics in that same state
+  (with a pool thread alive it queues instead;
+  the probe shows the first state only).
 - Measured under `prlimit --nproc=1` with a current-thread runtime:
   `spawn_blocking` panicked and the panic could be caught with `catch_unwind` (the closure is not returned);
   `tokio::fs::metadata` panicked outside any guard and ended the process with status 101.
@@ -590,7 +619,32 @@ eagerly.
   `catch_unwind`,
   and runs the job on the calling task when the call panics.
   Plain `tokio::fs` is not used.
-  The existing child-process harness that refuses every thread (`testing/no_threads_child_test_support.rs`) proves it.
+  The existing child-process harness that refuses every thread (`testing/no_threads_child_test_support.rs`) is the
+  control for the helper.
+- Limit of that fallback (cross-vendor finding,
+  accepted):
+  a job run on the calling task cannot be ended by a timer of the same runtime.
+  On a current-thread runtime an inline job that hangs stops the timers and the sockets with it,
+  and on a multi-thread
+  runtime enough inline jobs occupy every worker.
+  Today's code has the same property where a thread cannot start (the work runs on the caller),
+  so the fallback is no
+  worse than the code it replaces,
+  but it is not bounded by the in-process watchers either.
+  Two rules follow.
+  The inline fallback is taken only when the OS refused a thread,
+  never when a pool is merely busy
+  (a busy pool queues the job,
+  and a timeout around its `JoinHandle` stops the wait,
+  not the job).
+  Calls that can wait on a disk,
+  a remote file system or a FUSE mount (`sync_all`,
+  large writes,
+  metadata of files in
+  the repository) are the calls most exposed to it;
+  whether they must have an external bound in that state (the service
+  manager's watchdog,
+  the client's own deadline on the service) is open choice 11.
 
 ### The signal relay cannot be tokio's signal handling
 
@@ -635,14 +689,34 @@ eagerly.
   not built or tested;
   the existing `process/signal_relay_tests.rs` and
   `binary/binary_fault_signal_tests.rs` are its controls.
+  A pidfd keeps a pid from being reused,
+  but not a descriptor number:
+  if the handler can read the number while another thread closes the pidfd and the number is reused,
+  the handler
+  signals something else.
+  So the descriptor is closed only after the handler can no longer read it (a slot cleared by an atomic store,
+  and the
+  close deferred until no handler can be inside it,
+  which needs a proof or a different mechanism,
+  such as keeping the
+  pidfd open until the process ends in the short-lived command process).
+  Also an `errno` of the interrupted code must be preserved by the handler.
 - tokio's own child reaping does not conflict:
   on Linux `tokio::process` opens a pidfd for each child (`src/process/unix/pidfd_reaper.rs`) and falls back to a
   `SIGCHLD` listener only where `pidfd_open` is missing (`src/process/unix/mod.rs`,
   `build_child`).
-  The `SIGCHLD` fallback would install a handler that is never removed;
-  it is harmless for `SIGCHLD`,
-  which the
-  relay does not touch.
+  The `SIGCHLD` fallback would install a process-wide handler that is never removed.
+  The relay does not touch `SIGCHLD`,
+  but that does not make the handler harmless:
+  a code path that relies on the inherited `SIGCHLD` disposition (automatic reaping with `SIG_IGN`,
+  for example) changes
+  behavior.
+  The wrapper sets no such disposition today (the search for `sigaction` finds only `process/signal_relay.rs`,
+  and it
+  handles four other signals);
+  whether Git or a hook relies on it is not checked,
+  and the fallback only runs where
+  `pidfd_open` is missing.
 
 ### `tokio::process` can report a failed start after the child has started
 
@@ -684,6 +758,38 @@ eagerly.
   not built.
   The alternative is plain `tokio::process::Command`,
   which is simpler and has the failure just described.
+- The invariant the helper must keep (cross-vendor finding,
+  accepted):
+  once the standard-library spawn has succeeded,
+  every failure after the spawn (`pidfd_open`,
+  the reactor registration,
+  a failed
+  allocation of the supervision state,
+  no thread for a fallback) leaves the child owned by the helper until it is reaped
+  or deliberately handed over,
+  and none of them is reported as a failed start that may be retried.
+  The fallback for a missing or failed pidfd is therefore a timer-driven `try_wait` loop on the helper's own child
+  (`tokio::time::interval`,
+  no pool thread,
+  no descriptor),
+  not a blocking-pool wait.
+  The cleanup order matters as well:
+  the commit preparation must not remove the shadow repository while its Git child is
+  alive,
+  so the helper's drop ends or waits for the child before the cleanup runs.
+  This invariant needs a test seam in the helper (an injected failure at each step after the spawn),
+  because the
+  reactor failure of `tokio::process` cannot be injected from outside;
+  the descriptor-limit sweeps reach
+  `pidfd_open` and descriptor creation,
+  not the `epoll_ctl` registration itself.
+- `kill_on_drop` does not rescue the plain `tokio::process` start:
+  the drop guard that carries the flag is built after `imp::build_child(child)?` returns
+  (`src/process/mod.rs`,
+  `Command::build_child`),
+  so a start that fails inside `build_child` has no guard and the
+  standard-library child is dropped,
+  which neither kills nor waits for it.
 
 ### A non-blocking connect to a full Unix socket queue fails at once
 
@@ -705,11 +811,15 @@ eagerly.
 
 ### Blocking files, fsync and the runtime's own shutdown
 
-- tokio offers no asynchronous `fsync` on stable.
+- tokio has an asynchronous API for `fsync` (`File::sync_all`,
+  `sync_data`) but no kernel-asynchronous implementation on
+  stable:
   `tokio::fs` runs "ordinary blocking file operations behind the scenes" on the blocking pool,
   and io_uring is used
   only "when compiled with `tokio_unstable`" (`src/fs/mod.rs` module documentation).
-  So the fsyncs of the commit path stay blocking calls.
+  So the fsyncs of the commit path stay blocking calls on a pool thread,
+  with the pool's capacity and cancellation
+  limits.
   Measured with `probe-unix hop` (`nightly-2026-11-07`,
   release):
   handing an empty job to the blocking pool and back
@@ -719,14 +829,23 @@ eagerly.
   185 and 83 microseconds;
   `tokio::fs::metadata("/")` takes 17.7 and 10.0 microseconds against 2.0 to 2.4 for the inline call.
   The hop is small against an fsync,
-  large against a `stat`:
-  file calls that take microseconds stay inline,
-  and calls
-  that can wait on the disk (`sync_all`,
+  large against a `stat`.
+  The measured `stat` of `/` does not bound any other file call,
+  because a metadata call on a repository file can wait on
+  a disk,
+  a lock or a remote or FUSE mount.
+  So the rule is by what a call can wait on,
+  not by what one measurement took:
+  reads of `/proc`,
+  `/sys` and anonymous scratch files may stay inline,
+  and calls on repository or user files that can
+  wait on storage (`sync_all`,
   large writes,
-  directory walks of unbounded size) go to `spawn_blocking` in
-  batches,
-  as tokio's documentation recommends ("batch your operations into as few `spawn_blocking` calls as possible",
+  directory walks of unbounded size,
+  `stat` of user paths in a loop) go to
+  `spawn_blocking` in batches,
+  as tokio's documentation recommends ("batch your operations into as few `spawn_blocking`
+  calls as possible",
   `src/fs/mod.rs`).
 - Dropping a runtime "blocks until all spawned work has been stopped.
   This can take an indefinite amount of time.
@@ -740,6 +859,29 @@ eagerly.
   So no runtime of the wrapper is ever dropped;
   each process ends with `std::process::exit` (as `main.rs` does now),
   or `Runtime::shutdown_timeout` where a runtime must go before the process ends.
+- Ending the process is not a statement about data (cross-vendor finding,
+  accepted).
+  Work divides into three kinds,
+  and the exit path treats them differently:
+  work that may be abandoned (the shadow review,
+  the Markdown linter after its no-progress verdict,
+  a push that was
+  stopped for no progress);
+  work whose files and ownership must stay intact until it finishes (a landing batch,
+  the journal,
+  the claims and the
+  index lock marker);
+  and durability that must be complete or recoverable before success is reported ("Force at leaving,
+  else background").
+  The service already waits for the third kind before it ends:
+  `serve` calls `crate::service_durable::drain()` before it
+  returns in every exit arm (`service/service_server.rs`).
+  The tokio form keeps that:
+  the durable-sync jobs are tracked (a counter or a `JoinSet` of the pool jobs) and the exit
+  path waits for them under the no-progress watcher,
+  never under a runtime drop.
+  The test that the process ends with a blocking job still running proves bounded termination only;
+  the data test is that a job of the second or third kind is never started without being tracked.
 - Consequence for "nothing should wait forever":
   a step that waits on a blocking call is bounded by the same watcher as today (`tokio::time::timeout` around the
   `JoinHandle`),
@@ -762,22 +904,42 @@ eagerly.
 
 - Ten production `thread_local!` items (inventory) assume that a piece of work stays on one thread,
   and `repo_read/repo_read_tree.rs` holds an `Rc` there.
-  On a multi-thread runtime a task can move between workers at each `.await`,
-  and a future that holds an `Rc` across an
-  `.await` is not `Send`,
-  so `tokio::spawn` refuses it at compile time.
+  On a multi-thread runtime a task can move between workers at each `.await`.
+  A future that holds an `Rc` across an `.await` is not `Send`,
+  so `tokio::spawn` refuses it at compile time;
+  that is a partial check only.
+  A task that reads a thread-local,
+  drops every reference before the `.await`,
+  migrates and reads another worker's copy
+  compiles,
+  and so do two tasks that interleave on one thread and overwrite state that belonged to one operation.
+  So the proof is by tests that migrate and interleave tasks with distinguishable operation state,
+  and the test fault
+  hooks (seven `#[cfg(test)]` thread-locals) need a positive control that they still reach work that moved to a worker
+  or a pool thread.
 - The serialized landing step (`landing/service_land.rs`) is serial by design (`doc/planning/cli-git-resident-service.md`,
   "The serialized step,
   group commit,
   FIFO and backpressure"),
   so asynchronous code gives it no concurrency:
   its Git children and fsyncs are in sequence.
-  The tokio forms that keep its thread-affine state valid are a dedicated current-thread runtime with a
-  `tokio::task::LocalSet` on one thread for the landing step ("Runs `!Send` futures on the current thread",
-  `src/task/local.rs`),
-  or turning each `thread_local!` into a `tokio::task_local!` or an explicit context value.
-  The first changes no state code;
-  the second is the larger rewrite.
+  The tokio forms that keep its thread-affine state valid are a `tokio::task::LocalSet` ("Runs `!Send` futures on the
+  current thread",
+  `src/task/local.rs`) driven on one thread,
+  or turning each `thread_local!` into a
+  `tokio::task_local!` or an explicit context value (which does not by itself make a task `Send`:
+  a task that keeps a
+  `!Send` value still cannot be spawned).
+  The `LocalSet` needs no second runtime (cross-vendor finding,
+  accepted):
+  `Runtime::block_on` runs its future on the calling thread,
+  so the service's single multi-thread runtime can run the
+  landing loop in a `LocalSet` on the thread that called `block_on`,
+  while its accept loop,
+  connection tasks and
+  durable-sync jobs run on the workers.
+  That keeps one runtime for the process and the landing loop's thread affinity,
+  and is not yet tested in the wrapper.
   This is open choice 4.
 
 ### Things that are fine as they are
@@ -867,13 +1029,14 @@ the load average was 24 to 34):
   4.86,
   5.10 and 4.63.
   The spread of the same bytes against today's binary is 0.09 to 0.24 ms,
-  so a difference smaller than that is not a signal.
+  so a difference smaller than that is not
+  resolved by this experiment (which is weaker than "no cost").
 - Probe binary,
   runtime code linked and unused:
   5.00,
   5.19 and 4.63.
   (It is within the spread of the control:
-  linking `tokio` costs nothing at start.)
+  this experiment does not resolve a cost of linking `tokio`.)
 - Probe,
   current-thread runtime built at start:
   +0.05,
@@ -935,15 +1098,25 @@ the load average was 24 to 34):
   without `macros`, 4.
   The `hyper` and `zbus` sets are counted in the research document.
 
-So an eager multi-thread runtime costs 0.3 to 0.5 ms and about 125 minor faults on every command:
-about 6 to 11% of the wrapper's own time on a forwarded command (4.4 to 5.0 ms),
-10 to 20% of real Git's time on the
-same command (2.6 to 3.0 ms),
-and 0.01% of the 5 s bound.
-Both readings are true;
-the owner's rule of 5 s is not threatened,
-but the forwarded command is
-the wrapper's commonest path and it can have none of this cost.
+So an eager multi-thread runtime costs 0.3 to 0.5 ms and about 125 minor faults on every forwarded command.
+Against what the wrapper adds over real Git on the same command (4.71 less 2.77,
+5.01 less 3.01 and 4.39 less 2.60:
+1.8
+to 2.0 ms) that is 15 to 28%;
+against the whole command (4.4 to 5.0 ms) 6 to 11%;
+against the 5 s bound 0.01%.
+The 5 s rule is not threatened by it,
+but the wrapper's added time on a forwarded command is,
+and a forwarded command is
+what the wrapper does most (the usage evidence for "most" was not collected here;
+the inventory only shows that the
+forward arm needs none of the constructs).
+These timings are of `rev-parse HEAD` start-up only:
+they say nothing of commit latency,
+child supervision,
+shutdown or
+allocator contention,
+and the 5 s rule remains unverified until `native:perf` runs (open choice 10).
 So the plan is lazy:
 the runtime is built by the first code that needs it,
 never at `main`.
@@ -965,12 +1138,21 @@ A planning step that does spawn (`invocation/git_version_cache.rs`,
 `repo_read/git_system_config.rs`,
 `management_service_repository_selection.rs`:
 one-shot `Command` waits with no concurrency and no watcher) stays on the
-standard library until step 9,
-when the planning is made `async` and enters the same function;
-it is the last I/O to move because it is on the path of every command that is not a pure `exec`,
-and gains nothing.
+standard library until T11.
+At the end state the decision of what to do stays synchronous:
+`plan_invocation` runs without a runtime,
+and only an
+action that is not `Forward` enters the runtime,
+so the forwarded fast path never builds one.
+A planning step that must spawn then either uses a synchronous bridge or is moved after the decision.
 This is the one place where "full on tokio" is read as a goal for the end state,
 not for every line at once.
+A synchronous bridge that enters the runtime must not panic when called from inside it:
+every bridge checks `tokio::runtime::Handle::try_current()` first and returns an error,
+and the order of the steps puts
+callees before callers (leaf I/O first),
+so that a bridge has only synchronous callers for as long as it exists.
+`Runtime::block_on` panics "if called within an asynchronous execution context" (`src/runtime/runtime.rs`).
 
 ### How the worker count is chosen, and where the budget is read
 
@@ -986,11 +1168,13 @@ not for every line at once.
   `per_item_memory` the weight of one worker,
   and a `ceiling` from the limits the budget does not read today (section "A multi-thread runtime panics,
   then hangs"):
-  `RLIMIT_AS` divided by the measured virtual cost of a worker (67,608 KiB with glibc arenas,
-  2,064 KiB with
-  `MALLOC_ARENA_MAX=1`),
-  `RLIMIT_NPROC` minus the processes of the user,
-  and the cgroup `pids.max`.
+  `RLIMIT_AS` less what is already mapped,
+  divided by the virtual cost of a worker as measured on this host with this
+  glibc (67,608 KiB with arenas,
+  2,064 KiB with `MALLOC_ARENA_MAX=1`;
+  not constants of tokio),
+  `RLIMIT_NPROC` less the threads of the user,
+  and the cgroup `pids.max` less the tasks in it and its ancestors.
   The gate container (`native:test:container`) has 2 CPUs and 512 pids by default,
   so the budget there is 2 workers.
 - One value per runtime:
@@ -1002,10 +1186,16 @@ not for every line at once.
   it is the moment it started.
   What the owner's wording can be honored for at each moment is the concurrency of the work,
   not the thread count:
-  a `tokio::sync::Semaphore` sized by `worker_budget` at the start of each round bounds how many blocking jobs
-  and children the round runs at once,
-  and the runtime's workers only poll tasks.
-  This is open choice 2.
+  a `tokio::sync::Semaphore` sized by `worker_budget` bounds how many blocking jobs and children run at once,
+  and the
+  runtime's workers only poll tasks.
+  For the bound to mean anything the semaphore is one object of the process (not one per round),
+  shared by the rounds,
+  the client work and the durable-sync jobs,
+  and a permit is owned by the blocking closure,
+  so it is released when the job
+  ends and not when the awaiting task times out and stops waiting.
+  Whether the semaphore is resized per round (a new object per round bounds only that round) is part of open choice 2.
 - The worker threads are cheap to keep idle:
   28 workers:
   29 threads,
@@ -1071,10 +1261,12 @@ tightened to "Assume no one else is going to use anything related to git from us
 - The rule does not forbid a library that depends on tokio:
   standing on its own means building and testing without the program,
   and a Git-free library has outside users only inside this repository.
-  What it implies is that a library must not start a runtime of its own,
+  Whether it implies more is a design proposal here,
+  not a consequence of the owner's words:
+  that a library does not start a runtime of its own,
   call `block_on`,
-  or require a particular
-  runtime flavor of its caller,
+  or require a particular runtime flavor of its
+  caller,
   because `Runtime::block_on` "panics ... if called within an asynchronous execution
   context" (`src/runtime/runtime.rs`),
   and two crates each building a runtime would count each other's threads against
@@ -1084,34 +1276,48 @@ tightened to "Assume no one else is going to use anything related to git from us
   It takes a `tokio::process::Command` equivalent,
   a no-progress policy and a signal relay handle,
   and returns futures.
-  A sync face would be a second implementation of the watcher;
-  the program and the service both run on the runtime.
+  A sync face is possible without a second watcher (a synchronous kernel with an asynchronous scheduling adapter),
+  but the
+  program and the service both run on the runtime,
+  so no sync caller exists to pay for it.
 - `parallel-work-within-a-budget`:
-  becomes the owner of the budget and of the runtime builder (worker count from the limits,
-  the arena cap,
-  the
-  fallback to current-thread,
-  the semaphore).
+  becomes the owner of the budget and exposes the runtime-building policy (worker count from the limits,
+  the arena
+  cap,
+  the deadline-bounded build,
+  the fallback to current-thread,
+  the semaphore);
+  the process still owns and starts the
+  one runtime,
+  so the library is policy and the program is the owner.
   The ordered runner (`foundation/parallel_runner.rs`,
   scoped threads,
   `mpsc`) becomes a function over a stream of
   tasks that yields results in order;
   the start-or-run-here fallback becomes the `spawn_blocking` helper.
-  It is the only library that names `Runtime`.
+  It is the only library that names `Builder`.
 - `talking-to-the-systemd-user-manager`:
   async only,
   on `zbus` 6 (the owner's pick);
   the deadline test of the prototype is its control.
 - `safe-file-saving`:
-  sync only.
-  Its calls are `stat`-sized or one `fsync`;
-  wrapping each in a future costs more than it saves
-  (hop 7 to 17 microseconds against 2 microseconds inline) and puts `spawn_blocking`,
-  which can panic when no thread
-  starts,
-  inside a library that is meant never to fail.
-  The program decides which of its calls go to the blocking pool,
-  in batches.
+  sync only,
+  proposed.
+  Its small calls (stat-sized:
+  a rename,
+  a link,
+  a mode change) cost more as futures than as calls (hop 7 to 17
+  microseconds against about 2 inline,
+  for the measured `stat` only),
+  and its `fsync` calls can wait on a disk,
+  which the
+  metadata measurement says nothing about.
+  The library stays synchronous so it never calls `spawn_blocking`,
+  which can panic when no thread starts;
+  the program
+  decides which of its calls go to the blocking pool,
+  in batches,
+  through the helper that catches that panic.
 - The pure libraries (text merge,
   shell quoting,
   digests,
@@ -1130,7 +1336,10 @@ tightened to "Assume no one else is going to use anything related to git from us
 
 Every step is one commit or one branch,
 is green on the container gate (`mise run //package/git-policy/cli:native:test:container`),
-and can be reverted alone.
+and is reverted newest first:
+a step can be reverted alone only while no dependent step depends on its helper or its async
+signature,
+and a revert of T3 after a consumer has landed does not leave a working program.
 Nothing here runs before step 0 of the split plan (the release of the last crates.io version of the unsplit crate;
 `doc/planning/cli-git-source-layout-target-tree.md`,
 section "Move order"),
@@ -1142,7 +1351,12 @@ The conversions change function signatures in files that the split renames and m
 so the plan keeps the
 signature changes out of the files in motion:
 steps T1 to T3 add files and tests and change no existing signature,
-and can start right after the release;
+and can start right after the release (they still
+touch shared surfaces:
+the catalog,
+the lockfile and `HostResources`,
+so they are not conflict-free,
+only signature-free);
 the conversions from T4 on start after the grouping and the `uses/` links are in place (split steps 7 and 8) because
 a conversion in the old flat layout is moved by the split with no benefit,
 and because the layout lint then guards that
@@ -1169,9 +1383,11 @@ larger rewrite of imports in split step 6.
   run `file-enforcer write`,
   regenerate the lock
   through the package manager).
-  A source-guard test that the binary starts no thread and builds no runtime on a forwarded command (the strace
-  expectation of the inventory,
-  as a test over `/proc/<pid>/status` or `strace`).
+  A test that the binary starts no thread and builds no runtime on a forwarded command:
+  it counts `clone` and `clone3`
+  calls of the process with `strace -f` (the measurement of the inventory),
+  because a snapshot of
+  `/proc/<pid>/status` cannot show that a thread was never started.
   Revert:
   remove the dependency.
 - T3.
@@ -1188,7 +1404,12 @@ larger rewrite of imports in split step 6.
   and tests under `prlimit` for each limit
   that bites (the cases measured in section "A multi-thread runtime panics,
   then hangs").
-  The tests start the built binary under the limits,
+  The builder has no production caller yet,
+  so the tests reach it through a test-only entry in the built binary (a hidden
+  command word or an environment variable read only in test builds,
+  as `CLI_GIT_TEST_ONLY_PHASE_SIGNAL` is),
+  and start
+  that binary under the limits,
   as `binary_fault_limits_tests.rs` does.
   Revert:
   remove the files.
@@ -1203,8 +1424,13 @@ larger rewrite of imports in split step 6.
   `repo_read/git_system_config.rs`,
   `invocation/management_service_repository_selection.rs`.
   Those are called from synchronous code;
-  the file keeps a synchronous face that enters the runtime lazily,
+  the file keeps a synchronous bridge that enters the runtime lazily and refuses
+  (an error,
+  not a panic) when called from inside it,
   until their callers are async in T11.
+  The order of T4 to T12 is by call graph,
+  leaf I/O first,
+  so that no asynchronous caller reaches a bridge.
   Revert:
   git revert of the step.
 - T5.
@@ -1217,7 +1443,9 @@ larger rewrite of imports in split step 6.
   the watcher thread,
   `recv_timeout` and `Condvar`-style signalling go.
   Control:
-  the existing `push/child_watch*_tests.rs` run unchanged against the async form.
+  the existing `push/child_watch*_tests.rs` are ported to the async API and must keep their assertions
+  (they cannot run unchanged against an asynchronous API);
+  a planted control per assertion shows each one can fail.
 - T6.
   `bounded_push`,
   `bounded_query`,
@@ -1233,8 +1461,11 @@ larger rewrite of imports in split step 6.
   a sleep-and-retry) replaced by a registry that holds
   every active child,
   so that two concurrent preparations in one process (the service) need no one-at-a-time guard.
-  This removes a polling loop and a refusal type;
-  it is a design change the owner has not seen (open choice 6).
+  This removes a polling loop and a refusal type,
+  and it changes which children a signal reaches (a signal to the
+  service would reach every active child unless a recipient rule says otherwise) and needs a handler-safe lifetime for the
+  registry;
+  it is a design change the owner has not seen and not ranked first (open choice 6).
 - T8.
   Service client:
   `UnixStream` connect with the `WouldBlock` retry,
@@ -1266,9 +1497,11 @@ larger rewrite of imports in split step 6.
   with the landing loop last.
 - T11.
   Callers:
-  the commit command and the policy run become `async fn`,
-  the planning enters the runtime,
-  the synchronous faces of T4 go.
+  the commit command and the policy run become `async fn`;
+  `plan_invocation` stays synchronous and the runtime is
+  entered after it,
+  only for actions that are not `Forward`;
+  the synchronous bridges of T4 go.
 - T12.
   The parallel runner and the scoped threads (`side_by_side_threads`,
   `scoped_start`,
@@ -1313,10 +1546,17 @@ the gate's Windows clippy task keeps type-checking it.
 - A child is started twice,
   or a started child is reported as failed.
   Proof:
-  a test with a descriptor limit that makes the reactor registration fail,
-  counting Git starts through the recording
-  Git of `testing/recording_git.rs`;
-  the count must equal the number of successful starts.
+  a test of the child helper with a failure injected at each step after the spawn (the `epoll_ctl` registration of plain
+  `tokio::process` cannot be reached from outside,
+  and a descriptor limit reaches `pidfd_open` and descriptor creation,
+  not
+  that call),
+  counting Git starts through the recording Git of `testing/recording_git.rs`.
+  It asserts one Git per logical command,
+  that the helper still owns the child,
+  that the shadow repository is not removed
+  while the child lives,
+  and that the child is reaped or handed over.
 - A killed process leaves state that recovery cannot finish ("killed at any instruction").
   Proof:
   the phase seam `CLI_GIT_TEST_ONLY_PHASE_SIGNAL=<phase>:kill` (`transaction/transaction_phase.rs`) and the existing kill
@@ -1340,8 +1580,9 @@ the gate's Windows clippy task keeps type-checking it.
   its feasibility is the first check of T7).
 - Thread-affine state is shared across tasks.
   Proof:
-  the code does not compile (`!Send`) on a multi-thread runtime,
-  which is the check;
+  compilation catches only the futures that hold a `!Send` value across an `.await`;
+  tests that migrate and interleave tasks with distinguishable operation state catch the rest;
+  the seven test fault hooks get a positive control that they still reach work that moved to another thread;
   and the landing step's tests run the loop on the chosen thread-affine form.
 - The commit is more than 5 s slower than native Git.
   Proof:
@@ -1355,9 +1596,37 @@ the gate's Windows clippy task keeps type-checking it.
   this plan's own numbers (sub-millisecond) are not.
 - The runtime's footprint breaks the budget.
   Proof:
-  a test over `/proc/<pid>/status` that a command process has no more threads than the budget says plus the pool's
-  idle limit,
-  after the runtime has been used and before exit.
+  a test that samples `/proc/<pid>/status` at the end of a command (after the runtime has been used,
+  before exit) and
+  finds no more threads than the budget says plus the pool's idle limit;
+  a snapshot proves the final count,
+  not that
+  none were ever started.
+- A job is abandoned that must not be,
+  or a durable write is lost on exit.
+  Proof:
+  a test that a job of the second or third kind (landing batch,
+  journal,
+  claim,
+  index marker,
+  durable-sync) is never
+  started untracked,
+  that the exit path waits for the tracked durable-sync jobs under the no-progress watcher,
+  and that a
+  process killed at each exit step leaves a state that recovery finishes.
+- The build of the multi-thread runtime hangs.
+  Proof:
+  the deadline-bounded build under the address-space sizes of the hang band (with and without the arena cap):
+  the process
+  must select the current-thread runtime within the deadline and finish the command.
+  A planted control removes the deadline and the test must fail by timeout.
+- The gate accepts a failure that "Commits should never fail."
+  rejects.
+  Proof:
+  the fault suites assert "fails with a message or lands,
+  and the repository recovers",
+  which is recoverability;
+  open choice 10 asks the owner for the stronger assertion (a commit that native Git would complete completes).
 - Mutation runs find unguarded new branches (the fallbacks).
   Proof:
   `native:mutation:scoped` over each new file and the planted controls (`native:mutation:planted`) per file,
@@ -1372,6 +1641,9 @@ the gate's Windows clippy task keeps type-checking it.
 
 ## Open choices for the owner
 
+Rankings are the recommendation;
+each lists the reason for every adjacent pair.
+
 ### 1. When the runtime is built
 
 - A.
@@ -1384,42 +1656,44 @@ the gate's Windows clippy task keeps type-checking it.
   Cons:
   one `OnceLock` owner and a rule that no code outside it builds a runtime.
 - B.
-  Eager in `main`.
+  Eager in `main`,
+  after the resource checks and the bounded build of choice 9.
   Pros:
   simplest to read,
-  one place.
+  one place;
+  the checks can run before the build.
   Cons:
-  measured cost on every command;
-  on a limited system the build can hang (section "A multi-thread runtime
-  panics,
-  then hangs") before any check could run.
+  measured cost on every command,
+  15 to 28% of what the wrapper adds over real Git on a forwarded command.
 - C.
   Eager only for the service,
   lazy for the command.
   Pros:
   the service's runtime is built at its start.
   Cons:
-  the same as A,
-  listed because the service's choice is independent;
-  A already includes it.
+  the same as A for the command;
+  A already includes it for the service.
 - Ranking:
   A > C > B,
   because A and C cost nothing on the forwarded path while B pays 0.3 to 0.5 ms on every command
   (A over C because C is A plus a statement about the service that A already makes);
-  C > B because B cannot be made safe under the address-space limit without the checks that A also needs.
+  C > B because B carries the cost on the commonest command and C does not.
 
 ### 2. What "sized to budget" fixes
 
 - A.
-  The runtime's worker count comes from the budget with the limit inputs,
-  and the concurrency of each round is bounded
-  by a semaphore sized from a fresh budget read per round (recommended).
+  Worker count from the budget (with the limit inputs) at build,
+  and the concurrency of the work bounded by one
+  process-wide semaphore whose permits travel with the jobs and whose size is refreshed by a fresh budget read when a
+  round starts (recommended).
   Pros:
-  honors "as many as the computer can spare at that moment" where it matters,
-  per round;
-  the service does not keep a size chosen hours ago.
+  honors "as many as the computer can spare at that moment" for the work,
+  not only at start;
+  permit lifetime follows the real job.
   Cons:
-  two sizes to explain.
+  the thread count is still the size at start (a service keeps it for hours),
+  and resizing a shared semaphore
+  needs a rule for overlapping rounds.
 - B.
   Worker count from the budget at build,
   nothing else.
@@ -1427,8 +1701,7 @@ the gate's Windows clippy task keeps type-checking it.
   one rule,
   the owner's words taken literally.
   Cons:
-  a service started on a quiet machine keeps that size for hours;
-  the owner's "at that moment" holds only at start.
+  concurrency is not bounded by the budget at all after the build.
 - C.
   A runtime per round for the service.
   Pros:
@@ -1438,123 +1711,157 @@ the gate's Windows clippy task keeps type-checking it.
   and a dropped runtime waits forever for blocking work.
 - Ranking:
   A > B > C,
-  because A is B plus the per-round bound that gives the sentence its meaning;
+  because A is B plus a bound on the work that gives the sentence its meaning;
   B > C because C pays a runtime build per round and needs the drop that the documentation says can wait forever.
 
-### 3. The address-space fix
+### 3. Address-space protection
 
 - A.
-  Cap malloc arenas (`mallopt`) and read the limits before choosing workers (recommended).
+  Cap malloc arenas and read the limits (address space,
+  threads,
+  pids) before choosing workers (recommended).
   Pros:
-  measured:
-  28 workers fit in 100 MiB with the cap and hung in a 900 to 1150 MiB band without it.
+  measured with the environment variable:
+  28 workers fit in 100 MiB with the cap and hung in a band between 900
+  and 1150 MiB without it.
   Cons:
-  the arena cap may raise allocation contention (to be measured in T3);
-  `mallopt` is process-wide.
+  the in-process `mallopt` call matched the environment variable in the probe but was not tried in the wrapper,
+  the
+  cost in allocation contention is not measured,
+  and the checks are advisory (choice 9 is what bounds the wait).
 - B.
-  Read the limits only,
-  never cap arenas.
+  Read the limits only.
   Pros:
   no allocator change.
   Cons:
-  needs a larger number of reserved bytes per worker in the sizing;
-  one worker costs about 66 MiB of address space.
+  one worker is about 66 MiB of address space on this glibc,
+  so the sizing allows few workers under a limit.
 - C.
-  Use the current-thread runtime for the command process and multi-thread only for the service.
+  Current-thread runtime for the command process,
+  multi-thread only for the service.
   Pros:
-  removes the worry for the commonest process.
+  removes the worry from the commonest process.
   Cons:
   contradicts "Full on tokio.
   Multi-thread."
   for the command.
 - Ranking:
   A > B > C,
-  because A and B respect the owner's multi-thread ruling and A has the smaller footprint;
+  because A and B respect the owner's multi-thread ruling and A fits more workers in the same limit,
+  on measurements that are not yet repeated in the real program;
   B > C because C overrides the owner's ruling.
+  Neither A nor B makes construction failure-safe;
+  choice 9 does the bounding.
 
 ### 4. The landing loop and thread-affine state
 
 - A.
-  A dedicated current-thread runtime with a `LocalSet` for the landing step (recommended).
+  One multi-thread runtime in the service,
+  with the landing loop in a `LocalSet` on the thread that calls
+  `Runtime::block_on` (recommended).
   Pros:
+  one runtime;
   ten `thread_local!` items and one `Rc` keep working unchanged;
   the step is serial anyway.
   Cons:
-  two runtimes in the service;
-  a `LocalSet` task that blocks a call blocks the whole landing runtime,
-  which is today's behavior.
+  not yet tested in the wrapper;
+  a landing task that blocks a call blocks that thread,
+  as today;
+  the proof of
+  isolation (migration and interleaving tests) is still needed.
 - B.
+  A second,
+  dedicated current-thread runtime for the landing step.
+  Pros:
+  the same state code;
+  isolation by construction.
+  Cons:
+  two runtimes and two thread budgets in one process,
+  against the owner's single-runtime reading.
+- C.
   Turn each thread-local into a task-local or a context value.
   Pros:
-  one runtime,
-  no thread affinity.
+  no thread affinity at all.
   Cons:
-  the largest rewrite of the plan and every test that sets a thread-local fault hook changes.
-- C.
-  Run the whole landing batch as one `spawn_blocking` job in synchronous code.
+  the largest rewrite;
+  a task that keeps a `!Send` value is still not spawnable;
+  every test that sets a
+  thread-local fault hook changes.
+- D.
+  Run the whole landing batch as one `spawn_blocking` job of synchronous code.
   Pros:
   nothing in the step changes.
   Cons:
-  the landing step stays outside "Full on tokio",
+  the step stays outside "Full on tokio",
   and a hung write holds a pool thread for good.
 - Ranking:
-  A > B > C,
-  because A keeps the state and moves the waits;
-  B > C because B finishes what C declines,
-  at a cost that only pays if landing ever runs concurrently.
+  A > B > C > D,
+  because A is B without the second runtime;
+  B > C because B keeps the state code and C rewrites it for a step that gains no concurrency;
+  C > D because C finishes the move that D declines.
 
 ### 5. Library API
 
 - A.
-  Async for the program-facing I/O libraries and sync for `safe-file-saving` (recommended;
-  the section "Libraries in
-  the crate split").
+  Async for the program-facing I/O libraries,
+  sync for `safe-file-saving` (recommended).
   Pros:
-  no `block_on` anywhere;
-  no runtime started by a library.
+  no `block_on` in a library;
+  the runtime is started once by the program.
   Cons:
   a sync caller of an async library needs its own runtime.
 - B.
-  Every I/O library offers both through a cargo feature.
+  Every I/O library offers both,
+  over one synchronous kernel with an asynchronous scheduling adapter.
   Pros:
-  reusable by a sync caller.
+  reusable by a sync caller;
+  one implementation of the logic.
   Cons:
-  two implementations to keep equal,
+  two surfaces to test,
   and the owner said no one else will use the libraries.
 - C.
   Everything async.
   Pros:
   uniform.
   Cons:
-  `safe-file-saving` pays the hop for stat-sized calls and can panic when no thread starts.
+  `safe-file-saving` pays the hop on small calls and can reach a panicking `spawn_blocking`.
 - Ranking:
-  A > C > B,
+  A > B > C,
   because A matches the measured costs and the owner's no-outside-user rule;
-  C > B because C is one implementation that works,
-  where B doubles the code for a caller that does not exist.
+  B > C because B keeps the cheap calls synchronous and C does not,
+  at the price of a second surface.
 
-### 6. The signal registry
+### 6. The signal relay between the existing rule and a registry
 
 - A.
-  Replace the one-guard-at-a-time rule with a registry of active children and a pidfd per child (recommended).
+  Keep the one-guard-at-a-time rule and replace the sleep-and-retry with an asynchronous wait for the guard (a
+  semaphore or a `Notify`),
+  and move the child wait to the pidfd (recommended for now).
   Pros:
-  removes a polling loop and a refusal path;
-  concurrent preparations in the service are supported.
+  signal semantics do not change;
+  the polling loop goes.
   Cons:
-  changes the documented limit "one guard may be active at a time" and the retry in
-  `commit_preparation.rs`;
-  needs the pid-reuse fixture.
+  one more wait,
+  against "Use as few locks as possible.";
+  the service still runs one preparation's relay at a time.
 - B.
-  Keep the one-guard rule and wait on a tokio semaphore instead of a sleep loop.
+  A registry of active children with a pidfd each.
   Pros:
-  no semantics change.
+  removes the refusal and supports concurrent preparations.
   Cons:
-  one more lock-like wait,
-  against "Use as few locks as possible."
+  needs a recipient rule (a signal to the service reaches every child,
+  one operation's children,
+  or none),
+  a
+  handler-safe publication and retirement protocol,
+  and `errno` preservation;
+  none is designed.
 - Ranking:
   A > B,
-  because A drops a wait that B only changes;
-  the cost of A is the new proof in the risk list.
+  because A changes the wait without changing which child a signal reaches,
+  where B changes both and has
+  two open designs;
+  B stays the target once the owner rules on recipients.
 
 ### 7. How children are started and awaited
 
@@ -1562,14 +1869,19 @@ the gate's Windows clippy task keeps type-checking it.
   Standard-library start,
   pidfd,
   `AsyncFd`,
-  reap with `try_wait` (recommended).
+  timer-driven `try_wait` as the fallback,
+  reap with the standard-library
+  child,
+  with the helper owning the child through every failure after the spawn (recommended).
   Pros:
   a failed start leaves no child (the guarantee of `start_retry.rs` is kept);
-  the pidfd is shared with the signal relay;
-  the wait is on tokio's reactor.
+  the pidfd is shared with the signal
+  relay;
+  the fallback needs no descriptor and no thread.
   Cons:
   about a hundred lines of our own code where tokio has a finished type;
-  the fallback where `pidfd_open` is missing is a blocking-pool wait;
+  the fault-injection seam is ours to
+  build;
   none of it is built.
 - B.
   Plain `tokio::process::Command`.
@@ -1579,21 +1891,29 @@ the gate's Windows clippy task keeps type-checking it.
   Cons:
   a start can fail after the child has started (read from source,
   not triggered),
-  which `start_retry` cannot undo.
+  which `start_retry` cannot undo,
+  and the failure cannot be injected from outside to test it.
 - C.
-  Plain `tokio::process::Command` with every child started with `kill_on_drop(true)`.
+  Plain `tokio::process::Command` with `kill_on_drop(true)`.
   Pros:
-  the stray child dies with the handle that the failed start drops.
+  none that holds:
+  the drop guard is built after the failing call.
   Cons:
-  that is a stop by drop,
-  not by no progress,
-  against "Stop only on no progress";
-  the steps that leave a child running (`LeaveRunning`) cannot use it.
+  a stop by drop is not a stop by no progress,
+  and the steps that leave a child running cannot use it.
+- D.
+  Report the gap upstream and wait for a tokio fix,
+  using B meanwhile.
+  Pros:
+  no code of ours.
+  Cons:
+  waiting,
+  and B's failure stays until then.
 - Ranking:
-  A > B > C,
-  because A keeps the one guarantee the start retry rests on;
-  B > C because C adds a kill that the no-progress rule does not allow and does not cover the steps that leave a child
-  running.
+  A > B > D > C,
+  because A keeps the guarantee the start retry rests on;
+  B > D because D is B plus a wait that changes nothing today;
+  D > C because C offers no protection and adds a kill the no-progress rule does not allow.
 
 ### 8. When tokio starts relative to the layout moves
 
@@ -1602,9 +1922,11 @@ the gate's Windows clippy task keeps type-checking it.
   conversions after the grouping and links of split steps 7 and 8
   (recommended).
   Pros:
-  no conflict with the files in motion.
+  no signature conflict with the files in motion.
   Cons:
-  the conversions wait for the layout work.
+  the conversions wait for the layout work;
+  T1 to T3 still touch the catalog,
+  the lockfile and `HostResources`.
 - B.
   All steps on the flat layout first.
   Pros:
@@ -1618,23 +1940,211 @@ the gate's Windows clippy task keeps type-checking it.
   Pros:
   simplest ordering.
   Cons:
-  T1 to T3 are add-only and could land now for no cost.
+  T1 could land at once and costs nothing in the layout's way.
 - Ranking:
   A > C > B,
-  because A takes C's safety and adds the steps that cannot conflict;
+  because A takes C's safety and adds the steps that change no signature;
   C > B because B delays the owner's stated first priority.
+
+### 9. A bound on the runtime build
+
+- A.
+  Build the multi-thread runtime on a helper thread,
+  wait with a deadline,
+  fall back to the current-thread runtime
+  (recommended).
+  Pros:
+  the wait is bounded whatever the limits do;
+  measured hangs in the unwind would not hold the command.
+  Cons:
+  a possibly hung helper thread stays until exit;
+  the deadline is a number that needs a measured basis
+  or an owner decision recorded beside the value;
+  not yet built or measured.
+- B.
+  Checks only (choice 3).
+  Pros:
+  no extra thread.
+  Cons:
+  the checks are advisory;
+  a build that still fails hangs inside the unwind.
+- C.
+  Current-thread runtime only.
+  Pros:
+  no thread,
+  no hang.
+  Cons:
+  contradicts "Multi-thread".
+- Ranking:
+  A > B > C,
+  because A bounds the wait that B can only make less likely;
+  B > C because C overrides the owner's ruling.
+
+### 10. What "Commits should never fail." means for the gate
+
+- A.
+  A commit that native Git would complete completes,
+  under the limits of the fault suites (the strong reading).
+  Pros:
+  matches the sentence;
+  makes the fallbacks necessary.
+  Cons:
+  some limits (a refused process start) make native Git fail too,
+  so the suite needs a native-Git control per
+  case.
+- B.
+  A commit fails only with a plain message and the repository recovers (what the suites assert today).
+  Pros:
+  already built.
+  Cons:
+  accepts failures the sentence rejects.
+- Ranking:
+  A > B,
+  because A is the sentence and B is its weakest part;
+  the cost is the native control per case.
+
+### 11. Calls that can wait on storage when no thread can start
+
+- A.
+  Inline fallback allowed,
+  with an external bound (the client's deadline on the service,
+  the service manager's
+  watchdog) for the calls that can wait on storage (recommended).
+  Pros:
+  keeps "a thread is only a way to work sooner";
+  commits still land where no thread starts.
+  Cons:
+  the in-process timers cannot end an inline call;
+  the external bounds are not designed.
+- B.
+  No inline fallback for calls that can wait on storage;
+  they fail with a plain message when no thread starts.
+  Pros:
+  nothing waits unbounded in process.
+  Cons:
+  breaks "Commits should never fail."
+  in that state.
+- Ranking:
+  A > B,
+  because A keeps a commit landing where B gives it up,
+  at the price of an external bound that today's
+  code does not have either.
 
 ## Cross-vendor review
 
-Reviewed by `openai/gpt-6.1-sol` (no tools,
-reading only this document);
-the findings and what was done are listed in
-the section "Review findings and what was done",
-written after the review returned.
+Reviewed by `openai/gpt-6.1-sol` (a different vendor from the author;
+no tools,
+reading only this document as committed
+at `687074ecf2`;
+output in `${HOME}/temp/agent/full-tokio/sol-review.txt`).
+It judged the plan "not ready for approval as a correctness-preserving migration sequence" and named five blockers.
+Findings are grouped by what was done.
+
+Taken,
+and the text changed:
+
+- Resource checks cannot make a multi-thread build failure-safe.
+  The section "A multi-thread runtime panics,
+  then hangs" now says the checks lower the chance and cannot remove it,
+  counts threads and ancestor cgroups,
+  and adds a deadline-bounded build on a helper thread with a fall back to the
+  current-thread runtime (new open choice 9);
+  the planted control in the risks is now the removal of the deadline.
+- The inline fallback is not bounded by in-process timers.
+  The section "Blocking-pool work panics" states the limit,
+  restricts the fallback to the state where the OS refused a
+  thread,
+  and moves the exposed calls to an external bound (new open choice 11).
+- The child helper must keep the child through every failure after the spawn.
+  The section on `tokio::process` states the invariant,
+  makes the fallback a timer-driven `try_wait` instead of a
+  blocking-pool wait,
+  orders the cleanup,
+  and asks for an injection seam in the helper.
+- `kill_on_drop` does not protect a failed start.
+  Checked in the source:
+  the drop guard is built after `imp::build_child(child)?` returns,
+  so the claim for option C was
+  false;
+  option C now has no pro and ranks last,
+  and an upstream-report option (D) was added.
+- The signal registry lacks a recipient policy and a handler-safe lifetime.
+  The section on the relay names the descriptor-reuse hazard and `errno`;
+  choice 6 is re-ranked so the guard rule with an
+  asynchronous wait comes first and the registry stays the target.
+- Runtime shutdown does not establish data safety.
+  The section on shutdown separates work that may be abandoned,
+  work that must stay intact,
+  and durability that must be
+  complete;
+  it cites that `serve` already drains the durable-sync queue before every exit;
+  a risk was added.
+- `Send` checking is a partial check for thread-local state.
+  The thread-affine section and the risk now ask for migration and interleaving tests and for a positive control of the
+  test fault hooks.
+- A `LocalSet` needs no second runtime.
+  Taken:
+  choice 4 now ranks a `LocalSet` on the thread that calls `block_on` of the one multi-thread runtime first;
+  that design is not tested in the wrapper.
+- Synchronous bridges can nest a runtime.
+  The runtime section and the steps now require a try-current check that refuses instead of panicking,
+  order the steps
+  leaf first,
+  and keep `plan_invocation` synchronous so the forward path never builds a runtime.
+- A per-round semaphore bounds only its round.
+  The budget section and choice 2 now use one process-wide object with permits owned by the job.
+- Library conclusions were overstated.
+  The section is reworded as proposals,
+  the claim that both surfaces need two implementations is dropped,
+  and the
+  `fsync` case is separated from the metadata measurement.
+- "No asynchronous fsync" was misleading,
+  and "every `tokio::fs` operation panics" exceeded the probe.
+  Both reworded.
+- The `SIGCHLD` fallback is not proven harmless,
+  and the allocator measurements are not universal costs.
+  Both reworded;
+  the in-process `mallopt` was then measured in the probe (same sizes as the environment variable).
+- The reactor-failure test did not target the cited failure,
+  some tests could pass without exercising the property,
+  and
+  the thread-count test used a snapshot.
+  The risk list is rewritten (an injection seam;
+  a test-only entry for the builder in T3;
+  `strace` clone counts in T2;
+  ported assertions with planted controls in T5).
+- The timing denominators.
+  Corrected:
+  the wrapper's own added time over real Git is 1.8 to 2.0 ms,
+  so the 0.3 to 0.5 ms is 15 to 28% of it;
+  "costs nothing" became "not resolved by this experiment";
+  "commonest path" is marked as unmeasured usage;
+  the file
+  count is reconciled (623 non-test and 665 test files make 1288).
+- The acceptance criteria are weaker than "Commits should never fail."
+  Added as open choice 10.
+- Steps are not independently reversible,
+  and T1 to T3 are not conflict-free.
+  Reworded to "newest first" and "signature-free,
+  not conflict-free".
+- Rankings of choices 1 to 8 were corrected where the review found a wrong pro or con (choice 1 B no longer says the
+  build cannot be made safe,
+  choice 2 distinguishes the thread count from the concurrency,
+  choice 3 carries the
+  unmeasured caveat,
+  choice 5 drops the duplicate-implementation claim).
+
+Not taken as written:
+
+- "A syntactic check for `current_exe` is not a complete proof against indirect self-invocation."
+  Agreed as a statement;
+  the guard stays as step T1 and the plan does not claim it is a proof.
+  The existing runtime marker (`started_as_git.rs`) is the other half and is unchanged.
 
 ## Review findings and what was done
 
-Pending at the time of writing.
+The list in the section "Cross-vendor review" is the record.
+Nothing the reviewer raised was left without a change or a stated reason.
 
 ## Limits
 
@@ -1676,3 +2186,15 @@ Pending at the time of writing.
   each has a first check in the step that builds it.
 - The failed start after a started child (section "`tokio::process` can report a failed start") was read from source and
   was not triggered.
+- The in-process `mallopt(M_ARENA_MAX, 1)` was measured in `probe-unix` only (28 workers:
+  +57,936 KiB,
+  the same as the
+  environment variable);
+  it was not measured in the wrapper,
+  and allocation contention was not measured.
+- `Runtime::block_on` with a `LocalSet` on the calling thread of a multi-thread runtime is read from the documentation
+  of `Runtime::block_on` and `LocalSet`,
+  and was not run.
+- The review file and the probe sources are scratch;
+  the probe patch of the wrapper is kept as
+  `${HOME}/temp/agent/full-tokio/probe.patch`.
