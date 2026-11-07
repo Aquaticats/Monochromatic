@@ -1,12 +1,27 @@
-//! Best-five-hundred answer per first character, kept exact while the library grows.
+//! Best-five-hundred answer per first character,
+//! kept exact while the library grows.
 //!
-//! What: `TopCache` remembers, for each single-character query, the best tracks among the first `through` tracks and
-//! how many tracks matched. Asking again merges that answer with the tracks appended since, and stores the merge.
-//! Why: a one-character query matches a large share of the library (tens of percent for common letters), so ranking
-//! its whole bucket costs tens of milliseconds at one million tracks. The library only grows, and the result order is
-//! total, so the best five hundred of the first `through` tracks plus every match among the later ones is exactly the
-//! best five hundred of all of them. The previous answer is therefore served immediately, never out of date, and
-//! the cost of a keystroke during a scan is the size of the new tracks, not of the library.
+//! What:
+//! `TopCache` remembers,
+//! for each single-character query,
+//! the best tracks among the first `through` tracks and
+//! how many tracks matched.
+//! Asking again merges that answer with the tracks appended since,
+//! and stores the merge.
+//! Why:
+//! a one-character query matches a large share of the library (tens of percent for common letters),
+//! so ranking
+//! its whole bucket costs tens of milliseconds at one million tracks.
+//! The library only grows,
+//! and the result order is
+//! total,
+//! so the best five hundred of the first `through` tracks plus every match among the later ones is exactly the
+//! best five hundred of all of them.
+//! The previous answer is therefore served immediately,
+//! never out of date,
+//! and
+//! the cost of a keystroke during a scan is the size of the new tracks,
+//! not of the library.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,15 +38,19 @@ use crate::search_index_rank::{Ranked, fast_tier, select_best};
 ///      `pub(crate) const TRACK_KEEP: usize = 500`.
 ///  How many best tracks one cached answer keeps.
 /// Why:
-///       A result list shows at most five hundred rows, and the whole answer is the best five hundred of the cached
-///  tracks and the folders, so five hundred tracks are enough.
+///       A result list shows at most five hundred rows,
+/// and the whole answer is the best five hundred of the cached
+///  tracks and the folders,
+/// so five hundred tracks are enough.
 pub(crate) const TRACK_KEEP: usize = 500;
 
 /// What:
 ///      `const REBUILD_ABOVE: usize = 200_000`.
 ///  The number of new matching tracks above which a cached answer is rebuilt instead of merged.
 /// Why:
-///       Merging ranks the new tracks only; for a delta as large as the library, ranking everything is the same work.
+///       Merging ranks the new tracks only;
+/// for a delta as large as the library,
+/// ranking everything is the same work.
 const REBUILD_ABOVE: usize = 200_000;
 
 /// What:
@@ -51,9 +70,12 @@ pub(crate) struct TopEntry {
 
 /// What:
 ///      `pub(crate) struct TopCache`.
-///  The cache of single-character answers, shared by threads.
+///  The cache of single-character answers,
+/// shared by threads.
 /// Why:
-///       The query worker and the warm-up pass both read and store entries; the lock guards only the map, never
+///       The query worker and the warm-up pass both read and store entries;
+/// the lock guards only the map,
+/// never
 ///  a ranking.
 #[derive(Debug, Default)]
 pub(crate) struct TopCache {
@@ -63,14 +85,19 @@ pub(crate) struct TopCache {
 
 /// Methods of `TopCache`.
 impl TopCache {
-    /// What: `new` makes an empty cache.
-    /// Why: a new library starts with no answers.
+    /// What:
+    /// `new` makes an empty cache.
+    /// Why:
+    /// a new library starts with no answers.
     pub(crate) fn new() -> TopCache {
         return TopCache::default();
     }
 
-    /// What: `get` returns the entry of `character`, if any.
-    /// Why: the entry is cloned out so ranking never holds the map lock.
+    /// What:
+    /// `get` returns the entry of `character`,
+    /// if any.
+    /// Why:
+    /// the entry is cloned out so ranking never holds the map lock.
     fn get(&self, character: char) -> Option<Arc<TopEntry>> {
         return match self.entries.lock() {
             Ok(map) => map.get(&character).cloned(),
@@ -78,8 +105,10 @@ impl TopCache {
         };
     }
 
-    /// What: `put` stores the entry of `character`.
-    /// Why: the newest merge replaces the older one.
+    /// What:
+    /// `put` stores the entry of `character`.
+    /// Why:
+    /// the newest merge replaces the older one.
     fn put(&self, character: char, entry: Arc<TopEntry>) {
         match self.entries.lock() {
             Ok(mut map) => {
@@ -91,8 +120,11 @@ impl TopCache {
         }
     }
 
-    /// What: `covered` is the number of tracks the entry of `character` covers, or `None` without an entry.
-    /// Why: the warm-up pass refreshes entries that fall behind.
+    /// What:
+    /// `covered` is the number of tracks the entry of `character` covers,
+    /// or `None` without an entry.
+    /// Why:
+    /// the warm-up pass refreshes entries that fall behind.
     pub(crate) fn covered(&self, character: char) -> Option<usize> {
         return self.get(character).map(|entry| return entry.through);
     }
@@ -119,9 +151,12 @@ fn rank_members(index: &SearchIndex, members: &[u32], terms: &[String], joined: 
 
 /// What:
 ///      `pub(crate) fn single_character_tracks(index: &SearchIndex, character: char) -> (Vec<Ranked>, usize)`.
-///  The best tracks for a query that is one character, with the number of matching tracks.
+///  The best tracks for a query that is one character,
+/// with the number of matching tracks.
 /// Why:
-///       Serves the cached answer merged with the tracks appended after it, and stores the merge, so the next
+///       Serves the cached answer merged with the tracks appended after it,
+/// and stores the merge,
+/// so the next
 ///  keystroke starts from it.
 ///
 /// In TS you'd write (pseudocode):
@@ -173,9 +208,11 @@ pub(crate) fn single_character_tracks(index: &SearchIndex, character: char) -> (
 
 /// What:
 ///      `pub fn warm_characters(index: &SearchIndex) -> Vec<char>`.
-///  The first characters whose cached answer is missing or behind the library, largest bucket first.
+///  The first characters whose cached answer is missing or behind the library,
+/// largest bucket first.
 /// Why:
-///       A background pass refreshes them one at a time, so the first keystroke of a common letter is a cache read.
+///       A background pass refreshes them one at a time,
+/// so the first keystroke of a common letter is a cache read.
 #[must_use]
 pub fn warm_characters(index: &SearchIndex) -> Vec<char> {
     let mut behind: Vec<(char, usize)> = index

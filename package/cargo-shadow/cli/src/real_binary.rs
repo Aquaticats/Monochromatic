@@ -105,9 +105,13 @@ pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option
 /// `pub fn find_in_path_with_image(name, path_variable, skip, image) -> Option<PathBuf>` is `find_in_path` with the identity of the
 /// running executable image given.
 /// Why:
-/// The identity of the image that is running comes from the open image, not from a pathname: an installer may replace the installed
-/// path while the shadow runs, after which the path names another file (or reads with a ` (deleted)` suffix) and a hard link of the
-/// image still on PATH would not be recognized. A test gives the identity it took before such a replacement.
+/// The identity of the image that is running comes from the open image,
+/// not from a pathname:
+/// an installer may replace the installed
+/// path while the shadow runs,
+/// after which the path names another file (or reads with a ` (deleted)` suffix) and a hard link of the
+/// image still on PATH would not be recognized.
+/// A test gives the identity it took before such a replacement.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,22 +150,37 @@ pub fn find_in_path_with_image(name: &str, path_variable: &str, skip: &[PathBuf]
     return None;
 }
 
-/// The suffix of the record that the toolchain writes beside a launcher (`mpm-shadow`, `package/mpm-shadow/cli/README.md`, section "The launcher").
+/// The suffix of the record that the toolchain writes beside a launcher (`mpm-shadow`,
+/// `package/mpm-shadow/cli/README.md`,
+/// section "The launcher").
 pub const LAUNCH_RECORD_SUFFIX: &str = ".launch";
 
-/// How many launchers in a row are followed before the chain is taken as one that never reaches a program: a record chain longer than
-/// this is a loop, and a loop leads back.
+/// How many launchers in a row are followed before the chain is taken as one that never reaches a program:
+/// a record chain longer than
+/// this is a loop,
+/// and a loop leads back.
 const MAX_LAUNCHER_HOPS: usize = 8;
 
 /// What:
 /// `pub fn refuse_if_ourselves(program: &Path) -> Result<(), String>` fails when the file a chosen program names is now the running image
 /// (or a recorded launcher that leads to it).
 /// Why:
-/// The choice of the real cargo and its start are two steps, and a path can be made to name the shadow between them (an ordinary
-/// installation swapping a link). The check is repeated right before each start, so the window shrinks to the instants between this
-/// check and the start itself; the shadow no longer starts itself for a path that already named it when the start was made
-/// (fifth certification pass). A file descriptor opened at the check and executed would close that window; it breaks scripts and
-/// proxies that open their own path, so it is not done without an owner decision.
+/// The choice of the real cargo and its start are two steps,
+/// and a path can be made to name the shadow between them (an ordinary
+/// installation swapping a link).
+/// The check is repeated right before each start,
+/// so the window shrinks to the instants between this
+/// check and the start itself;
+/// the shadow no longer starts itself for a path that already named it when the start was made
+/// (fifth certification pass).
+/// Round 21 closes the window for a compiled program:
+/// `vet` opens the file once and `Vetted::command`
+/// starts it through that descriptor.
+/// A script,
+/// and the cargo of an install step (started by the scope's launcher from its own
+/// process),
+/// keep the pathname and this repeated check;
+/// their remaining window ends at the arrival stop of the second cargo-shadow.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -178,44 +197,216 @@ pub fn refuse_if_ourselves(program: &Path) -> Result<(), String> {
     return Ok(());
 }
 
+/// `O_PATH` (`open(2)`):
+/// the open file names the inode and is never read or written;
+/// the same value on every Linux architecture the
+/// shadow is built for (x86-64 and aarch64 use the generic `0o10000000`).
+const OPEN_BY_PATH_ONLY: i32 = 0o10_000_000;
+
+/// A program chosen as the real cargo,
+/// opened once:
+/// the identity checks ran on the open file,
+/// and a readable compiled (ELF) program is
+/// started through it (the launcher-record check reads pathnames).
+pub struct Vetted {
+    /// The open file (close-on-exec).
+    /// It keeps the inode that was checked alive until the start.
+    file: fs::File,
+    /// The path the program was chosen under,
+    /// kept as the program's own name (`argv[0]`),
+    /// so a proxy such as rustup's still picks the
+    /// tool by the name it was started under.
+    spelled: PathBuf,
+    /// Whether the file is a compiled (ELF) program,
+    /// which can be started through the open file.
+    compiled: bool,
+}
+
+// A test swaps what the chosen path names between the check and the start, right where a swap would hurt.
+#[cfg(test)]
+thread_local! {
+    static AFTER_CHECK: std::cell::RefCell<Option<std::rc::Rc<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+/// `pub fn after_check_for_test(hook: Option<Rc<dyn Fn()>>)` sets the hook that runs between the check and the start of a chosen program.
+/// Why:
+/// The race of the fifth certification pass (group 15,
+/// b) is a path made to name the shadow after it was checked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function afterCheckForTest(hook?: () => void): void
+/// ```
+#[cfg(test)]
+pub fn after_check_for_test(hook: Option<std::rc::Rc<dyn Fn()>>) {
+    AFTER_CHECK.with(|slot| { *slot.borrow_mut() = hook; });
+}
+
+/// What:
+/// `pub fn vet(program: &Path) -> Result<Vetted, String>` opens the chosen program and checks the open file:
+/// it must not be the running
+/// image,
+/// nor a recorded launcher that leads to it.
+/// Why:
+/// The check and the start used to be two uses of a pathname,
+/// and a path can be made to name the shadow in between:
+/// the shadow would
+/// start itself (owner rule:
+/// "We should never invoke ourselves recursively.").
+/// A compiled program is now started through the file that
+/// was checked,
+/// so the swap cannot reach it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function vet(program: string): Vetted  // throws the reason
+/// ```
+pub fn vet(program: &Path) -> Result<Vetted, String> {
+    use std::io::Read;
+    use std::os::fd::AsRawFd;
+    use std::os::unix::fs::MetadataExt;
+    // Executing a program needs no read permission, and the PATH search accepts an execute-only file, so a refused read is not a refusal
+    // to start: the file is opened by `O_PATH` instead (an identity for the checks, no reading). What cannot be read cannot be told from
+    // a script (the kernel reads an interpreter line itself, and an interpreter such as `echo` never opens the script), and a script must
+    // be given its own pathname, so it is started by path with the check repeated, like every program that is not known to be compiled.
+    let (file, readable): (fs::File, bool) = match fs::File::open(program) {
+        Ok(opened) => (opened, true),
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+            use std::os::unix::fs::OpenOptionsExt;
+            let by_path: fs::File = fs::OpenOptions::new().read(true).custom_flags(OPEN_BY_PATH_ONLY).open(program).map_err(|second| { return format!("{} cannot be opened ({error}; by path only: {second})", program.display()); })?;
+            (by_path, false)
+        }
+        Err(error) => return Err(format!("{} cannot be opened ({error})", program.display())),
+    };
+    let metadata: fs::Metadata = file.metadata().map_err(|error| { return format!("{} cannot be examined ({error})", program.display()); })?;
+    let image: Option<(u64, u64)> = running_image_identity();
+    let named_us: bool = image == Some((metadata.dev(), metadata.ino()))
+        || image.is_some_and(|found| { return fs::canonicalize(format!("/proc/self/fd/{}", file.as_raw_fd())).is_ok_and(|resolved| { return leads_back_to(&resolved, &[], &[found]); }); });
+    if named_us {
+        return Err(format!("{} names this program itself at the moment of the start, so it was not started", program.display()));
+    }
+    let mut magic: [u8; 4] = [0; 4];
+    let looks_compiled: bool = readable && (&file).read_exact(&mut magic).is_ok() && magic == *b"\x7fELF";
+    let compiled: bool = looks_compiled && Path::new("/proc/self/fd").is_dir();
+    return Ok(Vetted { file, spelled: program.to_path_buf(), compiled });
+}
+
+/// The methods of the type above.
+impl Vetted {
+    /// What:
+    /// `pub fn command(&self) -> Result<Command, String>` is the command that starts the vetted program.
+    /// Why:
+    /// A compiled program is started through the open file (`/proc/self/fd/<n>` names the inode that was checked,
+    /// wherever the path
+    /// points now),
+    /// with its own name as `argv[0]`.
+    /// A script cannot be:
+    /// an interpreter opens the path it is given after the descriptor
+    /// is closed,
+    /// so a script keeps its pathname,
+    /// checked again right here;
+    /// the instants between this check and the start remain for
+    /// scripts,
+    /// and a hit ends at the arrival stop of the second cargo-shadow (exit 2,
+    /// nothing runs twice).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// command(): Command  // throws the reason
+    /// ```
+    pub fn command(&self) -> Result<std::process::Command, String> {
+        use std::os::fd::AsRawFd;
+        use std::os::unix::process::CommandExt;
+        #[cfg(test)]
+        if let Some(hook) = AFTER_CHECK.with(|slot| { return slot.borrow().clone(); }) {
+            hook();
+        }
+        if self.compiled {
+            let mut command: std::process::Command = std::process::Command::new(format!("/proc/self/fd/{}", self.file.as_raw_fd()));
+            command.arg0(&self.spelled);
+            return Ok(command);
+        }
+        return self.command_by_path();
+    }
+
+    /// What:
+    /// `pub fn command_by_path(&self) -> Result<Command, String>` is the command that starts the program by the path it was chosen
+    /// under,
+    /// after the check is repeated.
+    /// Why:
+    /// A program started by another process (a scope's launcher takes its path as an argument and starts it itself) cannot be named
+    /// by a descriptor of this one,
+    /// and a script cannot be started through a descriptor at all.
+    /// The instants between the repeated
+    /// check and the start remain for these starts;
+    /// a hit there reaches the arrival stop of the second cargo-shadow (exit status 2),
+    /// so nothing runs twice.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// commandByPath(): Command  // throws the reason
+    /// ```
+    pub fn command_by_path(&self) -> Result<std::process::Command, String> {
+        refuse_if_ourselves(&self.spelled)?;
+        return Ok(std::process::Command::new(&self.spelled));
+    }
+}
+
 /// What:
 /// `pub fn running_image_identity() -> Option<(u64, u64)>` is the device and inode of the executable image this process runs.
 /// Why:
-/// `/proc/self/exe` opened as a file names the open image even when its installed path was replaced or removed; `None` where it
-/// cannot be opened, in which case only the pathname-based skips apply.
+/// `/proc/self/exe` opened as a file names the open image even when its installed path was replaced or removed;
+/// `None` where it
+/// cannot be opened,
+/// in which case only the pathname-based skips apply.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function runningImageIdentity(): [bigint, bigint] | undefined
 /// ```
 pub fn running_image_identity() -> Option<(u64, u64)> {
+    /// The device and inode numbers that identify an executable whatever its name.
     use std::os::unix::fs::MetadataExt;
     return fs::File::open("/proc/self/exe").and_then(|image| { return image.metadata(); }).ok().map(|found| { return (found.dev(), found.ino()); });
 }
 
 /// What:
-/// `fn identity_of(path: &Path) -> Option<(u64, u64)>` is the device and inode of the file a path names, through links.
+/// `fn identity_of(path: &Path) -> Option<(u64, u64)>` is the device and inode of the file a path names,
+/// through links.
 /// Why:
-/// Two names of one executable (hard links) have different resolved pathnames and one identity; `None` for a path that cannot be
-/// examined, which then matches nothing.
+/// Two names of one executable (hard links) have different resolved pathnames and one identity;
+/// `None` for a path that cannot be
+/// examined,
+/// which then matches nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function identityOf(path: string): [bigint, bigint] | undefined { const s = statSync(path, { bigint: true, throwIfNoEntry: false }); return s && [s.dev, s.ino]; }
 /// ```
 fn identity_of(path: &Path) -> Option<(u64, u64)> {
+    /// The device and inode numbers that identify an executable whatever its name.
     use std::os::unix::fs::MetadataExt;
     return fs::metadata(path).ok().map(|found| { return (found.dev(), found.ino()); });
 }
 
 /// What:
 /// `fn leads_back_to(resolved: &Path, skip: &[PathBuf]) -> bool` says whether a PATH candidate is a launcher whose record names a
-/// binary that is one of the skipped paths, directly or through further launchers.
+/// binary that is one of the skipped paths,
+/// directly or through further launchers.
 /// Why:
-/// The toolchain puts a launcher between the link on PATH and the shadow: the launcher is a file of its own, so its resolved path is
-/// not the shadow's, yet starting it starts the shadow again. The record beside the launcher (`<launcher>.launch`, a JSON object
-/// with the `real` binary) names the program it starts, and reading it starts nothing, so the candidate is skipped before it is run
-/// and no second instance of the shadow exists. An unreadable or unparsable record is not a launcher.
+/// The toolchain puts a launcher between the link on PATH and the shadow:
+/// the launcher is a file of its own,
+/// so its resolved path is
+/// not the shadow's,
+/// yet starting it starts the shadow again.
+/// The record beside the launcher (`<launcher>.launch`,
+/// a JSON object
+/// with the `real` binary) names the program it starts,
+/// and reading it starts nothing,
+/// so the candidate is skipped before it is run
+/// and no second instance of the shadow exists.
+/// An unreadable or unparsable record is not a launcher.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

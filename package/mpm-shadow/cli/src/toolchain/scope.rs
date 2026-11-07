@@ -154,7 +154,8 @@ pub struct Scope {
     /// in the `conf.d` directory mise reads for the worktree.
     /// `None` for the machine-global scope:
     /// tool variables are exported in this repository's worktrees only
-    /// (owner decision 2026-11-03T05:29:17-05:00), never machine-wide.
+    /// (owner decision 2026-11-03T05:29:17-05:00),
+    /// never machine-wide.
     pub mise_env_file: Option<PathBuf>,
     /// The directory postinstall links go to when the link names none.
     pub link_dir: PathBuf,

@@ -174,7 +174,8 @@ const RULES_PATHS: [&str; 6] = [
 ///  `{"path","optional":true}`,
 ///  `{"path","optional":false}`) come from `seed`.
 /// Why:
-///   Every accepted spelling is reached, each with the typed result it must produce.
+///   Every accepted spelling is reached,
+/// each with the typed result it must produce.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

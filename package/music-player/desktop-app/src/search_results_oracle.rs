@@ -1,9 +1,15 @@
-//! The replaced Search matcher, kept verbatim as the test oracle.
+//! The replaced Search matcher,
+//! kept verbatim as the test oracle.
 //!
-//! What: `oracle_search_library` is the `search_library` that rebuilt the folder index and normalized every name on
-//! every call, before D112 moved Search onto `SearchIndex`.
-//! Why: the index must answer exactly as this function does, so tests compare the two on fixed and random libraries.
-//! Only tests reach it; production code searches through `SearchIndex`.
+//! What:
+//! `oracle_search_library` is the `search_library` that rebuilt the folder index and normalized every name on
+//! every call,
+//! before D112 moved Search onto `SearchIndex`.
+//! Why:
+//! the index must answer exactly as this function does,
+//! so tests compare the two on fixed and random libraries.
+//! Only tests reach it;
+//! production code searches through `SearchIndex`.
 
 use std::cmp::Ordering;
 

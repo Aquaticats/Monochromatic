@@ -1,6 +1,10 @@
-//! What: Generated Git PID file text and `/proc/<pid>/stat` lines for the index-lock evidence
-//!       readers, with the invariants of their parsers.
-//! Why: A PID file that names a live process makes a native wrapper wait without limit, and a
+//! What:
+//! Generated Git PID file text and `/proc/<pid>/stat` lines for the index-lock evidence
+//!       readers,
+//! with the invariants of their parsers.
+//! Why:
+//! A PID file that names a live process makes a native wrapper wait without limit,
+//! and a
 //!      start tick read from a misparsed stat line decides whether that process owns the lock.
 //!
 //! In TS you'd write (pseudocode):
@@ -19,23 +23,35 @@ use git_policy_cli::json_record::MAX_SAFE_INTEGER;
 /// The stat-line reader under test.
 use git_policy_cli::process_start::parse_linux_stat;
 
-/// Prefixes a PID file may start with: the exact one, near misses, and a non-PID text.
+/// Prefixes a PID file may start with:
+/// the exact one,
+/// near misses,
+/// and a non-PID text.
 const PID_PREFIXES: [&str; 5] = ["pid ", "pid", "PID ", "pid  ", "x"];
 
-/// Suffixes a PID file may end with: none, JavaScript whitespace, and text that is not whitespace.
+/// Suffixes a PID file may end with:
+/// none,
+/// JavaScript whitespace,
+/// and text that is not whitespace.
 const PID_SUFFIXES: [&str; 5] = ["", "\n", "\r\n", " \t\n", "x"];
 
-/// Whether a generated suffix is only JavaScript whitespace, in step with `PID_SUFFIXES`.
+/// Whether a generated suffix is only JavaScript whitespace,
+/// in step with `PID_SUFFIXES`.
 const SUFFIX_IS_WHITESPACE: [bool; 5] = [true, true, true, true, false];
 
-/// Command-name pieces a generated stat line may contain, including the parentheses the reader must skip.
+/// Command-name pieces a generated stat line may contain,
+/// including the parentheses the reader must skip.
 const COMMAND_PIECES: [&str; 7] = ["git", "a) b", " ", "(", ")", "\u{e9}", ""];
 
 /// States a generated stat line may carry.
 const STATES: [&str; 6] = ["R", "S", "D", "Z", "X", "T"];
 
-/// What: One generated PID file text and the PID it must read as, or nothing.
-/// Why:  The expectation is built from the chosen pieces, not computed by the parser under test.
+/// What:
+/// One generated PID file text and the PID it must read as,
+/// or nothing.
+/// Why:
+///  The expectation is built from the chosen pieces,
+/// not computed by the parser under test.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -57,8 +73,14 @@ pub fn generated_pid_text(data: &[u8]) -> (String, Option<i64>) {
     return (text, None);
 }
 
-/// What: The digits of a generated PID and the value they read as, when they read as one.
-/// Why:  Valid, zero, a leading-zero spelling, a value past the safe range and non-digits are
+/// What:
+/// The digits of a generated PID and the value they read as,
+/// when they read as one.
+/// Why:
+///  Valid,
+/// zero,
+/// a leading-zero spelling,
+/// a value past the safe range and non-digits are
 ///       the cases the reader must split between accepting and refusing.
 ///
 /// In TS you'd write (pseudocode):
@@ -83,8 +105,11 @@ fn generated_digits(cursor: &mut Cursor<'_>) -> (String, Option<i64>) {
     return (String::from("4x"), None);
 }
 
-/// What: The PID file reader on generated text and on raw bytes read as text.
-/// Why:  Generated text pins the accepted spellings; raw bytes prove the reader never accepts a
+/// What:
+/// The PID file reader on generated text and on raw bytes read as text.
+/// Why:
+///  Generated text pins the accepted spellings;
+/// raw bytes prove the reader never accepts a
 ///       value outside the safe range or a text the trailing-whitespace rule would leave unread.
 ///
 /// In TS you'd write (pseudocode):
@@ -104,9 +129,13 @@ pub fn check_pid_file_text(data: &[u8]) {
     }
 }
 
-/// What: One generated `/proc/<pid>/stat` line and the state and start ticks it must read as, or
+/// What:
+/// One generated `/proc/<pid>/stat` line and the state and start ticks it must read as,
+/// or
 ///       nothing.
-/// Why:  The command name may hold spaces and parentheses; the last `)` ends it.
+/// Why:
+///  The command name may hold spaces and parentheses;
+/// the last `)` ends it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -130,8 +159,12 @@ pub fn generated_linux_stat(data: &[u8]) -> (String, Option<(String, i64)>) {
     }
 }
 
-/// What: The start-tick field of a generated stat line and the value it must read as, when it does.
-/// Why:  Ticks past the safe range and non-digit ticks must be refused, not rounded.
+/// What:
+/// The start-tick field of a generated stat line and the value it must read as,
+/// when it does.
+/// Why:
+///  Ticks past the safe range and non-digit ticks must be refused,
+/// not rounded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -149,9 +182,13 @@ fn generated_ticks(cursor: &mut Cursor<'_>) -> (String, Option<i64>) {
     return (String::from("x42"), None);
 }
 
-/// What: The stat reader on generated lines and on raw bytes read as text.
-/// Why:  A command name may hold any byte the process chose; the reader must still find the
-///       state and ticks after the last `)`, and never return a state with a space in it.
+/// What:
+/// The stat reader on generated lines and on raw bytes read as text.
+/// Why:
+///  A command name may hold any byte the process chose;
+/// the reader must still find the
+///       state and ticks after the last `)`,
+/// and never return a state with a space in it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

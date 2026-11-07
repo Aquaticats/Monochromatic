@@ -79,9 +79,11 @@ pub enum FirstRunState {
     SystemNoAudio,
     /// The chosen folder was read completely and holds no supported audio file.
     FolderNoAudio,
-    /// No folder is open, so the desktop asks the user to choose one.
+    /// No folder is open,
+    /// so the desktop asks the user to choose one.
     NoFolderOpen,
-    /// The opened folder is still being read, so its tracks are not known yet.
+    /// The opened folder is still being read,
+    /// so its tracks are not known yet.
     Reading,
 }
 
@@ -225,9 +227,11 @@ pub fn first_run_copy(
 
 /// What:
 ///      `fn reading_copy() -> FirstRunCopy`.
-///  The copy for a folder that is still being read: says the library is being looked through and that nothing is wrong.
+///  The copy for a folder that is still being read:
+/// says the library is being looked through and that nothing is wrong.
 /// Why:
-///       While the folder walk runs the window used to say "No folder is open" (the polish review finding EM1). The words
+///       While the folder walk runs the window used to say "No folder is open" (the polish review finding EM1).
+/// The words
 ///  follow Search's "Still looking through your library" (D69) and promise nothing the list does not yet do.
 ///
 /// In TS you'd write (pseudocode):
@@ -261,9 +265,11 @@ fn reading_copy() -> FirstRunCopy {
 /// ```
 /// What:
 ///      `fn no_folder_open_copy() -> FirstRunCopy`.
-///  The desktop copy for a start with no folder open: says so and offers `Open a folder`.
+///  The desktop copy for a start with no folder open:
+/// says so and offers `Open a folder`.
 /// Why:
-///       The desktop has no device library to open, so the only way to start is to choose a folder.
+///       The desktop has no device library to open,
+/// so the only way to start is to choose a folder.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

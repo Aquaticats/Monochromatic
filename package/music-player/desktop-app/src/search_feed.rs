@@ -1,10 +1,21 @@
-//! Feeding a whole library into the Search service in batches, off the caller's thread.
+//! Feeding a whole library into the Search service in batches,
+//! off the caller's thread.
 //!
-//! What: `feed_library` splits a list of display paths into batches and gives them to the service on a background
-//! thread. An empty index is filled in place, so results appear while the list is still being consumed; an index that
-//! already holds a library is replaced by one built on the side, so the open page never loses its results.
-//! Why: the engine reports a rescanned library as one list, and normalizing a million names takes seconds. D111 asks
-//! that Search work meanwhile: the first case makes tracks searchable from the first batch, the second keeps answering
+//! What:
+//! `feed_library` splits a list of display paths into batches and gives them to the service on a background
+//! thread.
+//! An empty index is filled in place,
+//! so results appear while the list is still being consumed;
+//! an index that
+//! already holds a library is replaced by one built on the side,
+//! so the open page never loses its results.
+//! Why:
+//! the engine reports a rescanned library as one list,
+//! and normalizing a million names takes seconds.
+//! D111 asks
+//! that Search work meanwhile:
+//! the first case makes tracks searchable from the first batch,
+//! the second keeps answering
 //! from the old library until the new one is complete.
 //!
 //! In TS you'd write (pseudocode):
@@ -27,7 +38,9 @@ use crate::search_service::SearchService;
 ///      `const MAX_PREPARERS: usize = 4`.
 ///  The most threads that prepare batches at once.
 /// Why:
-///       Preparation is the only work that grows with the text, and it parallelizes by batch; four threads cut a
+///       Preparation is the only work that grows with the text,
+/// and it parallelizes by batch;
+/// four threads cut a
 ///  million-name feed to about a quarter of the time while leaving cores for the window and for playback.
 const MAX_PREPARERS: usize = 4;
 
@@ -35,8 +48,12 @@ const MAX_PREPARERS: usize = 4;
 ///      `fn prepare_in_order(names: &[String], batch: usize, sink: impl FnMut(usize, PreparedBatch) -> bool)`.
 ///  Prepares batches on several threads and hands them to `sink` in library order.
 /// Why:
-///       The index must receive batches in order, because a track's position is its place in the list, but preparing
-///  them can happen in any order. `sink` returns false to stop early, which also stops the preparers.
+///       The index must receive batches in order,
+/// because a track's position is its place in the list,
+/// but preparing
+///  them can happen in any order.
+/// `sink` returns false to stop early,
+/// which also stops the preparers.
 pub(crate) fn prepare_in_order(names: &[String], batch: usize, mut sink: impl FnMut(usize, PreparedBatch) -> bool) {
     let chunks: Vec<&[String]> = names.chunks(batch.max(1)).collect();
     let workers: usize = thread::available_parallelism().map_or(1, |count| return count.get()).min(MAX_PREPARERS);
@@ -87,15 +104,19 @@ pub(crate) fn prepare_in_order(names: &[String], batch: usize, mut sink: impl Fn
 ///      `pub const FEED_BATCH: usize = 10_000`.
 ///  How many tracks one batch holds.
 /// Why:
-///       A batch of ten thousand prepares in about thirty milliseconds and is pushed in about a millisecond, so no
+///       A batch of ten thousand prepares in about thirty milliseconds and is pushed in about a millisecond,
+/// so no
 ///  lock hold or preparation step is long enough to notice.
 pub const FEED_BATCH: usize = 10_000;
 
 /// What:
 ///      `pub fn feed_library(service: &Arc<SearchService>, names: Arc<Vec<String>>, batch: usize, pause: Duration)`.
-///  Starts a feed and returns at once; a newer feed cancels this one.
+///  Starts a feed and returns at once;
+/// a newer feed cancels this one.
 /// Why:
-///       See the module description. `pause` sleeps between batches; production passes zero and tests pass a delay to
+///       See the module description.
+/// `pause` sleeps between batches;
+/// production passes zero and tests pass a delay to
 ///  imitate a slow scan.
 ///
 /// In TS you'd write (pseudocode):
@@ -119,14 +140,21 @@ pub fn feed_library(service: &Arc<SearchService>, names: Arc<Vec<String>>, batch
     });
 }
 
-/// What: `path_bytes` sums the lengths of the names.
-/// Why: reserving the arenas up front keeps buffer growth, which copies the buffer, out of the write lock.
+/// What:
+/// `path_bytes` sums the lengths of the names.
+/// Why:
+/// reserving the arenas up front keeps buffer growth,
+/// which copies the buffer,
+/// out of the write lock.
 fn path_bytes(names: &[String]) -> usize {
     return names.iter().map(String::len).sum();
 }
 
-/// What: `feed_in_place` fills the live index batch by batch.
-/// Why: the index is empty, so every track added is a track that was not searchable before.
+/// What:
+/// `feed_in_place` fills the live index batch by batch.
+/// Why:
+/// the index is empty,
+/// so every track added is a track that was not searchable before.
 fn feed_in_place(service: &SearchService, names: &[String], epoch: u64, batch: usize, pause: Duration) {
     let generation: u64 = service.reset(names.len(), path_bytes(names));
     let mut finished: bool = true;
@@ -151,8 +179,11 @@ fn feed_in_place(service: &SearchService, names: &[String], epoch: u64, batch: u
     }
 }
 
-/// What: `feed_on_the_side` builds a second index and swaps it in when complete.
-/// Why: the live index still answers for the previous library, and replacing it at the end avoids a flash of
+/// What:
+/// `feed_on_the_side` builds a second index and swaps it in when complete.
+/// Why:
+/// the live index still answers for the previous library,
+/// and replacing it at the end avoids a flash of
 /// empty results during a rescan.
 fn feed_on_the_side(service: &SearchService, names: &[String], epoch: u64, batch: usize, pause: Duration) {
     let mut fresh: SearchIndex = SearchIndex::new(0);

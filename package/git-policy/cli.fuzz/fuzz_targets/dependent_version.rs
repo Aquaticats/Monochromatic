@@ -1,7 +1,15 @@
-//! What: Every input through the dependent-version scanners: as the layout of a generated
-//!       manifest, as `from`, `to` and raw manifest text, and as a package name and source.
-//! Why: The generated view checks the rewrite against an independently built result; the
-//!      raw views reach every scanner state, including unterminated literals and odd names.
+//! What:
+//! Every input through the dependent-version scanners:
+//! as the layout of a generated
+//!       manifest,
+//! as `from`,
+//! `to` and raw manifest text,
+//! and as a package name and source.
+//! Why:
+//! The generated view checks the rewrite against an independently built result;
+//! the
+//!      raw views reach every scanner state,
+//! including unterminated literals and odd names.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

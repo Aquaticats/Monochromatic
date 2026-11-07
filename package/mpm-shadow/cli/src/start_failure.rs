@@ -1,8 +1,14 @@
 //! What:
 //! The message for a real `mpm` that could not be started.
 //! Why:
-//! The person sees only this text: it must name the command they ran, the program tried, the stage, the cause in
-//! plain words, the remedy, the exit status the shadow returns and what had completed.
+//! The person sees only this text:
+//! it must name the command they ran,
+//! the program tried,
+//! the stage,
+//! the cause in
+//! plain words,
+//! the remedy,
+//! the exit status the shadow returns and what had completed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,8 +22,14 @@ use std::io::{Error, ErrorKind};
 /// Imports the borrowed path type.
 use std::path::Path;
 
+/// The exit status of a start that failed before the real `mpm` ran,
+/// which the message tells the reader to expect.
 use crate::constants::EXEC_FAILED_EXIT_CODE;
+/// The deepest nesting of shadow starts allowed,
+/// named in the message about a nested start.
 use crate::nesting::MAX_NESTING;
+/// What the retry of a refused start did,
+/// which the message reports.
 use crate::start_retry::RetryReport;
 
 /// Everything the message needs to know.
@@ -40,10 +52,14 @@ fn needs_quotes(argument: &str) -> bool {
 }
 
 /// What:
-/// The command line the person ran, as they would type it:
-/// `mpm`, then each argument, in single quotes when it holds a space or a quote.
+/// The command line the person ran,
+/// as they would type it:
+/// `mpm`,
+/// then each argument,
+/// in single quotes when it holds a space or a quote.
 /// Why:
-/// The message must name the command, and an argument with a space has to stay one argument to be recognizable.
+/// The message must name the command,
+/// and an argument with a space has to stay one argument to be recognizable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -65,7 +81,8 @@ pub fn command_line(outer: &[OsString]) -> String {
     return text;
 }
 
-/// The sentence about nesting, empty at the top level.
+/// The sentence about nesting,
+/// empty at the top level.
 fn nesting_note(depth: u32) -> String {
     if depth == 0 {
         return String::new();
@@ -75,7 +92,8 @@ fn nesting_note(depth: u32) -> String {
     );
 }
 
-/// The cause and the remedy for one kind of start failure, in plain words.
+/// The cause and the remedy for one kind of start failure,
+/// in plain words.
 fn cause_and_remedy(failure: &StartFailure) -> (String, String) {
     let program: String = failure.program.display().to_string();
     return match failure.error.kind() {
@@ -149,8 +167,11 @@ pub fn describe_start_failure(failure: &StartFailure) -> String {
 /// What:
 /// The message for a shadow that refuses to start `program` because too many shadows already sit above it.
 /// Why:
-/// A chain of shadows, each taking the next for the real `mpm`, grows until the host runs out of processes;
-/// stopping it at a bound turns that into a short, explained failure.
+/// A chain of shadows,
+/// each taking the next for the real `mpm`,
+/// grows until the host runs out of processes;
+/// stopping it at a bound turns that into a short,
+/// explained failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -4,13 +4,17 @@ use super::*;
 use crate::ui_screen_view::view;
 use music_player::template_model::TrackFields;
 
-/// What: `no_supporting_line` is the supporting-line function that never shows text.
+/// What:
+/// `no_supporting_line` is the supporting-line function that never shows text.
 fn no_supporting_line(_track: &TrackFields) -> Option<String> {
     return None;
 }
 
-/// What: `list_row(kind, supporting, current)` builds one plain list row for the offset cases.
-/// Why: only the kind, the second line and the current flag decide a row's height and the playing position.
+/// What:
+/// `list_row(kind, supporting, current)` builds one plain list row for the offset cases.
+/// Why:
+/// only the kind,
+/// the second line and the current flag decide a row's height and the playing position.
 fn list_row(kind: i32, supporting: &str, current: bool) -> ListRow {
     return ListRow {
         kind,
@@ -21,8 +25,12 @@ fn list_row(kind: i32, supporting: &str, current: bool) -> ListRow {
     };
 }
 
-/// What: `state_with_queue(names, current)` builds a state over the given queue, with no page selected yet.
-/// Why: the scroll cases need only the queue, the playing index and the request fields.
+/// What:
+/// `state_with_queue(names, current)` builds a state over the given queue,
+/// with no page selected yet.
+/// Why:
+/// the scroll cases need only the queue,
+/// the playing index and the request fields.
 fn state_with_queue(names: &[&str], current: Option<usize>) -> ScreenState {
     return ScreenState {
         names: std::sync::Arc::new(names.iter().map(|name| return name.to_string()).collect()),
@@ -31,15 +39,23 @@ fn state_with_queue(names: &[&str], current: Option<usize>) -> ScreenState {
     };
 }
 
-/// What: `project_once` projects the state once and runs the request decision, the way the window's projection does.
-/// Why: the request depends on the state the previous projection left behind, so the cases call it in sequence.
+/// What:
+/// `project_once` projects the state once and runs the request decision,
+/// the way the window's projection does.
+/// Why:
+/// the request depends on the state the previous projection left behind,
+/// so the cases call it in sequence.
 fn project_once(state: &mut ScreenState) -> Option<ScrollRequest> {
     let screen = view(state, &no_supporting_line);
     return next_scroll_request(state, &screen);
 }
 
-/// What: `live_folder_rows` is a folder with a loose track, a subfolder header and the playing track inside it.
-/// Why: the header sits between the two tracks, so the playing row and its folder header have different offsets.
+/// What:
+/// `live_folder_rows` is a folder with a loose track,
+/// a subfolder header and the playing track inside it.
+/// Why:
+/// the header sits between the two tracks,
+/// so the playing row and its folder header have different offsets.
 fn live_folder_rows() -> Vec<ListRow> {
     return vec![
         list_row(0, "", false),

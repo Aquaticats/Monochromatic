@@ -79,10 +79,15 @@ fn is_executable_file(path: &Path) -> bool {
 /// What:
 /// Whether `candidate` (already resolved) is a per-tree launcher whose record names `shadow` as the binary it starts.
 /// Why:
-/// `install` links `mpm` to a launcher, which replaces itself with the real shadow binary under the name `mpm`;
-/// that binary's own path is not the launcher's, so comparing paths alone takes the launcher for the real `mpm`,
-/// starts it, and the chain repeats until the host refuses new processes (issue 6259).
-/// A file with no record, or an unreadable one, is not a launcher.
+/// `install` links `mpm` to a launcher,
+/// which replaces itself with the real shadow binary under the name `mpm`;
+/// that binary's own path is not the launcher's,
+/// so comparing paths alone takes the launcher for the real `mpm`,
+/// starts it,
+/// and the chain repeats until the host refuses new processes (issue 6259).
+/// A file with no record,
+/// or an unreadable one,
+/// is not a launcher.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

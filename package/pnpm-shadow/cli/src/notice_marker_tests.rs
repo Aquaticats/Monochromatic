@@ -1,4 +1,6 @@
-//! The unit tests of the notice marker: a marker left for a process id is claimed once, by that id only.
+//! The unit tests of the notice marker:
+//! a marker left for a process id is claimed once,
+//! by that id only.
 
 /// Imports the functions under test.
 use crate::notice_marker::{claim_marker_in, leave_marker_in, marker_path_in};
@@ -7,7 +9,8 @@ use crate::constants::NOTICE_MARKER_PREFIX;
 /// Imports the scratch directories.
 use crate::test_scratch::scratch;
 
-/// A process id and a second one apart from it, so equality is never an accident.
+/// A process id and a second one apart from it,
+/// so equality is never an accident.
 const OUTER_PID: u32 = 7001;
 const OTHER_PID: u32 = 7002;
 

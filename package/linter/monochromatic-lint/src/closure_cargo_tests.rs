@@ -13,8 +13,8 @@
 //! ```
 
 use super::{
-    CARGO_VARIABLE, DYLINT_FLAGS, cargo_program, dependencies_missing, dylint_probe, run_dylint,
-    rustc_dev_missing, rustc_dev_missing_in,
+    CARGO_VARIABLE, DYLINT_FLAGS, ProbeFailure, cargo_program, dependencies_missing, dylint_probe,
+    run_dylint, rustc_dev_missing, rustc_dev_missing_in,
 };
 use crate::{closure_probe::PackageSetup, closure_stub_support::scenario, test_fs::Fixture};
 use std::path::{Path, PathBuf};
@@ -46,11 +46,44 @@ fn dylint_availability_has_three_outcomes() {
     assert!(
         dylint_probe(&broken.cargo)
             .expect_err("a reason")
+            .reason()
             .contains("cargo dylint --version")
     );
     let missing =
         dylint_probe(Path::new("/nonexistent/monochromatic-lint/cargo")).expect_err("a reason");
-    assert!(missing.contains("cargo does not run"), "{missing}");
+    assert!(matches!(missing, ProbeFailure::Absent(_)), "{missing:?}");
+    assert!(
+        missing.reason().contains("cargo does not run"),
+        "{missing:?}"
+    );
+}
+
+/// A `cargo` that starts and exits 126 or 127 is broken,
+/// not absent,
+/// and a plain failure stays a reason to skip.
+#[test]
+fn a_cargo_that_exits_126_or_127_is_broken_and_any_other_failure_is_absent() {
+    for status in ["126", "127"] {
+        let stub = scenario(&[
+            ("dylint-version.status", status),
+            ("dylint-version.stderr", "its own words\n"),
+        ]);
+        let failure = dylint_probe(&stub.cargo).expect_err("a failure");
+        assert!(
+            matches!(failure, ProbeFailure::Broken(_)),
+            "{status}: {failure:?}"
+        );
+        assert!(
+            failure.reason().contains(&format!("exited with {status}")),
+            "{failure:?}"
+        );
+        assert!(failure.reason().ends_with("its own words"), "{failure:?}");
+    }
+    let plain = scenario(&[("dylint-version.status", "101")]);
+    assert!(matches!(
+        dylint_probe(&plain.cargo),
+        Err(ProbeFailure::Absent(_))
+    ));
 }
 
 /// A cold registry names the directory and the fetch command,

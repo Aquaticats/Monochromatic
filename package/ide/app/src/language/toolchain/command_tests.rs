@@ -8,7 +8,8 @@ use std::{
 };
 
 /// The program the lookup would run:
-///  the worktree's own `mpm-shadow` link, absolute.
+///  the worktree's own `mpm-shadow` link,
+/// absolute.
 const PROGRAM: &str = "/home/someone/Monochromatic/.cache/toolchain-bin/mpm-shadow";
 
 /// The arguments of the lookup after the program name.

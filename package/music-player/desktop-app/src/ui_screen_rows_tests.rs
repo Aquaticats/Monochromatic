@@ -4,7 +4,8 @@ use super::*;
 use music_player::folder_rail::rail_for;
 use music_player::track_entries::TrackRowModel;
 
-/// What: `track(index, title, current)` builds a track entry for the row tests.
+/// What:
+/// `track(index, title, current)` builds a track entry for the row tests.
 fn track(index: usize, title: &str, current: bool) -> TrackListEntry {
     return TrackListEntry::RowEntry(TrackRowModel {
         index_in_library: index,
@@ -107,14 +108,18 @@ fn picker_cell_key_equals_its_label() {
     assert_eq!(picker.cells[0].key, picker.cells[0].label);
 }
 
-/// What: `row` builds a track row (kind 0) or a header row (kind 1) with the given title.
-/// Why: the prefix tests only read titles and kinds.
+/// What:
+/// `row` builds a track row (kind 0) or a header row (kind 1) with the given title.
+/// Why:
+/// the prefix tests only read titles and kinds.
 fn plain(kind: i32, title: &str) -> ListRow {
     return ListRow { kind, title: title.to_string(), supporting: String::new(), current: false, index: if kind == 0 { 1 } else { -1 } };
 }
 
-/// What: `titles` lists the titles of rows.
-/// Why: the tests compare what a person would read.
+/// What:
+/// `titles` lists the titles of rows.
+/// Why:
+/// the tests compare what a person would read.
 fn titles(rows: &[ListRow]) -> Vec<&str> {
     return rows.iter().map(|row| return row.title.as_str()).collect();
 }

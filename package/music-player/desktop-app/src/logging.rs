@@ -43,20 +43,26 @@ pub fn init() {
 
 /// What:
 ///      `pub fn init_with_ansi(ansi: bool)`.
-///  Same as `init`, with ANSI colors on or off as the caller measured.
+///  Same as `init`,
+/// with ANSI colors on or off as the caller measured.
 /// Why:
-///       `tracing-subscriber` turns colors on whenever `NO_COLOR` is empty, whatever stderr is. The Windows build
+///       `tracing-subscriber` turns colors on whenever `NO_COLOR` is empty,
+/// whatever stderr is.
+/// The Windows build
 ///           measures whether stderr is a console that interprets escape sequences (`console_color.rs`) and passes the
-///           answer here, so a file or a console without VT processing gets plain text.
+///           answer here,
+/// so a file or a console without VT processing gets plain text.
 pub fn init_with_ansi(ansi: bool) {
     install(Some(ansi));
 }
 
 /// What:
 ///      `fn install(ansi: Option<bool>)`.
-///  Builds the stderr subscriber and installs it as the global default; `None` keeps `tracing-subscriber`'s color default.
+///  Builds the stderr subscriber and installs it as the global default;
+/// `None` keeps `tracing-subscriber`'s color default.
 /// Why:
-///       One builder for both entry points, so they differ only in the color setting.
+///       One builder for both entry points,
+/// so they differ only in the color setting.
 fn install(ansi: Option<bool>) {
     // The level filter from RUST_LOG, or `info` when the variable is unset or malformed.
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| return EnvFilter::new("info"));

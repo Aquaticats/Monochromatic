@@ -1,15 +1,27 @@
-//! The directory unit-test fixtures are created in, placed in the build directory so no test writes under `/tmp`.
+//! The directory unit-test fixtures are created in,
+//! placed in the build directory so no test writes under `/tmp`.
 
+/// `Path` to walk up from the test executable to its build directory,
+/// and `PathBuf` for the scratch root handed to tests.
 use std::path::{Path, PathBuf};
 
-/// The directory fixtures are created in: `test-scratch` in the build directory of the running test executable
-///  (three levels above it, the package's build directory in the current Cargo layout), never the system temporary
+/// The directory fixtures are created in:
+/// `test-scratch` in the build directory of the running test executable
+///  (three levels above it,
+/// the package's build directory in the current Cargo layout),
+/// never the system temporary
 ///  directory.
 /// A shared tmpfs with a per-user quota fills up when tests leave fixtures behind (issue 1809).
-/// Some tests need a folder with no repository, toolchain entry point, or TypeScript install above it, and a build
+/// Some tests need a folder with no repository,
+/// toolchain entry point,
+/// or TypeScript install above it,
+/// and a build
 ///  directory inside a checkout (a host build with `CARGO_BUILD_BUILD_DIR=target` in a worktree) has all of them
-///  above it; then the fixtures go in the home directory's cache directory instead, which no checkout contains.
-/// The container mounts only the package at `/work`, so its build directory stays the scratch location.
+///  above it;
+/// then the fixtures go in the home directory's cache directory instead,
+/// which no checkout contains.
+/// The container mounts only the package at `/work`,
+/// so its build directory stays the scratch location.
 pub(crate) fn scratch_root() -> PathBuf {
     let target: Option<PathBuf> = std::env::current_exe()
         .ok()
@@ -27,14 +39,19 @@ pub(crate) fn scratch_root() -> PathBuf {
     return root;
 }
 
-/// One empty directory under the scratch root, removed when the returned guard drops, however the test ends.
-/// Returns the `io::Result` of the call it replaces, so call sites keep their `expect` or `?`.
+/// One empty directory under the scratch root,
+/// removed when the returned guard drops,
+/// however the test ends.
+/// Returns the `io::Result` of the call it replaces,
+/// so call sites keep their `expect` or `?`.
 pub(crate) fn scratch() -> std::io::Result<tempfile::TempDir> {
     return tempfile::tempdir_in(scratch_root());
 }
 
 /// The name of the first thing found at or above `directory` that tests on a disposable folder assume is absent:
-///  a `.git` entry (work-tree discovery), the toolchain plan file (`language::toolchain::PLAN_FILE`), or the
+///  a `.git` entry (work-tree discovery),
+/// the toolchain plan file (`language::toolchain::PLAN_FILE`),
+/// or the
 ///  TypeScript launcher (`language::config::typescript::LAUNCHER`).
 /// The two paths are repeated here because the native test binary has no `language` module to import them from.
 fn assumed_absent_above(directory: &Path) -> Option<String> {
@@ -53,31 +70,7 @@ fn assumed_absent_above(directory: &Path) -> Option<String> {
     return None;
 }
 
-/// Tests such as `outside_a_work_tree_nothing_is_ignored` and
-///  `a_worktree_that_is_not_above_the_project_does_not_serve_it` need a folder with no repository, no toolchain entry
-///  point, and no TypeScript install above it, so the scratch root must not sit inside a checkout, whatever the build
-///  directory is.
-#[test]
-fn the_scratch_root_has_no_repository_entry_point_or_typescript_install_above_it() {
-    let created: PathBuf = std::fs::canonicalize(scratch_root()).expect("scratch root");
-    assert_eq!(
-        assumed_absent_above(&created),
-        None,
-        "{} has a checkout marker above it",
-        created.display()
-    );
-}
-
-/// The test reads the system temporary directory only to prove the scratch root is not inside it.
-#[test]
-#[expect(clippy::disallowed_methods, reason = "compares against the banned location without writing there")]
-fn the_scratch_root_is_not_under_the_system_temporary_directory() {
-    let temporary: PathBuf = std::fs::canonicalize(std::env::temp_dir()).expect("system temporary directory");
-    let created: PathBuf = std::fs::canonicalize(scratch_root()).expect("scratch root");
-    assert!(
-        !created.starts_with(&temporary),
-        "{} is under {}",
-        created.display(),
-        temporary.display()
-    );
-}
+/// The unit tests of the scratch root's location.
+#[cfg(test)]
+#[path = "test_scratch_tests.rs"]
+mod tests;

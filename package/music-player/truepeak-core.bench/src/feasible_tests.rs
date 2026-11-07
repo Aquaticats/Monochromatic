@@ -3,7 +3,9 @@
 use super::*;
 use truepeak_core::peak_dbtp;
 
-/// The test density: two one-second windows, so the short/long threshold is two seconds.
+/// The test density:
+/// two one-second windows,
+/// so the short/long threshold is two seconds.
 const CANDIDATE: Candidate = Candidate {
     window_count: 2,
     window_seconds: 1.0,
@@ -13,9 +15,14 @@ const CANDIDATE: Candidate = Candidate {
 /// The linear peak of every second the two probe windows cover on `gap_track`.
 const QUIET_PEAK: f32 = 0.05;
 
-/// What: `gap_track` builds a hundred-second track whose only loud second (full-track true peak 1.0, 0 dBTP, above the
+/// What:
+/// `gap_track` builds a hundred-second track whose only loud second (full-track true peak 1.0,
+/// 0 dBTP,
+/// above the
 /// shipped ceiling) sits between the two probe windows.
-/// Why: its under-read is the known `peak_dbtp(1.0) - peak_dbtp(QUIET_PEAK)`, so the margin has an exact expectation.
+/// Why:
+/// its under-read is the known `peak_dbtp(1.0) - peak_dbtp(QUIET_PEAK)`,
+/// so the margin has an exact expectation.
 fn gap_track(path: &str) -> Track {
     let mut bin_peaks = vec![QUIET_PEAK; 100];
     bin_peaks[50] = 1.0;
@@ -30,12 +37,14 @@ fn gap_track(path: &str) -> Track {
     };
 }
 
-/// What: `under_read_db` is the level the probe misses on `gap_track`.
+/// What:
+/// `under_read_db` is the level the probe misses on `gap_track`.
 fn under_read_db() -> f64 {
     return peak_dbtp(1.0) - peak_dbtp(f64::from(QUIET_PEAK));
 }
 
-/// What: `policy_with_bound` is the shipped policy with a different too-loud bound.
+/// What:
+/// `policy_with_bound` is the shipped policy with a different too-loud bound.
 fn policy_with_bound(max_too_loud_db: f64) -> Policy {
     return Policy {
         max_too_loud_db,

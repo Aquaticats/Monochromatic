@@ -156,7 +156,8 @@ pub fn declared_verbs() -> Vec<&'static Verb> {
 
 /// What:
 /// `pub fn names_a_declared_verb(word: &str) -> bool` declares a public function that answers whether `word`
-///           (a borrowed text, `&str`) is the name or an alias of one of the verbs `declared_verbs` lists.
+///           (a borrowed text,
+/// `&str`) is the name or an alias of one of the verbs `declared_verbs` lists.
 /// Why:
 /// `main.rs` runs a command line typed to `mpm` as this tool's own command when its first word is one of these
 ///           pnpm verbs (owner,

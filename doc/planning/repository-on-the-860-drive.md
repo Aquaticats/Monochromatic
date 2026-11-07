@@ -18,6 +18,15 @@ a read-only flag was set on the real main checkout by mistake and cleared about 
 (section "Quiesce and freeze").
 Every command in the runbook that needs root is for the owner to run;
 agents do not run `sudo`.
+Superseded 2026-11-07T13:57:11-05:00:
+the owner said "Wizard writes TypeScript,
+and you just do the move yourself,
+no need to delegate to me."
+and "run sudo whenever needed for the move,
+and run sudo for anything.
+I authorize you to do and use all of it without my prior approval."
+The coordinator (main session) runs the move and its root steps;
+subagents send it the exact privileged commands instead of running them.
 
 ## Owner requirements this plan follows
 
@@ -1172,6 +1181,43 @@ and the two penalties the first version gave it are answered by measurement:
 Two costs of B remain that A did not have:
 replacement of the link by a real folder is not preventable by a mode (fixture state 6),
 and every tool needs the shared check (W1).
+
+### The owner's go-ahead on timing, 2026-11-07T12:46:40-05:00
+
+Told that the move waited only on the bounded cut-over window with commits refused,
+the owner said,
+verbatim:
+"No need to wait for me.
+Do it whenever you see fit."
+So the coordinator picks the window:
+the moment no agent works in a worktree,
+so no commit is refused,
+with the stated maximum the runbook gives after timing the first pass.
+Every copy step still needs root,
+and agents never run `sudo`,
+so the owner runs the root commands;
+the coordinator hands them over as one guided script in this order:
+the root fixture test of `btrfs send` and `receive` on loop images,
+the inventory `R0`,
+the first pass (no window;
+the tree stays writable),
+then,
+at the chosen moment,
+the final pass and the switch to the link.
+
+That guided script is written:
+[the guided root script](../runbook/repository-on-the-860-drive-guided-root-script.md)
+(`doc/runbook/repository-on-the-860-drive-guided-root-script.sh`).
+Its `prepare` command runs the fixture test,
+R0,
+the pre-flight and the first pass and then stops;
+its `cutover` command runs the freeze,
+the final pass,
+the verification,
+the swap and the release inside a stated
+maximum duration;
+its `thaw` and `rollback` commands undo the freeze and the fast path.
+The runbook also lists where this plan no longer matches the repository and which commands of the plan it changes.
 
 ## Copy methods
 
@@ -2400,6 +2446,10 @@ as root,
 for every subvolume in the reconciled inventory;
 plain directories (the 5 plain-directory worktrees inside the main checkout,
 and the 16 external worktrees) are handled as described below.
+
+The root steps of this section,
+the fixture test and the cut-over run through
+[the guided root script](../runbook/repository-on-the-860-drive-guided-root-script.md).
 
 The script `/var/home/user/temp/agent/dangling/move-repository.ts` replaces the print-only generator of the earlier
 revision.

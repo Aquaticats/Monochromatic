@@ -14,7 +14,8 @@
 use crate::folder_index::{FolderEntry, FolderListItem, FolderTrackRow};
 /// Template fields that the supporting-line function reads.
 use crate::template_model::TrackFields;
-/// Measures keyed by display name, supplying each row's length and exact peak.
+/// Measures keyed by display name,
+/// supplying each row's length and exact peak.
 use crate::track_measure::{TrackMeasure, fields_with_measure};
 /// The map type the measures arrive in.
 use std::collections::HashMap;

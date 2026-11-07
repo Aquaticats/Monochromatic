@@ -89,6 +89,8 @@ impl JobViewServerV1 {
 // The zbus::interface expansion below calls Result::unwrap, which the repository clippy.toml bans;
 // the allow covers only this block. The reason is in
 // doc/troubleshooting/zbus-interface-macro-clippy-disallowed-unwrap.md.
+/// The scope holding the `org.kde.JobViewServer` interface implementation,
+/// so the lint allow below covers only the code the `zbus::interface` macro expands.
 #[allow(
     clippy::disallowed_methods,
     reason = "zbus::interface expands to writeln!(..).unwrap() in its generated introspection method"
@@ -139,6 +141,8 @@ impl JobViewServerV2 {
 // The zbus::interface expansion below calls Result::unwrap, which the repository clippy.toml bans;
 // the allow covers only this block. The reason is in
 // doc/troubleshooting/zbus-interface-macro-clippy-disallowed-unwrap.md.
+/// The scope holding the `org.kde.JobViewServerV2` interface implementation,
+/// so the lint allow below covers only the code the `zbus::interface` macro expands.
 #[allow(
     clippy::disallowed_methods,
     reason = "zbus::interface expands to writeln!(..).unwrap() in its generated introspection method"
@@ -186,6 +190,8 @@ impl Kuiserver {
 // The zbus::interface expansion below calls Result::unwrap, which the repository clippy.toml bans;
 // the allow covers only this block. The reason is in
 // doc/troubleshooting/zbus-interface-macro-clippy-disallowed-unwrap.md.
+/// The scope holding the `org.kde.kuiserver` interface implementation,
+/// so the lint allow below covers only the code the `zbus::interface` macro expands.
 #[allow(
     clippy::disallowed_methods,
     reason = "zbus::interface expands to writeln!(..).unwrap() in its generated introspection method"

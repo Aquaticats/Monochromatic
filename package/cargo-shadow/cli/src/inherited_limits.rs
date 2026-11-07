@@ -4,10 +4,17 @@
 //! Why:
 //! The scope is made under the manager's own slice,
 //! not under the caller's control group,
-//! so the limits of the caller's cgroup (`MemoryMax`, `CPUQuota`, `TasksMax`, `IOWeight`) would not reach it:
-//! a build under a capped `systemd-run --user --scope` ran uncapped (rule RXI: every command that is not trivial runs under
-//! limits, in every agent).
-//! The scope carries, for each of the four limits, the tightest finite value on the cgroups the run leaves:
+//! so the limits of the caller's cgroup (`MemoryMax`,
+//! `CPUQuota`,
+//! `TasksMax`,
+//! `IOWeight`) would not reach it:
+//! a build under a capped `systemd-run --user --scope` ran uncapped (rule RXI:
+//! every command that is not trivial runs under
+//! limits,
+//! in every agent).
+//! The scope carries,
+//! for each of the four limits,
+//! the tightest finite value on the cgroups the run leaves:
 //! the cgroups on the way from the caller's own up to,
 //! and not including,
 //! the deepest ancestor it shares with the slice.
@@ -17,12 +24,15 @@
 //! A limit file that cannot be read is an error,
 //! because reading it as "no limit" could loosen the run;
 //! the discovery of the route turns that error into the weaker path,
-//! which keeps the process in the caller's own cgroup, so the limits still hold.
+//! which keeps the process in the caller's own cgroup,
+//! so the limits still hold.
 //! This is a port of the four limits of `package/wg/cli-quicker-exempt/src/inherited_limits.rs` (the precedent),
 //! not a dependency on it:
 //! that crate is a binary without a library,
-//! and each crate here stands on its own (its own `[workspace]`, published separately).
-//! `memory.high`, `memory.swap.max` and the per-device `io.max` limits of the precedent are not carried.
+//! and each crate here stands on its own (its own `[workspace]`,
+//! published separately).
+//! `memory.high`,
+//! `memory.swap.max` and the per-device `io.max` limits of the precedent are not carried.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -32,7 +42,11 @@
 //! export function callerLimits(ownCgroupFile: string, root: string, sliceDir: string): InheritedLimits  // throws
 //! ```
 
+/// The `InvalidData` error that reports a control file whose text is not what the kernel documents.
 use std::io;
+/// The control files read:
+/// borrowed from the caller,
+/// and owned when joined under the slice directory.
 use std::path::{Path, PathBuf};
 
 /// The kernel's default I/O weight,
@@ -40,7 +54,9 @@ use std::path::{Path, PathBuf};
 /// and so a weight with nothing to carry.
 const DEFAULT_IO_WEIGHT: u64 = 100;
 
-/// CPU time per second, in microseconds, that `CPUQuota=100%` means.
+/// CPU time per second,
+/// in microseconds,
+/// that `CPUQuota=100%` means.
 const MICROSECONDS_PER_SECOND: u64 = 1_000_000;
 
 /// The unit of `CPUQuota=`:
@@ -73,10 +89,14 @@ pub(crate) struct InheritedLimits {
 impl InheritedLimits {
     /// What:
     /// `pub(crate) fn properties(&self) -> Vec<String>` is the `Name=value` text of each limit that is set,
-    /// in the order `MemoryMax`, `CPUQuota`, `TasksMax`, `IOWeight`.
+    /// in the order `MemoryMax`,
+    /// `CPUQuota`,
+    /// `TasksMax`,
+    /// `IOWeight`.
     /// Why:
     /// `systemd-run --property=` takes these spellings;
-    /// `CPUQuotaPerSecUSec=` is refused there (probed on 2026-11-07: "Unknown assignment"),
+    /// `CPUQuotaPerSecUSec=` is refused there (probed on 2026-11-07:
+    /// "Unknown assignment"),
     /// so the quota is a percent with two decimals,
     /// rounded down so the scope is never looser than the caller.
     /// An absent limit gives no property.
@@ -194,7 +214,8 @@ fn parse_limit(text: &str) -> io::Result<Option<u64>> {
 /// `max <period>` or `<quota> <period>`,
 /// into microseconds of CPU time per second.
 /// Why:
-/// The file holds a quota per period, and a period is not always a second.
+/// The file holds a quota per period,
+/// and a period is not always a second.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -247,7 +268,8 @@ fn parse_io_weight(text: &str) -> io::Result<Option<u64>> {
 /// where a missing file means the controller sets no limit there.
 /// Why:
 /// A controller that is not enabled in a cgroup has no file;
-/// any other failure is an error, never "no limit".
+/// any other failure is an error,
+/// never "no limit".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -302,10 +324,13 @@ fn components(cgroup: &str) -> io::Result<Vec<&str>> {
 /// What:
 /// `pub(crate) fn read_inherited_limits(cgroup_root: &Path, origin: &str, destination: &str) -> io::Result<InheritedLimits>`
 /// reads the limits of every cgroup the run leaves:
-/// those on the way from `origin` up to, but not including, the deepest ancestor it shares with `destination`.
+/// those on the way from `origin` up to,
+/// but not including,
+/// the deepest ancestor it shares with `destination`.
 /// Why:
 /// The limits of the shared ancestors keep applying to the scope by ancestry.
-/// A limit file that cannot be read is an error: guessing "no limit" could loosen the run.
+/// A limit file that cannot be read is an error:
+/// guessing "no limit" could loosen the run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

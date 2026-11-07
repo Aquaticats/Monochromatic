@@ -94,6 +94,11 @@ pub mod archive_staging;
 /// The per-tree launcher for repository-published tools.
 pub mod launcher;
 
+/// What a launcher runs when its record's program is gone:
+/// the program under `current`,
+/// or the sentence that names both versions and the command that fixes it.
+pub mod launcher_current_link;
+
 /// Where tools install and how their binaries are found.
 pub mod layout;
 
@@ -335,7 +340,8 @@ mod fakes_cargo;
 #[cfg(test)]
 mod cargo_installs_tests;
 
-/// The record of postinstall links made, and the retirement of those the lock no longer declares.
+/// The record of postinstall links made,
+/// and the retirement of those the lock no longer declares.
 pub mod postinstall_links;
 
 /// The failure of a repository crate whose `cargo binstall` found no usable release archive.
@@ -345,7 +351,8 @@ pub mod binstall_no_archive;
 #[cfg(all(test, unix))]
 mod postinstall_links_tests;
 
-/// The unit tests of the `cargo binstall` command: which crates may fall back to compiling.
+/// The unit tests of the `cargo binstall` command:
+/// which crates may fall back to compiling.
 #[cfg(test)]
 mod install_cargo_tests;
 

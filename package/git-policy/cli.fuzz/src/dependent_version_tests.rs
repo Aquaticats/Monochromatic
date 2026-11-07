@@ -1,7 +1,13 @@
-//! What: Controls proving the dependent-version invariants are reached: generated manifests
-//!       of every layout, raw texts reaching every rewrite outcome and the completeness
-//!       branch, and specifier scans of every short token sequence.
-//! Why: An invariant that is never reached cannot fail; these count what each view reaches.
+//! What:
+//! Controls proving the dependent-version invariants are reached:
+//! generated manifests
+//!       of every layout,
+//! raw texts reaching every rewrite outcome and the completeness
+//!       branch,
+//! and specifier scans of every short token sequence.
+//! Why:
+//! An invariant that is never reached cannot fail;
+//! these count what each view reaches.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -69,7 +75,9 @@ fn generated_manifests_rewrite_to_their_expectation() {
     );
 }
 
-/// Raw texts reach success, every failure, and the completeness branch both ways.
+/// Raw texts reach success,
+/// every failure,
+/// and the completeness branch both ways.
 #[test]
 fn raw_texts_reach_every_rewrite_outcome() {
     let cases: &[(&str, Option<bool>)] = &[
@@ -142,8 +150,11 @@ fn short_token_sequences_hold_the_rewrite_invariants() {
     assert_eq!(texts.len(), 14_641);
 }
 
-/// Every sequence of up to four scan tokens agrees with the reference, with both results
-/// reached, for a scoped name, an empty name and a name with a quote.
+/// Every sequence of up to four scan tokens agrees with the reference,
+/// with both results
+/// reached,
+/// for a scoped name,
+/// an empty name and a name with a quote.
 #[test]
 fn short_token_sequences_scan_like_the_reference() {
     let tokens: &[&str] = &[

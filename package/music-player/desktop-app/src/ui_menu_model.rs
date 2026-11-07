@@ -1,15 +1,24 @@
-//! Pure track menu model: the rows, icons and dividers for one track.
+//! Pure track menu model:
+//! the rows,
+//! icons and dividers for one track.
 //!
-//! What: `menu_items` builds the menu rows from the shared action list in `track_menu`.
-//! Why: the action order, the grouping and the destructive row come from the Rust model; the window
+//! What:
+//! `menu_items` builds the menu rows from the shared action list in `track_menu`.
+//! Why:
+//! the action order,
+//! the grouping and the destructive row come from the Rust model;
+//! the window
 //! only draws them.
 
 use music_player::keymap::{KeyboardPlatform, ShortcutAction};
 use music_player::keymap_bindings::shortcut_text;
 use music_player::track_menu::{TrackMenuAction, access_label, label, track_menu_actions_for, track_menu_divider_flags};
 
-/// What: `MenuItemView` is one menu row as plain values.
-/// Why: the window's `TrackMenuItem` struct holds Slint strings, which the pure model does not.
+/// What:
+/// `MenuItemView` is one menu row as plain values.
+/// Why:
+/// the window's `TrackMenuItem` struct holds Slint strings,
+/// which the pure model does not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -21,7 +30,8 @@ pub struct MenuItemView {
     pub label: String,
     /// The part of the label before its access letter.
     pub label_before: String,
-    /// The access letter as written in the label; the window draws it underlined.
+    /// The access letter as written in the label;
+    /// the window draws it underlined.
     pub access: String,
     /// The part of the label after its access letter.
     pub label_after: String,
@@ -31,14 +41,25 @@ pub struct MenuItemView {
     pub destructive: bool,
     /// True when a divider sits above this row.
     pub divider_before: bool,
-    /// Inline value after the label; only the details row carries one.
+    /// Inline value after the label;
+    /// only the details row carries one.
     pub value: String,
-    /// Shortcut of the action on the running platform, drawn right-aligned; empty for an action with none.
+    /// Shortcut of the action on the running platform,
+    /// drawn right-aligned;
+    /// empty for an action with none.
     pub shortcut: String,
 }
 
-/// What: `icon_index` gives the glyph index the menu component draws for an action.
-/// Why: the menu's icon order is fixed: play, shuffle, details, show, copy, trash.
+/// What:
+/// `icon_index` gives the glyph index the menu component draws for an action.
+/// Why:
+/// the menu's icon order is fixed:
+/// play,
+/// shuffle,
+/// details,
+/// show,
+/// copy,
+/// trash.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,8 +76,12 @@ pub fn icon_index(action: TrackMenuAction) -> i32 {
     };
 }
 
-/// What: `shortcut_action_of` gives the shortcut action whose chord a menu row shows.
-/// Why: D106 shows each action's shortcut in its menu row; Play is Enter on the focused row, and Start shuffle from here and
+/// What:
+/// `shortcut_action_of` gives the shortcut action whose chord a menu row shows.
+/// Why:
+/// D106 shows each action's shortcut in its menu row;
+/// Play is Enter on the focused row,
+/// and Start shuffle from here and
 /// File details have no shortcut (D114).
 ///
 /// In TS you'd write (pseudocode):
@@ -73,8 +98,13 @@ pub fn shortcut_action_of(action: TrackMenuAction) -> Option<ShortcutAction> {
     };
 }
 
-/// What: `menu_items` builds every menu row, with the file size as the details value and each action's shortcut.
-/// Why: the details row shows its value inline (D7), the value is read when the menu opens, and every row shows its
+/// What:
+/// `menu_items` builds every menu row,
+/// with the file size as the details value and each action's shortcut.
+/// Why:
+/// the details row shows its value inline (D7),
+/// the value is read when the menu opens,
+/// and every row shows its
 /// shortcut (D106).
 ///
 /// In TS you'd write (pseudocode):
@@ -104,8 +134,13 @@ pub fn menu_items(size_text: Option<&str>, platform: KeyboardPlatform) -> Vec<Me
         .collect();
 }
 
-/// What: `short_folder` shortens a folder path to its last two folders, with a leading ellipsis when folders were dropped.
-/// Why: a message about a file names where it sits, but the whole path of a deep library does not fit a toast; the full path
+/// What:
+/// `short_folder` shortens a folder path to its last two folders,
+/// with a leading ellipsis when folders were dropped.
+/// Why:
+/// a message about a file names where it sits,
+/// but the whole path of a deep library does not fit a toast;
+/// the full path
 /// stays in the log and one click away in the file manager.
 ///
 /// In TS you'd write (pseudocode):
@@ -129,8 +164,13 @@ pub fn short_folder(folder: &str) -> String {
     return format!("\u{2026}{separator}{}", names[names.len() - 2..].join(&separator));
 }
 
-/// What: `details_text` writes the File details message: the file name, its size and the folder it sits in.
-/// Why: the message has to fit a toast of two lines (D83), so the folder is shortened to its last two folders.
+/// What:
+/// `details_text` writes the File details message:
+/// the file name,
+/// its size and the folder it sits in.
+/// Why:
+/// the message has to fit a toast of two lines (D83),
+/// so the folder is shortened to its last two folders.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -140,20 +180,29 @@ pub fn details_text(file_name: &str, size: Option<&str>, folder: &str) -> String
     return format!("{file_name} \u{b7} {} \u{b7} {}", size.unwrap_or("size unknown"), short_folder(folder));
 }
 
-/// What: `copied_text` writes the message shown after Copy filename worked.
-/// Why: the clipboard changes where the user cannot see it, so the action says what it put there.
+/// What:
+/// `copied_text` writes the message shown after Copy filename worked.
+/// Why:
+/// the clipboard changes where the user cannot see it,
+/// so the action says what it put there.
 pub fn copied_text(file_name: &str) -> String {
     return format!("Copied {file_name} to the clipboard");
 }
 
-/// What: `shown_in_file_manager_text` writes the message shown after Show in file manager started the file manager.
-/// Why: the file manager opens as its own window that may land behind this one, so the action confirms that it ran.
+/// What:
+/// `shown_in_file_manager_text` writes the message shown after Show in file manager started the file manager.
+/// Why:
+/// the file manager opens as its own window that may land behind this one,
+/// so the action confirms that it ran.
 pub fn shown_in_file_manager_text(file_name: &str) -> String {
     return format!("Opened the folder of {file_name} in your file manager");
 }
 
-/// What: `human_size` formats a byte count with one decimal in KB, MB or GB.
-/// Why: the details row shows a size a person can read at a glance.
+/// What:
+/// `human_size` formats a byte count with one decimal in KB,
+/// MB or GB.
+/// Why:
+/// the details row shows a size a person can read at a glance.
 pub fn human_size(bytes: u64) -> String {
     const KB: f64 = 1024.0;
     let value = bytes as f64;

@@ -1,10 +1,18 @@
-//! The folder the player opens when no session names one: the user's music folder.
+//! The folder the player opens when no session names one:
+//! the user's music folder.
 //!
-//! What: `first_existing_dir` picks the first candidate that is a folder, and `home_music_folder` names the `Music`
+//! What:
+//! `first_existing_dir` picks the first candidate that is a folder,
+//! and `home_music_folder` names the `Music`
 //! folder inside a home folder.
-//! Why: D95 says a library is always open, but the app looked for the music folder only in `XDG_MUSIC_DIR`, the
-//! user-dirs file and the `xdg-user-dir` tool. A home folder that has a `Music` folder and none of those showed the
-//! "No folder is open" screen (the polish review finding EM7). `Music` inside the home folder is the last candidate.
+//! Why:
+//! D95 says a library is always open,
+//! but the app looked for the music folder only in `XDG_MUSIC_DIR`,
+//! the
+//! user-dirs file and the `xdg-user-dir` tool.
+//! A home folder that has a `Music` folder and none of those showed the
+//! "No folder is open" screen (the polish review finding EM7).
+//! `Music` inside the home folder is the last candidate.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,7 +25,10 @@ use std::path::{Path, PathBuf};
 ///      `pub fn home_music_folder(home: &Path) -> PathBuf`.
 ///  The `Music` folder inside `home`.
 /// Why:
-///       The last place to look: Linux file managers, macOS and Windows all create or expect it, and a person who keeps
+///       The last place to look:
+/// Linux file managers,
+/// macOS and Windows all create or expect it,
+/// and a person who keeps
 ///  music in the home folder keeps it there.
 ///
 /// In TS you'd write (pseudocode):
@@ -30,10 +41,14 @@ pub fn home_music_folder(home: &Path) -> PathBuf {
 
 /// What:
 ///      `pub fn first_existing_dir<I: Iterator<Item = Option<PathBuf>>>(candidates: I) -> Option<PathBuf>`.
-///  The first candidate that exists as a folder, or `None`.
+///  The first candidate that exists as a folder,
+/// or `None`.
 /// Why:
-///       The candidates are produced one at a time, so the slow `xdg-user-dir` tool runs only when the earlier places
-///  gave nothing. A candidate that names a missing folder is skipped, not an answer.
+///       The candidates are produced one at a time,
+/// so the slow `xdg-user-dir` tool runs only when the earlier places
+///  gave nothing.
+/// A candidate that names a missing folder is skipped,
+/// not an answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

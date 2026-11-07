@@ -15,8 +15,10 @@ use crate::peakcache::CacheHandle;
 /// The sample rate of every test track (mono).
 const RATE: u32 = 8_000;
 
-/// What: `Seen` is what the tests keep of the updates the controller emits.
-/// Why: assertions read short lists.
+/// What:
+/// `Seen` is what the tests keep of the updates the controller emits.
+/// Why:
+/// assertions read short lists.
 #[derive(Debug, Clone, PartialEq)]
 enum Seen {
     Position(f64),
@@ -26,8 +28,12 @@ enum Seen {
     Peak,
 }
 
-/// What: `write_wav` writes a mono 16-bit WAV of `seconds` of a sine at `amplitude`.
-/// Why: a real file keeps the decoder, the chunking and the end-of-stream signal real; pitch and level tell files apart.
+/// What:
+/// `write_wav` writes a mono 16-bit WAV of `seconds` of a sine at `amplitude`.
+/// Why:
+/// a real file keeps the decoder,
+/// the chunking and the end-of-stream signal real;
+/// pitch and level tell files apart.
 fn write_wav(path: &Path, seconds: u32, hz: f64, amplitude: f64) {
     let frames = RATE * seconds;
     let data_bytes = frames * 2;
@@ -51,8 +57,12 @@ fn write_wav(path: &Path, seconds: u32, hz: f64, amplitude: f64) {
     std::fs::write(path, bytes).expect("the test track should be writable");
 }
 
-/// What: `Rig` is a controller with two tracks queued, the first loaded, and the consumer end of its ring.
-/// Why: every test starts from the same controller and changes the first track's file.
+/// What:
+/// `Rig` is a controller with two tracks queued,
+/// the first loaded,
+/// and the consumer end of its ring.
+/// Why:
+/// every test starts from the same controller and changes the first track's file.
 struct Rig {
     controller: Controller,
     consumer: HeapCons<f32>,
@@ -62,8 +72,11 @@ struct Rig {
 
 /// Methods of `Rig`.
 impl Rig {
-    /// What: `new` builds the rig; `playing` decides whether the first track plays or is paused.
-    /// Why: tests of both states share the setup.
+    /// What:
+    /// `new` builds the rig;
+    /// `playing` decides whether the first track plays or is paused.
+    /// Why:
+    /// tests of both states share the setup.
     fn new(tag: &str, playing: bool) -> Rig {
         let directory = crate::test_scratch::scratch_root().join(format!("mp-reload-{}-{}", std::process::id(), tag));
         std::fs::create_dir_all(&directory).expect("the test directory should be creatable");
@@ -95,8 +108,11 @@ impl Rig {
         return Rig { controller, consumer, seen, directory };
     }
 
-    /// What: `play_to` pumps and consumes until the audible position is `secs` and the ring is empty.
-    /// Why: the audible position is what the output has consumed, so the test consumes the way the output does.
+    /// What:
+    /// `play_to` pumps and consumes until the audible position is `secs` and the ring is empty.
+    /// Why:
+    /// the audible position is what the output has consumed,
+    /// so the test consumes the way the output does.
     fn play_to(&mut self, secs: f64) {
         let wanted = (secs * f64::from(RATE)) as usize;
         let mut consumed = 0;
@@ -108,20 +124,28 @@ impl Rig {
         assert!((self.controller.audible_secs() - secs).abs() < 1e-6, "the rig is at {secs} s, not {}", self.controller.audible_secs());
     }
 
-    /// What: `flush` empties the ring, as the output does when the stream is rebuilt for the replaced file.
-    /// Why: the tests have no output, and `install_source_silently` relies on `reconfigure` for the flush.
+    /// What:
+    /// `flush` empties the ring,
+    /// as the output does when the stream is rebuilt for the replaced file.
+    /// Why:
+    /// the tests have no output,
+    /// and `install_source_silently` relies on `reconfigure` for the flush.
     fn flush(&mut self) {
         consume(&mut self.consumer, usize::MAX);
     }
 
-    /// What: `replace` writes a new file over the first track.
-    /// Why: the change on disk.
+    /// What:
+    /// `replace` writes a new file over the first track.
+    /// Why:
+    /// the change on disk.
     fn replace(&self, seconds: u32, hz: f64, amplitude: f64) {
         write_wav(&self.directory.join("t1.wav"), seconds, hz, amplitude);
     }
 
-    /// What: `updates` is a copy of what the controller emitted so far.
-    /// Why: assertions read it.
+    /// What:
+    /// `updates` is a copy of what the controller emitted so far.
+    /// Why:
+    /// assertions read it.
     fn updates(&self) -> Vec<Seen> {
         return self.seen.lock().expect("the update list should not be poisoned").clone();
     }
@@ -129,15 +153,19 @@ impl Rig {
 
 /// Removes the folder when the test ends.
 impl Drop for Rig {
-    /// What: `drop` removes the folder.
-    /// Why: tests leave no files behind.
+    /// What:
+    /// `drop` removes the folder.
+    /// Why:
+    /// tests leave no files behind.
     fn drop(&mut self) {
         std::fs::remove_dir_all(&self.directory).ok();
     }
 }
 
-/// What: `pump_all` pumps until the controller has nothing to push.
-/// Why: `pump_audio` returns false when the ring is full or the track is draining.
+/// What:
+/// `pump_all` pumps until the controller has nothing to push.
+/// Why:
+/// `pump_audio` returns false when the ring is full or the track is draining.
 fn pump_all(controller: &mut Controller) {
     let mut guard = 0;
     while controller.pump_audio() {
@@ -146,8 +174,10 @@ fn pump_all(controller: &mut Controller) {
     }
 }
 
-/// What: `consume` pops up to `samples` as the output would.
-/// Why: the consumer's read index is the only thing the audible position depends on.
+/// What:
+/// `consume` pops up to `samples` as the output would.
+/// Why:
+/// the consumer's read index is the only thing the audible position depends on.
 fn consume(consumer: &mut HeapCons<f32>, samples: usize) -> Vec<f32> {
     let mut taken = Vec::new();
     while taken.len() < samples {
@@ -159,8 +189,10 @@ fn consume(consumer: &mut HeapCons<f32>, samples: usize) -> Vec<f32> {
     return taken;
 }
 
-/// What: `decode_all` decodes every sample of a file straight from the source.
-/// Why: the reference the played samples are compared with.
+/// What:
+/// `decode_all` decodes every sample of a file straight from the source.
+/// Why:
+/// the reference the played samples are compared with.
 fn decode_all(path: &Path) -> Vec<f32> {
     let mut source = crate::decode::open(path).expect("the test track should open");
     let mut all = Vec::new();

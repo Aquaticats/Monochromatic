@@ -1,20 +1,34 @@
 //! JNI entries that read one track's cached true peak and clear it for a re-analysis.
 //!
 //! Both entries use the process-wide service handle that `nativeResolveGain` and
-//!  `nativeWarmTrack` use, so they read and clear the same cache the sweep writes.
-//!  Neither starts a measurement: the peek only reads, and the invalidate only removes.
+//!  `nativeWarmTrack` use,
+//! so they read and clear the same cache the sweep writes.
+//!  Neither starts a measurement:
+//! the peek only reads,
+//! and the invalidate only removes.
 
+/// The class and float-array references the entry points receive from the host runtime.
 use jni::objects::{JClass, JFloatArray};
+/// The raw boolean,
+/// float-array and long types of the entry points' signatures.
 use jni::sys::{jboolean, jfloatArray, jlong};
+/// The per-call handle and the `Env` it lends.
 use jni::{Env, EnvUnowned};
+/// The peak kind a cached decision reports,
+/// and the peak measurement a miss falls back to.
 use truepeak_core::{PeakKind, peak_dbtp};
 
+/// Runs a body with the call's `Env`,
+/// catching a panic and logging it.
 use crate::jni_call::run_with_env;
+/// The handle to the decision cache service the entry points read and clear.
 use crate::service::service_ref;
 
 /// What:
 ///      `const PEAK_READING_LEN: usize = 2;`.
-///  The slots of a peek reply: the peak in dBTP, then the kind code.
+///  The slots of a peek reply:
+/// the peak in dBTP,
+/// then the kind code.
 /// Why:
 ///       A fixed two-slot array keeps the Kotlin side to one call that returns both values together.
 ///
@@ -26,9 +40,11 @@ const PEAK_READING_LEN: usize = 2;
 
 /// What:
 ///      `const KIND_CODE_EXACT: f32 = 1.0;`.
-///  The kind code for an exact peak, in the second slot.
+///  The kind code for an exact peak,
+/// in the second slot.
 /// Why:
-///       Kotlin reads the kind as a float, so the code is a float too.
+///       Kotlin reads the kind as a float,
+/// so the code is a float too.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -38,9 +54,11 @@ const KIND_CODE_EXACT: f32 = 1.0;
 
 /// What:
 ///      `const KIND_CODE_SAMPLED: f32 = 0.0;`.
-///  The kind code for a sampled peak, in the second slot.
+///  The kind code for a sampled peak,
+/// in the second slot.
 /// Why:
-///       A probe estimate is a lower bound, and the reader must see that.
+///       A probe estimate is a lower bound,
+/// and the reader must see that.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -70,7 +88,8 @@ fn kind_code(kind: PeakKind) -> f32 {
 ///  Copy the reply slots into a new Java `float[]`,
 ///  or return a null array when the copy cannot be made.
 /// Why:
-///       A failed allocation must not throw across JNI; Kotlin reads null as "no peak".
+///       A failed allocation must not throw across JNI;
+/// Kotlin reads null as "no peak".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -94,7 +113,8 @@ fn peak_array<'local>(env: &mut Env<'local>, slots: &[f32; PEAK_READING_LEN]) ->
 /// What:
 ///      `#[unsafe(no_mangle)] pub extern "system" fn Java_..._nativePeekPeak(...) -> jfloatArray`.
 ///  Read the cached peak of one track fingerprint without measuring it.
-///  The reply is `[peakDbtp, kindCode]`, or null when no decision is cached or the handle is null.
+///  The reply is `[peakDbtp, kindCode]`,
+/// or null when no decision is cached or the handle is null.
 /// Why:
 ///       The track rows and the details menu show the peak only when it is already known,
 ///  so the read must never start a decode.
@@ -133,10 +153,13 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativePee
 
 /// What:
 ///      `#[unsafe(no_mangle)] pub extern "system" fn Java_..._nativeInvalidateTrack(...) -> jboolean`.
-///  Remove the cached decision of one track fingerprint, so its next resolve measures it again.
-///  Returns true when a row was removed; false when none was stored or the handle is null.
+///  Remove the cached decision of one track fingerprint,
+/// so its next resolve measures it again.
+///  Returns true when a row was removed;
+/// false when none was stored or the handle is null.
 /// Why:
-///       A re-analysis clears one track and no other, and the removal finishes before the
+///       A re-analysis clears one track and no other,
+/// and the removal finishes before the
 ///  caller measures again.
 ///
 /// In TS you'd write (pseudocode):

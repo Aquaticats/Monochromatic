@@ -87,7 +87,9 @@ use crate::journal_finish::FinishError;
 
 /// The most journal names tried when one exists already.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
+/// (handover "Picks made under the owner's delegation"),
+/// veto open;
+/// not a measurement.
 /// The names carry a clock,
 /// a process id and a counter,
 /// so a second try is the exception;
@@ -386,7 +388,9 @@ pub fn take_workspace(root: &Path) -> io::Result<Result<File, String>> {
 
 #[cfg(test)]
 thread_local! {
-    /// A hook that runs after each step of the preparation of a journal in `begin`, with the step's name, so a test can stop or kill a
+    /// A hook that runs after each step of the preparation of a journal in `begin`,
+    /// with the step's name,
+    /// so a test can stop or kill a
     /// real wrapper at each real boundary of the preparation.
     static BEGIN_STEP: std::cell::RefCell<Option<std::rc::Rc<dyn Fn(&str)>>> = const { std::cell::RefCell::new(None) };
 }
@@ -394,7 +398,8 @@ thread_local! {
 /// What:
 /// `pub(crate) fn begin_step_for_test(hook: Option<Rc<dyn Fn(&str)>>)` sets the hook that runs after each step of `begin` on this thread.
 /// Why:
-/// The cuts of V3/V4 are made by killing a real wrapper at each step, not by building the files of each state by hand.
+/// The cuts of V3/V4 are made by killing a real wrapper at each step,
+/// not by building the files of each state by hand.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -406,7 +411,9 @@ pub(crate) fn begin_step_for_test(hook: Option<std::rc::Rc<dyn Fn(&str)>>) {
 }
 
 /// What:
-/// `fn at_step(name: &str)` runs the test hook, if any, after a step of the preparation of a journal.
+/// `fn at_step(name: &str)` runs the test hook,
+/// if any,
+/// after a step of the preparation of a journal.
 /// Why:
 /// The production build has no hook.
 ///
@@ -526,8 +533,22 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
         write_ready(&directory, &listed, false)?;
         at_step("ready");
     }
-    sync_directory(&directory)?;
-    sync_directory(&journals)?;
+    // The journal and then the name that lists it are made durable before any recorded child can start. A test replaces the result of
+    // each barrier, so a failure takes the path of a failure of the kernel (round 21, sixth pass, V3).
+    #[cfg(test)]
+    let own_barrier: io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::JournalDirectorySync) { Err(io::Error::other("injected failure to make the journal directory durable")) } else { sync_directory(&directory) };
+    #[cfg(not(test))]
+    let own_barrier: io::Result<()> = sync_directory(&directory);
+    own_barrier?;
+    #[cfg(test)]
+    crate::bounded_run::trace(|| { return "journal directory synced".to_string(); });
+    #[cfg(test)]
+    let parent_barrier: io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::JournalParentSync) { Err(io::Error::other("injected failure to make the journal's name durable")) } else { sync_directory(&journals) };
+    #[cfg(not(test))]
+    let parent_barrier: io::Result<()> = sync_directory(&journals);
+    parent_barrier?;
+    #[cfg(test)]
+    crate::bounded_run::trace(|| { return "journal published".to_string(); });
     // `Some`: the present or the absent value of an `Option`.
     let scope: RunScope = RunScope::open(directory.join(GROUPS_FILE));
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
@@ -569,10 +590,15 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
 }
 
 /// What:
-/// `pub fn announce_kept_notice(notice: &str)` prints the warning about the kept files, and a test build traces the text.
+/// `pub fn announce_kept_notice(notice: &str)` prints the warning about the kept files,
+/// and a test build traces the text.
 /// Why:
-/// The warning is promised on every run past the count, so the emission is what a test observes, not only the text the transaction
-/// holds (certification, second pass, K1).
+/// The warning is promised on every run past the count,
+/// so the emission is what a test observes,
+/// not only the text the transaction
+/// holds (certification,
+/// second pass,
+/// K1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -696,7 +722,8 @@ impl Transaction {
     /// could undo them go.
     /// "Else background" has no background carrier in a command that exits,
     /// so this barrier forces what must be durable and nothing else is synced
-    /// (the coordinator's pick of round 7 under the owner's delegation, veto open).
+    /// (the coordinator's pick of round 7 under the owner's delegation,
+    /// veto open).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -744,8 +771,10 @@ impl Transaction {
 /// lists it,
 /// and returns the `.done` path.
 /// Why:
-/// The rename is the completion marker, and it counts only once the parent's sync has returned
-/// (round 7, 6b2 5:
+/// The rename is the completion marker,
+/// and it counts only once the parent's sync has returned
+/// (round 7,
+/// 6b2 5:
 /// a failure here is not a cleanup problem).
 /// The parent is synced even when the name already ends in `.done` (review finding 4b2 5):
 /// another run's rename may not be durable yet.
@@ -782,7 +811,9 @@ pub fn publish_done(directory: &Path) -> io::Result<PathBuf> {
 /// What:
 /// `fn sync_marker_parent(parent: &Path) -> io::Result<()>` makes the entry of the completion marker durable.
 /// Why:
-/// The marker counts only once this has returned; a test build traces the success, so the order of finishing is observed at the call.
+/// The marker counts only once this has returned;
+/// a test build traces the success,
+/// so the order of finishing is observed at the call.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -831,7 +862,9 @@ pub fn mark_done_and_remove(directory: &Path) -> io::Result<()> {
 /// and tells the phase that failed.
 /// Why:
 /// A recovery that cannot publish the durable marker has not finished the journal and its caller must stop;
-/// the removal of a journal that is already marked done is the cleanup, which only warns (V5, certification second pass).
+/// the removal of a journal that is already marked done is the cleanup,
+/// which only warns (V5,
+/// certification second pass).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -854,7 +887,8 @@ pub fn finish_journal(directory: &Path) -> Result<(), FinishError> {
 /// of this tool.
 /// Why:
 /// The replace protocol keeps a displaced file as `Cargo.lock.displaced*` or `Cargo.lock.refused*` beside its target when the central
-/// folder cannot take it, and a killed replacement leaves `.Cargo.lock.shadow-*.tmp`;
+/// folder cannot take it,
+/// and a killed replacement leaves `.Cargo.lock.shadow-*.tmp`;
 /// they are kept files too and count toward the warning (contract K1).
 ///
 /// In TS you'd write (pseudocode):
@@ -863,6 +897,27 @@ pub fn finish_journal(directory: &Path) -> Result<(), FinishError> {
 /// ```
 fn is_kept_beside_a_lockfile(name: &str) -> bool {
     return name.starts_with("Cargo.lock.displaced") || name.starts_with("Cargo.lock.refused") || (name.starts_with(".Cargo.lock.shadow-") && name.ends_with(".tmp"));
+}
+
+/// What:
+/// `pub fn announce_kept_files_for(root: &Path, crate_roots: &[String])` prints the kept-files warning for a run that starts no
+/// transaction,
+/// when the inventory is past the count.
+/// Why:
+/// The warning is promised on every run past the count,
+/// an ordinary run that finds every lockfile already satisfied included (sixth
+/// pass,
+/// group 7);
+/// a run that begins a transaction announces through the transaction instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function announceKeptFilesFor(root: string, crateRoots: string[]): void
+/// ```
+pub fn announce_kept_files_for(root: &Path, crate_roots: &[String]) {
+    if let Some(notice) = kept_folder_notice(root, crate_roots) {
+        announce_kept_notice(&notice);
+    }
 }
 
 /// What:

@@ -1,17 +1,40 @@
-//! Window tests of the folded folder picker: with a saved selection, at the cover width or any other size, the picker
+//! Window tests of the folded folder picker:
+//! with a saved selection,
+//! at the cover width or any other size,
+//! the picker
 //! never opens with an empty names pane.
 //!
-//! What: each test builds the real window on the testing backend, loads a queue the way a restored session does (the
-//! library, the queue, and the saved track as the playing one), opens the picker, and reads where the name rows sit
+//! What:
+//! each test builds the real window on the testing backend,
+//! loads a queue the way a restored session does (the
+//! library,
+//! the queue,
+//! and the saved track as the playing one),
+//! opens the picker,
+//! and reads where the name rows sit
 //! relative to the names pane.
-//! Why: the Folders pane was seen empty once at a window about 443 px wide with a saved session. More than a hundred
-//! restart and resize cycles in the nested compositor did not repeat a lasting empty pane, so these tests pin the
-//! invariants that no timing or size may break: a picker that has names shows some of them, its content is never pushed
-//! below the pane's top, and the picker keys never open a picker before the library has arrived (the one empty-pane state
-//! the window could be put in, by Alt+1 or Ctrl+O at launch). The picker writes its scroll offset from timers, using the
-//! layout of that moment, which is why the tests also resize the window with the picker open. Slint clamps the
-//! offset to the content, so a wrong offset alone cannot blank the pane.
-//! Note: element lookup by id needs `SLINT_EMIT_DEBUG_INFO=1` at build time, which the repo test task sets.
+//! Why:
+//! the Folders pane was seen empty once at a window about 443 px wide with a saved session.
+//! More than a hundred
+//! restart and resize cycles in the nested compositor did not repeat a lasting empty pane,
+//! so these tests pin the
+//! invariants that no timing or size may break:
+//! a picker that has names shows some of them,
+//! its content is never pushed
+//! below the pane's top,
+//! and the picker keys never open a picker before the library has arrived (the one empty-pane state
+//! the window could be put in,
+//! by Alt+1 or Ctrl+O at launch).
+//! The picker writes its scroll offset from timers,
+//! using the
+//! layout of that moment,
+//! which is why the tests also resize the window with the picker open.
+//! Slint clamps the
+//! offset to the content,
+//! so a wrong offset alone cannot blank the pane.
+//! Note:
+//! element lookup by id needs `SLINT_EMIT_DEBUG_INFO=1` at build time,
+//! which the repo test task sets.
 
 use i_slint_backend_testing::ElementHandle;
 use music_player::command::Update;
@@ -21,20 +44,31 @@ use crate::AppWindow;
 use crate::FolderLayout;
 use crate::ui_test_support::{advance, chord, fresh_window_at, settle};
 
-/// What: `Where` is how the test opens the picker.
-/// Why: the header trigger and Alt+1 reach the picker through different code (the trigger checks for an empty library, the
-/// key does not), and a restored session can use either.
+/// What:
+/// `Where` is how the test opens the picker.
+/// Why:
+/// the header trigger and Alt+1 reach the picker through different code (the trigger checks for an empty library,
+/// the
+/// key does not),
+/// and a restored session can use either.
 #[derive(Clone, Copy, Debug)]
 enum Where {
-    /// The header folder trigger, which invokes `toggle-picker`.
+    /// The header folder trigger,
+    /// which invokes `toggle-picker`.
     Trigger,
-    /// Alt+1, which focuses the folder list and opens the overlay first on the folded layout.
+    /// Alt+1,
+    /// which focuses the folder list and opens the overlay first on the folded layout.
     AltOne,
 }
 
-/// What: `library` names `folders` folders of two tracks each, spread over the alphabet and over a few writing systems,
+/// What:
+/// `library` names `folders` folders of two tracks each,
+/// spread over the alphabet and over a few writing systems,
 /// plus a few loose files that sit in the virtual letter folders.
-/// Why: a real library has many folders per letter and several rail sections, so the picker's heading rows, hairlines and
+/// Why:
+/// a real library has many folders per letter and several rail sections,
+/// so the picker's heading rows,
+/// hairlines and
 /// wrapped names all occur.
 fn library(folders: usize) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
@@ -53,8 +87,13 @@ fn library(folders: usize) -> Vec<String> {
     return names;
 }
 
-/// What: `restored_window` builds a window of the given size and loads the library with the saved track playing.
-/// Why: a restored session reports the library, the queue and the selected track, in that order, before the picker is used.
+/// What:
+/// `restored_window` builds a window of the given size and loads the library with the saved track playing.
+/// Why:
+/// a restored session reports the library,
+/// the queue and the selected track,
+/// in that order,
+/// before the picker is used.
 fn restored_window(width: f32, height: f32, names: &[String], saved: usize) -> AppWindow {
     let (app, _host) = fresh_window_at(width, height);
     let paths: Vec<std::path::PathBuf> = names.iter().map(|name| return std::path::PathBuf::from("/nonexistent-library").join(name)).collect();
@@ -66,7 +105,8 @@ fn restored_window(width: f32, height: f32, names: &[String], saved: usize) -> A
     return app;
 }
 
-/// What: `open_picker` opens the folded picker the given way and lets its timers run.
+/// What:
+/// `open_picker` opens the folded picker the given way and lets its timers run.
 fn open_picker(app: &AppWindow, how: Where) {
     match how {
         Where::Trigger => app.invoke_toggle_picker(),
@@ -75,8 +115,10 @@ fn open_picker(app: &AppWindow, how: Where) {
     advance(300);
 }
 
-/// What: `pane_box` gives the names pane of the picker on screen as `(x, y, width, height)`.
-/// Why: the names are visible when they overlap this box.
+/// What:
+/// `pane_box` gives the names pane of the picker on screen as `(x, y, width, height)`.
+/// Why:
+/// the names are visible when they overlap this box.
 fn pane_box(app: &AppWindow) -> (f32, f32, f32, f32) {
     let panes: Vec<ElementHandle> = ElementHandle::find_by_element_id(app, "FolderPickerPane::names-flick").collect();
     assert_eq!(panes.len(), 1, "exactly one names pane is built while the picker is open on the folded layout");
@@ -85,8 +127,11 @@ fn pane_box(app: &AppWindow) -> (f32, f32, f32, f32) {
     return (position.x, position.y, size.width, size.height);
 }
 
-/// What: `visible_names` lists the folder names whose rows overlap the names pane.
-/// Why: the window builds only the rows near the pane, so a pane that was scrolled past its content lists none.
+/// What:
+/// `visible_names` lists the folder names whose rows overlap the names pane.
+/// Why:
+/// the window builds only the rows near the pane,
+/// so a pane that was scrolled past its content lists none.
 fn visible_names(app: &AppWindow) -> Vec<String> {
     let (pane_x, pane_y, pane_width, pane_height) = pane_box(app);
     return ElementHandle::find_by_element_id(app, "FolderPickerPane::name-touch")
@@ -103,8 +148,13 @@ fn visible_names(app: &AppWindow) -> Vec<String> {
         .collect();
 }
 
-/// What: `assert_not_blank` checks the invariant: some names are on screen, and the names are not pushed down.
-/// Why: a names pane with names and no visible row is the empty Folders pane; a scroll offset above zero would push every
+/// What:
+/// `assert_not_blank` checks the invariant:
+/// some names are on screen,
+/// and the names are not pushed down.
+/// Why:
+/// a names pane with names and no visible row is the empty Folders pane;
+/// a scroll offset above zero would push every
 /// row down and leave a blank band at the top.
 fn assert_not_blank(app: &AppWindow, context: &str) {
     assert!(app.get_picker_open(), "{context}: the picker is open");

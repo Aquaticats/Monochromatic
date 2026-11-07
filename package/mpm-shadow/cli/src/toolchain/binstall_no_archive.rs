@@ -5,7 +5,8 @@
 //! Why:
 //! cargo-binstall prints its reasons as `WARN resolve:` and `ERROR resolve:` lines and then stops with
 //! `Fallback to cargo-install is disabled`;
-//! alone, that last line names no cause and no way forward.
+//! alone,
+//! that last line names no cause and no way forward.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

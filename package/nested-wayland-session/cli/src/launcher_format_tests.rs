@@ -1,4 +1,5 @@
-//! Answer text for taskbar progress, including adversarial URIs.
+//! Answer text for taskbar progress,
+//! including adversarial URIs.
 
 /// Brings the formatters and the update record into scope.
 use super::*;
@@ -16,7 +17,8 @@ fn update(app_uri: &str, at_ms: u64, progress: f64) -> LauncherUpdate {
     }
 }
 
-/// Ordinary URIs keep their letters and separators, while every delimiter is escaped.
+/// Ordinary URIs keep their letters and separators,
+/// while every delimiter is escaped.
 #[test]
 fn uri_encoding_escapes_separators_and_keeps_plain_uris() {
     assert_eq!(encode_uri("application://org.example.app.desktop"), "application://org.example.app.desktop");
@@ -24,7 +26,8 @@ fn uri_encoding_escapes_separators_and_keeps_plain_uris() {
     assert_eq!(encode_uri(""), "");
 }
 
-/// Multi-byte UTF-8 is escaped byte by byte, so every byte of the character is written out.
+/// Multi-byte UTF-8 is escaped byte by byte,
+/// so every byte of the character is written out.
 #[test]
 fn uri_encoding_escapes_utf8_bytes() {
     assert_eq!(encode_uri("é"), "%C3%A9");
@@ -51,20 +54,25 @@ fn latest_answer_keeps_hostile_uri_on_one_field() {
     assert!(!answer.contains('\n'));
 }
 
-/// Records render the time, progress with four decimals, and visibility.
+/// Records render the time,
+/// progress with four decimals,
+/// and visibility.
 #[test]
 fn record_has_time_progress_and_visibility() {
     let record = update("application://app.desktop", 42, 1.0);
     assert_eq!(format_record(&record), "t=42 progress=1.0000 visible=true");
 }
 
-/// An empty log is exactly `0`, with no trailing space.
+/// An empty log is exactly `0`,
+/// with no trailing space.
 #[test]
 fn empty_log_is_zero() {
     assert_eq!(format_log(&[]), "0");
 }
 
-/// A log lists its count and then the records, oldest first, separated by semicolons.
+/// A log lists its count and then the records,
+/// oldest first,
+/// separated by semicolons.
 #[test]
 fn log_lists_count_then_records_in_order() {
     let first = update("application://app.desktop", 10, 0.1);

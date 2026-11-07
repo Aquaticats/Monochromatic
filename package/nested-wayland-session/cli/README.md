@@ -111,7 +111,8 @@ At build time (supplied by the CachyOS build container,
 `wayland`,
  `libxkbcommon`,
  `libdrm`
- (on Fedora, `wayland-devel`,
+ (on Fedora,
+`wayland-devel`,
  `libxkbcommon-devel`,
  and `libdrm-devel`),
  plus a Rust toolchain.
@@ -1048,6 +1049,34 @@ A hosted Node client calls the service,
 including the ordered log and the refusal of an unoffered action.
 It also requires that a decoy session bus in the compositor's own environment saw only a deliberate sentinel connection.
 
+#### Record notifications without a compositor
+
+Another package's test can run a real `notify-send`,
+or any client of `org.freedesktop.Notifications`,
+and read back
+what it sent,
+with no compositor,
+no window and no Wayland display:
+
+```sh
+monochromatic-nested-wayland-session-notification-recorder --log PATH [--notifications freedesktop|kde] -- COMMAND [ARG...]
+```
+
+- It starts the same private session bus as the nested session (a `dbus-daemon` with no service directories) and the
+  same recording service,
+  runs `COMMAND` with `DBUS_SESSION_BUS_ADDRESS` set to that bus and `XDG_RUNTIME_DIR` removed,
+  so the command cannot reach the host's session bus by its default path.
+- When `COMMAND` ends,
+  the notification log is written to `PATH` in the format of the `notification-log` control verb,
+  and the recorder exits with the command's own status.
+- `--log` and the command are required;
+  `--notifications` defaults to `freedesktop`,
+  and `none` is refused because it
+  serves nothing to record.
+- `tests/notification_recorder.rs` runs it with `dbus-send` as the client.
+  `package/monorepo-task/core-exec` uses it to run the daily update's real entry point and assert the notifications it
+  sent.
+
 #### Plasma jobs
 
 In `kde` mode the fake owns `org.kde.kuiserver` and `org.kde.JobViewServer`,
@@ -1946,10 +1975,13 @@ holds even when the hosted app is laggy or greedy.
   is reported.
 - A greedy app is contained with systemd.
    Under `--isolate` the app runs in a transient
-  systemd scope with a `CPUQuota` (hard cap), a low `CPUWeight`,
-   a `MemoryMax`, a `TasksMax` and an `IOWeight` of 10,
+  systemd scope with a `CPUQuota` (hard cap),
+  a low `CPUWeight`,
+   a `MemoryMax`,
+  a `TasksMax` and an `IOWeight` of 10,
    reserving CPU for the
-  capture pipeline and keeping a runaway app from exhausting memory, tasks or disk time.
+  capture pipeline and keeping a runaway app from exhausting memory,
+  tasks or disk time.
    When systemd is unavailable this degrades to a direct launch with a
   warning;
    isolation is a robustness enhancement,
@@ -1981,8 +2013,11 @@ The host usually lacks the development headers Smithay links against,
 in a CachyOS build container (see `Containerfile`);
  the resulting binary runs on the host.
 Tasks fall back to the host automatically when the development libraries are present.
-The container runs with 2 GiB, 2 CPUs, 512 processes and the lowest disk weight
-(`--blkio-weight=10` and `--cgroup-conf=io.weight=10`, so both the BFQ and the other I/O schedulers see it).
+The container runs with 2 GiB,
+2 CPUs,
+512 processes and the lowest disk weight
+(`--blkio-weight=10` and `--cgroup-conf=io.weight=10`,
+so both the BFQ and the other I/O schedulers see it).
 
 - `mise run //package/nested-wayland-session/cli:build` builds the release binary.
 - `mise run //package/nested-wayland-session/cli:test` runs the unit tests.

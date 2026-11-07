@@ -489,6 +489,8 @@ pub fn run_install_step(request: &StepRequest) -> StepOutcome {
     let crate_dirs_for_cache: Vec<String> = vec![crate_dir.clone()];
     // Borrow `&catalog_root`: lends the value without copying or giving it away.
     if fresh && verification_cached(&catalog_root, &crate_dirs_for_cache, &document.settings, request.frozen, request.trust_base) {
+        // The fast path starts no transaction, so it announces the kept files itself (promised on every run past the count).
+        crate::journal_transaction::announce_kept_files_for(&catalog_root, &crate_dirs_for_cache);
         return StepOutcome::FastPath;
     }
     // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.

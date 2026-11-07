@@ -37,7 +37,8 @@ fn bound(limit: Duration) -> Bound {
 }
 
 /// A child that outlives its bound is stopped and the error names it and the command to run again.
-/// The error is `RunError::TimedOut` and the payload had started (it wrote its marker), so it is the command's lifetime that was
+/// The error is `RunError::TimedOut` and the payload had started (it wrote its marker),
+/// so it is the command's lifetime that was
 /// bounded and not a failure before the start (certification group 1).
 #[test]
 fn a_child_that_outlives_its_bound_is_stopped_and_named() {
@@ -194,8 +195,11 @@ fn a_program_that_does_not_exist_is_an_io_error() {
 }
 
 /// Whether a process with this id is still running (neither ended nor a zombie that waits to be reaped).
-/// The inspection fails closed (certification group 1): one that cannot tell (an unreadable entry, a procfs of another namespace)
-/// stops the test, and it reads through the pinned procfs and a pidfd of the caller's namespace.
+/// The inspection fails closed (certification group 1):
+/// one that cannot tell (an unreadable entry,
+/// a procfs of another namespace)
+/// stops the test,
+/// and it reads through the pinned procfs and a pidfd of the caller's namespace.
 fn alive(pid: i32) -> bool {
     return crate::control_group::process_is_running(pid).unwrap_or_else(|reason| { panic!("whether process {pid} runs cannot be told: {reason}"); });
 }
@@ -221,7 +225,8 @@ fn delegated_transaction() -> (tempfile::TempDir, crate::journal::Transaction) {
     return (workspace, transaction);
 }
 
-/// Reads the process id a script wrote to a file, waiting for it as long as a helper lives.
+/// Reads the process id a script wrote to a file,
+/// waiting for it as long as a helper lives.
 fn pid_in(path: &std::path::Path) -> i32 {
     return crate::contain_counterexample_tests::read_pid(path);
 }
@@ -303,9 +308,14 @@ fn a_descendant_left_after_a_normal_exit_is_stopped() {
 /// Round 6 (5a F1):
 /// a descendant that left the process group while holding the pipes is stopped,
 /// so the output is complete and nothing of the run is left running.
-/// Certification, second pass (V6): the call answers within its bound although the descendant would hold the pipes for a multiple
-/// of that bound, so the answer cannot come from the descendant ending by itself; the descendant is known to hold the pipes before
-/// the direct program ends (a readiness handshake through its pid file), and the descendant lives for a multiple of the bound so
+/// Certification,
+/// second pass (V6):
+/// the call answers within its bound although the descendant would hold the pipes for a multiple
+/// of that bound,
+/// so the answer cannot come from the descendant ending by itself;
+/// the descendant is known to hold the pipes before
+/// the direct program ends (a readiness handshake through its pid file),
+/// and the descendant lives for a multiple of the bound so
 /// that a drain that waits for the pipes to close before the scope is stopped cannot finish inside it.
 #[test]
 fn a_descendant_in_another_session_that_holds_the_pipes_is_stopped_and_the_output_is_complete() {
@@ -361,11 +371,18 @@ fn a_timeout_names_the_command_the_user_ran() {
     assert!(message.contains("`cargo build --release`"), "{message}");
 }
 
-/// Reproduction of the failure the full gate showed on 2026-11-04 (certification of the gate, `a_descendant_is_stopped_with_its_parent_at_the_bound`
-/// "never held a process id"): a scope whose start takes longer than a short bound (the manager or the disk was busy with another
-/// session's work) ends the run at its bound before the payload exists, and the payload's file never appears.
-/// The launcher here takes a second to start (a stand-in for `systemd-run` that sleeps first), the first bound is 400 ms: the first
-/// attempt ends in startup with no payload, which is no judgement of stopping a descendant at the bound, so the helper repeats with a
+/// Reproduction of the failure the full gate showed on 2026-11-04 (certification of the gate,
+/// `a_descendant_is_stopped_with_its_parent_at_the_bound`
+/// "never held a process id"):
+/// a scope whose start takes longer than a short bound (the manager or the disk was busy with another
+/// session's work) ends the run at its bound before the payload exists,
+/// and the payload's file never appears.
+/// The launcher here takes a second to start (a stand-in for `systemd-run` that sleeps first),
+/// the first bound is 400 ms:
+/// the first
+/// attempt ends in startup with no payload,
+/// which is no judgement of stopping a descendant at the bound,
+/// so the helper repeats with a
 /// longer bound and the judged attempt is the one in which the payload started and was stopped with its parent.
 #[test]
 fn a_scope_that_starts_slower_than_the_first_bound_is_retried_with_a_longer_bound_and_then_judged() {
@@ -382,7 +399,7 @@ fn a_scope_that_starts_slower_than_the_first_bound_is_retried_with_a_longer_boun
     let script = format!("sleep 30 & echo $! > {}; sleep 30", pid_file.display());
     let attempts: std::cell::Cell<u32> = std::cell::Cell::new(0);
 
-    let (result, limit, _judged) = crate::cgroup_test_support::run_until_the_payload_started(
+    let (result, limit, judged) = crate::cgroup_test_support::run_until_the_payload_started(
         Duration::from_millis(400),
         &|| { let _ = std::fs::remove_file(&pid_file); },
         &|| { return std::fs::read_to_string(&pid_file).is_ok_and(|text| { return text.trim().parse::<i32>().is_ok(); }); },
@@ -397,6 +414,9 @@ fn a_scope_that_starts_slower_than_the_first_bound_is_retried_with_a_longer_boun
     assert!(limit > Duration::from_secs(1), "the judged bound {limit:?} is not longer than the startup");
     // The retried run ended at its bound with the timeout, not with some other error.
     assert!(matches!(result, Err(RunError::TimedOut { .. })), "the judged run did not end at its bound: {result:?}");
+    // Sixth pass, group 9: the judged attempt itself ended at its enlarged bound (a run that waited for the shell and its sleeps to end
+    // would also be a timeout, but it would take as long as they live).
+    assert!(judged >= limit && judged < limit + crate::bounded_run::QUIESCE_BOUND * 2, "the judged run ended after {judged:?}, not at its bound of {limit:?}");
     assert!(gone_soon(pid_in(&pid_file)), "the descendant still runs");
     drop(transaction);
 }
@@ -404,7 +424,8 @@ fn a_scope_that_starts_slower_than_the_first_bound_is_retried_with_a_longer_boun
 /// The environment variable that gives the record helper the journal record file it appends to.
 const FIXTURE_RECORD_FILE: &str = "CARGO_SHADOW_FIXTURE_RECORD_FILE";
 
-/// The helper process of the record syscall test: it appends one synced containment record through the production function and exits.
+/// The helper process of the record syscall test:
+/// it appends one synced containment record through the production function and exits.
 /// Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of the_record_sync_is_given_to_the_kernel_after_the_write"]
@@ -415,14 +436,20 @@ fn record_sync_fixture() {
     crate::bounded_run::append_record_with(std::path::Path::new(&file), &crate::control_group::Record::ProcessGroupStarting, true).expect("appends the record");
 }
 
-/// Acceptance row V3 (certification, fourth pass): the sync of a containment record is observed at the system call, after the write.
-/// A regression that keeps the traces and the failpoint and drops the real `fsync` is invisible in the process; the helper runs under
-/// `strace` and the test reads the calls the kernel was given: `write` of the record line, then `fsync` of the record file.
+/// Acceptance row V3 (certification,
+/// fourth pass):
+/// the sync of a containment record is observed at the system call,
+/// after the write.
+/// A regression that keeps the traces and the failpoint and drops the real `fsync` is invisible in the process;
+/// the helper runs under
+/// `strace` and the test reads the calls the kernel was given:
+/// `write` of the record line,
+/// then `fsync` of the record file.
 /// A host without `strace` says so and stops (this host has it).
 #[test]
 fn the_record_sync_is_given_to_the_kernel_after_the_write() {
     if std::process::Command::new("strace").arg("--version").output().is_err() {
-        eprintln!("skipped: strace is not installed, so the system calls of the record cannot be observed here");
+        crate::test_scratch::skip_or_fail("strace is not installed, so the system calls of the record cannot be observed here");
         return;
     }
     let directory = crate::test_scratch::scratch();

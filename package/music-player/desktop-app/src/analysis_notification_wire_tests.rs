@@ -1,11 +1,16 @@
-//! Tests for the message builders in `analysis_notification_wire.rs`, pulled in by
+//! Tests for the message builders in `analysis_notification_wire.rs`,
+//! pulled in by
 //! `#[cfg(test)] #[path = "analysis_notification_wire_tests.rs"] mod tests;` at the bottom of that file.
-//! The calls themselves are covered by the end-to-end run against a mock bus; these pin the payloads.
+//! The calls themselves are covered by the end-to-end run against a mock bus;
+//! these pin the payloads.
 
 use super::*;
 
-/// What: `identity` is the app identity every test uses.
-/// Why: the values match the shipped desktop file, so a failing assertion reads like the real payload.
+/// What:
+/// `identity` is the app identity every test uses.
+/// Why:
+/// the values match the shipped desktop file,
+/// so a failing assertion reads like the real payload.
 fn identity() -> Identity {
     return Identity {
         desktop_entry: "monochromatic.music-player".to_string(),
@@ -14,8 +19,10 @@ fn identity() -> Identity {
     };
 }
 
-/// What: `view` builds a view.
-/// Why: the builders take a whole view.
+/// What:
+/// `view` builds a view.
+/// Why:
+/// the builders take a whole view.
 fn view(percent: u32, text: &str, paused: bool) -> IndicatorView {
     return IndicatorView {
         percent,

@@ -1,9 +1,16 @@
 //! Window binding for the Licenses page that the Licenses row of Settings opens.
 //!
-//! What: opens and closes the Licenses route and hands the page the embedded notice text one line at a time.
-//! Why: the notice text is about 2 MB and 40,000 lines; copying it into a Slint string, or one string per line, at startup
-//! or on every projection would cost time on a page most runs never open. The page gets a model that slices the embedded
-//! text on demand, built when the page opens and released when it closes.
+//! What:
+//! opens and closes the Licenses route and hands the page the embedded notice text one line at a time.
+//! Why:
+//! the notice text is about 2 MB and 40,000 lines;
+//! copying it into a Slint string,
+//! or one string per line,
+//! at startup
+//! or on every projection would cost time on a page most runs never open.
+//! The page gets a model that slices the embedded
+//! text on demand,
+//! built when the page opens and released when it closes.
 
 use std::time::Instant;
 
@@ -14,19 +21,27 @@ use crate::ui_screen::{project, read_state, update_state};
 use crate::ui_screen_view::Route;
 use crate::AppWindow;
 
-/// What: `NoticeLines` is a read-only Slint model whose rows are the lines of a text, sliced when a row is read.
-/// Why: the ListView of the Licenses page reads only the rows in view, so only those lines are ever copied.
+/// What:
+/// `NoticeLines` is a read-only Slint model whose rows are the lines of a text,
+/// sliced when a row is read.
+/// Why:
+/// the ListView of the Licenses page reads only the rows in view,
+/// so only those lines are ever copied.
 pub(crate) struct NoticeLines {
     /// The text the rows slice.
     text: &'static str,
-    /// Byte offset where each line starts; a line ends at the next newline.
+    /// Byte offset where each line starts;
+    /// a line ends at the next newline.
     starts: Vec<usize>,
 }
 
 /// Methods of `NoticeLines`.
 impl NoticeLines {
-    /// What: `new` records where each line of `text` starts.
-    /// Why: one pass over the bytes is the whole cost of opening the page; a final newline ends the last line instead of
+    /// What:
+    /// `new` records where each line of `text` starts.
+    /// Why:
+    /// one pass over the bytes is the whole cost of opening the page;
+    /// a final newline ends the last line instead of
     /// starting an empty one.
     pub(crate) fn new(full_text: &'static str) -> Self {
         let text = full_text.strip_suffix('\n').unwrap_or(full_text);
@@ -55,8 +70,10 @@ impl Model for NoticeLines {
     }
 }
 
-/// What: `wire_callbacks` registers the Licenses row and the Licenses page's Back.
-/// Why: split from the app's start so the window tests register the same callbacks.
+/// What:
+/// `wire_callbacks` registers the Licenses row and the Licenses page's Back.
+/// Why:
+/// split from the app's start so the window tests register the same callbacks.
 pub(crate) fn wire_callbacks(app: &AppWindow) {
     let open_weak = app.as_weak();
     app.on_settings_open_licenses(move || {
@@ -72,10 +89,17 @@ pub(crate) fn wire_callbacks(app: &AppWindow) {
     });
 }
 
-/// What: `open_licenses` shows the Licenses page over Settings and gives it the notice lines.
-/// Why: the Licenses row of Settings opens it; the template editor value and its selection stay in the state, so Back
-/// returns to the same Settings page. The right pane's text field is destroyed with the Settings page, which may not report
-/// that it lost focus, so the editor value and the focus zone are cleared of it.
+/// What:
+/// `open_licenses` shows the Licenses page over Settings and gives it the notice lines.
+/// Why:
+/// the Licenses row of Settings opens it;
+/// the template editor value and its selection stay in the state,
+/// so Back
+/// returns to the same Settings page.
+/// The right pane's text field is destroyed with the Settings page,
+/// which may not report
+/// that it lost focus,
+/// so the editor value and the focus zone are cleared of it.
 pub(crate) fn open_licenses(window: &AppWindow) {
     if read_state(|state| return state.route) != Route::Settings {
         tracing::warn!("the Licenses row was activated while Settings was not open; nothing opens");
@@ -103,8 +127,12 @@ pub(crate) fn open_licenses(window: &AppWindow) {
     crate::ui_state_log::emit(window, "licenses");
 }
 
-/// What: `close_licenses` returns from the Licenses page to Settings and releases the notice lines.
-/// Why: Back and Escape return to the page that opened it, with the keyboard on the Licenses row; the lines are dropped so
+/// What:
+/// `close_licenses` returns from the Licenses page to Settings and releases the notice lines.
+/// Why:
+/// Back and Escape return to the page that opened it,
+/// with the keyboard on the Licenses row;
+/// the lines are dropped so
 /// a closed page holds no text.
 pub(crate) fn close_licenses(window: &AppWindow) {
     tracing::info!("closing the Licenses page");
@@ -117,7 +145,8 @@ pub(crate) fn close_licenses(window: &AppWindow) {
     crate::ui_state_log::emit(window, "licenses-closed");
 }
 
-/// Unit tests in `ui_licenses_tests.rs`, pulled in at this point.
+/// Unit tests in `ui_licenses_tests.rs`,
+/// pulled in at this point.
 #[cfg(test)]
 #[path = "ui_licenses_tests.rs"]
 mod tests;

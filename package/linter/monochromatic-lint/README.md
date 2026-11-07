@@ -411,6 +411,17 @@ the exit status is unaffected,
 `--silent` keeps the message,
 and `--max-warnings` does not count it.
 
+A `cargo` that starts and exits 126 or 127 is not a skip.
+Those are the statuses of a program that exists and cannot be started,
+which cargo itself never returns (a missing `cargo-dylint` answers 101),
+so the `cargo` link or launcher is broken:
+its real program was deleted by a newer install of a repository tool,
+for one
+(`doc/troubleshooting/mpm-shadow-launcher-names-a-deleted-release-folder-after-a-newer-install.md`).
+The run then fails with a processing failure that quotes what that `cargo` printed on standard error,
+because skipping would exit 0 with nothing checked.
+A `cargo` that is not on the machine at all stays a skip.
+
 The `cargo` program is `cargo` on `PATH`,
 or the program named by the environment variable `MONOCHROMATIC_LINT_CARGO`.
 The variable belongs to the machine,

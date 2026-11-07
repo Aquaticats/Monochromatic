@@ -85,7 +85,12 @@ as `nested-wayland-session` does.
 `Containerfile`,
 so the base image is not its cause.
 Installing `noto-fonts` or `ttf-dejavu` in the CachyOS image did not change the result.
-The cause was not investigated.
+The cause was not investigated then;
+on 2026-11-07 it was measured:
+the test drew the Search page's fade-in against the wall
+clock,
+so a release build drew it at partial ink and a debug build did not
+(`slint-render-test-fade-in-reads-the-wall-clock.md`).
 
 ## The Git wrapper's gate and end-to-end images (observed 2026-11-04)
 

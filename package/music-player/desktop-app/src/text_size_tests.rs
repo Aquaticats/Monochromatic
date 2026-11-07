@@ -3,7 +3,8 @@
 use super::*;
 use serde_json::{Map, Value};
 
-/// What: `all_at` gives sizes with every element set to `px`.
+/// What:
+/// `all_at` gives sizes with every element set to `px`.
 fn all_at(px: u16) -> TextSizes {
     return TextElement::ALL.iter().fold(TextSizes::default(), |sizes, element| return sizes.with(*element, px));
 }
@@ -19,7 +20,8 @@ fn the_defaults_are_the_sizes_the_app_always_drew() {
     assert!(sizes.is_default());
 }
 
-/// The limits are 10 and 32, and every default lies between them.
+/// The limits are 10 and 32,
+/// and every default lies between them.
 #[test]
 fn the_limits_hold_every_default() {
     assert_eq!((MIN_TEXT_SIZE_PX, MAX_TEXT_SIZE_PX), (10, 32));
@@ -28,7 +30,8 @@ fn the_limits_hold_every_default() {
     }
 }
 
-/// The window numbers the steppers 0 to 3 in the order of `ALL`; any other number is no element.
+/// The window numbers the steppers 0 to 3 in the order of `ALL`;
+/// any other number is no element.
 #[test]
 fn a_stepper_index_names_its_element() {
     assert_eq!(TextElement::from_index(0), Some(TextElement::PaneTitle));
@@ -39,7 +42,8 @@ fn a_stepper_index_names_its_element() {
     assert_eq!(TextElement::from_index(-1), None);
 }
 
-/// The session keys are four distinct names that end in `_px`, one per element.
+/// The session keys are four distinct names that end in `_px`,
+/// one per element.
 #[test]
 fn every_element_has_its_own_session_key() {
     let mut keys: Vec<&str> = TextElement::ALL.iter().map(|element| return element.session_key()).collect();
@@ -60,7 +64,8 @@ fn a_step_moves_one_pixel_of_one_element() {
     assert_eq!(down, TextSizes::default());
 }
 
-/// A step at an end changes nothing, and a large step stops at the end.
+/// A step at an end changes nothing,
+/// and a large step stops at the end.
 #[test]
 fn a_step_stops_at_the_limits() {
     let top = all_at(MAX_TEXT_SIZE_PX);
@@ -73,7 +78,8 @@ fn a_step_stops_at_the_limits() {
     assert_eq!(TextSizes::default().stepped(TextElement::PaneTitle, i32::MIN).get(TextElement::PaneTitle), MIN_TEXT_SIZE_PX);
 }
 
-/// `with` holds a size inside the limits, so no caller builds one outside.
+/// `with` holds a size inside the limits,
+/// so no caller builds one outside.
 #[test]
 fn with_holds_a_size_inside_the_limits() {
     assert_eq!(TextSizes::default().with(TextElement::GroupHeading, 0).get(TextElement::GroupHeading), MIN_TEXT_SIZE_PX);
@@ -89,7 +95,9 @@ fn with_holds_a_size_inside_the_limits() {
     assert_eq!(TextSizes::default().with(TextElement::GroupHeading, 21).get(TextElement::GroupHeading), 21);
 }
 
-/// The buttons report their ends: minus is off at 10 and plus is off at 32, and both are on between.
+/// The buttons report their ends:
+/// minus is off at 10 and plus is off at 32,
+/// and both are on between.
 #[test]
 fn the_buttons_know_their_ends() {
     let bottom = all_at(MIN_TEXT_SIZE_PX);
@@ -102,7 +110,8 @@ fn the_buttons_know_their_ends() {
     }
 }
 
-/// Changing a size makes the sizes differ from the defaults, and putting it back makes them the defaults again.
+/// Changing a size makes the sizes differ from the defaults,
+/// and putting it back makes them the defaults again.
 #[test]
 fn is_default_follows_the_sizes() {
     let changed = TextSizes::default().stepped(TextElement::TrackTitle, 1);
@@ -110,7 +119,8 @@ fn is_default_follows_the_sizes() {
     assert!(changed.stepped(TextElement::TrackTitle, -1).is_default());
 }
 
-/// A whole number inside the limits is the size; the ends count.
+/// A whole number inside the limits is the size;
+/// the ends count.
 #[test]
 fn a_stored_size_inside_the_limits_is_kept() {
     for px in [MIN_TEXT_SIZE_PX, 11, 20, 31, MAX_TEXT_SIZE_PX] {
@@ -118,7 +128,8 @@ fn a_stored_size_inside_the_limits_is_kept() {
     }
 }
 
-/// A missing field is the default and says nothing, because a file written before the setting has none.
+/// A missing field is the default and says nothing,
+/// because a file written before the setting has none.
 #[test]
 fn a_missing_stored_size_is_the_default() {
     assert_eq!(size_or_default(TextElement::PaneTitle, None), 20);

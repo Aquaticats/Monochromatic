@@ -1,10 +1,16 @@
 //! What:
 //! The probes of rounds 7 and 8 as tests:
-//! what a delegated scope does on the host, asserted so that a kernel or a host that differs is noticed.
+//! what a delegated scope does on the host,
+//! asserted so that a kernel or a host that differs is noticed.
 //! Why:
-//! The approach stands on these facts (`doc/planning/cargo-shadow-update.md`, "Round 7: control group probes", and the probe of the
+//! The approach stands on these facts (`doc/planning/cargo-shadow-update.md`,
+//! "Round 7:
+//! control group probes",
+//! and the probe of the
 //! scope route in `doc/planning/cargo-shadow-guarantees.md`).
-//! Every test that needs a scope starts it through `start_in_scope`, the launcher a run uses, so it shows that delegated containment
+//! Every test that needs a scope starts it through `start_in_scope`,
+//! the launcher a run uses,
+//! so it shows that delegated containment
 //! was in force.
 //!
 //! In TS you'd write (pseudocode):
@@ -25,13 +31,15 @@ use crate::test_scratch::scratch;
 /// How long a stop may take in these probes.
 const STOP: Duration = Duration::from_secs(10);
 
-/// The state letter of a process in `/proc/<pid>/stat`, or `None` when it is gone.
+/// The state letter of a process in `/proc/<pid>/stat`,
+/// or `None` when it is gone.
 fn state_of(pid: i32) -> Option<char> {
     let stat: String = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     return stat.rsplit(')').next()?.trim_start().chars().next();
 }
 
-/// The group a process is in, as `/proc/<pid>/cgroup` says.
+/// The group a process is in,
+/// as `/proc/<pid>/cgroup` says.
 fn group_of(pid: &str) -> String {
     return fs::read_to_string(format!("/proc/{pid}/cgroup")).expect("a group").trim().to_string();
 }
@@ -94,8 +102,11 @@ fn probe_2_an_ordinary_member_is_stopped_and_the_scope_is_empty_or_absent() {
     assert!(scope.group.members().expect("lists").is_empty());
 }
 
-/// Probe 2 (the sixth review's counterexample, 6a R1 A):
-/// a thread group whose leader exited while another thread lives is listed, is populated, and is stopped.
+/// Probe 2 (the sixth review's counterexample,
+/// 6a R1 A):
+/// a thread group whose leader exited while another thread lives is listed,
+/// is populated,
+/// and is stopped.
 #[test]
 fn probe_2_a_thread_group_with_an_exited_leader_stays_populated_until_it_is_stopped() {
     let directory = scratch();
@@ -137,7 +148,8 @@ fn probe_2_a_scope_that_is_collected_at_once_is_accepted_as_empty_by_verified_ab
     assert!(stopped);
 }
 
-/// Contract A1 (the invariant of the absence rule, probed):
+/// Contract A1 (the invariant of the absence rule,
+/// probed):
 /// a scope whose program exited while a descendant lives stays observable and populated,
 /// and the manager does not move that descendant elsewhere.
 #[test]
@@ -181,10 +193,13 @@ fn probe_3_a_setsid_and_double_fork_descendant_stays_a_member() {
     assert!(stopped);
 }
 
-/// Probe 3, the limit (contract assumption a):
+/// Probe 3,
+/// the limit (contract assumption a):
 /// a member of the same user that writes itself into another group's `cgroup.procs` leaves the scope.
-/// The scope contains ordinary escapes, not a deliberate one;
-/// if this ever fails, the assumption can be lifted.
+/// The scope contains ordinary escapes,
+/// not a deliberate one;
+/// if this ever fails,
+/// the assumption can be lifted.
 #[test]
 fn probe_3_a_member_of_the_same_user_can_move_itself_out_which_is_assumption_a() {
     if delegated_route().is_none() {
@@ -209,7 +224,8 @@ fn probe_3_a_member_of_the_same_user_can_move_itself_out_which_is_assumption_a()
 /// Probe 4:
 /// a scope is found again by its record alone while a member lives,
 /// is `Gone` once it is empty,
-/// and a record whose cgroup namespace or parent view differs from what this process sees is `Unknown`, never `Gone`.
+/// and a record whose cgroup namespace or parent view differs from what this process sees is `Unknown`,
+/// never `Gone`.
 #[test]
 fn probe_4_a_scope_is_found_by_its_record_and_a_different_view_is_unknown() {
     let Some(mut scope) = start_in_scope(Command::new("sleep").arg("600")) else {
@@ -237,7 +253,8 @@ fn probe_4_a_scope_is_found_by_its_record_and_a_different_view_is_unknown() {
     assert_eq!(after, Membership::Gone);
 }
 
-/// Probe 5 (acceptance row "spawn isolation", part of it):
+/// Probe 5 (acceptance row "spawn isolation",
+/// part of it):
 /// the starting process stays in its own group while a scope is started,
 /// and an ordinary child another thread starts at the same time stays out of the scope.
 #[test]
@@ -277,7 +294,8 @@ fn a_view_is_the_same_twice_and_differs_between_directories() {
     assert_ne!(one.inode, other.inode);
 }
 
-/// The journal lines round trip, and a damaged line is rejected with the line in the reason.
+/// The journal lines round trip,
+/// and a damaged line is rejected with the line in the reason.
 #[test]
 fn the_record_lines_round_trip_and_damaged_lines_are_rejected() {
     let scope: Record = Record::Scope { namespace: 9, parent_view: View { mount: 7, inode: 8 }, path: Path::new("/sys/fs/cgroup/a b/c.scope").to_path_buf() };
@@ -293,7 +311,8 @@ fn the_record_lines_round_trip_and_damaged_lines_are_rejected() {
 }
 
 /// Probe 1 (found while preparing the report):
-/// an inactive slice reports no control group, so the discovery starts it first;
+/// an inactive slice reports no control group,
+/// so the discovery starts it first;
 /// a host whose manager has run no application yet still gets the strong path.
 #[test]
 fn probe_1_an_inactive_slice_is_started_before_its_control_group_is_asked_for() {

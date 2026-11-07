@@ -1,19 +1,32 @@
-//! From the paths the watcher named to the edits of the queue, without walking the library.
+//! From the paths the watcher named to the edits of the queue,
+//! without walking the library.
 //!
-//! What: `plan_changes` looks at each named path on the disk and in the sorted queue and says which queue runs to remove,
-//! which tracks to add and which listed tracks to look at again; `apply_plan` builds the new queue from the old one.
-//! Why: D113 makes every watcher event a refresh. Walking and stat'ing a million tracks for one replaced file took
-//! seconds of idle-priority work per event; this costs a few binary searches and one `lstat` per named path.
+//! What:
+//! `plan_changes` looks at each named path on the disk and in the sorted queue and says which queue runs to remove,
+//! which tracks to add and which listed tracks to look at again;
+//! `apply_plan` builds the new queue from the old one.
+//! Why:
+//! D113 makes every watcher event a refresh.
+//! Walking and stat'ing a million tracks for one replaced file took
+//! seconds of idle-priority work per event;
+//! this costs a few binary searches and one `lstat` per named path.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const plan = planChanges(tracks, root, dirty, disk); const next = applyPlan(tracks, plan, root);
 //! ```
 
-/// What: `use std::collections::HashSet;` imports the hash set type from the standard library (`std`). It holds each value
-/// at most once and answers "is this in the set" in constant time. Siblings: `Vec<T>` keeps order and duplicates and
-/// answers "is this in the list" by scanning; `BTreeSet<T>` keeps the values sorted.
-/// Why: the planner asks again and again whether a path was listed or is on disk, and a scan per question would be slow
+/// What:
+/// `use std::collections::HashSet;` imports the hash set type from the standard library (`std`).
+/// It holds each value
+/// at most once and answers "is this in the set" in constant time.
+/// Siblings:
+/// `Vec<T>` keeps order and duplicates and
+/// answers "is this in the list" by scanning;
+/// `BTreeSet<T>` keeps the values sorted.
+/// Why:
+/// the planner asks again and again whether a path was listed or is on disk,
+/// and a scan per question would be slow
 /// in a folder with thousands of entries.
 ///
 /// In TS you'd write (pseudocode):
@@ -21,17 +34,27 @@
 /// type HashSet<T> = Set<T>; // a built-in global in TypeScript; Rust imports it
 /// ```
 use std::collections::HashSet;
-/// What: `use std::ops::Range;` imports the half-open interval type `start..end`, which includes `start` and excludes `end`.
-/// Why: a run of queue positions is a `Range<usize>`, which can slice the queue directly.
+/// What:
+/// `use std::ops::Range;` imports the half-open interval type `start..end`,
+/// which includes `start` and excludes `end`.
+/// Why:
+/// a run of queue positions is a `Range<usize>`,
+/// which can slice the queue directly.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type Range = { start: number; end: number }; // end is exclusive, like Array.prototype.slice(start, end)
 /// ```
 use std::ops::Range;
-/// What: `use std::path::{Path, PathBuf};` imports two path types in one line: `Path` (a borrowed view of a path) and
-/// `PathBuf` (an owned, growable path). Siblings: `&str` and `String` are the text-only counterparts.
-/// Why: the queue stores owned paths (`PathBuf`) while the planner only looks at them (`Path`).
+/// What:
+/// `use std::path::{Path, PathBuf};` imports two path types in one line:
+/// `Path` (a borrowed view of a path) and
+/// `PathBuf` (an owned,
+/// growable path).
+/// Siblings:
+/// `&str` and `String` are the text-only counterparts.
+/// Why:
+/// the queue stores owned paths (`PathBuf`) while the planner only looks at them (`Path`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -39,27 +62,36 @@ use std::ops::Range;
 /// ```
 use std::path::{Path, PathBuf};
 
-/// What: `use crate::change_set::DirtyPaths;` imports the record of paths the watcher named, from `src/change_set.rs`.
+/// What:
+/// `use crate::change_set::DirtyPaths;` imports the record of paths the watcher named,
+/// from `src/change_set.rs`.
 /// `crate::` means "from the root of this crate".
-/// Why: it is the input of the plan.
+/// Why:
+/// it is the input of the plan.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { type DirtyPaths } from "./change_set";
 /// ```
 use crate::change_set::DirtyPaths;
-/// What: `use crate::disk_view::{Disk, EntryKind};` imports the trait (an interface) that answers questions about the disk,
+/// What:
+/// `use crate::disk_view::{Disk, EntryKind};` imports the trait (an interface) that answers questions about the disk,
 /// and the enum of what a path can be there.
-/// Why: the planner asks a `Disk`, so tests can answer from memory instead of from the file system.
+/// Why:
+/// the planner asks a `Disk`,
+/// so tests can answer from memory instead of from the file system.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { type Disk, EntryKind } from "./disk_view";
 /// ```
 use crate::disk_view::{Disk, EntryKind};
-/// What: `use crate::walk_order::{direct_files, locate, subtree_range, walk_cmp};` imports the four functions that search the
+/// What:
+/// `use crate::walk_order::{direct_files, locate, subtree_range, walk_cmp};` imports the four functions that search the
 /// sorted queue by the walk's own order.
-/// Why: finding a named path in the queue must cost a binary search, not a scan.
+/// Why:
+/// finding a named path in the queue must cost a binary search,
+/// not a scan.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -67,11 +99,21 @@ use crate::disk_view::{Disk, EntryKind};
 /// ```
 use crate::walk_order::{direct_files, locate, subtree_range, walk_cmp};
 
-/// What: `pub(crate) struct Plan { removed, added, touched }` is the edits one change set asks of the queue. `pub(crate)`
-/// makes it visible inside this crate only (siblings: plain `pub` reaches other crates; no keyword is private to the file).
-/// `#[derive(Debug, Default, PartialEq, Eq)]` asks the compiler to write four standard abilities: printing with `{:?}`, an
-/// empty value from `Plan::default()`, and `==` comparison.
-/// Why: the queue is edited once, and the tracks that exist on both sides are handed to the measurement. Equality lets
+/// What:
+/// `pub(crate) struct Plan { removed, added, touched }` is the edits one change set asks of the queue.
+/// `pub(crate)`
+/// makes it visible inside this crate only (siblings:
+/// plain `pub` reaches other crates;
+/// no keyword is private to the file).
+/// `#[derive(Debug, Default, PartialEq, Eq)]` asks the compiler to write four standard abilities:
+/// printing with `{:?}`,
+/// an
+/// empty value from `Plan::default()`,
+/// and `==` comparison.
+/// Why:
+/// the queue is edited once,
+/// and the tracks that exist on both sides are handed to the measurement.
+/// Equality lets
 /// tests compare a whole plan with `assert_eq!`.
 ///
 /// In TS you'd write (pseudocode):
@@ -80,27 +122,46 @@ use crate::walk_order::{direct_files, locate, subtree_range, walk_cmp};
 /// ```
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct Plan {
-    /// What: `pub(crate) removed: Vec<Range<usize>>,` is index runs of the old queue that are gone, sorted and disjoint.
-    /// `Vec<T>` is an owned, growable list (siblings: `&[T]` is a borrowed view, `[T; N]` a fixed-size array); `usize` is the
-    /// unsigned integer that indexes memory (siblings: `u32`, `u64`).
-    /// Why: runs, not single indexes, because a removed folder takes a whole stretch of the queue in one piece.
+    /// What:
+    /// `pub(crate) removed: Vec<Range<usize>>,` is index runs of the old queue that are gone,
+    /// sorted and disjoint.
+    /// `Vec<T>` is an owned,
+    /// growable list (siblings:
+    /// `&[T]` is a borrowed view,
+    /// `[T; N]` a fixed-size array);
+    /// `usize` is the
+    /// unsigned integer that indexes memory (siblings:
+    /// `u32`,
+    /// `u64`).
+    /// Why:
+    /// runs,
+    /// not single indexes,
+    /// because a removed folder takes a whole stretch of the queue in one piece.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// removed: Range[];
     /// ```
     pub(crate) removed: Vec<Range<usize>>,
-    /// What: `pub(crate) added: Vec<PathBuf>,` is tracks that are on disk and not in the queue, in queue order.
-    /// Why: the queue is rebuilt by placing these in order, so they are kept sorted.
+    /// What:
+    /// `pub(crate) added: Vec<PathBuf>,` is tracks that are on disk and not in the queue,
+    /// in queue order.
+    /// Why:
+    /// the queue is rebuilt by placing these in order,
+    /// so they are kept sorted.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// added: string[];
     /// ```
     pub(crate) added: Vec<PathBuf>,
-    /// What: `pub(crate) touched: Vec<PathBuf>,` is tracks that are listed and still on disk and were named: their file may
+    /// What:
+    /// `pub(crate) touched: Vec<PathBuf>,` is tracks that are listed and still on disk and were named:
+    /// their file may
     /// have been replaced.
-    /// Why: the queue keeps them, but their length and peaks are measured again.
+    /// Why:
+    /// the queue keeps them,
+    /// but their length and peaks are measured again.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -109,18 +170,25 @@ pub(crate) struct Plan {
     pub(crate) touched: Vec<PathBuf>,
 }
 
-/// What: `impl Plan { ... }` opens the block that holds the methods of `Plan`. Methods take `&self` (a read-only borrow of
+/// What:
+/// `impl Plan { ... }` opens the block that holds the methods of `Plan`.
+/// Methods take `&self` (a read-only borrow of
 /// the value) the way a TypeScript method reads `this`.
-/// Why: asking a plan a question belongs to the plan.
+/// Why:
+/// asking a plan a question belongs to the plan.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class Plan { /* the methods of the impl block */ }
 /// ```
 impl Plan {
-    /// What: `pub(crate) fn changes_the_list(&self) -> bool` says whether the queue gains or loses a track. `-> bool` is the
+    /// What:
+    /// `pub(crate) fn changes_the_list(&self) -> bool` says whether the queue gains or loses a track.
+    /// `-> bool` is the
     /// return type.
-    /// Why: a replaced file leaves the list alone, so nothing but the measurement follows.
+    /// Why:
+    /// a replaced file leaves the list alone,
+    /// so nothing but the measurement follows.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -139,53 +207,87 @@ impl Plan {
     }
 }
 
-/// What: `struct Planner<'a> { tracks, root, disk, plan, walked_until }` is the state of one planning pass. `'a` is a lifetime
-/// label: it says that the borrowed fields live at least as long as the `Planner`, so the compiler can prove that none of
-/// them is used after the owner is gone. There is no `pub`, so it is private to this file.
-/// Why: the helpers share the queue, the root and the disk, and write into one plan.
+/// What:
+/// `struct Planner<'a> { tracks, root, disk, plan, walked_until }` is the state of one planning pass.
+/// `'a` is a lifetime
+/// label:
+/// it says that the borrowed fields live at least as long as the `Planner`,
+/// so the compiler can prove that none of
+/// them is used after the owner is gone.
+/// There is no `pub`,
+/// so it is private to this file.
+/// Why:
+/// the helpers share the queue,
+/// the root and the disk,
+/// and write into one plan.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class Planner { constructor(tracks: string[], root: string, disk: Disk) { /* plan starts empty */ } }
 /// ```
 struct Planner<'a> {
-    /// What: `tracks: &'a [PathBuf],` is the queue, in walk order. `&'a [T]` is a borrowed view of a list, here for the
+    /// What:
+    /// `tracks: &'a [PathBuf],` is the queue,
+    /// in walk order.
+    /// `&'a [T]` is a borrowed view of a list,
+    /// here for the
     /// lifetime `'a`.
-    /// Why: the planner reads the queue and never changes it; the plan holds the edits.
+    /// Why:
+    /// the planner reads the queue and never changes it;
+    /// the plan holds the edits.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// tracks: readonly string[];
     /// ```
     tracks: &'a [PathBuf],
-    /// What: `root: &'a Path,` is the folder the queue was scanned from, borrowed.
-    /// Why: the walk order is relative to it.
+    /// What:
+    /// `root: &'a Path,` is the folder the queue was scanned from,
+    /// borrowed.
+    /// Why:
+    /// the walk order is relative to it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// root: string;
     /// ```
     root: &'a Path,
-    /// What: `disk: &'a dyn Disk,` is the answers about the disk. `&'a dyn Disk` is a borrow of any value that implements the
-    /// `Disk` trait; the real type is picked at run time (siblings: a generic `D: Disk` picks it at compile time).
-    /// Why: one planner serves the real file system and the in-memory disks of the tests.
+    /// What:
+    /// `disk: &'a dyn Disk,` is the answers about the disk.
+    /// `&'a dyn Disk` is a borrow of any value that implements the
+    /// `Disk` trait;
+    /// the real type is picked at run time (siblings:
+    /// a generic `D: Disk` picks it at compile time).
+    /// Why:
+    /// one planner serves the real file system and the in-memory disks of the tests.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// disk: Disk;
     /// ```
     disk: &'a dyn Disk,
-    /// What: `plan: Plan,` is the edits so far. The field owns the value (no `&`), so the plan lives and dies with the planner.
-    /// Why: the helpers push into it, and `plan_changes` takes it at the end.
+    /// What:
+    /// `plan: Plan,` is the edits so far.
+    /// The field owns the value (no `&`),
+    /// so the plan lives and dies with the planner.
+    /// Why:
+    /// the helpers push into it,
+    /// and `plan_changes` takes it at the end.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// plan: Plan;
     /// ```
     plan: Plan,
-    /// What: `walked_until: Option<PathBuf>,` is the last folder whose whole subtree was read; named paths below it are
-    /// already covered. `Option<T>` is Rust's `T | null`: `Some(value)` or `None`.
-    /// Why: reading a folder lists everything in it, so a named path inside needs no second visit.
+    /// What:
+    /// `walked_until: Option<PathBuf>,` is the last folder whose whole subtree was read;
+    /// named paths below it are
+    /// already covered.
+    /// `Option<T>` is Rust's `T | null`:
+    /// `Some(value)` or `None`.
+    /// Why:
+    /// reading a folder lists everything in it,
+    /// so a named path inside needs no second visit.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -194,18 +296,27 @@ struct Planner<'a> {
     walked_until: Option<PathBuf>,
 }
 
-/// What: `impl Planner<'_> { ... }` opens the block that holds the methods of `Planner`. `'_` means "some lifetime, the
-/// compiler fills it in", because no method needs to name it.
-/// Why: the visiting steps belong to the planner.
+/// What:
+/// `impl Planner<'_> { ... }` opens the block that holds the methods of `Planner`.
+/// `'_` means "some lifetime,
+/// the
+/// compiler fills it in",
+/// because no method needs to name it.
+/// Why:
+/// the visiting steps belong to the planner.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class Planner { /* the methods of the impl block */ }
 /// ```
 impl Planner<'_> {
-    /// What: `fn remove_path(&mut self, path: &Path)` removes a file or a whole folder's run from the queue. `&mut self` is a
-    /// borrow that may change the value; Rust allows one such borrow at a time.
-    /// Why: a path that is gone takes everything listed at or under it.
+    /// What:
+    /// `fn remove_path(&mut self, path: &Path)` removes a file or a whole folder's run from the queue.
+    /// `&mut self` is a
+    /// borrow that may change the value;
+    /// Rust allows one such borrow at a time.
+    /// Why:
+    /// a path that is gone takes everything listed at or under it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -241,9 +352,13 @@ impl Planner<'_> {
         }
     }
 
-    /// What: `fn visit_track(&mut self, path: &Path)` adds a track that is not listed, or marks a listed one to be looked at
+    /// What:
+    /// `fn visit_track(&mut self, path: &Path)` adds a track that is not listed,
+    /// or marks a listed one to be looked at
     /// again.
-    /// Why: a replaced file keeps its path; a new one needs a row.
+    /// Why:
+    /// a replaced file keeps its path;
+    /// a new one needs a row.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -285,8 +400,12 @@ impl Planner<'_> {
         }
     }
 
-    /// What: `fn read_subtree(&mut self, folder: &Path)` replaces the run of a folder by what the disk holds under it now.
-    /// Why: a folder that is new, renamed in or recreated may hold anything, and no event names its contents.
+    /// What:
+    /// `fn read_subtree(&mut self, folder: &Path)` replaces the run of a folder by what the disk holds under it now.
+    /// Why:
+    /// a folder that is new,
+    /// renamed in or recreated may hold anything,
+    /// and no event names its contents.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -400,9 +519,16 @@ impl Planner<'_> {
         self.walked_until = Some(folder.to_path_buf());
     }
 
-    /// What: `fn compare_entries(&mut self, folder: &Path, run: Range<usize>)` compares a folder's direct entries with the
-    /// queue's. `run` is taken by value: the caller hands over its range, which is two numbers, so this costs nothing.
-    /// Why: an entry appeared or went in a folder that is already listed; only that folder's own entries are read.
+    /// What:
+    /// `fn compare_entries(&mut self, folder: &Path, run: Range<usize>)` compares a folder's direct entries with the
+    /// queue's.
+    /// `run` is taken by value:
+    /// the caller hands over its range,
+    /// which is two numbers,
+    /// so this costs nothing.
+    /// Why:
+    /// an entry appeared or went in a folder that is already listed;
+    /// only that folder's own entries are read.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -616,9 +742,14 @@ impl Planner<'_> {
         }
     }
 
-    /// What: `fn visit(&mut self, path: &Path, structural: bool)` handles one named path. `structural` says that the event was
-    /// a rename, creation or removal of the entry itself, not a change inside it.
-    /// Why: what the path is now decides what the queue needs.
+    /// What:
+    /// `fn visit(&mut self, path: &Path, structural: bool)` handles one named path.
+    /// `structural` says that the event was
+    /// a rename,
+    /// creation or removal of the entry itself,
+    /// not a change inside it.
+    /// Why:
+    /// what the path is now decides what the queue needs.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -692,10 +823,16 @@ impl Planner<'_> {
     }
 }
 
-/// What: `fn merge_runs(mut runs: Vec<Range<usize>>) -> Vec<Range<usize>>` sorts index runs and joins the ones that overlap or
-/// touch. `mut runs` makes the parameter changeable inside the function; the caller's list is moved in, so it is not seen
+/// What:
+/// `fn merge_runs(mut runs: Vec<Range<usize>>) -> Vec<Range<usize>>` sorts index runs and joins the ones that overlap or
+/// touch.
+/// `mut runs` makes the parameter changeable inside the function;
+/// the caller's list is moved in,
+/// so it is not seen
 /// changing.
-/// Why: two named paths can remove the same track, and the queue is rebuilt in one pass over disjoint runs.
+/// Why:
+/// two named paths can remove the same track,
+/// and the queue is rebuilt in one pass over disjoint runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -754,10 +891,15 @@ fn merge_runs(mut runs: Vec<Range<usize>>) -> Vec<Range<usize>> {
     return merged;
 }
 
-/// What: `pub(crate) fn plan_changes(tracks, root, dirty, disk) -> Plan` plans the queue edits for the named paths. Its full
-/// signature is `(tracks: &[PathBuf], root: &Path, dirty: &DirtyPaths, disk: &dyn Disk) -> Plan`; every parameter is a borrow,
+/// What:
+/// `pub(crate) fn plan_changes(tracks, root, dirty, disk) -> Plan` plans the queue edits for the named paths.
+/// Its full
+/// signature is `(tracks: &[PathBuf], root: &Path, dirty: &DirtyPaths, disk: &dyn Disk) -> Plan`;
+/// every parameter is a borrow,
 /// so the caller keeps its queue and the function only reads.
-/// Why: see the module description. Paths are visited in path order so a folder is read before what is inside it.
+/// Why:
+/// see the module description.
+/// Paths are visited in path order so a folder is read before what is inside it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -862,10 +1004,16 @@ pub(crate) fn plan_changes(tracks: &[PathBuf], root: &Path, dirty: &DirtyPaths, 
     return plan;
 }
 
-/// What: `pub(crate) fn apply_plan(old: Vec<PathBuf>, root: &Path, plan: &Plan) -> Vec<PathBuf>` builds the new queue: the old
-/// one without the removed runs and with the added tracks in their places. `old` is taken by value, so the caller's queue is
+/// What:
+/// `pub(crate) fn apply_plan(old: Vec<PathBuf>, root: &Path, plan: &Plan) -> Vec<PathBuf>` builds the new queue:
+/// the old
+/// one without the removed runs and with the added tracks in their places.
+/// `old` is taken by value,
+/// so the caller's queue is
 /// moved in and its paths are reused.
-/// Why: one pass that moves paths and clones none; the additions are placed by binary search in the old queue.
+/// Why:
+/// one pass that moves paths and clones none;
+/// the additions are placed by binary search in the old queue.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -984,10 +1132,17 @@ pub(crate) fn apply_plan(old: Vec<PathBuf>, root: &Path, plan: &Plan) -> Vec<Pat
     return rebuilt;
 }
 
-/// What: `#[cfg(test)] #[path = "change_plan_tests.rs"] mod tests;` pulls the unit tests in from a sibling file. `#[cfg(test)]`
-/// compiles the module only for `cargo test`, and `#[path = "..."]` names the file, which is otherwise `tests.rs` or
+/// What:
+/// `#[cfg(test)] #[path = "change_plan_tests.rs"] mod tests;` pulls the unit tests in from a sibling file.
+/// `#[cfg(test)]`
+/// compiles the module only for `cargo test`,
+/// and `#[path = "..."]` names the file,
+/// which is otherwise `tests.rs` or
 /// `tests/mod.rs`.
-/// Why: the tests are long, so they sit in their own file, and the release build never contains them.
+/// Why:
+/// the tests are long,
+/// so they sit in their own file,
+/// and the release build never contains them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

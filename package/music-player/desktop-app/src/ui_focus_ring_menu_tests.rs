@@ -1,10 +1,20 @@
-//! Rendered tests of the track menu: the ring on a menu row (D117) and the card's own color and boundary (D119).
+//! Rendered tests of the track menu:
+//! the ring on a menu row (D117) and the card's own color and boundary (D119).
 //!
-//! What: the real window opens the menu with the Menu key on the software renderer, draws it with a row highlighted and without,
+//! What:
+//! the real window opens the menu with the Menu key on the software renderer,
+//! draws it with a row highlighted and without,
 //! and reads the pixels against the row's box from the element tree (a popup's elements report positions relative to the popup,
-//! so the card's corner is added); a second test reads the card's color and edge.
-//! Why: a menu row is as wide as its card, so the ring is outside the card's edge, and neither the popup nor the card may clip
-//! it; and the card is told apart from the page by its outline, not by a fill, so the outline and the color are facts of the
+//! so the card's corner is added);
+//! a second test reads the card's color and edge.
+//! Why:
+//! a menu row is as wide as its card,
+//! so the ring is outside the card's edge,
+//! and neither the popup nor the card may clip
+//! it;
+//! and the card is told apart from the page by its outline,
+//! not by a fill,
+//! so the outline and the color are facts of the
 //! pixels.
 
 use slint::ComponentHandle;
@@ -13,7 +23,8 @@ use crate::ui_focus_ring_tests::{Case, case, check_pair, roles_of, tab_to};
 use crate::ui_render_support::{Frame, Rendered};
 use crate::ui_test_support::tap;
 
-/// What: `open_menu` opens the menu of the ringed track row with the Menu key and waits for the card to finish fading in.
+/// What:
+/// `open_menu` opens the menu of the ringed track row with the Menu key and waits for the card to finish fading in.
 fn open_menu(rendered: &Rendered) {
     tab_to(rendered, "track-list");
     tap(&rendered.app, "Menu");
@@ -21,7 +32,8 @@ fn open_menu(rendered: &Rendered) {
     assert!(rendered.app.get_menu_open(), "the Menu key opened the menu");
 }
 
-/// What: `frames_with_ring` draws the window with the menu ring on a row and with no row highlighted.
+/// What:
+/// `frames_with_ring` draws the window with the menu ring on a row and with no row highlighted.
 fn frames_with_ring(rendered: &Rendered, row: i32) -> (Frame, Frame) {
     rendered.app.set_menu_ring(row);
     rendered.wait(150);

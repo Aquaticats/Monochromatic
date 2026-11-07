@@ -1805,12 +1805,16 @@ fn an_update_without_breaking_never_calls_the_manifest_sync() {
     assert_eq!(*syncer.calls.borrow(), 0);
 }
 
-/// A cargo whose update writes the given lockfile, reports that a descendant could not be stopped (the innermost run's scope is
-/// marked lost, as a failed shutdown does), and counts every call so that a later cargo operation is visible.
+/// A cargo whose update writes the given lockfile,
+/// reports that a descendant could not be stopped (the innermost run's scope is
+/// marked lost,
+/// as a failed shutdown does),
+/// and counts every call so that a later cargo operation is visible.
 struct CargoThatLeavesWriters {
     /// The lockfile text its update writes.
     after: String,
-    /// Every call, as its arguments joined by spaces.
+    /// Every call,
+    /// as its arguments joined by spaces.
     calls: RefCell<Vec<String>>,
 }
 
@@ -1828,10 +1832,17 @@ impl CargoRunner for CargoThatLeavesWriters {
     }
 }
 
-/// Acceptance rows A2 and R4 (certification, fourth pass): the separate update path stops with the lockfiles neither rolled back nor
-/// accepted when a run cannot show that its writers stopped. Cargo wrote a lockfile different from its snapshot and its run reports
-/// that a descendant may remain: `update_rust_lockfiles` fails terminally, the produced bytes are still live (no rollback), the
-/// journal is kept unfinished, and cargo is asked nothing after the failed update.
+/// Acceptance rows A2 and R4 (certification,
+/// fourth pass):
+/// the separate update path stops with the lockfiles neither rolled back nor
+/// accepted when a run cannot show that its writers stopped.
+/// Cargo wrote a lockfile different from its snapshot and its run reports
+/// that a descendant may remain:
+/// `update_rust_lockfiles` fails terminally,
+/// the produced bytes are still live (no rollback),
+/// the
+/// journal is kept unfinished,
+/// and cargo is asked nothing after the failed update.
 #[test]
 fn an_update_whose_run_cannot_show_quiescence_stops_without_rollback_or_acceptance_and_keeps_the_journal() {
     let world = world(&lock_with("0.9.0"), "");

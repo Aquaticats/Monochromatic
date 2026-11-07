@@ -1,4 +1,5 @@
-//! The unit tests of the command-word rules: which pnpm command lines the manifest warning belongs to.
+//! The unit tests of the command-word rules:
+//! which pnpm command lines the manifest warning belongs to.
 
 /// Imports the functions and constants under test.
 use crate::verb::{INSTALL_CLASS_VERBS, VALUE_OPTIONS, find_verb, warning_makes_sense};

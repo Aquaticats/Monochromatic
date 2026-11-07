@@ -102,6 +102,9 @@ impl Regex {
     /// # Example
     ///
     /// ```rust
+    /// //! A batch of two lines:
+    /// //! the line holding the key prefix matches,
+    /// //! and the other does not.
     /// let re = forbidden_regex::compile("AKIA[A-Z2-7]{4}").unwrap();
     /// let lines: &[&[u8]] = &[b"AKIA2345", b"nope"];
     /// assert_eq!(re.is_match_batch(lines), vec![true, false]);
@@ -149,6 +152,10 @@ impl Regex {
     /// # Example
     ///
     /// ```rust
+    /// //! The bucketed batch answers exactly what the plain batch answers,
+    /// //! on a line that matches,
+    /// //! a line that is too short,
+    /// //! and a line that does not match.
     /// let re = forbidden_regex::compile("[0-9a-f]{32}").unwrap();
     /// let lines: &[&[u8]] = &[b"deadbeefdeadbeefdeadbeefdeadbeef", b"short", b"nope"];
     /// assert_eq!(re.is_match_batch_bucketed(lines), re.is_match_batch(lines));
@@ -399,6 +406,7 @@ impl RegexSet {
     /// # Example
     ///
     /// ```rust
+    /// //! Each line is answered by whether any rule of the set matches it.
     /// let set = forbidden_regex::RegexSet::new(&["AKIA[A-Z2-7]{4}", "secret"]).unwrap();
     /// let lines: &[&[u8]] = &[b"AKIA2345", b"all clear", b"a secret here"];
     /// assert_eq!(set.is_match_batch(lines), vec![true, false, true]);
@@ -462,6 +470,7 @@ impl RegexSet {
     /// # Example
     ///
     /// ```rust
+    /// //! Each match is reported as its line index and the index of the rule that matched.
     /// let set = forbidden_regex::RegexSet::new(&["AKIA[A-Z2-7]{4}", "secret"]).unwrap();
     /// let buf = b"AKIA2345\nall clear\na secret here";
     /// let starts = [0usize, 9, 19];

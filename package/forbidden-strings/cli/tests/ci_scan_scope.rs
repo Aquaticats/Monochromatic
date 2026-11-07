@@ -1,13 +1,22 @@
-//! What: Integration tests for the scan-scope selection that
-//! `.github/workflows/forbidden-strings.yml` performs on CI. Each test
+//! What:
+//! Integration tests for the scan-scope selection that
+//! `.github/workflows/forbidden-strings.yml` performs on CI.
+//! Each test
 //! extracts the exact `run` body of the workflow's "Scan changed files"
 //! step and executes it with `bash` against a disposable Git repository,
-//! a fake `gh run list`, and the real scanner binary.
-//! Why: Issue #993: a push run canceled before scanning a changed file left
-//! that file unscanned forever, because the push scope was the event's own
-//! `before..after` range and the next run only scanned its own range. The
-//! workflow now scopes from the last validated tree; these tests pin that
-//! behavior against the workflow text itself, so no second hand-maintained
+//! a fake `gh run list`,
+//! and the real scanner binary.
+//! Why:
+//! Issue #993:
+//! a push run canceled before scanning a changed file left
+//! that file unscanned forever,
+//! because the push scope was the event's own
+//! `before..after` range and the next run only scanned its own range.
+//! The
+//! workflow now scopes from the last validated tree;
+//! these tests pin that
+//! behavior against the workflow text itself,
+//! so no second hand-maintained
 //! copy of the shell logic can drift from what CI runs.
 #![cfg(unix)]
 

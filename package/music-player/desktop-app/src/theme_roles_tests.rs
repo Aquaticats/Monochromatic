@@ -10,8 +10,12 @@ fn hex(value: u32) -> Srgb8 {
     return Srgb8 { red: ((value >> 16) & 0xFF) as u8, green: ((value >> 8) & 0xFF) as u8, blue: (value & 0xFF) as u8 };
 }
 
-/// What: the fixed values `ui/theme.slint` held before D108, per role, as `(name, dark, light)`.
-/// Why:  the baseline root must reproduce them closely (the old captures are the visual reference).
+/// What:
+/// the fixed values `ui/theme.slint` held before D108,
+/// per role,
+/// as `(name, dark, light)`.
+/// Why:
+///  the baseline root must reproduce them closely (the old captures are the visual reference).
 fn old_fixed_values() -> Vec<(&'static str, u32, u32)> {
     return vec![
         ("canvas", 0x000000, 0xFFFFFF),
@@ -32,8 +36,10 @@ fn old_fixed_values() -> Vec<(&'static str, u32, u32)> {
     ];
 }
 
-/// What: `named_roles(set)` lists every role of one scheme by its theme name.
-/// Why:  lets a test walk all roles without repeating the field list.
+/// What:
+/// `named_roles(set)` lists every role of one scheme by its theme name.
+/// Why:
+///  lets a test walk all roles without repeating the field list.
 fn named_roles(set: &RoleSet) -> Vec<(&'static str, Srgb8)> {
     return vec![
         ("canvas", set.canvas),
@@ -57,7 +63,8 @@ fn named_roles(set: &RoleSet) -> Vec<(&'static str, Srgb8)> {
     ];
 }
 
-/// What: `lookup(set, name)` returns the role called `name`.
+/// What:
+/// `lookup(set, name)` returns the role called `name`.
 fn lookup(set: &RoleSet, name: &str) -> Srgb8 {
     for (role_name, color) in named_roles(set) {
         if role_name == name {
@@ -67,11 +74,17 @@ fn lookup(set: &RoleSet, name: &str) -> Srgb8 {
     panic!("no role named {name}");
 }
 
-/// What: `near_gray_roots()` is every root the D118 rule must treat as chromatic although it looks gray: named
-/// one-channel offsets, plus every fifth gray level with each channel raised by one step in turn, and the equal-channel
+/// What:
+/// `near_gray_roots()` is every root the D118 rule must treat as chromatic although it looks gray:
+/// named
+/// one-channel offsets,
+/// plus every fifth gray level with each channel raised by one step in turn,
+/// and the equal-channel
 /// gray itself (a completely neutral root) at those levels.
-/// Why:  the old rule gave a root with chroma below 0.004 the baseline hue and shrank the gray roles of a weak root;
-///       these roots are the ones where that mattered, so the contrast sweep and the tint tests include them.
+/// Why:
+///  the old rule gave a root with chroma below 0.004 the baseline hue and shrank the gray roles of a weak root;
+///       these roots are the ones where that mattered,
+/// so the contrast sweep and the tint tests include them.
 fn near_gray_roots() -> Vec<Srgb8> {
     let mut roots: Vec<Srgb8> = [0x808088, 0x7F8080, 0x8A8A8B, 0x8A8B8A, 0x808081, 0xFEFFFF, 0x010100, 0x7A7F9A]
         .into_iter()
@@ -87,14 +100,26 @@ fn near_gray_roots() -> Vec<Srgb8> {
     return roots;
 }
 
-/// What: `is_completely_neutral(root)` is true when the three 8-bit channels are equal.
+/// What:
+/// `is_completely_neutral(root)` is true when the three 8-bit channels are equal.
 fn is_completely_neutral(root: Srgb8) -> bool {
     return root.red == root.green && root.green == root.blue;
 }
 
-/// What: `swept_roots()` is every test root: hues every 10 degrees by a spread of chromas, plus grays, the
-/// near-gray roots and the extremes (saturated red, yellow, green, blue, white, black).
-/// Why:  the contrast guarantee must hold for any accent, including ones whose chroma the gamut cuts hard.
+/// What:
+/// `swept_roots()` is every test root:
+/// hues every 10 degrees by a spread of chromas,
+/// plus grays,
+/// the
+/// near-gray roots and the extremes (saturated red,
+/// yellow,
+/// green,
+/// blue,
+/// white,
+/// black).
+/// Why:
+///  the contrast guarantee must hold for any accent,
+/// including ones whose chroma the gamut cuts hard.
 fn swept_roots() -> Vec<Srgb8> {
     let mut roots: Vec<Srgb8> = Vec::new();
     let mut hue: f64 = 0.0;
@@ -113,20 +138,28 @@ fn swept_roots() -> Vec<Srgb8> {
     return roots;
 }
 
-/// What: `surfaces_of(set)` lists the four surfaces text is drawn on.
-/// Why:  Settings has no surface of its own (D109), so the canvas stands for it.
+/// What:
+/// `surfaces_of(set)` lists the four surfaces text is drawn on.
+/// Why:
+///  Settings has no surface of its own (D109),
+/// so the canvas stands for it.
 fn surfaces_of(set: &RoleSet) -> Vec<Srgb8> {
     return vec![set.canvas, set.deck, set.current_row, set.surface_high];
 }
 
-/// What: `assert_ratio(label, foreground, background, minimum)` fails with the names in the message.
+/// What:
+/// `assert_ratio(label, foreground, background, minimum)` fails with the names in the message.
 fn assert_ratio(label: &str, foreground: Srgb8, background: Srgb8, minimum: f64) {
     let ratio: f64 = contrast_ratio(foreground, background);
     assert!(ratio >= minimum, "{label}: {foreground:?} on {background:?} is {ratio:.3}, below {minimum}");
 }
 
-/// What: `TextState` is one drawn foreground on one drawn background, with the ratio it must reach.
-/// Why:  the guarantee is a list of these, so a test can show which pairs a color set fails instead of stopping at
+/// What:
+/// `TextState` is one drawn foreground on one drawn background,
+/// with the ratio it must reach.
+/// Why:
+///  the guarantee is a list of these,
+/// so a test can show which pairs a color set fails instead of stopping at
 ///       the first one.
 struct TextState {
     label: String,
@@ -135,19 +168,38 @@ struct TextState {
     minimum: f64,
 }
 
-/// What: `push_state(states, label, foreground, background, minimum)` appends one pair to the list.
+/// What:
+/// `push_state(states, label, foreground, background, minimum)` appends one pair to the list.
 fn push_state(states: &mut Vec<TextState>, label: &str, foreground: Srgb8, background: Srgb8, minimum: f64) {
     states.push(TextState { label: label.to_string(), foreground, background, minimum });
 }
 
-/// What: `text_states(set)` is the whole contrast guarantee of one scheme: every text or outline pair the window
-/// draws, at rest and under the state layers it carries (hover 8 percent, pressed and focus 12 percent).
-/// Why:  one list feeds the sweep, the baseline check and the positive control. The pairs follow the `.slint` files:
-///       text on the four surfaces under an on-surface layer (rows, menus, snackbar, buttons); the rail letter in
-///       primary on the selected fill under an on-secondary-container layer (`folders.slint`); text on the selected
-///       fill and its OKLCH hovered and pressed fills (`deck.slint`, `settings.slint`); on-primary on primary under
-///       its own layer (`first_run.slint`, `deck.slint`); text on the match fill. Primary is not drawn on the OKLCH
-///       hovered and pressed fills, so those two pairs are not part of the list.
+/// What:
+/// `text_states(set)` is the whole contrast guarantee of one scheme:
+/// every text or outline pair the window
+/// draws,
+/// at rest and under the state layers it carries (hover 8 percent,
+/// pressed and focus 12 percent).
+/// Why:
+///  one list feeds the sweep,
+/// the baseline check and the positive control.
+/// The pairs follow the `.slint` files:
+///       text on the four surfaces under an on-surface layer (rows,
+/// menus,
+/// snackbar,
+/// buttons);
+/// the rail letter in
+///       primary on the selected fill under an on-secondary-container layer (`folders.slint`);
+/// text on the selected
+///       fill and its OKLCH hovered and pressed fills (`deck.slint`,
+/// `settings.slint`);
+/// on-primary on primary under
+///       its own layer (`first_run.slint`,
+/// `deck.slint`);
+/// text on the match fill.
+/// Primary is not drawn on the OKLCH
+///       hovered and pressed fills,
+/// so those two pairs are not part of the list.
 fn text_states(set: &RoleSet) -> Vec<TextState> {
     let mut states: Vec<TextState> = Vec::new();
     let surface_names: [&str; 4] = ["canvas", "deck", "current-row", "surface-high"];
@@ -195,8 +247,12 @@ fn text_states(set: &RoleSet) -> Vec<TextState> {
     return states;
 }
 
-/// What: `failing_states(set)` names every pair of `text_states` below its minimum, with the measured ratio.
-/// Why:  returns the list instead of panicking, so the positive control can compare it to the known failures.
+/// What:
+/// `failing_states(set)` names every pair of `text_states` below its minimum,
+/// with the measured ratio.
+/// Why:
+///  returns the list instead of panicking,
+/// so the positive control can compare it to the known failures.
 fn failing_states(set: &RoleSet) -> Vec<String> {
     let mut failing: Vec<String> = Vec::new();
     for state in text_states(set) {
@@ -208,7 +264,8 @@ fn failing_states(set: &RoleSet) -> Vec<String> {
     return failing;
 }
 
-/// What: `check_scheme_contrast(label, set)` asserts that no pair of one scheme falls below its minimum.
+/// What:
+/// `check_scheme_contrast(label, set)` asserts that no pair of one scheme falls below its minimum.
 fn check_scheme_contrast(label: &str, set: &RoleSet) {
     let failing: Vec<String> = failing_states(set);
     assert!(failing.is_empty(), "{label}: {failing:?}");
@@ -272,9 +329,14 @@ fn no_accent_and_the_baseline_color_derive_the_same_palette() {
     assert_eq!(derive_roles(None), derive_roles(Some(BASELINE_ROOT)));
 }
 
-/// What: the roles whose baseline was retuned for B4 (contrast in every drawn state), as `(scheme, name, old hex,
+/// What:
+/// the roles whose baseline was retuned for B4 (contrast in every drawn state),
+/// as `(scheme, name, old hex,
 /// largest delta-E allowed)`.
-/// Why:  these moved in lightness only; each bound is the measured delta-E rounded up, so a further drift fails.
+/// Why:
+///  these moved in lightness only;
+/// each bound is the measured delta-E rounded up,
+/// so a further drift fails.
 fn retuned_roles() -> Vec<(&'static str, &'static str, u32, f64)> {
     return vec![
         // Primary text under the pressed and hover layers on the selected fill and on surface-high.
@@ -330,8 +392,11 @@ fn the_retuned_roles_moved_in_lightness_only_and_within_their_bounds() {
     }
 }
 
-/// What: `old_light_roles()` is the light scheme as `ui/theme.slint` held it before the B4 retune.
-/// Why:  the positive control of the contrast list: a color set known to fall below AA must be reported as failing.
+/// What:
+/// `old_light_roles()` is the light scheme as `ui/theme.slint` held it before the B4 retune.
+/// Why:
+///  the positive control of the contrast list:
+/// a color set known to fall below AA must be reported as failing.
 fn old_light_roles() -> RoleSet {
     let mut set: RoleSet = derive_roles(None).light;
     for (name, _dark, light) in old_fixed_values() {
@@ -456,14 +521,27 @@ fn a_vivid_root_does_not_tint_the_neutral_surfaces_beyond_the_baseline() {
     assert!((vivid_chroma - baseline_chroma).abs() < 0.004, "{vivid_chroma} vs {baseline_chroma}");
 }
 
-/// Smallest chroma, measured in OKLCH from the final 8-bit colors, that every gray role keeps under a weakly chromatic
-/// root. The lowest value measured over roots stepping one degree of hue in both schemes is 0.00455 (the dark deck);
-/// the floor sits just under it, so a gray role that lost its tint (the old shrinking rule gave 0.001 to 0.003) fails.
+/// Smallest chroma,
+/// measured in OKLCH from the final 8-bit colors,
+/// that every gray role keeps under a weakly chromatic
+/// root.
+/// The lowest value measured over roots stepping one degree of hue in both schemes is 0.00455 (the dark deck);
+/// the floor sits just under it,
+/// so a gray role that lost its tint (the old shrinking rule gave 0.001 to 0.003) fails.
 const GRAY_CHROMA_FLOOR: f64 = 0.004;
 
-/// What: `gray_specs(scheme)` lists the table rows of every gray role of one scheme with their names.
-/// Why:  D118 names them: the deck, the playing row, surfaces, outlines and text variants, . Both
-///       canvases are pure black or white and are not grays; the error roles are semantic colors.
+/// What:
+/// `gray_specs(scheme)` lists the table rows of every gray role of one scheme with their names.
+/// Why:
+///  D118 names them:
+/// the deck,
+/// the playing row,
+/// surfaces,
+/// outlines and text variants,
+/// .
+/// Both
+///       canvases are pure black or white and are not grays;
+/// the error roles are semantic colors.
 fn gray_specs(scheme: Scheme) -> Vec<(&'static str, Role)> {
     let spec: SchemeSpec = if scheme == Scheme::Dark { DARK_SPEC } else { LIGHT_SPEC };
     let rows: Vec<(&'static str, Role)> = vec![
@@ -478,7 +556,8 @@ fn gray_specs(scheme: Scheme) -> Vec<(&'static str, Role)> {
     return rows;
 }
 
-/// What: `gray_colors(set, scheme)` lists the finished color of every gray role of one scheme with its name.
+/// What:
+/// `gray_colors(set, scheme)` lists the finished color of every gray role of one scheme with its name.
 fn gray_colors(set: &RoleSet, scheme: Scheme) -> Vec<(&'static str, Srgb8)> {
     return gray_specs(scheme)
         .into_iter()
@@ -488,12 +567,15 @@ fn gray_colors(set: &RoleSet, scheme: Scheme) -> Vec<(&'static str, Srgb8)> {
         .collect();
 }
 
-/// What: `channel_spread(color)` is the largest channel minus the smallest, 0 for a true gray.
+/// What:
+/// `channel_spread(color)` is the largest channel minus the smallest,
+/// 0 for a true gray.
 fn channel_spread(color: Srgb8) -> u8 {
     return color.red.max(color.green).max(color.blue) - color.red.min(color.green).min(color.blue);
 }
 
-/// What: `spec_of(role)` is the table row of a `Neutral` or `Accent` role.
+/// What:
+/// `spec_of(role)` is the table row of a `Neutral` or `Accent` role.
 fn spec_of(role: Role) -> RoleSpec {
     return match role {
         Role::Neutral(spec) | Role::Accent(spec) => spec,
@@ -799,8 +881,11 @@ fn the_settings_row_pairs_hold_aa_under_every_swept_root() {
     }
 }
 
-/// What: `accent_colors(set, scheme)` lists the finished color of every accent role of one scheme with its name.
-/// Why:  the light on-primary is pure white (lightness 1 cannot carry chroma), so it is not among the light accents.
+/// What:
+/// `accent_colors(set, scheme)` lists the finished color of every accent role of one scheme with its name.
+/// Why:
+///  the light on-primary is pure white (lightness 1 cannot carry chroma),
+/// so it is not among the light accents.
 fn accent_colors(set: &RoleSet, scheme: Scheme) -> Vec<(&'static str, Srgb8)> {
     let mut colors: Vec<(&'static str, Srgb8)> = vec![
         ("primary", set.primary),
@@ -816,9 +901,14 @@ fn accent_colors(set: &RoleSet, scheme: Scheme) -> Vec<(&'static str, Srgb8)> {
     return colors;
 }
 
-/// Smallest chroma, measured in OKLCH from the final 8-bit colors, that every accent role keeps under a weakly
-/// chromatic root. The lowest value measured over the weak roots of the sweep is 0.01313 (the dark pressed selected
-/// fill), against a table floor of 0.0153 (dark) or 0.0193 (light) before rounding; the test floor sits just under it.
+/// Smallest chroma,
+/// measured in OKLCH from the final 8-bit colors,
+/// that every accent role keeps under a weakly
+/// chromatic root.
+/// The lowest value measured over the weak roots of the sweep is 0.01313 (the dark pressed selected
+/// fill),
+/// against a table floor of 0.0153 (dark) or 0.0193 (light) before rounding;
+/// the test floor sits just under it.
 const ACCENT_CHROMA_FLOOR: f64 = 0.012;
 
 #[test]

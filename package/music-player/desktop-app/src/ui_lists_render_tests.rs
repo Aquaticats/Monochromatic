@@ -1,12 +1,24 @@
-//! Rendered tests of the list defects: a name wider than its pane ends in an ellipsis (OV1), the playing row carries a marker
-//! in the primary role (VD6), and the scrollbar is drawn from Theme roles (VD1).
+//! Rendered tests of the list defects:
+//! a name wider than its pane ends in an ellipsis (OV1),
+//! the playing row carries a marker
+//! in the primary role (VD6),
+//! and the scrollbar is drawn from Theme roles (VD1).
 //!
-//! What: each test draws the real window with Slint's software renderer into a pixel buffer and reads pixels.
-//! Why: whether text ends in an ellipsis or is cut at the box edge is a property of the pixels, and no element of the window
-//! reports it, so a test of the element tree cannot tell a fixed list from a broken one.
-//! Note: the platform is installed per test thread, as the testing backend does, so these tests run beside the others.
+//! What:
+//! each test draws the real window with Slint's software renderer into a pixel buffer and reads pixels.
+//! Why:
+//! whether text ends in an ellipsis or is cut at the box edge is a property of the pixels,
+//! and no element of the window
+//! reports it,
+//! so a test of the element tree cannot tell a fixed list from a broken one.
+//! Note:
+//! the platform is installed per test thread,
+//! as the testing backend does,
+//! so these tests run beside the others.
 
+use std::cell::Cell;
 use std::rc::Rc;
+use std::time::Duration;
 
 use music_player::command::Update;
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
@@ -17,8 +29,26 @@ use crate::AppWindow;
 use crate::ui_screen::{project, update_state};
 use crate::ui_screen_view::ScreenState;
 
-/// What: `SoftwarePlatform` hands one software window to every window the test creates.
-/// Why: Slint needs a platform to create a window, and this one draws into memory.
+thread_local! {
+    /// What:
+    /// `CLOCK` is how long the test thread's Slint clock says the program has run.
+    /// Why:
+    /// Slint animations read the platform's clock,
+    /// and the default clock is the wall clock,
+    /// so how far a fade-in has gone
+    /// when a frame is drawn depended on how fast the build runs:
+    /// a debug build (slow) drew a page at full ink,
+    /// a release build
+    /// (fast) drew it still faded.
+    /// The test clock moves only when the test moves it.
+    static CLOCK: Cell<Duration> = const { Cell::new(Duration::ZERO) };
+}
+
+/// What:
+/// `SoftwarePlatform` hands one software window to every window the test creates.
+/// Why:
+/// Slint needs a platform to create a window,
+/// and this one draws into memory.
 struct SoftwarePlatform {
     /// The window every `AppWindow` of the test uses.
     window: Rc<MinimalSoftwareWindow>,
@@ -26,13 +56,22 @@ struct SoftwarePlatform {
 
 /// The platform of the rendered tests.
 impl Platform for SoftwarePlatform {
-    /// What: `create_window_adapter` gives the shared software window.
+    /// What:
+    /// `create_window_adapter` gives the shared software window.
     fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, PlatformError> {
         return Ok(self.window.clone());
     }
+
+    /// What:
+    /// `duration_since_start` gives the test clock,
+    /// which stands still until the test moves it.
+    fn duration_since_start(&self) -> Duration {
+        return CLOCK.get();
+    }
 }
 
-/// What: `Frame` is one rendered picture of the window.
+/// What:
+/// `Frame` is one rendered picture of the window.
 struct Frame {
     /// Width in pixels.
     width: usize,
@@ -42,14 +81,18 @@ struct Frame {
 
 /// Methods of `Frame`.
 impl Frame {
-    /// What: `at` gives the pixel at a column and row as `[red, green, blue]`.
+    /// What:
+    /// `at` gives the pixel at a column and row as `[red, green, blue]`.
     fn at(&self, x: usize, y: usize) -> [u8; 3] {
         let pixel = self.pixels[y * self.width + x];
         return [pixel.r, pixel.g, pixel.b];
     }
 
-    /// What: `ink_rows` counts the rows of a rectangle that hold a pixel clearly different from the pixel at its top left.
-    /// Why: text drawn on a flat background is the pixels unlike the background, and the rows they fill tell a full glyph
+    /// What:
+    /// `ink_rows` counts the rows of a rectangle that hold a pixel clearly different from the pixel at its top left.
+    /// Why:
+    /// text drawn on a flat background is the pixels unlike the background,
+    /// and the rows they fill tell a full glyph
     /// from the dots of an ellipsis.
     fn ink_rows(&self, left: usize, right: usize, top: usize, bottom: usize) -> usize {
         let background = self.at(left, top);
@@ -66,9 +109,13 @@ impl Frame {
 
 /// More methods of `Frame`.
 impl Frame {
-    /// What: `rightmost_ink` gives the column of the right-most pixel in a rectangle that is clearly different from the pixel
-    /// at its top left, or None when the rectangle holds nothing but background.
-    /// Why: where a line of text ends tells whether it ends in a whole glyph, a cut one or the dots of an ellipsis.
+    /// What:
+    /// `rightmost_ink` gives the column of the right-most pixel in a rectangle that is clearly different from the pixel
+    /// at its top left,
+    /// or None when the rectangle holds nothing but background.
+    /// Why:
+    /// where a line of text ends tells whether it ends in a whole glyph,
+    /// a cut one or the dots of an ellipsis.
     fn rightmost_ink(&self, left: usize, right: usize, top: usize, bottom: usize) -> Option<usize> {
         let background = self.at(left, top);
         return (left..right).rev().find(|column| {
@@ -80,14 +127,21 @@ impl Frame {
     }
 }
 
-/// What: `render_window` builds the window on a software renderer, loads a queue, and draws one frame.
-/// Why: the pixels are what the user sees, in the light scheme the window tests use.
+/// What:
+/// `render_window` builds the window on a software renderer,
+/// loads a queue,
+/// and draws one frame.
+/// Why:
+/// the pixels are what the user sees,
+/// in the light scheme the window tests use.
 fn render_window(width: usize, height: usize, names: &[String], playing: Option<usize>) -> Frame {
     return render_window_with(width, height, names, playing, |_app| {});
 }
 
-/// What: `render_window_with` is `render_window` that lets the test change the window once the queue is loaded.
-/// Why: Search rows are set on the window directly.
+/// What:
+/// `render_window_with` is `render_window` that lets the test change the window once the queue is loaded.
+/// Why:
+/// Search rows are set on the window directly.
 fn render_window_with(width: usize, height: usize, names: &[String], playing: Option<usize>, setup: impl FnOnce(&AppWindow)) -> Frame {
     let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
     slint::platform::set_platform(Box::new(SoftwarePlatform { window: window.clone() })).expect("no platform is installed yet on this thread");
@@ -112,7 +166,11 @@ fn render_window_with(width: usize, height: usize, names: &[String], playing: Op
     let mut pixels = vec![Rgb8Pixel::default(); width * height];
     // The first draw builds what the properties asked for (a page that has just become visible, a list that has just been given
     // rows), and the second draws it.
+    // Each pass moves the clock by one fade-in, so a fade that starts during a pass has ended by the next one, whatever the
+    // speed of the build.
+    let fade_in = Duration::from_millis(u64::try_from(app.global::<crate::Theme>().get_motion_enter()).unwrap_or(0));
     for _ in 0..3 {
+        CLOCK.set(CLOCK.get() + fade_in);
         slint::platform::update_timers_and_animations();
         window.request_redraw();
         window.draw_if_needed(|renderer| {
@@ -122,7 +180,8 @@ fn render_window_with(width: usize, height: usize, names: &[String], playing: Op
     return Frame { width, pixels };
 }
 
-/// What: `one_folder` names `count` tracks of one folder.
+/// What:
+/// `one_folder` names `count` tracks of one folder.
 fn one_folder(count: usize) -> Vec<String> {
     return (0..count).map(|number| return format!("Big/Track {number:05}.mp3")).collect();
 }
@@ -179,8 +238,11 @@ fn the_scrollbar_is_drawn_from_theme_roles_with_a_thumb_and_a_track() {
     assert_ne!(frame.at(1190, 400), frame.at(1194, 400), "the track is 4 px wide, not the whole grab zone");
 }
 
-/// What: `ends_in_dots` tells whether the line of text in a rectangle ends in the dots of an ellipsis.
-/// Why: the last 10 px of a line that is cut in a letter hold the letter's strokes over most of the glyph's height, while the
+/// What:
+/// `ends_in_dots` tells whether the line of text in a rectangle ends in the dots of an ellipsis.
+/// Why:
+/// the last 10 px of a line that is cut in a letter hold the letter's strokes over most of the glyph's height,
+/// while the
 /// ellipsis has ink only in its few baseline rows.
 fn ends_in_dots(frame: &Frame, left: usize, right: usize, top: usize, bottom: usize) -> bool {
     let Some(end) = frame.rightmost_ink(left, right, top, bottom) else {
