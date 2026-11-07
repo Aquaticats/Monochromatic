@@ -197,10 +197,12 @@ fn every_kept_kind_is_renamed_in_place_by_an_ordinary_command() {
     remove(&fixture);
 }
 
-/// Both names of a kind: the new one is used, the earlier one is untouched,
-///  and one line reports it.
+/// Both names of a kind: the earlier one is folded into the new one by an ordinary command,
+///  every entry of both survives,
+///  and the command says nothing about it
+///  (the six lines that every command used to print, measured 2026-11-07T08:37:00-05:00).
 #[test]
-fn both_names_of_a_kept_kind_use_the_new_and_report_the_earlier() {
+fn both_names_of_a_kept_kind_are_folded_into_the_new_one_without_a_word() {
     let fixture: Fixture = fixture("rename-kept-both");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let git_dir: PathBuf = repo.join(".git");
@@ -208,9 +210,9 @@ fn both_names_of_a_kept_kind_use_the_new_and_report_the_earlier() {
     std::fs::create_dir_all(git_dir.join(DATA_FOLDER.current)).expect("the new folder");
     let status: Observed = run(&fixture, repo.as_path(), &["status"]);
     assert_eq!(status.code, Some(0), "{}", stderr_text(&status));
-    assert!(stderr_text(&status).contains(DATA_FOLDER.earlier), "{}", stderr_text(&status));
-    assert_eq!(stderr_text(&status).lines().filter(|line| { return line.contains("left as it is"); }).count(), 1, "{}", stderr_text(&status));
-    assert_eq!(std::fs::read_to_string(git_dir.join(DATA_FOLDER.earlier).join("inner").join("record")).expect("untouched"), DATA_FOLDER.earlier);
+    assert_eq!(stderr_text(&status), "", "a fold is silent");
+    assert_eq!(read_current(git_dir.as_path(), DATA_FOLDER, true), DATA_FOLDER.earlier);
+    assert!(!git_dir.join(DATA_FOLDER.earlier).exists(), "no second name");
     remove(&fixture);
 }
 
