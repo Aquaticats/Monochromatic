@@ -44,8 +44,8 @@ export const PODMAN_LOGIN_INPUT_FILE = 'podman-login-input.log';
 
  It reads `--output`, `--write-out`, `--head`, `--fail`, `--show-error`, `--config -` and the address, ignores the other
  options, and answers with the first scenario rule whose `urlIncludes` text the address contains: its `status`, and its
- `body` or the content of its `bodyFile`. A rule with `exit` ends with that status; no matching rule is a host that cannot
- be resolved (status 6).
+ `body` or the content of its `bodyFile`. A rule with `exit` ends with that status and prints `000` as the HTTP status, as
+ `curl` does when nothing answered; no matching rule is a host that cannot be resolved (status 6).
  */
 export const FAKE_CURL_SOURCE: string = `
 const fs = require('node:fs');
@@ -77,11 +77,11 @@ function finish(status, code) {
 }
 if (rule === undefined) {
   if (options.showError) { process.stderr.write('curl: (6) Could not resolve host: fake\\n'); }
-  finish(0, 6);
+  finish('000', 6);
 }
 if (rule.exit !== undefined) {
   if (options.showError) { process.stderr.write('curl: (' + rule.exit + ') fake transport failure\\n'); }
-  finish(0, rule.exit);
+  finish('000', rule.exit);
 }
 if (options.fail && (rule.status >= 400)) {
   if (options.showError) { process.stderr.write('curl: (22) The requested URL returned error: ' + rule.status + '\\n'); }
