@@ -182,6 +182,10 @@ Every package that passed on `nightly-2026-11-01` passes on `nightly-2026-11-07`
 Nothing passed on the old pin and fails on the new one, so the lock change merges.
 The one package whose error set grows (`monochromatic-lint-closure`) was already failing.
 
+Merged to `main` as `c047a8594e` (2026-11-07). After the merge, `toolchain:install` in the main checkout
+moved its environment fragment, `rustc --version` there prints `c980177d8 2026-11-06`, and `toolchain:lock:check`
+reports the lock current.
+
 ## Proposal: keeping the nightly latest
 
 Nothing here is built.
