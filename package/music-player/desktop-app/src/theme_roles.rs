@@ -335,18 +335,157 @@ fn resolve_srgb(role: Role, terms: RootTerms) -> Srgb8 {
 }
 
 /// What:
-///      `fn fit_lightness(name, start, endpoint, passes) -> Oklch`:
+///      `trait FitCheck { fn accepts(&self, candidate: Srgb8) -> bool; }`:
+/// the contrast test that a lightness fit moves a color until it passes.
+/// Why:
+///       Each role is fitted against its own surfaces and layers,
+/// so the test is a value that carries them (`FitRule`),
+/// and a plain function of the color is a test too,
+/// which the unit tests use.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface FitCheck { accepts(candidate: Srgb8): boolean }
+/// ```
+trait FitCheck {
+    /// What:
+    /// `accepts` is true when the 8-bit color meets the role's contrast targets.
+    /// Why:
+    /// the fit keeps the closest lightness that it accepts.
+    fn accepts(&self, candidate: Srgb8) -> bool;
+}
+
+/// A plain function of the color is a contrast test.
+impl<F: Fn(Srgb8) -> bool> FitCheck for F {
+    /// What:
+    /// `accepts` calls the function.
+    /// Why:
+    /// it lets a test pass a function.
+    fn accepts(&self, candidate: Srgb8) -> bool {
+        return self(candidate);
+    }
+}
+
+/// What:
+///      `enum FitRule`:
+/// the contrast test of each role that `derive_scheme` fits,
+/// with the colors it is measured against.
+/// Why:
+///       Every fit passes a different set of surfaces and layers,
+/// and a value that names the role and carries the colors replaces a closure that captured them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FitRule =
+///   | { kind: "container"; container: Srgb8 }
+///   | { kind: "legible"; surfaces: Srgb8[]; layer: Srgb8 | null }
+///   | { kind: "outline"; canvas: Srgb8; deck: Srgb8 }
+///   | { kind: "primary"; surfaces: Srgb8[]; onSurface: Srgb8; fills: Srgb8[]; lightOnPrimary: Srgb8 | null }
+///   | { kind: "matchFill"; onSurface: Srgb8; onSurfaceVariant: Srgb8 };
+/// ```
+enum FitRule<'surfaces> {
+    /// Text on the selected fill:
+    /// legible on the fill and under its hover and pressed layers.
+    Container {
+        /// The selected fill.
+        container: Srgb8,
+    },
+    /// Text legible on every surface and under the text layers over each.
+    Legible {
+        /// The surfaces the text is drawn on.
+        surfaces: &'surfaces [Srgb8],
+        /// The layer color drawn over a surface,
+        /// or `None` when it is the text color itself.
+        layer: Option<Srgb8>,
+    },
+    /// An outline that holds the non-text target against the canvas and the deck.
+    Outline {
+        /// The canvas surface.
+        canvas: Srgb8,
+        /// The deck surface.
+        deck: Srgb8,
+    },
+    /// The accent text:
+    /// legible on every surface,
+    /// on the selected fill states,
+    /// and against the light on-primary content when the scheme has one.
+    Primary {
+        /// The surfaces the text is drawn on.
+        surfaces: &'surfaces [Srgb8],
+        /// The text color whose layers are drawn over the surfaces.
+        on_surface: Srgb8,
+        /// The selected fill and its hover and pressed states.
+        fills: [Srgb8; 3],
+        /// The fixed content color of a light scheme's primary,
+        /// when there is one.
+        light_on_primary: Option<Srgb8>,
+    },
+    /// The match fill:
+    /// both text colors read on it.
+    MatchFill {
+        /// The main text color.
+        on_surface: Srgb8,
+        /// The secondary text color.
+        on_surface_variant: Srgb8,
+    },
+}
+
+/// The contrast test of one role.
+impl FitCheck for FitRule<'_> {
+    /// What:
+    /// `accepts` runs the role's own contrast checks on the 8-bit candidate.
+    /// Why:
+    /// the lightness fit asks every role the same question.
+    fn accepts(&self, candidate: Srgb8) -> bool {
+        match self {
+            FitRule::Container { container } => {
+                let (hovered, pressed) = container_layers(*container, candidate);
+                return contrast_ratio(candidate, *container) >= TEXT_TARGET_RATIO
+                    && contrast_ratio(candidate, hovered) >= TEXT_TARGET_RATIO
+                    && contrast_ratio(candidate, pressed) >= TEXT_TARGET_RATIO;
+            }
+            FitRule::Legible { surfaces, layer } => {
+                return legible_on(candidate, surfaces, layer.unwrap_or(candidate), &TEXT_LAYER_ALPHAS, TEXT_TARGET_RATIO);
+            }
+            FitRule::Outline { canvas, deck } => {
+                return contrast_ratio(candidate, *canvas) >= NON_TEXT_TARGET_RATIO
+                    && contrast_ratio(candidate, *deck) >= NON_TEXT_TARGET_RATIO;
+            }
+            FitRule::Primary { surfaces, on_surface, fills, light_on_primary } => {
+                if !legible_on(candidate, surfaces, *on_surface, &TEXT_LAYER_ALPHAS, TEXT_TARGET_RATIO) {
+                    return false;
+                }
+                for fill in fills {
+                    if contrast_ratio(candidate, *fill) < TEXT_TARGET_RATIO {
+                        return false;
+                    }
+                }
+                if let Some(content) = light_on_primary {
+                    return contrast_ratio(candidate, *content) >= TEXT_TARGET_RATIO;
+                }
+                return true;
+            }
+            FitRule::MatchFill { on_surface, on_surface_variant } => {
+                return contrast_ratio(*on_surface, candidate) >= TEXT_TARGET_RATIO
+                    && contrast_ratio(*on_surface_variant, candidate) >= TEXT_TARGET_RATIO;
+            }
+        }
+    }
+}
+
+/// What:
+///      `fn fit_lightness(name, start, endpoint, rule) -> Oklch`:
 /// moves `start` in lightness toward `endpoint`
 ///  (0 black or 1 white),
 /// keeping chroma and hue,
-/// until `passes` accepts the 8-bit result;
+/// until `rule` accepts the 8-bit result;
 /// returns the closest
 ///  accepted lightness to `start`.
 /// Why:
 ///       This is the contrast guarantee:
 /// contrast depends on luminance,
 /// so lightness is the one coordinate moved,
-///           and `passes` always sees the quantized color that reaches the screen.
+///           and the rule always sees the quantized color that reaches the screen.
 /// If even the endpoint fails,
 /// the
 ///           endpoint is returned and a warning logged,
@@ -359,12 +498,12 @@ fn resolve_srgb(role: Role, terms: RootTerms) -> Srgb8 {
 /// for (let i = 0; i < 40; i++) { const mid = (failing + passing) / 2; passes(toSrgb8({ ...start, lightness: mid })) ? (passing = mid) : (failing = mid); }
 /// return { ...start, lightness: passing };
 /// ```
-fn fit_lightness(name: &str, start: Oklch, endpoint: f64, passes: impl Fn(Srgb8) -> bool) -> Oklch {
-    if passes(oklch_to_srgb8(start)) {
+fn fit_lightness(name: &str, start: Oklch, endpoint: f64, rule: &impl FitCheck) -> Oklch {
+    if rule.accepts(oklch_to_srgb8(start)) {
         return start;
     }
     let at_endpoint: Oklch = Oklch { lightness: endpoint, ..start };
-    if !passes(oklch_to_srgb8(at_endpoint)) {
+    if !rule.accepts(oklch_to_srgb8(at_endpoint)) {
         tracing::warn!(role = name, endpoint, "no lightness reaches the contrast target, using the endpoint");
         return at_endpoint;
     }
@@ -372,7 +511,7 @@ fn fit_lightness(name: &str, start: Oklch, endpoint: f64, passes: impl Fn(Srgb8)
     let mut passing: f64 = endpoint;
     for _step in 0..40 {
         let middle: f64 = (failing + passing) / 2.0;
-        if passes(oklch_to_srgb8(Oklch { lightness: middle, ..start })) {
+        if rule.accepts(oklch_to_srgb8(Oklch { lightness: middle, ..start })) {
             passing = middle;
         } else {
             failing = middle;
@@ -454,13 +593,6 @@ fn container_layers(container: Srgb8, content: Srgb8) -> (Srgb8, Srgb8) {
 /// const surfaces = [canvas, deck, currentRow, surfaceHigh].map(resolve);
 /// // fit onSecondaryContainer, onSurface, onSurfaceVariant, outline, primary, onPrimary, then derive matchFill
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "every fit below passes a closure over colors derived in this function, and a named function cannot carry that per-fit captured state"
-    )
-)]
 pub fn derive_scheme(from_root: RootTerms, scheme: Scheme) -> RoleSet {
     tracing::debug!(
         hue = from_root.hue,
@@ -491,37 +623,25 @@ pub fn derive_scheme(from_root: RootTerms, scheme: Scheme) -> RoleSet {
     // Selected fill and its content: the content is fitted against the fill and both state layers.
     let secondary_container: Srgb8 = resolve_srgb(spec.secondary_container, terms);
     let on_container_start: Oklch = resolve_oklch(spec.on_secondary_container, terms);
-    let on_container_fit: Oklch = fit_lightness("on-secondary-container", on_container_start, toward_text, |candidate| {
-        let (hovered, pressed) = container_layers(secondary_container, candidate);
-        return contrast_ratio(candidate, secondary_container) >= TEXT_TARGET_RATIO
-            && contrast_ratio(candidate, hovered) >= TEXT_TARGET_RATIO
-            && contrast_ratio(candidate, pressed) >= TEXT_TARGET_RATIO;
-    });
+    let on_container_fit: Oklch = fit_lightness("on-secondary-container", on_container_start, toward_text, &FitRule::Container { container: secondary_container });
     let on_secondary_container: Srgb8 = oklch_to_srgb8(on_container_fit);
     let (secondary_container_hovered, secondary_container_pressed) =
         container_layers(secondary_container, on_secondary_container);
 
     // Neutral text on every surface, under the on-surface hover and pressed layers. Secondary text below holds under
     // the same layers, tinted with on-surface.
-    let on_surface_fit: Oklch = fit_lightness("on-surface", resolve_oklch(spec.on_surface, terms), toward_text, |candidate| {
-        return legible_on(candidate, &surfaces, candidate, &TEXT_LAYER_ALPHAS, TEXT_TARGET_RATIO);
-    });
+    let on_surface_fit: Oklch = fit_lightness("on-surface", resolve_oklch(spec.on_surface, terms), toward_text, &FitRule::Legible { surfaces: &surfaces, layer: None });
     let on_surface: Srgb8 = oklch_to_srgb8(on_surface_fit);
     let variant_fit: Oklch = fit_lightness(
         "on-surface-variant",
         resolve_oklch(spec.on_surface_variant, terms),
         toward_text,
-        |candidate| {
-            return legible_on(candidate, &surfaces, on_surface, &TEXT_LAYER_ALPHAS, TEXT_TARGET_RATIO);
-        },
+        &FitRule::Legible { surfaces: &surfaces, layer: Some(on_surface) },
     );
     let on_surface_variant: Srgb8 = oklch_to_srgb8(variant_fit);
 
     // Outlines are UI parts: 3:1 against the canvas and the deck they border.
-    let outline_fit: Oklch = fit_lightness("outline", resolve_oklch(spec.outline, terms), toward_text, |candidate| {
-        return contrast_ratio(candidate, canvas) >= NON_TEXT_TARGET_RATIO
-            && contrast_ratio(candidate, deck) >= NON_TEXT_TARGET_RATIO;
-    });
+    let outline_fit: Oklch = fit_lightness("outline", resolve_oklch(spec.outline, terms), toward_text, &FitRule::Outline { canvas, deck });
     let outline: Srgb8 = oklch_to_srgb8(outline_fit);
 
     // Primary is both a fill and text (rail letter, links, action labels), so it holds AA on every surface and under
@@ -538,28 +658,13 @@ pub fn derive_scheme(from_root: RootTerms, scheme: Scheme) -> RoleSet {
         Scheme::Dark => None,
         Scheme::Light => Some(resolve_srgb(spec.on_primary, terms)),
     };
-    let primary_fit: Oklch = fit_lightness("primary", primary_start, toward_text, |candidate| {
-        if !legible_on(candidate, &surfaces, on_surface, &TEXT_LAYER_ALPHAS, TEXT_TARGET_RATIO) {
-            return false;
-        }
-        for fill in selected_fill_states {
-            if contrast_ratio(candidate, fill) < TEXT_TARGET_RATIO {
-                return false;
-            }
-        }
-        if let Some(content) = light_on_primary {
-            return contrast_ratio(candidate, content) >= TEXT_TARGET_RATIO;
-        }
-        return true;
-    });
+    let primary_fit: Oklch = fit_lightness("primary", primary_start, toward_text, &FitRule::Primary { surfaces: &surfaces, on_surface, fills: selected_fill_states, light_on_primary });
     let primary: Srgb8 = oklch_to_srgb8(primary_fit);
 
     // On-primary is fitted against the primary fill and its own pressed layer (the first-run button).
     let on_primary: Srgb8 = match light_on_primary {
         Some(content) => content,
-        None => oklch_to_srgb8(fit_lightness("on-primary", resolve_oklch(spec.on_primary, terms), away_from_text, |candidate| {
-            return legible_on(candidate, &[primary], candidate, &TEXT_LAYER_ALPHAS, TEXT_TARGET_RATIO);
-        })),
+        None => oklch_to_srgb8(fit_lightness("on-primary", resolve_oklch(spec.on_primary, terms), away_from_text, &FitRule::Legible { surfaces: &[primary], layer: None })),
     };
 
     // Search match fill (D59): the primary moved toward the neutral end in OKLCH, with the Android shares, then
@@ -574,10 +679,7 @@ pub fn derive_scheme(from_root: RootTerms, scheme: Scheme) -> RoleSet {
         chroma: (primary_lch.chroma * (1.0 - chroma_share)).max(terms.accent_chroma_floor),
         hue: primary_lch.hue,
     };
-    let match_fit: Oklch = fit_lightness("match-fill", match_start, neutral_end, |candidate| {
-        return contrast_ratio(on_surface, candidate) >= TEXT_TARGET_RATIO
-            && contrast_ratio(on_surface_variant, candidate) >= TEXT_TARGET_RATIO;
-    });
+    let match_fit: Oklch = fit_lightness("match-fill", match_start, neutral_end, &FitRule::MatchFill { on_surface, on_surface_variant });
     let match_fill: Srgb8 = oklch_to_srgb8(match_fit);
 
     return RoleSet {

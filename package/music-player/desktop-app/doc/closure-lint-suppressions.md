@@ -105,7 +105,12 @@ so the suppression stays until the lint skips the closures that a derive generat
 
 ## The color derivation in `theme_roles.rs`
 
-`derive_scheme` carries an `expect` that predates this note:
-every lightness fit in it passes a closure over colors that the function derived,
-and the fit helpers take the closure as a parameter.
-This note does not widen or review it.
+`derive_scheme` carries no suppression.
+It used to pass a closure to `fit_lightness` for each of seven roles,
+because each fit measures contrast against colors that the function derived earlier.
+`fit_lightness` now takes a `FitCheck`,
+and the enum `FitRule` holds one variant per role with the colors that role is measured against.
+A plain function of the color is a `FitCheck` too (a blanket implementation),
+which the unit tests use for a positive control and an impossible target.
+`theme_roles_fixture_tests.rs` compares the derived palette with the Android `theme-roles-vector.txt` fixture,
+so the move cannot change a color unnoticed.
