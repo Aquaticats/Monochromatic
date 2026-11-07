@@ -1,19 +1,36 @@
-//! The questions the refresh planner asks the disk, behind a trait so a test can answer them without a real library.
+//! The questions the refresh planner asks the disk,
+//! behind a trait so a test can answer them without a real library.
 //!
-//! What: `Disk` answers what one path is, what a folder holds directly, and which tracks a whole subtree holds in
-//! queue order; `RealDisk` answers from the file system with the same rules as the folder walk.
-//! Why: the planner must be tested with a million tracks, and a million files on disk are too slow to create in the
-//! normal suite; the trait lets the large test answer from memory while the small tests use real files.
+//! What:
+//! `Disk` answers what one path is,
+//! what a folder holds directly,
+//! and which tracks a whole subtree holds in
+//! queue order;
+//! `RealDisk` answers from the file system with the same rules as the folder walk.
+//! Why:
+//! the planner must be tested with a million tracks,
+//! and a million files on disk are too slow to create in the
+//! normal suite;
+//! the trait lets the large test answer from memory while the small tests use real files.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! interface Disk { kind(path: string): EntryKind; entries(folder: string): [string, EntryKind][]; walk(folder: string): string[]; }
 //! ```
 
-/// What: `use std::path::{Path, PathBuf};` imports two path types: `Path`, a borrowed read-only view of a path, and
-/// `PathBuf`, an owned and growable path. Siblings: `&str` and `String` are the text-only counterparts, which cannot
+/// What:
+/// `use std::path::{Path, PathBuf};` imports two path types:
+/// `Path`,
+/// a borrowed read-only view of a path,
+/// and
+/// `PathBuf`,
+/// an owned and growable path.
+/// Siblings:
+/// `&str` and `String` are the text-only counterparts,
+/// which cannot
 /// hold file names that are not valid UTF-8.
-/// Why: the trait methods look at paths they are given (`&Path`) and hand back paths they found (`PathBuf`).
+/// Why:
+/// the trait methods look at paths they are given (`&Path`) and hand back paths they found (`PathBuf`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -21,9 +38,14 @@
 /// ```
 use std::path::{Path, PathBuf};
 
-/// What: `use crate::playback::is_audio_file;` imports the audio-extension test from `src/playback.rs`. `crate::` means
+/// What:
+/// `use crate::playback::is_audio_file;` imports the audio-extension test from `src/playback.rs`.
+/// `crate::` means
 /// "from the root of this crate".
-/// Why: a file is a track only if its extension is in the audio allowlist, which the folder walk also uses, so both agree.
+/// Why:
+/// a file is a track only if its extension is in the audio allowlist,
+/// which the folder walk also uses,
+/// so both agree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -31,14 +53,33 @@ use std::path::{Path, PathBuf};
 /// ```
 use crate::playback::is_audio_file;
 
-/// What: `pub(crate) enum EntryKind { Missing, Folder, Track, Other }` is a fixed set of four named cases, a tagged union
-/// whose cases carry no data. `pub(crate)` makes it visible inside this crate only (siblings: plain `pub` reaches other
-/// crates; no keyword is private to the file). `#[derive(Clone, Copy, Debug, PartialEq, Eq)]` asks the compiler to write
-/// five standard abilities: `Clone` and `Copy` (a value is duplicated by copying bits, so passing it never uses it up),
-/// `Debug` (printing with `{:?}`), and `PartialEq` and `Eq` (comparing with `==`).
-/// Why: the queue lists audio files; a folder leads to more of them, and anything else (a missing path, a text file, a
-/// sidecar) is not listed. Deriving `Copy` makes the value behave like a number: the callers compare and pass it freely.
-/// Gotcha: without `PartialEq`, `kind == EntryKind::Other` would not compile; Rust never gives `==` to a type for free.
+/// What:
+/// `pub(crate) enum EntryKind { Missing, Folder, Track, Other }` is a fixed set of four named cases,
+/// a tagged union
+/// whose cases carry no data.
+/// `pub(crate)` makes it visible inside this crate only (siblings:
+/// plain `pub` reaches other
+/// crates;
+/// no keyword is private to the file).
+/// `#[derive(Clone, Copy, Debug, PartialEq, Eq)]` asks the compiler to write
+/// five standard abilities:
+/// `Clone` and `Copy` (a value is duplicated by copying bits,
+/// so passing it never uses it up),
+/// `Debug` (printing with `{:?}`),
+/// and `PartialEq` and `Eq` (comparing with `==`).
+/// Why:
+/// the queue lists audio files;
+/// a folder leads to more of them,
+/// and anything else (a missing path,
+/// a text file,
+/// a
+/// sidecar) is not listed.
+/// Deriving `Copy` makes the value behave like a number:
+/// the callers compare and pass it freely.
+/// Gotcha:
+/// without `PartialEq`,
+/// `kind == EntryKind::Other` would not compile;
+/// Rust never gives `==` to a type for free.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -46,32 +87,44 @@ use crate::playback::is_audio_file;
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum EntryKind {
-    /// What: `Missing,` is the case with nothing at the path. A bare name with a comma is a case that carries no data.
-    /// Why: a path the watcher named that is gone is a removal for the queue.
+    /// What:
+    /// `Missing,` is the case with nothing at the path.
+    /// A bare name with a comma is a case that carries no data.
+    /// Why:
+    /// a path the watcher named that is gone is a removal for the queue.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// "Missing"
     /// ```
     Missing,
-    /// What: `Folder,` is the case of a folder.
-    /// Why: a folder leads to more tracks, so the queue reads inside it.
+    /// What:
+    /// `Folder,` is the case of a folder.
+    /// Why:
+    /// a folder leads to more tracks,
+    /// so the queue reads inside it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// "Folder"
     /// ```
     Folder,
-    /// What: `Track,` is the case of an audio file the queue lists.
-    /// Why: it is the only case that becomes a row.
+    /// What:
+    /// `Track,` is the case of an audio file the queue lists.
+    /// Why:
+    /// it is the only case that becomes a row.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// "Track"
     /// ```
     Track,
-    /// What: `Other,` is the case of anything the queue does not list (a text file, a cover image, a socket).
-    /// Why: such entries are ignored instead of being treated as errors.
+    /// What:
+    /// `Other,` is the case of anything the queue does not list (a text file,
+    /// a cover image,
+    /// a socket).
+    /// Why:
+    /// such entries are ignored instead of being treated as errors.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -80,30 +133,54 @@ pub(crate) enum EntryKind {
     Other,
 }
 
-/// What: `pub(crate) trait Disk { kind, entries, walk }` declares an interface: a list of method signatures that any type
-/// may implement. A `trait` is the closest thing Rust has to a TypeScript `interface`, and a type opts in with a separate
+/// What:
+/// `pub(crate) trait Disk { kind, entries, walk }` declares an interface:
+/// a list of method signatures that any type
+/// may implement.
+/// A `trait` is the closest thing Rust has to a TypeScript `interface`,
+/// and a type opts in with a separate
 /// `impl Trait for Type` block.
-/// Why: see the module description; the planner takes any `Disk`, so a test can pass an in-memory one.
+/// Why:
+/// see the module description;
+/// the planner takes any `Disk`,
+/// so a test can pass an in-memory one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// interface Disk { kind(path: string): EntryKind; entries(folder: string): [string, EntryKind][]; walk(folder: string): string[]; }
 /// ```
 pub(crate) trait Disk {
-    /// What: `fn kind(&self, path: &Path) -> EntryKind;` is a method signature with no body (the `;` ends it). `&self` is a
-    /// read-only borrow of the object the method is called on; `&Path` is a read-only borrow of the argument; `-> EntryKind`
+    /// What:
+    /// `fn kind(&self, path: &Path) -> EntryKind;` is a method signature with no body (the `;` ends it).
+    /// `&self` is a
+    /// read-only borrow of the object the method is called on;
+    /// `&Path` is a read-only borrow of the argument;
+    /// `-> EntryKind`
     /// is the return type.
-    /// Why: what a path is right now decides whether the queue removes, adds or looks at it again.
+    /// Why:
+    /// what a path is right now decides whether the queue removes,
+    /// adds or looks at it again.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// kind(path: string): EntryKind;
     /// ```
     fn kind(&self, path: &Path) -> EntryKind;
-    /// What: `fn entries(&self, folder: &Path) -> Vec<(PathBuf, EntryKind)>;` is a signature that answers a growable list of
-    /// pairs. `Vec<T>` is an owned, growable list (siblings: `&[T]` is a borrowed view of one, and `[T; N]` is a fixed-size
-    /// array); `(PathBuf, EntryKind)` is a tuple, a fixed pair like TypeScript's `[string, EntryKind]`.
-    /// Why: a folder event is answered by the folder's own entries; a `Vec` is returned, not a slice, because the list is
+    /// What:
+    /// `fn entries(&self, folder: &Path) -> Vec<(PathBuf, EntryKind)>;` is a signature that answers a growable list of
+    /// pairs.
+    /// `Vec<T>` is an owned,
+    /// growable list (siblings:
+    /// `&[T]` is a borrowed view of one,
+    /// and `[T; N]` is a fixed-size
+    /// array);
+    /// `(PathBuf, EntryKind)` is a tuple,
+    /// a fixed pair like TypeScript's `[string, EntryKind]`.
+    /// Why:
+    /// a folder event is answered by the folder's own entries;
+    /// a `Vec` is returned,
+    /// not a slice,
+    /// because the list is
     /// built here and the caller keeps it.
     ///
     /// In TS you'd write (pseudocode):
@@ -111,8 +188,12 @@ pub(crate) trait Disk {
     /// entries(folder: string): [string, EntryKind][];
     /// ```
     fn entries(&self, folder: &Path) -> Vec<(PathBuf, EntryKind)>;
-    /// What: `fn walk(&self, folder: &Path) -> Vec<PathBuf>;` is a signature that answers an owned list of paths.
-    /// Why: every track under a new or recreated folder, in queue order, so it can be compared with nothing.
+    /// What:
+    /// `fn walk(&self, folder: &Path) -> Vec<PathBuf>;` is a signature that answers an owned list of paths.
+    /// Why:
+    /// every track under a new or recreated folder,
+    /// in queue order,
+    /// so it can be compared with nothing.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -121,9 +202,14 @@ pub(crate) trait Disk {
     fn walk(&self, folder: &Path) -> Vec<PathBuf>;
 }
 
-/// What: `pub(crate) struct RealDisk;` declares a struct with no fields (a unit struct). It holds no data; it exists only
+/// What:
+/// `pub(crate) struct RealDisk;` declares a struct with no fields (a unit struct).
+/// It holds no data;
+/// it exists only
 /// to carry the `Disk` methods for the real file system.
-/// Why: the running player asks the real disk, with the folder walk's own rules.
+/// Why:
+/// the running player asks the real disk,
+/// with the folder walk's own rules.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -131,11 +217,22 @@ pub(crate) trait Disk {
 /// ```
 pub(crate) struct RealDisk;
 
-/// What: `fn kind_of(path: &Path, file_type: std::fs::FileType) -> EntryKind` classifies one entry by its type, the way
-/// the folder walk does. `std::fs::FileType` is the standard library's answer to "folder, file or symlink", spelled with
-/// its full path because it was not imported. It is taken by value; it is a small value that the library lets you copy.
-/// Why: a folder entry says whether it is a folder; a symlink needs one more look to see whether it leads to a file, and a
-/// symlink to a folder is not followed, so the planner and the walk list the same tracks.
+/// What:
+/// `fn kind_of(path: &Path, file_type: std::fs::FileType) -> EntryKind` classifies one entry by its type,
+/// the way
+/// the folder walk does.
+/// `std::fs::FileType` is the standard library's answer to "folder,
+/// file or symlink",
+/// spelled with
+/// its full path because it was not imported.
+/// It is taken by value;
+/// it is a small value that the library lets you copy.
+/// Why:
+/// a folder entry says whether it is a folder;
+/// a symlink needs one more look to see whether it leads to a file,
+/// and a
+/// symlink to a folder is not followed,
+/// so the planner and the walk list the same tracks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -175,18 +272,24 @@ fn kind_of(path: &Path, file_type: std::fs::FileType) -> EntryKind {
     return EntryKind::Other;
 }
 
-/// What: `impl Disk for RealDisk { ... }` says that `RealDisk` implements the `Disk` trait and holds the bodies of its three
-/// methods. The signatures must match the trait's.
-/// Why: this is the file-system answer the running player uses.
+/// What:
+/// `impl Disk for RealDisk { ... }` says that `RealDisk` implements the `Disk` trait and holds the bodies of its three
+/// methods.
+/// The signatures must match the trait's.
+/// Why:
+/// this is the file-system answer the running player uses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class RealDisk implements Disk { kind(...) {...} entries(...) {...} walk(...) {...} }
 /// ```
 impl Disk for RealDisk {
-    /// What: `fn kind(&self, path: &Path) -> EntryKind` does one `lstat` of the path (a file-system query that does not
+    /// What:
+    /// `fn kind(&self, path: &Path) -> EntryKind` does one `lstat` of the path (a file-system query that does not
     /// follow a symlink).
-    /// Why: a missing path is a removal; a path that exists is looked at by its type.
+    /// Why:
+    /// a missing path is a removal;
+    /// a path that exists is looked at by its type.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -260,9 +363,12 @@ impl Disk for RealDisk {
         };
     }
 
-    /// What: `fn entries(&self, folder: &Path) -> Vec<(PathBuf, EntryKind)>` makes one read of the folder and answers its
+    /// What:
+    /// `fn entries(&self, folder: &Path) -> Vec<(PathBuf, EntryKind)>` makes one read of the folder and answers its
     /// direct folders and tracks as owned pairs.
-    /// Why: a folder event is answered by the folder's own entries, not by a walk of what is below.
+    /// Why:
+    /// a folder event is answered by the folder's own entries,
+    /// not by a walk of what is below.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -364,8 +470,11 @@ impl Disk for RealDisk {
             .collect();
     }
 
-    /// What: `fn walk(&self, folder: &Path) -> Vec<PathBuf>` is the folder walk of one subtree.
-    /// Why: a new or recreated folder has no queue entries to compare with, so everything in it is read once.
+    /// What:
+    /// `fn walk(&self, folder: &Path) -> Vec<PathBuf>` is the folder walk of one subtree.
+    /// Why:
+    /// a new or recreated folder has no queue entries to compare with,
+    /// so everything in it is read once.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

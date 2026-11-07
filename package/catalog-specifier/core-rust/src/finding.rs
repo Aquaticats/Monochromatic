@@ -1,8 +1,13 @@
 //! What:
-//! The result type of a check: one `Finding` per broken rule, tagged with a `FindingKind`.
+//! The result type of a check:
+//! one `Finding` per broken rule,
+//! tagged with a `FindingKind`.
 //! Why:
-//! Callers (a commit policy, a warning wrapper, a CI step) print or count findings
-//! and must not parse prose, so the kind is a closed list and the text is built in one place.
+//! Callers (a commit policy,
+//! a warning wrapper,
+//! a CI step) print or count findings
+//! and must not parse prose,
+//! so the kind is a closed list and the text is built in one place.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,9 +17,11 @@
 //! ```
 
 /// What:
-/// `use std::fmt;` imports the module that holds the text-formatting traits, so `fmt::Display` can be named below.
+/// `use std::fmt;` imports the module that holds the text-formatting traits,
+/// so `fmt::Display` can be named below.
 /// Why:
-/// `Display` is how a Rust type says "this is how I print as human text", which the findings need.
+/// `Display` is how a Rust type says "this is how I print as human text",
+/// which the findings need.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -23,8 +30,12 @@
 use std::fmt;
 
 /// What:
-/// `const REMEDY: &str = ...` is a constant text. `&str` is a borrowed, read-only view of text baked into the program
-/// (the sibling is `String`, a growable text the variable owns). `'static` is not written because constants get it for free.
+/// `const REMEDY: &str = ...` is a constant text.
+/// `&str` is a borrowed,
+/// read-only view of text baked into the program
+/// (the sibling is `String`,
+/// a growable text the variable owns).
+/// `'static` is not written because constants get it for free.
 /// Why:
 /// `&str` and not `String` because the text never changes and never needs to be owned or built at run time.
 ///
@@ -38,7 +49,10 @@ const REMEDY: &str = "move the version into the `catalog:` section of pnpm-works
 /// What:
 /// `pub enum FindingKind { ... }` declares a type that is exactly one of six named cases.
 /// `#[derive(...)]` asks the compiler to write the standard comparison and copy code for us:
-/// `Clone` and `Copy` (duplicate it cheaply, like a number), `Debug` (printable for tests), `Eq` and `PartialEq` (`==`).
+/// `Clone` and `Copy` (duplicate it cheaply,
+/// like a number),
+/// `Debug` (printable for tests),
+/// `Eq` and `PartialEq` (`==`).
 /// Why:
 /// A closed list of cases lets a consumer match on the kind instead of searching text for a phrase.
 ///
@@ -50,9 +64,13 @@ const REMEDY: &str = "move the version into the `catalog:` section of pnpm-works
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FindingKind {
-    /// The file name is `package.json5`, `package.yaml` or `package.yml`.
+    /// The file name is `package.json5`,
+    /// `package.yaml` or `package.yml`.
     UnsupportedManifestFormat,
-    /// The bytes are not UTF-8, are empty, do not parse, or the root is not an object.
+    /// The bytes are not UTF-8,
+    /// are empty,
+    /// do not parse,
+    /// or the root is not an object.
     InvalidManifest,
     /// A checked section holds something other than an object.
     MalformedSection,
@@ -65,7 +83,8 @@ pub enum FindingKind {
 }
 
 /// What:
-/// `impl FindingKind { ... }` attaches functions to the enum, like methods on a TS class.
+/// `impl FindingKind { ... }` attaches functions to the enum,
+/// like methods on a TS class.
 /// Why:
 /// The vectors file and consumers name kinds by a stable kebab-case word.
 ///
@@ -75,10 +94,12 @@ pub enum FindingKind {
 /// ```
 impl FindingKind {
     /// What:
-    /// `pub fn as_str(self) -> &'static str` takes the kind by value (it is `Copy`, so that costs nothing) and returns a
+    /// `pub fn as_str(self) -> &'static str` takes the kind by value (it is `Copy`,
+    /// so that costs nothing) and returns a
     /// borrowed text that lives for the whole program (`'static`).
     /// Why:
-    /// `&'static str` and not `String` because every answer is one of six literals, so nothing needs allocating.
+    /// `&'static str` and not `String` because every answer is one of six literals,
+    /// so nothing needs allocating.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -104,12 +125,17 @@ impl FindingKind {
 }
 
 /// What:
-/// `pub struct Finding { ... }` declares a record of named fields. `Option<String>` means "either `Some(text)` or `None`",
-/// the Rust stand-in for a TS field that may be `undefined`. `String` is an owned, growable text (the sibling is `&str`,
+/// `pub struct Finding { ... }` declares a record of named fields.
+/// `Option<String>` means "either `Some(text)` or `None`",
+/// the Rust stand-in for a TS field that may be `undefined`.
+/// `String` is an owned,
+/// growable text (the sibling is `&str`,
 /// a borrowed view).
 /// Why:
-/// `String` and not `&str` because a finding outlives the manifest bytes it was read from, so it must own its text;
-/// `Option` because only some kinds have a section, a name or a specifier.
+/// `String` and not `&str` because a finding outlives the manifest bytes it was read from,
+/// so it must own its text;
+/// `Option` because only some kinds have a section,
+/// a name or a specifier.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -119,22 +145,32 @@ impl FindingKind {
 pub struct Finding {
     /// Which rule was broken.
     pub kind: FindingKind,
-    /// The manifest path the caller passed in, copied unchanged.
+    /// The manifest path the caller passed in,
+    /// copied unchanged.
     pub path: String,
-    /// The checked section (`dependencies`, ...), when the finding is about one.
+    /// The checked section (`dependencies`,
+    /// ...),
+    /// when the finding is about one.
     pub section: Option<String>,
-    /// The dependency name, when the finding is about one; shown with the replacement character if it held a lone surrogate.
+    /// The dependency name,
+    /// when the finding is about one;
+    /// shown with the replacement character if it held a lone surrogate.
     pub name: Option<String>,
-    /// The offending specifier text, when the finding is about one.
+    /// The offending specifier text,
+    /// when the finding is about one.
     pub specifier: Option<String>,
-    /// Extra text for `InvalidManifest`: why the bytes could not be read.
+    /// Extra text for `InvalidManifest`:
+    /// why the bytes could not be read.
     pub detail: Option<String>,
 }
 
 /// What:
-/// `impl fmt::Display for Finding` teaches Rust how to print a `Finding` as human text, so `format!("{finding}")` works.
+/// `impl fmt::Display for Finding` teaches Rust how to print a `Finding` as human text,
+/// so `format!("{finding}")` works.
 /// Why:
-/// The text names the file, the section and the dependency and states the remedy, in one place for every consumer.
+/// The text names the file,
+/// the section and the dependency and states the remedy,
+/// in one place for every consumer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -143,10 +179,14 @@ pub struct Finding {
 impl fmt::Display for Finding {
     /// What:
     /// `fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result` is the one function `Display` requires.
-    /// `&self` lends the finding read-only; `&mut` lends the formatter so we can write into it; `'_` is an anonymous
-    /// lifetime (the compiler infers how long the loan lasts); `fmt::Result` is `Ok(())` on success or an error.
+    /// `&self` lends the finding read-only;
+    /// `&mut` lends the formatter so we can write into it;
+    /// `'_` is an anonymous
+    /// lifetime (the compiler infers how long the loan lasts);
+    /// `fmt::Result` is `Ok(())` on success or an error.
     /// Why:
-    /// The shape is fixed by the trait, so this is the only legal signature.
+    /// The shape is fixed by the trait,
+    /// so this is the only legal signature.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

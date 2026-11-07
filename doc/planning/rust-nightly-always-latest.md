@@ -7,8 +7,10 @@ fix forward;
 update everything daily)
 and is carried out in [`toolchain-always-latest.md`](toolchain-always-latest.md),
 which supersedes the proposal and the open question below.
-The failure branch of "move anyway" (a fix-forward issue per newly failing package, found by checking every package
-before and after the update) is built and described in that note, section "Checking every package after the update".
+The failure branch of "move anyway" (a fix-forward issue per newly failing package,
+found by checking every package
+before and after the update) is built and described in that note,
+section "Checking every package after the update".
 
 ## Owner's rule
 

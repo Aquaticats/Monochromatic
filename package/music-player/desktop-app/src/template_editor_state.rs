@@ -45,7 +45,8 @@ use crate::template_model::{
 /// What:
 ///  imports the plain mistake sentences.
 /// Why:
-///  The editor lists one plain sentence per problem, not the engine's notes.
+///  The editor lists one plain sentence per problem,
+/// not the engine's notes.
 use crate::template_plain::plain_lines;
 
 /// What:
@@ -268,7 +269,8 @@ impl TemplateEditorState {
     ///  `pub fn mistake_lines(&self) -> Vec<String>` gives the current problems as one plain sentence each,
     ///  in template order.
     /// Why:
-    ///  The editor names the call at fault and says what to change (D89), and a half-written formula is one problem,
+    ///  The editor names the call at fault and says what to change (D89),
+    /// and a half-written formula is one problem,
     ///  not the three follow-on mistakes the parser records for it.
     ///
     /// In TS you'd write (pseudocode):
@@ -324,7 +326,8 @@ impl TemplateEditorState {
     /// What:
     ///  `pub fn source_note(&self) -> &'static str` says where the preview rows come from.
     /// Why:
-    ///  The note under the preview always names the source, library or stand-ins.
+    ///  The note under the preview always names the source,
+    /// library or stand-ins.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -342,8 +345,10 @@ impl TemplateEditorState {
     ///  `pub fn kept_note(&self) -> Option<&'static str>` is the note that says the rows keep the last valid template,
     ///  present only while the typed text does not apply.
     /// Why:
-    ///  The page reserves a line for it so it can appear without moving the field, and it says when the kept template
-    ///  shows nothing, because then the preview looks the same as a broken one.
+    ///  The page reserves a line for it so it can appear without moving the field,
+    /// and it says when the kept template
+    ///  shows nothing,
+    /// because then the preview looks the same as a broken one.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

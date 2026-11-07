@@ -138,11 +138,14 @@ pub fn run_program(program: &Path, arguments: &[OsString]) -> std::io::Result<i3
 
 /// What:
 /// How a start-and-wait ended:
-/// the program ran to the end (with its exit code, and how often the system refused the start first),
-/// it could not be started (with why, and the retries made),
+/// the program ran to the end (with its exit code,
+/// and how often the system refused the start first),
+/// it could not be started (with why,
+/// and the retries made),
 /// or it started but waiting for it failed.
 /// Why:
-/// The three need different messages, and only the second means nothing of the command ran.
+/// The three need different messages,
+/// and only the second means nothing of the command ran.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

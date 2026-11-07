@@ -193,12 +193,16 @@ use crate::adapt::message_of;
 
 /// How many rounds of moving refused crates are tried.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
+/// (handover "Picks made under the owner's delegation"),
+/// veto open;
+/// not a measurement.
 pub const SET_ASIDE_ROUNDS: usize = 5;
 
 /// How many candidates are tried per refused version and crate.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
+/// (handover "Picks made under the owner's delegation"),
+/// veto open;
+/// not a measurement.
 pub const PRECISE_ATTEMPTS: usize = 10;
 
 /// What a set-aside round needs.

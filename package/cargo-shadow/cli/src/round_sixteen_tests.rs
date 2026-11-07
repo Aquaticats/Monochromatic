@@ -1,9 +1,12 @@
 //! What:
-//! Round 16 tests: the fixes asked for by the certification pass of groups 1 and 2 (`cargo-shadow-cert-sol-1.txt`,
+//! Round 16 tests:
+//! the fixes asked for by the certification pass of groups 1 and 2 (`cargo-shadow-cert-sol-1.txt`,
 //! `cargo-shadow-cert-sol-2.txt`).
 //! Why:
-//! The pass found tests that pass although a weaker outcome than the guarantee would also pass them; each test here discriminates the
-//! guarantee from the weaker outcome named in the pass, and the planted regression that would have passed before is run as a
+//! The pass found tests that pass although a weaker outcome than the guarantee would also pass them;
+//! each test here discriminates the
+//! guarantee from the weaker outcome named in the pass,
+//! and the planted regression that would have passed before is run as a
 //! control where one can be built.
 //!
 //! In TS you'd write (pseudocode):
@@ -30,21 +33,30 @@ fn bound(limit: Duration) -> Bound {
 }
 
 /// Runs `work` on a thread and requires its answer within `window` while the caller still holds whatever the work contends for.
-/// A contender that waits for the holder would answer only after the caller released it, which this observation never does before the
-/// answer (certification group 1, V6: a busy lock returns at once).
+/// A contender that waits for the holder would answer only after the caller released it,
+/// which this observation never does before the
+/// answer (certification group 1,
+/// V6:
+/// a busy lock returns at once).
 pub(crate) fn answers_within<T: Send + 'static>(what: &str, window: Duration, work: impl FnOnce() -> T + Send + 'static) -> T {
     let (sender, receiver) = std::sync::mpsc::channel::<T>();
     std::thread::spawn(move || { let _ = sender.send(work()); });
     return receiver.recv_timeout(window).unwrap_or_else(|_| { panic!("{what} did not answer within {window:?} while the lock was held: it waited for the holder"); });
 }
 
-/// The group line of a process; a process whose group cannot be read stops the test, because equal failed observations would otherwise
-/// pass for equal groups (certification, second pass).
+/// The group line of a process;
+/// a process whose group cannot be read stops the test,
+/// because equal failed observations would otherwise
+/// pass for equal groups (certification,
+/// second pass).
 pub(crate) fn group_of(pid: &str) -> String {
     return fs::read_to_string(format!("/proc/{pid}/cgroup")).unwrap_or_else(|error| { panic!("the group of {pid} cannot be read: {error}"); }).trim().to_string();
 }
 
-/// The scope a bounded run planned and launched, read from the run's own trace (`launch scope <name>`); the trace is the thread's, so
+/// The scope a bounded run planned and launched,
+/// read from the run's own trace (`launch scope <name>`);
+/// the trace is the thread's,
+/// so
 /// it is taken on the thread that ran.
 pub(crate) fn launched_scope(trace: &[String]) -> String {
     let launches: Vec<&String> = trace.iter().filter(|event| { return event.starts_with("launch scope "); }).collect();
@@ -52,7 +64,8 @@ pub(crate) fn launched_scope(trace: &[String]) -> String {
     return launches[0].trim_start_matches("launch scope ").to_string();
 }
 
-/// The control group path a program reported from `cat /proc/self/cgroup`, without the `0::` prefix of the file's format.
+/// The control group path a program reported from `cat /proc/self/cgroup`,
+/// without the `0::` prefix of the file's format.
 pub(crate) fn reported_path(report: &str) -> String {
     return report.trim().strip_prefix("0::").unwrap_or_else(|| { panic!("not a cgroup v2 line: {report:?}"); }).to_string();
 }
@@ -67,9 +80,13 @@ const FIXTURE_GATES: &str = "CARGO_SHADOW_ROUND_SIXTEEN_GATES";
 const FIXTURE_MOVE_INTO: &str = "CARGO_SHADOW_ROUND_SIXTEEN_MOVE_INTO";
 
 /// A stand-in for `systemd-run` that holds the launcher at the boundary the manager crosses to put it into its scope:
-/// the script takes a numbered slot, publishes its own process id, waits for the gate file of its slot, and only then becomes the real
+/// the script takes a numbered slot,
+/// publishes its own process id,
+/// waits for the gate file of its slot,
+/// and only then becomes the real
 /// `systemd-run`.
-/// A launcher held there has been spawned by the wrapper and is not in a scope yet, so what group it is in is the group the wrapper
+/// A launcher held there has been spawned by the wrapper and is not in a scope yet,
+/// so what group it is in is the group the wrapper
 /// had at the moment of the spawn.
 fn gated_systemd_run(directory: &Path) -> PathBuf {
     let script: PathBuf = directory.join("gated-systemd-run");
@@ -82,7 +99,8 @@ fn gated_systemd_run(directory: &Path) -> PathBuf {
     return script;
 }
 
-/// What the wrapper and the held launchers were seen in, at the boundary and after it.
+/// What the wrapper and the held launchers were seen in,
+/// at the boundary and after it.
 struct Seen {
     /// The group the wrapper had before anything started.
     original: String,
@@ -98,11 +116,13 @@ struct Seen {
     unrelated: String,
     /// Whether the unrelated child lived to the end.
     unrelated_alive: bool,
-    /// The control group path the first program reported, in the file's own format.
+    /// The control group path the first program reported,
+    /// in the file's own format.
     first_scope: String,
     /// The control group path the second program reported.
     second_scope: String,
-    /// The scope the first run planned and launched, from its own trace.
+    /// The scope the first run planned and launched,
+    /// from its own trace.
     first_planned: String,
     /// The scope the second run planned and launched.
     second_planned: String,
@@ -110,10 +130,18 @@ struct Seen {
     wrapper_after: String,
 }
 
-/// Runs the scenario of the row A1, V3: a bounded run whose launcher is held at the launch boundary, an unrelated ordinary spawn, and
-/// a second bounded run whose launcher is held there too; then both are let go.
-/// With `move_into`, the first run's start moves the whole process into that group right before the launcher is spawned (the
-/// regression the pass describes, which is not restored), so the launcher is born in the wrong group.
+/// Runs the scenario of the row A1,
+/// V3:
+/// a bounded run whose launcher is held at the launch boundary,
+/// an unrelated ordinary spawn,
+/// and
+/// a second bounded run whose launcher is held there too;
+/// then both are let go.
+/// With `move_into`,
+/// the first run's start moves the whole process into that group right before the launcher is spawned (the
+/// regression the pass describes,
+/// which is not restored),
+/// so the launcher is born in the wrong group.
 fn at_the_launch_boundary(directory: &Path, move_into: Option<PathBuf>) -> Seen {
     let original: String = group_of("self");
     let settings: RouteSettings = RouteSettings { systemd_run: gated_systemd_run(directory).display().to_string(), ..RouteSettings::default() };
@@ -170,12 +198,20 @@ fn at_the_launch_boundary(directory: &Path, move_into: Option<PathBuf>) -> Seen 
     };
 }
 
-/// Acceptance row "A1, V3 (spawn isolation)" (certification group 2):
-/// the actual launch of two bounded runs, each held at the boundary where the manager would put its launcher into a scope, with an
+/// Acceptance row "A1,
+/// V3 (spawn isolation)" (certification group 2):
+/// the actual launch of two bounded runs,
+/// each held at the boundary where the manager would put its launcher into a scope,
+/// with an
 /// unrelated ordinary spawn between them.
-/// A launcher is born in the group its spawner has at the spawn, so a launcher held there that is in the wrapper's original group
-/// shows that the wrapper was not in another group at the spawn; the wrapper, the unrelated child and both launchers are in that group
-/// at the boundary, the two programs then run in separate scopes, and the unrelated child survives both cleanups.
+/// A launcher is born in the group its spawner has at the spawn,
+/// so a launcher held there that is in the wrapper's original group
+/// shows that the wrapper was not in another group at the spawn;
+/// the wrapper,
+/// the unrelated child and both launchers are in that group
+/// at the boundary,
+/// the two programs then run in separate scopes,
+/// and the unrelated child survives both cleanups.
 #[test]
 fn two_launchers_held_at_the_launch_boundary_and_an_unrelated_spawn_share_the_wrappers_group() {
     if delegated_route().is_none() {
@@ -202,7 +238,9 @@ fn two_launchers_held_at_the_launch_boundary_and_an_unrelated_spawn_share_the_wr
     assert_eq!(seen.wrapper_after, seen.original);
 }
 
-/// The helper process of the control: it is the wrapper, and a regression that moves it into another group right before a launcher is
+/// The helper process of the control:
+/// it is the wrapper,
+/// and a regression that moves it into another group right before a launcher is
 /// spawned is planted in it.
 /// Run on its own it does nothing.
 #[test]
@@ -217,9 +255,15 @@ fn moved_wrapper_fixture() {
     fs::write(directory.join("seen"), format!("{}\n{}\n{}\n", seen.original, seen.launcher_first, seen.wrapper_first)).expect("write what was seen");
 }
 
-/// Control of the test above (certification group 2): the regression the pass describes, planted, is seen.
-/// A wrapper that moves into another group right before it spawns a launcher (and is never restored here, which a spawn-then-restore
-/// regression would do afterwards) puts the launcher in that other group, and the launcher held at the boundary shows it; so the
+/// Control of the test above (certification group 2):
+/// the regression the pass describes,
+/// planted,
+/// is seen.
+/// A wrapper that moves into another group right before it spawns a launcher (and is never restored here,
+/// which a spawn-then-restore
+/// regression would do afterwards) puts the launcher in that other group,
+/// and the launcher held at the boundary shows it;
+/// so the
 /// equality the test above asserts fails under that regression.
 #[test]
 fn a_wrapper_moved_before_the_spawn_puts_the_launcher_in_the_wrong_group_which_the_boundary_test_sees() {
@@ -249,11 +293,21 @@ fn a_wrapper_moved_before_the_spawn_puts_the_launcher_in_the_wrong_group_which_t
 //region the order of the record and the launch
 // What the region covers: the real boundaries of a run's recording and launching, read from the ordered trace of the runner.
 
-/// Acceptance rows "V3, V4" (certification group 2): in a run the record of the containment is written, then made durable (the
-/// sync sees the whole record in the file), and only then is the program launched; the launcher line comes after the launch, without
-/// a sync, and the end is recorded and synced last.
-/// A sync made before the append, followed by an unsynced append, would show as a sync whose file does not hold the record yet.
-/// Both containments are run, and the trace says which was attempted.
+/// Acceptance rows "V3,
+/// V4" (certification group 2):
+/// in a run the record of the containment is written,
+/// then made durable (the
+/// sync sees the whole record in the file),
+/// and only then is the program launched;
+/// the launcher line comes after the launch,
+/// without
+/// a sync,
+/// and the end is recorded and synced last.
+/// A sync made before the append,
+/// followed by an unsynced append,
+/// would show as a sync whose file does not hold the record yet.
+/// Both containments are run,
+/// and the trace says which was attempted.
 #[test]
 fn the_record_is_written_made_durable_and_only_then_the_program_is_launched() {
     for weaker in [false, true] {
@@ -271,13 +325,15 @@ fn the_record_is_written_made_durable_and_only_then_the_program_is_launched() {
 
         output_within(&mut Command::new("true"), None, &bound(Duration::from_secs(30))).expect("runs");
         use_route_settings_for_test(None);
-        // The scope's name follows the launch event, and a weaker-path notice comes first and is observed by its own test; the order of the
-        // record, its sync and the launch is what is compared here.
-        let trace: Vec<String> = take_trace_for_test().into_iter().filter(|event| { return !event.starts_with("notice "); }).map(|event| { return if event.starts_with("launch scope ") { "launch scope".to_string() } else { event }; }).collect();
+        // The scope's name follows the launch event and the direct child's process id follows the spawned event (both vary per run), and a
+        // weaker-path notice comes first and is observed by its own test; the order of the record, its sync, the launch and the spawn is what
+        // is compared here.
+        let trace: Vec<String> = take_trace_for_test().into_iter().filter(|event| { return !event.starts_with("notice "); }).map(|event| { return if event.starts_with("launch scope ") { "launch scope".to_string() } else if event.starts_with("spawned ") { "spawned".to_string() } else { event }; }).collect();
 
         let kind: &str = if weaker { "pgroup-starting" } else { "scope" };
         let launch: &str = if weaker { "launch pgroup" } else { "launch scope" };
-        let intended: Vec<String> = vec![format!("attempt {kind}"), format!("written {kind}"), format!("sync {kind} whole=true"), format!("synced {kind}"), launch.to_string()];
+        // The spawn of the direct child is traced right after the launch (round 21), before the launcher line or the group record.
+        let intended: Vec<String> = vec![format!("attempt {kind}"), format!("written {kind}"), format!("sync {kind} whole=true"), format!("synced {kind}"), launch.to_string(), "spawned".to_string()];
         assert_eq!(trace[..intended.len()], intended[..], "weaker={weaker}: the order is not record, sync, launch: {trace:?}");
         let rest: Vec<&str> = trace[intended.len()..].iter().map(String::as_str).collect();
         if weaker {
@@ -296,7 +352,8 @@ fn the_record_is_written_made_durable_and_only_then_the_program_is_launched() {
 //region the listing helper
 // What the region covers: the shared helper that lists the journals of a workspace fails closed (certification group 3).
 
-/// The helper that lists the journals reads a missing journal directory as no journals and stops on every other failure, so that an
+/// The helper that lists the journals reads a missing journal directory as no journals and stops on every other failure,
+/// so that an
 /// unreadable journal parent cannot make "every journal is gone" pass.
 #[test]
 fn the_journal_listing_helper_stops_on_an_unreadable_directory_and_reads_only_absence_as_empty() {
@@ -320,8 +377,12 @@ fn the_journal_listing_helper_stops_on_an_unreadable_directory_and_reads_only_ab
 //region reaping of the direct child
 // What the region covers: the direct child is reaped, observed by a checked wait (certification group 1, A1).
 
-/// Acceptance row A1 (certification group 1): after an ordinary return and after a timeout, the program the wrapper started (the
-/// direct child, which publishes its own process id) can no longer be waited for: a checked `waitpid` gives `ECHILD`.
+/// Acceptance row A1 (certification group 1):
+/// after an ordinary return and after a timeout,
+/// the program the wrapper started (the
+/// direct child,
+/// which publishes its own process id) can no longer be waited for:
+/// a checked `waitpid` gives `ECHILD`.
 /// The run used a delegated scope (its journal records one).
 #[test]
 fn the_direct_child_is_reaped_after_a_normal_return_and_after_a_timeout() {
@@ -337,7 +398,9 @@ fn the_direct_child_is_reaped_after_a_normal_return_and_after_a_timeout() {
         let direct: PathBuf = root.path().join("direct");
         let script: String = format!("echo $$ > {file}.part; mv {file}.part {file}; {finish}", file = direct.display(), finish = if at_the_bound { "exec sleep 600" } else { "echo done" });
 
+        let _ = crate::bounded_run::take_trace_for_test();
         let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(if at_the_bound { 3 } else { 30 })));
+        let events: Vec<String> = crate::bounded_run::take_trace_for_test();
 
         crate::cgroup_test_support::assert_scope_record(&journal.join("groups").display().to_string());
         if at_the_bound {
@@ -345,7 +408,7 @@ fn the_direct_child_is_reaped_after_a_normal_return_and_after_a_timeout() {
         } else {
             result.expect("runs");
         }
-        crate::contain_counterexample_tests::assert_reaped(crate::contain_counterexample_tests::read_pid(&direct), if at_the_bound { "at the bound" } else { "after a normal return" });
+        crate::contain_counterexample_tests::assert_spawned_child_is_the_program_and_reaped(crate::contain_counterexample_tests::read_pid(&direct), &events, if at_the_bound { "at the bound" } else { "after a normal return" });
         drop(transaction);
     }
 }
@@ -370,7 +433,8 @@ fn repository() -> tempfile::TempDir {
     return root;
 }
 
-/// A judge that refuses the live lockfile, so that a recovery that goes ahead restores the snapshot.
+/// A judge that refuses the live lockfile,
+/// so that a recovery that goes ahead restores the snapshot.
 fn refusing(_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]) -> Vec<String> {
     return vec!["dep@1.0.1 refused".to_string()];
 }
@@ -380,10 +444,16 @@ fn live_lock(root: &Path) -> String {
     return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).expect("lock");
 }
 
-/// Acceptance row "V2, amended c" (certification group 1): a journal whose only containment record is malformed is a possible
-/// survivor: the recovery keeps it and the lockfile and says that the record is not understood.
-/// An implementation that ignored malformed lines would recover it (nothing else in the journal blocks), so the cause of the refusal is
-/// the malformed record; the control is the acknowledgement, after which the same recovery settles the journal.
+/// Acceptance row "V2,
+/// amended c" (certification group 1):
+/// a journal whose only containment record is malformed is a possible
+/// survivor:
+/// the recovery keeps it and the lockfile and says that the record is not understood.
+/// An implementation that ignored malformed lines would recover it (nothing else in the journal blocks),
+/// so the cause of the refusal is
+/// the malformed record;
+/// the control is the acknowledgement,
+/// after which the same recovery settles the journal.
 #[test]
 fn a_journal_whose_only_record_is_malformed_is_kept_with_its_diagnostic_until_it_is_acknowledged() {
     let root = repository();
@@ -401,7 +471,8 @@ fn a_journal_whose_only_record_is_malformed_is_kept_with_its_diagnostic_until_it
     assert!(crate::journal_support::journal_dirs(root.path()).is_empty());
 }
 
-/// A scope with a live descendant and a journal that records it with a resolved lifecycle (the scope and its settled end), so the
+/// A scope with a live descendant and a journal that records it with a resolved lifecycle (the scope and its settled end),
+/// so the
 /// member is the only thing that can block.
 fn journal_with_a_scope_that_has_a_member(root: &Path) -> Option<(crate::cgroup_test_support::TestScope, PathBuf)> {
     let scope = start_in_scope(Command::new("sleep").arg("600"))?;
@@ -418,10 +489,15 @@ fn end_scope(scope: &crate::cgroup_test_support::TestScope) {
     wait_until("the scope to be collected", &|| { return !directory.exists(); });
 }
 
-/// Acceptance row "V2, amended c" (certification group 1): a positively observed member of one journal's scope stops the recovery of
+/// Acceptance row "V2,
+/// amended c" (certification group 1):
+/// a positively observed member of one journal's scope stops the recovery of
 /// another journal.
-/// The scope's lifecycle is resolved (its end is recorded), so nothing but the live member blocks; once the member is gone the same
-/// recovery settles both journals, which is the control that no other uncertainty was blocking.
+/// The scope's lifecycle is resolved (its end is recorded),
+/// so nothing but the live member blocks;
+/// once the member is gone the same
+/// recovery settles both journals,
+/// which is the control that no other uncertainty was blocking.
 #[test]
 fn a_member_in_the_scope_of_one_journal_stops_the_recovery_of_another_until_it_ends() {
     if delegated_route().is_none() {
@@ -450,7 +526,10 @@ fn a_member_in_the_scope_of_one_journal_stops_the_recovery_of_another_until_it_e
     assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "the control: with the member gone the journals were not settled: {after:?}");
 }
 
-/// Acceptance row "V2, amended c" (certification group 1): a new transaction does not start while a journal's scope has a member, and
+/// Acceptance row "V2,
+/// amended c" (certification group 1):
+/// a new transaction does not start while a journal's scope has a member,
+/// and
 /// starts once it is gone (the control).
 #[test]
 fn a_new_transaction_does_not_start_beside_a_scope_with_a_member_until_it_ends() {
@@ -474,10 +553,17 @@ fn a_new_transaction_does_not_start_beside_a_scope_with_a_member_until_it_ends()
 //region deadlines of the scope (V6, certification group 1)
 // What the region covers: a stalled scope startup and an unsuccessful shutdown, at their real boundaries, with elapsed-time bounds.
 
-/// Acceptance row V6 (certification group 1): a scope startup that stalls before the payload runs is bounded.
-/// The launcher (the stand-in for `systemd-run` that the manager would answer) is held at its gate and never released, so the
-/// program never runs; the run ends at its bound with `TimedOut`, the payload never started, the direct child (the held launcher) was
-/// reaped, and quiescence was shown (nothing could have started), so the transaction reports no writers that may remain.
+/// Acceptance row V6 (certification group 1):
+/// a scope startup that stalls before the payload runs is bounded.
+/// The launcher (the stand-in for `systemd-run` that the manager would answer) is held at its gate and never released,
+/// so the
+/// program never runs;
+/// the run ends at its bound with `TimedOut`,
+/// the payload never started,
+/// the direct child (the held launcher) was
+/// reaped,
+/// and quiescence was shown (nothing could have started),
+/// so the transaction reports no writers that may remain.
 #[test]
 fn a_scope_startup_that_stalls_before_the_payload_ends_at_the_bound() {
     if delegated_route().is_none() {
@@ -493,7 +579,9 @@ fn a_scope_startup_that_stalls_before_the_payload_ends_at_the_bound() {
     let marker: PathBuf = directory.path().join("payload-ran");
     let started = std::time::Instant::now();
 
+    let _ = crate::bounded_run::take_trace_for_test();
     let result = output_within(Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound(Duration::from_secs(2)));
+    let events: Vec<String> = crate::bounded_run::take_trace_for_test();
     let elapsed: Duration = started.elapsed();
     use_route_settings_for_test(None);
 
@@ -502,14 +590,20 @@ fn a_scope_startup_that_stalls_before_the_payload_ends_at_the_bound() {
     assert!(elapsed >= Duration::from_secs(2) && elapsed < Duration::from_secs(8), "the run returned after {elapsed:?}: not at its bound of two seconds");
     assert!(!marker.exists(), "the payload ran although its startup was held");
     let launcher: i32 = fs::read_to_string(directory.path().join("pid-1")).expect("pid").trim().parse::<i32>().expect("a pid");
-    crate::contain_counterexample_tests::assert_reaped(launcher, "a stalled startup");
+    crate::contain_counterexample_tests::assert_spawned_child_is_the_program_and_reaped(launcher, &events, "a stalled startup");
     assert!(!transaction.writers_may_remain(), "nothing could have started, yet the scope reports writers that may remain");
     crate::cgroup_test_support::assert_scope_record(&journal.join("groups").display().to_string());
 }
 
-/// Acceptance row V6 (certification group 1): an unsuccessful shutdown has a deadline and produces uncertainty.
-/// A member survives every signal (the stop runs its real loop, which signals again every interval), the writer is ready before the
-/// stop, and the run returns `NotQuiescent` only once the quiescence bound has passed, and not much later; the scope reports that
+/// Acceptance row V6 (certification group 1):
+/// an unsuccessful shutdown has a deadline and produces uncertainty.
+/// A member survives every signal (the stop runs its real loop,
+/// which signals again every interval),
+/// the writer is ready before the
+/// stop,
+/// and the run returns `NotQuiescent` only once the quiescence bound has passed,
+/// and not much later;
+/// the scope reports that
 /// writers may remain and the journal is retained.
 #[test]
 fn an_unsuccessful_shutdown_returns_not_quiescent_at_the_quiescence_bound() {
@@ -546,17 +640,28 @@ fn an_unsuccessful_shutdown_returns_not_quiescent_at_the_quiescence_bound() {
 //region the finish of an active recovery (V5, certification group 3)
 // What the region covers: a recovery that restores the files finishes with the same mandatory phases as a transaction.
 
-/// The journals of a workspace in the order they are named: whether each is a completed (`.done`) one.
+/// The journals of a workspace in the order they are named:
+/// whether each is a completed (`.done`) one.
 fn journal_states(root: &Path) -> Vec<bool> {
     return crate::journal_support::journal_dirs(root).iter().map(|journal| { return journal.to_string_lossy().ends_with(".done"); }).collect();
 }
 
-/// Acceptance row V5 (certification group 3): an active recovery that restores the files finishes with its own mandatory phases, and
+/// Acceptance row V5 (certification group 3):
+/// an active recovery that restores the files finishes with its own mandatory phases,
+/// and
 /// each failure of one is visible and leaves a state the next recovery completes:
-/// the output barrier fails (the journal stays active, no marker), the completion rename fails (the journal stays active), the sync
-/// of the marker's directory fails (the marker is published, the journal is `.done` and a later recovery only removes it), and the
-/// removal after the marker fails (the cleanup-only case: `.done` stays and is removed later).
-/// Each fault must have been consumed, the restored lockfile is the snapshot in every case, and the later recovery completes the
+/// the output barrier fails (the journal stays active,
+/// no marker),
+/// the completion rename fails (the journal stays active),
+/// the sync
+/// of the marker's directory fails (the marker is published,
+/// the journal is `.done` and a later recovery only removes it),
+/// and the
+/// removal after the marker fails (the cleanup-only case:
+/// `.done` stays and is removed later).
+/// Each fault must have been consumed,
+/// the restored lockfile is the snapshot in every case,
+/// and the later recovery completes the
 /// journal and judges nothing again.
 #[test]
 fn an_active_recovery_finishes_with_its_own_mandatory_phases_and_tells_cleanup_apart() {
@@ -591,7 +696,9 @@ fn an_active_recovery_finishes_with_its_own_mandatory_phases_and_tells_cleanup_a
 //region the weaker path (certification group 3)
 // What the region covers: the capability classes that were not exercised, recovery with one of two journals acknowledged.
 
-/// A stand-in for `systemd-run` that the manager refuses: it says so and exits, and never runs the program.
+/// A stand-in for `systemd-run` that the manager refuses:
+/// it says so and exits,
+/// and never runs the program.
 fn refusing_systemd_run(directory: &Path) -> PathBuf {
     let script: PathBuf = directory.join("refusing-systemd-run");
     // It leaves a sentinel file when it runs, so a test sees that the refusal came from this stand-in and not from an earlier failure.
@@ -600,11 +707,17 @@ fn refusing_systemd_run(directory: &Path) -> PathBuf {
     return script;
 }
 
-/// Acceptance row "Weaker path" (certification group 3), the capability classes the other tests omit:
-/// a kernel whose cgroup directory has no `cgroup.kill` (the manager reports the root group, which has none) is told apart and the
+/// Acceptance row "Weaker path" (certification group 3),
+/// the capability classes the other tests omit:
+/// a kernel whose cgroup directory has no `cgroup.kill` (the manager reports the root group,
+/// which has none) is told apart and the
 /// run takes the weaker path with its record before the start;
-/// and a scope that the manager refuses to start (an actual delegation failure, after discovery succeeded) is not the weaker path and
-/// not a program that ran: the program does not run, the run's end is recorded (nothing could have started), and a recovery then
+/// and a scope that the manager refuses to start (an actual delegation failure,
+/// after discovery succeeded) is not the weaker path and
+/// not a program that ran:
+/// the program does not run,
+/// the run's end is recorded (nothing could have started),
+/// and a recovery then
 /// needs no acknowledgement.
 #[test]
 fn a_directory_without_a_kill_file_takes_the_weaker_path_and_a_refused_scope_runs_nothing() {
@@ -650,8 +763,13 @@ fn a_directory_without_a_kill_file_takes_the_weaker_path_and_a_refused_scope_run
     assert!(crate::journal_support::journal_dirs(other.path()).is_empty(), "a refused scope needed an acknowledgement: {messages:?}");
 }
 
-/// Acceptance row "Weaker path" (certification group 3): recovery, not only admission, with two journals of the weaker path of which
-/// one is acknowledged: the recovery restores nothing while the other blocks, and settles both once the other is acknowledged too.
+/// Acceptance row "Weaker path" (certification group 3):
+/// recovery,
+/// not only admission,
+/// with two journals of the weaker path of which
+/// one is acknowledged:
+/// the recovery restores nothing while the other blocks,
+/// and settles both once the other is acknowledged too.
 #[test]
 fn recovery_with_one_of_two_weaker_path_journals_acknowledged_restores_nothing_until_both_are() {
     let root = repository();

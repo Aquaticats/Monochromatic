@@ -649,12 +649,22 @@ pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> Stri
 
 /// What:
 /// `pub fn is_git_ignored(root: &Path, relative: &str) -> bool` says whether git ignores a path of the repository at `root`
-/// (`git check-ignore`, exit status 0).
+/// (`git check-ignore`,
+/// exit status 0).
 /// Why:
-/// A crate in a directory that git ignores (a gate's disposable build context under `node_modules`, a scratch copy) is not a lockfile
-/// of the repository: there is no committed lockfile to compare with, so every locked version would count as newly locked and be held
-/// to the trust policy of versions that nobody added. Only a clear "ignored" answer counts; any other answer (not ignored, no
-/// repository, a failure, a timeout) leaves the crate under the catalog's policy, so a crate that is merely new is still checked.
+/// A crate in a directory that git ignores (a gate's disposable build context under `node_modules`,
+/// a scratch copy) is not a lockfile
+/// of the repository:
+/// there is no committed lockfile to compare with,
+/// so every locked version would count as newly locked and be held
+/// to the trust policy of versions that nobody added.
+/// Only a clear "ignored" answer counts;
+/// any other answer (not ignored,
+/// no
+/// repository,
+/// a failure,
+/// a timeout) leaves the crate under the catalog's policy,
+/// so a crate that is merely new is still checked.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

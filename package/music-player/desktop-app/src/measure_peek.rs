@@ -1,8 +1,14 @@
 //! Reads each track's known length and peak without decoding anything.
 //!
-//! What: `peek_measure` looks up a track's cached decision and, when the decision lacks a length, reads the
-//! length from the file header; `peek_measures` does the same for a list of tracks.
-//! Why: the window shows lengths and cached peaks as soon as the queue loads, and the slow measurement
+//! What:
+//! `peek_measure` looks up a track's cached decision and,
+//! when the decision lacks a length,
+//! reads the
+//! length from the file header;
+//! `peek_measures` does the same for a list of tracks.
+//! Why:
+//! the window shows lengths and cached peaks as soon as the queue loads,
+//! and the slow measurement
 //! starts only for tracks the cache does not hold.
 
 use std::path::{Path, PathBuf};
@@ -13,9 +19,11 @@ use crate::track_measure::{TrackMeasure, measure_from_decision};
 
 /// What:
 ///      `pub(crate) fn peek_measure(path: &Path, cache: &CacheHandle) -> TrackMeasure`.
-///  One track's measure from the cache and the header, with no decode.
+///  One track's measure from the cache and the header,
+/// with no decode.
 /// Why:
-///       A cached decision carries the length and the peak; a track without one gets its length from the header.
+///       A cached decision carries the length and the peak;
+/// a track without one gets its length from the header.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -56,9 +64,12 @@ pub(crate) fn peek_measure(path: &Path, cache: &CacheHandle) -> TrackMeasure {
 
 /// What:
 ///      `pub(crate) fn peek_measures(tracks: &[PathBuf], cache: &CacheHandle) -> Vec<(PathBuf, TrackMeasure)>`.
-///  The measure of each track, paired with its path, in the same order.
+///  The measure of each track,
+/// paired with its path,
+/// in the same order.
 /// Why:
-///       The sweep reports the peeked measures in chunks, so the order must match the queue.
+///       The sweep reports the peeked measures in chunks,
+/// so the order must match the queue.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

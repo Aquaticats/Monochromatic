@@ -43,7 +43,9 @@ mod scan_finding;
 pub use scan_finding::ScanFinding;
 /// Thread-isolated named-callback boundary for embedded rule loading.
 mod load_request;
-/// The comma-separated rules-list grammar shared by the flag, the environment variable, and embedding hosts.
+/// The comma-separated rules-list grammar shared by the flag,
+/// the environment variable,
+/// and embedding hosts.
 mod rules_list;
 /// Embedding hosts build entries directly or parse the same list value the command line accepts.
 pub use rules_list::{parse_rules_list, RulesEntry, RulesListError};
@@ -67,7 +69,8 @@ mod runtime_cache;
 /// Registers hybrid exact-literal and restricted-regex runtime matcher.
 mod runtime_matcher;
 
-/// Registers the unit-test fixture root, placed in the build directory instead of `/tmp`.
+/// Registers the unit-test fixture root,
+/// placed in the build directory instead of `/tmp`.
 #[cfg(test)]
 mod test_scratch;
 

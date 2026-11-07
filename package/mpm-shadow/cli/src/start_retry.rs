@@ -1,9 +1,14 @@
 //! What:
 //! Starting a child process again when the operating system refuses it for lack of processes.
 //! Why:
-//! A host at its process or task limit refuses a start with `EAGAIN`, which Rust reports as `ErrorKind::WouldBlock`.
-//! A refused start started nothing, so starting again is safe, and such a shortage usually ends within moments.
-//! The wait is bounded, so the shadow never stalls: a shortage that outlasts the budget is reported to the caller.
+//! A host at its process or task limit refuses a start with `EAGAIN`,
+//! which Rust reports as `ErrorKind::WouldBlock`.
+//! A refused start started nothing,
+//! so starting again is safe,
+//! and such a shortage usually ends within moments.
+//! The wait is bounded,
+//! so the shadow never stalls:
+//! a shortage that outlasts the budget is reported to the caller.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,7 +23,8 @@ use std::time::Duration;
 /// How long refused starts may pause in total.
 pub const START_RETRY_BUDGET: Duration = Duration::from_secs(5);
 
-/// What the retrying did, for the message that follows a start.
+/// What the retrying did,
+/// for the message that follows a start.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct RetryReport {
     /// How many starts the system refused for lack of processes.
@@ -30,7 +36,8 @@ pub struct RetryReport {
 /// The first pause after a refusal.
 const FIRST_PAUSE: Duration = Duration::from_millis(10);
 
-/// The longest single pause; the pauses double until they reach it.
+/// The longest single pause;
+/// the pauses double until they reach it.
 const LONGEST_PAUSE: Duration = Duration::from_millis(500);
 
 /// What:
@@ -40,7 +47,8 @@ const LONGEST_PAUSE: Duration = Duration::from_millis(500);
 /// Only a refusal is retried;
 /// every other error is the caller's at once.
 /// The pause is injected so a test drives the whole budget without waiting.
-/// The report says how often the system refused and how long was paused, for the message the caller prints.
+/// The report says how often the system refused and how long was paused,
+/// for the message the caller prints.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -71,7 +79,8 @@ pub fn retry_refused_start_with<T>(
     }
 }
 
-/// The production entry: pauses for real.
+/// The production entry:
+/// pauses for real.
 pub fn retry_refused_start<T>(start: &mut dyn FnMut() -> Result<T>) -> (Result<T>, RetryReport) {
     return retry_refused_start_with(START_RETRY_BUDGET, &mut |delay: Duration| std::thread::sleep(delay), start);
 }

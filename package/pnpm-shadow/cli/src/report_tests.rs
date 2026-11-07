@@ -1,11 +1,15 @@
-//! The unit tests of the report text: silence when clean, one prefixed line per finding, the closing rule.
+//! The unit tests of the report text:
+//! silence when clean,
+//! one prefixed line per finding,
+//! the closing rule.
 
 /// Imports the function and constants under test.
 use crate::report::{LINE_PREFIX, RULE_SUMMARY, render_report};
 /// Imports the scan result type.
 use crate::scan::ScanReport;
 
-/// Imports the rule, to make real findings.
+/// Imports the rule,
+/// to make real findings.
 use monochromatic_catalog_specifier::check_manifest;
 /// Imports the path type.
 use std::path::Path;

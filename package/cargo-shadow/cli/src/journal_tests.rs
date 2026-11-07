@@ -950,9 +950,14 @@ fn a_manifest_path_that_is_not_utf8_is_recovered_exactly() {
     assert_eq!(fs::read_to_string(&manifest_path).expect("read"), "manifest before");
 }
 
-/// Acceptance row R1 (certification, third pass): a conflict found at the exchange boundary of a rollback (another process changes the
-/// file in place between the comparison and the exchange, so the exchange displaced a file that is not the expected one) leaves both
-/// writers' bytes intact, keeps the replacement, and is reported as a warning that names the kept file.
+/// Acceptance row R1 (certification,
+/// third pass):
+/// a conflict found at the exchange boundary of a rollback (another process changes the
+/// file in place between the comparison and the exchange,
+/// so the exchange displaced a file that is not the expected one) leaves both
+/// writers' bytes intact,
+/// keeps the replacement,
+/// and is reported as a warning that names the kept file.
 #[test]
 fn a_rollback_whose_exchange_finds_another_writers_change_keeps_both_files_and_warns() {
     use std::os::unix::fs::MetadataExt;

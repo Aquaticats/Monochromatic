@@ -1426,6 +1426,11 @@ The rule is:
 - A form that only moves `HEAD` (`git checkout <branch>`,
   `git switch <branch>`) is rejected in any worktree
    only while it holds uncommitted tracked changes.
+- A form that only moves `HEAD` also runs where the Git directory has no `index` file, the state `git clone --no-checkout` leaves:
+   Git sees an initial checkout there (`is_index_unborn` in `read-cache.c`, `initial_checkout` in `builtin/checkout.c`),
+   while `git status` lists every committed file as a staged deletion.
+  An `index` file that exists, empty or not, never counts as absent, a `GIT_INDEX_FILE` that names another index is not read as absent,
+   and `git checkout -f`, `git reset --hard` and the other forms that overwrite stay rejected.
 - A status Git cannot read stops the command instead of reading as clean.
 - Repositories under an allowlisted tool directory are exempt:
   uv's cache (`UV_CACHE_DIR`,

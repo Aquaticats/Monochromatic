@@ -318,11 +318,16 @@ fn exec_program(program: &Path, arguments: &[OsString]) -> std::io::Error {
 /// Rewrites this launcher's record so that it names `program`,
 /// when the record names another path and `program` exists.
 /// Why:
-/// The shadows a launcher starts (`cargo-shadow`, `pnpm-shadow`, `search-shadow`, `mpm-shadow` in its shim mode) skip a `PATH` candidate
+/// The shadows a launcher starts (`cargo-shadow`,
+/// `pnpm-shadow`,
+/// `search-shadow`,
+/// `mpm-shadow` in its shim mode) skip a `PATH` candidate
 /// that is a launcher whose record leads back to themselves,
 /// and they read the path the record names.
 /// A record that names a deleted release folder leads nowhere they can resolve,
-/// so the shadow took the launcher for the real tool, started it, and its recursion guard stopped the run.
+/// so the shadow took the launcher for the real tool,
+/// started it,
+/// and its recursion guard stopped the run.
 /// Naming the program that ran keeps the record true after every version move.
 ///
 /// In TS you'd write (pseudocode):

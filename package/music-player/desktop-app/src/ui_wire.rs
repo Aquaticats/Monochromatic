@@ -1,7 +1,14 @@
-//! Window callbacks for the library screen: each user action becomes engine commands.
+//! Window callbacks for the library screen:
+//! each user action becomes engine commands.
 //!
-//! What: `wire` registers the transport, row, mode, folder picker and open-folder callbacks on `AppWindow`.
-//! Why: `main` stays a startup sequence, and the mapping from user action to `Command` lives in one place.
+//! What:
+//! `wire` registers the transport,
+//! row,
+//! mode,
+//! folder picker and open-folder callbacks on `AppWindow`.
+//! Why:
+//! `main` stays a startup sequence,
+//! and the mapping from user action to `Command` lives in one place.
 
 use std::rc::Rc;
 
@@ -18,13 +25,21 @@ use crate::ui_screen::{project, read_state, update_state};
 use crate::ui_screen_view::{select_folder_label, selected_page_scope};
 
 thread_local! {
-    /// What: the main window, for messages raised from a worker thread through the event loop.
-    /// Why: the folder chooser runs off the UI thread and, when none exists, must show a message in the window.
+    /// What:
+    /// the main window,
+    /// for messages raised from a worker thread through the event loop.
+    /// Why:
+    /// the folder chooser runs off the UI thread and,
+    /// when none exists,
+    /// must show a message in the window.
     static MAIN_WINDOW: std::cell::RefCell<Option<slint::Weak<AppWindow>>> = const { std::cell::RefCell::new(None) };
 }
 
-/// What: `wire` registers every library-screen callback on the window.
-/// Why: the callbacks share the engine handle, so they are registered together after the engine starts.
+/// What:
+/// `wire` registers every library-screen callback on the window.
+/// Why:
+/// the callbacks share the engine handle,
+/// so they are registered together after the engine starts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -46,8 +61,11 @@ pub(crate) fn wire(app: &AppWindow, engine: &Rc<Engine>) {
     crate::ui_search::wire(app, engine);
 }
 
-/// What: `mark_user_acted` records that the user has started to drive the player.
-/// Why: the one-time reveal of the restored playing track must not fire for a track the user starts themselves, which
+/// What:
+/// `mark_user_acted` records that the user has started to drive the player.
+/// Why:
+/// the one-time reveal of the restored playing track must not fire for a track the user starts themselves,
+/// which
 /// would scroll the list under them.
 pub(crate) fn mark_user_acted() {
     update_state(|state| {
@@ -55,9 +73,15 @@ pub(crate) fn mark_user_acted() {
     });
 }
 
-/// What: `wire_host_callbacks` registers the callbacks that only send commands to a host: the transport deck, row play,
-/// folder pick, the picker toggle and the keyboard.
-/// Why: the window tests register the same callbacks with a recording host, so a click or a key reaches the same code as
+/// What:
+/// `wire_host_callbacks` registers the callbacks that only send commands to a host:
+/// the transport deck,
+/// row play,
+/// folder pick,
+/// the picker toggle and the keyboard.
+/// Why:
+/// the window tests register the same callbacks with a recording host,
+/// so a click or a key reaches the same code as
 /// in the application.
 pub(crate) fn wire_host_callbacks(app: &AppWindow, host: &Rc<dyn Host>) {
     wire_transport(app, host);
@@ -65,8 +89,13 @@ pub(crate) fn wire_host_callbacks(app: &AppWindow, host: &Rc<dyn Host>) {
     wire_keys(app, host);
 }
 
-/// What: `wire_transport` registers play, previous, next, seek and mode callbacks.
-/// Why: the transport deck and the mode group send these without knowing the engine.
+/// What:
+/// `wire_transport` registers play,
+/// previous,
+/// next,
+/// seek and mode callbacks.
+/// Why:
+/// the transport deck and the mode group send these without knowing the engine.
 fn wire_transport(app: &AppWindow, host: &Rc<dyn Host>) {
     let toggle_host = Rc::clone(host);
     app.on_toggle_play(move || {
@@ -108,8 +137,11 @@ fn wire_transport(app: &AppWindow, host: &Rc<dyn Host>) {
     });
 }
 
-/// What: `wire_library` registers row play and the folder picker callbacks.
-/// Why: these change the selected folder or start a track, and each one ends with a window projection.
+/// What:
+/// `wire_library` registers row play and the folder picker callbacks.
+/// Why:
+/// these change the selected folder or start a track,
+/// and each one ends with a window projection.
 fn wire_library(app: &AppWindow, host: &Rc<dyn Host>) {
     let row_host = Rc::clone(host);
     let row_weak = app.as_weak();
@@ -141,9 +173,13 @@ fn wire_library(app: &AppWindow, host: &Rc<dyn Host>) {
     });
 }
 
-/// What: `wire_keys` routes each key press and release from the window's key scope to the shortcut handler, and the focus
+/// What:
+/// `wire_keys` routes each key press and release from the window's key scope to the shortcut handler,
+/// and the focus
 /// zone and list focus reports to the list rings.
-/// Why: the window answers true when a shortcut used the key, so the focused field keeps every other key.
+/// Why:
+/// the window answers true when a shortcut used the key,
+/// so the focused field keeps every other key.
 fn wire_keys(app: &AppWindow, host: &Rc<dyn Host>) {
     crate::ui_hints::install_texts(app);
     let key_weak = app.as_weak();
@@ -193,8 +229,12 @@ fn wire_keys(app: &AppWindow, host: &Rc<dyn Host>) {
     });
 }
 
-/// What: `open_folder_dialog` asks for a folder on a worker thread and opens it without autoplay.
-/// Why: the native dialog blocks, so it runs off the event-loop thread; the engine receives the chosen root.
+/// What:
+/// `open_folder_dialog` asks for a folder on a worker thread and opens it without autoplay.
+/// Why:
+/// the native dialog blocks,
+/// so it runs off the event-loop thread;
+/// the engine receives the chosen root.
 pub(crate) fn open_folder_dialog(sender: music_player::engine::CommandSender) {
     std::thread::spawn(move || {
         // What:     the chooser is checked before it opens.
@@ -221,14 +261,29 @@ pub(crate) fn open_folder_dialog(sender: music_player::engine::CommandSender) {
     });
 }
 
-/// What: `play_row` handles a click, a tap or Enter on a track row and the activation of a Search result that names a
-/// track: the selected row toggles play and pause, any other row becomes the selected row and stays paused, or also
+/// What:
+/// `play_row` handles a click,
+/// a tap or Enter on a track row and the activation of a Search result that names a
+/// track:
+/// the selected row toggles play and pause,
+/// any other row becomes the selected row and stays paused,
+/// or also
 /// starts at once when Auto-play on select is on.
-/// Why: the user's rule (D124) is that selecting and playing are separate intents; `SelectIndex` loads paused and
-/// pauses whatever was playing, and only a second click on the now-selected row starts it, so no double-click detection
-/// is needed. D129 lets the user ask for the old behavior, where the selection also starts the track. A selected row
-/// that was restored and never loaded, or whose load failed, starts or retries through the same toggle as the Play
-/// button; a row whose file cannot be opened stays the selected row (D128) with the setting on or off.
+/// Why:
+/// the user's rule (D124) is that selecting and playing are separate intents;
+/// `SelectIndex` loads paused and
+/// pauses whatever was playing,
+/// and only a second click on the now-selected row starts it,
+/// so no double-click detection
+/// is needed.
+/// D129 lets the user ask for the old behavior,
+/// where the selection also starts the track.
+/// A selected row
+/// that was restored and never loaded,
+/// or whose load failed,
+/// starts or retries through the same toggle as the Play
+/// button;
+/// a row whose file cannot be opened stays the selected row (D128) with the setting on or off.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -239,10 +294,19 @@ pub(crate) fn play_row(engine: &dyn Host, index: usize) {
     send_row_activation(engine, index, row_activation_for(auto_play_on_select, current == Some(index)));
 }
 
-/// What: `play_row_now` is the explicit Play item of the track menu: the selected row toggles play and pause, any other
-/// row is selected and starts at once, whatever Auto-play on select says.
-/// Why: a menu item named Play asks to hear that track, unlike a click on a row or a Search result, which only select
-/// it unless the user turned Auto-play on select on (D124, D127, D129).
+/// What:
+/// `play_row_now` is the explicit Play item of the track menu:
+/// the selected row toggles play and pause,
+/// any other
+/// row is selected and starts at once,
+/// whatever Auto-play on select says.
+/// Why:
+/// a menu item named Play asks to hear that track,
+/// unlike a click on a row or a Search result,
+/// which only select
+/// it unless the user turned Auto-play on select on (D124,
+/// D127,
+/// D129).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -253,9 +317,16 @@ pub(crate) fn play_row_now(engine: &dyn Host, index: usize) {
     send_row_activation(engine, index, row_activation_for(true, current == Some(index)));
 }
 
-/// What: `send_row_activation` maps what a row activation does to the engine commands that do it.
-/// Why: the row click, Enter, the Search result and the menu Play share the mapping, so they cannot differ; `SelectIndex`
-/// loads paused, so a start at once is `Play` after it.
+/// What:
+/// `send_row_activation` maps what a row activation does to the engine commands that do it.
+/// Why:
+/// the row click,
+/// Enter,
+/// the Search result and the menu Play share the mapping,
+/// so they cannot differ;
+/// `SelectIndex`
+/// loads paused,
+/// so a start at once is `Play` after it.
 fn send_row_activation(engine: &dyn Host, index: usize, activation: RowActivation) {
     match activation {
         RowActivation::TogglePlay => engine.send(Command::TogglePlay),
@@ -267,8 +338,12 @@ fn send_row_activation(engine: &dyn Host, index: usize, activation: RowActivatio
     }
 }
 
-/// What: `select_folder` selects the folder named `label`, closes the picker, and scopes the engine to it.
-/// Why: the selection and the engine scope come from the same state write.
+/// What:
+/// `select_folder` selects the folder named `label`,
+/// closes the picker,
+/// and scopes the engine to it.
+/// Why:
+/// the selection and the engine scope come from the same state write.
 pub(crate) fn select_folder(engine: &dyn Host, label: &str) {
     let mut chosen_scope: Option<Vec<usize>> = None;
     update_state(|state| {
@@ -279,9 +354,14 @@ pub(crate) fn select_folder(engine: &dyn Host, label: &str) {
     }
 }
 
-/// What: `toggle_play` is the play and pause button and key: with nothing selected it first sends the shown page's
-/// scope, so the engine starts the first track of the folder on screen.
-/// Why: the engine knows no shown page until it is told one, and Play with nothing selected must start the first row of
+/// What:
+/// `toggle_play` is the play and pause button and key:
+/// with nothing selected it first sends the shown page's
+/// scope,
+/// so the engine starts the first track of the folder on screen.
+/// Why:
+/// the engine knows no shown page until it is told one,
+/// and Play with nothing selected must start the first row of
 /// the page the user is looking at (EM2).
 pub(crate) fn toggle_play(engine: &dyn Host) {
     let nothing_selected: bool = read_state(|state| return state.current_index.is_none() && !state.names.is_empty());

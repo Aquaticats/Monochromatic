@@ -84,10 +84,13 @@ fn refusal(tool_id: &str, name: &str, value: &str, reason: &str) -> ToolchainErr
 
 /// What:
 /// Whether `name` is a plain environment variable name:
-/// an ASCII letter or underscore, then ASCII letters, digits or underscores.
+/// an ASCII letter or underscore,
+/// then ASCII letters,
+/// digits or underscores.
 /// Why:
 /// The name is written as a TOML bare key;
-/// anything else could end the key, start a new line or a table.
+/// anything else could end the key,
+/// start a new line or a table.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -164,7 +167,8 @@ fn unsafe_character(text: &str) -> Option<&'static str> {
 /// any other value is a literal.
 /// Why:
 /// The plan writes `android-sdk/{version}` so no machine path is committed;
-/// `RUSTUP_TOOLCHAIN` is a channel name, not a path.
+/// `RUSTUP_TOOLCHAIN` is a channel name,
+/// not a path.
 /// Refused when the name or value would be misread (see the checks above).
 ///
 /// In TS you'd write (pseudocode):

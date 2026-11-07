@@ -3,7 +3,8 @@
 use super::*;
 use music_player::search_matcher::SearchHighlight;
 
-/// What: `library()` builds three tracks in two folders for the search tests.
+/// What:
+/// `library()` builds three tracks in two folders for the search tests.
 fn library() -> Vec<Track> {
     return ["Abba/Dancing Queen.mp3", "Abba/Waterloo.mp3", "Beta/Ghost.mp3"]
         .iter()

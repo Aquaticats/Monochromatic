@@ -448,8 +448,11 @@ pub(crate) struct Control {
     /// What:
     ///      `pub(crate) failed_load: AtomicU64`.
     ///  The 1-based sequence number of the most recent `Command::Load` whose
-    ///           file the worker could NOT open for playback (it did not decode, had no rate or
-    ///           channels, or no output could be built), or 0 when none has failed.
+    ///           file the worker could NOT open for playback (it did not decode,
+    /// had no rate or
+    ///           channels,
+    /// or no output could be built),
+    /// or 0 when none has failed.
     ///  Written by the worker,
     ///  read by Kotlin.
     /// Why:

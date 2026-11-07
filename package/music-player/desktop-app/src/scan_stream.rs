@@ -1,10 +1,19 @@
 //! Folder walk that reports the tracks it finds while it is still walking.
 //!
-//! What: `scan_streaming` walks a root the way `expand_paths` always has (files of a folder in sorted order, then its
-//! subfolders in sorted order) and calls `on_batch` with each run of newly found paths, so the caller can use them
-//! before the walk ends. The list it returns is the whole walk, in the same order.
-//! Why: D111 requires Search to work while the library is still being scanned. The walk of a large library takes
-//! seconds, and a path's position in the walk is its position in the queue, so the batches can be indexed at once.
+//! What:
+//! `scan_streaming` walks a root the way `expand_paths` always has (files of a folder in sorted order,
+//! then its
+//! subfolders in sorted order) and calls `on_batch` with each run of newly found paths,
+//! so the caller can use them
+//! before the walk ends.
+//! The list it returns is the whole walk,
+//! in the same order.
+//! Why:
+//! D111 requires Search to work while the library is still being scanned.
+//! The walk of a large library takes
+//! seconds,
+//! and a path's position in the walk is its position in the queue,
+//! so the batches can be indexed at once.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,7 +30,8 @@ use crate::playback::is_audio_file;
 ///      `pub(crate) const STREAM_BATCH: usize = 5_000`.
 ///  How many newly found tracks make a batch.
 /// Why:
-///       Five thousand paths normalize in about fifteen milliseconds, small enough that no step of the feed is long.
+///       Five thousand paths normalize in about fifteen milliseconds,
+/// small enough that no step of the feed is long.
 pub(crate) const STREAM_BATCH: usize = 5_000;
 
 /// What:
@@ -35,22 +45,31 @@ pub(crate) const FIRST_BATCH_AFTER: Duration = Duration::from_millis(150);
 ///      `pub(crate) const SCAN_PAUSE_ENV: &str = "MUSIC_PLAYER_SCAN_PAUSE_MS"`.
 ///  The environment variable that makes the folder scan deliberately slow.
 /// Why:
-///       D111 is tested with a scan that is slow on purpose: the walk of a large library takes seconds, which is too
-///  short to type a query in, so a test or an end-to-end run sets this to pause after each reported batch.
+///       D111 is tested with a scan that is slow on purpose:
+/// the walk of a large library takes seconds,
+/// which is too
+///  short to type a query in,
+/// so a test or an end-to-end run sets this to pause after each reported batch.
 pub(crate) const SCAN_PAUSE_ENV: &str = "MUSIC_PLAYER_SCAN_PAUSE_MS";
 
 /// What:
 ///      `pub(crate) fn pause_from_environment() -> Duration`.
-///  The pause to take after each reported batch: the value of `MUSIC_PLAYER_SCAN_PAUSE_MS` in milliseconds, or zero.
+///  The pause to take after each reported batch:
+/// the value of `MUSIC_PLAYER_SCAN_PAUSE_MS` in milliseconds,
+/// or zero.
 /// Why:
-///       See `SCAN_PAUSE_ENV`; unset or unparsable means no pause, so normal runs are never slowed.
+///       See `SCAN_PAUSE_ENV`;
+/// unset or unparsable means no pause,
+/// so normal runs are never slowed.
 pub(crate) fn pause_from_environment() -> Duration {
     return parse_pause(std::env::var(SCAN_PAUSE_ENV).ok().as_deref());
 }
 
 /// What:
 ///      `fn parse_pause(text: Option<&str>) -> Duration`.
-///  The pause a variable value means: whole milliseconds, or zero for a missing or unparsable value.
+///  The pause a variable value means:
+/// whole milliseconds,
+/// or zero for a missing or unparsable value.
 /// Why:
 ///       Kept apart from the environment read so the rule can be tested without touching the process environment.
 fn parse_pause(text: Option<&str>) -> Duration {
@@ -60,12 +79,19 @@ fn parse_pause(text: Option<&str>) -> Duration {
 
 /// What:
 ///      `fn sort_naturally(paths: &mut Vec<PathBuf>)`.
-///  Sorts sibling paths by file name in natural order (`Track 2` before `Track 10`, case ignored), with the whole
+///  Sorts sibling paths by file name in natural order (`Track 2` before `Track 10`,
+/// case ignored),
+/// with the whole
 ///  path as the final tie-break.
 /// Why:
-///       The walk order is the queue order, so this one sort decides how rows are listed and in which order they play
-///  (LS5). Sibling paths share their parent, so the file name is the part that differs. The name is read once per path,
-///  not once per comparison, because a flat folder can hold tens of thousands of files.
+///       The walk order is the queue order,
+/// so this one sort decides how rows are listed and in which order they play
+///  (LS5).
+/// Sibling paths share their parent,
+/// so the file name is the part that differs.
+/// The name is read once per path,
+///  not once per comparison,
+/// because a flat folder can hold tens of thousands of files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -85,9 +111,11 @@ fn sort_naturally(paths: &mut Vec<PathBuf>) {
 
 /// What:
 ///      `pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn FnMut(&[PathBuf])) -> Vec<PathBuf>`.
-///  Walks `root` and returns every audio file in queue order, reporting new runs of at least `batch` paths on the way.
+///  Walks `root` and returns every audio file in queue order,
+/// reporting new runs of at least `batch` paths on the way.
 /// Why:
-///       See the module description. Pass `usize::MAX` for no reports (a final run may still be reported at the end).
+///       See the module description.
+/// Pass `usize::MAX` for no reports (a final run may still be reported at the end).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -144,10 +172,13 @@ pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn FnMut
 
 /// What:
 ///      `pub(crate) fn batch_names(root: &Path, paths: &[PathBuf]) -> Vec<String>`.
-///  The names of newly found paths, relative to the scan root and joined with `/`.
+///  The names of newly found paths,
+/// relative to the scan root and joined with `/`.
 /// Why:
-///       Search needs display names before the whole queue exists. For a library with more than one top-level entry
-///  these equal the queue's display names; the final queue replaces them if they differ.
+///       Search needs display names before the whole queue exists.
+/// For a library with more than one top-level entry
+///  these equal the queue's display names;
+/// the final queue replaces them if they differ.
 pub(crate) fn batch_names(root: &Path, paths: &[PathBuf]) -> Vec<String> {
     return paths
         .iter()

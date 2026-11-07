@@ -98,10 +98,7 @@ jobs:
       # The executable is exposed under its own name, never as git: the changesets action runs git commands of its own
       # in the same environment, and the wrapper refuses bulk staging.
       - name: Expose the native cli-git executable to later steps
-        run: |
-          set -euo pipefail
-          release_directory="$GITHUB_WORKSPACE/package/git-policy/cli/target/release"
-          printf '%s\n' "$release_directory" >> "$GITHUB_PATH"
+        run: printf '%s\n' "$GITHUB_WORKSPACE/package/git-policy/cli/target/release" >> "$GITHUB_PATH"
 
       - name: Open or update the version pull request
         uses: changesets/action/version@8488615a623b1b9c987934bb89eae8af6a946ac1

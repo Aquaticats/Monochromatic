@@ -916,7 +916,11 @@ fn a_refusal_whose_rollback_fails_stops_the_command_without_depending_on_permiss
     assert!(!crate::failpoints::fires(crate::failpoints::Point::Restore), "the rollback never reached the restore: an earlier refusal left the fault armed");
     assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), young, "the unrestored lockfile is not the one cargo wrote");
     match outcome {
-        StepOutcome::Refused(message) => assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}"),
+        StepOutcome::Refused(message) => {
+            assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}");
+            // Sixth pass, group 5: the refusal of the policy travels with the rollback failure.
+            assert!(message.contains("The policy refused it"), "the policy refusal was dropped: {message}");
+        }
         other => panic!("the command would build the refused lockfile: {other:?}"),
     }
 }
@@ -998,9 +1002,16 @@ fn an_operational_error_with_a_failed_durability_barrier_stops_the_command_and_k
 /// Round 7 (6b2 5):
 /// a completion marker that could not be published is not a cleanup problem:
 /// a later recovery would still see an active journal and could judge the run again.
-/// Acceptance rows A3, A4 (certification group 3): an operational error of cargo together with each failure of the completion
-/// (the injected completion failure, the real rename of the marker, the real sync of its parent) stops the command and keeps both
-/// diagnostics: the step is refused, which does not let the shim run the command again with `--locked`, and it is not reported as an
+/// Acceptance rows A3,
+/// A4 (certification group 3):
+/// an operational error of cargo together with each failure of the completion
+/// (the injected completion failure,
+/// the real rename of the marker,
+/// the real sync of its parent) stops the command and keeps both
+/// diagnostics:
+/// the step is refused,
+/// which does not let the shim run the command again with `--locked`,
+/// and it is not reported as an
 /// ordinary failure that would.
 /// Each fault must have been consumed.
 #[test]
@@ -1055,7 +1066,8 @@ fn the_cleanup_failure_happens_after_the_completion_marker_was_published() {
     assert!(journals.iter().any(|journal| { return journal.to_string_lossy().ends_with(".done"); }), "no completion marker at the point of the cleanup failure: {journals:?}");
 }
 
-/// Acceptance row A3, A4 (the actual completion rename):
+/// Acceptance row A3,
+/// A4 (the actual completion rename):
 /// an accepted run whose completion rename fails stops the command.
 #[test]
 fn an_accepted_run_whose_completion_rename_fails_stops_the_command() {
@@ -1072,7 +1084,8 @@ fn an_accepted_run_whose_completion_rename_fails_stops_the_command() {
     }
 }
 
-/// Acceptance row A3, A4 (the actual completion-parent sync):
+/// Acceptance row A3,
+/// A4 (the actual completion-parent sync):
 /// an accepted run whose sync of the marker's directory fails stops the command.
 #[test]
 fn an_accepted_run_whose_completion_directory_sync_fails_stops_the_command() {
@@ -1138,15 +1151,23 @@ fn a_cargo_failure_followed_by_a_failed_rollback_stops_the_command_instead_of_fa
     assert!(!crate::failpoints::fires(crate::failpoints::Point::Restore), "the rollback never reached the restore");
     assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), young, "the unrestored lockfile is not the one cargo wrote");
     match outcome {
-        StepOutcome::Refused(message) => assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}"),
+        StepOutcome::Refused(message) => {
+            assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}");
+            // Sixth pass, group 5: what cargo itself reported before the rollback failed is not dropped.
+            assert!(message.contains("failed after writing"), "the original failure of cargo was dropped: {message}");
+        }
         other => panic!("the command would fall back onto the unrestored lockfile: {other:?}"),
     }
 }
 
-/// Acceptance row A2, R4 (joined, 7a F3):
+/// Acceptance row A2,
+/// R4 (joined,
+/// 7a F3):
 /// a real run through the bounded runner that cannot show its scope empty,
 /// as cargo's update inside the install step:
-/// the step stops, the lockfile cargo wrote is neither rolled back nor accepted, the journal is kept,
+/// the step stops,
+/// the lockfile cargo wrote is neither rolled back nor accepted,
+/// the journal is kept,
 /// and nothing runs after it (the user's command is not started).
 #[test]
 fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_kept_and_nothing_after_it() {
@@ -1159,7 +1180,7 @@ fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_ke
     let calls: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let seen: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::clone(&calls);
     let script: String = format!(
-        "printf '# satisfied\\nversion = 4\\n' > Cargo.lock; setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
+        "printf '# satisfied\\nversion = 4\\n' > Cargo.lock; setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; cat /proc/self/cgroup > {ready}.group; : > {ready}.seen; exit 0",
         ready = ready.display()
     );
     let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
@@ -1187,6 +1208,15 @@ fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_ke
     if let Some(scope) = &scope_path {
         let _ = fs::write(scope.join("cgroup.kill"), "1");
     }
+    // Sixth certification pass: the armed fault was consumed by the stop of this run, the writer was ready before the payload ended, and
+    // the payload ran in the very scope the journal recorded (not merely a scope that was planned).
+    assert!(!crate::failpoints::fires(crate::failpoints::Point::ContainmentStopStuck), "the stop fault was never reached, so the refusal has another cause");
+    assert!(root.path().join("writer-ready.seen").exists(), "the payload ended without having seen the writer ready");
+    crate::cgroup_test_support::assert_ran_in_recorded_scope(
+        &journals[0].join("groups").display().to_string(),
+        &fs::read_to_string(root.path().join("writer-ready.group")).expect("the payload's group"),
+        &crate::cgroup_test_support::wrapper_group(),
+    );
     match outcome {
         StepOutcome::Refused(message) => assert!(message.contains("may still") && message.contains("journal"), "{message}"),
         other => panic!("a run that could not show quiescence read as {other:?}"),
@@ -1198,11 +1228,19 @@ fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_ke
     assert!(log.last().is_some_and(|last| { return last.starts_with("update") && !last.contains("--locked"); }), "something ran after the run that could not be stopped: {log:?}");
 }
 
-/// Acceptance row V5 (certification, second pass): the caller of a recovery stops when a mandatory phase of finishing the recovered
+/// Acceptance row V5 (certification,
+/// second pass):
+/// the caller of a recovery stops when a mandatory phase of finishing the recovered
 /// journal fails and goes on after a cleanup-only failure.
-/// An earlier run's journal is planted, a fault is armed for one phase of its finish, and the continuation sentinel is the cargo
-/// the command would run: the output barrier, the completion rename and the sync of the marker's directory stop the command before
-/// any cargo call, with the failure named; a removal that fails after the marker only warns and the command runs its cargo.
+/// An earlier run's journal is planted,
+/// a fault is armed for one phase of its finish,
+/// and the continuation sentinel is the cargo
+/// the command would run:
+/// the output barrier,
+/// the completion rename and the sync of the marker's directory stop the command before
+/// any cargo call,
+/// with the failure named;
+/// a removal that fails after the marker only warns and the command runs its cargo.
 #[test]
 fn a_recovery_that_cannot_finish_its_journal_stops_the_command_but_a_failed_cleanup_does_not() {
     use crate::failpoints::{Point, arm, fires};
@@ -1230,10 +1268,17 @@ fn a_recovery_that_cannot_finish_its_journal_stops_the_command_but_a_failed_clea
     }
 }
 
-/// Acceptance row K1 (certification, second pass): the warning about kept files is emitted by the command on every completed run
-/// past the count, with the count, the combined size and the folder, and the completed runs delete none of the kept files.
-/// The central folder and the lockfile's directory are both populated; each run is a stale lockfile that the step updates and
-/// finishes, and the inventory is taken by the test from the directories before and after each run.
+/// Acceptance row K1 (certification,
+/// second pass):
+/// the warning about kept files is emitted by the command on every completed run
+/// past the count,
+/// with the count,
+/// the combined size and the folder,
+/// and the completed runs delete none of the kept files.
+/// The central folder and the lockfile's directory are both populated;
+/// each run is a stale lockfile that the step updates and
+/// finishes,
+/// and the inventory is taken by the test from the directories before and after each run.
 #[test]
 fn the_command_warns_on_every_completed_run_past_the_count_and_deletes_no_kept_file() {
     use crate::journal::{KEPT_FILES_WARNING_COUNT, QUARANTINE_DIR};
@@ -1283,9 +1328,14 @@ fn the_command_warns_on_every_completed_run_past_the_count_and_deletes_no_kept_f
     }
 }
 
-/// Acceptance rows V5 and A3 (certification, third pass): a journal that is already marked done still has its completion barrier,
-/// and a recovery whose barrier fails on it stops the command before cargo; a failed removal of it only warns.
-/// The `.done` journal is made by a recovery whose marker sync fails (the marker is renamed, the sync is not made), then a later
+/// Acceptance rows V5 and A3 (certification,
+/// third pass):
+/// a journal that is already marked done still has its completion barrier,
+/// and a recovery whose barrier fails on it stops the command before cargo;
+/// a failed removal of it only warns.
+/// The `.done` journal is made by a recovery whose marker sync fails (the marker is renamed,
+/// the sync is not made),
+/// then a later
 /// command finds it and its barrier fails again.
 #[test]
 fn a_done_journal_whose_completion_barrier_fails_stops_the_command_but_a_failed_removal_does_not() {
@@ -1322,8 +1372,13 @@ fn a_done_journal_whose_completion_barrier_fails_stops_the_command_but_a_failed_
     }
 }
 
-/// Acceptance row K1 (fifth certification pass): on a completed run the command warns exactly when the kept files counted at its start
-/// are past the count: nothing below it, nothing at it, a warning one past it. Each case is its own repository and one completed run;
+/// Acceptance row K1 (fifth certification pass):
+/// on a completed run the command warns exactly when the kept files counted at its start
+/// are past the count:
+/// nothing below it,
+/// nothing at it,
+/// a warning one past it.
+/// Each case is its own repository and one completed run;
 /// the count is the files kept in the central folder plus the two kept beside the lockfile.
 #[test]
 fn a_completed_run_warns_exactly_past_the_count_and_not_at_or_below_it() {

@@ -145,10 +145,13 @@ use crate::session::Session;
 /// What:
 ///      `pub(crate) struct StagedTrack { ... }`.
 ///  A track opened early so it can follow the audible one in the same ring buffer.
-///  It owns its path, so it is not `Copy`.
+///  It owns its path,
+/// so it is not `Copy`.
 /// Why:
 ///       When the decoder reaches the end of a track and the next track has the same sample rate and channel
-///  count, the controller keeps one output stream and keeps pushing: the next track's first frame follows the
+///  count,
+/// the controller keeps one output stream and keeps pushing:
+/// the next track's first frame follows the
 ///  last frame of the old one with nothing between them.
 ///  The queue and the UI keep naming the old track until the output consumes its last frame;
 ///  this record is what the controller needs to announce the next track at that moment.
@@ -163,7 +166,8 @@ pub(crate) struct StagedTrack {
     ///  The file the decoder moved on to.
     /// Why:
     ///       The queue's own next track must still be this file when the handoff happens;
-    ///  if the queue changed meanwhile, the controller reloads instead.
+    ///  if the queue changed meanwhile,
+    /// the controller reloads instead.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -172,7 +176,8 @@ pub(crate) struct StagedTrack {
     pub(crate) path: PathBuf,
     /// What:
     ///      `spec: AudioSpec`.
-    ///  The staged track's rate, channels and length.
+    ///  The staged track's rate,
+    /// channels and length.
     /// Why:
     ///       Announced to the UI (seek-bar length) when the track becomes audible.
     ///
@@ -185,7 +190,8 @@ pub(crate) struct StagedTrack {
     ///      `previous_spec: AudioSpec`.
     ///  The still-audible track's format.
     /// Why:
-    ///       A seek in the last second applies to the audible track, so the controller goes back to it.
+    ///       A seek in the last second applies to the audible track,
+    /// so the controller goes back to it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -232,9 +238,13 @@ impl Controller {
         return self.session_over(Session::load());
     }
 
-    /// What: `session_over` snapshots the playback state on top of the `stored` session.
-    /// Why: the fields that belong to the UI (the two templates, the Auto-play on select setting and the text sizes) come from `stored`,
-    /// so a save at shutdown cannot erase them; taking `stored` as an argument lets a test prove that without the
+    /// What:
+    /// `session_over` snapshots the playback state on top of the `stored` session.
+    /// Why:
+    /// the fields that belong to the UI (the two templates,
+    /// the Auto-play on select setting and the text sizes) come from `stored`,
+    /// so a save at shutdown cannot erase them;
+    /// taking `stored` as an argument lets a test prove that without the
     /// user's session file.
     fn session_over(&self, stored: Session) -> Session {
         let position_secs = self.audible_secs();
@@ -697,9 +707,13 @@ impl Controller {
 
     /// What:
     ///      `pub(crate) fn install_source_silently(&mut self, source: Box<dyn Source>, path: &Path) -> f64`.
-    ///  Everything `install_source` does except telling the window which track plays; returns the new file's duration.
+    ///  Everything `install_source` does except telling the window which track plays;
+    /// returns the new file's duration.
     /// Why:
-    ///       D113: a playing file that was replaced is loaded again where it was. The window already shows that track, so
+    ///       D113:
+    /// a playing file that was replaced is loaded again where it was.
+    /// The window already shows that track,
+    /// so
     ///  announcing it would move the person's page and flash the seek bar to zero.
     ///
     /// In TS you'd write (pseudocode):
@@ -844,11 +858,14 @@ impl Controller {
 
     /// What:
     ///      `fn emit_now_playing(&self, path: &Path, duration_secs: f64)`.
-    ///  Announce the queue's current track to the UI (its row, its display name, its length)
+    ///  Announce the queue's current track to the UI (its row,
+    /// its display name,
+    /// its length)
     ///  and reset the seek bar to zero.
     /// Why:
     ///       Both a freshly loaded track and a track that follows the audible one without a gap
-    ///  are announced this way, at the moment they become audible.
+    ///  are announced this way,
+    /// at the moment they become audible.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1297,9 +1314,12 @@ impl Controller {
 
     /// What:
     ///      `pub(crate) fn report_audio_meters(&self, reporter: &mut MeterReporter)`.
-    ///  Logs the output's underrun counters once a second, and only when they moved.
+    ///  Logs the output's underrun counters once a second,
+    /// and only when they moved.
     /// Why:
-    ///       The realtime callback only counts; this runs on the engine thread, where logging is allowed.
+    ///       The realtime callback only counts;
+    /// this runs on the engine thread,
+    /// where logging is allowed.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1386,7 +1406,8 @@ impl Controller {
     /// What:
     ///      `fn audible_secs(&self) -> f64`.
     ///  The position (seconds) of the sound the listener hears now:
-    ///  frames the output consumed from the ring, at the loaded track's rate (zero with no track).
+    ///  frames the output consumed from the ring,
+    /// at the loaded track's rate (zero with no track).
     /// Why:
     ///       Shared by the saved session and the `Position` updates.
     ///  No device latency is subtracted:
@@ -1419,13 +1440,16 @@ impl Controller {
     /// What:
     ///      `fn begin_track_end(&mut self)`.
     ///  The decoder reached the end of the track.
-    ///  When the next track can follow in the same output stream, open it now and keep pushing its frames behind
+    ///  When the next track can follow in the same output stream,
+    /// open it now and keep pushing its frames behind
     ///  the old track's;
-    ///  otherwise stop decoding and let the ring play out, and `tick_playback` starts the next track after the
+    ///  otherwise stop decoding and let the ring play out,
+    /// and `tick_playback` starts the next track after the
     ///  last frame was consumed.
     /// Why:
     ///       Starting the next track by rebuilding the output now discards up to one second of the old track's
-    ///  unplayed tail, and the rebuilt stream starts silent.
+    ///  unplayed tail,
+    /// and the rebuilt stream starts silent.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1448,13 +1472,16 @@ impl Controller {
 
     /// What:
     ///      `fn stage_next_track(&mut self) -> bool`.
-    ///  Open the track the queue will play next and, when it has the same sample rate and channel count as the
-    ///  current one, make it the decoder's source so its frames follow the current track's in the same ring.
+    ///  Open the track the queue will play next and,
+    /// when it has the same sample rate and channel count as the
+    ///  current one,
+    /// make it the decoder's source so its frames follow the current track's in the same ring.
     ///  Returns whether the next track was staged.
     ///  The queue itself does not move until the output consumes the last frame of the current track.
     /// Why:
     ///       Same-format neighbours (an album) then play with no gap and no rebuilt stream.
-    ///  A different format needs a new stream, so it falls back to playing the ring out.
+    ///  A different format needs a new stream,
+    /// so it falls back to playing the ring out.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1509,11 +1536,15 @@ impl Controller {
     ///      `fn cross_track_boundary(&mut self) -> bool`.
     ///  The output consumed the last frame of the old track and the staged track is audible now:
     ///  move the queue onto it and announce it.
-    ///  If the queue no longer names the staged file (the play mode, the page or the folder changed in the last
-    ///  second), reload whatever the queue points at instead.
+    ///  If the queue no longer names the staged file (the play mode,
+    /// the page or the folder changed in the last
+    ///  second),
+    /// reload whatever the queue points at instead.
     ///  Returns whether it did anything.
     /// Why:
-    ///       The listener hears the new track now, so the title, the row and the seek bar change now,
+    ///       The listener hears the new track now,
+    /// so the title,
+    /// the row and the seek bar change now,
     ///  not a second earlier when the decoder moved on.
     ///
     /// In TS you'd write (pseudocode):
@@ -1542,11 +1573,13 @@ impl Controller {
 
     /// What:
     ///      `fn return_to_audible_track(&mut self) -> bool`.
-    ///  Undo staging: reopen the track the listener still hears (the queue never left it) and make it the
+    ///  Undo staging:
+    /// reopen the track the listener still hears (the queue never left it) and make it the
     ///  decoder's source again.
     ///  Returns whether the audible track is the source now (true when nothing was staged).
     /// Why:
-    ///       A seek in the last second of a track applies to the track on the seek bar, not the one behind it.
+    ///       A seek in the last second of a track applies to the track on the seek bar,
+    /// not the one behind it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1578,7 +1611,8 @@ impl Controller {
     /// What:
     ///      `fn audible_spec(&self) -> Option<AudioSpec>`.
     ///  The format and length of the track the listener hears:
-    ///  the previous track while a staged one waits behind it, else the loaded one.
+    ///  the previous track while a staged one waits behind it,
+    /// else the loaded one.
     /// Why:
     ///       The seek bar's length must belong to the track on screen.
     ///
@@ -1594,7 +1628,8 @@ impl Controller {
     ///      `fn drain_hold(&self) -> Duration`.
     ///  How long after the ring ran empty the old stream must live on:
     ///  the time the output needs to play the audio it already took from the ring
-    ///  (`FILL_FRAMES_FLOOR` frames at the track's rate), or zero without an output.
+    ///  (`FILL_FRAMES_FLOOR` frames at the track's rate),
+    /// or zero without an output.
     /// Why:
     ///       Rebuilding the stream drops what it still holds;
     ///  waiting this long keeps the last milliseconds of the track audible.
@@ -1613,7 +1648,9 @@ impl Controller {
 
     /// What:
     ///      `pub(crate) fn idle_park_timeout(&self, fallback: Duration) -> Duration`.
-    ///  How long the engine thread may sleep: `fallback`, or less while an end-of-track hold is running.
+    ///  How long the engine thread may sleep:
+    /// `fallback`,
+    /// or less while an end-of-track hold is running.
     ///  `pub(crate)` so `engine::run` can call it before parking.
     /// Why:
     ///       The output does not wake the engine once the ring is empty,
@@ -1632,12 +1669,14 @@ impl Controller {
 
     /// What:
     ///      `pub(crate) fn tick_playback(&mut self) -> bool`.
-    ///  Emit the audible position when due, announce a staged track once it is audible,
+    ///  Emit the audible position when due,
+    /// announce a staged track once it is audible,
     ///  and start the next track once the last frame of an old one was consumed.
     ///  Returns whether it changed the loaded track (work was done).
     ///  `pub(crate)` so `engine::run` can call it each loop iteration.
     /// Why:
-    ///       Position follows the speakers, not the decoder,
+    ///       Position follows the speakers,
+    /// not the decoder,
     ///  and nothing is pushed while the tail plays out,
     ///  so this cannot live in `pump_audio`.
     ///

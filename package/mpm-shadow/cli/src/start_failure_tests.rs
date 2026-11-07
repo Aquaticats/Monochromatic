@@ -1,5 +1,6 @@
 //! Unit tests of the message for a real `mpm` that could not be started:
-//! one test per cause, plus the parts every message has.
+//! one test per cause,
+//! plus the parts every message has.
 
 use std::ffi::OsString;
 use std::io::{Error, ErrorKind};
@@ -25,7 +26,8 @@ fn no_retry() -> RetryReport {
     return RetryReport::default();
 }
 
-/// The parts every message has, whatever the cause.
+/// The parts every message has,
+/// whatever the cause.
 fn assert_has_the_common_parts(text: &str) {
     assert!(text.starts_with("mpm-shadow: "), "{text}");
     assert!(text.contains("mpm i -g"), "the command the person ran: {text}");

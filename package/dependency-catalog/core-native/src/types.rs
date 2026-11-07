@@ -196,7 +196,8 @@ pub struct Settings {
     pub trust_policy_exclude_prune: bool,
     /// Minutes after which a release skips the trust check.
     pub trust_policy_ignore_after: Option<u64>,
-    /// pnpm's `trustLockfile`: when true,
+    /// pnpm's `trustLockfile`:
+    /// when true,
     /// an install does not re-validate lockfile entries that were already trusted.
     pub trust_lockfile: bool,
 }

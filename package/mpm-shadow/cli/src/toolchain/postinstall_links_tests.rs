@@ -174,7 +174,8 @@ fn the_install_report_prints_each_retired_link() {
 // so its record names the links of that other checkout.
 
 /// Copies `source` to `destination` the way a snapshot of a checkout does:
-/// every entry, with symbolic links kept as links.
+/// every entry,
+/// with symbolic links kept as links.
 fn copy_as_a_snapshot(source: &Path, destination: &Path) {
     let status = std::process::Command::new("cp")
         .arg("--archive")
@@ -185,7 +186,8 @@ fn copy_as_a_snapshot(source: &Path, destination: &Path) {
     assert!(status.success(), "cp copies {} to {}", source.display(), destination.display());
 }
 
-/// The first checkout has made its link; a second checkout is a snapshot of the first one's `.cache`.
+/// The first checkout has made its link;
+/// a second checkout is a snapshot of the first one's `.cache`.
 fn second_checkout_copied_from(first: &Rig) -> Rig {
     let second = rig_with_program();
     copy_as_a_snapshot(&first.scope.root.join(".cache"), &second.scope.root.join(".cache"));

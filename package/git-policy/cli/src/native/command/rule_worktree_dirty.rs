@@ -16,7 +16,8 @@
 //! ```
 
 use crate::git_metadata::MetadataOutput;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
+use std::path::Path;
 
 /// What:
 ///  Which files count as uncommitted state.
@@ -89,6 +90,36 @@ pub fn dirty_from_output(output: &MetadataOutput) -> Result<bool, String> {
         return Err(format!("Git could not read the worktree status: {detail}"));
     }
     return Ok(!output.stdout.is_empty());
+}
+
+/// What:
+///  Whether a Git directory has never had an index file: the state `git clone --no-checkout` leaves.
+///  `Option<&Path>` is "a borrowed path or nothing"; the second argument is the value of `GIT_INDEX_FILE`, injected so tests
+///  never read the process environment.
+/// Why:
+///   With no index file Git sees an initial checkout and has nothing of the user's to protect: `builtin/checkout.c` sets
+///  `initial_checkout = is_index_unborn(...)` and `is_index_unborn` in `read-cache.c` is `!istate->cache_nr && !istate->timestamp.sec`,
+///  so `unpack-trees.c` skips the rejection of a staged deletion (`if (oldtree && !o->initial_checkout)`). `git status` still lists every
+///  committed file as a staged deletion there, which the guard read as uncommitted work. The definition stays as narrow as Git's: an index
+///  file that exists, empty or not, is never absent, so a staged deletion of every file still counts; a `GIT_INDEX_FILE` that names
+///  another index, an unreadable Git directory and a Git directory that does not exist all answer false and leave the question to `git status`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function indexFileIsAbsent(gitDirectory?: string, indexFileVariable?: string): boolean;
+/// ```
+pub fn index_file_is_absent(git_directory: Option<&Path>, index_file_variable: Option<&OsStr>) -> bool {
+    if index_file_variable.is_some() {
+        return false;
+    }
+    let Some(directory) = git_directory else {
+        return false;
+    };
+    // `symlink_metadata` does not follow a link, so a dangling link named `index` is present, never absent.
+    return match std::fs::symlink_metadata(directory.join("index")) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => directory.is_dir(),
+        Err(_) | Ok(_) => false,
+    };
 }
 
 /// Arguments of each scope and the reading of a successful,

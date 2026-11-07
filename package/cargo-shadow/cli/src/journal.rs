@@ -165,7 +165,8 @@ pub(crate) const INDEX_FILE: &str = "index.txt";
 /// the process id and the process start time.
 pub(crate) const OWNER_FILE: &str = "owner";
 
-/// The file in which the containment (a control group, or in the weaker path a process group) of the children a transaction started is recorded,
+/// The file in which the containment (a control group,
+/// or in the weaker path a process group) of the children a transaction started is recorded,
 /// one record per line.
 pub(crate) const GROUPS_FILE: &str = "groups";
 
@@ -186,8 +187,10 @@ pub(crate) const ACKNOWLEDGED_HEADER: &str = "acknowledged v1";
 /// "Warn past a count,
 /// never refuse (Recommended)":
 /// nothing is refused or deleted past it.
-/// The value is the warning point carried over from round 5, a delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open;
+/// The value is the warning point carried over from round 5,
+/// a delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
+/// (handover "Picks made under the owner's delegation"),
+/// veto open;
 /// the rate at which files are kept has not been measured.
 pub const KEPT_FILES_WARNING_COUNT: usize = 1_000;
 
@@ -242,7 +245,8 @@ pub(crate) fn write_synced(path: &Path, text: &str) -> io::Result<()> {
 
 #[cfg(test)]
 thread_local! {
-    /// A hook that runs inside `atomic_write` after the temporary file is whole and synced and before the rename publishes it, so a
+    /// A hook that runs inside `atomic_write` after the temporary file is whole and synced and before the rename publishes it,
+    /// so a
     /// test can stop or kill a real publisher at that boundary.
     static BEFORE_PUBLISH: std::cell::RefCell<Option<std::rc::Rc<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
@@ -251,7 +255,8 @@ thread_local! {
 /// `pub(crate) fn before_publish_for_test(hook: Option<Rc<dyn Fn()>>)` sets the hook that runs between the temporary file and the
 /// rename of an atomic publication on this thread.
 /// Why:
-/// An interrupted publication is made by a real publisher that is killed there, not built by hand.
+/// An interrupted publication is made by a real publisher that is killed there,
+/// not built by hand.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,11 +1,23 @@
-//! The stream thread: takes the batches the folder walk reports and appends them to the Search index.
+//! The stream thread:
+//! takes the batches the folder walk reports and appends them to the Search index.
 //!
-//! What: `stream_loop` receives `(first_index, names)` from the engine thread over a channel, prepares each batch and
-//! pushes it, in order, on its own thread. `reset_index` and `append_prepared_batch` are the two operations on the
+//! What:
+//! `stream_loop` receives `(first_index, names)` from the engine thread over a channel,
+//! prepares each batch and
+//! pushes it,
+//! in order,
+//! on its own thread.
+//! `reset_index` and `append_prepared_batch` are the two operations on the
 //! shared index that this thread and the service handle both use.
-//! Why: D111 makes tracks searchable while the walk runs, but the walk is on the engine thread, and preparing a batch
-//! costs milliseconds and the push may wait for readers. The engine thread must only hand the names over, so the walk,
-//! and the first rows of the library that wait for it, are not slowed by the feed.
+//! Why:
+//! D111 makes tracks searchable while the walk runs,
+//! but the walk is on the engine thread,
+//! and preparing a batch
+//! costs milliseconds and the push may wait for readers.
+//! The engine thread must only hand the names over,
+//! so the walk,
+//! and the first rows of the library that wait for it,
+//! are not slowed by the feed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,7 +37,9 @@ use crate::search_worker::{Shared, read_index, write_when_free};
 ///      `pub(crate) const STREAM_RESERVE_TRACKS: usize = 1_000_000`.
 ///  How many tracks a streamed library reserves room for before its size is known.
 /// Why:
-///       Reserved memory is address space until written, so a small library does not pay for it, and the buffers never
+///       Reserved memory is address space until written,
+/// so a small library does not pay for it,
+/// and the buffers never
 ///  have to be copied under the write lock while the walk runs.
 pub(crate) const STREAM_RESERVE_TRACKS: usize = 1_000_000;
 
@@ -47,7 +61,8 @@ pub(crate) const FLUSH_PATIENCE: Duration = Duration::from_secs(120);
 ///      `pub(crate) enum StreamRequest`.
 ///  Messages to the stream thread.
 /// Why:
-///       Batches arrive in walk order; a flush answers once everything sent before it has been appended.
+///       Batches arrive in walk order;
+/// a flush answers once everything sent before it has been appended.
 pub(crate) enum StreamRequest {
     /// A batch with the queue position of its first name.
     Batch(usize, Vec<String>),
@@ -61,7 +76,8 @@ pub(crate) enum StreamRequest {
 ///      `pub(crate) fn reset_index(shared: &Shared, expected_tracks: usize, expected_path_bytes: usize) -> u64`.
 ///  Replaces the index with an empty one of a new generation and room for the expected tracks.
 /// Why:
-///       A library that cannot be expressed as an append starts over; the old index is dropped under the write lock.
+///       A library that cannot be expressed as an append starts over;
+/// the old index is dropped under the write lock.
 pub(crate) fn reset_index(shared: &Shared, expected_tracks: usize, expected_path_bytes: usize) -> u64 {
     let _order = shared.append_order.lock().unwrap_or_else(PoisonError::into_inner);
     let generation: u64 = shared.generation.fetch_add(1, Ordering::AcqRel) + 1;
@@ -75,9 +91,11 @@ pub(crate) fn reset_index(shared: &Shared, expected_tracks: usize, expected_path
 
 /// What:
 ///      `pub(crate) fn append_prepared_batch(shared: &Shared, generation: u64, batch: PreparedBatch) -> bool`.
-///  Appends a prepared batch to library `generation`, or refuses when that library was replaced.
+///  Appends a prepared batch to library `generation`,
+/// or refuses when that library was replaced.
 /// Why:
-///       A feeder may outlive its library, and its late batch must not land in the new one.
+///       A feeder may outlive its library,
+/// and its late batch must not land in the new one.
 pub(crate) fn append_prepared_batch(shared: &Shared, generation: u64, batch: PreparedBatch) -> bool {
     let _order = shared.append_order.lock().unwrap_or_else(PoisonError::into_inner);
     if shared.generation.load(Ordering::Acquire) != generation {
@@ -90,9 +108,11 @@ pub(crate) fn append_prepared_batch(shared: &Shared, generation: u64, batch: Pre
 
 /// What:
 ///      `fn apply_batch(shared: &Shared, first_index: usize, names: &[String])`.
-///  Appends one streamed batch, starting a new library when it begins at position zero.
+///  Appends one streamed batch,
+/// starting a new library when it begins at position zero.
 /// Why:
-///       A batch that does not continue the index would put names at positions that are not queue positions, so it is
+///       A batch that does not continue the index would put names at positions that are not queue positions,
+/// so it is
 ///  ignored and logged.
 fn apply_batch(shared: &Shared, first_index: usize, names: &[String]) {
     if first_index == 0 {

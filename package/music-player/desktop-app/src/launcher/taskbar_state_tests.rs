@@ -5,7 +5,8 @@ use super::{TaskbarInput, TaskbarProgress, TaskbarUpdate, MIN_UPDATE_GAP};
 use crate::command::Update;
 use std::time::Duration;
 
-/// What: a shown bar at `percent`.
+/// What:
+/// a shown bar at `percent`.
 fn shown(percent: u8) -> TaskbarUpdate {
     return TaskbarUpdate {
         percent,
@@ -13,12 +14,16 @@ fn shown(percent: u8) -> TaskbarUpdate {
     };
 }
 
-/// What: `Duration` of `ms` milliseconds since the app started.
+/// What:
+/// `Duration` of `ms` milliseconds since the app started.
 fn at(ms: u64) -> Duration {
     return Duration::from_millis(ms);
 }
 
-/// What: a machine that is playing a track of `duration_secs`, at position zero, with the opening values consumed.
+/// What:
+/// a machine that is playing a track of `duration_secs`,
+/// at position zero,
+/// with the opening values consumed.
 fn playing_track(duration_secs: f64) -> TaskbarProgress {
     let mut machine = TaskbarProgress::new();
     machine.apply(TaskbarInput::NowPlaying { duration_secs }, at(0));
@@ -26,7 +31,9 @@ fn playing_track(duration_secs: f64) -> TaskbarProgress {
     return machine;
 }
 
-/// What: the engine's message pair at a track change, `NowPlaying` then `Position(0)`.
+/// What:
+/// the engine's message pair at a track change,
+/// `NowPlaying` then `Position(0)`.
 fn now_playing(duration: f64) -> Update {
     return Update::NowPlaying {
         index: Some(0),

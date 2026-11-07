@@ -1,7 +1,9 @@
-//! A private session bus with the recording notification service, and no compositor.
+//! A private session bus with the recording notification service,
+//! and no compositor.
 //!
 //! Runs one command with `DBUS_SESSION_BUS_ADDRESS` pointing at a disposable `dbus-daemon` that has no service
-//!  directories, so a real `notify-send` (or any client of `org.freedesktop.Notifications`) lands on the same
+//!  directories,
+//! so a real `notify-send` (or any client of `org.freedesktop.Notifications`) lands on the same
 //!  recording service the nested session serves,
 //!  never on the owner's desktop.
 //! When the command ends,

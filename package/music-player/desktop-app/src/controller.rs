@@ -171,7 +171,8 @@ use crate::playback_clock::PlaybackClock;
 
 /// What:
 ///      `use crate::controller_audio::StagedTrack;`.
-///  The next track, opened early so it can follow the current one without a gap.
+///  The next track,
+/// opened early so it can follow the current one without a gap.
 /// Why:
 ///       The `staged` field and `Controller::new` name it.
 ///
@@ -418,7 +419,9 @@ pub(crate) struct Controller {
     /// What:
     ///      `staged: Option<StagedTrack>`.
     ///  The next track when it was opened while the current one is still audible
-    ///  (same sample rate and channels, so it plays on in the same ring buffer), else `None`.
+    ///  (same sample rate and channels,
+    /// so it plays on in the same ring buffer),
+    /// else `None`.
     /// Why:
     ///       The queue keeps pointing at the audible track until the output consumes its last frame;
     ///  this field is what tells the controller a join is waiting to be announced.
@@ -430,15 +433,21 @@ pub(crate) struct Controller {
     pub(crate) staged: Option<StagedTrack>,
     /// Where background sweeps and re-analyses send their reports.
     pub(crate) sweep_sink: SweepSink,
-    /// Generation of the newest queue load; reports from older generations are dropped.
+    /// Generation of the newest queue load;
+    /// reports from older generations are dropped.
     pub(crate) analysis_generation: u64,
-    /// Fingerprints taken by the sweeps of the newest queue load, shared with every refresh sweep of that load.
+    /// Fingerprints taken by the sweeps of the newest queue load,
+    /// shared with every refresh sweep of that load.
     pub(crate) sweep_claims: Arc<Mutex<HashSet<u64>>>,
-    /// Files already reported as unplayable, so a failure is told once until the file decodes again (D113, D83).
+    /// Files already reported as unplayable,
+    /// so a failure is told once until the file decodes again (D113,
+    /// D83).
     pub(crate) reported_unplayable: Mutex<HashSet<PathBuf>>,
-    /// The file the decoder was opened on and the fingerprint it had then, so a change of that file is noticed (D113).
+    /// The file the decoder was opened on and the fingerprint it had then,
+    /// so a change of that file is noticed (D113).
     pub(crate) loaded_file: Option<(PathBuf, u64)>,
-    /// At most one refresh sweep runs; requests that arrive meanwhile become one follow-up (D113).
+    /// At most one refresh sweep runs;
+    /// requests that arrive meanwhile become one follow-up (D113).
     pub(crate) refresh: crate::refresh_coalescer::RefreshCoalescer,
     /// What:
     ///      `pending: Vec<f32>`.

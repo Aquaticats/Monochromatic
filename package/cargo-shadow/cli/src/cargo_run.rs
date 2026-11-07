@@ -131,7 +131,8 @@ pub struct RealCargo {
 /// a run that resolves with an empty registry cache (and so shows the real upper end) is what must be measured to set this number.
 /// The owner's rule of 2026-11-03 ("nothing should ever wait forever or indefinitely") justifies that a bound exists;
 /// the number is a Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open.
+/// (handover "Picks made under the owner's delegation"),
+/// veto open.
 pub const CARGO_CALL_SECONDS: u64 = 1_800;
 
 /// What:
@@ -158,8 +159,9 @@ impl CargoRunner for RealCargo {
     /// run(cwd: string, args: string[]): CargoOutcome  // throws if cargo cannot start
     /// ```
     fn run(&self, cwd: &Path, args: &[String]) -> Result<CargoOutcome, String> {
-        crate::real_binary::refuse_if_ourselves(&self.program)?;
-        let mut command: Command = Command::new(&self.program);
+        let vetted = crate::real_binary::vet(&self.program)?;
+        // The runner below puts the program inside a scope whose launcher starts it from its own process, so only a path names it there.
+        let mut command: Command = vetted.command_by_path()?;
         command.args(args).current_dir(cwd);
         // The loop guard (`guard.rs`): the candidate's resolved path joins the skip list of the instance it may start, so a
         // `cargo` that is a launcher leading back to the shadow is skipped there and the next `cargo` on PATH runs instead.

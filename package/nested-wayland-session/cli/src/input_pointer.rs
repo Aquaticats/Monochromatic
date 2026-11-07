@@ -1,9 +1,12 @@
 //! Pointer hover and held-button injection through the nested seat.
 //!
-//! `move` moves the pointer without a press, so the hosted client sees real enter, motion,
+//! `move` moves the pointer without a press,
+//! so the hosted client sees real enter,
+//! motion,
 //!  and leave events.
 //!  `button` presses or releases at the current pointer position and keeps the button held
-//!  until a matching release, so a test can pause or move between the two.
+//!  until a matching release,
+//! so a test can pause or move between the two.
 
 /// Application diagnostics describe a button that is already in the requested state.
 use anyhow::{bail, Context, Result};
@@ -21,7 +24,8 @@ use crate::{
     state::Compositor,
 };
 
-/// Buttons currently held by `button down`, by evdev code.
+/// Buttons currently held by `button down`,
+/// by evdev code.
 ///
 /// What:
 ///      `pub struct HeldButtons { codes: Vec<u32> }`.
@@ -36,7 +40,8 @@ use crate::{
 /// ```
 #[derive(Debug, Default)]
 pub struct HeldButtons {
-    /// Evdev codes of the buttons that are down, in press order.
+    /// Evdev codes of the buttons that are down,
+    /// in press order.
     codes: Vec<u32>,
 }
 
@@ -53,7 +58,8 @@ impl HeldButtons {
         return self.codes.contains(&code)
     }
 
-    /// Records a press, keeping one entry per button.
+    /// Records a press,
+    /// keeping one entry per button.
     ///
     /// What:
     ///      `fn press(&mut self, code: u32)`.
@@ -65,7 +71,8 @@ impl HeldButtons {
         }
     }
 
-    /// Records a release, which also clears the button after a `click` releases it.
+    /// Records a release,
+    /// which also clears the button after a `click` releases it.
     ///
     /// What:
     ///      `pub fn release(&mut self, code: u32)`.
@@ -81,7 +88,8 @@ impl HeldButtons {
 ///
 /// What:
 ///      `pub fn move_pointer(state: &mut Compositor, x: f64, y: f64) -> Result<()>`.
-///  The coordinates must be finite; the protocol parser already enforces that.
+///  The coordinates must be finite;
+/// the protocol parser already enforces that.
 /// Why:
 ///       Motion alone changes the pointer focus,
 ///  which is how the hosted client receives enter and leave events.
@@ -114,7 +122,8 @@ pub fn move_pointer(state: &mut Compositor, x: f64, y: f64) -> Result<()> {
 /// What:
 ///      `pub fn button(state: &mut Compositor, action: ButtonAction, button: PointerButton) ->
 ///           Result<()>`.
-///  Fails when the button is already down for `Down`, or already up for `Up`.
+///  Fails when the button is already down for `Down`,
+/// or already up for `Up`.
 /// Why:
 ///       The state check keeps a repeated request from sending a second press
 ///  that the hosted client would read as a double click.

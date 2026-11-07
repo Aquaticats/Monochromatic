@@ -1,8 +1,15 @@
-//! Whether a folder chooser can open at all, and what to tell the user when none can.
+//! Whether a folder chooser can open at all,
+//! and what to tell the user when none can.
 //!
-//! What: `dialog_backend_missing` is true on Linux when neither the desktop portal nor `zenity` is available, the two
-//! ways the file dialog library opens a chooser there; `NO_DIALOG_MESSAGE` says how to proceed.
-//! Why: with neither, `Open folder` did nothing and said nothing (the polish review finding PB5), because the library
+//! What:
+//! `dialog_backend_missing` is true on Linux when neither the desktop portal nor `zenity` is available,
+//! the two
+//! ways the file dialog library opens a chooser there;
+//! `NO_DIALOG_MESSAGE` says how to proceed.
+//! Why:
+//! with neither,
+//! `Open folder` did nothing and said nothing (the polish review finding PB5),
+//! because the library
 //! returns the same empty answer for "cancelled" and "no chooser exists".
 //!
 //! In TS you'd write (pseudocode):
@@ -17,15 +24,21 @@ use std::path::Path;
 ///      `pub const NO_DIALOG_MESSAGE: &str`.
 ///  The message shown when no folder chooser is available.
 /// Why:
-///       Plain words, the cause, and both ways forward: install a chooser, or start the player with the folder (the
-///  command line accepts a folder, D95's launch path).
+///       Plain words,
+/// the cause,
+/// and both ways forward:
+/// install a chooser,
+/// or start the player with the folder (the
+///  command line accepts a folder,
+/// D95's launch path).
 pub const NO_DIALOG_MESSAGE: &str = "This computer has no folder chooser for the player to open. Install zenity, or start the player with a folder: music-player /path/to/music";
 
 /// What:
 ///      `pub fn executable_on_path(program: &str, path_variable: &OsStr) -> bool`.
 ///  Whether a file called `program` exists in any folder listed in `path_variable`.
 /// Why:
-///       The same search the shell does, written out so it can be tested with a disposable folder list.
+///       The same search the shell does,
+/// written out so it can be tested with a disposable folder list.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -39,7 +52,9 @@ pub fn executable_on_path(program: &str, path_variable: &OsStr) -> bool {
 ///      `fn portal_is_available() -> bool` (Linux).
 ///  Whether the desktop portal service is running or can be started by the session bus.
 /// Why:
-///       The portal is the first way the dialog library tries. The bus is only read; no portal call is made.
+///       The portal is the first way the dialog library tries.
+/// The bus is only read;
+/// no portal call is made.
 #[cfg(target_os = "linux")]
 fn portal_is_available() -> bool {
     const PORTAL: &str = "org.freedesktop.portal.Desktop";
@@ -82,7 +97,9 @@ pub fn no_chooser_can_open(zenity: bool, portal: bool) -> bool {
 ///      `pub fn dialog_backend_missing() -> bool`.
 ///  True when a folder chooser cannot open on this computer.
 /// Why:
-///       Only Linux can lack one: macOS and Windows have native choosers. On Linux the chooser needs the portal or `zenity`.
+///       Only Linux can lack one:
+/// macOS and Windows have native choosers.
+/// On Linux the chooser needs the portal or `zenity`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

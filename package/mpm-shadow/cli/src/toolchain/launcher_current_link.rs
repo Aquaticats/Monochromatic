@@ -2,7 +2,8 @@
 //! How a launcher finds the program to run and what it says when it finds none:
 //! the program its record names,
 //! otherwise the program of the same name under the tool's `current` link,
-//! and, when neither exists,
+//! and,
+//! when neither exists,
 //! one sentence naming the tool,
 //! the locked version,
 //! the version `current` names
@@ -125,7 +126,8 @@ pub struct MissingProgram<'facts> {
     pub lock_file: &'facts Path,
     /// The program the record names.
     pub real: &'facts Path,
-    /// The lock file's text, when it could be read.
+    /// The lock file's text,
+    /// when it could be read.
     pub lock_text: Option<&'facts str>,
 }
 

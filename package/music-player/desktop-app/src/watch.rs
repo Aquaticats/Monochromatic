@@ -1,59 +1,78 @@
 //! The Source Root file watcher.
 //!  It watches the current Source Root recursively and,
 //! on any debounced filesystem change,
-//!  reports a `Change`: the union of the paths the events named,
+//!  reports a `Change`:
+//! the union of the paths the events named,
 //!  or "everything" when events were lost (an overflow or an error) and after a registration.
 //!  The queue is still the scan of the root,
 //!  but D113 refreshes only the named paths,
 //!  so the library is not walked and stat'ed again for every event.
 //! See `doc/decision/music-player-live-update-rescan.md`.
 //!
-//! Registering the watch walks every directory of the root, which took 28 to 45 seconds at one million tracks, so it
-//! runs on its own thread and `watch` only sends a request. Events are debounced here, not by a library, because the
-//! library cannot tell a read of a directory from a change to it, and the rescan's own walk reads every directory.
+//! Registering the watch walks every directory of the root,
+//! which took 28 to 45 seconds at one million tracks,
+//! so it
+//! runs on its own thread and `watch` only sends a request.
+//! Events are debounced here,
+//! not by a library,
+//! because the
+//! library cannot tell a read of a directory from a change to it,
+//! and the rescan's own walk reads every directory.
 
 /// Path types for the watched root.
 use std::path::{Path, PathBuf};
 
-/// What: `use crate::change_set::Change;`. What a burst of events means for the library.
-/// Why: The debounce thread merges the events of a burst into one `Change`.
+/// What:
+/// `use crate::change_set::Change;`.
+/// What a burst of events means for the library.
+/// Why:
+/// The debounce thread merges the events of a burst into one `Change`.
 use crate::change_set::Change;
 
 /// Time spans and clocks for the debounce window.
 use std::time::{Duration, Instant};
 
-/// Channels, a shared counter with its wake-up, and the two threads.
+/// Channels,
+/// a shared counter with its wake-up,
+/// and the two threads.
 use std::sync::{Arc, Condvar, Mutex, mpsc};
 use std::thread;
 
 /// What:
 ///      `use notify_debouncer_mini::notify::{...};`.
-///  The raw watcher, its event type and the recursive mode, from the `notify` crate the debouncer re-exports.
+///  The raw watcher,
+/// its event type and the recursive mode,
+/// from the `notify` crate the debouncer re-exports.
 /// Why:
-///       Events are filtered by kind before they count as a change, which the debouncer's own events do not allow.
+///       Events are filtered by kind before they count as a change,
+/// which the debouncer's own events do not allow.
 use notify_debouncer_mini::notify::{Event, RecommendedWatcher, RecursiveMode, Watcher, recommended_watcher};
 
 /// What:
 ///      `const DEBOUNCE_MS: u64 = 500;`.
 ///  The quiet time after the last change before a rescan is requested.
 /// Why:
-///       Coalesce bursts (copying an album, an editor's atomic-rename temp files) into one rescan.
+///       Coalesce bursts (copying an album,
+/// an editor's atomic-rename temp files) into one rescan.
 const DEBOUNCE_MS: u64 = 500;
 
 /// What:
 ///      `const MAX_DEBOUNCE_MS: u64 = 5_000;`.
 ///  The longest a rescan is put off while changes keep arriving.
 /// Why:
-///       A long copy must still refresh the library now and then, instead of only once it ends.
+///       A long copy must still refresh the library now and then,
+/// instead of only once it ends.
 const MAX_DEBOUNCE_MS: u64 = 5_000;
 
 /// What:
 ///      `enum WatchRequest { Watch(PathBuf), Stop }`.
 ///  The two things the registration thread is asked to do.
 /// Why:
-///       The caller only sends a request, so it never waits for a registration.
+///       The caller only sends a request,
+/// so it never waits for a registration.
 enum WatchRequest {
-    /// Watch this root recursively, after unwatching the previous one.
+    /// Watch this root recursively,
+    /// after unwatching the previous one.
     Watch(PathBuf),
     /// Stop the thread.
     Stop,
@@ -61,10 +80,13 @@ enum WatchRequest {
 
 /// What:
 ///      `pub(crate) struct SourceWatcher { requests, registered }`.
-///  A handle to the registration thread, which owns the raw watcher.
+///  A handle to the registration thread,
+/// which owns the raw watcher.
 /// Why:
-///       The controller holds one of these and re-points it whenever the Source Root changes. The engine thread must
-///  not wait for the OS watch to be registered: at one million tracks that wait came before the first folder was scanned.
+///       The controller holds one of these and re-points it whenever the Source Root changes.
+/// The engine thread must
+///  not wait for the OS watch to be registered:
+/// at one million tracks that wait came before the first folder was scanned.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -73,7 +95,8 @@ enum WatchRequest {
 pub(crate) struct SourceWatcher {
     /// Requests to the registration thread.
     requests: mpsc::Sender<WatchRequest>,
-    /// How many watches the thread has finished registering, with the condition variable that announces each one.
+    /// How many watches the thread has finished registering,
+    /// with the condition variable that announces each one.
     /// Only tests wait for it.
     #[cfg(test)]
     registered: Arc<(Mutex<u64>, Condvar)>,
@@ -83,7 +106,8 @@ pub(crate) struct SourceWatcher {
 ///      `impl SourceWatcher { ... }`.
 ///  The constructor and the re-point method.
 /// Why:
-///       Create the watcher and its two threads, and watch a given root.
+///       Create the watcher and its two threads,
+/// and watch a given root.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -91,11 +115,16 @@ pub(crate) struct SourceWatcher {
 /// ```
 impl SourceWatcher {
     /// What:
-    ///      `pub(crate) fn new<F>(on_change: F) -> Option<SourceWatcher>`, where `F: Fn(Change)`.
-    ///  Create the watcher, the debounce thread that calls `on_change`, and the registration thread, or `None`
+    ///      `pub(crate) fn new<F>(on_change: F) -> Option<SourceWatcher>`,
+    /// where `F: Fn(Change)`.
+    ///  Create the watcher,
+    /// the debounce thread that calls `on_change`,
+    /// and the registration thread,
+    /// or `None`
     ///  when the OS watcher cannot start.
     /// Why:
-    ///       The watcher is created here so a failure is reported to the caller, then moved to its thread.
+    ///       The watcher is created here so a failure is reported to the caller,
+    /// then moved to its thread.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -127,10 +156,12 @@ impl SourceWatcher {
 
     /// What:
     ///      `pub(crate) fn watch(&mut self, root: &Path)`.
-    ///  Ask the registration thread to watch `root` recursively, after unwatching any previously-watched root,
+    ///  Ask the registration thread to watch `root` recursively,
+    /// after unwatching any previously-watched root,
     ///  and return at once.
     /// Why:
-    ///       Re-point the single watch when the Source Root changes (open, restore).
+    ///       Re-point the single watch when the Source Root changes (open,
+    /// restore).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -145,7 +176,8 @@ impl SourceWatcher {
     ///      `pub(crate) fn wait_until_registered(&self, count: u64, patience: Duration) -> bool`.
     ///  Wait until the thread has finished registering `count` watches.
     /// Why:
-    ///       A change made before the registration finishes is not seen, so tests that change files wait for it first.
+    ///       A change made before the registration finishes is not seen,
+    /// so tests that change files wait for it first.
     #[cfg(test)]
     pub(crate) fn wait_until_registered(&self, count: u64, patience: Duration) -> bool {
         let (finished, wake) = &*self.registered;
@@ -161,9 +193,11 @@ impl SourceWatcher {
 impl Drop for SourceWatcher {
     /// What:
     ///      `fn drop(&mut self)`.
-    ///  Ask the registration thread to stop, without waiting for it.
+    ///  Ask the registration thread to stop,
+    /// without waiting for it.
     /// Why:
-    ///       A registration still running would hold shutdown for as long as it takes; the thread ends when it is done,
+    ///       A registration still running would hold shutdown for as long as it takes;
+    /// the thread ends when it is done,
     ///  and its watcher closing ends the debounce thread.
     fn drop(&mut self) {
         let _sent = self.requests.send(WatchRequest::Stop);
@@ -172,10 +206,12 @@ impl Drop for SourceWatcher {
 
 /// What:
 ///      `fn debounce_loop(quiet_for, on_change)`.
-///  The debounce thread: after a change it waits for `DEBOUNCE_MS` without another (at most `MAX_DEBOUNCE_MS`),
+///  The debounce thread:
+/// after a change it waits for `DEBOUNCE_MS` without another (at most `MAX_DEBOUNCE_MS`),
 ///  then calls `on_change` once with the union of what it saw.
 /// Why:
-///       A burst of events becomes one refresh, and a continuous one still produces a refresh every few seconds.
+///       A burst of events becomes one refresh,
+/// and a continuous one still produces a refresh every few seconds.
 fn debounce_loop<F: Fn(Change)>(quiet_for: mpsc::Receiver<Change>, on_change: F) {
     while let Ok(first_change) = quiet_for.recv() {
         let mut gathered: Change = first_change;
@@ -199,11 +235,19 @@ fn debounce_loop<F: Fn(Change)>(quiet_for: mpsc::Receiver<Change>, on_change: F)
 
 /// What:
 ///      `fn watch_loop(watcher, inbox, registered, catch_up)`.
-///  The registration thread: registers each requested root, counts it, and asks for one rescan once it is registered.
+///  The registration thread:
+/// registers each requested root,
+/// counts it,
+/// and asks for one rescan once it is registered.
 /// Why:
-///       Keeps the slow recursive registration off the engine thread. A change made while the registration was still
-///  running (28 seconds at one million tracks, after the scan had finished) was not seen by the watch, so one rescan
-///  after the registration catches it up. It cannot start a loop, because the rescan's own reads are not changes.
+///       Keeps the slow recursive registration off the engine thread.
+/// A change made while the registration was still
+///  running (28 seconds at one million tracks,
+/// after the scan had finished) was not seen by the watch,
+/// so one rescan
+///  after the registration catches it up.
+/// It cannot start a loop,
+/// because the rescan's own reads are not changes.
 fn watch_loop(
     mut watcher: RecommendedWatcher,
     inbox: mpsc::Receiver<WatchRequest>,

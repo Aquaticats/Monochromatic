@@ -1,6 +1,8 @@
-//! Tests for the bound in `dbus_step_bound.rs`, pulled in by
+//! Tests for the bound in `dbus_step_bound.rs`,
+//! pulled in by
 //! `#[cfg(all(test, target_os = "linux"))] #[path = "dbus_step_bound_tests.rs"] mod tests;` at the bottom of that file.
-//! They run against a private bus with a recording notification service; the user's session bus is never used.
+//! They run against a private bus with a recording notification service;
+//! the user's session bus is never used.
 
 use std::io::ErrorKind;
 use std::time::{Duration, Instant};
@@ -8,7 +10,8 @@ use std::time::{Duration, Instant};
 use super::*;
 use crate::unplayable_notification_bus_support::PrivateBus;
 
-/// A short bound for the tests that must see a step end, so each takes a fraction of a second.
+/// A short bound for the tests that must see a step end,
+/// so each takes a fraction of a second.
 const SHORT_BOUND: Duration = Duration::from_millis(300);
 
 /// How many times a short bound the tests allow before calling an ended step late.

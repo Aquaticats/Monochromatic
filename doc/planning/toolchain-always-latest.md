@@ -364,9 +364,11 @@ a failed group never stops the next one.
   a desktop notification (`notify-send`,
   as `/etc/systemd/system/mount-860.service` does) and the same text in
   the journal (`journalctl --user --unit toolchain-daily-update`).
-  A run sends at most one notification, which holds the groups' problems and the package checks' findings together;
+  A run sends at most one notification,
+  which holds the groups' problems and the package checks' findings together;
   the notifier is bounded to 30 seconds and is never given a session bus address the process did not have.
-  A failed group makes the service exit nonzero; nothing in the package checks or in `gh` changes the exit status.
+  A failed group makes the service exit nonzero;
+  nothing in the package checks or in `gh` changes the exit status.
 - One run at a time:
   an exclusive lock file `.cache/toolchain-daily-update.lock` names its holder;
   a live holder makes a
@@ -375,8 +377,10 @@ a failed group never stops the next one.
 
 ## Checking every package after the update
 
-Added 2026-11-07 for the owner's answer "Move anyway, fix forward"
-(`doc/planning/rust-nightly-always-latest.md`, section "What happens when a new nightly breaks a package").
+Added 2026-11-07 for the owner's answer "Move anyway,
+fix forward"
+(`doc/planning/rust-nightly-always-latest.md`,
+section "What happens when a new nightly breaks a package").
 The lock goes to the newest versions regardless;
 this section is how a package the update breaks becomes a fix-forward issue instead of a surprise.
 The first daily run (`d61dc1934a`) raised the zbus floor and moved the nightly,
@@ -385,136 +389,254 @@ and nobody was told.
 
 ### What is checked (the proposal)
 
-This list is a proposal made by the agent that built the check, recorded here so the owner can change it.
-Each check is the package's own `mise` task, run from the repository root as `mise run //package/<path>:<task>`.
+This list is a proposal made by the agent that built the check,
+recorded here so the owner can change it.
+Each check is the package's own `mise` task,
+run from the repository root as `mise run //package/<path>:<task>`.
 
-- Rust crates: `lint:clippy`, which compiles the crate and runs Clippy with warnings denied.
+- Rust crates:
+  `lint:clippy`,
+  which compiles the crate and runs Clippy with warnings denied.
   A compile break from a compiler or dependency move shows here and nowhere sooner.
-- TypeScript packages: `lint:types`, the package's `tsc` run through `task-tsc`.
+- TypeScript packages:
+  `lint:types`,
+  the package's `tsc` run through `task-tsc`.
 - Packages with neither task are not checked.
-- Not checked: tests, fuzz and mutation tasks, container-only builds, Android, and Windows and macOS
+- Not checked:
+  tests,
+  fuzz and mutation tasks,
+  container-only builds,
+  Android,
+  and Windows and macOS
   ("Ignore Win and mac until I say so.").
   A failing test is a different report from a package that no longer compiles,
   and the test tasks take hours on this host.
 
 The checks are found by `mise tasks ls --all --json` on every run,
 so a package that gains one of the two tasks is checked from the next run.
-On 2026-11-07 that was 31 Rust crates and 218 TypeScript packages; 14 packages have neither task and are skipped
-(`config/dprint`, `config/typescript`, `done/app`, `done/variant-postcss`, `figma/kiwi`, `figma/to-penpot`,
-`linter/kotlin`, `logger/core`, `music-player/design`, `ssg/aquati.cat`, three `test-fixture` packages and
+On 2026-11-07 that was 31 Rust crates and 218 TypeScript packages;
+14 packages have neither task and are skipped
+(`config/dprint`,
+`config/typescript`,
+`done/app`,
+`done/variant-postcss`,
+`figma/kiwi`,
+`figma/to-penpot`,
+`linter/kotlin`,
+`logger/core`,
+`music-player/design`,
+`ssg/aquati.cat`,
+three `test-fixture` packages and
 `zip-writer/core`).
 
 ### Before and after, in the same checkout
 
-1. Before anything is updated, every package is checked (the baseline pass).
+1. Before anything is updated,
+   every package is checked (the baseline pass).
 2. The groups run and commit as before.
-3. When a group committed or the machine-global lock changed, every package is checked again (the second pass).
-   A run that moved nothing skips the second pass, because no check can have become red.
+3. When a group committed or the machine-global lock changed,
+   every package is checked again (the second pass).
+   A run that moved nothing skips the second pass,
+   because no check can have become red.
 4. For each check the two results are compared:
    passed then failed is newly red;
    failed then failed is already red and is never reported again (`package/linter/monochromatic-lint-closure` is red
    today and the owner said "Wait for Dylint");
    failed then passed is recovered;
    passed then passed is unchanged;
-   anything else, including a check that timed out or never started because the pass ran out of time, is unknown.
+   anything else,
+   including a check that timed out or never started because the pass ran out of time,
+   is unknown.
    An unknown check never gets an issue.
 
-The baseline is measured in the same checkout, immediately before the update,
+The baseline is measured in the same checkout,
+immediately before the update,
 and not read from yesterday's run:
-this repository's main moves many times a day, so a stored result would blame the update for other people's commits.
-The cost is one more pass over the packages every day, measured below.
+this repository's main moves many times a day,
+so a stored result would blame the update for other people's commits.
+The cost is one more pass over the packages every day,
+measured below.
 
 The move never waits on the check and is never undone by it:
 the groups commit before the second pass starts,
 nothing in the check phase restores a file,
-and a failure anywhere in the check phase (the task listing, a check, `gh`) is logged, told to the owner,
+and a failure anywhere in the check phase (the task listing,
+a check,
+`gh`) is logged,
+told to the owner,
 and does not change the exit status of the update.
 
 ### Bounds and measurements
 
-Every value is a ceiling that stops a hung check, not a forecast, and cites the run that sets it.
-The measured run (2026-11-07, this worktree, host load average between 10 and 40) used the pools and caps below, in a
-transient unit with `CPUQuota=400%`, `MemoryMax=14G`, `TasksMax=3000` and `IOWeight=10`.
+Every value is a ceiling that stops a hung check,
+not a forecast,
+and cites the run that sets it.
+The measured run (2026-11-07,
+this worktree,
+host load average between 10 and 40) used the pools and caps below,
+in a
+transient unit with `CPUQuota=400%`,
+`MemoryMax=14G`,
+`TasksMax=3000` and `IOWeight=10`.
 
-- Rust check: 30 minutes.
-  Measured on all 31 crates in a fresh worktree: median about 60 seconds, longest passing 332 seconds,
-  longest failing 452 seconds (`ide/app`, a container build); four times the longest.
-- TypeScript check: 10 minutes.
-  Measured on 218 packages: median 3.5 seconds, 90th percentile 6.5 seconds, longest 97 seconds; six times the longest.
-- Pools: 2 Rust checks and 4 TypeScript checks at once, `CARGO_BUILD_JOBS=2` for each Rust check.
-  The measured run of the 64 checks not yet done after a first attempt took 19.5 minutes of wall clock, 42 minutes of CPU
-  (2.2 cores on average) and peaked at 5.5 GiB of memory including page cache, with 240 MiB of swap.
-  The first attempt (185 checks, 179 of them TypeScript) took 5.1 minutes at 3.3 cores.
+- Rust check:
+  30 minutes.
+  Measured on all 31 crates in a fresh worktree:
+  median about 60 seconds,
+  longest passing 332 seconds,
+  longest failing 452 seconds (`ide/app`,
+  a container build);
+  four times the longest.
+- TypeScript check:
+  10 minutes.
+  Measured on 218 packages:
+  median 3.5 seconds,
+  90th percentile 6.5 seconds,
+  longest 97 seconds;
+  six times the longest.
+- Pools:
+  2 Rust checks and 4 TypeScript checks at once,
+  `CARGO_BUILD_JOBS=2` for each Rust check.
+  The measured run of the 64 checks not yet done after a first attempt took 19.5 minutes of wall clock,
+  42 minutes of CPU
+  (2.2 cores on average) and peaked at 5.5 GiB of memory including page cache,
+  with 240 MiB of swap.
+  The first attempt (185 checks,
+  179 of them TypeScript) took 5.1 minutes at 3.3 cores.
   Both fit the service's two cores and 8 GiB.
-- One pass: 90 minutes, after which checks that have not started are skipped and counted as unknown.
-  About twice the estimate for the service's two cores; a pass after a nightly change rebuilds every crate, which was not
+- One pass:
+  90 minutes,
+  after which checks that have not started are skipped and counted as unknown.
+  About twice the estimate for the service's two cores;
+  a pass after a nightly change rebuilds every crate,
+  which was not
   measured.
-- Start timeout of the service: 4 hours, up from 2 hours: the update (21 minutes in the rehearsal) plus two passes of at
+- Start timeout of the service:
+  4 hours,
+  up from 2 hours:
+  the update (21 minutes in the rehearsal) plus two passes of at
   most 90 minutes.
   The installed unit still says 2 hours until `mise run toolchain:timer:install` runs from the main checkout.
-- `gh`: 60 seconds per call; `notify-send`: 30 seconds; `mise tasks ls --all`: 120 seconds (5.2 seconds cold).
+- `gh`:
+  60 seconds per call;
+  `notify-send`:
+  30 seconds;
+  `mise tasks ls --all`:
+  120 seconds (5.2 seconds cold).
 - Moved versions listed in an issue: 100.
-  The first daily update moved a median of 52 crates in a package's `Cargo.lock`, and 206, 124 and 104 in the three
+  The first daily update moved a median of 52 crates in a package's `Cargo.lock`,
+  and 206,
+  124 and 104 in the three
   largest.
 
-The measured run also showed the failures a pass reports, none of which this update caused:
-`linter/monochromatic-lint-closure` (E0797, the known "Wait for Dylint" red), `terminal/app` (its build script runs
-`git checkout`, which the Git wrapper's linked-worktree guard refuses, so it is red in any worktree),
-`ide/app` (the same family, in a container build; the failure prints no line that starts with `error`, so its issue
-would say so and give the reproduce command) and `vm-builder/cli` (`lint:types`, TS2307).
-Several TypeScript packages fail in a fresh worktree only because their `dist` is not built; the first attempt saw 13.
-These are baseline reds when the daily run sees them before and after the update, and so never get an issue.
+The measured run also showed the failures a pass reports,
+none of which this update caused:
+`linter/monochromatic-lint-closure` (E0797,
+the known "Wait for Dylint" red),
+`terminal/app` (its build script runs
+`git checkout`,
+which the Git wrapper's linked-worktree guard refuses,
+so it is red in any worktree),
+`ide/app` (the same family,
+in a container build;
+the failure prints no line that starts with `error`,
+so its issue
+would say so and give the reproduce command) and `vm-builder/cli` (`lint:types`,
+TS2307).
+Several TypeScript packages fail in a fresh worktree only because their `dist` is not built;
+the first attempt saw 13.
+These are baseline reds when the daily run sees them before and after the update,
+and so never get an issue.
 
 ### The issue
 
-One issue per newly red check, opened through `gh` in this repository (it infers the repository from the checkout).
+One issue per newly red check,
+opened through `gh` in this repository (it infers the repository from the checkout).
 `gh` reads its own credentials;
 no token is on a command line or in the output,
 the body travels on standard input,
-and the process runs with `GH_PROMPT_DISABLED=1`, `GH_NO_UPDATE_NOTIFIER=1`, `GIT_ASKPASS` set and empty,
+and the process runs with `GH_PROMPT_DISABLED=1`,
+`GH_NO_UPDATE_NOTIFIER=1`,
+`GIT_ASKPASS` set and empty,
 and `GIT_TERMINAL_PROMPT=0`.
 
-Labels: `needs-triage` only (`doc/agent/triage-labels.md`).
-Nobody has evaluated an automatic report, which is what that label means;
+Labels:
+`needs-triage` only (`doc/agent/triage-labels.md`).
+Nobody has evaluated an automatic report,
+which is what that label means;
 the owner or an agent adds `ready-for-agent` after reading it.
 
-Title: `<package>: <task> fails after the daily update (<error code or message start>)`.
+Title:
+`<package>: <task> fails after the daily update (<error code or message start>)`.
 
-Body, in order:
+Body,
+in order:
 
 - One sentence that says which check of which package passed before the update and fails after it,
   and that the update is kept and this is the fix-forward report.
-- Update: the commits the update made (full object names), or the statement that only the machine-global toolchain
-  moved; and the commit the repository was at when the check last passed.
-- What moved: per lock, the versions that moved, one `name from to to` line each.
-  For a Rust crate that is its `Cargo.lock`; for a TypeScript package, its importer block in `pnpm-lock.yaml`;
-  for every package, the repository `toolchain.lock.json` and the machine-global lock.
-  Entries whose crate or package the first error names come first and say so; the list is capped, and the rest is
+- Update:
+  the commits the update made (full object names),
+  or the statement that only the machine-global toolchain
+  moved;
+  and the commit the repository was at when the check last passed.
+- What moved:
+  per lock,
+  the versions that moved,
+  one `name from to to` line each.
+  For a Rust crate that is its `Cargo.lock`;
+  for a TypeScript package,
+  its importer block in `pnpm-lock.yaml`;
+  for every package,
+  the repository `toolchain.lock.json` and the machine-global lock.
+  Entries whose crate or package the first error names come first and say so;
+  the list is capped,
+  and the rest is
   counted.
-  When no lock of the package moved, the body says that plainly.
-- First error: its code, then the error line and the lines that continue it up to the next blank line.
-- Reproduce: `mise run //<package>:<task>` from the repository root, on the update commit.
+  When no lock of the package moved,
+  the body says that plainly.
+- First error:
+  its code,
+  then the error line and the lines that continue it up to the next blank line.
+- Reproduce:
+  `mise run //<package>:<task>` from the repository root,
+  on the update commit.
 - A visible sentence containing "toolchain daily update report" (what a later run searches for) and a hidden marker
   `<!-- toolchain-daily-update package=<package> task=<task> cause=<cause> -->`.
 
-Cause is the error code (`E0433`, `TS2307`) or, for an error without one, a digest of its message with the digits
-removed, so a moved line number does not make a new cause.
+Cause is the error code (`E0433`,
+`TS2307`) or,
+for an error without one,
+a digest of its message with the digits
+removed,
+so a moved line number does not make a new cause.
 
-Deduplication: before creating, one `gh issue list --state open --search '"toolchain daily update report" in:body'`
-finds the open reports (a search, because this repository has thousands of open issues and a plain listing is capped),
+Deduplication:
+before creating,
+one `gh issue list --state open --search '"toolchain daily update report" in:body'`
+finds the open reports (a search,
+because this repository has thousands of open issues and a plain listing is capped),
 and the marker decides.
-An open issue with the same package, task and cause gets a comment with the update commits and the first error
+An open issue with the same package,
+task and cause gets a comment with the update commits and the first error
 instead of a second issue.
 Two findings with one marker in one run make one issue and one comment.
 The marker names the package followed by a fixed word,
 so `package/a/b` is never matched by the issue of `package/a/bc`.
 
-A `gh` failure (offline, authentication, a timeout) is logged with its command, status and error text,
-reported in the notification, and the rendered issue is kept in `.cache/toolchain-daily-update-pending-issues.json`.
-The next run publishes the kept issues first, before its baseline pass, even when it moves nothing.
+A `gh` failure (offline,
+authentication,
+a timeout) is logged with its command,
+status and error text,
+reported in the notification,
+and the rendered issue is kept in `.cache/toolchain-daily-update-pending-issues.json`.
+The next run publishes the kept issues first,
+before its baseline pass,
+even when it moves nothing.
 It never fails the update.
 
-Limits: GitHub's search index can lag by minutes, so an issue opened a moment ago may not be found by a retry
+Limits:
+GitHub's search index can lag by minutes,
+so an issue opened a moment ago may not be found by a retry
 (within one run the issues just created are remembered);
 an issue is not closed when the package recovers;
 and the cause of a break that the update shares with another commit in the same window is the reader's to judge,
@@ -523,57 +645,108 @@ which is why the body shows what moved.
 ### Notifications
 
 At most one desktop notification per run:
-the update's own problems (a skipped or failed group), the issues opened or commented on (with their addresses, five
-listed and the rest counted), the checks that could not be compared, and any `gh` failure,
+the update's own problems (a skipped or failed group),
+the issues opened or commented on (with their addresses,
+five
+listed and the rest counted),
+the checks that could not be compared,
+and any `gh` failure,
 joined in one text.
 The journal keeps the whole text.
 The desktop shows the first thousand characters.
-`notify-send` is bounded to 30 seconds (GLib waits at most 25 seconds for a bus reply), and the notifier is never given
+`notify-send` is bounded to 30 seconds (GLib waits at most 25 seconds for a bus reply),
+and the notifier is never given
 a session bus address the caller did not have.
 
 On 2026-11-07 about eleven real desktop notifications named `toolchain-daily-update` appeared on the owner's desktop.
 The cause was this change's own whole-path test:
-it ran the real entry point, whose notifier fell back to the owner's session bus at `/run/user/<uid>/bus`
+it ran the real entry point,
+whose notifier fell back to the owner's session bus at `/run/user/<uid>/bus`
 when the test environment carried no address.
 The timer had not fired.
 The measurement run did not call the notifier.
-The fixes are the removal of that fallback, and a test environment in which the real `notify-send` can only reach a
-private bus: the whole-path test hosts the update in the nested-wayland-session notification recorder (below), and a
+The fixes are the removal of that fallback,
+and a test environment in which the real `notify-send` can only reach a
+private bus:
+the whole-path test hosts the update in the nested-wayland-session notification recorder (below),
+and a
 probe refuses to start unless the hosted environment has a private bus address and no runtime directory.
 
 ### Tests
 
-- `src/daily-update-package-checks.unit.test.ts`: which checks exist, the first error, newly red against already red,
-  lock moves, the issue text, publishing and deduplication, pools and deadlines, the whole sequencing with scripted
-  effects, one notification for a run in which thirty packages break, and a `gh` failure kept for the next run.
-- `src/daily-update-whole-path.expensive.unit.test.ts` (run with `--all`, because it needs the recorder's build):
-  the real entry point over a disposable repository with a recording stand-in for `gh`, real `mise` and `git`,
-  two crates and one TypeScript package, one that the update breaks and one that was already red.
+- `src/daily-update-package-checks.unit.test.ts`:
+  which checks exist,
+  the first error,
+  newly red against already red,
+  lock moves,
+  the issue text,
+  publishing and deduplication,
+  pools and deadlines,
+  the whole sequencing with scripted
+  effects,
+  one notification for a run in which thirty packages break,
+  and a `gh` failure kept for the next run.
+- `src/daily-update-whole-path.expensive.unit.test.ts` (run with `--all`,
+  because it needs the recorder's build):
+  the real entry point over a disposable repository with a recording stand-in for `gh`,
+  real `mise` and `git`,
+  two crates and one TypeScript package,
+  one that the update breaks and one that was already red.
   The entry point runs inside `monochromatic-nested-wayland-session-notification-recorder`
-  (`package/nested-wayland-session/cli`, a private `dbus-daemon` with no service directories and its recording
-  `org.freedesktop.Notifications` service, no compositor), so the real `notify-send` sends into a bus the owner's desktop
-  never sees, and the test asserts the notification the recorder logged.
+  (`package/nested-wayland-session/cli`,
+  a private `dbus-daemon` with no service directories and its recording
+  `org.freedesktop.Notifications` service,
+  no compositor),
+  so the real `notify-send` sends into a bus the owner's desktop
+  never sees,
+  and the test asserts the notification the recorder logged.
   The probe `assertHostedOnPrivateBus` passes inside the recorder and fails for the same command run outside it.
-  The repository has no remote and the stand-in `gh` is first on `PATH`, so no real issue can be opened.
-  The recorder is built by `mise run //package/nested-wayland-session/cli:test` (or `:build`), or named by
+  The repository has no remote and the stand-in `gh` is first on `PATH`,
+  so no real issue can be opened.
+  The recorder is built by `mise run //package/nested-wayland-session/cli:test` (or `:build`),
+  or named by
   `NESTED_WAYLAND_NOTIFICATION_RECORDER`.
-- Proof, 2026-11-07: with the stand-in, one `issue list` and exactly one `issue create` were recorded, with the label
-  `needs-triage`, the update commits, the `zbus` and toolchain moves, `E0433` and the reproduce command, and none for
-  the crate that was already red; the recorder logged one notification, `Daily update needs a look`, naming the issue
-  address; with `gh` failing, no `create` was recorded, the issue was kept in the pending file, and the notification
+- Proof,
+  2026-11-07:
+  with the stand-in,
+  one `issue list` and exactly one `issue create` were recorded,
+  with the label
+  `needs-triage`,
+  the update commits,
+  the `zbus` and toolchain moves,
+  `E0433` and the reproduce command,
+  and none for
+  the crate that was already red;
+  the recorder logged one notification,
+  `Daily update needs a look`,
+  naming the issue
+  address;
+  with `gh` failing,
+  no `create` was recorded,
+  the issue was kept in the pending file,
+  and the notification
   carried the `gh` error.
 
 ### Limits of the check
 
-- A package is checked by one task; a break that only the tests show is not seen.
-- The baseline is taken immediately before the update in the same checkout, so a commit by someone else during the
+- A package is checked by one task;
+  a break that only the tests show is not seen.
+- The baseline is taken immediately before the update in the same checkout,
+  so a commit by someone else during the
   run can still appear in the second pass.
 - The whole-path test needs a build of the recorder and so is not part of the default unit run.
-- The check phase cannot tell a failure the update caused from one that another commit caused in the same window; the
+- The check phase cannot tell a failure the update caused from one that another commit caused in the same window;
+  the
   issue shows what moved and the reader judges.
-- Container-built crates (`ide/app`, `terminal/app`, `nested-wayland-session/cli`, `music-player/desktop-app`) are
-  checked through their own task, which falls back to a container on this host; a failure there may print no line that
-  starts with `error`, and the issue then says so.
+- Container-built crates (`ide/app`,
+  `terminal/app`,
+  `nested-wayland-session/cli`,
+  `music-player/desktop-app`) are
+  checked through their own task,
+  which falls back to a container on this host;
+  a failure there may print no line that
+  starts with `error`,
+  and the issue then says so.
 
 ## Images built
 

@@ -1,12 +1,30 @@
-//! Rendered tests of the Search page restyle (D126): the canvas header, the outline-variant divider, the rounded result row with its
-//! tonal icon circle, the keyboard ring just inside the row's shape, the one status block of the five empty and no-result states,
-//! and what the restyle leaves alone (highlight corners, the D58 columns, the result copy).
+//! Rendered tests of the Search page restyle (D126):
+//! the canvas header,
+//! the outline-variant divider,
+//! the rounded result row with its
+//! tonal icon circle,
+//! the keyboard ring just inside the row's shape,
+//! the one status block of the five empty and no-result states,
+//! and what the restyle leaves alone (highlight corners,
+//! the D58 columns,
+//! the result copy).
 //!
-//! What: each test builds the real `AppWindow` on Slint's software renderer, opens Search with Ctrl+F, reads element boxes from the
-//! element tree and probes pixels of the drawn frame against the theme roles of the window's scheme, in light and in dark.
-//! Why: the restyle is pure markup (`ui/search.slint`), so only the composed window can show a header that is still the old band, a
-//! divider in the wrong role, a row ring that is a square, or a status block that sits where it did before.
-//! Note: element lookup by id needs `SLINT_EMIT_DEBUG_INFO=1` at build time, which the repo test task sets.
+//! What:
+//! each test builds the real `AppWindow` on Slint's software renderer,
+//! opens Search with Ctrl+F,
+//! reads element boxes from the
+//! element tree and probes pixels of the drawn frame against the theme roles of the window's scheme,
+//! in light and in dark.
+//! Why:
+//! the restyle is pure markup (`ui/search.slint`),
+//! so only the composed window can show a header that is still the old band,
+//! a
+//! divider in the wrong role,
+//! a row ring that is a square,
+//! or a status block that sits where it did before.
+//! Note:
+//! element lookup by id needs `SLINT_EMIT_DEBUG_INFO=1` at build time,
+//! which the repo test task sets.
 
 use i_slint_backend_testing::{AccessibleRole, ElementHandle};
 use music_player::search_results::SearchState;
@@ -17,16 +35,20 @@ use crate::ui_render_support::{Frame, Rendered, box_of};
 use crate::ui_search_model::search_view_of;
 use crate::ui_test_support::chord;
 
-/// Header height of the Search page, in logical pixels.
+/// Header height of the Search page,
+/// in logical pixels.
 const HEADER_HEIGHT: f32 = 72.0;
-/// Top of the body: the header and its 1 px divider.
+/// Top of the body:
+/// the header and its 1 px divider.
 const BODY_TOP: f32 = 73.0;
 /// Corner radius of a result row's shape.
 const ROW_RADIUS: f32 = 21.3;
 /// Distance from the page edge to the content on both layouts (the caller never sets another inset).
 const CONTENT_START_X: f32 = 16.0;
 
-/// What: `Colors` holds the roles of one scheme that these tests compare pixels with, as `[red, green, blue]` each.
+/// What:
+/// `Colors` holds the roles of one scheme that these tests compare pixels with,
+/// as `[red, green, blue]` each.
 struct Colors {
     canvas: [u8; 3],
     surface_high: [u8; 3],
@@ -40,12 +62,14 @@ struct Colors {
     match_fill: [u8; 3],
 }
 
-/// What: `rgb` turns a Slint color into `[red, green, blue]`.
+/// What:
+/// `rgb` turns a Slint color into `[red, green, blue]`.
 fn rgb(color: slint::Color) -> [u8; 3] {
     return [color.red(), color.green(), color.blue()];
 }
 
-/// What: `colors_of` reads the roles of the window's current scheme from its `Theme` global.
+/// What:
+/// `colors_of` reads the roles of the window's current scheme from its `Theme` global.
 fn colors_of(rendered: &Rendered) -> Colors {
     let theme = rendered.app.global::<crate::Theme>();
     return Colors {
@@ -62,17 +86,20 @@ fn colors_of(rendered: &Rendered) -> Colors {
     };
 }
 
-/// What: `distance` is the sum of the channel differences of two colors.
+/// What:
+/// `distance` is the sum of the channel differences of two colors.
 fn distance(a: [u8; 3], b: [u8; 3]) -> i32 {
     return a.iter().zip(b.iter()).map(|(left, right)| return (i32::from(*left) - i32::from(*right)).abs()).sum();
 }
 
-/// What: `segment` builds one plain or emphasized piece of a result line.
+/// What:
+/// `segment` builds one plain or emphasized piece of a result line.
 fn segment(text: &str, emphasized: bool) -> crate::SearchSegment {
     return crate::SearchSegment { text: text.into(), emphasized };
 }
 
-/// What: `result_rows` builds `count` track rows whose title starts with an emphasized `Lan` and whose second line is a folder.
+/// What:
+/// `result_rows` builds `count` track rows whose title starts with an emphasized `Lan` and whose second line is a folder.
 fn result_rows(count: i32) -> Vec<crate::SearchRow> {
     return (0..count)
         .map(|index| {
@@ -90,14 +117,17 @@ fn result_rows(count: i32) -> Vec<crate::SearchRow> {
         .collect();
 }
 
-/// What: `open_search` opens the Search page with Ctrl+F and waits for its fade to end.
+/// What:
+/// `open_search` opens the Search page with Ctrl+F and waits for its fade to end.
 fn open_search(rendered: &Rendered) {
     chord(&rendered.app, &["Ctrl"], "f");
     rendered.wait(300);
     assert_eq!(rendered.app.get_route(), 1, "Ctrl+F opened Search");
 }
 
-/// What: `search_with_rows` builds a window of a size, gives it result rows and opens Search.
+/// What:
+/// `search_with_rows` builds a window of a size,
+/// gives it result rows and opens Search.
 fn search_with_rows(width: usize, height: usize, count: i32) -> Rendered {
     let rendered = Rendered::new(width, height);
     rendered.app.set_search_rows(ModelRc::new(VecModel::from(result_rows(count))));
@@ -105,7 +135,9 @@ fn search_with_rows(width: usize, height: usize, count: i32) -> Rendered {
     return rendered;
 }
 
-/// What: `boxes` lists the boxes of the elements with an id that have a size, in tree order.
+/// What:
+/// `boxes` lists the boxes of the elements with an id that have a size,
+/// in tree order.
 fn boxes(rendered: &Rendered, id: &str) -> Vec<(f32, f32, f32, f32)> {
     return ElementHandle::find_by_element_id(&rendered.app, id)
         .map(|element| return box_of(&element))
@@ -113,14 +145,17 @@ fn boxes(rendered: &Rendered, id: &str) -> Vec<(f32, f32, f32, f32)> {
         .collect();
 }
 
-/// What: `one_box` is the box of the only drawn element with an id; more or fewer is a failure.
+/// What:
+/// `one_box` is the box of the only drawn element with an id;
+/// more or fewer is a failure.
 fn one_box(rendered: &Rendered, id: &str) -> (f32, f32, f32, f32) {
     let found = boxes(rendered, id);
     assert_eq!(found.len(), 1, "exactly one drawn {id}: {found:?}");
     return found[0];
 }
 
-/// What: `page_box` is the box of the Search page.
+/// What:
+/// `page_box` is the box of the Search page.
 fn page_box(rendered: &Rendered) -> (f32, f32, f32, f32) {
     let found: Vec<(f32, f32, f32, f32)> = ElementHandle::find_by_element_type_name(&rendered.app, "SearchPage")
         .map(|element| return box_of(&element))
@@ -130,12 +165,16 @@ fn page_box(rendered: &Rendered) -> (f32, f32, f32, f32) {
     return found[0];
 }
 
-/// What: `pixel` reads the frame at a position given in logical pixels, flooring both coordinates.
+/// What:
+/// `pixel` reads the frame at a position given in logical pixels,
+/// flooring both coordinates.
 fn pixel(frame: &Frame, x: f32, y: f32) -> [u8; 3] {
     return frame.at(x.floor() as usize, y.floor() as usize);
 }
 
-/// What: `in_both_schemes` runs a check once in the light scheme and once in the dark one, with the roles of each.
+/// What:
+/// `in_both_schemes` runs a check once in the light scheme and once in the dark one,
+/// with the roles of each.
 fn in_both_schemes(rendered: &Rendered, check: impl Fn(&Colors, &str)) {
     for dark in [false, true] {
         rendered.set_dark(dark);
@@ -147,7 +186,8 @@ fn in_both_schemes(rendered: &Rendered, check: impl Fn(&Colors, &str)) {
 
 // ---- Header and divider ----
 
-/// What: `check_header_and_divider` probes the header band and the divider of a window of one size in both schemes.
+/// What:
+/// `check_header_and_divider` probes the header band and the divider of a window of one size in both schemes.
 fn check_header_and_divider(width: usize) {
     let rendered = search_with_rows(width, 900, 4);
     let (page_x, _page_y, page_width, _page_height) = page_box(&rendered);
@@ -182,7 +222,8 @@ fn the_header_is_the_canvas_and_the_divider_is_one_outline_variant_pixel_on_the_
 
 // ---- Result row: shape, circle and glyph ----
 
-/// What: `check_row_geometry` checks the shape and the circle of the first row of a window of one size.
+/// What:
+/// `check_row_geometry` checks the shape and the circle of the first row of a window of one size.
 fn check_row_geometry(width: usize) {
     let rendered = search_with_rows(width, 900, 4);
     let (page_x, _page_y, page_width, _page_height) = page_box(&rendered);
@@ -306,7 +347,8 @@ fn the_hover_layer_is_clipped_to_the_rounded_shape() {
 
 // ---- Status block ----
 
-/// What: `StatusCase` is one of the five states of the empty and no-result page and what it shows.
+/// What:
+/// `StatusCase` is one of the five states of the empty and no-result page and what it shows.
 struct StatusCase {
     name: &'static str,
     state: SearchState,
@@ -314,7 +356,9 @@ struct StatusCase {
     has_detail: bool,
 }
 
-/// What: `status_cases` lists the five states of the empty and no-result page, each from the Rust view builder.
+/// What:
+/// `status_cases` lists the five states of the empty and no-result page,
+/// each from the Rust view builder.
 fn status_cases() -> Vec<StatusCase> {
     return vec![
         StatusCase { name: "empty query", state: SearchState::EmptyQuery, complete: true, has_detail: true },
@@ -325,7 +369,9 @@ fn status_cases() -> Vec<StatusCase> {
     ];
 }
 
-/// What: `show_status` gives an open window the copy that the view builder makes for a state, and waits for it to draw.
+/// What:
+/// `show_status` gives an open window the copy that the view builder makes for a state,
+/// and waits for it to draw.
 fn show_status(rendered: &Rendered, case: &StatusCase) {
     let view = search_view_of(&case.state, None, false, case.complete);
     assert!(view.rows.is_empty(), "{}: a status state has no rows", case.name);
@@ -334,15 +380,19 @@ fn show_status(rendered: &Rendered, case: &StatusCase) {
     rendered.wait(50);
 }
 
-/// What: `status_window` builds a window of a size and opens Search on it with the empty-query copy.
-/// Why: a thread installs one platform, so a test builds one window and shows its states one after another.
+/// What:
+/// `status_window` builds a window of a size and opens Search on it with the empty-query copy.
+/// Why:
+/// a thread installs one platform,
+/// so a test builds one window and shows its states one after another.
 fn status_window(width: usize, height: usize) -> Rendered {
     let rendered = Rendered::new(width, height);
     open_search(&rendered);
     return rendered;
 }
 
-/// What: `check_status_block` checks the geometry of every state's block on a window of one size.
+/// What:
+/// `check_status_block` checks the geometry of every state's block on a window of one size.
 fn check_status_block(width: usize, compact: bool) {
     let rendered = status_window(width, 900);
     for case in status_cases() {
@@ -405,7 +455,9 @@ fn the_status_circle_is_secondary_container_with_an_on_secondary_container_magni
     });
 }
 
-/// What: `title_after_wheel` shows the empty-query state in a window of one height, turns the wheel over the block and gives the
+/// What:
+/// `title_after_wheel` shows the empty-query state in a window of one height,
+/// turns the wheel over the block and gives the
 /// title's y before and after.
 fn title_after_wheel(height: usize) -> (f32, f32) {
     let rendered = status_window(443, height);
@@ -463,7 +515,9 @@ fn the_match_highlight_keeps_square_corners_and_the_result_copy_is_unchanged() {
 
 // ---- Each result row is one named button (D77) ----
 
-/// What: `row_taps` lists the tap targets of the result rows that are on screen, in tree order.
+/// What:
+/// `row_taps` lists the tap targets of the result rows that are on screen,
+/// in tree order.
 fn row_taps(rendered: &Rendered) -> Vec<ElementHandle> {
     return ElementHandle::find_by_element_id(&rendered.app, "SearchPage::row-touch")
         .filter(|element| return box_of(element).2 > 0.0)
