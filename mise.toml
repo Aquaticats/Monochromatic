@@ -1242,13 +1242,13 @@ run = "changeset status --verbose"
 [tasks."changeset:version"]
 description = "Apply pending changesets to package versions and changelogs, patch-bump dependents they miss, then refresh the lockfile"
 # The ripple runs between the two: changesets ignores most workspace packages, and the Version Packages commit is authored in CI
-# where the cli-git dependent-version-bump policy never runs (doc/decision/private-npm-registry.md).
+# where the monochromatic-git-policy-cli dependent-version-bump policy never runs (doc/decision/private-npm-registry.md).
 # The native executable runs the ripple by its own name, not as `git`: the changesets action runs git commands of its own
-# in the same environment, and the wrapper refuses `git add .`. `cli-git-native` is on PATH from the mise tool locally and from
+# in the same environment, and the wrapper refuses `git add .`. `monochromatic-git-policy-cli` is on PATH from the mise tool locally and from
 # the release job's build step in CI.
 run = [
   "changeset version",
-  "cli-git-native cli-git fix --all --policy mono/dependent-version-bump",
+  "monochromatic-git-policy-cli monochromatic-git-policy-cli fix --all --policy mono/dependent-version-bump",
   "pnpm install --lockfile-only",
 ]
 
