@@ -370,7 +370,9 @@ on the dated nightly.
 62 of the 67 listed closure sites pass.
 The five reported:
 `src/native/language/actions.rs:134` (let-bound),
-`src/native/minimap_build.rs:399` (now `src/native/minimap_worker.rs`, renamed on 2026-10-21; the `catch_unwind` sits
+`src/native/minimap_build.rs:399` (now `src/native/minimap_worker.rs`,
+renamed on 2026-10-21;
+the `catch_unwind` sits
 near line 268 there) and `src/native/tile_build.rs:140` (`catch_unwind(AssertUnwindSafe(..))`,
 whose callee is a tuple-struct constructor and which has no `'static` bound anyway),
 and `src/syntax_loader.rs:188` and `:311` (`tree_house` callbacks taking `impl FnMut` without `'static`).
