@@ -23,8 +23,8 @@ const REAL_HEADER: &str = "[[tools.\"cargo:monochromatic-lint\"]]";
 
 /// The running version every control compares against.
 /// It is fixed here, not read from the manifest,
-///  because a pre-release manifest version is deliberately unorderable and would leave every
-/// newer-pin control without a measurement.
+///  so that no control changes meaning when a release bumps the version;
+///  the pre-release controls pass their own running version to the probe instead.
 const RUNNING_VERSION: &str = "2.3.4";
 
 /// The hint for one configuration directory as the running version `RUNNING_VERSION` would give it.
@@ -101,8 +101,41 @@ fn staleness_needs_a_measured_older_running_version() {
     assert!(!older_than_pin("0.3.0", "0.3.0"));
     assert!(!older_than_pin("0.3.1", "0.3.0"));
     assert!(!older_than_pin("0.3.0", "0.3.0-alpha.1"));
-    assert!(!older_than_pin("0.3.0-alpha.1", "0.4.0"));
     assert!(!older_than_pin("1.0", "2.0"));
+    assert!(!older_than_pin("1.0.0", "2.0.0-"));
+    assert!(!older_than_pin("1.0.0-", "2.0.0"));
+    assert!(!older_than_pin("1.0.0-alpha..1", "2.0.0"));
+}
+
+/// A pre-release orders as semantic versioning says:
+///  below its own release,
+///  above the release before it,
+///  by number for numeric identifiers,
+///  numeric identifiers below text ones,
+///  a shorter list below a longer one that starts the same,
+///  and build metadata not at all.
+#[test]
+fn a_pre_release_orders_by_semantic_versioning() {
+    assert!(older_than_pin("0.5.2-alpha.3", "0.5.2-alpha.4"));
+    assert!(!older_than_pin("0.5.2-alpha.3", "0.5.2-alpha.2"));
+    assert!(!older_than_pin("0.5.2-alpha.3", "0.5.2-alpha.3"));
+    assert!(older_than_pin("0.5.2-alpha.3", "0.5.2"));
+    assert!(!older_than_pin("0.5.2", "0.5.2-alpha.3"));
+    assert!(older_than_pin("0.5.1", "0.5.2-alpha.1"));
+    assert!(!older_than_pin("0.5.2-alpha.1", "0.5.1"));
+    assert!(older_than_pin("0.5.2-alpha.3", "0.6.0"));
+    assert!(older_than_pin("0.3.0-alpha.1", "0.4.0"));
+    // Positive control: identifiers of digits order by number, not by text.
+    assert!(older_than_pin("1.0.0-alpha.2", "1.0.0-alpha.10"));
+    assert!(!older_than_pin("1.0.0-alpha.10", "1.0.0-alpha.2"));
+    assert!(older_than_pin("1.0.0-alpha.1", "1.0.0-alpha.beta"));
+    assert!(!older_than_pin("1.0.0-alpha.beta", "1.0.0-alpha.1"));
+    assert!(older_than_pin("1.0.0-alpha", "1.0.0-alpha.1"));
+    assert!(!older_than_pin("1.0.0-alpha.1", "1.0.0-alpha"));
+    assert!(older_than_pin("1.0.0-alpha", "1.0.0-beta"));
+    assert!(!older_than_pin("1.0.0-beta", "1.0.0-alpha"));
+    assert!(!older_than_pin("1.0.0+first", "1.0.0+second"));
+    assert!(older_than_pin("1.0.0-alpha+first", "1.0.0-alpha.1+second"));
 }
 
 /// The hint appears only for a measured newer pin in the nearest lockfile,
@@ -126,6 +159,17 @@ fn the_hint_names_a_measured_newer_pin_and_nothing_else() {
     )
     .expect("an ancestor lockfile measures the pin");
     assert_eq!(nested, hint);
+    // A pre-release running version is measured against a pre-release or a release pin.
+    for pin in ["0.5.2-alpha.4", "0.5.2", "0.6.0-alpha.1"] {
+        let text: String = format!("{REAL_HEADER}\nversion = \"{pin}\"\n");
+        let found = stale_binary_hint_with(
+            root,
+            "0.5.2-alpha.3",
+            &reader(&[(lock.as_path(), text.as_str())]),
+        )
+        .expect("a newer pin produces a hint for a pre-release running version");
+        assert!(found.contains(pin), "{found}");
+    }
 }
 
 /// A pin that is not newer than the running binary measures no staleness,
@@ -149,11 +193,33 @@ fn unmeasured_pins_and_farther_lockfiles_produce_no_hint() {
         hint_for_running_version(root, &reader(&[(lock.as_path(), older.as_str())])),
         None
     );
-    let unorderable: String = format!("{REAL_HEADER}\nversion = \"{RUNNING_VERSION}-alpha.1\"\n");
+    let earlier_pre_release: String =
+        format!("{REAL_HEADER}\nversion = \"{RUNNING_VERSION}-alpha.1\"\n");
+    assert_eq!(
+        hint_for_running_version(
+            root,
+            &reader(&[(lock.as_path(), earlier_pre_release.as_str())])
+        ),
+        None
+    );
+    let unorderable: String = format!("{REAL_HEADER}\nversion = \"{RUNNING_VERSION}-\"\n");
     assert_eq!(
         hint_for_running_version(root, &reader(&[(lock.as_path(), unorderable.as_str())])),
         None
     );
+    // A pre-release pin that is not newer than a pre-release running version measures no staleness.
+    for pin in ["0.5.2-alpha.3", "0.5.2-alpha.2", "0.5.1"] {
+        let text: String = format!("{REAL_HEADER}\nversion = \"{pin}\"\n");
+        assert_eq!(
+            stale_binary_hint_with(
+                root,
+                "0.5.2-alpha.3",
+                &reader(&[(lock.as_path(), text.as_str())])
+            ),
+            None,
+            "{pin}"
+        );
+    }
     let not_this_tool: String = String::from("[[tools.\"cargo:fd-find\"]]\nversion = \"9.9.9\"\n");
     assert_eq!(
         hint_for_running_version(root, &reader(&[(lock.as_path(), not_this_tool.as_str())])),
