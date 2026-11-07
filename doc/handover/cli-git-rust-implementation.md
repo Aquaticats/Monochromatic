@@ -3570,9 +3570,13 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 - Decision record `doc/decision/mpm-toolchain-adoption.md`, section "Our seven tools install from GitHub release archives"
   (`0c7b081fbd`), holds the owner's answer: "GitHub, but I'm still not seeing the research I asked you to do on some sort of
   workspace protocol. ... I'm also wondering if pnpm's new rust management capabilities can help."
+- Research on a `workspace:`-like protocol and pnpm's Rust support is done
+  (`doc/research/rust-workspace-protocol-and-pnpm-rust.md`, cross-vendor reviewed); the owner answered at
+  2026-11-07T09:32:48-05:00: tools stay on GitHub release archives, the lock keeps `@latest`
+  (`doc/decision/mpm-toolchain-adoption.md`, `4386795db8`). Its probe ran a real `cargo publish` of two fixture crates to
+  a throwaway pnpr on `127.0.0.1` (nothing left the machine), against a brief that said publish nothing; disclosed in
+  the doc. The `registry` key and pnpr `packages:` entries wait for the pnpr Cargo workload (task "pnpr serves crates").
 - Running, each told to report back:
-  - research on a `workspace:`-like protocol for Cargo and pnpm's Rust support (doc under `doc/research/`, cross-vendor
-    reviewed before hand-back); it answers the owner's 2026-11-05 request that the earlier research missed;
   - the wrapper folds the old `cli-git` data names into the new ones losslessly, so the six "both exist" notices stop
     (`fix/git-policy-cli-fold-earlier-names`; no release yet, and an `-alpha` would not reach this machine through `@latest`);
   - the tokio continuation on `feat/git-policy-cli-on-tokio` (main merge allowed; coordinator merges after its final gate).
@@ -3601,9 +3605,8 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   "Label decides", not an owner quote. An agent is on it (`fix/crate-release-label-gate`).
 - Also running since about 09:10 (-05:00): the masking of Git output in `diagnostic_log::debug` under
   `MONOCHROMATIC_VERBOSE=true` (`fix/git-policy-cli-mask-verbose-git-output`), and the diagnosis of the emptied link
-  folders. Tried and refused at the same time by the five-agent limit, so they start at the next free slot:
-  bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`), and the
-  terminal and music-player Containerfiles taking Zig from the lock row instead of `ZIG_VERSION=0.15.2`
+  folders. Bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`)
+  started about 09:34. Still waiting for a slot: the terminal and music-player Containerfiles taking Zig from the lock row instead of `ZIG_VERSION=0.15.2`
   (`fix/containers-zig-from-lock`); both briefs are saved in
   `~/temp/agent/coordinator-briefs/waiting-for-a-slot.md` (scratch, lost on reboot).
 - Tokio T1 to T4 merged into main as `5e441f25d3` (branch gate 5127 of 5127, Clippy and lint clean; main's only wrapper
