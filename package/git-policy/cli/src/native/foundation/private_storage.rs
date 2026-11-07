@@ -198,6 +198,8 @@ fn publish_by_checked_rename(staged: &Path, path: &Path) -> std::io::Result<()> 
     if std::fs::symlink_metadata(path).is_ok() {
         return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists));
     }
+    #[cfg(test)]
+    BETWEEN_THE_CHECK_AND_THE_RENAME.with(|hook| { if let Some(pause) = hook.borrow().as_ref() { pause(); } });
     return std::fs::rename(staged, path);
 }
 
@@ -299,6 +301,13 @@ fn write_then_publish(path: &Path, bytes: &[u8], mode: Option<u32>, durable: boo
     protect_when_asked(staged.path(), mode)?;
     #[cfg(test)]
     AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { return hook.borrow().as_ref().map_or(Ok(()), |fail| { return fail(); }); })?;
+    #[cfg(test)]
+    let outcome: Result<File, tempfile::PersistError> = if THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH.with(std::cell::Cell::get) {
+        Err(tempfile::PersistError { error: std::io::Error::from_raw_os_error(libc::ENOTSUP), file: staged })
+    } else {
+        staged.persist_noclobber(path)
+    };
+    #[cfg(not(test))]
     let outcome: Result<File, tempfile::PersistError> = staged.persist_noclobber(path);
     return settle_exclusive_publish(path, outcome);
 }
@@ -529,6 +538,16 @@ thread_local! {
     /// A control may fail a publish on this thread after the staging file was made and written, which is where a full disk or a
     ///  kill ends one.
     pub(crate) static AFTER_THE_STAGING_FILE_IS_WRITTEN: std::cell::RefCell<Option<Box<dyn Fn() -> std::io::Result<()>>>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A control may make every exclusive publish on this thread get the refusal of a filesystem with neither `renameat2` with
+    ///  `RENAME_NOREPLACE` nor hard links (`s3fs-fuse` answers `ENOTSUP`), which no filesystem of a test host gives.
+    pub(crate) static THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// A control may stop the checked rename on this thread between its check and its rename, where a second publisher of the
+    ///  same name can slip in.
+    pub(crate) static BETWEEN_THE_CHECK_AND_THE_RENAME: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
 #[cfg(test)]
