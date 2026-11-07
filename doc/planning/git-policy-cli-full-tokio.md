@@ -1886,9 +1886,78 @@ for that one case only: the publish answered by neither `renameat2` with `RENAME
   plant; it guards leaks and the error kind.
 - `OwnedChild::waits_on_a_pidfd` was added for these controls.
 
+### The `decide` race closed, 2026-11-07T09:47:00-05:00
+
+- Red `4d372fdd80`: `on_a_disk_without_exclusive_publish_the_landing_thread_and_a_connection_thread_never_both_win_a_decision`
+  (`service/service_busy_tests.rs`) feeds every publish of two threads the refusal of a filesystem with neither no-replace rename nor
+  links (test-only seams in `foundation/private_storage.rs`: `THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH` and
+  `BETWEEN_THE_CHECK_AND_THE_RENAME`), pauses the landing thread between the check and the rename, and decides the same request from a
+  connection thread. It failed with "both threads saw themselves the winner; the file says `landing`".
+- Green `7f39a05469`: `foundation/name_held_while_one_thread_publishes_it.rs` holds the name in a fixed table of atomic flags (a hash
+  of the path picks the slot) from before the check until the rename is done, and `publish_by_checked_rename` takes it. `aeb2948629`
+  corrects the wording.
+- Deviation from the coordinator's wording ("compare-and-swap on the decision's state ... no lock is added"), for the coordinator to accept
+  or send back: the claim is taken by compare-and-swap, but a thread that finds it taken waits for the holder (a bounded yield-then-sleep
+  loop, five seconds, `HELD_NAME_WAIT` in `private_storage.rs`, then `TimedOut` and nothing published). It is not lock-free for that
+  thread, so the module and the code say so. The wait exists so that the loser can read the winner's file whole afterwards; a loser that
+  learned from the flag alone could read the file before the rename. A one-shot claim that carries the outcome has an open obstacle: two
+  names sharing a slot. `source_guard/service_lock_inventory_tests.rs` names mutexes, read-write locks, condition variables and `flock`,
+  so the flag is not an entry there. The wait adds a `thread::sleep` that step T13's source guard must either except by path or this module
+  must lose by moving to a futex wait (`rustix::thread::futex`).
+- Placement: the claim is in the checked rename of `private_storage.rs`, so it covers every publisher in the process, not only `decide`.
+- `HELD_NAME_WAIT` (five seconds) has no measurement beside it; it is the start retry's budget, open to the owner's veto.
+- Gate: host lib tests 4432 of 4432; Clippy and the package lint clean; `a_filesystem_that_refuses_hard_links_does_not_stop_a_commit`
+  passes; container gate 5133 run, 5133 passed (1 slow), 8 skipped, Clippy clean (snapshot at `aeb2948629`).
+
+### Step T5, the child watcher as a task, 2026-11-07T09:47:27-05:00
+
+- `fa518c33a1` red, `7e4dc3aefc` green: a budget of one worker now builds a multi-thread runtime of one worker; the current-thread runtime
+  is the plan only where a limit leaves no thread. Reason: the watcher of a wait that blocks inside a read or a wait is a task that must
+  run beside the blocked thread, and a current-thread runtime runs tasks only while some thread calls `block_on`. This changes the T3
+  plan text "current-thread when fewer than two fit"; the owner said "Full on tokio. Multi-thread." and nothing about one worker.
+- `c5b4559b88`: `ChildWatch` keeps its synchronous face (`start`, `start_with_locks`, `begin`, `end`, `expired`, `never_stop`, `within`,
+  `kept_as`, `ceiling_hit`) so its callers (`transaction/transaction_git.rs`, `candidate/candidate_reader.rs`) and the 24 controls in
+  `push/child_watch_tests.rs` are unchanged and keep every assertion. The watcher is a task started by the new
+  `foundation/lazy_runtime.rs` `spawn_on_runtime` (a task on the runtime's workers; nothing where the runtime has none, as before when the
+  watcher thread could not start), fed by an unbounded tokio channel; the mark receiver, the watcher thread, `recv_timeout` in the
+  loop and the `thread::sleep` loops of `stop_process` are gone. The notice is written on the blocking pool (a terminal that does not take
+  a line must not hold a worker), and the lock sweep of a stopped step runs on the blocking pool; where no thread can start the sweep is
+  not run and is logged (owner, 11, "Fail plainly"), which leaves such a step's `.lock` files for the next Git command to name.
+- Still in the file after T5, deliberately: dropping a `ChildWatch` waits for its task on a standard-library channel with a five-second bound
+  (`WATCHER_END_BOUND`, the start retry's budget, open to the owner's veto); the commit message says "channel timeouts are gone", which
+  is wrong for that one. `output_watched_within` still waits for its child with the standard library, and its `LeaveRunning` waiter is
+  still a thread.
+- Not done in T5, and why: the one-shot `output_watched_within` on the pidfd helper. Its `EndAt` form reads the child's output through
+  pipes with `wait_with_output` and returns all of it; the pidfd helper reads anonymous files through `Capture::snapshot`, which keeps
+  only the last `STEP_OUTPUT_LIMIT` bytes and appends notes. Moving `EndAt` steps (the commit preparation's Git steps) onto files would
+  change what a large output returns, so it needs an owner-visible decision or an `AsyncFd` pipe reader, not a silent swap.
+- Planted control, run by hand and reverted: `spawn_on_runtime` made to drop the task and return nothing (the watch watches nothing)
+  failed (six) or timed out (three) among the 18 controls of `push/child_watch_tests.rs` that ran before nextest cancelled the run, including (`a_wait_past_the_bound_is_announced_then_the_child_is_stopped`,
+  `a_command_past_the_bound_is_stopped_and_reported`, `a_silent_child_is_ended_after_the_quiet_window_and_a_sibling_is_left_alone`,
+  `a_command_past_the_bound_is_stopped_with_the_processes_it_started`, `a_wait_that_has_ended_is_announced_no_more`, and the three ceiling
+  controls, which waited out nextest's 300 second timeout).
+- New control: `a_spawned_task_runs_while_the_caller_is_blocked` (`foundation/lazy_runtime_tests.rs`).
+- Gate: host lib tests 4433 of 4433; all 700 host binary tests passed (one earlier run stopped at the first failure,
+  `service::the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero`, while a container gate was compiling beside it; it
+  passed alone three times and in the full run that followed; no cause was measured, so it is an unexplained one-off); Clippy and the
+  package lint clean. Container gate: see the handover.
+- Files T5 changed, for the mutation campaign: `src/native/foundation/lazy_runtime.rs`, `src/native/foundation/runtime_plan.rs`,
+  `src/native/push/child_watch.rs`, `src/native/push/child_watch_clock_marks_and_stopping.rs`; and for the decide fix
+  `src/native/foundation/name_held_while_one_thread_publishes_it.rs` and `src/native/foundation/private_storage.rs`.
+
+### Where the remaining steps stand after T5
+
+- T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`, the `try_wait` loops of
+  `bounded_push.rs` and `package_repair_command.rs`, the service's per-connection threads, the guard wait of `commit_preparation.rs`).
+  The pattern that worked for T4 and T5 (a synchronous face that enters the runtime, tasks only where something must run beside a blocked
+  thread) does not shorten these: a sleep or a poll in sequential code becomes a `tokio::time` call only when its caller is itself
+  asynchronous, so they are in practice the T11 conversion of the callers, done leaf first. They were not started.
+- Two steps need no async callers and could go first: T9 (the standards review on `hyper`, which needs new locked crates through the
+  toolchain tasks) and the `zbus` 6 client of T8 (the lock names `zbus@5.19.0` in the release-age exclusion and the catalog floor).
+
 ### What is left
 
-Steps T5 to T13 (the watchers, `bounded_push`, the signal relay on a pidfd with the registry of children, the service client and
+Steps T5 (the watcher task landed; its one-shot pidfd form and the `LeaveRunning` thread did not) to T13 (the watchers, `bounded_push`, the signal relay on a pidfd with the registry of children, the service client and
 the `zbus` move, the standards-review call on `hyper`, the service, the callers, the parallel runner, the final removal and lint),
 the replacement of `private_storage.rs`, the descriptor-limit sweeps of the child helper, and the mutation campaign.
 
