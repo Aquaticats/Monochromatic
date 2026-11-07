@@ -30,10 +30,17 @@ use crate::ui_screen::{project, update_state};
 use crate::ui_screen_view::ScreenState;
 
 thread_local! {
-    /// What: `CLOCK` is how long the test thread's Slint clock says the program has run.
-    /// Why: Slint animations read the platform's clock, and the default clock is the wall clock, so how far a fade-in has gone
-    /// when a frame is drawn depended on how fast the build runs: a debug build (slow) drew a page at full ink, a release build
-    /// (fast) drew it still faded. The test clock moves only when the test moves it.
+    /// What:
+    /// `CLOCK` is how long the test thread's Slint clock says the program has run.
+    /// Why:
+    /// Slint animations read the platform's clock,
+    /// and the default clock is the wall clock,
+    /// so how far a fade-in has gone
+    /// when a frame is drawn depended on how fast the build runs:
+    /// a debug build (slow) drew a page at full ink,
+    /// a release build
+    /// (fast) drew it still faded.
+    /// The test clock moves only when the test moves it.
     static CLOCK: Cell<Duration> = const { Cell::new(Duration::ZERO) };
 }
 
@@ -55,7 +62,9 @@ impl Platform for SoftwarePlatform {
         return Ok(self.window.clone());
     }
 
-    /// What: `duration_since_start` gives the test clock, which stands still until the test moves it.
+    /// What:
+    /// `duration_since_start` gives the test clock,
+    /// which stands still until the test moves it.
     fn duration_since_start(&self) -> Duration {
         return CLOCK.get();
     }

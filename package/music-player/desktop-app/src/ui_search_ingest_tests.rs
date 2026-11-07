@@ -235,8 +235,11 @@ fn an_answer_to_an_older_query_is_dropped() {
     assert_eq!(scan.app.get_search_rows().row_count(), 50);
 }
 
-/// What: `LogSink` is a writer that appends to a shared buffer, so a test can read what the log wrote.
-/// Why: the state lines of the end-to-end run exist only in the log.
+/// What:
+/// `LogSink` is a writer that appends to a shared buffer,
+/// so a test can read what the log wrote.
+/// Why:
+/// the state lines of the end-to-end run exist only in the log.
 struct LogSink(Arc<Mutex<Vec<u8>>>);
 
 /// Methods of `LogSink` as a writer.
@@ -251,8 +254,12 @@ impl std::io::Write for LogSink {
     }
 }
 
-/// What: `logged_by` runs `action` with a log subscriber for this thread that records every level, and returns the log text.
-/// Why: `apply_answer` runs on the calling thread, so its state lines land in this thread's subscriber.
+/// What:
+/// `logged_by` runs `action` with a log subscriber for this thread that records every level,
+/// and returns the log text.
+/// Why:
+/// `apply_answer` runs on the calling thread,
+/// so its state lines land in this thread's subscriber.
 fn logged_by(action: impl FnOnce()) -> String {
     let buffer: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
     let writer: Arc<Mutex<Vec<u8>>> = Arc::clone(&buffer);
@@ -265,8 +272,12 @@ fn logged_by(action: impl FnOnce()) -> String {
     return String::from_utf8(buffer.lock().expect("the log buffer lock is not poisoned").clone()).expect("the log is UTF-8");
 }
 
-/// What: An applied answer writes one `ui_state` line that carries the query and the highlighted result.
-/// Why: the end-to-end run waits for that line to know the answer is on screen; without it the run had to sleep, and a
+/// What:
+/// An applied answer writes one `ui_state` line that carries the query and the highlighted result.
+/// Why:
+/// the end-to-end run waits for that line to know the answer is on screen;
+/// without it the run had to sleep,
+/// and a
 /// key pressed before the answer moved the keyboard off the query field.
 #[test]
 fn an_applied_answer_writes_a_state_line_with_the_query_and_the_highlighted_result() {
