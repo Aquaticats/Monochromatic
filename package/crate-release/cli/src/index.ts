@@ -10,6 +10,8 @@ export * from './commit-message.ts';
 export * from './commit-request.ts';
 export * from './constants.ts';
 export * from './crate-registry.ts';
+export * from './crates-io-dependency-check.ts';
+export * from './crates-io-version-label.ts';
 export * from './dispatch-options.ts';
 export * from './dispatch-run.ts';
 export * from './error.ts';
