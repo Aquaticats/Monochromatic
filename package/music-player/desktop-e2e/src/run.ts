@@ -37,6 +37,7 @@ import { runAutoPlaySession, } from './auto-play-session.ts';
 import { runDialogSession, } from './dialog-session.ts';
 import { expect, } from './errors.ts';
 import { pathExists, } from './files.ts';
+import { resolveDisplay, } from './gpu-choice.ts';
 import { buildLibrary, } from './library.ts';
 import { runNarrowSession, } from './narrow-session.ts';
 import { createNullSink, } from './pipewire.ts';
@@ -55,9 +56,11 @@ import {
   sessionsFor,
 } from './selection.ts';
 import {
+  type DisplayMode,
   runRefusal,
   UNIT_PREFIX,
 } from './session-launch.ts';
+import { COLD_START_BOUND_MS, } from './timing.ts';
 import { runVisualSessions, } from './visual-session.ts';
 import { runWideSession, } from './wide-session.ts';
 
@@ -90,19 +93,23 @@ const SESSION_RUNNERS: Readonly<Record<SessionName, (context: RunContext,) => Pr
 
 /**
  Checks what the run needs before it touches anything: the release binary, a compositor that has the controls the
- checks use, a reachable PipeWire, and no other run.
+ checks use, a reachable PipeWire, no other run, and the display the sessions get. A run is headless unless a person
+ asked for a visible window; its last step asks the compositor for its render devices, which also loads the compositor's
+ libraries before the first session waits for them.
  
  @param config - paths of the run
  
- @throws CheckFailureError when the binary is missing, the compositor is missing or lacks the controls, PipeWire is unreachable, or
- another run is active
+ @returns the display mode every session of the run gets
+ 
+ @throws CheckFailureError when the binary is missing, the compositor is missing or lacks the controls, PipeWire is unreachable,
+ another run is active, or a headless run finds no render node
  
  @example
  ```ts
- await checkPreconditions(config,);
+ const display = await checkPreconditions(config,);
  ```
  */
-export async function checkPreconditions(config: RunConfig,): Promise<void> {
+export async function checkPreconditions(config: RunConfig,): Promise<DisplayMode> {
   expect({
     condition: await pathExists(config.releaseBinary,),
     message: `the release binary ${config.releaseBinary} does not exist; the task builds it first`,
@@ -119,6 +126,7 @@ export async function checkPreconditions(config: RunConfig,): Promise<void> {
   const version = await runCommand({
     command: config.compositorPath,
     args: ['--version',],
+    timeoutMs: COLD_START_BOUND_MS,
   },);
   /**
    Why the compositor cannot run the checks, empty when it can.
@@ -126,6 +134,7 @@ export async function checkPreconditions(config: RunConfig,): Promise<void> {
   const versionProblem = compositorVersionProblem({
     output: version.stdout,
     path: config.compositorPath,
+    headless: !config.visible,
   },);
   expect({
     condition: versionProblem === '',
@@ -138,6 +147,7 @@ export async function checkPreconditions(config: RunConfig,): Promise<void> {
   const pipewire = await runCommand({
     command: 'pw-dump',
     args: [],
+    timeoutMs: COLD_START_BOUND_MS,
   },);
   expect({
     condition: pipewire.status === 0,
@@ -157,10 +167,16 @@ export async function checkPreconditions(config: RunConfig,): Promise<void> {
       '--no-legend',
       '--plain',
     ],
+    timeoutMs: COLD_START_BOUND_MS,
   },);
   expect({
     condition: runRefusal(running.stdout,) === '',
     message: runRefusal(running.stdout,),
+  },);
+  return await resolveDisplay({
+    compositorPath: config.compositorPath,
+    visible: config.visible,
+    gpu: config.gpu,
   },);
 }
 
@@ -175,11 +191,13 @@ export async function checkPreconditions(config: RunConfig,): Promise<void> {
  
  @param recorder - the run's recorder
  
+ @param display - where every session's compositor draws
+ 
  @throws SafetyStopError when the app plays anywhere but the private sink
  
  @example
  ```ts
- await runSessions({ config, base, library, recorder, },);
+ await runSessions({ config, base, library, recorder, display, },);
  ```
  */
 async function runSessions(
@@ -188,9 +206,11 @@ async function runSessions(
     base,
     library,
     recorder,
+    display,
   }: {
     readonly base: string;
     readonly config: RunConfig;
+    readonly display: DisplayMode;
     readonly library: string;
     readonly recorder: RunContext['recorder'];
   },
@@ -215,6 +235,7 @@ async function runSessions(
   const context: RunContext = {
     base,
     config,
+    display,
     library,
     recorder,
     runId: process.pid,
@@ -257,7 +278,12 @@ export async function runE2e(
     tag: runE2e.name,
     l: logger,
   },);
-  await checkPreconditions(config,);
+
+  /**
+   Where every session's compositor draws, decided before anything starts.
+   */
+  const display = await checkPreconditions(config,);
+  rl.info(`display: ${display.kind === 'headless' ? `headless on ${display.gpu}` : 'a visible nested window, as asked'}`,);
   await mkdir(
     config.scratchRoot,
     {
@@ -304,14 +330,35 @@ export async function runE2e(
   },);
 
   /**
-   The recorder that applies the filter.
+   Folder of the failure files, inside the output folder because the scratch directory is removed at the end.
    */
-  const recorder = createRecorder({ only: config.only, },);
+  const evidenceDir = join(
+    config.outputRoot,
+    'failures',
+  );
+
+  // Failure files of an earlier run are not this run's evidence.
+  await rm(
+    evidenceDir,
+    {
+      recursive: true,
+      force: true,
+    },
+  );
+
+  /**
+   The recorder that applies the filter and keeps each failing check's text and last states.
+   */
+  const recorder = createRecorder({
+    only: config.only,
+    evidenceDir,
+  },);
   await runSessions({
     config,
     base,
     library,
     recorder,
+    display,
   },);
 
   /**

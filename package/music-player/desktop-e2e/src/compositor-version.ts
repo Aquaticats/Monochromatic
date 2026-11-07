@@ -23,6 +23,13 @@
 export const FIRST_VERSION_WITH_RUNNER_CONTROLS = '0.4.0';
 
 /**
+ The first compositor version with `--headless` together with `--gpu` and `--list-gpus` (its changelog, "Changes in
+ 0.6.0"; `--headless` alone is from 0.5.0). A headless run, the default, probes the render nodes with `--list-gpus` and
+ starts the compositor on the chosen one with `--gpu`, so it needs this version; a visible run needs neither option.
+ */
+export const FIRST_VERSION_WITH_HEADLESS_GPU_CHOICE = '0.6.0';
+
+/**
  How many numbers a version has: major, minor and patch.
  */
 const VERSION_PARTS = 3;
@@ -132,18 +139,22 @@ export function isAtLeast(
  
  @param path - the executable that was asked
  
+ @param headless - whether the run is headless, which needs the newer floor
+ 
  @returns a message that names the problem and the ways out, or an empty string when the compositor has the controls
  
  @example
  ```ts
- compositorVersionProblem({ output: 'x 0.4.0', path: '/c', },); // ''
+ compositorVersionProblem({ output: 'x 0.6.0', path: '/c', headless: true, },); // ''
  ```
  */
 export function compositorVersionProblem(
   {
     output,
     path,
+    headless,
   }: {
+    readonly headless: boolean;
     readonly output: string;
     readonly path: string;
   },
@@ -154,17 +165,37 @@ export function compositorVersionProblem(
   const version = parseCompositorVersion(output,);
 
   /**
+   The oldest acceptable version for this kind of run.
+   */
+  const first = headless ? FIRST_VERSION_WITH_HEADLESS_GPU_CHOICE : FIRST_VERSION_WITH_RUNNER_CONTROLS;
+
+  /**
+   The controls the checks press, in words.
+   */
+  const controls = 'key names F1 to F24 and Menu, Unicode typing, exact sizes, windows and focus';
+
+  /**
+   Why a headless run needs the newer floor, in words.
+   */
+  const headlessReason = 'a headless run uses --headless with --gpu and --list-gpus, which compositor 0.5.0 and older lack; ';
+
+  /**
+   The way out only a headless run has.
+   */
+  const visibleWayOut = ', or pass --visible to use a nested window with a compositor of 0.4.0 or newer';
+
+  /**
    What the checks need, in words, and the ways to get it.
    */
-  const need = `the checks need compositor ${FIRST_VERSION_WITH_RUNNER_CONTROLS} or newer (key names F1 to F24 and `
-    + 'Menu, Unicode typing, exact sizes, windows and focus). Install the current one with '
-    + '"mise upgrade cargo:monochromatic-nested-wayland-session", or set E2E_COMPOSITOR to a build of '
-    + 'package/nested-wayland-session/cli';
+  const need = `the checks need compositor ${first} or newer (${headless ? headlessReason : ''}${controls}${
+    headless ? ' come with them' : ''
+  }). Install the current one with "mise upgrade cargo:monochromatic-nested-wayland-session", or set E2E_COMPOSITOR `
+    + `to a build of package/nested-wayland-session/cli${headless ? visibleWayOut : ''}`;
   if (version.length === 0)
     return `the compositor ${path} printed no version ("${output.trim()}"); ${need}`;
   if (isAtLeast({
     version,
-    minimum: parseCompositorVersion(FIRST_VERSION_WITH_RUNNER_CONTROLS,),
+    minimum: parseCompositorVersion(first,),
   },))
     return '';
   return `the compositor ${path} is ${version.join('.',)}; ${need}`;

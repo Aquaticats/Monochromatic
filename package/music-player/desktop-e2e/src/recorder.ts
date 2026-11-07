@@ -14,6 +14,12 @@
  @packageDocumentation
  */
 
+import {
+  mkdir,
+  writeFile,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
+
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   logger,
@@ -26,6 +32,37 @@ import {
   printLine,
 } from './report.ts';
 import { isSelected, } from './selection.ts';
+import type { UiState, } from './ui-state.ts';
+
+/**
+ The fields of an app state that a failure file keeps: where the keyboard and the page were.
+ */
+export type EvidenceState = Pick<UiState, 'focus' | 'reason' | 'route' | 'seq' | 'unfolded' | 'zone'>;
+
+/**
+ The session whose states a failing check keeps.
+ */
+export type EvidenceSource = {
+  /**
+   Name of the session, such as `wide`.
+   */
+  readonly label: string;
+  /**
+   Reads the log up to now and gives every state read so far, oldest first.
+   */
+  readonly readStates: () => Promise<readonly EvidenceState[]>;
+};
+
+/**
+ How many of the latest states a failure file keeps. Ten covers the burst of key presses and answers before a
+ timeout (the Search answer race on 2026-11-07 needed the last three) and stays readable in a terminal.
+ */
+export const EVIDENCE_STATES = 10;
+
+/**
+ Suffix of a failure file's name.
+ */
+const EVIDENCE_SUFFIX = '.failure.txt';
 
 /**
  What a check gives back to the recorder: the text that follows its PASS line.
@@ -46,6 +83,10 @@ export type Recorder = {
       readonly title: string
     },
   ) => Promise<void>;
+  /**
+   Names the session whose states the next failing checks keep; the latest call wins.
+   */
+  readonly attach: (source: EvidenceSource,) => void;
   /**
    Lists the recorded outcomes in the order they were recorded.
    */
@@ -79,6 +120,9 @@ export type Recorder = {
  
  @param only - the filter text; empty runs everything
  
+ @param evidenceDir - folder that receives one file per failing check, with its text and the latest states; none
+ written when absent
+ 
  @returns the recorder
  
  @example
@@ -89,7 +133,9 @@ export type Recorder = {
 export function createRecorder(
   {
     only,
+    evidenceDir,
   }: {
+    readonly evidenceDir?: string;
     readonly only: string;
   },
 ): Recorder {
@@ -110,6 +156,112 @@ export function createRecorder(
    The group the next checks belong to, kept in a one-slot holder.
    */
   const current = { group: '', };
+
+  /**
+   Every session attached so far; the last one is the session a failing check keeps the states of.
+   */
+  const attached: EvidenceSource[] = [];
+
+  /**
+   Writes the file that keeps a failing check's text and the latest states of the attached session. A problem while
+   writing is logged and reported in the failure line, because the evidence must never hide the failure it describes.
+
+   @param id - check id
+
+   @param title - what the check shows
+
+   @param detail - why the check failed
+
+   @returns the file's path, or the empty string when the recorder has no folder or the file could not be written
+   */
+  async function keepEvidence(
+    {
+      id,
+      title,
+      detail,
+    }: {
+      readonly detail: string;
+      readonly id: string;
+      readonly title: string;
+    },
+  ): Promise<string> {
+    if (evidenceDir === undefined)
+      return '';
+
+    /**
+     The session to read, if one is attached.
+     */
+    const source = attached.at(-1,);
+
+    /**
+     The lines about the session's states.
+     */
+    const stateLines: string[] = [];
+    if (source === undefined)
+      stateLines.push('no session was attached when the check failed',);
+    else
+      try {
+        /**
+         Every state the session has read.
+         */
+        const states = await source.readStates();
+
+        /**
+         The latest of them.
+         */
+        const kept = states.slice(-EVIDENCE_STATES,);
+        stateLines.push(
+          `session: ${source.label}`,
+          `last ${kept.length} of ${states.length} ui_state lines, oldest first:`,
+          ...kept
+            .map(function describeState(state,): string {
+              return `seq=${state.seq} reason=${state.reason} zone=${state.zone} focus=${state.focus} `
+                + `route=${state.route} unfolded=${state.unfolded}`;
+            },),
+        );
+      }
+      catch (error: unknown) {
+        rl.warn(`could not read the states of session ${source.label} for ${id}: ${caughtValueText(error,)}`,);
+        stateLines.push(
+          `session: ${source.label}`,
+          `the states could not be read: ${caughtValueText(error,)}`,
+        );
+      }
+
+    /**
+     Where the file goes.
+     */
+    const path = join(
+      evidenceDir,
+      `${
+        id.replaceAll(
+          '/',
+          '--',
+        )
+      }${EVIDENCE_SUFFIX}`,
+    );
+    try {
+      await mkdir(
+        evidenceDir,
+        { recursive: true, },
+      );
+      await writeFile(
+        path,
+        [
+          `check: ${id}`,
+          `title: ${title}`,
+          `failure: ${detail}`,
+          ...stateLines,
+          '',
+        ].join('\n',),
+      );
+      return path;
+    }
+    catch (error: unknown) {
+      rl.error(`could not write the failure file ${path}: ${caughtValueText(error,)}`,);
+      return '';
+    }
+  }
 
   /**
    Tells whether a check passes the run's filter.
@@ -180,15 +332,25 @@ export function createRecorder(
        Why the check failed.
        */
       const detail = caughtValueText(error,);
+
+      /**
+       Where the failure text and the latest states were kept.
+       */
+      const evidence = await keepEvidence({
+        id,
+        title,
+        detail,
+      },);
       recorded.push({
         id,
         title,
         ok: false,
         skipped: false,
         detail,
+        ...evidence === '' ? {} : { evidence, },
         ms: Date.now() - started,
       },);
-      printLine(`FAIL ${id} ${title} :: ${detail}`,);
+      printLine(`FAIL ${id} ${title} :: ${detail}${evidence === '' ? '' : ` (evidence: ${evidence})`}`,);
     }
   }
 
@@ -259,6 +421,9 @@ export function createRecorder(
     check,
     verify,
     skip,
+    attach: function attach(source,): void {
+      attached.push(source,);
+    },
     outcomes: function outcomes(): readonly Outcome[] {
       return recorded;
     },

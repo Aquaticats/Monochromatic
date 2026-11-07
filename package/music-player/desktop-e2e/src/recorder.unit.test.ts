@@ -42,7 +42,7 @@ function statesOf(count: number,): readonly EvidenceState[] {
       zone: `zone-${number}`,
       focus: `focus-${number}`,
       route: `route-${number}`,
-      unfolded: number % 2 === 0,
+      unfolded: (number % 2) === 0,
     };
   },);
 }
@@ -243,7 +243,7 @@ await describe({
             throw new CheckFailureError('never runs',);
           },
         },);
-        const files = await readdir(evidenceDir,).catch(() => [] as string[],);
+        const files = await readdir(evidenceDir,);
         await rm(evidenceDir, { recursive: true, force: true, },);
         expect(files,).toEqual([],);
         expect(recorder.outcomes().map((outcome,) => outcome.evidence,),).toEqual([undefined, undefined,],);

@@ -137,9 +137,9 @@ await describe({
       name: 'asks for a visible window only when E2E_VISIBLE is exactly 1, so 0, empty and words never open one',
       fn: async ({ expect, }) => {
         const saved = process.env.E2E_VISIBLE;
-        const readWith = (value: string,): boolean | undefined => {
+        const readWith = (value: string,): boolean => {
           process.env.E2E_VISIBLE = value;
-          return overridesFromEnvironment().visible;
+          return overridesFromEnvironment().visible === true;
         };
         const answers = {
           one: readWith('1',),
@@ -149,15 +149,15 @@ await describe({
           spaced: readWith(' 1',),
         };
         Reflect.deleteProperty(process.env, 'E2E_VISIBLE',);
-        const unset = overridesFromEnvironment().visible;
+        const unset = overridesFromEnvironment().visible === true;
         if (saved !== undefined)
           process.env.E2E_VISIBLE = saved;
         expect(answers.one,).toBe(true,);
-        expect(answers.zero,).not.toBe(true,);
-        expect(answers.empty,).not.toBe(true,);
-        expect(answers.word,).not.toBe(true,);
-        expect(answers.spaced,).not.toBe(true,);
-        expect(unset,).not.toBe(true,);
+        expect(answers.zero,).toBe(false,);
+        expect(answers.empty,).toBe(false,);
+        expect(answers.word,).toBe(false,);
+        expect(answers.spaced,).toBe(false,);
+        expect(unset,).toBe(false,);
       },
     },),
     it({
