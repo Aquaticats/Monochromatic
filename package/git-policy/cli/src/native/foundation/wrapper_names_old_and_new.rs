@@ -111,6 +111,13 @@ pub const WORKTREE_COPY_RECORD_FOLDER: RenamedName = RenamedName {
     earlier: "cli-git-worktree-copy",
 };
 
+/// The folder inside a Git directory that holds the repository scratch:
+///  short-lived private files that a command makes and a later preparation sweeps once they are stale.
+pub const REPOSITORY_SCRATCH: RenamedName = RenamedName {
+    current: "monochromatic-git-policy-cli-scratch",
+    earlier: "cli-git-scratch",
+};
+
 /// The commit service's units and sockets,
 ///  by the name `systemd` knows them as.
 pub const SERVICE_UNIT: RenamedName = RenamedName {

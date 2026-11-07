@@ -30,6 +30,7 @@ use crate::private_storage::{create_private_directory, create_private_directory_
 #[cfg(unix)]
 use crate::private_storage::{PRIVATE_DIRECTORY_MODE, protect_path};
 /// OS strings, paths and time.
+use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -38,7 +39,7 @@ use std::time::{Duration, SystemTime};
 const TAG: &str = "monochromatic-git-policy-cli";
 
 /// The entry in a Git common directory that holds repository scratch.
-pub const REPOSITORY_SCRATCH_NAME: &str = "monochromatic-git-policy-cli-scratch";
+pub const REPOSITORY_SCRATCH_NAME: &str = REPOSITORY_SCRATCH.current;
 
 /// How old an entry must be before a preparation removes it:
 ///  far longer than any command of the wrapper runs, so a live process never loses a file. Measured: the longest command in the
