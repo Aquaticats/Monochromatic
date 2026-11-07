@@ -1215,6 +1215,13 @@ proved the Wayland library step.
   crates.io `2026-11-07T12:24:28.368166Z`, `yanked` false.
   GitHub release `monochromatic-lint-v0.5.1` holds all eight target assets.
 
+- `monochromatic-mpm-shadow` 0.2.5 to 0.2.6:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42372933230`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42373065104`
+  (built from `9efecbcd39`),
+  crates.io `2026-11-07T12:35:39.343192Z`, `yanked` false.
+  GitHub release `monochromatic-mpm-shadow-v0.2.6` holds both Linux tarballs and the checksums file.
+
 ## Evidence log
 
 - crates.io API reads:
