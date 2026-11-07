@@ -619,11 +619,14 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   folder identity fixes hold; one P1 left, the old-release wrapper that starts the old helper between the look and the
   adoption. Owner pick "Stop the old socket" built on `fix/git-policy-cli-stop-earlier-helper-socket` (worktree
   `.claude/worktrees/stop-earlier-helper-socket`): the commit that sets up the service also stops the same worktree's
-  `cli-git@<instance>.socket` (same instance text; job mode `ignore-dependencies`; a running old helper is not stopped;
-  failures are logged and never fail a commit). The candidate guard, masking that unit, would make an old-release wrapper
-  exit 1 on its commit (tag `service_commit.rs` 386 to 388), so it was not built, and the adoption is off in the unit
-  (`--adopt-earlier-journals` is not passed). Open for the owner: adoption on (race stays), mask (old wrapper commits fail),
-  adoption on demand, or status quo; options in the plan doc, "Changes after the fifth review".
+  `cli-git@<instance>.socket` (same instance text; job mode `ignore-dependencies`; a running old helper is not stopped; the
+  socket file is never unlinked; failures are logged and never fail a commit). Masking that unit would make an old-release
+  wrapper exit 1 on its commit (tag `service_commit.rs` 386 to 388), so it was not built. Owner pick "Off, settle on request"
+  (2026-11-07): the service has no adoption path or option; `git monochromatic-git-policy-cli service settle-earlier-batches`
+  finishes the worktree's leftover batches when asked, after the look passes, saying first that it is safe only when no
+  old-release wrapper is in use in that worktree; `doctor` reports the count. Sixth review (`sol-review-socket-6/review.txt`):
+  both findings fixed (option removed; no unlink, retry read from `/proc/net/unix`). Cost while an old helper runs: about one
+  millisecond per commit. Plan doc, "Changes after the fifth review" and "Changes after the sixth review".
   After the one release, every later release carries `-alpha.N` and skips crates.io, but this machine installs our
   seven tools through crates.io (`cargo-binstall`); until they install from GitHub releases (the `archive` route
   `mpm-shadow` uses, task #167), no later fix can be installed here. The owner has not yet said whether that route
