@@ -135,10 +135,10 @@ pub fn parse_args(args: &[String]) -> Result<Config> {
     // ```ts
     // if (appMemoryMax !== undefined && !/^[A-Za-z0-9.%]+$/.test(appMemoryMax)) throw new Error(`--app-memory-max ...`);
     // ```
-    if let Some(text) = &app_memory_max {
-        if !text.chars().all(|character| return character.is_ascii_alphanumeric() || character == '.' || character == '%') {
-            anyhow::bail!("--app-memory-max {text:?} is not a systemd size such as 4G, 512M, 50% or infinity");
-        }
+    if let Some(text) = &app_memory_max
+        && !text.chars().all(|character| return character.is_ascii_alphanumeric() || character == '.' || character == '%')
+    {
+        anyhow::bail!("--app-memory-max {text:?} is not a systemd size such as 4G, 512M, 50% or infinity");
     }
     let repeat_rate = matches.get_one::<i32>("repeat-rate").copied().context("validated repeat rate is missing")?;
     let repeat_delay = matches.get_one::<i32>("repeat-delay").copied().context("validated repeat delay is missing")?;
