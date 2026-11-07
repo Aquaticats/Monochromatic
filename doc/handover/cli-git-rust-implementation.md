@@ -7340,6 +7340,34 @@ Answered by the question tool on 2026-11-03 and not yet in main's SPEC
 with a line saying so);
 "Amend the pending commit (Recommended)" for an amend while commits are pending.
 
+### Push stop, scratch commit notice and rules warm (2026-11-07)
+
+Measured and decided on branch `feat/git-policy-cli-commit-timing-names-every-step`:
+
+- A stopped push never leaves a ref lock whose holder the wrapper saw.
+  Git's handler removes a lock's pid file and then the lock,
+  so a kill between the two left an unproven lock (the container gate left `refs/remotes/origin/main.lock`, 29.9 s under load).
+  The stop now claims the locks a running tree member holds before it signals (pinned by device, inode and birth),
+  and the sweep removes exactly that file once the member has ended (`Proof::ClaimedBeforeStop`).
+  Controls: `lock::git_stop_lock_tests` (a kill between the two unlinks, bounded and watched) and two ledger controls.
+- The commit Git builds in the scratch repository prints a waiting notice (names the `git commit`, signing, the signer, no limit).
+  Adding a ceiling stays the owner's question.
+- Rules warm: the service warms the compiled forbidden-strings rules after the first landing of a repository,
+  after a landing that changes a rules path, after a restart (the repository is remembered), and on a client `warm` message
+  sent after a worktree-moving command changed the rules text.
+  Measured with a 30-file fixture holding the repository's real rules and configuration, five samples per arm,
+  paired against the binary from before the change (release builds):
+  - first commit after a checkout that changed the rules text: before 1313 ms and 1293 ms (medians of two runs),
+    after with the warm settled 45 ms, immediately after the checkout 1401 ms;
+  - first commit after a fresh cache and a service restart: before 1253 ms and 1263 ms,
+    after with the warm settled 45 ms, immediately after the service started 1376 ms.
+  - The commit that races the warm is about 100 ms slower than before (both compile),
+    which is larger than the spread of the unchanged binary (10 to 20 ms between medians).
+    Neither first commit exceeded 5 s here; the earlier 20 s was observed under load.
+    Next step if a commit that races a warm is over the owner's bound: the client waits for the warm under way instead of compiling a second time.
+  - Wrapped `checkout` that leaves the rules unchanged: 7.9, 8.2, 8.2 and 8.0 ms (before, after, before, after; same-binary spread 0.3 ms mad).
+    A checkout that changes the rules text costs 10 to 15 ms more (config load, hash, one connection).
+
 ### Design stance
 
 The commit service unit sets no resource limits of its own

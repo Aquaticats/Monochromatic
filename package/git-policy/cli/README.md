@@ -2715,6 +2715,13 @@ Each line names what the command waits for,
    leaving its thread to end with the command.
    The guard contains a hang and a panic,
   not a stack overflow or an abort in the linter.
+- The `git commit` a commit that Git must build runs in its scratch repository
+   (a template, a clean-up mode, or `commit.gpgsign`):
+   it says the command waits for that `git commit` (its process),
+   says the commit is signed when `commit.gpgsign` or `-S` asks for it,
+   names the signing program while one runs below it,
+   and says the step has no time limit here.
+   A commit that opens the person's editor prints nothing.
 - The object reader and the Git steps of a commit that run long,
    which name the Git command and the process,
    and end it only when it shows no sign of work for the window of its class (`CLI_GIT_CHILD_WAIT_SECONDS`).
@@ -2726,6 +2733,26 @@ Each line names what the command waits for,
 monochromatic-git-policy-cli: git add is waiting for the commit service to finish a commit in this repository, 12 seconds so far;
 this waits for the service's hold for up to `SERVICE_HOLD_CEILING`, then runs and reports what Git says.
 ```
+
+#### Compiled rules are warmed off the commit path
+
+The forbidden-strings rules are compiled once per text of the rules files and kept in a cache shared by every worktree
+(`~/.cache/forbidden-strings/v<version>/<platform>/<digest of the rules text>/rules.bin`).
+A commit that finds no compiled form compiles the rules itself in its prepare phase,
+about 1.3 s on a quiet host and about 20 s on the first commit of a fresh cache under load.
+The commit service therefore compiles them on its own time, on the blocking pool and never on the landing thread:
+
+- after the first landing it sees for a repository, and after a landing that changes a path of the rules,
+- right after it starts, for the repository it remembered in its state directory (`rules-repository`),
+  so a service restarted by an upgrade fills the new release's cache at once,
+- when the client asks it to: after `merge`, `pull`, `checkout`, `switch`, `rebase` or `reset` exits 0,
+  the client compares a digest of the rules text it would load before and after,
+  and when it differs sends a one-way `warm` message to the service of that worktree that already runs.
+  The client never starts a service or a process for this,
+  and a command whose rules text did not change reads two small files and sends nothing.
+
+The client still compiles on a cache miss,
+so a commit that starts before the warm ends compiles as well (the two compiles race and the cache keeps one result).
 
 ## Reading the repository in process
 
@@ -3179,6 +3206,8 @@ mise run //package/git-policy/cli:native:test:container
   refreshes its index and gives it the tracked file `README.md` to edit;
   `--files <count>` edits and commits that many tracked text files by name in every sample (the size of the commit;
   one by default),
+  `--change-rules` appends a comment line to the optional local rules file before every sample,
+  so the commit meets rules text with no compiled form in the cache,
   `--new-files <count>` also creates that many new files per sample and stages them with `git add` before the commit names them (staged additions),
   `--hooks-from <git directory>` copies that repository's policy hooks,
   `--tool <path>` puts an executable such as `git-lfs`
