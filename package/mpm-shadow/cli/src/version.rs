@@ -274,11 +274,177 @@ fn pre_release(version: &str) -> Option<&str> {
 }
 
 /// What:
+/// `fn is_numeric_identifier(identifier: &str) -> bool` declares a private function that is true when a
+///           pre-release identifier is made only of ASCII digits and is not empty.
+/// Why:
+/// Semantic Versioning 2.0.0, item 11,
+/// compares such identifiers as numbers and every other identifier as text,
+/// so the comparison first has to tell the two kinds apart.
+/// An empty identifier is not valid semver,
+/// and counting it as text keeps it from equalling a number.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isNumericIdentifier(identifier: string): boolean { return /^\d+$/.test(identifier); }
+/// ```
+fn is_numeric_identifier(identifier: &str) -> bool {
+    return !identifier.is_empty() && all_ascii_digits(identifier);
+}
+
+/// What:
+/// `fn compare_numeric_identifiers(left: &str, right: &str) -> Ordering` declares a private function comparing
+///           two texts of digits by the number they spell,
+/// without turning them into integers.
+/// Why:
+/// A pre-release number can have more digits than any machine integer holds,
+/// and a conversion that fails or wraps would make two different numbers equal.
+/// After leading zeros are dropped,
+/// the number with more digits is the larger one,
+/// and two numbers with as many digits compare digit by digit,
+/// which is what comparing the texts does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function compareNumericIdentifiers(left: string, right: string): number {
+///   const a = left.replace(/^0+/, ''); const b = right.replace(/^0+/, '');
+///   if (a.length !== b.length) return a.length < b.length ? -1 : 1;
+///   return a < b ? -1 : a > b ? 1 : 0;
+/// }
+/// ```
+fn compare_numeric_identifiers(left: &str, right: &str) -> Ordering {
+    // What:     `trim_start_matches('0')` returns the borrowed text without its leading `0` characters.
+    // Why:      `007` and `7` spell the same number.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const left_digits = left.replace(/^0+/, '');
+    // ```
+    let left_digits: &str = left.trim_start_matches('0');
+    let right_digits: &str = right.trim_start_matches('0');
+
+    // What:     `left_digits.len().cmp(&right_digits.len())` compares the two byte counts and returns an
+    //           `Ordering`. `&` lends the right count without moving it. A digit is one byte, so the byte count is
+    //           the digit count.
+    // Why:      More digits means a larger number once leading zeros are gone.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const by_length = Math.sign(left_digits.length - right_digits.length);
+    // ```
+    let by_length: Ordering = left_digits.len().cmp(&right_digits.len());
+    if by_length != Ordering::Equal {
+        return by_length;
+    }
+    return left_digits.cmp(right_digits);
+}
+
+/// What:
+/// `fn compare_identifiers(left: &str, right: &str) -> Ordering` declares a private function comparing two
+///           single pre-release identifiers by the rules of Semantic Versioning 2.0.0, item 11.
+/// Why:
+/// Identifiers of digits only compare as numbers,
+/// identifiers with letters or hyphens compare as ASCII text,
+/// and a numeric identifier is always lower than a non-numeric one.
+/// Rust's `str` comparison is by byte,
+/// which for ASCII text is the ASCII order the specification asks for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function compareIdentifiers(left: string, right: string): number { ... }
+/// ```
+fn compare_identifiers(left: &str, right: &str) -> Ordering {
+    // What:     `(is_numeric_identifier(left), is_numeric_identifier(right))` builds a pair of two booleans, and
+    //           `match` picks the arm that fits the pair.
+    // Why:      Four cases: two numbers, a number then text, text then a number, and two texts.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (isNumeric(left) && isNumeric(right)) return compareNumeric(left, right);
+    // if (isNumeric(left)) return -1;
+    // if (isNumeric(right)) return 1;
+    // return left < right ? -1 : left > right ? 1 : 0;
+    // ```
+    match (is_numeric_identifier(left), is_numeric_identifier(right)) {
+        (true, true) => return compare_numeric_identifiers(left, right),
+        (true, false) => return Ordering::Less,
+        (false, true) => return Ordering::Greater,
+        (false, false) => return left.cmp(right),
+    }
+}
+
+/// What:
+/// `fn compare_pre_releases(left: &str, right: &str) -> Ordering` declares a private function comparing two
+///           pre-release texts (the part after the first hyphen, such as `alpha.10`).
+/// Why:
+/// Semantic Versioning 2.0.0, item 11:
+/// the dot-separated identifiers compare from left to right until one differs,
+/// and when every identifier of the shorter set equals the start of the longer one,
+/// the larger set is higher.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function comparePreReleases(left: string, right: string): number {
+///   const a = left.split('.'); const b = right.split('.');
+///   for (let i = 0; i < Math.min(a.length, b.length); i++) {
+///     const result = compareIdentifiers(a[i], b[i]);
+///     if (result !== 0) return result;
+///   }
+///   return Math.sign(a.length - b.length);
+/// }
+/// ```
+fn compare_pre_releases(left: &str, right: &str) -> Ordering {
+    // What:     `left.split('.').collect()` cuts the text at each dot and gathers the pieces into a `Vec<&str>` (a
+    //           growable list of borrowed texts; siblings `&[&str]`, a borrowed view of a list, and `[&str; N]`, a
+    //           fixed-size array). The annotation names the list type so `collect` knows what to build.
+    // Why:      The loop below walks the identifiers by position, and the lengths decide a tie.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const left_identifiers: string[] = left.split('.');
+    // ```
+    let left_identifiers: Vec<&str> = left.split('.').collect();
+    let right_identifiers: Vec<&str> = right.split('.').collect();
+
+    // What:     `left_identifiers.iter().zip(right_identifiers.iter())` pairs the lists element by element and
+    //           stops at the end of the shorter one. `for (a, b) in ...` unpacks each pair. `&` is not needed
+    //           because `iter()` already lends each element.
+    // Why:      Compare identifiers from left to right until one differs.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (let i = 0; i < Math.min(left_identifiers.length, right_identifiers.length); i++) { ... }
+    // ```
+    for (left_identifier, right_identifier) in left_identifiers.iter().zip(right_identifiers.iter()) {
+        let by_identifier: Ordering = compare_identifiers(left_identifier, right_identifier);
+        if by_identifier != Ordering::Equal {
+            return by_identifier;
+        }
+    }
+
+    // What:     `left_identifiers.len().cmp(&right_identifiers.len())` compares the two list lengths. `&` lends the
+    //           right length without moving it.
+    // Why:      Every shared identifier is equal, so the longer set is the higher one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return Math.sign(left_identifiers.length - right_identifiers.length);
+    // ```
+    return left_identifiers.len().cmp(&right_identifiers.len());
+}
+
+/// What:
 /// `pub fn compare_versions(left: &str, right: &str) -> Ordering` declares a public function returning
 ///           `Less`,
 /// `Equal` or `Greater`.
 /// Why:
-/// The prune keeps the newest cached version of a crate that cargo has no install record for.
+/// The prune keeps the newest cached version of a crate that cargo has no install record for,
+/// and the resolver and the lock check pick the highest of several releases.
+/// The order is the precedence of Semantic Versioning 2.0.0, item 11:
+/// the three numbers first,
+/// then a release above its own pre-release,
+/// then two pre-releases identifier by identifier (digits as numbers, the rest as ASCII text,
+/// numbers below text, a shorter set below a longer one with the same start).
+/// Build metadata after a plus sign does not take part.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -300,19 +466,19 @@ pub fn compare_versions(left: &str, right: &str) -> Ordering {
 
     // What:     `match (a, b) { ... }` looks at two `Option`s together and picks the arm whose shape fits; `(None,
     //           None)` means neither side has a pre-release. `Some(x)` binds the inner text.
-    // Why:      Equal cores: no pre-release beats a pre-release; two pre-releases compare as text.
+    // Why:      Equal cores: no pre-release beats a pre-release; two pre-releases follow the identifier rules.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // if (leftPre === undefined && rightPre === undefined) return 0;
     // if (leftPre === undefined) return 1;
     // if (rightPre === undefined) return -1;
-    // return leftPre < rightPre ? -1 : leftPre > rightPre ? 1 : 0;
+    // return comparePreReleases(leftPre, rightPre);
     // ```
     match (pre_release(left), pre_release(right)) {
         (None, None) => return Ordering::Equal,
         (None, Some(_)) => return Ordering::Greater,
         (Some(_), None) => return Ordering::Less,
-        (Some(left_pre), Some(right_pre)) => return left_pre.cmp(right_pre),
+        (Some(left_pre), Some(right_pre)) => return compare_pre_releases(left_pre, right_pre),
     }
 }

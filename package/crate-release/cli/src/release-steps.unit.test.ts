@@ -382,6 +382,32 @@ await describe({
             expect(steps[0]?.cwd).toBe('/elsewhere/package/git-policy/cli');
           },
         }),
+        it({
+          name: 'plans no publish dry run for a version that never goes to crates.io, on either host',
+          fn: async () => {
+            for (const host of ['local', 'runner'] as const)
+              for (const to of ['0.4.3-alpha.1', '0.4.3-beta.2', '0.4.3-dev.1']) {
+                const labels = buildReleaseSteps({ ...gitPolicyOptions, host, to })
+                  .map(function labelOf(step) {
+                    return step.label;
+                  });
+                expect(labels).toEqual(['cargo check', 'lock members', 'commit']);
+              }
+          },
+        }),
+        it({
+          name: 'plans the publish dry run for a release candidate and a plain number, on either host',
+          fn: async () => {
+            for (const host of ['local', 'runner'] as const)
+              for (const to of ['0.4.3-rc.1', '0.4.3']) {
+                const labels = buildReleaseSteps({ ...gitPolicyOptions, host, to })
+                  .map(function labelOf(step) {
+                    return step.label;
+                  });
+                expect(labels).toEqual(['cargo check', 'lock members', 'publish dry run', 'commit']);
+              }
+          },
+        }),
       ],
     }),
   ],

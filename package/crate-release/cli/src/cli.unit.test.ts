@@ -316,12 +316,70 @@ async function scriptOriginHoldsDefaultBranch(fixture: StubFixture): Promise<voi
   });
 }
 
+/**
+ The registry entry of a crate that other crates of the repository depend on, which the dependency tests write as an
+ alpha.
+ */
+const dependencyEntry = packageRegistry.get('forbidden-regex');
+if (dependencyEntry === undefined)
+  throw new Error('the registry has no forbidden-regex entry');
+
+/**
+ Directory of the dependency crate, as a constant that stays typed inside functions.
+ */
+const dependencyDirectory: string = dependencyEntry.crateDirectory;
+
+/**
+ Make the fixture crate `package/demo/cli` depend on `forbidden-regex`, which sits at an alpha version.
+
+ @param fixture - fixture to fill
+ */
+async function writeAlphaDependency(fixture: StubFixture): Promise<void> {
+  await fixture.write({
+    path: 'package/demo/cli/Cargo.toml',
+    text: '[package]\nname = "demo-cli"\nversion = "0.4.9"\n\n[dependencies]\n'
+      + 'forbidden-regex = { path = "../../forbidden-strings/core", version = "=0.1.0-alpha.1" }\n',
+  });
+  await fixture.write({
+    path: `${dependencyDirectory}/Cargo.toml`,
+    text: '[package]\nname = "forbidden-regex"\nversion = "0.1.0-alpha.1"\n',
+  });
+}
+
 await describe({
   name: '',
   children: [
     describe({
       name: 'release executable',
       children: [
+        it({
+          name: 'refuses a plain-number release whose dependency is at alpha, names the dependency, and changes and starts nothing',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await writeRepository(fixture);
+            await writeAlphaDependency(fixture);
+            const child = runRelease({ fixture, extra: ['0.4.9', '0.5.0', 'n'] });
+            expect(child.status).toBe(usageExitCode);
+            expect(child.stderr).toContain('forbidden-regex');
+            expect(child.stderr).toContain('0.1.0-alpha.1');
+            expect(await fixture.read('package/demo/cli/Cargo.toml')).toContain('version = "0.4.9"');
+            expect(await fixture.calls()).toEqual([]);
+          },
+        }),
+        it({
+          name: 'releases an alpha whose dependency is at alpha, and starts no publish dry run',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await writeRepository(fixture);
+            await writeAlphaDependency(fixture);
+            const child = runRelease({ fixture, extra: ['0.4.9', '0.5.0-alpha.1', 'n'] });
+            expect(child.status).toBe(0);
+            expect(child.stdout).toContain('RELEASE COMMITTED');
+            expect((await fixture.calls()).map(function programOf(call) {
+              return call.program;
+            })).toEqual([cargoProgram, cargoProgram, gitProgram]);
+          },
+        }),
         it({
           name: 'bumps the manifests and starts the four programs in order with the hostile note as one argument',
           fn: async () => {
@@ -501,9 +559,73 @@ await describe({
       name: 'dispatch executable',
       children: [
         it({
+          name: 'refuses a plain-number release whose dependency is at alpha before it asks origin or starts gh',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await writeRegistryRepository(fixture);
+            await fixture.write({
+              path: 'package/forbidden-strings/cli/Cargo.toml',
+              text: '[package]\nname = "forbidden-strings"\nversion = "0.6.0"\n\n[dependencies]\n'
+                + 'forbidden-regex = { path = "../core", version = "=0.1.0-alpha.1" }\n',
+            });
+            await fixture.write({
+              path: `${dependencyDirectory}/Cargo.toml`,
+              text: '[package]\nname = "forbidden-regex"\nversion = "0.1.0-alpha.1"\n',
+            });
+            const child = spawnSync('node', [
+              dispatchBin,
+              '--root',
+              fixture.directory,
+              '--crate',
+              'forbidden-strings',
+              '0.6.0',
+              '0.7.0',
+              'n',
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(usageExitCode);
+            expect(child.stderr).toContain('forbidden-regex');
+            expect(child.stderr).toContain('0.1.0-alpha.1');
+            expect(await fixture.calls()).toEqual([]);
+          },
+        }),
+        it({
+          name: 'dispatches an alpha release whose dependency is at alpha',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await writeRegistryRepository(fixture);
+            await fixture.write({
+              path: 'package/forbidden-strings/cli/Cargo.toml',
+              text: '[package]\nname = "forbidden-strings"\nversion = "0.6.0"\n\n[dependencies]\n'
+                + 'forbidden-regex = { path = "../core", version = "=0.1.0-alpha.1" }\n',
+            });
+            await fixture.write({
+              path: `${dependencyDirectory}/Cargo.toml`,
+              text: '[package]\nname = "forbidden-regex"\nversion = "0.1.0-alpha.1"\n',
+            });
+            await scriptOriginHoldsDefaultBranch(fixture);
+            await fixture.script({
+              key: 'gh.workflow-run',
+              stdout: 'https://github.com/o/r/actions/runs/43\n',
+            });
+            const child = spawnSync('node', [
+              dispatchBin,
+              '--root',
+              fixture.directory,
+              '--crate',
+              'forbidden-strings',
+              '0.6.0',
+              '0.7.0-alpha.1',
+              'n',
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(0);
+            expect(child.stdout).toContain('RELEASE STARTED https://github.com/o/r/actions/runs/43');
+          },
+        }),
+        it({
           name: 'starts the release workflow for a registry crate with gh only and prints the run address',
           fn: async () => {
             await using fixture = await createStubFixture();
+            await writeRegistryRepository(fixture);
             await scriptOriginHoldsDefaultBranch(fixture);
             await fixture.script({
               key: 'gh.workflow-run',
@@ -569,6 +691,7 @@ await describe({
           name: 'exits 1 and shows what gh said when gh refuses to start the workflow',
           fn: async () => {
             await using fixture = await createStubFixture();
+            await writeRegistryRepository(fixture);
             await scriptOriginHoldsDefaultBranch(fixture);
             await fixture.script({ key: 'gh.workflow-run', status: 1 });
             const child = spawnSync('node', [
@@ -589,6 +712,7 @@ await describe({
           name: 'exits 1 without starting gh when origin lacks a commit of the local default branch',
           fn: async () => {
             await using fixture = await createStubFixture();
+            await writeRegistryRepository(fixture);
             await scriptOriginHoldsDefaultBranch(fixture);
             await fixture.script({ key: 'git.merge-base', status: 1 });
             await fixture.script({ key: 'git.rev-list', stdout: '2\n' });
