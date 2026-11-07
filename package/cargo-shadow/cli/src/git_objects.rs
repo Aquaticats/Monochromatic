@@ -31,9 +31,6 @@
 /// Error text built only on failure,
 /// from a `format_args!` value.
 use crate::lazy_error_text::ExplainedError;
-/// Imports `OsStr`,
-/// whose `to_str` turns a file extension into text.
-use std::ffi::OsStr;
 /// Imports `fs` and `File` to open and list the object files.
 use std::fs::{self, File};
 // Imports `std::io::Read`.
@@ -59,12 +56,15 @@ use std::path::{Path, PathBuf};
 /// Imports the zlib decoder that reads a loose object header.
 use flate2::{Decompress, FlushDecompress, Status};
 
+/// The check that a commit stored in a pack file is a commit (split out of the git objects module).
+pub(crate) use crate::git_objects_packed_commit::{packed_commit};
+
 /// The object name length of a SHA-1 repository,
 /// in hexadecimal digits.
 pub const OBJECT_NAME_DIGITS: usize = 40;
 
 /// The bytes of a SHA-1 object name.
-const OBJECT_NAME_BYTES: usize = OBJECT_NAME_DIGITS / 2;
+pub(crate) const OBJECT_NAME_BYTES: usize = OBJECT_NAME_DIGITS / 2;
 
 /// The signature and version that start a version 2 pack index.
 const PACK_INDEX_HEADER: [u8; 8] = [0xff, b't', b'O', b'c', 0, 0, 0, 2];
@@ -73,7 +73,7 @@ const PACK_INDEX_HEADER: [u8; 8] = [0xff, b't', b'O', b'c', 0, 0, 0, 2];
 const FANOUT_ENTRIES: usize = 256;
 
 /// The pack entry type of a commit that is stored whole.
-const PACK_TYPE_COMMIT: u8 = 1;
+pub(crate) const PACK_TYPE_COMMIT: u8 = 1;
 
 /// What:
 /// `fn index_failure(error: std::io::Error) -> String` words a failed read of a pack index.
@@ -84,7 +84,7 @@ const PACK_TYPE_COMMIT: u8 = 1;
 /// ```ts
 /// const indexFailure = (error: Error) => `a pack index cannot be read: ${error}`;
 /// ```
-fn index_failure(error: std::io::Error) -> String {
+pub(crate) fn index_failure(error: std::io::Error) -> String {
     return format!("a pack index cannot be read: {error}");
 }
 
@@ -97,7 +97,7 @@ fn index_failure(error: std::io::Error) -> String {
 /// ```ts
 /// const packFailure = (error: Error) => `a pack cannot be read: ${error}`;
 /// ```
-fn pack_failure(error: std::io::Error) -> String {
+pub(crate) fn pack_failure(error: std::io::Error) -> String {
     return format!("a pack cannot be read: {error}");
 }
 
@@ -183,7 +183,7 @@ fn hex_to_bytes(hex: &str) -> Option<[u8; OBJECT_NAME_BYTES]> {
 /// ```ts
 /// const readAt = (file: number, offset: number, length: number): Buffer => ...
 /// ```
-fn read_at(file: &File, offset: u64, length: usize) -> std::io::Result<Vec<u8>> {
+pub(crate) fn read_at(file: &File, offset: u64, length: usize) -> std::io::Result<Vec<u8>> {
     // `let mut`: a binding that may change.
     // Typed binding: `bytes: Vec<u8>`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
@@ -199,7 +199,7 @@ fn read_at(file: &File, offset: u64, length: usize) -> std::io::Result<Vec<u8>> 
 /// `fn fanout_entry(fanout: &[u8], position: usize) -> u64` reads one four-byte entry of a pack index fan-out table.
 /// Why:
 /// A function replaces the closure that captured the table.
-fn fanout_entry(fanout: &[u8], position: usize) -> u64 {
+pub(crate) fn fanout_entry(fanout: &[u8], position: usize) -> u64 {
     return big_endian(&fanout[position * 4..position * 4 + 4]);
 }
 
@@ -207,7 +207,7 @@ fn fanout_entry(fanout: &[u8], position: usize) -> u64 {
 /// `fn is_object_name(bytes: &[u8]) -> bool` says whether bytes are the hexadecimal name of a Git object.
 /// Why:
 /// A function replaces the closure that checked the tree and parent names of a commit.
-fn is_object_name(bytes: &[u8]) -> bool {
+pub(crate) fn is_object_name(bytes: &[u8]) -> bool {
     return bytes.len() == OBJECT_NAME_DIGITS && bytes.iter().all(u8::is_ascii_hexdigit);
 }
 
@@ -215,7 +215,7 @@ fn is_object_name(bytes: &[u8]) -> bool {
 /// `fn is_digit_byte(byte: u8) -> bool` says whether a byte is `0` to `9`.
 /// Why:
 /// `bytes().all` takes it by path instead of a closure.
-fn is_digit_byte(byte: u8) -> bool {
+pub(crate) fn is_digit_byte(byte: u8) -> bool {
     return byte.is_ascii_digit();
 }
 
@@ -228,7 +228,7 @@ fn is_digit_byte(byte: u8) -> bool {
 /// ```ts
 /// const bigEndian = (bytes: Uint8Array): bigint => ...
 /// ```
-fn big_endian(bytes: &[u8]) -> u64 {
+pub(crate) fn big_endian(bytes: &[u8]) -> u64 {
     // Closure `|total, byte|`: an anonymous function, like a TS arrow function.
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     let mut total: u64 = 0;
@@ -250,7 +250,7 @@ fn big_endian(bytes: &[u8]) -> u64 {
 /// ```ts
 /// function packOffset(index: number, name: Uint8Array): number | undefined
 /// ```
-fn pack_offset(index: &File, name: &[u8; OBJECT_NAME_BYTES]) -> Result<Option<u64>, String> {
+pub(crate) fn pack_offset(index: &File, name: &[u8; OBJECT_NAME_BYTES]) -> Result<Option<u64>, String> {
     // Closure `|error: std::io::Error|`: an anonymous function, like a TS arrow function.
     // Macro `format!`: builds or prints text (or a list) from a template.
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -349,12 +349,12 @@ fn pack_offset(index: &File, name: &[u8; OBJECT_NAME_BYTES]) -> Result<Option<u6
 /// (handover "Picks made under the owner's delegation"),
 /// veto open;
 /// not a measurement.
-const MAX_COMMIT_BYTES: u64 = 16 * 1024 * 1024;
+pub(crate) const MAX_COMMIT_BYTES: u64 = 16 * 1024 * 1024;
 
 /// The length of a pack file's header (`PACK`,
 /// version,
 /// object count).
-const PACK_HEADER_BYTES: usize = 12;
+pub(crate) const PACK_HEADER_BYTES: usize = 12;
 
 /// What:
 /// `pub(crate) fn open_regular(path: &Path) -> Result<File, String>` opens a file that the object reader may read,
@@ -391,7 +391,7 @@ pub(crate) fn open_regular(path: &Path) -> Result<File, String> {
 /// ```ts
 /// function looksLikeCommit(body: Uint8Array): boolean
 /// ```
-fn looks_like_commit(body: &[u8]) -> bool {
+pub(crate) fn looks_like_commit(body: &[u8]) -> bool {
     // Git's `parse_commit_buffer` (commit.c): the tree line must be followed by at least one more byte, and so must every
     // parent line (`tail <= bufptr + entry_len + 1` is an error). Mirrored exactly, never loosened (round 6, 5a F3 A).
     let tree_entry: usize = "tree ".len() + OBJECT_NAME_DIGITS;
@@ -422,7 +422,7 @@ fn looks_like_commit(body: &[u8]) -> bool {
 /// ```ts
 /// function inflateComplete(source: Readable, outputLimit: number, inputLimit: number): Buffer  // throws unless the stream ended
 /// ```
-fn inflate_complete(mut source: impl Read, output_limit: usize, input_limit: u64) -> Result<(Vec<u8>, u64), String> {
+pub(crate) fn inflate_complete(mut source: impl Read, output_limit: usize, input_limit: u64) -> Result<(Vec<u8>, u64), String> {
     // `let mut`: a binding that may change.
     // Typed binding: `inflater: Decompress`.
     let mut inflater: Decompress = Decompress::new(true);
@@ -592,186 +592,6 @@ fn loose_commit(path: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<(), Strin
         return Err(format!("{} does not hash to its own name, which only Git judges", path.display()));
     }
     return Ok(());
-}
-
-/// A reader of a file from a fixed offset,
-/// for the inflater.
-struct At<'a> {
-    /// The pack file.
-    file: &'a File,
-    /// The offset of the next byte.
-    offset: u64,
-}
-
-/// The methods of the type above.
-impl Read for At<'_> {
-    /// What:
-    /// `fn read(&mut self, buffer) -> io::Result<usize>` reads at the offset and moves it.
-    /// Why:
-    /// The inflater reads a pack entry without moving the file's own position.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// read(buffer: Buffer): number  // readSync(fd, buffer, 0, buffer.length, position)
-    /// ```
-    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Typed binding: `count: usize`.
-        let count: usize = self.file.read_at(buffer, self.offset)?;
-        // Cast `as u64`: converts between numeric types.
-        self.offset += count as u64;
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        return Ok(count);
-    }
-}
-
-/// What:
-/// `fn check_pack_opens(pack: &File, index: &File) -> Result<(), String>` applies the checks Git makes when it opens a pack:
-/// the header,
-/// an object count equal to the index's,
-/// and the pack's trailing checksum equal to the one the index records.
-/// Why:
-/// Review finding (4a 2):
-/// a pack that Git would refuse to open must not be read as a source of commits.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function checkPackOpens(pack: number, index: number): void  // throws
-/// ```
-fn check_pack_opens(pack: &File, index: &File) -> Result<(), String> {
-    let header: Vec<u8> = read_at(pack, 0, PACK_HEADER_BYTES).map_err(pack_failure)?;
-    let version: u64 = big_endian(&header[4..8]);
-    if &header[..4] != b"PACK" || (version != 2 && version != 3) {
-        return Err("a pack has an unknown header".to_string());
-    }
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // `.map_err(...)`: converts the callee's error into this function's error type.
-    // Typed binding: `fanout_end: Vec<u8>`.
-    let fanout_end: Vec<u8> = read_at(index, 8 + 255 * 4, 4).map_err(index_failure)?;
-    // Borrow `&header`: lends the value without copying or giving it away.
-    if big_endian(&header[8..12]) != big_endian(&fanout_end) {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        return Err("a pack's object count disagrees with its index".to_string());
-    }
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // `.map_err(...)`: converts the callee's error into this function's error type.
-    // Typed binding: `index_length: u64`.
-    let index_length: u64 = index.metadata().map_err(index_failure)?.len();
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // `.map_err(...)`: converts the callee's error into this function's error type.
-    // Typed binding: `pack_length: u64`.
-    let pack_length: u64 = pack.metadata().map_err(pack_failure)?.len();
-    if index_length < 40 || pack_length < 32 {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        return Err("a pack or its index is too short".to_string());
-    }
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // `.map_err(...)`: converts the callee's error into this function's error type.
-    // Typed binding: `recorded: Vec<u8>`.
-    let recorded: Vec<u8> = read_at(index, index_length - 40, 20).map_err(index_failure)?;
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // `.map_err(...)`: converts the callee's error into this function's error type.
-    // Typed binding: `actual: Vec<u8>`.
-    let actual: Vec<u8> = read_at(pack, pack_length - 20, 20).map_err(pack_failure)?;
-    if recorded != actual {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        return Err("a pack's trailing checksum disagrees with its index".to_string());
-    }
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
-    return Ok(());
-}
-
-/// What:
-/// `fn packed_entry_is_commit(pack: &File, offset: u64) -> Result<bool, String>` confirms a pack entry:
-/// a whole commit entry (not a
-/// delta),
-/// a complete zlib stream of exactly the declared size,
-/// and a body Git's commit parser accepts.
-/// Why:
-/// Review finding (4a 2):
-/// one type byte does not show the entry is readable.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function packedEntryIsCommit(pack: number, offset: number): boolean  // throws when the entry cannot be read
-/// ```
-fn packed_entry_is_commit(pack: &File, offset: u64, name: &[u8; OBJECT_NAME_BYTES]) -> Result<bool, String> {
-    let first: Vec<u8> = read_at(pack, offset, 1).map_err(pack_failure)?;
-    let mut byte: u8 = first[0];
-    let kind: u8 = (byte >> 4) & 0x7;
-    if kind != PACK_TYPE_COMMIT {
-        return Ok(false);
-    }
-    let mut size: u64 = u64::from(byte & 0x0f);
-    let mut shift: u32 = 4;
-    let mut position: u64 = offset + 1;
-    while byte & 0x80 != 0 {
-        if shift > 56 {
-            return Err("a pack entry has an oversized length".to_string());
-        }
-        byte = read_at(pack, position, 1).map_err(pack_failure)?[0];
-        size |= u64::from(byte & 0x7f) << shift;
-        shift += 7;
-        position += 1;
-    }
-    if size > MAX_COMMIT_BYTES {
-        return Err("a packed commit is larger than this reader confirms".to_string());
-    }
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    // Typed binding: `body: Vec<u8>`.
-    let (body, _consumed): (Vec<u8>, u64) = inflate_complete(At { file: pack, offset: position }, usize::try_from(size).unwrap_or(usize::MAX), MAX_COMMIT_BYTES)?;
-    // A packed entry is the commit whose name the index lists only if its bytes hash to that name.
-    return Ok(body.len() as u64 == size && looks_like_commit(&body) && crate::git_sha1::object_name("commit", &body) == *name);
-}
-
-/// What:
-/// `fn packed_commit(objects: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<bool, String>` says whether some pack stores the
-/// object as a whole,
-/// readable commit,
-/// in a pack Git would open.
-/// Why:
-/// A tag,
-/// tree,
-/// blob or deltified entry is not a commit this reader can vouch for.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function packedCommit(objects: string, name: Uint8Array): boolean  // throws when a pack cannot be read
-/// ```
-fn packed_commit(objects: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<bool, String> {
-    let pack_directory: PathBuf = objects.join("pack");
-    let listing = match fs::read_dir(&pack_directory) {
-        Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => return Err(format!("{} cannot be listed: {error}", pack_directory.display())),
-    };
-    for item in listing {
-        let path: PathBuf = item.described(format_args!("{} cannot be listed", pack_directory.display()))?.path();
-        if path.extension().and_then(OsStr::to_str) != Some("idx") {
-            continue;
-        }
-        // Typed binding: `pack_path: PathBuf`.
-        let pack_path: PathBuf = path.with_extension("pack");
-        // Borrow `&path`: lends the value without copying or giving it away.
-        let index: File = open_regular(&path)?;
-        let Some(offset) = pack_offset(&index, name)? else {
-            continue;
-        };
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Borrow `&pack_path`: lends the value without copying or giving it away.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        // Typed binding: `pack: File`.
-        let pack: File = open_regular(&pack_path)?;
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Borrow `&pack`: lends the value without copying or giving it away.
-        check_pack_opens(&pack, &index)?;
-        return packed_entry_is_commit(&pack, offset, name);
-    }
-    return Ok(false);
 }
 
 /// What:

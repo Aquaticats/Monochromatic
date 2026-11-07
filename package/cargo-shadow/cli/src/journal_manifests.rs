@@ -60,7 +60,9 @@ pub(crate) fn read_manifest_index(directory: &Path) -> io::Result<Vec<JournaledM
     let text: String = fs::read_to_string(directory.join(MANIFEST_INDEX_FILE))?;
     // Macro `format!`: builds or prints text (or a list) from a template.
     /// What:
-    /// `fn corrupt(why: &str) -> io::Error` is the error for a record that is damaged: "the manifest index is corrupt: " and the reason.
+    /// `fn corrupt(why: &str) -> io::Error` is the error for a record that is damaged:
+    /// "the manifest index is corrupt:
+    /// " and the reason.
     /// Why:
     /// A function replaces the closure that every refusal of this reader called.
     fn corrupt(why: &str) -> io::Error {

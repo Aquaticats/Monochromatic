@@ -47,11 +47,9 @@ use std::marker::PhantomData;
 /// Imports `std::os::fd::OwnedFd` for this file.
 use std::os::fd::OwnedFd;
 
-/// Imports `std::os::unix::process::CommandExt` for this file.
-use std::os::unix::process::CommandExt;
 
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 
 /// Imports `std::process::{Child, Command, ExitStatus, Output, Stdio}` for this file.
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
@@ -63,34 +61,46 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 /// Imports `std::sync::atomic::{AtomicBool, Ordering}` for this file.
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool};
 
 /// Imports `std::sync::mpsc::{Receiver, RecvTimeoutError}` for this file.
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
 
-/// Imports `std::thread` for this file.
-use std::thread;
 
 /// Imports `std::time::{Duration, Instant}` for this file.
 use std::time::{Duration, Instant};
 
-/// Imports `rustix::fs::{FileType, Mode, OFlags, fstat, fsync, open}` for this file.
-use rustix::fs::{FileType, Mode, OFlags, fstat, fsync, open};
 
-/// Imports `rustix::event::{PollFd, PollFlags, Timespec, poll}` for this file.
-use rustix::event::{PollFd, PollFlags, Timespec, poll};
 
-/// Imports `rustix::io::Errno` for this file.
-use rustix::io::Errno;
 
 /// Imports `rustix::process::{Pid, Signal, kill_process_group, test_kill_process_group}` for this file.
-use rustix::process::{Pid, PidfdFlags, Signal, kill_process_group, pidfd_open, test_kill_process_group};
+use rustix::process::{Pid};
 
 /// Imports `crate::bounded_io::{collect, feed}` for this file.
 use crate::bounded_io::{collect, feed};
 
-/// Imports the control group pieces for this file.
-use crate::control_group::{ControlGroup, GroupUnavailable, Record, Route, RouteSettings, detect_route};
+
+/// The containment of a run:
+/// its choice,
+/// start and stop (split out of the bounded run module).
+pub(crate) use crate::bounded_run_containment::{wait_for_exit, Containment, contain, stop_everything, settle, fail_started, finished, CancelOnDrop, lose, reason_of, open_pidfd, start_contained};
+/// The items that only the tests of the bounded run use.
+#[cfg(test)]
+pub(crate) use crate::bounded_run_containment::weaker_notice;
+
+/// The write of one containment record (split out of the bounded run module).
+pub(crate) use crate::bounded_run_record_writes::{append_record, append_record_with};
+
+/// The cache of the control group route (split out of the bounded run module).
+#[cfg(not(test))]
+pub(crate) use crate::bounded_run_route_cache::{find_route};
+/// The test-only items of the same module.
+#[cfg(test)]
+pub(crate) use crate::bounded_run_route_cache::{RouteCache, find_route, use_route_settings_for_test};
+
+/// The route types of the test-only route override.
+#[cfg(test)]
+use crate::control_group::RouteSettings;
 
 /// How often the child is asked whether it has ended.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
@@ -98,7 +108,7 @@ use crate::control_group::{ControlGroup, GroupUnavailable, Record, Route, RouteS
 /// veto open:
 /// 10 ms keeps the latency of a finished command far under any human-visible delay
 /// while costing one `wait` system call per interval.
-const POLL_INTERVAL: Duration = Duration::from_millis(10);
+pub(crate) const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// How long the direct child is given to be reaped after it was killed.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
@@ -111,7 +121,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(10);
 /// "Round 7:
 /// control group probes"),
 /// so 5 s is a thousand times that.
-const REAP_BOUND: Duration = Duration::from_secs(5);
+pub(crate) const REAP_BOUND: Duration = Duration::from_secs(5);
 
 /// How long the control group is given to become unpopulated after it was killed.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
@@ -129,7 +139,7 @@ pub(crate) const QUIESCE_BOUND: Duration = Duration::from_secs(5);
 /// with every writer gone the pipes are at their end at once,
 /// so this only needs to cover the scheduling of the worker threads;
 /// the largest output (`cargo metadata` of this repository) drains in well under it.
-const READER_GRACE: Duration = Duration::from_secs(2);
+pub(crate) const READER_GRACE: Duration = Duration::from_secs(2);
 
 /// Makes the one-line notice of the weaker path appear once per process.
 /// It is a flag that one caller wins with a swap,
@@ -142,7 +152,7 @@ const READER_GRACE: Duration = Duration::from_secs(2);
 /// V6:
 /// no wait the runner controls may
 /// depend on another run's slow write).
-static WEAKER_NOTICE_GIVEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub(crate) static WEAKER_NOTICE_GIVEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// A test holds this lock to keep the winner of the notice inside its emission,
 /// so that another run can show it does not wait for it.
@@ -170,12 +180,12 @@ thread_local! {
 thread_local! {
     /// The settings the route is discovered with instead of the ordinary ones,
     /// so a test can make the host look like one that lacks a capability.
-    static ROUTE_OVERRIDE: RefCell<Option<RouteSettings>> = const { RefCell::new(None) };
+    pub(crate) static ROUTE_OVERRIDE: RefCell<Option<RouteSettings>> = const { RefCell::new(None) };
 
     /// A hook that runs inside the start of a run,
     /// after the scope's record is on disk and before the program starts,
     /// so a test can overlap other work with the start at a boundary of its own choosing.
-    static START_HOOK: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
+    pub(crate) static START_HOOK: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
 
     /// A hook that runs right after the program has started and decides whether the completion of the startup fails:
     /// it returns
@@ -205,9 +215,11 @@ fn scope_state_of(entry: &(u64, Rc<ScopeState>)) -> Rc<ScopeState> {
 /// launch is a property of the real boundaries,
 /// so the tests read an ordered trace of
 /// them (certification group 2).
-/// The event is a `format_args!` value: nothing is formatted unless a test build turns it into text,
+/// The event is a `format_args!` value:
+/// nothing is formatted unless a test build turns it into text,
 /// and a production build drops it unread.
-/// An event whose arguments would compute something (read a file, call a function with a cost) is not passed here;
+/// An event whose arguments would compute something (read a file,
+/// call a function with a cost) is not passed here;
 /// its statement carries `#[cfg(test)]` and calls `trace_text`,
 /// so a production build never evaluates it.
 ///
@@ -236,7 +248,7 @@ pub(crate) fn trace_text(text: String) {
 
 /// The production build keeps no trace.
 #[cfg(not(test))]
-fn trace(_event: std::fmt::Arguments<'_>) {}
+pub(crate) fn trace(_event: std::fmt::Arguments<'_>) {}
 
 /// What:
 /// `pub(crate) fn take_trace_for_test() -> Vec<String>` returns and clears this thread's trace.
@@ -268,13 +280,13 @@ pub(crate) fn on_startup_for_test(hook: Option<Rc<dyn Fn() -> bool>>) {
 }
 
 /// What a scope remembers.
-struct ScopeState {
+pub(crate) struct ScopeState {
     /// The file in which the containment of each child started under this scope is recorded.
-    log: PathBuf,
+    pub(crate) log: PathBuf,
     /// Whether a run under this scope could not show that everything it started was stopped.
-    lost: Cell<bool>,
+    pub(crate) lost: Cell<bool>,
     /// Whether a run under this scope was contained by a process group only.
-    process_group_only: Cell<bool>,
+    pub(crate) process_group_only: Cell<bool>,
 }
 
 /// The records and the verdict of one open transaction.
@@ -472,284 +484,6 @@ fn current_scope() -> Option<Rc<ScopeState>> {
 }
 
 /// What:
-/// `fn append_record(log: &Path, record: &Record) -> io::Result<()>` appends one line to the journal's `groups` file and forces it to
-/// disk.
-/// Why:
-/// The line must be durable before the child it describes starts.
-/// The file is opened without waiting and without following a link,
-/// and must be a regular file,
-/// so a record path replaced by a pipe fails at once instead of blocking the run (6a R4).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function appendRecord(log: string, record: Record): void
-/// ```
-fn append_record(log: &Path, record: &Record) -> io::Result<()> {
-    return append_record_with(log, record, true);
-}
-
-/// What:
-/// `fn append_record_with(log: &Path, record: &Record, sync: bool) -> io::Result<()>` appends one line to the journal's `groups` file
-/// and forces it to disk when `sync` is set.
-/// Why:
-/// The launcher record is written without a sync (round 11):
-/// it is read only by a recovery after the wrapper was killed (the page
-/// cache keeps it),
-/// or after a power loss,
-/// where a lost or torn line is read as no proof and the boot rule decides.
-/// The line is one `write`,
-/// so a process kill leaves it whole or absent.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function appendRecordWith(log: string, record: Record, sync: boolean): void
-/// ```
-pub(crate) fn append_record_with(log: &Path, record: &Record, sync: bool) -> io::Result<()> {
-    let file: OwnedFd = open(log, OFlags::WRONLY | OFlags::APPEND | OFlags::CLOEXEC | OFlags::NONBLOCK | OFlags::NOFOLLOW, Mode::empty()).map_err(io::Error::from)?;
-    let kind: FileType = FileType::from_raw_mode(fstat(&file).map_err(io::Error::from)?.st_mode);
-    if kind != FileType::RegularFile {
-        return Err(io::Error::from(Errno::INVAL));
-    }
-    let line: String = format!("{record}\n");
-    let kind_name: &str = match record {
-        Record::Scope { .. } => "scope",
-        Record::Settled { .. } => "settled",
-        Record::Launcher { .. } => "launcher",
-        Record::ProcessGroup(_) => "pgroup",
-        Record::ProcessGroupStarting => "pgroup-starting",
-    };
-    trace(format_args!("attempt {kind_name}"));
-    #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::RecordWrite) {
-        return Err(io::Error::other("injected failure to write the containment record"));
-    }
-    // A test cuts the write short (only the first half of the line reaches the file), as a full disk would partway through the line.
-    #[cfg(test)]
-    let to_write: &[u8] = if crate::failpoints::fires(crate::failpoints::Point::RecordShortWrite) { &line.as_bytes()[..line.len() / 2] } else { line.as_bytes() };
-    #[cfg(not(test))]
-    let to_write: &[u8] = line.as_bytes();
-    let written: usize = rustix::io::write(&file, to_write).map_err(io::Error::from)?;
-    if written != line.len() {
-        return Err(io::Error::new(io::ErrorKind::WriteZero, "the containment record was cut short"));
-    }
-    trace(format_args!("written {kind_name}"));
-    if !sync {
-        return Ok(());
-    }
-    // The record is durable before the program it describes can start: a sync that fails stops the start.
-    // The text reads the log file, so this statement exists in a test build only.
-    #[cfg(test)]
-    trace_text(format!("sync {kind_name} whole={}", std::fs::read_to_string(log).is_ok_and(|text| { return text.ends_with(&line); })));
-    // A test replaces the result of the sync, so the failure takes the path of a failure of the kernel (round 21, sixth pass, V3).
-    #[cfg(test)]
-    let synced: io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::RecordSync) { Err(io::Error::other("injected failure to make the containment record durable")) } else { fsync(&file).map_err(io::Error::from) };
-    #[cfg(not(test))]
-    let synced: io::Result<()> = fsync(&file).map_err(io::Error::from);
-    synced?;
-    trace(format_args!("synced {kind_name}"));
-    return Ok(());
-}
-
-/// What:
-/// `fn reap(child: &mut Child) -> Option<ExitStatus>` waits for the direct child,
-/// a few milliseconds at a time,
-/// up to `REAP_BOUND`.
-/// Why:
-/// `Child::wait` has no deadline.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function reap(child: ChildProcess): ExitStatus | undefined
-/// ```
-fn reap(child: &mut Child) -> Option<ExitStatus> {
-    // A child that cannot be reaped within its bound is "not reaped"; a test makes that so without a process in an uninterruptible wait.
-    #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::ReapStuck) {
-        return None;
-    }
-    let deadline: Instant = Instant::now() + REAP_BOUND;
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) => return Some(status),
-            Ok(None) => {}
-            Err(_) => return None,
-        }
-        if Instant::now() >= deadline {
-            return None;
-        }
-        thread::sleep(POLL_INTERVAL);
-    }
-}
-
-/// What:
-/// `fn wait_for_exit(watch: Option<&OwnedFd>, remaining: Duration)` waits until the child ends or `remaining` passes.
-/// Why:
-/// A pidfd wakes at the exit;
-/// without one (a kernel before 5.3) the wait is a sleep of `POLL_INTERVAL`.
-/// Measured on 2026-11-04 (debug build,
-/// 40 runs of `true`):
-/// the sleep-polling run took 11.3 ms at best,
-/// almost all of it the poll interval.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function waitForExit(watch: Descriptor | undefined, remainingMs: number): void
-/// ```
-fn wait_for_exit(watch: Option<&OwnedFd>, remaining: Duration) {
-    let Some(descriptor) = watch else {
-        thread::sleep(POLL_INTERVAL.min(remaining));
-        return;
-    };
-    let timeout: Timespec = Timespec { tv_sec: i64::try_from(remaining.as_secs()).unwrap_or(0), tv_nsec: i64::from(remaining.subsec_nanos()) };
-    let mut watched = [PollFd::new(descriptor, PollFlags::IN)];
-    // An interrupted or failed poll only means the next turn of the loop asks `try_wait` again.
-    let _ = poll(&mut watched, Some(&timeout));
-}
-
-/// How a run is contained.
-enum Containment {
-    /// In a transient scope the manager made:
-    /// quiescence is shown by the kernel.
-    Scope {
-        /// The scope of this run.
-        group: ControlGroup,
-        /// The route it was planned on.
-        route: Route,
-    },
-    /// In a process group of its own (the child's process id is the group):
-    /// the weaker path.
-    ProcessGroup,
-}
-
-/// The answer of the manager,
-/// kept for the life of the process.
-/// It is read and written only with `try_lock`:
-/// a thread that finds the cache busy asks the manager itself instead of waiting for
-/// the thread that holds it (contract V6:
-/// an internal lock returns at once).
-pub(crate) struct RouteCache {
-    /// The last answer,
-    /// a route or the reason there is none.
-    slot: std::sync::Mutex<Option<Result<Route, String>>>,
-}
-
-/// The methods of the type above.
-impl RouteCache {
-    /// What:
-    /// `pub(crate) const fn new() -> RouteCache` makes an empty cache.
-    /// Why:
-    /// The production cache is a `static`.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// static new(): RouteCache
-    /// ```
-    pub(crate) const fn new() -> RouteCache {
-        return RouteCache { slot: std::sync::Mutex::new(None) };
-    }
-
-    /// What:
-    /// `pub(crate) fn get_or_discover(&self, discover: &dyn Fn() -> Result<Route, GroupUnavailable>) -> Result<Route, GroupUnavailable>`
-    /// returns the cached answer,
-    /// or asks `discover` and keeps its answer.
-    /// Why:
-    /// A busy cache is never waited for:
-    /// the caller discovers on its own and keeps the answer only if the cache is free by then.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// getOrDiscover(discover: () => Route): Route  // throws GroupUnavailable
-    /// ```
-    pub(crate) fn get_or_discover(&self, discover: &dyn Fn() -> Result<Route, GroupUnavailable>) -> Result<Route, GroupUnavailable> {
-        if let Ok(held) = self.slot.try_lock()
-            && let Some(answer) = held.as_ref()
-        {
-            return answer.clone().map_err(crate::control_group::unavailable);
-        }
-        let found: Result<Route, GroupUnavailable> = discover();
-        if let Ok(mut held) = self.slot.try_lock() {
-            *held = Some(found.as_ref().map(Clone::clone).map_err(reason_of));
-        }
-        return found;
-    }
-
-    /// What:
-    /// `pub(crate) fn hold_for_test<T>(&self, work: impl FnOnce() -> T) -> T` runs `work` while this thread holds the cache's own mutex.
-    /// Why:
-    /// A test shows that a caller finds the busy cache and answers at once,
-    /// with the actual mutex held,
-    /// not a discovery in flight
-    /// that happens to run outside it (certification,
-    /// third pass,
-    /// V6).
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// holdForTest<T>(work: () => T): T
-    /// ```
-    #[cfg(test)]
-    pub(crate) fn hold_for_test<T>(&self, work: impl FnOnce() -> T) -> T {
-        let guard = self.slot.lock();
-        let result: T = work();
-        drop(guard);
-        return result;
-    }
-}
-
-/// What:
-/// `fn find_route() -> Result<Route, GroupUnavailable>` finds out what this host can give.
-/// Why:
-/// The answer of the manager does not change while the process lives,
-/// so it is asked once;
-/// a test asks again,
-/// with its own settings.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function findRoute(): Route  // throws GroupUnavailable
-/// ```
-#[cfg(not(test))]
-fn find_route() -> Result<Route, GroupUnavailable> {
-    /// The route found once for the process,
-    /// so later bounded runs do not detect it again.
-    static ROUTE: RouteCache = RouteCache::new();
-    return ROUTE.get_or_discover(&discover_default_route);
-}
-
-/// What:
-/// `fn find_route() -> Result<Route, GroupUnavailable>` is the test build's version:
-/// it asks again every time,
-/// with the settings of the test.
-/// Why:
-/// A test makes the host look like one that lacks a capability.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function findRoute(): Route  // throws GroupUnavailable
-/// ```
-#[cfg(test)]
-fn find_route() -> Result<Route, GroupUnavailable> {
-    let settings: RouteSettings = ROUTE_OVERRIDE.with(|slot| { return slot.borrow().clone(); }).unwrap_or_default();
-    return detect_route(&settings);
-}
-
-/// What:
-/// `pub fn use_route_settings_for_test(settings: Option<RouteSettings>)` makes the runs of this thread discover their route with
-/// `settings` (`None` restores the ordinary ones).
-/// Why:
-/// A host that lacks `systemd-run`,
-/// a reachable manager or a cgroup v2 mount is made by pointing the settings at nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function useRouteSettingsForTest(settings?: RouteSettings): void
-/// ```
-#[cfg(test)]
-pub(crate) fn use_route_settings_for_test(settings: Option<RouteSettings>) {
-    ROUTE_OVERRIDE.with(|slot| { *slot.borrow_mut() = settings; });
-}
-
-/// What:
 /// `pub fn on_start_for_test(hook: Option<Rc<dyn Fn()>>)` sets the hook that runs inside the start of each run of this thread.
 /// Why:
 /// The spawn-isolation tests overlap an unrelated spawn and a second run with the start of the first.
@@ -761,233 +495,6 @@ pub(crate) fn use_route_settings_for_test(settings: Option<RouteSettings>) {
 #[cfg(test)]
 pub(crate) fn on_start_for_test(hook: Option<Rc<dyn Fn()>>) {
     START_HOOK.with(|slot| { *slot.borrow_mut() = hook; });
-}
-
-/// What:
-/// `pub(crate) fn weaker_notice(unavailable: &GroupUnavailable) -> String` is the one-line notice of the weaker path.
-/// Why:
-/// It names the missing capability and says what cannot be shown,
-/// so a person knows the guarantee they have (contract,
-/// "The weaker path").
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function weakerNotice(unavailable: GroupUnavailable): string
-/// ```
-pub(crate) fn weaker_notice(unavailable: &GroupUnavailable) -> String {
-    return format!("cargo-shadow: no delegated control group ({unavailable}); a process that leaves the process group cannot be stopped or found, so quiescence is not shown and a recovery of this run waits for `cargo-shadow acknowledge`");
-}
-
-/// What:
-/// `fn contain() -> Containment` plans a scope,
-/// or says in one line which capability is missing and falls back to a process group.
-/// Why:
-/// The notice is printed once per process.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function contain(): Containment
-/// ```
-fn contain() -> Containment {
-    return match find_route() {
-        Ok(route) => match ControlGroup::plan(&route) {
-            Ok(group) => Containment::Scope { group, route },
-            Err(error) => weaker(GroupUnavailable { reason: format!("a scope name cannot be made ({error})") }),
-        },
-        Err(unavailable) => weaker(unavailable),
-    };
-}
-
-/// What:
-/// `fn weaker(unavailable: GroupUnavailable) -> Containment` gives the notice that the run is contained by a process group only,
-/// and returns that containment.
-/// Why:
-/// A function replaces the closure that `contain` called at both refusals.
-fn weaker(unavailable: GroupUnavailable) -> Containment {
-    // The notice this run is given is part of the trace, so a test sees the notice of the run and not a text it formats itself.
-    // The text is computed, so this statement exists in a test build only.
-    #[cfg(test)]
-    trace_text(format!("notice {}", weaker_notice(&unavailable)));
-    if !WEAKER_NOTICE_GIVEN.swap(true, std::sync::atomic::Ordering::SeqCst) {
-        #[cfg(test)]
-        {
-            NOTICE_ENTERED.store(true, std::sync::atomic::Ordering::SeqCst);
-            drop(NOTICE_GATE.lock());
-        }
-        eprintln!("{}", weaker_notice(&unavailable));
-    }
-    return Containment::ProcessGroup;
-}
-
-/// What:
-/// `fn stop_process_group(child: &mut Child, group: Pid) -> bool` kills the process group,
-/// reaps the direct child,
-/// and returns `true` once no member of the group is left.
-/// Why:
-/// This is all the weaker path can show.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function stopProcessGroup(child: ChildProcess, group: number): boolean
-/// ```
-fn stop_process_group(child: &mut Child, group: Pid) -> bool {
-    let reaped: bool = {
-        let _ = kill_process_group(group, Signal::KILL);
-        reap(child).is_some()
-    };
-    let deadline: Instant = Instant::now() + QUIESCE_BOUND;
-    loop {
-        if test_kill_process_group(group) == Err(Errno::SRCH) {
-            return reaped;
-        }
-        if Instant::now() >= deadline {
-            return false;
-        }
-        let _ = kill_process_group(group, Signal::KILL);
-        thread::sleep(POLL_INTERVAL);
-    }
-}
-
-/// What:
-/// `fn stop_everything(containment, child) -> bool` ends the run early or at its normal exit:
-/// it kills and reaps the direct child,
-/// stops what the containment holds,
-/// and returns `true` only if all of it is shown gone.
-/// Why:
-/// This is the one way a run is ended,
-/// on timeout,
-/// on a normal exit and on every error path.
-/// The direct child goes first:
-/// it is the process that becomes the program,
-/// so once it is reaped nothing of this program's can
-/// still start the program in a scope that is not there yet.
-/// A scope that cannot be stopped,
-/// and any failure to inspect or stop it,
-/// is "not shown gone".
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function stopEverything(containment: Containment, child: ChildProcess): boolean
-/// ```
-fn stop_everything(containment: &Containment, child: &mut Child) -> bool {
-    return match containment {
-        Containment::Scope { group, .. } => {
-            let _ = child.kill();
-            let reaped: bool = reap(child).is_some();
-            let stopped: bool = match group.stop(QUIESCE_BOUND) {
-                Ok(done) => done,
-                Err(error) => {
-                    eprintln!("cargo-shadow: warning: the scope {} could not be shown empty ({error})", group.directory().display());
-                    false
-                }
-            };
-            reaped && stopped
-        }
-        Containment::ProcessGroup => match Pid::from_raw(i32::try_from(child.id()).unwrap_or(0)) {
-            Some(group) => stop_process_group(child, group),
-            None => false,
-        },
-    };
-}
-
-/// What:
-/// `fn settle(containment: &Containment, scope: &Option<Rc<ScopeState>>)` records that the run's launcher is reaped and its scope
-/// stopped,
-/// so a recovery may read an absent scope as one that ended.
-/// Why:
-/// Until then an absent scope may be one the launcher has not made yet (round 9,
-/// 8a F1).
-/// A record that cannot be written leaves the journal unsettled,
-/// which the next recovery treats as uncertainty to acknowledge:
-/// the safe side.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function settle(containment: Containment, scope: ScopeState | undefined): void
-/// ```
-fn settle(containment: &Containment, scope: &Option<Rc<ScopeState>>) {
-    if let (Containment::Scope { group, .. }, Some(state)) = (containment, scope)
-        && let Err(error) = append_record(&state.log, &Record::Settled { path: group.directory().to_path_buf() })
-    {
-        eprintln!("cargo-shadow: warning: the end of the run in {} could not be recorded ({error}); a recovery will ask for an acknowledgement", group.directory().display());
-    }
-}
-
-/// What:
-/// `fn fail_started(containment, child, scope, bound, error) -> RunError` ends a run that failed after its program started.
-/// Why:
-/// Any failure on the containment path after the start is "not quiescent" unless everything is shown gone (contract A2):
-/// it must not become an ordinary failure that lets the caller roll back or accept under a writer that may remain (7a F3).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function failStarted(containment: Containment, child: ChildProcess, scope: ScopeState | undefined, bound: Bound, error: RunError): RunError
-/// ```
-fn fail_started(containment: &Containment, child: &mut Child, scope: &Option<Rc<ScopeState>>, bound: &Bound, error: RunError) -> RunError {
-    if stop_everything(containment, child) {
-        settle(containment, scope);
-        return error;
-    }
-    lose(scope);
-    return RunError::NotQuiescent { what: bound.what.clone() };
-}
-
-/// What:
-/// `fn finished(receiver: &Receiver<io::Result<Vec<u8>>>, what: &str) -> Result<Vec<u8>, RunError>` takes the result of an output worker.
-/// Why:
-/// A worker that does not report means the output is not complete,
-/// and a prefix must never be returned as the output.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function finished(receiver: Promise<Buffer>, what: string): Buffer  // throws RunError
-/// ```
-fn finished(receiver: &Receiver<io::Result<Vec<u8>>>, what: &str) -> Result<Vec<u8>, RunError> {
-    return match receiver.recv_timeout(READER_GRACE) {
-        Ok(Ok(bytes)) => Ok(bytes),
-        Ok(Err(error)) => Err(RunError::Io(error)),
-        Err(RecvTimeoutError::Timeout | RecvTimeoutError::Disconnected) => Err(RunError::IncompleteOutput { what: what.to_string() }),
-    };
-}
-
-/// Sets the cancel flag when the run ends,
-/// however it ends,
-/// so no worker outlives the call.
-struct CancelOnDrop(
-    /// The flag the pipe workers look at.
-    Arc<AtomicBool>,
-);
-
-/// How the guard acts.
-impl Drop for CancelOnDrop {
-    /// What:
-    /// `fn drop(&mut self)` tells the pipe workers to stop.
-    /// Why:
-    /// A worker must not keep a thread,
-    /// a descriptor and a growing buffer after the call returned.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// [Symbol.dispose](): void
-    /// ```
-    fn drop(&mut self) {
-        self.0.store(true, Ordering::Relaxed);
-    }
-}
-
-/// What:
-/// `fn lose(scope: &Option<Rc<ScopeState>>)` marks the open transaction as one whose writers may remain.
-/// Why:
-/// The caller of the transaction reads the mark and stops the command instead of rolling back or finishing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function lose(scope: ScopeState | undefined): void
-/// ```
-fn lose(scope: &Option<Rc<ScopeState>>) {
-    if let Some(state) = scope {
-        state.lost.set(true);
-    }
 }
 
 /// What:
@@ -1033,7 +540,7 @@ pub fn output_within_clean_environment(command: &mut Command, input: Option<&[u8
 /// ```ts
 /// function configureStdio(command: Command, hasInput: boolean): void
 /// ```
-fn configure_stdio(command: &mut Command, has_input: bool) {
+pub(crate) fn configure_stdio(command: &mut Command, has_input: bool) {
     command.stdin(if has_input { Stdio::piped() } else { Stdio::null() }).stdout(Stdio::piped()).stderr(Stdio::piped());
 }
 
@@ -1108,214 +615,6 @@ fn run_bounded(command: &mut Command, input: Option<&[u8]>, bound: &Bound, clean
         }
     }
     return Ok(Output { status, stdout: out, stderr: err });
-}
-
-/// What:
-/// `fn program_resolves(command: &Command) -> bool` says whether the program of the command exists as an executable file,
-/// searched on the `PATH` the command will have when its name has no slash.
-/// Why:
-/// `systemd-run` reports a program it cannot start as an exit status like any other,
-/// so a program that does not exist is found before the launcher is started and reported as the I/O error it is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function programResolves(command: Command): boolean
-/// ```
-fn program_resolves(command: &Command) -> bool {
-    let program: &std::ffi::OsStr = command.get_program();
-    let relative_to: PathBuf = command.get_current_dir().map(Path::to_path_buf).unwrap_or_default();
-    if program.as_encoded_bytes().contains(&b'/') {
-        return crate::control_group::is_executable_file(&relative_to.join(program));
-    }
-    let mut own_path: Option<std::ffi::OsString> = None;
-    for (name, value) in command.get_envs() {
-        if name == "PATH" {
-            own_path = value.map(std::ffi::OsStr::to_os_string);
-            break;
-        }
-    }
-    if own_path.is_none() {
-        own_path = std::env::var_os("PATH");
-    }
-    if let Some(search) = own_path {
-        for directory in std::env::split_paths(&search) {
-            if crate::control_group::is_executable_file(&relative_to.join(directory).join(program)) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-/// What:
-/// `fn run_start_hook()` runs the hook a test put inside the start of a run,
-/// if any.
-/// Why:
-/// It is the boundary at which a test overlaps other work with a start,
-/// or kills a wrapper.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function runStartHook(): void
-/// ```
-#[cfg(test)]
-fn run_start_hook() {
-    if let Some(hook) = START_HOOK.with(|slot| { return slot.borrow().clone(); }) {
-        hook();
-    }
-}
-
-/// The production build has no hook.
-#[cfg(not(test))]
-fn run_start_hook() {}
-
-/// What:
-/// `fn note_launcher(log: &Path, scope: &Path, child: &Child)` appends the launcher record:
-/// the process id,
-/// the start time and the
-/// process id namespace of the process that is about to become the program.
-/// Why:
-/// A recovery that finds this process gone knows it can never join the scope,
-/// so it can read the scope as final without an
-/// acknowledgement (round 11).
-/// A line that cannot be written is only a missing proof:
-/// the journal then waits for an acknowledgement like an older journal,
-/// so the
-/// run goes on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function noteLauncher(log: string, scope: string, child: ChildProcess): void
-/// ```
-fn note_launcher(log: &Path, scope: &Path, child: &Child) {
-    let pid: i32 = i32::try_from(child.id()).unwrap_or(0);
-    let noted: io::Result<()> = match crate::control_group::process_start(pid) {
-        Ok(start) => record_launcher(log, scope, pid, start),
-        Err(error) => Err(error),
-    };
-    if let Err(error) = noted {
-        eprintln!("cargo-shadow: warning: the launcher of {} could not be recorded ({error}); if this wrapper is killed, a recovery will ask for an acknowledgement", scope.display());
-    }
-}
-
-/// What:
-/// `fn reason_of(unavailable: &GroupUnavailable) -> String` clones the reason of a refusal.
-/// Why:
-/// `Result::map_err` takes it by path instead of a closure.
-fn reason_of(unavailable: &GroupUnavailable) -> String {
-    return unavailable.reason.clone();
-}
-
-/// What:
-/// `fn discover_default_route() -> Result<Route, GroupUnavailable>` detects the route with the default settings.
-/// Why:
-/// `get_or_discover` takes it by path instead of a closure that captured nothing.
-#[cfg(not(test))]
-fn discover_default_route() -> Result<Route, GroupUnavailable> {
-    return detect_route(&RouteSettings::default());
-}
-
-/// What:
-/// `fn open_pidfd(pid: Pid) -> Option<OwnedFd>` opens a descriptor that becomes readable when the process ends,
-/// or `None` when the kernel refuses.
-/// Why:
-/// `Option::and_then` takes it by path instead of a closure.
-fn open_pidfd(pid: Pid) -> Option<OwnedFd> {
-    return pidfd_open(pid, PidfdFlags::empty()).ok();
-}
-
-/// What:
-/// `fn record_launcher(log: &Path, scope: &Path, pid: i32, start: u64) -> io::Result<()>` appends the launcher record.
-/// Why:
-/// A function replaces the closure that `note_launcher` passed to `and_then`.
-fn record_launcher(log: &Path, scope: &Path, pid: i32, start: u64) -> io::Result<()> {
-    let pid_namespace: u64 = crate::control_group::pid_namespace_id()?;
-    return append_record_with(log, &Record::Launcher { pid, start, pid_namespace, path: scope.to_path_buf() }, false);
-}
-
-/// What:
-/// `fn scope_record_failed(error: io::Error) -> RunError` is the refusal for a scope record that could not be written.
-/// Why:
-/// `Result::map_err` takes it by path instead of a closure.
-fn scope_record_failed(error: io::Error) -> RunError {
-    return RunError::Io(io::Error::new(error.kind(), format!("{error} (a program whose scope cannot be recorded is not started)")));
-}
-
-/// What:
-/// `fn group_announcement_failed(error: io::Error) -> RunError` is the refusal for a process-group announcement that could not be written.
-/// Why:
-/// `Result::map_err` takes it by path instead of a closure.
-fn group_announcement_failed(error: io::Error) -> RunError {
-    return RunError::Io(io::Error::new(error.kind(), format!("{error} (a child whose process group cannot be announced is not started)")));
-}
-
-/// What:
-/// `fn start_contained(command, containment, scope, has_input, clean_environment) -> Result<Child, RunError>` records the
-/// containment in the journal and starts the child inside it.
-/// Why:
-/// For a scope the record is forced to disk before the program starts,
-/// and a record that cannot be written means the program is not started.
-/// For the weaker path the process group is only known once the child exists,
-/// so a `pgroup starting` line is forced to disk first and the group's line follows the start;
-/// a child whose group cannot be recorded is stopped at once.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function startContained(command: Command, containment: Containment, scope: ScopeState | undefined, hasInput: boolean, cleanEnvironment: boolean): ChildProcess  // throws RunError
-/// ```
-fn start_contained(command: &mut Command, containment: &Containment, scope: Option<&Rc<ScopeState>>, has_input: bool, clean_environment: bool) -> Result<Child, RunError> {
-    match containment {
-        Containment::Scope { group, route } => {
-            if !program_resolves(command) {
-                return Err(RunError::Io(io::Error::new(io::ErrorKind::NotFound, format!("{:?} was not found (os error 2)", command.get_program()))));
-            }
-            if let Some(state) = scope {
-                append_record(&state.log, &group.record()).map_err(scope_record_failed)?;
-            }
-            run_start_hook();
-            let mut launch: Command = group.launcher(route, command, clean_environment);
-            configure_stdio(&mut launch, has_input);
-            // The text computes a file name, so this statement exists in a test build only.
-            #[cfg(test)]
-            trace_text(format!("launch scope {}", group.directory().file_name().map_or_else(String::new, |name| { return name.to_string_lossy().into_owned(); })));
-            let child: Child = launch.spawn().map_err(RunError::Io)?;
-            // The direct child of this process, as the kernel numbered it: a test compares it with what the program says it is.
-            trace(format_args!("spawned {}", child.id()));
-            if let Some(state) = scope {
-                note_launcher(&state.log, group.directory(), &child);
-            }
-            return Ok(child);
-        }
-        Containment::ProcessGroup => {
-            if let Some(state) = scope {
-                state.process_group_only.set(true);
-            }
-            command.process_group(0);
-            // The child's group is its process id, known only after the spawn: a "starting" line is durable before it, so a
-            // wrapper killed in between is seen by a recovery as one that may have a child running.
-            if let Some(state) = scope {
-                append_record(&state.log, &Record::ProcessGroupStarting).map_err(group_announcement_failed)?;
-            }
-            run_start_hook();
-            trace(format_args!("launch pgroup"));
-            let mut child: Child = command.spawn().map_err(RunError::Io)?;
-            trace(format_args!("spawned {}", child.id()));
-            let leader: i32 = i32::try_from(child.id()).unwrap_or(0);
-            if let Some(state) = scope
-                && let Err(error) = append_record(&state.log, &Record::ProcessGroup(leader))
-            {
-                let stopped: bool = match Pid::from_raw(leader) {
-                    Some(group) => stop_process_group(&mut child, group),
-                    None => false,
-                };
-                if !stopped {
-                    lose(&Some(Rc::clone(state)));
-                }
-                return Err(RunError::Io(io::Error::new(error.kind(), format!("{error} (the child was stopped because its process group could not be recorded)"))));
-            }
-            return Ok(child);
-        }
-    }
 }
 
 /// What:

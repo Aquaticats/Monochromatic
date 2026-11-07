@@ -165,7 +165,7 @@ use crate::journal_finish::{FinishError, settle_finish};
 use crate::file_owner::Claim;
 /// Imports the manifest transaction that `--breaking` needs:
 /// cargo rewrites `Cargo.toml` as well as the lockfile.
-use crate::manifest_edit::{ManifestEdit, restore_manifests, run_recording_manifests, snapshot_manifests};
+use crate::manifest_edit::{ManifestEdit, restore_manifests, snapshot_manifests};
 /// Imports the manifest list of a `cargo metadata` answer.
 use crate::stamp::manifests_from_metadata;
 /// Imports the keep rule of a rollback and the quarantine directory,
@@ -281,6 +281,9 @@ use crate::update_resolve::resolve_all;
 use crate::update_argument_and_warning_text::{is_breaking_option, is_precise_option, raised_floor_warning};
 /// Imports the file-system error module (the result type of the recorded calls).
 use std::io;
+
+/// The work values of the update (split out of the update module).
+pub(crate) use crate::update_recorded_work::{SyncChain, CargoRun, ManifestsThenCargo};
 
 /// Which procedure the update runs.
 pub enum UpdateKind<'a> {
@@ -699,105 +702,11 @@ fn sync_recording(request: &UpdateRequest, edits: &RefCell<Vec<ManifestEdit>>) -
     // function f(registry: Registry) { ... }  // an interface type
     // ```
     // Constructor `Box::new(`: an empty owned collection or a boxed value.
-    let mut chain: SyncChain = SyncChain::Sync(request);
+    let mut chain: SyncChain = SyncChain::Sync { request };
     for crate_dir in request.crate_dirs {
         chain = SyncChain::Around { crate_dir, edits, inner: Box::new(chain) };
     }
     return crate::file_owner::RecordedWork::run(chain);
-}
-
-/// What:
-/// `enum SyncChain<'a>` is the work of the `--breaking` sync:
-/// `Sync` runs the syncer,
-/// and `Around` runs the work inside it with the manifests of one crate root recorded.
-/// Why:
-/// The sync runs inside one recording per crate root,
-/// the innermost first,
-/// and an enum replaces the boxed closures that were nested for it.
-enum SyncChain<'a> {
-    /// The innermost work: the syncer itself.
-    Sync(&'a UpdateRequest<'a>),
-    /// Work wrapped in the recording of one crate root's manifests.
-    Around {
-        /// The crate root whose manifests are recorded.
-        crate_dir: &'a str,
-        /// The manifest edits the recording attributes.
-        edits: &'a RefCell<Vec<ManifestEdit>>,
-        /// The work that runs inside the recording.
-        inner: Box<SyncChain<'a>>,
-    },
-}
-
-/// What:
-/// The implementation of `RecordedWork` for `SyncChain`.
-/// Why:
-/// `run_recording_manifests` runs it between its before and after observations.
-impl crate::file_owner::RecordedWork<io::Result<Result<String, String>>> for SyncChain<'_> {
-    /// What:
-    /// Runs the syncer,
-    /// or the inner work inside the recording of one crate root's manifests.
-    /// Why:
-    /// The result of the recording is flattened into the sync's own result.
-    fn run(self) -> io::Result<Result<String, String>> {
-        match self {
-            SyncChain::Sync(request) => return Ok(request.syncer.sync(request.root)),
-            SyncChain::Around { crate_dir, edits, inner } => return run_recording_manifests(crate_dir, edits, *inner).and_then(std::convert::identity),
-        }
-    }
-}
-
-/// What:
-/// `pub(crate) struct CargoRun<'a> { request, crate_dir, args }` is the work of running one cargo command in a crate root and failing with the crate named when it exits non-zero.
-/// Why:
-/// `run_recording` takes the work as a value,
-/// and this holds what the closure that stood here captured.
-pub(crate) struct CargoRun<'a> {
-    /// The update request.
-    pub(crate) request: &'a UpdateRequest<'a>,
-    /// The crate root cargo runs in.
-    pub(crate) crate_dir: &'a str,
-    /// The arguments of the cargo command.
-    pub(crate) args: &'a [String],
-}
-
-/// What:
-/// The implementation of `RecordedWork` for `CargoRun`.
-/// Why:
-/// `run_recording` runs it between its before and after observations.
-impl crate::file_owner::RecordedWork<Result<CargoOutcome, UpdateError>> for CargoRun<'_> {
-    /// What:
-    /// Runs the cargo command.
-    /// Why:
-    /// The result is the one the closure returned.
-    fn run(self) -> Result<CargoOutcome, UpdateError> {
-        return run_or_fail(self.request, self.crate_dir, self.args);
-    }
-}
-
-/// What:
-/// `struct ManifestsThenCargo<'a>` is the work of running one cargo command with the manifests of its crate root recorded.
-/// Why:
-/// `run_recording` takes the work as a value,
-/// and this holds what the closure that stood here captured.
-struct ManifestsThenCargo<'a> {
-    /// The cargo command to run.
-    cargo: CargoRun<'a>,
-    /// The manifest edits the recording attributes.
-    edits: &'a RefCell<Vec<ManifestEdit>>,
-}
-
-/// What:
-/// The implementation of `RecordedWork` for `ManifestsThenCargo`.
-/// Why:
-/// `run_recording` runs it between its before and after observations.
-impl crate::file_owner::RecordedWork<io::Result<Result<CargoOutcome, UpdateError>>> for ManifestsThenCargo<'_> {
-    /// What:
-    /// Runs the cargo command inside the recording of the manifests.
-    /// Why:
-    /// The result is the one the closure returned.
-    fn run(self) -> io::Result<Result<CargoOutcome, UpdateError>> {
-        return run_recording_manifests(self.cargo.crate_dir, self.edits, self.cargo);
-    }
 }
 
 /// What:

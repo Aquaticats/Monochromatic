@@ -62,9 +62,17 @@ pub mod journal;
 /// conditional replace).
 pub mod journal_replace;
 
+/// Keeping the displaced file under a surviving name (split out of the journal replacement module).
+pub mod journal_replace_preserve;
+
 /// The recovery of a run that was killed,
 /// split out of `journal.rs`.
 pub mod journal_recover;
+
+/// Reads of a journal directory:
+/// index,
+/// ready record and listing (split out of the journal recovery module).
+pub mod journal_directory_readers;
 
 /// The manifest side of a recovery,
 /// split out of `journal_recover.rs`.
@@ -74,6 +82,12 @@ pub mod journal_manifests;
 /// a journal held by a lock for the life of a run.
 pub mod journal_transaction;
 
+/// The completion marker of a journal (split out of the journal transaction module).
+pub mod journal_done_marker;
+
+/// The notices about files a journal keeps beside the lockfiles (split out of the journal transaction module).
+pub mod journal_kept_notices;
+
 /// The error of finishing a transaction,
 /// told by whether the outputs were already on disk.
 pub mod journal_finish;
@@ -82,8 +96,22 @@ pub mod journal_finish;
 /// and the survivor check.
 pub mod journal_unready;
 
+/// The verdict on a journal that has no ready record (split out of the journal unready module).
+pub mod journal_unready_verdict;
+
 /// Runs a child process within a time bound.
 pub mod bounded_run;
+
+/// The cache of the control group route (split out of the bounded run module).
+pub mod bounded_run_route_cache;
+
+/// The write of one containment record (split out of the bounded run module).
+pub mod bounded_run_record_writes;
+
+/// The containment of a run:
+/// its choice,
+/// start and stop (split out of the bounded run module).
+pub mod bounded_run_containment;
 
 /// Error text that is built only when a failure happens,
 /// passed as a `format_args!` value instead of a closure.
@@ -96,6 +124,18 @@ pub mod git_sha1;
 /// Containment of everything a bounded run starts,
 /// by a delegated control group (cgroup v2).
 pub mod control_group;
+
+/// The records of a scope and the membership verdict (split out of the control group module).
+pub mod control_group_records;
+
+/// Discovery of the route to a delegated control group (split out of the control group module).
+pub mod control_group_route_discovery;
+
+/// Process identity reads of `/proc` for the containment of a run (split out of the control group module).
+pub mod control_group_process_identity;
+
+/// The boot and machine identity that a journal record of a mount view is checked against (split out of the control group module).
+pub mod control_group_machine_identity;
 
 /// The resource limits of the caller's control group,
 /// read so the scope of a run keeps them.
@@ -119,6 +159,9 @@ pub mod dump;
 /// Reads the lockfiles of a base revision with git.
 pub mod git_base;
 
+/// Which system configuration file the selected Git reads (split out of the git base module).
+pub mod git_system_config_lookup;
+
 /// The reader of the few Git configuration keys the trust base needs,
 /// without Git.
 pub mod git_config;
@@ -127,10 +170,17 @@ pub mod git_config;
 /// branch configuration and references that chooses the trust base without Git.
 pub mod git_refs;
 
+/// The environment and the Git program a native read runs with.
+/// (split out of the git refs module).
+pub mod git_refs_environment;
+
 /// The check,
 /// from the object files,
 /// that an object name in a reference names a commit.
 pub mod git_objects;
+
+/// The check that a commit stored in a pack file is a commit (split out of the git objects module).
+pub mod git_objects_packed_commit;
 
 /// The reading of the Git configuration files in Git's order,
 /// split out of `git_refs.rs`.
@@ -233,6 +283,9 @@ pub mod version_order;
 /// The catalog update,
 /// the counterpart of `pnpm update`.
 pub mod update;
+
+/// The work values of the update (split out of the update module).
+pub mod update_recorded_work;
 
 /// The full update's resolution of each crate root,
 /// split out of `update.rs`.
@@ -466,6 +519,10 @@ mod wait_bound_tests;
 /// The tests of the bounded child runs.
 #[cfg(test)]
 mod bounded_run_tests;
+
+/// The guard that a production build never computes a trace event.
+#[cfg(test)]
+mod bounded_run_trace_guard_tests;
 
 /// Test-only switches that make one named step fail once.
 #[cfg(test)]
