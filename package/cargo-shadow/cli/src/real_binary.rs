@@ -144,6 +144,12 @@ pub fn find_in_path_with_image(name: &str, path_variable: &str, skip: &[PathBuf]
             continue;
         }
 
+        // A candidate that is a shadow of any version, or a launcher that leads to one, is skipped without being started:
+        // what a file is does not depend on its path or its version (`shadow_identity.rs`).
+        if crate::shadow_identity::shadow_behind(&candidate).is_some() {
+            continue;
+        }
+
         // `Some(candidate)` wraps the found path in the present case of `Option`: the first real cargo in PATH order wins.
         return Some(candidate);
     }
@@ -285,6 +291,11 @@ pub fn vet(program: &Path) -> Result<Vetted, String> {
         || image.is_some_and(|found| { return fs::canonicalize(format!("/proc/self/fd/{}", file.as_raw_fd())).is_ok_and(|resolved| { return leads_back_to(&resolved, &[], &[found]); }); });
     if named_us {
         return Err(format!("{} names this program itself at the moment of the start, so it was not started", program.display()));
+    }
+    // Any other shadow, of any version, or a launcher that leads to one (`shadow_identity.rs`): judged on the open file when no launcher
+    // record stands beside it, and by where the record leads when one does (a launcher is a copy of mpm-shadow, which carries the identity).
+    if let Some(identity) = crate::shadow_identity::identity_of_open_file_unless_launcher(&file, program) {
+        return Err(format!("{} is {identity}, a shadow, so it was not started", program.display()));
     }
     let mut magic: [u8; 4] = [0; 4];
     let looks_compiled: bool = readable && (&file).read_exact(&mut magic).is_ok() && magic == *b"\x7fELF";

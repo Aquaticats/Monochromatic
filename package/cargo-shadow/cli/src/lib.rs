@@ -198,6 +198,12 @@ pub mod shadow_step;
 /// The shadow's answer to `cargo update` and `cargo generate-lockfile`.
 pub mod shadow_update;
 
+/// The rule that a shadow never starts a shadow:
+/// the identity every shadow carries,
+/// the check of a candidate,
+/// and the arrival marker.
+pub mod shadow_identity;
+
 /// The shadow mode:
 /// install step,
 /// look up,
@@ -250,6 +256,11 @@ pub mod verb;
 
 /// Scratch directories for the unit tests,
 /// placed beside the build output.
+/// The unit tests of the identity,
+/// the launcher-record follow and the arrival marker.
+#[cfg(test)]
+mod shadow_identity_tests;
+
 #[cfg(test)]
 mod test_scratch;
 
