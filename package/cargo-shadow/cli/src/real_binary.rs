@@ -179,6 +179,10 @@ pub fn refuse_if_ourselves(program: &Path) -> Result<(), String> {
     return Ok(());
 }
 
+/// `O_PATH` (`open(2)`): the open file names the inode and is never read or written; the same value on every Linux architecture the
+/// shadow is built for (x86-64 and aarch64 use the generic `0o10000000`).
+const OPEN_BY_PATH_ONLY: i32 = 0o10_000_000;
+
 /// A program chosen as the real cargo, opened once: every check ran on the open file, and a compiled program is started through it.
 pub struct Vetted {
     /// The open file (close-on-exec). It keeps the inode that was checked alive until the start.
@@ -226,7 +230,18 @@ pub fn vet(program: &Path) -> Result<Vetted, String> {
     use std::io::Read;
     use std::os::fd::AsRawFd;
     use std::os::unix::fs::MetadataExt;
-    let file: fs::File = fs::File::open(program).map_err(|error| { return format!("{} cannot be opened ({error})", program.display()); })?;
+    // Executing a compiled program needs no read permission, and the PATH search accepts an execute-only file, so a refused read is not
+    // a refusal to start: the file is opened by `O_PATH` instead (an identity and a name for `/proc/self/fd/<n>`, no reading). A script
+    // that cannot be read cannot run either (its interpreter opens it), so what cannot be read is taken as a compiled program.
+    let (file, readable): (fs::File, bool) = match fs::File::open(program) {
+        Ok(opened) => (opened, true),
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+            use std::os::unix::fs::OpenOptionsExt;
+            let by_path: fs::File = fs::OpenOptions::new().read(true).custom_flags(OPEN_BY_PATH_ONLY).open(program).map_err(|second| { return format!("{} cannot be opened ({error}; by path only: {second})", program.display()); })?;
+            (by_path, false)
+        }
+        Err(error) => return Err(format!("{} cannot be opened ({error})", program.display())),
+    };
     let metadata: fs::Metadata = file.metadata().map_err(|error| { return format!("{} cannot be examined ({error})", program.display()); })?;
     let image: Option<(u64, u64)> = running_image_identity();
     let named_us: bool = image == Some((metadata.dev(), metadata.ino()))
@@ -235,7 +250,8 @@ pub fn vet(program: &Path) -> Result<Vetted, String> {
         return Err(format!("{} names this program itself at the moment of the start, so it was not started", program.display()));
     }
     let mut magic: [u8; 4] = [0; 4];
-    let compiled: bool = (&file).read_exact(&mut magic).is_ok() && magic == *b"\x7fELF" && Path::new("/proc/self/fd").is_dir();
+    let looks_compiled: bool = if readable { (&file).read_exact(&mut magic).is_ok() && magic == *b"\x7fELF" } else { true };
+    let compiled: bool = looks_compiled && Path::new("/proc/self/fd").is_dir();
     return Ok(Vetted { file, spelled: program.to_path_buf(), compiled });
 }
 
