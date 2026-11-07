@@ -91,6 +91,7 @@ use crate::shadow_notice::{TopLevelRequest, help_section, top_level_request, ver
 use crate::toolchain::scope::{EnvMap, toolchain_roots};
 /// Imports `find_in_path` from `crate::real_binary`.
 use crate::real_binary::find_in_path;
+use crate::shadow_identity::{ARRIVAL_EXIT_CODE, StartMode, Vetted, arrival_at_this_process, arrival_line, mark_start, vet};
 
 /// What:
 /// `pub fn exit_code_of(status: ExitStatus) -> i32` declares a public function turning a finished child's
@@ -187,8 +188,16 @@ pub enum ProgramRun {
 /// export function startAndWait(program: string, args: Buffer[], childDepth: number): ProgramRun
 /// ```
 pub fn start_and_wait(program: &Path, arguments: &[OsString], child_depth: u32) -> ProgramRun {
+    // The program is checked while open and started through that file, and the child carries the arrival marker (`shadow_identity.rs`).
+    let vetted: Vetted = match vet(program) {
+        Ok(checked) => checked,
+        Err(reason) => return ProgramRun::NotStarted { error: std::io::Error::other(reason), retry: RetryReport::default() },
+    };
     let (started, retry) = retry_refused_start(&mut || {
-        return Command::new(program).args(arguments).env(NESTING_ENV, child_depth.to_string()).spawn();
+        let mut command: Command = vetted.command();
+        command.args(arguments).env(NESTING_ENV, child_depth.to_string());
+        mark_start(&mut command, StartMode::Spawn);
+        return command.spawn();
     });
     let mut child = match started {
         Ok(child) => child,
@@ -288,6 +297,12 @@ fn print_shadow_notice(request: TopLevelRequest, real_mpm: &Path) {
 /// export function runShim(args: Buffer[]): number
 /// ```
 pub fn run_shim(arguments: Vec<OsString>) -> i32 {
+    // The arrival stop comes before anything else: a shadow that a shadow started as its real mpm does nothing and says so in one line
+    // (`shadow_identity.rs`), whatever the nesting count below would have said.
+    if let Some(arrival) = arrival_at_this_process() {
+        eprintln!("{}", arrival_line(SHADOWED_NAME, &arrival));
+        return ARRIVAL_EXIT_CODE;
+    }
     let path_variable: String = env::var("PATH").unwrap_or_default();
     let own_path: PathBuf = own_real_path();
 

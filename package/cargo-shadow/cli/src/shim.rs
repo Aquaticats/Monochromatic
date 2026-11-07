@@ -165,6 +165,7 @@ pub fn run_program(program: &Path, arguments: &[OsString], guard_value: Option<&
     if let Some(value) = guard_value {
         command.env(GUARD_VARIABLE, value);
     }
+    crate::shadow_identity::mark_start(&mut command, crate::shadow_identity::StartMode::Spawn);
     let status: ExitStatus = command.status()?;
     return Ok(exit_code_of(status));
 }
@@ -196,6 +197,12 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
         let own: PathBuf = env::current_exe().unwrap_or_default();
         eprint!("{}", crate::arrival::arrival_message(&guard, &own, &env::var("PATH").unwrap_or_default()));
         return crate::arrival::ARRIVAL_EXIT_CODE;
+    }
+    // The marker every shadow leaves for the program it starts (`shadow_identity.rs`): another shadow (any crate, any version) started this
+    // one as its real tool. One line, a non-zero status, nothing done. The guard above is cargo-shadow's own and keeps its long message.
+    if let Some(arrival) = crate::shadow_identity::arrival_at_this_process() {
+        eprintln!("{}", crate::shadow_identity::arrival_line(SHADOWED_NAME, &arrival));
+        return crate::shadow_identity::ARRIVAL_EXIT_CODE;
     }
 
     // The treatment of the command line (`verb.rs`). Only the first instance acts: an instance started by an earlier one
@@ -305,7 +312,9 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
                 return EXEC_FAILED_EXIT_CODE;
             }
         };
-        let error: std::io::Error = command.args(&arguments).env(GUARD_VARIABLE, &guard_value).exec();
+        command.args(&arguments).env(GUARD_VARIABLE, &guard_value);
+        crate::shadow_identity::mark_start(&mut command, crate::shadow_identity::StartMode::Exec);
+        let error: std::io::Error = command.exec();
         eprintln!("cargo-shadow: could not start {}: {error}", program.display());
         return EXEC_FAILED_EXIT_CODE;
     }

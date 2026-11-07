@@ -144,6 +144,12 @@ pub fn find_in_path_with_image(name: &str, path_variable: &str, skip: &[PathBuf]
             continue;
         }
 
+        // A candidate that is a shadow of any version, or a launcher that leads to one, is skipped without being started:
+        // what a file is does not depend on its path or its version (`shadow_identity.rs`).
+        if crate::shadow_identity::shadow_behind(&candidate).is_some() {
+            continue;
+        }
+
         // `Some(candidate)` wraps the found path in the present case of `Option`: the first real cargo in PATH order wins.
         return Some(candidate);
     }
@@ -263,8 +269,11 @@ pub fn after_check_for_test(hook: Option<std::rc::Rc<dyn Fn()>>) {
 /// export function vet(program: string): Vetted  // throws the reason
 /// ```
 pub fn vet(program: &Path) -> Result<Vetted, String> {
+    /// Reads the first bytes of the file to see whether it is a script or a compiled program.
     use std::io::Read;
+    /// The raw descriptor number that names the opened file in `/proc/self/fd`.
     use std::os::fd::AsRawFd;
+    /// The device and inode numbers that identify the file whatever its name.
     use std::os::unix::fs::MetadataExt;
     // Executing a program needs no read permission, and the PATH search accepts an execute-only file, so a refused read is not a refusal
     // to start: the file is opened by `O_PATH` instead (an identity for the checks, no reading). What cannot be read cannot be told from
@@ -273,6 +282,8 @@ pub fn vet(program: &Path) -> Result<Vetted, String> {
     let (file, readable): (fs::File, bool) = match fs::File::open(program) {
         Ok(opened) => (opened, true),
         Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+            /// The raw open flag `O_PATH`,
+            /// which opens a file only as an identity when its content cannot be read.
             use std::os::unix::fs::OpenOptionsExt;
             let by_path: fs::File = fs::OpenOptions::new().read(true).custom_flags(OPEN_BY_PATH_ONLY).open(program).map_err(|second| { return format!("{} cannot be opened ({error}; by path only: {second})", program.display()); })?;
             (by_path, false)
@@ -285,6 +296,11 @@ pub fn vet(program: &Path) -> Result<Vetted, String> {
         || image.is_some_and(|found| { return fs::canonicalize(format!("/proc/self/fd/{}", file.as_raw_fd())).is_ok_and(|resolved| { return leads_back_to(&resolved, &[], &[found]); }); });
     if named_us {
         return Err(format!("{} names this program itself at the moment of the start, so it was not started", program.display()));
+    }
+    // Any other shadow, of any version, or a launcher that leads to one (`shadow_identity.rs`): judged on the open file when no launcher
+    // record stands beside it, and by where the record leads when one does (a launcher is a copy of mpm-shadow, which carries the identity).
+    if let Some(identity) = crate::shadow_identity::identity_of_open_file_unless_launcher(&file, program) {
+        return Err(format!("{} is {identity}, a shadow, so it was not started", program.display()));
     }
     let mut magic: [u8; 4] = [0; 4];
     let looks_compiled: bool = readable && (&file).read_exact(&mut magic).is_ok() && magic == *b"\x7fELF";
@@ -316,7 +332,9 @@ impl Vetted {
     /// command(): Command  // throws the reason
     /// ```
     pub fn command(&self) -> Result<std::process::Command, String> {
+        /// The raw descriptor number the vetted file is started through.
         use std::os::fd::AsRawFd;
+        /// The exec call that replaces the current process image with the vetted program.
         use std::os::unix::process::CommandExt;
         #[cfg(test)]
         if let Some(hook) = AFTER_CHECK.with(|slot| { return slot.borrow().clone(); }) {

@@ -26,7 +26,8 @@ use super::published_archive::{current_link_of, point_current_at_newest_archive}
 use super::published_archive_tests::{BIN as ARCHIVE_BIN, ID as ARCHIVE_ID, finish_archive, release_tool};
 use super::scope::{ScopeKind, global_scope, toolchain_roots};
 use super::status_cmd::run_status;
-use super::sync::{FrozenReason, LockPolicy, format_sync_report, run_lockfile_only, run_sync_with};
+use super::sync::{FrozenReason, LockPolicy, run_lockfile_only, run_sync_with};
+use super::sync_report_text::format_sync_report;
 
 /// The plan entry of the git wrapper.
 const GIT_TOOL: &str = "cargo:monochromatic-git-policy-cli";

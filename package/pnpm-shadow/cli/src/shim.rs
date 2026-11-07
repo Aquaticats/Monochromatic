@@ -85,6 +85,7 @@ use crate::real_binary::find_in_path;
 use crate::report::render_report;
 /// Imports the workspace scan.
 use crate::scan::{find_workspace_root, scan_workspace};
+use crate::shadow_identity::{ARRIVAL_EXIT_CODE, StartMode, Vetted, arrival_at_this_process, arrival_line, mark_start, vet};
 /// Imports the notice that follows pnpm's version and help.
 use crate::shadow_notice::{TopLevelRequest, notice_text, top_level_request};
 /// Imports the rule that says whether the manifest warning makes sense for a command line.
@@ -126,11 +127,14 @@ pub fn run_program(program: &Path, arguments: &[OsString], guard_value: Option<&
     // `Command::new(program).args(arguments)` builds the command; the guard, when there is one, is added to its environment
     // only (this process's own environment is untouched). `.status()` starts it with the standard streams inherited from
     // this process and waits for it; `?` leaves the function with the `Err` when the start failed.
-    let mut command: Command = Command::new(program);
+    // The program is checked while open and started through that file, and the child carries the arrival marker (`shadow_identity.rs`).
+    let vetted: Vetted = vet(program).map_err(std::io::Error::other)?;
+    let mut command: Command = vetted.command();
     command.args(arguments);
     if let Some(value) = guard_value {
         command.env(GUARD_VARIABLE, value);
     }
+    mark_start(&mut command, StartMode::Spawn);
     let status: ExitStatus = command.status()?;
     return Ok(exit_code_of(status));
 }
@@ -195,6 +199,12 @@ pub fn warn_about_workspace(start: &Path, sink: &mut dyn Write) {
 /// export function runShim(args: Buffer[]): number
 /// ```
 pub fn run_shim(arguments: Vec<OsString>) -> i32 {
+    // The arrival stop comes before anything else: a shadow that a shadow started as its real pnpm does nothing and says so in one line
+    // (`shadow_identity.rs`), whatever the loop guard below would have said.
+    if let Some(arrival) = arrival_at_this_process() {
+        eprintln!("{}", arrival_line(SHADOWED_NAME, &arrival));
+        return ARRIVAL_EXIT_CODE;
+    }
     // The loop guard (`guard.rs`): a value an earlier shadow instance left for the process its candidate started. It counts
     // only when it was left for this very process, so a script that the real pnpm runs never inherits it.
     let mut skipped: Vec<PathBuf> = Vec::new();
@@ -263,7 +273,17 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     // execvp(program, args);  // never returns on success; Node has no exec, this is the POSIX call
     // ```
     if request == TopLevelRequest::Other {
-        let error: std::io::Error = Command::new(&program).args(&arguments).env(GUARD_VARIABLE, &guard_value).exec();
+        let vetted: Vetted = match vet(&program) {
+            Ok(checked) => checked,
+            Err(reason) => {
+                eprintln!("pnpm-shadow: could not start {}: {reason}", program.display());
+                return EXEC_FAILED_EXIT_CODE;
+            }
+        };
+        let mut command: Command = vetted.command();
+        command.args(&arguments).env(GUARD_VARIABLE, &guard_value);
+        mark_start(&mut command, StartMode::Exec);
+        let error: std::io::Error = command.exec();
         eprintln!("pnpm-shadow: could not start {}: {error}", program.display());
         return EXEC_FAILED_EXIT_CODE;
     }

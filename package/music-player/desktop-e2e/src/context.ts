@@ -18,7 +18,10 @@ import {
   type Session,
   startSession,
 } from './session.ts';
-import type { SessionOptions, } from './session-launch.ts';
+import type {
+  DisplayMode,
+  SessionOptions,
+} from './session-launch.ts';
 
 /**
  What a scenario needs to run and record checks.
@@ -29,6 +32,10 @@ export type RunContext = {
    */
   readonly base: string;
   readonly config: RunConfig;
+  /**
+   Where every session's compositor draws: headless unless a person asked for a visible window.
+   */
+  readonly display: DisplayMode;
   /**
    The scratch library the app scans.
    */
@@ -66,12 +73,29 @@ export async function startContextSession(
     readonly options: SessionOptions;
   },
 ): Promise<Session> {
-  return await startSession({
+
+  /**
+   The started session.
+   */
+  const session = await startSession({
     options,
     base: context.base,
     config: context.config,
+    display: context.display,
     sinkName: context.sink
       .name,
     runId: context.runId,
   },);
+
+  // A failing check keeps the states of the session it ran in.
+  context.recorder
+    .attach({
+      label: session.label,
+      readStates: async function readStates() {
+        // `seq` reads the lines the log gained since the last read, so `states` is current.
+        await session.seq();
+        return session.states();
+      },
+    },);
+  return session;
 }
