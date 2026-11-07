@@ -1,9 +1,14 @@
 //! What:
-//! Round 13 tests: what a changed process number in procfs does and does not show (12a), and the false greens of part 12b.
+//! Round 13 tests:
+//! what a changed process number in procfs does and does not show (12a),
+//! and the false greens of part 12b.
 //! Why:
-//! The review of round 12 (`cargo-shadow-sol-12a.txt`, `-12b.txt`) named schedules inside existing rows of the acceptance list.
-//! The owner's answer of 2026-11-04 ("Out of scope, keep cheap guards") puts a program that deliberately changes mounts or `/proc`
-//! while a run or a recovery is in progress outside the contract (assumption a), so the remount schedules of 12a are not tested here.
+//! The review of round 12 (`cargo-shadow-sol-12a.txt`,
+//! `-12b.txt`) named schedules inside existing rows of the acceptance list.
+//! The owner's answer of 2026-11-04 ("Out of scope,
+//! keep cheap guards") puts a program that deliberately changes mounts or `/proc`
+//! while a run or a recovery is in progress outside the contract (assumption a),
+//! so the remount schedules of 12a are not tested here.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -41,7 +46,8 @@ const FIXTURE_ROOT: &str = "CARGO_SHADOW_ROUND_THIRTEEN_FIXTURE_ROOT";
 /// The environment variable that names the step of the preparation at which the helper stops.
 const FIXTURE_STEP: &str = "CARGO_SHADOW_ROUND_THIRTEEN_FIXTURE_STEP";
 
-/// A judge that refuses the live lockfile, so that a recovery which goes ahead restores the snapshot.
+/// A judge that refuses the live lockfile,
+/// so that a recovery which goes ahead restores the snapshot.
 fn refusing(_before: &[LockSnapshot], _live: &[LockSnapshot]) -> Vec<String> {
     return vec!["dep@1.0.1 refused".to_string()];
 }
@@ -51,9 +57,16 @@ fn live_lock(root: &Path) -> String {
     return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).expect("lock");
 }
 
-/// Acceptance rows A1, V2 (12a, the missing-entry inference):
-/// after a failed lookup of a process's directory, only the value that the kernel prints for an ended, reaped process (`-1`) is gone;
-/// the same number is a hidden process, and any other number (another positive id, `0`) is unknown, never gone.
+/// Acceptance rows A1,
+/// V2 (12a,
+/// the missing-entry inference):
+/// after a failed lookup of a process's directory,
+/// only the value that the kernel prints for an ended,
+/// reaped process (`-1`) is gone;
+/// the same number is a hidden process,
+/// and any other number (another positive id,
+/// `0`) is unknown,
+/// never gone.
 #[test]
 fn only_the_ended_process_number_shows_a_gone_process() {
     let pid: i32 = 4242;
@@ -63,9 +76,12 @@ fn only_the_ended_process_number_shows_a_gone_process() {
     }
 }
 
-/// The kernel's own statement, which the rule above rests on (measured here, not recalled):
+/// The kernel's own statement,
+/// which the rule above rests on (measured here,
+/// not recalled):
 /// the `Pid:` line of the fdinfo of a pidfd is this process's number for the target while the target exists (a zombie that is not
-/// reaped yet included), and `-1` once the target has ended and been reaped.
+/// reaped yet included),
+/// and `-1` once the target has ended and been reaped.
 #[test]
 fn the_fdinfo_of_a_pidfd_says_minus_one_only_for_a_reaped_process() {
     let mut child = Command::new("true").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("starts");
@@ -86,7 +102,8 @@ fn the_fdinfo_of_a_pidfd_says_minus_one_only_for_a_reaped_process() {
 }
 
 /// The helper process of the preparation cut test:
-/// it begins a transaction and stops (announcing it) after the step it is given, until it is killed.
+/// it begins a transaction and stops (announcing it) after the step it is given,
+/// until it is killed.
 /// Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of a_wrapper_killed_after_each_step_of_the_preparation_is_recovered_conservatively"]
@@ -106,10 +123,18 @@ fn wrapper_held_after_a_preparation_step_fixture() {
     let _ = begin(&root_again, &[LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "original".to_string() }], false);
 }
 
-/// Acceptance rows V3, V4 (12b, real cuts): a real wrapper killed after each step of the preparation of its journal is recovered
-/// conservatively, with the live lockfile untouched until the journal can restore it:
-/// before any snapshot the journal holds nothing a child could depend on and is removed; with a snapshot and no index, or an index and
-/// no ready record, the only copy of the output is kept; with the ready record the recovery restores the snapshot and completes.
+/// Acceptance rows V3,
+/// V4 (12b,
+/// real cuts):
+/// a real wrapper killed after each step of the preparation of its journal is recovered
+/// conservatively,
+/// with the live lockfile untouched until the journal can restore it:
+/// before any snapshot the journal holds nothing a child could depend on and is removed;
+/// with a snapshot and no index,
+/// or an index and
+/// no ready record,
+/// the only copy of the output is kept;
+/// with the ready record the recovery restores the snapshot and completes.
 #[test]
 fn a_wrapper_killed_after_each_step_of_the_preparation_is_recovered_conservatively() {
     for (step, removed, restored) in [
@@ -156,7 +181,10 @@ fn a_wrapper_killed_after_each_step_of_the_preparation_is_recovered_conservative
 }
 
 /// The fake cargo of the shim test:
-/// `update` makes the lock satisfied, `metadata` prints an empty package list, and anything else is the user's command, which logs
+/// `update` makes the lock satisfied,
+/// `metadata` prints an empty package list,
+/// and anything else is the user's command,
+/// which logs
 /// itself and creates the sentinel file.
 const FAKE_CARGO: &str = "#!/bin/sh\n\
 echo \"$@\" >> \"$FAKE_CARGO_LOG\"\n\
@@ -176,9 +204,12 @@ echo \"fake-cargo-ran $@\"\n\
 exit 0\n";
 
 /// The helper process of the shim test:
-/// it is the shim (`run_shim`) for `cargo check`, started in a catalog repository with a stale lock and a fake cargo on `PATH`, and the
+/// it is the shim (`run_shim`) for `cargo check`,
+/// started in a catalog repository with a stale lock and a fake cargo on `PATH`,
+/// and the
 /// first stop of a scope is made to report a member that cannot be stopped.
-/// It writes the exit code the shim returns. Run on its own it does nothing.
+/// It writes the exit code the shim returns.
+/// Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command"]
 fn shim_with_a_scope_that_cannot_be_stopped_fixture() {
@@ -210,10 +241,19 @@ fn shim_with_a_scope_that_cannot_be_stopped_fixture() {
     fs::write(root.join("shim-exit-code"), code.to_string()).expect("write the exit code");
 }
 
-/// Acceptance rows A2, R4 (12b, the shim and a user-command sentinel):
-/// the shim, started for a resolving command in a catalog repository with a stale lock, runs the install step; a run of that step that
-/// cannot show its scope empty stops the command: the shim exits with the install-failed code, the user's command (a fake cargo that
-/// creates a sentinel file) is never started, the lockfile cargo wrote is neither rolled back nor accepted, and the journal is kept.
+/// Acceptance rows A2,
+/// R4 (12b,
+/// the shim and a user-command sentinel):
+/// the shim,
+/// started for a resolving command in a catalog repository with a stale lock,
+/// runs the install step;
+/// a run of that step that
+/// cannot show its scope empty stops the command:
+/// the shim exits with the install-failed code,
+/// the user's command (a fake cargo that
+/// creates a sentinel file) is never started,
+/// the lockfile cargo wrote is neither rolled back nor accepted,
+/// and the journal is kept.
 #[test]
 fn a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command() {
     if crate::cgroup_test_support::delegated_route().is_none() {

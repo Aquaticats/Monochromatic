@@ -206,6 +206,29 @@ fn a_frozen_install_passes_running_only_read_only_checks_when_every_lockfile_is_
     assert!(cargo.commands.borrow().iter().all(|command| { return command.ends_with("update --workspace --locked --offline"); }));
 }
 
+/// Sixth pass,
+/// group 7 (K1):
+/// a frozen run starts no transaction,
+/// and it still announces the kept files past the count,
+/// once.
+#[test]
+fn a_frozen_install_announces_the_kept_files_past_the_count() {
+    let (root, dirs) = repository(&[("package/a/one", SATISFIED)]);
+    let kept = root.path().join(crate::journal::QUARANTINE_DIR);
+    fs::create_dir_all(&kept).expect("kept directory");
+    for index in 0..=crate::journal::KEPT_FILES_WARNING_COUNT {
+        fs::write(kept.join(format!("Cargo.lock.displaced.{index}")), "kept").expect("a kept file");
+    }
+    let cargo: FakeCargo = cargo_that_writes(SATISFIED);
+    let _ = crate::bounded_run::take_trace_for_test();
+
+    run_install(root.path(), &dirs, &cargo, &empty_registry(), true, false).expect("passes");
+
+    let announced: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("kept notice "); }).collect();
+    assert_eq!(announced.len(), 1, "{announced:?}");
+    assert!(announced[0].contains(&format!("{} files", crate::journal::KEPT_FILES_WARNING_COUNT + 1)), "{announced:?}");
+}
+
 #[test]
 fn an_update_runs_in_the_stale_crate_only_offline_then_verifies_with_cargo_metadata() {
     let (root, dirs) = repository(&[("package/a/fresh", SATISFIED), ("package/a/stale", STALE)]);
@@ -333,7 +356,7 @@ fn real_cargo_finds_the_path_workspace_stale_updates_it_offline_and_then_finds_i
     let program: PathBuf = match crate::real_binary::find_real_cargo() {
         Some(found) => found,
         None => {
-            eprintln!("skipped: no cargo on PATH, so the real-cargo install case cannot run");
+            crate::test_scratch::skip_or_fail("no cargo on PATH, so the real-cargo install case cannot run");
             return;
         }
     };

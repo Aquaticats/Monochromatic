@@ -1,9 +1,16 @@
-//! At most one refresh sweep runs, and the requests that arrive meanwhile become one follow-up.
+//! At most one refresh sweep runs,
+//! and the requests that arrive meanwhile become one follow-up.
 //!
-//! What: `RefreshCoalescer` is a small state machine over "idle or running one numbered sweep, with work pending or not";
-//! `Work` is what a refresh has to look at, either some files or the whole queue.
-//! Why: D113 starts a refresh for every settled burst of watcher events. Sweeps that overlap would stat the same files
-//! twice and contend for the idle-priority workers, so a request that arrives while a sweep runs joins one pending
+//! What:
+//! `RefreshCoalescer` is a small state machine over "idle or running one numbered sweep,
+//! with work pending or not";
+//! `Work` is what a refresh has to look at,
+//! either some files or the whole queue.
+//! Why:
+//! D113 starts a refresh for every settled burst of watcher events.
+//! Sweeps that overlap would stat the same files
+//! twice and contend for the idle-priority workers,
+//! so a request that arrives while a sweep runs joins one pending
 //! follow-up that covers the union of everything asked meanwhile.
 //!
 //! In TS you'd write (pseudocode):
@@ -11,18 +18,33 @@
 //! class RefreshCoalescer { running: number | null; pending: Work | null; submit(w: Work): Launch | null; finished(id: number): Launch | null; }
 //! ```
 
-/// What: `use std::collections::HashSet;` imports the hash set type from the standard library (`std`). Siblings: `Vec`
-/// keeps duplicates and order, and `BTreeSet` keeps its members sorted.
-/// Why: a file named twice must be looked at once, and membership is asked often, so a hash set fits; order does not matter.
+/// What:
+/// `use std::collections::HashSet;` imports the hash set type from the standard library (`std`).
+/// Siblings:
+/// `Vec`
+/// keeps duplicates and order,
+/// and `BTreeSet` keeps its members sorted.
+/// Why:
+/// a file named twice must be looked at once,
+/// and membership is asked often,
+/// so a hash set fits;
+/// order does not matter.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // Set is global in TypeScript; nothing to import.
 /// ```
 use std::collections::HashSet;
-/// What: `use std::path::PathBuf;` imports the owned, growable path type. Siblings: `Path` is the borrowed read-only view,
-/// and `String` is the text-only owned type, which cannot hold file names that are not valid UTF-8.
-/// Why: the sets own their paths, so they hold the owned type.
+/// What:
+/// `use std::path::PathBuf;` imports the owned,
+/// growable path type.
+/// Siblings:
+/// `Path` is the borrowed read-only view,
+/// and `String` is the text-only owned type,
+/// which cannot hold file names that are not valid UTF-8.
+/// Why:
+/// the sets own their paths,
+/// so they hold the owned type.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -30,9 +52,13 @@ use std::collections::HashSet;
 /// ```
 use std::path::PathBuf;
 
-/// What: `use crate::change_set::MAX_DIRTY_PATHS;` imports the cap constant from `src/change_set.rs`. `crate::` means
+/// What:
+/// `use crate::change_set::MAX_DIRTY_PATHS;` imports the cap constant from `src/change_set.rs`.
+/// `crate::` means
 /// "from the root of this crate".
-/// Why: a pending file set uses the same cap as a change set, so the two agree on when a set becomes "everything".
+/// Why:
+/// a pending file set uses the same cap as a change set,
+/// so the two agree on when a set becomes "everything".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -40,13 +66,26 @@ use std::path::PathBuf;
 /// ```
 use crate::change_set::MAX_DIRTY_PATHS;
 
-/// What: `pub(crate) struct Files { check, announce }` is a record of two sets of paths. `pub(crate)` makes the type and
-/// its fields visible inside this crate only (siblings: plain `pub` reaches other crates; no keyword is private to the
-/// file). `#[derive(Clone, Debug, Default, PartialEq, Eq)]` asks the compiler to write five standard abilities: `Clone`
-/// (an explicit `.clone()`), `Debug` (printing with `{:?}`), `Default` (an empty value from `Files::default()`), and
+/// What:
+/// `pub(crate) struct Files { check, announce }` is a record of two sets of paths.
+/// `pub(crate)` makes the type and
+/// its fields visible inside this crate only (siblings:
+/// plain `pub` reaches other crates;
+/// no keyword is private to the
+/// file).
+/// `#[derive(Clone, Debug, Default, PartialEq, Eq)]` asks the compiler to write five standard abilities:
+/// `Clone`
+/// (an explicit `.clone()`),
+/// `Debug` (printing with `{:?}`),
+/// `Default` (an empty value from `Files::default()`),
+/// and
 /// `PartialEq` and `Eq` (comparing with `==`).
-/// Why: a file that was replaced only needs its fingerprint checked and its peak measured; a file that was added also
-/// needs its row announced by a peek at its header, so the row has a length at once. Announcing a replaced file would
+/// Why:
+/// a file that was replaced only needs its fingerprint checked and its peak measured;
+/// a file that was added also
+/// needs its row announced by a peek at its header,
+/// so the row has a length at once.
+/// Announcing a replaced file would
 /// blank its old peak until the decode ends.
 ///
 /// In TS you'd write (pseudocode):
@@ -55,17 +94,27 @@ use crate::change_set::MAX_DIRTY_PATHS;
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Files {
-    /// What: `pub(crate) check: HashSet<PathBuf>,` is the set of every file whose fingerprint is checked. `HashSet<T>` is an
-    /// owned set (siblings: `Vec<T>` allows duplicates, `BTreeSet<T>` is sorted), and `PathBuf` is an owned path.
-    /// Why: a set, not a list, because a file named twice is still one file.
+    /// What:
+    /// `pub(crate) check: HashSet<PathBuf>,` is the set of every file whose fingerprint is checked.
+    /// `HashSet<T>` is an
+    /// owned set (siblings:
+    /// `Vec<T>` allows duplicates,
+    /// `BTreeSet<T>` is sorted),
+    /// and `PathBuf` is an owned path.
+    /// Why:
+    /// a set,
+    /// not a list,
+    /// because a file named twice is still one file.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// check: Set<string>;
     /// ```
     pub(crate) check: HashSet<PathBuf>,
-    /// What: `pub(crate) announce: HashSet<PathBuf>,` is the files among them that are new to the list.
-    /// Why: only new rows need their length announced.
+    /// What:
+    /// `pub(crate) announce: HashSet<PathBuf>,` is the files among them that are new to the list.
+    /// Why:
+    /// only new rows need their length announced.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -74,10 +123,17 @@ pub(crate) struct Files {
     pub(crate) announce: HashSet<PathBuf>,
 }
 
-/// What: `pub(crate) enum Work { Files(Files), Everything }` is a tagged union of two cases: `Files` carries a `Files`
-/// record and `Everything` carries nothing. `#[derive(Clone, Debug, PartialEq, Eq)]` writes the copy, print and `==`
-/// abilities (there is no `Default`, because the enum has no obvious first case).
-/// Why: a refresh after a few events looks at a few files; one after lost events looks at the whole queue.
+/// What:
+/// `pub(crate) enum Work { Files(Files), Everything }` is a tagged union of two cases:
+/// `Files` carries a `Files`
+/// record and `Everything` carries nothing.
+/// `#[derive(Clone, Debug, PartialEq, Eq)]` writes the copy,
+/// print and `==`
+/// abilities (there is no `Default`,
+/// because the enum has no obvious first case).
+/// Why:
+/// a refresh after a few events looks at a few files;
+/// one after lost events looks at the whole queue.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -85,16 +141,21 @@ pub(crate) struct Files {
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Work {
-    /// What: `Files(Files),` is the case that carries the files to look at (a tuple variant: the data sits in the case).
-    /// Why: a small burst names a small set of files.
+    /// What:
+    /// `Files(Files),` is the case that carries the files to look at (a tuple variant:
+    /// the data sits in the case).
+    /// Why:
+    /// a small burst names a small set of files.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// { kind: "files"; files: Files }
     /// ```
     Files(Files),
-    /// What: `Everything,` is the case that carries no data.
-    /// Why: lost events or a newly opened folder need every track looked at.
+    /// What:
+    /// `Everything,` is the case that carries no data.
+    /// Why:
+    /// lost events or a newly opened folder need every track looked at.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -103,17 +164,23 @@ pub(crate) enum Work {
     Everything,
 }
 
-/// What: `impl Work { ... }` opens the block that holds the methods of `Work`.
-/// Why: the emptiness test, the union and the cap belong to the type.
+/// What:
+/// `impl Work { ... }` opens the block that holds the methods of `Work`.
+/// Why:
+/// the emptiness test,
+/// the union and the cap belong to the type.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class Work { /* the methods of the impl block */ }
 /// ```
 impl Work {
-    /// What: `pub(crate) fn is_empty(&self) -> bool` is true for a file set with no file. `&self` is a read-only borrow of
+    /// What:
+    /// `pub(crate) fn is_empty(&self) -> bool` is true for a file set with no file.
+    /// `&self` is a read-only borrow of
     /// the value the method is called on.
-    /// Why: nothing to look at means no sweep.
+    /// Why:
+    /// nothing to look at means no sweep.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -133,11 +200,21 @@ impl Work {
         return matches!(self, Work::Files(files) if files.check.is_empty());
     }
 
-    /// What: `fn merge(self, other: Work) -> Work` is the union: "everything" absorbs files, and a file set past the cap
-    /// becomes "everything". There is no `pub`, so it is private to this file. `self` and `other` are taken by value, so
+    /// What:
+    /// `fn merge(self, other: Work) -> Work` is the union:
+    /// "everything" absorbs files,
+    /// and a file set past the cap
+    /// becomes "everything".
+    /// There is no `pub`,
+    /// so it is private to this file.
+    /// `self` and `other` are taken by value,
+    /// so
     /// the call uses both up and answers a new value.
-    /// Why: the pending work of a long sweep must stay bounded however many events arrive.
-    /// Gotcha: after `a.merge(b)` neither `a` nor `b` can be used again; in TypeScript both would still exist.
+    /// Why:
+    /// the pending work of a long sweep must stay bounded however many events arrive.
+    /// Gotcha:
+    /// after `a.merge(b)` neither `a` nor `b` can be used again;
+    /// in TypeScript both would still exist.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -188,9 +265,14 @@ impl Work {
         };
     }
 
-    /// What: `fn capped(self) -> Work` turns a file set past `MAX_DIRTY_PATHS` into "everything" and leaves any other value
-    /// as it was. `self` is taken by value, so the value is used up and returned or replaced.
-    /// Why: looking at that many named files costs as much as the whole queue, and the set must stay bounded.
+    /// What:
+    /// `fn capped(self) -> Work` turns a file set past `MAX_DIRTY_PATHS` into "everything" and leaves any other value
+    /// as it was.
+    /// `self` is taken by value,
+    /// so the value is used up and returned or replaced.
+    /// Why:
+    /// looking at that many named files costs as much as the whole queue,
+    /// and the set must stay bounded.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -215,9 +297,15 @@ impl Work {
     }
 }
 
-/// What: `pub(crate) struct Launch { id, work }` is a record that tells the caller a sweep to start now. `#[derive(Debug,
-/// PartialEq, Eq)]` writes printing and `==` (there is no `Clone`, so a `Launch` is handed over, never copied).
-/// Why: the coalescer decides; the controller starts the sweep and passes the number along so its end can be matched.
+/// What:
+/// `pub(crate) struct Launch { id, work }` is a record that tells the caller a sweep to start now.
+/// `#[derive(Debug,
+/// PartialEq, Eq)]` writes printing and `==` (there is no `Clone`,
+/// so a `Launch` is handed over,
+/// never copied).
+/// Why:
+/// the coalescer decides;
+/// the controller starts the sweep and passes the number along so its end can be matched.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -225,17 +313,27 @@ impl Work {
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Launch {
-    /// What: `pub(crate) id: u64,` is the number of the sweep. `u64` is an unsigned 64-bit integer (siblings: `u32` is
-    /// smaller, `i64` can be negative, `usize` follows the pointer width).
-    /// Why: unique for the life of the coalescer; a 64-bit counter cannot wrap in any real run, where `u32` could in theory.
+    /// What:
+    /// `pub(crate) id: u64,` is the number of the sweep.
+    /// `u64` is an unsigned 64-bit integer (siblings:
+    /// `u32` is
+    /// smaller,
+    /// `i64` can be negative,
+    /// `usize` follows the pointer width).
+    /// Why:
+    /// unique for the life of the coalescer;
+    /// a 64-bit counter cannot wrap in any real run,
+    /// where `u32` could in theory.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// id: number;
     /// ```
     pub(crate) id: u64,
-    /// What: `pub(crate) work: Work,` is what the sweep looks at.
-    /// Why: the controller needs the work together with the number to start the sweep.
+    /// What:
+    /// `pub(crate) work: Work,` is what the sweep looks at.
+    /// Why:
+    /// the controller needs the work together with the number to start the sweep.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -244,11 +342,22 @@ pub(crate) struct Launch {
     pub(crate) work: Work,
 }
 
-/// What: `pub(crate) struct RefreshCoalescer { running, pending, next_id }` is the state of the coalescer: idle, or running
-/// one sweep with at most one follow-up pending. `#[derive(Debug, Default)]` writes printing and a ready-made starting value
-/// from `RefreshCoalescer::default()`: `None`, `None` and `0`.
-/// Why: see the module description. It is touched only by the engine thread, so it needs no lock: a request that arrives
-/// after a sweep ended and before its end was handled joins the pending work, and the end then starts it.
+/// What:
+/// `pub(crate) struct RefreshCoalescer { running, pending, next_id }` is the state of the coalescer:
+/// idle,
+/// or running
+/// one sweep with at most one follow-up pending.
+/// `#[derive(Debug, Default)]` writes printing and a ready-made starting value
+/// from `RefreshCoalescer::default()`:
+/// `None`,
+/// `None` and `0`.
+/// Why:
+/// see the module description.
+/// It is touched only by the engine thread,
+/// so it needs no lock:
+/// a request that arrives
+/// after a sweep ended and before its end was handled joins the pending work,
+/// and the end then starts it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -256,25 +365,38 @@ pub(crate) struct Launch {
 /// ```
 #[derive(Debug, Default)]
 pub(crate) struct RefreshCoalescer {
-    /// What: `running: Option<u64>,` is the number of the sweep that runs, if any. `Option<T>` is Rust's `T | null`, with
+    /// What:
+    /// `running: Option<u64>,` is the number of the sweep that runs,
+    /// if any.
+    /// `Option<T>` is Rust's `T | null`,
+    /// with
     /// the cases `Some(value)` and `None`.
-    /// Why: `None` means idle, and the number lets the end of a stale sweep be told apart from the end of the current one.
+    /// Why:
+    /// `None` means idle,
+    /// and the number lets the end of a stale sweep be told apart from the end of the current one.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// private running: number | null;
     /// ```
     running: Option<u64>,
-    /// What: `pending: Option<Work>,` is what was asked while it ran, or `None` when nothing was.
-    /// Why: at most one follow-up is kept, and it is the union of all the requests.
+    /// What:
+    /// `pending: Option<Work>,` is what was asked while it ran,
+    /// or `None` when nothing was.
+    /// Why:
+    /// at most one follow-up is kept,
+    /// and it is the union of all the requests.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// private pending: Work | null;
     /// ```
     pending: Option<Work>,
-    /// What: `next_id: u64,` is the number the next sweep gets.
-    /// Why: every sweep needs a fresh number, and a counter that only rises provides it.
+    /// What:
+    /// `next_id: u64,` is the number the next sweep gets.
+    /// Why:
+    /// every sweep needs a fresh number,
+    /// and a counter that only rises provides it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -283,17 +405,25 @@ pub(crate) struct RefreshCoalescer {
     next_id: u64,
 }
 
-/// What: `impl RefreshCoalescer { ... }` opens the block that holds the methods of `RefreshCoalescer`.
-/// Why: the three transitions (submit, finished, reset) and their helper live with the state they change.
+/// What:
+/// `impl RefreshCoalescer { ... }` opens the block that holds the methods of `RefreshCoalescer`.
+/// Why:
+/// the three transitions (submit,
+/// finished,
+/// reset) and their helper live with the state they change.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class RefreshCoalescer { /* the methods of the impl block */ }
 /// ```
 impl RefreshCoalescer {
-    /// What: `fn start(&mut self, work: Work) -> Launch` marks a new sweep as running and answers the launch. `&mut self` is an
-    /// exclusive borrow: the method may change the coalescer and no one else may touch it meanwhile.
-    /// Why: both `submit` and `finished` start sweeps the same way.
+    /// What:
+    /// `fn start(&mut self, work: Work) -> Launch` marks a new sweep as running and answers the launch.
+    /// `&mut self` is an
+    /// exclusive borrow:
+    /// the method may change the coalescer and no one else may touch it meanwhile.
+    /// Why:
+    /// both `submit` and `finished` start sweeps the same way.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -331,10 +461,16 @@ impl RefreshCoalescer {
         return Launch { id: self.next_id, work };
     }
 
-    /// What: `pub(crate) fn submit(&mut self, requested: Work) -> Option<Launch>` asks for a refresh: it answers a sweep to start
-    /// now when idle, else `None`, and the work joins the pending follow-up. The answer type `Option<Launch>` is Rust's
+    /// What:
+    /// `pub(crate) fn submit(&mut self, requested: Work) -> Option<Launch>` asks for a refresh:
+    /// it answers a sweep to start
+    /// now when idle,
+    /// else `None`,
+    /// and the work joins the pending follow-up.
+    /// The answer type `Option<Launch>` is Rust's
     /// `Launch | null`.
-    /// Why: this is the coalescing.
+    /// Why:
+    /// this is the coalescing.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -422,9 +558,14 @@ impl RefreshCoalescer {
         return None;
     }
 
-    /// What: `pub(crate) fn finished(&mut self, id: u64) -> Option<Launch>` says that the sweep `id` ended: it answers the
-    /// follow-up to start now, or `None` and idle. Another number is ignored.
-    /// Why: the end of a sweep from before a reset must not release the sweep that runs now.
+    /// What:
+    /// `pub(crate) fn finished(&mut self, id: u64) -> Option<Launch>` says that the sweep `id` ended:
+    /// it answers the
+    /// follow-up to start now,
+    /// or `None` and idle.
+    /// Another number is ignored.
+    /// Why:
+    /// the end of a sweep from before a reset must not release the sweep that runs now.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -485,9 +626,14 @@ impl RefreshCoalescer {
         return self.pending.take().map(|waiting| return self.start(waiting));
     }
 
-    /// What: `pub(crate) fn reset(&mut self)` forgets the running sweep and the pending work. It returns nothing (`()`, close
+    /// What:
+    /// `pub(crate) fn reset(&mut self)` forgets the running sweep and the pending work.
+    /// It returns nothing (`()`,
+    /// close
     /// to `void`).
-    /// Why: a newly opened folder starts its own sweep, and the paths asked before it belong to the old folder.
+    /// Why:
+    /// a newly opened folder starts its own sweep,
+    /// and the paths asked before it belong to the old folder.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -522,10 +668,15 @@ impl RefreshCoalescer {
         self.pending = None;
     }
 
-    /// What: `pub(crate) fn is_idle(&self) -> bool` says whether no sweep runs. The attribute `#[cfg(test)]` compiles the
+    /// What:
+    /// `pub(crate) fn is_idle(&self) -> bool` says whether no sweep runs.
+    /// The attribute `#[cfg(test)]` compiles the
     /// method only when building tests.
-    /// Why: tests wait for a sweep to end before the next run.
-    /// Gotcha: this method does not exist in the production build, so non-test code cannot call it.
+    /// Why:
+    /// tests wait for a sweep to end before the next run.
+    /// Gotcha:
+    /// this method does not exist in the production build,
+    /// so non-test code cannot call it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -543,10 +694,17 @@ impl RefreshCoalescer {
         return self.running.is_none();
     }
 
-    /// What: `pub(crate) fn pending(&self) -> Option<&Work>` gives the work waiting for the running sweep to end. The answer
-    /// type `Option<&Work>` is an optional read-only borrow: `Some(&work)` lends the stored value, `None` says there is none.
-    /// Sibling: `Option<Work>` would hand out an owned copy and empty the slot.
-    /// Why: tests read what was merged without disturbing it. Only compiled for tests (`#[cfg(test)]`).
+    /// What:
+    /// `pub(crate) fn pending(&self) -> Option<&Work>` gives the work waiting for the running sweep to end.
+    /// The answer
+    /// type `Option<&Work>` is an optional read-only borrow:
+    /// `Some(&work)` lends the stored value,
+    /// `None` says there is none.
+    /// Sibling:
+    /// `Option<Work>` would hand out an owned copy and empty the slot.
+    /// Why:
+    /// tests read what was merged without disturbing it.
+    /// Only compiled for tests (`#[cfg(test)]`).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -566,9 +724,13 @@ impl RefreshCoalescer {
     }
 }
 
-/// What: `#[cfg(test)] #[path = "refresh_coalescer_tests.rs"] mod tests;` declares the module `tests` from the file
-/// `refresh_coalescer_tests.rs`, compiled only for `cargo test`.
-/// Why: the unit tests live in their own file to keep this one short, and stay out of the production build.
+/// What:
+/// `#[cfg(test)] #[path = "refresh_coalescer_tests.rs"] mod tests;` declares the module `tests` from the file
+/// `refresh_coalescer_tests.rs`,
+/// compiled only for `cargo test`.
+/// Why:
+/// the unit tests live in their own file to keep this one short,
+/// and stay out of the production build.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

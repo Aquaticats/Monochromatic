@@ -138,7 +138,12 @@ fn run_items(
             GlyphItem {
                 font: run.font().clone(),
                 size: run.font_size(),
-                coords: run.normalized_coords().to_vec(),
+                // Parley 0.12 returns `NormalizedCoord` newtypes; Vello draws from the raw fixed-point `i16` bits of each.
+                coords: run
+                    .normalized_coords()
+                    .iter()
+                    .map(|coord| return coord.to_bits())
+                    .collect(),
                 origin,
                 ink: [0; 4],
                 glyphs,

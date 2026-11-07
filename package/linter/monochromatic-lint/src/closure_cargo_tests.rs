@@ -58,7 +58,8 @@ fn dylint_availability_has_three_outcomes() {
     );
 }
 
-/// A `cargo` that starts and exits 126 or 127 is broken, not absent,
+/// A `cargo` that starts and exits 126 or 127 is broken,
+/// not absent,
 /// and a plain failure stays a reason to skip.
 #[test]
 fn a_cargo_that_exits_126_or_127_is_broken_and_any_other_failure_is_absent() {

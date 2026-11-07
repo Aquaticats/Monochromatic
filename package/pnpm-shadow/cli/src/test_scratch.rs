@@ -1,10 +1,15 @@
-//! Scratch directories for the unit tests, placed beside the build output so no test writes under `/tmp`.
+//! Scratch directories for the unit tests,
+//! placed beside the build output so no test writes under `/tmp`.
 
-/// Imports `Path`, `PathBuf` from `std::path`.
+/// Imports `Path`,
+/// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
 
-/// The directory test scratch is created in: `test-scratch` in the build directory of the running test executable
-/// (three levels above it, the package's build directory in the current Cargo layout), never the system temporary
+/// The directory test scratch is created in:
+/// `test-scratch` in the build directory of the running test executable
+/// (three levels above it,
+/// the package's build directory in the current Cargo layout),
+/// never the system temporary
 /// directory.
 fn scratch_root() -> PathBuf {
     let target: Option<PathBuf> = std::env::current_exe()
@@ -17,7 +22,9 @@ fn scratch_root() -> PathBuf {
     return root;
 }
 
-/// One empty directory under the scratch root, removed when the returned guard drops, however the test ends.
+/// One empty directory under the scratch root,
+/// removed when the returned guard drops,
+/// however the test ends.
 pub(crate) fn scratch() -> tempfile::TempDir {
     return tempfile::tempdir_in(scratch_root()).expect("make a scratch directory");
 }

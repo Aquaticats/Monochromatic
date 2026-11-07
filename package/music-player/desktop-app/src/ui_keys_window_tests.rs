@@ -1,10 +1,20 @@
-//! Window tests of every D106 shortcut on the testing backend: real key events go through the window's key scope, the
-//! classifier and the actions, and each test reads the effect.
+//! Window tests of every D106 shortcut on the testing backend:
+//! real key events go through the window's key scope,
+//! the
+//! classifier and the actions,
+//! and each test reads the effect.
 //!
-//! What: a library window with a playing track and a recording host; each test presses one shortcut (or a group of
+//! What:
+//! a library window with a playing track and a recording host;
+//! each test presses one shortcut (or a group of
 //! related ones) and checks what reached the host or the window.
-//! Why: D106 says every shortcut is covered by a test that presses the real keys. The end-to-end run does the same through
-//! the nested compositor; these tests also cover F5, Menu and Shift+F10, which the compositor 0.3.0 cannot press.
+//! Why:
+//! D106 says every shortcut is covered by a test that presses the real keys.
+//! The end-to-end run does the same through
+//! the nested compositor;
+//! these tests also cover F5,
+//! Menu and Shift+F10,
+//! which the compositor 0.3.0 cannot press.
 
 use slint::{ComponentHandle, Model};
 
@@ -17,14 +27,16 @@ use crate::ui_test_support::{
 };
 use music_player::track_menu::TrackMenuAction;
 
-/// What: `unfolded` builds the two-pane window with the library loaded.
+/// What:
+/// `unfolded` builds the two-pane window with the library loaded.
 fn unfolded() -> (crate::AppWindow, std::rc::Rc<crate::ui_test_support::RecordingHost>) {
     let (app, host) = fresh_window_at(850.0, 900.0);
     load_library(&app);
     return (app, host);
 }
 
-/// What: `folded` builds the cover window with the library loaded.
+/// What:
+/// `folded` builds the cover window with the library loaded.
 fn folded() -> (crate::AppWindow, std::rc::Rc<crate::ui_test_support::RecordingHost>) {
     let (app, host) = fresh_window_at(443.0, 900.0);
     load_library(&app);
@@ -603,7 +615,8 @@ fn badges_never_take_pointer_input_and_never_move_other_content() {
 
 // ---- Double Shift ----
 
-/// What: `tap_shift` presses and releases Shift.
+/// What:
+/// `tap_shift` presses and releases Shift.
 fn tap_shift(app: &crate::AppWindow) {
     key_down(app, "Shift");
     advance(40);
@@ -809,8 +822,12 @@ fn bare_keys_do_nothing_while_the_template_line_has_focus() {
     assert_eq!(app.get_route(), Route::Settings.to_int());
 }
 
-/// What: `seed_results` puts `count` track results on the Search page, as an answer from the Search service would.
-/// Why: the service answers on a worker thread; the test needs the rows at once.
+/// What:
+/// `seed_results` puts `count` track results on the Search page,
+/// as an answer from the Search service would.
+/// Why:
+/// the service answers on a worker thread;
+/// the test needs the rows at once.
 fn seed_results(app: &crate::AppWindow, count: usize) {
     use music_player::search_results::{SearchResult, SearchResultKind};
     let results: Vec<SearchResult> = (0..count)

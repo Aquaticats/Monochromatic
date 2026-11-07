@@ -163,6 +163,8 @@ struct PortalSettings {
 // The zbus::interface expansion below calls Result::unwrap, which the repository clippy.toml bans;
 // the allow covers only this block. The reason is in
 // doc/troubleshooting/zbus-interface-macro-clippy-disallowed-unwrap.md.
+/// The scope holding the `org.freedesktop.portal.Settings` interface implementation,
+/// so the lint allow below covers only the code the `zbus::interface` macro expands.
 #[allow(
     clippy::disallowed_methods,
     reason = "zbus::interface expands to writeln!(..).unwrap() in its generated introspection method"

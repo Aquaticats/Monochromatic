@@ -34,7 +34,8 @@ fn fragment(rig: &Rig) -> String {
     return fs::read_to_string(fragment_path(rig)).expect("the fragment exists");
 }
 
-/// The `[env]` body of a fragment: every line after the table header.
+/// The `[env]` body of a fragment:
+/// every line after the table header.
 fn env_body(text: &str) -> String {
     let (_header, body) = text.split_once("[env]\n").expect("the fragment has an [env] table");
     return body.to_string();
@@ -132,7 +133,8 @@ fn quotes_and_backslashes_in_a_literal_are_encoded_so_the_toml_string_stays_clos
     assert_eq!(env_body(&fragment(&rig)), "NOTE = \"say \\\"hi\\\" to a\\\\b\"\n");
 }
 
-/// Values mise would act on or a file could not hold: each must be refused by name.
+/// Values mise would act on or a file could not hold:
+/// each must be refused by name.
 const REFUSED_VALUES: &[&str] = &[
     "android-sdk/../../etc",
     "../outside",
@@ -185,7 +187,8 @@ fn a_refused_value_leaves_the_fragment_of_the_last_good_run_in_place() {
     assert_eq!(fragment(&rig), before);
 }
 
-/// Names that are not a plain environment variable name: each must be refused,
+/// Names that are not a plain environment variable name:
+/// each must be refused,
 /// because a TOML bare key would end or split there.
 const REFUSED_NAMES: &[&str] = &["", "1ST", "A B", "A=B", "A.B", "A\"B", "A\nB = \"x\""];
 

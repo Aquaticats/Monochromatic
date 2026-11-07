@@ -3,8 +3,11 @@
 
 use super::*;
 
-/// What: `shown` applies the shared prefix of `titles` to each title, with `folder` as the directory name.
-/// Why: the tests read what a person would see in the rows.
+/// What:
+/// `shown` applies the shared prefix of `titles` to each title,
+/// with `folder` as the directory name.
+/// Why:
+/// the tests read what a person would see in the rows.
 fn shown(titles: &[&str], folder: &str) -> Vec<String> {
     let prefix: usize = shared_prefix_len(titles);
     return titles.iter().map(|title| return display_title(title, prefix, folder).to_string()).collect();

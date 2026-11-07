@@ -164,7 +164,8 @@ impl TemplateEvaluation<'_> {
     /// Why:
     ///  Missing seconds show nothing,
     ///  but text that is not a number is a mistake,
-    ///  and so is a format with a letter that is not `h`, `m` or `s` outside apostrophes.
+    ///  and so is a format with a letter that is not `h`,
+    /// `m` or `s` outside apostrophes.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -309,10 +310,14 @@ pub fn evaluate_template(text: &str, track: &dyn TemplateTrack, fields: &[Templa
 
 /// What:
 ///  `pub fn evaluate_parsed_template(parsed: &ParsedTemplate, track: &dyn TemplateTrack, fields: &[TemplateField]) -> TemplateResult`
-///  shows an already parsed template's text for one track, or the mistakes that refuse it.
+///  shows an already parsed template's text for one track,
+/// or the mistakes that refuse it.
 /// Why:
-///  A list of rows shows one template for every track, and parsing it again for each row cost about 2.7 microseconds a row,
-///  most of a 30,000-row page's projection; `evaluate_template` parses and calls this, so both give one result.
+///  A list of rows shows one template for every track,
+/// and parsing it again for each row cost about 2.7 microseconds a row,
+///  most of a 30,000-row page's projection;
+/// `evaluate_template` parses and calls this,
+/// so both give one result.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

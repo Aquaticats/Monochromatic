@@ -10,11 +10,18 @@ use crate::refresh_test_support::{MemoryDisk, Rng, TempTree, pick_stem};
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
 
-/// The name parts: they collide on case, digits and leading zeros, so natural order differs from byte order.
+/// The name parts:
+/// they collide on case,
+/// digits and leading zeros,
+/// so natural order differs from byte order.
 const STEMS: [&str; 12] = ["a", "A", "b", "a2", "a10", "a02", "Track 2", "Track 10", "é", "1", "01", "z"];
 
-/// What: `World` is a library folder and the queue a controller would hold for it.
-/// Why: each test edits the folder, names what the watcher would name, and checks the queue follows.
+/// What:
+/// `World` is a library folder and the queue a controller would hold for it.
+/// Why:
+/// each test edits the folder,
+/// names what the watcher would name,
+/// and checks the queue follows.
 struct World {
     tree: TempTree,
     outside: TempTree,
@@ -23,8 +30,11 @@ struct World {
 
 /// Methods of `World`.
 impl World {
-    /// What: `new` makes the folder and takes the first walk as the queue.
-    /// Why: the queue starts as the scan of the folder, as after an open.
+    /// What:
+    /// `new` makes the folder and takes the first walk as the queue.
+    /// Why:
+    /// the queue starts as the scan of the folder,
+    /// as after an open.
     fn new(tag: &str, files: &[&str]) -> World {
         let tree = TempTree::new(tag);
         for file in files {
@@ -34,8 +44,10 @@ impl World {
         return World { tree, outside: TempTree::new(&format!("{tag}-outside")), queue };
     }
 
-    /// What: `named` is a change set of the given paths.
-    /// Why: tests name paths by relative strings.
+    /// What:
+    /// `named` is a change set of the given paths.
+    /// Why:
+    /// tests name paths by relative strings.
     fn named(&self, entries: &[(&str, bool)]) -> DirtyPaths {
         let mut set = DirtyPaths::default();
         for (relative, structural) in entries {
@@ -44,16 +56,21 @@ impl World {
         return set;
     }
 
-    /// What: `refresh` plans the named paths, applies the plan to the queue and returns the plan.
-    /// Why: the step every test repeats.
+    /// What:
+    /// `refresh` plans the named paths,
+    /// applies the plan to the queue and returns the plan.
+    /// Why:
+    /// the step every test repeats.
     fn refresh(&mut self, dirty: &DirtyPaths) -> Plan {
         let plan = plan_changes(&self.queue, &self.tree.root, dirty, &RealDisk);
         self.queue = apply_plan(std::mem::take(&mut self.queue), &self.tree.root, &plan);
         return plan;
     }
 
-    /// What: `assert_follows_the_disk` compares the queue with the walk of the folder.
-    /// Why: the walk is the definition of the queue.
+    /// What:
+    /// `assert_follows_the_disk` compares the queue with the walk of the folder.
+    /// Why:
+    /// the walk is the definition of the queue.
     fn assert_follows_the_disk(&self, context: &str) {
         assert_eq!(self.queue, self.tree.walk(), "{context}");
     }
@@ -194,8 +211,10 @@ fn random_edits_named_the_way_the_watcher_names_them_keep_the_queue_equal_to_the
     }
 }
 
-/// What: `random_name` is a relative file name of one to three levels.
-/// Why: random edits collide on names on purpose.
+/// What:
+/// `random_name` is a relative file name of one to three levels.
+/// Why:
+/// random edits collide on names on purpose.
 fn random_name(rng: &mut Rng) -> String {
     let depth: usize = rng.below(3);
     let mut relative: String = String::new();
@@ -208,9 +227,14 @@ fn random_name(rng: &mut Rng) -> String {
     return relative;
 }
 
-/// What: `random_edit` changes the folder in one random way and adds the paths the watcher would name to `dirty`.
-/// Why: the watcher names a created and filled folder by the folder alone, a moved-away folder by itself alone, and a
-/// removed folder by every entry, so each case is made here.
+/// What:
+/// `random_edit` changes the folder in one random way and adds the paths the watcher would name to `dirty`.
+/// Why:
+/// the watcher names a created and filled folder by the folder alone,
+/// a moved-away folder by itself alone,
+/// and a
+/// removed folder by every entry,
+/// so each case is made here.
 fn random_edit(world: &World, rng: &mut Rng, dirty: &mut DirtyPaths, round: usize) {
     let listed: Vec<PathBuf> = world.tree.walk();
     let tree = &world.tree;
@@ -291,8 +315,11 @@ fn random_edit(world: &World, rng: &mut Rng, dirty: &mut DirtyPaths, round: usiz
     }
 }
 
-/// What: `pretend_disk` is a disk that holds exactly the given files.
-/// Why: the million-track tests ask the planner about a few paths only, so the pretend disk need hold only those.
+/// What:
+/// `pretend_disk` is a disk that holds exactly the given files.
+/// Why:
+/// the million-track tests ask the planner about a few paths only,
+/// so the pretend disk need hold only those.
 fn pretend_disk(files: impl IntoIterator<Item = PathBuf>) -> MemoryDisk {
     return MemoryDisk { files: files.into_iter().collect(), asked: RefCell::new(HashMap::new()), root: PathBuf::from(crate::refresh_scale_support::ROOT) };
 }

@@ -45,6 +45,7 @@ use super::cargo_installs::{is_newer_than_locked, older_lock_message_for};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::launcher_current_link`.
+use super::launcher_chain::chain_problem;
 use super::launcher_current_link::{MissingProgram, locked_version, missing_program_advice, program_to_run, version_that_runs};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{Scope, ScopeKind};
@@ -318,11 +319,16 @@ fn exec_program(program: &Path, arguments: &[OsString]) -> std::io::Error {
 /// Rewrites this launcher's record so that it names `program`,
 /// when the record names another path and `program` exists.
 /// Why:
-/// The shadows a launcher starts (`cargo-shadow`, `pnpm-shadow`, `search-shadow`, `mpm-shadow` in its shim mode) skip a `PATH` candidate
+/// The shadows a launcher starts (`cargo-shadow`,
+/// `pnpm-shadow`,
+/// `search-shadow`,
+/// `mpm-shadow` in its shim mode) skip a `PATH` candidate
 /// that is a launcher whose record leads back to themselves,
 /// and they read the path the record names.
 /// A record that names a deleted release folder leads nowhere they can resolve,
-/// so the shadow took the launcher for the real tool, started it, and its recursion guard stopped the run.
+/// so the shadow took the launcher for the real tool,
+/// started it,
+/// and its recursion guard stopped the run.
 /// Naming the program that ran keeps the record true after every version move.
 ///
 /// In TS you'd write (pseudocode):
@@ -358,6 +364,13 @@ pub fn run_launcher(record: &LaunchRecord, arguments: &[OsString]) -> i32 {
     let launch: Launch = prepare_launch(record, lock_text.as_deref());
     if let Some(warning) = &launch.warning {
         eprintln!("mpm-shadow: warning: {warning}");
+    }
+    // A launcher never starts itself: a chain of records that leads back to this launcher, or in a circle, is refused before anything is started.
+    if let Ok(own) = std::env::current_exe()
+        && let Some(problem) = chain_problem(&own, &launch.program)
+    {
+        eprintln!("mpm-shadow: {problem}");
+        return EXEC_FAILED_EXIT_CODE;
     }
     if let Err(error) = refresh_stale_record(record, &launch.program) {
         eprintln!("mpm-shadow: warning: could not update the launcher record, so it keeps naming a program that no longer exists: {error}");

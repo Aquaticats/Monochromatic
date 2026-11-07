@@ -320,7 +320,9 @@ fn pack_offset(index: &File, name: &[u8; OBJECT_NAME_BYTES]) -> Result<Option<u6
 /// real commit;
 /// a larger object is Git's to read.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
+/// (handover "Picks made under the owner's delegation"),
+/// veto open;
+/// not a measurement.
 const MAX_COMMIT_BYTES: u64 = 16 * 1024 * 1024;
 
 /// The length of a pack file's header (`PACK`,

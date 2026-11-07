@@ -561,7 +561,8 @@ struct WorkerState {
     ///  How many `Command::Load` requests the worker has started handling,
     ///           counting the one in progress.
     /// Why:
-    ///       Kotlin counts the loads it queues; this count names the load a failure belongs to,
+    ///       Kotlin counts the loads it queues;
+    /// this count names the load a failure belongs to,
     ///  because the
     ///           worker handles loads in the order they were queued.
     ///

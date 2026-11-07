@@ -1,4 +1,5 @@
-//! The compositor-free recorder: a command's notifications land on the private bus and in the log file.
+//! The compositor-free recorder:
+//! a command's notifications land on the private bus and in the log file.
 
 use std::process::Command;
 

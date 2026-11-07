@@ -50,10 +50,12 @@ pub(crate) fn strip_source_bom(text: &str) -> &str {
     return strip_bom(text);
 }
 
-/// The format a rule source is read in, decided exactly as [`parse_rules`] decides it.
+/// The format a rule source is read in,
+/// decided exactly as [`parse_rules`] decides it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SourceFormat {
-    /// No significant line: blank lines and comments only.
+    /// No significant line:
+    /// blank lines and comments only.
     Empty,
     /// The first significant line is a strict `==> name <==` header.
     Tail,

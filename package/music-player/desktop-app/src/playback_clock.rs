@@ -1,6 +1,10 @@
-//! The audible playback clock: which second of the track the listener hears now.
-//!  Pure arithmetic over four numbers (frames pushed into the ring buffer, frames still waiting in it,
-//!  the track frame the ring started at, and the last position that was reported); no audio device and no threads.
+//! The audible playback clock:
+//! which second of the track the listener hears now.
+//!  Pure arithmetic over four numbers (frames pushed into the ring buffer,
+//! frames still waiting in it,
+//!  the track frame the ring started at,
+//! and the last position that was reported);
+//! no audio device and no threads.
 //! Why:
 //!  The decoder runs ahead of the speakers by up to one full ring (one second).
 //!  Counting pushed frames as played put the seek bar a second ahead of the sound and let the next track start
@@ -11,7 +15,8 @@
 //! Mental model for a TypeScript reader:
 //!  `playedFrames = base + pushed - queued`,
 //!  where `queued` is `ring.length` read lock-free from the producer end.
-//!  No realtime code is involved: the output callback already advances the ring's read index,
+//!  No realtime code is involved:
+//! the output callback already advances the ring's read index,
 //!  and the engine thread only reads it.
 
 use std::time::{Duration, Instant};
@@ -63,7 +68,8 @@ pub(crate) struct PlaybackClock {
     ///  Ring frames that belong to tracks before the current one (the pushed count at the last track boundary).
     /// Why:
     ///       Gapless playback keeps one ring across two tracks;
-    ///  the new track's position counts from its first frame, not from the start of the ring.
+    ///  the new track's position counts from its first frame,
+    /// not from the start of the ring.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -107,7 +113,8 @@ pub(crate) struct PlaybackClock {
     last_emit_frames: u64,
     /// What:
     ///      `drained_since: Option<Instant>`.
-    ///  When the ring was first seen empty during a drain, or `None` while frames are still queued.
+    ///  When the ring was first seen empty during a drain,
+    /// or `None` while frames are still queued.
     /// Why:
     ///       The output holds some already-consumed audio of its own;
     ///  the next track may only start after that has played out too.
@@ -132,7 +139,8 @@ pub(crate) struct PlaybackClock {
 
 /// What:
 ///      `pub(crate) fn frames_of_samples(samples: usize, channels: u16) -> u64`.
-///  Convert a count of interleaved samples (pushed, or still waiting in the ring) into whole frames,
+///  Convert a count of interleaved samples (pushed,
+/// or still waiting in the ring) into whole frames,
 ///  returning zero for an unknown channel count.
 /// Why:
 ///       The ring counts samples,
@@ -177,8 +185,11 @@ impl PlaybackClock {
 
     /// What:
     ///      `pub(crate) fn restart(&mut self, base_frames: u64)`.
-    ///  Start counting for a new, empty ring whose first frame is track frame `base_frames`.
-    ///  Clears the pushed count, any track boundary, and any drain in progress.
+    ///  Start counting for a new,
+    /// empty ring whose first frame is track frame `base_frames`.
+    ///  Clears the pushed count,
+    /// any track boundary,
+    /// and any drain in progress.
     /// Why:
     ///       Loading a track and seeking both rebuild the ring,
     ///  and the old ring's pending audio is dropped with it.
@@ -304,7 +315,8 @@ impl PlaybackClock {
 
     /// What:
     ///      `pub(crate) fn boundary_reached(&self, queued_frames: u64) -> bool`.
-    ///  Whether the output consumed every frame before the join, so the next track is audible now.
+    ///  Whether the output consumed every frame before the join,
+    /// so the next track is audible now.
     /// Why:
     ///       This is the moment to announce the next track.
     ///
@@ -320,9 +332,11 @@ impl PlaybackClock {
     /// What:
     ///      `pub(crate) fn cross_boundary(&mut self)`.
     ///  The next track became audible:
-    ///  count its position from its first frame, and forget the join.
+    ///  count its position from its first frame,
+    /// and forget the join.
     /// Why:
-    ///       The ring keeps running, so the new track's position is the frames consumed past the join.
+    ///       The ring keeps running,
+    /// so the new track's position is the frames consumed past the join.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -358,7 +372,8 @@ impl PlaybackClock {
     ///      `pub(crate) fn finish_drain(&mut self)`.
     ///  Clear the drain flag once the track-end handoff was taken.
     /// Why:
-    ///       When no further track loads (end of queue, unreadable files) the clock must not keep reporting a drain,
+    ///       When no further track loads (end of queue,
+    /// unreadable files) the clock must not keep reporting a drain,
     ///  or the handoff would run again on the next play.
     ///
     /// In TS you'd write (pseudocode):
@@ -386,7 +401,9 @@ impl PlaybackClock {
 
     /// What:
     ///      `pub(crate) fn drain_finished(&mut self, queued_frames: u64, now: Instant, hold: Duration) -> bool`.
-    ///  Whether a drain is in progress, the output consumed every pushed frame, and `hold` has passed since the ring
+    ///  Whether a drain is in progress,
+    /// the output consumed every pushed frame,
+    /// and `hold` has passed since the ring
     ///  was first seen empty.
     ///  `now` is passed in so tests control the clock.
     /// Why:
@@ -412,9 +429,11 @@ impl PlaybackClock {
 
     /// What:
     ///      `pub(crate) fn drain_wait(&self, now: Instant, hold: Duration) -> Option<Duration>`.
-    ///  The time left of the hold after the ring was seen empty, or `None` when no hold is running.
+    ///  The time left of the hold after the ring was seen empty,
+    /// or `None` when no hold is running.
     /// Why:
-    ///       The engine thread sleeps at most this long instead of its idle timeout, so the hold ends on time.
+    ///       The engine thread sleeps at most this long instead of its idle timeout,
+    /// so the hold ends on time.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

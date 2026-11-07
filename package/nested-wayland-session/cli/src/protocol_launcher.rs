@@ -1,7 +1,8 @@
 //! Parse the `launcher-log` control request.
 //!
 //! The other taskbar verbs take no arguments and are routed through the protocol's
-//!  `no_arguments` helper, so only the optional record count needs a parser here.
+//!  `no_arguments` helper,
+//! so only the optional record count needs a parser here.
 
 /// Reuse the command representation the executor matches on.
 use super::Command;
@@ -13,7 +14,8 @@ pub(super) const DEFAULT_LOG_COUNT: usize = 64;
 ///
 /// What:
 ///      `pub(super) fn parse_log(tokens: &mut std::str::SplitWhitespace) -> Result<Command, String>`.
-///  An optional whole number of at least one; the default is 64.
+///  An optional whole number of at least one;
+/// the default is 64.
 /// Why:
 ///       A count of zero would answer with no records and hide a mistyped argument.
 pub(super) fn parse_log(tokens: &mut std::str::SplitWhitespace) -> Result<Command, String> {

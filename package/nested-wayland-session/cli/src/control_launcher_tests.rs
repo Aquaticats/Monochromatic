@@ -1,9 +1,12 @@
 //! Refusals of the taskbar verbs when no private bus runs.
 
-/// Brings the verbs, the refusal text, and the wire formatter into scope.
+/// Brings the verbs,
+/// the refusal text,
+/// and the wire formatter into scope.
 use super::*;
 
-/// Wire formatter, so the test checks the exact line a client reads.
+/// Wire formatter,
+/// so the test checks the exact line a client reads.
 use crate::protocol::format_response;
 
 /// Without a private bus every taskbar verb answers the same `err` line.

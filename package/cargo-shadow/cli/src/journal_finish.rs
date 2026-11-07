@@ -2,7 +2,8 @@
 //! The error of finishing a transaction,
 //! told by the phase that failed.
 //! Why:
-//! Round 7 (sixth review 6b2 5, 6c R1):
+//! Round 7 (sixth review 6b2 5,
+//! 6c R1):
 //! finishing has three phases that fail differently.
 //! Forcing the outputs to disk and publishing the durable completion marker stop the command
 //! (the next recovery would otherwise find an active journal and judge the run again);
@@ -58,7 +59,8 @@ impl FinishError {
     /// What:
     /// `pub fn completion(source: io::Error) -> FinishError` is a failure to publish the durable completion marker.
     /// Why:
-    /// The outputs are on disk, but nothing durable says this run is finished:
+    /// The outputs are on disk,
+    /// but nothing durable says this run is finished:
     /// a later recovery would see an active journal and could judge the run again.
     ///
     /// In TS you'd write (pseudocode):

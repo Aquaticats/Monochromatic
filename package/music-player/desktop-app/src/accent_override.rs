@@ -1,18 +1,28 @@
 //! The accent override that the environment variable `MUSIC_PLAYER_ACCENT` selects.
 //!
-//! What: `accent_override` maps the variable's text (`RRGGBB`, with or without a leading `#`) to the color that
-//! replaces the system accent as the theme root (A3, D108).
-//! Why: screenshots, renders and verification runs need a deterministic accent; unset follows the system.
+//! What:
+//! `accent_override` maps the variable's text (`RRGGBB`,
+//! with or without a leading `#`) to the color that
+//! replaces the system accent as the theme root (A3,
+//! D108).
+//! Why:
+//! screenshots,
+//! renders and verification runs need a deterministic accent;
+//! unset follows the system.
 
 use std::fmt;
 
 use crate::oklch::Srgb8;
 
 /// What:
-///      `pub const ACCENT_ENV: &str = "MUSIC_PLAYER_ACCENT";`. `&str` is a borrowed string slice; the sibling is the
+///      `pub const ACCENT_ENV: &str = "MUSIC_PLAYER_ACCENT";`.
+/// `&str` is a borrowed string slice;
+/// the sibling is the
 ///  owned `String`.
 /// Why:
-///       One name is shared by the startup code and the README; a constant needs no allocation, so `&str`.
+///       One name is shared by the startup code and the README;
+/// a constant needs no allocation,
+/// so `&str`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -49,10 +59,13 @@ impl fmt::Display for AccentError {
 impl std::error::Error for AccentError {}
 
 /// What:
-///      `pub fn accent_override(value: Option<&str>) -> Result<Option<Srgb8>, AccentError>`: `None` or an empty
-///  text follows the system, six hex digits (optionally after `#`) give that color.
+///      `pub fn accent_override(value: Option<&str>) -> Result<Option<Srgb8>, AccentError>`:
+/// `None` or an empty
+///  text follows the system,
+/// six hex digits (optionally after `#`) give that color.
 /// Why:
-///       The caller sets `Theme.accent-override` from the result; a malformed value is an error naming the text.
+///       The caller sets `Theme.accent-override` from the result;
+/// a malformed value is an error naming the text.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

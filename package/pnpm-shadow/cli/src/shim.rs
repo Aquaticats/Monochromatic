@@ -1,10 +1,19 @@
 //! What:
-//! The shadow mode: when the binary is started as `pnpm`, it warns about manifest problems in the workspace of the
-//! current directory, finds the real `pnpm` on PATH, runs it as a child with the arguments untouched, waits for it,
+//! The shadow mode:
+//! when the binary is started as `pnpm`,
+//! it warns about manifest problems in the workspace of the
+//! current directory,
+//! finds the real `pnpm` on PATH,
+//! runs it as a child with the arguments untouched,
+//! waits for it,
 //! and exits with the child's own status.
 //! Why:
-//! The warning never blocks. A scan problem, a missing workspace and a closed standard error all lead to the same
-//! thing: pnpm runs. Only a missing or unstartable pnpm is the shadow's own failure.
+//! The warning never blocks.
+//! A scan problem,
+//! a missing workspace and a closed standard error all lead to the same
+//! thing:
+//! pnpm runs.
+//! Only a missing or unstartable pnpm is the shadow's own failure.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,22 +26,26 @@
 //! }
 //! ```
 
-/// Imports the process-environment module (PATH, the current directory).
+/// Imports the process-environment module (PATH,
+/// the current directory).
 use std::env;
 
-/// Imports the owned operating-system text type: arguments may be invalid UTF-8 and pass byte for byte.
+/// Imports the owned operating-system text type:
+/// arguments may be invalid UTF-8 and pass byte for byte.
 use std::ffi::OsString;
 
 /// Imports the file-system module (resolves the shadow's own path).
 use std::fs;
 
-/// Imports `Write`, the trait that adds `write_all` to standard error.
+/// Imports `Write`,
+/// the trait that adds `write_all` to standard error.
 use std::io::Write;
 
 /// What:
 /// `use std::os::unix::process::ExitStatusExt;` imports a trait that adds `.signal()` to a process's exit status.
 /// Why:
-/// A child killed by a signal has no exit code, and the shadow reports it the way a shell does.
+/// A child killed by a signal has no exit code,
+/// and the shadow reports it the way a shell does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -41,10 +54,12 @@ use std::io::Write;
 use std::os::unix::process::ExitStatusExt;
 
 /// What:
-/// `use std::os::unix::process::CommandExt;` imports a trait that adds `.exec()` to a command: replace this process with the
+/// `use std::os::unix::process::CommandExt;` imports a trait that adds `.exec()` to a command:
+/// replace this process with the
 /// program instead of starting it as a child.
 /// Why:
-/// A run that needs no notice hands over completely, so the shadow's cost ends before pnpm starts.
+/// A run that needs no notice hands over completely,
+/// so the shadow's cost ends before pnpm starts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -70,6 +85,7 @@ use crate::real_binary::find_in_path;
 use crate::report::render_report;
 /// Imports the workspace scan.
 use crate::scan::{find_workspace_root, scan_workspace};
+use crate::shadow_identity::{ARRIVAL_EXIT_CODE, StartMode, Vetted, arrival_at_this_process, arrival_line, mark_start, vet};
 /// Imports the notice that follows pnpm's version and help.
 use crate::shadow_notice::{TopLevelRequest, notice_text, top_level_request};
 /// Imports the rule that says whether the manifest warning makes sense for a command line.
@@ -78,7 +94,9 @@ use crate::verb::warning_makes_sense;
 /// What:
 /// `pub fn exit_code_of(status: ExitStatus) -> i32` turns a finished child's status into the number the shadow exits with.
 /// Why:
-/// A normal exit passes its code through; death by signal becomes `128 + signal`, the shell convention.
+/// A normal exit passes its code through;
+/// death by signal becomes `128 + signal`,
+/// the shell convention.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -109,19 +127,24 @@ pub fn run_program(program: &Path, arguments: &[OsString], guard_value: Option<&
     // `Command::new(program).args(arguments)` builds the command; the guard, when there is one, is added to its environment
     // only (this process's own environment is untouched). `.status()` starts it with the standard streams inherited from
     // this process and waits for it; `?` leaves the function with the `Err` when the start failed.
-    let mut command: Command = Command::new(program);
+    // The program is checked while open and started through that file, and the child carries the arrival marker (`shadow_identity.rs`).
+    let vetted: Vetted = vet(program).map_err(std::io::Error::other)?;
+    let mut command: Command = vetted.command();
     command.args(arguments);
     if let Some(value) = guard_value {
         command.env(GUARD_VARIABLE, value);
     }
+    mark_start(&mut command, StartMode::Spawn);
     let status: ExitStatus = command.status()?;
     return Ok(exit_code_of(status));
 }
 
 /// What:
-/// `fn own_real_path() -> PathBuf` is the shadow's own resolved executable path, or an empty path when the system cannot say.
+/// `fn own_real_path() -> PathBuf` is the shadow's own resolved executable path,
+/// or an empty path when the system cannot say.
 /// Why:
-/// The PATH search skips every entry that resolves to it; an empty path matches nothing.
+/// The PATH search skips every entry that resolves to it;
+/// an empty path matches nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -141,8 +164,12 @@ fn own_real_path() -> PathBuf {
 /// `pub fn warn_about_workspace(start: &Path, sink: &mut dyn Write)` scans the workspace that contains `start` and
 /// writes the report to `sink` when there is one.
 /// Why:
-/// The sink is a parameter so tests read the text; the shadow passes standard error. `&mut dyn Write` is a borrowed
-/// writer of any type (a TS `Writable`). A write error is ignored on purpose: a closed standard error must not stop pnpm.
+/// The sink is a parameter so tests read the text;
+/// the shadow passes standard error.
+/// `&mut dyn Write` is a borrowed
+/// writer of any type (a TS `Writable`).
+/// A write error is ignored on purpose:
+/// a closed standard error must not stop pnpm.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -172,6 +199,12 @@ pub fn warn_about_workspace(start: &Path, sink: &mut dyn Write) {
 /// export function runShim(args: Buffer[]): number
 /// ```
 pub fn run_shim(arguments: Vec<OsString>) -> i32 {
+    // The arrival stop comes before anything else: a shadow that a shadow started as its real pnpm does nothing and says so in one line
+    // (`shadow_identity.rs`), whatever the loop guard below would have said.
+    if let Some(arrival) = arrival_at_this_process() {
+        eprintln!("{}", arrival_line(SHADOWED_NAME, &arrival));
+        return ARRIVAL_EXIT_CODE;
+    }
     // The loop guard (`guard.rs`): a value an earlier shadow instance left for the process its candidate started. It counts
     // only when it was left for this very process, so a script that the real pnpm runs never inherits it.
     let mut skipped: Vec<PathBuf> = Vec::new();
@@ -240,7 +273,17 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     // execvp(program, args);  // never returns on success; Node has no exec, this is the POSIX call
     // ```
     if request == TopLevelRequest::Other {
-        let error: std::io::Error = Command::new(&program).args(&arguments).env(GUARD_VARIABLE, &guard_value).exec();
+        let vetted: Vetted = match vet(&program) {
+            Ok(checked) => checked,
+            Err(reason) => {
+                eprintln!("pnpm-shadow: could not start {}: {reason}", program.display());
+                return EXEC_FAILED_EXIT_CODE;
+            }
+        };
+        let mut command: Command = vetted.command();
+        command.args(&arguments).env(GUARD_VARIABLE, &guard_value);
+        mark_start(&mut command, StartMode::Exec);
+        let error: std::io::Error = command.exec();
         eprintln!("pnpm-shadow: could not start {}: {error}", program.display());
         return EXEC_FAILED_EXIT_CODE;
     }

@@ -95,7 +95,8 @@ pub struct PlayerContentInput {
     pub position_sec: f64,
     /// Track duration in seconds.
     pub duration_sec: f64,
-    /// Length and exact peak of each track, keyed by its display name.
+    /// Length and exact peak of each track,
+    /// keyed by its display name.
     pub measures: HashMap<String, TrackMeasure>,
 }
 

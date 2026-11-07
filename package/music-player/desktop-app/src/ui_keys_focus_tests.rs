@@ -1,8 +1,17 @@
-//! Window tests of the focus model on the testing backend (D106): the Tab order, the reverse order, no keyboard trap, the
-//! lists reachable by Alt+1 and Alt+2, and where the focus ring turns on and off.
+//! Window tests of the focus model on the testing backend (D106):
+//! the Tab order,
+//! the reverse order,
+//! no keyboard trap,
+//! the
+//! lists reachable by Alt+1 and Alt+2,
+//! and where the focus ring turns on and off.
 //!
-//! What: the real window receives real key events, and each test reads the name of the element that holds focus.
-//! Why: the order is declared in the markup, so only the composed window shows it.
+//! What:
+//! the real window receives real key events,
+//! and each test reads the name of the element that holds focus.
+//! Why:
+//! the order is declared in the markup,
+//! so only the composed window shows it.
 
 use i_slint_backend_testing::ElementHandle;
 use slint::platform::{PointerEventButton, WindowEvent};
@@ -13,7 +22,11 @@ use crate::ui_screen::read_state;
 use crate::ui_screen_view::Route;
 use crate::ui_test_support::{advance, chord, fresh_window_at, focus_label, load_library, settle, tab_labels, tap};
 
-/// The unfolded Tab order D106 asks for: the folder picker, the track list, the deck controls, then Search and Settings.
+/// The unfolded Tab order D106 asks for:
+/// the folder picker,
+/// the track list,
+/// the deck controls,
+/// then Search and Settings.
 const UNFOLDED_ORDER: [&str; 10] = [
     "open-pill",
     "folder-list",
@@ -27,8 +40,11 @@ const UNFOLDED_ORDER: [&str; 10] = [
     "settings",
 ];
 
-/// The folded Tab order with the track list showing: the folder trigger and the Open pill (the folder picker's controls),
-/// the track list, the deck, then Search and Settings.
+/// The folded Tab order with the track list showing:
+/// the folder trigger and the Open pill (the folder picker's controls),
+/// the track list,
+/// the deck,
+/// then Search and Settings.
 const FOLDED_ORDER: [&str; 10] = [
     "folder-trigger",
     "open-pill",

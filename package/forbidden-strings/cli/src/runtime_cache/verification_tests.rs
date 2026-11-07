@@ -33,7 +33,8 @@ fn source_revalidation_rejects_changed_or_missing_bytes() {
     std::fs::remove_dir(&directory).expect("remove fixture directory");
 }
 
-/// An optional entry that appears after the read fails the gate, and one that stays absent passes it.
+/// An optional entry that appears after the read fails the gate,
+/// and one that stays absent passes it.
 #[test]
 fn source_revalidation_rejects_an_optional_file_that_appears() {
     let directory = crate::test_scratch::scratch_root().join(format!("scanner-source-appears-{}", std::process::id()));

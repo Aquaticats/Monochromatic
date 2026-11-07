@@ -1,5 +1,6 @@
 //! Unit tests of the retry of a refused start:
-//! every branch with an injected refusal and a recording pause, so nothing waits.
+//! every branch with an injected refusal and a recording pause,
+//! so nothing waits.
 
 use std::io::{Error, ErrorKind};
 use std::time::Duration;
@@ -97,7 +98,8 @@ fn any_other_start_error_is_returned_at_once_with_its_kind_and_no_pause() {
     }
 }
 
-/// `EAGAIN` on Linux is errno 11 (named here, not in the assertions).
+/// `EAGAIN` on Linux is errno 11 (named here,
+/// not in the assertions).
 #[cfg(target_os = "linux")]
 const LINUX_EAGAIN: i32 = 11;
 

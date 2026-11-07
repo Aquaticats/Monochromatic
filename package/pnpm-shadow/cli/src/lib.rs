@@ -1,6 +1,12 @@
 //! What:
-//! The crate root: it lists the submodules of the `pnpm-shadow` library. The library holds all the logic (the
-//! workspace scan, the report, PATH lookup, launching); `main.rs` only decides which mode to start.
+//! The crate root:
+//! it lists the submodules of the `pnpm-shadow` library.
+//! The library holds all the logic (the
+//! workspace scan,
+//! the report,
+//! PATH lookup,
+//! launching);
+//! `main.rs` only decides which mode to start.
 //! Why:
 //! Keeping the logic in a library lets the unit tests call it without starting a process.
 //!
@@ -14,7 +20,10 @@
 /// What:
 /// `#[cfg(not(unix))] compile_error!(...)` stops the build on any platform that is not Unix.
 /// Why:
-/// The PATH separator, the execute bits and the signal exit codes are Unix facts; Windows is a later version, and a
+/// The PATH separator,
+/// the execute bits and the signal exit codes are Unix facts;
+/// Windows is a later version,
+/// and a
 /// build that compiled there would run wrong instead of failing loudly.
 ///
 /// In TS you'd write (pseudocode):
@@ -25,7 +34,8 @@
 compile_error!("pnpm-shadow supports Unix only; a cross-platform version is a later change");
 
 /// What:
-/// `pub mod cli;` declares a public submodule whose code is in `src/cli.rs`. `pub` makes it visible to code outside
+/// `pub mod cli;` declares a public submodule whose code is in `src/cli.rs`.
+/// `pub` makes it visible to code outside
 /// the crate (here `main.rs` and the integration tests).
 /// Why:
 /// `main.rs` calls into it for the `pnpm-shadow` command.
@@ -36,7 +46,9 @@ compile_error!("pnpm-shadow supports Unix only; a cross-platform version is a la
 /// ```
 pub mod cli;
 
-/// The fixed values (shadowed name, file names, exit codes).
+/// The fixed values (shadowed name,
+/// file names,
+/// exit codes).
 pub mod constants;
 
 /// The loop guard that keeps a launcher or link leading back to the shadow from being run as the real `pnpm`.
@@ -54,18 +66,36 @@ pub mod report;
 /// The workspace root lookup and the manifest walk.
 pub mod scan;
 
-/// The line and the section the shadow adds after pnpm's `--version` and `--help`, the only places it names itself.
+/// The rule that a shadow never starts a shadow:
+/// the identity every shadow carries,
+/// the check of a candidate,
+/// and the arrival marker.
+pub mod shadow_identity;
+
+/// The line and the section the shadow adds after pnpm's `--version` and `--help`,
+/// the only places it names itself.
 pub mod shadow_notice;
 
-/// The shadow mode: warn, look up, launch, wait.
+/// The shadow mode:
+/// warn,
+/// look up,
+/// launch,
+/// wait.
 pub mod shim;
 
-/// The command-word rules: whether the manifest warning makes sense for a pnpm command line.
+/// The command-word rules:
+/// whether the manifest warning makes sense for a pnpm command line.
 pub mod verb;
 
-/// Scratch directories for the unit tests, placed beside the build output.
+/// Scratch directories for the unit tests,
+/// placed beside the build output.
 #[cfg(test)]
 mod test_scratch;
+
+/// The unit tests of the identity,
+/// the launcher-record follow and the arrival marker.
+#[cfg(test)]
+mod shadow_identity_tests;
 
 /// The unit tests of the loop guard.
 #[cfg(test)]

@@ -1,12 +1,23 @@
 //! Tests for the focus ring movement inside lists (D106).
 //!
-//! What: lists are a flag per entry, true where the ring can rest, and false for headers and headings.
-//! Why: Up and Down must skip headers, Home and End must find the first and last real entry, and a letter must find the
+//! What:
+//! lists are a flag per entry,
+//! true where the ring can rest,
+//! and false for headers and headings.
+//! Why:
+//! Up and Down must skip headers,
+//! Home and End must find the first and last real entry,
+//! and a letter must find the
 //! first folder with that initial.
 
 use super::*;
 
-/// What: `rows` is a list shaped like a track list: a header, two tracks, a header, three tracks.
+/// What:
+/// `rows` is a list shaped like a track list:
+/// a header,
+/// two tracks,
+/// a header,
+/// three tracks.
 const ROWS: [bool; 7] = [false, true, true, false, true, true, true];
 
 #[test]

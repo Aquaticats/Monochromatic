@@ -80,8 +80,11 @@ fn temp_cache(tag: &str) -> PathBuf {
 
 // What:     `#[test]` marks the next function as a Rust unit test.
 // Why:      The test runner discovers and runs this case.
-/// What: `fn test_decision(gain: f32) -> Decision` builds a placeholder decision for the pending-peak results.
-/// Why: the result carries the decision, and these tests only check the gain.
+/// What:
+/// `fn test_decision(gain: f32) -> Decision` builds a placeholder decision for the pending-peak results.
+/// Why:
+/// the result carries the decision,
+/// and these tests only check the gain.
 fn test_decision(gain: f32) -> truepeak_core::Decision {
     return truepeak_core::Decision {
         gain,

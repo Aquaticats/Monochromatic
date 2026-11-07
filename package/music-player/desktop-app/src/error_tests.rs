@@ -4,7 +4,8 @@
 use super::*;
 use std::error::Error as _;
 
-/// A wrapped I/O error is the source of the `Io` variant, so a chain walker reaches it.
+/// A wrapped I/O error is the source of the `Io` variant,
+/// so a chain walker reaches it.
 #[test]
 fn the_io_variant_reports_the_wrapped_io_error_as_its_source() {
     let error = PlayerError::from(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "no access"));
@@ -23,7 +24,8 @@ fn the_decode_variant_reports_the_wrapped_symphonia_error_as_its_source() {
     assert!(source.downcast_ref::<symphonia::core::errors::Error>().is_some());
 }
 
-/// A wrapped opus error is the source of the `Opus` variant. The error comes from a decoder the library rejects.
+/// A wrapped opus error is the source of the `Opus` variant.
+/// The error comes from a decoder the library rejects.
 #[test]
 fn the_opus_variant_reports_the_wrapped_opus_error_as_its_source() {
     let opus_error = opus::Decoder::new(12345, opus::Channels::Mono).expect_err("12345 Hz is not an Opus rate");
@@ -34,7 +36,8 @@ fn the_opus_variant_reports_the_wrapped_opus_error_as_its_source() {
     assert!(source.downcast_ref::<opus::Error>().is_some());
 }
 
-/// The two message variants wrap no error value, so they have no source.
+/// The two message variants wrap no error value,
+/// so they have no source.
 #[test]
 fn the_message_variants_have_no_source() {
     assert!(PlayerError::Unsupported("a codec".to_string()).source().is_none());

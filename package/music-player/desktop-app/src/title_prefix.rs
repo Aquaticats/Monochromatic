@@ -1,9 +1,19 @@
-//! Shared filename prefixes: `かめりあ(Camellia) - Aegis` shows as `Aegis` when the whole folder starts the same way.
+//! Shared filename prefixes:
+//! `かめりあ(Camellia) - Aegis` shows as `Aegis` when the whole folder starts the same way.
 //!
-//! What: `shared_prefix_len` finds the text that every title of one directory starts with, cut back to a separator
-//! so no word is split, and `display_title` removes it (or, for a directory with one track, the directory's own name).
-//! Why: D86 makes prefix stripping an always-on behavior: "titles are shown without a common filename prefix". No
-//! desktop code did it (the note under D86 in `package/music-player/design/decisions.md` says so), so rows repeated
+//! What:
+//! `shared_prefix_len` finds the text that every title of one directory starts with,
+//! cut back to a separator
+//! so no word is split,
+//! and `display_title` removes it (or,
+//! for a directory with one track,
+//! the directory's own name).
+//! Why:
+//! D86 makes prefix stripping an always-on behavior:
+//! "titles are shown without a common filename prefix".
+//! No
+//! desktop code did it (the note under D86 in `package/music-player/design/decisions.md` says so),
+//! so rows repeated
 //! the artist and the deck read `folder / folder - title` (the polish review finding LS3).
 //!
 //! In TS you'd write (pseudocode):
@@ -13,9 +23,12 @@
 
 /// What:
 ///      `fn is_separator(character: char) -> bool`.
-///  True for a character that can end a prefix: anything that is not a letter or a digit.
+///  True for a character that can end a prefix:
+/// anything that is not a letter or a digit.
 /// Why:
-///       A prefix is cut only after a space or a punctuation mark, never inside a word, so `Aegis` and `Another` do not
+///       A prefix is cut only after a space or a punctuation mark,
+/// never inside a word,
+/// so `Aegis` and `Another` do not
 ///  lose their shared first letter.
 ///
 /// In TS you'd write (pseudocode):
@@ -28,9 +41,11 @@ fn is_separator(character: char) -> bool {
 
 /// What:
 ///      `fn common_prefix_len(titles: &[&str]) -> usize`.
-///  The byte length of the longest text that every title starts with, compared character by character.
+///  The byte length of the longest text that every title starts with,
+/// compared character by character.
 /// Why:
-///       The cut is made on whole characters, so the result is always a valid place to slice every title.
+///       The cut is made on whole characters,
+/// so the result is always a valid place to slice every title.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -54,13 +69,23 @@ fn common_prefix_len(titles: &[&str]) -> usize {
 
 /// What:
 ///      `pub fn shared_prefix_len(titles: &[&str]) -> usize`.
-///  The byte length of the prefix to remove from every title of one directory, or zero when nothing is removed.
-///  The prefix is the longest shared start cut back to just after its last separator. Nothing is removed for fewer
-///  than two titles, when the cut leaves no separator, when a title would be left empty or blank, when every title is the same, or when the removed
+///  The byte length of the prefix to remove from every title of one directory,
+/// or zero when nothing is removed.
+///  The prefix is the longest shared start cut back to just after its last separator.
+/// Nothing is removed for fewer
+///  than two titles,
+/// when the cut leaves no separator,
+/// when a title would be left empty or blank,
+/// when every title is the same,
+/// or when the removed
 ///  text holds no letter or digit.
 /// Why:
-///       `01 Song` and `02 Song` share only `0`, which holds no separator, so numbers stay. `Track 001` and
-///  `Track 002` lose `Track ` because the cut falls after the space. A single title has nothing to share.
+///       `01 Song` and `02 Song` share only `0`,
+/// which holds no separator,
+/// so numbers stay.
+/// `Track 001` and
+///  `Track 002` lose `Track ` because the cut falls after the space.
+/// A single title has nothing to share.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -108,10 +133,13 @@ pub fn shared_prefix_len(titles: &[&str]) -> usize {
 
 /// What:
 ///      `pub fn strip_folder_name<'a>(title: &'a str, folder: &str) -> &'a str`.
-///  Removes the directory's own name from the start of `title` when a separator and more text follow it, ignoring
-///  case; otherwise returns `title` unchanged.
+///  Removes the directory's own name from the start of `title` when a separator and more text follow it,
+/// ignoring
+///  case;
+/// otherwise returns `title` unchanged.
 /// Why:
-///       A directory with one track has no sibling to share a prefix with, but `Camellia / Camellia - Aegis` still
+///       A directory with one track has no sibling to share a prefix with,
+/// but `Camellia / Camellia - Aegis` still
 ///  repeats the folder in the deck heading.
 ///
 /// In TS you'd write (pseudocode):
@@ -141,11 +169,16 @@ pub fn strip_folder_name<'a>(title: &'a str, folder: &str) -> &'a str {
 
 /// What:
 ///      `pub fn display_title<'a>(title: &'a str, prefix_len: usize, folder: &str) -> &'a str`.
-///  The title a row or the deck shows: the title without the shared prefix, or, when the directory shares none,
+///  The title a row or the deck shows:
+/// the title without the shared prefix,
+/// or,
+/// when the directory shares none,
 ///  without its own folder name.
 /// Why:
-///       The caller finds the prefix once per directory (`shared_prefix_len`) and applies it to each title here, so a
-///  list of thousands of rows is walked once per directory, not once per row.
+///       The caller finds the prefix once per directory (`shared_prefix_len`) and applies it to each title here,
+/// so a
+///  list of thousands of rows is walked once per directory,
+/// not once per row.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

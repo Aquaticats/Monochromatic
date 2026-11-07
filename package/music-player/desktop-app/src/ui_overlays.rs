@@ -1,8 +1,13 @@
 //! Window binding for the feedback messages and the first-run pane.
 //!
-//! What: `wire` registers the feedback dismiss and action callbacks and the first-run actions, and starts
-//! the expiry timer; `show_error` and `show_undo` add messages from other modules.
-//! Why: the feedback queue is a pure value (`feedback.rs`); this module owns the one copy and its timer.
+//! What:
+//! `wire` registers the feedback dismiss and action callbacks and the first-run actions,
+//! and starts
+//! the expiry timer;
+//! `show_error` and `show_undo` add messages from other modules.
+//! Why:
+//! the feedback queue is a pure value (`feedback.rs`);
+//! this module owns the one copy and its timer.
 
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -18,8 +23,11 @@ use crate::ui_overlays_model::{Hold, feedback_rows, first_run_view, visible_time
 use crate::ui_screen::{model_of, read_state};
 use crate::{AppWindow, FeedbackItem};
 
-/// What: `OverlayState` is the feedback queue, its id counter and the Undo targets it can still restore.
-/// Why: one copy on the UI thread keeps message ids unique and lets Undo find its file.
+/// What:
+/// `OverlayState` is the feedback queue,
+/// its id counter and the Undo targets it can still restore.
+/// Why:
+/// one copy on the UI thread keeps message ids unique and lets Undo find its file.
 struct OverlayState {
     /// The visible feedback messages.
     queue: FeedbackQueue,
@@ -30,28 +38,43 @@ struct OverlayState {
 }
 
 thread_local! {
-    /// What: the UI thread's feedback state.
-    /// Why: messages are added and expired only on the event-loop thread.
+    /// What:
+    /// the UI thread's feedback state.
+    /// Why:
+    /// messages are added and expired only on the event-loop thread.
     static OVERLAYS: RefCell<OverlayState> = const { RefCell::new(OverlayState {
         queue: FeedbackQueue::EMPTY,
         next_id: 0,
         undo_targets: Vec::new(),
     }) };
-    /// What: the repeating timer that expires feedback messages; kept alive for the window's lifetime.
+    /// What:
+    /// the repeating timer that expires feedback messages;
+    /// kept alive for the window's lifetime.
     static EXPIRY_TIMER: RefCell<Option<slint::Timer>> = const { RefCell::new(None) };
-    /// What: the moment the feedback clock started.
-    /// Why: `FeedbackQueue` takes millisecond timestamps, so every call uses this origin.
+    /// What:
+    /// the moment the feedback clock started.
+    /// Why:
+    /// `FeedbackQueue` takes millisecond timestamps,
+    /// so every call uses this origin.
     static CLOCK_START: Instant = Instant::now();
 }
 
-/// What: `now_ms` gives the feedback clock in milliseconds since the first feedback call.
-/// Why: the queue compares timestamps, so the origin only has to be stable.
+/// What:
+/// `now_ms` gives the feedback clock in milliseconds since the first feedback call.
+/// Why:
+/// the queue compares timestamps,
+/// so the origin only has to be stable.
 fn now_ms() -> i64 {
     return CLOCK_START.with(|start| return i64::try_from(start.elapsed().as_millis()).unwrap_or(i64::MAX));
 }
 
-/// What: `add_message` shows one message for the time its text and `hold` call for, and returns its id.
-/// Why: every feedback path goes through this, so ids and timestamps stay consistent; a long message or one with an action
+/// What:
+/// `add_message` shows one message for the time its text and `hold` call for,
+/// and returns its id.
+/// Why:
+/// every feedback path goes through this,
+/// so ids and timestamps stay consistent;
+/// a long message or one with an action
 /// stays longer than the fixed 4 s the queue would give it.
 fn add_message(kind: FeedbackKind, text: &str, hold: Hold, action_label: Option<&str>, undo_path: Option<PathBuf>) -> Option<String> {
     let outcome = OVERLAYS.with(|cell| {
@@ -78,57 +101,81 @@ fn add_message(kind: FeedbackKind, text: &str, hold: Hold, action_label: Option<
     return outcome;
 }
 
-/// What: `first_message_expires_in_ms` gives how long the oldest visible message still has to stay, or None with no message.
-/// Why: the window tests check how long each kind of message is meant to stay without waiting for it to expire.
+/// What:
+/// `first_message_expires_in_ms` gives how long the oldest visible message still has to stay,
+/// or None with no message.
+/// Why:
+/// the window tests check how long each kind of message is meant to stay without waiting for it to expire.
 #[cfg(test)]
 pub(crate) fn first_message_expires_in_ms() -> Option<i64> {
     return OVERLAYS.with(|cell| return cell.borrow().queue.next_expiry_ms()).map(|expiry| return expiry - now_ms());
 }
 
-/// What: `show_error` shows an error message with the failure text.
-/// Why: a failed file action must be reported instead of looking successful.
+/// What:
+/// `show_error` shows an error message with the failure text.
+/// Why:
+/// a failed file action must be reported instead of looking successful.
 pub(crate) fn show_error(window: &AppWindow, text: &str) {
     add_message(FeedbackKind::Error, text, Hold::Brief, None, None);
     project(window);
 }
 
-/// What: `show_file_error` shows the text of a file action failure.
-/// Why: the error variants already name the detail in plain words.
+/// What:
+/// `show_file_error` shows the text of a file action failure.
+/// Why:
+/// the error variants already name the detail in plain words.
 pub(crate) fn show_file_error(window: &AppWindow, error: &FileActionError) {
     show_error(window, &error.to_string());
 }
 
-/// What: `show_undo` shows the message that restores `path` from the trash, with an Undo action.
-/// Why: D8 offers Undo for Move to trash; the target path is kept so Undo can find the trashed copy.
+/// What:
+/// `show_undo` shows the message that restores `path` from the trash,
+/// with an Undo action.
+/// Why:
+/// D8 offers Undo for Move to trash;
+/// the target path is kept so Undo can find the trashed copy.
 pub(crate) fn show_undo(window: &AppWindow, text: &str, path: PathBuf) {
     add_message(FeedbackKind::Undo, text, Hold::Long, Some("Undo"), Some(path));
     project(window);
 }
 
-/// What: `show_trash_notice` shows a trash move message that has no Undo action.
-/// Why: a platform that cannot restore from the trash still reports the move, without offering Undo.
+/// What:
+/// `show_trash_notice` shows a trash move message that has no Undo action.
+/// Why:
+/// a platform that cannot restore from the trash still reports the move,
+/// without offering Undo.
 pub(crate) fn show_trash_notice(window: &AppWindow, text: &str) {
     add_message(FeedbackKind::Undo, text, Hold::Brief, None, None);
     project(window);
 }
 
-/// What: `show_notice` shows a plain message with no action.
-/// Why: a keyboard action such as File details reports its result as a message; this is the same message kind as the
-/// trash notice, named for what it is used for.
+/// What:
+/// `show_notice` shows a plain message with no action.
+/// Why:
+/// a keyboard action such as File details reports its result as a message;
+/// this is the same message kind as the
+/// trash notice,
+/// named for what it is used for.
 pub(crate) fn show_notice(window: &AppWindow, text: &str) {
     add_message(FeedbackKind::Undo, text, Hold::Brief, None, None);
     project(window);
 }
 
-/// What: `show_long_notice` shows a plain message with no action that stays long enough to read in full.
-/// Why: File details lists a file name, its size and its folder, which takes longer to read than a one-line confirmation.
+/// What:
+/// `show_long_notice` shows a plain message with no action that stays long enough to read in full.
+/// Why:
+/// File details lists a file name,
+/// its size and its folder,
+/// which takes longer to read than a one-line confirmation.
 pub(crate) fn show_long_notice(window: &AppWindow, text: &str) {
     add_message(FeedbackKind::Undo, text, Hold::Long, None, None);
     project(window);
 }
 
-/// What: `dismiss` removes the message with `id` and its Undo target.
-/// Why: a dismissed or acted-on message must not stay visible or restorable.
+/// What:
+/// `dismiss` removes the message with `id` and its Undo target.
+/// Why:
+/// a dismissed or acted-on message must not stay visible or restorable.
 fn dismiss(id: &str) {
     OVERLAYS.with(|cell| {
         let mut state = cell.borrow_mut();
@@ -137,8 +184,11 @@ fn dismiss(id: &str) {
     });
 }
 
-/// What: `take_undo_target` removes and returns the path that the Undo message `id` restores.
-/// Why: an Undo can run once, so the target leaves the list when it is taken.
+/// What:
+/// `take_undo_target` removes and returns the path that the Undo message `id` restores.
+/// Why:
+/// an Undo can run once,
+/// so the target leaves the list when it is taken.
 fn take_undo_target(id: &str) -> Option<PathBuf> {
     return OVERLAYS.with(|cell| {
         let mut state = cell.borrow_mut();
@@ -147,8 +197,12 @@ fn take_undo_target(id: &str) -> Option<PathBuf> {
     });
 }
 
-/// What: `expire` drops messages whose time has run out, and reprojects when any were removed.
-/// Why: the timer calls this periodically, so messages leave without a user action.
+/// What:
+/// `expire` drops messages whose time has run out,
+/// and reprojects when any were removed.
+/// Why:
+/// the timer calls this periodically,
+/// so messages leave without a user action.
 fn expire(window: &AppWindow) {
     let changed = OVERLAYS.with(|cell| {
         let mut state = cell.borrow_mut();
@@ -164,8 +218,11 @@ fn expire(window: &AppWindow) {
     }
 }
 
-/// What: `project` pushes the feedback rows and the first-run pane to the window.
-/// Why: both sit above the track area, so they are projected from the same state read.
+/// What:
+/// `project` pushes the feedback rows and the first-run pane to the window.
+/// Why:
+/// both sit above the track area,
+/// so they are projected from the same state read.
 pub(crate) fn project(window: &AppWindow) {
     let rows = OVERLAYS.with(|cell| return feedback_rows(&cell.borrow().queue));
     window.set_feedback_items(model_of(
@@ -191,8 +248,12 @@ pub(crate) fn project(window: &AppWindow) {
     }
 }
 
-/// What: `wire` registers the feedback, first-run and expiry behaviour on the window.
-/// Why: the first-run primary action opens the folder dialog (D10 wording), and Undo restores from the trash.
+/// What:
+/// `wire` registers the feedback,
+/// first-run and expiry behaviour on the window.
+/// Why:
+/// the first-run primary action opens the folder dialog (D10 wording),
+/// and Undo restores from the trash.
 pub(crate) fn wire(app: &AppWindow, engine: &Rc<Engine>) {
     let dismiss_weak = app.as_weak();
     app.on_feedback_dismiss(move |id| {
@@ -222,8 +283,12 @@ pub(crate) fn wire(app: &AppWindow, engine: &Rc<Engine>) {
     start_expiry_timer(app);
 }
 
-/// What: `run_feedback_action` runs the action of the message `id`; only Undo has one.
-/// Why: Undo restores the trashed file, and a failed restore is reported as its own error.
+/// What:
+/// `run_feedback_action` runs the action of the message `id`;
+/// only Undo has one.
+/// Why:
+/// Undo restores the trashed file,
+/// and a failed restore is reported as its own error.
 fn run_feedback_action(window: &AppWindow, id: &str) {
     let Some(path) = take_undo_target(id) else {
         dismiss(id);
@@ -237,8 +302,11 @@ fn run_feedback_action(window: &AppWindow, id: &str) {
     }
 }
 
-/// What: `start_expiry_timer` runs `expire` every quarter second for the window's lifetime.
-/// Why: a repeating timer is simpler than scheduling one timer per message, and the queue is small.
+/// What:
+/// `start_expiry_timer` runs `expire` every quarter second for the window's lifetime.
+/// Why:
+/// a repeating timer is simpler than scheduling one timer per message,
+/// and the queue is small.
 fn start_expiry_timer(app: &AppWindow) {
     let timer = slint::Timer::default();
     let tick_weak = app.as_weak();

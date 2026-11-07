@@ -1,4 +1,5 @@
-//! The unit tests of the child launch, the exit-status mapping and the warning that precedes pnpm.
+//! The unit tests of the child launch,
+//! the exit-status mapping and the warning that precedes pnpm.
 
 /// Imports the functions under test.
 use crate::shim::{exit_code_of, run_program, warn_about_workspace};
@@ -14,10 +15,12 @@ use std::path::Path;
 /// Imports the child-process builder.
 use std::process::Command;
 
-/// The number of the termination signal on Linux and macOS, written once and named.
+/// The number of the termination signal on Linux and macOS,
+/// written once and named.
 const SIGTERM_NUMBER: i32 = 15;
 
-/// An exit code no default maps to, so a pass-through is visible.
+/// An exit code no default maps to,
+/// so a pass-through is visible.
 const DISTINCT_EXIT_CODE: i32 = 7;
 
 /// Runs `sh -c <script>` and returns its raw status.

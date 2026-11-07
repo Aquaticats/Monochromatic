@@ -23,7 +23,11 @@ Nested scripts and their diagnostics come from the parser;
 the analyzer does not execute shell expressions or reparse removed legacy fields.
 
 `parseShellReviewStructure` projects the same parser tree for model permission review.
-It preserves command and control-flow roles, quoting, redirects, assignments, and nested execution.
+It preserves command and control-flow roles,
+quoting,
+redirects,
+assignments,
+and nested execution.
 Complete source scripts and source locations stay local.
 Literal arguments and quoted here-document bodies remain data.
 Runtime expansion values and effects remain unestablished by parsing.

@@ -107,7 +107,8 @@ fn main() {
 
 /// What:
 /// `fn text_of(arguments: Vec<OsString>) -> Vec<String>` declares a private function that turns the raw
-///           arguments (`OsString`, the operating system's bytes) into owned texts (`String`),
+///           arguments (`OsString`,
+/// the operating system's bytes) into owned texts (`String`),
 ///           replacing bytes that are not UTF-8 with the replacement character.
 /// Why:
 /// The command-line tool wants plain text;

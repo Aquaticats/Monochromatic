@@ -1,5 +1,7 @@
-//! What: Controls proving the reply generator reaches both kinds of reply and that the checks hold on a spread of inputs.
-//! Why: An invariant that is never reached proves nothing.
+//! What:
+//! Controls proving the reply generator reaches both kinds of reply and that the checks hold on a spread of inputs.
+//! Why:
+//! An invariant that is never reached proves nothing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,7 +11,8 @@
 /// Import the generator and the invariants under control.
 use super::{check_generated_reply, check_raw_reply, generated_reply};
 
-/// Inputs over a spread of leading bytes, with longer derived ones.
+/// Inputs over a spread of leading bytes,
+/// with longer derived ones.
 fn inputs() -> Vec<Vec<u8>> {
     let mut all: Vec<Vec<u8>> = Vec::new();
     for first in 0..=255_u8 {
@@ -21,7 +24,8 @@ fn inputs() -> Vec<Vec<u8>> {
     return all;
 }
 
-/// Both kinds of reply are reached, with a name and a text on the errors.
+/// Both kinds of reply are reached,
+/// with a name and a text on the errors.
 #[test]
 fn the_generator_reaches_returns_and_errors() {
     let mut returns: usize = 0;

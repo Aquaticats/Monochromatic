@@ -114,7 +114,8 @@ fn ready_journal(root: &Path) -> (PathBuf, String) {
     return (journal, ready);
 }
 
-/// A planted ready journal whose live lockfile has changed since the snapshot, so that a recovery that accepted the journal would
+/// A planted ready journal whose live lockfile has changed since the snapshot,
+/// so that a recovery that accepted the journal would
 /// restore the snapshot text.
 fn ready_journal_of_a_changed_lock(root: &Path) -> (PathBuf, String) {
     let (journal, ready) = ready_journal(root);
@@ -127,8 +128,14 @@ fn live_lock(root: &Path) -> String {
     return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).expect("the live lock");
 }
 
-/// Real recovery of a journal whose ready record is invalid (certification, second pass): the journal is kept as it is, the live
-/// files are not touched, and the message says it is damaged. The same journal with a valid record is restored, which shows that
+/// Real recovery of a journal whose ready record is invalid (certification,
+/// second pass):
+/// the journal is kept as it is,
+/// the live
+/// files are not touched,
+/// and the message says it is damaged.
+/// The same journal with a valid record is restored,
+/// which shows that
 /// the rejection and not some other refusal kept it.
 fn assert_recovery_keeps_a_damaged_ready_journal(root: &Path, journal: &Path, case: &str) {
     let messages = run_recovery(root);
@@ -167,8 +174,10 @@ fn a_ready_record_that_omits_a_manifest_snapshot_is_rejected() {
     assert_recovery_keeps_a_damaged_ready_journal(root.path(), &journal, "an omitted manifest snapshot");
 }
 
-/// Control of the three tests that follow: a journal with a valid ready record and a changed live lockfile is restored by the same
-/// recovery, so a kept journal there is the rejection of the record.
+/// Control of the three tests that follow:
+/// a journal with a valid ready record and a changed live lockfile is restored by the same
+/// recovery,
+/// so a kept journal there is the rejection of the record.
 #[test]
 fn a_journal_with_a_valid_ready_record_is_restored_by_the_same_recovery() {
     let root = repository("lock", "manifest");
@@ -220,10 +229,19 @@ fn the_exhausted_names_advice_does_not_recommend_archiving_and_names_the_open_fi
     assert!(message.contains("open"), "{message}");
 }
 
-/// Acceptance row V5 (certification, fourth pass): the recovery's own output barriers are the real `make_durable` calls for the
-/// lockfiles and the journaled manifests, each failed on its own at its production operation. The root is accepted by the policy and
-/// kept (no replacement runs for it, so no other durability supplies the evidence): a failed file or directory sync is a mandatory
-/// failure, the fault is consumed, and the journal stays; the control without a fault completes and removes the journal.
+/// Acceptance row V5 (certification,
+/// fourth pass):
+/// the recovery's own output barriers are the real `make_durable` calls for the
+/// lockfiles and the journaled manifests,
+/// each failed on its own at its production operation.
+/// The root is accepted by the policy and
+/// kept (no replacement runs for it,
+/// so no other durability supplies the evidence):
+/// a failed file or directory sync is a mandatory
+/// failure,
+/// the fault is consumed,
+/// and the journal stays;
+/// the control without a fault completes and removes the journal.
 #[test]
 fn the_recovery_makes_a_kept_roots_lockfile_and_manifest_durable_through_the_real_barrier() {
     use crate::failpoints::{Point, arm, fires};
@@ -254,8 +272,12 @@ fn the_recovery_makes_a_kept_roots_lockfile_and_manifest_durable_through_the_rea
     assert_eq!(durable, vec!["durable Cargo.lock".to_string(), "durable Cargo.toml".to_string()], "the recovery did not make both outputs durable before completing");
 }
 
-/// Acceptance row V5 (certification, fourth pass): the recovery of a journal that never became ready reports its mandatory failures
-/// through `recover_report`: a failed durability barrier of the live files is a mandatory failure, and a failed removal after the
+/// Acceptance row V5 (certification,
+/// fourth pass):
+/// the recovery of a journal that never became ready reports its mandatory failures
+/// through `recover_report`:
+/// a failed durability barrier of the live files is a mandatory failure,
+/// and a failed removal after the
 /// marker is a cleanup only.
 #[test]
 fn an_unready_journal_reports_its_mandatory_and_cleanup_failures_through_the_report() {

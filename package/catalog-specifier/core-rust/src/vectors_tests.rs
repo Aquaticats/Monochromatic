@@ -1,7 +1,9 @@
 //! What:
 //! Runs every case in `fixtures/vectors.json` against the public functions.
 //! Why:
-//! The vectors file is the contract's executable form: any consumer in another language reads the same file, so a case added
+//! The vectors file is the contract's executable form:
+//! any consumer in another language reads the same file,
+//! so a case added
 //! there is enforced here without touching Rust.
 //!
 //! In TS you'd write (pseudocode):
@@ -12,8 +14,15 @@
 //! ```
 
 /// What:
-/// Imports `serde_json::Value`, a type that holds any parsed JSON (object, array, string, number, boolean or null).
-/// Why: The vectors file has several shapes, so it is read as a loose tree and walked by key.
+/// Imports `serde_json::Value`,
+/// a type that holds any parsed JSON (object,
+/// array,
+/// string,
+/// number,
+/// boolean or null).
+/// Why:
+/// The vectors file has several shapes,
+/// so it is read as a loose tree and walked by key.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -25,11 +34,19 @@ use serde_json::Value;
 use super::{FindingKind, SectionKind, check_manifest_bytes, check_manifest_path, is_allowed_specifier};
 
 /// What:
-/// `fn vectors() -> Value` loads and parses the vectors file. `include_str!("...")` is a compile-time macro that pastes the
-/// file's text into the program, with the path relative to this source file. `.expect("...")` unwraps an `Ok` and panics with
+/// `fn vectors() -> Value` loads and parses the vectors file.
+/// `include_str!("...")` is a compile-time macro that pastes the
+/// file's text into the program,
+/// with the path relative to this source file.
+/// `.expect("...")` unwraps an `Ok` and panics with
 /// the message on an `Err`.
-/// Why: The fixture ships inside the test binary, so the test needs no run-time file path.
-/// Gotcha: `.expect` panics on failure; that is the right behavior in a test, and wrong in library code.
+/// Why:
+/// The fixture ships inside the test binary,
+/// so the test needs no run-time file path.
+/// Gotcha:
+/// `.expect` panics on failure;
+/// that is the right behavior in a test,
+/// and wrong in library code.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -41,9 +58,13 @@ fn vectors() -> Value {
 
 /// What:
 /// `fn texts(vectors: &Value, group: &str, side: &str) -> Vec<String>` reads `vectors[group][side]` as a list of strings.
-/// `.as_array()` returns `Option<&Vec<Value>>`; `.expect(...)` unwraps it. The loop walks the elements by reference
+/// `.as_array()` returns `Option<&Vec<Value>>`;
+/// `.expect(...)` unwraps it.
+/// The loop walks the elements by reference
 /// (`&Vec` lends the list without moving it) and `.push(...)` appends each converted string to a growable `Vec`.
-/// Why: Both specifier groups have the same accepted and rejected lists. A plain loop is used because the crate's clippy
+/// Why:
+/// Both specifier groups have the same accepted and rejected lists.
+/// A plain loop is used because the crate's clippy
 /// configuration denies the implicit returns that short closures would need.
 ///
 /// In TS you'd write (pseudocode):
@@ -59,7 +80,11 @@ fn texts(vectors: &Value, group: &str, side: &str) -> Vec<String> {
     return collected;
 }
 
-/// What: `#[test]` marks a test function. This one runs the install-section vectors. Why: Both sides of the list must hold.
+/// What:
+/// `#[test]` marks a test function.
+/// This one runs the install-section vectors.
+/// Why:
+/// Both sides of the list must hold.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -88,7 +113,8 @@ fn peer_specifier_vectors_hold() {
     }
 }
 
-/// Runs the path vectors: unsupported names yield the format finding and supported names yield nothing.
+/// Runs the path vectors:
+/// unsupported names yield the format finding and supported names yield nothing.
 #[test]
 fn path_vectors_hold() {
     let all = vectors();
@@ -104,9 +130,13 @@ fn path_vectors_hold() {
 }
 
 /// What:
-/// Runs the manifest vectors: each case's `text` is checked as bytes and the finding kinds must equal `kinds` in order.
-/// `.as_bytes()` borrows a `String`'s UTF-8 bytes as `&[u8]`. `.as_str()` gives the kind's stable kebab-case name.
-/// Why: Order is part of the contract (source order, duplicate before the entry's own result).
+/// Runs the manifest vectors:
+/// each case's `text` is checked as bytes and the finding kinds must equal `kinds` in order.
+/// `.as_bytes()` borrows a `String`'s UTF-8 bytes as `&[u8]`.
+/// `.as_str()` gives the kind's stable kebab-case name.
+/// Why:
+/// Order is part of the contract (source order,
+/// duplicate before the entry's own result).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

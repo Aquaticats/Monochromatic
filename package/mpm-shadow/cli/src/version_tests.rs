@@ -110,7 +110,9 @@ fn reports_equal_versions_as_equal() {
     assert_eq!(compare_versions("1.0.0", "1.0.0"), Ordering::Equal);
 }
 
-/// Semantic Versioning 2.0.0, item 11, lists this chain in ascending precedence:
+/// Semantic Versioning 2.0.0,
+/// item 11,
+/// lists this chain in ascending precedence:
 /// every version is older than the ones after it,
 /// and a list in that order is the order `compare_versions` must give for each pair.
 #[test]
@@ -134,7 +136,8 @@ fn compares_numeric_pre_release_identifiers_as_numbers() {
     assert_eq!(compare_versions("0.2.7-alpha.2.1", "0.2.7-alpha.10.0"), Ordering::Less);
 }
 
-/// A number longer than any machine integer still compares as a number, and never overflows into an equal one.
+/// A number longer than any machine integer still compares as a number,
+/// and never overflows into an equal one.
 #[test]
 fn compares_numeric_identifiers_longer_than_a_machine_integer() {
     let smaller: &str = "1.0.0-rc.99999999999999999999999999";

@@ -1,12 +1,28 @@
-//! Window tests of the list defects of the second polish review: long names, the folder picker revealing its selection,
-//! the track list keeping its place across the 600 px breakpoint, the scrollbars, the playing-row marker, the deck that no
-//! longer moves with the folder name, and a list of ten thousand rows that builds only what is on screen.
+//! Window tests of the list defects of the second polish review:
+//! long names,
+//! the folder picker revealing its selection,
+//! the track list keeping its place across the 600 px breakpoint,
+//! the scrollbars,
+//! the playing-row marker,
+//! the deck that no
+//! longer moves with the folder name,
+//! and a list of ten thousand rows that builds only what is on screen.
 //!
-//! What: each test builds the real window on the testing backend, loads a queue through the same engine updates the app
-//! uses, sends real pointer and key events, and reads where elements sit and what the lists report.
-//! Why: these defects live in the composed window (a pane that builds every row, a picker that never scrolls, a layout that
-//! follows a label), so a test of pure logic cannot see them.
-//! Note: element lookup by id needs `SLINT_EMIT_DEBUG_INFO=1` at build time, which the repo test task sets.
+//! What:
+//! each test builds the real window on the testing backend,
+//! loads a queue through the same engine updates the app
+//! uses,
+//! sends real pointer and key events,
+//! and reads where elements sit and what the lists report.
+//! Why:
+//! these defects live in the composed window (a pane that builds every row,
+//! a picker that never scrolls,
+//! a layout that
+//! follows a label),
+//! so a test of pure logic cannot see them.
+//! Note:
+//! element lookup by id needs `SLINT_EMIT_DEBUG_INFO=1` at build time,
+//! which the repo test task sets.
 
 use i_slint_backend_testing::ElementHandle;
 use music_player::command::Update;
@@ -22,8 +38,12 @@ use crate::ui_screen::{project, update_state};
 use crate::ui_screen_scroll::ScrollRequest;
 use crate::ui_test_support::{RecordingHost, advance, chord, focus_label, fresh_window_at, settle};
 
-/// What: `load_names` gives the window a queue of the given display names, with the track at `playing` loaded.
-/// Why: the lists show whatever the engine reports, so the tests report their own queues the way the app does.
+/// What:
+/// `load_names` gives the window a queue of the given display names,
+/// with the track at `playing` loaded.
+/// Why:
+/// the lists show whatever the engine reports,
+/// so the tests report their own queues the way the app does.
 fn load_names(app: &AppWindow, names: &[String], playing: Option<usize>) {
     let paths: Vec<std::path::PathBuf> = names.iter().map(|name| return std::path::PathBuf::from("/nonexistent-library").join(name)).collect();
     crate::ui_screen::apply_update(app, &Update::Library(paths));
@@ -34,17 +54,22 @@ fn load_names(app: &AppWindow, names: &[String], playing: Option<usize>) {
     settle();
 }
 
-/// What: `one_folder` names `count` tracks of one folder, numbered from zero.
+/// What:
+/// `one_folder` names `count` tracks of one folder,
+/// numbered from zero.
 fn one_folder(count: usize) -> Vec<String> {
     return (0..count).map(|number| return format!("Big/Track {number:05}.mp3")).collect();
 }
 
-/// What: `many_folders` names `count` folders of one track each, numbered from zero.
+/// What:
+/// `many_folders` names `count` folders of one track each,
+/// numbered from zero.
 fn many_folders(count: usize) -> Vec<String> {
     return (0..count).map(|number| return format!("Folder {number:03}/01 Song.mp3")).collect();
 }
 
-/// What: `window_with` builds a window of the given size with a queue loaded.
+/// What:
+/// `window_with` builds a window of the given size with a queue loaded.
 fn window_with(width: f32, height: f32, names: &[String], playing: Option<usize>) -> (AppWindow, std::rc::Rc<RecordingHost>) {
     let (app, host) = fresh_window_at(width, height);
     load_names(&app, names, playing);
@@ -52,29 +77,35 @@ fn window_with(width: f32, height: f32, names: &[String], playing: Option<usize>
     return (app, host);
 }
 
-/// What: `box_of` gives an element's window position and size as `(x, y, width, height)`.
+/// What:
+/// `box_of` gives an element's window position and size as `(x, y, width, height)`.
 fn box_of(element: &ElementHandle) -> (f32, f32, f32, f32) {
     let position = element.absolute_position();
     let size = element.size();
     return (position.x, position.y, size.width, size.height);
 }
 
-/// What: `elements` lists the elements with a qualified id, in tree order.
+/// What:
+/// `elements` lists the elements with a qualified id,
+/// in tree order.
 fn elements(app: &AppWindow, id: &str) -> Vec<ElementHandle> {
     return ElementHandle::find_by_element_id(app, id).collect();
 }
 
-/// What: `track_scroll` reads where the track list on screen is scrolled to.
+/// What:
+/// `track_scroll` reads where the track list on screen is scrolled to.
 fn track_scroll(app: &AppWindow) -> f32 {
     return app.global::<TrackLayout>().get_scroll_y();
 }
 
-/// What: `folder_scroll` reads where the folder picker's names are scrolled to.
+/// What:
+/// `folder_scroll` reads where the folder picker's names are scrolled to.
 fn folder_scroll(app: &AppWindow) -> f32 {
     return app.global::<FolderLayout>().get_scroll_y();
 }
 
-/// What: `press_at` presses the left button at a window position and keeps it down.
+/// What:
+/// `press_at` presses the left button at a window position and keeps it down.
 fn press_at(app: &AppWindow, x: f32, y: f32) {
     let position = LogicalPosition::new(x, y);
     app.window().dispatch_event(WindowEvent::PointerMoved { position });
@@ -82,26 +113,31 @@ fn press_at(app: &AppWindow, x: f32, y: f32) {
     settle();
 }
 
-/// What: `move_to` moves the pointer to a window position.
+/// What:
+/// `move_to` moves the pointer to a window position.
 fn move_to(app: &AppWindow, x: f32, y: f32) {
     app.window().dispatch_event(WindowEvent::PointerMoved { position: LogicalPosition::new(x, y) });
     settle();
 }
 
-/// What: `release_at` releases the left button at a window position.
+/// What:
+/// `release_at` releases the left button at a window position.
 fn release_at(app: &AppWindow, x: f32, y: f32) {
     app.window().dispatch_event(WindowEvent::PointerReleased { position: LogicalPosition::new(x, y), button: PointerEventButton::Left });
     settle();
 }
 
-/// What: `wheel_at` turns the mouse wheel at a window position by `delta_y` logical pixels (negative scrolls down).
+/// What:
+/// `wheel_at` turns the mouse wheel at a window position by `delta_y` logical pixels (negative scrolls down).
 fn wheel_at(app: &AppWindow, x: f32, y: f32, delta_y: f32) {
     app.window().dispatch_event(WindowEvent::PointerMoved { position: LogicalPosition::new(x, y) });
     app.window().dispatch_event(WindowEvent::PointerScrolled { position: LogicalPosition::new(x, y), delta_x: 0.0, delta_y });
     advance(400);
 }
 
-/// What: `request_reveal` asks the list for the playing row at the top, as Ctrl+G does.
+/// What:
+/// `request_reveal` asks the list for the playing row at the top,
+/// as Ctrl+G does.
 fn request_reveal(app: &AppWindow) {
     update_state(|state| {
         state.scroll_request = Some(ScrollRequest::PlayingRow);
@@ -110,8 +146,12 @@ fn request_reveal(app: &AppWindow) {
     advance(64);
 }
 
-/// What: `visible_rows` lists the track rows of the pane at the given left edge that are built, as `(label, y)`.
-/// Why: the window builds both layouts, so the rows of the pane that is on screen are told apart by where they start.
+/// What:
+/// `visible_rows` lists the track rows of the pane at the given left edge that are built,
+/// as `(label, y)`.
+/// Why:
+/// the window builds both layouts,
+/// so the rows of the pane that is on screen are told apart by where they start.
 fn built_rows(app: &AppWindow, pane_left: f32, pane_right: f32) -> Vec<(String, f32)> {
     return elements(app, "TrackListPane::row-touch")
         .iter()
@@ -123,7 +163,8 @@ fn built_rows(app: &AppWindow, pane_left: f32, pane_right: f32) -> Vec<(String, 
         .collect();
 }
 
-/// What: `top_row` gives the label of the row that starts at or just below the top of the pane that is on screen.
+/// What:
+/// `top_row` gives the label of the row that starts at or just below the top of the pane that is on screen.
 fn top_row(app: &AppWindow, pane_left: f32, pane_right: f32, pane_top: f32) -> String {
     let mut rows: Vec<(String, f32)> = built_rows(app, pane_left, pane_right).into_iter().filter(|(_label, y)| return *y >= pane_top - 0.5).collect();
     rows.sort_by(|a, b| return a.1.total_cmp(&b.1));
@@ -186,7 +227,8 @@ fn the_wheel_scrolls_the_list_through_the_scrollbar_column() {
 
 // ---- VD1: the scrollbar ----
 
-/// What: `bar_in` finds the scrollbar whose column starts at the given left edge.
+/// What:
+/// `bar_in` finds the scrollbar whose column starts at the given left edge.
 fn bar_at(app: &AppWindow, left: f32) -> ElementHandle {
     return ElementHandle::find_by_element_type_name(app, "Scrollbar")
         .find(|bar| {
@@ -273,9 +315,14 @@ fn a_short_list_has_no_scrollbar() {
 
 // ---- D125: the folder picker has no scrollbar ----
 
-/// What: `long_picker_and_long_folder` names 150 one-track folders and one folder of 100 tracks.
-/// Why: with the long folder playing, the picker and the track list both overflow their panes, so a scrollbar on either
-/// would be drawn, and the track list's bar is the positive control that the lookup can see a bar at all.
+/// What:
+/// `long_picker_and_long_folder` names 150 one-track folders and one folder of 100 tracks.
+/// Why:
+/// with the long folder playing,
+/// the picker and the track list both overflow their panes,
+/// so a scrollbar on either
+/// would be drawn,
+/// and the track list's bar is the positive control that the lookup can see a bar at all.
 fn long_picker_and_long_folder() -> Vec<String> {
     let mut names = many_folders(150);
     names.extend(one_folder(100));
@@ -442,7 +489,8 @@ fn a_very_long_track_title_stays_inside_the_pane_and_keeps_its_full_name_for_ass
 
 // ---- LS2 and OV1: the picker reveals the selected folder and ends a long name in an ellipsis ----
 
-/// What: `selected_name` finds the folder name that reads as selected in the picker of the given left edge.
+/// What:
+/// `selected_name` finds the folder name that reads as selected in the picker of the given left edge.
 fn selected_name(app: &AppWindow, pane_left: f32) -> Option<ElementHandle> {
     return elements(app, "FolderPickerPane::name-touch")
         .into_iter()
@@ -508,7 +556,10 @@ fn a_hundred_character_folder_name_ends_inside_the_picker_with_its_full_name_ava
 
 // ---- LS6 and OV2: the deck keeps its controls where they are, and a long Shuffle name is cut in the middle ----
 
-/// What: `deck_boxes` lists where the deck's transport row, seek bar and mode segments are, for comparing two windows.
+/// What:
+/// `deck_boxes` lists where the deck's transport row,
+/// seek bar and mode segments are,
+/// for comparing two windows.
 fn deck_boxes(app: &AppWindow) -> Vec<(String, (f32, f32, f32, f32))> {
     let mut boxes = Vec::new();
     for id in ["TransportDeck::seek-touch", "TransportDeck::seg-0", "TransportDeck::seg-1", "TransportDeck::seg-2", "TransportDeck::seg-3"] {
@@ -535,13 +586,19 @@ fn the_deck_controls_do_not_move_with_the_folder_name() {
     }
 }
 
-/// What: `tail_widths` lists the widths of the Shuffle segment's tail texts that are drawn.
-/// Why: a text that is empty is not visible, and the element lookup lists visible elements only, so a name that fits has none.
+/// What:
+/// `tail_widths` lists the widths of the Shuffle segment's tail texts that are drawn.
+/// Why:
+/// a text that is empty is not visible,
+/// and the element lookup lists visible elements only,
+/// so a name that fits has none.
 fn tail_widths(app: &AppWindow) -> Vec<f32> {
     return elements(app, "ModeSegment::tail-text").iter().map(|tail| return box_of(tail).2).collect();
 }
 
-/// What: `drawn_shuffle_width` gives the width the Shuffle segment's label and tail take together, left to right.
+/// What:
+/// `drawn_shuffle_width` gives the width the Shuffle segment's label and tail take together,
+/// left to right.
 fn drawn_shuffle_width(app: &AppWindow) -> f32 {
     // The deck on screen is the only one built visible, so its four segments are the four labels; the folder segment is third.
     let label = elements(app, "ModeSegment::label-text");
@@ -581,8 +638,12 @@ fn every_cut_shuffle_name_takes_the_same_width_and_a_short_one_less() {
 
 // ---- VD1 and OV1 on the other lists: Settings, the editor page and Search ----
 
-/// What: `bars_on_screen` lists the scrollbars that are drawn, as `(left edge, width, height)`.
-/// Why: a scrollbar of a list that fits is not visible, and the element lookup lists visible elements only.
+/// What:
+/// `bars_on_screen` lists the scrollbars that are drawn,
+/// as `(left edge, width, height)`.
+/// Why:
+/// a scrollbar of a list that fits is not visible,
+/// and the element lookup lists visible elements only.
 fn bars_on_screen(app: &AppWindow) -> Vec<(f32, f32, f32)> {
     return ElementHandle::find_by_element_type_name(app, "Scrollbar")
         .map(|bar| {

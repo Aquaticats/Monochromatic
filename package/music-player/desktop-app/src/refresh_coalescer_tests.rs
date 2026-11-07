@@ -5,8 +5,10 @@
 
 use super::*;
 
-/// What: `files` builds a file-set work from names.
-/// Why: tests name files by short strings.
+/// What:
+/// `files` builds a file-set work from names.
+/// Why:
+/// tests name files by short strings.
 fn files(names: &[&str]) -> Work {
     let check: HashSet<PathBuf> = names.iter().map(|name| return PathBuf::from(name)).collect();
     return Work::Files(Files { check, announce: HashSet::new() });

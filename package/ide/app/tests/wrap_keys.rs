@@ -15,7 +15,8 @@ use ide_app::document::{Document, ReadingAffinity, ReadingPosition};
 /// The pure Home and End rules,
 /// and the shaped form the key handler calls.
 use ide_app::line_boundary::{CaretPlace, Edge, end, home, moved_to_edge, row_containing};
-/// The height of one code row, which places a point below the rows.
+/// The height of one code row,
+/// which places a point below the rows.
 use ide_app::row_map::CODE_ROW;
 /// Shaper and the rows it produces.
 use ide_app::shaped_text::TextShaper;

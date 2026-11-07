@@ -10,10 +10,10 @@
 //! ```
 
 /// The query builder, the reader and the scopes.
-use super::{DirtyScope, dirty_from_output, dirty_query_arguments};
+use super::{DirtyScope, dirty_from_output, dirty_query_arguments, index_file_is_absent};
 use crate::command_test_support::{fixture, git, os_arguments, remove, repository};
 use crate::git_metadata::MetadataOutput;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 
 /// Build the output of one status run.
 fn output(success: bool, stdout: &[u8], stderr: &[u8]) -> MetadataOutput {
@@ -90,4 +90,29 @@ fn ask(repo: &std::path::Path, scope: DirtyScope) -> bool {
     let raw = crate::command_test_support::git_output(repo, arguments.as_slice());
     let output = output(raw.status.success(), &raw.stdout, &raw.stderr);
     return dirty_from_output(&output).expect("status answers");
+}
+
+/// A Git directory without an `index` file is absent; one with an `index` file, empty included, is not.
+#[test]
+fn the_index_file_is_absent_only_where_the_git_directory_has_none() {
+    let root = fixture("index-file-absent");
+    let git_directory = root.join("git-directory");
+    std::fs::create_dir(&git_directory).expect("git directory");
+    assert!(index_file_is_absent(Some(git_directory.as_path()), None));
+    std::fs::write(git_directory.join("index"), b"").expect("empty index file");
+    assert!(!index_file_is_absent(Some(git_directory.as_path()), None));
+    remove(root.as_path());
+}
+
+/// A Git directory that does not exist, no Git directory, and a `GIT_INDEX_FILE` that names another index leave the question to the status.
+#[test]
+fn the_index_file_is_not_absent_when_the_question_is_not_the_default_index() {
+    let root = fixture("index-file-unknown");
+    let missing = root.join("no-such-git-directory");
+    assert!(!index_file_is_absent(Some(missing.as_path()), None));
+    assert!(!index_file_is_absent(None, None));
+    let git_directory = root.join("git-directory");
+    std::fs::create_dir(&git_directory).expect("git directory");
+    assert!(!index_file_is_absent(Some(git_directory.as_path()), Some(OsStr::new("other-index"))));
+    remove(root.as_path());
 }

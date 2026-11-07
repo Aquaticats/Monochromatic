@@ -38,7 +38,8 @@ fn repository() -> tempfile::TempDir {
 
 /// Round 7 (6b2 5):
 /// a completion marker that cannot be published is not cleanup:
-/// the error says so, and the journal is still active (not renamed).
+/// the error says so,
+/// and the journal is still active (not renamed).
 #[test]
 fn a_completion_failure_is_not_cleanup_and_leaves_the_journal_active() {
     let root = repository();
@@ -66,7 +67,8 @@ fn a_removal_failure_after_the_marker_is_cleanup_only() {
     assert!(error.cleanup_only(), "{error}");
 }
 
-/// Round 7 (6c R1, the update half):
+/// Round 7 (6c R1,
+/// the update half):
 /// an update that failed and whose mandatory finishing failed too reports both.
 #[test]
 fn an_update_error_with_a_failed_mandatory_phase_reports_both() {
@@ -79,9 +81,14 @@ fn an_update_error_with_a_failed_mandatory_phase_reports_both() {
 }
 
 /// A failed removal of a disposable journal does not change an update error.
-/// Certification group 3 (A3, A4): the operational error of cargo (an `UpdateError::Cargo`) joined with a failed mandatory phase is
-/// not an operational error any more: it is the mandatory-failure error (`Other`, with the remedy to run the command again) that
-/// carries both diagnostics, for each mandatory phase.
+/// Certification group 3 (A3,
+/// A4):
+/// the operational error of cargo (an `UpdateError::Cargo`) joined with a failed mandatory phase is
+/// not an operational error any more:
+/// it is the mandatory-failure error (`Other`,
+/// with the remedy to run the command again) that
+/// carries both diagnostics,
+/// for each mandatory phase.
 /// An error that stayed `Cargo` would keep the classification that lets a caller treat it as an ordinary failure.
 #[test]
 fn an_operational_error_joined_with_a_failed_mandatory_phase_becomes_the_mandatory_failure_kind() {

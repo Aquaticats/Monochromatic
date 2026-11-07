@@ -7,7 +7,8 @@
 //! the current track,
 //!  immediately use the safe -1 dBTP ceiling gain,
 //!  and let the
-//! controller apply it on the next poll, so playback never waits for it.
+//! controller apply it on the next poll,
+//! so playback never waits for it.
 //!  If the
 //! measurement finishes later,
 //!  the controller swaps future decoded samples to the
@@ -133,14 +134,18 @@ pub(crate) struct PeakGainResult {
     /// ```
     pub(crate) generation: u64,
     /// What:
-    ///      `pub(crate) path: PathBuf`. The track this measurement belongs to.
+    ///      `pub(crate) path: PathBuf`.
+    /// The track this measurement belongs to.
     /// Why:
-    ///       The window's row for this track takes the measure from the decision, keyed by path.
+    ///       The window's row for this track takes the measure from the decision,
+    /// keyed by path.
     pub(crate) path: PathBuf,
     /// What:
-    ///      `pub(crate) decision: Decision`. The full decision the measurement stored in the cache.
+    ///      `pub(crate) decision: Decision`.
+    /// The full decision the measurement stored in the cache.
     /// Why:
-    ///       The result carries the decision itself, so the row can show it without a racing cache read.
+    ///       The result carries the decision itself,
+    /// so the row can show it without a racing cache read.
     pub(crate) decision: Decision,
     /// What:
     ///      `pub(crate) gain: f32`.

@@ -1,4 +1,5 @@
-//! Tests for the pure parts of `ui_files`: the error wording and the Undo capability flag.
+//! Tests for the pure parts of `ui_files`:
+//! the error wording and the Undo capability flag.
 
 use super::*;
 
@@ -23,8 +24,11 @@ fn restore_capability_matches_the_trash_crate_platforms() {
     assert_eq!(can_restore_from_trash(), expected);
 }
 
-/// What: `scratch_dir` makes an empty disposable folder under the system temp directory.
-/// Why: the symlink tests need real folders, and must never touch the user's files or trash (THR).
+/// What:
+/// `scratch_dir` makes an empty disposable folder under the system temp directory.
+/// Why:
+/// the symlink tests need real folders,
+/// and must never touch the user's files or trash (THR).
 fn scratch_dir(tag: &str) -> PathBuf {
     let nanos: u128 = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
