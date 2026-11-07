@@ -259,10 +259,10 @@ pub fn place_lock(platform: &Platform, staged: &Path, marker: &str, lock: &Path)
         lock.display()
     );
     // A kill here leaves a lock without its marker.
-    crate::service_fault::reach("lock-created-unmarked");
+    crate::service_fault::reach(crate::service_fault::LOCK_CREATED_UNMARKED);
     let marked: std::io::Result<()> = std::io::Write::write_all(&mut file, marker.as_bytes()).and_then(|()| {
         // A kill here leaves a lock with its marker, not yet flushed.
-        crate::service_fault::reach("lock-marked-unsynced");
+        crate::service_fault::reach(crate::service_fault::LOCK_MARKED_UNSYNCED);
         return (platform.sync)(&file);
     });
     if let Err(error) = marked {
