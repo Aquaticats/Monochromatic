@@ -91,6 +91,14 @@ Both `-s` and `-o` accept file globs or `sh:` prefixed shell commands.
 Non-zero exit codes are errors,
  not silent staleness signals.
 
+Nothing waits forever.
+Every `sh:` item and `sh:` time strategy is ended after `--query-timeout-seconds` (default 60),
+and the command after `--` is ended after `--command-timeout-seconds` (default 3600; a provisional value).
+Both accept fractions of a second.
+An ended child is a failure with exit code 1,
+ and the message names the bound and the option that changes it.
+The glob reads of `-s` and `-o` run inside task-depends itself and have no bound of their own.
+
 ```sh
 # File-based: run build only when sources changed
 task-depends -s "src/**/*.ts" -o "dist/**/*.js" -- mise run build
@@ -109,6 +117,9 @@ task-depends -v -s "src/**" -o "dist/**" -- mise run build
 
 # Allow command failure
 task-depends -a -s "src/**" -o "dist/**" -- mise run build
+
+# Longer bounds for a slow probe and a long build
+task-depends --query-timeout-seconds 120 --command-timeout-seconds 7200 -s "src/**" -o "sh:slow-probe" -- mise run build
 ```
 
 ### task-tsc

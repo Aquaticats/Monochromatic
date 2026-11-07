@@ -83,19 +83,13 @@ function execAsync(command: string,): Promise<{ readonly stdout: string; readonl
  ```
  */
 async function stderrOfFailure(command: string,): Promise<string> {
-  /**
-   The failure the command raised; stays undefined when the command succeeded.
-   */
-  let caught: unknown;
   try {
     await execAsync(command,);
   }
   catch (error) {
-    caught = error;
+    return String((error as { readonly stderr?: string; }).stderr,);
   }
-  if (caught === undefined)
-    throw new Error(`command succeeded but was expected to fail: ${command}`,);
-  return String((caught as { readonly stderr?: string; }).stderr,);
+  throw new Error(`command succeeded but was expected to fail: ${command}`,);
 }
 
 //region Fixture Setup: temp directory with controllable source and output files

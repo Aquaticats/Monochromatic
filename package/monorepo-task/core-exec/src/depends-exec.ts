@@ -12,12 +12,18 @@
    commandArgs: ['run', 'build'],
    verbose: false,
    allowFailure: false,
+   commandTimeoutMs: 3_600_000,
  });
  ```
  */
 
 import spawn from 'nano-spawn';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+
+import {
+  boundedSpawnOptions,
+  timeoutNote,
+} from './depends-bounded-wait.ts';
 
 //region Types
 
@@ -31,6 +37,7 @@ import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
    commandArgs: ['build'],
    verbose: false,
    allowFailure: false,
+   commandTimeoutMs: 3_600_000,
  };
  ```
  */
@@ -51,6 +58,10 @@ export type ExecuteOptions = {
    Whether to suppress command failures (exit 0 regardless)
    */
   readonly allowFailure: boolean;
+  /**
+   How long the command may run before it is ended, in milliseconds
+   */
+  readonly commandTimeoutMs: number;
 };
 
 //endregion Types
@@ -72,6 +83,8 @@ export type ExecuteOptions = {
  
  @param allowFailure - Whether to suppress command failures (exit 0 regardless)
  
+ @param commandTimeoutMs - How long the command may run before it is ended; an ended command counts as a failure
+ 
  @example
  ```ts
  await executeWithCollapsedOutput({
@@ -79,6 +92,7 @@ export type ExecuteOptions = {
    commandArgs: ['run', 'build'],
    verbose: true,
    allowFailure: false,
+   commandTimeoutMs: 3_600_000,
  });
  ```
  */
@@ -87,6 +101,7 @@ export async function executeWithCollapsedOutput({
   commandArgs,
   verbose,
   allowFailure,
+  commandTimeoutMs,
 }: ExecuteOptions,): Promise<void> {
   if (verbose)
     console.error(`[task-depends] running: ${command} ${commandArgs.join(' ',)}`,);
@@ -96,12 +111,25 @@ export async function executeWithCollapsedOutput({
     await spawn(
       command,
       [...commandArgs,],
+      boundedSpawnOptions({ timeoutMs: commandTimeoutMs, },),
     );
 
     if (verbose)
       console.error('[task-depends] command completed successfully',);
   }
   catch (error) {
+    /**
+     Sentence naming the bound when it ended the command; empty when the command failed by itself.
+     */
+    const note = timeoutNote({
+      error,
+      timeoutMs: commandTimeoutMs,
+    },);
+    if (note !== '') {
+      console.error(
+        `[task-depends] command ${note} (raise it with --command-timeout-seconds): ${command} ${commandArgs.join(' ',)}`,
+      );
+    }
     dumpAndHandleError({
       error,
       allowFailure,

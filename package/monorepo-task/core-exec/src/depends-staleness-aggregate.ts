@@ -11,6 +11,10 @@ import spawn from 'nano-spawn';
 import dedent from 'string-dedent';
 
 import {
+  boundedSpawnOptions,
+  timeoutNote,
+} from './depends-bounded-wait.ts';
+import {
   builtinStrategies,
   type BuiltinTimeStrategy,
   type TimeStrategy,
@@ -27,6 +31,7 @@ import {
    command: 'sort -rn | head -1',
    timestamps: [1, 2, 3],
    verbose: false,
+   queryTimeoutMs: 60_000,
  };
  ```
  */
@@ -43,6 +48,10 @@ type RunStrategyCommandOptions = {
    Whether to log diagnostic messages
    */
   readonly verbose: boolean;
+  /**
+   How long the command may run before it is ended, in milliseconds
+   */
+  readonly queryTimeoutMs: number;
 };
 
 /**
@@ -60,19 +69,22 @@ type RunStrategyCommandOptions = {
  
  @param verbose - Whether to log diagnostic messages
  
+ @param queryTimeoutMs - How long the command may run before it is ended
+ 
  @returns Aggregated timestamp from command stdout
  
- @throws When command fails or returns unparseable output
+ @throws When command fails, runs past `queryTimeoutMs`, or returns unparseable output
  
  @example
  ```ts
- await runStrategyCommand({ command: 'sort -rn | head -1', timestamps: [1, 2, 3], verbose: false }) // 3
+ await runStrategyCommand({ command: 'sort -rn | head -1', timestamps: [1, 2, 3], verbose: false, queryTimeoutMs: 60_000 }) // 3
  ```
  */
 async function runStrategyCommand({
   command,
   timestamps,
   verbose,
+  queryTimeoutMs,
 }: RunStrategyCommandOptions,): Promise<number> {
   /**
    Space-separated stringified timestamps suitable for embedding in a `printf` argument list.
@@ -100,12 +112,31 @@ async function runStrategyCommand({
      */
     const result = await spawn(
       fullCommand,
-      { shell: true, },
+      {
+        shell: true,
+        ...boundedSpawnOptions({ timeoutMs: queryTimeoutMs, },),
+      },
     );
     stdout = result.stdout
       .trim();
   }
   catch (error) {
+    /**
+     Sentence naming the bound when it ended the command; empty when the command failed by itself.
+     */
+    const note = timeoutNote({
+      error,
+      timeoutMs: queryTimeoutMs,
+    },);
+    if (note !== '') {
+      throw new Error(
+        dedent`
+          Strategy sh: "${command}" ${note}
+          Strategy commands must print a timestamp within the bound; raise it with --query-timeout-seconds when the probe is slow
+        `,
+        { cause: error, },
+      );
+    }
     throw new Error(
       dedent`
         Strategy sh: "${command}" failed with non-zero exit code
@@ -167,6 +198,7 @@ async function runStrategyCommand({
    timestamps: [1, 2, 3],
    strategy: 'newest',
    verbose: false,
+   queryTimeoutMs: 60_000,
  };
  ```
  */
@@ -183,6 +215,10 @@ export type AggregateTimestampsOptions = {
    Whether to log diagnostic messages
    */
   readonly verbose: boolean;
+  /**
+   How long a `sh:` strategy command may run before it is ended, in milliseconds
+   */
+  readonly queryTimeoutMs: number;
 };
 
 /**
@@ -196,17 +232,20 @@ export type AggregateTimestampsOptions = {
  
  @param verbose - Whether to log diagnostic messages
  
+ @param queryTimeoutMs - How long a `sh:` strategy command may run before it is ended
+ 
  @returns Single aggregated timestamp
  
  @example
  ```ts
- await aggregateTimestamps({ timestamps: [1, 2, 3], strategy: 'newest', verbose: false }) // 3
+ await aggregateTimestamps({ timestamps: [1, 2, 3], strategy: 'newest', verbose: false, queryTimeoutMs: 60_000 }) // 3
  ```
  */
 export async function aggregateTimestamps({
   timestamps,
   strategy,
   verbose,
+  queryTimeoutMs,
 }: AggregateTimestampsOptions,): Promise<number> {
   if (strategy in builtinStrategies) {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 'in' check above narrows strategy to BuiltinTimeStrategy
@@ -225,6 +264,7 @@ export async function aggregateTimestamps({
       command: strategy.slice(shPrefix.length,),
       timestamps,
       verbose,
+      queryTimeoutMs,
     },);
   }
 
