@@ -110,6 +110,13 @@ pub mod service_client_settings_and_watches;
 /// starting it when nothing answers.
 pub mod service_client_reach_service;
 
+/// What provisioning knows about the machine and the manager it asks,
+/// the earlier release's unit names and what a refused call is to the person.
+pub mod service_provision_host_and_manager;
+
+/// The retirement of the single service of the earlier releases.
+pub mod service_provision_earlier_service_retirement;
+
 /// The wrapper's own provisioning of the commit service's socket activation.
 pub mod service_provision;
 
