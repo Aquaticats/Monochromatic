@@ -10,8 +10,8 @@ use std::collections::HashMap;
 ///  `info` from `tracing`.
 use tracing::{debug, info};
 /// Imports `object_server::SignalEmitter`,
-///  `zvariant::OwnedValue` from `zbus`.
-use zbus::{object_server::SignalEmitter, zvariant::OwnedValue};
+///  `OwnedVariant` from `zbus`.
+use zbus::{object_server::SignalEmitter, OwnedVariant};
 
 /// Imports the items this module uses from `crate`.
 use crate::{
@@ -91,7 +91,7 @@ const _: () = {
             summary: String,
             body: String,
             actions: Vec<String>,
-            hints: HashMap<String, OwnedValue>,
+            hints: HashMap<String, OwnedVariant>,
             expire_timeout: i32,
         ) -> u32 {
             let call = NotifyCall {

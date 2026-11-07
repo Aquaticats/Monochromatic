@@ -7,9 +7,8 @@
 /// Imports `Ordering` from `std::sync::atomic`.
 use std::sync::atomic::Ordering;
 
-/// Imports `Context`,
-///  `Result` from `anyhow`.
-use anyhow::{Context, Result};
+/// Imports `Result` from `anyhow`.
+use anyhow::Result;
 
 /// Imports the items this module uses from `super`.
 use super::{
@@ -17,7 +16,7 @@ use super::{
     PORTAL_OBJECT_PATH, SETTINGS_INTERFACE, SETTING_CHANGED_SIGNAL,
 };
 /// Imports `AccentColor` from `crate::accent_color`.
-use crate::accent_color::AccentColor;
+use crate::{accent_color::AccentColor, bus_step_bound::block_on_bounded};
 
 /// Switching the accent color a hosted toolkit reads.
 impl AppearancePortal {
@@ -49,17 +48,20 @@ impl AppearancePortal {
             tracing::debug!(%color, "accent color already served; no signal emitted");
             return Ok(SwitchOutcome::Unchanged);
         }
-        let emitted = self.connection.emit_signal(
-            None::<&str>,
-            PORTAL_OBJECT_PATH,
-            SETTINGS_INTERFACE,
-            SETTING_CHANGED_SIGNAL,
-            &(APPEARANCE_NAMESPACE, ACCENT_COLOR_KEY, accent_variant(color)),
+        let emitted = block_on_bounded(
+            "emitting SettingChanged for the accent color on the private appearance bus",
+            self.connection.emit_signal(
+                None::<&str>,
+                PORTAL_OBJECT_PATH,
+                SETTINGS_INTERFACE,
+                SETTING_CHANGED_SIGNAL,
+                &(APPEARANCE_NAMESPACE, ACCENT_COLOR_KEY, accent_variant(color)),
+            ),
         );
         // A change nobody was told about is not a change: restore the old color so a retry emits again.
         if let Err(error) = emitted {
             self.served_accent.store(previous, Ordering::SeqCst);
-            return Err(error).context("emitting SettingChanged for the accent color on the private appearance bus");
+            return Err(error);
         }
         tracing::info!(%color, "switched isolated accent color and emitted SettingChanged");
         return Ok(SwitchOutcome::Changed);

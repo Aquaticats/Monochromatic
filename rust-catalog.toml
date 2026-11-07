@@ -135,6 +135,7 @@ windows = ">=0.62.2"
 winresource = ">=0.1.34"
 zbus = ">=6.2.1"
 zbus_xml = ">=6.0.0"
+zruntime = ">=0.2.2"
 
 # bincode 1.x only (package/forbidden-strings/core): the crate uses the 1.x serde functions, and bincode 3.0.0 is a
 # placeholder whose library is a single compile_error (its message is an xkcd address, comic 2347). The default
