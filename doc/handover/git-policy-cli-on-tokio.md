@@ -46,12 +46,12 @@
   callers are synchronous, so they are in practice T11's leaf-first conversion.
 - Left on purpose by the settlements: the `LeaveRunning` waiter thread and the `Unbounded` blocking `wait` of `output_watched_within`
   (a reaper that does not end the child when dropped is needed first).
-- Open for the coordinator and the owner: the exposure that `STOP_GRACE` (5 s) is below the longest measured disk stall (6.03 s), so a `SIGKILL`
-  at the end of a grace can cut Git's cleanup between its two unlinks and leave a ref lock (plan, "The two gate failures"); the factor
-  ten of `HELD_NAME_WAIT`; the index-lock fallback belongs to another agent.
+- Settled by the owner, 2026-11-07, "3x worst case" (plan, "The owner's pick on the waits"): `HELD_NAME_WAIT` and the stop's ceiling are three
+  times the longest delay measured (about 18.1 s); a stop waits past its grace while a member is in state `D`. Still open: the cause of the 6.03 s
+  (disk or scheduler) is not measured; the index-lock fallback belongs to another agent.
 - The mutation campaign is the coordinator's. Files changed since the last list: `src/native/process/step_output_read_whole_through_pipes.rs`,
   `src/native/push/child_watch.rs`, `src/native/foundation/name_held_while_one_thread_publishes_it.rs`, `src/native/foundation/private_storage.rs`,
-  `src/native/service/systemd_dbus.rs`, `src/native/standards_review/standards_review_client.rs` (the test helper
+  `src/native/service/systemd_dbus.rs`, `src/native/standards_review/standards_review_client.rs`, `src/native/process/stop_waits_while_a_member_cannot_be_interrupted.rs`, `src/native/process/process_tree.rs`, `src/native/push/bounded_push.rs`, `src/native/push/child_watch_clock_marks_and_stopping.rs`, `src/native/foundation/worst_delay_seen_on_this_host.rs` (the test helper
   `src/native/testing/test_support.rs` is not mutated code).
 
 ## Rules that bit during this work

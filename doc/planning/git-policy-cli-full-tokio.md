@@ -2108,6 +2108,34 @@ The coordinator's gate under a load average of about 70 failed two controls that
   `EndAt` Git step of `run_git_watched` now enters the runtime twice, `attach_pipes` and `read_until_the_child_ends`); its cost against "commits
   vs native git should not take 5s longer" is an unmeasured exposure until then.
 
+### The owner's pick on the waits, and the stop that waits for a member that cannot be interrupted, 2026-11-07T15:10:00-05:00
+
+- The question (asked by the coordinator in the question tool): how much longer than the measured worst case (a check and a rename that took 6.03 s
+  of wall time once, cause not measured) the wrapper waits before giving up, for (1) the wait before force-killing a Git asked to stop and (2) the
+  held-name wait. The owner picked, 2026-11-07, verbatim: "3x worst case".
+- Applied in `foundation/worst_delay_seen_on_this_host.rs` (`LONGEST_DELAY_SEEN` 6.031986 s, `OWNER_MARGIN` 3, `WORST_CASE_WITH_MARGIN` about 18.1 s):
+  `HELD_NAME_WAIT` in `private_storage.rs` is that value (it was 60.3 s with the agent's factor ten); `STOP_CEILING` is the same value.
+- The stop: `process/stop_waits_while_a_member_cannot_be_interrupted.rs` `escalation_waits`. After `SIGTERM` the stop waits its grace (`STOP_GRACE`, 5 s);
+  past it, while some member of the stopped tree is in uninterruptible sleep (`/proc/<pid>/stat` state `D`, `process_tree.rs` `in_uninterruptible_sleep`)
+  it keeps waiting, and it forces the end no later than `STOP_CEILING` after the request; with no member in `D` it forces at the grace, as before. The
+  look is at the interval each stop's own loop already used (10 ms, `POLL_PAUSE` and `STOP_POLL`), so no loop was added. Stops that escalate
+  `SIGTERM` to `SIGKILL`: `push/bounded_push.rs` `stop_push` (also the stop of `push/bounded_query.rs`, which calls it) and
+  `push/child_watch_clock_marks_and_stopping.rs` `stop_process` (every watched step). Other kills in production code send `SIGKILL` with no prior
+  request (`candidate/candidate_reader.rs`, `push/auto_push_reconcile_merge_commit.rs`, `repair/package_repair_command.rs`,
+  `process/child_awaited_through_a_pidfd.rs`) and are not stops of this kind.
+- `WATCHER_END_BOUND` is `STOP_CEILING` plus `STOP_TAIL_ALLOWANCE` (one second, twenty-four times the longest tail measured), about 19.1 s; it was
+  `STOP_GRACE` plus the allowance. The earlier text of this plan that gives 60.3 s and 6 s is superseded by this section.
+- Controls: red `c73ca8c76e` (the exact-value control of the held-name wait,
+  the end-bound control, and the strace reproduction, now running); green: the reproduction `a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock`
+  passes; `a_member_held_for_ever_is_ended_at_the_ceiling_and_the_lock_is_swept` (a stop whose member never leaves the blocked state returns one
+  ceiling after the request and the lock is swept), and four unit controls of `escalation_waits` (inside the grace, past it with no member blocked, a
+  member that never leaves, the real ceiling is three times the delay and past the grace). A planted control (the ceiling removed from `escalation_waits`)
+  failed the held-for-ever unit control.
+- A deviation to know: `strace` holds the delayed handler in a tracing stop (state `t`), not in `D`, and a `D` cannot be made on demand. The reproduction and
+  the held-for-ever control therefore install, on their own thread, a stand-in rule (`D` or `t` counts; a test-only seam of `escalation_waits`); the
+  production rule looks for `D` only. So the controls prove the loop's waiting and its ceiling, and that waiting through the handler's cleanup leaves no lock;
+  they do not prove that a real `D` is recognised beyond `the_state_look_reads_a_real_process_and_refuses_a_gone_one`, which reads this test's own process.
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`, the `try_wait` loops of
