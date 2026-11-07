@@ -3599,8 +3599,12 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 ### Repository on the 860: plan revised, owner questions next
 
 - The symlink plan is committed (`4f430a0683`, `837fc9a6eb`) in `doc/planning/repository-on-the-860-drive.md`; nothing moved.
-- A cross-vendor review of it runs (`~/temp/agent/860-review/sol-review.txt`); fold its findings in,
-  then ask the owner Q1 to Q9 from the plan in the question tool.
+- A cross-vendor review of it runs (`~/temp/agent/860-review/sol-review.txt`); fold its findings in.
+  Then ask the owner only the items among Q1 to Q9 that are real decisions: the answer changes what happens,
+  no owner decision or measurement settles it, and it is destructive or a matter of preference.
+  Settled or reversible items with a clear ranking are adopted and recorded in the plan, not asked.
+  Owner, 2026-11-07: "Overloading me with non-question questions will only make things worse."
+  Notices and disclosures go in plain text, never as question-tool options.
 - The plan agent left two btrfs scratch subvolumes it could not delete as the user
   (`/var/home/user/temp/agent/dangling/svfix` and `svfix-snap`; the 860 lacks `user_subvol_rm_allowed`):
   the owner removes them with sudo, or they go when Q3 adds the mount option.
