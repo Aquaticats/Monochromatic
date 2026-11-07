@@ -24,7 +24,9 @@
 //!  a single file under `src/bin`) are not listed either,
 //!  and are read for code like an entry point;
 //!  a folder with module files but no `mod.rs` is a finding,
-//! because it has no top doc.
+//! because it has no top doc;
+//!  a group folder (a folder that holds child folders) is left to the folder rule,
+//! which lets it hold only its child folders and its `mod.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -39,6 +41,7 @@
 use crate::{
     layout_finding::{LayoutFinding, shown},
     layout_folder_index_files::{file_name, files_by_folder, index_file, index_file_findings},
+    layout_group_folders::find_groups,
     layout_loops::find_loops,
     layout_module_tree::ModuleTree,
     layout_module_uses::ModuleUse,
@@ -46,7 +49,7 @@ use crate::{
 };
 /// Import ordered collections and native paths.
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
 };
 
@@ -301,8 +304,13 @@ fn list_findings(
 /// ```
 pub fn check_file_order(tree: &ModuleTree, uses: &[ModuleUse], base: &Path) -> Vec<LayoutFinding> {
     let (by_folder, roots) = files_by_folder(tree);
+    let groups: BTreeSet<PathBuf> = find_groups(tree);
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     for (folder, files) in &by_folder {
+        // A group folder has no files to order and is checked by the folder rule.
+        if groups.contains(folder) {
+            continue;
+        }
         let index: Option<PathBuf> = index_file(folder, files, &roots);
         findings.extend(index_file_findings(index.as_ref(), files, &roots, base));
         let mut listed: Vec<PathBuf> = Vec::<PathBuf>::new();

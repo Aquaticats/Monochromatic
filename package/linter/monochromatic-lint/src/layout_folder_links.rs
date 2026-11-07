@@ -8,9 +8,10 @@
 //!  "Who depends on whom" must be visible in the file tree itself.
 //!  A folder uses another when code in one of its module files names a module that the other folder defines.
 //!  Decisions:
-//!  a parent folder and a child folder are folders like any other,
-//! so using one needs a link
-//!  (a child that reaches `super::super` into its parent's folder depends on it);
+//!  a folder that holds child folders is a group,
+//! which has its own checks in `layout_group_folders.rs`
+//!  (a shelf of folders with a `uses` summary,
+//! never linked or named by a folder);
 //!  a folder that uses nothing needs no `uses` folder because Git cannot store an empty one;
 //!  a glob re-export (`pub use folder::*`) is a finding of its own,
 //!  because it hides which folder an item comes from.
@@ -22,13 +23,14 @@
 
 /// Import the finding shape,
 ///  the link reader,
-///  the loop finder,
-///  the tree,
-///  the resolver and the uses.
+///  the group checks,
+///  the folder uses and loops,
+///  the tree and the resolver.
 use crate::{
     layout_finding::{LayoutFinding, shown},
+    layout_folder_uses::{FolderUses, Proof, group_by_folder, use_loops},
+    layout_group_folders::{find_groups, group_findings, group_loops, links_group},
     layout_link_entries::{USES_FOLDER, link_command, read_links},
-    layout_loops::find_loops,
     layout_module_tree::ModuleTree,
     layout_module_uses::{ModuleUse, folder_of},
     layout_path_resolution::resolve_path,
@@ -38,72 +40,6 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
 };
-
-/// What:
-///  The reference that proves one folder uses another.
-/// Why:
-///  Every finding about a use names a file and a line.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Proof = { file: Path; line: number; text: string };
-/// ```
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct Proof {
-    /// The file with the reference.
-    file: PathBuf,
-    /// Its line.
-    line: usize,
-    /// The path as written.
-    text: String,
-}
-
-/// What:
-///  The folders each folder uses,
-///  with the first reference that proves each use.
-/// Why:
-///  The smallest reference is kept so the output does not depend on discovery order.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type FolderUses = Map<Path, Map<Path, Proof>>;
-/// ```
-type FolderUses = BTreeMap<PathBuf, BTreeMap<PathBuf, Proof>>;
-
-/// What:
-///  Group module uses by the folders of the two modules.
-/// Why:
-///  A use inside one folder is not a folder dependency.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function groupByFolder(tree: ModuleTree, uses: ModuleUse[]): FolderUses;
-/// ```
-fn group_by_folder(tree: &ModuleTree, uses: &[ModuleUse]) -> FolderUses {
-    let mut grouped: FolderUses = FolderUses::new();
-    for found in uses {
-        let from: PathBuf = folder_of(tree, found.from);
-        let to: PathBuf = folder_of(tree, found.to);
-        if from == to {
-            continue;
-        }
-        let proof: Proof = Proof {
-            file: found.file.clone(),
-            line: found.line,
-            text: found.text.clone(),
-        };
-        // Keep the smallest proof so the output does not depend on discovery order.
-        let targets: &mut BTreeMap<PathBuf, Proof> = grouped.entry(from).or_default();
-        let smaller: bool = match targets.get(&to) {
-            Some(existing) => proof < *existing,
-            None => true,
-        };
-        if smaller {
-            targets.insert(to, proof);
-        }
-    }
-    return grouped;
-}
 
 /// What:
 ///  The finding for a folder that uses another with no link.
@@ -136,15 +72,19 @@ fn missing_link(from: &Path, to: &Path, proof: &Proof, base: &Path) -> LayoutFin
 ///  and the used folders without a link.
 /// Why:
 ///  A link is right exactly when the code uses its target.
+///  A group is never a target:
+///  a link to one is a finding of the group checks' kind,
+///  and a group the code names is reported by the group checks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function checkOneFolder(folder: Path, used: Map<Path, Proof>, links: LinkRead, base: Path): LayoutFinding[];
+/// function checkOneFolder(folder: Path, used: Map<Path, Proof>, links: LinkRead, groups: Set<Path>, base: Path): LayoutFinding[];
 /// ```
 fn check_one_folder(
     folder: &Path,
     used: Option<&BTreeMap<PathBuf, Proof>>,
     sources: &BTreeMap<PathBuf, PathBuf>,
+    groups: &BTreeSet<PathBuf>,
     base: &Path,
 ) -> Vec<LayoutFinding> {
     let read = read_links(folder, sources, base);
@@ -156,90 +96,35 @@ fn check_one_folder(
     let empty: BTreeMap<PathBuf, Proof> = BTreeMap::<PathBuf, Proof>::new();
     let needed: &BTreeMap<PathBuf, Proof> = used.unwrap_or(&empty);
     for link in &read.links {
-        if !needed.contains_key(&link.target) {
-            findings.push(LayoutFinding {
-                file: link.entry.clone(),
-                line: 0,
-                message: format!(
-                    "{} links to the folder {}, but no code in {} uses it.",
-                    shown(&link.entry, base),
-                    shown(&link.target, base),
-                    shown(folder, base)
-                ),
-                help: Some(String::from(
-                    "Remove the link, or use the folder it points to.",
-                )),
-            });
+        if needed.contains_key(&link.target) {
+            continue;
         }
+        if groups.contains(&link.target) {
+            findings.push(links_group(link, base));
+            continue;
+        }
+        findings.push(LayoutFinding {
+            file: link.entry.clone(),
+            line: 0,
+            message: format!(
+                "{} links to the folder {}, but no code in {} uses it.",
+                shown(&link.entry, base),
+                shown(&link.target, base),
+                shown(folder, base)
+            ),
+            help: Some(String::from(
+                "Remove the link, or use the folder it points to.",
+            )),
+        });
     }
     for (target, proof) in needed {
+        // A group the code names is reported by the group checks.
+        if groups.contains(target) {
+            continue;
+        }
         if !linked.contains(target) {
             findings.push(missing_link(folder, target, proof, base));
         }
-    }
-    return findings;
-}
-
-/// What:
-///  The findings for folders that use each other.
-/// Why:
-///  One finding per loop lists the folders and one reference per use inside it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function folderLoops(folders: Path[], uses: FolderUses, base: Path): LayoutFinding[];
-/// ```
-fn folder_loops(folders: &[PathBuf], grouped: &FolderUses, base: &Path) -> Vec<LayoutFinding> {
-    let mut position: BTreeMap<&PathBuf, usize> = BTreeMap::<&PathBuf, usize>::new();
-    for (index, folder) in folders.iter().enumerate() {
-        position.insert(folder, index);
-    }
-    let mut adjacency: Vec<Vec<usize>> = vec![Vec::<usize>::new(); folders.len()];
-    for (from, targets) in grouped {
-        for to in targets.keys() {
-            if let (Some(a), Some(b)) = (position.get(from), position.get(to)) {
-                adjacency[*a].push(*b);
-            }
-        }
-    }
-    let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
-    for members in find_loops(adjacency.as_slice()) {
-        let inside: BTreeSet<usize> = members.iter().copied().collect::<BTreeSet<usize>>();
-        let mut lines: Vec<String> = Vec::<String>::new();
-        let mut anchor: Option<Proof> = None;
-        for member in &members {
-            let from: &PathBuf = &folders[*member];
-            for (to, proof) in grouped.get(from).into_iter().flatten() {
-                let Some(target) = position.get(to) else {
-                    continue;
-                };
-                if !inside.contains(target) {
-                    continue;
-                }
-                lines.push(format!(
-                    "{} uses {} ({}:{} `{}`)",
-                    shown(from, base),
-                    shown(to, base),
-                    shown(&proof.file, base),
-                    proof.line,
-                    proof.text
-                ));
-                if anchor.is_none() {
-                    anchor = Some(proof.clone());
-                }
-            }
-        }
-        let Some(first) = anchor else {
-            continue;
-        };
-        findings.push(LayoutFinding {
-            file: first.file,
-            line: first.line,
-            message: format!("These folders use each other in a loop: {}.", lines.join("; ")),
-            help: Some(String::from(
-                "Move the shared code into a folder both can use, or pass it in, so that one direction of use disappears.",
-            )),
-        });
     }
     return findings;
 }
@@ -352,16 +237,30 @@ pub fn check_folder_links(
         }
     }
     let grouped: FolderUses = group_by_folder(tree, uses);
+    let groups: BTreeSet<PathBuf> = find_groups(tree);
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     for folder in &folder_list {
+        // A group's `uses` folder is a summary, checked with the group checks.
+        if groups.contains(folder) {
+            continue;
+        }
         findings.extend(check_one_folder(
             folder,
             grouped.get(folder),
             &sources,
+            &groups,
             base,
         ));
     }
-    findings.extend(folder_loops(folder_list.as_slice(), &grouped, base));
+    findings.extend(use_loops(
+        folder_list.as_slice(),
+        &grouped,
+        base,
+        "folders",
+        None,
+    ));
+    findings.extend(group_findings(tree, &groups, &grouped, &sources, base));
+    findings.extend(group_loops(&groups, &grouped, base));
     findings.extend(glob_reexports(tree, base));
     findings.extend(folder_below_uses(folder_list.as_slice(), base));
     return findings;
