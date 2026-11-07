@@ -7,7 +7,7 @@
 //!  with their output captured.
 //!  Both block in the operating system with nothing printed and no end,
 //!  so a stalled child looks the same as a slow one and holds the commit for good (issue 1811).
-//!  A watcher thread sees the wait from outside:
+//!  A watcher task, run on the process's runtime beside the blocked thread, sees the wait from outside:
 //!  the waiting thread marks where a wait begins and ends,
 //!  the watcher prints, and when the child has shown no sign of work for the window it ends the child so the blocked call
 //!  returns.
@@ -52,12 +52,13 @@ use std::io::Write;
 /// The flag the watcher raises when a wait crossed the bound, read by the waiting thread.
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-/// The marks the waiting thread sends the watcher; the watcher owns every other piece of state.
-use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
+/// The marks the waiting thread sends the watcher task; the task owns every other piece of state.
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 /// The lock files a stopped step leaves.
 use crate::stopped_git_locks::LockLedger;
-/// The watcher thread.
-use std::thread::JoinHandle;
+/// The watcher task, started on the process's runtime.
+use crate::lazy_runtime::spawn_on_runtime;
+use tokio::task::JoinHandle;
 /// Time spans and the monotonic clock.
 use std::time::{Duration, Instant};
 pub use crate::child_watch_clock_marks_and_stopping::{WatchTerms, grace_for};
@@ -77,13 +78,14 @@ use crate::child_watch_step_bounds_and_errors::{output_of};
 /// class ChildWatch implements Disposable { begin(); end(); get expired(): boolean }
 /// ```
 pub struct ChildWatch {
-    /// Where the marks go; dropped first when the watch is dropped, which tells the watcher thread to end.
-    marks: Option<Sender<Mark>>,
+    /// Where the marks go; dropped first when the watch is dropped, which tells the watcher task to end.
+    marks: Option<UnboundedSender<Mark>>,
     /// Whether a wait showed no sign of work for the window and the child was ended; raised by the watcher before it signals
     ///  the child.
     expired: Arc<AtomicBool>,
-    /// The watcher thread, joined when the watch is dropped.
-    thread: Option<JoinHandle<()>>,
+    /// The watcher task and the signal that it ended, waited for when the watch is dropped; nothing where no worker thread could
+    ///  run a task, and the waits then run unwatched.
+    task: Option<RunningWatcher>,
     /// The quiet window.
     limit: Duration,
     /// Whether a child that shows no sign of work for the window may be ended; cleared for a step that is not safe to run
@@ -108,9 +110,10 @@ impl ChildWatch {
     /// Start watching `pid`:
     ///  waits marked with `begin` and `end` are announced as waiting for `waiting_for`, the child is ended when it shows no
     ///  sign of work for the terms' window, and the lock files the child leaves when it is ended are swept by `locks`.
-    ///  A watch whose thread cannot start watches nothing, and the waits it marks run unannounced and unended.
+    ///  A watch whose task cannot run (the runtime has no worker thread) watches nothing, and the waits it marks run unannounced and
+    ///  unended.
     pub fn start_with_locks(waiting_for: &str, pid: u32, terms: WatchTerms, locks: LockLedger) -> Self {
-        let (marks, incoming): (Sender<Mark>, Receiver<Mark>) = channel();
+        let (marks, incoming): (UnboundedSender<Mark>, UnboundedReceiver<Mark>) = unbounded_channel();
         let expired: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
         let stoppable: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
         let longest: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
@@ -125,13 +128,15 @@ impl ChildWatch {
         };
         let subject: String = String::from(waiting_for);
         let limit: Duration = terms.limit;
-        let thread: Option<JoinHandle<()>> = std::thread::Builder::new()
-            .name(String::from("cli-git-child-watch"))
-            .spawn(move || {
-                watch_loop(&incoming, &flags, subject.as_str(), pid, terms, &locks);
-            })
-            .ok();
-        return Self { marks: Some(marks), expired, thread, limit, stoppable, longest, ledger_step: None, ceiling, ceiling_hit };
+        let (ended, finished): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
+        // The task holds `ended` and drops it however it ends (a panic or an abort included), which `finished` reads as a
+        // disconnection.
+        let spawned: Option<JoinHandle<()>> = spawn_on_runtime(async move {
+            let _ends_with_the_task: std::sync::mpsc::Sender<()> = ended;
+            watch_loop(incoming, flags, subject, pid, terms, locks).await;
+        });
+        let task: Option<RunningWatcher> = spawned.map(|handle| { return RunningWatcher { handle, finished }; });
+        return Self { marks: Some(marks), expired, task, limit, stoppable, longest, ledger_step: None, ceiling, ceiling_hit };
     }
 
     /// Keep the longest quiet gap of this watch in the ledger under `step` when the watch is dropped.
@@ -187,13 +192,16 @@ impl ChildWatch {
     }
 }
 
-/// Stops the watcher thread, waits for it, and keeps the longest quiet gap it saw.
+/// Stops the watcher task, waits for it, and keeps the longest quiet gap it saw.
 impl Drop for ChildWatch {
     fn drop(&mut self) {
         drop(self.marks.take());
-        if let Some(thread) = self.thread.take() {
-            // A watcher that panicked has nothing left to report; the wait it watched is over.
-            let _joined = thread.join();
+        if let Some(running) = self.task.take() {
+            // The task ends as soon as it reads that the marks are gone (it checks at least every `STOP_POLL`); `finished` reports
+            // that as a disconnection. A task that does not end by the bound is stopped, so that nothing waits for it for good.
+            if let Err(std::sync::mpsc::RecvTimeoutError::Timeout) = running.finished.recv_timeout(WATCHER_END_BOUND) {
+                running.handle.abort();
+            }
         }
         if let Some(step) = self.ledger_step.take() {
             let gap: Duration = Duration::from_micros(self.longest.load(Ordering::Acquire));
@@ -202,27 +210,45 @@ impl Drop for ChildWatch {
     }
 }
 
+/// How long dropping a watch waits for its task to end: the bound of "nothing should ever wait forever" on a wait that is over in
+///  a few milliseconds (the task reads the closed marks at its next look, at most `STOP_POLL` after, then sweeps the lock files
+///  of a step it ended). No measurement picked it; it is the budget the start retry gives a refused start
+///  (`start_retry.rs`, `START_RETRY_BUDGET`), open to the owner's veto.
+const WATCHER_END_BOUND: Duration = Duration::from_secs(5);
+
+/// A watcher task and the signal that it has ended.
+struct RunningWatcher {
+    /// The task, aborted when it does not end by `WATCHER_END_BOUND`.
+    handle: JoinHandle<()>,
+    /// Disconnects when the task ends.
+    finished: std::sync::mpsc::Receiver<()>,
+}
+
 /// What:
-///  The watcher thread's loop: sleep until the next notice or the next look at the child's work is due, print or end, repeat.
+///  The watcher task's loop: wait until the next notice or the next look at the child's work is due, print or end, repeat.
 /// Why:
-///   Between waits the thread blocks on the next mark without a timeout, so an idle watch costs nothing, and a dropped
+///   Between waits the task awaits the next mark without a timeout, so an idle watch costs nothing, and a dropped
 ///  watch ends it because its sender is gone. During a wait it wakes at the notice cadence and at the sampling interval of
-///  the push meter, whichever is sooner, and at the window itself when that is shorter.
+///  the push meter, whichever is sooner, and at the window itself when that is shorter. The notice is written on the blocking
+///  pool, because a terminal that does not take a line must not hold a worker; where no thread can start the notices stop and the
+///  judgment goes on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for await (const mark of marksUntilTimeout()) { if (since === undefined) continue; if (stoppable && clock.stalled()) stop(pid); else if (ticker.due(elapsed)) notice(); }
+/// for await (const mark of marksUntilTimeout()) { if (since === undefined) continue; if (stoppable && clock.stalled()) await stop(pid); else if (ticker.due(elapsed)) await notice(); }
 /// ```
-fn watch_loop(incoming: &Receiver<Mark>, flags: &WatchFlags, waiting_for: &str, pid: u32, mut terms: WatchTerms, locks: &LockLedger) {
+async fn watch_loop(mut incoming: UnboundedReceiver<Mark>, flags: WatchFlags, waiting_for: String, pid: u32, terms: WatchTerms, locks: LockLedger) {
     let expired: &AtomicBool = flags.expired.as_ref();
     let stoppable: &AtomicBool = flags.stoppable.as_ref();
     let longest: Arc<AtomicU64> = Arc::clone(&flags.longest);
-    let mut marks: Marks = Marks { since: None, ticker: Ticker::new(terms.cadence), printed: 0, clock: None, pid, window: terms.limit, longest };
+    let (limit, cadence): (Duration, crate::wait_progress::Cadence) = (terms.limit, terms.cadence);
+    let mut notices: Option<Box<dyn Write + Send>> = Some(terms.notices);
+    let mut marks: Marks = Marks { since: None, ticker: Ticker::new(cadence), printed: 0, clock: None, pid, window: limit, longest };
     loop {
         let Some(since) = marks.since else {
-            match incoming.recv() {
-                Ok(mark) => marks.apply(mark, terms.cadence),
-                Err(_) => return,
+            match incoming.recv().await {
+                Some(mark) => marks.apply(mark, cadence),
+                None => return,
             }
             continue;
         };
@@ -230,20 +256,21 @@ fn watch_loop(incoming: &Receiver<Mark>, flags: &WatchFlags, waiting_for: &str, 
         // A notice that is due goes out before the stall is judged, so a child ended for being quiet was announced.
         if marks.ticker.due(waited) {
             let line: String = child_wait_line(&ChildWaitFacts {
-                waiting_for,
+                waiting_for: waiting_for.as_str(),
                 pid,
                 waited,
-                limit: terms.limit,
+                limit,
                 limit_note: " (CLI_GIT_CHILD_WAIT_SECONDS changes this)",
                 repeat: marks.printed > 0,
                 ends_when_quiet: stoppable.load(Ordering::Acquire),
             });
             marks.printed += 1;
-            // Terminal output error: a notice is advisory; a failed write must not stop the watch.
-            let _written = writeln!(terms.notices, "{line}");
+            if let Some(sink) = notices.take() {
+                notices = write_notice(sink, line).await;
+            }
             // The wait may have ended, or another begun, while the line was written.
             while let Ok(mark) = incoming.try_recv() {
-                marks.apply(mark, terms.cadence);
+                marks.apply(mark, cadence);
             }
             if marks.since != Some(since) {
                 continue;
@@ -260,7 +287,7 @@ fn watch_loop(incoming: &Receiver<Mark>, flags: &WatchFlags, waiting_for: &str, 
             marks.keep_gap();
             marks.since = None;
             marks.clock = None;
-            stop_process(pid, locks, incoming);
+            stop_process(pid, &locks, &mut incoming).await;
             continue;
         }
         let verdict: Option<StopCause> = marks.clock.as_mut().and_then(Clock::check);
@@ -274,18 +301,45 @@ fn watch_loop(incoming: &Receiver<Mark>, flags: &WatchFlags, waiting_for: &str, 
             marks.keep_gap();
             marks.since = None;
             marks.clock = None;
-            stop_process(pid, locks, incoming);
+            stop_process(pid, &locks, &mut incoming).await;
             continue;
         }
         let until_notice: Duration = marks.ticker.next_in(since.elapsed());
         let until_ceiling: Duration = Duration::from_micros(flags.ceiling.load(Ordering::Acquire)).saturating_sub(since.elapsed());
-        let sleep: Duration = until_notice.min(SAMPLE_INTERVAL).min(terms.limit).min(until_ceiling).max(SHORTEST_SLEEP);
-        match incoming.recv_timeout(sleep) {
-            Ok(mark) => marks.apply(mark, terms.cadence),
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => return,
+        let sleep: Duration = until_notice.min(SAMPLE_INTERVAL).min(limit).min(until_ceiling).max(SHORTEST_SLEEP);
+        match tokio::time::timeout(sleep, incoming.recv()).await {
+            Ok(Some(mark)) => marks.apply(mark, cadence),
+            Ok(None) => return,
+            Err(_slept) => {}
         }
     }
+}
+
+/// What:
+///  Write one notice line to `sink` on the blocking pool and hand the sink back; nothing where the write could not run or failed.
+/// Why:
+///   A notice is advisory, so a failed write is ignored as it always was, and a terminal that never takes the line holds a pool
+///  thread, not a worker of the runtime; with no thread to start the notices of this watch stop (the owner, 2026-11-07, "Fail
+///  plainly": no inline run of a call that can wait).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sink = await runBlockingJob(() => { sink.write(line + '\n'); return sink; }).catch(() => undefined);
+/// ```
+async fn write_notice(mut sink: Box<dyn Write + Send>, line: String) -> Option<Box<dyn Write + Send>> {
+    return match crate::blocking_job::run_blocking_job(move || {
+        // Terminal output error: a notice is advisory; a failed write must not stop the watch.
+        let _written = writeln!(sink, "{line}");
+        return sink;
+    })
+    .await
+    {
+        Ok(kept) => Some(kept),
+        Err(error) => {
+            crate::diagnostic_log::debug("childWatch", format!("a notice was not written: {error}").as_str());
+            None
+        }
+    };
 }
 
 /// What:

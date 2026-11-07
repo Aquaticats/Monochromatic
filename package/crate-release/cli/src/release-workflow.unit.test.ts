@@ -29,6 +29,11 @@ import {
 import { replaceDependencyPin } from './manifest-edit.ts';
 import { commitPaths } from './release-steps.ts';
 import { findRepositoryRoot } from './repository-root.ts';
+import {
+  blockBelow,
+  indentOf,
+  runScripts,
+} from './workflow-text.ts';
 
 /**
  Repository root, found from this package like the executables do.
@@ -124,43 +129,6 @@ const runnerHost = releaseHosts.find(function isNotLocal(host) {
 }) ?? defaultReleaseHost;
 
 /**
- Indentation of a line: the count of leading spaces.
-
- @param line - one line of a workflow file
- @returns how many spaces start the line
- */
-function indentOf(line: string): number {
-  return line.length - line.trimStart().length;
-}
-
-/**
- Take the lines below a line that belong to it: the ones before the first non-blank line indented less than a bound.
-
- @param lines - all lines of the file
- @param at - index of the line whose block is wanted
- @param stopsAt - the shallowest indentation a line of the block may have; a non-blank line shallower than this ends it
- @returns the lines of the block
- */
-function blockBelow({
-  lines,
-  at,
-  stopsAt,
-}: {
-  readonly lines: readonly string[];
-  readonly at: number;
-  readonly stopsAt: number;
-}): readonly string[] {
-  const body = lines.slice(at + 1);
-  const end = body.findIndex(function isOutside(line) {
-    return (line.trim() !== '') && (indentOf(line) < stopsAt);
-  });
-  return end === (-1) ? body : body.slice(
-    0,
-    end
-  );
-}
-
-/**
  Remove one pair of surrounding quotes from a YAML scalar.
 
  @param scalar - the scalar as written
@@ -226,37 +194,6 @@ function choiceOptions({
       return unquoted(line.trim()
         .slice(2));
     });
-}
-
-/**
- Collect the scripts of the `run:` steps of a workflow file, each as its non-blank lines.
-
- @param lines - workflow file lines
- @returns one entry per `run:` key, holding the script's lines
- */
-function runScripts(lines: readonly string[]): readonly (readonly string[])[] {
-  return lines.flatMap(function scriptAt(line, index): (readonly string[])[] {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith('run:'))
-      return [];
-    const inline = trimmed.slice('run:'.length)
-      .trim();
-    if ((inline !== '') && (inline !== '|'))
-      return [[inline]];
-    return [
-      blockBelow({
-        lines,
-        at: index,
-        stopsAt: indentOf(line) + 1
-      })
-        .map(function trim(entry) {
-          return entry.trim();
-        })
-        .filter(function nonBlank(entry) {
-          return entry !== '';
-        }),
-    ];
-  });
 }
 
 /**

@@ -143,6 +143,85 @@ Workaround:
  the exposure directory is also rebuilt during a sync,
  so tasks racing a running sync can see the same window.
 
+### Rclone's user service still called a retired Mise shim, 2026-11-07T10:40:29-05:00
+
+The hourly `rclone-bisync-garage.timer` remained enabled and waiting,
+but its service exited with status `1` before starting rclone.
+The service journal's last successful sync before repair was
+`2026-10-28T03:00:31-04:00`.
+The first recorded launcher failure in the search from `2026-10-20` was
+`2026-10-28T04:00:45-04:00`;
+the inspected hourly runs through `2026-11-07T10:00:21-05:00` still failed.
+
+The emitter was Mise `2026.10.23`,
+invoked through the service's absolute `%h/.local/share/mise/shims/rclone` path:
+
+```text
+# journalctl --user --unit=rclone-bisync-garage.service
+mise ERROR No version is set for shim: rclone
+```
+
+The global `~/.config/mise/config.toml` explicitly says Mise manages no tools,
+and its `PATH` entry points to the global toolchain exposure directory.
+The service bypassed that directory by naming the retired shim directly.
+Running that exact shim with `version` from the account's home reproduced status `1`.
+Running the exposed `rclone` with `version` succeeded and printed `rclone v1.76.0`.
+This is a service configuration defect;
+it does not establish a failure in rclone or the Garage server.
+
+The owner confirmed that the repository's mpm shadow manages toolchains
+and that systemd should select the first command on the user's login-shell `PATH`.
+Restoring a Mise tool declaration would conflict with that ownership decision.
+
+The installed `systemd.service(5)` manual documents the `|` executable prefix
+as invoking the account's default shell,
+with `@` additionally enabling login-shell startup.
+A disposable user service with the following command completed successfully
+under systemd `262.1-1.fc45`:
+
+```ini
+# ~/temp/agent/rclone-login-path-fixture.service
+[Service]
+Type=oneshot
+WorkingDirectory=%h
+ExecStart=|@rclone version
+```
+
+Its journal printed `rclone v1.76.0`.
+An additional `ExecStart=|@echo LOGIN_SHELL=$$0 BASH_VERSION=$$BASH_VERSION`
+reported `LOGIN_SHELL=-/bin/bash BASH_VERSION=5.3.15(1)-release`,
+confirming the actual login shell rather than relying on the manager's displayed executable path.
+A separate systemd probe running `/bin/bash --login -c 'type -a rclone && exec rclone version'`
+listed the global toolchain exposure command before the retired Mise shim
+and exited with status `0`.
+These probes used a CPU quota of `100%`,
+`MemoryMax=256M`,
+`TasksMax=64`,
+and `IOWeight=10`.
+
+The deployed correction changes the service's executable prefix to `|@rclone`,
+preserving its existing bisync arguments,
+including `--conflict-resolve newer`.
+The current unit recipe is in
+[the Garage sync record](../handover/garage-file-sync.md).
+Tradeoff:
+service startup now executes the account's login initialization,
+so those startup files must work without an interactive terminal.
+`systemd-analyze --user verify` accepted the changed unit.
+After `systemctl --user daemon-reload`,
+the production service ran from `2026-11-07T10:41:27-05:00`
+to `2026-11-07T10:41:47-05:00`
+and exited with `Result=success` and `ExecMainStatus=0`.
+Its journal reported `Bisync successful`,
+`20 / 20` transfers totaling `335.743 MiB`,
+and `21061 / 21061` checks.
+The service is idle after completion;
+the hourly timer remains the scheduler for subsequent runs.
+
+No upstream filing is warranted:
+this is the previously documented retired-shim failure at a user-service call site,
+with no newly established upstream defect.
+
 ### `mpm` warns "Unrecognized Linux distribution" on Bazzite
 
 Surface:

@@ -295,6 +295,7 @@ export function planControlsUnit({
       unit,
       memoryMax: options.unitMemoryMax,
       cpuQuota: options.unitCpuQuota,
+      tasksMax: options.unitTasksMax,
       workingDirectory: options.root,
       environment: buildUnitEnvironment({
         options,

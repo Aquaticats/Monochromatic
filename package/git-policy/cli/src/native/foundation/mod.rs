@@ -101,3 +101,6 @@ pub mod blocking_job;
 
 /// The test-only entry that builds the runtime and runs a blocking job, for the controls that start the executable under limits.
 pub mod runtime_probe;
+
+/// The in-memory claim on a file name that one thread of this process is publishing by the checked rename.
+pub mod name_held_while_one_thread_publishes_it;

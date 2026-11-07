@@ -11,6 +11,7 @@ import {
   parseLauncherOptions,
   planUnits,
 } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
+import { unitIoWeight } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/constants.ts';
 import {
   describe,
   expect,
@@ -615,6 +616,16 @@ await describe({
             expect(systemdRunArguments).toContain('--setenv=CONTAINERS_STORAGE_CONF=/s.conf');
             expect(systemdRunArguments).toContain('--setenv=GIT_POLICY_NATIVE_IMAGE_TAG=w50');
             expect(systemdRunArguments.some((argument) => argument.includes(plantedUnitsEnvironmentVariable))).toBe(false);
+          },
+        }),
+        it({
+          name: 'caps the controls unit with the launcher\'s task limit and the unit disk weight',
+          fn: async () => {
+            await using root = await workingTree();
+            const options = launch({ root: root.path, argv: ['--unit-tasks-max', '96', 'w5', 'a.rs'] });
+            const { systemdRunArguments } = planControlsUnit({ options, image: imageA, tag: 'w50', taken: [], launchToken });
+            expect(systemdRunArguments).toContain('--property=TasksMax=96');
+            expect(systemdRunArguments).toContain(`--property=IOWeight=${String(unitIoWeight)}`);
           },
         }),
       ],

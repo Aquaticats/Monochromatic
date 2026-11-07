@@ -61,11 +61,14 @@ The winit Wayland,
 `libxkbcommon-devel`,
  or `mesa-*-devel` is needed for the build.
 
-Zig is not layered with rpm-ostree because Fedora packages an older 0.14;
-the terminal needs Zig 0.15.
-x for `libghostty-vt-sys`,
- supplied by the root mise `zig` tool pinned to 0.15.2 to
-match the terminal Containerfile.
+Zig is not layered with rpm-ostree because Fedora packages an older 0.14.
+Zig tracks the newest release on the host and in the containers alike:
+ the repository toolchain installs the version in `toolchain.lock.json`,
+ the containers take the same lock row's archive and SHA-256 as build arguments,
+ and the terminal's `libghostty-vt` dependency moves to a revision that builds with that Zig
+ (owner, 2026-11-07T10:15:54-05:00: "Please track latest zig and edit the decision records.").
+Amended note: until then this record said the terminal needed Zig 0.15.x for `libghostty-vt-sys`,
+ "supplied by the root mise `zig` tool pinned to 0.15.2 to match the terminal Containerfile".
 
 ## Container stays asserted
 

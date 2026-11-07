@@ -3563,6 +3563,70 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The nested-launch guard and the EAGAIN retry of issue 6259 are covered by package tests but were never exercised
   live.
 
+### After the restart (2026-11-07T10:15:54-05:00, eight agents)
+
+- Survived the restart: publish run 42384840600 succeeded (`monochromatic-mpm-shadow-v0.2.7-alpha.1`, not a prerelease,
+  two Linux tarballs plus checksums); `tokio-gate-merge2` passed 5165 of 5165. Tokio checkpoint merged into main as
+  `48611f7e09` (T5 plus the `decide` race fix; not released).
+- Owner, verbatim: "Please track latest zig and edit the decision records." Both records amended in main
+  (`8bfa833de3`): `doc/decision/ide-releases.md` and `doc/decision/desktop-app-podman-build.md`, each with the old
+  statement kept in an amended note.
+- Running (briefs and resume notes in `~/temp/agent/coordinator-briefs/`):
+  - Zig: finish lint, Clippy and nextest, image tasks that rebuild when their lock-driven arguments change, the
+    prelude's missing build arguments, the music-player `branches` 0.4.6 break on the new nightly, the plan doc
+    (`fix/containers-zig-from-lock`);
+  - the `mpm-shadow` alpha: crates.io absence check, lock update, install, worktree check, records;
+  - `core-exec`: finish the lint cleanup and gate (`fix/monorepo-task-core-exec-depends-test-time`);
+  - fold late lines: read-lease design (`fix/git-policy-cli-fold-keeps-late-lines`);
+  - tokio: the three coordinator settlements, then T8 and T9 (`feat/git-policy-cli-on-tokio`);
+  - index lock without links or no-replace rename (`fix/git-policy-cli-index-lock-without-links`);
+  - mutation campaign over the merged tokio files (`test/git-policy-cli-tokio-mutants`, worktree
+    `.claude/worktrees/tokio-mutants`): its agent stopped correctly, because `package/git-policy/cli/README.md`
+    ("Who runs a mutation campaign") reserves campaigns for the main session. The coordinator runs it: the gate proof
+    runs as unit `tokio-mutants-gate` (log `~/temp/agent/tokio-mutants-gate.log`), then
+    `native:mutation:parallel -- --passes 2 --timeout 900` over the eleven files plus the non-test siblings
+    `service/service_busy_answers_and_name_checks.rs`, `service/service_busy_step_record_on_this_thread.rs`,
+    `push/child_watch_step_bounds_and_errors.rs`. Before it starts, an agent fixes the launcher
+    (`fix/mutation-test-units-obey-disk-weight-and-task-limits`): its file units set `IOWeight=50` and no `TasksMax`,
+    against `CLAUDE.md` rule RXS; survivors then go to an agent for kill tests;
+  - the settle-command test that fails only in its suite (`fix/git-policy-cli-settle-test-in-suite`).
+- `core-exec` depends branch merged as `adadb1d03b` (`buildAndTest` 52 suites pass, `lint:types` clean, `lint` 0
+  warnings 0 errors; process-group kill and the daily-update lint cleanup included). Its lint run still logs
+  "semantic evidence unavailable for .../core-exec/task.ts: project-not-found" (a preference log line, not a finding;
+  not investigated).
+- Layout (owner: "Layout + linting fixes are the biggest priority."): the redone split waits on the owner, who
+  answered "Not yet." for the test helpers and for where libraries live, "One level of groups" for the program, and
+  asked "Why are we not using already established crates for some functions?" An agent now rescans main, checks each
+  of the eight planned libraries against the adopted crates (tokio, `tempfile`, rustix, jiff, `sha1`/`sha2`, sysinfo,
+  hyper, zbus), drafts the program's groups and options for the group and child rule, with a cross-vendor review
+  (`docs/git-policy-cli-layout-after-adopted-crates`); the owner gets the smaller question set after it.
+
+### Claude Code restart (2026-11-07, about 10:00 -05:00; owner raising the subagent limit to 8)
+
+- Owner: "Do whatever you need to do, but don't abandon any work."
+- Five agents were told to commit their work in progress, write a resume note and stop their units: tokio T5 onward,
+  the crate-release label gate plus the `mpm-shadow` `0.2.7-alpha.1` release, Zig from the lock in two Containerfiles,
+  the `core-exec` depends follow-ups, and the fold's late-line fix.
+- Resume instructions, the six briefs and the common constraints are in
+  `~/temp/agent/coordinator-briefs/resume-after-restart.md` (scratch: survives a restart, not a reboot); the waiting
+  briefs are beside it in `waiting-for-a-slot.md`. Each branch and its commits are the durable record.
+- Checkpoints reported:
+  - tokio `feat/git-policy-cli-on-tokio` at `783f8d8887` (`decide` race fixed, T5 done, both gated; user unit
+    `tokio-gate-merge2` still running, log `~/temp/agent/tokio-steps/gate-merge2.log`);
+  - label gate and SemVer ordering merged into main `4fd9c70572`; `mpm-shadow` `0.2.7-alpha.1` dispatched (release run
+    42384727529 succeeded, publish run 42384840600 in progress at about 10:10); lock not moved yet;
+  - fold late lines: red test `ead9d7463c` only (design: read-lease probe for open writers);
+  - `core-exec` depends: process-group kill done (`8a19368c49`), lint fixes half done, tip `69ac4ed029` does not
+    compile (WIP);
+  - Zig containers `fix/containers-zig-from-lock`: lock-driven Zig and cargo-about (`92d5749e4b`), 0.17.1 shown in
+    every proof image; Zig 0.17.1 broke `libghostty-vt-sys` 0.2.2, fixed forward to a pinned `libghostty-rs` revision
+    (WIP `a92fae96d3`); lint, terminal Clippy and nextest, main merge still open. Found separately: the music-player
+    release build fails on nightly-2026-11-07 in crate `branches` 0.4.6 (`core::intrinsics::abort` gone), and two
+    decision records pin Zig against "always latest" (`ide-releases.md:948`, `desktop-app-podman-build.md:67`; owner
+    approval needed to amend).
+- Commit comment posted on `c5b4559b88` (its message overstates removed timeouts):
+  https://github.com/Aquaticats/Monochromatic/commit/c5b4559b88f4582103acc18cd3fe6294aab42734#commitcomment-208645485
+
 ### After the release: agents at work (2026-11-07, resumed after a usage-limit stop)
 
 - Post-release steps are done (lock on the archive route `c048f3a566`, live commit through 0.6.0, 14 yanks, daily timer on,
@@ -3591,8 +3655,18 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `mpm-shadow install` there, which treated main's recorded links as its own undeclared ones and removed them (08:42 for
   the fold worktree, 09:08:16 for the masking worktree). Main was reinstalled at 09:19:48 (`mise run toolchain:install`,
   all four links back). Until the fixed `mpm-shadow` is released and installed, every copy-route worktree add empties
-  main's links again: make new worktrees with `git worktree add --no-worktree-copy` plus `mise run toolchain:install`,
-  or reinstall main afterwards.
+  main's links again: make new worktrees with `git worktree add --no-worktree-copy` plus `mise run toolchain:install`
+  and `mise run prepare:pnpm:install -- --frozen-lockfile` (a no-copy worktree has no `node_modules`; the wrapper's
+  container gate then fails with `ERR_MODULE_NOT_FOUND` for `@monochromatic-dev/mutation-test-cli-cargo-mutants`),
+  or reinstall main afterwards. A failed gate in a user unit once read `Result=success`, `ExecMainStatus=0` although
+  the task printed "ERROR task failed": not a mise defect (a probe shows `mise run` exits 1 for a failing `false` task
+  and for a failing Node import), but the reading of a unit started with `--collect`, which systemd unloads when it
+  ends, after which `systemctl show` prints default values. Read a collected unit's outcome from its log, where the
+  gate command now appends "mise exit status: N".
+- `mpm-shadow` `0.2.7-alpha.1` is installed (lock `fb7e05141c`, records `724c6a14fd`); a plain copy-route
+  `git worktree add` from main left main's four link folders byte-identical, so `--no-worktree-copy` is no longer
+  needed. The label gate kept it off crates.io (crates.io 404 for that version; publish log "label alpha, goes to
+  crates.io: false"; five crates.io steps skipped).
 - Release of the fix, first try (stopped before dispatch, nothing published): the installed 0.2.6 does resolve an
   unflagged `-alpha.N` GitHub release through `@latest` (fixture test on `test/mpm-shadow-cli-resolver-picks-alpha-release`,
   `aee8bf86c0`), but nothing enforces "only publish rc and stable releases on crates.io": `cargo-publish.yml` runs
@@ -3608,7 +3682,25 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `mask_userinfo_text`). Plain pass-through of Git's own stderr is unchanged. Its first gate run had one failure,
   `program_rename_guard::both_names_of_a_kept_kind_use_the_new_and_report_the_earlier` (empty stderr), which passed on rerun
   and alone; handed to the fold agent, whose change owns that notice and test.
-- The diagnosis of the emptied link folders ran at the same time. Bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`)
+- The diagnosis of the emptied link folders ran at the same time.
+- Fold of the six earlier `.git` data names merged as `38d54f9b2b` (gate 5158 of 5158, lint clean). Not released;
+  it reaches this machine only with the next wrapper release. Logs are appended to the current log (earlier lines at the
+  end, every byte kept), folders merged entry by entry with `rename_noreplace`, a clash keeps both
+  (`<name>.from-earlier-release`); a journal plus `flock` makes every step restartable; it waits while this
+  worktree's earlier commit service runs (main's `cli-git@fc85fdf7a58f866b7f7a84b44fe0b69a` is running now), with about
+  10 ms per command while waiting. The old notice and its flaky test are gone. Known gap, must close before the next
+  wrapper release: a line an earlier-release wrapper writes into the moved-aside log after the last size check is lost
+  when the moved file is removed (about 216 checkouts lock older releases); agent on
+  `fix/git-policy-cli-fold-keeps-late-lines`. Another suite-only failure seen once in its gates:
+  `service::the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero` (passed alone and in three later
+  gates; cause not measured; queued). Its agent wrote a planning section into main's checkout by mistake and removed
+  exactly its own lines with `git apply --reverse`; main was clean after.
+- `core-exec` `depends.unit.test.ts`: no hang on an idle host (5.1 s); a hang was reproduced under a full process-count
+  ceiling (`TasksMax=150`; children stuck when their threads were refused) and every child wait in `task-depends` is
+  now bounded (60 s per query, 3600 s per command, measurements cited); branch
+  `fix/monorepo-task-core-exec-depends-test-time` (`b9bbbb4268`), not merged. Back with its agent for a process-group
+  kill (a timed-out pipeline survives today) and for the package lint, which fails on main with 16 warnings in
+  `daily-update-*.ts`, `mpm-shadow.unit.test.ts` and `playwright-image.unit.test.ts`. Bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`)
   started about 09:34. Still waiting for a slot: the terminal and music-player Containerfiles taking Zig from the lock row instead of `ZIG_VERSION=0.15.2`
   (`fix/containers-zig-from-lock`); both briefs are saved in
   `~/temp/agent/coordinator-briefs/waiting-for-a-slot.md` (scratch, lost on reboot).
