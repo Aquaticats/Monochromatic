@@ -1,7 +1,8 @@
 # Repository on the 860 drive: measurements, inventory, the symlink design and runbook
 
 Status:
-preparation work for the move landed 2026-11-07 (section "Status and order of the work items": W1 built,
+preparation work for the move landed 2026-11-07 (section "Status and order of the work items":
+W1 built,
 the copy tool fixed and in the repository,
 the guided runner in TypeScript,
 the 860 mount option as a runner stage);
@@ -2085,11 +2086,16 @@ none creates anything.
 
 ### Status and order of the work items, 2026-11-07T14:55:39-05:00
 
-W1 is built: `package/repository-link/check` (library, bins `repository-link-check`,
-`repository-link-run` and `repository-link-record`, and `openRepositoryRoot()`),
-with tests for every answer of the contract (the identity file also records the mount point, so fixtures can vary it).
+W1 is built:
+`package/repository-link/check` (library,
+bins `repository-link-check`,
+`repository-link-run` and `repository-link-record`,
+and `openRepositoryRoot()`),
+with tests for every answer of the contract (the identity file also records the mount point,
+so fixtures can vary it).
 The install outside the repository copies the built bins to `~/.local/share/monochromatic-dev/repository-link/`
-(the plan's `toolchain-global` folder holds launchers that name the repository, so a separate folder keeps the check
+(the plan's `toolchain-global` folder holds launchers that name the repository,
+so a separate folder keeps the check
 free of it).
 The stalled drive on a hung mount and a wrong filesystem mounted at the real mount point need root and are untested.
 The Rust copy of the check in the wrapper (W2) is not built.
