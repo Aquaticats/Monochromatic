@@ -1,4 +1,5 @@
 import {
+  readdir,
   readFile,
   writeFile,
 } from 'node:fs/promises';
@@ -25,6 +26,11 @@ const repository = 'localhost/product-test';
  Image ID every tag of the cases names.
  */
 const image = 'a'.repeat(64);
+
+/**
+ Name of the file in which the stand-in `systemd-run` records the units it was asked to start.
+ */
+const startLogName = 'systemd-run.log';
 
 /**
  Path of the launcher script, which runs as TypeScript.
@@ -60,14 +66,21 @@ async function launch({
   readonly labelAndFiles: readonly string[];
   readonly environment?: Readonly<Record<string, string>>;
 }) {
+  /**
+   The stand-in registry: every tag names the same image.
+   */
+  const registry = Object.fromEntries(tags.map(function entryOf(tag) {
+    return [
+      `${repository}:${tag}`,
+      image,
+    ];
+  }));
   await writeFile(
     join(
       fake.directory,
       'images.json',
     ),
-    JSON.stringify(Object.fromEntries(tags.map(function entryOf(tag) {
-      return [`${repository}:${tag}`, image];
-    }))),
+    JSON.stringify(registry),
   );
   return await runCaptured({
     program: process.execPath,
@@ -112,22 +125,19 @@ async function launch({
  @returns the names, or none when it was never called
  */
 async function startedUnits(fake: FakePodman): Promise<readonly string[]> {
-  try {
-    return (await readFile(
-      join(
-        fake.directory,
-        'systemd-run.log',
-      ),
-      'utf8',
-    ))
-      .split('\n')
-      .filter(function isName(name) {
-        return name !== '';
-      });
-  }
-  catch {
+  if (!(await readdir(fake.directory)).includes(startLogName))
     return [];
-  }
+  return (await readFile(
+    join(
+      fake.directory,
+      startLogName,
+    ),
+    'utf8',
+  ))
+    .split('\n')
+    .filter(function isName(name) {
+      return name !== '';
+    });
 }
 
 await describe({
