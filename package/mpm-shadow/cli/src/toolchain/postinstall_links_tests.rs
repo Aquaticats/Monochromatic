@@ -168,3 +168,112 @@ fn the_install_report_prints_each_retired_link() {
     let report = SyncReport { retired_links: vec!["retired the postinstall link /x/cargo".to_string()], ..SyncReport::default() };
     assert!(format_sync_report(&report).contains("toolchain install: retired the postinstall link /x/cargo\n"));
 }
+
+//region Records that describe another checkout:
+// a new worktree starts as a copy of the checkout it was made from, `.cache` included,
+// so its record names the links of that other checkout.
+
+/// Copies `source` to `destination` the way a snapshot of a checkout does:
+/// every entry, with symbolic links kept as links.
+fn copy_as_a_snapshot(source: &Path, destination: &Path) {
+    let status = std::process::Command::new("cp")
+        .arg("--archive")
+        .arg(source)
+        .arg(destination)
+        .status()
+        .expect("start cp");
+    assert!(status.success(), "cp copies {} to {}", source.display(), destination.display());
+}
+
+/// The first checkout has made its link; a second checkout is a snapshot of the first one's `.cache`.
+fn second_checkout_copied_from(first: &Rig) -> Rig {
+    let second = rig_with_program();
+    copy_as_a_snapshot(&first.scope.root.join(".cache"), &second.scope.root.join(".cache"));
+    return second;
+}
+
+#[test]
+fn a_record_copied_from_another_checkout_never_retires_that_checkouts_links() {
+    let mut first = rig_with_program();
+    let link = declared_link(&mut first);
+    let first_path = link_path(&first, &link);
+    sync(&first);
+    let first_target = fs::read_link(&first_path).expect("the first checkout made its link");
+
+    let mut second = second_checkout_copied_from(&first);
+    let second_link = declared_link(&mut second);
+    let second_path = link_path(&second, &second_link);
+    let notices = sync(&second);
+
+    assert_eq!(fs::read_link(&first_path).expect("the first checkout's link is still a link"), first_target);
+    assert!(exists_at(&second_path), "the second checkout made its own link");
+    assert_eq!(notices, LinkNotices::default(), "the second checkout retired or warned about nothing of its own");
+}
+
+#[test]
+fn a_record_copied_from_another_checkout_is_rewritten_to_name_only_the_new_checkouts_links() {
+    let mut first = rig_with_program();
+    let first_link = declared_link(&mut first);
+    let first_path = link_path(&first, &first_link);
+    sync(&first);
+
+    let mut second = second_checkout_copied_from(&first);
+    let second_link = declared_link(&mut second);
+    let second_path = link_path(&second, &second_link);
+    sync(&second);
+
+    let record = fs::read_to_string(second.scope.launcher_dir.join(".postinstall-links.json")).expect("the second record");
+    assert!(record.contains(&second_path.display().to_string()), "{record}");
+    assert!(!record.contains(&first_path.display().to_string()), "{record}");
+}
+
+#[test]
+fn a_link_of_a_checkout_nested_inside_this_one_is_never_retired() {
+    let mut rig = rig_with_program();
+    let link = declared_link(&mut rig);
+    let nested = rig.scope.root.join(".claude").join("worktrees").join("topic");
+    let nested_directory = nested.join(link.link_dir.as_deref().expect("a link directory"));
+    fs::create_dir_all(&nested_directory).expect("make the nested checkout");
+    fs::write(nested.join(".git"), "gitdir: elsewhere\n").expect("mark it as a checkout");
+    let nested_path = nested_directory.join(&link.link_name);
+    let target = rig.scope.root.join("launcher");
+    fs::write(&target, "x").expect("write the target");
+    std::os::unix::fs::symlink(&target, &nested_path).expect("the nested checkout's link");
+    let record = format!("{{\"links\": {{\"{}\": \"{}\"}}}}", nested_path.display(), target.display());
+    fs::create_dir_all(&rig.scope.launcher_dir).expect("make the launcher directory");
+    fs::write(rig.scope.launcher_dir.join(".postinstall-links.json"), record).expect("write the record");
+
+    let notices = sync(&rig);
+    assert!(exists_at(&nested_path), "the nested checkout keeps its link");
+    assert_eq!(notices, LinkNotices::default());
+}
+
+/// A context of the rig's fakes over the global scope and these tools.
+fn global_context<'a>(rig: &'a Rig, global: &'a super::scope::Scope, tools: &'a [LockedTool]) -> super::context::Context<'a> {
+    return super::context::Context { scope: global, env: &rig.env, runner: &rig.runner, http: &rig.http, host: &rig.host, tools };
+}
+
+#[test]
+fn a_link_the_global_scope_made_in_the_users_bin_directory_is_still_retired() {
+    let rig = rig_with_program();
+    let global = super::scope::global_scope(&rig.env).expect("a global scope");
+    write_executable(&current_link(&global.toolchain_root, "monochromatic-mpm-shadow").join("bin").join(PROGRAM));
+    let mut tools = rig.lock.tools.clone();
+    let tool = tools.iter_mut().find(|tool| return tool.declaration.id == LINKED).expect("the sample lock holds the tool");
+    let Some(Postinstall::Link(link)) = tool.declaration.options.postinstall.clone() else {
+        panic!("the sample tool declares a postinstall link");
+    };
+    tool.declaration.options.postinstall = Some(Postinstall::Link(PostinstallLink { link_dir: None, ..link.clone() }));
+    let path = global.link_dir.join(&link.link_name);
+    let linked: Vec<&LockedTool> = tools.iter().collect();
+    sync_postinstall_links(&global_context(&rig, &global, &tools), &linked).expect("the first pass succeeds");
+    assert!(exists_at(&path), "the global pass links into the user's bin directory");
+
+    tools.iter_mut().find(|tool| return tool.declaration.id == LINKED).expect("the tool").declaration.options.postinstall = None;
+    let dropped: Vec<&LockedTool> = tools.iter().collect();
+    let notices = sync_postinstall_links(&global_context(&rig, &global, &tools), &dropped).expect("the second pass succeeds");
+    assert!(!exists_at(&path), "the dropped global link is gone");
+    assert_eq!(notices.retired.len(), 1, "{notices:?}");
+}
+
+//endregion
