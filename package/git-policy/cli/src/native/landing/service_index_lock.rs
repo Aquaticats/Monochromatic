@@ -39,10 +39,10 @@ pub use crate::service_index_marker::{LOCK_MARKER, Marked, marker_text, parse_ma
 pub use crate::service_index_ownership::{Ownership, inspect_ownership, unsettled_locks};
 #[cfg(target_os = "linux")]
 pub use crate::service_index_watch::{events_end_watch, events_name};
-pub use crate::service_index_placement::{Platform, SYSTEM, placement_failure_text};
+pub use crate::service_index_placement::{Placed, Platform, SYSTEM, placement_failure_text};
 pub use crate::service_index_staging::{STAGED_INFIX, staged_path_for};
 pub use crate::service_index_watch::Watch;
-use crate::service_index_placement::{log_placement_failure, place_marked, reclaim};
+use crate::service_index_placement::{log_placement_failure, place_lock, reclaim};
 pub use crate::service_index_reclaim::{Reclaimed, foreign_words, remove_stale, stale_lock_words, unjudged_words};
 use crate::service_index_staging::{refresh_age, remove_dead_staging, stage_marker_synced};
 
@@ -141,22 +141,25 @@ pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<Ind
         }
     };
     refresh_age(&held);
-    let placed: std::io::Result<()> = match place_marked(platform, &staged, &lock) {
+    let attempt: std::io::Result<Placed> = match place_lock(platform, &staged, marker.as_str(), &lock) {
         // A stale lock removed (or replaced by then) is worth one more placement; a lock another reclaimer is removing, a live
         //  one, and one that cannot be removed leave the batch open for the next round.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => match reclaim(platform, &lock) {
-            Reclaimed::Removed | Reclaimed::Changed => place_marked(platform, &staged, &lock),
+            Reclaimed::Removed | Reclaimed::Changed => place_lock(platform, &staged, marker.as_str(), &lock),
             Reclaimed::Busy | Reclaimed::Kept | Reclaimed::Stuck | Reclaimed::Unguarded(_) | Reclaimed::Foreign { .. } | Reclaimed::Unjudged { .. } => Err(error),
         },
         other => other,
     };
     let _removed = std::fs::remove_file(&staged);
-    if let Err(error) = &placed {
-        log_placement_failure(&lock, error);
-        return None;
-    }
+    let placed: Placed = match attempt {
+        Ok(found) => found,
+        Err(error) => {
+            log_placement_failure(&lock, &error);
+            return None;
+        }
+    };
     remove_dead_staging(&lock);
-    return Some(IndexLock::placed(lock, index, marker, held, (platform.inspect, platform.release)));
+    return Some(IndexLock::placed(lock, index, marker, placed.held_or(held), (platform.inspect, platform.release)));
 }
 
 /// The path of the lock of an index.
@@ -310,18 +313,18 @@ fn acquire_placing(
         }
     };
     let placing_began: std::time::Instant = std::time::Instant::now();
-    let outcome: Result<(), LockFailure> = wait_and_place(
+    let outcome: Result<Placed, LockFailure> = wait_and_place(
         platform,
-        &Placing { staged: &staged, held: &held, lock: &lock, lock_name: lock_name.as_os_str(), index, ceiling },
+        &Placing { staged: &staged, held: &held, marker: marker.as_str(), lock: &lock, lock_name: lock_name.as_os_str(), index, ceiling },
         &mut watch,
         announce,
         notes,
     );
     notes.placing = placing_began.elapsed();
     let _removed = std::fs::remove_file(&staged);
-    outcome?;
+    let placed: Placed = outcome?;
     remove_dead_staging(&lock);
-    return Ok(IndexLock::placed(lock, index, marker, held, (platform.inspect, platform.release)));
+    return Ok(IndexLock::placed(lock, index, marker, placed.held_or(held), (platform.inspect, platform.release)));
 }
 
 /// Controls for the removal of a stale lock stay out of the release executable.
@@ -338,6 +341,11 @@ mod claim_tests;
 #[cfg(test)]
 #[path = "service_index_machine_tests.rs"]
 mod machine_tests;
+
+/// Controls for the lock taken by exclusive creation stay out of the release executable.
+#[cfg(test)]
+#[path = "service_index_lock_by_creation_tests.rs"]
+mod creation_tests;
 
 /// Index lock controls stay out of the release executable.
 #[cfg(test)]
