@@ -3604,6 +3604,14 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   warnings 0 errors; process-group kill and the daily-update lint cleanup included). Its lint run still logs
   "semantic evidence unavailable for .../core-exec/task.ts: project-not-found" (a preference log line, not a finding;
   not investigated).
+- Settle test in suite: merged `58d910f99e` (gate 5166 of 5166, lint clean; test-only). Cause shown by sharing state:
+  another test's fixture service shows the earlier `--journal` word before it creates that folder (measured median
+  1.7 ms, max 485 ms alone), and the settle command's process look counts it as `Hold::HelperUnsure`, settles nothing
+  and exits 1 (the conservative design, unchanged). The settle controls now ask again while that exact answer comes
+  back, up to the existing 60 s. Kept for later, not changed: treating ENOENT on an absolute word as "not this
+  worktree's journal" (an earlier helper on another spelling of a not-yet-created journal could still adopt batches).
+  Running: the held message names the program, its command line (masked), the unresolved folder and what to do
+  (rule DGT; `fix/git-policy-cli-held-settle-names-the-program`).
 - Layout, 2026-11-07T11:05:21-05:00: rescan and library verdicts merged (`docs/git-policy-cli-layout-after-adopted-crates`);
   owner answered "Shelf + summaries (Recommended)", "Four libraries (Recommended)" (starting-and-watching-programs,
   parallel-work-within-a-budget, fix-packages-after-copying-a-folder, dependent-version-bump-check) and
