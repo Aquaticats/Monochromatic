@@ -2613,3 +2613,71 @@ so its exact assertion was not inspected.
 No cheap plant exists for the spawned-child id check (a launcher that
 forks instead of replacing itself is not built) and for the `assert_ran_in_recorded_scope` additions of group 2 and 4 beyond the
 earlier control.
+
+## Round 21 merge record (2026-11-07)
+
+The owner's pause of 2026-11-04 was lifted for this merge.
+The branch `feat/cargo-shadow-check-to-start-race` took main twice (`0a3aa354ca`,
+with 0.1.5-alpha.1,
+and the merge of the locks for `monochromatic-lint` 0.5.2-alpha.2),
+and the release gate ran for the first time on the round (the resume point above says it had not).
+
+- The gate found one red test that the round itself caused:
+  the new `spawned` trace event sits between the launch and the launcher line,
+  so `the_record_is_written_made_durable_and_only_then_the_program_is_launched` failed.
+  It now expects the event (`f9dcf825b1`).
+  It does not ignore it:
+  a filter that dropped `spawned` events was refused by the permission classifier as a loosened test,
+  and the stricter form pins the event right after the launch.
+- The cross-vendor review (`~/temp/agent/reviews/cargo-shadow-r21-sol-1.txt`,
+  verdict "merge after named fixes") found one
+  production defect that no test had reached:
+  the exec site bound the vetted program as `_vetted` inside a match arm,
+  which dropped the open file before `exec`,
+  so a compiled real cargo (rustup's proxy is one) failed to start on the main path.
+  Red tests first (`b5e14dff0d`,
+  three integration tests,
+  two red),
+  then the fix (`0a91265df1`).
+  Two more findings,
+  each red first:
+  an execute-only compiled program was refused (the PATH search accepts it),
+  fixed by an `O_PATH` open;
+  the largest process id was inclusive although `pid_max` is one greater than the maximum PID (`proc_sys_kernel(5)`).
+  The contained-start test now requires the scope route and asserts the scope launch;
+  a planted `vetted.command()` in `RealCargo::run` turned it red and was restored.
+  The contract states the limits the review listed ("Review of 2026-11-07" bullet).
+- Gates on the final tree:
+  test 678 run,
+  678 passed,
+  18 skipped (`--no-fail-fast`);
+  `lint` and `lint:clippy` with warnings denied exit 0.
+- A separate defect,
+  not cargo-shadow's:
+  one test run hung for more than twelve minutes
+  because two `search-shadow` links of different versions on `PATH` (main's `.cache/search-shadow-bin`,
+  0.2.2,
+  and a worktree's stale one,
+  0.2.1) each chose the other as the real `grep` and re-executed in a loop at 89 percent CPU
+  (`strace -e execve`:
+  alternating `execve` of the two `grep` paths in one process id).
+  Refreshing the worktree's links through `mise run toolchain:install` ended it;
+  the same test then passed in 0.14 s.
+  This is the owner's "never invoke ourselves recursively" and "nothing should ever wait forever" for `search-shadow`:
+  its skip of itself does not hold across two versions.
+
+Still open from the resume point (not done in this merge,
+in the order the sixth pass asked):
+group 5 (path-targeted output barrier failure,
+refused output with `CompletionSync` failure,
+independent syscall observation;
+the review found the new journal-barrier test passes with the real directory syncs replaced by `Ok(())`),
+group 8,
+group 9 K2 retry,
+groups 10 and 11,
+group 12,
+group 13,
+group 14,
+the group 1 wording,
+the fifth-pass open list,
+and rebuilding the packets as cert7 under 250 KB each with the manifest.
