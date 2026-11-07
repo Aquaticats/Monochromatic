@@ -196,28 +196,17 @@ fn options_follow_the_script_environment() {
 /// with `the_runner_` as the filter the slow-job
 /// control got `Busy` instead of `Finished(7)`,
 /// because the ceiling control had left the production runner outstanding).
-/// Exactly
-/// one control,
-/// the one about the production runner itself,
-/// names the production call.
+/// The cases of the service review tests that take the production runner hold it only for the length of one review.
 #[test]
-fn the_controls_share_no_production_runner_except_the_one_about_it() {
+fn the_controls_share_no_production_runner() {
     let own_text: &str = include_str!("standards_review_run_tests.rs");
     // The call is built from two pieces, so this control does not count itself.
     let production_call: String = ["run_contained", "("].concat();
     assert_eq!(
         own_text.matches(production_call.as_str()).count(),
-        1,
+        0,
         "a control that needs a runner makes its own with `static OWN: Containment` and calls `run_contained_in(&OWN, ..)`"
     );
-}
-
-/// The production runner returns a job's value and is free again for the next job.
-#[test]
-fn the_production_runner_returns_a_jobs_value_and_is_free_again() {
-    let roomy: Duration = Duration::from_secs(3600);
-    assert_eq!(run_contained(|| return 7_u8, roomy), Contained::Finished(7));
-    assert_eq!(RUNNER.outstanding(), 0);
 }
 
 /// The contained runner returns a job's value however long the job takes up to the ceiling,
