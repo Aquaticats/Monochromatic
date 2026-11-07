@@ -46,7 +46,7 @@ These names are not renamed, because an older program or an interrupted run may 
  the temporary file and folder prefixes that start with `.cli-git-` or `cli-git-`,
  the index lock marker `cli-git-service`, the conversion and migration journals,
  the trash folder `.claude/cli-git-trash`, and thread names.
-The link folder `.cache/cli-git-bin` and the toolchain lock change only after a release carries the new name.
+The link folder `.cache/cli-git-bin` is `.cache/monochromatic-git-policy-cli-bin` from the release that carries the new name, and the toolchain lock names it.
 
 ## What it does
 
@@ -384,8 +384,8 @@ Link it as `git` in a directory that comes before the real Git on `PATH`:
 
 ```sh
 # Run in the repository once per checkout, after the installation.
-mkdir --parents .cache/cli-git-bin
-ln --symbolic --force "$(mise which monochromatic-git-policy-cli)" .cache/cli-git-bin/git
+mkdir --parents .cache/monochromatic-git-policy-cli-bin
+ln --symbolic --force "$(mise which monochromatic-git-policy-cli)" .cache/monochromatic-git-policy-cli-bin/git
 ```
 
 Never name a file `git` inside the tool's own `bin/` directory.

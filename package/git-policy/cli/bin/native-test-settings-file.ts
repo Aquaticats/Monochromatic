@@ -10,8 +10,8 @@ import { resolve, } from 'node:path';
 const CURRENT_SETTINGS_FILE = 'monochromatic-git-policy-cli.config.jsonc';
 
 /**
- The settings file name an earlier release of the program read, which this repository keeps until the toolchain lock carries a
- release with the new name (`doc/planning/git-policy-cli-program-rename.md`).
+ The settings file name an earlier release of the program read, which a repository that was not renamed yet still keeps
+ (this repository renamed its file in step 3 of `doc/planning/git-policy-cli-program-rename.md`).
  */
 const EARLIER_SETTINGS_FILE = 'cli-git.config.jsonc';
 
@@ -47,7 +47,7 @@ async function fileExists(path: string,): Promise<boolean> {
 
  @example
  ```ts
- await repositorySettingsFileName(); // => 'cli-git.config.jsonc' until the file is renamed
+ await repositorySettingsFileName(); // => 'monochromatic-git-policy-cli.config.jsonc' here, 'cli-git.config.jsonc' in a repository not renamed yet
  ```
  */
 export async function repositorySettingsFileName(): Promise<string> {
