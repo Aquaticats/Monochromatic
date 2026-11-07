@@ -1,7 +1,8 @@
 //! What:
 //!  Controls of the unit-test scratch root.
 //! Why:
-//!  A fixture file that no `Cargo.toml` owns, and a fixture directory outside the system temporary directory,
+//!  A fixture file that no `Cargo.toml` owns,
+//! and a fixture directory outside the system temporary directory,
 //!  are what the other unit tests assume of the root.
 //!
 //! In TS you'd write (pseudocode):
@@ -12,7 +13,8 @@
 use super::{has_owning_manifest, scratch_root};
 use std::path::PathBuf;
 
-/// No Cargo.toml owns the scratch root, so a fixture file without a manifest of its own has no owning manifest.
+/// No Cargo.toml owns the scratch root,
+/// so a fixture file without a manifest of its own has no owning manifest.
 #[test]
 fn the_scratch_root_is_not_below_any_manifest() {
     let created: PathBuf = std::fs::canonicalize(scratch_root()).expect("scratch root");

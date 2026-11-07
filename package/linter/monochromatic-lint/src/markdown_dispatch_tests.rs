@@ -22,14 +22,16 @@ use monochromatic_jsonc_edit::parse_jsonc;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-/// The Markdown LFS rule, which needs an LFS context the other rules never read.
+/// The Markdown LFS rule,
+/// which needs an LFS context the other rules never read.
 const LFS_RULE: &str = "markdown/lfs-image-url";
 
 /// One document that violates every Markdown rule except the LFS rule at least once.
 const DOCUMENT: &str = "# One\n\n### Skipped level.\n\n# One\n\n**Emphasis as heading**\n\n```sh\n$ ls\n```\n\n```\nunlabeled\n```\n\nSee https://example.com and [shortcut] here. Second sentence follows on one line.\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n![shot](asset/shot.png)\n\n[shortcut]: https://example.com/a\n[unused]: https://example.com/b\n";
 
 /// Rule identifiers in registry order,
-///  excluding the LFS rule, which the tests exercise separately with a context.
+///  excluding the LFS rule,
+/// which the tests exercise separately with a context.
 fn ids() -> Vec<&'static str> {
     return RULE_IDS
         .iter()

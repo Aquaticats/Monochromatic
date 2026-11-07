@@ -1,5 +1,6 @@
 //! What:
-//!  The `shell/` rules over one extracted workflow step, from resolved configuration.
+//!  The `shell/` rules over one extracted workflow step,
+//! from resolved configuration.
 //! Why:
 //!  The host checker only needs the findings in the step's own coordinates,
 //!  so reading the settings and the dialect lives apart from the host checker's bookkeeping.

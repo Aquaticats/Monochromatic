@@ -118,7 +118,8 @@ pub struct EmbeddedFailure {
 /// What:
 ///  The explanation of a run whose findings include an error or a processing failure.
 /// Why:
-///  The executable prints those findings as records; the person needs their messages.
+///  The executable prints those findings as records;
+/// the person needs their messages.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

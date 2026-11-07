@@ -36,7 +36,8 @@ use monochromatic_lint::run_failure::{FIX_REFUSED, PROCESSING_FAILURE};
 use monochromatic_lint::run_finish::PROGRAM;
 /// The shipped rule registry the listing controls compare against.
 use monochromatic_lint::run_modes::RULES as REGISTRY;
-/// The lockfile name, table header and diagnostic codes the controls expect,
+/// The lockfile name,
+/// table header and diagnostic codes the controls expect,
 ///  re-exported by the library for its executable tests.
 use monochromatic_lint::{LOCK_NAME, NON_SUPPRESSIBLE, TOOL_TABLE, UNUSED};
 

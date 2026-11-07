@@ -73,7 +73,8 @@ fn summary(found: &[Diagnostic]) -> Vec<String> {
     return lines;
 }
 
-/// One expected finding: the diagnostic code and the source line that carries it.
+/// One expected finding:
+/// the diagnostic code and the source line that carries it.
 fn expected(code: &str, line: usize) -> String {
     return format!("{code}@{line}");
 }

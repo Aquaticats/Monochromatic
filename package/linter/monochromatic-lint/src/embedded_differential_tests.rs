@@ -114,7 +114,8 @@ fn configuration(severity: &str, exclude: &[&str]) -> String {
     );
 }
 
-/// The severity the wrapper configures, under which a finding the fixes leave does not fail the run.
+/// The severity the wrapper configures,
+/// under which a finding the fixes leave does not fail the run.
 const WARN: &str = "warn";
 
 /// A severity under which a finding the fixes leave fails the run with status 1.
@@ -328,7 +329,8 @@ fn usable_cases() -> Vec<Case> {
 }
 
 /// Every usable case gives the same fixed source and the same findings,
-///  and the cases include a fix, a kept finding and no change at all.
+///  and the cases include a fix,
+/// a kept finding and no change at all.
 #[test]
 fn the_executable_and_the_in_process_entry_agree_on_every_usable_input() {
     let fixture: Fixture = Fixture::new();
@@ -341,7 +343,8 @@ fn the_executable_and_the_in_process_entry_agree_on_every_usable_input() {
     }
 }
 
-/// A fix, a finding and an unchanged source are all among the cases,
+/// A fix,
+/// a finding and an unchanged source are all among the cases,
 ///  so the equality above is not between empty results.
 #[test]
 fn the_usable_cases_cover_a_fix_a_kept_finding_and_no_change() {
@@ -361,7 +364,8 @@ fn the_usable_cases_cover_a_fix_a_kept_finding_and_no_change() {
     );
 }
 
-/// A source that is not UTF-8, a name the linter cannot classify and a configuration it cannot parse
+/// A source that is not UTF-8,
+/// a name the linter cannot classify and a configuration it cannot parse
 ///  fail the same way in both.
 #[test]
 fn the_executable_and_the_in_process_entry_agree_on_every_refusal() {
@@ -383,7 +387,8 @@ fn the_executable_and_the_in_process_entry_agree_on_every_refusal() {
     }
 }
 
-/// The messages of the records a failed run printed that are errors, joined as the in-process entry joins them.
+/// The messages of the records a failed run printed that are errors,
+/// joined as the in-process entry joins them.
 fn error_messages(stderr: &[u8]) -> String {
     let text: &str = std::str::from_utf8(stderr).expect("records are text");
     let mut messages: Vec<String> = Vec::new();
@@ -425,7 +430,8 @@ fn assert_same_failed_run(fixture: &Fixture, case: &Case, status: u8) {
     );
 }
 
-/// A finding at error severity fails the run with status 1 in both, and the explanation is the finding's message.
+/// A finding at error severity fails the run with status 1 in both,
+/// and the explanation is the finding's message.
 #[test]
 fn the_executable_and_the_in_process_entry_agree_on_a_finding_at_error_severity() {
     let fixture: Fixture = Fixture::new();
@@ -460,6 +466,7 @@ fn the_executable_and_the_in_process_entry_agree_on_a_processing_failure() {
     );
 }
 
-/// The scratch root of this test run, placed in the build directory instead of `/tmp`.
+/// The scratch root of this test run,
+/// placed in the build directory instead of `/tmp`.
 #[path = "test_scratch.rs"]
 mod test_scratch;

@@ -15,12 +15,14 @@
 //!  The check mirrors upstream's decisions,
 //!  reading nothing it would have to write:
 //!  the toolchain is the first word of `rustup show active-toolchain` in the library directory
-//!  (`dylint_internal/src/rustup.rs`, `active_toolchain`),
+//!  (`dylint_internal/src/rustup.rs`,
+//! `active_toolchain`),
 //!  the driver is `<drivers>/<toolchain>/dylint-driver`
 //!  with `<drivers>` being `DYLINT_DRIVER_PATH` or `<home>/.dylint_drivers`,
 //!  and a driver counts as current unless its `-V` fails or reports a version below `cargo-dylint`'s.
 //!  A driver that is not current is acceptable when `cargo metadata --offline` resolves the same throwaway crate.
-//!  Doc: `doc/troubleshooting/cargo-dylint-driver-pin-offline-after-upgrade.md`.
+//!  Doc:
+//! `doc/troubleshooting/cargo-dylint-driver-pin-offline-after-upgrade.md`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -79,7 +81,8 @@ pub enum DriverState {
     Ready,
     /// The driver is absent or outdated and the cargo cache cannot build one.
     Missing(
-        /// Why the driver cannot be built, as the first error line of the failed resolve.
+        /// Why the driver cannot be built,
+        /// as the first error line of the failed resolve.
         String,
     ),
     /// The check itself could not be made.
