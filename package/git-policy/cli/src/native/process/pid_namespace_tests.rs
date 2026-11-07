@@ -11,7 +11,8 @@ fn record_aged(directory: &Path, age: Duration) -> std::path::PathBuf {
     return path;
 }
 
-/// This process names its own namespace on Linux, in the kernel's spelling.
+/// This process names its own namespace on Linux,
+/// in the kernel's spelling.
 #[test]
 #[cfg(target_os = "linux")]
 fn the_current_namespace_is_named_the_way_the_kernel_names_it() {
@@ -30,7 +31,8 @@ fn only_two_known_and_different_names_are_another_namespace() {
     assert!(!is_other_namespace(None, None));
 }
 
-/// A fresh record has not outlived the patience; one past it has.
+/// A fresh record has not outlived the patience;
+/// one past it has.
 #[test]
 fn a_foreign_record_expires_only_after_the_patience() {
     let directory: std::path::PathBuf = crate::test_support::fixture("pid-namespace-1");
@@ -54,7 +56,9 @@ fn a_record_that_cannot_be_measured_does_not_expire() {
     assert_eq!(foreign_record_age(future.as_path()), None, "a record from the future has no age, so it is not old");
 }
 
-/// The shared rule: unknown or same namespace leaves the decision to the PID; another one answers by age.
+/// The shared rule:
+/// unknown or same namespace leaves the decision to the PID;
+/// another one answers by age.
 #[test]
 #[cfg(target_os = "linux")]
 fn a_foreign_owner_is_alive_until_its_record_expires() {
@@ -72,7 +76,8 @@ fn a_foreign_owner_is_alive_until_its_record_expires() {
     assert!(text.contains("another container") && text.contains("left running") && text.contains(old.to_string_lossy().as_ref()), "{text}");
 }
 
-/// Exactly the patience is still alive; one nanosecond more is expired.
+/// Exactly the patience is still alive;
+/// one nanosecond more is expired.
 #[test]
 fn the_patience_boundary_is_exclusive() {
     assert!(!age_outlives_patience(FOREIGN_OWNER_PATIENCE));
@@ -80,14 +85,19 @@ fn the_patience_boundary_is_exclusive() {
     assert!(!age_outlives_patience(FOREIGN_OWNER_PATIENCE - Duration::from_nanos(1)));
 }
 
-/// The patience is derived from the lock ceiling, so the two cannot drift apart again: a hold of another namespace's owner lasts
-/// at most one wait for a foreign `index.lock` plus the work around it, and the patience is twice that wait.
+/// The patience is derived from the lock ceiling,
+/// so the two cannot drift apart again:
+/// a hold of another namespace's owner lasts
+/// at most one wait for a foreign `index.lock` plus the work around it,
+/// and the patience is twice that wait.
 #[test]
 fn the_patience_is_twice_the_lock_ceiling() {
     assert_eq!(FOREIGN_OWNER_PATIENCE, 2 * crate::wait_ceilings::LOCK_CEILING);
 }
 
-/// The patience outlasts the longest command measured on this host (the commit timing log, 750.6 s), so a live owner's record is
+/// The patience outlasts the longest command measured on this host (the commit timing log,
+/// 750.6 s),
+/// so a live owner's record is
 /// not judged dead while its command is still running.
 #[test]
 fn the_patience_outlasts_the_longest_measured_command() {
