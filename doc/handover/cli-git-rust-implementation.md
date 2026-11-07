@@ -4451,8 +4451,25 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   a new `file-enforcer` rule kind;
   C:
   a commit-time guard) is in `package/claude-code-plugin/guardrail/README.md` "Maintenance";
-  not built,
-  for the owner.
+  not built.
+  Owner,
+  2026-11-07:
+  "Open a gh issue.
+  Do not address it in this session as we need to focus on our git wrapper."
+  Opened as issue #6265.
+  Old against new bundle on 3000 commands sampled evenly from 386294 distinct Bash commands in 1725 local transcripts
+  (owner:
+  "I approve personal data and transcript corpus commands.";
+  scratch `~/temp/agent/gbm`,
+  `extract-streaming.ts`,
+  `diff-run.ts`,
+  `diff-run2.ts`):
+  guardrail 3000 commands,
+  one deny on each side for the same command (an `until ! pgrep` loop),
+  differing only in the refusal text (`2619ea3af7`),
+  no non-zero exit;
+  `bash-output-filter` 1620 of 1620 identical;
+  `terminal-title` 800 of 800 identical title bytes on a private pty.
   A leftover:
   `.claude/worktrees/guardrail-bundle-matches-sources` holds two uncommitted,
   regenerable sibling builds.
