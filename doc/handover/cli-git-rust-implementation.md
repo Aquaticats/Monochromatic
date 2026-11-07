@@ -4359,6 +4359,21 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   an injected overflow event with a small fixed count,
   never writes scaled by a host limit,
   and a search for other tests sized from `/proc/sys`.
+- Incident (self-recursion,
+  found by the cargo-shadow round 21 agent,
+  2026-11-07):
+  a `cargo-shadow` test hung more than twelve minutes because two `search-shadow` `grep` links of different versions
+  (main's `.cache/search-shadow-bin` 0.2.2 and a worktree's stale 0.2.1)
+  each took the other for the real `grep` and re-executed it in a loop at about 89% CPU
+  (`strace -e execve`);
+  refreshing the worktree's links ended it.
+  Against the owner's "We should never invoke ourselves recursively" and "nothing should ever wait forever or indefinitely".
+  Given to an agent (`fix/shadows-never-start-another-shadow`):
+  identity check plus arrival marker so no shadow starts any shadow,
+  an audit of every shadow and launcher,
+  alpha releases.
+  Round 21 itself is merged (`4c31f33751`) and installed as `cargo-shadow` 0.1.5-alpha.2 (lock `62d3f69165`);
+  its worktree and branch are removed.
 - Music player:
   merged into main `9944c1ffe8` (1601 of 1601 desktop-app tests,
   Clippy and e2e lint clean;
