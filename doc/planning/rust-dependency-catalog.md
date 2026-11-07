@@ -72,7 +72,8 @@ Each item links to its decision section for evidence and rejected alternatives.
 - A mise task with inline TypeScript runs `cargo update` in every crate root (the `pnpm -r --no-save update`
    counterpart),
    with dry run,
-   then enforces release age (strict, from the sparse index `pubtime`)
+   then enforces release age (strict,
+  from the sparse index `pubtime`)
    and the trust policy (heuristic levels from the crates.io API,
    cached per `name@version`),
    refusing and reporting violations.
@@ -112,7 +113,8 @@ and their `target.<cfg>.*` variants.
 
 `CARGO_SHARED_DEPENDENCIES` in `file-enforcer.config.ts` owns 19 entries,
  each as a whole value (version plus features).
- Its guard paths are `dependencies.<name>` and `build-dependencies.<name>` only, so it never sees:
+ Its guard paths are `dependencies.<name>` and `build-dependencies.<name>` only,
+so it never sees:
 
 - `dev-dependencies`
    (`i-slint-backend-testing = "=1.18.1"` in `package/ide/app` and `package/music-player/desktop-app`;
@@ -124,7 +126,9 @@ and their `target.<cfg>.*` variants.
 
 Because it owns features,
  any crate needing a different feature set must leave the catalog entirely
- (`tokio`, `slint`, `image` today).
+ (`tokio`,
+`slint`,
+`image` today).
 `gtk4` is excluded with a "divergent" note,
  but both crates now declare the identical `{ version = "0.11", features = ["v4_12"] }`.
 
@@ -184,17 +188,23 @@ All three match the target crate's `package.version` today;
 Each crate has its own `Cargo.lock`,
  so identical requirements still resolve differently.
 Sampled resolved versions:
-`anyhow` 1.0.102, 1.0.103, 1.0.104;
-`serde` 1.0.228, 1.0.229;
-`clap` 4.6.1, 4.6.7;
+`anyhow` 1.0.102,
+1.0.103,
+1.0.104;
+`serde` 1.0.228,
+1.0.229;
+`clap` 4.6.1,
+4.6.7;
 `libc` 0.2.186 to 0.2.191;
-`zbus` 5.16.0, 5.19.0.
+`zbus` 5.16.0,
+5.19.0.
 
 ### CI today
 
 No workflow runs `file-enforcer` or checks its output.
 `.depot/workflows/current-baseline.yml` runs only on `workflow_dispatch`.
-Lightweight checks on `pull_request` exist (`.github/workflows/forbidden-strings.yml`, `fs-id.yml`);
+Lightweight checks on `pull_request` exist (`.github/workflows/forbidden-strings.yml`,
+`fs-id.yml`);
  `advisory-core.yml` also runs on `push`.
 Auto-push lands commits on `main` directly,
  so a drift check must run on `push` to catch most changes.
@@ -210,7 +220,8 @@ No crate declares `package.rust-version`.
 
 Primary sources gathered by a research subagent;
  probes marked as such were run on the repo's cargo
- (`.cache/toolchain-bin/cargo`, `cargo 1.101.0-nightly (3960fa69b 2026-10-12)`).
+ (`.cache/toolchain-bin/cargo`,
+`cargo 1.101.0-nightly (3960fa69b 2026-10-12)`).
 
 ### Cargo cannot share requirements across workspace roots
 
@@ -271,7 +282,8 @@ Probe (throwaway crate,
 - `cargo-deny` `[bans.workspace-dependencies]` flags literal declarations beside an inherited one,
    per workspace root.
 - Renovate's cargo manager extracts `[workspace.dependencies]` and can group updates across roots with `groupName`;
-   propagating a catalog bump needs the generator to run (`postUpgradeTasks`, admin-allowed).
+   propagating a catalog bump needs the generator to run (`postUpgradeTasks`,
+  admin-allowed).
    Dependabot has open bugs for many roots in one repo ([dependabot-core#11861]) and for files that are both package and
    workspace root ([dependabot-core#16037]).
 
@@ -281,9 +293,14 @@ Gradle version catalogs (`libs.versions.toml`),
 Maven `dependencyManagement`,
 pnpm catalogs,
 Bazel `crate_universe`,
-and Buck2 Reindeer all keep identity plus version centrally and leave variation (features, classifiers, optional) at
+and Buck2 Reindeer all keep identity plus version centrally and leave variation (features,
+classifiers,
+optional) at
  the consumer.
-pnpm alone offers enforcement modes (`catalogMode`: `manual`, `prefer`, `strict`),
+pnpm alone offers enforcement modes (`catalogMode`:
+`manual`,
+`prefer`,
+`strict`),
 named catalogs for alternative versions,
 and pruning of unused entries (`catalogPrune`).
 Gradle's `[versions]` section shares one version across several libraries,
@@ -308,9 +325,14 @@ An earlier round of answers was voided by the owner because the questions did no
 Extend `file-enforcer`'s existing Cargo engine
  (`package/file-enforcer/core/src/cargo/`) with the catalog and a check-only mode.
 Why:
- `Cargo.toml` keeps one owner (edition, lints, `[workspace]`, profiles, and dependencies);
+ `Cargo.toml` keeps one owner (edition,
+lints,
+`[workspace]`,
+profiles,
+and dependencies);
  a new Rust CLI built on `toml_edit` (the crate Cargo itself depends on) would split ownership for a lighter CI setup;
- contributing upstream (for example to `cargo-rail`, which unifies each workspace separately) waits on another roadmap.
+ contributing upstream (for example to `cargo-rail`,
+which unifies each workspace separately) waits on another roadmap.
 Consequence:
  the CI check needs Node and a pnpm install.
 
@@ -399,12 +421,14 @@ Retracted after selection:
 Follow-on:
  changesets on update.
 Omitted:
- path entries (`file:`, `link:`),
+ path entries (`file:`,
+`link:`),
  because internal crates by name cover every path dependency today;
  the `catalogs.default` synonym;
  the `catalogMode` setting,
  because strict is decided;
- overrides through the catalog (Cargo has none in manifests; lockfile concerns go to #1801);
+ overrides through the catalog (Cargo has none in manifests;
+lockfile concerns go to #1801);
  delegated catalog files;
  cross-repository catalogs;
  query and run commands.
@@ -415,7 +439,11 @@ Owner direction:
  also look at the repo's `catalog:tighten` task
  (`package/dependency-catalog/cli-tighten/`).
 It raises `>=x.y.z` floors in the JS catalog to the installed version,
- reports every entry as `TIGHT`, `OK`, `SKIP`, `UNDCL`, or `MISS`,
+ reports every entry as `TIGHT`,
+`OK`,
+`SKIP`,
+`UNDCL`,
+or `MISS`,
  and rewrites only the version token.
 Its portability plan (`doc/handover/catalog-tighten-portability.md`) covers JS package managers only.
 For Cargo,
@@ -433,15 +461,20 @@ Floor rule:
 Why
  (the owner pointed out the earlier question should not have existed):
  pnpm's catalogs page lists "Maintain unique versions" as the first advantage,
- and `catalog-tighten`'s resolver (`src/version-resolve.ts`, `readInstalledVersion`) states
- "a catalog pins one version across all importers, so the first on-disk hit is the active version".
+ and `catalog-tighten`'s resolver (`src/version-resolve.ts`,
+`readInstalledVersion`) states
+ "a catalog pins one version across all importers,
+so the first on-disk hit is the active version".
 Under that one-version premise a lowest-resolved floor would contradict the catalog's purpose.
 
-Probe (throwaway crate, repo cargo, offline):
+Probe (throwaway crate,
+repo cargo,
+offline):
  with `itoa` locked at 1.0.11 and the requirement raised from `1.0.4` to `1.0.15`,
  `cargo metadata --locked` failed ("cannot update the lock file ... because --locked was passed"),
  and a plain `cargo metadata` re-resolved only `itoa`,
- to 1.0.18 (the newest cached release, not the new floor),
+ to 1.0.18 (the newest cached release,
+not the new floor),
  while `memchr` stayed at 2.6.4.
 So a raised floor moves lower-locked crates to whatever is newest,
  not to the floor,
@@ -462,7 +495,8 @@ Owner rationale:
 
 Known consequence:
  `i-slint-backend-testing` must stay an exact pin equal to the resolved `slint`
- (its README requires `=` matching `slint`, noted in `package/ide/app/Cargo.toml`).
+ (its README requires `=` matching `slint`,
+noted in `package/ide/app/Cargo.toml`).
 A recursive update moves `slint` to its newest release while the exact pin stays,
  so `package/ide/app` and `package/music-player/desktop-app` stop compiling their tests until the pin is raised
  by hand.
@@ -476,7 +510,8 @@ Git dependencies (the Helix crates,
 ### Recursive no-save update
 
 Support the counterpart of `pnpm -r --no-save update`
- ("Don't update the ranges in `package.json`", `docs/cli/update.md`):
+ ("Don't update the ranges in `package.json`",
+`docs/cli/update.md`):
  a task that runs `cargo update` in every crate root.
 `cargo update` never edits manifests,
  so it is no-save by construction.
@@ -513,7 +548,8 @@ Adopted without a separate question because pnpm's docs or the repo's JS setup d
    Evidence:
    every internal JS reference uses `workspace:*`
    (1537 matches of `"workspace:*"` and no other `workspace:` form across `package/*/*/package.json`),
-   and pnpm publishes `workspace:*` as the exact version (`docs/workspaces.md`, "Publishing workspace packages").
+   and pnpm publishes `workspace:*` as the exact version (`docs/workspaces.md`,
+  "Publishing workspace packages").
 - Adopt on sync rewrites `cargo add`'s caret literal into a `>=` floor.
    Evidence:
    the JS catalog's entries are `>=` floors although `pnpm-workspace.yaml` sets `savePrefix: ''`,
@@ -549,7 +585,8 @@ So a release age can bound a full re-resolution but not a selective `cargo updat
 The index `pubtime` field it relies on was stabilized in Rust 1.94.0.
 
 The crates.io sparse index also records `pubtime` per version
- (`https://index.crates.io/an/yh/anyhow`, last line:
+ (`https://index.crates.io/an/yh/anyhow`,
+last line:
  `{"name":"anyhow","vers":"1.0.104","pubtime":"2026-07-18T20:59:37Z"}`),
  so the update can check every newly locked version against the release age with stable `cargo update`,
  independent of the unstable flag.
@@ -570,7 +607,8 @@ Its report format may still inform the Rust update's diagnostics as a descriptio
 The owner of the Rust recursive update is therefore open.
 
 Correction (2026-10-29,
- after the owner accepted "strict release age from `pubtime`, refusing and reporting"):
+ after the owner accepted "strict release age from `pubtime`,
+refusing and reporting"):
  that item misread pnpm.
 pnpm's `minimumReleaseAge` "defines the minimum number of minutes that must pass after a version is published before
  pnpm will install it",
@@ -635,7 +673,8 @@ The lockfiles hold 1388 distinct registry `name@version` pairs across 1024 crate
  the crates.io data-access page allows "a maximum of 1 request per second" with an identifying user-agent,
  while "No rate limits are required to use data from the sparse crate index".
 
-Decided (owner, 2026-10-29):
+Decided (owner,
+2026-10-29):
 
 - Levels:
    Trusted Publishing (`trustpub_data` present) is highest;
@@ -704,7 +743,8 @@ Each item gives the pnpm feature,
 - Default catalog and `catalog:` references:
    `[dependencies]` in `rust-catalog.toml`,
    use sites `{ workspace = true }` through the generated per-crate table.
-- Named catalogs (`catalogs.<name>`, `catalog:<name>`):
+- Named catalogs (`catalogs.<name>`,
+  `catalog:<name>`):
    `[catalogs.<name>]` tables;
    pnpm's consumer-side selection needs a Cargo-sanctioned place such as `[package.metadata]`,
    because unknown keys in a dependency table warn.
@@ -735,7 +775,9 @@ Each item gives the pnpm feature,
 
 ### Workflow
 
-- `catalogMode` (`manual`, `prefer`, `strict`) governing `pnpm add`:
+- `catalogMode` (`manual`,
+  `prefer`,
+  `strict`) governing `pnpm add`:
    a mode setting in `rust-catalog.toml`;
    adding happens through `cargo add` (literal) followed by the sync adopting the literal into the catalog
    (`pnpm add --save-catalog` and `--save-catalog-name`).
@@ -813,9 +855,11 @@ The migration commit `fd0bd03540` broke cargo 1.98.0 (the `localhost/monochromat
  fail with "`default-features = false` cannot override workspace's `default-features`".
 Host nightly 1.101 accepts them because rust-lang/cargo#17126 (cargo 1.99) allows the override,
  so the earlier `memchr` probe in "Open questions" passed on the wrong toolchain to catch it.
-Full trace: `doc/troubleshooting/cargo-1-98-inherited-default-features.md`.
+Full trace:
+`doc/troubleshooting/cargo-1-98-inherited-default-features.md`.
 
-Fix, commit `d1477a13ba`:
+Fix,
+commit `d1477a13ba`:
  a crate's generated entry carries `default-features = false` when every catalog site of that dependency in the crate
  writes it,
  and sites that disagree fail the sync with a named issue
@@ -856,7 +900,8 @@ The `ARG` defaults are synced by hand,
 
 ## Open questions
 
-- Verified 2026-10-29 (repo cargo, throwaway crate and throwaway worktree):
+- Verified 2026-10-29 (repo cargo,
+  throwaway crate and throwaway worktree):
    `memchr = ">=2.6.4"` in a crate's own `[workspace.dependencies]`,
    used as `{ workspace = true, default-features = false, features = ["alloc"] }`,
    resolved with only `alloc`,
@@ -867,7 +912,8 @@ The `ARG` defaults are synced by hand,
 - Name of the mise task and of its package
    (decided:
    a package bin under `package/dev-script/` run by a thin mise task).
-- Decided (owner, 2026-10-29):
+- Decided (owner,
+  2026-10-29):
    the trust cache is local and gitignored,
    `.cache/rust-catalog-update/crates-io/<name>.json`,
    holding per version only `num`,
@@ -880,14 +926,17 @@ The `ARG` defaults are synced by hand,
    keyed on a hash of every `Cargo.lock` with a prefix restore key.
   Measured 2026-10-29:
    the 24 lockfiles hold 1024 registry crate names with 46,593 published versions
-   (local sparse-index cache; `clap` has the most, 462);
+   (local sparse-index cache;
+  `clap` has the most,
+  462);
    `https://crates.io/api/v1/crates/clap/versions` returns all 462 in one response (`meta.next_page` is null),
    so a cold verification is 1024 requests,
    about 17 minutes at 1 request per second.
   GitHub removes cache entries "that have not been accessed in over 7 days",
    so a cold run recurs after a quiet week.
   Rejected:
-   a committed evidence file (about 4 to 5 MB estimated, regenerated on every update,
+   a committed evidence file (about 4 to 5 MB estimated,
+  regenerated on every update,
    and CI would check the committed copy instead of crates.io)
    and no cache (17 minutes on every run).
 - Re-probed 2026-10-29 on `cargo 1.101.0-nightly (3960fa69b 2026-10-12)`:
@@ -902,254 +951,467 @@ Landed:
  the `file-enforcer` sync and `--check` mode with the per-crate `default-features` rendering,
  the migration of all 24 manifests,
  the Cargo source of `catalog-tighten`,
- `package/dependency-catalog/cli-rust-update` (moved on 2026-11-03 into the cargo shadow, `package/cargo-shadow/cli`; update, dry run, CI `--verify`, exclude pruning, tests, README),
+ `package/dependency-catalog/cli-rust-update` (moved on 2026-11-03 into the cargo shadow,
+`package/cargo-shadow/cli`;
+update,
+dry run,
+CI `--verify`,
+exclude pruning,
+tests,
+README),
  the pinned-nightly build images (`8652ba7d7f`),
  and the contributor runbook `doc/runbook/rust-dependencies.md`.
 
-The first real dry runs (systemd units, throwaway worktree) failed in their first crate
+The first real dry runs (systemd units,
+throwaway worktree) failed in their first crate
  with "the `-Z` flag is only accepted on the nightly channel":
  the host's systemd user manager exports `RUSTUP_TOOLCHAIN=1.98.1`
- (`systemctl --user show-environment`; rustup's own default is nightly,
- and neither `~/.config/environment.d`, the shell profiles, nor the global mise config set it,
+ (`systemctl --user show-environment`;
+rustup's own default is nightly,
+ and neither `~/.config/environment.d`,
+the shell profiles,
+nor the global mise config set it,
  so its origin is still unknown).
-Commit `8620661b05` first let an inherited `RUSTUP_TOOLCHAIN` win, which kept the stale stable pin;
+Commit `8620661b05` first let an inherited `RUSTUP_TOOLCHAIN` win,
+which kept the stale stable pin;
  the follow-up makes the `toolchain.lock.json` nightly pin win and logs a differing inherited value.
-Both failures restored every lockfile, as designed.
+Both failures restored every lockfile,
+as designed.
 
 The third run resolved all 24 crates on the pinned nightly and refused 6 first-publisher releases
  ([issue #1806](https://github.com/Aquaticats/Monochromatic/issues/1806));
- the owner approved all six (`trustPolicyExclude`, commit `f722a78ea5`)
+ the owner approved all six (`trustPolicyExclude`,
+commit `f722a78ea5`)
  and amended the trust policy (commit `81fbb6ae68`):
  a listed individual crate owner counts as a known publisher,
  and only a change between two declared repositories fails.
-Re-checked against crates.io, only `wayland-server@0.31.14` (published through a team owner) would still be refused.
+Re-checked against crates.io,
+only `wayland-server@0.31.14` (published through a team owner) would still be refused.
 The fourth run passed:
  161 newly locked versions of 161 crates,
  every check clean,
  every lockfile restored (dry run).
 The host's `RUSTUP_TOOLCHAIN=1.98.1` stays on purpose as a canary for tools that do not pin the toolchain
- (owner decision, [issue #1805](https://github.com/Aquaticats/Monochromatic/issues/1805)).
+ (owner decision,
+[issue #1805](https://github.com/Aquaticats/Monochromatic/issues/1805)).
 The warm crates.io history cache (161 crates) is in the main checkout's gitignored `.cache/rust-catalog-update/`.
 
 Landed after the package moves (the update package is now `package/dependency-catalog/cli-rust-update`,
  file-enforcer is `package/file-enforcer/core`):
 
 - `rust:update` and `rust:verify` tasks in `mise.no-env.toml` and in root `task.ts`
-   (`task-run` reads `task.ts`, not `mise.toml`), commit `328e2421b2`;
+   (`task-run` reads `task.ts`,
+  not `mise.toml`),
+  commit `328e2421b2`;
    `pnpm-lock.yaml` with the importer landed in the other session's batch.
 - CI steps in `.github/workflows/advisory-core.yml` after `task-run prepare:pnpm` (commit `ed7a8036c2`).
    `prepare:pnpm` already runs the file-enforcer sync (`node file-enforcer.config.ts`),
    so the drift step checks with `git diff --exit-code` that the sync left every crate manifest and `rust-catalog.toml`
    unchanged;
    a `file-enforcer --check` at that point would compare against files the sync just rewrote and could never fail.
-   Control in a throwaway worktree: clean tree exit 0, an edited generated entry exit 1 naming the file.
+   Control in a throwaway worktree:
+  clean tree exit 0,
+  an edited generated entry exit 1 naming the file.
    `rust:verify` runs between `actions/cache/restore` and `actions/cache/save` of `.cache/rust-catalog-update/`.
 
 The first full `rust:verify` (1388 versions of 1024 crates) got HTTP 429 from crates.io after 657 API requests
  spaced exactly 1000 ms apart.
-crates.io's data-access policy lists the API last, after the sparse index, static.crates.io,
- and the database dump (`https://static.crates.io/db-dump.tar.gz`, 2,103,407,089 bytes on 2026-10-29, rebuilt daily,
+crates.io's data-access policy lists the API last,
+after the sparse index,
+static.crates.io,
+ and the database dump (`https://static.crates.io/db-dump.tar.gz`,
+2,103,407,089 bytes on 2026-10-29,
+rebuilt daily,
  no rate limit),
  and allows the API "a maximum of 1 request per second".
-Owner decision (2026-10-29): fill the trust cache from the dump (commit `d6954e5a7f`).
+Owner decision (2026-10-29):
+fill the trust cache from the dump (commit `d6954e5a7f`).
 Measured for the design:
 
-- Dump layout (dump `2026-10-29-020020`, crates.io commit `55d3c7bf0d5d0ffc2fc6217d7ce0f97cc798ae02`):
-   tar order `crates.csv`, `crate_owners.csv`, `versions.csv`, then `dependencies.csv` (1.8 GB)
+- Dump layout (dump `2026-10-29-020020`,
+  crates.io commit `55d3c7bf0d5d0ffc2fc6217d7ce0f97cc798ae02`):
+   tar order `crates.csv`,
+  `crate_owners.csv`,
+  `versions.csv`,
+  then `dependencies.csv` (1.8 GB)
    and `version_downloads.csv` (0.96 GB).
-   Public: `versions.{crate_id,num,created_at,published_by,repository}`, `crate_owners`, `users`,
+   Public:
+  `versions.{crate_id,num,created_at,published_by,repository}`,
+  `crate_owners`,
+  `users`,
    and `crates.trustpub_only` (134 locked crates).
-   Private: `versions.trustpub_data` and every `trustpub_*` table (`dump-db.toml` at that commit).
-- Across 785 API histories (37,822 releases, 1,470 Trusted Publishing) no Trusted Publishing release has a publisher;
+   Private:
+  `versions.trustpub_data` and every `trustpub_*` table (`dump-db.toml` at that commit).
+- Across 785 API histories (37,822 releases,
+  1,470 Trusted Publishing) no Trusted Publishing release has a publisher;
    the earliest is 2025-07-12T16:49:05Z,
    so a crate with a publisher-less release since 2025-07-01 is left to the API.
-- On the real dump: 1024 of 1024 locked crates found, 883 histories written, 141 left to the API,
-   22 seconds including gunzip, stopping after `versions.csv`.
-- Dump against API on 660 crates and 23,813 releases: identical version sets, times, and publishers;
+- On the real dump:
+  1024 of 1024 locked crates found,
+  883 histories written,
+  141 left to the API,
+   22 seconds including gunzip,
+  stopping after `versions.csv`.
+- Dump against API on 660 crates and 23,813 releases:
+  identical version sets,
+  times,
+  and publishers;
    9 old `dashmap` releases list a repository in the dump and none in the API,
    which the declared-to-declared repository rule does not count.
 - The tar and CSV readers are hand-written (owner chose this over vetted libraries).
 - The API now spaces requests 1100 ms apart and retries HTTP 429 after `Retry-After`
-   or a doubling 30-second backoff, at most five times.
+   or a doubling 30-second backoff,
+  at most five times.
 
-Cold full verify (2026-10-29, systemd unit `rust-verify-cold`, empty cache):
+Cold full verify (2026-10-29,
+systemd unit `rust-verify-cold`,
+empty cache):
  914 seconds and 187 crates.io API requests for 1388 locked versions of 1024 crates,
  inside the 25-minute CI step budget.
 It exited 1 with 41 trust findings on versions already in committed lockfiles
- (the earlier dry runs checked only newly locked versions, and the earlier warm full run stopped at HTTP 429):
+ (the earlier dry runs checked only newly locked versions,
+and the earlier warm full run stopped at HTTP 429):
  22 trust downgrades (mostly a first-time publisher after a known one)
  and 19 repository changes (organization moves such as `RazrFalcon` to `linebender`,
  backports published after a newer line such as `heapless@0.7.17` after `0.8.0`,
  and `http` to `https` for `transpose`).
-By publish age: 38 older than 30 days, 29 older than 180 days, 20 older than 365 days, 11 older than 730 days.
+By publish age:
+38 older than 30 days,
+29 older than 180 days,
+20 older than 365 days,
+11 older than 730 days.
 The list with dates is in `${HOME}/temp/agent/rust-catalog/cold-verify.log`.
 The API-rich cache was restored over the dump-filled one afterwards.
 
 pnpm precedent read for this (pnpm `pnpm11/resolving/npm-resolver/src/trustChecks.ts`
- and `pnpm11/docs/settings/dependency-resolution.md`, 2026-10-29):
+ and `pnpm11/docs/settings/dependency-resolution.md`,
+2026-10-29):
  the trust check runs inside version picking (`pickWithoutTrustDowngrade`),
- and, separately, `trustLockfile` (added in v11.3.0, default `false`) makes `pnpm install`
+ and,
+separately,
+`trustLockfile` (added in v11.3.0,
+default `false`) makes `pnpm install`
  "re-apply `minimumReleaseAge` and `trustPolicy` to every entry in the loaded lockfile";
  its docs reserve `trustLockfile: true` for "closed-source projects where every commit comes from a trusted author".
- (Correction: the first question to the owner said pnpm never re-checks locked versions.
- That was wrong, and the owner re-decided with the corrected fact.)
- History is ordered by publish date, not semver ("Trust checks are based solely on publish date, not semver");
+ (Correction:
+the first question to the owner said pnpm never re-checks locked versions.
+ That was wrong,
+and the owner re-decided with the corrected fact.)
+ History is ordered by publish date,
+not semver ("Trust checks are based solely on publish date,
+not semver");
  `trustPolicyIgnoreAfter` skips versions published more than that many minutes ago;
  and a picked version that fails is set aside and the picker retries the next candidate (up to 1000 times)
  instead of failing the install.
-`rust-catalog-update` does not yet set aside and repick; it restores every lockfile instead.
+`rust-catalog-update` does not yet set aside and repick;
+it restores every lockfile instead.
 
-Owner decisions (2026-10-29, question tool):
+Owner decisions (2026-10-29,
+question tool):
 
-- Verify scope: "New versions only", kept after the correction:
+- Verify scope:
+  "New versions only",
+  kept after the correction:
    the owner "never had and never will accept PRs containing a lockfile change",
    so every committed lockfile comes from the owner's own sessions,
    which is the trusted-base case pnpm's `trustLockfile: true` exists for.
    `--verify --base <rev>` checks only registry versions that some `Cargo.lock` holds and no `Cargo.lock` held at `<rev>`
-   (a union across lockfiles, as the update's own new-version check uses; a crate whose lockfile is new counts in full).
-   Commits auto-push straight to `main`, so a merge base with `main` would always be empty there;
+   (a union across lockfiles,
+  as the update's own new-version check uses;
+  a crate whose lockfile is new counts in full).
+   Commits auto-push straight to `main`,
+  so a merge base with `main` would always be empty there;
    CI passes the push's previous commit (`github.event.before`) as the base,
    and fetches that one commit.
-   Landed in `161cb34c54`; verified locally (0 versions against `HEAD`, 691 versions and 13 findings against a base from before 2026-09-01).
-   Known limit: after a force-push `github.event.before` may be unreachable, so the step fails
+   Landed in `161cb34c54`;
+  verified locally (0 versions against `HEAD`,
+  691 versions and 13 findings against a base from before 2026-09-01).
+   Known limit:
+  after a force-push `github.event.before` may be unreachable,
+  so the step fails
    (`continue-on-error` keeps the workflow green).
 - `trustPolicyIgnoreAfter = 525600` (365 days) in `rust-catalog.toml`.
-- Toolchain plan data: "Add a *.data.ts pattern".
-   `plan.tools.ts` and `plan.artifacts.ts` are data, not code ("the 300 line limit doesn't apply to non-code"),
+- Toolchain plan data:
+  "Add a *.data.ts pattern".
+   `plan.tools.ts` and `plan.artifacts.ts` are data,
+  not code ("the 300 line limit doesn't apply to non-code"),
    so they become `plan.tools.data.ts` and `plan.artifacts.data.ts`,
    a `**/*.data.ts` override in `package/config/oxlint/src/overrides.ts` turns `eslint/max-lines` off,
    and neither file is split.
    The renderer emits one property per line and fixes the generated file's other findings.
 
 Adopted from pnpm without asking (its documented behavior settles it):
- when a newly resolved version fails the trust check, the update sets it aside and re-resolves that crate
- with the version excluded, up to a bound, before failing.
+ when a newly resolved version fails the trust check,
+the update sets it aside and re-resolves that crate
+ with the version excluded,
+up to a bound,
+before failing.
  Queued after the verify scope change.
 
 Done since the cold run:
  the cold verify (log `${HOME}/temp/agent/rust-catalog/cold-verify.log`) and the restore of the API-rich cache;
  the verify scope and ignore-after (`161cb34c54`);
  the `**/*.data.ts` lint override in `package/config/oxlint`;
- in `package/file-enforcer/core`, the `fetcher` type fix (`a6b16edc2a`),
+ in `package/file-enforcer/core`,
+the `fetcher` type fix (`a6b16edc2a`),
  the zero-width-space and readonly-tuple fixes,
  and every non-toolchain test importing the built entry (`53525c50c6`),
  which took the package from 452 to 360 lint errors.
-#1800's acceptance criteria are met, so it closes with this status update;
+#1800's acceptance criteria are met,
+so it closes with this status update;
  the items below are tracked here and in the session task list.
 
 Remaining:
 
-1.  Done: the CI verify step ran on a real dispatched `advisory-core` run (40864046534),
+1.  Done:
+    the CI verify step ran on a real dispatched `advisory-core` run (40864046534),
      fetched the base and verified 0 newly locked versions.
      Its log should show `comparing lockfiles with <sha>` and `verifying N newly locked versions`.
-2.  Done in `0001595901` (guard test proven: `SET_ASIDE_ROUNDS = 0` fails both set-aside tests).
-     Set aside a trust-failing version and re-resolve (adopted from pnpm), `Refs #1800`:
+2.  Done in `0001595901` (guard test proven:
+    `SET_ASIDE_ROUNDS = 0` fails both set-aside tests).
+     Set aside a trust-failing version and re-resolve (adopted from pnpm),
+    `Refs #1800`:
      split `checkTrust` into a structured core returning the refused `name@version` with its problems;
-     candidates are older releases of that crate, caret-compatible with the refused version,
-     published before the release-age cutoff, not yanked (from the sparse index, a per-run `yanked(name)` on `Registry`,
-     not the cached history format), not already set aside, and passing the trust policy against the full history;
+     candidates are older releases of that crate,
+    caret-compatible with the refused version,
+     published before the release-age cutoff,
+    not yanked (from the sparse index,
+    a per-run `yanked(name)` on `Registry`,
+     not the cached history format),
+    not already set aside,
+    and passing the trust policy against the full history;
      try them newest first with `cargo update --package <name>@<version> --precise <candidate>` in each crate that locks it;
-     re-run both checks after each round (transitive versions move), with bounded rounds and bounded attempts;
-     keep the original finding when nothing works; report each set-aside as a warning in dry and real runs.
-     Needs a small tested version comparator (prerelease and `+build` metadata, for example `0.11.1+wasi-snapshot-preview1`),
-     a fake cargo runner that understands `--precise`, and a test that fails with the set-aside removed.
+     re-run both checks after each round (transitive versions move),
+    with bounded rounds and bounded attempts;
+     keep the original finding when nothing works;
+    report each set-aside as a warning in dry and real runs.
+     Needs a small tested version comparator (prerelease and `+build` metadata,
+    for example `0.11.1+wasi-snapshot-preview1`),
+     a fake cargo runner that understands `--precise`,
+    and a test that fails with the set-aside removed.
      Check `cargo update --help` and the Cargo Book for how `--precise` treats yanked versions first.
 3.  Done in `71ff15994f` (with the `**/*.data.ts` max-lines override in `package/config/oxlint`).
      Rename the toolchain plan data to `plan.tools.data.ts` and `plan.artifacts.data.ts`
-     (renderer, loader, patcher, tests, and the global copy in `~/.config/monochromatic-dev/toolchain/`),
-     make the renderer's output lint-clean, then tell the `monochromatic-db` session, which runs `toolchain:update`.
+     (renderer,
+    loader,
+    patcher,
+    tests,
+    and the global copy in `~/.config/monochromatic-dev/toolchain/`),
+     make the renderer's output lint-clean,
+    then tell the `monochromatic-db` session,
+    which runs `toolchain:update`.
 4.  The other `src/toolchain/*` lint findings (357 errors and 267 warnings after the rename `71ff15994f`).
-     `providers.ts` (1557 lines) and `update.resolvers.ts` (1521 lines) are code, so they still split into sibling modules.
-     In progress (2026-10-29): three helper agents each own one disjoint cluster, edit only it, never change a signature
-     used outside it, and leave changes uncommitted for review:
-     the update cluster (`update.resolvers.ts`, `update.render.ts`, `update.ts`, their tests),
-     the providers cluster (`providers.ts`, `container-runner.ts`, `exec.ts`, `mise.container-test.ts`, provider tests),
-     and the sync/status cluster (`status.ts`, `sync.ts`, `layout.ts`, `exposure.ts`, `mpm-manifest.ts`, `bin-paths.ts`,
-     `generate.ts`, their tests, `src/package/mise.container-test.ts`).
-     This session keeps `types.ts`, `paths.ts`, `plan.ts`, `plan.load.ts`, `lock.ts`, `src/index.ts`,
-     the toolchain tests' `require-eventual-artifact` imports, and any cross-cluster signature change the agents report.
+     `providers.ts` (1557 lines) and `update.resolvers.ts` (1521 lines) are code,
+    so they still split into sibling modules.
+     In progress (2026-10-29):
+    three helper agents each own one disjoint cluster,
+    edit only it,
+    never change a signature
+     used outside it,
+    and leave changes uncommitted for review:
+     the update cluster (`update.resolvers.ts`,
+    `update.render.ts`,
+    `update.ts`,
+    their tests),
+     the providers cluster (`providers.ts`,
+    `container-runner.ts`,
+    `exec.ts`,
+    `mise.container-test.ts`,
+    provider tests),
+     and the sync/status cluster (`status.ts`,
+    `sync.ts`,
+    `layout.ts`,
+    `exposure.ts`,
+    `mpm-manifest.ts`,
+    `bin-paths.ts`,
+     `generate.ts`,
+    their tests,
+    `src/package/mise.container-test.ts`).
+     This session keeps `types.ts`,
+    `paths.ts`,
+    `plan.ts`,
+    `plan.load.ts`,
+    `lock.ts`,
+    `src/index.ts`,
+     the toolchain tests' `require-eventual-artifact` imports,
+    and any cross-cluster signature change the agents report.
      `lock.ts` and `plan.ts` are done (0 findings).
-     All three clusters landed (`e5cc3750e4` providers, `a11dc18d42` sync/status, `fca18e62d3` update,
+     All three clusters landed (`e5cc3750e4` providers,
+    `a11dc18d42` sync/status,
+    `fca18e62d3` update,
       plus `66f…` making the bin list row scan linear after the owner rejected a quadratic replacement:
       "quadratic here isn't acceptable");
-      117 findings remained afterwards, all cross-cluster or in this session's files.
+      117 findings remained afterwards,
+    all cross-cluster or in this session's files.
      Owner decisions (2026-10-29):
-      lock absence is written by omitting the key ("Omit absent keys"), so `manager`, `packageId`, `os`,
+      lock absence is written by omitting the key ("Omit absent keys"),
+    so `manager`,
+    `packageId`,
+    `os`,
       and `bootstrap.requiresTool` become optional and the plan data drops its `null` literals;
-      none of the three outside readers uses those fields (checked: core-matrix reads only `.tools.node.artifacts`);
+      none of the three outside readers uses those fields (checked:
+    core-matrix reads only `.tools.node.artifacts`);
       `bin-paths.ts` keeps Node built-ins only and takes one justified scoped disable for `prefer-caught-value-text`;
       AGENTS.md MXL stays as written ("Leave MXL as is").
-     Landed `cd1943f4f3` (optional fields, validator-based loader).
-     Coordination (2026-10-29): session `monochromatic-71` owns `types.ts`, `exposure.ts`, `sync.ts`,
-      `plan.tools.data.ts`, and `plan.load.guards.ts` while it adds a `postinstall.run` kind;
-      it will message when done, and this session then regenerates `toolchain.lock.json` once for both changes.
-     `monochromatic-71` finished in `4dc59d9057`; the lock and mpm manifests were regenerated once in `920e76c1db`
-      (search-shadow 0.2.0 `run` step plus omitted absent keys), and `file-enforcer --check` reported no drift
+     Landed `cd1943f4f3` (optional fields,
+    validator-based loader).
+     Coordination (2026-10-29):
+    session `monochromatic-71` owns `types.ts`,
+    `exposure.ts`,
+    `sync.ts`,
+      `plan.tools.data.ts`,
+    and `plan.load.guards.ts` while it adds a `postinstall.run` kind;
+      it will message when done,
+    and this session then regenerates `toolchain.lock.json` once for both changes.
+     `monochromatic-71` finished in `4dc59d9057`;
+    the lock and mpm manifests were regenerated once in `920e76c1db`
+      (search-shadow 0.2.0 `run` step plus omitted absent keys),
+    and `file-enforcer --check` reported no drift
       in the generated root `mise.toml`.
      Landed since (2026-10-29):
-      `d258e48a5b` (async artifact writes and bin config seeding, `ReleaseTagUrlError`, `NO_GITHUB_TOKEN`,
-      linear `findBinUnder` walk), `37ea4d8fec` (container tests heal the workspace packages they reach instead of
-      the removed `package/module`; both toolchain matrix cells pass, including the postinstall command suite),
-      `18ac101cea` (`runPostinstallCommands` export), `7a31de940c` and `b172391f8f` (plan guards clean and split into
-      `plan.load.guards.options.ts`), `b64e268e8a` (the `bin-paths.ts` scoped disable, justified in
-      `package/file-enforcer/core/src/toolchain/bin-paths.lint-exemption.md`), `2b3290a61f` and `a2ff589e21`
-      (single-line style findings). 71 errors and 13 warnings remained after `a2ff589e21`.
-     In progress (2026-10-29, the owner watching): one helper agent owns all non-test toolchain source for the
-      absence and sync-API cascade (`paths.ts` including `isMainModule`, `layout.ts` `findToolBin`, `exec.ts`,
-      `exposure.ts`, `providers.context.ts`, `providers.environment.ts`, `status.ts`, and their callers);
+      `d258e48a5b` (async artifact writes and bin config seeding,
+    `ReleaseTagUrlError`,
+    `NO_GITHUB_TOKEN`,
+      linear `findBinUnder` walk),
+    `37ea4d8fec` (container tests heal the workspace packages they reach instead of
+      the removed `package/module`;
+    both toolchain matrix cells pass,
+    including the postinstall command suite),
+      `18ac101cea` (`runPostinstallCommands` export),
+    `7a31de940c` and `b172391f8f` (plan guards clean and split into
+      `plan.load.guards.options.ts`),
+    `b64e268e8a` (the `bin-paths.ts` scoped disable,
+    justified in
+      `package/file-enforcer/core/src/toolchain/bin-paths.lint-exemption.md`),
+    `2b3290a61f` and `a2ff589e21`
+      (single-line style findings).
+    71 errors and 13 warnings remained after `a2ff589e21`.
+     In progress (2026-10-29,
+    the owner watching):
+    one helper agent owns all non-test toolchain source for the
+      absence and sync-API cascade (`paths.ts` including `isMainModule`,
+    `layout.ts` `findToolBin`,
+    `exec.ts`,
+      `exposure.ts`,
+    `providers.context.ts`,
+    `providers.environment.ts`,
+    `status.ts`,
+    and their callers);
       it edits tests only for forced call-site changes.
-     Landed after that (2026-10-29): the cascade (`8f56c31d0d`, `11d5330ea9`; `observeTool` returns `NOT_INSTALLED`,
-      `findToolBin` returns `BIN_NOT_FOUND`, `isMainModule` async, `PathEnv` is `Readonly<NodeJS.ProcessEnv>`);
-      `monochromatic-71`'s replacement warning (`75dcb0dd7b`); the test-import migration (`4f8573c5bb`, toolchain names
-      re-exported `@internal` from `src/index.ts`); the `sync.order.ts` split (`703a69cd12`); the container-test
+     Landed after that (2026-10-29):
+    the cascade (`8f56c31d0d`,
+    `11d5330ea9`;
+    `observeTool` returns `NOT_INSTALLED`,
+      `findToolBin` returns `BIN_NOT_FOUND`,
+    `isMainModule` async,
+    `PathEnv` is `Readonly<NodeJS.ProcessEnv>`);
+      `monochromatic-71`'s replacement warning (`75dcb0dd7b`);
+    the test-import migration (`4f8573c5bb`,
+    toolchain names
+      re-exported `@internal` from `src/index.ts`);
+    the `sync.order.ts` split (`703a69cd12`);
+    the container-test
       resolver walking up to the root link (`dedupeDirectDeps`) instead of a wrong "run pnpm install" warning.
-      Test isolation: four suites contended on the real staleness lock; owner chose per-call `manifestPath`
-      (`35386af393`, `9ae7e793e3`, `b844b29921`) and an options object for `manageLsp4ijServerSettings` (`5a0d1d1d5d`).
-      Remaining package lint after `703a69cd12`: 29 findings, all in other sessions' active work
-      (`prune.ts` and `prune.unit.test.ts` from the prune commits `2565250e26`/`71a5a49845`, and one in the
+      Test isolation:
+    four suites contended on the real staleness lock;
+    owner chose per-call `manifestPath`
+      (`35386af393`,
+    `9ae7e793e3`,
+    `b844b29921`) and an options object for `manageLsp4ijServerSettings` (`5a0d1d1d5d`).
+      Remaining package lint after `703a69cd12`:
+    29 findings,
+    all in other sessions' active work
+      (`prune.ts` and `prune.unit.test.ts` from the prune commits `2565250e26`/`71a5a49845`,
+    and one in the
       CachyOS cells being added to `src/package/mise.container-test.ts`).
      Queued (2026-10-29):
-      done: the owner ran `pnpm prune && pnpm i` at the root for the 181 extraneous `node_modules/@monochromatic-dev/*`
-      links (166 dead into the removed `package/module/`, 15 live but undeclared;
-      `doc/troubleshooting/pnpm-undeclared-workspace-links-survive-install.md`); afterwards the dead-link count read 0
+      done:
+    the owner ran `pnpm prune && pnpm i` at the root for the 181 extraneous `node_modules/@monochromatic-dev/*`
+      links (166 dead into the removed `package/module/`,
+    15 live but undeclared;
+      `doc/troubleshooting/pnpm-undeclared-workspace-links-survive-install.md`);
+    afterwards the dead-link count read 0
       and `package/file-enforcer/core/node_modules/@monochromatic-dev/` holds only declared links;
-      done: the staleness manifest's orphan `.tmp` files (a writer that dies before its rename leaves a 1.5 MB temp
-      file) are swept under the lock before each write (`fcdf928c72`, `73fd3b40c6`, `26e248e58d`, guard test proven);
-      the three existing orphans go on the next real locked write. Owner decision: no such sweep in
-      `writeFileAtomically` ("Leave it": 0 orphans of its `<file>.<pid>.<uuid>.tmp` format in the worktree).
-      Owner-approved cleanup: 99 ignored `.<doc>.markdown-lint-<pid>-<uuid>.tmp` files from a retired markdown linter
-      (2026-06-29 and 2026-07-11, pids 1284792 and 307348; no code writes that format now) were deleted.
-     Open, not this session's files:
-      `src/staleness-concurrency-regression.unit.test.ts` is load-sensitive: its eight child writers share a fixed
-      10 s budget, and single runs on 2026-10-29 took 481 ms (load 28), 6.9 s (load 59) and over 10 s (load 31,
-      failed). A helper agent also saw it fail with `TMPDIR` under the symlinked `/var/home/user/temp`
-      (unreproduced here); `e655dcad15` (another session) moved its fixtures to `scratchRoot()`, whose
+      done:
+    the staleness manifest's orphan `.tmp` files (a writer that dies before its rename leaves a 1.5 MB temp
+      file) are swept under the lock before each write (`fcdf928c72`,
+    `73fd3b40c6`,
+    `26e248e58d`,
+    guard test proven);
+      the three existing orphans go on the next real locked write.
+    Owner decision:
+    no such sweep in
+      `writeFileAtomically` ("Leave it":
+    0 orphans of its `<file>.<pid>.<uuid>.tmp` format in the worktree).
+      Owner-approved cleanup:
+    99 ignored `.<doc>.markdown-lint-<pid>-<uuid>.tmp` files from a retired markdown linter
+      (2026-06-29 and 2026-07-11,
+    pids 1284792 and 307348;
+    no code writes that format now) were deleted.
+     Open,
+    not this session's files:
+      `src/staleness-concurrency-regression.unit.test.ts` is load-sensitive:
+    its eight child writers share a fixed
+      10 s budget,
+    and single runs on 2026-10-29 took 481 ms (load 28),
+    6.9 s (load 59) and over 10 s (load 31,
+      failed).
+    A helper agent also saw it fail with `TMPDIR` under the symlinked `/var/home/user/temp`
+      (unreproduced here);
+    `e655dcad15` (another session) moved its fixtures to `scratchRoot()`,
+    whose
       `~/.cache` default is not a symlink here;
       the `plan.unit.test.ts` and `generate.unit.test.ts` count failures after `cargo:monochromatic-mpm-shadow` landed
-      were fixed by their owner `monochromatic-04` (`3659c961a1`, then invariants in `ee9a4848c9`);
-      package lint after `64564dc323`: 1 warning, 0 errors (the CachyOS cells of `src/package/mise.container-test.ts`,
-      another session's active work); `lint:types` and `lint:config:types` exit 0 (`b06505e14e`);
-      done (owner-approved): `generate.ts --global` rewrote the machine-global lock and mpm manifests in
-      `~/.config/monochromatic-dev/toolchain/`; the global lock went from 119 `null` keys to 0, and its stale
+      were fixed by their owner `monochromatic-04` (`3659c961a1`,
+    then invariants in `ee9a4848c9`);
+      package lint after `64564dc323`:
+    1 warning,
+    0 errors (the CachyOS cells of `src/package/mise.container-test.ts`,
+      another session's active work);
+    `lint:types` and `lint:config:types` exit 0 (`b06505e14e`);
+      done (owner-approved):
+    `generate.ts --global` rewrote the machine-global lock and mpm manifests in
+      `~/.config/monochromatic-dev/toolchain/`;
+    the global lock went from 119 `null` keys to 0,
+    and its stale
       `package/dev-script/...` provenance lines now name `package/file-enforcer/core/...`;
-      owner-approved AGENTS.md rule `FDL` (list `find` matches, then delete them separately, because `-delete`
-      implies `-depth` and disables `-prune`), added after this session's own `-prune -delete` walked into
+      owner-approved AGENTS.md rule `FDL` (list `find` matches,
+    then delete them separately,
+    because `-delete`
+      implies `-depth` and disables `-prune`),
+    added after this session's own `-prune -delete` walked into
       `node_modules` (it deleted nothing outside the 99 intended files).
-      done: the post-cascade toolchain container matrix run (`fe-toolchain-matrix-cascade`) reported "2 cells passed".
-     Separate incident under investigation by a second helper agent: `pnpm i` printed "Already up to date" while
+      done:
+    the post-cascade toolchain container matrix run (`fe-toolchain-matrix-cascade`) reported "2 cells passed".
+     Separate incident under investigation by a second helper agent:
+    `pnpm i` printed "Already up to date" while
       `package/file-enforcer/core/node_modules` lacks the declared `@monochromatic-dev/config-typescript` link and keeps
-      stale `module-*` links into the removed `package/module`; its write-up goes to `doc/troubleshooting/`.
+      stale `module-*` links into the removed `package/module`;
+    its write-up goes to `doc/troubleshooting/`.
      Former open question for the owner:
-      `types.ts` mirrors `toolchain.lock.json`, which holds 120 JSON `null` values
-      (30 `manager`, 30 `packageId`, 59 `os`, 1 `requiresTool`)
-      and is read outside file-enforcer (`package/test-harness/core-matrix`, `package/ide/app/bin/inspect-language-toolchain.ts`,
+      `types.ts` mirrors `toolchain.lock.json`,
+    which holds 120 JSON `null` values
+      (30 `manager`,
+    30 `packageId`,
+    59 `os`,
+    1 `requiresTool`)
+      and is read outside file-enforcer (`package/test-harness/core-matrix`,
+    `package/ide/app/bin/inspect-language-toolchain.ts`,
       `package/translation-repair/typography`);
       `no-nullish-union` either becomes optional fields with omitted lock keys (a format change for those readers)
       or keeps `null` in the on-disk mirror type behind a documented scoped disable.
      `paths.ts`'s `isMainModule` uses `realpathSync` at every toolchain entry point's top level,
       so its `no-sync` fix changes callers in all three clusters (now inside the cascade agent's scope).
-5.  Done (2026-10-29): the overwrite, TOML-write, JetBrains, and Mise-manifest suites timed out on the real
+5.  Done (2026-10-29):
+    the overwrite,
+    TOML-write,
+    JetBrains,
+    and Mise-manifest suites timed out on the real
      `node_modules/.cache/file-enforcer/staleness-manifest.json.lock` because they wrote through the default
-     manifest path; they now pass a per-test `manifestPath` (`35386af393`, `9ae7e793e3`, see item 4).
-     The plan and generator tests no longer expect `nightly-2026-10-28` or node `26.12.1`; those strings remain only
+     manifest path;
+    they now pass a per-test `manifestPath` (`35386af393`,
+    `9ae7e793e3`,
+    see item 4).
+     The plan and generator tests no longer expect `nightly-2026-10-28` or node `26.12.1`;
+    those strings remain only
      as fixture inputs in `update.unit.test.ts`.

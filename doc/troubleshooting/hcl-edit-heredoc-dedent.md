@@ -6,7 +6,8 @@ comes out of `hcl-edit` with characters cut off the front of every literal line.
 The damage is not only to formatting:
 the evaluated string changes too,
 and the printed document silently carries the changed text.
-A second, milder variant drops the `-` from `<<-` when nothing can be stripped.
+A second,
+milder variant drops the `-` from `<<-` when nothing can be stripped.
 
 Found while designing meow's HCL front end
 (`doc/planning/monorepo-manager-from-scratch-design.md`,
@@ -41,15 +42,20 @@ Silent in both variants.
 
   The HashiCorp reference implementation evaluates the input to `"top\n    mid i\n    deep\n"`
   and the output to `"\nmid i\ndeep\n"`.
-  `hcl-rs` 0.19.8, which parses through this crate, evaluates even the input to `"\nmid i\ndeep\n"`,
-  so a consumer that only evaluates, without printing, also sees the wrong string.
+  `hcl-rs` 0.19.8,
+  which parses through this crate,
+  evaluates even the input to `"\nmid i\ndeep\n"`,
+  so a consumer that only evaluates,
+  without printing,
+  also sees the wrong string.
 
 - Real-world shape.
    The same input shape appears in OpenTofu's own test fixtures.
    In `internal/backend/remote-state/azure/meta-test/ado/main.tf`,
    a YAML pipeline embedded in an `<<-EOT` heredoc with three `${...}` interpolations
    comes back with sixteen characters cut from most lines
-   (`pool:` becomes empty, `  vmImage: ubuntu-latest` becomes `u-latest`).
+   (`pool:` becomes empty,
+  `  vmImage: ubuntu-latest` becomes `u-latest`).
 
 - Marker loss.
    A `<<-` heredoc whose lines have no common indentation is printed as `<<`:
@@ -72,7 +78,8 @@ Silent in both variants.
 
 - Tab indentation is replaced by the same number of spaces.
    `<<-EOT` with tab-indented lines prints with one space per stripped tab.
-   The value is unchanged, because the indentation is stripped at evaluation.
+   The value is unchanged,
+  because the indentation is stripped at evaluation.
 
 ## Root cause
 
@@ -145,7 +152,8 @@ the first literal (`"top\n    mid "`) returns `None` because of `top`,
 and the second literal (`"\n    deep\n"`) returns `Some(4)`.
 The fold therefore chooses 4 and dedents every literal by 4,
 including the one it had just declined to measure.
-The dedent step then removes characters by position, not by class:
+The dedent step then removes characters by position,
+not by class:
 
 ```rust
 // hcl-edit-0.9.7/src/util.rs:3-14 (abbreviated)
@@ -160,7 +168,9 @@ pub(crate) fn dedent_by(s: &str, n: usize, skip_first: bool) -> Cow<'_, str> {
 
 `"top".chars().skip(4)` is empty,
 so `top` is deleted from both the stored template and the value.
-With a longer line, as in the OpenTofu fixture, the first characters of the content are eaten.
+With a longer line,
+as in the OpenTofu fixture,
+the first characters of the content are eaten.
 
 The marker variant has a different immediate cause:
 the encoder decides between `<<` and `<<-` from whether an indent was recorded,
@@ -176,7 +186,8 @@ the encoder decides between `<<` and `<<-` from whether an indent was recorded,
 
 so a `<<-` heredoc that stripped nothing is indistinguishable from a plain `<<` heredoc after parsing.
 
-For comparison, the reference implementation counts a line that starts with a non-space
+For comparison,
+the reference implementation counts a line that starts with a non-space
 as zero spaces and folds it into the minimum,
 and it counts grapheme clusters rather than characters:
 
@@ -207,7 +218,8 @@ An earlier reading of the same round-trip failures,
 recorded in `doc/planning/monorepo-manager-route-research/stack-declarative-config.md`,
 attributed the changed files to formatting preferences.
 That is wrong for this case:
-the byte that changes is inside a string value, and the value changes with it.
+the byte that changes is inside a string value,
+and the value changes with it.
 
 ## Verification
 
@@ -220,10 +232,13 @@ the byte that changes is inside a string value, and the value changes with it.
    driven by a small Go program that parses each case with `hclsyntax.ParseConfig`
    and prints the evaluated attribute values as JSON.
 - Toolchain:
-   `nightly-2026-09-12`, Go 1.27.1.
+   `nightly-2026-09-12`,
+  Go 1.27.1.
 - Isolation:
    builds and runs in `podman run --rm --init --memory=2g --cpus=2 --pids-limit=512 --network=none`
-   with no credentials, no home directory, and no repository mount.
+   with no credentials,
+  no home directory,
+  and no repository mount.
 
 Input file:
 
@@ -267,7 +282,8 @@ Round trip through `hcl-edit` 0.9.7 (`parse_body` then `to_string`):
 === tab_indent identical=false                               (tabs printed as spaces)
 ```
 
-Values, reference implementation on the input versus on the round-tripped output:
+Values,
+reference implementation on the input versus on the round-tripped output:
 
 ```text
 input  : x = "top\n    mid i\n    deep\n"
@@ -280,8 +296,10 @@ The four other cases evaluate identically before and after the round trip.
 
 Patterns that work cleanly:
 
-- Every line of the heredoc indented by at least one space, with or without interpolations.
-- A plain `<<` heredoc, with or without interpolations.
+- Every line of the heredoc indented by at least one space,
+  with or without interpolations.
+- A plain `<<` heredoc,
+  with or without interpolations.
 - An `<<-` heredoc with no interpolations at all,
    because then the template has a single literal and the fold sees the column-zero line.
 
@@ -293,10 +311,15 @@ Patterns that fail:
 - `<<-` where no common indent exists:
    the marker becomes `<<`.
 - `<<-` indented with tabs:
-   tabs become spaces, one space per tab.
+   tabs become spaces,
+  one space per tab.
 
 Corpus scale:
-across 2,246 HCL files from OpenTofu, HashiCorp HCL, hcl-rs, tofu-ls, and hcl-lang,
+across 2,246 HCL files from OpenTofu,
+HashiCorp HCL,
+hcl-rs,
+tofu-ls,
+and hcl-lang,
 `hcl-edit` printed 2,153 files byte for byte,
 27 differed only by CRLF normalization,
 and of the five genuine differences four are heredoc cases from this cluster
@@ -307,9 +330,12 @@ the fifth being the binary-operator defect in
 ## Verified workarounds
 
 - Compare before writing.
-   Parse, print, and refuse to write when the printed text differs from the input.
+   Parse,
+  print,
+  and refuse to write when the printed text differs from the input.
   Tradeoff:
-   catches the damage, but blocks edits to any file containing such a heredoc.
+   catches the damage,
+  but blocks edits to any file containing such a heredoc.
 - Reject `<<-` heredocs that contain interpolations in consumer validation,
    or normalize them to plain `<<` with already-stripped content before storing.
   Tradeoff:
@@ -317,7 +343,8 @@ the fifth being the binary-operator defect in
    and rewriting the heredoc changes the author's file.
 - Do not trust `hcl-edit` or `hcl-rs` values for indented heredocs:
    read the heredoc's source span and strip the indent with the reference rule
-   (minimum over all lines, counting a column-zero line as zero).
+   (minimum over all lines,
+  counting a column-zero line as zero).
   Tradeoff:
    the consumer re-implements part of the template semantics.
 - Vendor or fork the crate with the patch under "Upstream filing artifact".
@@ -329,13 +356,15 @@ the fifth being the binary-operator defect in
 
 - Passing the heredoc through `hcl-rs`'s formatter instead:
    `hcl::format::to_string` re-emits the damaged template,
-   because the damage happened during parsing, and it also drops every comment in the document.
+   because the damage happened during parsing,
+  and it also drops every comment in the document.
 - Using `HeredocTemplate::set_indent` after parsing to restore the marker:
    the deleted characters are already gone from the template literals,
    and re-indenting adds spaces rather than the original text.
 - Treating the case as a formatting preference and normalizing with a formatter:
    the reference formatter `hclwrite.Format` changes whitespace only outside heredocs,
-   and the OpenTofu fixture shows lost content, not lost formatting.
+   and the OpenTofu fixture shows lost content,
+  not lost formatting.
 
 ## Upstream filing artifact
 
@@ -344,33 +373,44 @@ the fifth being the binary-operator defect in
 1. Is it really upstream's fault?
     Yes.
    The crate parses `<<-` heredocs itself and states that it follows the HCL specifications
-    (`martinohmann/hcl-rs` issue #304, maintainer comment of 2024-04-09);
+    (`martinohmann/hcl-rs` issue #304,
+   maintainer comment of 2024-04-09);
     the specification defines the stripped indent as the minimum over all lines.
 2. Can upstream fix it?
     Yes.
-   The fix is two edits: report zero instead of `None` for a column-zero line,
+   The fix is two edits:
+   report zero instead of `None` for a column-zero line,
     and keep the `<<-` marker when nothing is stripped.
 3. Are they supporting this use case?
     Yes.
    `crates/hcl-edit/src/template/tests.rs::dedent_template` and the crate's specsuite runner
-    cover `<<-` heredocs, including templates with interpolations.
+    cover `<<-` heredocs,
+   including templates with interpolations.
 4. Would the repo welcome our contribution?
     Yes.
-   `CONTRIBUTING.md` invites pull requests, asks for a regression test with each fix,
+   `CONTRIBUTING.md` invites pull requests,
+   asks for a regression test with each fix,
     and says nothing about AI assistance;
-    external fixes were merged in 2026-07 and 2026-08 (#549, #562).
+    external fixes were merged in 2026-07 and 2026-08 (#549,
+   #562).
 5. Will they likely fix it?
     Likely.
    Heredoc indentation has been fixed several times before
-    (#8, #11, #15, #157),
+    (#8,
+   #11,
+   #15,
+   #157),
     which shows the maintainer treats these as bugs;
     no won't-fix statement exists.
 6. Have we prototyped a minimal fix compatible with their architecture?
-    Yes, see the diff and its verification.
+    Yes,
+   see the diff and its verification.
 
 ### Duplicate search
 
-Searched `martinohmann/hcl-rs` issues and pull requests, open and closed, on 2026-09-17
+Searched `martinohmann/hcl-rs` issues and pull requests,
+open and closed,
+on 2026-09-17
 (recorded in `data/dup-search.jsonl` in the research scratchpad):
 `heredoc indent`,
 `heredoc dedent`,
@@ -428,7 +468,8 @@ plus regression inputs:
         "<<-EOT\ntop\n    mid ${i}\n    deep\nEOT",
 ```
 
-Verification, both runs in the bounded container:
+Verification,
+both runs in the bounded container:
 
 - Without the source changes and with the new test inputs:
    `cargo test --offline --locked -p hcl-edit --lib` printed
@@ -439,7 +480,8 @@ Verification, both runs in the bounded container:
    `cargo test --offline --locked --workspace` printed `ok` for all 23 test binaries with no failures,
    the crate's specsuite runner included.
 - The five-case harness then printed `identical=true` for four cases,
-   with only the tab case still differing (tabs printed as spaces, value unchanged),
+   with only the tab case still differing (tabs printed as spaces,
+  value unchanged),
    and the reference implementation evaluated every round-tripped case to the same value as its input.
 
 The tab difference is left alone on purpose:

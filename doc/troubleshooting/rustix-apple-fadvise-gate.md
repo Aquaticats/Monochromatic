@@ -44,7 +44,8 @@ build output is piped through `tail`.
 
 `posix_fadvise` is a POSIX advisory-information interface that Darwin does not
 implement.
- Apple's equivalent controls are `fcntl` commands (`F_NOCACHE`, `F_RDADVISE`,
+ Apple's equivalent controls are `fcntl` commands (`F_NOCACHE`,
+`F_RDADVISE`,
 `F_GLOBAL_NOCACHE`),
  and the symbol is simply absent:
 
@@ -287,7 +288,9 @@ println!("{}", dir.count());
 
 ## What does not work
 
-- Adding rustix features (`fs`, `std`, `all-apis`,
+- Adding rustix features (`fs`,
+  `std`,
+  `all-apis`,
    `use-libc`):
    the gate is on
   `target_os`,

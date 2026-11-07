@@ -21,10 +21,13 @@ When a correction exposes a blind spot,
 - Launch an actually separate reviewer in a visible terminal or separate tool when the user asks for independent review.
 - State plainly that no independent review was run.
 
-An independent reviewer is a model from another vendor than the author, or the user.
+An independent reviewer is a model from another vendor than the author,
+or the user.
  A subagent of the same model family reads the same way the author reads
- and shares its blind spots, so its review is a second pass:
- report it as one, and never as independent review.
+ and shares its blind spots,
+so its review is a second pass:
+ report it as one,
+and never as independent review.
  A second pass is still worth running when it can run experiments the cross-vendor reviewer cannot,
  such as real Git in a throwaway repository;
  it does not replace the cross-vendor reading of the same change.

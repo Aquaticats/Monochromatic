@@ -285,7 +285,8 @@ The wrong premise is stated in the source.
 
 ```rust
 /// Columns and offsets are counted as Unicode code points (matching the
-/// CommonMark `position` convention used by remark/micromark), not bytes —
+/// CommonMark `position` convention used by remark/micromark),
+/// not bytes —
 ```
 
 remark does not use code points;

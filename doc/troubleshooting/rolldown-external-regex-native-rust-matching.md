@@ -54,7 +54,8 @@ Paths are relative to the rolldown repository root.
 ### The binding type is all-or-nothing
 
 The napi binding accepts either an array of string-or-RegExp entries or a
-single JS callback, never a mix
+single JS callback,
+never a mix
 (`crates/rolldown_binding/src/utils/normalize_binding_options.rs:222-226`):
 
 ```rust
@@ -95,7 +96,8 @@ unsafe fn from_napi_value(env: sys::napi_env, napi_val: sys::napi_value) -> napi
 
 `HybridRegex` tries the Rust `regex` crate first and only falls back to the
 ECMAScript-compatible `regress` engine for features the `regex` crate cannot
-express, such as backreferences and lookaround
+express,
+such as backreferences and lookaround
 (`crates/rolldown_utils/src/js_regex.rs:5-6`,
 `crates/rolldown_utils/src/js_regex.rs:88-97`):
 
@@ -118,7 +120,10 @@ mapping the JS `u` flag onto the `regex` crate's Unicode mode and enabling
 CRLF-aware line semantics
 (`crates/rolldown_utils/src/js_regex.rs:130-135`).
 The workspace pins `regex = "1.13.0"` with features
-`std`, `perf`, `unicode-perl`, `unicode-case`,
+`std`,
+`perf`,
+`unicode-perl`,
+`unicode-case`,
 and `regress = "0.12.0"`
 (rolldown `Cargo.toml:229-235`).
 
@@ -178,7 +183,8 @@ napi's `ThreadsafeFunction`
 
 ```rust
 // crates/rolldown_binding/src/types/js_callback.rs:45
-/// `JsCallback`  is a type alias for `ThreadsafeFunction`. It represents a JavaScript function that passed to Rust side.
+/// `JsCallback`  is a type alias for `ThreadsafeFunction`.
+/// It represents a JavaScript function that passed to Rust side.
 ```
 
 The wrapped callback awaits an `invoke_async` per call
@@ -301,7 +307,9 @@ Run:
 `node doc/troubleshooting/rolldown-external-regex-native-rust-matching.mjs 400 5`
 and again with `2000 3`.
 
-Recorded results (2026-10-17, committed probe, warnings-free fixture):
+Recorded results (2026-10-17,
+committed probe,
+warnings-free fixture):
 
 - Outputs byte-identical between the two forms at both fixture sizes
   (`outputs identical: true`),

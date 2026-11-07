@@ -328,9 +328,11 @@ At revision `90b8fd143c0085f3fb2d47344c578e23ccc33da7`,
 `crates/oxc_type_checker/src/lib.rs:3-6` says:
 
 ```rust
-//! An **experimental**, work-in-progress type checker for JavaScript and TypeScript.
+//! An **experimental**,
+//! work-in-progress type checker for JavaScript and TypeScript.
 //!
-//! This crate is intentionally a thin scaffold. It does *not* type check anything yet.
+//! This crate is intentionally a thin scaffold.
+//! It does *not* type check anything yet.
 ```
 
 The crate is unpublished,

@@ -2,10 +2,13 @@
 
 ## Outcome and authority
 
-Status: **owner selected**.
+Status:
+**owner selected**.
 The evaluation is complete and nothing in it waits on a decision.
-Started and last updated: 2026-10-05.
-Owner: scoped evaluation delegate of the main coding agent.
+Started and last updated:
+2026-10-05.
+Owner:
+scoped evaluation delegate of the main coding agent.
 The first attempt ran as delegate session `01a109e2-f31f-779e-98f4-4a3b3b1aec5c`.
 
 The native owner of the LFS object-base normalization is a repository-owned restricted normalizer:
@@ -220,9 +223,11 @@ everything else is free for the port to restructure.
 ```rust
 // ~/temp/agent/native-lfs-url-vet-20261005/rust-reference/src/lib.rs (scratch reference, not product code)
 //! Scratch reference for the restricted LFS object-base normalizer contract.
-//! Standard library only. Not product code.
+//! Standard library only.
+//! Not product code.
 
-/// Why an endpoint is outside the supported form. Variants are listed in evaluation order.
+/// Why an endpoint is outside the supported form.
+/// Variants are listed in evaluation order.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LfsUrlRejection {
     /// The endpoint does not begin with `http://` or `https://` in any ASCII letter case.
@@ -233,11 +238,18 @@ pub enum LfsUrlRejection {
     Ipv6Literal,
     /// Nothing stands between the credentials and the port or path.
     EmptyHost,
-    /// The host holds a byte other than an ASCII letter, digit, `-`, `.`, or `_`.
+    /// The host holds a byte other than an ASCII letter,
+    /// digit,
+    /// `-`,
+    /// `.`,
+    /// or `_`.
     HostCharacter,
     /// The host is longer than 253 bytes.
     HostLength,
-    /// The host has an empty label: a leading, trailing, or doubled full stop.
+    /// The host has an empty label:
+    /// a leading,
+    /// trailing,
+    /// or doubled full stop.
     EmptyHostLabel,
     /// The last host label is a number and the host is not a canonical dotted-decimal IPv4 address.
     NumericHost,
@@ -247,7 +259,8 @@ pub enum LfsUrlRejection {
     PortRange,
     /// The path holds a byte outside the supported path set.
     PathCharacter,
-    /// A path segment is a single-dot or double-dot segment, including `%2e` spellings.
+    /// A path segment is a single-dot or double-dot segment,
+    /// including `%2e` spellings.
     DotSegment,
 }
 
@@ -271,7 +284,8 @@ impl LfsUrlRejection {
     }
 }
 
-/// Longest supported host, in bytes.
+/// Longest supported host,
+/// in bytes.
 const MAX_HOST_BYTES: usize = 253;
 /// Greatest port number.
 const MAX_PORT: u32 = 65_535;
@@ -335,7 +349,10 @@ fn supported_scheme(endpoint: &str) -> Option<(&'static str, u32)> {
     return None;
 }
 
-/// Port to serialize: `None` when absent, empty, or the scheme default.
+/// Port to serialize:
+/// `None` when absent,
+/// empty,
+/// or the scheme default.
 fn parse_port(digits: &str, default_port: u32) -> Result<Option<u32>, LfsUrlRejection> {
     if digits.is_empty() {
         return Ok(None);
@@ -354,9 +371,11 @@ fn parse_port(digits: &str, default_port: u32) -> Result<Option<u32>, LfsUrlReje
     return Ok(Some(value).filter(|port: &u32| -> bool { return *port != default_port }));
 }
 
-/// Credential-free LFS object base for an endpoint, without one final slash.
+/// Credential-free LFS object base for an endpoint,
+/// without one final slash.
 ///
-/// Whenever this returns `Ok`, the string equals the incumbent `lfsObjectBase` output.
+/// Whenever this returns `Ok`,
+/// the string equals the incumbent `lfsObjectBase` output.
 pub fn lfs_object_base(endpoint: &str) -> Result<String, LfsUrlRejection> {
     // Step 1: scheme and authority marker.
     let Some((scheme, default_port)) = supported_scheme(endpoint) else {
@@ -760,47 +779,77 @@ as match,
 classified difference,
 both reject:
 
-- `incumbent_test` 9, 0, 0 (endpoints from the incumbent's unit tests).
-- `plain` 14, 0, 0.
-- `userinfo` 29, 2, 6.
-- `port` 25, 2, 20 (default ports,
+- `incumbent_test` 9,
+  0,
+  0 (endpoints from the incumbent's unit tests).
+- `plain` 14,
+  0, 0.
+- `userinfo` 29,
+  2, 6.
+- `port` 25,
+  2,
+  20 (default ports,
   leading zeros,
   and the 16-bit,
   32-bit,
   and 64-bit overflow boundaries).
-- `ipv6` 0, 14, 15.
-- `numeric_host` 17, 22, 13.
-- `idna` 15, 20, 5 (the 15 matches are ASCII `xn--` forms and lookalikes).
-- `host_form` 23, 29, 12 (letter case,
+- `ipv6` 0,
+  14, 15.
+- `numeric_host` 17,
+  22, 13.
+- `idna` 15,
+  20,
+  5 (the 15 matches are ASCII `xn--` forms and lookalikes).
+- `host_form` 23,
+  29,
+  12 (letter case,
   hyphens,
   underscores,
   full stops,
   punctuation,
   and lengths around 253 bytes).
-- `percent` 32, 0, 0 (escape case,
+- `percent` 32,
+  0,
+  0 (escape case,
   malformed escapes,
   encoded reserved characters).
-- `path_char` 19, 29, 0.
-- `dot_segment` 19, 30, 0.
-- `slash` 14, 0, 0 (empty,
+- `path_char` 19,
+  29, 0.
+- `dot_segment` 19,
+  30, 0.
+- `slash` 14,
+  0,
+  0 (empty,
   repeated,
   and trailing slashes).
-- `tail` 43, 0, 0 (queries and fragments,
+- `tail` 43,
+  0,
+  0 (queries and fragments,
   including ones holding `/`,
   `\`,
   `@`,
   and control characters).
-- `backslash` 2, 13, 1.
-- `whitespace_control` 0, 36, 8 (tabs,
+- `backslash` 2,
+  13, 1.
+- `whitespace_control` 0,
+  36,
+  8 (tabs,
   line breaks,
   and control characters at the ends and inside each component).
-- `scheme_form` 5, 15, 32 (uppercase schemes,
+- `scheme_form` 5,
+  15,
+  32 (uppercase schemes,
   missing slashes,
   missing authority,
   no scheme).
-- `other_scheme` 0, 75, 7.
-- `long` 9, 2, 1 (components of 1,100 bytes and more).
-- `matrix` 184, 0, 0 (a one-in-twelve sample of the cross product measured in full under `Wider differential runs`).
+- `other_scheme` 0,
+  75, 7.
+- `long` 9,
+  2,
+  1 (components of 1,100 bytes and more).
+- `matrix` 184,
+  0,
+  0 (a one-in-twelve sample of the cross product measured in full under `Wider differential runs`).
 
 73 config texts:
 53 match,
@@ -1123,7 +1172,8 @@ create-new report locking,
 and atomic audit-report writes.
 The diagnostic began:
 
-> This writes an executable TypeScript helper outside the repository, and its guardrail plus staged
+> This writes an executable TypeScript helper outside the repository,
+> and its guardrail plus staged
 > report-writing purpose make it a sensitive workflow action rather than an ordinary project edit.
 
 It also stated:
@@ -1132,7 +1182,8 @@ It also stated:
 
 A trust-rule request through `propose_trust` returned:
 
-> Rejected: no interactive UI available.
+> Rejected:
+> no interactive UI available.
 
 The same session could not create a private task configuration for a rendered-Markdown check,
 `/home/user/temp/agent/native-lfs-doc-render-2026-10-05/mise.toml`,

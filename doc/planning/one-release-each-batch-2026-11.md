@@ -3,7 +3,9 @@
 Status:
 the batch finished at 2026-11-07T13:10:36Z (first publish 2026-11-07T11:43:35Z);
 the release record in the runbook lists what was dispatched and published,
-and its "Steps after the batch" entry lists the lock move, the live wrapper check, the 14 yanks and the first daily run
+and its "Steps after the batch" entry lists the lock move,
+the live wrapper check,
+the 14 yanks and the first daily run
 (2026-11-07T08:20:23-05:00 to 2026-11-07T08:33:17-05:00).
 Written before that as a plan only.
 Written 2026-11-07T04:36:34-05:00 and checked against `main` at `7956f6c4c9` (the checks ran while `main` moved from
@@ -572,7 +574,8 @@ but the choice is listed under "Open choices".
   so its manifest must
   satisfy the pins (see the measured failure above).
   Repairing the import is separate work and does not gate this batch.
-- Pins that the release tool could not edit (fixed on `main`, see "What exists now" under "Preparatory steps").
+- Pins that the release tool could not edit (fixed on `main`,
+  see "What exists now" under "Preparatory steps").
   `package/crate-release/cli/src/manifest-edit.ts` matched a dependency only as an inline table on one line
   (`name = { ..., version = "=x" }`);
   three sidecars use a multi-line `[dependencies.<crate>]` table:
@@ -673,7 +676,8 @@ as `mpm-shadow` already is:
 
 ## The owner's answers at 2026-11-07
 
-Picked in the question tool, verbatim labels:
+Picked in the question tool,
+verbatim labels:
 
 - The two exempt crates:
   "Both".
@@ -694,8 +698,11 @@ Picked in the question tool, verbatim labels:
   a `crate` choice in `crate-release.yml`,
   and package `release` and `release:wait` tasks,
   and the release tool learns to move the pins in the three multi-line `[dependencies.X]` sidecar manifests
-  (`jsonc-edit/core-rust.fuzz`, `xml-edit/core-rust.fuzz`, `forbidden-strings/core.fuzz`).
-  Every crate of the batch then goes through `crate-release.yml`, one run at a time.
+  (`jsonc-edit/core-rust.fuzz`,
+  `xml-edit/core-rust.fuzz`,
+  `forbidden-strings/core.fuzz`).
+  Every crate of the batch then goes through `crate-release.yml`,
+  one run at a time.
 
 The sections below keep the options as they were offered.
 
@@ -857,7 +864,8 @@ and done before the first dispatch:
     the yank waits until the lock moves,
     and all twelve unregistered crates go through `crate-release.yml`.
     The runbook below was written for route A (a bump commit per wave);
-    the registered route replaces its "Per wave" procedure and its steps 3, 4 and 6 with one dispatch per crate
+    the registered route replaces its "Per wave" procedure and its steps 3,
+    4 and 6 with one dispatch per crate
     (see "What exists now"),
     and the version steps follow the owner's answers.
 2.  Confirm `gh auth status` works and that Cargo's credentials file holds a token with the yank scope
@@ -869,7 +877,8 @@ and done before the first dispatch:
     `.config/mise/conf.d/10-bin.local.toml`;
     any other drift is fixed first,
     so a release commit shows only its own changes.
-4.  Done: the registry entries,
+4.  Done:
+    the registry entries,
     the `crate` choices of `crate-release.yml`,
     the package tasks and the multi-line pin edit (see "What exists now").
 5.  Optional,
@@ -909,7 +918,8 @@ on the branch `feat/crate-release-register-every-published-crate`.
   the local `10-bin.local.toml` drift;
   the same check reports drift when one table pin is put back (positive control).
 - The release commit now includes the `Cargo.lock` of every lock directory.
-  Before, only the lockfiles beside the crate and beside the pin files were committed,
+  Before,
+  only the lockfiles beside the crate and beside the pin files were committed,
   so a directory that reaches the crate through another crate (for example `package/file-enforcer/cli` for
   `monochromatic-jsonc-edit`) was refreshed on the runner and then left out of the commit.
 - The existing `forbidden-strings` entry listed one lock directory (`git-policy/cli.fuzz`);
@@ -926,23 +936,34 @@ on the branch `feat/crate-release-register-every-published-crate`.
   the dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42363884326` of
   `monochromatic-jsonc-edit` 0.1.2 to 0.1.3 (`mise run //package/jsonc-edit/core-rust:release -- --dry-run ...`,
   merged at `a6104c0f64`) concluded `success` in 51 seconds.
-  Its log shows the crate manifest and all eight pin files edited, among them the multi-line table of
+  Its log shows the crate manifest and all eight pin files edited,
+  among them the multi-line table of
   `package/jsonc-edit/core-rust.fuzz`,
   then ten `cargo update --workspace` steps (one per lock directory),
-  the publish dry run, and `RELEASE COMMITTED` at 2026-11-07T10:26:13Z;
-  the push and publish jobs were skipped, as a dry run requires.
+  the publish dry run,
+  and `RELEASE COMMITTED` at 2026-11-07T10:26:13Z;
+  the push and publish jobs were skipped,
+  as a dry run requires.
   The dry run cannot show two things:
   the push step (the watch set of `monochromatic-jsonc-edit` is the `cargo metadata` closure of ten lock directories,
-  which reaches most Rust code of the repository, so its real release is the one most likely to be refused for a moved
-  `main` and need a second dispatch; schedule it while no other Rust commits land),
-  and the Wayland library step of `monochromatic-nested-wayland-session` (its own dry run, the first step of the runbook,
+  which reaches most Rust code of the repository,
+  so its real release is the one most likely to be refused for a moved
+  `main` and need a second dispatch;
+  schedule it while no other Rust commits land),
+  and the Wayland library step of `monochromatic-nested-wayland-session` (its own dry run,
+  the first step of the runbook,
   is the proof).
-- The "Per wave" procedure and steps 3, 4 and 6 of the runbook describe route A and must be rewritten by the
-  coordinator as one dispatch per crate in wave order (dry run, real run, `release:wait`, for the libraries read the
+- The "Per wave" procedure and steps 3,
+  4 and 6 of the runbook describe route A and must be rewritten by the
+  coordinator as one dispatch per crate in wave order (dry run,
+  real run,
+  `release:wait`,
+  for the libraries read the
   `crates.io` line because their `release:wait` exits 1 on the missing release assets).
   The wave-0 crates have no dependency among them;
   a dependent's dispatch must wait until its dependencies are in the crates.io index,
-  and `release:wait` ends only after the publish run, so waiting for it is the order guard.
+  and `release:wait` ends only after the publish run,
+  so waiting for it is the order guard.
 
 ## Runbook
 
@@ -1145,16 +1166,20 @@ versions.
 
 ### Release record
 
-One entry per crate, as run through `crate-release.yml`;
+One entry per crate,
+as run through `crate-release.yml`;
 the dry run of `monochromatic-nested-wayland-session` 0.6.2 to 0.6.3
-(`https://github.com/Aquaticats/Monochromatic/actions/runs/42368894213`, `success`, 2026-11-07)
+(`https://github.com/Aquaticats/Monochromatic/actions/runs/42368894213`,
+`success`,
+2026-11-07)
 proved the Wayland library step.
 
 - `monochromatic-jsonc-edit` 0.1.2 to 0.1.3:
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369224009`,
   bump commit `33d20fa630`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369300426`,
-  crates.io `2026-11-07T11:43:35.824945Z`, `yanked` false.
+  crates.io `2026-11-07T11:43:35.824945Z`,
+  `yanked` false.
   The first dispatch pushed without a refusal.
   `release:wait` ended with the expected library line `PUBLISH CHECK FAILED: missing release assets`.
 
@@ -1162,248 +1187,408 @@ proved the Wayland library step.
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369457223`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369535765`
   (built from `a8923376a2`),
-  crates.io `2026-11-07T11:47:06.445839Z`, `yanked` false.
+  crates.io `2026-11-07T11:47:06.445839Z`,
+  `yanked` false.
 
 - `monochromatic-browserslist` 0.1.0 to 0.1.1:
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369723100`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369851512`
   (built from `4f224afa10`),
-  crates.io `2026-11-07T11:52:01.185390Z`, `yanked` false.
+  crates.io `2026-11-07T11:52:01.185390Z`,
+  `yanked` false.
 
 - `monochromatic-xml-edit` 0.1.0 to 0.1.1:
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370054129`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370120031`
   (built from `d6dec5bcac`),
-  crates.io `2026-11-07T11:55:20.267501Z`, `yanked` false.
+  crates.io `2026-11-07T11:55:20.267501Z`,
+  `yanked` false.
 
 - `monochromatic-search-shadow` 0.2.1 to 0.2.2:
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370262671`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370330409`
   (built from `b3a85f3e8d`),
-  crates.io `2026-11-07T11:58:24.564425Z`, `yanked` false.
+  crates.io `2026-11-07T11:58:24.564425Z`,
+  `yanked` false.
   GitHub release `monochromatic-search-shadow-v0.2.2` holds both Linux tarballs and the checksums file.
 
 - `forbidden-regex` 0.1.1 to 0.1.2:
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370496745`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370600358`
   (built from `3374eccf8a`),
-  crates.io `2026-11-07T12:02:25.921188Z`, `yanked` false.
-  Exempt crate: no README notice; note carries the homepage path fix.
+  crates.io `2026-11-07T12:02:25.921188Z`,
+  `yanked` false.
+  Exempt crate:
+  no README notice;
+  note carries the homepage path fix.
 
 - `monochromatic-nested-wayland-session` 0.6.2 to 0.6.3:
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370762186`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370971740`
   (built from `bc56e10ce7`),
-  crates.io `2026-11-07T12:08:46.831419Z`, `yanked` false.
-  GitHub release `monochromatic-nested-wayland-session-v0.6.3` holds both Linux tarballs and the checksums file. Wave 0 is complete on crates.io.
+  crates.io `2026-11-07T12:08:46.831419Z`,
+  `yanked` false.
+  GitHub release `monochromatic-nested-wayland-session-v0.6.3` holds both Linux tarballs and the checksums file.
+  Wave 0 is complete on crates.io.
 
 - `monochromatic-catalog-specifier` 0.1.0 to 0.1.1:
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42371369818`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42371457006`
   (built from `f6239c698a`),
-  crates.io `2026-11-07T12:13:51.127758Z`, `yanked` false.
+  crates.io `2026-11-07T12:13:51.127758Z`,
+  `yanked` false.
 
 - `monochromatic-file-enforcer` 0.1.1 to 0.1.2:
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42371620801`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42371722087`
   (built from `f86710023d`),
-  crates.io `2026-11-07T12:17:42.698494Z`, `yanked` false.
-  One dispatch was refused before any run by the origin-holds-main check (another session's local commit was not yet pushed); dispatched again after it was pushed.
+  crates.io `2026-11-07T12:17:42.698494Z`,
+  `yanked` false.
+  One dispatch was refused before any run by the origin-holds-main check (another session's local commit was not yet pushed);
+  dispatched again after it was pushed.
 
 - `monochromatic-lint` 0.5.0 to 0.5.1:
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42371874158`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42372124153`
   (built from `f9a51d4f37`),
-  crates.io `2026-11-07T12:24:28.368166Z`, `yanked` false.
+  crates.io `2026-11-07T12:24:28.368166Z`,
+  `yanked` false.
   GitHub release `monochromatic-lint-v0.5.1` holds all eight target assets.
 
 - `monochromatic-mpm-shadow` 0.2.5 to 0.2.6:
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42372933230`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42373065104`
   (built from `9efecbcd39`),
-  crates.io `2026-11-07T12:35:39.343192Z`, `yanked` false.
+  crates.io `2026-11-07T12:35:39.343192Z`,
+  `yanked` false.
   GitHub release `monochromatic-mpm-shadow-v0.2.6` holds both Linux tarballs and the checksums file.
 
 - `monochromatic-cargo-shadow` 0.1.3 to 0.1.4:
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42373293103`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42373384574`
   (built from `be098a3f79`),
-  crates.io `2026-11-07T12:40:03.706516Z`, `yanked` false.
+  crates.io `2026-11-07T12:40:03.706516Z`,
+  `yanked` false.
   GitHub release `monochromatic-cargo-shadow-v0.1.4` holds both Linux tarballs and the checksums file.
 
 - `forbidden-strings` 0.6.1 to 0.6.2:
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42373581094`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42373820150`
   (built from `f707a66cda`),
-  crates.io `2026-11-07T12:48:15.573379Z`, `yanked` false.
-  Exempt crate: no README notice. GitHub release `forbidden-strings-v0.6.2` holds all eight target assets. Wave 1 is complete on crates.io.
+  crates.io `2026-11-07T12:48:15.573379Z`,
+  `yanked` false.
+  Exempt crate:
+  no README notice.
+  GitHub release `forbidden-strings-v0.6.2` holds all eight target assets.
+  Wave 1 is complete on crates.io.
 
 - `monochromatic-pnpm-shadow` 0.1.1 to 0.1.2:
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42374326862`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42374408890`
   (built from `0172aface6`),
-  crates.io `2026-11-07T12:54:08.727833Z`, `yanked` false.
+  crates.io `2026-11-07T12:54:08.727833Z`,
+  `yanked` false.
   GitHub release `monochromatic-pnpm-shadow-v0.1.2` holds both Linux tarballs and the checksums file.
 
 - `monochromatic-file-enforcer-cli` 0.1.2 to 0.1.3:
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42374580075`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42374713783`
   (built from `9d94aab55c`),
-  crates.io `2026-11-07T12:58:55.297025Z`, `yanked` false.
-  GitHub release `monochromatic-file-enforcer-cli-v0.1.3` holds both Linux tarballs and the checksums file. Wave 2 (before the wrapper) is complete.
+  crates.io `2026-11-07T12:58:55.297025Z`,
+  `yanked` false.
+  GitHub release `monochromatic-file-enforcer-cli-v0.1.3` holds both Linux tarballs and the checksums file.
+  Wave 2 (before the wrapper) is complete.
 
 - `monochromatic-git-policy-cli` 0.5.34 to 0.6.0:
   release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42374936121`,
   publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42375444159`
   (built from `3cd939e8e9`),
-  crates.io `2026-11-07T13:10:36.327011Z`, `yanked` false.
-  Released after "go wrapper". GitHub release `monochromatic-git-policy-cli-v0.6.0` holds both Linux tarballs. Nothing was yanked; the batch is complete.
+  crates.io `2026-11-07T13:10:36.327011Z`,
+  `yanked` false.
+  Released after "go wrapper".
+  GitHub release `monochromatic-git-policy-cli-v0.6.0` holds both Linux tarballs.
+  Nothing was yanked;
+  the batch is complete.
 
-- Lock move (2026-11-07T08:24:40-05:00, commit `c048f3a566`, after the merge `ea2f72c3c1` of `feat/toolchain-always-latest-landing`):
+- Lock move (2026-11-07T08:24:40-05:00,
+  commit `c048f3a566`,
+  after the merge `ea2f72c3c1` of `feat/toolchain-always-latest-landing`):
   the seven locked tools moved from the `cargo-binstall` route to the `archive` route of their GitHub releases,
-  at 0.5.1, 0.6.0, 0.1.4, 0.1.2, 0.2.2, 0.1.3 and 0.6.3 (crate order of "Yank step"); the yank still waits for the live check below.
+  at 0.5.1,
+  0.6.0,
+  0.1.4,
+  0.1.2,
+  0.2.2,
+  0.1.3 and 0.6.3 (crate order of "Yank step");
+  the yank still waits for the live check below.
 
 ### Steps after the batch
 
-Run 2026-11-07T08:20:23-05:00 to 2026-11-07T08:33:17-05:00 on the main checkout, in the order of the owner's decisions.
+Run 2026-11-07T08:20:23-05:00 to 2026-11-07T08:33:17-05:00 on the main checkout,
+in the order of the owner's decisions.
 
-- Merge (2026-11-07T08:20:23-05:00, 0.3 s): `feat/toolchain-always-latest-landing` into `main` with `--no-ff` as `ea2f72c3c1`
-  (`6e17549cc4` the plan tracks latest, `7f1c244e4d` the `bincode-1` catalog); no conflict.
-- Archive route (`c048f3a566`, 2026-11-07T08:24:40-05:00): in `toolchain.plan.jsonc` the seven tools take
-  `"request": "github:Aquaticats/Monochromatic@latest"`, `"route": "archive"` and `options.tagPrefix` `monochromatic-<crate>-v`,
-  as `mpm-shadow` does; the ids keep their `cargo:` spelling because `.github/workflows/catalog-specifiers.yml` and
+- Merge (2026-11-07T08:20:23-05:00,
+  0.3 s):
+  `feat/toolchain-always-latest-landing` into `main` with `--no-ff` as `ea2f72c3c1`
+  (`6e17549cc4` the plan tracks latest,
+  `7f1c244e4d` the `bincode-1` catalog);
+  no conflict.
+- Archive route (`c048f3a566`,
+  2026-11-07T08:24:40-05:00):
+  in `toolchain.plan.jsonc` the seven tools take
+  `"request": "github:Aquaticats/Monochromatic@latest"`,
+  `"route": "archive"` and `options.tagPrefix` `monochromatic-<crate>-v`,
+  as `mpm-shadow` does;
+  the ids keep their `cargo:` spelling because `.github/workflows/catalog-specifiers.yml` and
   `.github/actions/repo-tools-setup/action.yml` read the lock by them.
   The wrapper's `bins` and `postinstall.link.sourceBin` became `monochromatic-git-policy-cli` (the link folder `.cache/cli-git-bin` stays).
-  `mise run toolchain:update` wrote the lock (8 tools moved: the seven plus `mpm-shadow` 0.2.5 to 0.2.6 by `@latest`);
+  `mise run toolchain:update` wrote the lock (8 tools moved:
+  the seven plus `mpm-shadow` 0.2.5 to 0.2.6 by `@latest`);
   every Linux archive SHA-256 in it equals the digest GitHub reports for that release asset.
-  The first update attempt (08:21:17, 69 s) wrote nothing because one lookup failed (`conda:bubblewrap`, HTTP 503 from
-  `api.anaconda.org`, an outage that ended about a minute later); the second (08:23:43, 38 s) wrote the lock.
+  The first update attempt (08:21:17,
+  69 s) wrote nothing because one lookup failed (`conda:bubblewrap`,
+  HTTP 503 from
+  `api.anaconda.org`,
+  an outage that ended about a minute later);
+  the second (08:23:43,
+  38 s) wrote the lock.
   The machine-global plan (outside the repository) got the same change for its `cargo:monochromatic-git-policy-cli` row,
-  without `linkDir` (the link stays in `~/.local/bin`), and `toolchain:update:global -- cargo:monochromatic-git-policy-cli`
-  moved that row alone, 0.5.34 to 0.6.0.
-- Install: `mise run toolchain:install` 31.7 s (19 installed; the six other repository tools in `cargo-monochromatic-*`
-  directories with a `.mpm-shadow-installed` marker, no compile) and `toolchain:install:global` 17.3 s (12 installed).
+  without `linkDir` (the link stays in `~/.local/bin`),
+  and `toolchain:update:global -- cargo:monochromatic-git-policy-cli`
+  moved that row alone,
+  0.5.34 to 0.6.0.
+- Install:
+  `mise run toolchain:install` 31.7 s (19 installed;
+  the six other repository tools in `cargo-monochromatic-*`
+  directories with a `.mpm-shadow-installed` marker,
+  no compile) and `toolchain:install:global` 17.3 s (12 installed).
   The rehearsal's global install took 14 min 34 s because it compiled the wrapper.
-- Wrapper 0.6.0 live: `git --version` 12 ms and prints `monochromatic-git-policy-cli 0.6.0, shadowing git at /usr/bin/git`;
+- Wrapper 0.6.0 live:
+  `git --version` 12 ms and prints `monochromatic-git-policy-cli 0.6.0, shadowing git at /usr/bin/git`;
   `git monochromatic-git-policy-cli doctor` 25 ms.
   The commit `5fa212ddac` (this record's lock-move entry) landed through the new unit
-  `monochromatic-git-policy-cli@fc85fdf7a58f866b7f7a84b44fe0b69a` (release 0.6.0, protocol 7) in 2.2 s
-  (`reachMs` 645 for the first start, `answerWaitMs` 51) and was pushed in 2.0 s.
+  `monochromatic-git-policy-cli@fc85fdf7a58f866b7f7a84b44fe0b69a` (release 0.6.0,
+  protocol 7) in 2.2 s
+  (`reachMs` 645 for the first start,
+  `answerWaitMs` 51) and was pushed in 2.0 s.
   The old unit `cli-git@fc85fdf7a58f866b7f7a84b44fe0b69a` of the 0.5.34 service was not stopped:
   `package/git-policy/cli/README.md` says the 0.6.0 release "neither stops it nor removes the old units"
   (it keeps running from the 0.5.34 install folder until it exits idle after three hours or someone stops it).
-- Yank (2026-11-07T08:28:45-05:00 to 08:29:19-05:00): the 14 older versions of "Yank step", one at a time with
-  `cargo yank --version <v> <crate>` from `/var/home/user/temp/agent/post-release/yank`; after each one the crates.io API showed the old
-  version `yanked` true and the new one false; no 429.
-  Afterwards the unyanked versions are the new one of each of the 14, and `forbidden-regex` 0.1.2 and 0.1.1,
+- Yank (2026-11-07T08:28:45-05:00 to 08:29:19-05:00):
+  the 14 older versions of "Yank step",
+  one at a time with
+  `cargo yank --version <v> <crate>` from `/var/home/user/temp/agent/post-release/yank`;
+  after each one the crates.io API showed the old
+  version `yanked` true and the new one false;
+  no 429.
+  Afterwards the unyanked versions are the new one of each of the 14,
+  and `forbidden-regex` 0.1.2 and 0.1.1,
   `forbidden-strings` 0.6.2 and 0.6.1 (exempt).
-- Daily timer: `mise run toolchain:timer:install` at 2026-11-07T08:29:48-05:00 enabled `toolchain-daily-update.timer`
+- Daily timer:
+  `mise run toolchain:timer:install` at 2026-11-07T08:29:48-05:00 enabled `toolchain-daily-update.timer`
   (next run 2026-11-08T00:07:05-05:00).
-  First run, `systemctl --user start --no-block toolchain-daily-update.service`: 08:30:04 to 08:33:17 (3 min 12.6 s wall,
-  1 min 15.3 s CPU, 1.4 G memory peak), result `success`; see `doc/planning/toolchain-always-latest.md`, "First run".
+  First run,
+  `systemctl --user start --no-block toolchain-daily-update.service`:
+  08:30:04 to 08:33:17 (3 min 12.6 s wall,
+  1 min 15.3 s CPU,
+  1.4 G memory peak),
+  result `success`;
+  see `doc/planning/toolchain-always-latest.md`,
+  "First run".
 
 ### Release record: `monochromatic-mpm-shadow` 0.2.7-alpha.1, the first release held back from crates.io (2026-11-07T10:06:13-05:00)
 
-The owner's rule, verbatim: "My thinking is to deploy all releases on pnpr,
+The owner's rule,
+verbatim:
+"My thinking is to deploy all releases on pnpr,
 but only publish rc and stable releases on crates.io";
-"Label decides"; "I'm authorizing you to bump and publish any updates this session."
-This is the first release run under the label gate (merge `4fd9c70572`, 2026-11-07T09:59:47-05:00),
+"Label decides";
+"I'm authorizing you to bump and publish any updates this session."
+This is the first release run under the label gate (merge `4fd9c70572`,
+2026-11-07T09:59:47-05:00),
 so its version ends in `-alpha.1` and goes to the GitHub release (and so to the toolchain lock) but not to crates.io.
 
-- Proof runs before it, both on the merged gate:
-  publish dry run for 0.2.6 (`https://github.com/Aquaticats/Monochromatic/actions/runs/42384236171`, `success`;
-  decision `label stable, goes to crates.io: true`, the package build and the dry run ran) and
-  release dry run (`https://github.com/Aquaticats/Monochromatic/actions/runs/42384566055`, `success`;
+- Proof runs before it,
+  both on the merged gate:
+  publish dry run for 0.2.6 (`https://github.com/Aquaticats/Monochromatic/actions/runs/42384236171`,
+  `success`;
+  decision `label stable, goes to crates.io: true`,
+  the package build and the dry run ran) and
+  release dry run (`https://github.com/Aquaticats/Monochromatic/actions/runs/42384566055`,
+  `success`;
   no publish dry run step).
 - Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42384727529`
-  (`workflow_dispatch`, 2026-11-07T10:06:13-05:00 to 10:07:37-05:00, `success`), bump commit `ec2e7dbeb1`
-  (2026-11-07T10:07:26-05:00), version 0.2.6 to 0.2.7-alpha.1.
+  (`workflow_dispatch`,
+  2026-11-07T10:06:13-05:00 to 10:07:37-05:00,
+  `success`),
+  bump commit `ec2e7dbeb1`
+  (2026-11-07T10:07:26-05:00),
+  version 0.2.6 to 0.2.7-alpha.1.
 - Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42384840600`
-  (built from `ec2e7dbeb1`, 2026-11-07T10:07:34-05:00 to 10:10:13-05:00, `success`).
+  (built from `ec2e7dbeb1`,
+  2026-11-07T10:07:34-05:00 to 10:10:13-05:00,
+  `success`).
   The `ms-detect` job printed `package/mpm-shadow/cli/Cargo.toml holds version '0.2.7-alpha.1': label alpha, goes to crates.io: false`.
-  The crates.io steps of `ms-publish-crate` (package build, provenance attestation, Trusted Publishing login,
-  dry run, publish) were skipped; the job itself ran, so `ms-create-release` was not skipped.
-  Every other crate's `-publish-crate`, `-build-binary` and `-create-release` job was skipped.
-- crates.io does not hold it: the public API
+  The crates.io steps of `ms-publish-crate` (package build,
+  provenance attestation,
+  Trusted Publishing login,
+  dry run,
+  publish) were skipped;
+  the job itself ran,
+  so `ms-create-release` was not skipped.
+  Every other crate's `-publish-crate`,
+  `-build-binary` and `-create-release` job was skipped.
+- crates.io does not hold it:
+  the public API
   `https://crates.io/api/v1/crates/monochromatic-mpm-shadow/0.2.7-alpha.1` answered HTTP 404
-  (`crate ... does not have a version 0.2.7-alpha.1`, user agent `crate-release-plan-check`, no token),
+  (`crate ... does not have a version 0.2.7-alpha.1`,
+  user agent `crate-release-plan-check`,
+  no token),
   and the crate's newest listed version is 0.2.6.
-  Nothing was yanked, because nothing went to crates.io.
+  Nothing was yanked,
+  because nothing went to crates.io.
 - GitHub release `monochromatic-mpm-shadow-v0.2.7-alpha.1` (published 2026-11-07T10:10:11-05:00):
-  `isPrerelease` false; assets are the aarch64 and x86_64 Linux tarballs and
+  `isPrerelease` false;
+  assets are the aarch64 and x86_64 Linux tarballs and
   `monochromatic-mpm-shadow-0.2.7-alpha.1-sha256sums.txt`.
-  (The release is not marked a pre-release, so `@latest` resolves to it; that is what moved the lock.)
-- Lock move (commit `fb7e05141c`, 2026-11-07T10:19:16-05:00):
+  (The release is not marked a pre-release,
+  so `@latest` resolves to it;
+  that is what moved the lock.)
+- Lock move (commit `fb7e05141c`,
+  2026-11-07T10:19:16-05:00):
   `mise run toolchain:update` moved `mpm-shadow` 0.2.6 to 0.2.7-alpha.1 and nothing else (`llama.cpp` stays pinned);
   the two archive SHA-256 values in the lock equal the release's checksums file.
-  `mise run toolchain:install` fetched and verified the archive, removed the older 0.2.6 copy,
-  and reported no other tool changed; `mpm-shadow --version` prints `mpm-shadow 0.2.7-alpha.1`.
+  `mise run toolchain:install` fetched and verified the archive,
+  removed the older 0.2.6 copy,
+  and reported no other tool changed;
+  `mpm-shadow --version` prints `mpm-shadow 0.2.7-alpha.1`.
 - Copy check of the fix this release carries (links of the source checkout survive an install in a copy):
-  main's four link folders (`.cache/monochromatic-git-policy-cli-bin`, `mpm-shadow-bin`, `cargo-shadow-bin`,
+  main's four link folders (`.cache/monochromatic-git-policy-cli-bin`,
+  `mpm-shadow-bin`,
+  `cargo-shadow-bin`,
   `pnpm-shadow-bin`)
-  were recorded (links, targets, modification times) before a plain `git worktree add --detach <path> main`,
-  after it, after `mise run toolchain:install` inside the copy, and after `git worktree remove --force`;
+  were recorded (links,
+  targets,
+  modification times) before a plain `git worktree add --detach <path> main`,
+  after it,
+  after `mise run toolchain:install` inside the copy,
+  and after `git worktree remove --force`;
   all four records were byte-identical to the first.
   The copy's own links pointed at the copy's own `.cache/toolchain-launchers`.
-  A first attempt put the worktree under `~/temp/agent`, which is on another filesystem,
+  A first attempt put the worktree under `~/temp/agent`,
+  which is on another filesystem,
   so the wrapper copied the ignored files
-  instead of making a snapshot (tens of gigabytes staged); it was stopped by PID after about seven minutes
+  instead of making a snapshot (tens of gigabytes staged);
+  it was stopped by PID after about seven minutes
   and its worktree and staging folder were removed.
   Main's links were identical after that attempt as well.
-  The second worktree, under `.claude/worktrees` on main's filesystem, was a snapshot (removal took 16.4 s).
-  Evidence files: `~/temp/agent/release-0-2-7-alpha-1/links-before.txt`, `links-after.txt`, `links-after-install.txt`,
+  The second worktree,
+  under `.claude/worktrees` on main's filesystem,
+  was a snapshot (removal took 16.4 s).
+  Evidence files:
+  `~/temp/agent/release-0-2-7-alpha-1/links-before.txt`,
+  `links-after.txt`,
+  `links-after-install.txt`,
   `links-after-remove.txt`.
 
 ### Release record: `monochromatic-mpm-shadow` 0.2.7-alpha.2, the install read-back (2026-11-07T11:19:01-05:00)
 
-The owner's rules, verbatim: "My thinking is to deploy all releases on pnpr,
+The owner's rules,
+verbatim:
+"My thinking is to deploy all releases on pnpr,
 but only publish rc and stable releases on crates.io";
-"Label decides"; "I'm authorizing you to bump and publish any updates this session."
-The second run under the label gate, again an alpha: it goes to the GitHub release and the toolchain lock, not to crates.io.
+"Label decides";
+"I'm authorizing you to bump and publish any updates this session."
+The second run under the label gate,
+again an alpha:
+it goes to the GitHub release and the toolchain lock,
+not to crates.io.
 
 - The change it carries (branch `fix/mpm-shadow-cli-install-reobserves-and-plan-fields`,
-  test commit `496b2e4bbf` 2026-11-07T11:14:10-05:00, fix commit `ed9e78b79a` 2026-11-07T11:18:09-05:00,
+  test commit `496b2e4bbf` 2026-11-07T11:14:10-05:00,
+  fix commit `ed9e78b79a` 2026-11-07T11:18:09-05:00,
   merge `fc27f0bbc4` 2026-11-07T11:18:21-05:00):
-  after `pnpm add --global`, `install` reads the package back from the `pnpm list --global --depth=0 --json` listing that
-  `list` uses, and a package that is absent or listed at another version fails the install,
-  naming the package, the locked version and what pnpm lists.
+  after `pnpm add --global`,
+  `install` reads the package back from the `pnpm list --global --depth=0 --json` listing that
+  `list` uses,
+  and a package that is absent or listed at another version fails the install,
+  naming the package,
+  the locked version and what pnpm lists.
   The test commit failed on the three new read-back tests before the fix (the positive control among them) and
   all of the package's tests pass after it.
 - Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42390673663`
-  (`workflow_dispatch`, 2026-11-07T11:19:01-05:00 to 11:20:47-05:00, `success`), bump commit `b6ddfcfe7e`
-  (2026-11-07T11:20:35-05:00), version 0.2.7-alpha.1 to 0.2.7-alpha.2.
-  The dispatch printed no refusal, so origin held every local commit.
+  (`workflow_dispatch`,
+  2026-11-07T11:19:01-05:00 to 11:20:47-05:00,
+  `success`),
+  bump commit `b6ddfcfe7e`
+  (2026-11-07T11:20:35-05:00),
+  version 0.2.7-alpha.1 to 0.2.7-alpha.2.
+  The dispatch printed no refusal,
+  so origin held every local commit.
 - Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42390823090`
-  (built from `caf8b050b4`, a merge of origin's main that holds the bump commit,
-  2026-11-07T11:20:44-05:00 to 11:23:23-05:00, `success`).
+  (built from `caf8b050b4`,
+  a merge of origin's main that holds the bump commit,
+  2026-11-07T11:20:44-05:00 to 11:23:23-05:00,
+  `success`).
   The `ms-detect` job printed `package/mpm-shadow/cli/Cargo.toml holds version '0.2.7-alpha.2': label alpha, goes to crates.io: false`.
-  In `ms-publish-crate` the steps "Build .crate package", "Attest .crate provenance", "Authenticate with crates.io",
-  "Publish (dry run)" and "Publish" were `skipped`, and the job itself ran, so `ms-create-release` was not skipped.
+  In `ms-publish-crate` the steps "Build .crate package",
+  "Attest .crate provenance",
+  "Authenticate with crates.io",
+  "Publish (dry run)" and "Publish" were `skipped`,
+  and the job itself ran,
+  so `ms-create-release` was not skipped.
 - crates.io does not hold it:
   `https://crates.io/api/v1/crates/monochromatic-mpm-shadow/0.2.7-alpha.2` answered HTTP 404 (user agent
-  `crate-release-plan-check`, no token), and the crate's newest version is still 0.2.6.
+  `crate-release-plan-check`,
+  no token),
+  and the crate's newest version is still 0.2.6.
   The wait task said `crates.io 0.2.7-alpha.2: skipped, the alpha label is not published to crates.io`.
-- GitHub release `monochromatic-mpm-shadow-v0.2.7-alpha.2` (published 2026-11-07T11:23:21-05:00): `isPrerelease` false,
-  `isDraft` false; assets are the aarch64 and x86_64 Linux tarballs and
+- GitHub release `monochromatic-mpm-shadow-v0.2.7-alpha.2` (published 2026-11-07T11:23:21-05:00):
+  `isPrerelease` false,
+  `isDraft` false;
+  assets are the aarch64 and x86_64 Linux tarballs and
   `monochromatic-mpm-shadow-0.2.7-alpha.2-sha256sums.txt`.
-- Lock move (commit `d48fb5cc36`, 2026-11-07T11:25:37-05:00): `mise run toolchain:update` moved `mpm-shadow` 0.2.7-alpha.1 to
-  0.2.7-alpha.2 and nothing else (`llama.cpp` stays pinned); the two archive SHA-256 values in the lock equal the release's
+- Lock move (commit `d48fb5cc36`,
+  2026-11-07T11:25:37-05:00):
+  `mise run toolchain:update` moved `mpm-shadow` 0.2.7-alpha.1 to
+  0.2.7-alpha.2 and nothing else (`llama.cpp` stays pinned);
+  the two archive SHA-256 values in the lock equal the release's
   checksums file.
-  `mise run toolchain:install` fetched and verified the archive, removed the older copy,
-  and reported no failure; `mpm-shadow --version` prints `mpm-shadow 0.2.7-alpha.2`.
-- Machine-global toolchain, repaired by one `mise run toolchain:install:global` run with that binary
+  `mise run toolchain:install` fetched and verified the archive,
+  removed the older copy,
+  and reported no failure;
+  `mpm-shadow --version` prints `mpm-shadow 0.2.7-alpha.2`.
+- Machine-global toolchain,
+  repaired by one `mise run toolchain:install:global` run with that binary
   (`toolchain install: 11 installed, 51 unchanged, 0 failed`):
-  before, `mise run toolchain:list:global` printed `toolchain list: 11 of 62 tools drifted from toolchain.lock.json`,
-  all eleven `npm:` tools observed `(absent)` (`@kilocode/cli`, `command-code`, `agent-browser`, `@openai/codex`, `ccusage`,
-  `cf`, `@alibaba-group/open-code-review`, `@github/copilot`, `@opencode/cli`, `@deepseek-ai/dsh`, `@namespacelabs/cli`);
-  after, `toolchain list: 62 tools in sync with toolchain.lock.json`, each at its locked version.
+  before,
+  `mise run toolchain:list:global` printed `toolchain list: 11 of 62 tools drifted from toolchain.lock.json`,
+  all eleven `npm:` tools observed `(absent)` (`@kilocode/cli`,
+  `command-code`,
+  `agent-browser`,
+  `@openai/codex`,
+  `ccusage`,
+  `cf`,
+  `@alibaba-group/open-code-review`,
+  `@github/copilot`,
+  `@opencode/cli`,
+  `@deepseek-ai/dsh`,
+  `@namespacelabs/cli`);
+  after,
+  `toolchain list: 62 tools in sync with toolchain.lock.json`,
+  each at its locked version.
   A binary built from main before the release printed the same eleven rows as the installed 0.2.7-alpha.1.
-  Evidence files: `~/temp/agent/mpm-shadow-alpha2/list-global-before-alpha1.txt`, `list-global-before-main-binary.txt`,
-  `list-global-after.txt`, `install-global.log`, `groups-before.txt` and `groups-after.txt`.
+  Evidence files:
+  `~/temp/agent/mpm-shadow-alpha2/list-global-before-alpha1.txt`,
+  `list-global-before-main-binary.txt`,
+  `list-global-after.txt`,
+  `install-global.log`,
+  `groups-before.txt` and `groups-after.txt`.
 - The `tagPrefix` rejection the fix branch's agent reported ("not a known field" for
   `tools.cargo:monochromatic-git-policy-cli.options.tagPrefix`) does not come from main.
   A debug build of main at `5e4e8170ec` read the real global plan and lock (`list --global` printed every row),
-  `decode_options` lists `tagPrefix` (added by `eb202865fc`, 2026-10-31T03:40:22-04:00),
+  `decode_options` lists `tagPrefix` (added by `eb202865fc`,
+  2026-10-31T03:40:22-04:00),
   and that message is exactly what the allow-list prints for a key it lacks,
   so the binary that printed it predates the option (`monochromatic-mpm-shadow` 0.2.0 and earlier;
   0.2.1 has it).
@@ -1415,68 +1600,145 @@ The second run under the label gate, again an alpha: it goes to the GitHub relea
 
 ### Release record: `monochromatic-cargo-shadow` 0.1.5-alpha.1, the scope keeps its caller's limits (2026-11-07T11:55:19-05:00)
 
-The owner's rules, verbatim: "My thinking is to deploy all releases on pnpr,
+The owner's rules,
+verbatim:
+"My thinking is to deploy all releases on pnpr,
 but only publish rc and stable releases on crates.io";
-"Label decides"; "I'm authorizing you to bump and publish any updates this session."
-The third run under the label gate, again an alpha: it goes to the GitHub release and the toolchain lock, not to crates.io.
+"Label decides";
+"I'm authorizing you to bump and publish any updates this session."
+The third run under the label gate,
+again an alpha:
+it goes to the GitHub release and the toolchain lock,
+not to crates.io.
 
 - The change it carries (branch `fix/cargo-shadow-cli-scope-keeps-caller-limits`,
-  test commit `3537a1ae63` 2026-11-07T11:43:56-05:00, fix commit `0033e7c879` 2026-11-07T11:51:26-05:00,
-  docs commit `645c8ae5c7` 2026-11-07T11:51:57-05:00, merge `b1954d75ae` 2026-11-07T11:52:45-05:00):
+  test commit `3537a1ae63` 2026-11-07T11:43:56-05:00,
+  fix commit `0033e7c879` 2026-11-07T11:51:26-05:00,
+  docs commit `645c8ae5c7` 2026-11-07T11:51:57-05:00,
+  merge `b1954d75ae` 2026-11-07T11:52:45-05:00):
   an audit of every `systemd-run` builder found that `control_group.rs` started each bounded run in a scope under the
-  manager's `app.slice` with no limits, so a build inside a capped `systemd-run --user --scope` ran uncapped (rule RXI).
-  The route now reads `memory.max`, `cpu.max`, `pids.max` and the `default` line of `io.weight` on the caller's cgroup and on
-  each ancestor up to, and not including, the deepest ancestor it shares with the slice, and the launcher passes the tightest
-  finite value of each as `--property=MemoryMax=`, `CPUQuota=`, `TasksMax=` and `IOWeight=`.
+  manager's `app.slice` with no limits,
+  so a build inside a capped `systemd-run --user --scope` ran uncapped (rule RXI).
+  The route now reads `memory.max`,
+  `cpu.max`,
+  `pids.max` and the `default` line of `io.weight` on the caller's cgroup and on
+  each ancestor up to,
+  and not including,
+  the deepest ancestor it shares with the slice,
+  and the launcher passes the tightest
+  finite value of each as `--property=MemoryMax=`,
+  `CPUQuota=`,
+  `TasksMax=` and `IOWeight=`.
   Absent limits stay absent.
   The code is a port of the four limits of `package/wg/cli-quicker-exempt/src/inherited_limits.rs`
-  (that crate is a binary without a library, and each crate stands on its own), in `src/inherited_limits.rs`.
-  Contract clause: `doc/planning/cargo-shadow-guarantees.md`, "The spawn route", item 4.
-- Red first: at the test commit ten of the twelve new tests failed (the two that passed are the absent-limits controls);
-  after the fix all twelve pass and the release gate ran 664 tests, 664 passed, 0 failed, 18 skipped;
+  (that crate is a binary without a library,
+  and each crate stands on its own),
+  in `src/inherited_limits.rs`.
+  Contract clause:
+  `doc/planning/cargo-shadow-guarantees.md`,
+  "The spawn route",
+  item 4.
+- Red first:
+  at the test commit ten of the twelve new tests failed (the two that passed are the absent-limits controls);
+  after the fix all twelve pass and the release gate ran 664 tests,
+  664 passed,
+  0 failed,
+  18 skipped;
   `lint` and `lint:clippy` with warnings denied are clean.
-  `systemd-run` refuses `CPUQuotaPerSecUSec=` as a property ("Unknown assignment", probed), so the quota is passed as
-  `CPUQuota=<percent with two decimals>%`, rounded down.
-- Host proof, run inside `systemd-run --user --scope -p MemoryMax=1G -p CPUQuota=100% -p TasksMax=64 -p IOWeight=5`.
+  `systemd-run` refuses `CPUQuotaPerSecUSec=` as a property ("Unknown assignment",
+  probed),
+  so the quota is passed as
+  `CPUQuota=<percent with two decimals>%`,
+  rounded down.
+- Host proof,
+  run inside `systemd-run --user --scope -p MemoryMax=1G -p CPUQuota=100% -p TasksMax=64 -p IOWeight=5`.
   `cargo --version` and `cargo metadata --no-deps` never start a bounded run (the shadow passes them through),
-  so the probe is `cargo metadata` in a scratch git repository with a `rust-catalog.toml`, whose install step starts
+  so the probe is `cargo metadata` in a scratch git repository with a `rust-catalog.toml`,
+  whose install step starts
   `git var GIT_CONFIG_SYSTEM` in a scope of its own;
   a scratch `git` on `PATH` read its own cgroup's four files and then ran the real git.
-  Before (binary built from the parent of the change): scope `app.slice/cargo-shadow-<token>.scope` read
-  `memory.max=max`, `cpu.max=max 100000`, `pids.max=75462`, `io.weight=default 100`, against the caller's
-  `1073741824`, `100000 100000`, `64`, `default 5`.
-  After (binary built from the fix): the new scope read `memory.max=1073741824`, `cpu.max=100000 100000`, `pids.max=64`,
+  Before (binary built from the parent of the change):
+  scope `app.slice/cargo-shadow-<token>.scope` read
+  `memory.max=max`,
+  `cpu.max=max 100000`,
+  `pids.max=75462`,
+  `io.weight=default 100`,
+  against the caller's
+  `1073741824`,
+  `100000 100000`,
+  `64`,
+  `default 5`.
+  After (binary built from the fix):
+  the new scope read `memory.max=1073741824`,
+  `cpu.max=100000 100000`,
+  `pids.max=64`,
   `io.weight=default 5`.
-- Release dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42393543893` (`success`; the push step skipped).
+- Release dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42393543893` (`success`;
+  the push step skipped).
   Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42393703717`
-  (`workflow_dispatch`, 2026-11-07T11:55:19-05:00 to 11:56:36-05:00, `success`), bump commit `65ff580b45`
-  (2026-11-07T11:56:25-05:00), version 0.1.4 to 0.1.5-alpha.1.
-  The dispatch printed no refusal, so origin held every local commit.
+  (`workflow_dispatch`,
+  2026-11-07T11:55:19-05:00 to 11:56:36-05:00,
+  `success`),
+  bump commit `65ff580b45`
+  (2026-11-07T11:56:25-05:00),
+  version 0.1.4 to 0.1.5-alpha.1.
+  The dispatch printed no refusal,
+  so origin held every local commit.
 - Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42393804185`
-  (built from `65ff580b45`, 2026-11-07T11:56:34-05:00 to 11:58:54-05:00, `success`).
+  (built from `65ff580b45`,
+  2026-11-07T11:56:34-05:00 to 11:58:54-05:00,
+  `success`).
   The `cgs-detect` job printed `package/cargo-shadow/cli/Cargo.toml holds version '0.1.5-alpha.1': label alpha, goes to crates.io: false`.
-  In `cgs-publish-crate` the steps "Build .crate package", "Attest .crate provenance", "Authenticate with crates.io",
-  "Publish (dry run)" and "Publish" were `skipped`, and `cgs-build-binary` (both targets) and `cgs-create-release` succeeded.
+  In `cgs-publish-crate` the steps "Build .crate package",
+  "Attest .crate provenance",
+  "Authenticate with crates.io",
+  "Publish (dry run)" and "Publish" were `skipped`,
+  and `cgs-build-binary` (both targets) and `cgs-create-release` succeeded.
 - crates.io does not hold it:
   `https://crates.io/api/v1/crates/monochromatic-cargo-shadow/0.1.5-alpha.1` answered HTTP 404 (user agent
-  `crate-release-plan-check`, no token), and the crate's newest version is still 0.1.4.
+  `crate-release-plan-check`,
+  no token),
+  and the crate's newest version is still 0.1.4.
   The wait task said `crates.io 0.1.5-alpha.1: skipped, the alpha label is not published to crates.io`.
-- GitHub release `monochromatic-cargo-shadow-v0.1.5-alpha.1` (published 2026-11-07T11:58:51-05:00): `isPrerelease` false,
-  `isDraft` false; assets are the aarch64 and x86_64 Linux tarballs and
+- GitHub release `monochromatic-cargo-shadow-v0.1.5-alpha.1` (published 2026-11-07T11:58:51-05:00):
+  `isPrerelease` false,
+  `isDraft` false;
+  assets are the aarch64 and x86_64 Linux tarballs and
   `monochromatic-cargo-shadow-0.1.5-alpha.1-sha256sums.txt`.
-- Lock move (commit `c6177b875b`, 2026-11-07T12:01:43-05:00): `mise run toolchain:update` moved `cargo:monochromatic-cargo-shadow`
-  0.1.4 to 0.1.5-alpha.1 and nothing else (`llama.cpp` stays pinned); the two archive SHA-256 values in the lock equal the release's
+- Lock move (commit `c6177b875b`,
+  2026-11-07T12:01:43-05:00):
+  `mise run toolchain:update` moved `cargo:monochromatic-cargo-shadow`
+  0.1.4 to 0.1.5-alpha.1 and nothing else (`llama.cpp` stays pinned);
+  the two archive SHA-256 values in the lock equal the release's
   checksums file.
   `mise run toolchain:install` reported `1 installed, 65 unchanged, 0 failed`;
   `.cache/cargo-shadow-bin/cargo --version` prints `cargo-shadow 0.1.5-alpha.1, shadowing cargo`.
-- Installed binary: the same probe through `.cache/cargo-shadow-bin` in a caller scope with the same four limits made the
-  scope `app.slice/cargo-shadow-<token>.scope` read `memory.max=1073741824`, `cpu.max=100000 100000`, `pids.max=64`,
-  `io.weight=default 5`; the control through the pre-change binary, rerun in the same session, read `max`, `max 100000`,
-  `75462`, `default 100`.
-  Evidence files: `~/temp/agent/cargo-shadow-limits/evidence/before-run.log`, `after-run.keep`, `installed-run.log`,
-  `before-run2.log`, `red.log`, `gate.log`, `clippy.log`, `prove.sh` and `git` (the probe).
-- Round 21 (`feat/cargo-shadow-check-to-start-race`, unmerged): `git merge-tree --write-tree` of this branch against it
-  reported no conflict, and its tests build `Route` only as the same struct literals this change already updated or with
+- Installed binary:
+  the same probe through `.cache/cargo-shadow-bin` in a caller scope with the same four limits made the
+  scope `app.slice/cargo-shadow-<token>.scope` read `memory.max=1073741824`,
+  `cpu.max=100000 100000`,
+  `pids.max=64`,
+  `io.weight=default 5`;
+  the control through the pre-change binary,
+  rerun in the same session,
+  read `max`,
+  `max 100000`,
+  `75462`,
+  `default 100`.
+  Evidence files:
+  `~/temp/agent/cargo-shadow-limits/evidence/before-run.log`,
+  `after-run.keep`,
+  `installed-run.log`,
+  `before-run2.log`,
+  `red.log`,
+  `gate.log`,
+  `clippy.log`,
+  `prove.sh` and `git` (the probe).
+- Round 21 (`feat/cargo-shadow-check-to-start-race`,
+  unmerged):
+  `git merge-tree --write-tree` of this branch against it
+  reported no conflict,
+  and its tests build `Route` only as the same struct literals this change already updated or with
   `..RouteSettings::default()`.
 
 ## Evidence log

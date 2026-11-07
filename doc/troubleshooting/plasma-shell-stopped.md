@@ -91,7 +91,8 @@ This recovery does not identify or prevent the initiating exit.
 3.  The installed desktop unit supports running Plasma Shell.
 4.  Contribution policies were not investigated because no upstream defect was established.
 5.  Maintainer intent and tracker duplicates were not investigated because no attributable defect was established.
-6.  No source fix was prototyped; the requested action was session recovery.
+6.  No source fix was prototyped;
+    the requested action was session recovery.
 
 No upstream filing or draft is appropriate from this evidence.
 No upstream message was sent.

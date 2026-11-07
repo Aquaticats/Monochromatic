@@ -49,7 +49,9 @@ A cancel of the run was attempted and refused by the session's permission classi
 
 The detect step reads the crate version at `github.event.before` from the checkout.
 Before 2026-10-06 it did so only when that commit was already present
- (`.github/workflows/cargo-publish.yml`, `detect` job, as of `533574e1f`):
+ (`.github/workflows/cargo-publish.yml`,
+`detect` job,
+as of `533574e1f`):
 
 ```bash
 before=''

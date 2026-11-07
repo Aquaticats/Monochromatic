@@ -254,15 +254,19 @@ On `main` at `e2d0eaedcbcd8033544eb0b774db187db3bb4ef7` (2026-09-14)
 
 ```rust
 pub(super) enum ProtocolSelector {
-    /// `npm:<name>[@<spec>]`. Nothing here is aliased — the install name is
+    /// `npm:<name>[@<spec>]`.
+    /// Nothing here is aliased — the install name is
     /// the real package name — so the entry is saved as the plain
     /// `<name>[@<spec>]` request would be.
     Npm { name: String, spec: Option<String> },
     /// `jsr:@<scope>/<name>[@<selector>]`.
     Jsr(JsrSpec),
-    /// The alias form `workspace:<name>@<range>`. A version-only
-    /// (`workspace:^1.2.3`) or path (`workspace:./pkg`, `workspace:C:\pkg`)
-    /// specifier names no package, and [`WorkspaceSpec`] already tells the
+    /// The alias form `workspace:<name>@<range>`.
+    /// A version-only
+    /// (`workspace:^1.2.3`) or path (`workspace:./pkg`,
+    /// `workspace:C:\pkg`)
+    /// specifier names no package,
+    /// and [`WorkspaceSpec`] already tells the
     /// three apart.
     Workspace { name: String },
 }

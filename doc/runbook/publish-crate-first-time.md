@@ -160,7 +160,8 @@ TODO
     run `cargo publish --no-verify` in `package/jsonc-edit/core-rust`;
     expected outcome is `Uploading monochromatic-jsonc-edit v0.1.0` with no error line.
     The agent then creates the Trusted Publishing configuration itself
-    (`Agent: create the Trusted Publishing configuration`, after `Steps`),
+    (`Agent: create the Trusted Publishing configuration`,
+    after `Steps`),
     so steps 12 to 16 are skipped when the token carries the `trusted-publishing` scope;
     go on with step 17 once the agent reports the configuration.
 12. Fallback only,
@@ -190,7 +191,8 @@ TODO
     `Aquaticats` is the organization that owns the repository.
     `Aquaticat` is the maintainer's personal account and a different owner:
     crates.io records the owner's numeric id (66041952 for `Aquaticat`,
-    343218767 for `Aquaticats`, which `gh api repos/Aquaticats/Monochromatic --jq .owner.id` reports as the repository's owner),
+    343218767 for `Aquaticats`,
+    which `gh api repos/Aquaticats/Monochromatic --jq .owner.id` reports as the repository's owner),
     so a publisher entered with `Aquaticat` does not describe this repository.
     Older entries of this runbook and the GitHub URLs under `Aquaticat/Monochromatic` still resolve only
     because GitHub redirects from the old owner name to `Aquaticats/Monochromatic`.
@@ -358,7 +360,8 @@ TODO
 Status:
 TODO,
 owner action needed since 2026-10-06
-([`doc/handover/unified-linter-cutover.md`](../handover/unified-linter-cutover.md), `Blocker`).
+([`doc/handover/unified-linter-cutover.md`](../handover/unified-linter-cutover.md),
+`Blocker`).
 
 Run `Setup`,
 `Steps`,
@@ -414,30 +417,48 @@ which lints a small Markdown and Rust fixture.
 ## monochromatic-search-shadow 0.1.0
 
 Status:
-0.1.0 published by hand on 2026-10-29; 0.1.1 published by CI through Trusted Publishing on the same day, with release archives;
-owner action remaining: revoke the `trusted-publishing` token.
+0.1.0 published by hand on 2026-10-29;
+0.1.1 published by CI through Trusted Publishing on the same day,
+with release archives;
+owner action remaining:
+revoke the `trusted-publishing` token.
 
 Crate `monochromatic-search-shadow`,
 version `0.1.0`,
 path `package/search-shadow/cli`,
 license `LGPL-3.0-or-later`.
-Workflow jobs: `ss-detect`, `ss-publish-crate`, `ss-release-state`, `ss-build-binary`, `ss-create-release`
-(added on 2026-10-29; the release jobs run once `Cargo.toml` carries `[package.metadata.binstall]`).
+Workflow jobs:
+`ss-detect`,
+`ss-publish-crate`,
+`ss-release-state`,
+`ss-build-binary`,
+`ss-create-release`
+(added on 2026-10-29;
+the release jobs run once `Cargo.toml` carries `[package.metadata.binstall]`).
 
 What happened,
 as measured:
 
 - The stored token in `~/.cargo/credentials.toml` (modified 2026-10-18) was tried first by
   `mise run //package/search-shadow/cli:publish` and answered `403 Forbidden: authentication failed`;
-  the registry still answered 404 for the crate, so nothing was uploaded.
-  This repeats the finding at the top of this runbook, so a stored token should not be assumed to work.
+  the registry still answered 404 for the crate,
+  so nothing was uploaded.
+  This repeats the finding at the top of this runbook,
+  so a stored token should not be assumed to work.
 - The owner created a token named `monochromatic-search-shadow-bootstrap` with the publish-new,
-  publish-update and trusted-publishing scopes, and ran `cargo login`.
+  publish-update and trusted-publishing scopes,
+  and ran `cargo login`.
   The publish then succeeded and cargo waited until the crate was available.
-- Registry check: `max_stable_version` `0.1.0`, license `LGPL-3.0-or-later`, 39,464 bytes compressed.
-- Consumer check: `cargo install --version 0.1.0 --root <disposable directory> monochromatic-search-shadow`
-  built from the registry in about 9 seconds, and `search-shadow --version` printed `search-shadow 0.1.0`.
-- Trusted Publishing was created without the dashboard, through the API,
+- Registry check:
+  `max_stable_version` `0.1.0`,
+  license `LGPL-3.0-or-later`,
+  39,464 bytes compressed.
+- Consumer check:
+  `cargo install --version 0.1.0 --root <disposable directory> monochromatic-search-shadow`
+  built from the registry in about 9 seconds,
+  and `search-shadow --version` printed `search-shadow 0.1.0`.
+- Trusted Publishing was created without the dashboard,
+  through the API,
   using the token's `trusted-publishing` scope:
   `POST https://crates.io/api/v1/trusted_publishing/github_configs` with a body
   `{"github_config": {"crate": "monochromatic-search-shadow", "repository_owner": "Aquaticat",
@@ -446,25 +467,45 @@ as measured:
   The response was HTTP 200 with config id `29471` and `repository_owner_id` 66041952.
   The script read the token from the credential file in-process and printed only statuses.
   `GET` on the same path with `?crate=<name>` lists configurations and `DELETE .../{id}` removes one.
-- That entry was wrong, and was replaced the same day. The runbook's own step 15 had told the agent to use `Aquaticat`,
-  but the repository's owner is `Aquaticats` (id 343218767; `gh api repos/Aquaticats/Monochromatic --jq .owner.id`), and
-  the workflow's OIDC identity carries the repository's owner, so the first CI publish would have failed at authentication.
-  The agent found this when the workflow run URL showed `Aquaticats`. The first token then answered
-  `403 authentication failed` on every call (revoked or expired), so the owner created a second token with only the
-  `trusted-publishing` scope and ran `cargo login` again. With it the agent listed the other crates' publishers,
-  deleted config `29471` (HTTP 204) and created config `29473` with owner `Aquaticats`, owner id `343218767` (HTTP 200).
-  The listing showed that every other published crate here carries two rows, one for `Aquaticat` and one for `Aquaticats`;
-  the `Aquaticat` rows are legacy from before the repository moved, and `Aquaticats` is the current one.
+- That entry was wrong,
+  and was replaced the same day.
+  The runbook's own step 15 had told the agent to use `Aquaticat`,
+  but the repository's owner is `Aquaticats` (id 343218767;
+  `gh api repos/Aquaticats/Monochromatic --jq .owner.id`),
+  and
+  the workflow's OIDC identity carries the repository's owner,
+  so the first CI publish would have failed at authentication.
+  The agent found this when the workflow run URL showed `Aquaticats`.
+  The first token then answered
+  `403 authentication failed` on every call (revoked or expired),
+  so the owner created a second token with only the
+  `trusted-publishing` scope and ran `cargo login` again.
+  With it the agent listed the other crates' publishers,
+  deleted config `29471` (HTTP 204) and created config `29473` with owner `Aquaticats`,
+  owner id `343218767` (HTTP 200).
+  The listing showed that every other published crate here carries two rows,
+  one for `Aquaticat` and one for `Aquaticats`;
+  the `Aquaticat` rows are legacy from before the repository moved,
+  and `Aquaticats` is the current one.
   Step 15 above now names `Aquaticats`.
 
-Release path, as measured the same day:
+Release path,
+as measured the same day:
 
-- A dispatched dry run (run `40863232508`, from `main`) passed `ss-detect`, `ss-publish-crate` (dry), `ss-release-state`
-  and both `ss-build-binary` jobs (x86_64 on `ubuntu-24.04`, aarch64 on `ubuntu-24.04-arm`) including the smoke run and the
-  archive verification, and skipped `ss-create-release`.
+- A dispatched dry run (run `40863232508`,
+  from `main`) passed `ss-detect`,
+  `ss-publish-crate` (dry),
+  `ss-release-state`
+  and both `ss-build-binary` jobs (x86_64 on `ubuntu-24.04`,
+  aarch64 on `ubuntu-24.04-arm`) including the smoke run and the
+  archive verification,
+  and skipped `ss-create-release`.
 - Commit `7b3d373a07` bumped `version` to `0.1.1` and added `[package.metadata.binstall]` (the table is read from the
-  published manifest, so 0.1.0 could not carry it). The push run `40863841089` concluded `success` in every job:
-  Trusted Publishing authenticated with the corrected owner (`Aquaticats`), crates.io lists `0.1.1` and `0.1.0`,
+  published manifest,
+  so 0.1.0 could not carry it).
+  The push run `40863841089` concluded `success` in every job:
+  Trusted Publishing authenticated with the corrected owner (`Aquaticats`),
+  crates.io lists `0.1.1` and `0.1.0`,
   and release `monochromatic-search-shadow-v0.1.1` is immutable with the two archives and
   `monochromatic-search-shadow-0.1.1-sha256sums.txt`.
 - `cargo binstall --dry-run --no-confirm --disable-strategies compile,quick-install --version 0.1.1 monochromatic-search-shadow`
@@ -473,56 +514,93 @@ Release path, as measured the same day:
 
 Still to do:
 
-1. Revoke the `trusted-publishing` token at <https://crates.io/settings/tokens> (it cannot publish, but it can edit publishers),
+1. Revoke the `trusted-publishing` token at <https://crates.io/settings/tokens> (it cannot publish,
+   but it can edit publishers),
    then the agent runs `cargo logout`.
 
 ## monochromatic-mpm-shadow 0.1.0
 
 Status:
-0.1.0 published and released on 2026-10-29; Trusted Publishing configured and exercised by CI.
-Owner action remaining: none. The owner revoked the `cargo login` token created for this publish on 2026-10-29,
+0.1.0 published and released on 2026-10-29;
+Trusted Publishing configured and exercised by CI.
+Owner action remaining:
+none.
+The owner revoked the `cargo login` token created for this publish on 2026-10-29,
 and `cargo logout` then removed the dead credential from `~/.cargo/credentials.toml`.
 
 Crate `monochromatic-mpm-shadow`,
 version `0.1.0`,
 path `package/mpm-shadow/cli`,
 license `LGPL-3.0-or-later`.
-Workflow jobs: `ms-detect`, `ms-publish-crate`, `ms-release-state`, `ms-build-binary`, `ms-create-release`.
+Workflow jobs:
+`ms-detect`,
+`ms-publish-crate`,
+`ms-release-state`,
+`ms-build-binary`,
+`ms-create-release`.
 
 What happened,
 as measured:
 
-- The owner's `cargo login` token (scopes publish-new, publish-update and trusted-publishing) worked on the first try:
+- The owner's `cargo login` token (scopes publish-new,
+  publish-update and trusted-publishing) worked on the first try:
   `cargo publish --dry-run --no-verify` packaged 24 files (40.5 KiB compressed) and aborted the upload without a 403,
   then `mise run //package/mpm-shadow/cli:publish` published `0.1.0`.
   The `cargo publish` run from inside the package directory is refused by the Git wrapper's `require-root` policy
-  when it is chained after a `git status`; run Git from the repository root.
-- Trusted Publishing was created through the API with the token's trusted-publishing scope, as for search-shadow:
-  `POST https://crates.io/api/v1/trusted_publishing/github_configs` with owner `Aquaticats`, repository `Monochromatic`,
+  when it is chained after a `git status`;
+  run Git from the repository root.
+- Trusted Publishing was created through the API with the token's trusted-publishing scope,
+  as for search-shadow:
+  `POST https://crates.io/api/v1/trusted_publishing/github_configs` with owner `Aquaticats`,
+  repository `Monochromatic`,
   workflow `cargo-publish.yml` and no environment returned config `29493` with `repository_owner_id` 343218767.
   `GET` with `?crate=monochromatic-mpm-shadow` lists it.
 - A dispatched dry run (run `40883596611`) passed every `ms-*` job including both `ms-build-binary` targets
   (smoke run and archive verification) and skipped `ms-create-release`.
-- The dispatch with dry-run off (run `40883917579`) authenticated through Trusted Publishing, skipped the existing upload,
-  built and attested both archives, and created the immutable release `monochromatic-mpm-shadow-v0.1.0` with
+- The dispatch with dry-run off (run `40883917579`) authenticated through Trusted Publishing,
+  skipped the existing upload,
+  built and attested both archives,
+  and created the immutable release `monochromatic-mpm-shadow-v0.1.0` with
   the two archives and `monochromatic-mpm-shadow-0.1.0-sha256sums.txt`.
-  0.1.0 already carried `[package.metadata.binstall]`, so no 0.1.1 was needed.
-- 0.1.1 followed the same day. Installing 0.1.0 showed that `cargo binstall` updates `~/.cargo/.crates.toml` but not
-  `.crates2.json`, which the shadow read, so the shadow now reads `.crates.toml`. A plain push of the version bump to
-  `main` ran `ms-detect` through `ms-create-release` (run `40886969789`): Trusted Publishing authenticated, crates.io
-  lists 0.1.1 and 0.1.0, and release `monochromatic-mpm-shadow-v0.1.1` is immutable with both archives and the
-  checksums file. Installed through mpm and the extension, the binary's SHA-256 equals the 0.1.1 archive's, and
-  `toolchain:sync` then created `.cache/mpm-shadow-bin/mpm`; `mpm` in the mise environment ran the real mpm 8.2.0
+  0.1.0 already carried `[package.metadata.binstall]`,
+  so no 0.1.1 was needed.
+- 0.1.1 followed the same day.
+  Installing 0.1.0 showed that `cargo binstall` updates `~/.cargo/.crates.toml` but not
+  `.crates2.json`,
+  which the shadow read,
+  so the shadow now reads `.crates.toml`.
+  A plain push of the version bump to
+  `main` ran `ms-detect` through `ms-create-release` (run `40886969789`):
+  Trusted Publishing authenticated,
+  crates.io
+  lists 0.1.1 and 0.1.0,
+  and release `monochromatic-mpm-shadow-v0.1.1` is immutable with both archives and the
+  checksums file.
+  Installed through mpm and the extension,
+  the binary's SHA-256 equals the 0.1.1 archive's,
+  and
+  `toolchain:sync` then created `.cache/mpm-shadow-bin/mpm`;
+  `mpm` in the mise environment ran the real mpm 8.2.0
   and deleted the stale 0.1.0 copies from the cargo registry.
-- Consumer checks: `sha256sum --check` and `gh attestation verify` on the x86_64 archive both passed, and
+- Consumer checks:
+  `sha256sum --check` and `gh attestation verify` on the x86_64 archive both passed,
+  and
   `mpm --config mpm.managers.toml --cargo-binstall-monochromatic-mpm-shadow install monochromatic-mpm-shadow`
-  in a disposable cargo home installed a binary whose SHA-256 equals the archive's binary, so binstall used the release
-  and did not compile. That command needs `cargo-binstall` on PATH; the repository provisions it into
-  `.cache/toolchain-bin`, and without it cargo answers `no such command: binstall`.
-  Moved at the Rust file-enforcer cutover (2026-10-31): `mpm.managers.toml` is deleted, so that command no longer
-  exists. The equivalent is `cargo binstall --no-confirm --root <dir> --version <version> monochromatic-mpm-shadow`,
+  in a disposable cargo home installed a binary whose SHA-256 equals the archive's binary,
+  so binstall used the release
+  and did not compile.
+  That command needs `cargo-binstall` on PATH;
+  the repository provisions it into
+  `.cache/toolchain-bin`,
+  and without it cargo answers `no such command: binstall`.
+  Moved at the Rust file-enforcer cutover (2026-10-31):
+  `mpm.managers.toml` is deleted,
+  so that command no longer
+  exists.
+  The equivalent is `cargo binstall --no-confirm --root <dir> --version <version> monochromatic-mpm-shadow`,
   which `mpm-shadow install` runs for every cargo-binstall tool (`package/mpm-shadow/cli/README.md`,
-  "Cargo tool installs"); a fresh machine takes the archive row of the `mpm-shadow` tool in `toolchain.lock.json`.
+  "Cargo tool installs");
+  a fresh machine takes the archive row of the `mpm-shadow` tool in `toolchain.lock.json`.
 
 ## monochromatic-cargo-shadow 0.1.0
 
@@ -591,14 +669,16 @@ as measured:
 Status:
 TODO,
 owner action needed
-([`doc/decision/file-enforcer-rust-rewrite.md`](../decision/file-enforcer-rust-rewrite.md), `Cutover`:
+([`doc/decision/file-enforcer-rust-rewrite.md`](../decision/file-enforcer-rust-rewrite.md),
+`Cutover`:
 the switch waits for every crate to be published and fetched by a clean container).
 
 The Rust file-enforcer is five new crates.
 crates.io answered 404 for all five on 2026-10-31,
 so each needs a first version published once with a personal API token,
 exactly as `monochromatic-mpm-shadow` was.
-`Setup`, `Steps` and `Restore` of this runbook apply with the substitutions under each crate heading;
+`Setup`,
+`Steps` and `Restore` of this runbook apply with the substitutions under each crate heading;
 this section gives the order and the shared owner steps.
 
 Everything in this section was prepared on the branch `worktree-agent-acdb2be076c846e2c`,
@@ -657,14 +737,18 @@ so 0.1.2 must be on crates.io before any of them publishes a new version.
    and `curl -sS -A 'publish-check' https://crates.io/api/v1/crates/monochromatic-jsonc-edit` lists `0.1.2`.
    A dispatch from a branch is possible because the workflow file exists on the default branch.
    A trusted publisher configuration has no branch field:
-   its fields are repository owner, repository name, workflow file name and environment
+   its fields are repository owner,
+   repository name,
+   workflow file name and environment
    (RFC 3691, <https://raw.githubusercontent.com/rust-lang/rfcs/master/text/3691-trusted-publishing-cratesio.md>,
    read 2026-10-31).
    No run in this repository has authenticated from a branch other than `main`,
    so confirm it here:
-   if the `Authenticate with crates.io (Trusted Publishing)` step fails, merge the bump to `main` instead,
+   if the `Authenticate with crates.io (Trusted Publishing)` step fails,
+   merge the bump to `main` instead,
    which also publishes it.
-   The merge carries all five new crates, so do it in step 8 only after their publishers exist,
+   The merge carries all five new crates,
+   so do it in step 8 only after their publishers exist,
    or accept one red `cargo-publish` run where the five new jobs fail at authentication and upload nothing.
    Dispatch only after the review of `monochromatic-jsonc-edit` is final:
    0.1.2 can never be republished,
@@ -672,7 +756,8 @@ so 0.1.2 must be on crates.io before any of them publishes a new version.
 2. Create one token at <https://crates.io/settings/tokens> named `monochromatic-file-enforcer-bootstrap`,
    with the shortest expiry and the scopes `publish-new`,
    `publish-update` and `trusted-publishing`
-   (the last one lets the agent create the five publishers through the API, as for `monochromatic-mpm-shadow`).
+   (the last one lets the agent create the five publishers through the API,
+   as for `monochromatic-mpm-shadow`).
    Run `cargo login` at the repository root and paste the token.
    Do not paste it into the agent conversation.
 3. Prove each package before uploading,
@@ -786,7 +871,11 @@ from a clean worktree at the commit that holds the package metadata changes:
   Because the unpacked directories are what gets uploaded,
   a file missing from an `include` list would have failed there.
 - No `.crate` contains a path dependency,
-  and the `Cargo.toml` of each carries `license`, `description`, `repository`, `readme`, `keywords` and `categories`;
+  and the `Cargo.toml` of each carries `license`,
+  `description`,
+  `repository`,
+  `readme`,
+  `keywords` and `categories`;
   `LICENSES/LGPL-3.0-or-later.txt` and `LICENSES/GPL-3.0-or-later.txt` ship in all five.
 
 Not proven:
@@ -801,13 +890,17 @@ and that `mpm`'s `cargo:` resolver installs the cli,
 which needs the published release.
 
 Proven on GitHub:
-the dispatched dry run `41167704851` (`monochromatic-file-enforcer-cli`, dry-run on, from the branch,
+the dispatched dry run `41167704851` (`monochromatic-file-enforcer-cli`,
+dry-run on,
+from the branch,
 2026-10-31) passed every `*-detect` job,
 `fec-release-state`
-and both `fec-build-binary` jobs (x86_64 on `ubuntu-24.04`, aarch64 on `ubuntu-24.04-arm`),
+and both `fec-build-binary` jobs (x86_64 on `ubuntu-24.04`,
+aarch64 on `ubuntu-24.04-arm`),
 including the smoke run and the archive verification,
 and skipped `fec-create-release`.
-`fec-publish-crate` ran, which shows the `needs:` gate accepts skipped prerequisites,
+`fec-publish-crate` ran,
+which shows the `needs:` gate accepts skipped prerequisites,
 and failed at `Build .crate package (verifies by compile)` with
 ``no matching package named `monochromatic-browserslist` found``,
 the expected result while the libraries are not on crates.io.
@@ -882,7 +975,10 @@ version `0.1.0`,
 binary `file-enforcer`,
 path `package/file-enforcer/cli`,
 license `LGPL-3.0-or-later`,
-workflow jobs `fec-detect`, `fec-publish-crate`, `fec-release-state`, `fec-build-binary` and `fec-create-release`
+workflow jobs `fec-detect`,
+`fec-publish-crate`,
+`fec-release-state`,
+`fec-build-binary` and `fec-create-release`
 (the publish job is chained after the other four crates' publish jobs).
 Depends on `monochromatic-file-enforcer`,
 `monochromatic-dependency-catalog`,
@@ -891,7 +987,8 @@ each `=0.1.0`.
 Its `[package.metadata.binstall]` table matches the `monochromatic-mpm-shadow` one,
 so releases are tagged `monochromatic-file-enforcer-cli-v<version>`,
 the archives are `monochromatic-file-enforcer-cli-<version>-<target>.tar.gz`
-(Linux x86_64 and aarch64, glibc of Ubuntu 24.04),
+(Linux x86_64 and aarch64,
+glibc of Ubuntu 24.04),
 and `cargo binstall monochromatic-file-enforcer-cli` finds them,
 which is the route mpm's `cargo:` resolver takes.
 The release profile has no LTO setting (unlike `monochromatic-mpm-shadow`),

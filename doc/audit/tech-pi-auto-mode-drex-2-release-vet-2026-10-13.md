@@ -2,13 +2,22 @@
 
 ## Metadata
 
-- Status: complete; immediate replacement excluded by native request rejection.
-- Started and last updated: 2026-10-13.
-- Owner: current Pi auto-mode migration session.
-- Governing skill commit: `37117e36397e30233062828581a5e38217da9458`.
-- Governing skill SHA-256: `552ac9955299b65a9f921a4e836b60a3fabc15d3477eeb8ec2bfb3f400647f9b`.
-- Compatibility fingerprint: `e87ef0d6a50564d8638a4e544f0c22cf8b3cdeb689578170a86f9401e76e0bb0`.
-- Prior compatible report: none; the release has a distinct serving-context constraint.
+- Status:
+  complete;
+  immediate replacement excluded by native request rejection.
+- Started and last updated:
+  2026-10-13.
+- Owner:
+  current Pi auto-mode migration session.
+- Governing skill commit:
+  `37117e36397e30233062828581a5e38217da9458`.
+- Governing skill SHA-256:
+  `552ac9955299b65a9f921a4e836b60a3fabc15d3477eeb8ec2bfb3f400647f9b`.
+- Compatibility fingerprint:
+  `e87ef0d6a50564d8638a4e544f0c22cf8b3cdeb689578170a86f9401e76e0bb0`.
+- Prior compatible report:
+  none;
+  the release has a distinct serving-context constraint.
 
 Fingerprint input uses sorted object keys,
 ASCII strings,
@@ -63,7 +72,8 @@ there is no full finalist score or production adoption from this phase.
 
 ## Sources and discovery ledger
 
-- Official registry: authenticated `GET https://console.nace.ai/v1/models` returned 200.
+- Official registry:
+  authenticated `GET https://console.nace.ai/v1/models` returned 200.
   It lists `drex-v2.0` with release date 2026-10-06 and `alias_for: null`.
   The alias `drex-latest` points to that version.
 - Official [models reference](https://console.nace.ai/docs/drex/reference/models):
@@ -74,14 +84,16 @@ there is no full finalist score or production adoption from this phase.
   fallback billing uses the reported serving version.
 - Official [quickstart](https://console.nace.ai/docs/drex/quickstart):
   the current base endpoint is `https://console.nace.ai/v1/systemone`.
-- Web searches executed: `site:nace.ai Drex 2.0`,
+- Web searches executed:
+  `site:nace.ai Drex 2.0`,
   `site:docs.nace.ai drex-v2`,
   and `site:github.com nace-ai drex 2.0`.
   Search-provider relevance order,
   first returned page,
   no negative filter;
   these discover documentation and do not claim ecosystem saturation.
-- Repository incumbents: the native wire pins `typesafe/jev-1.13.0`.
+- Repository incumbents:
+  the native wire pins `typesafe/jev-1.13.0`.
   Historical matched Drex 1.5 and Jev evidence lives in
   [the prior release recheck](../planning/pi-auto-mode-drex-1-5-recheck.md).
 
@@ -261,14 +273,18 @@ no further provider calls are queued.
 
 ### Ranking for the current delivery
 
-1.  Keep the incumbent: preserves the current native wire and accepted call ceiling;
+1.  Keep the incumbent:
+    preserves the current native wire and accepted call ceiling;
     it supplies no new quality claim and retains existing qualification requirements.
-2.  Direct Drex 2.0 replacement: the exact-version control works,
+2.  Direct Drex 2.0 replacement:
+    the exact-version control works,
     but the complete native request is rejected.
-3.  Split Drex requests into batches of 16: preserves question membership in principle,
+3.  Split Drex requests into batches of 16:
+    preserves question membership in principle,
     but needs 16 calls and violates the accepted assessment ceiling.
 
-Ranking: keep the incumbent > direct replacement > split batching,
+Ranking:
+keep the incumbent > direct replacement > split batching,
 because keeping the route avoids a demonstrated request failure,
 and direct replacement preserves the accepted call budget whereas split batching does not.
 The failed alternatives are not implementation choices currently available within the constraints.

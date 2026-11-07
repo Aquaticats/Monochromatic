@@ -270,10 +270,13 @@ The offline comparisons at `${HOME}/temp/agent/pi-jev-structure-20261014`
 all reconstruct the original request exactly,
 including 73 source occurrences and 84 questions:
 
-- Shared ordered field lists: 97,605 state bytes and 119,876 complete request bytes.
-- Inlined single-use references: 95,749 state bytes and 131,028 complete request bytes.
+- Shared ordered field lists:
+  97,605 state bytes and 119,876 complete request bytes.
+- Inlined single-use references:
+  95,749 state bytes and 131,028 complete request bytes.
   The dictionary shrinks from 398 entries to 94.
-- Both changes: 88,015 state bytes and 110,286 complete request bytes.
+- Both changes:
+  88,015 state bytes and 110,286 complete request bytes.
 
 The JSON-string inspection found 49 canonical strings occupying 12,031 serialized bytes,
 versus 10,989 bytes for their parsed values before adding any required encoding tags.

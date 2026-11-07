@@ -34,21 +34,39 @@ Resume the repository-wide review of this repo without re-deriving its scope,
  632 findings landed in `findings/*.json` (66 files).
 - [x] Deduplicate findings against each other and the 826 open issues.
  Complete on 2026-10-17:
- 643 findings (632 review findings, 6 split aggregate findings, 5 direct findings);
- judge verdicts file 581, merge 20, skip 42 (skips verified against live issues with
- `gh issue view`; notable: #1124 repository.url, #636 search-fetch transport, #613
- fuzz coverage harness, #294 line-length migration).
+ 643 findings (632 review findings,
+      6 split aggregate findings,
+      5 direct findings);
+ judge verdicts file 581,
+      merge 20,
+      skip 42 (skips verified against live issues with
+ `gh issue view`;
+      notable:
+      #1124 repository.url,
+      #636 search-fetch transport,
+      #613
+ fuzz coverage harness,
+      #294 line-length migration).
  Reconciliation overrides live in `dedupe/decisions-reconcile.json`:
  the split aggregate patterns are filed,
  `direct-003` merges into `docs-planning-003`,
  `direct-004` and `direct-005` recover sites that open-issue skips would have lost.
- Merged result: `dedupe/decisions.json` (chains resolved, validated by
+ Merged result:
+      `dedupe/decisions.json` (chains resolved,
+      validated by
  `merge-decisions.ts`).
 - [x] File one issue per distinct defect and report the issue numbers.
  Complete on 2026-10-17:
- 581 issues filed as #1183 to #1764 (54 BLOCKER, 351 WARNING, 176 NIT;
- top categories docs 131, style 95, correctness 85, duplication 66, error-handling 42).
- First pass filed 570; 11 failed with `gh` exiting zero and printing no URL
+ 581 issues filed as #1183 to #1764 (54 BLOCKER,
+      351 WARNING,
+      176 NIT;
+ top categories docs 131,
+      style 95,
+      correctness 85,
+      duplication 66,
+      error-handling 42).
+ First pass filed 570;
+      11 failed with `gh` exiting zero and printing no URL
  (tracker searches proved no ghost issues were created);
  the resume pass filed exactly those 11 as #1754 to #1764.
  `filed.jsonl` maps every finding id to its issue number;
@@ -245,7 +263,8 @@ Cross-unit leads:
  per `code-cli-1-008` and its out-of-scope note;
  hand to the `cross-duplication` reviewer when it launches.
  `doc/audit/dry.md` lines 1453 to 1458 bless the `console.error` plus `process.exitCode = 1`
- idiom against AGENTS.md `PP6`, per `code-claude-code-plugin-1-016`;
+ idiom against AGENTS.md `PP6`,
+per `code-claude-code-plugin-1-016`;
  hand to the `docs-audit` reviewer when it launches.
  `file-enforcer.config.ts` `CARGO_PROFILE_BY_DIR` omits `package/codex-plugin/bash-limit`
  and `package/git-policy/cli` although both declare `[profile.release]` tables,
@@ -262,44 +281,62 @@ Cross-unit leads:
  `package/pi-plugin/auto-mode/src/visible-context.ts` per `code-pi-plugin-1` notes;
  hand to the `cross-duplication` reviewer when it launches.
  `doc/decision/npm-publishing.md` says `./ts` is stripped at publish via
- `publishConfig.exports`, but 27 of 31 published packages exporting `./ts` carry no
- `publishConfig.exports`, per `code-oxlint-plugin-1` notes;
+ `publishConfig.exports`,
+but 27 of 31 published packages exporting `./ts` carry no
+ `publishConfig.exports`,
+per `code-oxlint-plugin-1` notes;
  hand to the `cross-api` reviewer when it launches.
  Trailing `export { }` blocks contrary to `TQ2` appear in 136 files under
- `package/pi-plugin`, and all 16 `package/pi-plugin/*/mise.toml` omit
- `depends = ["build"]` on `test:unit`, per `code-pi-plugin-2` notes;
+ `package/pi-plugin`,
+and all 16 `package/pi-plugin/*/mise.toml` omit
+ `depends = ["build"]` on `test:unit`,
+per `code-pi-plugin-2` notes;
  hand the first to `cross-api` and the second to `cross-build`.
  `doc/todo/pi-shared-model-selection.md` and `doc/planning/pi-goal-stop-hook.md` document
  removed or nonexistent `pi-shared` APIs per `code-pi-shared-1` notes;
  hand to the `docs-handover` and `docs-planning` reviewers.
  `.pnpmfile.mjs` and the `.pnpmfile.policies.json` header cite
- `docs/dependency-blocklist.md`, but the file is `doc/dependency-blocklist.md`, per
+ `docs/dependency-blocklist.md`,
+but the file is `doc/dependency-blocklist.md`,
+per
  `code-stub-1` notes;
  hand to the `config-root` reviewer.
  52 `no-restricted-syntax` and `no-regex` suppressions across 32 files carry inline
- justifications but no `.md` doc as `LN3` requires, per `code-typeface-1` notes;
+ justifications but no `.md` doc as `LN3` requires,
+per `code-typeface-1` notes;
  hand to the `cross-build` reviewer.
  `doc/planning` and `doc/handover` files also name the deleted
  `.github/workflows/cli-git-trust.yml` and `cli-git-performance.yml` workflows per
  `docs-troubleshooting-1-008`;
  dedupe candidate for that finding's issue.
  Troubleshooting docs link `github.com/Aquaticat/Monochromatic/...` (singular owner)
- while the remote is `Aquaticats/Monochromatic`, per `docs-troubleshooting-2` notes;
+ while the remote is `Aquaticats/Monochromatic`,
+per `docs-troubleshooting-2` notes;
  dedupe candidate with `code-config-1-001` and open issue #1124.
  `.agents/skills/project-code-review/SKILL.md` examples name `notNullishOrThrow` from
- `@monochromatic-dev/module-es` and `outdent` from `@cspotcode/outdent`, contradicting
- AGENTS.md `PP5` and the code, per `config-root-docs` notes;
- no unit covers that file, so file it directly at dedupe time.
- `Caddyfile`, `.idea/*.xml`, `.gitignore`, `.cargo/config.toml`, and
+ `@monochromatic-dev/module-es` and `outdent` from `@cspotcode/outdent`,
+contradicting
+ AGENTS.md `PP5` and the code,
+per `config-root-docs` notes;
+ no unit covers that file,
+so file it directly at dedupe time.
+ `Caddyfile`,
+`.idea/*.xml`,
+`.gitignore`,
+`.cargo/config.toml`,
+and
  `.claude-plugin/marketplace.json` (10 entries) still reference pre-rename `packages/`
- paths, per `config-paused-2` notes;
+ paths,
+per `config-paused-2` notes;
  dedupe candidate with the `config-paused-2` rename-staleness finding and
  `docs-handover-008`.
  `doc/planning/monorepo-manager-route-research/stack-rust.md` cites an `MXR` rule tag that
- no longer exists in `AGENTS.md` (`MXL` is the max-lines rule), per `cross-rust` notes;
+ no longer exists in `AGENTS.md` (`MXL` is the max-lines rule),
+per `cross-rust` notes;
  file it directly at dedupe time.
  `.agents/skills/project-code-review/SKILL.md` line 913 requires every catch block to log
- via `console.error()` while AGENTS.md `TLG` forbids raw console in production code, per
+ via `console.error()` while AGENTS.md `TLG` forbids raw console in production code,
+per
  `cross-logging` notes;
  fold into the SKILL.md corrections issue at dedupe time.
  The stale pre-transfer `repository.url` (Aquaticat instead of Aquaticats) spans most
@@ -311,17 +348,21 @@ Cross-unit leads:
  hand to the `cross-dependency` reviewer when it launches.
 
 Wave 1 in flight on 2026-10-17 (slots held at the 8-child cap):
- `cross-api` (the final unit; `cross-duplication` adjudicated all seven of its
- leads inside `cross-duplication-001`, refuting the `visible-context.ts` twin claim).
+ `cross-api` (the final unit;
+`cross-duplication` adjudicated all seven of its
+ leads inside `cross-duplication-001`,
+refuting the `visible-context.ts` twin claim).
 
 Dedupe verdicts already recorded in finding text:
  `cross-build-002` subsumes `code-pi-plugin-2-002` (keep the former);
  `cross-dependency-006` targets open issue #1124 (skip or merge);
  `cross-duplication-001` aggregates the six confirmed duplication leads.
 
-Queued units in launch order (flat list; the first entry launches next):
+Queued units in launch order (flat list;
+the first entry launches next):
 
-(Empty; every unit has launched.)
+(Empty;
+every unit has launched.)
 
 Replacement rule:
  as each running unit reports,
@@ -329,19 +370,27 @@ Replacement rule:
 
 ## Next action
 
-The review, dedupe, and filing pipeline is complete;
+The review,
+dedupe,
+and filing pipeline is complete;
 nothing is queued for it.
  What remains belongs to the maintainer:
 
-- Triage the 581 filed issues: done 2026-10-20, recorded in `doc/handover/issue-triage-2026-10-20.md`.
+- Triage the 581 filed issues:
+  done 2026-10-20,
+  recorded in `doc/handover/issue-triage-2026-10-20.md`.
  Each issue now carries one lifecycle verdict per `doc/agent/triage-labels.md`
- and no `needs-triage`; per-issue reasons are in
+ and no `needs-triage`;
+  per-issue reasons are in
  `doc/audit/issue-triage-2026-10-20.evidence.jsonl`.
- The 54 BLOCKERs were triaged with the rest; `filed.jsonl` maps finding ids to issue
+ The 54 BLOCKERs were triaged with the rest;
+  `filed.jsonl` maps finding ids to issue
  numbers and `rendered/` holds each body as filed.
 - The 42 skip verdicts recorded in `dedupe/decisions.json` name the existing issue
- that already owns each defect; a few carry follow-up notes in judge output
+ that already owns each defect;
+  a few carry follow-up notes in judge output
  (for example the fuzzRuns family filed as `code-module-3-005` should fold into
  the #613 extraction if that lands).
-- If a filed issue proves to be a duplicate after all, close it with
+- If a filed issue proves to be a duplicate after all,
+  close it with
  `gh issue close <n> --comment "..."` per `doc/agent/issue-tracker.md`.

@@ -2,8 +2,11 @@
 
 ## Symptom
 
-The workflow named here, `.github/workflows/cli-git-performance.yml`, was deleted on 2026-10-13 in commit `724d70bfa7`
-when the performance harness was retired; every statement below describes it as it was at the cited revisions.
+The workflow named here,
+`.github/workflows/cli-git-performance.yml`,
+was deleted on 2026-10-13 in commit `724d70bfa7`
+when the performance harness was retired;
+every statement below describes it as it was at the cited revisions.
 
 Before commit `3ab61f0d3bfddbf017127617591d8b8c7abd4910`,
 `.github/workflows/cli-git-performance.yml` started the complete packed lifecycle benchmark for every push to `main`,

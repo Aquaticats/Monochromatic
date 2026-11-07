@@ -333,11 +333,13 @@ non-low escape,
  and a literal escaped
 backslash.
  It also inspected the parsed string and asserted the valid pair
-decodes to `😀`. This does not prove every JSON string or escape path works;
+decodes to `😀`.
+This does not prove every JSON string or escape path works;
 the repair targets invalid `char` construction only.
 In particular,
  the unchanged `rust/src/parse.rs:327` uses
-`text.trim_matches('"')`; this prototype does not test trailing escaped
+`text.trim_matches('"')`;
+this prototype does not test trailing escaped
 quotes or claim general string-decoder correctness.
  No original unchecked
 parser invocation occurred in any run.
@@ -347,19 +349,23 @@ parser invocation occurred in any run.
 the surrogate or its exact escape offset.
 
 A further rerun of the patched example in the same bounded container exited 0
-and printed `safe surrogate consumer cases passed`. It asserted the specific
+and printed `safe surrogate consumer cases passed`.
+It asserted the specific
 `UnexpectedElement` variant for isolated high and low halves in values and
 keys,
  interrupted or mismatched pairs,
  and a pair followed by a lone low
 half.
- It checked decoded boundary pairs `U+10000` and `U+10FFFF`, neighboring
+ It checked decoded boundary pairs `U+10000` and `U+10FFFF`,
+neighboring
 BMP scalars,
- `U+0000`, mixed-case hexadecimal,
+ `U+0000`,
+mixed-case hexadecimal,
  adjacent pairs with surrounding
 text,
  an object key,
- ASCII `\u0041`, and a literal escaped backslash.
+ ASCII `\u0041`,
+and a literal escaped backslash.
  Truncated
 and nonhex escapes returned errors without panic.
  The original unsafe parser
@@ -419,20 +425,28 @@ user to supply credentials or execute them.
 
 ### Patterns that avoid the unsafe conversion (source-derived; patched subset tested)
 
-- `r#"{"s":"plain"}"#`: no Unicode escape enters the `u` arm of
+- `r#"{"s":"plain"}"#`:
+  no Unicode escape enters the `u` arm of
   `rust/src/parse.rs:326-348`.
-- `r#"{"s":"\u0041"}"#`: the escape represents scalar `A`; the
+- `r#"{"s":"\u0041"}"#`:
+  the escape represents scalar `A`;
+  the
   patched public-entry example accepted it;
    the unpatched parser was not run.
-- `r#"{"s":"\\uD800"}"#`: two JSON-source backslashes encode a literal
-  backslash before `uD800`; the escaped-backslash arm is distinct from the
+- `r#"{"s":"\\uD800"}"#`:
+  two JSON-source backslashes encode a literal
+  backslash before `uD800`;
+  the escaped-backslash arm is distinct from the
   Unicode arm in `rust/src/parse.rs:324-351`.
 
 ### Patterns unsafe to pass to the unpatched parser (source-derived; original not run)
 
-- `r#"{"s":"\uD800"}"#`: isolated high surrogate in a value.
-- `r#"{"s":"\uDFFF"}"#`: isolated low surrogate in a value.
-- `r#"{"\uD800":0}"#`: property name reaches `parse_string` through
+- `r#"{"s":"\uD800"}"#`:
+  isolated high surrogate in a value.
+- `r#"{"s":"\uDFFF"}"#`:
+  isolated low surrogate in a value.
+- `r#"{"\uD800":0}"#`:
+  property name reaches `parse_string` through
   `rust/src/parse.rs:455-470`:
 
   ```rust
@@ -440,7 +454,8 @@ user to supply credentials or execute them.
       // name: value
       let name = self.parse_string()?;
   ```
-- `r#"{"s":"\uD83D\uDE00"}"#`: the first of an otherwise paired set
+- `r#"{"s":"\uD83D\uDE00"}"#`:
+  the first of an otherwise paired set
   is converted alone in `rust/src/parse.rs:326-348`.
 
 These are **not** a catalog of observed error variants:
@@ -471,13 +486,16 @@ fn guard_unicode_escapes(source: &str) -> Result<(), &'static str> {
 ```
 
 The harness verified that this predicate rejects every input containing
-`\u`, including `\uD800`, and accepts examples without that sequence.
+`\u`,
+including `\uD800`,
+and accepts examples without that sequence.
 Source inspection of `rust/src/parse.rs:326-348` shows the guard removes all
 syntactically valid Unicode escape paths to unchecked scalar construction
 when it is applied before parsing.
  It also rejects harmless `\u0041`,
 literal escaped backslashes,
- comments containing `\u`, and invalid text that
+ comments containing `\u`,
+and invalid text that
 would already fail parsing.
  This over-rejection is deliberate.
 Callers needing Unicode escape support or exact acceptance semantics must
@@ -492,13 +510,15 @@ These alternatives were rejected by source inspection,
   not a reproduction of the same input:
    the latter has a literal backslash
   value,
-   per `rust/src/parse.rs:324-351`. It avoids the problematic path
+   per `rust/src/parse.rs:324-351`.
+  It avoids the problematic path
   by changing the parsed data,
    not by fixing the parser.
 - Trusting `jsonc::tokenize` to accept a string before calling
   `jsonc::parse` is not a surrogate guard:
    `rust/src/tokens.rs:119-140`
-  only invokes `read_string`, whose `rust/src/readers.rs:79-113` check
+  only invokes `read_string`,
+  whose `rust/src/readers.rs:79-113` check
   establishes hexadecimal syntax,
    not scalar validity.
 - Substituting safe `char::from_u32` alone without handling surrogate pairs
@@ -512,7 +532,8 @@ These alternatives were rejected by source inspection,
 
 The `.out-of-scope/` directory was listed.
  Its entries include
-`cargo-workspace.md` and `typescript-project-references.md`, but no Momoa
+`cargo-workspace.md` and `typescript-project-references.md`,
+but no Momoa
 or unpaired-surrogate exemption;
  there is no listed exemption to cite.
 No external issue,
@@ -520,10 +541,15 @@ No external issue,
  or comment was posted.
 
 Repository-scoped GitHub web searches covered open and closed issues and PRs
-for [surrogate][issue-surrogate], [from_u32_unchecked][issue-unsafe],
-[unicode][issue-unicode], and [unpaired][issue-unpaired], with corresponding
-PR searches ([surrogate][pr-surrogate], [from_u32_unchecked][pr-unsafe],
-[unicode][pr-unicode], and [unpaired][pr-unpaired]).
+for [surrogate][issue-surrogate],
+[from_u32_unchecked][issue-unsafe],
+[unicode][issue-unicode],
+and [unpaired][issue-unpaired],
+with corresponding
+PR searches ([surrogate][pr-surrogate],
+[from_u32_unchecked][pr-unsafe],
+[unicode][pr-unicode],
+and [unpaired][pr-unpaired]).
  No matching report was identified.
 The [Unicode offsets PR #204][pr-offsets] concerns byte offsets of
 multi-byte characters,
@@ -533,37 +559,49 @@ maintainer response asks that Rust and JS behavior stay aligned,
  which
 matters to a future fix but is not a rejection of this safety report.
 The primary agent also ran repository-scoped `gh search issues` for `surrogate`,
-`from_u32_unchecked`, `unicode`, and `unpaired`; each returned no matching issue.
-It ran `gh search prs` for `surrogate`, `from_u32_unchecked`, `unicode`, and `unpaired`.
+`from_u32_unchecked`,
+`unicode`,
+and `unpaired`;
+each returned no matching issue.
+It ran `gh search prs` for `surrogate`,
+`from_u32_unchecked`,
+`unicode`,
+and `unpaired`.
 Those returned only unrelated dependency updates and Unicode-offset work,
-including [PR #204][pr-offsets], not this unchecked surrogate construction.
+including [PR #204][pr-offsets],
+not this unchecked surrogate construction.
 No duplicate was found in the inspected queries;
  source and tracker state can change.
 
 1. **Upstream fault:
-    yes.** The unchecked conversion follows source-level
+    yes.**
+   The unchecked conversion follows source-level
    acceptance of surrogate hex digits,
     not a caller's unsafe block;
    see `rust/src/readers.rs:79-113` and `rust/src/parse.rs:326-351` excerpts.
 2. **Upstream can fix it:
-    yes.** The `parse_string` boundary in
+    yes.**
+   The `parse_string` boundary in
    `rust/src/parse.rs:295-365` can replace unchecked construction and
    handle pairs and errors;
     no architectural impossibility was found.
 3. **Supported use case:
-    yes.** `rust/README.md` at the reported commit
+    yes.**
+   `rust/README.md` at the reported commit
    documents `jsonc::parse` and JSONC comment handling;
     `rust/src/lib.rs:33-44`
    exposes that API.
     The README gives a `jsonc::parse(code)` example.
 4. **External contributions welcome:
-    soft yes.** The root README invites
+    soft yes.**
+   The root README invites
    development;
     `.github/ISSUE_TEMPLATE/BUG_REPORT.md` requests a
    reproduction and expects `bug, needs repro` labels.
     No root
    `CONTRIBUTING.md` was found at this commit and `.github/` listed
-   `ISSUE_TEMPLATE/` and `workflows/`, with no PR template in that
+   `ISSUE_TEMPLATE/` and `workflows/`,
+   with no PR template in that
    listing.
     [PR #204][pr-offsets] includes a substantive maintainer
    response to an external contributor.
@@ -571,7 +609,8 @@ No duplicate was found in the inspected queries;
    found in the checked materials;
     that is not proof no other policy exists.
 5. **Likely fix:
-    soft yes.** No comparable won't-fix signal was found.
+    soft yes.**
+   No comparable won't-fix signal was found.
    [Parser history][parse-history] and [reader history][reader-history]
    show work in these paths;
     `gh` tracker queries found no matching report.
@@ -580,7 +619,8 @@ No duplicate was found in the inspected queries;
    Neither states a refusal to fix surrogate handling.
 6. **Minimal architecture-compatible prototype:
     yes,
-    isolated.** A fresh
+    isolated.**
+   A fresh
    private clone of commit `8dfb563` was origin-checked and had its push URL
    disabled.
     The [checked pre-fix patch](momoa-rust-unpaired-surrogate.prepatch.patch)
@@ -604,7 +644,8 @@ No duplicate was found in the inspected queries;
 
 All filing constraints have supporting evidence,
  with the stated limitation
-that the pre-fix result is a **checked instrument**, not observed undefined
+that the pre-fix result is a **checked instrument**,
+not observed undefined
 behavior.
  Default policy is not to file;
  posting externally still requires

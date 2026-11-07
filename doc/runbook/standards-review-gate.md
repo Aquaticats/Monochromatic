@@ -68,9 +68,11 @@ Every term below is operational;
 - Trigger:
   the wrapper.
   When the resident service lands a commit in a worktree that holds the tracked file
-  `doc/audit/standards-review-gate-shadow.md` (the switch, frozen history that nothing writes any more),
+  `doc/audit/standards-review-gate-shadow.md` (the switch,
+  frozen history that nothing writes any more),
   the wrapper leaves a `review` work item for that commit in `<git dir>/cli-git/work/`
-  (`doc/planning/cli-git-standards-review-port.md`, heading `The work-item record`).
+  (`doc/planning/cli-git-standards-review-port.md`,
+  heading `The work-item record`).
   The service claims it on its work thread after the command has returned.
   The former trigger,
   the local Git config hook `hook.standards-review-shadow` running `mise run shadow-review`,
@@ -136,22 +138,31 @@ and its answer with the probability distribution is the entry.
 The steps:
 
 1.
-   Read the landed commit's names, subject, patch and the changed code files
-   (two Git starts for a commit with code, none for a commit without).
+   Read the landed commit's names,
+   subject,
+   patch and the changed code files
+   (two Git starts for a commit with code,
+   none for a commit without).
 2.
    Build the capped input and ask the gateway once.
-   A failure of the call is an entry (`Luna failed: ...`), not a failed item.
+   A failure of the call is an entry (`Luna failed: ...`),
+   not a failed item.
 3.
    Append the entry to the live log
-   with one append-only write on an `O_APPEND` descriptor, once per commit,
+   with one append-only write on an `O_APPEND` descriptor,
+   once per commit,
    so entries of several worktrees' services never interleave and no lock is taken
    (`package/git-policy/cli/src/native/standards_review/standards_review_append.rs`).
    The service creates the directory and the file when missing.
    The tracked `doc/audit/standards-review-gate-shadow.md` is never written.
    The earlier spool and the repair of entries another writer overwrote are gone
-   (`doc/planning/cli-git-standards-review-port.md`, heading `Appending to the shared log`, dated note).
+   (`doc/planning/cli-git-standards-review-port.md`,
+   heading `Appending to the shared log`,
+   dated note).
 4.
-   A commit that cannot be read, a log that cannot be written, or a review that runs past its budget
+   A commit that cannot be read,
+   a log that cannot be written,
+   or a review that runs past its budget
    leaves its item in `<git dir>/cli-git/work/failed/` as a plain record and nothing else.
 
 ## What the shadow log holds

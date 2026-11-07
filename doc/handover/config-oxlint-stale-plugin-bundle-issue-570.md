@@ -35,7 +35,9 @@ No code edits until the user confirms shared understanding.
 
 ## Rejected framing
 
-Asking "which of the issue's remediations (build guard, wrapper guidance, post-build import check)"
+Asking "which of the issue's remediations (build guard,
+wrapper guidance,
+post-build import check)"
 and "shared versus local build guard" presupposes the issue's framing
 that the bundler step is the thing to fix.
 The user rejected that round.
@@ -98,7 +100,10 @@ The user rejected that round.
 - `lint:oxlint` and `format:oxlint` templates call `ensureOxlintConfig()`,
   which rebuilds `//package/config/oxlint:build:js:node`
   when `shouldBuildOxlintConfig()` finds a source newer than the oldest sidecar.
-- Sources are `src`, `package.json`, `tsconfig.json`, `rolldown.node.config.ts`
+- Sources are `src`,
+  `package.json`,
+  `tsconfig.json`,
+  `rolldown.node.config.ts`
   of `config-oxlint` and each `package/oxlint-plugin/*`,
   plus `pnpm-lock.yaml` and `pnpm-workspace.yaml`.
 - In the #570 sequence:
@@ -122,17 +127,22 @@ The user rejected that round.
 - pnpm `verifyDepsBeforeRun` only fires on `pnpm run` and `pnpm exec`,
   which repo tasks never use (CM3).
 - `node_modules/.pnpm/lock.yaml` is pnpm's record of the last installed lockfile;
-  comparing it with `pnpm-lock.yaml` detects "lockfile changed, not installed".
+  comparing it with `pnpm-lock.yaml` detects "lockfile changed,
+  not installed".
   Every install rewrites its mtime.
 - No-op `pnpm install --frozen-lockfile --offline` measured 0.39 s then 0.21 s
-  (two runs, no spread band),
+  (two runs,
+  no spread band),
   and relinks six packages every run (cause not investigated).
-- mise native `sources`/`outputs` exist; no repo task uses them.
+- mise native `sources`/`outputs` exist;
+  no repo task uses them.
   `task-util` `depends` helper is used only by `prepare:playwright`.
 
 ### Consumers, reproduction, wrapper (subagent report; starred items re-verified)
 
-- No rolldown config in the repo sets `onLog`, `onwarn`, or `checks`.
+- No rolldown config in the repo sets `onLog`,
+  `onwarn`,
+  or `checks`.
   All three shared factories build from one base object
   (`package/config/rolldown/src/index.node.ts` `baseOptions`,
    `index.ts`,
@@ -166,13 +176,15 @@ The user rejected that round.
 - Wrapper source:
   `package/dev-script/task-util/src/oxlint-wrapper.ts`;
   `finalizeResult` keeps oxlint's exit code.
-  oxlint 1.85.0 prints the config-load failure block on stdout, not stderr.
+  oxlint 1.85.0 prints the config-load failure block on stdout,
+  not stderr.
   The wrapper has no test;
   `oxlint-augment.ts` holds testable pure helpers.
 
 ### Lint speed: built sidecars versus `./ts` source entry (subagent report)
 
-- Issue #238 (closed, commit `05cbf8fd1`) recorded,
+- Issue #238 (closed,
+  commit `05cbf8fd1`) recorded,
   per oxlint process on a clean fixture,
   prebuilt 606.2±35.5 ms versus source 910.0±62.0 ms;
   savings multiply in the `--fix` loop
@@ -194,17 +206,24 @@ The user rejected that round.
 - Whole-repo lint took 369.6 s in one fresh-worktree trial
   with 385 TS2307 errors from unbuilt packages;
   not representative.
-- Interleaved re-measurement (three arms rotated: built-A, built-B as noise band, `./ts`;
-  3 warmup plus 15 runs each; load average 6 to 13 on 16 cores;
-  fixture adapted from #238, confirmed three fix passes plus three oracle passes):
+- Interleaved re-measurement (three arms rotated:
+  built-A,
+  built-B as noise band,
+  `./ts`;
+  3 warmup plus 15 runs each;
+  load average 6 to 13 on 16 cores;
+  fixture adapted from #238,
+  confirmed three fix passes plus three oracle passes):
   - `format:oxlint` fix loop on `package/module/or-throw`:
     built medians 6.312 s and 6.309 s,
     `./ts` median 7.436 s (minimum 7.187 s),
-    so +1.12 s (+18 %), outside the band.
+    so +1.12 s (+18 %),
+    outside the band.
   - Plain `lint:oxlint`:
     built medians 1.595 s and 1.634 s,
     `./ts` median 1.799 s,
-    so about +0.2 s (+12 %), outside the band.
+    so about +0.2 s (+12 %),
+    outside the band.
   - About 0.19 s per oxlint process;
     `strace` confirmed `./ts` opened plugin source and no dist files.
 
@@ -219,30 +238,39 @@ The user rejected that round.
   unparsable `--format json` output,
   or the absence of the `Found N warnings and M errors.` summary line.
   ESLint documents exit 2 for this case.
-  A prototype upstream patch (exit 2) is drafted, not filed.
+  A prototype upstream patch (exit 2) is drafted,
+  not filed.
 - `doc/troubleshooting/rolldown-unresolved-import-external.md`:
   warn-and-externalize is deliberate Rollup-compatible behavior;
   the rolldown docs line claiming otherwise is wrong.
-  A hard-error option was merged and reverted upstream (#9388, #9438; request #9362 open).
+  A hard-error option was merged and reverted upstream (#9388,
+  #9438;
+  request #9362 open).
 - Decisive for design:
   rolldown delivers warnings to `onLog` only after `bundle_write` has written every file,
   so an `onLog` escalation exits 1 but still leaves the broken sidecar on disk,
   newer than every input,
   which `shouldBuildOxlintConfig` then treats as current.
-  The issue's first remediation, as worded, would not prevent the persisted artifact.
+  The issue's first remediation,
+  as worded,
+  would not prevent the persisted artifact.
   A `resolveId` plugin calling `this.resolve(..., { skipSelf: true })`
   and `this.error` on null fails before writing (verified by the subagent).
-  A prototype upstream fix (deliver warnings before writing) is drafted, not filed.
+  A prototype upstream fix (deliver warnings before writing) is drafted,
+  not filed.
 
 ### mise share of blame (subagent report; details in `doc/troubleshooting/mise-dependency-freshness.md`)
 
 - mise 2026.9.12 has `mise deps` (alias `prepare`),
   configured as `[deps.pnpm] auto = true`;
-  experimental, but the repo already sets `experimental = true` (`mise.no-env.toml` line 225).
+  experimental,
+  but the repo already sets `experimental = true` (`mise.no-env.toml` line 225).
   The repo has no `[deps]` table.
 - It hashes root `pnpm-lock.yaml` and `package.json` (blake3),
-  records state only after a successful install, per worktree,
-  and runs before every `mise run` and `mise x`, including child runs;
+  records state only after a successful install,
+  per worktree,
+  and runs before every `mise run` and `mise x`,
+  including child runs;
   a failed install aborts the run.
   Throwaway experiment:
   after `pnpm install --lockfile-only` it reported stale and installed first
@@ -260,15 +288,22 @@ The user rejected that round.
   unless an install marker (`node_modules/.modules.yaml`) is a source.
   Default mtime mode also skips a task whose failed first run wrote outputs;
   hash mode reruns correctly.
-  Docs say oldest output, code uses newest.
+  Docs say oldest output,
+  code uses newest.
 - Repo policy forbids `depends` (`mise.toml` line 627 comment:
-  "never use depends or post depends, use run only").
-- Enter, cd, and `watch_files` hooks fire only under `mise activate`.
+  "never use depends or post depends,
+  use run only").
+- Enter,
+  cd,
+  and `watch_files` hooks fire only under `mise activate`.
 - The "fanout exited 1 with no error line" report did not reproduce:
   a fresh-worktree build ended with `package fanout failed:` naming four packages,
-  each with its own earlier error (missing Android NDK, unresolved `canvg`,
-  `libghostty` build order, a `git log` failure).
-- Drafted, not posted:
+  each with its own earlier error (missing Android NDK,
+  unresolved `canvg`,
+  `libghostty` build order,
+  a `git log` failure).
+- Drafted,
+  not posted:
   a comment for upstream discussion #8733 with a prototype fix and e2e test
   (`doc/troubleshooting/mise-dependency-freshness.patch`).
 
@@ -278,22 +313,32 @@ The user rejected that round.
   it skips linking and the installed-state files,
   and nothing warns afterwards (`pnpm list` exits 0 without the new dependency).
 - No standalone status command exists in pnpm 12.5.1.
-  The `verifyDepsBeforeRun` check compares settings, catalogs, project list,
-  missing `node_modules`, member manifest mtimes,
+  The `verifyDepsBeforeRun` check compares settings,
+  catalogs,
+  project list,
+  missing `node_modules`,
+  member manifest mtimes,
   and wanted versus installed lockfile.
   Usable as a probe today:
   `pnpm --config.verify-deps-before-run=error exec true`,
-  about 85 ms up to date or stale (30 runs, quiet host),
+  about 85 ms up to date or stale (30 runs,
+  quiet host),
   versus 96.9 ms for a no-op `pnpm install --offline`
   and 215 ms for `--frozen-lockfile --offline` (frozen disables the fast path).
 - The per-run "added 6" in the main checkout is a pnpm bug:
   49 dangling links to skipped optional platform packages inside
-  typescript, rolldown, oxlint, oxlint-tsgolint, satteri, yuku-parser
+  typescript,
+  rolldown,
+  oxlint,
+  oxlint-tsgolint,
+  satteri,
+  yuku-parser
   never satisfy the reinstall check;
   visible here because the repo sets `modulesCacheMaxAge: 0`.
   Local repair (not run):
   delete the dangling links under `node_modules/.pnpm`.
-  Prototype upstream fix and draft issue exist, not filed.
+  Prototype upstream fix and draft issue exist,
+  not filed.
 - A repair install prints `Already up to date` even while it creates a sub-project workspace link.
 
 ## Failure chain with owners
@@ -308,7 +353,8 @@ but each link also fails for causes other than #570.
    mise ships `mise deps` but the repo does not enable it;
    nothing in the repo gates tasks on install state.
 2. Silent bundling:
-   rolldown warns and externalizes (deliberate, Rollup-compatible),
+   rolldown warns and externalizes (deliberate,
+   Rollup-compatible),
    and an `onLog` escalation fires only after output is written;
    only a `resolveId` guard fails before writing.
 3. Stale persisted artifact:
@@ -336,9 +382,13 @@ but each link also fails for causes other than #570.
 - Unrelated incidents seen during research,
   not in #570 scope:
   fresh-worktree full build failures
-  (Android NDK, `canvg`, `libghostty` order, `git log`);
+  (Android NDK,
+  `canvg`,
+  `libghostty` order,
+  `git log`);
   `package/kwin/key-helper/src/nvim.ts` bare import violating ST3.
 
 ## Commits
 
-- Handover and troubleshooting docs only; no code changed.
+- Handover and troubleshooting docs only;
+  no code changed.

@@ -131,7 +131,8 @@ The crate documentation says so directly (`src/lib.rs:99-102`):
 ```rust
 //! ## Parse Strictly as JSON
 //!
-//! By default this library is extremely loose in what it allows parsing. To be strict,
+//! By default this library is extremely loose in what it allows parsing.
+//! To be strict,
 //! provide `ParseOptions` and set all the options to false:
 ```
 
@@ -396,7 +397,8 @@ use jsonc_parser::ParseOptions;
 use jsonc_parser::cst::{CstInputValue, CstRootNode};
 use serde_json::{Number, Value, json};
 
-/// JSONC as VS Code defines it: comments and trailing commas only.
+/// JSONC as VS Code defines it:
+/// comments and trailing commas only.
 fn jsonc_options() -> ParseOptions {
     ParseOptions {
         allow_comments: true,
@@ -409,7 +411,8 @@ fn jsonc_options() -> ParseOptions {
     }
 }
 
-/// The crate rustdoc's "Parse Strictly as JSON" recipe: every option false.
+/// The crate rustdoc's "Parse Strictly as JSON" recipe:
+/// every option false.
 fn strict_json_options() -> ParseOptions {
     ParseOptions {
         allow_comments: false,
@@ -438,7 +441,9 @@ fn outcome(src: &str, options: &ParseOptions) -> String {
     }
 }
 
-/// Parses a managed JSONC file: JSONC-only options, and the root must be an object or array.
+/// Parses a managed JSONC file:
+/// JSONC-only options,
+/// and the root must be an object or array.
 fn parse_managed(src: &str) -> Result<CstRootNode, String> {
     let root = CstRootNode::parse(src, &jsonc_options()).map_err(|e| e.to_string())?;
     match root.value() {
@@ -448,7 +453,8 @@ fn parse_managed(src: &str) -> Result<CstRootNode, String> {
     }
 }
 
-/// Exact integer comparison when both sides are integers, otherwise f64 comparison.
+/// Exact integer comparison when both sides are integers,
+/// otherwise f64 comparison.
 fn same_number(a: &Number, b: &Number) -> bool {
     let a_int = a.is_i64() || a.is_u64();
     let b_int = b.is_i64() || b.is_u64();
@@ -458,7 +464,8 @@ fn same_number(a: &Number, b: &Number) -> bool {
     a.as_f64() == b.as_f64()
 }
 
-/// JSON equality that treats `1` and `1.0` as the same number, recursively.
+/// JSON equality that treats `1` and `1.0` as the same number,
+/// recursively.
 fn same(left: &Value, right: &Value) -> bool {
     match (left, right) {
         (Value::Number(a), Value::Number(b)) => same_number(a, b),
@@ -470,7 +477,8 @@ fn same(left: &Value, right: &Value) -> bool {
     }
 }
 
-/// Converts serde_json values into CST input, keeping number spelling from serde_json's Display.
+/// Converts serde_json values into CST input,
+/// keeping number spelling from serde_json's Display.
 fn input_of(value: &Value) -> CstInputValue {
     match value {
         Value::Null => CstInputValue::Null,
@@ -482,7 +490,9 @@ fn input_of(value: &Value) -> CstInputValue {
     }
 }
 
-/// Sets top-level key `key` to `wanted`, guarded by `guard`, and prints the result.
+/// Sets top-level key `key` to `wanted`,
+/// guarded by `guard`,
+/// and prints the result.
 fn set_case(label: &str, src: &str, key: &str, wanted: Value, guard: &dyn Fn(&Value, &Value) -> bool) {
     let root = CstRootNode::parse(src, &jsonc_options()).expect("parse");
     let prop = root.object_value().expect("object").get(key).expect("key");
@@ -560,7 +570,10 @@ fn show<T, E: std::fmt::Display>(label: &str, src: &str, result: Result<T, E>) {
     }
 }
 
-/// Strict JSON for CST editing: validate with `parse_to_value`, which enforces `allow_comments`, then build the CST.
+/// Strict JSON for CST editing:
+/// validate with `parse_to_value`,
+/// which enforces `allow_comments`,
+/// then build the CST.
 fn parse_strict_json_cst(src: &str, options: &ParseOptions) -> Result<CstRootNode, jsonc_parser::errors::ParseError> {
     parse_to_value(src, options)?;
     CstRootNode::parse(src, options)

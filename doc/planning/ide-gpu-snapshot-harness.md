@@ -23,9 +23,15 @@ The repository scripts this document names with an `.mjs` suffix under `package/
 and the other `inspect-*-guards` scripts)
 were converted to `.ts` on 2026-10-22,
 because node runs TypeScript directly and `.mjs` has no advantage.
-Read each of those names with the suffix `.ts`; the text below keeps the names as they were when it was written.
-The `.mjs` files in "the scratch root" (`session.mjs`, `startup.mjs`, `rep.mjs`, `pair.mjs`, `stress.mjs`,
-`loadgen.mjs`, `matrix-load.mjs`) were scratch files of the measuring sessions and are not in the repository.
+Read each of those names with the suffix `.ts`;
+the text below keeps the names as they were when it was written.
+The `.mjs` files in "the scratch root" (`session.mjs`,
+`startup.mjs`,
+`rep.mjs`,
+`pair.mjs`,
+`stress.mjs`,
+`loadgen.mjs`,
+`matrix-load.mjs`) were scratch files of the measuring sessions and are not in the repository.
 
 ## Result in one paragraph
 
@@ -1754,88 +1760,131 @@ This is listed under "Not proven in stages 3 and 4".
 ### Flakes after the merge
 
 The merge of stages 3 and 4 raised the failure rate of the parallel `test:native` run.
-Four causes were found and fixed on 2026-10-20, all in tests;
+Four causes were found and fixed on 2026-10-20,
+all in tests;
 no production behavior changed (the only non-test code is a debug-build list of failure messages in `State`).
-A fifth, older flake was left alone.
+A fifth,
+older flake was left alone.
 The host was shared with other agents the whole time (load average 5 to 30),
-so every rate is a rate under that load, and a comparison between trees is claimed only where the runs were
+so every rate is a rate under that load,
+and a comparison between trees is claimed only where the runs were
 alternated or run under the same artificial load.
 The tools are in `~/temp/agent/flake/`:
 `rep.mjs` repeats `test:native` and keeps the log of each failing run,
 `pair.mjs` alternates trees,
 `stress.mjs` runs one test binary in the bounded GPU container with many copies at once,
 and `loadgen.mjs` starts busy loops.
-Throughout, an unfiltered `test:native` runs the tests in parallel (21 threads here),
+Throughout,
+an unfiltered `test:native` runs the tests in parallel (21 threads here),
 while a filtered one passes `--no-capture` and so runs them one at a time.
-Filtered loops therefore cannot show these flakes; 5 serial runs of every test on main all passed.
+Filtered loops therefore cannot show these flakes;
+5 serial runs of every test on main all passed.
 
 #### Rates
 
-- The stage 2 baseline (`fcfaec56e6`), unfiltered runs: 1 failure in 20 (the old minimap test below),
+- The stage 2 baseline (`fcfaec56e6`),
+  unfiltered runs:
+  1 failure in 20 (the old minimap test below),
   and 0 in 20 while 16 busy loops ran.
-- Main at the merge, with only failure details added to some asserts: 9 failures in 70 runs,
+- Main at the merge,
+  with only failure details added to some asserts:
+  9 failures in 70 runs,
   of which 20 ran while 16 busy loops ran
-  (render noise 3, the old minimap test 3, the find test 2, the resize test 1).
-  The 50 runs without busy loops had 7 failures; the 20 with them had 2, both the find test.
+  (render noise 3,
+  the old minimap test 3,
+  the find test 2,
+  the resize test 1).
+  The 50 runs without busy loops had 7 failures;
+  the 20 with them had 2,
+  both the find test.
   A further 15 runs of main that carried a heavy GPU probe test are left out of these counts;
-  they had 4 failures, one of them the refused tile hang below.
-- Forty runs of the baseline cannot show a rate below about 5 percent, so a smaller difference is not excluded.
-- After the fixes, on the head of this branch: 15 consecutive runs without a failure,
-  1 failure in an earlier 15 (the old minimap test, in the last run),
+  they had 4 failures,
+  one of them the refused tile hang below.
+- Forty runs of the baseline cannot show a rate below about 5 percent,
+  so a smaller difference is not excluded.
+- After the fixes,
+  on the head of this branch:
+  15 consecutive runs without a failure,
+  1 failure in an earlier 15 (the old minimap test,
+  in the last run),
   and 0 in 5 runs while a build ran in the background.
 
 #### Cause 1: Vello renders are not bit-identical, and the stability tests compared frames exactly
 
 Rendering one scene again never gives the same texels.
 All 200 consecutive renders of the 697 by 1392 tile of `repeated_renders_of_one_tile_spread` were different;
-each differed from the first in 10 to 32 texels, by one level at most.
-The texels are always the same few, for example `x` 199 and 200 of rows 8 of every 16 in that test,
-alpha 57 against 58: a coverage on a rounding tie,
+each differed from the first in 10 to 32 texels,
+by one level at most.
+The texels are always the same few,
+for example `x` 199 and 200 of rows 8 of every 16 in that test,
+alpha 57 against 58:
+a coverage on a rounding tie,
 where the order in which the GPU's atomics put the segments of a tile in order changes the float sum in its last place.
 With error waves and dashes in the scene there were 612 one-level texels in 100 renders,
-with a selection clip 17, with plain text or hints only 0 (premultiplied compare;
+with a selection clip 17,
+with plain text or hints only 0 (premultiplied compare;
 texels of alpha 0 carry changing colors that the tests ignore).
 No difference of more than one level was seen in 400 renders of those scenes.
 
 The stability tests were ported from a CPU painter that was exact,
 and compared two window frames with `==` where the second frame followed a re-render of the tile.
 `a_reload_holds_row_space_until_annotations_return` failed at the same pixel both times it was caught with details:
-`x` 304 of window row 240, green 122 against 123.
+`x` 304 of window row 240,
+green 122 against 123.
 A probe that re-rendered the final state of that test 150 times found 6 renders that differ in the compared rows
-(twice; once 0), worst difference 1, which matches the failure rate seen in parallel runs.
+(twice;
+once 0),
+worst difference 1,
+which matches the failure rate seen in parallel runs.
 The failures reported under load in the rows-arriving and rigid-scroll tests are inferred to be the same class:
 a text with the same glyphs on every row has the same rounding tie on every row,
 so one re-render can flip one texel in many rows at once (125 rows in the reported failure).
-A failure with that many rows was not caught again, so that step is not shown.
+A failure with that many rows was not caught again,
+so that step is not shown.
 
 Fix:
 `annotation_stability_tests.rs` compares with `same_pixels` (the measured one level of `RENDER_NOISE`)
-wherever a frame follows a re-render: `moved`, the rows before a changed line, and the reload.
+wherever a frame follows a re-render:
+`moved`,
+the rows before a changed line,
+and the reload.
 The rigid scroll uses it only for a frame in which `tiles_rendered` counted a new tile;
 scrolling inside a tile shows the same texture and stays exact.
 The positive control is `the_noise_tolerance_tells_a_shifted_row_from_a_re_render`:
-one level passes, two levels do not, and a shift by one row does not.
+one level passes,
+two levels do not,
+and a shift by one row does not.
 `repeated_renders_of_one_tile_spread` now fails when the noise exceeds `RENDER_NOISE`.
 
 Guard proof:
 `RENDER_NOISE` raised to 9 made the control fail ("two levels are more than the render noise");
 a mutation of `encode.rs` that moved every glyph run by 0.3 px on every second encode made all four tolerant
-stability tests fail (reload, rows arriving in view, rows arriving above the view, rows above the view);
+stability tests fail (reload,
+rows arriving in view,
+rows arriving above the view,
+rows above the view);
 both were restored with `git checkout`.
 
 #### Cause 2: the find-matches minimap test pressed Enter after the first match was already selected
 
 `minimap_reflection_tests::the_minimap_of_find_matches_is_the_average_of_the_windows_pixels` types a query,
-presses Enter, and waits 5 s for the status `1/`.
+presses Enter,
+and waits 5 s for the status `1/`.
 Typing selects the first match by itself when the worker's reply for the whole query arrives.
 An Enter after that reply steps to the second match (status `2/43`) and the wait never ends.
-When the wait succeeds it takes 21 to 60 ms, so a failure is a lost ordering and not a slow search.
+When the wait succeeds it takes 21 to 60 ms,
+so a failure is a lost ordering and not a slow search.
 The stage 2 baseline fails the same way:
-24 copies of the test at once with 16 busy loops, 3 rounds, failed 7 of 72 on main and 5 of 72 on the baseline,
-always with `2/43`; after the fix 0 of 72.
-That is load alone with deterministic output in the sense the task asked for, and no timeout was changed.
+24 copies of the test at once with 16 busy loops,
+3 rounds,
+failed 7 of 72 on main and 5 of 72 on the baseline,
+always with `2/43`;
+after the fix 0 of 72.
+That is load alone with deterministic output in the sense the task asked for,
+and no timeout was changed.
 The test now presses no Enter and waits for the first match of the whole query.
-The other failure reported under load, `find_box_context_menu_runs_each_entry`,
+The other failure reported under load,
+`find_box_context_menu_runs_each_entry`,
 did not fail in 72 stressed runs of either tree and is not explained.
 
 #### Cause 3: the failed worker tile test waited for a message that the retry had cleared
@@ -1843,65 +1892,104 @@ did not fail in 72 stressed runs of either tree and is not explained.
 `refused_tile_tests::a_failed_worker_tile_frees_its_job_and_the_next_placement_gets_its_tile` hung for its whole
 90 s wait in 4 of about 410 runs of main-based trees.
 The event log of a hung run:
-the worker consumed the failure switch at 415639 us, `apply` named the failure at 436374 us,
-a render followed at 436677 us, and its `show` set the error message to the empty text at 436853 us,
-all in one timer pass, while the test polls every 2 ms and never saw the message.
+the worker consumed the failure switch at 415639 us,
+`apply` named the failure at 436374 us,
+a render followed at 436677 us,
+and its `show` set the error message to the empty text at 436853 us,
+all in one timer pass,
+while the test polls every 2 ms and never saw the message.
 The state now keeps the failure messages in debug builds (`worker_failures`) and the test waits for the first one.
-The baseline has the same path and was not seen to hang in 40 runs, which does not separate the trees.
+The baseline has the same path and was not seen to hang in 40 runs,
+which does not separate the trees.
 
 #### Cause 4: the resize test counted passes while the syntax reply could still arrive
 
 `wrap_tests::a_resize_breaks_kept_rows_again_without_shaping` failed in 3 of about 410 runs of main-based trees
-(twice as "the first pass shaped the file", once as "the resize shaped lines again", 2874 against 1373).
-A syntax reply installs new styles (`apply_syntax`), and the worker forgets its kept rows when its styles change.
+(twice as "the first pass shaped the file",
+once as "the resize shaped lines again",
+2874 against 1373).
+A syntax reply installs new styles (`apply_syntax`),
+and the worker forgets its kept rows when its styles change.
 Replacing the styles between the first pass and the resize in the test reproduces the signature exactly:
-the resize pass shapes 1501 lines more (3258 against 1757 forced; 2874 against 1373 in the natural failure).
-The natural arrival was not caught, so it is shown that this is sufficient and not that it is the only way.
+the resize pass shapes 1501 lines more (3258 against 1757 forced;
+2874 against 1373 in the natural failure).
+The natural arrival was not caught,
+so it is shown that this is sufficient and not that it is the only way.
 The test now waits for the syntax reply before it counts.
 
 #### Not changed: the old minimap flake
 
 `minimap_tests::an_external_edit_of_fifty_thousand_lines_renders_only_the_band_it_touches`
 ("rendered 3 or 4 of 4 bands") failed in 1 of 20 baseline runs and in about 2 to 4 percent of runs of main-based trees.
-The handover lists it as load dependent, and it belongs to the CPU minimap that stage 5 deletes.
-The minimap's key holds the identity of the styles, so a syntax reply that lands before the edit's picture is built
-re-renders every band; this reading was not tested.
+The handover lists it as load dependent,
+and it belongs to the CPU minimap that stage 5 deletes.
+The minimap's key holds the identity of the styles,
+so a syntax reply that lands before the edit's picture is built
+re-renders every band;
+this reading was not tested.
 
 #### Not found
 
 The nine-level pixel difference of the stage report (`rows_above_the_view_wait_until_scrolling_has_stopped`,
-241 against 250 at one pixel) was seen once more, in a run that also ran a heavy GPU probe, and its log was lost.
+241 against 250 at one pixel) was seen once more,
+in a run that also ran a heavy GPU probe,
+and its log was lost.
 It did not recur in 96 stressed runs of the single test or in about 440 later full runs.
 During a full run of main the video memory of the 8 GiB card is full:
 each test process holds 193 MiB before the renderer and 455 MiB after the first tile
-(a baseline process holds 193 MiB), 21 processes need about 9.5 GiB,
-the other programs on the host held 4 to 7 GiB, and in sampled runs the card's use rose from 4.1 GB to 7.6 to 8.0 GB
-with main against 4.5 GB with the baseline, while the driver's system-memory mappings rose to 13 GB.
+(a baseline process holds 193 MiB),
+21 processes need about 9.5 GiB,
+the other programs on the host held 4 to 7 GiB,
+and in sampled runs the card's use rose from 4.1 GB to 7.6 to 8.0 GB
+with main against 4.5 GB with the baseline,
+while the driver's system-memory mappings rose to 13 GB.
 Whether that overcommit produces a wrong frame is not shown.
 
 #### Measurements of the GPU text setup
 
-- First frame, `Renderer::new`: 57 to 72 ms wall and 0.33 to 0.38 s of CPU, and 66 MiB more resident memory
-  (84 to 150 MiB in a test process); the first tile render took 7 ms and later ones 1 to 4 ms.
-- Video memory (the process's own `drm-memory-vram`, not the system counter):
-  the first render of any scene adds 260 to 262 MiB, the same for a 64 by 64 scene as for a 697 by 1392 tile.
+- First frame,
+  `Renderer::new`:
+  57 to 72 ms wall and 0.33 to 0.38 s of CPU,
+  and 66 MiB more resident memory
+  (84 to 150 MiB in a test process);
+  the first tile render took 7 ms and later ones 1 to 4 ms.
+- Video memory (the process's own `drm-memory-vram`,
+  not the system counter):
+  the first render of any scene adds 260 to 262 MiB,
+  the same for a 64 by 64 scene as for a 697 by 1392 tile.
   Vello 0.11 allocates fixed buffers whatever the scene
-  (`vello_encoding-0.11.0/src/config.rs`): lines 48 MiB, segments 48, ptcl 32, tiles 16, segment counts 16,
-  blend spill 4, bin data 1, which is 165 MiB; the other 97 MiB of the measurement are not attributed.
-  The tile texture is separate: 3.7 MiB for 697 by 1392, 34.6 MiB for 1113 by 8160, 63.6 MiB for 2226 by 7488.
+  (`vello_encoding-0.11.0/src/config.rs`):
+  lines 48 MiB,
+  segments 48,
+  ptcl 32,
+  tiles 16,
+  segment counts 16,
+  blend spill 4,
+  bin data 1,
+  which is 165 MiB;
+  the other 97 MiB of the measurement are not attributed.
+  The tile texture is separate:
+  3.7 MiB for 697 by 1392,
+  34.6 MiB for 1113 by 8160,
+  63.6 MiB for 2226 by 7488.
 - Creating the pipelines added no video memory that could be measured.
 - Resident memory rose from 150 MiB to 168 MiB over 40 renders in the test process.
 
 #### Owner questions
 
 - Is a one-level tolerance for frames that follow a re-render acceptable as the permanent rule of these tests?
-  The alternative is a deterministic renderer, and Vello 0.11 offers none for the GPU.
-- Vello 0.11 takes 262 MiB of video memory for its scratch buffers whatever the scene, in the application as well.
-  Its sizes are hand-picked constants in `BufferSizes::new`; changing them means using the low-level API of the crate
+  The alternative is a deterministic renderer,
+  and Vello 0.11 offers none for the GPU.
+- Vello 0.11 takes 262 MiB of video memory for its scratch buffers whatever the scene,
+  in the application as well.
+  Its sizes are hand-picked constants in `BufferSizes::new`;
+  changing them means using the low-level API of the crate
   or a fork.
   Is the cost accepted until a release of Vello sizes them from the scene?
-- The parallel native run needs about 9.5 GiB of video memory and the card has 8 GiB, shared with other programs.
-  Should the default number of test threads of the native tests be lowered, or the test device given a budget?
+- The parallel native run needs about 9.5 GiB of video memory and the card has 8 GiB,
+  shared with other programs.
+  Should the default number of test threads of the native tests be lowered,
+  or the test device given a budget?
   This work changed neither.
   (The device hint recorded under "Selections over a tall tile" below halves the demand.)
 - Should the old minimap flake be fixed now or left to stage 5?
@@ -2450,7 +2538,8 @@ with `mise run //package/ide/app:<task>`:
 Stages 5 and 6 of `doc/planning/ide-vello-text.md` were done as one stage on 2026-10-20 and 2026-10-21.
 The minimap's picture is a Vello scene drawn by the one renderer the code view owns,
 and the code that painted pixels on the CPU is deleted.
-No second renderer exists, and the only memory the minimap adds beyond its texture is a few chunk-sized textures.
+No second renderer exists,
+and the only memory the minimap adds beyond its texture is a few chunk-sized textures.
 
 ### What was built
 
@@ -2460,12 +2549,15 @@ No second renderer exists, and the only memory the minimap adds beyond its textu
   `5c1b635df6` draws the marks without seams and bounds the reflection test by measurement;
   `2cf94afacf` formats the sources;
   `6a94d4ec6e` splits the minimap build and the GPU module for the line limit and retargets the guards;
-  `d52d871230` asks for a redraw when a slice is handed to the GPU (a bug the screenshots found, see below);
+  `d52d871230` asks for a redraw when a slice is handed to the GPU (a bug the screenshots found,
+  see below);
   `9f55f3013f` repairs two integration tests that the guard script found stale;
   `c96a6c46b9` names the failures the guards produce.
   The auto-push hook pushed the branch after each commit.
 - The worker (`src/native/minimap_worker.rs`) shapes the lines of a slice and encodes them as paint items
-  (`src/minimap/scene.rs`, `src/minimap/shape.rs`, `src/minimap/fills.rs`).
+  (`src/minimap/scene.rs`,
+  `src/minimap/shape.rs`,
+  `src/minimap/fills.rs`).
   A slice is a run of bands of 768 logical px (`BAND`):
   the bands the track shows and one on each side,
   at most as many as the device's texture side allows (`most_bands` in `src/minimap/plan.rs`).
@@ -2511,17 +2603,20 @@ No second renderer exists, and the only memory the minimap adds beyond its textu
 
 ### What was deleted
 
-- Minimap: `src/minimap/build.rs` (524 lines),
+- Minimap:
+  `src/minimap/build.rs` (524 lines),
   `cache.rs` (80),
   `downscale.rs` (441),
   `key.rs` (281),
   `render.rs` (209).
-- CPU painting: `src/text_raster.rs` (357),
+- CPU painting:
+  `src/text_raster.rs` (357),
   `src/glyph_cache.rs` (144),
   `src/selection_paint.rs` (58),
   `src/selection_paint_tests.rs` (43),
   and the pixel code of `src/annotation_paint.rs` (constants and a doc remain).
-- Tests of deleted code: `tests/minimap_picture.rs` (1,025 lines),
+- Tests of deleted code:
+  `tests/minimap_picture.rs` (1,025 lines),
   `tests/minimap_downscale.rs` (643),
   `tests/raster_reuse.rs` (130),
   `tests/raster_invalidation.rs` (136).
@@ -2532,8 +2627,10 @@ No second renderer exists, and the only memory the minimap adds beyond its textu
   slint is out of its shared list on `origin/main`,
   so the removal survives a sync.
 - `minimap_build` is renamed `minimap_worker`.
-- In all, 60 files changed with 3,406 lines added and 5,049 deleted (README and lock file apart).
-  Added: `src/minimap/{chunks,line_cache,scene,shape}.rs`,
+- In all,
+  60 files changed with 3,406 lines added and 5,049 deleted (README and lock file apart).
+  Added:
+  `src/minimap/{chunks,line_cache,scene,shape}.rs`,
   `src/native/gpu_tile/{slice,types}.rs`,
   `src/shaped_text/line.rs`,
   `src/native/minimap_dense_tests.rs`,
@@ -2561,8 +2658,10 @@ No second renderer exists, and the only memory the minimap adds beyond its textu
   and one render of 8,192 rows fails with a wgpu validation error
   (a buffer binding of 201,326,592 bytes over the limit 134,217,728).
   The chunk is 512 rows so a chunk is a factor of two inside what one render holds
-  (on the merged tip of 2026-10-21, with selected rows drawn once,
-  eight chunks still draw every inked pixel and twelve come out blank, so the margin there is larger).
+  (on the merged tip of 2026-10-21,
+  with selected rows drawn once,
+  eight chunks still draw every inked pixel and twelve come out blank,
+  so the margin there is larger).
   `the_densest_chunks_are_not_blank`,
   `the_chunk_size_leaves_a_factor_of_two_inside_what_one_render_holds`,
   and the positive control `one_render_of_every_dense_chunk_comes_out_blank` in
@@ -2583,7 +2682,8 @@ No second renderer exists, and the only memory the minimap adds beyond its textu
 
 ### Tests
 
-- `tests/minimap_scene.rs` (14 tests, no window):
+- `tests/minimap_scene.rs` (14 tests,
+  no window):
   bands and chunks,
   the most bands per limit,
   glyph runs in the palette's inks,
@@ -2624,13 +2724,18 @@ No second renderer exists, and the only memory the minimap adds beyond its textu
   The residual is where the edge ink falls inside a pixel;
   a flattening tolerance of the glyph outlines is a hypothesis that was not tested.
 - `test` (790 tests) and `test:native` (265 tests) pass.
-  Fifteen consecutive full runs of `test:native`: not met, and the owner replaced that gate with one run on each committed snapshot.
+  Fifteen consecutive full runs of `test:native`:
+  not met,
+  and the owner replaced that gate with one run on each committed snapshot.
   Two batches of fifteen were run before that instruction (on snapshots that still had the flaky tests below):
-  the first had 6 failed runs, the second 4 (the external edit test twice,
+  the first had 6 failed runs,
+  the second 4 (the external edit test twice,
   `find_box_context_menu_runs_each_entry` once (a flake listed in the package README before this branch),
   and the tall window blank-chunk test once).
-  Single runs: the snapshot with the redraw fix passed `test` (790) and failed `test:native` once on the external edit
-  test (264 of 265); the next snapshot passed `test:native` (265 of 265).
+  Single runs:
+  the snapshot with the redraw fix passed `test` (790) and failed `test:native` once on the external edit
+  test (264 of 265);
+  the next snapshot passed `test:native` (265 of 265).
   The last snapshot (lines that never wrap in the external edit test) passed that test alone 4 times and its guard,
   but its own full `test:native` gate was stopped by the coordinator before it finished
 
@@ -2641,7 +2746,8 @@ No second renderer exists, and the only memory the minimap adds beyond its textu
   renamed 2026-10-22)
   were run in a disposable copy:
   each fails its named test when removed and passes restored.
-  New ones: glyph runs (`minimap-renders-glyphs`,
+  New ones:
+  glyph runs (`minimap-renders-glyphs`,
   `minimap-glyph-inks`),
   the selection fill,
   the joined cells (`minimap-fills-joined`),
@@ -2672,74 +2778,128 @@ No second renderer exists, and the only memory the minimap adds beyond its textu
   assertion,
   and `minimap-line-key-text-reload` fails the test's control (the first pictures shaped 5 of 97 lines,
   because every line has one key without the text) before its edit assertion.
-  Both fail the named test, and their failure text is the one the script waits for.
+  Both fail the named test,
+  and their failure text is the one the script waits for.
 - The redraw request has no guard (see above).
 
 ### Verification by running
 
-- Release binaries of both trees in the repo's nested compositor, scale 1 and 2, dark and light,
-  32 sessions (`main.ts` with diagnostics: plain, selection, scrolled, find;
-  `big.rs` of 50,000 lines: top, scrolled, find;
-  `code.rs` at 1147 by 2000 px: top, selection, find).
-  Files are in `~/temp/agent/ide-gpu56/shots` and 4x crops (new, baseline, difference times four) in `crops`.
-  The author viewed the 4x crops of `main.ts` at scale 1 dark (plain, selection, find),
-  scale 2 light (plain), scale 2 dark (selection), `big.rs` scale 1 dark and the blank case.
+- Release binaries of both trees in the repo's nested compositor,
+  scale 1 and 2,
+  dark and light,
+  32 sessions (`main.ts` with diagnostics:
+  plain,
+  selection,
+  scrolled,
+  find;
+  `big.rs` of 50,000 lines:
+  top,
+  scrolled,
+  find;
+  `code.rs` at 1147 by 2000 px:
+  top,
+  selection,
+  find).
+  Files are in `~/temp/agent/ide-gpu56/shots` and 4x crops (new,
+  baseline,
+  difference times four) in `crops`.
+  The author viewed the 4x crops of `main.ts` at scale 1 dark (plain,
+  selection,
+  find),
+  scale 2 light (plain),
+  scale 2 dark (selection),
+  `big.rs` scale 1 dark and the blank case.
   Not all 36 crops were viewed.
-- Result for the cases viewed: the minimap column differs from the baseline's by a mean of 0.4 to 0.5 levels
-  at scale 1 and 0.1 to 0.4 at scale 2 in the plain, find and tall cases,
+- Result for the cases viewed:
+  the minimap column differs from the baseline's by a mean of 0.4 to 0.5 levels
+  at scale 1 and 0.1 to 0.4 at scale 2 in the plain,
+  find and tall cases,
   and the picture carries 0 to 3 percent less ink (ratio 0.97 to 1.00).
   At 4x the glyph texture,
   syntax colors,
   the box outline with no fill,
   the find fills and the active frame look the same;
   the visible differences are single edge pixels of the active match's frame.
-  Selection shots differ because a hover tooltip, which overlaps the minimap, appears at different times.
+  Selection shots differ because a hover tooltip,
+  which overlaps the minimap,
+  appears at different times.
   `big.rs` shots differ because the highlight of that file exceeded its deadline in 2 of 6 sessions of each binary,
-  so one picture was gray and one colored; no comparison was drawn from them.
+  so one picture was gray and one colored;
+  no comparison was drawn from them.
   A seam at a chunk boundary was not looked for in a screenshot
-  (the nested compositor hosts at most 3,704 px of height; a seam is covered by the cut tests only).
+  (the nested compositor hosts at most 3,704 px of height;
+  a seam is covered by the cut tests only).
 - The screenshots found the missing redraw (see above).
-- Worker time per picture on `big.rs` (release, drag then scroll, 79 pictures):
+- Worker time per picture on `big.rs` (release,
+  drag then scroll,
+  79 pictures):
   median 3.2 ms,
   90th percentile 5.1 ms,
   longest 19.6 ms,
   with a median of 37 lines shaped of 199.
-- Memory and start-up, 10 interleaved runs of each binary, `code.rs`, 1100 by 660 px, release.
+- Memory and start-up,
+  10 interleaved runs of each binary,
+  `code.rs`,
+  1100 by 660 px,
+  release.
   Two campaigns (before and after the redraw fix) agree on resident memory:
   idle medians 207.5 and 209.2 MiB for the baseline against 200.2 and 199.8 for the branch,
-  so about 7 to 9 MiB less, outside the spread of each.
+  so about 7 to 9 MiB less,
+  outside the spread of each.
   After a drag the difference is 3.5 to 9.8 MiB in the medians but the ranges overlap.
-  Process VRAM (`drm-memory-vram` of the process, deduplicated by client):
-  idle 477.0 and 480.4 MiB, after a drag 487.4 and 498.0 in the earlier campaign;
-  476.3 and 479.7 idle, 502.8 and 504.7 after a drag in the later one, whose counter had outliers (31 to 44 MiB minimum).
-  So the branch holds 0 to 10 MiB more, not resolved, and a cause was not isolated.
-  Time to the first frame: earlier medians 522 and 497 ms, later 840 and 1065 ms with spreads of 500 to 2,000 ms
-  on a loaded host: nothing is claimed.
+  Process VRAM (`drm-memory-vram` of the process,
+  deduplicated by client):
+  idle 477.0 and 480.4 MiB,
+  after a drag 487.4 and 498.0 in the earlier campaign;
+  476.3 and 479.7 idle,
+  502.8 and 504.7 after a drag in the later one,
+  whose counter had outliers (31 to 44 MiB minimum).
+  So the branch holds 0 to 10 MiB more,
+  not resolved,
+  and a cause was not isolated.
+  Time to the first frame:
+  earlier medians 522 and 497 ms,
+  later 840 and 1065 ms with spreads of 500 to 2,000 ms
+  on a loaded host:
+  nothing is claimed.
   CPU ticks over three scroll bursts and over the drag overlap between the trees.
-- Cadence (`matrix-load.mjs`, release, share of recorded frames that changed in the input window,
+- Cadence (`matrix-load.mjs`,
+  release,
+  share of recorded frames that changed in the input window,
   pairs alternate order).
   Before the redraw fix and on a quieter host (paired differences B minus A in points):
   `big.rs` 1100 by 660 drag A 91 97 98 95 96 96 against B 99 99 99 100 99 99 (pairs 8 2 2 5 3 3),
   while a branch against itself differed by 0 2 1 1 0 and minus 2;
   scroll 99.6 and 100.
   `client.unit.test.ts` drag 97.1 and 99.2 (pairs 2 6 2 2 2 4).
-  After the redraw fix, 1147 by 2000 px drag, 26 pairs: B higher in 21 pairs,
+  After the redraw fix,
+  1147 by 2000 px drag,
+  26 pairs:
+  B higher in 21 pairs,
   medians 96.5 and 99.2,
-  with a branch against itself differing by minus 14 to plus 14 in 8 pairs, so the difference is within the spread;
+  with a branch against itself differing by minus 14 to plus 14 in 8 pairs,
+  so the difference is within the spread;
   scroll 98.3 and 99.2.
-  `big.rs` drag after the fix on a host with pressure averages up to 62: no claim (pairs from minus 74 to plus 58).
-  Debug drag: A 53 to 98 and B 61 to 92 (pairs from minus 7 to plus 10): no claim.
-  Long identical runs (30 frames) seen in 2 B runs at 1147 by 2000 px also happened in an A run, and all three
-  coincided with a recorder rate under 56 fps, so they are host load.
+  `big.rs` drag after the fix on a host with pressure averages up to 62:
+  no claim (pairs from minus 74 to plus 58).
+  Debug drag:
+  A 53 to 98 and B 61 to 92 (pairs from minus 7 to plus 10):
+  no claim.
+  Long identical runs (30 frames) seen in 2 B runs at 1147 by 2000 px also happened in an A run,
+  and all three
+  coincided with a recorder rate under 56 fps,
+  so they are host load.
 
 ### Gates
 
-- `lint`: 0 findings on the snapshot before the last two test commits (rust,
+- `lint`:
+  0 findings on the snapshot before the last two test commits (rust,
   rustfmt,
   monochromatic-lint including README,
   slint).
   Not rerun on the final snapshot.
-- `test`: 790 passed.
+- `test`:
+  790 passed.
   `test:minimap` 26 passed.
   `test:annotations` 50 passed.
   `test:bin` passed.
@@ -2754,8 +2914,10 @@ No second renderer exists, and the only memory the minimap adds beyond its textu
   and the rest of the track is blank.
   The alternative is a second slice texture or a smaller scale for such a window.
   Which is wanted?
-  Answered on 2026-10-21 by the owner: stack several textures so the minimap covers the whole window.
-  Built on branch `worktree-agent-a4d54af4e63faea6b`; see `doc/handover/ide-gpu-stages-5-6.md`,
+  Answered on 2026-10-21 by the owner:
+  stack several textures so the minimap covers the whole window.
+  Built on branch `worktree-agent-a4d54af4e63faea6b`;
+  see `doc/handover/ide-gpu-stages-5-6.md`,
   section "Stacked textures".
 - `minimap_build` became `minimap_worker`.
   The old name no longer described a build of a picture.
@@ -2768,7 +2930,8 @@ No second renderer exists, and the only memory the minimap adds beyond its textu
 - `TEXTURE_DIMENSION` in `src/shaped_text/limit.rs` stays:
   it bounds the tile's rows,
   and the minimap reads it for its slice.
-  Its doc says the minimap's CPU frames also used it, which is no longer true.
+  Its doc says the minimap's CPU frames also used it,
+  which is no longer true.
 - Cadence at 1147 by 2000 px and at 50,000 lines was measured on a host that was loaded by other sessions for part of the
   time;
   more pairs on a quiet host would settle the small differences listed below.

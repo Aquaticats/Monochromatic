@@ -159,7 +159,8 @@ pub struct AudioSpecificConfig {
 }
 
 impl AudioSpecificConfig {
-    /// Read the audio specific configuration from the provided buffer. ISO14496-3-2009
+    /// Read the audio specific configuration from the provided buffer.
+    /// ISO14496-3-2009
     pub fn read(buf: &[u8]) -> Result<AudioSpecificConfig> {
         let mut bs = BitReaderLtr::new(buf);
 

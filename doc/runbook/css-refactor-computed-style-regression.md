@@ -1,65 +1,128 @@
 # Regression-test a CSS refactor with a computed-style diff
 
-Purpose: prove a stylesheet or class-name refactor changes nothing a visitor can see, deterministically,
+Purpose:
+prove a stylesheet or class-name refactor changes nothing a visitor can see,
+deterministically,
 on a static site served by two local servers (before and after).
-Verified 2026-10-18 on the Xinyan Chen portfolio (six pages, 4 widths, about 1,300 element pseudos per page).
+Verified 2026-10-18 on the Xinyan Chen portfolio (six pages,
+4 widths,
+about 1,300 element pseudos per page).
 
 ## Why not screenshots
 
-Full-page screenshots of the same commit, taken twice, differed in 12 of 66 captures (up to 2 percent of pixels):
-lazy images below the fold were sometimes unpainted, and an extra wait for every image to load and decode still left
-7 differing captures. A probe that differs from itself cannot show "no difference".
-Computed styles do not depend on paint timing, and a cascade flip, which is the refactor's real risk, shows up there
-directly as a changed property value. Keep screenshots only to look at a difference the diff already found.
+Full-page screenshots of the same commit,
+taken twice,
+differed in 12 of 66 captures (up to 2 percent of pixels):
+lazy images below the fold were sometimes unpainted,
+and an extra wait for every image to load and decode still left
+7 differing captures.
+A probe that differs from itself cannot show "no difference".
+Computed styles do not depend on paint timing,
+and a cascade flip,
+which is the refactor's real risk,
+shows up there
+directly as a changed property value.
+Keep screenshots only to look at a difference the diff already found.
 
 ## Method
 
-- Load each page at each width in two `agent-browser` sessions, one per server, and wait for network idle
-  (plus any intro animation; computed `opacity` changes while it runs).
-- In the page, walk `document.documentElement` and every descendant, and for each element and its `::before`,
-  `::after` and `::marker`, serialise every standard property from `getComputedStyle`, sorted.
-  Key each element by its DOM position (tag and child index per level), so renamed classes do not change keys.
-- Return only a hash per key, then fetch full values for the keys whose hashes differ.
-- Skip custom properties: a refactor renames them on purpose, and their effects already show in real properties.
-- Strip `location.origin` from values: resolved `url()` values carry the server's port, which differs per side.
-- States: `getComputedStyle` cannot see `:hover` or `:focus-visible` unless the browser is in that state, so
-  `agent-browser hover <selector>` and `focus <selector>` each candidate element, then read the stateful properties
-  of the element and its pseudo-elements. Check the selector exists on both sides first, and do not print the
-  action's error text: it names the session, so it differs by side.
+- Load each page at each width in two `agent-browser` sessions,
+  one per server,
+  and wait for network idle
+  (plus any intro animation;
+  computed `opacity` changes while it runs).
+- In the page,
+  walk `document.documentElement` and every descendant,
+  and for each element and its `::before`,
+  `::after` and `::marker`,
+  serialise every standard property from `getComputedStyle`,
+  sorted.
+  Key each element by its DOM position (tag and child index per level),
+  so renamed classes do not change keys.
+- Return only a hash per key,
+  then fetch full values for the keys whose hashes differ.
+- Skip custom properties:
+  a refactor renames them on purpose,
+  and their effects already show in real properties.
+- Strip `location.origin` from values:
+  resolved `url()` values carry the server's port,
+  which differs per side.
+- States:
+  `getComputedStyle` cannot see `:hover` or `:focus-visible` unless the browser is in that state,
+  so
+  `agent-browser hover <selector>` and `focus <selector>` each candidate element,
+  then read the stateful properties
+  of the element and its pseudo-elements.
+  Check the selector exists on both sides first,
+  and do not print the
+  action's error text:
+  it names the session,
+  so it differs by side.
 
 ## Validate the probe before trusting a zero
 
-1. Run it with the same server on both sides: it must print `summary: 0 differences`.
-2. Positive control: copy the site, change one ordinary property (here `padding-block: 2rem` to `calc(2rem + 1px)`
-   on a note) and one hover-only colour, serve the copy, and confirm both are reported.
+1. Run it with the same server on both sides:
+   it must print `summary: 0 differences`.
+2. Positive control:
+   copy the site,
+   change one ordinary property (here `padding-block: 2rem` to `calc(2rem + 1px)`
+   on a note) and one hover-only colour,
+   serve the copy,
+   and confirm both are reported.
 
 ## Chromium pitfall: auto margins read as 0px
 
-In headless Chromium 149, `getComputedStyle(el).margin*` for an `auto`, percentage or `calc()` margin returns a value
-stored on the layout fragment, not one derived from geometry.
-On about one load in nine (75 of 660 samples, batches from 4 to 20 percent) it reports `0px` while the box is placed
-correctly: on the About page at 1920 wide the portrait wave read `0px` against a real 240, and `marginRight` and
+In headless Chromium 149,
+`getComputedStyle(el).margin*` for an `auto`,
+percentage or `calc()` margin returns a value
+stored on the layout fragment,
+not one derived from geometry.
+On about one load in nine (75 of 660 samples,
+batches from 4 to 20 percent) it reports `0px` while the box is placed
+correctly:
+on the About page at 1920 wide the portrait wave read `0px` against a real 240,
+and `marginRight` and
 `marginInline` read `0px` too.
 Two or more `loading="lazy"` images far below the viewport are necessary to trigger it (no lazy image gave no failure
-in 100 loads, exactly one gave none in 180; a hand-built page with three lazy images did not reproduce it, so
+in 100 loads,
+exactly one gave none in 180;
+a hand-built page with three lazy images did not reproduce it,
+so
 something else is also needed).
-A bad load stays bad: waiting for `document.fonts.ready`, animation frames, a second, scrolling, or forcing layout with
-`offsetHeight` does not repair it, while a layout-dirtying style change or a resize does.
+A bad load stays bad:
+waiting for `document.fonts.ready`,
+animation frames,
+a second,
+scrolling,
+or forcing layout with
+`offsetHeight` does not repair it,
+while a layout-dirtying style change or a resize does.
 `getBoundingClientRect()` and `offsetLeft` are right in every bad load.
 
-The Blink sources (`longhands_custom.cc` `MarginLeft`, `block_node.cc` `UpdateMarginPaddingInfoIfNeeded`, with its
+The Blink sources (`longhands_custom.cc` `MarginLeft`,
+`block_node.cc` `UpdateMarginPaddingInfoIfNeeded`,
+with its
 `TODO(crbug.com/1353190)`) suggest a layout-cache path that resets auto margins to 0.
-That is a reading of the source, not a traced build, and no matching Chromium issue was found.
-The measurements, the variants tried and the open questions are in
+That is a reading of the source,
+not a traced build,
+and no matching Chromium issue was found.
+The measurements,
+the variants tried and the open questions are in
 `/home/user/temp/agent/chromium-flake/report.md`.
 
 What the tools do about it:
 
-- Read margins through `element.computedStyleMap()`, which returns the declared keyword (`auto`) on every load, and
-  record each element's box from `getBoundingClientRect()`. A real shift of an auto-margined box still shows in the box.
-- To get a used margin, derive it from geometry:
-  `rect.left - (parent rect.left + parent.clientLeft + parent padding-left)`. Flex and grid items and transformed
-  elements need their own handling, because the rect is post-transform.
+- Read margins through `element.computedStyleMap()`,
+  which returns the declared keyword (`auto`) on every load,
+  and
+  record each element's box from `getBoundingClientRect()`.
+  A real shift of an auto-margined box still shows in the box.
+- To get a used margin,
+  derive it from geometry:
+  `rect.left - (parent rect.left + parent.clientLeft + parent padding-left)`.
+  Flex and grid items and transformed
+  elements need their own handling,
+  because the rect is post-transform.
 
 ## Chromium tool
 
@@ -215,69 +278,127 @@ process.exitCode = differences ? 1 : 0;
 
 ## Safari as the reference browser
 
-Real Safari is the golden browser for the portfolio, and Chromium is not a gate: a rule can compute the same in both
+Real Safari is the golden browser for the portfolio,
+and Chromium is not a gate:
+a rule can compute the same in both
 and still differ in Safari.
-The Safari tool below compares the same computed values, but drives Safari in a macOS guest through WebDriver, so
+The Safari tool below compares the same computed values,
+but drives Safari in a macOS guest through WebDriver,
+so
 its harness differs from the Chromium one in four ways.
-Verified 2026-10-18: base commit against itself gives 0 differences on all six pages, a copy with one padding and one
-hover colour changed reports exactly those, and the refactor commit against its parent gives 0.
+Verified 2026-10-18:
+base commit against itself gives 0 differences on all six pages,
+a copy with one padding and one
+hover colour changed reports exactly those,
+and the refactor commit against its parent gives 0.
 
 ### Iframe harness
 
-Safari's window cannot be phone width, and one WebDriver session is all it allows, so there are no two browsers.
+Safari's window cannot be phone width,
+and one WebDriver session is all it allows,
+so there are no two browsers.
 The tool opens a blank harness page (`/@wt-harness/blank.html`) and puts base and candidate in two same-origin
-iframes of the target width (390, 744, 1440, 1920), one above the other.
-Media queries, `vw` and container units follow the iframe's width, so phone widths work.
-Same-origin matters because the script reads each frame's `contentWindow` directly: one forwarded origin
+iframes of the target width (390,
+744,
+1440,
+1920),
+one above the other.
+Media queries,
+`vw` and container units follow the iframe's width,
+so phone widths work.
+Same-origin matters because the script reads each frame's `contentWindow` directly:
+one forwarded origin
 (`http://localhost:4173` inside the guest) serves the main repository at `/` and any snapshot directory
-`/home/user/temp/agent/wt-<name>` at `/@wt-<name>/`, so a prefix is all that tells base from candidate.
-Prefixes are paths: `""` is the main repository, `@wt-base` a snapshot.
-Take a snapshot of a commit without touching the repository: `git archive <commit> | tar -x -C wt-<name>`.
-Compare the commit before a refactor, with any fixes the refactor must keep, against the refactor commit;
+`/home/user/temp/agent/wt-<name>` at `/@wt-<name>/`,
+so a prefix is all that tells base from candidate.
+Prefixes are paths:
+`""` is the main repository,
+`@wt-base` a snapshot.
+Take a snapshot of a commit without touching the repository:
+`git archive <commit> | tar -x -C wt-<name>`.
+Compare the commit before a refactor,
+with any fixes the refactor must keep,
+against the refactor commit;
 later intended changes on the same branch otherwise show as differences (comparing a base against `main` after two
-unrelated fixes landed reported 1765 differences, all from those two fixes).
+unrelated fixes landed reported 1765 differences,
+all from those two fixes).
 
 ### Margins through Typed OM
 
-Margins are read with `element.computedStyleMap().get('margin-left')` and so on, which keeps `auto` as the keyword,
+Margins are read with `element.computedStyleMap().get('margin-left')` and so on,
+which keeps `auto` as the keyword,
 and each element's `getBoundingClientRect()` box is added as a `box` property.
-This is the same defence as in the Chromium pitfall: the used margin is not read from `getComputedStyle`, and a real
+This is the same defence as in the Chromium pitfall:
+the used margin is not read from `getComputedStyle`,
+and a real
 shift of an auto-margined box still shows in the box.
-A change to one element's padding also moves its ancestors' `height`, `block-size`, `box`, `perspective-origin` and
-`transform-origin`; read the first differing element of a run, not the last.
+A change to one element's padding also moves its ancestors' `height`,
+`block-size`,
+`box`,
+`perspective-origin` and
+`transform-origin`;
+read the first differing element of a run,
+not the last.
 
 ### Focus and hover probes
 
-Each control is probed in each frame in turn: WebDriver scrolls it into view, hovers it with a pointer move, or focuses
-it with `window.focus()` and `focus({ focusVisible: true })`, and the stateful properties are read back.
+Each control is probed in each frame in turn:
+WebDriver scrolls it into view,
+hovers it with a pointer move,
+or focuses
+it with `window.focus()` and `focus({ focusVisible: true })`,
+and the stateful properties are read back.
 Three pitfalls made the first version report differences between two identical frames.
 
 #### Stale pointer
 
-After a hover probe the pointer stays where it was, and the next probe scrolls its control under
-it. The second frame's focused link was also hovered (darker colour, underline), so the two frames differed. The tool
-now parks the pointer on a 40 px pad fixed in the harness page's corner before every probe, and each probe records
-`hover:`, `focus:`, `focus-visible:` and `hasFocus:` so the state is visible. A focus probe whose control is still
+After a hover probe the pointer stays where it was,
+and the next probe scrolls its control under
+it.
+The second frame's focused link was also hovered (darker colour,
+underline),
+so the two frames differed.
+The tool
+now parks the pointer on a 40 px pad fixed in the harness page's corner before every probe,
+and each probe records
+`hover:`,
+`focus:`,
+`focus-visible:` and `hasFocus:` so the state is visible.
+A focus probe whose control is still
 hovered is printed as `PROBE INVALID`.
 
 #### Frame without focus
 
 A frame occasionally does not hold the page's focus after switching to it (`hasFocus:false`),
-and then even `focus({ focusVisible: true })` shows no outline. The tool focuses again, up to three times, and
+and then even `focus({ focusVisible: true })` shows no outline.
+The tool focuses again,
+up to three times,
+and
 reports `PROBE INVALID` if the frame never takes focus.
 
 #### Unreachable controls
 
 A control hidden at a width (the phone menu on a wide page) answers hover with
-`element not interactable`. The error text is the same on both sides, so it compares equal, and a state rule on a
-control hidden at that width is untested. Run `DEBUG_STATES=1` to print every probe and check which ones ran.
+`element not interactable`.
+The error text is the same on both sides,
+so it compares equal,
+and a state rule on a
+control hidden at that width is untested.
+Run `DEBUG_STATES=1` to print every probe and check which ones ran.
 
-Environment switches: `WIDTHS=1920,390`, `ONLY_STATE='<substring of a selector>'`, `DEBUG_STATES=1` and
-`MAX_ELEMENTS=<n>` (differing elements printed per page and width, 60 by default; the rest are only counted).
+Environment switches:
+`WIDTHS=1920,390`,
+`ONLY_STATE='<substring of a selector>'`,
+`DEBUG_STATES=1` and
+`MAX_ELEMENTS=<n>` (differing elements printed per page and width,
+60 by default;
+the rest are only counted).
 
 ### Lock and drivers
 
-Safari allows one WebDriver session at a time, and other sessions use it too, so every run holds a lock for the run and
+Safari allows one WebDriver session at a time,
+and other sessions use it too,
+so every run holds a lock for the run and
 no longer:
 
 ```sh
@@ -285,16 +406,27 @@ no longer:
 flock /home/user/temp/agent/vm-safari.lock node safari-style-diff.mjs "@wt-base" "@wt-refactor"
 ```
 
-The driver is reached on Linux port 4446. A run of all six pages takes 15 to 30 minutes, so start it in the
+The driver is reached on Linux port 4446.
+A run of all six pages takes 15 to 30 minutes,
+so start it in the
 background and wait for it in one command that ends when the output has its `summary:` line.
-The tool sets the guest display mode first (`displayplacer` over `ssh m1`), so the window is the size it expects.
+The tool sets the guest display mode first (`displayplacer` over `ssh m1`),
+so the window is the size it expects.
 Safari Technology Preview in the same guest has its own driver on Linux port 4450 and runs next to the 4446 session
-(proven with a session that loaded the home page while six comparisons used 4446). It needed `safaridriver --enable`
-run once in the guest, reports `browserName` "Safari Technology Preview", version 27.0 (platform build 26A428), and
-wants its own lock, `/home/user/temp/agent/vm-stp.lock`.
-The tool uses port 4446 and `browserName: 'safari'`; changing both constants should be all a Technology Preview run
+(proven with a session that loaded the home page while six comparisons used 4446).
+It needed `safaridriver --enable`
+run once in the guest,
+reports `browserName` "Safari Technology Preview",
+version 27.0 (platform build 26A428),
+and
+wants its own lock,
+`/home/user/temp/agent/vm-stp.lock`.
+The tool uses port 4446 and `browserName: 'safari'`;
+changing both constants should be all a Technology Preview run
 needs (not yet tried with the tool).
-Technology Preview is not the golden browser; use it for extra coverage, not for the gate.
+Technology Preview is not the golden browser;
+use it for extra coverage,
+not for the gate.
 
 ## Safari tool
 

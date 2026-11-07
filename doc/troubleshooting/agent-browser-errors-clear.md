@@ -13,11 +13,14 @@ expected: []
 The harness had deliberately thrown that exception to prove the error monitor worked,
 then called `errors --clear` before checking the lesson.
 All chat and workshop behavior checks in process `proc_cf10` had passed.
-The final error was the retained positive control, not an unexpected lesson exception.
+The final error was the retained positive control,
+not an unexpected lesson exception.
 
 ## Root cause
 
-Inspected release: `v0.36.0`, commit `eb05921bad874cd2a1b4fa5d1149f1ed26576cae`.
+Inspected release:
+`v0.36.0`,
+commit `eb05921bad874cd2a1b4fa5d1149f1ed26576cae`.
 The read-only clone is `~/temp/agent/agent-browser-quality-explorer-2026-09-06`.
 Source references are relative to that clone.
 
@@ -83,10 +86,12 @@ PASS error-channel positive control in a separate disposable session
 ## Verified workaround
 
 Run the error-channel positive control in a separate disposable browser.
-Close it, then create a fresh lesson session.
+Close it,
+then create a fresh lesson session.
 Assert that the lesson's initial and final error records are empty.
 
-`mise run test:advanced`, from `~/temp/agent/promises-revision/`,
+`mise run test:advanced`,
+from `~/temp/agent/promises-revision/`,
 runs `verify-error-channel.mjs` before the independently named session in `verify-advanced.mjs`.
 No error-text filtering is used.
 
@@ -96,25 +101,33 @@ this adds a separate browser lifecycle and does not repair clearing within a lon
 ## Verified upstream component prototype
 
 The installed-source applicability check found the candidate implementation absent:
-the native dispatcher still omits the command, and the handler only reads errors.
+the native dispatcher still omits the command,
+and the handler only reads errors.
 The issue's `errors --clear` input and retained-buffer symptom match this incident.
 
 A fresh private clone at `~/temp/agent/upstream-prototype.Xn969D`
 was checked against the cited origin and release commit before applying PR #1654.
 The [preserved patch](agent-browser-errors-clear.patch) contains its command-parser test,
-command forwarding, clearing method, and native-action regression.
+command forwarding,
+clearing method,
+and native-action regression.
 No installed executable was modified.
 
-`mise run probe:error-clear-prototype`, from `~/temp/agent/promises-revision/`,
+`mise run probe:error-clear-prototype`,
+from `~/temp/agent/promises-revision/`,
 builds a generated Rust component fixture using:
 
 - The actual before/after dispatcher call expression and `handle_errors` function.
 - The complete upstream `EventTracker` and its entry types.
-- The PR's error-clearing test, with additional read-only, empty-buffer,
-  console-preservation, and later-error controls.
+- The PR's error-clearing test,
+  with additional read-only,
+  empty-buffer,
+  console-preservation,
+  and later-error controls.
 
 The fixture substitutes a minimal state owner and response envelope for the full daemon.
-Compilation and execution use `rust:1.97-bookworm` in a 2 GiB, 2-CPU container,
+Compilation and execution use `rust:1.97-bookworm` in a 2 GiB,
+2-CPU container,
 with only the private clone writable and no host proxy environment or credentials.
 Dependencies are resolved into that fixture's own generated lockfile and cache.
 The post-patch run uses that same lockfile with `--locked --offline` and no container network.
@@ -145,7 +158,8 @@ clearing does not modify console entries or prevent recording later errors.
 The non-boolean control probes the handler's existing fallback,
 not a claim that the public CLI accepts a string-valued clear option.
 
-This is component verification, not a rebuild or end-to-end run of the patched CLI.
+This is component verification,
+not a rebuild or end-to-end run of the patched CLI.
 The preserved parser test was not run by this component harness.
 The installed tool still uses the verified separate-session workaround.
 
@@ -159,18 +173,28 @@ The installed tool still uses the verified separate-session workaround.
 ## Upstream filing decision
 
 The existing [issue #1645][issue] contains the same CLI parsing and native-handler diagnosis.
-[PR #1654][pr] already contains the clearing method, command forwarding, and regression tests.
+[PR #1654][pr] already contains the clearing method,
+command forwarding,
+and regression tests.
 Both were open when inspected.
 Their full bodies and comments were read with `gh issue view --json` and `gh pr view --json`.
 Searches covered issues and PRs using `"errors" "clear"`.
 
-1.  Fault: confirmed mismatch between the advertised flag and the native handler.
-2.  Fixability: the existing PR supplies an architecture-compatible implementation.
-3.  Supported use: installed command help explicitly documents the flag.
-4.  Contribution policy: the clone has no contribution file or issue/PR template;
-    `AGENTS.md` explicitly addresses AI coding agents. No contribution ban was found in those files.
-5.  Direction: an open fix exists; its comments contain no maintainer rejection of the change.
-6.  Prototype: the existing patch was applied in a fresh private clone and its changed components
+1.  Fault:
+    confirmed mismatch between the advertised flag and the native handler.
+2.  Fixability:
+    the existing PR supplies an architecture-compatible implementation.
+3.  Supported use:
+    installed command help explicitly documents the flag.
+4.  Contribution policy:
+    the clone has no contribution file or issue/PR template;
+    `AGENTS.md` explicitly addresses AI coding agents.
+    No contribution ban was found in those files.
+5.  Direction:
+    an open fix exists;
+    its comments contain no maintainer rejection of the change.
+6.  Prototype:
+    the existing patch was applied in a fresh private clone and its changed components
     passed the recorded before/after checks.
     The PR's full-CLI verification was not independently rerun.
 

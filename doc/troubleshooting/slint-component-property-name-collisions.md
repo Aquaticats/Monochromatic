@@ -67,7 +67,10 @@ if let MemberDeclaration::Conflict { existing_type, declared_in } = &declaration
 ### Deprecated size aliases
 
 `maximum-width` is not a property of its own.
-The property lookup maps the old spellings `minimum-width`, `maximum-width`, `minimum-height`, and `maximum-height`
+The property lookup maps the old spellings `minimum-width`,
+`maximum-width`,
+`minimum-height`,
+and `maximum-height`
 onto `min-width` and the others (`typeregister.rs:400` to `typeregister.rs:409`):
 
 ```rust
@@ -198,19 +201,34 @@ and `The accessible-role property must be a constant expression`:
 
 `.out-of-scope/` has no Slint entry,
 so the filing check applies.
-Searches of `slint-ui/slint` issues for `Cannot override property`, `maximum-width deprecated`,
-`Cannot convert string to AccessibleRole`, `property shadows enum`, and `padding reserved property component`
+Searches of `slint-ui/slint` issues for `Cannot override property`,
+`maximum-width deprecated`,
+`Cannot convert string to AccessibleRole`,
+`property shadows enum`,
+and `padding reserved property component`
 found only #6324.
 
-1. Upstream's fault: no for the behavior.
-   The reserved names, the alias mapping, and the lookup order are deliberate,
+1. Upstream's fault:
+   no for the behavior.
+   The reserved names,
+   the alias mapping,
+   and the lookup order are deliberate,
    and #6324 was answered as intended behavior.
    At most the messages could name the colliding alias or the shadowing property.
-2. Upstream can fix it: yes for the message wording.
-3. Supported use case: yes, components declaring their own properties are the main use.
-4. Contribution welcome: not checked further, because constraint 1 fails.
-5. Likely to fix: leaning no for the behavior, per #6324.
-6. Prototype: not attempted, because constraint 1 fails.
+2. Upstream can fix it:
+   yes for the message wording.
+3. Supported use case:
+   yes,
+   components declaring their own properties are the main use.
+4. Contribution welcome:
+   not checked further,
+   because constraint 1 fails.
+5. Likely to fix:
+   leaning no for the behavior,
+   per #6324.
+6. Prototype:
+   not attempted,
+   because constraint 1 fails.
 
 Do not file.
 The draft is kept as a record.

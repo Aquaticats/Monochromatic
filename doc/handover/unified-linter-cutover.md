@@ -1,9 +1,11 @@
 # Unified-linter cutover handoff
 
-Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
 the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
-and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
 (the list is in `doc/planning/git-policy-cli-program-rename.md`).
 The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
@@ -58,13 +60,18 @@ or with a correction to a named entry.
 Resolved on 2026-10-10.
 The user created a crates.io token with the publish-new,
 publish-update and trusted-publishing scopes and ran `cargo login`.
-`cargo publish --dry-run` (with the verifying build) passed, then `cargo publish --no-verify` from the cutover branch
+`cargo publish --dry-run` (with the verifying build) passed,
+then `cargo publish --no-verify` from the cutover branch
 published `monochromatic-lint` 0.1.0.
-The trusted publisher (`Aquaticat/Monochromatic`, `cargo-publish.yml`, no environment, id 24613)
+The trusted publisher (`Aquaticat/Monochromatic`,
+`cargo-publish.yml`,
+no environment,
+id 24613)
 was added through `POST /api/v1/trusted_publishing/github_configs` with that token,
 which the endpoint's source accepts for the trusted-publishing scope
 (`src/controllers/trustpub/github_configs/create.rs`).
-The token is still in `~/.cargo/credentials.toml`; revoking the bootstrap token is the user's step.
+The token is still in `~/.cargo/credentials.toml`;
+revoking the bootstrap token is the user's step.
 
 ## Publications
 
@@ -144,7 +151,9 @@ so it was discarded.
 ### monochromatic-lint 0.1.0
 
 Published on 2026-10-10 from the cutover branch.
-The 0.1.0 release (dispatch run 38051569901, OIDC, eight archives) installs only by compiling,
+The 0.1.0 release (dispatch run 38051569901,
+OIDC,
+eight archives) installs only by compiling,
 because `cargo-binstall` does not look under a `monochromatic-lint-v<version>` tag.
 0.1.1 adds `[package.metadata.binstall]` and is the version the repository pins:
 dispatch run 38053428535 published it and created the release with eight archives,
@@ -210,14 +219,20 @@ and the before-and-after evidence:
 ## Release targets
 
 Both releases carry eight archives:
-`aarch64-apple-darwin`, `aarch64-pc-windows-msvc`, `aarch64-unknown-linux-gnu`, `aarch64-unknown-linux-musl`,
-`x86_64-apple-darwin`, `x86_64-pc-windows-msvc`, `x86_64-unknown-linux-gnu` and `x86_64-unknown-linux-musl`
+`aarch64-apple-darwin`,
+`aarch64-pc-windows-msvc`,
+`aarch64-unknown-linux-gnu`,
+`aarch64-unknown-linux-musl`,
+`x86_64-apple-darwin`,
+`x86_64-pc-windows-msvc`,
+`x86_64-unknown-linux-gnu` and `x86_64-unknown-linux-musl`
 (`gh release view monochromatic-lint-v0.1.1`).
 Only `x86_64-unknown-linux-gnu` was installed and run.
 
 ## Landing choreography
 
-Landed on 2026-10-10 as a fast-forward to merge `b111c0ca39`, pushed.
+Landed on 2026-10-10 as a fast-forward to merge `b111c0ca39`,
+pushed.
 The order that avoided a window in which commits failed:
 
 1. Built the wrapper's `dist` in the branch worktree from the branch tree
@@ -227,9 +242,13 @@ The order that avoided a window in which commits failed:
    so it had to be replaced
    at the same moment the deletion landed.
 2. Committed two files other sessions had left uncommitted in the main checkout
-   (`pnpm-lock.yaml`, `package/config/pnpr/config.yaml`),
-   with the user's approval, because the fast-forward touched both.
-3. Fast-forwarded `main`, copied the built `dist` over the live one by rename, ran `git cli-git trust --yes`
+   (`pnpm-lock.yaml`,
+   `package/config/pnpr/config.yaml`),
+   with the user's approval,
+   because the fast-forward touched both.
+3. Fast-forwarded `main`,
+   copied the built `dist` over the live one by rename,
+   ran `git cli-git trust --yes`
    for the changed `cli-git.config.ts` (the user approved this on 2026-10-10) and ran the pinned tool install.
 
 The user approved the trust step.
@@ -238,11 +257,13 @@ Commits made on the branch used `--no-enforce-markdown/autofix` while the instal
 ## Cutover change
 
 The `markdown/autofix` options in `cli-git.config.ts` now take the policy defaults:
-`monochromatic-lint` on `PATH` and the `markdown/lfs-image-url` rule, with `package/ssg/` excluded.
+`monochromatic-lint` on `PATH` and the `markdown/lfs-image-url` rule,
+with `package/ssg/` excluded.
 A smoke test in a disposable repository with a disposable home passed (`git add` of a Markdown file exits 0).
 The tool is declared as `"cargo:monochromatic-lint" = "0.1.1"` in `mise.no-env.toml`
 with `binstall_native = false` under `[settings.cargo]`.
-Leftovers: `package/cli/markdown-lint/dist` and similar ignored build directories of the deleted packages remain on disk
+Leftovers:
+`package/cli/markdown-lint/dist` and similar ignored build directories of the deleted packages remain on disk
 in the main checkout and are not tracked.
 
 ## AGENTS.md rules
@@ -250,13 +271,16 @@ in the main checkout and are not tracked.
 The plan names `MXR` and `RDC`.
 Neither code exists in `AGENTS.md` at the branch base or in `forbidden-strings.append.txt`
 or the main checkout's `forbidden-strings.append.local.txt`.
-Commit `d03ec673e` (`docs(AGENTS.md): apply rule-by-rule optimization`, 2026-09-29) removed both:
+Commit `d03ec673e` (`docs(AGENTS.md): apply rule-by-rule optimization`,
+2026-09-29) removed both:
 `MXR`,
 which named `monochromatic-rust-linter`'s `max-lines` rule,
 its 300-line budget,
 and its exemptions,
 was folded into the tool-agnostic `MXL` rule,
-which now reads "Over max-lines (TS, Rust): split into sibling files/modules";
+which now reads "Over max-lines (TS,
+Rust):
+split into sibling files/modules";
 `RDC`,
 which required rustdoc on every documentable item,
 was dropped without a replacement.

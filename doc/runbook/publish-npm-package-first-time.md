@@ -138,7 +138,9 @@ TODO
      answer **y** (or pass `--yes`),
      then a line confirming the trusted publisher for `Aquaticats/Monochromatic` and `npm-release.yml`.
      Since 2026-10-29 the owner releases through `.github/workflows/npm-publish.yml` instead
-     (one package per manual dispatch, input `package`, for example `logger/core`);
+     (one package per manual dispatch,
+     input `package`,
+     for example `logger/core`);
      `logger-core` and `fs-path-core` trust that workflow,
      registered with the same command and `--file npm-publish.yml`.
      A package can list up to 10 trusted publishers

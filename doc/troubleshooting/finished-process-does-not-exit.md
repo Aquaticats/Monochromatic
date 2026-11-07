@@ -84,7 +84,8 @@ await settleWithin({
 `withTimeout` was already in that module and already cleared its timer,
 so the pattern was proven.
 What it does not do is treat expiry as ordinary:
-it rejects, which is right when the caller needed the VALUE
+it rejects,
+which is right when the caller needed the VALUE
 and wrong when the caller needed the WAIT.
 Using it for a grace window means catching an error on the expected path
 and then proving the error was the timeout's.
@@ -128,7 +129,8 @@ and still holds the process.
 If the last log line is `kept at <path>` and the file exists,
 the work is DONE and the process is merely lingering.
 Waiting it out is safe and so is killing it.
-If that line is absent, it is still working.
+If that line is absent,
+it is still working.
 
 That distinction is why a completion line is worth printing with its path in it
 rather than relying on process exit,

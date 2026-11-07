@@ -74,7 +74,8 @@ and third-party implementation languages would require separate consumer-level a
 ### Parallel implementations and their contents
 
 Line 37 of `.github/workflows/cli-git-performance.yml`
-(deleted on 2026-10-13 in commit `724d70bfa7`; readable with
+(deleted on 2026-10-13 in commit `724d70bfa7`;
+readable with
 `git show 4c815fb13f5e31fc481d75dde215e5ef274e4ff1:.github/workflows/cli-git-performance.yml`)
 already performed a pre-install decision under `shell: node {0}`.
 Its body reads JSON,

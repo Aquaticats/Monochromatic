@@ -2,9 +2,14 @@
 
 ## Symptom
 
-On 2026-11-01, `mise run //package/env-local-json/core:test:container` (podman 5.8.9, Fedora host, SELinux enforcing,
-`getenforce` reports `Enforcing`) failed in both Ubuntu combinations, in two runs out of two.
-The container-side stderr named a different failure in each combination, and the pair swapped between the runs:
+On 2026-11-01,
+`mise run //package/env-local-json/core:test:container` (podman 5.8.9,
+Fedora host,
+SELinux enforcing,
+`getenforce` reports `Enforcing`) failed in both Ubuntu combinations,
+in two runs out of two.
+The container-side stderr named a different failure in each combination,
+and the pair swapped between the runs:
 
 ```text
 sh: 1: cd: can't cd to /workspace
@@ -14,21 +19,31 @@ sh: 1: cd: can't cd to /workspace
 Error: Cannot find module '/workspace/package/env-local-json/core/src/env-local-json.unit.matrix.test.ts'
 ```
 
-In both, the earlier steps of the same script had worked
-(`apt-get`, the locked Node download, which does `cd /workspace` and reads `toolchain.lock.json`),
+In both,
+the earlier steps of the same script had worked
+(`apt-get`,
+the locked Node download,
+which does `cd /workspace` and reads `toolchain.lock.json`),
 so the mount existed and was readable at first.
 The test file was present on the host.
 
-Each combination passed when run alone, in two runs out of two
-(root: 36 s, non-root: 54 s, both `[PASS]` with the test's two cases).
+Each combination passed when run alone,
+in two runs out of two
+(root:
+36 s,
+non-root:
+54 s,
+both `[PASS]` with the test's two cases).
 
 ## What was measured
 
 The harness starts one `podman run --rm --memory=2g --cpus=2 -v <repository root>:/workspace:Z` per combination
 and runs them concurrently (`concurrency limit: 4` in its log).
-The mount is the whole worktree, including its `node_modules`.
+The mount is the whole worktree,
+including its `node_modules`.
 
-A probe with two containers sharing one two-file `:Z` mount, the second started while the first slept,
+A probe with two containers sharing one two-file `:Z` mount,
+the second started while the first slept,
 did not reproduce the loss:
 the first container still listed the directory afterwards.
 So the mechanism is not shown.

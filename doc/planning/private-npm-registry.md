@@ -66,7 +66,9 @@ Scope widened by the owner on 2026-09-14:
     `mirror:@monochromatic-dev/logger-core@^0.4.0` installed through `https://registry.npmmirror.com/`;
     pointing the same prefix at `https://registry.invalid/` failed metadata fetch for that package only.
    Lockfile keys become registry-qualified (`@monochromatic-dev/logger-core@mirror:0.4.0`).
-   Docs: https://pnpm.io/settings/dependency-resolution (`registries`, `prefix` since 11.23.0).
+   Docs:
+  <https://pnpm.io/settings/dependency-resolution> (`registries`,
+  `prefix` since 11.23.0).
 - Workspace size (`pnpm list --recursive --depth -1 --json`):
    154 packages under `package/` plus the root;
    120 are `"private": true`.
@@ -280,7 +282,7 @@ Scope widened by the owner on 2026-09-14:
    which would add a dependency without adding durability.
 - The publish job's version-missing check reads anonymously,
    because a pnpr workload credential "cannot read packages"
-   (https://pnpm.io/pnpr/oidc).
+   (<https://pnpm.io/pnpr/oidc>).
 - Scoped publish through Caddy is verified at implementation time,
    since the encoded slash in `PUT /@scope%2fname` must reach pnpr intact.
 - The publish workflow is its own file,
@@ -344,7 +346,7 @@ Scope widened by the owner on 2026-09-14:
 - Consumer note for later wiring:
    pnpm 11 and later default `minimumReleaseAge` to 1440 minutes,
    so consumers exclude `@monochromatic-dev/*` or new versions stay uninstallable for a day
-   (https://pnpm.io/settings/dependency-resolution).
+   (<https://pnpm.io/settings/dependency-resolution>).
 
 ## Registry candidates (research 2026-09-14)
 
@@ -369,8 +371,8 @@ Settled gates:
    No Coolify template;
     deploy `verdaccio/verdaccio:6` as custom compose.
    Sources:
-    https://github.com/verdaccio/verdaccio,
-    https://verdaccio.org/docs/packages.
+    <https://github.com/verdaccio/verdaccio>,
+    <https://verdaccio.org/docs/packages>.
 - pnpr (0.1.0-alpha.11,
    2026-09-10,
    PolyForm Shield 1.0.0,
@@ -379,10 +381,11 @@ Settled gates:
     npmjs upstream,
     GitHub OIDC publish without a stored token.
    `check_workload_request` rejects non-PUT requests carrying the OIDC token
-    (`pnpr/crates/pnpr/src/server/oidc.rs` lines 147 to 167, read not tested).
+    (`pnpr/crates/pnpr/src/server/oidc.rs` lines 147 to 167,
+  read not tested).
    Sources:
-    https://pnpm.io/pnpr/configuration,
-    https://pnpm.io/pnpr/oidc.
+    <https://pnpm.io/pnpr/configuration>,
+    <https://pnpm.io/pnpr/oidc>.
 - GitLab.com project package registry:
    free,
     excluded from the storage quota,
@@ -391,7 +394,7 @@ Settled gates:
    CI publishes with a stored deploy token;
     pnpm needs `serverType: artifactory`.
    Source:
-    https://docs.gitlab.com/user/packages/npm_registry/.
+    <https://docs.gitlab.com/user/packages/npm_registry/>.
 - Sonatype Nexus Community Edition (3.96.1):
    npm proxy and group repositories,
     Coolify template with a 2703m JVM heap.
@@ -401,7 +404,7 @@ Settled gates:
    Hetzner server capacity not measured
     (no SSH alias for it in `~/.ssh/config`).
    Source:
-    https://help.sonatype.com/en/ce-onboarding.html.
+    <https://help.sonatype.com/en/ce-onboarding.html>.
 
 ### Fail a gate
 
@@ -429,10 +432,10 @@ Settled gates:
 - Coolify pins `traefik:v3.6` (`bootstrap/helpers/proxy.php` line 282).
    Traefik 3.6.4 to 3.6.6 rejected `%2F` by default,
    which broke scoped `npm publish` behind Coolify
-   (https://github.com/coollabsio/coolify/issues/7631);
+   (<https://github.com/coollabsio/coolify/issues/7631>);
    the running proxy version on the Hetzner server is unmeasured.
 - `@changesets/cli` 3.0.3 runs `pnpm info <name> --json` without `--registry`
-   (https://github.com/changesets/changesets/blob/main/packages/cli/src/lib/pnpm.ts).
+   (<https://github.com/changesets/changesets/blob/main/packages/cli/src/lib/pnpm.ts>).
 - The npmjs org `monochromatic-dev` also holds `mcp-nvim`,
    which is not a workspace package,
    so the scope proxy still matters after all workspace packages publish privately.
@@ -445,11 +448,11 @@ Settled gates:
     `workflow_ref`,
     and the `subject` claim.
    The workload credential permits only `PUT` publications of the configured packages
-   (https://pnpm.io/pnpr/oidc).
+   (<https://pnpm.io/pnpr/oidc>).
 - A router resolves a package to "the first listed source whose `packages:` keys claim its name,
    authoritatively";
    package patterns include `@scope/*` and exact names
-   (https://pnpm.io/pnpr/configuration).
+   (<https://pnpm.io/pnpr/configuration>).
 - Storage is authoritative and needs a durable volume;
    the upstream cache is disposable.
 - Nothing in the npmjs `@monochromatic-dev` org depends on the upstream except

@@ -1,6 +1,7 @@
 # Wire the search/fetch tools into Mistral Vibe sessions
 
-Status: accepted 2026-10-31.
+Status:
+accepted 2026-10-31.
 The user is building the one-shot CLI client per this recommendation;
 this document records the options,
 the measured evidence,
@@ -22,7 +23,8 @@ on exactly the request classes this repository's work hits
 
 ## Options and ranking
 
-Ranking: skill + one-shot client > keep unwired > bridge shim > direct core CLI.
+Ranking:
+skill + one-shot client > keep unwired > bridge shim > direct core CLI.
 
 - Skill + one-shot client (accepted):
   a repository-owned CLI spawns the built server once per call,
@@ -99,8 +101,15 @@ Facts that shape a per-call client:
   unknown keys produce a warning line instead of a rejection.
 - Search responses are JSONL,
   one result per line,
-  each with `title`, `site_name`, `authority`, `rerank_score`,
-  `date`, `url`, `summary`, `snippet`, and full page `content`.
+  each with `title`,
+  `site_name`,
+  `authority`,
+  `rerank_score`,
+  `date`,
+  `url`,
+  `summary`,
+  `snippet`,
+  and full page `content`.
 
 ## Evidence
 
@@ -108,7 +117,9 @@ Facts that shape a per-call client:
 
 Vibe 3.0.4 is the latest release,
 has no per-server protocol knob
-(user-managed fields are `prompt`, `sampling_enabled`, `disabled`,
+(user-managed fields are `prompt`,
+`sampling_enabled`,
+`disabled`,
 `disabled_tools`),
 and both of its MCP code paths call `session.initialize()` directly,
 never the vendored SDK's `negotiate_auto`.
@@ -122,26 +133,36 @@ Method:
 identical on both arms,
 one sequential run per arm.
 Capability differences are structural;
-latency numbers are directional (single run, arms not interleaved).
+latency numbers are directional (single run,
+arms not interleaved).
 
-Search arm, shared core through a one-shot stdio client:
+Search arm,
+shared core through a one-shot stdio client:
 
-- 20 of 20 calls succeeded (all 10 searches, all 10 fetches).
+- 20 of 20 calls succeeded (all 10 searches,
+  all 10 fetches).
 - Latency 693 to 1325ms per search.
 - 3 to 14 results per query (DeepSeek varies);
   full page content on nearly every result;
   dates present on most results.
 - Authoritative top hit on 10 of 10 queries
-  (modelcontextprotocol.io, docs.astral.sh `uv tool update-shell`,
-  mise docs, cargo-nextest docs, `peps.python.org` PEP 779,
-  the oxlint `Inline ignore comments` doc, the pnpm repository,
-  mistral.ai, the typebox repository).
+  (modelcontextprotocol.io,
+  docs.astral.sh `uv tool update-shell`,
+  mise docs,
+  cargo-nextest docs,
+  `peps.python.org` PEP 779,
+  the oxlint `Inline ignore comments` doc,
+  the pnpm repository,
+  mistral.ai,
+  the typebox repository).
 
-Search arm, built-in `connector_web_search` (Brave):
+Search arm,
+built-in `connector_web_search` (Brave):
 
 - Latency 1390 to 2290ms per search.
 - 8 to 20 results (schema caps `limit` at 20);
-  snippets only, no page content;
+  snippets only,
+  no page content;
   `date` null on every result in every query.
 - Authoritative top hit on roughly 6 of 10 queries.
   Named misses:
@@ -149,37 +170,56 @@ Search arm, built-in `connector_web_search` (Brave):
   `xjavascript.com` (a content farm) for the oxlint query,
   a Cloudsmith blog for the PEP question.
 
-Fetch arm, shared core `web_fetch`:
+Fetch arm,
+shared core `web_fetch`:
 
 - All 10 URLs returned real content,
   including the npmjs package page (a JavaScript SPA,
-  24.8s through the render chain, 9859 chars).
+  24.8s through the render chain,
+  9859 chars).
 - GitHub blob through the `gh` CLI:
-  clean markdown, 0 HTML tags, 0 page chrome, 11340 chars.
-- MCP spec page: 37381 chars of full spec text.
+  clean markdown,
+  0 HTML tags,
+  0 page chrome,
+  11340 chars.
+- MCP spec page:
+  37381 chars of full spec text.
 - No page chrome on any fetch.
 
-Fetch arm, built-in `open_url`:
+Fetch arm,
+built-in `open_url`:
 
 - Latency 1.1 to 3.1s (likely caching).
 - GitHub pages carry GitHub chrome
-  (`Skip to content`, `You signed in`, `Copy path`).
-- MCP spec page: 5015 chars, a docs-index stub.
-- npmjs package page: 378 chars,
+  (`Skip to content`,
+  `You signed in`,
+  `Copy path`).
+- MCP spec page:
+  5015 chars,
+  a docs-index stub.
+- npmjs package page:
+  378 chars,
   a Cloudflare verification block page,
   a functional failure.
-- MDN, react.dev, PEP, go.dev, Hacker News,
-  and the Korean news page: comparable to the shared core.
+- MDN,
+  react.dev,
+  PEP,
+  go.dev,
+  Hacker News,
+  and the Korean news page:
+  comparable to the shared core.
 
 ### First head-to-head, 2026-10-31
 
 Same-query and same-URL probes before the full corpus confirmed the
 shape:
 the shared core returned up to 50 results with page content
-(483KB, truncated head plus temp path)
+(483KB,
+truncated head plus temp path)
 against the built-in's 20-result snippet ceiling,
 and a clean `gh`-routed GitHub fetch
-(79787 chars, zero chrome)
+(79787 chars,
+zero chrome)
 against the built-in's rendered page with GitHub UI noise.
 
 ## Caveats
@@ -199,7 +239,9 @@ against the built-in's rendered page with GitHub UI noise.
   not a preference.
 - The bridge shim and the direct core CLI:
   ranked out in the Options section.
-- Plugin `mcp.json`, `connectors.json`, `libraries.json`:
+- Plugin `mcp.json`,
+  `connectors.json`,
+  `libraries.json`:
   ruled out with source citations above.
 
 ## Next action

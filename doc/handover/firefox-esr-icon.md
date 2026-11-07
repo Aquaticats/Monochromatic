@@ -17,7 +17,11 @@ Both local desktop entries now use the absolute path to that SVG:
 
 The PNG files in `~/.local/opt/firefox-esr/browser/chrome/icons/default/`
 were rendered from the same SVG at their existing sizes:
-`16`, `32`, `48`, `64`, and `128` pixels.
+`16`,
+`32`,
+`48`,
+`64`,
+and `128` pixels.
 Each PNG preserves the artwork's aspect ratio with transparent padding to a square.
 The SVG remains outside the browser installation;
 a Firefox update may replace the PNG files inside its installation.
