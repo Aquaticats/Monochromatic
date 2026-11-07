@@ -1,11 +1,15 @@
-//! systemd-based CPU, memory, task and disk isolation for the hosted app,
+//! systemd-based CPU,
+//!  memory,
+//!  task and disk isolation for the hosted app,
 //!  with graceful degradation.
 //!
 //! To keep a steady 60fps capture even when the hosted app is CPU-greedy,
 //!  the app can be
 //! launched inside a transient systemd user scope with a `CPUQuota` (a hard cap on total
-//! CPU time), a low `CPUWeight` (so it yields to the compositor under contention),
-//! a `MemoryMax`, a `TasksMax` and a low `IOWeight` (so a runaway app cannot exhaust the host).
+//! CPU time),
+//!  a low `CPUWeight` (so it yields to the compositor under contention),
+//!  a `MemoryMax`,
+//!  a `TasksMax` and a low `IOWeight` (so a runaway app cannot exhaust the host).
 //!  That
 //! reserves headroom for the render thread and encoder pool.
 //!  When systemd is unavailable
@@ -312,7 +316,8 @@ pub fn build_child_command(program: &str, args: &[String], isolation: &Isolation
 /// What:
 ///      `pub fn isolation_properties(isolation: &Isolation) -> Vec<String>`.
 ///  Returns every `--property=NAME=value` argument of the scope that hosts the app,
-///           in order: `CPUQuota`,
+///           in order:
+///  `CPUQuota`,
 ///           `CPUWeight`,
 ///           `MemoryMax`,
 ///           `TasksMax` and `IOWeight`.

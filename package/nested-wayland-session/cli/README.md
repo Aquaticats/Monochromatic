@@ -246,7 +246,8 @@ monochromatic-nested-wayland-session --list-gpus
    a low weight,
    so the app yields to the compositor under contention.
 - `--app-memory-max SIZE` overrides the app's systemd `MemoryMax` under `--isolate`
-   (for example `4G`, `512M` or `infinity`).
+   (for example `4G`,
+   `512M` or `infinity`).
    Default:
    `4G`,
    about thirty times the resident peak of the music player over a full end-to-end run.

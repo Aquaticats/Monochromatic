@@ -2,8 +2,8 @@
 
 use super::*;
 
-/// What: `fn isolation(...)` builds an `Isolation` value for a test.
-/// Why:  Each test names only the cap it cares about.
+/// Builds an `Isolation` value for a test.
+/// Each test names only the cap it cares about.
 fn isolation(cpu_quota_percent: Option<u32>, cpu_weight: Option<u32>) -> Isolation {
     return Isolation { enabled: true, cpu_quota_percent, cpu_weight, memory_max: None, tasks_max: None };
 }
@@ -16,12 +16,16 @@ fn given_cpu_cap_and_weight_become_scope_properties() {
     assert!(properties.contains(&"--property=CPUWeight=20".to_string()));
 }
 
-/// Highest `IOWeight` a per-command cgroup may carry: the owner's rule in `CLAUDE.md` (RXS) says never above 10.
-/// The test states it itself so a change to the implementation's own constant cannot move it.
+/// Highest `IOWeight` a per-command cgroup may carry.
+/// The owner's rule in `CLAUDE.md` (RXS) says never above 10.
+/// The test states it itself,
+/// so a change to the implementation's own constant cannot move it.
 const OWNER_MAXIMUM_IO_WEIGHT: u32 = 10;
 
-/// What: `fn values_of(...)` lists the values one `--property=NAME=` prefix has in the arguments.
-/// Why:  Each test asks how many times and with what value a limit is set.
+/// Lists the values one `--property=NAME=` prefix has in the arguments.
+/// Each test asks how many times,
+/// and with what value,
+/// a limit is set.
 fn values_of(properties: &[String], name: &str) -> Vec<String> {
     let prefix = format!("--property={name}=");
     return properties
@@ -31,7 +35,10 @@ fn values_of(properties: &[String], name: &str) -> Vec<String> {
         .collect();
 }
 
-/// A scope without a named limit still carries a memory, a CPU, a task and a disk-weight limit, one of each.
+/// A scope without a named limit still carries a memory,
+/// a CPU,
+/// a task and a disk-weight limit,
+/// one of each.
 #[test]
 fn default_scope_carries_memory_cpu_task_and_disk_weight_limits_once_each() {
     let properties = isolation_properties(&isolation(None, None));
