@@ -153,3 +153,20 @@ fn a_batch_that_looks_unlanded_is_left_on_disk() {
     assert!(batch_path(world.context.journal.as_path(), 2, OPEN_EXTENSION).exists(), "the intent stays");
     remove(world.root.as_path());
 }
+
+/// Found when the settle command first ran against a real wrapper: the service of this release runs the same words
+///  (`service run --instance <instance>`) behind the current command word, and it is no earlier helper, so it does not hold the
+///  command back; the same words behind the earlier command word do.
+#[test]
+fn the_service_of_this_release_is_no_earlier_helper() {
+    let (world, state) = world_with_earlier_journal("settle-own-service", "state");
+    let landed: CommitRequest = request(&world, "own", "own.txt", "own\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let instance: String = instance_for(&world);
+    let proc_root: PathBuf = empty_proc(&world);
+    let new_journal: String = state.join("monochromatic-git-policy-cli/service").join(instance.as_str()).display().to_string();
+    fake_process(proc_root.as_path(), 41, &["/p/monochromatic-git-policy-cli", "monochromatic-git-policy-cli", "service", "run", "--journal", new_journal.as_str(), "--instance", instance.as_str()]);
+    let RequestedSettlement::Settled(batches) = settle(&world, state.as_path(), proc_root.as_path()) else { panic!("the new service held the settling back") };
+    assert_eq!(batches.len(), 1);
+    remove(world.root.as_path());
+}
