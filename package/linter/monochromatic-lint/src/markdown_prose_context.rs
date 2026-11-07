@@ -88,7 +88,25 @@ pub(crate) fn delimiter_tail(context: &MarkdownSource, id: u32, ancestors: &[u32
     return tail;
 }
 
-/// Keep quote markers and indentation while replacing list-marker characters with spaces.
+/// What:
+///  The text a broken line starts with:
+///  indentation kept,
+/// list-marker characters replaced with spaces and quote markers left out.
+/// Why:
+///  A quote marker is a token,
+/// and a fix that only changes whitespace never adds one.
+///  A line without `>` still belongs to the quotation:
+///  CommonMark 0.31.2,
+/// section 5.1 "Block quotes",
+/// rule 2 "Laziness",
+/// keeps a line in the paragraph it continues,
+///  and the caller never breaks where the next line would start a block,
+/// the one case laziness excludes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function continuationPrefix(context, paragraph): string; // "> - " becomes "  ", "- > " becomes "  "
+/// ```
 pub(crate) fn continuation_prefix(context: &MarkdownSource, paragraph: u32) -> String {
     // Copy only the paragraph's opening line prefix; usize is the byte-offset type every source slice takes.
     let (start, _): (usize, usize) = context.offsets(paragraph);
@@ -104,8 +122,20 @@ pub(crate) fn continuation_prefix(context: &MarkdownSource, paragraph: u32) -> S
         line_start = '\u{feff}'.len_utf8();
     }
     let mut prefix: String = String::new();
+    // A quote marker takes the one space or tab after it with it, so the broken line starts at its text.
+    let mut after_marker: bool = false;
     for character in context.source[line_start..start].chars() {
-        if character == '>' || character == ' ' || character == '\t' {
+        let separator: bool = character == ' ' || character == '\t';
+        if character == '>' {
+            after_marker = true;
+            continue;
+        }
+        if separator && after_marker {
+            after_marker = false;
+            continue;
+        }
+        after_marker = false;
+        if separator {
             prefix.push(character);
         } else {
             prefix.push(' ');

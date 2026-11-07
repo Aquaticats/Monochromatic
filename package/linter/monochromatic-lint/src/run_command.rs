@@ -268,3 +268,10 @@ mod tests;
 #[cfg(test)]
 #[path = "run_command_fix_tests.rs"]
 mod fix_tests;
+
+/// Reproductions of fixes that rewrote content,
+///  and the token property of the whitespace fix,
+///  stay outside release artifacts.
+#[cfg(test)]
+#[path = "run_command_whitespace_fix_tests.rs"]
+mod whitespace_fix_tests;
