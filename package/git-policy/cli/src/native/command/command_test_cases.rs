@@ -2,7 +2,8 @@
 //!  Disposable copies of a pristine fixture and scoped worker threads for independent test cases.
 //! Why:
 //!  Putting shared state back after each case costs extra Git starts and forces the cases to run one after another;
-//!  a fresh copy of the fixture needs only file operations, and cases that share nothing run side by side.
+//!  a fresh copy of the fixture needs only file operations,
+//! and cases that share nothing run side by side.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,7 +16,8 @@ use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// The most worker threads one test starts;
-///  the cases are short, so a handful keeps the host from being flooded.
+///  the cases are short,
+/// so a handful keeps the host from being flooded.
 const WORKER_CAP: usize = 8;
 
 /// What:
@@ -48,7 +50,8 @@ pub(crate) fn copy_tree(from: &Path, to: &Path) {
 ///  Each worker owns one result that `fresh` creates from the worker's number,
 ///  and the results of all workers come back for the caller to merge.
 /// Why:
-///   The cases are independent, so they need not wait for each other;
+///   The cases are independent,
+/// so they need not wait for each other;
 ///  a panic in a worker resumes on the calling thread with its own message.
 ///
 /// In TS you'd write (pseudocode):

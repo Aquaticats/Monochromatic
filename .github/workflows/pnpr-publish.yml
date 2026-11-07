@@ -171,8 +171,8 @@ jobs:
         env:
           PNPR_VERIFY_CONFIG: ${{ steps.fixture.outputs.config }}
         # These are verification-container bounds, matching the local image task.
-        # The Node shell hands each argument to Docker as one argv item; a folded `run: >-` command needs shell
-        # quoting for the same, and the workflow shell rules refuse to read a folded `run:`.
+        # The Node shell passes each argument as one argv item, which a folded `run: >-` command could only do
+        # through shell quoting that the workflow shell rules refuse to read.
         run: |
           import { execFileSync } from 'node:child_process';
           execFileSync('docker', [

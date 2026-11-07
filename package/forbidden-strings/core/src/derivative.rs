@@ -74,6 +74,16 @@ use crate::context::Ctx;
 /// ```
 use crate::nullable::nullable;
 
+/// The derivative of each part by one byte,
+/// in order.
+fn derivatives_of(parts: &[Node], byte: u8, ctx: Ctx) -> Vec<Node> {
+    let mut derived: Vec<Node> = Vec::with_capacity(parts.len());
+    for part in parts {
+        derived.push(derivative(part, byte, ctx));
+    }
+    return derived;
+}
+
 /// Returns the derivative of `node` with respect to one `byte` at `ctx`.
 ///
 /// What:
@@ -121,8 +131,8 @@ pub fn derivative(node: &Node, byte: u8, ctx: Ctx) -> Node {
                 return Node::Fail
             }
         }
-        Node::Alt(parts) => return alt(parts.iter().map(|p| return derivative(p, byte, ctx)).collect()),
-        Node::Inter(parts) => return inter(parts.iter().map(|p| return derivative(p, byte, ctx)).collect()),
+        Node::Alt(parts) => return alt(derivatives_of(parts, byte, ctx)),
+        Node::Inter(parts) => return inter(derivatives_of(parts, byte, ctx)),
         Node::Comp(inner) => return comp(derivative(inner, byte, ctx)),
         Node::Concat(parts) => return derivative_concat(parts, byte, ctx),
         Node::Repeat { node: body, min, max } => return derivative_repeat(body, *min, *max, byte, ctx),

@@ -1,9 +1,12 @@
 //! What:
-//!  The merge commit of a reconcile: the merge of the remote tip and the local tip computed in the object store (with the
+//!  The merge commit of a reconcile:
+//! the merge of the remote tip and the local tip computed in the object store (with the
 //!  word-level second pass for conflicts) and committed without a worktree or an index.
 //! Why:
-//!  The worktree and its index stay untouched while merging, so another consumer's uncommitted files cannot block or be
-//!  hurt by it. The loop that calls this is in `auto_push_reconcile.rs`.
+//!  The worktree and its index stay untouched while merging,
+//! so another consumer's uncommitted files cannot block or be
+//!  hurt by it.
+//! The loop that calls this is in `auto_push_reconcile.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,13 +24,17 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
-/// The coordinator's Git as a runner for the second pass: its commands, its environment, an optional stdin and index file.
+/// The coordinator's Git as a runner for the second pass:
+/// its commands,
+/// its environment,
+/// an optional stdin and index file.
 pub(crate) struct PushRunner<'a> {
     /// The coordinator's Git.
     pub(crate) git: &'a PushGit,
 }
 
-/// Starting Git the way the coordinator's queries do, with the input a second-pass command needs.
+/// Starting Git the way the coordinator's queries do,
+/// with the input a second-pass command needs.
 impl GitRunner for PushRunner<'_> {
     fn run(&self, arguments: &[&str], input: Option<&[u8]>, index_file: Option<&Path>) -> Result<GitReply, String> {
         let mut command = git_command(self.git, &argv(arguments));
@@ -72,17 +79,24 @@ impl GitRunner for PushRunner<'_> {
 pub(crate) struct CommittedMerge {
     /// The merge commit.
     pub(crate) oid: String,
-    /// The files the word pass merged, listed in the commit message and in the report.
+    /// The files the word pass merged,
+    /// listed in the commit message and in the report.
     pub(crate) merged: Vec<Merged>,
 }
 
 /// What:
-///  Commit the merge of two tips from objects alone and return its OID, or the paths that conflict.
+///  Commit the merge of two tips from objects alone and return its OID,
+/// or the paths that conflict.
 /// Why:
-///   `merge-tree --write-tree` exits `1` for a conflicted merge and lists the paths; nothing is written to a worktree.
-///   The conflicts get the word-level second pass, and the merge is committed only when every conflicted file resolved;
-///  the commit message then lists every merged part, so the history keeps what was combined. The attributes of the local
-///  tip apply, because no worktree is read.
+///   `merge-tree --write-tree` exits `1` for a conflicted merge and lists the paths;
+/// nothing is written to a worktree.
+///   The conflicts get the word-level second pass,
+/// and the merge is committed only when every conflicted file resolved;
+///  the commit message then lists every merged part,
+/// so the history keeps what was combined.
+/// The attributes of the local
+///  tip apply,
+/// because no worktree is read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -167,7 +181,8 @@ pub(crate) fn commit_merge(
     return Ok(Ok(CommittedMerge { oid, merged: second_pass_files }));
 }
 
-/// The repository's common Git directory, where the scratch the second pass needs lives.
+/// The repository's common Git directory,
+/// where the scratch the second pass needs lives.
 pub(crate) fn common_dir_of(git: &PushGit) -> Result<PathBuf, SingleFlightError> {
     let answered = git_output(git, &argv(&["rev-parse", "--git-common-dir"]))?;
     return Ok(git.cwd.join(answered));
@@ -176,9 +191,12 @@ pub(crate) fn common_dir_of(git: &PushGit) -> Result<PathBuf, SingleFlightError>
 /// What:
 ///  Whether `commit.gpgsign` asks for signed commits.
 /// Why:
-///   `git commit-tree` signs only when given `-S` and never reads `commit.gpgsign`, so the merge would be the one
-///  unsigned commit of a signed branch, which a remote that requires verified signatures rejects.
-///   An unset key is `git config` exit `1`; any other failure is reported like every failed command.
+///   `git commit-tree` signs only when given `-S` and never reads `commit.gpgsign`,
+/// so the merge would be the one
+///  unsigned commit of a signed branch,
+/// which a remote that requires verified signatures rejects.
+///   An unset key is `git config` exit `1`;
+/// any other failure is reported like every failed command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

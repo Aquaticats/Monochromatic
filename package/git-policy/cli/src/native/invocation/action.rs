@@ -42,10 +42,14 @@ use std::path::PathBuf;
 pub const ENGINE_FAILURE_EXIT_CODE: i32 = 2;
 
 /// What:
-///  What a plain push that may be integrated needs to run and, when it fails on a divergence, to merge.
+///  What a plain push that may be integrated needs to run and,
+/// when it fails on a divergence,
+/// to merge.
 /// Why:
-///   The run keeps the caller's streams like the settled one does, so the integration step starts from Git's status
-///  and the same arguments, environment and (inside a linked worktree) settlement as an unstacked push would have had.
+///   The run keeps the caller's streams like the settled one does,
+/// so the integration step starts from Git's status
+///  and the same arguments,
+/// environment and (inside a linked worktree) settlement as an unstacked push would have had.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,7 +59,8 @@ pub const ENGINE_FAILURE_EXIT_CODE: i32 = 2;
 pub struct PushForward {
     /// The selected real Git executable.
     pub real_git: PathBuf,
-    /// The arguments Git receives, global options included.
+    /// The arguments Git receives,
+    /// global options included.
     pub arguments: Vec<OsString>,
     /// Variables added to the inherited environment.
     pub overlay: Vec<(OsString, OsString)>,
@@ -63,12 +68,16 @@ pub struct PushForward {
     pub copy: Option<Box<CopyFacts>>,
     /// Index of `push` in `arguments`.
     pub subcommand_index: usize,
-    /// The invocation's environment, which the integration step starts Git with.
+    /// The invocation's environment,
+    /// which the integration step starts Git with.
     pub environment: Vec<(OsString, OsString)>,
-    /// Whether this push must upload LFS objects first, by a `git-lfs push` the parent runs before the push.
-    ///  Only the push itself is preceded by the upload; the integration step's dry-run queries are not.
+    /// Whether this push must upload LFS objects first,
+    /// by a `git-lfs push` the parent runs before the push.
+    ///  Only the push itself is preceded by the upload;
+    /// the integration step's dry-run queries are not.
     pub lfs: bool,
-    /// The configuration entries the upload plan reads, from the snapshot taken when the invocation was planned.
+    /// The configuration entries the upload plan reads,
+    /// from the snapshot taken when the invocation was planned.
     pub lfs_settings: Option<Vec<(String, String)>>,
     /// Whether a push that fails on a divergence is integrated and pushed again.
     ///  A push that only needs the LFS upload explained keeps its own status.
@@ -134,15 +143,19 @@ pub enum Action {
         /// Warning events written to standard error before Git starts.
         stderr: String,
     },
-    /// Forward a plain push as a child, so a push that lost a race to another session can be integrated:
-    ///  run Git with the caller's streams, then merge in what landed on the remote and publish the merge.
+    /// Forward a plain push as a child,
+    /// so a push that lost a race to another session can be integrated:
+    ///  run Git with the caller's streams,
+    /// then merge in what landed on the remote and publish the merge.
     ForwardPush {
         /// What the run and the integration need.
         forward: Box<PushForward>,
         /// Warning events written to standard error before Git starts.
         stderr: String,
     },
-    /// Run Git as a child for a top-level `--version`, `-v`, `--help` or `-h`,
+    /// Run Git as a child for a top-level `--version`,
+    /// `-v`,
+    /// `--help` or `-h`,
     ///  and print the announcement after Git's own answer when Git exited with status 0.
     ForwardAnnounced {
         /// The selected real Git executable.

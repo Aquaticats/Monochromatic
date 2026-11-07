@@ -1,10 +1,19 @@
 //! What:
-//!  The Git LFS step before a push the caller typed: the pre-check, the plan and the upload, with the caller's streams.
+//!  The Git LFS step before a push the caller typed:
+//! the pre-check,
+//! the plan and the upload,
+//! with the caller's streams.
 //! Why:
-//!  The parent owns the whole step, so a refusal, a plan that cannot be worked out and a failed upload are all explained
-//!  by the process that saw them, and the push is not started after any of them. The configuration the plan reads comes
-//!  from the snapshot the wrapper already took when it planned the invocation, so a push whose repository is known costs
-//!  no Git start for it; without a snapshot one `config --get-regexp` start reads it.
+//!  The parent owns the whole step,
+//! so a refusal,
+//! a plan that cannot be worked out and a failed upload are all explained
+//!  by the process that saw them,
+//! and the push is not started after any of them.
+//! The configuration the plan reads comes
+//!  from the snapshot the wrapper already took when it planned the invocation,
+//! so a push whose repository is known costs
+//!  no Git start for it;
+//! without a snapshot one `config --get-regexp` start reads it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -46,21 +55,27 @@ pub struct InteractiveUpload<'a> {
     pub prefix: &'a [OsString],
     /// The arguments after `push`.
     pub region: &'a [OsString],
-    /// The real Git, whose queries fill in what the invocation does not hold.
+    /// The real Git,
+    /// whose queries fill in what the invocation does not hold.
     pub real_git: &'a Path,
     /// The invocation's environment.
     pub environment: &'a [(OsString, OsString)],
     /// Variables added to the environment of every Git the wrapper starts.
     pub overlay: &'a [(OsString, OsString)],
-    /// The configuration entries the plan reads, when the invocation already holds them.
+    /// The configuration entries the plan reads,
+    /// when the invocation already holds them.
     pub settings: Option<&'a [(String, String)]>,
 }
 
 /// What:
-///  The read-only Git questions of the upload plan, asked by starting the real Git with the invocation's prefix and
-///  overlay. `&'a InteractiveUpload<'a>` lends the invocation's facts for as long as this value lives.
+///  The read-only Git questions of the upload plan,
+/// asked by starting the real Git with the invocation's prefix and
+///  overlay.
+/// `&'a InteractiveUpload<'a>` lends the invocation's facts for as long as this value lives.
 /// Why:
-///   The plan asks through the `GitQuery` trait, and the state a question needs is one borrowed value, so a struct
+///   The plan asks through the `GitQuery` trait,
+/// and the state a question needs is one borrowed value,
+/// so a struct
 ///  stands where a closure that captured it stood.
 ///
 /// In TS you'd write (pseudocode):
@@ -68,7 +83,8 @@ pub struct InteractiveUpload<'a> {
 /// class InteractiveQuery implements GitQuery { constructor(readonly request: InteractiveUpload) {} ask(args: string[]): string {} }
 /// ```
 struct InteractiveQuery<'a> {
-    /// The invocation whose prefix, real Git and overlay every question uses.
+    /// The invocation whose prefix,
+    /// real Git and overlay every question uses.
     request: &'a InteractiveUpload<'a>,
 }
 
@@ -90,9 +106,12 @@ impl GitQuery for InteractiveQuery<'_> {
 }
 
 /// What:
-///  Run the step; the status to stop with when the push must not start, or nothing when it may.
+///  Run the step;
+/// the status to stop with when the push must not start,
+/// or nothing when it may.
 /// Why:
-///   A missing `git-lfs`, a plan that cannot be worked out and a failed upload each end the push before it starts.
+///   A missing `git-lfs`,
+/// a plan that cannot be worked out and a failed upload each end the push before it starts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

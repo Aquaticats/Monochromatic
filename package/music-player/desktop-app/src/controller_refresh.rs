@@ -1,33 +1,63 @@
-//! Refreshes the library when the watcher reports changes: the queue edits, the selection and the measurement.
+//! Refreshes the library when the watcher reports changes:
+//! the queue edits,
+//! the selection and the measurement.
 //!
-//! What: `impl Controller` methods that turn a `Change` into queue edits (`handle_source_changed`), walk the whole root
-//! when events were lost (`rescan_everything`), and start or queue the refresh sweeps through the coalescer.
-//! Why: D113 makes the library follow the disk with no action by the person. The cost of a refresh must follow what
-//! changed, so a replaced file in a library of a million tracks costs lookups for that one path, not a walk and a stat of
+//! What:
+//! `impl Controller` methods that turn a `Change` into queue edits (`handle_source_changed`),
+//! walk the whole root
+//! when events were lost (`rescan_everything`),
+//! and start or queue the refresh sweeps through the coalescer.
+//! Why:
+//! D113 makes the library follow the disk with no action by the person.
+//! The cost of a refresh must follow what
+//! changed,
+//! so a replaced file in a library of a million tracks costs lookups for that one path,
+//! not a walk and a stat of
 //! every file.
 
-/// What: `use std::collections::HashSet;` imports the hash set type from the standard library (`std`). Siblings: `Vec`
-/// keeps duplicates and order, and `BTreeSet` keeps its members sorted.
-/// Why: the refresh asks "is this path in the set" for many paths and must not hold a path twice, which a hash set does.
+/// What:
+/// `use std::collections::HashSet;` imports the hash set type from the standard library (`std`).
+/// Siblings:
+/// `Vec`
+/// keeps duplicates and order,
+/// and `BTreeSet` keeps its members sorted.
+/// Why:
+/// the refresh asks "is this path in the set" for many paths and must not hold a path twice,
+/// which a hash set does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // Set is global in TypeScript; nothing to import.
 /// ```
 use std::collections::HashSet;
-/// What: `use std::path::{Path, PathBuf};` imports two path types: `Path`, a borrowed read-only view of a path, and
-/// `PathBuf`, an owned and growable path. Siblings: `&str` and `String` are the text-only counterparts, which cannot hold
+/// What:
+/// `use std::path::{Path, PathBuf};` imports two path types:
+/// `Path`,
+/// a borrowed read-only view of a path,
+/// and
+/// `PathBuf`,
+/// an owned and growable path.
+/// Siblings:
+/// `&str` and `String` are the text-only counterparts,
+/// which cannot hold
 /// file names that are not valid UTF-8.
-/// Why: the methods look at a root they are lent (`&Path`) and keep paths they own (`PathBuf`).
+/// Why:
+/// the methods look at a root they are lent (`&Path`) and keep paths they own (`PathBuf`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // Paths are plain strings in TypeScript.
 /// ```
 use std::path::{Path, PathBuf};
-/// What: `use std::sync::Arc;` imports the atomically counted shared pointer. Siblings: `Rc<T>` is the single-thread version,
-/// `Box<T>` has exactly one owner, and a plain `T` is owned by one variable.
-/// Why: a sweep runs on other threads and shares the report sink and the claim set with the controller, so both need an
+/// What:
+/// `use std::sync::Arc;` imports the atomically counted shared pointer.
+/// Siblings:
+/// `Rc<T>` is the single-thread version,
+/// `Box<T>` has exactly one owner,
+/// and a plain `T` is owned by one variable.
+/// Why:
+/// a sweep runs on other threads and shares the report sink and the claim set with the controller,
+/// so both need an
 /// owner count that is safe across threads.
 ///
 /// In TS you'd write (pseudocode):
@@ -36,90 +66,117 @@ use std::path::{Path, PathBuf};
 /// ```
 use std::sync::Arc;
 
-/// What: `use crate::change_plan::{Plan, apply_plan, plan_changes};` imports one type and two functions from
-/// `src/change_plan.rs`. `crate::` means "from the root of this crate", and the braces import several names in one line.
-/// Why: the refresh plans the queue edits from named paths and applies them.
+/// What:
+/// `use crate::change_plan::{Plan, apply_plan, plan_changes};` imports one type and two functions from
+/// `src/change_plan.rs`.
+/// `crate::` means "from the root of this crate",
+/// and the braces import several names in one line.
+/// Why:
+/// the refresh plans the queue edits from named paths and applies them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { type Plan, applyPlan, planChanges } from "./change_plan";
 /// ```
 use crate::change_plan::{Plan, apply_plan, plan_changes};
-/// What: `use crate::change_set::Change;` imports the "paths or everything" enum.
-/// Why: the first method takes a `Change`.
+/// What:
+/// `use crate::change_set::Change;` imports the "paths or everything" enum.
+/// Why:
+/// the first method takes a `Change`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { type Change } from "./change_set";
 /// ```
 use crate::change_set::Change;
-/// What: `use crate::command::Update;` imports the engine-to-window message enum.
-/// Why: the selection handling sends messages to the window.
+/// What:
+/// `use crate::command::Update;` imports the engine-to-window message enum.
+/// Why:
+/// the selection handling sends messages to the window.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { type Update } from "./command";
 /// ```
 use crate::command::Update;
-/// What: `use crate::controller::Controller;` imports the playback state machine type that the methods attach to.
-/// Why: Rust allows an `impl` block only on a type named in the file.
+/// What:
+/// `use crate::controller::Controller;` imports the playback state machine type that the methods attach to.
+/// Why:
+/// Rust allows an `impl` block only on a type named in the file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { Controller } from "./controller";
 /// ```
 use crate::controller::Controller;
-/// What: `use crate::disk_view::RealDisk;` imports the file-system implementation of the `Disk` trait.
-/// Why: the planner asks the real disk about each named path.
+/// What:
+/// `use crate::disk_view::RealDisk;` imports the file-system implementation of the `Disk` trait.
+/// Why:
+/// the planner asks the real disk about each named path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { RealDisk } from "./disk_view";
 /// ```
 use crate::disk_view::RealDisk;
-/// What: `use crate::measure::spawn_queue_measurement;` imports the function that starts a background measurement sweep.
-/// Why: a refresh ends by measuring the files that changed.
+/// What:
+/// `use crate::measure::spawn_queue_measurement;` imports the function that starts a background measurement sweep.
+/// Why:
+/// a refresh ends by measuring the files that changed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { spawnQueueMeasurement } from "./measure";
 /// ```
 use crate::measure::spawn_queue_measurement;
-/// What: `use crate::playback::expand_paths;` imports the function that walks folders and lists the audio files in them.
-/// Why: a full rescan needs the whole walk once.
+/// What:
+/// `use crate::playback::expand_paths;` imports the function that walks folders and lists the audio files in them.
+/// Why:
+/// a full rescan needs the whole walk once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { expandPaths } from "./playback";
 /// ```
 use crate::playback::expand_paths;
-/// What: `use crate::refresh_coalescer::{Files, Launch, Work};` imports three types from `src/refresh_coalescer.rs`: the
-/// files a sweep looks at, a sweep to start, and the work a request asks for.
-/// Why: requests and launches are exchanged with the coalescer as these values.
+/// What:
+/// `use crate::refresh_coalescer::{Files, Launch, Work};` imports three types from `src/refresh_coalescer.rs`:
+/// the
+/// files a sweep looks at,
+/// a sweep to start,
+/// and the work a request asks for.
+/// Why:
+/// requests and launches are exchanged with the coalescer as these values.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { type Files, type Launch, type Work } from "./refresh_coalescer";
 /// ```
 use crate::refresh_coalescer::{Files, Launch, Work};
-/// What: `use crate::sweep_gate::SweepGate;` imports the pause gate type of the background sweep.
-/// Why: a sweep job carries the shared gate so Pause stops its workers.
+/// What:
+/// `use crate::sweep_gate::SweepGate;` imports the pause gate type of the background sweep.
+/// Why:
+/// a sweep job carries the shared gate so Pause stops its workers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { SweepGate } from "./sweep_gate";
 /// ```
 use crate::sweep_gate::SweepGate;
-/// What: `use crate::sweep_report::SweepJob;` imports the record that holds everything one sweep needs to start.
-/// Why: `spawn_queue_measurement` takes exactly this record.
+/// What:
+/// `use crate::sweep_report::SweepJob;` imports the record that holds everything one sweep needs to start.
+/// Why:
+/// `spawn_queue_measurement` takes exactly this record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { type SweepJob } from "./sweep_report";
 /// ```
 use crate::sweep_report::SweepJob;
-/// What: `use crate::walk_order::locate;` imports the binary search over the walk order.
-/// Why: the selected track is found in the new queue without scanning it.
+/// What:
+/// `use crate::walk_order::locate;` imports the binary search over the walk order.
+/// Why:
+/// the selected track is found in the new queue without scanning it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -127,9 +184,16 @@ use crate::sweep_report::SweepJob;
 /// ```
 use crate::walk_order::locate;
 
-/// What: `impl Controller { ... }` opens a block of methods for the `Controller` struct. A struct holds data, and one type
-/// may have several `impl` blocks, even in different files.
-/// Why: the controller is large, so its methods are split over several files; this block holds the refresh ones.
+/// What:
+/// `impl Controller { ... }` opens a block of methods for the `Controller` struct.
+/// A struct holds data,
+/// and one type
+/// may have several `impl` blocks,
+/// even in different files.
+/// Why:
+/// the controller is large,
+/// so its methods are split over several files;
+/// this block holds the refresh ones.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -137,11 +201,23 @@ use crate::walk_order::locate;
 /// interface Controller { handleSourceChanged(change: Change): void; /* ... */ }
 /// ```
 impl Controller {
-    /// What: `pub(crate) fn handle_source_changed(&mut self, change: Change)` applies one debounced change of the Source Root:
-    /// the named paths, or everything. `pub(crate)` makes it visible inside this crate only (siblings: plain `pub` reaches
-    /// other crates; no keyword is private to the file). `&mut self` is an exclusive borrow of the controller: the method may
-    /// change it, and no one else may touch it meanwhile. `change` is taken by value, so the caller gives it up.
-    /// Why: named paths are planned against the sorted queue and the disk; only an added or removed track changes the list.
+    /// What:
+    /// `pub(crate) fn handle_source_changed(&mut self, change: Change)` applies one debounced change of the Source Root:
+    /// the named paths,
+    /// or everything.
+    /// `pub(crate)` makes it visible inside this crate only (siblings:
+    /// plain `pub` reaches
+    /// other crates;
+    /// no keyword is private to the file).
+    /// `&mut self` is an exclusive borrow of the controller:
+    /// the method may
+    /// change it,
+    /// and no one else may touch it meanwhile.
+    /// `change` is taken by value,
+    /// so the caller gives it up.
+    /// Why:
+    /// named paths are planned against the sorted queue and the disk;
+    /// only an added or removed track changes the list.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -394,11 +470,20 @@ impl Controller {
         self.request_refresh(Work::Files(Files { check, announce }));
     }
 
-    /// What: `pub(crate) fn rescan_everything(&mut self)` walks the Source Root again, replaces the queue when the list
-    /// differs, and refreshes every track.
-    /// Why: the fallback when the watcher lost events or a registration just ended: nothing names what changed. An
-    /// unchanged list starts a quiet refresh sweep, which measures a file whose fingerprint changed (D113) and nothing
-    /// else; the watcher ignores the reads it makes, so it cannot loop.
+    /// What:
+    /// `pub(crate) fn rescan_everything(&mut self)` walks the Source Root again,
+    /// replaces the queue when the list
+    /// differs,
+    /// and refreshes every track.
+    /// Why:
+    /// the fallback when the watcher lost events or a registration just ended:
+    /// nothing names what changed.
+    /// An
+    /// unchanged list starts a quiet refresh sweep,
+    /// which measures a file whose fingerprint changed (D113) and nothing
+    /// else;
+    /// the watcher ignores the reads it makes,
+    /// so it cannot loop.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -512,13 +597,26 @@ impl Controller {
         self.start_queue_measurement();
     }
 
-    /// What: `fn recorded_failures(&self) -> Vec<PathBuf>` lists the files that failed to decode and have not decoded since,
-    /// minus the ones that no longer exist. `&self` is a read-only borrow of the controller. There is no `pub`, so the
+    /// What:
+    /// `fn recorded_failures(&self) -> Vec<PathBuf>` lists the files that failed to decode and have not decoded since,
+    /// minus the ones that no longer exist.
+    /// `&self` is a read-only borrow of the controller.
+    /// There is no `pub`,
+    /// so the
     /// method is private to this file.
-    /// Why: D113: a failed decode is retried at the next library change, whichever file changed. The set is the files already
-    /// reported as unplayable, which is small, so adding it to every refresh keeps the cost bounded. A removed file is
-    /// forgotten here so the set cannot grow with deleted files. A file that decodes again leaves the set when its peak is
-    /// measured, so it is not retried after that.
+    /// Why:
+    /// D113:
+    /// a failed decode is retried at the next library change,
+    /// whichever file changed.
+    /// The set is the files already
+    /// reported as unplayable,
+    /// which is small,
+    /// so adding it to every refresh keeps the cost bounded.
+    /// A removed file is
+    /// forgotten here so the set cannot grow with deleted files.
+    /// A file that decodes again leaves the set when its peak is
+    /// measured,
+    /// so it is not retried after that.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -573,11 +671,21 @@ impl Controller {
         return reported.iter().cloned().collect();
     }
 
-    /// What: `fn settle_selection(&mut self, root: &Path, selected_path: Option<PathBuf>)` runs after the list changed: it keeps
-    /// the selected track by its path, or clears the selection when its file left. `root: &Path` is a borrowed read-only
-    /// path; `selected_path: Option<PathBuf>` is an owned optional path taken by value.
-    /// Why: audio is owned by the decoder, so a live change to other files must not interrupt playback or move the
-    /// person's page; a selected file that left stops playback and says so (PB2, D9, D83).
+    /// What:
+    /// `fn settle_selection(&mut self, root: &Path, selected_path: Option<PathBuf>)` runs after the list changed:
+    /// it keeps
+    /// the selected track by its path,
+    /// or clears the selection when its file left.
+    /// `root: &Path` is a borrowed read-only
+    /// path;
+    /// `selected_path: Option<PathBuf>` is an owned optional path taken by value.
+    /// Why:
+    /// audio is owned by the decoder,
+    /// so a live change to other files must not interrupt playback or move the
+    /// person's page;
+    /// a selected file that left stops playback and says so (PB2,
+    /// D9,
+    /// D83).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -728,9 +836,14 @@ impl Controller {
         }
     }
 
-    /// What: `pub(crate) fn request_refresh(&mut self, work: Work)` asks for a refresh sweep: it starts now when none runs, else
+    /// What:
+    /// `pub(crate) fn request_refresh(&mut self, work: Work)` asks for a refresh sweep:
+    /// it starts now when none runs,
+    /// else
     /// it joins the pending follow-up.
-    /// Why: overlapping sweeps would stat the same files twice; the coalescer merges what arrives meanwhile.
+    /// Why:
+    /// overlapping sweeps would stat the same files twice;
+    /// the coalescer merges what arrives meanwhile.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -751,9 +864,17 @@ impl Controller {
         }
     }
 
-    /// What: `pub(crate) fn finish_refresh(&mut self, id: u64)` is called when a refresh sweep ended: it starts the follow-up if
-    /// work arrived meanwhile. `u64` is an unsigned 64-bit integer (siblings: `u32` is smaller, `i64` can be negative).
-    /// Why: the end is reported through the command channel, so the follow-up starts on the engine thread. The sweep's number
+    /// What:
+    /// `pub(crate) fn finish_refresh(&mut self, id: u64)` is called when a refresh sweep ended:
+    /// it starts the follow-up if
+    /// work arrived meanwhile.
+    /// `u64` is an unsigned 64-bit integer (siblings:
+    /// `u32` is smaller,
+    /// `i64` can be negative).
+    /// Why:
+    /// the end is reported through the command channel,
+    /// so the follow-up starts on the engine thread.
+    /// The sweep's number
     /// is a `u64` because the coalescer counts with one.
     ///
     /// In TS you'd write (pseudocode):
@@ -782,8 +903,13 @@ impl Controller {
         }
     }
 
-    /// What: `fn launch_refresh(&mut self, launch: Launch)` starts the sweep the coalescer asked for. `launch` is taken by value.
-    /// Why: a listed sweep carries only the changed files; "everything" carries the queue. A sweep with nothing to look at ends
+    /// What:
+    /// `fn launch_refresh(&mut self, launch: Launch)` starts the sweep the coalescer asked for.
+    /// `launch` is taken by value.
+    /// Why:
+    /// a listed sweep carries only the changed files;
+    /// "everything" carries the queue.
+    /// A sweep with nothing to look at ends
     /// at once so the follow-up is not held back.
     ///
     /// In TS you'd write (pseudocode):

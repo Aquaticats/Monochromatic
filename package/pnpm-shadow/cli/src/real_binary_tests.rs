@@ -1,4 +1,6 @@
-//! The unit tests of the PATH lookup: the first executable wins, non-executables and the shadow itself are skipped.
+//! The unit tests of the PATH lookup:
+//! the first executable wins,
+//! non-executables and the shadow itself are skipped.
 
 /// Imports the function under test.
 use crate::real_binary::find_in_path;

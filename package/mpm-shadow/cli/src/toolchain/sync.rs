@@ -56,8 +56,8 @@ use super::lock::Lock;
 use super::model::{LockedTool, Route};
 /// Imports what this module uses from `super::observe`.
 use super::observe::{observe_tool, satisfies_lock};
-/// Imports `retire_after_install` and `old_copy_lines_text` from `super::sync_old_copies`.
-use super::sync_old_copies::{old_copy_lines_text, retire_after_install};
+/// Imports `retire_after_install` from `super::sync_old_copies`.
+use super::sync_old_copies::retire_after_install;
 /// Imports `version_matches` from `super::parse_output`.
 use super::parse_output::version_matches;
 /// Imports `Plan` from `super::plan`.
@@ -152,7 +152,8 @@ pub struct SyncReport {
     /// because the lock no longer declares it.
     pub retired_links: Vec<String>,
     /// The environment variable names the generated mise fragment holds after this run
-    /// (empty when the lock declares none, or for a partial sync that leaves the fragment alone).
+    /// (empty when the lock declares none,
+    /// or for a partial sync that leaves the fragment alone).
     pub exported_env: Vec<String>,
 }
 
@@ -510,18 +511,6 @@ pub fn run_lockfile_only(
     return Ok(prepared);
 }
 
-/// The line `install` prints for a plan change it wrote into the lock without a lookup.
-pub fn rewritten_line(description: &str) -> String {
-    return format!("toolchain install: lock updated from the plan: {description}\n");
-}
-
-/// The line `install` prints for a tool it locked itself.
-pub fn locked_line(id: &str, version: &str) -> String {
-    return format!(
-        "toolchain install: locked {id} {version} (the plan was ahead of the lock; resolved alone, no other lock row moved)\n"
-    );
-}
-
 /// Runs `install` frozen:
 /// it never resolves and never uses the network to read versions.
 pub fn run_sync(
@@ -532,40 +521,4 @@ pub fn run_sync(
     host: &Host,
 ) -> Result<SyncReport, ToolchainError> {
     return run_sync_with(scope, env, runner, http, host, LockPolicy::Frozen(FrozenReason::Flag));
-}
-
-/// The text `install` prints for a report (the tools it locked first,
-/// then warnings,
-/// the counts and each failure).
-pub fn format_sync_report(report: &SyncReport) -> String {
-    let mut text: String = String::new();
-    for (id, version) in &report.resolved {
-        text.push_str(&locked_line(id, version));
-    }
-    for description in &report.rewritten {
-        text.push_str(&rewritten_line(description));
-    }
-    for warning in &report.warnings {
-        text.push_str(&format!("toolchain install: warning: {warning}\n"));
-    }
-    text.push_str(&format!(
-        "toolchain install: {} installed, {} unchanged, {} failed\n",
-        report.installed.len(),
-        report.unchanged.len(),
-        report.failed.len()
-    ));
-    text.push_str(&old_copy_lines_text(report));
-    for line in &report.retired_links {
-        text.push_str(&format!("toolchain install: {line}\n"));
-    }
-    if !report.exported_env.is_empty() {
-        text.push_str(&format!("toolchain install: exported to mise: {}\n", report.exported_env.join(", ")));
-    }
-    for (id, message) in &report.failed {
-        text.push_str(&format!("toolchain install: {id} failed: {message}\n"));
-    }
-    if !report.missing_bins.is_empty() {
-        text.push_str(&format!("toolchain install: unresolved bins: {}\n", report.missing_bins.join(", ")));
-    }
-    return text;
 }

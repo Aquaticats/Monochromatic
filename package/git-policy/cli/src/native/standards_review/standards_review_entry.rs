@@ -1,9 +1,14 @@
 //! What:
-//!  The log entries of the standards-review shadow run, rendered as the root `mise.toml` task `shadow-review` writes
+//!  The log entries of the standards-review shadow run,
+//! rendered as the root `mise.toml` task `shadow-review` writes
 //!  them.
 //! Why:
-//!  `doc/audit/standards-review-gate-shadow.md` already holds that task's entries, and readers and scorers parse them,
-//!  so the port writes the same lines; `standards_review_append.rs` appends each entry, whole, to the live log.
+//!  `doc/audit/standards-review-gate-shadow.md` already holds that task's entries,
+//! and readers and scorers parse them,
+//!  so the port writes the same lines;
+//! `standards_review_append.rs` appends each entry,
+//! whole,
+//! to the live log.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,15 +20,24 @@ use crate::standards_review_input::CAP_LINES;
 use crate::standards_review_text::on_one_line;
 
 /// Leading characters of the commit name the log prints.
-///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
-///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
+///  Exempt from a citation under `LQM` (class:
+/// display cap):
+/// it limits how much text a message,
+/// log field or record
+///  names,
+/// and no command result or duration depends on it.
+/// Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 pub const SHORT_SHA_LENGTH: usize = 12;
 
 /// What:
 ///  Everything one review entry prints.
 /// Why:
-///   The renderer is a pure function of these values, so a test can fix the clock and the elapsed time.
+///   The renderer is a pure function of these values,
+/// so a test can fix the clock and the elapsed time.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -47,7 +61,8 @@ pub struct ReviewEntry {
     pub input_units: usize,
     /// One-decimal seconds of the gateway call.
     pub seconds: String,
-    /// The judged choice, or empty.
+    /// The judged choice,
+    /// or empty.
     pub top: String,
     /// The `Findings kept` line.
     pub outcome: String,
@@ -69,7 +84,8 @@ fn short(sha: &str) -> String {
 /// What:
 ///  The three-line entry for a commit with no code files.
 /// Why:
-///   Coverage stays visible: every skipped landing leaves a line.
+///   Coverage stays visible:
+/// every skipped landing leaves a line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -80,10 +96,14 @@ pub fn render_skipped(sha: &str, subject: &str) -> String {
 }
 
 /// What:
-///  The review entry, ending in the blank line that separates entries.
+///  The review entry,
+/// ending in the blank line that separates entries.
 /// Why:
-///   `Named superlinear cost` is the choice for `yes` and `no`, the two-line gesture for `partial`, and `unjudged` for
-///   anything else, as the script prints it.
+///   `Named superlinear cost` is the choice for `yes` and `no`,
+/// the two-line gesture for `partial`,
+/// and `unjudged` for
+///   anything else,
+/// as the script prints it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

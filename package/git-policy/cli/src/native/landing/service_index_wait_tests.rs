@@ -1,11 +1,16 @@
-//! Controls for the wait on the commit service's hold of the index: who counts as the holder, the event-driven release, the
-//!  notice, and the absence of any limit on a holder proven to run.
+//! Controls for the wait on the commit service's hold of the index:
+//! who counts as the holder,
+//! the event-driven release,
+//! the
+//!  notice,
+//! and the absence of any limit on a holder proven to run.
 
 use super::*;
 use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 
-/// A cadence with no grace and a short interval, so a short wait still prints.
+/// A cadence with no grace and a short interval,
+/// so a short wait still prints.
 const QUICK: Cadence = Cadence { grace: Duration::from_millis(20), interval: Duration::from_millis(20) };
 
 /// A directory with an index path in it.
@@ -13,15 +18,18 @@ fn index_in(root: &Path) -> PathBuf {
     return root.join("index");
 }
 
-/// The mark the service writes, for batch `seq`.
+/// The mark the service writes,
+/// for batch `seq`.
 fn marked(seq: u64) -> String {
     return format!("{LOCK_MARKER}{seq}\n");
 }
 
-/// A notice sink that makes the holder let go when the first notice is written, and keeps what was written.
+/// A notice sink that makes the holder let go when the first notice is written,
+/// and keeps what was written.
 /// Why:
 ///   The notice is the wait's own report that it has looked at the held lock and is waiting,
-///   so a release made there happens after the look at the point the control means, with no clock deciding it.
+///   so a release made there happens after the look at the point the control means,
+/// with no clock deciding it.
 struct ReleaseOnNotice {
     lock: PathBuf,
     text: Vec<u8>,
@@ -53,10 +61,14 @@ impl Write for ReleaseOnNotice {
     }
 }
 
-/// Starts a thread that removes `lock` as soon as anything opens it, which the wait does at its first look.
+/// Starts a thread that removes `lock` as soon as anything opens it,
+/// which the wait does at its first look.
 /// Why:
-///   The release follows the look because the look is what triggers it, so no clock decides whether the wait finds the lock
-///   held. The watch is set before this returns, so an open that follows is not missed.
+///   The release follows the look because the look is what triggers it,
+/// so no clock decides whether the wait finds the lock
+///   held.
+/// The watch is set before this returns,
+/// so an open that follows is not missed.
 fn release_when_opened(lock: &Path) -> std::thread::JoinHandle<()> {
     use std::os::unix::ffi::OsStrExt;
     let directory = std::ffi::CString::new(lock.parent().expect("a directory").as_os_str().as_bytes()).expect("a path");
@@ -84,7 +96,10 @@ fn release_when_opened(lock: &Path) -> std::thread::JoinHandle<()> {
     });
 }
 
-/// Nobody, the service by its mark, and anything else are told apart; an empty lock is a foreign program's.
+/// Nobody,
+/// the service by its mark,
+/// and anything else are told apart;
+/// an empty lock is a foreign program's.
 #[test]
 fn the_holder_is_told_by_the_mark() {
     let root: PathBuf = fixture("index-wait-holder");
@@ -101,8 +116,11 @@ fn the_holder_is_told_by_the_mark() {
     remove(root.as_path());
 }
 
-/// A lock written in two steps, the mark arriving a moment after the file exists, is still the service's.
-/// The mark is written inside the first pause between two reads, so the read that follows it is the one that finds it,
+/// A lock written in two steps,
+/// the mark arriving a moment after the file exists,
+/// is still the service's.
+/// The mark is written inside the first pause between two reads,
+/// so the read that follows it is the one that finds it,
 /// whatever the host's speed.
 #[test]
 fn a_mark_that_arrives_a_moment_late_is_still_the_services() {
@@ -119,7 +137,8 @@ fn a_mark_that_arrives_a_moment_late_is_still_the_services() {
     remove(root.as_path());
 }
 
-/// A lock that stays empty through every read is a foreign program's, after the reads are used up.
+/// A lock that stays empty through every read is a foreign program's,
+/// after the reads are used up.
 #[test]
 fn a_lock_that_stays_empty_is_foreign_after_the_reads_are_used_up() {
     let root: PathBuf = fixture("index-wait-empty");
@@ -132,7 +151,8 @@ fn a_lock_that_stays_empty_is_foreign_after_the_reads_are_used_up() {
     remove(root.as_path());
 }
 
-/// No lock and a foreign lock end the wait at once, and print nothing.
+/// No lock and a foreign lock end the wait at once,
+/// and print nothing.
 #[test]
 fn nothing_is_waited_for_when_nobody_or_a_foreign_program_holds_the_index() {
     let root: PathBuf = fixture("index-wait-none");
@@ -145,9 +165,12 @@ fn nothing_is_waited_for_when_nobody_or_a_foreign_program_holds_the_index() {
     remove(root.as_path());
 }
 
-/// The service's hold is waited for until it is released, the release is seen as an event, and the notice names the command
+/// The service's hold is waited for until it is released,
+/// the release is seen as an event,
+/// and the notice names the command
 ///  and the service.
-/// The holder lets go when the first notice is written, so the release follows the wait's look at the held lock.
+/// The holder lets go when the first notice is written,
+/// so the release follows the wait's look at the held lock.
 #[test]
 fn the_services_hold_is_waited_for_until_it_is_released() {
     let root: PathBuf = fixture("index-wait-release");
@@ -163,8 +186,12 @@ fn the_services_hold_is_waited_for_until_it_is_released() {
     remove(root.as_path());
 }
 
-/// A hold the mark proves to run, kept past the ceiling, is given up on: the line says the command runs now and reports what Git
-/// says, and the lock is not touched.
+/// A hold the mark proves to run,
+/// kept past the ceiling,
+/// is given up on:
+/// the line says the command runs now and reports what Git
+/// says,
+/// and the lock is not touched.
 #[test]
 fn a_hold_that_outlasts_the_ceiling_ends_the_wait_and_stays() {
     let root: PathBuf = fixture("index-wait-ceiling");
@@ -186,7 +213,9 @@ fn a_hold_that_outlasts_the_ceiling_ends_the_wait_and_stays() {
     remove(root.as_path());
 }
 
-/// Where no watch can be set, a hold the mark proves to run is polled for until it is released, where the wait used to return at
+/// Where no watch can be set,
+/// a hold the mark proves to run is polled for until it is released,
+/// where the wait used to return at
 ///  once and let the command run into Git's refusal.
 #[test]
 fn where_no_watch_can_be_set_the_services_hold_is_polled_for() {
@@ -208,8 +237,11 @@ fn where_no_watch_can_be_set_the_services_hold_is_polled_for() {
     remove(root.as_path());
 }
 
-/// A holder the mark proves to run is waited for with no bound: the lock is looked at, notices repeat over many intervals
-///  without ever saying the wait gives up, and the wait ends when the holder lets go.
+/// A holder the mark proves to run is waited for with no bound:
+/// the lock is looked at,
+/// notices repeat over many intervals
+///  without ever saying the wait gives up,
+/// and the wait ends when the holder lets go.
 #[test]
 fn a_holder_the_mark_proves_to_run_is_waited_for_with_no_bound() {
     let root: PathBuf = fixture("index-wait-no-bound");
@@ -232,7 +264,10 @@ fn a_holder_the_mark_proves_to_run_is_waited_for_with_no_bound() {
     remove(root.as_path());
 }
 
-/// A hold older than a landing can last is a dead service's leftover: it is not waited for, it says so, and it stays.
+/// A hold older than a landing can last is a dead service's leftover:
+/// it is not waited for,
+/// it says so,
+/// and it stays.
 #[test]
 fn a_hold_older_than_any_landing_is_not_waited_for() {
     let root: PathBuf = fixture("index-wait-stale");
@@ -249,7 +284,8 @@ fn a_hold_older_than_any_landing_is_not_waited_for() {
 }
 
 /// A landing that ends within the grace prints nothing.
-/// The holder lets go when the wait first opens the lock, so the release always follows the look.
+/// The holder lets go when the wait first opens the lock,
+/// so the release always follows the look.
 #[test]
 fn a_hold_released_within_the_grace_prints_nothing() {
     let root: PathBuf = fixture("index-wait-grace");
@@ -335,7 +371,8 @@ fn a_hold_whose_process_runs_is_not_stale_by_age() {
 /// The wait that sets a new watch after the first ended drops the first before it asks for the next:
 /// with the quota used up by the first,
 /// the second is created only then.
-/// The holder lets go inside the second call, once the quota has been checked,
+/// The holder lets go inside the second call,
+/// once the quota has been checked,
 /// so no clock decides whether the lock is still held when the wait looks at it.
 #[test]
 fn the_wait_drops_an_ended_watch_before_it_sets_the_next() {

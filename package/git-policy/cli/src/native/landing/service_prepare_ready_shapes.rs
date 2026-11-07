@@ -1,9 +1,18 @@
 //! What:
-//!  The shapes a service preparation hands back: the scratch directory that removes itself, what a preparation came to
-//!  (conflict, ended, ready), the inputs of the native Git run, the `Ready` record, and the record that builds a `Ready` for
+//!  The shapes a service preparation hands back:
+//! the scratch directory that removes itself,
+//! what a preparation came to
+//!  (conflict,
+//! ended,
+//! ready),
+//! the inputs of the native Git run,
+//! the `Ready` record,
+//! and the record that builds a `Ready` for
 //!  the ways out that share their parts.
 //! Why:
-//!  The preparation (`service_prepare.rs`), the replay of captured changes and the commit loop all speak in these; they sit in a
+//!  The preparation (`service_prepare.rs`),
+//! the replay of captured changes and the commit loop all speak in these;
+//! they sit in a
 //!  file that uses none of those.
 //!
 //! In TS you'd write (pseudocode):
@@ -20,7 +29,8 @@ use crate::service_protocol::{Change, Cleanup};
 use crate::transaction_journal::{AddedPath, Conclusion, TransactionMode};
 use std::ffi::OsString;
 use std::path::PathBuf;
-/// A scratch directory for the private indexes and Git's scratch repository, removed when it goes out of scope.
+/// A scratch directory for the private indexes and Git's scratch repository,
+/// removed when it goes out of scope.
 pub struct Scratch(pub PathBuf);
 
 impl Drop for Scratch {
@@ -31,12 +41,15 @@ impl Drop for Scratch {
 
 /// What a preparation came to.
 pub enum Prepared {
-    /// The policies stopped the commit, or the preparation itself found the commit's ending (a staged deletion that is
-    ///  still on disk, a normalization that removed every change).
+    /// The policies stopped the commit,
+    /// or the preparation itself found the commit's ending (a staged deletion that is
+    ///  still on disk,
+    /// a normalization that removed every change).
     Ended(TransactionResult),
     /// The change is ready to land.
     Ready(Box<Ready>),
-    /// A retry could not merge the captured change onto the branch; nothing was changed.
+    /// A retry could not merge the captured change onto the branch;
+    /// nothing was changed.
     Conflict(Box<ReplayConflict>),
 }
 
@@ -46,65 +59,101 @@ pub struct NativeInputs {
     pub capture: InvocationCapture,
     /// The arguments after the policies' fixed transforms.
     pub arguments: Vec<OsString>,
-    /// The positional pathspecs of the command line, which the private index already holds.
+    /// The positional pathspecs of the command line,
+    /// which the private index already holds.
     pub pathspecs: Vec<String>,
     /// Whether the line commits named paths or the index.
     pub mode: TransactionMode,
     /// Whether `-a` staged tracked changes into the private index.
     pub staged_all: bool,
-    /// Whether the private index already holds a selection by `--include`, `--patch`, `--interactive`.
+    /// Whether the private index already holds a selection by `--include`,
+    /// `--patch`,
+    /// `--interactive`.
     pub selected_privately: bool,
     /// The private index the policies settled.
     pub commit_index: PathBuf,
 }
 
-/// Everything a landing needs, from one preparation.
+/// Everything a landing needs,
+/// from one preparation.
 pub struct Ready {
     /// The worktree root.
     pub repository: PathBuf,
     /// The common Git directory.
     pub common_dir: PathBuf,
-    /// The branch, or `HEAD` for a detached head.
+    /// The branch,
+    /// or `HEAD` for a detached head.
     pub reference: String,
-    /// The commit prepared against; the all-zero name for a branch that does not exist yet.
+    /// The commit prepared against;
+    /// the all-zero name for a branch that does not exist yet.
     pub base: String,
-    /// The changes between the base and the private index, when the embedded route can carry them; nothing when a name is
-    ///  not text, a mode is not an ordinary file, a symbolic link or an executable, or there are too many.
+    /// The changes between the base and the private index,
+    /// when the embedded route can carry them;
+    /// nothing when a name is
+    ///  not text,
+    /// a mode is not an ordinary file,
+    /// a symbolic link or an executable,
+    /// or there are too many.
     pub changes: Option<Vec<Change>>,
-    /// The policies' events, with the fix summary when a correction changed a file.
+    /// The policies' events,
+    /// with the fix summary when a correction changed a file.
     pub events: Vec<PolicyEvent>,
     /// Whether the repository uses Git LFS.
     pub uses_lfs: bool,
-    /// The commit's scratch directory, kept until the commit is landed because Git's scratch repository lives in it.
+    /// The commit's scratch directory,
+    /// kept until the commit is landed because Git's scratch repository lives in it.
     pub scratch: Scratch,
-    /// Whether only Git can build this commit: the configuration asks for something the service does not embed, or the
-    ///  head, the branch or the state is not an ordinary one, or Git alone can say what the line means.
+    /// Whether only Git can build this commit:
+    /// the configuration asks for something the service does not embed,
+    /// or the
+    ///  head,
+    /// the branch or the state is not an ordinary one,
+    /// or Git alone can say what the line means.
     pub needs_native: bool,
-    /// What real Git needs to build the commit, or what the embedded route needs to make its tree.
+    /// What real Git needs to build the commit,
+    /// or what the embedded route needs to make its tree.
     pub inputs: NativeInputs,
     /// The files a policy rewrote that the worktree receives once the commit has landed.
     pub worktree_records: Vec<AddedPath>,
-    /// The conclusion state the landing removes, for the commit that concludes a merge, a cherry-pick or a revert.
+    /// The conclusion state the landing removes,
+    /// for the commit that concludes a merge,
+    /// a cherry-pick or a revert.
     pub cleanup: Option<Cleanup>,
-    /// Whether the person chose what to commit interactively, so that a moved branch cannot be answered by choosing again.
+    /// Whether the person chose what to commit interactively,
+    /// so that a moved branch cannot be answered by choosing again.
     pub interactive: bool,
-    /// Whether a moved branch makes another build on the new tip meaningless (a conclusion, a branch that did not exist).
+    /// Whether a moved branch makes another build on the new tip meaningless (a conclusion,
+    /// a branch that did not exist).
     pub fixed_parents: bool,
-    /// When the worktree's bytes were captured (`service_replay::capture_stamp`); a retry keeps the first capture's stamp.
+    /// When the worktree's bytes were captured (`service_replay::capture_stamp`);
+    /// a retry keeps the first capture's stamp.
     pub captured_at: u64,
-    /// The paths this commit commits that the unfinished merge or pick left in conflict. Their worktree bytes, conflict markers
-    ///  included, are what is committed; the person is warned once the commit has landed (`conflicted_path_warning`).
+    /// The paths this commit commits that the unfinished merge or pick left in conflict.
+    /// Their worktree bytes,
+    /// conflict markers
+    ///  included,
+    /// are what is committed;
+    /// the person is warned once the commit has landed (`conflicted_path_warning`).
     pub committed_conflicted: Vec<Vec<u8>>,
-    /// The operation a commit of named paths leaves in progress: the merge or the cherry-pick whose state the commit does not
-    ///  conclude. The person is told once the commit has landed.
+    /// The operation a commit of named paths leaves in progress:
+    /// the merge or the cherry-pick whose state the commit does not
+    ///  conclude.
+    /// The person is told once the commit has landed.
     pub leaves_open: Option<Conclusion>,
 }
 
 /// What:
-///  What every `Ready` of one preparation shares: the pathspecs, the selection mode, the private index, the branch and base the
-///  preparation announced, the cleanup of the conclusion state and the stamps.
+///  What every `Ready` of one preparation shares:
+/// the pathspecs,
+/// the selection mode,
+/// the private index,
+/// the branch and base the
+///  preparation announced,
+/// the cleanup of the conclusion state and the stamps.
 /// Why:
-///  The preparation makes a `Ready` on two of its ways out; one record builds both, so the two are the same by construction.
+///  The preparation makes a `Ready` on two of its ways out;
+/// one record builds both,
+/// so the two are the same by construction.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -151,7 +200,8 @@ impl ReadyShape {
         };
     }
 
-    /// A preparation that Git builds: the `Ready` that needs the native run.
+    /// A preparation that Git builds:
+    /// the `Ready` that needs the native run.
     pub(crate) fn by_git(&self, taken: InvocationCapture, events: Vec<PolicyEvent>, changes: Option<Vec<Change>>, records: Vec<AddedPath>, arguments: Vec<OsString>, scratch_dir: Scratch) -> Box<Ready> {
         return Box::new(Ready {
             repository: taken.layout.repository_root.clone(),
@@ -178,7 +228,8 @@ impl ReadyShape {
 /// The first commit on the branch since the preparation base that changed one of the conflicting paths.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LandedFirst {
-    /// Its abbreviated name, as Git abbreviates it in this repository.
+    /// Its abbreviated name,
+    /// as Git abbreviates it in this repository.
     pub short: String,
     /// Its subject.
     pub subject: String,
@@ -187,10 +238,13 @@ pub struct LandedFirst {
 /// A retry that could not combine the captured change with the branch.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReplayConflict {
-    /// The conflicting paths in Git's byte order, as the exact bytes Git reported.
+    /// The conflicting paths in Git's byte order,
+    /// as the exact bytes Git reported.
     pub paths: Vec<Vec<u8>>,
-    /// The commit that landed first on them, when it could be found.
+    /// The commit that landed first on them,
+    /// when it could be found.
     pub landed: Option<LandedFirst>,
-    /// The Git directory of the worktree, where a saved message is kept.
+    /// The Git directory of the worktree,
+    /// where a saved message is kept.
     pub git_dir: PathBuf,
 }

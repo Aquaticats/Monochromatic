@@ -255,6 +255,28 @@ pub struct Dfa {
     pub(crate) dead: u16,
 }
 
+/// Whether any value reaches the limit,
+/// the range check of a decoded class map or transition table.
+fn has_value_at_least<Value: Copy + Into<usize>>(values: &[Value], limit: usize) -> bool {
+    for &value in values {
+        if value.into() >= limit {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Whether any transition of one state's row leads somewhere other than `state`,
+/// which a self-looping sink never does.
+fn row_leaves_state(row: &[u16], state: usize) -> bool {
+    for &target in row {
+        if target as usize != state {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// What:
 ///     Construction-from-parts and matching for `Dfa`.
 /// Why:
@@ -426,34 +448,31 @@ impl Dfa {
         // ```ts
         // // Same step as the Rust statement below, written with ordinary TS objects/functions.
         // ```
-        let invalid = |message: &str| return CompileError::Invalid {
-            message: message.to_string(),
-        };
         let nc = self.nclasses as usize;
         let ns = self.num_states as usize;
         if nc == 0 || nc > 256 {
-            return Err(invalid("nclasses out of range"));
+            return Err(CompileError::invalid("nclasses out of range"));
         }
         if self.class_map.len() != 256 {
-            return Err(invalid("class_map must have length 256"));
+            return Err(CompileError::invalid("class_map must have length 256"));
         }
         if self.class_word.len() != nc || self.class_newline.len() != nc {
-            return Err(invalid("class flag length mismatch"));
+            return Err(CompileError::invalid("class flag length mismatch"));
         }
-        if self.class_map.iter().any(|&c| return c as usize >= nc) {
-            return Err(invalid("class id out of range"));
+        if has_value_at_least(&self.class_map, nc) {
+            return Err(CompileError::invalid("class id out of range"));
         }
         if ns == 0 || self.accept.len() != ns || self.start as usize >= ns {
-            return Err(invalid("state count or start out of range"));
+            return Err(CompileError::invalid("state count or start out of range"));
         }
-        let expected = ns
-            .checked_mul(nc)
-            .ok_or_else(|| return invalid("transition table size overflow"))?;
+        let Some(expected) = ns.checked_mul(nc) else {
+            return Err(CompileError::invalid("transition table size overflow"));
+        };
         if self.trans.len() != expected {
-            return Err(invalid("transition table length mismatch"));
+            return Err(CompileError::invalid("transition table length mismatch"));
         }
-        if self.trans.iter().any(|&t| return t as usize >= ns) {
-            return Err(invalid("transition target out of range"));
+        if has_value_at_least(&self.trans, ns) {
+            return Err(CompileError::invalid("transition target out of range"));
         }
         // What: the dead id is either `num_states` (disabled) or a genuine sink. Why:
         // a hostile blob could name an ACCEPTING state as dead, which would make the
@@ -467,10 +486,10 @@ impl Dfa {
         let dead = self.dead as usize;
         if dead != ns {
             if dead > ns {
-                return Err(invalid("dead state out of range"));
+                return Err(CompileError::invalid("dead state out of range"));
             }
-            if self.accept[dead] != 0 || (0..nc).any(|c| return self.trans[dead * nc + c] as usize != dead) {
-                return Err(invalid("dead state is not a non-accepting sink"));
+            if self.accept[dead] != 0 || row_leaves_state(&self.trans[dead * nc..(dead + 1) * nc], dead) {
+                return Err(CompileError::invalid("dead state is not a non-accepting sink"));
             }
         }
         return Ok(())
@@ -516,7 +535,7 @@ mod tests;
 fn find_dead(trans: &[u16], accept: &[u8], nclasses: u32, num_states: u16) -> u16 {
     let nc = nclasses as usize;
     for state in 0..num_states as usize {
-        if accept[state] == 0 && (0..nc).all(|c| return trans[state * nc + c] as usize == state) {
+        if accept[state] == 0 && !row_leaves_state(&trans[state * nc..(state + 1) * nc], state) {
             return state as u16;
         }
     }

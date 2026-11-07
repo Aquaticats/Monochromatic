@@ -69,7 +69,8 @@ fn a_worktree_path_is_hashed_the_way_git_records_it() {
     remove(parent.as_path());
 }
 
-/// A text-conversion rule applies to the hash, as it does when Git stages the file.
+/// A text-conversion rule applies to the hash,
+/// as it does when Git stages the file.
 #[test]
 fn a_conversion_rule_applies_to_the_hash() {
     let parent: PathBuf = fixture("merge-changes-conversion");

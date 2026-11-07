@@ -1,12 +1,21 @@
 //! What:
 //!  In-process answers for the reference and configuration command lines the wrapper issues:
-//!  `config --list -z --show-scope`, `remote get-url <name>`, `rev-parse --verify --quiet <ref>^{commit}`,
+//!  `config --list -z --show-scope`,
+//! `remote get-url <name>`,
+//! `rev-parse --verify --quiet <ref>^{commit}`,
 //!  `for-each-ref --format=%(refname)%00%(objectname)%00%(symref)` and
 //!  `rev-parse --abbrev-ref --symbolic-full-name @{upstream}`.
 //! Why:
-//!  Each reads only the configuration files, `HEAD`, the loose and packed refs and at most a few objects;
-//!  every case where Git's output depends on more (a linked worktree, a conditional include, a rewritten URL, an
-//!  ambiguous short name, a broken ref) is `None`, which starts Git.
+//!  Each reads only the configuration files,
+//! `HEAD`,
+//! the loose and packed refs and at most a few objects;
+//!  every case where Git's output depends on more (a linked worktree,
+//! a conditional include,
+//! a rewritten URL,
+//! an
+//!  ambiguous short name,
+//! a broken ref) is `None`,
+//! which starts Git.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,7 +37,8 @@ const LISTING_FORMAT: &str = "--format=%(refname)%00%(objectname)%00%(symref)";
 /// How many tag levels are peeled.
 const PEEL_LIMIT: usize = 8;
 
-/// The refs of a context whose worktree owns the shared directory; `None` for a linked worktree.
+/// The refs of a context whose worktree owns the shared directory;
+/// `None` for a linked worktree.
 fn shared_refs(context: &Context) -> Option<Refs> {
     if context.layout.git_dir != context.layout.common_dir {
         return None;
@@ -36,12 +46,14 @@ fn shared_refs(context: &Context) -> Option<Refs> {
     return Some(Refs::new(context.layout.common_dir.as_path(), context.layout.object_format.hex_length()));
 }
 
-/// The listing, or `None`.
+/// The listing,
+/// or `None`.
 fn listing(context: &Context) -> Option<Vec<ListedEntry>> {
     return list_config(context.layout.common_dir.as_path(), context.layout.git_dir.as_path(), &context.scope, context.variables.as_slice());
 }
 
-/// Every value of `key` among the listed entries, in order.
+/// Every value of `key` among the listed entries,
+/// in order.
 fn values_of<'a>(listed: &'a [ListedEntry], key: &str) -> Vec<&'a Option<Vec<u8>>> {
     let mut values: Vec<&'a Option<Vec<u8>>> = Vec::new();
     for item in listed {
@@ -52,7 +64,8 @@ fn values_of<'a>(listed: &'a [ListedEntry], key: &str) -> Vec<&'a Option<Vec<u8>
     return values;
 }
 
-/// The last non-empty text value of the variable `name` among `variables`, or nothing.
+/// The last non-empty text value of the variable `name` among `variables`,
+/// or nothing.
 fn text_variable(variables: &[(OsString, OsString)], name: &str) -> Option<String> {
     for (candidate, value) in variables.iter().rev() {
         if candidate == name {
@@ -65,12 +78,18 @@ fn text_variable(variables: &[(OsString, OsString)], name: &str) -> Option<Strin
     return None;
 }
 
-/// Whether a locale name is one whose messages are English: `C`, `POSIX` or starting with `en`.
+/// Whether a locale name is one whose messages are English:
+/// `C`,
+/// `POSIX` or starting with `en`.
 fn is_english(value: &str) -> bool {
     return value == "C" || value == "POSIX" || value.starts_with("en");
 }
 
-/// Whether `byte` may appear in a remote name this reader takes: a letter, a digit, `-`, `_` or `.`.
+/// Whether `byte` may appear in a remote name this reader takes:
+/// a letter,
+/// a digit,
+/// `-`,
+/// `_` or `.`.
 fn is_remote_name_byte(byte: u8) -> bool {
     return byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.');
 }
@@ -80,13 +99,16 @@ fn is_newline(byte: &u8) -> bool {
     return *byte == b'\n';
 }
 
-/// Whether the symbolic ref target `name` is a plain, non-symbolic ref or does not exist yet;
-///  Git follows a chain of symbolic refs, so a target that is itself symbolic is left to it.
+/// Whether the symbolic ref target `name` is a plain,
+/// non-symbolic ref or does not exist yet;
+///  Git follows a chain of symbolic refs,
+/// so a target that is itself symbolic is left to it.
 fn is_terminal(refs: &Refs, name: &str) -> bool {
     return matches!(refs.lookup(name), Lookup::Missing | Lookup::Found(RefValue::Direct(_)));
 }
 
-/// Whether Git's messages are in English under these variables, which the synthesized failures assume.
+/// Whether Git's messages are in English under these variables,
+/// which the synthesized failures assume.
 fn messages_are_english(variables: &[(OsString, OsString)]) -> bool {
     let mut locale: Option<String> = text_variable(variables, "LC_ALL");
     if locale.is_none() {
@@ -170,7 +192,8 @@ pub(crate) fn remote_url(context: &Context, parsed: &Parsed<'_>) -> Option<Answe
     return Some(Answer { stdout, stderr: Vec::new(), code: 0 });
 }
 
-/// The commit a ref name peels to, through at most a few tags.
+/// The commit a ref name peels to,
+/// through at most a few tags.
 fn peel_to_commit(database: &ObjectDatabase, context: &Context, start: &str) -> Option<String> {
     let mut current: Vec<u8> = from_hex(start.as_bytes(), context.layout.object_format)?;
     for _ in 0..PEEL_LIMIT {
@@ -210,7 +233,8 @@ pub(crate) fn for_each_ref(context: &Context, parsed: &Parsed<'_>) -> Option<Ans
     return Some(Answer { stdout, stderr: Vec::new(), code: 0 });
 }
 
-/// Whether some ref spelled `prefix` + `short` exists, which would make the short name ambiguous.
+/// Whether some ref spelled `prefix` + `short` exists,
+/// which would make the short name ambiguous.
 fn shadowed(refs: &Refs, prefix: &str, short: &str) -> Option<bool> {
     let name: String = format!("{prefix}{short}");
     if !is_plain_ref_name(name.as_str()) {
@@ -247,7 +271,8 @@ pub(crate) fn tracking_ref(listed: &[ListedEntry], remote: &str, merge: &str) ->
     return None;
 }
 
-/// `rev-parse --abbrev-ref --symbolic-full-name @{upstream}` for a branch with a plain upstream, or none at all.
+/// `rev-parse --abbrev-ref --symbolic-full-name @{upstream}` for a branch with a plain upstream,
+/// or none at all.
 fn upstream(context: &Context) -> Option<Answer> {
     let refs: Refs = shared_refs(context)?;
     let head = match refs.lookup_head(context.layout.git_dir.as_path()) {
@@ -295,7 +320,9 @@ fn upstream(context: &Context) -> Option<Answer> {
     return Some(Answer { stdout: format!("{short}\n").into_bytes(), stderr: Vec::new(), code: 0 });
 }
 
-/// `symbolic-ref --quiet HEAD`: the branch `HEAD` names, or a silent failure for a detached `HEAD`.
+/// `symbolic-ref --quiet HEAD`:
+/// the branch `HEAD` names,
+/// or a silent failure for a detached `HEAD`.
 pub(crate) fn symbolic_ref(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     if !flags_are(&parsed.flags, &["--quiet"], &[]) || parsed.operands != [b"HEAD".as_slice()] || !parsed.specs.is_empty() {
         return None;

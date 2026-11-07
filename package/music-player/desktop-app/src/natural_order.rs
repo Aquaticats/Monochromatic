@@ -1,9 +1,20 @@
-//! Natural order for file and folder names: `Track 2` comes before `Track 10`.
+//! Natural order for file and folder names:
+//! `Track 2` comes before `Track 10`.
 //!
-//! What: `natural_cmp` compares two names so that a run of digits counts by its number, not by its characters, and
+//! What:
+//! `natural_cmp` compares two names so that a run of digits counts by its number,
+//! not by its characters,
+//! and
 //! letters compare without regard to case.
-//! Why: the folder walk sorted names by their bytes, so `Loose 1`, `Loose 10`, `Loose 11`, `Loose 2` played in that
-//! order. A person reads the number, so the walk now sorts by it (the polish review finding LS5).
+//! Why:
+//! the folder walk sorted names by their bytes,
+//! so `Loose 1`,
+//! `Loose 10`,
+//! `Loose 11`,
+//! `Loose 2` played in that
+//! order.
+//! A person reads the number,
+//! so the walk now sorts by it (the polish review finding LS5).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,7 +27,8 @@ use std::cmp::Ordering;
 ///      `fn digit_run(text: &str) -> (&str, &str)`.
 ///  Splits `text` into its leading run of ASCII digits and the rest.
 /// Why:
-///       Both sides of a comparison are cut at the same kind of boundary, so a run can be compared as a whole.
+///       Both sides of a comparison are cut at the same kind of boundary,
+/// so a run can be compared as a whole.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -29,9 +41,11 @@ fn digit_run(text: &str) -> (&str, &str) {
 
 /// What:
 ///      `fn compare_digit_runs(left: &str, right: &str) -> Ordering`.
-///  Orders two runs of ASCII digits by their numeric value, however long they are.
+///  Orders two runs of ASCII digits by their numeric value,
+/// however long they are.
 /// Why:
-///       Leading zeros are dropped and then a longer run is a bigger number, so a run of fifty digits needs no integer
+///       Leading zeros are dropped and then a longer run is a bigger number,
+/// so a run of fifty digits needs no integer
 ///  type and cannot overflow.
 ///
 /// In TS you'd write (pseudocode):
@@ -49,11 +63,19 @@ fn compare_digit_runs(left: &str, right: &str) -> Ordering {
 
 /// What:
 ///      `pub fn natural_cmp(left: &str, right: &str) -> Ordering`.
-///  Compares two names in natural order: digit runs by value, other characters by their lowercase form, and, when
-///  everything so far is equal, by the plain bytes of the names.
+///  Compares two names in natural order:
+/// digit runs by value,
+/// other characters by their lowercase form,
+/// and,
+/// when
+///  everything so far is equal,
+/// by the plain bytes of the names.
 /// Why:
-///       The final byte comparison makes the order total, so two different names never tie and a sort gives one answer
-///  on every run. `a2` and `a02` are equal by value, so the bytes decide (`a02` first).
+///       The final byte comparison makes the order total,
+/// so two different names never tie and a sort gives one answer
+///  on every run.
+/// `a2` and `a02` are equal by value,
+/// so the bytes decide (`a02` first).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

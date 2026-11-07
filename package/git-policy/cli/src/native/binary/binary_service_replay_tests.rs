@@ -1,12 +1,22 @@
 //! What:
-//!  Two wrapped commits of one file in one worktree, the second landing behind the first, through the real wrapper and the
+//!  Two wrapped commits of one file in one worktree,
+//! the second landing behind the first,
+//! through the real wrapper and the
 //!  real service.
 //! Why:
 //!  A commit that waits behind another commit of the same file must land the bytes it captured when the person ran it,
-//!  merged onto the branch the first commit left, never the bytes the file holds by the time the wait ends
-//!  (`doc/decision/cli-git-concurrent-commits.md`, "Serial landing"). The first commit is held at the index lock, which
-//!  the control owns; the second is paused at a named phase marker after it has captured the file, so the control can
-//!  write to the file at the one instant the wrong behaviour needs; both are then released. Nothing is a stand-in.
+//!  merged onto the branch the first commit left,
+//! never the bytes the file holds by the time the wait ends
+//!  (`doc/decision/cli-git-concurrent-commits.md`,
+//! "Serial landing").
+//! The first commit is held at the index lock,
+//! which
+//!  the control owns;
+//! the second is paused at a named phase marker after it has captured the file,
+//! so the control can
+//!  write to the file at the one instant the wrong behaviour needs;
+//! both are then released.
+//! Nothing is a stand-in.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,22 +35,27 @@ use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, Instant};
 
-/// The longest a control waits for anything, far beyond a healthy run.
+/// The longest a control waits for anything,
+/// far beyond a healthy run.
 const PATIENCE: Duration = Duration::from_secs(60);
 
 /// The file both commits name.
 const FILE: &str = "f.txt";
 
-/// A second file, which a commit that holds the service busy changes.
+/// A second file,
+/// which a commit that holds the service busy changes.
 const OTHER: &str = "g.txt";
 
 /// The number of lines the file has.
 const LINES: usize = 9;
 
-/// How many arrivals at the marker the control releases in advance, after the first it holds: the bound on landing attempts.
+/// How many arrivals at the marker the control releases in advance,
+/// after the first it holds:
+/// the bound on landing attempts.
 const LATER_ARRIVALS: usize = 4;
 
-/// A repository with one tracked file, a running service and a directory for the paused wrapper's markers.
+/// A repository with one tracked file,
+/// a running service and a directory for the paused wrapper's markers.
 struct Scene {
     fixture: Fixture,
     repo: PathBuf,
@@ -53,7 +68,8 @@ struct Scene {
 /// A wrapped commit that was started and is not over.
 struct Started {
     child: Child,
-    /// Everything the commit wrote to its standard error, once it has ended.
+    /// Everything the commit wrote to its standard error,
+    /// once it has ended.
     stderr: std::thread::JoinHandle<String>,
     /// Fires when the commit printed that it waits for the index.
     waiting: Receiver<()>,
@@ -65,7 +81,8 @@ struct Ended {
     stderr: String,
 }
 
-/// The file as committed first, and that text with the lines named replaced by text that says which edit wrote it.
+/// The file as committed first,
+/// and that text with the lines named replaced by text that says which edit wrote it.
 fn lines_with(edits: &[(usize, &str)]) -> String {
     let mut text: String = String::new();
     for number in 1..=LINES {
@@ -76,8 +93,10 @@ fn lines_with(edits: &[(usize, &str)]) -> String {
     return text;
 }
 
-/// A scene whose commits the service lands as built by native Git when `native` holds: a commit template in the configuration
-///  is something the service does not embed, so Git builds the commit in a scratch repository and the service lands it whole.
+/// A scene whose commits the service lands as built by native Git when `native` holds:
+/// a commit template in the configuration
+///  is something the service does not embed,
+/// so Git builds the commit in a scratch repository and the service lands it whole.
 fn scene(name: &str, native: bool) -> Scene {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
@@ -106,7 +125,8 @@ fn start(scene: &Scene, message: &str, paused: bool) -> Started {
     return start_on(scene, message, FILE, paused.then_some(scene.markers.as_path()));
 }
 
-/// Starts a wrapped commit of `path`, paused after it captured when `markers` names the directory of its markers.
+/// Starts a wrapped commit of `path`,
+/// paused after it captured when `markers` names the directory of its markers.
 fn start_on(scene: &Scene, message: &str, path: &str, markers: Option<&Path>) -> Started {
     let mut command: Command = wrapped_commit(&scene.fixture, &scene.repo, &["commit", "--quiet", "-m", message, "--", path]);
     command.env("XDG_RUNTIME_DIR", &scene.service.runtime).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
@@ -143,8 +163,11 @@ fn wait_for(what: &str, present: impl Fn() -> bool) {
     }
 }
 
-/// Runs the scenario: the first commit holds at the index lock with `first` in the file, the second captures `second`,
-///  `late` is written after the second captured, and then the lock is let go.
+/// Runs the scenario:
+/// the first commit holds at the index lock with `first` in the file,
+/// the second captures `second`,
+///  `late` is written after the second captured,
+/// and then the lock is let go.
 fn run(scene: &Scene, first: &[(usize, &str)], second: &[(usize, &str)], late: &[(usize, &str)]) -> (Ended, Ended) {
     let file: PathBuf = scene.repo.join(FILE);
     let lock: PathBuf = scene.repo.join(".git/index.lock");
@@ -174,7 +197,8 @@ fn show(scene: &Scene, revision: &str) -> String {
     return git_text(&scene.fixture, &scene.repo, &["show", revision]);
 }
 
-/// Edits of different regions both land, and what is written after the second command started is not in its commit.
+/// Edits of different regions both land,
+/// and what is written after the second command started is not in its commit.
 #[test]
 fn a_commit_that_waits_behind_another_lands_its_captured_lines_merged_onto_it() {
     let scene: Scene = scene("replay-merge", false);
@@ -193,8 +217,12 @@ fn a_commit_that_waits_behind_another_lands_its_captured_lines_merged_onto_it() 
     remove_settled(&scene.fixture);
 }
 
-/// A commit Git built for the service lands the lines it captured, merged onto the branch, and a write made after the second
-///  command started is not in it: the commit is built again from the captured tree, not from the worktree.
+/// A commit Git built for the service lands the lines it captured,
+/// merged onto the branch,
+/// and a write made after the second
+///  command started is not in it:
+/// the commit is built again from the captured tree,
+/// not from the worktree.
 #[test]
 fn a_commit_git_builds_that_waits_behind_another_lands_its_captured_lines_merged_onto_it() {
     let scene: Scene = scene("replay-native", true);
@@ -210,9 +238,15 @@ fn a_commit_git_builds_that_waits_behind_another_lands_its_captured_lines_merged
     remove_settled(&scene.fixture);
 }
 
-/// A second command that captured the file after the first one did, from the same worktree, holds the first command's edit in
-///  its bytes: when it rewrites inside that edit the two cannot be merged line by line, and the later capture's bytes land
-///  (`doc/decision/cli-git-concurrent-commits.md`, "Serial landing"), as two commits one after the other would record them.
+/// A second command that captured the file after the first one did,
+/// from the same worktree,
+/// holds the first command's edit in
+///  its bytes:
+/// when it rewrites inside that edit the two cannot be merged line by line,
+/// and the later capture's bytes land
+///  (`doc/decision/cli-git-concurrent-commits.md`,
+/// "Serial landing"),
+/// as two commits one after the other would record them.
 #[test]
 fn the_later_capture_of_one_worktree_lands_its_bytes_over_an_overlapping_earlier_one() {
     let scene: Scene = scene("replay-order", false);
@@ -228,8 +262,11 @@ fn the_later_capture_of_one_worktree_lands_its_bytes_over_an_overlapping_earlier
     remove_settled(&scene.fixture);
 }
 
-/// Edits of the same lines that no command of this worktree made cannot both land: the second fails with nothing changed, its
-///  message saved, and says what and why.
+/// Edits of the same lines that no command of this worktree made cannot both land:
+/// the second fails with nothing changed,
+/// its
+///  message saved,
+/// and says what and why.
 #[test]
 fn overlapping_edits_of_a_commit_made_elsewhere_fail_the_second_commit_with_nothing_changed_and_its_message_saved() {
     let scene: Scene = scene("replay-conflict", false);
@@ -271,7 +308,8 @@ fn overlapping_edits_of_a_commit_made_elsewhere_fail_the_second_commit_with_noth
 }
 
 /// A commit of a name that is not UTF-8 that another commit overtakes while it is prepared is prepared again and lands with the
-///  exact bytes of its name and its captured content, behind the commit that landed first.
+///  exact bytes of its name and its captured content,
+/// behind the commit that landed first.
 #[test]
 fn a_commit_of_a_name_that_is_not_utf8_is_prepared_again_and_lands_behind_another() {
     use std::os::unix::ffi::OsStringExt;
@@ -317,7 +355,8 @@ fn a_commit_of_a_name_that_is_not_utf8_is_prepared_again_and_lands_behind_anothe
     remove_settled(&scene.fixture);
 }
 
-/// Whether a process started with `marker` in its environment holds a socket, which a wrapper does only once it has connected
+/// Whether a process started with `marker` in its environment holds a socket,
+/// which a wrapper does only once it has connected
 ///  to the service and is sending its request.
 fn holds_socket(marker: &Path) -> bool {
     let needle: Vec<u8> = marker.to_string_lossy().as_bytes().to_vec();
@@ -337,9 +376,15 @@ fn queued_requests(scene: &Scene) -> usize {
     return std::fs::read_dir(&scene.queued).map_or(0, Iterator::count);
 }
 
-/// Three commits with the service held busy by the first: the other two reach it while it waits, so they land as one batch on
-///  one base. The earlier one is captured first and the later one after it, from one worktree, so the later one's bytes hold
-///  the earlier one's edit; `later_arrives_first` says which of the two reaches the service first.
+/// Three commits with the service held busy by the first:
+/// the other two reach it while it waits,
+/// so they land as one batch on
+///  one base.
+/// The earlier one is captured first and the later one after it,
+/// from one worktree,
+/// so the later one's bytes hold
+///  the earlier one's edit;
+/// `later_arrives_first` says which of the two reaches the service first.
 fn run_one_batch(scene: &Scene, later_arrives_first: bool) -> (Ended, Ended, Ended) {
     let file: PathBuf = scene.repo.join(FILE);
     let lock: PathBuf = scene.repo.join(".git/index.lock");
@@ -376,9 +421,14 @@ fn run_one_batch(scene: &Scene, later_arrives_first: bool) -> (Ended, Ended, End
     return (finish(holder), finish(earlier), finish(later));
 }
 
-/// The commit captured later reaches the service first and the one captured earlier second, in one batch: the later capture
-///  holds the earlier edit and more, so its edit must not be replaced by the earlier capture's bytes. The earlier one has
-///  nothing left to commit, as native Git says for a path whose bytes an earlier commit took.
+/// The commit captured later reaches the service first and the one captured earlier second,
+/// in one batch:
+/// the later capture
+///  holds the earlier edit and more,
+/// so its edit must not be replaced by the earlier capture's bytes.
+/// The earlier one has
+///  nothing left to commit,
+/// as native Git says for a path whose bytes an earlier commit took.
 #[test]
 fn an_earlier_capture_that_arrives_second_in_one_batch_does_not_replace_the_later_one() {
     let scene: Scene = scene("batch-inverted", false);
@@ -391,7 +441,11 @@ fn an_earlier_capture_that_arrives_second_in_one_batch_does_not_replace_the_late
     remove_settled(&scene.fixture);
 }
 
-/// The natural order, the earlier capture first, lands both commits in one batch, one after the other, as they were run.
+/// The natural order,
+/// the earlier capture first,
+/// lands both commits in one batch,
+/// one after the other,
+/// as they were run.
 #[test]
 fn captures_that_arrive_in_order_in_one_batch_both_land() {
     let scene: Scene = scene("batch-in-order", false);

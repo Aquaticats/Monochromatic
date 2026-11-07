@@ -39,7 +39,9 @@
 ///  The XXH3-64 hasher type;
 ///  its associated
 ///           `oneshot(input: &[u8]) -> u64` hashes a whole slice with the default seed 0.
-///           Run-time AVX2, SSE2, or NEON selection comes from the crate's `std` feature.
+///           Run-time AVX2,
+/// SSE2,
+/// or NEON selection comes from the crate's `std` feature.
 /// Why:
 ///       The one hash behind every fingerprint,
 ///  identical on x86_64 and aarch64 for the same

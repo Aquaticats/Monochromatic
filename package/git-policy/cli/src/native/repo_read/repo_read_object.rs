@@ -1,8 +1,12 @@
 //! What:
-//!  The shapes of a Git object read in process, object names as bytes and hexadecimal, and the zlib step.
+//!  The shapes of a Git object read in process,
+//! object names as bytes and hexadecimal,
+//! and the zlib step.
 //! Why:
-//!  Loose objects and pack entries are zlib streams; every reader of this family shares one inflate call
-//!  (a pure Rust decoder) and one definition of an object name, so a size or format mismatch is refused in one place.
+//!  Loose objects and pack entries are zlib streams;
+//! every reader of this family shares one inflate call
+//!  (a pure Rust decoder) and one definition of an object name,
+//! so a size or format mismatch is refused in one place.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,10 +18,18 @@ use crate::repo_read_layout::ObjectFormat;
 use miniz_oxide::inflate::TINFLStatus;
 use miniz_oxide::inflate::core::{DecompressorOxide, decompress, inflate_flags};
 
-/// The largest object this family inflates; anything bigger is left to Git.
-///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
-///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+/// The largest object this family inflates;
+/// anything bigger is left to Git.
+///  Exempt from a citation under `LQM` (class:
+/// reader fallback):
+/// a file,
+/// chain or count past this bound makes the reader
+///  decline and real Git answer,
+/// so a Git start is added and no result changes.
+/// Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
 pub const OBJECT_SIZE_LIMIT: usize = 256 << 20;
 
@@ -57,7 +69,8 @@ impl ObjectKind {
     }
 }
 
-/// One object with its kind and its content, without the header.
+/// One object with its kind and its content,
+/// without the header.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RawObject {
     /// What the object is.
@@ -98,7 +111,8 @@ fn is_digit_byte(byte: u8) -> bool {
     return byte.is_ascii_digit();
 }
 
-/// The value of one lower-case hexadecimal digit, or nothing for any other byte.
+/// The value of one lower-case hexadecimal digit,
+/// or nothing for any other byte.
 fn hex_digit_value(byte: u8) -> Option<u8> {
     return match byte {
         b'0'..=b'9' => Some(byte - b'0'),
@@ -107,21 +121,32 @@ fn hex_digit_value(byte: u8) -> Option<u8> {
     };
 }
 
-/// The most compressed bytes of one stream the inflater looks at; a longer stream is left to Git.
+/// The most compressed bytes of one stream the inflater looks at;
+/// a longer stream is left to Git.
 ///  A block that produces nothing still costs a table rebuild in the decoder (upstream issue 198 of the decoder crate),
-///  so the cost of a hostile stream grows with its length, not with its output; real commits, trees and small blobs
-///  are far below the bound, and Git inflates the rest.
+///  so the cost of a hostile stream grows with its length,
+/// not with its output;
+/// real commits,
+/// trees and small blobs
+///  are far below the bound,
+/// and Git inflates the rest.
 pub const INFLATE_INPUT_LIMIT: usize = 512 << 10;
 
-/// The smallest output buffer the inflater starts with, so an empty input still grows.
+/// The smallest output buffer the inflater starts with,
+/// so an empty input still grows.
 const FIRST_OUTPUT_BYTES: usize = 64;
 
 /// What:
-///  Inflate the zlib stream at the start of `input` into at most `limit` bytes, and report how many input bytes the stream
-///  used, its checksum included.
+///  Inflate the zlib stream at the start of `input` into at most `limit` bytes,
+/// and report how many input bytes the stream
+///  used,
+/// its checksum included.
 /// Why:
-///   Git refuses a loose object with bytes after its stream (`garbage at end of loose object`), so the loose reader needs
-///  the length, which the decoder's convenience functions do not return; a pack window runs past its stream on purpose.
+///   Git refuses a loose object with bytes after its stream (`garbage at end of loose object`),
+/// so the loose reader needs
+///  the length,
+/// which the decoder's convenience functions do not return;
+/// a pack window runs past its stream on purpose.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -156,10 +181,13 @@ pub fn inflate_zlib(whole_input: &[u8], limit: usize) -> Option<(Vec<u8>, usize)
 }
 
 /// What:
-///  Read a loose object file's bytes: the zlib stream of `<kind> <size>\0<content>`; the kind and content come back
+///  Read a loose object file's bytes:
+/// the zlib stream of `<kind> <size>\0<content>`;
+/// the kind and content come back
 ///  only when the header's size equals the content length.
 /// Why:
-///   A loose file that disagrees with its own header is corrupt, and Git words that failure itself.
+///   A loose file that disagrees with its own header is corrupt,
+/// and Git words that failure itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -188,9 +216,11 @@ pub fn parse_loose(file_bytes: &[u8]) -> Option<RawObject> {
 }
 
 /// What:
-///  Inflate a zlib stream whose result must be exactly `expected` bytes; trailing input is ignored.
+///  Inflate a zlib stream whose result must be exactly `expected` bytes;
+/// trailing input is ignored.
 /// Why:
-///   Pack entries do not record their compressed length, so the caller hands a window that may run past the stream.
+///   Pack entries do not record their compressed length,
+/// so the caller hands a window that may run past the stream.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

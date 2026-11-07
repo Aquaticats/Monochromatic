@@ -35,26 +35,30 @@ pub(super) enum ArtifactReadError {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct PublishError;
 
+/// Classifies one file-system read failure as an absent or an unreadable artifact.
+fn artifact_read_error(error: std::io::Error) -> ArtifactReadError {
+    if error.kind() == std::io::ErrorKind::NotFound {
+        return ArtifactReadError::Missing;
+    }
+    return ArtifactReadError::Unreadable;
+}
+
+/// Turns any lower-level failure into the redacted publication failure,
+///  so a `map_err` names this function instead of a closure.
+fn publish_failed<Cause>(_cause: Cause) -> PublishError {
+    return PublishError;
+}
+
 /// Reads complete artifact only after enforcing configured size ceiling.
 pub(super) fn read_artifact(
     path: &Path,
     maximum_bytes: u64,
 ) -> Result<Vec<u8>, ArtifactReadError> {
-    let metadata = fs::metadata(path).map_err(|error| {
-        if error.kind() == std::io::ErrorKind::NotFound {
-            return ArtifactReadError::Missing;
-        }
-        return ArtifactReadError::Unreadable;
-    })?;
+    let metadata = fs::metadata(path).map_err(artifact_read_error)?;
     if !metadata.is_file() || metadata.len() > maximum_bytes {
         return Err(ArtifactReadError::Unreadable);
     }
-    return fs::read(path).map_err(|error| {
-        if error.kind() == std::io::ErrorKind::NotFound {
-            return ArtifactReadError::Missing;
-        }
-        return ArtifactReadError::Unreadable;
-    })
+    return fs::read(path).map_err(artifact_read_error)
 }
 
 /// Applies owner-only mode to one application-owned directory on Unix.
@@ -63,7 +67,7 @@ fn make_directory_private(path: &Path) -> Result<(), PublishError> {
     /// Imports Unix mode construction for owner-only directory permission.
     use std::os::unix::fs::PermissionsExt;
     return fs::set_permissions(path, fs::Permissions::from_mode(0o700))
-        .map_err(|_| return PublishError)
+        .map_err(publish_failed)
 }
 
 /// Keeps platform-native directory ACL behavior on non-Unix systems.
@@ -78,7 +82,7 @@ fn make_file_private(path: &Path) -> Result<(), PublishError> {
     /// Imports Unix mode construction for owner-only artifact permission.
     use std::os::unix::fs::PermissionsExt;
     return fs::set_permissions(path, fs::Permissions::from_mode(0o600))
-        .map_err(|_| return PublishError)
+        .map_err(publish_failed)
 }
 
 /// Keeps platform-native file ACL behavior on non-Unix systems.
@@ -90,7 +94,7 @@ fn make_file_private(_path: &Path) -> Result<(), PublishError> {
 /// Creates every application-owned hierarchy level and enforces private mode.
 fn prepare_directories(location: &CacheLocation) -> Result<(), PublishError> {
     for directory in &location.protected_directories {
-        fs::create_dir_all(directory).map_err(|_| return PublishError)?;
+        fs::create_dir_all(directory).map_err(publish_failed)?;
         make_directory_private(directory)?;
     }
     return Ok(())
@@ -133,12 +137,12 @@ fn publish_from_temporary(
         .create_new(true)
         .write(true)
         .open(temporary)
-        .map_err(|_| return PublishError)?;
+        .map_err(publish_failed)?;
     make_file_private(temporary)?;
-    file.write_all(bytes).map_err(|_| return PublishError)?;
-    file.sync_all().map_err(|_| return PublishError)?;
+    file.write_all(bytes).map_err(publish_failed)?;
+    file.sync_all().map_err(publish_failed)?;
     drop(file);
-    fs::rename(temporary, artifact_path).map_err(|_| return PublishError)?;
+    fs::rename(temporary, artifact_path).map_err(publish_failed)?;
     sync_parent_best_effort(artifact_path);
     return Ok(())
 }

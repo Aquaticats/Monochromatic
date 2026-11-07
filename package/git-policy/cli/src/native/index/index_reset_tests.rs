@@ -1,5 +1,8 @@
-//! Controls for the reset of an index held in memory, including the monitor-on behaviour that no real-Git control can reach
-//! (the fixtures never turn fsmonitor on): those cases are worked out from `fsmonitor.c`, `read-cache.c` and `dir.c`.
+//! Controls for the reset of an index held in memory,
+//! including the monitor-on behaviour that no real-Git control can reach
+//! (the fixtures never turn fsmonitor on):
+//! those cases are worked out from `fsmonitor.c`,
+//! `read-cache.c` and `dir.c`.
 
 use super::*;
 use crate::index_cache_tree::CacheTree;
@@ -31,7 +34,10 @@ fn wanted(path: &str, id: u8) -> FlatEntry {
     return FlatEntry { path: path.as_bytes().to_vec(), mode: 0o100_644, id: vec![id; 20] };
 }
 
-/// An index of `entries` with a cache-tree, an untracked cache listing `d` and, when asked, an fsmonitor extension.
+/// An index of `entries` with a cache-tree,
+/// an untracked cache listing `d` and,
+/// when asked,
+/// an fsmonitor extension.
 fn index_of(entries: Vec<FullEntry>, monitored: bool) -> FullIndex {
     let directory = |name: &str| -> UntrackedDir {
         return UntrackedDir { name: name.as_bytes().to_vec(), recurse: true, valid: true, check_only: false, stat: StatData::default(), exclude_id: vec![0; 20], untracked: vec![b"u".to_vec()], dirs: Vec::new() };
@@ -55,7 +61,8 @@ fn index_of(entries: Vec<FullEntry>, monitored: bool) -> FullIndex {
     };
 }
 
-/// A new entry has zero stat data and is not valid for the monitor; an untouched entry keeps both.
+/// A new entry has zero stat data and is not valid for the monitor;
+/// an untouched entry keeps both.
 #[test]
 fn a_reset_entry_has_no_stat_data_and_the_others_keep_theirs() {
     let mut index: FullIndex = index_of(vec![held("a", 1, true), held("d/x", 2, true)], false);
@@ -66,7 +73,8 @@ fn a_reset_entry_has_no_stat_data_and_the_others_keep_theirs() {
     assert!(index.fsmonitor.is_none(), "without a monitor the extension is dropped");
 }
 
-/// A name that already equals the tree is not touched, and nothing above it is invalidated.
+/// A name that already equals the tree is not touched,
+/// and nothing above it is invalidated.
 #[test]
 fn an_equal_entry_changes_nothing() {
     let mut index: FullIndex = index_of(vec![held("a", 1, true)], false);
@@ -75,8 +83,13 @@ fn an_equal_entry_changes_nothing() {
     assert_eq!(index, before);
 }
 
-/// With the monitor on, the extension is kept, replaced and added entries are dirty, removed ones leave the bitmap, gitlinks
-/// are always dirty, and replacing an entry clears the untracked cache of its directory.
+/// With the monitor on,
+/// the extension is kept,
+/// replaced and added entries are dirty,
+/// removed ones leave the bitmap,
+/// gitlinks
+/// are always dirty,
+/// and replacing an entry clears the untracked cache of its directory.
 #[test]
 fn with_the_monitor_on_new_entries_are_dirty_and_replacing_clears_the_untracked_cache() {
     let mut link: FullEntry = held("g", 4, true);
@@ -91,7 +104,9 @@ fn with_the_monitor_on_new_entries_are_dirty_and_replacing_clears_the_untracked_
     assert_eq!(index.cache_tree.as_ref().map(|tree| { return tree.entry_count; }), Some(-1));
 }
 
-/// Without the monitor, replacing an entry leaves the untracked cache alone, while adding one clears it.
+/// Without the monitor,
+/// replacing an entry leaves the untracked cache alone,
+/// while adding one clears it.
 #[test]
 fn without_the_monitor_only_adding_and_removing_clear_the_untracked_cache() {
     let mut index: FullIndex = index_of(vec![held("d/x", 2, true)], false);
@@ -101,8 +116,14 @@ fn without_the_monitor_only_adding_and_removing_clear_the_untracked_cache() {
     assert!(!index.untracked.as_ref().and_then(|cache| { return cache.root.as_ref(); }).expect("kept").dirs[0].valid);
 }
 
-/// Forms the update leaves to Git return `None`: a monitor with no extension, an untracked cache Git would add, a bitmap
-/// longer than the entries, a file where the index has a directory, a name Git refuses, and a racily clean entry.
+/// Forms the update leaves to Git return `None`:
+/// a monitor with no extension,
+/// an untracked cache Git would add,
+/// a bitmap
+/// longer than the entries,
+/// a file where the index has a directory,
+/// a name Git refuses,
+/// and a racily clean entry.
 #[test]
 fn forms_that_depend_on_more_than_the_tree_and_the_index_are_declined() {
     let names: Vec<Vec<u8>> = vec![b"a".to_vec()];
@@ -126,7 +147,9 @@ fn forms_that_depend_on_more_than_the_tree_and_the_index_are_declined() {
     assert!(reset_paths(&mut racy, &names, &tree, PLAIN, 6).is_some(), "one second later it is not racy");
 }
 
-/// Executable bits are kept, other file modes become plain files, and a directory mode in a tree becomes a gitlink as
+/// Executable bits are kept,
+/// other file modes become plain files,
+/// and a directory mode in a tree becomes a gitlink as
 /// `create_ce_mode` makes it.
 #[test]
 fn modes_are_made_as_create_ce_mode_makes_them() {
@@ -138,8 +161,13 @@ fn modes_are_made_as_create_ce_mode_makes_them() {
     assert_eq!(index_mode(0o040_000), 0o160_000);
 }
 
-/// Names Git refuses under `core.protectNTFS` and `core.protectHFS`, and their aliases, are declined: the stream and
-/// trailing-character spellings of `.git` and of a link named `.gitmodules`, the short names, the backslash spellings and the
+/// Names Git refuses under `core.protectNTFS` and `core.protectHFS`,
+/// and their aliases,
+/// are declined:
+/// the stream and
+/// trailing-character spellings of `.git` and of a link named `.gitmodules`,
+/// the short names,
+/// the backslash spellings and the
 /// ignorable characters of a case-folding disk.
 #[test]
 fn names_that_git_refuses_under_the_protection_settings_are_declined() {
@@ -167,7 +195,9 @@ fn names_that_git_refuses_under_the_protection_settings_are_declined() {
     }
 }
 
-/// Names that look like those but are not, and ordinary names, are taken.
+/// Names that look like those but are not,
+/// and ordinary names,
+/// are taken.
 #[test]
 fn ordinary_names_are_taken() {
     for name in [".gitignore", ".gitattributes", ".github/workflows/ci.yml", "a.b", "name with space", "ünïcode/файл", ".gitmodules", "dir/.config", "gitmodules", "git-hooks/pre", "a:b"] {

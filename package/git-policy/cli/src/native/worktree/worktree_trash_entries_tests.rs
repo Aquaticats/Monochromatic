@@ -1,5 +1,9 @@
-//! The entries of a trash removed side by side: the removals overlap, the reasons come in entry order, an entry that stays does
-//!  not stop the others, and the host budget bounds the overlap.
+//! The entries of a trash removed side by side:
+//! the removals overlap,
+//! the reasons come in entry order,
+//! an entry that stays does
+//!  not stop the others,
+//! and the host budget bounds the overlap.
 
 use super::*;
 use crate::worktree_trash_remove::remove_tree_beneath;
@@ -15,7 +19,8 @@ const ENTRIES: usize = 4;
 /// A host large enough that neither the CPUs nor the memory bound a removal of `ENTRIES` entries.
 const LARGE_HOST: HostResources = HostResources { parallelism: ENTRIES * 8, memory_available: None };
 
-/// A trash directory `dir` holding `ENTRIES` entries with a file each, and the manifest that records them.
+/// A trash directory `dir` holding `ENTRIES` entries with a file each,
+/// and the manifest that records them.
 fn trash_with_entries(name: &str) -> (PathBuf, File, TrashManifest) {
     let root: PathBuf = fixture(name);
     let trash_path: PathBuf = root.join("trash");
@@ -34,7 +39,8 @@ fn remove_with(held: &File, root: &Path, manifest: &TrashManifest, host: &HostRe
     return remove_entries(&EntryRemoval { inside: root.join("trash").as_path(), trash: held, manifest, host, remove });
 }
 
-/// The removals of all the entries start before any has finished: a point that needs all of them at once is passed only by
+/// The removals of all the entries start before any has finished:
+/// a point that needs all of them at once is passed only by
 ///  parallel work.
 #[test]
 fn the_entries_are_removed_side_by_side() {
@@ -55,7 +61,9 @@ fn the_entries_are_removed_side_by_side() {
     remove(root.as_path());
 }
 
-/// Entries that stay give their reasons in entry order, whichever finishes first, and the others are removed.
+/// Entries that stay give their reasons in entry order,
+/// whichever finishes first,
+/// and the others are removed.
 #[test]
 fn the_reasons_of_entries_that_stay_come_in_entry_order_and_the_others_go() {
     let (root, held, manifest) = trash_with_entries("trash-entries-reasons");

@@ -202,7 +202,8 @@ pub fn render_engine_failure(sequence: u64, code: EngineFailureCode, message: &s
 /// Why:
 ///   A hint is a guess about the goal that depends on the code alone.
 ///  A message that already says what the person can do (a retained transaction names the file to remove or restore,
-///  and what the wrapper then does) must not carry the code's generic hint, which may not apply to it.
+///  and what the wrapper then does) must not carry the code's generic hint,
+/// which may not apply to it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

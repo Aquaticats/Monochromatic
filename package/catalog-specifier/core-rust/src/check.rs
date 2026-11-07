@@ -1,7 +1,11 @@
 //! What:
-//! The checks: from a manifest path and its bytes to a list of findings, following the README contract step by step.
+//! The checks:
+//! from a manifest path and its bytes to a list of findings,
+//! following the README contract step by step.
 //! Why:
-//! Every consumer must read a manifest the same way, so the byte handling, the duplicate detection and the section walk
+//! Every consumer must read a manifest the same way,
+//! so the byte handling,
+//! the duplicate detection and the section walk
 //! live here once and nothing else in the repository re-implements them.
 //!
 //! In TS you'd write (pseudocode):
@@ -13,9 +17,11 @@
 //! ```
 
 /// What:
-/// `use std::collections::HashSet;` imports a set type: a collection of unique values with fast membership tests.
+/// `use std::collections::HashSet;` imports a set type:
+/// a collection of unique values with fast membership tests.
 /// Why:
-/// Duplicate detection needs "have I seen this name already" in constant time, so a long dependency list stays linear.
+/// Duplicate detection needs "have I seen this name already" in constant time,
+/// so a long dependency list stays linear.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -25,10 +31,12 @@ use std::collections::HashSet;
 
 /// What:
 /// Imports the parser and the tree types from the repository's JSONC crate.
-/// `parse_jsonc` turns text into a tree whose object members stay in a vector, so duplicate keys stay visible.
+/// `parse_jsonc` turns text into a tree whose object members stay in a vector,
+/// so duplicate keys stay visible.
 /// `units_to_string` converts UTF-16 code units to a Rust `String` and fails on a lone surrogate.
 /// Why:
-/// A map-based JSON parser would silently keep only the last duplicate, which the contract forbids.
+/// A map-based JSON parser would silently keep only the last duplicate,
+/// which the contract forbids.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -42,9 +50,14 @@ use crate::finding::{Finding, FindingKind};
 use crate::grammar::{SectionKind, is_allowed_specifier};
 
 /// What:
-/// `const CHECKED_SECTIONS: [(&str, SectionKind); 4]` is a fixed-size array (length 4, known at compile time) of pairs.
-/// `(&str, SectionKind)` is a tuple: two values side by side. The sibling collection `Vec<T>` can grow, and `&[T]` is a
-/// borrowed view of either; a fixed array is used because the four section names never change.
+/// `const CHECKED_SECTIONS: [(&str, SectionKind); 4]` is a fixed-size array (length 4,
+/// known at compile time) of pairs.
+/// `(&str, SectionKind)` is a tuple:
+/// two values side by side.
+/// The sibling collection `Vec<T>` can grow,
+/// and `&[T]` is a
+/// borrowed view of either;
+/// a fixed array is used because the four section names never change.
 /// Why:
 /// One table drives both "is this root member a checked section" and "which grammar applies".
 ///
@@ -63,10 +76,16 @@ const CHECKED_SECTIONS: [(&str, SectionKind); 4] = [
 const UNSUPPORTED_FILE_NAMES: [&str; 3] = ["package.json5", "package.yaml", "package.yml"];
 
 /// What:
-/// `const BYTE_ORDER_MARK: [u8; 3]` is a fixed array of three `u8` (unsigned 8-bit integers, 0 to 255; the siblings are
-/// `i8`, `u16`, `u32`). `0xEF` is a number written in base 16.
+/// `const BYTE_ORDER_MARK: [u8; 3]` is a fixed array of three `u8` (unsigned 8-bit integers,
+/// 0 to 255;
+/// the siblings are
+/// `i8`,
+/// `u16`,
+/// `u32`).
+/// `0xEF` is a number written in base 16.
 /// Why:
-/// `u8` because file contents are bytes. These three bytes are the UTF-8 encoding of the optional marker at a file's start.
+/// `u8` because file contents are bytes.
+/// These three bytes are the UTF-8 encoding of the optional marker at a file's start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -76,9 +95,11 @@ const BYTE_ORDER_MARK: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
 /// What:
 /// `fn bare_finding(kind: FindingKind, path: &str) -> Finding` builds a finding with every optional field empty.
-/// `path: &str` borrows the caller's text; the function copies it into the owned `String` the finding holds.
+/// `path: &str` borrows the caller's text;
+/// the function copies it into the owned `String` the finding holds.
 /// Why:
-/// Callers then fill only the fields their kind uses, so no call site repeats five `None`s.
+/// Callers then fill only the fields their kind uses,
+/// so no call site repeats five `None`s.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -104,12 +125,18 @@ fn bare_finding(kind: FindingKind, path: &str) -> Finding {
 }
 
 /// What:
-/// `fn key_text(key: &JsoncKey) -> String` turns an object key into text. `&JsoncKey` borrows the key read-only.
-/// `String::from_utf16_lossy` converts UTF-16 code units to a `String`, replacing any lone surrogate with the
+/// `fn key_text(key: &JsoncKey) -> String` turns an object key into text.
+/// `&JsoncKey` borrows the key read-only.
+/// `String::from_utf16_lossy` converts UTF-16 code units to a `String`,
+/// replacing any lone surrogate with the
 /// replacement character instead of failing.
 /// Why:
-/// A manifest key may hold an escaped unpaired surrogate that a Rust `String` cannot express. Names are only shown and
-/// compared, so the lossy form is enough; two different lone surrogates would compare equal, which only over-reports a duplicate.
+/// A manifest key may hold an escaped unpaired surrogate that a Rust `String` cannot express.
+/// Names are only shown and
+/// compared,
+/// so the lossy form is enough;
+/// two different lone surrogates would compare equal,
+/// which only over-reports a duplicate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -155,8 +182,10 @@ fn section_kind_of(name: &str) -> Option<SectionKind> {
 
 /// What:
 /// `fn check_specifier(...)` checks one dependency value and appends at most one finding.
-/// `findings: &mut Vec<Finding>` borrows the caller's growable list for writing (`&mut`), so pushes are visible to the caller.
-/// `Vec<T>` is the growable array; the siblings are `&[T]` (a borrowed view) and `[T; N]` (fixed length).
+/// `findings: &mut Vec<Finding>` borrows the caller's growable list for writing (`&mut`),
+/// so pushes are visible to the caller.
+/// `Vec<T>` is the growable array;
+/// the siblings are `&[T]` (a borrowed view) and `[T; N]` (fixed length).
 /// Why:
 /// `&mut Vec` and not a returned `Vec` so the section walk can keep one list in source order without merging.
 ///
@@ -237,9 +266,12 @@ fn check_specifier(
 }
 
 /// What:
-/// `fn check_section(...)` checks one checked section's value: it must be an object, and each member is walked in order.
+/// `fn check_section(...)` checks one checked section's value:
+/// it must be an object,
+/// and each member is walked in order.
 /// Why:
-/// The section-level rules (malformed value, duplicate names) and the per-entry rule meet here.
+/// The section-level rules (malformed value,
+/// duplicate names) and the per-entry rule meet here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -287,10 +319,15 @@ fn check_section(path: &str, section: &str, kind: SectionKind, value: &JsoncValu
 
 /// What:
 /// `pub fn check_manifest_path(path: &str) -> Option<Finding>` tests only the file name.
-/// Returns `Some(finding)` for `package.json5`, `package.yaml` and `package.yml`, and `None` for every other name.
+/// Returns `Some(finding)` for `package.json5`,
+/// `package.yaml` and `package.yml`,
+/// and `None` for every other name.
 /// Why:
-/// pnpm reads those formats and this crate has no parser for them, so the name alone is refused. The comparison is case
-/// sensitive on the last path segment, so `my-package.yaml` and `package.yaml.bak` pass.
+/// pnpm reads those formats and this crate has no parser for them,
+/// so the name alone is refused.
+/// The comparison is case
+/// sensitive on the last path segment,
+/// so `my-package.yaml` and `package.yaml.bak` pass.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -323,9 +360,13 @@ pub fn check_manifest_path(path: &str) -> Option<Finding> {
 
 /// What:
 /// `pub fn check_manifest_bytes(path: &str, bytes: &[u8]) -> Vec<Finding>` checks a `package.json`'s contents.
-/// `&[u8]` is a borrowed view of bytes (the siblings are `Vec<u8>`, which owns them, and `[u8; N]`, fixed length).
+/// `&[u8]` is a borrowed view of bytes (the siblings are `Vec<u8>`,
+/// which owns them,
+/// and `[u8; N]`,
+/// fixed length).
 /// Why:
-/// `&[u8]` and not `&str` because the contract starts from raw file bytes: invalid UTF-8 is itself a finding.
+/// `&[u8]` and not `&str` because the contract starts from raw file bytes:
+/// invalid UTF-8 is itself a finding.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -407,9 +448,11 @@ pub fn check_manifest_bytes(path: &str, bytes: &[u8]) -> Vec<Finding> {
 
 /// What:
 /// `pub fn check_manifest(path: &str, bytes: &[u8]) -> Vec<Finding>` is the single entry most callers use:
-/// refuse an unsupported file name without reading the bytes, otherwise check the bytes.
+/// refuse an unsupported file name without reading the bytes,
+/// otherwise check the bytes.
 /// Why:
-/// The contract says unsupported names are never read, so one function makes that order impossible to get wrong.
+/// The contract says unsupported names are never read,
+/// so one function makes that order impossible to get wrong.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

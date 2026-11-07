@@ -41,8 +41,11 @@ fn now_has_the_shape() {
     assert!(now.as_str() > "2026-10-06T00:00:00.000Z");
 }
 
-/// The owner's ruling of 2026-11-07 ("Time stamps: jiff") replaces the hand-written calendar with the published crate, so neither
-///  file that held calendar arithmetic holds its constants: the days of an era (146,097) and the shift to the epoch (719,468).
+/// The owner's ruling of 2026-11-07 ("Time stamps:
+/// jiff") replaces the hand-written calendar with the published crate,
+/// so neither
+///  file that held calendar arithmetic holds its constants:
+/// the days of an era (146,097) and the shift to the epoch (719,468).
 #[test]
 fn no_file_holds_hand_written_calendar_arithmetic() {
     let sources: [(&str, &str); 2] = [
@@ -57,7 +60,12 @@ fn no_file_holds_hand_written_calendar_arithmetic() {
     }
 }
 
-/// Known instants, formatted: the epoch, a leap day, the end of a year, and a time before 1970.
+/// Known instants,
+/// formatted:
+/// the epoch,
+/// a leap day,
+/// the end of a year,
+/// and a time before 1970.
 #[test]
 fn known_instants_format_as_the_wrapper_always_wrote_them() {
     assert_eq!(format_iso_milliseconds(0), "1970-01-01T00:00:00.000Z");
@@ -76,8 +84,10 @@ fn locked_version<'a>(lock: &'a str, name: &str) -> Option<&'a str> {
     return lock[start..].split('"').next();
 }
 
-/// The owner approved the publisher change behind the newer `jiff` releases (2026-11-07: "I'm approving the publisher change for
-///  jiff."), so the lock no longer holds `jiff` at the 0.2.24 it was kept at while the trust policy refused `defmt-parser` 1.1.0.
+/// The owner approved the publisher change behind the newer `jiff` releases (2026-11-07:
+/// "I'm approving the publisher change for
+///  jiff."),
+/// so the lock no longer holds `jiff` at the 0.2.24 it was kept at while the trust policy refused `defmt-parser` 1.1.0.
 #[test]
 fn the_lock_no_longer_holds_jiff_at_the_release_kept_while_the_trust_policy_refused_the_newer_ones() {
     let lock: &str = include_str!("../../../Cargo.lock");

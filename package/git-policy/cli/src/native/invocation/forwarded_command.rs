@@ -422,7 +422,8 @@ pub fn resolve_forwarded_command(context: &GitContext, arguments: &[OsString]) -
 ///   `createsWorktrees`:
 ///  `git worktree add`,
 ///  decided by the first positional token after `worktree`.
-///  A `git worktree move` registers nothing new, so the ignored-state copy has nothing to do for it and it is forwarded
+///  A `git worktree move` registers nothing new,
+/// so the ignored-state copy has nothing to do for it and it is forwarded
 ///  like any other command.
 ///
 /// In TS you'd write (pseudocode):

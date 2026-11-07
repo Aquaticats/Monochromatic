@@ -1,7 +1,12 @@
 //! What:
-//!  Which saved-copy directories a pass removes, and why: the ones past the age limit, then the oldest until the folder fits its size.
+//!  Which saved-copy directories a pass removes,
+//! and why:
+//! the ones past the age limit,
+//! then the oldest until the folder fits its size.
 //! Why:
-//!  The choice is a pure function of the listing, the clock and the limits, so it lives in a file of its own that `discarded_prune.rs` imports and that imports nothing from it.
+//!  The choice is a pure function of the listing,
+//! the clock and the limits,
+//! so it lives in a file of its own that `discarded_prune.rs` imports and that imports nothing from it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,12 +35,14 @@ impl Reason {
     }
 }
 
-/// Milliseconds from the end of the named second of a directory to now, in a width no clock or limit can overflow.
+/// Milliseconds from the end of the named second of a directory to now,
+/// in a width no clock or limit can overflow.
 fn age_of(entry: &Stamped, now_millis: i64) -> i128 {
     return i128::from(now_millis) - (i128::from(entry.millis) + i128::from(STAMP_RESOLUTION_MILLISECONDS));
 }
 
-/// Whether the plan may remove the directory: it is past the young floor and is not the one just written.
+/// Whether the plan may remove the directory:
+/// it is past the young floor and is not the one just written.
 fn is_reachable(entry: &Stamped, now_millis: i64, keep: Option<&str>) -> bool {
     return age_of(entry, now_millis) >= i128::from(YOUNG_FLOOR_MILLISECONDS) && keep != Some(entry.name.as_str());
 }
@@ -51,10 +58,21 @@ fn is_doomed(doomed: &[(usize, Reason)], index: usize) -> bool {
 }
 
 /// What:
-///  Which directories to remove, as indexes into `entries` with the reason, from the time, the limits and the name to keep.
+///  Which directories to remove,
+/// as indexes into `entries` with the reason,
+/// from the time,
+/// the limits and the name to keep.
 /// Why:
-///   Pure, so the rule is tested without a disk: first every copy past the age limit; then, while the rest is over the
-///  size limit, the oldest of those that remain. A directory younger than a day, and the one named `keep`, is never chosen.
+///   Pure,
+/// so the rule is tested without a disk:
+/// first every copy past the age limit;
+/// then,
+/// while the rest is over the
+///  size limit,
+/// the oldest of those that remain.
+/// A directory younger than a day,
+/// and the one named `keep`,
+/// is never chosen.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

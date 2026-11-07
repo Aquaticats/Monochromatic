@@ -19,7 +19,9 @@
 //! `write`,
 //! `signal`,
 //! `raise`),
-//! and the write never waits for room: a standard error that is a full pipe or stream loses the line, because a service
+//! and the write never waits for room:
+//! a standard error that is a full pipe or stream loses the line,
+//! because a service
 //!  that cannot end for want of room to say so is worse than a missing line.
 //!
 //! In TS you'd write (pseudocode):
@@ -58,17 +60,22 @@ const LINE_CAPACITY: usize = 256;
 /// zero before that.
 static STARTED_NANOS: AtomicU64 = AtomicU64::new(0);
 
-/// The native journal socket's descriptor, or -1 when the service's entries go to standard error.
+/// The native journal socket's descriptor,
+/// or -1 when the service's entries go to standard error.
 static NATIVE_DESCRIPTOR: AtomicI32 = AtomicI32::new(-1);
 
-/// The journal socket's address, made before any signal so the handler only reads it.
+/// The journal socket's address,
+/// made before any signal so the handler only reads it.
 static NATIVE_ADDRESS: OnceLock<(libc::sockaddr_un, libc::socklen_t)> = OnceLock::new();
 
-/// Whether standard error is the journal's stream, decided before any signal: the fallback line then carries the priority
+/// Whether standard error is the journal's stream,
+/// decided before any signal:
+/// the fallback line then carries the priority
 /// prefix.
 static ON_STREAM: AtomicBool = AtomicBool::new(false);
 
-/// The words before the message in a native entry: the priority and the identifier.
+/// The words before the message in a native entry:
+/// the priority and the identifier.
 const NATIVE_HEAD: &str = "SYSLOG_IDENTIFIER=";
 
 /// The field that carries the time of the event beside the message.
@@ -164,11 +171,17 @@ pub fn signal_line(signal: libc::c_int, uptime_nanos: u64, at_ms: u64, on_stream
 }
 
 /// What:
-///  The native journal entry the handler sends for `signal`, and its length: the priority, the identifier, the message
+///  The native journal entry the handler sends for `signal`,
+/// and its length:
+/// the priority,
+/// the identifier,
+/// the message
 ///  (the line without its prefix and newline) and the time of the event as a field.
 /// Why:
-///   The kernel stamps a datagram when it is sent, so the exit of a service that is stopped is dated by the stop and not by
-///  the moment the journal gets round to reading standard error. Built in a fixed buffer like `signal_line`.
+///   The kernel stamps a datagram when it is sent,
+/// so the exit of a service that is stopped is dated by the stop and not by
+///  the moment the journal gets round to reading standard error.
+/// Built in a fixed buffer like `signal_line`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

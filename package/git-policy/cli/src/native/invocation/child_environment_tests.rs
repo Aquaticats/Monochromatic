@@ -244,7 +244,9 @@ fn native_git_reads_the_overlay_and_explicit_configuration_wins() {
     }
 }
 
-/// Every caller variable survives, in order, ahead of the overlay's entries.
+/// Every caller variable survives,
+/// in order,
+/// ahead of the overlay's entries.
 #[test]
 fn an_overlaid_environment_keeps_the_callers_variables_and_appends_the_overlay() {
     let caller = environment(&[("HOME", "/home/user"), ("PATH", "/usr/bin"), ("SSH_AUTH_SOCK", "/run/agent")]);
@@ -260,7 +262,8 @@ fn an_overlaid_environment_keeps_the_callers_variables_and_appends_the_overlay()
     );
 }
 
-/// A name the overlay sets keeps only the overlay's value, wherever the caller had it.
+/// A name the overlay sets keeps only the overlay's value,
+/// wherever the caller had it.
 #[test]
 fn an_overlaid_environment_replaces_a_name_the_overlay_sets() {
     let caller = environment(&[("GIT_CONFIG_COUNT", "1"), ("HOME", "/home/user"), ("GIT_CONFIG_COUNT", "7")]);
@@ -275,7 +278,9 @@ fn an_overlaid_environment_replaces_a_name_the_overlay_sets() {
     );
 }
 
-/// Without an overlay the caller's environment is returned unchanged; without a caller environment, the overlay alone.
+/// Without an overlay the caller's environment is returned unchanged;
+/// without a caller environment,
+/// the overlay alone.
 #[test]
 fn an_overlaid_environment_with_an_empty_side_is_the_other_side() {
     let caller = environment(&[("HOME", "/home/user")]);
@@ -283,7 +288,8 @@ fn an_overlaid_environment_with_an_empty_side_is_the_other_side() {
     assert_eq!(environment_with_overlay(&[], caller.as_slice()), caller);
 }
 
-/// The pair that ends a login prompt at once: an empty askpass program and no terminal prompt.
+/// The pair that ends a login prompt at once:
+/// an empty askpass program and no terminal prompt.
 #[test]
 fn never_prompt_overlay_sets_an_empty_askpass_and_no_terminal_prompt() {
     assert_eq!(
@@ -304,7 +310,8 @@ fn the_service_overlay_is_the_lockfile_overlay_then_the_never_prompt_pair() {
     assert_eq!(service_child_overlay(inherited.as_slice()), expected);
 }
 
-/// A command the person typed keeps Git's own prompting: the overlay of forwarded commands holds neither variable.
+/// A command the person typed keeps Git's own prompting:
+/// the overlay of forwarded commands holds neither variable.
 #[test]
 fn the_overlay_of_a_forwarded_command_leaves_prompting_alone() {
     let overlay = child_environment_overlay(environment(&[]).as_slice(), Path::new("/usr/bin/git"));
@@ -314,8 +321,10 @@ fn the_overlay_of_a_forwarded_command_leaves_prompting_alone() {
     }
 }
 
-/// The host's askpass settings do not survive the service overlay: an inherited `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` are
-///  replaced, and `SSH_ASKPASS` stays for OpenSSH.
+/// The host's askpass settings do not survive the service overlay:
+/// an inherited `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT` are
+///  replaced,
+/// and `SSH_ASKPASS` stays for OpenSSH.
 #[test]
 fn the_service_overlay_replaces_inherited_prompt_settings_and_keeps_ssh_askpass() {
     let inherited = environment(&[("GIT_ASKPASS", "/usr/bin/other"), ("GIT_TERMINAL_PROMPT", "1"), ("SSH_ASKPASS", "/usr/bin/ksshaskpass")]);

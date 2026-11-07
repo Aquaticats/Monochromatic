@@ -24,7 +24,8 @@
 /// import { ConfigError } from './config-error.ts';
 /// ```
 use crate::config_error::ConfigError;
-/// The options of `markdown/autofix`, validated in a file of their own.
+/// The options of `markdown/autofix`,
+/// validated in a file of their own.
 use crate::config_policies_markdown::markdown_autofix_options;
 /// The check of a `rulesFile` value and the words of each refusal.
 use crate::config_rules_file::{check_rules_file, rules_file_refusal_reason};
@@ -191,7 +192,8 @@ fn rules_file_entry(value: &JsoncValue, path: &str) -> Result<RulesFileEntry, Co
 
 /// What:
 ///  Read the `rulesFile` option:
-///  one path string (the form before lists existed, one required file)
+///  one path string (the form before lists existed,
+/// one required file)
 ///       or a non-empty array of path strings and `{"path", "optional"}` objects.
 /// Why:
 ///   Several files let a committed shared file and a gitignored local file feed one rule set,

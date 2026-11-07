@@ -1,5 +1,9 @@
-//! Controls for the Git LFS upload decision: which configurations count as LFS, the switch-off reading, the skip
-//! variable, the `PATH` lookup and the explanation texts.
+//! Controls for the Git LFS upload decision:
+//! which configurations count as LFS,
+//! the switch-off reading,
+//! the skip
+//! variable,
+//! the `PATH` lookup and the explanation texts.
 
 use super::*;
 use crate::test_support::{executable, fixture, remove};
@@ -30,7 +34,8 @@ fn lfs_keys_of_the_repository_mark_it_as_using_lfs() {
     assert!(uses_lfs(&snapshot(&[("system", "core.autocrlf", "false"), ("local", "lfs.url", "x")])));
 }
 
-/// `git lfs install` in an account writes the filter to the global file, which says nothing about one repository.
+/// `git lfs install` in an account writes the filter to the global file,
+/// which says nothing about one repository.
 #[test]
 fn lfs_keys_of_the_machine_or_account_do_not_mark_a_repository_as_using_lfs() {
     assert!(!uses_lfs(&snapshot(&[("global", "filter.lfs.process", "git-lfs filter-process")])));
@@ -42,7 +47,9 @@ fn lfs_keys_of_the_machine_or_account_do_not_mark_a_repository_as_using_lfs() {
     ])));
 }
 
-/// Other keys, near misses in the section or subsection name, and an empty configuration are not LFS.
+/// Other keys,
+/// near misses in the section or subsection name,
+/// and an empty configuration are not LFS.
 #[test]
 fn other_configuration_does_not_mark_the_repository_as_using_lfs() {
     assert!(!uses_lfs(&snapshot(&[])));
@@ -53,7 +60,8 @@ fn other_configuration_does_not_mark_the_repository_as_using_lfs() {
     assert!(!uses_lfs(&snapshot(&[("local", "filter.other.clean", "x")])));
 }
 
-/// The last `-c` that sets the hook's `enabled` decides, in the spellings Git reads as false.
+/// The last `-c` that sets the hook's `enabled` decides,
+/// in the spellings Git reads as false.
 #[test]
 fn the_callers_switch_off_is_read_from_the_last_setting() {
     let prefix = |words: &[&str]| -> Vec<OsString> { return words.iter().map(OsString::from).collect() };
@@ -80,7 +88,8 @@ fn the_callers_switch_off_is_read_from_the_last_setting() {
     assert!(!hook_switched_off(&[], &[]));
 }
 
-/// The lookup finds an executable file in any `PATH` directory and refuses a directory, a plain file and nothing.
+/// The lookup finds an executable file in any `PATH` directory and refuses a directory,
+/// a plain file and nothing.
 #[test]
 fn the_lookup_finds_only_an_executable_file_in_a_path_directory() {
     let root: PathBuf = fixture("lfs-path-lookup");
@@ -136,7 +145,8 @@ fn the_failure_message_says_nothing_was_published_and_names_every_way_forward() 
     }
 }
 
-/// `GIT_LFS_SKIP_PUSH` set to a true value asks to skip the upload; absent or false values do not.
+/// `GIT_LFS_SKIP_PUSH` set to a true value asks to skip the upload;
+/// absent or false values do not.
 #[test]
 fn the_skip_variable_is_read_as_a_boolean() {
     let with = |value: &str| -> Vec<(OsString, OsString)> {
@@ -151,7 +161,8 @@ fn the_skip_variable_is_read_as_a_boolean() {
     assert!(!skip_requested(&[]));
 }
 
-/// A relative `PATH` entry is resolved where the lookup happens, so the file found is the file that runs even when the
+/// A relative `PATH` entry is resolved where the lookup happens,
+/// so the file found is the file that runs even when the
 ///  child starts in another directory (`-C`).
 #[test]
 fn a_relative_path_entry_is_found_as_an_absolute_file() {

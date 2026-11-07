@@ -1,6 +1,13 @@
-//! What: Render the native planner's results as the canonical texts the incumbent's driver
-//!       writes: failures by class, plans with their exact manifest bytes, and findings.
-//! Why: Equal texts mean equal plans, findings, patched bytes and failure kinds.
+//! What:
+//! Render the native planner's results as the canonical texts the incumbent's driver
+//!       writes:
+//! failures by class,
+//! plans with their exact manifest bytes,
+//! and findings.
+//! Why:
+//! Equal texts mean equal plans,
+//! findings,
+//! patched bytes and failure kinds.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,7 +25,10 @@ use crate::dependent_version_policy::DependentFinding;
 /// The incumbent's message for an unsupported version.
 use crate::dependent_version_release::unsupported_message;
 
-/// The canonical failure: its class and, for shape problems, the incumbent's message.
+/// The canonical failure:
+/// its class and,
+/// for shape problems,
+/// the incumbent's message.
 pub fn failed(error: &PlanError) -> String {
     let (class, detail): (&str, String) = match error {
         PlanError::ContentUnavailable(_) => ("unavailable", String::new()),

@@ -1,5 +1,11 @@
-//! Controls for the descriptor-relative emptying of a directory: a plain tree, directories the owner cannot use, links that
-//!  stay unfollowed, and, on btrfs, a nested subvolume that stops the walk before anything is deleted.
+//! Controls for the descriptor-relative emptying of a directory:
+//! a plain tree,
+//! directories the owner cannot use,
+//! links that
+//!  stay unfollowed,
+//! and,
+//! on btrfs,
+//! a nested subvolume that stops the walk before anything is deleted.
 
 use super::*;
 use crate::fs_beneath::open_root;
@@ -8,7 +14,10 @@ use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::PermissionsExt;
 
-/// The directory emptied, the entries below it gone, a link unlinked and its target kept, and the directory itself left.
+/// The directory emptied,
+/// the entries below it gone,
+/// a link unlinked and its target kept,
+/// and the directory itself left.
 #[test]
 fn a_tree_is_emptied_and_its_top_directory_stays() {
     let parent: PathBuf = fixture("walk-plain");
@@ -31,7 +40,8 @@ fn a_tree_is_emptied_and_its_top_directory_stays() {
     remove(parent.as_path());
 }
 
-/// A nested subvolume stops the check and the removal at its path, with the data beside it and inside it untouched.
+/// A nested subvolume stops the check and the removal at its path,
+/// with the data beside it and inside it untouched.
 #[test]
 fn btrfs_a_nested_subvolume_stops_the_walk_and_names_its_path() {
     let Some(root) = btrfs_fixture("walk-nested") else { return };
@@ -51,8 +61,12 @@ fn btrfs_a_nested_subvolume_stops_the_walk_and_names_its_path() {
     remove(root.as_path());
 }
 
-/// The empty directory a snapshot holds for a nested subvolume is part of the snapshot: it is removed, and the nested
-///  subvolume of the original, with its data, stays.
+/// The empty directory a snapshot holds for a nested subvolume is part of the snapshot:
+/// it is removed,
+/// and the nested
+///  subvolume of the original,
+/// with its data,
+/// stays.
 #[test]
 fn btrfs_a_snapshot_is_emptied_and_the_original_nested_subvolume_stays() {
     let Some(root) = btrfs_fixture("walk-snapshot") else { return };

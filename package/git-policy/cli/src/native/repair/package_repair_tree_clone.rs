@@ -1,10 +1,20 @@
 //! What:
-//!  Cloning one directory tree for a worktree repair: every file cloned (or copied when the filesystem cannot clone), every
-//!  directory recreated with its mode, every link recreated with its exact target, modes and times kept.
+//!  Cloning one directory tree for a worktree repair:
+//! every file cloned (or copied when the filesystem cannot clone),
+//! every
+//!  directory recreated with its mode,
+//! every link recreated with its exact target,
+//! modes and times kept.
 //! Why:
-//!  Cargo keeps its build state outside the worktree when the person's configuration says so, so a copy of the worktree's
-//!  ignored files does not carry it. The state is reused by the new worktree's registry and git dependencies, and Cargo
-//!  decides what is fresh from file times, so the clone keeps them. The destination must not exist: nothing is overwritten.
+//!  Cargo keeps its build state outside the worktree when the person's configuration says so,
+//! so a copy of the worktree's
+//!  ignored files does not carry it.
+//! The state is reused by the new worktree's registry and git dependencies,
+//! and Cargo
+//!  decides what is fresh from file times,
+//! so the clone keeps them.
+//! The destination must not exist:
+//! nothing is overwritten.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,15 +30,19 @@ use std::path::{Path, PathBuf};
 /// What a walk of the source finds at one path.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Kind {
-    /// A directory, recreated and entered.
+    /// A directory,
+    /// recreated and entered.
     Directory,
-    /// A regular file, cloned.
+    /// A regular file,
+    /// cloned.
     File,
-    /// A symbolic link, recreated with its exact target.
+    /// A symbolic link,
+    /// recreated with its exact target.
     Link,
 }
 
-/// One entry of the source, relative to its root.
+/// One entry of the source,
+/// relative to its root.
 struct Entry {
     /// The path below the root.
     relative: PathBuf,
@@ -36,12 +50,27 @@ struct Entry {
     kind: Kind,
 }
 
-/// The entries below which a clone stays on one thread, `PARALLEL_BREAK_EVEN_ENTRIES`; starting threads costs more than a very small
-///  clone. Measured with `clone_tree` itself forced to 1, 2, 4 and 8 workers (2026-11-03, five runs each in alternating orders,
-///  other sessions running, a debug build): 0.6 ms on every count for 10 entries, 1.2 ms on 8 workers against 1.8 ms on one for 30,
-///  8.1 ms against 20.7 ms for 296, and 13.4 ms against 39.2 ms for 555, so the old threshold of 512 left clones of up to 511 leaves
-///  on one thread for up to 12 ms more. Picked by the coordinator under the owner's delegation, open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", option A).
+/// The entries below which a clone stays on one thread,
+/// `PARALLEL_BREAK_EVEN_ENTRIES`;
+/// starting threads costs more than a very small
+///  clone.
+/// Measured with `clone_tree` itself forced to 1,
+/// 2,
+/// 4 and 8 workers (2026-11-03,
+/// five runs each in alternating orders,
+///  other sessions running,
+/// a debug build):
+/// 0.6 ms on every count for 10 entries,
+/// 1.2 ms on 8 workers against 1.8 ms on one for 30,
+///  8.1 ms against 20.7 ms for 296,
+/// and 13.4 ms against 39.2 ms for 555,
+/// so the old threshold of 512 left clones of up to 511 leaves
+///  on one thread for up to 12 ms more.
+/// Picked by the coordinator under the owner's delegation,
+/// open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Picked for these follow-ups",
+/// option A).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -59,9 +88,12 @@ pub struct Cloned {
 }
 
 /// What:
-///  Every entry below the source, parents before children, without following links.
+///  Every entry below the source,
+/// parents before children,
+/// without following links.
 /// Why:
-///   Directories must exist before a worker places a file in them, and a link to a directory must be copied as a link.
+///   Directories must exist before a worker places a file in them,
+/// and a link to a directory must be copied as a link.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,7 +137,9 @@ fn walk(source: &Path) -> Result<(Vec<Entry>, Vec<PathBuf>), String> {
 /// What:
 ///  Make one file or link in the destination like its source.
 /// Why:
-///   The clone shares the data; the mode and the times are set after it, because Cargo decides freshness from file times.
+///   The clone shares the data;
+/// the mode and the times are set after it,
+/// because Cargo decides freshness from file times.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -138,10 +172,13 @@ fn place(source: &Path, destination: &Path, entry: &Entry) -> Result<Option<Path
 }
 
 /// What:
-///  Say which path an input or output step failed on: `<path> <what> (<error>)`.
-///  `Result<T, std::io::Error>` is "the value, or an input/output error".
+///  Say which path an input or output step failed on:
+/// `<path> <what> (<error>)`.
+///  `Result<T, std::io::Error>` is "the value,
+/// or an input/output error".
 /// Why:
-///   Every step of the clone names the entry it could not handle, and a named function stands where a closure that
+///   Every step of the clone names the entry it could not handle,
+/// and a named function stands where a closure that
 ///  built that text stood.
 ///
 /// In TS you'd write (pseudocode):
@@ -155,19 +192,27 @@ fn say_where<T>(result: Result<T, std::io::Error>, path: &Path, what: &str) -> R
     };
 }
 
-/// Order two entries by their path below the source, so parents sort before their children. `sort_by` takes this
-///  function by path; the sort stays stable.
+/// Order two entries by their path below the source,
+/// so parents sort before their children.
+/// `sort_by` takes this
+///  function by path;
+/// the sort stays stable.
 fn compare_by_relative_path(left: &Entry, right: &Entry) -> std::cmp::Ordering {
     return left.relative.cmp(&right.relative);
 }
 
 /// What:
-///  Place each slice of leaf entries on a thread of its own inside one thread scope, and collect what each slice
+///  Place each slice of leaf entries on a thread of its own inside one thread scope,
+/// and collect what each slice
 ///  left out.
 /// Why:
-///   The slices borrow the entries, the source and the destination of the caller for the length of the scope, which owned
-///  copies for threads that outlive the caller would only waste. A thread that cannot start runs its slice in turn
-///  (`start_or_run_with`), and a worker that panicked is an error.
+///   The slices borrow the entries,
+/// the source and the destination of the caller for the length of the scope,
+/// which owned
+///  copies for threads that outlive the caller would only waste.
+/// A thread that cannot start runs its slice in turn
+///  (`start_or_run_with`),
+/// and a worker that panicked is an error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -194,9 +239,11 @@ fn place_slices_side_by_side(
 }
 
 /// What:
-///  Place every entry of one slice, and return the paths the slice left out.
+///  Place every entry of one slice,
+/// and return the paths the slice left out.
 /// Why:
-///   One worker takes a slice; the first entry that cannot be placed ends the slice with its message.
+///   One worker takes a slice;
+/// the first entry that cannot be placed ends the slice with its message.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -213,7 +260,9 @@ fn place_slice((source, destination, slice): (&Path, &Path, &[&Entry])) -> Resul
 /// What:
 ///  Clone `source` into the new directory `destination`.
 /// Why:
-///   The count of entries made is returned for the log; a failure names the entry that could not be made, and leaves what was
+///   The count of entries made is returned for the log;
+/// a failure names the entry that could not be made,
+/// and leaves what was
 ///  made in place for the person to remove with the destination.
 ///
 /// In TS you'd write (pseudocode):

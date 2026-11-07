@@ -3,24 +3,30 @@
 use super::*;
 use music_player::template_model::TrackFields;
 
-/// What: `identity_at(state, position)` is the identity of the page at a display position.
-/// Why: the tests choose a page by position and the state keeps pages in the page index.
+/// What:
+/// `identity_at(state, position)` is the identity of the page at a display position.
+/// Why:
+/// the tests choose a page by position and the state keeps pages in the page index.
 fn identity_at(state: &ScreenState, position: usize) -> String {
     return state.current_pages().page(position).map(|page| return page.identity.clone()).unwrap_or_default();
 }
 
-/// What: `label_at(state, position)` is the label of the page at a display position.
-/// Why: the picker chooses a folder by label.
+/// What:
+/// `label_at(state, position)` is the label of the page at a display position.
+/// Why:
+/// the picker chooses a folder by label.
 fn label_at(state: &ScreenState, position: usize) -> String {
     return state.current_pages().page(position).map(|page| return page.label.clone()).unwrap_or_default();
 }
 
-/// What: `no_supporting_line` is the supporting-line function that never shows text.
+/// What:
+/// `no_supporting_line` is the supporting-line function that never shows text.
 fn no_supporting_line(_track: &TrackFields) -> Option<String> {
     return None;
 }
 
-/// What: `state_with(names, current)` builds a state over the given queue names.
+/// What:
+/// `state_with(names, current)` builds a state over the given queue names.
 fn state_with(names: &[&str], current: Option<usize>) -> ScreenState {
     return ScreenState {
         paths: Vec::new(),
@@ -136,8 +142,10 @@ fn library_heading_falls_back_to_folders_without_an_opened_folder() {
     assert_eq!(state.library_heading(), "Folders");
 }
 
-/// What: `playing_state` builds a state whose playing track is the first queue entry in a subfolder.
-/// Why: the deck folder and the folder scroll row both read the playing track's directory.
+/// What:
+/// `playing_state` builds a state whose playing track is the first queue entry in a subfolder.
+/// Why:
+/// the deck folder and the folder scroll row both read the playing track's directory.
 fn playing_state() -> ScreenState {
     let mut state = state_with(&["Camellia/Live/Ghost.flac", "Camellia/Ghost.flac"], Some(0));
     state.track_name = "Camellia/Live/Ghost.flac".to_string();

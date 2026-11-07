@@ -27,6 +27,10 @@ use ignore::WalkBuilder;
 // ```
 use ignore::WalkState;
 
+/// Imports the entry type the walker hands the filter and the visitors,
+/// and the two traits a worker visitor and its maker implement.
+use ignore::{DirEntry, ParallelVisitor, ParallelVisitorBuilder};
+
 /// Imports dependencies used by this module.
 // What:     `use anyhow::{anyhow, Result};` imports `anyhow`'s error-construction
 //           macro and result alias for the walker boundary.
@@ -61,6 +65,70 @@ use anyhow::{anyhow, Result};
 // // No equivalent. Imagine SharedArrayBuffer + a worker-pool lock.
 // ```
 use std::sync::{Arc, Mutex};
+
+/// Whether the walker may descend into an entry:
+/// everything except the `.git` and `.jj` directories,
+/// whose version-control internals are not content to scan.
+fn is_not_version_control_directory(entry: &DirEntry) -> bool {
+    return entry.file_name() != ".git" && entry.file_name() != ".jj";
+}
+
+/// Hands the parallel walker one visitor per worker thread,
+/// each pushing the files it sees onto one shared list.
+struct FileCollector {
+    /// The list every visitor pushes onto.
+    files: Arc<Mutex<Vec<String>>>,
+}
+
+/// Lets the walker ask the collector for a visitor per worker thread.
+impl<'scope> ParallelVisitorBuilder<'scope> for FileCollector {
+    /// One visitor for one worker thread.
+    fn build(&mut self) -> Box<dyn ParallelVisitor + 'scope> {
+        return Box::new(FileVisitor { files: Arc::clone(&self.files) });
+    }
+}
+
+/// The visitor of one worker thread.
+struct FileVisitor {
+    /// The list every visitor pushes onto.
+    files: Arc<Mutex<Vec<String>>>,
+}
+
+/// Lets the walker hand each entry its thread walks to this visitor.
+impl ParallelVisitor for FileVisitor {
+    /// Records the entry when it is a regular file with a UTF-8 path,
+    /// and always lets the walk continue;
+    /// an entry that errored (for example permission denied on a subtree) is skipped silently.
+    fn visit(&mut self, entry: Result<DirEntry, ignore::Error>) -> WalkState {
+        let Ok(found) = entry else {
+            return WalkState::Continue;
+        };
+        let is_file: bool = match found.file_type() {
+            Some(file_type) => file_type.is_file(),
+            None => false,
+        };
+        if !is_file {
+            return WalkState::Continue;
+        }
+        if let Some(text) = found.path().to_str() {
+            self.files
+                .lock()
+                .expect("walk-results mutex poisoned by a panicking walker thread")
+                .push(text.to_string());
+        }
+        return WalkState::Continue;
+    }
+}
+
+/// The fatal error for a result list whose mutex a panicking walker thread poisoned.
+fn walk_poisoned<Poison: std::fmt::Display>(poison: Poison) -> anyhow::Error {
+    return anyhow!("walk poisoned: {}", poison);
+}
+
+/// A listed path without its leading `./`.
+fn without_leading_dot_slash(path: &str) -> String {
+    return path.trim_start_matches("./").to_string();
+}
 
 /// Implements `detect_index_hash_kind`.
 // What:     `fn detect_index_hash_kind(repo_root) -> gix_hash::Kind`
@@ -219,145 +287,15 @@ pub fn list_files(root: &str) -> Result<Vec<String>> {
     let walker = WalkBuilder::new(root)
         .hidden(false)
         .ignore(false)
-        .filter_entry(|e| {
-            // What:     `e.file_name()` returns the last path component
-            //           as an `&OsStr`. Comparing it against the string
-            //           literal `".git"` works because `OsStr` impls
-            //           `PartialEq<str>` for ASCII names.
-            // Why:      Skip the entire `.git/` and `.jj/` subtrees.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // return path.basename(p) !== ".git" && path.basename(p) !== ".jj";
-            // ```
-            return e.file_name() != ".git" && e.file_name() != ".jj"
-        })
+        .filter_entry(is_not_version_control_directory)
         .build_parallel();
 
-    // What:     `walker.run(|| { Box::new(move |entry| { ... }) })`
-    //           runs the parallel walker. The OUTER closure builds a
-    //           PER-THREAD callback (one per worker); the INNER
-    //           closure handles each filesystem entry that thread
-    //           visits. The `move` keyword on the inner closure
-    //           transfers ownership of captured variables (the
-    //           `Arc` clone) into the closure body.
-    //             - `Box::new(...)` heap-allocates the callback so
-    //               the walker can store a trait object.
-    //             - The callback returns `WalkState::Continue` to
-    //               keep walking. (Other variants exist for skipping
-    //               or quitting; we don't need them.)
-    // Why:      Kicks off the parallel walk and accumulates file
-    //           paths into the shared `Vec`.
-    // Gotcha:   The OUTER closure is called once PER WORKER THREAD
-    //           (NOT once per entry). The INNER closure is called
-    //           once per entry. Mixing these up leads to allocating
-    //           one callback per entry, which is wrong.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // walker.run(() => {
-    //   const filesLocal = files; // captured per-worker
-    //   return (entry) => {
-    //     if (entry.isFile && entry.path) filesLocal.push(entry.path);
-    //   };
-    // });
-    // ```
-    walker.run(|| {
-        // What:     `Arc::clone(&files)` bumps the refcount and yields
-        //           a new owning handle to the same `Mutex<Vec>`.
-        // Why:      Each worker thread needs its own `Arc` handle.
-        //           The `move` below transfers this clone into the
-        //           inner closure.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const filesRef = files;
-        // ```
-        let files = Arc::clone(&shared_files);
-        return Box::new(move |entry| {
-            // What:     `let Ok(e) = entry else { return ...; };`
-            //           is a `let-else` pattern: if `entry` (a
-            //           `Result<DirEntry, ignore::Error>`) is the
-            //           `Ok` variant, bind `e` to the inner value
-            //           and continue; otherwise return early. We
-            //           silently skip entries that errored (e.g.,
-            //           permission denied on a sub-tree); they are
-            //           rare and the prior `git ls-files` path
-            //           also ignored such failures via lossy
-            //           UTF-8 handling.
-            // Why:      The walker reports per-entry I/O errors via
-            //           `Result`; we need the `Ok` value to look at
-            //           the file.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // if (!entry.ok) return WALK_CONTINUE;
-            // const e = entry.value;
-            // ```
-            let Ok(e) = entry else {
-                return WalkState::Continue;
-            };
-
-            // What:     `e.file_type().map(|t| t.is_file()).unwrap_or(false)`
-            //           checks whether the entry is a regular file.
-            //           `file_type()` returns `Option<FileType>`;
-            //           `.map(|t| t.is_file())` becomes `Option<bool>`;
-            //           `.unwrap_or(false)` extracts the bool or
-            //           defaults to `false` (i.e., "not a file" when
-            //           file type is unknown).
-            // Why:      We only want files in the output, not
-            //           directories or special entries.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // const isFile = e.fileType?.isFile ?? false;
-            // ```
-            let is_file = e.file_type().map(|t| return t.is_file()).unwrap_or(false);
-            if !is_file {
-                return WalkState::Continue;
-            }
-
-            // What:     `e.path().to_str()` returns `Option<&str>`:
-            //           `Some(s)` when the path is valid UTF-8,
-            //           `None` otherwise. We push only UTF-8 paths
-            //           (matching the prior `list_tracked_files`
-            //           behavior, which validated UTF-8 explicitly).
-            // Why:      Every consumer downstream takes `&str`; non-
-            //           UTF-8 paths would force an `OsString` plumbing
-            //           overhaul for vanishingly rare cases.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // const s = e.path; // assume utf-8
-            // files.push(s);
-            // ```
-            if let Some(s) = e.path().to_str() {
-                // What:     `files.lock().expect(...).push(s.to_string())`
-                //           acquires the mutex (blocking briefly if
-                //           contended), unwraps the LockResult into
-                //           a `MutexGuard`, then pushes a clone of
-                //           the path string. The guard is dropped at
-                //           end of statement, releasing the lock.
-                // Why:      Serialize the per-thread push into the
-                //           shared `Vec`.
-                // Gotcha:   `expect()` on `lock()` panics if a prior
-                //           holder panicked while holding the lock
-                //           (poisoned mutex). Acceptable here: a
-                //           panic in the walker is a bug and we want
-                //           it to surface. `expect` (not `unwrap`) is
-                //           required because the repo's clippy.toml
-                //           bans `Result::unwrap`, so an intentional
-                //           panic must carry a reason.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // files.push(s);
-                // ```
-                files.lock().expect("walk-results mutex poisoned by a panicking walker thread").push(s.to_string());
-            }
-            return WalkState::Continue
-        })
-    });
+    // The walker asks the collector for one visitor per worker thread,
+    // and each visitor sees every entry its thread walks.
+    // Each visitor holds a clone of the shared list,
+    // so every worker locks it only to push a path.
+    let mut collector = FileCollector { files: Arc::clone(&shared_files) };
+    walker.visit(&mut collector);
 
     // What:     `Arc::try_unwrap(files)` succeeds if this `Arc` is the
     //           sole remaining handle, returning the `Mutex<Vec>`
@@ -377,8 +315,8 @@ pub fn list_files(root: &str) -> Result<Vec<String>> {
     // return out;
     // ```
     let mut files = match Arc::try_unwrap(shared_files) {
-        Ok(m) => m.into_inner().map_err(|e| anyhow!("walk poisoned: {}", e))?,
-        Err(arc) => arc.lock().map_err(|e| anyhow!("walk poisoned: {}", e))?.clone(),
+        Ok(m) => m.into_inner().map_err(walk_poisoned)?,
+        Err(arc) => arc.lock().map_err(walk_poisoned)?.clone(),
     };
 
     // What:     Union with paths read from `.git/index` via `gix-index`
@@ -454,7 +392,8 @@ pub fn list_files(root: &str) -> Result<Vec<String>> {
         // ```
         let mut seen: std::collections::HashSet<String> = files
             .iter()
-            .map(|p| return p.trim_start_matches("./").to_string())
+            .map(String::as_str)
+            .map(without_leading_dot_slash)
             .collect();
         for entry in index.entries() {
             // What:     Filter index entries by `Mode`. Only regular

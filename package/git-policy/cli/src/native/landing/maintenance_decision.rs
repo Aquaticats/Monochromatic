@@ -14,12 +14,14 @@
 //! const args = autoMaintenanceArgs(parseConfigRecords(output));
 //! ```
 
-/// `BTreeMap` keeps config keys sorted; its `insert` keeps the last value of a repeated key.
+/// `BTreeMap` keeps config keys sorted;
+/// its `insert` keeps the last value of a repeated key.
 use std::collections::BTreeMap;
 /// `fmt` formats the error for diagnostics.
 use std::fmt;
 
-/// The config key pattern the decision reads, as `git config --get-regexp` matches it.
+/// The config key pattern the decision reads,
+/// as `git config --get-regexp` matches it.
 ///  Keys are canonicalized as Git prints them.
 ///
 /// In TS you'd write (pseudocode):
@@ -43,7 +45,8 @@ pub const MAINTENANCE_CONFIG_PATTERN: &str =
 pub enum MaintenanceError {
     /// Git's config output for the maintenance keys is not UTF-8.
     ConfigNotUtf8,
-    /// Real Git could not be started; the text names the command and the operating-system reason.
+    /// Real Git could not be started;
+    /// the text names the command and the operating-system reason.
     Start(String),
 }
 
@@ -72,7 +75,8 @@ impl fmt::Display for MaintenanceError {
 impl std::error::Error for MaintenanceError {}
 
 /// What:
-///  The arguments automatic maintenance runs, or the fact that configuration turned it off.
+///  The arguments automatic maintenance runs,
+/// or the fact that configuration turned it off.
 /// Why:
 ///   The incumbent's disabled marker is a symbol;
 ///  an enum keeps the two outcomes distinct without a sentinel value.
@@ -83,7 +87,9 @@ impl std::error::Error for MaintenanceError {}
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MaintenanceDecision {
-    /// `maintenance.auto`, or a non-positive `gc.auto` when it is unset, turns maintenance off.
+    /// `maintenance.auto`,
+    /// or a non-positive `gc.auto` when it is unset,
+    /// turns maintenance off.
     Disabled,
     /// Run `git maintenance run --auto` with the listed arguments.
     Run(Vec<&'static str>),
@@ -91,10 +97,12 @@ pub enum MaintenanceDecision {
 
 /// What:
 ///  Parse `git config --type=bool-or-int --null --get-regexp` output into canonical key to value.
-///  A record without a newline is a key with no value, which Git reads as `true`.
+///  A record without a newline is a key with no value,
+/// which Git reads as `true`.
 /// Why:
 ///   Git prints one NUL-terminated record per key occurrence;
-///  the last occurrence wins, as Git's single-value lookup does.
+///  the last occurrence wins,
+/// as Git's single-value lookup does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -126,7 +134,8 @@ pub fn parse_config_records(output: &[u8]) -> Result<BTreeMap<String, String>, M
 
 /// What:
 ///  Interpret a `bool-or-int` value as Git's boolean:
-///  `true` and `false` by name, otherwise any non-zero number.
+///  `true` and `false` by name,
+/// otherwise any non-zero number.
 /// Why:
 ///   The incumbent's `Number(value) !== 0` reads a value that is neither as true,
 ///  because `NaN !== 0`;
@@ -148,7 +157,8 @@ fn bool_or_int_true(value: &str) -> bool {
 
 /// What:
 ///  Read a config value as JavaScript's `Number(...)` does:
-///  an empty or blank value is zero, and text that is not a number is `NaN`.
+///  an empty or blank value is zero,
+/// and text that is not a number is `NaN`.
 /// Why:
 ///   The incumbent compares `Number(gc.auto)` against `0`,
 ///  so `NaN` makes both comparisons false.
@@ -171,7 +181,8 @@ fn javascript_number(value: &str) -> f64 {
 /// Why:
 ///   `maintenance.auto` takes precedence over `gc.auto`;
 ///  the detach setting follows the same precedence.
-///  Detaching is the default, as in Git.
+///  Detaching is the default,
+/// as in Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

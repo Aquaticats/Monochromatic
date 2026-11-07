@@ -222,7 +222,8 @@ fn move_parses_coordinates_and_rejects_bad_input() {
     assert!(parse_command("move 1 inf").is_err());
 }
 
-/// `button` names an action, then an optional button that defaults to left.
+/// `button` names an action,
+/// then an optional button that defaults to left.
 #[test]
 fn button_parses_action_and_defaults_to_left() {
     assert_eq!(parse_command("button down"), Ok(Command::Button { action: ButtonAction::Down, button: PointerButton::Left }));
@@ -247,7 +248,8 @@ fn argumentless_taskbar_and_window_verbs_reject_trailing_tokens() {
     assert!(parse_command("launcher-clear now").is_err());
 }
 
-/// `launcher-log` takes an optional count of at least one, defaulting to 64.
+/// `launcher-log` takes an optional count of at least one,
+/// defaulting to 64.
 #[test]
 fn launcher_log_parses_optional_count() {
     assert_eq!(parse_command("launcher-log"), Ok(Command::LauncherLog { count: super::launcher::DEFAULT_LOG_COUNT }));

@@ -1,14 +1,25 @@
 //! Tests for the D106 binding table.
 //!
-//! What: every row of `BINDINGS` is turned into the key press that should hit it and classified, so a row that is
-//! shadowed by an earlier one, scoped to nowhere, or mistyped fails; the chord texts are compared with D106.
-//! Why: the table is data, and a wrong row would otherwise stay silent until a person pressed that key.
+//! What:
+//! every row of `BINDINGS` is turned into the key press that should hit it and classified,
+//! so a row that is
+//! shadowed by an earlier one,
+//! scoped to nowhere,
+//! or mistyped fails;
+//! the chord texts are compared with D106.
+//! Why:
+//! the table is data,
+//! and a wrong row would otherwise stay silent until a person pressed that key.
 
 use super::*;
 use crate::keymap::{FocusZone, KeyRoute, shortcut_action};
 
-/// What: `request_for_row` builds a key press that satisfies the row's modifiers, key, platform and scope.
-/// Why: each row must classify to its own action when pressed where it applies.
+/// What:
+/// `request_for_row` builds a key press that satisfies the row's modifiers,
+/// key,
+/// platform and scope.
+/// Why:
+/// each row must classify to its own action when pressed where it applies.
 fn request_for_row(binding: &Binding, platform: KeyboardPlatform, key: &str) -> ShortcutRequest {
     let held = binding.required(platform);
     let (route, zone, in_popup, picker_overlay) = match binding.scope {

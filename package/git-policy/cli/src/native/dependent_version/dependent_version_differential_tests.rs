@@ -1,6 +1,9 @@
-//! What: The native planner against the incumbent's recorded results, on the shared
+//! What:
+//! The native planner against the incumbent's recorded results,
+//! on the shared
 //!       fixtures of every incumbent unit-test scenario.
-//! Why: The release workflow calls the native wrapper instead of the deleted TypeScript task;
+//! Why:
+//! The release workflow calls the native wrapper instead of the deleted TypeScript task;
 //!      the fixtures' `expected` values were written by the incumbent planner (last at commit
 //!      `f4fc1fa213ece65672e4314983a75266837892f9`) and stay as its recorded truth.
 //!
@@ -9,13 +12,16 @@
 //! // for (const c of cases) expect(native(c)).toBe(JSON.stringify(c.expected));
 //! ```
 
-/// The case evaluator, the fixture reader and the parser.
+/// The case evaluator,
+/// the fixture reader and the parser.
 use crate::dependent_version_fixture_cases::evaluate;
 use crate::dependent_version_fixture_json::{canonical, elements, field, text};
 use crate::dependent_version_test_support::MemoryWorkspace;
 use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
 
-/// The shared fixtures: every scenario of the incumbent's unit tests, with its result.
+/// The shared fixtures:
+/// every scenario of the incumbent's unit tests,
+/// with its result.
 const UNIT_CASES: &str = include_str!("dependent_version_fixtures/unit_cases.json");
 
 /// A shared workspace that no committed case names.

@@ -1,13 +1,17 @@
-//! Controls for the marker lines, the marker size and the open-operation line.
+//! Controls for the marker lines,
+//! the marker size and the open-operation line.
 
 use super::*;
 
-/// A marker of `size` characters `kind`, followed by `rest`.
+/// A marker of `size` characters `kind`,
+/// followed by `rest`.
 fn marker(kind: char, size: usize, rest: &str) -> String {
     return format!("{}{rest}\n", kind.to_string().repeat(size));
 }
 
-/// An opening or closing line of Git's size is a marker, whatever follows the white space, and nothing else is.
+/// An opening or closing line of Git's size is a marker,
+/// whatever follows the white space,
+/// and nothing else is.
 #[test]
 fn opening_and_closing_lines_of_the_given_size_are_markers() {
     for size in [DEFAULT_MARKER_SIZE, DEFAULT_MARKER_SIZE + 2] {
@@ -24,8 +28,11 @@ fn opening_and_closing_lines_of_the_given_size_are_markers() {
     }
 }
 
-/// A run of `=` alone underlines a heading and is no sign of a conflict, a marker needs white space after it, and a last line
-///  without a line feed is too short to be one, as in Git.
+/// A run of `=` alone underlines a heading and is no sign of a conflict,
+/// a marker needs white space after it,
+/// and a last line
+///  without a line feed is too short to be one,
+/// as in Git.
 #[test]
 fn equals_signs_alone_and_unterminated_lines_are_not_markers() {
     let heading: String = format!("Title\n{}\n", "=".repeat(DEFAULT_MARKER_SIZE));
@@ -37,7 +44,9 @@ fn equals_signs_alone_and_unterminated_lines_are_not_markers() {
     assert!(!has_marker_lines(b"", DEFAULT_MARKER_SIZE));
 }
 
-/// The attribute is a number, and Git's default stands for anything else, zero included.
+/// The attribute is a number,
+/// and Git's default stands for anything else,
+/// zero included.
 #[test]
 fn the_attribute_value_is_a_number_or_the_default() {
     let nine: usize = DEFAULT_MARKER_SIZE + 2;

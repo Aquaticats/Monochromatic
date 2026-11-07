@@ -1,8 +1,13 @@
 //! What:
-//!  Drains the pending items of one work directory: claims them under a lease, settles the unacceptable ones, groups the pushes
-//!  by branch, and runs each kind with its handler.
+//!  Drains the pending items of one work directory:
+//! claims them under a lease,
+//! settles the unacceptable ones,
+//! groups the pushes
+//!  by branch,
+//! and runs each kind with its handler.
 //! Why:
-//!  It is the largest step of the service's work and has a file of its own, so the drains that call it stay short.
+//!  It is the largest step of the service's work and has a file of its own,
+//! so the drains that call it stay short.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,8 +23,10 @@ use crate::service_timing::log_entry;
 use crate::work_item::{Claimed, DONE, FAILED, WorkItem, WorkKind, claim_next_of};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-/// Claims and runs every pending item of one work directory until none is left; the claims held are renewed every third of
-/// `lease`, so that none of them looks abandoned to another instance while it waits or runs.
+/// Claims and runs every pending item of one work directory until none is left;
+/// the claims held are renewed every third of
+/// `lease`,
+/// so that none of them looks abandoned to another instance while it waits or runs.
 pub(crate) fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: Duration, renewal: Renewal<'_>, replanning: &mut Replanning) {
     let work_dir: PathBuf = work_directory(git_dir);
     let (held, renewer) = held_claims(work_dir.as_path());

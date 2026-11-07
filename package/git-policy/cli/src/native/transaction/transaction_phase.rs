@@ -1,13 +1,16 @@
 //! What:
-//!  Test-only phase markers of the isolated merge and of a commit headed for the service, for crash and interleaving suites.
+//!  Test-only phase markers of the isolated merge and of a commit headed for the service,
+//! for crash and interleaving suites.
 //!  An explicit environment variable arms one marker:
 //!  `CLI_GIT_TEST_ONLY_PHASE_SIGNAL=<phase>:kill` ends the process with `SIGKILL` at the phase,
 //!  `<phase>:kill:<directory>` writes `<directory>/<phase>.reached` first,
 //!  and `<phase>:pause:<directory>` writes that marker and waits until `<directory>/<phase>.release` exists.
-//!  A repeatable phase numbers its files by occurrence: `<phase>-<n>.reached`.
+//!  A repeatable phase numbers its files by occurrence:
+//! `<phase>-<n>.reached`.
 //! Why:
 //!  Crash suites need a deterministic point to kill the wrapper.
-//!  The marker is compiled into the release executable, but only the explicit variable arms it,
+//!  The marker is compiled into the release executable,
+//! but only the explicit variable arms it,
 //!  and a malformed value fails the invocation at every phase it reaches instead of being ignored
 //!  (`src/policy-engine/commit-transaction-test-phase.ts`).
 //!
@@ -18,9 +21,11 @@
 
 /// Diagnostic output to standard error when a marker fires.
 use crate::diagnostic_log::warn;
-/// Strict JSON string quoting for the refusal message, as `JSON.stringify` writes it.
+/// Strict JSON string quoting for the refusal message,
+/// as `JSON.stringify` writes it.
 use serde_json::to_string as json_string;
-/// `OsStr` is borrowed operating-system text, and `Path`/`PathBuf` are filesystem paths.
+/// `OsStr` is borrowed operating-system text,
+/// and `Path`/`PathBuf` are filesystem paths.
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -35,8 +40,11 @@ const RELEASE_POLL: Duration = Duration::from_millis(20);
 /// What:
 ///  One phase a marker can name.
 /// Why:
-///   The isolated merge reaches two of them and a commit headed for the service the other two; the phases of the landing
-///  that the commit service replaced (`capture-locked` to `index-installed`, `race-lost`) are gone, and a value naming one
+///   The isolated merge reaches two of them and a commit headed for the service the other two;
+/// the phases of the landing
+///  that the commit service replaced (`capture-locked` to `index-installed`,
+/// `race-lost`) are gone,
+/// and a value naming one
 ///  is refused like any unknown phase.
 ///
 /// In TS you'd write (pseudocode):
@@ -47,16 +55,22 @@ const RELEASE_POLL: Duration = Duration::from_millis(20);
 pub enum Phase {
     /// An isolated merge wrote its intent record and has not yet asked the checkout to be updated.
     MergeIntent,
-    /// The checkout was updated and the branch moved for an isolated merge, whose intent record is still on disk.
+    /// The checkout was updated and the branch moved for an isolated merge,
+    /// whose intent record is still on disk.
     MergeApplied,
     /// A commit headed for the service has staged its content in a private index and has not yet read it back for the
-    ///  policies; repeatable, numbered by occurrence (a commit prepared again reaches it again).
+    ///  policies;
+    /// repeatable,
+    /// numbered by occurrence (a commit prepared again reaches it again).
     ServiceStaged,
-    /// A commit headed for the service is fully prepared and has not yet been sent; repeatable, numbered by occurrence.
+    /// A commit headed for the service is fully prepared and has not yet been sent;
+    /// repeatable,
+    /// numbered by occurrence.
     ServicePrepared,
 }
 
-/// Every phase in the order a command reaches them, which the refusal message lists.
+/// Every phase in the order a command reaches them,
+/// which the refusal message lists.
 pub const TRANSACTION_TEST_PHASES: [Phase; 4] = [
     Phase::MergeIntent,
     Phase::MergeApplied,
@@ -88,7 +102,8 @@ impl Phase {
 /// What:
 ///  What a marker does at its phase.
 /// Why:
-///   `kill` ends the process; `pause` hands control to the test until the release file exists.
+///   `kill` ends the process;
+/// `pause` hands control to the test until the release file exists.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,7 +120,8 @@ pub enum PhaseAction {
 /// What:
 ///  One parsed marker.
 /// Why:
-///   Parsing happens at every phase reached, so a malformed value fails wherever it is read.
+///   Parsing happens at every phase reached,
+/// so a malformed value fails wherever it is read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -117,7 +133,9 @@ pub struct PhaseSignal {
     pub phase: Phase,
     /// What happens at the phase.
     pub action: PhaseAction,
-    /// Marker directory; required for `pause`, absent or empty otherwise.
+    /// Marker directory;
+    /// required for `pause`,
+    /// absent or empty otherwise.
     pub directory: Option<PathBuf>,
 }
 
@@ -132,11 +150,13 @@ pub struct PhaseSignal {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PhaseSignalError {
-    /// The rejected value, as read.
+    /// The rejected value,
+    /// as read.
     pub value: String,
 }
 
-/// Message text naming the variable, the quoted value and the accepted forms.
+/// Message text naming the variable,
+/// the quoted value and the accepted forms.
 impl std::fmt::Display for PhaseSignalError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // A value that cannot be quoted as JSON text is shown in Rust's debug quoting.
@@ -190,9 +210,11 @@ impl std::fmt::Display for PhaseMarkerError {
 impl std::error::Error for PhaseMarkerError {}
 
 /// What:
-///  An operating-system string as text, with bytes that are not valid text replaced.
+///  An operating-system string as text,
+/// with bytes that are not valid text replaced.
 /// Why:
-///  `reach_transaction_phase` reads the marker variable with it, so an odd byte reaches the parser as a replacement character.
+///  `reach_transaction_phase` reads the marker variable with it,
+/// so an odd byte reaches the parser as a replacement character.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -203,9 +225,11 @@ fn lossy_text(text: std::ffi::OsString) -> String {
 }
 
 /// What:
-///  The refusal for a marker value that does not parse, carrying the value as read.
+///  The refusal for a marker value that does not parse,
+/// carrying the value as read.
 /// Why:
-///  `parse_phase_signal` refuses at several points, and each refusal is the same error.
+///  `parse_phase_signal` refuses at several points,
+/// and each refusal is the same error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -218,9 +242,12 @@ fn refusal_of(value: &str) -> PhaseSignalError {
 /// What:
 ///  Parses the marker variable.
 /// Why:
-///   The phase must match exactly, the action must be `kill` or `pause`,
-///  a pause needs a directory, and a directory must be absolute.
-///  An empty directory after `kill` counts as no directory, as the incumbent's parser reads it.
+///   The phase must match exactly,
+/// the action must be `kill` or `pause`,
+///  a pause needs a directory,
+/// and a directory must be absolute.
+///  An empty directory after `kill` counts as no directory,
+/// as the incumbent's parser reads it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -268,9 +295,11 @@ pub fn parse_phase_signal(value: &str) -> Result<PhaseSignal, PhaseSignalError> 
 }
 
 /// What:
-///  Ends the process with `SIGKILL`, the signal no handler can catch.
+///  Ends the process with `SIGKILL`,
+/// the signal no handler can catch.
 /// Why:
-///   A crash suite needs the process to die with no cleanup, as a power loss would leave it.
+///   A crash suite needs the process to die with no cleanup,
+/// as a power loss would leave it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -286,9 +315,11 @@ fn kill_self() -> ! {
 }
 
 /// What:
-///  Ends the process at once on platforms without `SIGKILL`, running no cleanup.
+///  Ends the process at once on platforms without `SIGKILL`,
+/// running no cleanup.
 /// Why:
-///   The marker must not run destructors, as an uncatchable kill would not.
+///   The marker must not run destructors,
+/// as an uncatchable kill would not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -301,13 +332,23 @@ fn kill_self() -> ! {
 }
 
 /// What:
-///  Waits until the release file exists, polling every 20 milliseconds, and gives up with an error when the directory the
+///  Waits until the release file exists,
+/// polling every 20 milliseconds,
+/// and gives up with an error when the directory the
 ///  test named for its markers is gone.
 /// Why:
-///   A paused phase lets a test inspect the repository before the transaction continues. The directory is the test's fixture,
-///  which a test removes as it ends, however it ended; once it is gone nobody can write the release file, and a process that
-///  went on polling would run for ever in a directory that no longer exists. The wait watches the fixture first, and a clock
-///  second: the patience is the longest a test may run, so a slow host never cuts a pause short and a pause never outlives its test.
+///   A paused phase lets a test inspect the repository before the transaction continues.
+/// The directory is the test's fixture,
+///  which a test removes as it ends,
+/// however it ended;
+/// once it is gone nobody can write the release file,
+/// and a process that
+///  went on polling would run for ever in a directory that no longer exists.
+/// The wait watches the fixture first,
+/// and a clock
+///  second:
+/// the patience is the longest a test may run,
+/// so a slow host never cuts a pause short and a pause never outlives its test.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -324,11 +365,14 @@ fn await_release(directory: &Path, release: &Path) -> Result<(), PhaseMarkerErro
     return await_release_within(directory, release, PHASE_PATIENCE);
 }
 
-/// `await_release` that gives up with an error of kind `TimedOut` after `patience`: the owner's rule is that nothing waits for ever
-///  (2026-11-03), and a control that armed a pause and then died leaves a directory that still exists.
+/// `await_release` that gives up with an error of kind `TimedOut` after `patience`:
+/// the owner's rule is that nothing waits for ever
+///  (2026-11-03),
+/// and a control that armed a pause and then died leaves a directory that still exists.
 ///
 /// # Errors
-/// As `await_release`, and `TimedOut` when the release file did not come in time.
+/// As `await_release`,
+/// and `TimedOut` when the release file did not come in time.
 fn await_release_within(directory: &Path, release: &Path, patience: Duration) -> Result<(), PhaseMarkerError> {
     let began: std::time::Instant = std::time::Instant::now();
     while !release.exists() {
@@ -350,9 +394,11 @@ fn await_release_within(directory: &Path, release: &Path, patience: Duration) ->
 }
 
 /// What:
-///  Reaches one phase with the marker variable's value, killing or pausing when it is armed for this phase.
+///  Reaches one phase with the marker variable's value,
+/// killing or pausing when it is armed for this phase.
 /// Why:
-///   Tests pass the value directly; the production entry reads the process environment.
+///   Tests pass the value directly;
+/// the production entry reads the process environment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -394,9 +440,11 @@ pub(crate) fn reach_with_value(
 }
 
 /// What:
-///  Reaches one phase, reading the marker variable from the process environment.
+///  Reaches one phase,
+/// reading the marker variable from the process environment.
 /// Why:
-///   A command calls this at each marked phase; an unset variable costs one environment lookup.
+///   A command calls this at each marked phase;
+/// an unset variable costs one environment lookup.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,10 +1,20 @@
 //! Tier test and best-five-hundred selection for the Search index.
 //!
-//! What: `fast_tier` gives the relevance tier of a normalized name without allocating, and `select_best` keeps the
-//! best candidates in the result order, computing collation keys only for candidates the integer keys cannot separate.
-//! Why: ranking runs on every keystroke over every member of a bucket. Allocating a character list per name, or a
-//! collation key per match, was most of the old per-keystroke cost; the integer keys (tier, then UTF-16 length)
-//! decide almost every comparison, so the string keys are needed for a few candidates only.
+//! What:
+//! `fast_tier` gives the relevance tier of a normalized name without allocating,
+//! and `select_best` keeps the
+//! best candidates in the result order,
+//! computing collation keys only for candidates the integer keys cannot separate.
+//! Why:
+//! ranking runs on every keystroke over every member of a bucket.
+//! Allocating a character list per name,
+//! or a
+//! collation key per match,
+//! was most of the old per-keystroke cost;
+//! the integer keys (tier,
+//! then UTF-16 length)
+//! decide almost every comparison,
+//! so the string keys are needed for a few candidates only.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,25 +32,38 @@ use crate::track_entries::track_title_for;
 ///      `pub(crate) struct Ranked { tier, nlen, id }`.
 ///  A matched candidate with the two integer ordering keys.
 /// Why:
-///       Selecting the best candidates by these two integers first leaves the collation key, the display path, the
+///       Selecting the best candidates by these two integers first leaves the collation key,
+/// the display path,
+/// the
 ///  kind and the position to break ties only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Ranked {
-    /// Relevance tier: 0 whole name, 1 name prefix, 2 later word.
+    /// Relevance tier:
+    /// 0 whole name,
+    /// 1 name prefix,
+    /// 2 later word.
     pub(crate) tier: u8,
     /// UTF-16 length of the normalized name.
     pub(crate) nlen: u32,
-    /// Track position, or `FOLDER_BIT` plus a folder slot.
+    /// Track position,
+    /// or `FOLDER_BIT` plus a folder slot.
     pub(crate) id: u32,
 }
 
 /// What:
 ///      `pub(crate) fn fast_tier(norm: &str, terms: &[String], joined: &str) -> Option<u8>`.
-///  The relevance tier of a normalized name for already-normalized terms, or `None` when a term does not start a word.
+///  The relevance tier of a normalized name for already-normalized terms,
+/// or `None` when a term does not start a word.
 /// Why:
-///       Same answer as `match_tier`: every term must occur at a word start; the name equal to the terms joined by
-///  a space is tier 0, a name that starts with the first term is tier 1, any other match is tier 2. It searches
-///  bytes in place, so it does not allocate.
+///       Same answer as `match_tier`:
+/// every term must occur at a word start;
+/// the name equal to the terms joined by
+///  a space is tier 0,
+/// a name that starts with the first term is tier 1,
+/// any other match is tier 2.
+/// It searches
+///  bytes in place,
+/// so it does not allocate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,7 +100,8 @@ pub(crate) fn fast_tier(norm: &str, terms: &[String], joined: &str) -> Option<u8
 ///      `fn name_and_sort_path(index: &SearchIndex, id: u32) -> (String, &str)`.
 ///  The displayed name of a candidate and the path it sorts by.
 /// Why:
-///       A track is named by the file name without its extension and sorts by its whole display path; a folder
+///       A track is named by the file name without its extension and sorts by its whole display path;
+/// a folder
 ///  is named and sorted by its own name.
 fn name_and_sort_path(index: &SearchIndex, id: u32) -> (String, &str) {
     if id & FOLDER_BIT == 0 {
@@ -98,7 +122,8 @@ fn name_and_sort_path(index: &SearchIndex, id: u32) -> (String, &str) {
 ///      `fn ordering_key(name: &str) -> String`.
 ///  The collation key of a displayed name.
 /// Why:
-///       Names that are plain ASCII lowercase to themselves under the rail collation, so they skip decomposition.
+///       Names that are plain ASCII lowercase to themselves under the rail collation,
+/// so they skip decomposition.
 fn ordering_key(name: &str) -> String {
     if name.is_ascii() {
         return name.to_ascii_lowercase();
@@ -116,7 +141,8 @@ struct Keyed<'a> {
     ranked: Ranked,
     /// Collation key of the displayed name.
     key: String,
-    /// Display path of a track, or name of a folder.
+    /// Display path of a track,
+    /// or name of a folder.
     sort_path: &'a str,
 }
 
@@ -124,7 +150,8 @@ struct Keyed<'a> {
 ///      `fn keyed<'a>(index: &'a SearchIndex, ranked: Ranked) -> Keyed<'a>`.
 ///  Adds the string keys to a candidate.
 /// Why:
-///       Ordering needs them, and building them is deferred until it does.
+///       Ordering needs them,
+/// and building them is deferred until it does.
 fn keyed(index: &SearchIndex, ranked: Ranked) -> Keyed<'_> {
     let (name, sort_path) = name_and_sort_path(index, ranked.id);
     return Keyed {
@@ -136,9 +163,16 @@ fn keyed(index: &SearchIndex, ranked: Ranked) -> Keyed<'_> {
 
 /// What:
 ///      `fn full_order(left: &Keyed<'_>, right: &Keyed<'_>) -> Ordering`.
-///  The result order: tier, name length, collation key, display path, folder before track, then position.
+///  The result order:
+/// tier,
+/// name length,
+/// collation key,
+/// display path,
+/// folder before track,
+/// then position.
 /// Why:
-///       It is the order the replaced matcher used, so results stay identical.
+///       It is the order the replaced matcher used,
+/// so results stay identical.
 fn full_order(left: &Keyed<'_>, right: &Keyed<'_>) -> Ordering {
     let left_kind: bool = left.ranked.id & FOLDER_BIT == 0;
     let right_kind: bool = right.ranked.id & FOLDER_BIT == 0;
@@ -159,9 +193,13 @@ fn full_order(left: &Keyed<'_>, right: &Keyed<'_>) -> Ordering {
 ///      `pub(crate) fn select_best(index: &SearchIndex, matched: Vec<Ranked>, keep: usize) -> Vec<Ranked>`.
 ///  The best `keep` candidates in result order.
 /// Why:
-///       Partitioning by the integer keys finds the cut without string keys. Candidates strictly better than the
-///  cut are all kept; those equal to the cut are ordered by the string keys to fill the remaining places. Only those
-///  and the kept ones get string keys, instead of every match.
+///       Partitioning by the integer keys finds the cut without string keys.
+/// Candidates strictly better than the
+///  cut are all kept;
+/// those equal to the cut are ordered by the string keys to fill the remaining places.
+/// Only those
+///  and the kept ones get string keys,
+/// instead of every match.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

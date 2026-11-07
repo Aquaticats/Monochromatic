@@ -1,5 +1,10 @@
-//! Controls for the command: finding the main checkout without Git from every kind of starting directory, the refusal
-//!  outside a repository, the help, and the preview through the real entry point (a preview changes nothing, so it
+//! Controls for the command:
+//! finding the main checkout without Git from every kind of starting directory,
+//! the refusal
+//!  outside a repository,
+//! the help,
+//! and the preview through the real entry point (a preview changes nothing,
+//! so it
 //!  may run on any fixture).
 
 use super::*;
@@ -12,8 +17,11 @@ fn exit_parts(action: Action) -> (i32, String, String) {
     return (code, stdout, stderr);
 }
 
-/// The main checkout is found from itself, from a directory inside it, and from a linked worktree and its
-///  subdirectory, each time as the same real path.
+/// The main checkout is found from itself,
+/// from a directory inside it,
+/// and from a linked worktree and its
+///  subdirectory,
+/// each time as the same real path.
 #[test]
 fn the_main_checkout_is_found_from_every_starting_point() {
     let parent: PathBuf = fixture("command-root-discovery");
@@ -26,7 +34,9 @@ fn the_main_checkout_is_found_from_every_starting_point() {
     remove(parent.as_path());
 }
 
-/// A start that does not exist, one that is not in a repository, and a linked worktree of a bare repository (whose
+/// A start that does not exist,
+/// one that is not in a repository,
+/// and a linked worktree of a bare repository (whose
 ///  common directory is not called `.git`) are each refused with their own reason.
 #[test]
 fn starts_without_a_main_checkout_are_refused_with_the_reason() {
@@ -43,8 +53,11 @@ fn starts_without_a_main_checkout_are_refused_with_the_reason() {
     remove(parent.as_path());
 }
 
-/// A `.git` file that is not a gitfile, one whose administrative directory has no `commondir`, and one that cannot be
-///  read are each refused; converting the wrong directory would be harmful.
+/// A `.git` file that is not a gitfile,
+/// one whose administrative directory has no `commondir`,
+/// and one that cannot be
+///  read are each refused;
+/// converting the wrong directory would be harmful.
 #[test]
 fn a_gitfile_that_does_not_lead_to_a_main_checkout_is_refused() {
     let parent: PathBuf = fixture("command-gitfile");
@@ -68,7 +81,8 @@ fn a_gitfile_that_does_not_lead_to_a_main_checkout_is_refused() {
     remove(parent.as_path());
 }
 
-/// The help is printed on standard output with status 0, whatever directory the command runs in.
+/// The help is printed on standard output with status 0,
+/// whatever directory the command runs in.
 #[test]
 fn the_help_needs_no_repository() {
     let parent: PathBuf = fixture("command-help");
@@ -77,7 +91,8 @@ fn the_help_needs_no_repository() {
     remove(parent.as_path());
 }
 
-/// Outside a repository the command says so with status 1 and the instruction, and changes nothing.
+/// Outside a repository the command says so with status 1 and the instruction,
+/// and changes nothing.
 #[test]
 fn outside_a_repository_the_command_refuses_with_status_one() {
     let parent: PathBuf = fixture("command-outside");
@@ -87,9 +102,15 @@ fn outside_a_repository_the_command_refuses_with_status_one() {
     remove(parent.as_path());
 }
 
-/// The preview through the real entry point (the Linux platform) ends with status 0, creates nothing beside the
-///  checkout, and is the same from a linked worktree. On a filesystem without btrfs it is refused instead, with status 1
-///  and the name of the filesystem; both are the entry point's correct answers, and the test checks the one that applies.
+/// The preview through the real entry point (the Linux platform) ends with status 0,
+/// creates nothing beside the
+///  checkout,
+/// and is the same from a linked worktree.
+/// On a filesystem without btrfs it is refused instead,
+/// with status 1
+///  and the name of the filesystem;
+/// both are the entry point's correct answers,
+/// and the test checks the one that applies.
 #[test]
 fn the_preview_through_the_entry_point_changes_nothing() {
     let parent: PathBuf = fixture("command-preview");
@@ -109,7 +130,8 @@ fn the_preview_through_the_entry_point_changes_nothing() {
     remove(parent.as_path());
 }
 
-/// The names in a directory, sorted.
+/// The names in a directory,
+/// sorted.
 fn names(directory: &Path) -> Vec<String> {
     let mut found: Vec<String> = std::fs::read_dir(directory).expect("listing").flatten().map(|item| { return item.file_name().to_string_lossy().into_owned(); }).collect();
     found.sort();

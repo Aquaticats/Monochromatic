@@ -13,7 +13,8 @@ fn shell(script: &str) -> Command {
     return command;
 }
 
-/// The wait for a push that runs for a while is the runtime's: a task beside it runs while the push does.
+/// The wait for a push that runs for a while is the runtime's:
+/// a task beside it runs while the push does.
 #[cfg(unix)]
 #[test]
 fn the_wait_for_a_running_push_lets_other_tasks_run() {
@@ -29,8 +30,12 @@ fn the_wait_for_a_running_push_lets_other_tasks_run() {
     assert!(ticks > 0, "the wait for the push held the thread: the task beside it never ran");
 }
 
-/// The stop of a push that ignores the request is the runtime's too: a task beside it runs through the grace, the kill and the
-///  collection. The stop is run alone, so that ticks from the wait before it cannot stand for ticks of the stop.
+/// The stop of a push that ignores the request is the runtime's too:
+/// a task beside it runs through the grace,
+/// the kill and the
+///  collection.
+/// The stop is run alone,
+/// so that ticks from the wait before it cannot stand for ticks of the stop.
 #[cfg(unix)]
 #[test]
 fn the_stop_of_a_push_that_ignores_the_request_lets_other_tasks_run() {
@@ -49,7 +54,8 @@ fn the_stop_of_a_push_that_ignores_the_request_lets_other_tasks_run() {
     assert!(ticks > 0, "the stop of the push held the thread: the task beside it never ran");
 }
 
-/// The wait for a query is the runtime's: a task beside it runs while the query does.
+/// The wait for a query is the runtime's:
+/// a task beside it runs while the query does.
 #[cfg(unix)]
 #[test]
 fn the_wait_for_a_running_query_lets_other_tasks_run() {

@@ -57,6 +57,11 @@ pub(crate) struct CountSet {
     words: Vec<u64>,
 }
 
+/// Whether one word of the set holds no member.
+fn is_zero_word(word: &u64) -> bool {
+    return *word == 0;
+}
+
 /// What:
 ///     Construction and the bounded-count set operations the simulation needs.
 /// Why:
@@ -107,7 +112,7 @@ impl CountSet {
     /// }
     /// ```
     pub(crate) fn clear(&mut self) {
-        self.words.iter_mut().for_each(|word| *word = 0);
+        self.words.fill(0);
     }
 
     /// Adds count zero,
@@ -154,7 +159,7 @@ impl CountSet {
         if self.words[wi] >> (min % 64) != 0 {
             return true;
         }
-        return self.words[wi + 1..].iter().any(|&word| return word != 0)
+        return !self.words[wi + 1..].iter().all(is_zero_word)
     }
 
     /// Reports whether no count is live.
@@ -172,7 +177,7 @@ impl CountSet {
     /// }
     /// ```
     pub(crate) fn is_empty(&self) -> bool {
-        return self.words.iter().all(|&word| return word == 0)
+        return self.words.iter().all(is_zero_word)
     }
 
     /// Sets this set to `src` with every count advanced by one,

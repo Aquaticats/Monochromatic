@@ -1,20 +1,46 @@
 //! What:
-//!  Make one directory tree match another, in process: copy what is missing or changed (cloning file data where the
-//!  filesystem can), optionally delete what the source no longer has, or only add what is newer in the source.
+//!  Make one directory tree match another,
+//! in process:
+//! copy what is missing or changed (cloning file data where the
+//!  filesystem can),
+//! optionally delete what the source no longer has,
+//! or only add what is newer in the source.
 //! Why:
-//!  This is the work `cp --archive --reflink=always`, `rsync --archive --delete` and `rsync --archive --update` did in
-//!  the migration script, without starting those programs. One idempotent function serves all three passes, so a
-//!  pass interrupted at any point is repeated safely: an entry already equal (same type, size, modification time and
-//!  permission bits) is left alone. The walk uses a work stack, not recursion, so a deep tree cannot overflow the stack;
-//!  a directory's own attributes are applied after its children, because adding a child changes its modification time.
-//!  Files this user may not read (for example root-owned mode 600 logs) are left where they are and listed; any other
-//!  failure, and a directory this user cannot list, stops the run (the rule of the 2026-11-01 real run: copying around
+//!  This is the work `cp --archive --reflink=always`,
+//! `rsync --archive --delete` and `rsync --archive --update` did in
+//!  the migration script,
+//! without starting those programs.
+//! One idempotent function serves all three passes,
+//! so a
+//!  pass interrupted at any point is repeated safely:
+//! an entry already equal (same type,
+//! size,
+//! modification time and
+//!  permission bits) is left alone.
+//! The walk uses a work stack,
+//! not recursion,
+//! so a deep tree cannot overflow the stack;
+//!  a directory's own attributes are applied after its children,
+//! because adding a child changes its modification time.
+//!  Files this user may not read (for example root-owned mode 600 logs) are left where they are and listed;
+//! any other
+//!  failure,
+//! and a directory this user cannot list,
+//! stops the run (the rule of the 2026-11-01 real run:
+//! copying around
 //!  an unreadable directory with deletion on would erase its subtree from the copy).
-//!  Every entry is written under a temporary name in its directory and renamed over its name when complete, so a kill
-//!  never leaves a half-written file at a name a later pass would take for a newer one. The destination is reached
-//!  through open directory descriptors (`subvolume_anchor.rs`), so a directory replaced by a link during the pass
-//!  redirects nothing. An update-only pass never removes a destination entry that may hold newer work: a directory, or
-//!  an entry of another type that is not older than the source, is kept and listed.
+//!  Every entry is written under a temporary name in its directory and renamed over its name when complete,
+//! so a kill
+//!  never leaves a half-written file at a name a later pass would take for a newer one.
+//! The destination is reached
+//!  through open directory descriptors (`subvolume_anchor.rs`),
+//! so a directory replaced by a link during the pass
+//!  redirects nothing.
+//! An update-only pass never removes a destination entry that may hold newer work:
+//! a directory,
+//! or
+//!  an entry of another type that is not older than the source,
+//! is kept and listed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -36,7 +62,8 @@ use crate::subvolume_sync_pass_state_and_checks::*;
 impl Pass<'_> {
 
     /// Open the destination directory of a relative path.
-    ///  `Ok(None)` means it was replaced by something else during an update-only pass, which keeps it and lists it.
+    ///  `Ok(None)` means it was replaced by something else during an update-only pass,
+    /// which keeps it and lists it.
     fn open_destination(&mut self, relative: &Path) -> Result<Option<Anchor>, MigrateError> {
         return match Anchor::open_below(self.destination, relative) {
             Ok(anchor) => Ok(Some(anchor)),
@@ -48,7 +75,9 @@ impl Pass<'_> {
         };
     }
 
-    /// Handle one directory: delete extras, then handle each source child.
+    /// Handle one directory:
+    /// delete extras,
+    /// then handle each source child.
     fn visit(&mut self, relative: &Path, stack: &mut Vec<Work>) -> Result<(), MigrateError> {
         let source_directory: PathBuf = self.source.join(relative);
         let listing: std::fs::ReadDir = match vanished_is_counted(std::fs::read_dir(&source_directory), &mut self.stats.vanished) {
@@ -159,7 +188,8 @@ impl Pass<'_> {
 /// What:
 ///  Run one pass from `source` to `destination` (both existing directories).
 /// Why:
-///   See the module description; the work stack replaces recursion.
+///   See the module description;
+/// the work stack replaces recursion.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,5 +1,11 @@
-//! Controls for the clone rung: the plain-path refusal, the clone of files, links, modes and times with the source's index
-//!  installed, a source that changed after the check, and the clearing of a partial destination.
+//! Controls for the clone rung:
+//! the plain-path refusal,
+//! the clone of files,
+//! links,
+//! modes and times with the source's index
+//!  installed,
+//! a source that changed after the check,
+//! and the clearing of a partial destination.
 
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
@@ -9,7 +15,11 @@ use crate::worktree_snapshot_source::common_source;
 use crate::worktree_clean::stored_stats;
 use crate::subvolume_index::StatFields;
 
-/// An ordinary-directory repository with an executable file, a link, a nested file, aged, and a `--no-checkout` worktree.
+/// An ordinary-directory repository with an executable file,
+/// a link,
+/// a nested file,
+/// aged,
+/// and a `--no-checkout` worktree.
 fn clone_fixture(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
     let repo: PathBuf = std::fs::canonicalize(repository(root, "repo")).expect("canonical");
     tracked(repo.as_path(), ".gitignore", b"ignored/\n");
@@ -26,7 +36,10 @@ fn clone_fixture(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
     return (repo, destination, admin);
 }
 
-/// A path that climbs out, is absolute, is empty or enters `.git` is refused; a plain one gives its names.
+/// A path that climbs out,
+/// is absolute,
+/// is empty or enters `.git` is refused;
+/// a plain one gives its names.
 #[test]
 fn only_plain_paths_become_entries() {
     assert_eq!(entry_names(b"a/b.txt"), Ok(vec![OsString::from("a"), OsString::from("b.txt")]));
@@ -35,7 +48,10 @@ fn only_plain_paths_become_entries() {
     }
 }
 
-/// Files are cloned with the source's bytes, mode and modification time, the link has the same target, and the installed
+/// Files are cloned with the source's bytes,
+/// mode and modification time,
+/// the link has the same target,
+/// and the installed
 ///  index makes the new worktree clean at once.
 #[test]
 fn btrfs_files_links_modes_and_times_are_cloned_and_the_index_is_installed() {
@@ -54,8 +70,10 @@ fn btrfs_files_links_modes_and_times_are_cloned_and_the_index_is_installed() {
     remove(root.as_path());
 }
 
-/// A source that changed after the check is refused by the comparison with its own index; the entries the run created stay
-///  (nothing is removed by a name), and the reason counts them.
+/// A source that changed after the check is refused by the comparison with its own index;
+/// the entries the run created stay
+///  (nothing is removed by a name),
+/// and the reason counts them.
 #[test]
 fn btrfs_a_changed_source_is_refused_and_the_partial_destination_is_left_for_the_checkout() {
     let Some(root) = btrfs_fixture("clone-changed") else { return };
@@ -90,7 +108,8 @@ fn clone_into(source: &SnapshotSource, destination: &Path, admin: &Path) -> Resu
     return clone_tracked_files(source, &held, &administrative);
 }
 
-/// Clone one entry through the given handles, with the stat fields of the objects made discarded.
+/// Clone one entry through the given handles,
+/// with the stat fields of the objects made discarded.
 fn entry_through(handles: (&File, &File), components: &[&str], entry: &StatEntry, source: &SnapshotSource, created: &mut Vec<Created>, seams: &mut Seams<'_>) -> Result<(), String> {
     let names: Vec<OsString> = components.iter().map(OsString::from).collect();
     let work: Work<'_> = Work { entry, names: names.as_slice(), index_seconds: source.clean.index_seconds };
@@ -98,7 +117,8 @@ fn entry_through(handles: (&File, &File), components: &[&str], entry: &StatEntry
     return clone_entry(handles.0, handles.1, &work, (created, &mut stats), seams);
 }
 
-/// The frozen entries of the source's index and handles on the source root and the destination, as `clone_all` holds them.
+/// The frozen entries of the source's index and handles on the source root and the destination,
+/// as `clone_all` holds them.
 fn handles(source: &SnapshotSource, repo: &Path, destination: &Path) -> (Vec<StatEntry>, File, File) {
     let entries: Vec<StatEntry> = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length).expect("entries");
     return (entries, open_root(repo).expect("source root"), open_root(destination).expect("destination"));
@@ -110,7 +130,8 @@ fn entry_of<'a>(entries: &'a [StatEntry], path: &str) -> &'a StatEntry {
 }
 
 /// A file replaced between the look and the open by another file of the same size and time is refused by the descriptor's
-///  own metadata, and nothing of it reaches the destination.
+///  own metadata,
+/// and nothing of it reaches the destination.
 #[test]
 fn btrfs_a_file_swapped_between_the_look_and_the_open_is_not_cloned() {
     let Some(root) = btrfs_fixture("clone-swap-file") else { return };
@@ -131,7 +152,8 @@ fn btrfs_a_file_swapped_between_the_look_and_the_open_is_not_cloned() {
     remove(root.as_path());
 }
 
-/// A file written after its data was cloned is refused, and the entry it made is on the list of what stays.
+/// A file written after its data was cloned is refused,
+/// and the entry it made is on the list of what stays.
 #[test]
 fn btrfs_a_file_written_during_the_clone_is_refused_and_listed() {
     let Some(root) = btrfs_fixture("clone-write-during") else { return };
@@ -150,8 +172,10 @@ fn btrfs_a_file_written_during_the_clone_is_refused_and_listed() {
     remove(root.as_path());
 }
 
-/// A parent directory renamed away and replaced after the handle was taken is read through the handle: the original's
-///  bytes are cloned, never the stand-in's.
+/// A parent directory renamed away and replaced after the handle was taken is read through the handle:
+/// the original's
+///  bytes are cloned,
+/// never the stand-in's.
 #[test]
 fn btrfs_a_parent_directory_swapped_after_it_was_opened_is_read_through_its_handle() {
     let Some(root) = btrfs_fixture("clone-swap-parent") else { return };
@@ -173,8 +197,11 @@ fn btrfs_a_parent_directory_swapped_after_it_was_opened_is_read_through_its_hand
     remove(root.as_path());
 }
 
-/// A failed run removes nothing: a file and a directory that were in the destination before stay, and so do the clones that
-///  were made, which the reason counts.
+/// A failed run removes nothing:
+/// a file and a directory that were in the destination before stay,
+/// and so do the clones that
+///  were made,
+/// which the reason counts.
 #[test]
 fn btrfs_a_failed_run_removes_nothing_and_counts_what_stays() {
     let Some(root) = btrfs_fixture("clone-created-only") else { return };
@@ -196,7 +223,9 @@ fn btrfs_a_failed_run_removes_nothing_and_counts_what_stays() {
     remove(root.as_path());
 }
 
-/// Every path below a directory, relative, directories included.
+/// Every path below a directory,
+/// relative,
+/// directories included.
 fn walk(top: &Path) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![top.to_path_buf()];
@@ -211,8 +240,12 @@ fn walk(top: &Path) -> Vec<String> {
     return found;
 }
 
-/// The index that was proven clean is the one cloned from: a source that moved to another commit after the check, with its
-///  own consistent index, is refused, never cloned as the other commit.
+/// The index that was proven clean is the one cloned from:
+/// a source that moved to another commit after the check,
+/// with its
+///  own consistent index,
+/// is refused,
+/// never cloned as the other commit.
 #[test]
 fn btrfs_the_frozen_index_is_used_not_a_second_read_of_the_file() {
     let Some(root) = btrfs_fixture("clone-frozen") else { return };
@@ -227,7 +260,9 @@ fn btrfs_the_frozen_index_is_used_not_a_second_read_of_the_file() {
     remove(root.as_path());
 }
 
-/// The report of what a failed run left names how many entries stay, a few of their names, and the command that lists the
+/// The report of what a failed run left names how many entries stay,
+/// a few of their names,
+/// and the command that lists the
 ///  untracked ones.
 #[test]
 fn the_report_of_what_stays_names_the_count_the_examples_and_the_command() {
@@ -240,8 +275,12 @@ fn the_report_of_what_stays_names_the_count_the_examples_and_the_command() {
     assert!(report.starts_with("3 entries") && report.contains("dir/a.txt, b.txt") && report.contains("git -C /base/topic status"), "{report}");
 }
 
-/// A file replaced after it was cloned, with the same size and time, is not certified: the index records the inode that was
-///  cloned, so Git sees the replacement as changed.
+/// A file replaced after it was cloned,
+/// with the same size and time,
+/// is not certified:
+/// the index records the inode that was
+///  cloned,
+/// so Git sees the replacement as changed.
 #[test]
 fn btrfs_a_destination_file_replaced_before_the_index_is_not_certified() {
     let Some(root) = btrfs_fixture("clone-replaced-before-index") else { return };
@@ -266,7 +305,8 @@ fn btrfs_a_destination_file_replaced_before_the_index_is_not_certified() {
     remove(root.as_path());
 }
 
-/// A subdirectory the run walks that is another device is refused, so nothing is created across a subvolume.
+/// A subdirectory the run walks that is another device is refused,
+/// so nothing is created across a subvolume.
 #[test]
 fn btrfs_a_destination_directory_on_another_device_is_refused() {
     let Some(root) = btrfs_fixture("clone-device") else { return };
@@ -279,8 +319,13 @@ fn btrfs_a_destination_directory_on_another_device_is_refused() {
     remove(root.as_path());
 }
 
-/// A link replaced after it was made, by another of the same length, is not certified: the index keeps the stat fields the
-///  source's entry had, which match neither link, instead of recording those of whatever the name holds by then.
+/// A link replaced after it was made,
+/// by another of the same length,
+/// is not certified:
+/// the index keeps the stat fields the
+///  source's entry had,
+/// which match neither link,
+/// instead of recording those of whatever the name holds by then.
 #[test]
 fn btrfs_a_destination_link_replaced_before_the_index_is_not_certified() {
     let Some(root) = btrfs_fixture("clone-link-replaced-before-index") else { return };

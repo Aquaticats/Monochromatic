@@ -1,5 +1,8 @@
-//! Controls for the signs of a thread: a thread that sleeps is judged quiet after the window, a thread that keeps writing is
-//!  never judged quiet, and a measured job leaves its longest gap in the ledger.
+//! Controls for the signs of a thread:
+//! a thread that sleeps is judged quiet after the window,
+//! a thread that keeps writing is
+//!  never judged quiet,
+//! and a measured job leaves its longest gap in the ledger.
 #![cfg(target_os = "linux")]
 
 use super::*;
@@ -7,10 +10,13 @@ use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 use std::sync::mpsc::channel;
 
-/// A window past the sampling interval, so a thread that works shows its work at a sample before the window runs out.
+/// A window past the sampling interval,
+/// so a thread that works shows its work at a sample before the window runs out.
 const WINDOW: Duration = Duration::from_millis(1200);
 
-/// How long the quiet fixture sleeps: far past the window, and ended early by the control when it has its answer.
+/// How long the quiet fixture sleeps:
+/// far past the window,
+/// and ended early by the control when it has its answer.
 const QUIET_FIXTURE: Duration = Duration::from_secs(4);
 
 /// How long a control waits for a verdict before it fails.
@@ -23,7 +29,8 @@ fn the_calling_thread_has_a_number() {
     assert!(std::path::Path::new(format!("/proc/self/task/{tid}").as_str()).exists());
 }
 
-/// A thread that sleeps is judged quiet once the window has passed, and its quiet gap is at least the window.
+/// A thread that sleeps is judged quiet once the window has passed,
+/// and its quiet gap is at least the window.
 #[test]
 fn a_sleeping_thread_is_judged_quiet_after_the_window() {
     let (sender, receiver) = channel::<i32>();
@@ -42,7 +49,8 @@ fn a_sleeping_thread_is_judged_quiet_after_the_window() {
     sleeper.join().expect("the sleeper ends");
 }
 
-/// A thread that keeps writing a file is never judged quiet however long it runs, and its gap stays under the window.
+/// A thread that keeps writing a file is never judged quiet however long it runs,
+/// and its gap stays under the window.
 #[test]
 fn a_writing_thread_is_never_judged_quiet() {
     let root: PathBuf = fixture("thread-quiet-writer");
@@ -70,7 +78,9 @@ fn a_writing_thread_is_never_judged_quiet() {
     remove(root.as_path());
 }
 
-/// A thread that cannot be read is never judged quiet: nothing was measured, so nothing is known.
+/// A thread that cannot be read is never judged quiet:
+/// nothing was measured,
+/// so nothing is known.
 #[test]
 fn an_unreadable_thread_is_never_judged_quiet() {
     let mut clock: ThreadClock = ThreadClock::start(i32::MAX, Duration::ZERO, false);
@@ -78,7 +88,8 @@ fn an_unreadable_thread_is_never_judged_quiet() {
     assert!(!clock.quiet());
 }
 
-/// A measured job runs to its end and leaves the gap of its sleep in the ledger, under the step's name.
+/// A measured job runs to its end and leaves the gap of its sleep in the ledger,
+/// under the step's name.
 #[test]
 fn a_measured_job_leaves_its_gap_in_the_ledger() {
     crate::quiet_ledger::drain();

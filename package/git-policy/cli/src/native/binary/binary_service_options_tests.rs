@@ -1,9 +1,17 @@
 //! What:
-//!  The command lines that only shape the message or the identity, landed through the service, compared field by field
+//!  The command lines that only shape the message or the identity,
+//! landed through the service,
+//! compared field by field
 //!  with the commit native `git commit` makes of the same input.
 //! Why:
-//!  A service commit that differs from the native one in any stored field (tree, message, author, committer) would be a
-//!  silent change of what a person's `-F`, `--author`, `--date`, `--trailer` or `--cleanup` means.
+//!  A service commit that differs from the native one in any stored field (tree,
+//! message,
+//! author,
+//! committer) would be a
+//!  silent change of what a person's `-F`,
+//! `--author`,
+//! `--date`,
+//! `--trailer` or `--cleanup` means.
 
 use super::commit::{git_text, remove_settled};
 use super::service_commit::{Running, query, start, through_service};
@@ -13,7 +21,8 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
-/// The stored fields that must agree, with the author's date (the one date a command line can set).
+/// The stored fields that must agree,
+/// with the author's date (the one date a command line can set).
 fn stored(fixture: &Fixture, repo: &Path) -> Vec<String> {
     let formats: [&str; 6] = ["%T", "%B", "%an <%ae>", "%ad", "%cn <%ce>", "%P"];
     // Untrimmed, so trailing whitespace and line breaks of a verbatim message are compared too.
@@ -29,7 +38,9 @@ fn finished(fixture: &Fixture) -> usize {
     });
 }
 
-/// One command line to compare: the arguments before the separator, and whether the author's date is set by it.
+/// One command line to compare:
+/// the arguments before the separator,
+/// and whether the author's date is set by it.
 struct Case {
     name: &'static str,
     arguments: Vec<String>,
@@ -41,7 +52,8 @@ fn case(name: &'static str, arguments: &[&str], date_set: bool) -> Case {
     return Case { name, arguments: arguments.iter().map(|argument| { return (*argument).to_string(); }).collect(), date_set, edits: true };
 }
 
-/// Every covered option gives the commit native Git gives, and the service (not the transaction) landed it.
+/// Every covered option gives the commit native Git gives,
+/// and the service (not the transaction) landed it.
 #[test]
 fn message_and_identity_options_through_the_service_equal_the_native_commit() {
     let fixture: Fixture = fixture("service-options");
@@ -115,7 +127,11 @@ fn message_and_identity_options_through_the_service_equal_the_native_commit() {
 }
 
 /// A repository whose configuration changes what native `git commit` does (here a clean-up mode) is never built by the
-///  service, which would ignore the setting; real Git builds it, the service lands it, and the setting holds.
+///  service,
+/// which would ignore the setting;
+/// real Git builds it,
+/// the service lands it,
+/// and the setting holds.
 #[test]
 fn a_configuration_the_service_would_ignore_has_git_build_the_commit() {
     let fixture: Fixture = fixture("service-options-config");

@@ -1,14 +1,24 @@
-//! Platform file actions behind the track menu: show in the file manager, copy the file name,
-//! move to the trash, and restore from the trash for Undo.
+//! Platform file actions behind the track menu:
+//! show in the file manager,
+//! copy the file name,
+//! move to the trash,
+//! and restore from the trash for Undo.
 //!
-//! What: each function performs one OS action and reports a `FileActionError` on failure.
-//! Why: the menu decides which action runs; this module only knows how each OS does it.
+//! What:
+//! each function performs one OS action and reports a `FileActionError` on failure.
+//! Why:
+//! the menu decides which action runs;
+//! this module only knows how each OS does it.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-/// What: `FileActionError` is the failure of one file action, with the path or text it concerned.
-/// Why: the caller reports the failure as feedback, so each variant carries the detail to show.
+/// What:
+/// `FileActionError` is the failure of one file action,
+/// with the path or text it concerned.
+/// Why:
+/// the caller reports the failure as feedback,
+/// so each variant carries the detail to show.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -24,12 +34,14 @@ pub enum FileActionError {
     Clipboard(String),
     /// The file could not be moved to the trash.
     Trash(String),
-    /// The file could not be restored from the trash; the text is the whole plain sentence to show.
+    /// The file could not be restored from the trash;
+    /// the text is the whole plain sentence to show.
     Restore(String),
 }
 
 impl fmt::Display for FileActionError {
-    /// What: `fmt` writes the failure in plain words for the feedback message.
+    /// What:
+    /// `fmt` writes the failure in plain words for the feedback message.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         return match self {
             Self::NoParent(path) => write!(formatter, "{} has no folder to open", path.display()),
@@ -43,8 +55,12 @@ impl fmt::Display for FileActionError {
 
 impl std::error::Error for FileActionError {}
 
-/// What: `show_in_file_manager` opens the folder holding `path` with the file selected where the OS allows it.
-/// Why: Linux has no select-file route, so it opens the parent; macOS and Windows select the file.
+/// What:
+/// `show_in_file_manager` opens the folder holding `path` with the file selected where the OS allows it.
+/// Why:
+/// Linux has no select-file route,
+/// so it opens the parent;
+/// macOS and Windows select the file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -58,7 +74,8 @@ pub fn show_in_file_manager(path: &Path) -> Result<(), FileActionError> {
     });
 }
 
-/// What: `show_in_file_manager` on macOS opens Finder with the file selected (`open -R`).
+/// What:
+/// `show_in_file_manager` on macOS opens Finder with the file selected (`open -R`).
 #[cfg(target_os = "macos")]
 pub fn show_in_file_manager(path: &Path) -> Result<(), FileActionError> {
     return spawn("open", |command| {
@@ -66,7 +83,8 @@ pub fn show_in_file_manager(path: &Path) -> Result<(), FileActionError> {
     });
 }
 
-/// What: `show_in_file_manager` on Windows opens Explorer with the file selected (`explorer /select,`).
+/// What:
+/// `show_in_file_manager` on Windows opens Explorer with the file selected (`explorer /select,`).
 #[cfg(windows)]
 pub fn show_in_file_manager(path: &Path) -> Result<(), FileActionError> {
     return spawn("explorer", |command| {
@@ -74,14 +92,18 @@ pub fn show_in_file_manager(path: &Path) -> Result<(), FileActionError> {
     });
 }
 
-/// What: `show_in_file_manager` on other platforms reports that the action is unavailable.
+/// What:
+/// `show_in_file_manager` on other platforms reports that the action is unavailable.
 #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 pub fn show_in_file_manager(_path: &Path) -> Result<(), FileActionError> {
     return Err(FileActionError::Spawn("no file manager is known for this platform".to_string()));
 }
 
-/// What: `spawn` starts a program with arguments set by `configure` and does not wait for it.
-/// Why: a file manager stays open after the player continues, so the player must not block on it.
+/// What:
+/// `spawn` starts a program with arguments set by `configure` and does not wait for it.
+/// Why:
+/// a file manager stays open after the player continues,
+/// so the player must not block on it.
 fn spawn(program: &str, configure: impl FnOnce(&mut std::process::Command)) -> Result<(), FileActionError> {
     let mut command = std::process::Command::new(program);
     configure(&mut command);
@@ -91,8 +113,11 @@ fn spawn(program: &str, configure: impl FnOnce(&mut std::process::Command)) -> R
         .map_err(|error| return FileActionError::Spawn(format!("{program}: {error}")));
 }
 
-/// What: `copy_text` writes `text` to the system clipboard.
-/// Why: Copy filename puts the file name on the clipboard, and a failed write must be reported.
+/// What:
+/// `copy_text` writes `text` to the system clipboard.
+/// Why:
+/// Copy filename puts the file name on the clipboard,
+/// and a failed write must be reported.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,8 +130,11 @@ pub fn copy_text(text: &str) -> Result<(), FileActionError> {
         .map_err(|error| return FileActionError::Clipboard(error.to_string()));
 }
 
-/// What: `move_to_trash` moves `path` to the OS trash.
-/// Why: D8 deletes immediately and offers Undo, so the trash is the recoverable place for the file.
+/// What:
+/// `move_to_trash` moves `path` to the OS trash.
+/// Why:
+/// D8 deletes immediately and offers Undo,
+/// so the trash is the recoverable place for the file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -118,18 +146,28 @@ pub fn move_to_trash(path: &Path) -> Result<(), FileActionError> {
     return Ok(());
 }
 
-/// What: `remember_trashed` records that this player just moved `path` to the trash.
-/// Why: see `was_just_trashed`; kept apart from the trash call so a test can record a path without touching the real trash.
+/// What:
+/// `remember_trashed` records that this player just moved `path` to the trash.
+/// Why:
+/// see `was_just_trashed`;
+/// kept apart from the trash call so a test can record a path without touching the real trash.
 fn remember_trashed(path: &Path) {
     if let Ok(mut trashed) = TRASHED.lock() {
         trashed.push((path.to_path_buf(), std::time::Instant::now()));
     }
 }
 
-/// What: `comparable_path` is a path with its folder resolved through symlinks and its file name kept.
-/// Why: a trashed file no longer exists, so the file itself cannot be resolved, but its folder can. The trash records the
-/// folder as the system resolved it, while the player may have opened the library through a symlinked path (the polish
-/// review finding PB3: Undo failed with "is not in the trash" for a library opened through a symlink).
+/// What:
+/// `comparable_path` is a path with its folder resolved through symlinks and its file name kept.
+/// Why:
+/// a trashed file no longer exists,
+/// so the file itself cannot be resolved,
+/// but its folder can.
+/// The trash records the
+/// folder as the system resolved it,
+/// while the player may have opened the library through a symlinked path (the polish
+/// review finding PB3:
+/// Undo failed with "is not in the trash" for a library opened through a symlink).
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const comparablePath = (p: string) => join(realpathSync(dirname(p)), basename(p));
@@ -147,9 +185,13 @@ pub fn comparable_path(path: &Path) -> Option<PathBuf> {
     return Some(resolved.join(name));
 }
 
-/// What: `same_original_path` tells whether a trash item came from `wanted`, comparing the paths as written first and
+/// What:
+/// `same_original_path` tells whether a trash item came from `wanted`,
+/// comparing the paths as written first and
 /// then with their folders resolved through symlinks.
-/// Why: Undo must find the item however the library path was spelled; see `comparable_path`.
+/// Why:
+/// Undo must find the item however the library path was spelled;
+/// see `comparable_path`.
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const sameOriginalPath = (a: string, b: string) => a === b || comparablePath(a) === comparablePath(b);
@@ -170,8 +212,12 @@ const JUST_TRASHED: std::time::Duration = std::time::Duration::from_secs(15);
 /// Paths moved to the trash by this player and when.
 static TRASHED: std::sync::Mutex<Vec<(PathBuf, std::time::Instant)>> = std::sync::Mutex::new(Vec::new());
 
-/// What: `was_just_trashed` tells whether this player moved `path` to the trash in the last few seconds.
-/// Why: the rescan then reports the file as gone, and the trash message already explains it; a second message about
+/// What:
+/// `was_just_trashed` tells whether this player moved `path` to the trash in the last few seconds.
+/// Why:
+/// the rescan then reports the file as gone,
+/// and the trash message already explains it;
+/// a second message about
 /// the same file would be noise.
 pub fn was_just_trashed(path: &Path) -> bool {
     let Ok(mut trashed) = TRASHED.lock() else {
@@ -181,8 +227,10 @@ pub fn was_just_trashed(path: &Path) -> bool {
     return trashed.iter().any(|(trashed_path, _when)| return trashed_path == path);
 }
 
-/// What: `can_restore_from_trash` tells whether `restore_from_trash` works on this platform.
-/// Why: the Undo message is offered only where the trash crate can restore a file.
+/// What:
+/// `can_restore_from_trash` tells whether `restore_from_trash` works on this platform.
+/// Why:
+/// the Undo message is offered only where the trash crate can restore a file.
 pub fn can_restore_from_trash() -> bool {
     return cfg!(any(
         windows,
@@ -190,8 +238,11 @@ pub fn can_restore_from_trash() -> bool {
     ));
 }
 
-/// What: `restore_from_trash` puts the most recently trashed copy of `path` back where it was.
-/// Why: Undo of Move to trash restores the file from the OS trash, so nothing is copied or re-created.
+/// What:
+/// `restore_from_trash` puts the most recently trashed copy of `path` back where it was.
+/// Why:
+/// Undo of Move to trash restores the file from the OS trash,
+/// so nothing is copied or re-created.
 #[cfg(any(
     windows,
     all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android")))
@@ -216,8 +267,11 @@ pub fn restore_from_trash(path: &Path) -> Result<(), FileActionError> {
     });
 }
 
-/// What: `restore_from_trash` on macOS reports that the trash crate cannot restore files there.
-/// Why: the Undo message is not offered on this platform, so this branch is a guard only.
+/// What:
+/// `restore_from_trash` on macOS reports that the trash crate cannot restore files there.
+/// Why:
+/// the Undo message is not offered on this platform,
+/// so this branch is a guard only.
 #[cfg(not(any(
     windows,
     all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android")))

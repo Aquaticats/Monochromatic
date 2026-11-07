@@ -1,11 +1,15 @@
 //! End-to-end test of the built `mpm-shadow` binary installing in a checkout that started as a copy of another one,
 //! the way the git wrapper's `git worktree add` makes a new worktree:
-//! a snapshot of the source checkout's ignored files, `.cache` included, then `mpm-shadow install --frozen-lockfile`.
-//! The copy carries the source's record of postinstall links, which names the source's links by absolute path.
+//! a snapshot of the source checkout's ignored files,
+//! `.cache` included,
+//! then `mpm-shadow install --frozen-lockfile`.
+//! The copy carries the source's record of postinstall links,
+//! which names the source's links by absolute path.
 //! An install in the copy must leave every link of the source in place.
 //! The tree is a real (disposable) git repository with a second worktree;
 //! the environment is cleared and the home is disposable,
-//! so nothing here reads or writes the real `~/.config`, `~/.local` or `~/.cargo`.
+//! so nothing here reads or writes the real `~/.config`,
+//! `~/.local` or `~/.cargo`.
 
 use std::fs;
 use std::os::unix::fs::{PermissionsExt, symlink};
@@ -14,7 +18,8 @@ use std::process::{Command, Output};
 
 use mpm_shadow::toolchain::lock::{parse_lock, render_lock};
 
-/// The directory of the postinstall link in both checkouts, relative to the checkout.
+/// The directory of the postinstall link in both checkouts,
+/// relative to the checkout.
 const LINK_DIRECTORY: &str = ".cache/monochromatic-git-policy-cli-bin";
 
 /// The plan:
@@ -136,7 +141,9 @@ impl Fixture {
             .expect("run mpm-shadow");
     }
 
-    /// Copies the source's `.cache` into the copy, symbolic links kept as links, as a snapshot of the source does.
+    /// Copies the source's `.cache` into the copy,
+    /// symbolic links kept as links,
+    /// as a snapshot of the source does.
     fn snapshot_cache_into_the_copy(&self) {
         let status = Command::new("cp")
             .arg("--archive")

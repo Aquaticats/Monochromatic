@@ -1,9 +1,15 @@
-//! Runs a test body in a child process that is refused every thread it tries to start, so a site that starts threads is shown to
-//! carry on where the system gives none (`Scope::spawn` panics there; a start that falls back runs the work in turn).
+//! Runs a test body in a child process that is refused every thread it tries to start,
+//! so a site that starts threads is shown to
+//! carry on where the system gives none (`Scope::spawn` panics there;
+//! a start that falls back runs the work in turn).
 //!
-//! A test calls `ran_in_child` first and returns when it says `true`: the parent has then started this same test in a child whose
-//! process limit is one, and the child's success is the parent's assertion. In the child it says `false` and the body follows.
-//! Where the user may exceed the process limit the thread is not refused, so the parent says so and skips.
+//! A test calls `ran_in_child` first and returns when it says `true`:
+//! the parent has then started this same test in a child whose
+//! process limit is one,
+//! and the child's success is the parent's assertion.
+//! In the child it says `false` and the body follows.
+//! Where the user may exceed the process limit the thread is not refused,
+//! so the parent says so and skips.
 
 use std::os::unix::process::CommandExt as _;
 
@@ -26,7 +32,8 @@ fn apply_limit() -> std::io::Result<()> {
     return Ok(());
 }
 
-/// The command that starts this test binary on one test, under the limit.
+/// The command that starts this test binary on one test,
+/// under the limit.
 fn child_command(path: &str) -> std::process::Command {
     let mut command: std::process::Command = std::process::Command::new(crate::test_support::this_test_binary().expect("the test binary"));
     command.args(["--exact", path, "--nocapture", "--test-threads=1"]).env(CHILD_VARIABLE, "1").stdin(std::process::Stdio::null());
@@ -37,14 +44,21 @@ fn child_command(path: &str) -> std::process::Command {
     return command;
 }
 
-/// The probe test the parent starts in a child before the real test: it says whether a thread can start under the limit.
-/// It lives in a sidecar, as every test of the crate does; `ran_in_child` names it by its path there.
+/// The probe test the parent starts in a child before the real test:
+/// it says whether a thread can start under the limit.
+/// It lives in a sidecar,
+/// as every test of the crate does;
+/// `ran_in_child` names it by its path there.
 #[cfg(test)]
 #[path = "no_threads_child_test_support_tests.rs"]
 mod tests;
 
-/// Whether this call ran the test in a child with no thread to start (and asserted that it passed), or skipped because the user may
-/// exceed the process limit; `false` in the child itself, where the body follows. `module` is `module_path!()` of the test and `name`
+/// Whether this call ran the test in a child with no thread to start (and asserted that it passed),
+/// or skipped because the user may
+/// exceed the process limit;
+/// `false` in the child itself,
+/// where the body follows.
+/// `module` is `module_path!()` of the test and `name`
 /// its function name.
 pub(crate) fn ran_in_child(module: &str, name: &str) -> bool {
     if std::env::var_os(CHILD_VARIABLE).is_some() {

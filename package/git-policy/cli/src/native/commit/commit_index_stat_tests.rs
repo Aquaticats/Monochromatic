@@ -1,5 +1,6 @@
 //! Controls for the cached stat data of the explicit-path private index:
-//!  an entry the base shares with the real index keeps its stat data, so the shadow commit does not read the file again,
+//!  an entry the base shares with the real index keeps its stat data,
+//! so the shadow commit does not read the file again,
 //!  and an entry the worktree changed since the real index recorded it does not keep a stale one.
 
 use super::*;
@@ -10,7 +11,8 @@ use std::process::{Command, Output};
 /// The line `git ls-files --debug` prints for the modification time of an entry that was never refreshed.
 const UNSET_MODIFICATION_TIME: &str = "mtime: 0:0";
 
-/// A repository with `a.txt` and `b.txt` committed, and the private indexes beside the real index.
+/// A repository with `a.txt` and `b.txt` committed,
+/// and the private indexes beside the real index.
 fn committed_repository(root: &Path) -> (PathBuf, CaptureIndexes, String) {
     let repo: PathBuf = repository(root, "repo");
     std::fs::write(repo.join("a.txt"), "a\n").expect("a");
@@ -68,8 +70,11 @@ fn an_unchanged_entry_keeps_its_cached_stat_data() {
     remove(root.as_path());
 }
 
-/// The same control run through the real index shows what "kept" looks like, so the control above can fail:
-///  a private index built the old way, by a plain `read-tree` of the base, holds no stat data at all.
+/// The same control run through the real index shows what "kept" looks like,
+/// so the control above can fail:
+///  a private index built the old way,
+/// by a plain `read-tree` of the base,
+/// holds no stat data at all.
 #[test]
 fn a_plain_read_tree_leaves_no_stat_data() {
     let root: PathBuf = fixture("commit-index-stat-positive-control");
@@ -120,7 +125,8 @@ fn private_content(repo: &Path, indexes: &CaptureIndexes, path: &str) -> String 
     return git_text(repo, &["show", format!("{tree}:{path}").as_str()]);
 }
 
-/// A repository with `a.txt`, `b.txt` and `d/x.txt` committed.
+/// A repository with `a.txt`,
+/// `b.txt` and `d/x.txt` committed.
 fn repository_with_directory(root: &Path) -> (PathBuf, CaptureIndexes, String) {
     let (repo, indexes, _base) = committed_repository(root);
     std::fs::create_dir(repo.join("d")).expect("directory");
@@ -131,8 +137,10 @@ fn repository_with_directory(root: &Path) -> (PathBuf, CaptureIndexes, String) {
     return (repo, indexes, base);
 }
 
-/// A file marked assume-unchanged that the commit names is staged from the worktree, as Git's own partial commit does;
-///  without that, the mark in the copied index makes `git add` skip it and the named file is silently left out.
+/// A file marked assume-unchanged that the commit names is staged from the worktree,
+/// as Git's own partial commit does;
+///  without that,
+/// the mark in the copied index makes `git add` skip it and the named file is silently left out.
 #[test]
 fn a_named_assume_unchanged_file_is_committed() {
     let root: PathBuf = fixture("commit-index-assume-named");
@@ -172,7 +180,8 @@ fn a_named_directory_takes_its_assume_unchanged_files() {
     remove(root.as_path());
 }
 
-/// A path marked skip-worktree by hand that the commit names does not fail the commit, as before the copy.
+/// A path marked skip-worktree by hand that the commit names does not fail the commit,
+/// as before the copy.
 #[test]
 fn a_named_skip_worktree_file_does_not_fail_the_commit() {
     let root: PathBuf = fixture("commit-index-skip-named");
@@ -187,7 +196,8 @@ fn a_named_skip_worktree_file_does_not_fail_the_commit() {
 }
 
 /// A tracked empty file that the real index holds as intent-to-add stays in the tree the private index produces when the
-///  commit names another path: the seeded copy kept the entry and a tree built from it leaves intent-to-add entries out.
+///  commit names another path:
+/// the seeded copy kept the entry and a tree built from it leaves intent-to-add entries out.
 #[test]
 fn an_intent_to_add_tracked_empty_file_is_not_dropped_from_the_commit() {
     let root: PathBuf = fixture("commit-index-intent-empty");
@@ -213,8 +223,10 @@ fn an_intent_to_add_tracked_empty_file_is_not_dropped_from_the_commit() {
     remove(root.as_path());
 }
 
-/// An index no mark touches still seeds the private index, so the safeguard costs nothing for it:
-///  the copy is used exactly when the reader found the index plain, and an absent file seeds nothing.
+/// An index no mark touches still seeds the private index,
+/// so the safeguard costs nothing for it:
+///  the copy is used exactly when the reader found the index plain,
+/// and an absent file seeds nothing.
 #[test]
 fn only_a_plain_index_seeds_the_private_index() {
     let root: PathBuf = fixture("commit-index-seeds");

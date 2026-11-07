@@ -1,5 +1,7 @@
-//! What: Controls for the added-path precondition of a direct fix and its message.
-//! Why: Admitting a file that differs from `HEAD` anywhere would discard someone's change;
+//! What:
+//! Controls for the added-path precondition of a direct fix and its message.
+//! Why:
+//! Admitting a file that differs from `HEAD` anywhere would discard someone's change;
 //!      refusing a clean one would make a narrow fix fail for no reason.
 //!
 //! In TS you'd write (pseudocode):
@@ -8,7 +10,8 @@
 //! ```
 #![cfg(unix)]
 
-/// Import the precondition, its reasons and its message.
+/// Import the precondition,
+/// its reasons and its message.
 use super::{
     ADDED_PATH_HEAD_REASON, ADDED_PATH_MISSING_REASON, ADDED_PATH_STAGED_REASON,
     ADDED_PATH_UNSTAGED_REASON, Entry, added_path_message, head_mode, worktree_refusal,
@@ -32,7 +35,8 @@ fn entry(mode: CandidateMode, digit: u8) -> Entry {
     return (mode, object(digit));
 }
 
-/// The message is the installed wrapper's direct-fix wording, with both remedies.
+/// The message is the installed wrapper's direct-fix wording,
+/// with both remedies.
 #[test]
 fn the_message_names_the_file_the_reason_and_both_remedies() {
     assert_eq!(
@@ -44,7 +48,8 @@ fn the_message_names_the_file_the_reason_and_both_remedies() {
     );
 }
 
-/// `HEAD` must hold the computed-against object as an ordinary file; the index must hold it
+/// `HEAD` must hold the computed-against object as an ordinary file;
+/// the index must hold it
 /// with `HEAD`'s mode.
 #[test]
 fn head_and_index_must_hold_the_same_ordinary_file() {

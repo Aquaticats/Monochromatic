@@ -1,13 +1,25 @@
 //! What:
-//!  The service's handler for a `review` work item: read the landed commit, ask the decision gateway, and append the
-//!  entry to the repository's live shadow log, every step ending on no progress and none on the clock.
+//!  The service's handler for a `review` work item:
+//! read the landed commit,
+//! ask the decision gateway,
+//! and append the
+//!  entry to the repository's live shadow log,
+//! every step ending on no progress and none on the clock.
 //! Why:
 //!  This replaces the repository's post-commit hook that ran `mise run shadow-review` (`doc/runbook/standards-review-gate.md`).
-//!  The review shares the service's work thread with pushes and upkeep, so every step ends by itself: the gateway call on the
-//!  idle timeouts of its transport, the Git reads under the watch of `child_watch.rs`; the local write of the entry has no
-//!  judge (pick 9 of `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the owner's delegation and open to
-//!  the owner's veto; it replaces the 20 second budget around the whole run). A review that fails leaves its item in
-//!  `failed` as a plain record and the log shows the gateway's failure as an entry; nothing is ever left claimed.
+//!  The review shares the service's work thread with pushes and upkeep,
+//! so every step ends by itself:
+//! the gateway call on the
+//!  idle timeouts of its transport,
+//! the Git reads under the watch of `child_watch.rs`;
+//! the local write of the entry has no
+//!  judge (pick 9 of `doc/planning/cli-git-shipped-limits-audit.md`,
+//! the coordinator's under the owner's delegation and open to
+//!  the owner's veto;
+//! it replaces the 20 second budget around the whole run).
+//! A review that fails leaves its item in
+//!  `failed` as a plain record and the log shows the gateway's failure as an entry;
+//! nothing is ever left claimed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,19 +38,35 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// How long the gateway call may stay silent before it is ended.
-///  Citation: none, and **unmeasured as a quiet window**. The figure was the call's total deadline, "several times the largest
-///  figure on record (1.4 s in `doc/audit/standards-review-gate-shadow.md`)"; that is a whole time, and a whole time is an upper
-///  bound of a quiet gap, not the gap. The gap of every call is now kept in the ledger (`quiet_ledger.rs`).
+///  Citation:
+/// none,
+/// and **unmeasured as a quiet window**.
+/// The figure was the call's total deadline,
+/// "several times the largest
+///  figure on record (1.4 s in `doc/audit/standards-review-gate-shadow.md`)";
+/// that is a whole time,
+/// and a whole time is an upper
+///  bound of a quiet gap,
+/// not the gap.
+/// The gap of every call is now kept in the ledger (`quiet_ledger.rs`).
 pub const CALL_QUIET_WINDOW: Duration = Duration::from_secs(10);
 
 /// What:
-///  The common Git directory of a worktree's Git directory: the directory its `commondir` file names, else the directory
+///  The common Git directory of a worktree's Git directory:
+/// the directory its `commondir` file names,
+/// else the directory
 ///  itself.
 /// Why:
-///   A linked worktree's items carry that worktree's own Git directory (`.git/worktrees/<name>`), which Git deletes with the
-///  worktree, while the repository's one log lives in the common directory. Git strips every trailing carriage return and
-///  line feed and resolves a relative path against the Git directory (`get_common_dir_noenv` in `path.c`), as the layout
-///  reader does; a path that cannot be resolved is used as written, so the entry still goes to the common directory.
+///   A linked worktree's items carry that worktree's own Git directory (`.git/worktrees/<name>`),
+/// which Git deletes with the
+///  worktree,
+/// while the repository's one log lives in the common directory.
+/// Git strips every trailing carriage return and
+///  line feed and resolves a relative path against the Git directory (`get_common_dir_noenv` in `path.c`),
+/// as the layout
+///  reader does;
+/// a path that cannot be resolved is used as written,
+/// so the entry still goes to the common directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -65,11 +93,17 @@ pub fn common_dir_of(git_dir: &Path) -> PathBuf {
 }
 
 /// What:
-///  The options for one item: the script's environment variables read from the service's environment, and the call
-///  deadline; the log is the item's repository's live log in its common Git directory.
+///  The options for one item:
+/// the script's environment variables read from the service's environment,
+/// and the call
+///  deadline;
+/// the log is the item's repository's live log in its common Git directory.
 /// Why:
-///   Every worktree of a repository appends to that repository's one log, and a service that serves several repositories
-///   writes each one's own; the item names its worktree's Git directory, and the common one follows from it with no Git start.
+///   Every worktree of a repository appends to that repository's one log,
+/// and a service that serves several repositories
+///   writes each one's own;
+/// the item names its worktree's Git directory,
+/// and the common one follows from it with no Git start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -96,11 +130,15 @@ fn expose_as_text(held: &ReviewKey) -> String {
 }
 
 /// What:
-///  The variable lookup the review's options read: the credential variables answer from the key that came in the wake
-///  message and from nowhere else, and every other variable answers from the service's environment.
+///  The variable lookup the review's options read:
+/// the credential variables answer from the key that came in the wake
+///  message and from nowhere else,
+/// and every other variable answers from the service's environment.
 /// Why:
-///   The credential is never in the service's environment or in a unit file, so a service that did not receive a key in
-///   the message must record "no key" and not pick up a stray value; the service's environment carries no secret.
+///   The credential is never in the service's environment or in a unit file,
+/// so a service that did not receive a key in
+///   the message must record "no key" and not pick up a stray value;
+/// the service's environment carries no secret.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -110,9 +148,13 @@ pub fn review_variables(key: Option<&ReviewKey>) -> ReviewVariables {
     return ReviewVariables { exposed: key.map(expose_as_text) };
 }
 
-/// The variable lookup of a review: the exposed key answers for the credential variables, every other name from the environment.
+/// The variable lookup of a review:
+/// the exposed key answers for the credential variables,
+/// every other name from the environment.
 pub struct ReviewVariables {
-    /// The key that came in the wake message, as text, or nothing.
+    /// The key that came in the wake message,
+    /// as text,
+    /// or nothing.
     exposed: Option<String>,
 }
 
@@ -131,7 +173,10 @@ impl EnvironmentVariables for ReviewVariables {
 /// What:
 ///  The read of the landed commit that the review asks for when the commit has code files.
 /// Why:
-///   The read needs the Git context, the directory, the commit and the subject, which the review does not carry itself.
+///   The read needs the Git context,
+/// the directory,
+/// the commit and the subject,
+/// which the review does not carry itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -154,7 +199,9 @@ impl LandedCommitReader for ReadLandedCommit<'_> {
     }
 }
 
-/// The Git reads, the subject and the review, without the budget.
+/// The Git reads,
+/// the subject and the review,
+/// without the budget.
 fn run_review(context: &GitContext, item: &WorkItem, options: &ReviewOptions, now_millis: &dyn Fn() -> u64) -> ReviewOutcome {
     let cwd: PathBuf = PathBuf::from(item.repository.as_str());
     let names: Vec<String> = match read_names(context, cwd.as_path(), item.oid.as_str()) {
@@ -178,12 +225,20 @@ fn wall_clock_millis() -> u64 {
 }
 
 /// What:
-///  Review one item: `Done` when an entry was written, was not needed, or the worktree does not hold the tracked shadow log that
-///  switches the review on; `Failed` with the reason when the commit could not be read, the log could not be written, or the
+///  Review one item:
+/// `Done` when an entry was written,
+/// was not needed,
+/// or the worktree does not hold the tracked shadow log that
+///  switches the review on;
+/// `Failed` with the reason when the commit could not be read,
+/// the log could not be written,
+/// or the
 ///  review stopped with an internal error.
 /// Why:
-///   The caller settles `Failed` items into `failed`, so a review that cannot finish is a plain record and never a stuck claim.
-///  No budget covers the whole run; each step ends on no progress by itself.
+///   The caller settles `Failed` items into `failed`,
+/// so a review that cannot finish is a plain record and never a stuck claim.
+///  No budget covers the whole run;
+/// each step ends on no progress by itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -193,7 +248,8 @@ pub fn review_item(context: &GitContext, item: &WorkItem, options: ReviewOptions
     return review_item_within(context, item, options, crate::wait_ceilings::REVIEW_CEILING);
 }
 
-/// `review_item` where the whole review is waited for at most `ceiling`; a control shortens it.
+/// `review_item` where the whole review is waited for at most `ceiling`;
+/// a control shortens it.
 pub fn review_item_within(context: &GitContext, item: &WorkItem, options: ReviewOptions, ceiling: Duration) -> Verdict {
     return review_item_in(&crate::standards_review_run::RUNNER, context, item, options, ceiling);
 }
@@ -201,9 +257,14 @@ pub fn review_item_within(context: &GitContext, item: &WorkItem, options: Review
 /// What:
 ///  `review_item_within` on a runner of the caller's own.
 /// Why:
-///   The look for the repository's shadow log is inside the contained job: it reads the worktree, which can stall like any other
-///  read, and nothing that can block runs on the service's work thread outside the ceiling (sol-2 round 2). Controls give each its
-///  own runner, so they do not see one another's reviews.
+///   The look for the repository's shadow log is inside the contained job:
+/// it reads the worktree,
+/// which can stall like any other
+///  read,
+/// and nothing that can block runs on the service's work thread outside the ceiling (sol-2 round 2).
+/// Controls give each its
+///  own runner,
+/// so they do not see one another's reviews.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -235,10 +296,16 @@ pub fn review_item_in(runner: &'static Containment, context: &GitContext, item: 
 }
 
 /// What:
-///  The reason of a review that was not started because an earlier one, stopped at its ceiling, is still running.
+///  The reason of a review that was not started because an earlier one,
+/// stopped at its ceiling,
+/// is still running.
 /// Why:
-///   The earlier review may hold the review log, and a second one would only queue behind it (sol-2, B); this one is refused with
-///  the command that does it when the earlier one has ended, and the service starts no further thread meanwhile.
+///   The earlier review may hold the review log,
+/// and a second one would only queue behind it (sol-2,
+/// B);
+/// this one is refused with
+///  the command that does it when the earlier one has ended,
+/// and the service starts no further thread meanwhile.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -254,7 +321,9 @@ pub fn busy_reason(oid: &str) -> String {
 /// What:
 ///  The reason of a review that ran as long as the service lets one run.
 /// Why:
-///   It names what was running (the standards review of the commit), the ceiling, and the command that does it again.
+///   It names what was running (the standards review of the commit),
+/// the ceiling,
+/// and the command that does it again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

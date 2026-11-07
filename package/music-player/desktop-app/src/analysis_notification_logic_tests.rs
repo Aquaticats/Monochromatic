@@ -1,23 +1,33 @@
-//! Tests for `analysis_notification_logic.rs`, pulled in by
+//! Tests for `analysis_notification_logic.rs`,
+//! pulled in by
 //! `#[cfg(test)] #[path = "analysis_notification_logic_tests.rs"] mod tests;` at the bottom of that file.
-//! Time is a parameter, so every rule is checked with plain `Instant` arithmetic and no sleeping.
+//! Time is a parameter,
+//! so every rule is checked with plain `Instant` arithmetic and no sleeping.
 
 use super::*;
 
-/// What: `start` is the fixed origin every test measures from.
-/// Why: `Instant` has no constructor from a number, so one captured instant plus offsets stands in for a clock.
+/// What:
+/// `start` is the fixed origin every test measures from.
+/// Why:
+/// `Instant` has no constructor from a number,
+/// so one captured instant plus offsets stands in for a clock.
 fn start() -> Instant {
     return Instant::now();
 }
 
-/// What: `ms` is `origin` plus a number of milliseconds.
-/// Why: it keeps the test bodies readable as a timeline.
+/// What:
+/// `ms` is `origin` plus a number of milliseconds.
+/// Why:
+/// it keeps the test bodies readable as a timeline.
 fn ms(origin: Instant, millis: u64) -> Instant {
     return origin + Duration::from_millis(millis);
 }
 
-/// What: `view` builds a view for expected values.
-/// Why: asserting whole views shows the percent, the text and the paused flag together.
+/// What:
+/// `view` builds a view for expected values.
+/// Why:
+/// asserting whole views shows the percent,
+/// the text and the paused flag together.
 fn view(percent: u32, text: &str, paused: bool) -> IndicatorView {
     return IndicatorView {
         percent,

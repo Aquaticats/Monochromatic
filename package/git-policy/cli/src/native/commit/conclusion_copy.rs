@@ -1,9 +1,11 @@
 //! What:
-//!  The merge, cherry-pick and revert conclusion state copied into the shadow at preparation,
+//!  The merge,
+//! cherry-pick and revert conclusion state copied into the shadow at preparation,
 //!       and into the transaction's comparison copies.
 //! Why:
 //!  Native `git commit` in the shadow reads the conclusion state the real worktree holds at invocation.
-//!  Landing later compares the real entries with these copies, so an entry changed by another command
+//!  Landing later compares the real entries with these copies,
+//! so an entry changed by another command
 //!  after invocation is kept (`conclusion_cleanup.rs` holds the landing side).
 //!  Pseudorefs of a reftable repository live in the ref store and are copied with `update-ref`
 //!  (`src/shadow-repository/shadow-conclusion-state.ts`).
@@ -22,7 +24,8 @@ use crate::conclusion_cleanup::{
 use crate::private_storage::{create_private_directory, write_private_file};
 /// Optional reads that treat a missing entry as absent.
 use crate::recovery_files::{path_present, read_optional};
-/// The error of a recovery-file read, whose text becomes a Git failure.
+/// The error of a recovery-file read,
+/// whose text becomes a Git failure.
 use crate::recovery_error::RecoveryError;
 /// JSON object writer for the store-held record.
 use crate::json_record::ObjectWriter;
@@ -36,9 +39,11 @@ use std::path::{Path, PathBuf};
 
 /// What:
 ///  Turns the result of one filesystem step into a Git failure that names the step.
-///  `std::io::Result<T>` is "the value, or an input/output error".
+///  `std::io::Result<T>` is "the value,
+/// or an input/output error".
 /// Why:
-///   Every step of `copy_conclusion_state` reports its failure as `<step> failed: <error>`, and a named function
+///   Every step of `copy_conclusion_state` reports its failure as `<step> failed: <error>`,
+/// and a named function
 ///  stands where a closure that built that failure stood.
 ///
 /// In TS you'd write (pseudocode):
@@ -55,7 +60,8 @@ fn io_step<T>(step: &str, result: std::io::Result<T>) -> Result<T, GitFailure> {
 /// What:
 ///  Turns the result of one recovery-file read into a Git failure that carries the recovery error's text.
 /// Why:
-///   Reads of optional and present entries report their failure the same way, and a named function stands where a
+///   Reads of optional and present entries report their failure the same way,
+/// and a named function stands where a
 ///  closure that unwrapped the error text stood.
 ///
 /// In TS you'd write (pseudocode):
@@ -70,7 +76,8 @@ fn recovery_step<T>(result: Result<T, RecoveryError>) -> Result<T, GitFailure> {
 }
 
 /// What:
-///  Copies a directory tree, keeping links as links.
+///  Copies a directory tree,
+/// keeping links as links.
 /// Why:
 ///   `cp(..., { recursive: true })` copies the sequencer directory into the shadow and the copies.
 ///
@@ -100,9 +107,11 @@ fn copy_tree(source: &Path, destination: &Path) -> std::io::Result<()> {
 }
 
 /// What:
-///  Reads one pseudoref's value in the owning worktree, if it resolves.
+///  Reads one pseudoref's value in the owning worktree,
+/// if it resolves.
 /// Why:
-///   A reftable pseudoref has no file to copy, so its value is copied through the ref store.
+///   A reftable pseudoref has no file to copy,
+/// so its value is copied through the ref store.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -117,7 +126,8 @@ fn owning_pseudoref(context: &GitContext, cwd: &Path, name: &str) -> Option<Stri
 /// What:
 ///  Copies every present conclusion entry of the owning worktree into the shadow and the transaction.
 /// Why:
-///   The shadow copy is what native commit reads; the transaction copy is what landing compares against.
+///   The shadow copy is what native commit reads;
+/// the transaction copy is what landing compares against.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

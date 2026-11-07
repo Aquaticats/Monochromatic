@@ -632,8 +632,10 @@ fn worktree_policies_read_the_location() {
     }
 }
 
-/// Worktree creation, aliases and the opt-out are all forwarded from every kind of location:
-///  the linked-worktree copy settles them when Git runs, not here.
+/// Worktree creation,
+/// aliases and the opt-out are all forwarded from every kind of location:
+///  the linked-worktree copy settles them when Git runs,
+/// not here.
 #[test]
 fn worktree_creation_and_aliases_are_forwarded_from_every_location() {
     let linked: RepositoryLocation = linked_worktree("/r", "/w");

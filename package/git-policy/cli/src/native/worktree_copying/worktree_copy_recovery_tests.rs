@@ -1,4 +1,7 @@
-//! Recovery checks against real Git repositories: registration, discards with their notices, and resumption.
+//! Recovery checks against real Git repositories:
+//! registration,
+//! discards with their notices,
+//! and resumption.
 
 use super::*;
 use crate::test_support::{dead_copy_owner, fixture, git, git_context, remove, repository};
@@ -36,7 +39,8 @@ fn linked_source(root: &Path) -> (PathBuf, PathBuf) {
     );
 }
 
-/// Creates a staged journal for a destination, as an interrupted copy would have left it.
+/// Creates a staged journal for a destination,
+/// as an interrupted copy would have left it.
 fn staged_journal(source: &Path, destination: &Path) -> PendingJournal {
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let snapshot: StagedSnapshot =
@@ -44,7 +48,8 @@ fn staged_journal(source: &Path, destination: &Path) -> PendingJournal {
     return create_journal_for(common.as_path(), destination, &snapshot, &dead_copy_owner()).expect("journal");
 }
 
-/// A linked worktree of the repository is registered; a removed or re-pointed one is not.
+/// A linked worktree of the repository is registered;
+/// a removed or re-pointed one is not.
 #[cfg(unix)]
 #[test]
 fn registration_follows_the_linked_pointer() {
@@ -77,7 +82,8 @@ fn registration_follows_the_linked_pointer() {
     remove(root.as_path());
 }
 
-/// A journal whose destination is no longer registered is discarded with the notice, and its stage goes too.
+/// A journal whose destination is no longer registered is discarded with the notice,
+/// and its stage goes too.
 #[cfg(unix)]
 #[test]
 fn unregistered_destination_is_discarded_with_notice() {
@@ -169,8 +175,11 @@ fn interrupted_installation_is_resumed() {
     remove(root.as_path());
 }
 
-/// A copy from a main checkout that was killed after staging is resumed from its stage: the dependencies, the pnpm-style
-/// links and the build output arrive, and the caches the rule leaves out never do.
+/// A copy from a main checkout that was killed after staging is resumed from its stage:
+/// the dependencies,
+/// the pnpm-style
+/// links and the build output arrive,
+/// and the caches the rule leaves out never do.
 #[cfg(unix)]
 #[test]
 fn an_interrupted_main_checkout_copy_is_resumed_from_its_stage() {
@@ -216,7 +225,8 @@ fn an_interrupted_main_checkout_copy_is_resumed_from_its_stage() {
     remove(root.as_path());
 }
 
-/// A journal already marked complete only has its cleanup finished, and counts as recovered.
+/// A journal already marked complete only has its cleanup finished,
+/// and counts as recovered.
 #[cfg(unix)]
 #[test]
 fn completed_journal_only_cleans_up() {
@@ -244,7 +254,10 @@ fn completed_journal_only_cleans_up() {
     remove(root.as_path());
 }
 
-/// The pending check does nothing, and creates nothing, when no journal is pending; it leaves a live owner's journal whole
+/// The pending check does nothing,
+/// and creates nothing,
+/// when no journal is pending;
+/// it leaves a live owner's journal whole
 /// and recovers a dead owner's.
 #[cfg(unix)]
 #[test]
@@ -269,8 +282,11 @@ fn pending_check_leaves_a_live_journal_and_recovers_a_dead_one() {
     remove(root.as_path());
 }
 
-/// Taking over a dead owner's journal is one rename: the first command gets it, and a second command that still holds the
-/// old name gets nothing, so a journal is never installed twice.
+/// Taking over a dead owner's journal is one rename:
+/// the first command gets it,
+/// and a second command that still holds the
+/// old name gets nothing,
+/// so a journal is never installed twice.
 #[cfg(unix)]
 #[test]
 fn only_one_command_takes_over_a_dead_journal() {
@@ -287,7 +303,8 @@ fn only_one_command_takes_over_a_dead_journal() {
     remove(root.as_path());
 }
 
-/// A stage left by a copy that died before its journal existed is removed by recovery, with a notice and no count.
+/// A stage left by a copy that died before its journal existed is removed by recovery,
+/// with a notice and no count.
 #[cfg(unix)]
 #[test]
 fn recovery_removes_a_stage_no_journal_names() {
@@ -307,7 +324,8 @@ fn recovery_removes_a_stage_no_journal_names() {
     remove(root.as_path());
 }
 
-/// A forwarded command that creates no worktree reaps the stage of a dead owner's claim, and leaves alone the stage of a claim
+/// A forwarded command that creates no worktree reaps the stage of a dead owner's claim,
+/// and leaves alone the stage of a claim
 /// whose owner still runs.
 #[cfg(unix)]
 #[test]
@@ -330,7 +348,8 @@ fn the_pending_check_reaps_abandoned_stages_only_without_a_live_owner() {
     remove(root.as_path());
 }
 
-/// The summary line counts transactions with the singular or plural noun, after the notices.
+/// The summary line counts transactions with the singular or plural noun,
+/// after the notices.
 #[test]
 fn report_writes_notices_then_summary() {
     let mut out: Vec<u8> = Vec::new();
@@ -361,11 +380,15 @@ fn report_writes_notices_then_summary() {
     );
 }
 
-/// The bytes the incumbent's own `writeJournal` wrote for a phase-installing journal, with the base directory as `@BASE@`.
+/// The bytes the incumbent's own `writeJournal` wrote for a phase-installing journal,
+/// with the base directory as `@BASE@`.
 /// Generated by running `createWorktreeCopyJournal` and `writeJournal` from `src/worktree-copy/journal.ts` against a scratch base directory.
 const INCUMBENT_JOURNAL: &str = "{\"createdEntries\":[{\"device\":\"7\",\"inode\":\"42\",\"relativePath\":\"cache\",\"selected\":true}],\"intendedEntries\":[\"cache\"],\"destinationRoot\":\"@BASE@/topic\",\"phase\":\"installing\",\"selectedRoots\":[\"cache\"],\"sourceRoot\":\"@BASE@/source\",\"stageContainer\":\"@BASE@/.cli-git-worktree-copy-abc\",\"stageRoot\":\"@BASE@/.cli-git-worktree-copy-abc/payload\",\"version\":1}\n";
 
-/// A journal the incumbent wrote is read by the native wrapper with the same fields, and recovered: its destination is not a worktree, so it is discarded with the incumbent's notice and its stage goes too.
+/// A journal the incumbent wrote is read by the native wrapper with the same fields,
+/// and recovered:
+/// its destination is not a worktree,
+/// so it is discarded with the incumbent's notice and its stage goes too.
 #[cfg(unix)]
 #[test]
 fn incumbent_written_journal_is_recovered_natively() {
@@ -439,7 +462,8 @@ fn registration_tells_a_missing_destination_from_an_unreadable_one() {
     remove(root.as_path());
 }
 
-/// A stage that cannot be examined for any reason other than being absent is a fault, not a missing stage.
+/// A stage that cannot be examined for any reason other than being absent is a fault,
+/// not a missing stage.
 #[cfg(unix)]
 #[test]
 fn a_stage_that_cannot_be_examined_is_a_fault_and_not_a_missing_stage() {
@@ -458,7 +482,8 @@ fn a_stage_that_cannot_be_examined_is_a_fault_and_not_a_missing_stage() {
     remove(root.as_path());
 }
 
-/// Commands that race for one dead journal at the same instant produce exactly one winner, and the winner's journal is the
+/// Commands that race for one dead journal at the same instant produce exactly one winner,
+/// and the winner's journal is the
 /// only one left under any name.
 #[cfg(unix)]
 #[test]
@@ -488,8 +513,15 @@ fn racing_commands_take_a_dead_journal_exactly_once() {
 }
 
 /// A journal whose owner is in another PID namespace and whose file is older than the patience is neither alive nor dead (owner,
-/// 2026-11-04, "Refuse and name it (Recommended)"): recovery stops with an error that names the journal, the owner, its namespace and
-/// the `rm`, and nothing is taken over, finished or removed: the journal and its stage stay.
+/// 2026-11-04,
+/// "Refuse and name it (Recommended)"):
+/// recovery stops with an error that names the journal,
+/// the owner,
+/// its namespace and
+/// the `rm`,
+/// and nothing is taken over,
+/// finished or removed:
+/// the journal and its stage stay.
 #[cfg(unix)]
 #[test]
 fn a_journal_of_another_namespace_older_than_the_patience_stops_recovery_and_changes_nothing() {
@@ -509,7 +541,10 @@ fn a_journal_of_another_namespace_older_than_the_patience_stops_recovery_and_cha
     remove(root.as_path());
 }
 
-/// Pending journals `[dead A, expired-foreign B]`: the command refuses before it adopts, finishes or removes A (sol-1 round 3, P1 C).
+/// Pending journals `[dead A, expired-foreign B]`:
+/// the command refuses before it adopts,
+/// finishes or removes A (sol-1 round 3,
+/// P1 C).
 #[cfg(unix)]
 #[test]
 fn an_expired_foreign_journal_after_a_dead_one_stops_recovery_before_the_dead_one_is_touched() {
@@ -539,8 +574,13 @@ fn an_expired_foreign_journal_after_a_dead_one_stops_recovery_before_the_dead_on
     remove(root.as_path());
 }
 
-/// A recoverable dead journal and an expired foreign stage claim: recovery refuses before it adopts the journal (sol-1 round 4: the
-/// stage owners are judged before the journals are touched, not only before the sweep). Planted: judging the stages after the journal
+/// A recoverable dead journal and an expired foreign stage claim:
+/// recovery refuses before it adopts the journal (sol-1 round 4:
+/// the
+/// stage owners are judged before the journals are touched,
+/// not only before the sweep).
+/// Planted:
+/// judging the stages after the journal
 /// loop recovers the journal first and fails this control.
 #[cfg(unix)]
 #[test]

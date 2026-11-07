@@ -49,7 +49,8 @@ mod launcher;
 #[path = "embedded_runtime_tests.rs"]
 mod embedded_runtime_tests;
 
-/// The unit-test scratch root of the native test binary, the same file the library compiles,
+/// The unit-test scratch root of the native test binary,
+/// the same file the library compiles,
 ///  placed in the build directory instead of `/tmp`.
 #[cfg(test)]
 mod test_scratch;

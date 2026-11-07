@@ -1,24 +1,34 @@
 //! What:
-//!  The authoritative ref updates a `git push` would send, discovered by a dry-run push whose report Git writes itself.
+//!  The authoritative ref updates a `git push` would send,
+//! discovered by a dry-run push whose report Git writes itself.
 //! Why:
-//!  The manual-push policies must scan exactly what Git would publish, so the probe asks Git:
-//!  `git push --dry-run --porcelain` reports each destination and ref update (`manual_push_porcelain`), the local
-//!  objects come from that report or from one `rev-parse`, and `git ls-remote --refs` confirms each destination value.
+//!  The manual-push policies must scan exactly what Git would publish,
+//! so the probe asks Git:
+//!  `git push --dry-run --porcelain` reports each destination and ref update (`manual_push_porcelain`),
+//! the local
+//!  objects come from that report or from one `rev-parse`,
+//! and `git ls-remote --refs` confirms each destination value.
 //!  A remote ref that changed between negotiation and confirmation stops the probe.
-//!  No program of ours is started for this, and no hook or shell text is written: an earlier version recorded Git's
+//!  No program of ours is started for this,
+//! and no hook or shell text is written:
+//! an earlier version recorded Git's
 //!  update lines with a `#!/bin/sh` hook (`doc/planning/cli-git-no-self-invocation.md`).
-//!  Every Git child here is bounded by the query deadline, so a remote that never answers cannot hold the push.
+//!  Every Git child here is bounded by the query deadline,
+//! so a remote that never answers cannot hold the push.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const updates = await probeManualPushUpdates({ gitPath, cwd, args });
 //! ```
 
-/// The probe's Git runner, its bounded queries and its environment.
+/// The probe's Git runner,
+/// its bounded queries and its environment.
 use crate::auto_push_single_flight::{PushGit, run_query};
-/// The destination Git would pick for a bare push, and the porcelain report's parser.
+/// The destination Git would pick for a bare push,
+/// and the porcelain report's parser.
 use crate::lfs_upload_plan::{GitQuery, resolve_push_remote};
-/// Removes userinfo from text that may name a remote, and the cause a failure carries.
+/// Removes userinfo from text that may name a remote,
+/// and the cause a failure carries.
 use crate::lfs_output_mask::mask_userinfo_text;
 use crate::manual_push_cause::ManualPushCause;
 pub use crate::manual_push_probe_error::{GitRefusal, ManualPushProbeError};
@@ -34,17 +44,28 @@ use crate::command_push::{PUSH_TABLE, push_shape};
 use std::ffi::OsString;
 pub use crate::manual_push_update_and_query_limits::{LOCAL_QUERY_GAIN_STOPS_AT, MEASURED_WHOLE_HISTORY_QUERY, MOST_CONCURRENT_LOCAL_QUERIES, MOST_CONCURRENT_REMOTE_QUERIES, PushUpdate};
 
-/// The bytes one query holds at its peak: `MEASURED_WHOLE_HISTORY_QUERY` rounded up to a power of two. The coordinator's pick
-///  under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps
-///  and memory estimates"). A history that grows past a few tens of thousands more commits needs a larger figure.
+/// The bytes one query holds at its peak:
+/// `MEASURED_WHOLE_HISTORY_QUERY` rounded up to a power of two.
+/// The coordinator's pick
+///  under the owner's delegation,
+/// open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Parallelism caps
+///  and memory estimates").
+/// A history that grows past a few tens of thousands more commits needs a larger figure.
 pub const QUERY_MEMORY: u64 = MEASURED_WHOLE_HISTORY_QUERY.next_power_of_two();
 
 /// What:
-///  The probe's Git arguments: the invocation's global options, the switches that keep every hook and full object
-///  names, then `push` with `--dry-run --porcelain` placed before any `--` or `--end-of-options` terminator.
+///  The probe's Git arguments:
+/// the invocation's global options,
+/// the switches that keep every hook and full object
+///  names,
+/// then `push` with `--dry-run --porcelain` placed before any `--` or `--end-of-options` terminator.
 /// Why:
-///   The `--` terminator is the user's; the options Git interprets must stay before it. The probe publishes nothing and
-///  must not run the upload hook of the caller's configuration, so configured `pre-push` hooks are off and the
+///   The `--` terminator is the user's;
+/// the options Git interprets must stay before it.
+/// The probe publishes nothing and
+///  must not run the upload hook of the caller's configuration,
+/// so configured `pre-push` hooks are off and the
 ///  traditional hooks directory is one that never exists.
 ///
 /// In TS you'd write (pseudocode):
@@ -91,7 +112,9 @@ pub fn probe_arguments(global_prefix: &[OsString], post_subcommand: &[OsString])
     return arguments;
 }
 
-/// Whether text typed as the repository is an URL, an scp-style address or a path, not a remote name.
+/// Whether text typed as the repository is an URL,
+/// an scp-style address or a path,
+/// not a remote name.
 fn looks_like_location(typed: &str) -> bool {
     if typed.contains("://") || typed.starts_with('/') || typed.starts_with("./") || typed.starts_with("../") {
         return true;
@@ -102,7 +125,8 @@ fn looks_like_location(typed: &str) -> bool {
     };
 }
 
-/// One Git query of the probe: its trimmed standard output when it exits with status zero.
+/// One Git query of the probe:
+/// its trimmed standard output when it exits with status zero.
 fn answer(git: &PushGit, arguments: &[OsString]) -> Option<String> {
     let output = run_query(git, arguments).ok()?;
     if output.code != Some(0) {
@@ -111,7 +135,9 @@ fn answer(git: &PushGit, arguments: &[OsString]) -> Option<String> {
     return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
 }
 
-/// The destination locations of a remote name, one per `To` block Git printed: the push URLs of a configured remote,
+/// The destination locations of a remote name,
+/// one per `To` block Git printed:
+/// the push URLs of a configured remote,
 ///  or the name itself when it is not one (a URL or a path typed in place of a remote).
 fn locations_of(git: &PushGit, global_prefix: &[OsString], remote: &str) -> Vec<String> {
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
@@ -123,9 +149,12 @@ fn locations_of(git: &PushGit, global_prefix: &[OsString], remote: &str) -> Vec<
 }
 
 /// What:
-///  The object names of local refs, in order, from one `rev-parse`.
+///  The object names of local refs,
+/// in order,
+/// from one `rev-parse`.
 /// Why:
-///   A new ref's report line has no object name; the ref's own value is what the push sends.
+///   A new ref's report line has no object name;
+/// the ref's own value is what the push sends.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -151,9 +180,13 @@ fn local_objects(git: &PushGit, global_prefix: &[OsString], names: &[&str]) -> R
 /// What:
 ///  Confirm one destination's values with `git ls-remote --refs` and turn each reported update into a public update.
 /// Why:
-///   A destination that changed after the dry run reported would publish something the scan did not see, so a
-///  mismatch between the report and the confirmation is an error, never a silent repair. A report that did not state the
-///  remote's value (a deletion, a refusal) is taken from the confirmation alone.
+///   A destination that changed after the dry run reported would publish something the scan did not see,
+/// so a
+///  mismatch between the report and the confirmation is an error,
+/// never a silent repair.
+/// A report that did not state the
+///  remote's value (a deletion,
+/// a refusal) is taken from the confirmation alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -216,7 +249,8 @@ pub fn confirm_group(
 }
 
 /// What:
-///  Discover the exact updates the push would send, confirmed against each destination.
+///  Discover the exact updates the push would send,
+/// confirmed against each destination.
 /// Why:
 ///   The lifecycle's candidates and published-set reads both start from these updates.
 ///
@@ -232,7 +266,8 @@ pub fn probe_manual_push_updates(
     return probe_manual_push_updates_on(&HostResources::read(), git, global_prefix, post_subcommand);
 }
 
-/// `probe_manual_push_updates` with the host's resources chosen by the caller, so a control states a host of any size.
+/// `probe_manual_push_updates` with the host's resources chosen by the caller,
+/// so a control states a host of any size.
 pub fn probe_manual_push_updates_on(
     host: &HostResources,
     git: &PushGit,
@@ -319,17 +354,21 @@ pub fn probe_manual_push_updates_on(
 }
 
 /// What:
-///  The questions the remote resolver asks Git, each as a bounded query run with the global options in front.
+///  The questions the remote resolver asks Git,
+/// each as a bounded query run with the global options in front.
 /// Why:
-///   The resolver asks through the `GitQuery` trait; the Git context and the global options a question needs are two borrowed
-///  values, so a struct stands where a closure that captured them stood.
+///   The resolver asks through the `GitQuery` trait;
+/// the Git context and the global options a question needs are two borrowed
+///  values,
+/// so a struct stands where a closure that captured them stood.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class RemoteResolverQuery implements GitQuery { ask(args: string[]): string {} }
 /// ```
 struct RemoteResolverQuery<'a> {
-    /// The coordinator's Git, whose queries are bounded.
+    /// The coordinator's Git,
+    /// whose queries are bounded.
     git: &'a PushGit,
     /// The global options that go before every question.
     global_prefix: &'a [OsString],
@@ -355,9 +394,12 @@ impl GitQuery for RemoteResolverQuery<'_> {
 }
 
 /// What:
-///  The confirmation of one destination, run by a worker of the ordered runner.
+///  The confirmation of one destination,
+/// run by a worker of the ordered runner.
 /// Why:
-///   The Git context, the global options and the remote name are what each confirmation reads; the runner shares them among its
+///   The Git context,
+/// the global options and the remote name are what each confirmation reads;
+/// the runner shares them among its
 ///  worker threads.
 ///
 /// In TS you'd write (pseudocode):
@@ -365,7 +407,8 @@ impl GitQuery for RemoteResolverQuery<'_> {
 /// class ConfirmEachDestination implements OrderedWork<[Block, string], Result<PushUpdate[]>> { run(i, destination) { return confirmBlock(git, globalPrefix, remoteName, ...destination); } }
 /// ```
 struct ConfirmEachDestination<'a> {
-    /// The coordinator's Git, whose queries are bounded.
+    /// The coordinator's Git,
+    /// whose queries are bounded.
     git: &'a PushGit,
     /// The global options that go before every question.
     global_prefix: &'a [OsString],
@@ -380,9 +423,12 @@ impl OrderedWork<(&PorcelainBlock, &String), Result<Vec<PushUpdate>, ManualPushP
 }
 
 /// What:
-///  Keeps the confirmed updates in block order and the first failure; once a block has failed, later results are dropped.
+///  Keeps the confirmed updates in block order and the first failure;
+/// once a block has failed,
+/// later results are dropped.
 /// Why:
-///   The runner reports on the calling thread only and in block order, so the first block that fails decides the error.
+///   The runner reports on the calling thread only and in block order,
+/// so the first block that fails decides the error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -391,7 +437,8 @@ impl OrderedWork<(&PorcelainBlock, &String), Result<Vec<PushUpdate>, ManualPushP
 struct KeepConfirmedUntilTheFirstFailure<'a> {
     /// The updates confirmed so far.
     confirmed: &'a mut Vec<PushUpdate>,
-    /// The first failure, when a block has failed.
+    /// The first failure,
+    /// when a block has failed.
     failure: &'a mut Option<ManualPushProbeError>,
 }
 
@@ -410,7 +457,8 @@ impl OrderedEvents<Result<Vec<PushUpdate>, ManualPushProbeError>> for KeepConfir
 /// What:
 ///  Resolve the local objects of one destination's block and confirm its values with `ls-remote`.
 /// Why:
-///   A block is everything the probe needs for one destination, so blocks can be confirmed independently.
+///   A block is everything the probe needs for one destination,
+/// so blocks can be confirmed independently.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

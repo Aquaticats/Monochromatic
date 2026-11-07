@@ -1,8 +1,14 @@
 //! What:
-//!  Recovery of interrupted linked-worktree copies: every pending journal is resumed, completed, or discarded
-//!  with a notice; malformed state fails closed and stays; the pending check that forwarded commands run first.
+//!  Recovery of interrupted linked-worktree copies:
+//! every pending journal is resumed,
+//! completed,
+//! or discarded
+//!  with a notice;
+//! malformed state fails closed and stays;
+//! the pending check that forwarded commands run first.
 //! Why:
-//!  A copy interrupted by a crash must not leave a worktree half-filled forever, but recovery may only act on
+//!  A copy interrupted by a crash must not leave a worktree half-filled forever,
+//! but recovery may only act on
 //!  journals whose destination is still a registration of this repository and whose stage is still private.
 //!
 //! In TS you'd write (pseudocode):
@@ -26,7 +32,10 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  Whether a journal's destination is still a linked worktree of the journal's repository.
 /// Why:
-///   A destination that was removed, moved, pruned or re-pointed can receive nothing, so its journal is discarded.
+///   A destination that was removed,
+/// moved,
+/// pruned or re-pointed can receive nothing,
+/// so its journal is discarded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,7 +52,8 @@ pub enum Registration {
 /// What:
 ///  Whether a journal's private stage and payload still exist.
 /// Why:
-///   Installation reads the payload, so a missing payload ends recovery with a notice instead.
+///   Installation reads the payload,
+/// so a missing payload ends recovery with a notice instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -58,9 +68,11 @@ pub enum StagePresence {
 }
 
 /// What:
-///  One pass of recovery: how many transactions completed and one notice per transaction ended otherwise.
+///  One pass of recovery:
+/// how many transactions completed and one notice per transaction ended otherwise.
 /// Why:
-///   The caller prints the notices and the summary; the counts come from this one value.
+///   The caller prints the notices and the summary;
+/// the counts come from this one value.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -68,7 +80,8 @@ pub enum StagePresence {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RecoveryReport {
-    /// Transactions that completed, including completed cleanups.
+    /// Transactions that completed,
+    /// including completed cleanups.
     pub recovered: usize,
     /// One line for each transaction that ended without completing.
     pub notices: Vec<String>,
@@ -77,7 +90,8 @@ pub struct RecoveryReport {
 /// What:
 ///  The raw registration check before missing paths are turned into `unregistered`.
 /// Why:
-///   A missing path on the way to the registration is an answer, not a failure.
+///   A missing path on the way to the registration is an answer,
+/// not a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -134,9 +148,11 @@ pub fn destination_registration(
 }
 
 /// What:
-///  Checks that a journal's stage container and payload are private directories, or that they are gone.
+///  Checks that a journal's stage container and payload are private directories,
+/// or that they are gone.
 /// Why:
-///   Installation copies from the payload, so a planted or replaced stage must never be read.
+///   Installation copies from the payload,
+/// so a planted or replaced stage must never be read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -168,7 +184,10 @@ pub fn validate_stage(pending: &PendingJournal) -> Result<StagePresence, Worktre
 /// What:
 ///  Brings one pending transaction to an end.
 /// Why:
-///   Every journal ends as completed, resumed-and-completed, or discarded with its notice; only unsafe state stays.
+///   Every journal ends as completed,
+/// resumed-and-completed,
+/// or discarded with its notice;
+/// only unsafe state stays.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -223,10 +242,14 @@ fn recover_transaction(
 }
 
 /// What:
-///  Recovers every pending journal whose owner is dead, each by taking it over first, and reaps the stages dead owners left.
+///  Recovers every pending journal whose owner is dead,
+/// each by taking it over first,
+/// and reaps the stages dead owners left.
 /// Why:
-///   A journal whose owner still runs is a copy in progress and is left whole; a dead owner's journal is taken over by one
-///  atomic rename, so of several commands that find it exactly one recovers it and the others move on without waiting.
+///   A journal whose owner still runs is a copy in progress and is left whole;
+/// a dead owner's journal is taken over by one
+///  atomic rename,
+/// so of several commands that find it exactly one recovers it and the others move on without waiting.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -266,9 +289,11 @@ pub fn recover_worktree_copy_transactions(
 }
 
 /// What:
-///  Writes each notice on its own line, then the summary line when any transaction recovered.
+///  Writes each notice on its own line,
+/// then the summary line when any transaction recovered.
 /// Why:
-///   The user sees why each discarded copy was discarded, and how many resumed copies completed.
+///   The user sees why each discarded copy was discarded,
+/// and how many resumed copies completed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -298,10 +323,14 @@ pub fn report_recovered(
 }
 
 /// What:
-///  The pending check every forwarded command in a linked worktree or a bare repository runs first: recovers what dead
-///  owners left, and does nothing when nothing is pending.
+///  The pending check every forwarded command in a linked worktree or a bare repository runs first:
+/// recovers what dead
+///  owners left,
+/// and does nothing when nothing is pending.
 /// Why:
-///   It never waits and takes no lock: items of live owners are skipped, and one atomic rename picks the single recoverer.
+///   It never waits and takes no lock:
+/// items of live owners are skipped,
+/// and one atomic rename picks the single recoverer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

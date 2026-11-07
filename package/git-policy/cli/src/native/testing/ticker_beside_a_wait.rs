@@ -1,7 +1,9 @@
 //! What:
-//!  Runs a future on a current-thread runtime next to a task that counts every millisecond, and says how often that task ran.
+//!  Runs a future on a current-thread runtime next to a task that counts every millisecond,
+//! and says how often that task ran.
 //! Why:
-//!  A wait that holds its thread leaves the counting task no turn, so a count above zero shows that the wait was awaited on the
+//!  A wait that holds its thread leaves the counting task no turn,
+//! so a count above zero shows that the wait was awaited on the
 //!  runtime and never slept the thread (the controls of the waits converted in `doc/planning/git-policy-cli-full-tokio.md`).
 //!
 //! In TS you'd write (pseudocode):
@@ -12,10 +14,13 @@
 use std::time::Duration;
 
 /// What:
-///  Runs `future` on a current-thread runtime, where one thread runs both the future and the counting task, and returns the
+///  Runs `future` on a current-thread runtime,
+/// where one thread runs both the future and the counting task,
+/// and returns the
 ///  future's value with the count.
 /// Why:
-///  One thread for both is what makes a blocking wait visible: with a worker thread the counting task would run beside it.
+///  One thread for both is what makes a blocking wait visible:
+/// with a worker thread the counting task would run beside it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -130,8 +130,10 @@ fn repository_translation_names_all_four_optional_policies() {
     );
 }
 
-/// `rulesFile` takes one path (a required file, as before lists existed)
-///  or an array of paths and `{"path", "optional"}` objects, in the order written.
+/// `rulesFile` takes one path (a required file,
+/// as before lists existed)
+///  or an array of paths and `{"path", "optional"}` objects,
+/// in the order written.
 #[test]
 fn rules_file_takes_a_path_or_an_array_of_entries() {
     let single: CliGitConfig = parse_config(

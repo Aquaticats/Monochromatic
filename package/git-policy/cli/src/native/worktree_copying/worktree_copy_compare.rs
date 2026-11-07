@@ -1,6 +1,8 @@
 //! What:
 //!  Exact comparison of one manifest entry against the filesystem:
-//!  its kind, its retained mode, its symbolic-link target text or its regular-file bytes.
+//!  its kind,
+//! its retained mode,
+//! its symbolic-link target text or its regular-file bytes.
 //!  Also the final check that the source still matches the stage after staging.
 //! Why:
 //!  A destination must receive exactly what was staged from the source,
@@ -31,15 +33,24 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// const COMPARE_BUFFER_BYTES = 64 * 1_024;
 /// ```
-///  Exempt from a citation under `LQM` (class: buffer size): it sizes one read buffer, and the result of the comparison
-///  does not depend on it. Classed once in `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the
-///  coordinator's pick under the owner's delegation, open to the owner's veto.
+///  Exempt from a citation under `LQM` (class:
+///  buffer size):
+///  it sizes one read buffer,
+///  and the result of the comparison
+///  does not depend on it.
+///  Classed once in `doc/planning/cli-git-shipped-limits-audit.md`,
+///  "Exempt limits";
+///  the
+///  coordinator's pick under the owner's delegation,
+///  open to the owner's veto.
 const COMPARE_BUFFER_BYTES: usize = 64 * 1_024;
 
 /// What:
-///  The metadata of one no-follow entry, or its absence.
+///  The metadata of one no-follow entry,
+/// or its absence.
 /// Why:
-///   A missing destination entry is a normal answer for the comparison, not a failure.
+///   A missing destination entry is a normal answer for the comparison,
+/// not a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,9 +66,11 @@ pub fn lstat_or_absent(path: &Path) -> Result<Option<std::fs::Metadata>, Worktre
 }
 
 /// What:
-///  Whether two regular files hold the same bytes, compared in bounded chunks.
+///  Whether two regular files hold the same bytes,
+/// compared in bounded chunks.
 /// Why:
-///   Sizes are compared first, and a short read means the file changed under the comparison.
+///   Sizes are compared first,
+/// and a short read means the file changed under the comparison.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -115,7 +128,8 @@ fn regular_file_bytes_equal(
 /// What:
 ///  The symbolic-link target text of one no-follow entry.
 /// Why:
-///   The target is compared as exact text, never resolved.
+///   The target is compared as exact text,
+/// never resolved.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -128,7 +142,9 @@ fn link_target(path: &Path) -> Result<PathBuf, WorktreeCopyError> {
 /// What:
 ///  Whether one actual entry matches an expected entry exactly.
 /// Why:
-///   Kind, mode and content must all match, and an absent entry never matches.
+///   Kind,
+/// mode and content must all match,
+/// and an absent entry never matches.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -143,10 +159,14 @@ pub fn entry_matches(
 }
 
 /// What:
-///  Whether one actual entry matches an expected entry, taking an unchanged stamp of the actual file as proof of its bytes.
+///  Whether one actual entry matches an expected entry,
+/// taking an unchanged stamp of the actual file as proof of its bytes.
 /// Why:
-///   A file the stage cloned holds the very blocks the source held at the clone; when the source's stamp is still the one
-///  recorded around the clone, no write reached it since, so reading both files again could only repeat the clone.
+///   A file the stage cloned holds the very blocks the source held at the clone;
+/// when the source's stamp is still the one
+///  recorded around the clone,
+/// no write reached it since,
+/// so reading both files again could only repeat the clone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -188,9 +208,11 @@ pub fn entry_matches_stamped(
 }
 
 /// What:
-///  The manifest of the source under the leave-out rule, as the final check walks it on a thread beside the stage's walk.
+///  The manifest of the source under the leave-out rule,
+/// as the final check walks it on a thread beside the stage's walk.
 /// Why:
-///   Entries the walk cannot read are not reported here: the final check compares the whole manifest and fails on any difference.
+///   Entries the walk cannot read are not reported here:
+/// the final check compares the whole manifest and fails on any difference.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -204,9 +226,12 @@ fn walk_source_pruned(
 }
 
 /// What:
-///  The manifest of the stage, with no leave-out rule, as the final check walks it on the calling thread.
+///  The manifest of the stage,
+/// with no leave-out rule,
+/// as the final check walks it on the calling thread.
 /// Why:
-///   The stage holds exactly the selected roots, so nothing is excluded or pruned.
+///   The stage holds exactly the selected roots,
+/// so nothing is excluded or pruned.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -220,7 +245,8 @@ fn walk_stage((stage_root, selected_roots): (&Path, &[String])) -> Result<Vec<Wo
 ///  Checks that the source still matches the initial manifest after staging,
 ///  and that the stage holds exactly that manifest.
 /// Why:
-///   Any difference means the source changed during the copy, so the destination must not receive the stage.
+///   Any difference means the source changed during the copy,
+/// so the destination must not receive the stage.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -246,7 +272,8 @@ pub fn assert_final_source_equivalence(
 /// What:
 ///  The leave-out rule the stage used and the stamps recorded around each clone.
 /// Why:
-///   The final check walks the source with the same rule, and trusts a stamp only for the entry it was recorded for.
+///   The final check walks the source with the same rule,
+/// and trusts a stamp only for the entry it was recorded for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -255,15 +282,18 @@ pub fn assert_final_source_equivalence(
 pub struct FinalCheck<'a> {
     /// The rule the staged walk used.
     pub prune: Prune,
-    /// One slot per staged entry; empty when no entry was cloned under a stamp.
+    /// One slot per staged entry;
+    /// empty when no entry was cloned under a stamp.
     pub stamps: &'a [Option<FileStamp>],
 }
 
 /// What:
-///  Checks that the source still matches the initial manifest after staging, with the staged walk's leave-out rule,
+///  Checks that the source still matches the initial manifest after staging,
+/// with the staged walk's leave-out rule,
 ///  and that the stage holds exactly that manifest.
 /// Why:
-///   Any difference means the source changed during the copy, so the destination must not receive the stage.
+///   Any difference means the source changed during the copy,
+/// so the destination must not receive the stage.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

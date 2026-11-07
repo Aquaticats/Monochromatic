@@ -1,9 +1,15 @@
 //! What:
-//!  Handles one client connection of the commit service: reads the request line within the read timeout, checks who
-//!  sent it, answers messages that need no landing, and queues the rest; also the note that tells a waiting client what the
+//!  Handles one client connection of the commit service:
+//! reads the request line within the read timeout,
+//! checks who
+//!  sent it,
+//! answers messages that need no landing,
+//! and queues the rest;
+//! also the note that tells a waiting client what the
 //!  landing thread is stuck in.
 //! Why:
-//!  Each connection runs on a thread of its own; the file keeps that thread's whole life in one place.
+//!  Each connection runs on a thread of its own;
+//! the file keeps that thread's whole life in one place.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -39,7 +45,9 @@ pub(crate) fn peer_user(stream: &UnixStream) -> Option<u32> {
     return if status == 0 { Some(credentials.uid) } else { None };
 }
 
-/// Returns when the other end of the connection has closed it, or the connection failed. Anything the client sends is ignored.
+/// Returns when the other end of the connection has closed it,
+/// or the connection failed.
+/// Anything the client sends is ignored.
 pub(crate) fn wait_for_close(stream: &UnixStream) {
     let mut sink: [u8; 64] = [0; 64];
     let mut reader = stream;
@@ -52,10 +60,13 @@ pub(crate) fn wait_for_close(stream: &UnixStream) {
 }
 
 /// What:
-///  The note for a connection's beat: what the landing thread is stuck in when it is inside a write that is never ended, said again
+///  The note for a connection's beat:
+/// what the landing thread is stuck in when it is inside a write that is never ended,
+/// said again
 ///  only when the words change (they name whole minutes).
 /// Why:
-///   A client queued behind a write that never returns is told why it waits, and the words become the blocker its error names.
+///   A client queued behind a write that never returns is told why it waits,
+/// and the words become the blocker its error names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -65,11 +76,14 @@ pub(crate) fn stuck_notice<'a>(board: &'a LandingBoard, request: Option<&'a str>
     return StuckNotice { board, request, last: None };
 }
 
-/// The note source of a connection's beat: what the landing thread is stuck in, said again only when the words change.
+/// The note source of a connection's beat:
+/// what the landing thread is stuck in,
+/// said again only when the words change.
 pub(crate) struct StuckNotice<'a> {
     /// What the landing thread reports about itself.
     board: &'a LandingBoard,
-    /// The identity of the request the connection serves, when it serves one.
+    /// The identity of the request the connection serves,
+    /// when it serves one.
     request: Option<&'a str>,
     /// The key of the words said last.
     last: Option<String>,
@@ -99,7 +113,9 @@ impl NoteSource for StuckNotice<'_> {
     }
 }
 
-/// Reads one request line from a new connection, checks who sent it, and queues it.
+/// Reads one request line from a new connection,
+/// checks who sent it,
+/// and queues it.
 pub(crate) fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake>, busy: &AtomicUsize, board: &LandingBoard, release: &str, instance: Option<&str>) {
     let accepted: Instant = Instant::now();
     send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(release.to_string()) });
@@ -187,7 +203,8 @@ pub(crate) fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &
 /// What:
 ///  Whether a Git directory belongs to another instance of the service than this one.
 /// Why:
-///  Each worktree has its own instance, so a message that reaches the wrong socket is a mistake of the sender's and is refused.
+///  Each worktree has its own instance,
+/// so a message that reaches the wrong socket is a mistake of the sender's and is refused.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

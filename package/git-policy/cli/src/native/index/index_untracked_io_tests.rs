@@ -1,9 +1,11 @@
-//! Controls for the untracked-cache extension on files real Git writes: reading then writing gives back the same bytes.
+//! Controls for the untracked-cache extension on files real Git writes:
+//! reading then writing gives back the same bytes.
 
 use super::*;
 use crate::index_reset_support_probe::untracked_extension;
 
-/// The extension Git wrote reads, and writing it back reproduces Git's bytes.
+/// The extension Git wrote reads,
+/// and writing it back reproduces Git's bytes.
 #[test]
 fn git_written_untracked_cache_round_trips() {
     let bytes: Vec<u8> = untracked_extension("untracked-io-round-trip");
@@ -27,7 +29,8 @@ fn an_invalidated_cache_still_reads_back() {
     assert_eq!(write_untracked(&again), written);
 }
 
-/// A cache no status run has filled has no directories, and Git writes only a zero count for it.
+/// A cache no status run has filled has no directories,
+/// and Git writes only a zero count for it.
 #[test]
 fn a_cache_without_directories_round_trips() {
     let mut cache = read_untracked(untracked_extension("untracked-io-empty").as_slice(), 20).expect("read");
@@ -37,7 +40,9 @@ fn a_cache_without_directories_round_trips() {
     assert_eq!(read_untracked(bytes.as_slice(), 20), Some(cache));
 }
 
-/// Bytes cut short, or with something after the records, are left to Git.
+/// Bytes cut short,
+/// or with something after the records,
+/// are left to Git.
 #[test]
 fn irregular_forms_are_not_read() {
     let bytes: Vec<u8> = untracked_extension("untracked-io-irregular");

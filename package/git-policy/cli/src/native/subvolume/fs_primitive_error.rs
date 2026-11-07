@@ -1,10 +1,17 @@
 //! What:
-//!  The typed failure of one Linux filesystem primitive (`statfs`, a btrfs ioctl, `FICLONE`, `renameat2`):
-//!  which operation, on which path, and the operating system's error number.
+//!  The typed failure of one Linux filesystem primitive (`statfs`,
+//! a btrfs ioctl,
+//! `FICLONE`,
+//! `renameat2`):
+//!  which operation,
+//! on which path,
+//! and the operating system's error number.
 //! Why:
-//!  The primitives of the cheap-worktree ladder and the subvolume migration all fall through on failure, never panic;
+//!  The primitives of the cheap-worktree ladder and the subvolume migration all fall through on failure,
+//! never panic;
 //!  the caller decides from the error number whether the next rung applies (the filesystem lacks the feature) or the
-//!  work must stop (a real fault), and the message names the operation and path a person can act on.
+//!  work must stop (a real fault),
+//! and the message names the operation and path a person can act on.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,9 +26,11 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  One failed primitive call.
 ///  `&'static str` is text compiled into the executable (sibling `String` is owned);
-///  `i32` is the C `errno` value (siblings `i64` and `u32` exist; the C API returns a 32-bit signed integer).
+///  `i32` is the C `errno` value (siblings `i64` and `u32` exist;
+/// the C API returns a 32-bit signed integer).
 /// Why:
-///   The operation names the call as the kernel documents it (for example `BTRFS_IOC_SNAP_CREATE_V2`), so a report
+///   The operation names the call as the kernel documents it (for example `BTRFS_IOC_SNAP_CREATE_V2`),
+/// so a report
 ///  can be searched in the kernel sources.
 ///
 /// In TS you'd write (pseudocode):
@@ -30,19 +39,23 @@ use std::path::{Path, PathBuf};
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PrimitiveError {
-    /// The call that failed, spelled as its kernel or libc name.
+    /// The call that failed,
+    /// spelled as its kernel or libc name.
     pub operation: &'static str,
     /// The path the call was about.
     pub path: PathBuf,
-    /// The `errno` the call left, 0 when the failure is not an operating-system error (a path with a NUL byte).
+    /// The `errno` the call left,
+    /// 0 when the failure is not an operating-system error (a path with a NUL byte).
     pub errno: i32,
 }
 
 impl PrimitiveError {
     /// What:
-    ///  The error for the call that just failed, reading `errno` from the thread.
+    ///  The error for the call that just failed,
+    /// reading `errno` from the thread.
     /// Why:
-    ///   `errno` is overwritten by the next library call, so it is read before anything else runs.
+    ///   `errno` is overwritten by the next library call,
+    /// so it is read before anything else runs.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -54,11 +67,17 @@ impl PrimitiveError {
     }
 
     /// What:
-    ///  Whether the filesystem lacks the feature, as opposed to a fault in this call.
+    ///  Whether the filesystem lacks the feature,
+    /// as opposed to a fault in this call.
     /// Why:
-    ///   A ladder rung that gets `true` falls to the next rung; `false` is reported. Not a btrfs filesystem answers an
-    ///  ioctl with `ENOTTY`, a filesystem without reflinks answers `FICLONE` with `EOPNOTSUPP` or `EINVAL`, a clone
-    ///  across filesystems answers `EXDEV`, and an overlay over a layer without the feature answers `ENOSYS`.
+    ///   A ladder rung that gets `true` falls to the next rung;
+    /// `false` is reported.
+    /// Not a btrfs filesystem answers an
+    ///  ioctl with `ENOTTY`,
+    /// a filesystem without reflinks answers `FICLONE` with `EOPNOTSUPP` or `EINVAL`,
+    /// a clone
+    ///  across filesystems answers `EXDEV`,
+    /// and an overlay over a layer without the feature answers `ENOSYS`.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -69,7 +88,8 @@ impl PrimitiveError {
     }
 }
 
-/// Prints the call, the path and the system's own words for the error number.
+/// Prints the call,
+/// the path and the system's own words for the error number.
 impl fmt::Display for PrimitiveError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         return write!(
@@ -89,7 +109,9 @@ impl std::error::Error for PrimitiveError {}
 /// What:
 ///  A path as the NUL-terminated C string the system calls take.
 /// Why:
-///   A path with an interior NUL byte can name no file, so it fails with `EINVAL` before any call, instead of
+///   A path with an interior NUL byte can name no file,
+/// so it fails with `EINVAL` before any call,
+/// instead of
 ///  reaching a system call with a truncated name.
 ///
 /// In TS you'd write (pseudocode):

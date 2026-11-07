@@ -1,7 +1,11 @@
-//! The rules-list grammar: how `--rules`, `FORBIDDEN_STRINGS_RULES`, and `compile-rules --rules` name several rules
+//! The rules-list grammar:
+//! how `--rules`,
+//! `FORBIDDEN_STRINGS_RULES`,
+//! and `compile-rules --rules` name several rules
 //! files in one value.
 //!
-//! The grammar is one function of the value, with no escape syntax:
+//! The grammar is one function of the value,
+//! with no escape syntax:
 //!
 //! ```text
 //! list  := entry ( "," entry )*
@@ -9,17 +13,31 @@
 //! path  := one or more characters, none of them ","
 //! ```
 //!
-//! - The value is split on every `,`, and nothing is trimmed.
+//! - The value is split on every `,`,
+//!   and nothing is trimmed.
 //! - Exactly one trailing `?` marks an entry that may be absent;
 //!    a path that itself ends in `?` is therefore nameable only as an optional entry (`name??`).
-//! - An empty value, an empty entry (`a,,b`, a leading or trailing comma, a bare `?`), and a path named twice are
-//!    errors, never silently dropped.
-//! - A value with no `,` and no trailing `?` is one required entry equal to the whole value, which is the meaning
+//! - An empty value,
+//!   an empty entry (`a,,b`,
+//!   a leading or trailing comma,
+//!   a bare `?`),
+//!   and a path named twice are
+//!    errors,
+//!   never silently dropped.
+//! - A value with no `,` and no trailing `?` is one required entry equal to the whole value,
+//!   which is the meaning
 //!    it had before lists existed.
-//!    A path holding a `,`, or a required path ending in `?`, cannot be named; that tradeoff was accepted
+//!    A path holding a `,`,
+//!   or a required path ending in `?`,
+//!   cannot be named;
+//!   that tradeoff was accepted
 //!    when the list syntax was chosen.
 
+/// Maps each path to the position that first named it,
+/// so a path named twice is reported with both positions.
 use std::collections::HashMap;
+/// Owns the path of each named rules file,
+/// which the caller reads later.
 use std::path::PathBuf;
 
 /// The separator between entries.
@@ -30,10 +48,12 @@ const OPTIONAL_MARKER: char = '?';
 /// One rules file named by a list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RulesEntry {
-    /// The file to read, exactly as written (relative paths resolve against the process working directory).
+    /// The file to read,
+    /// exactly as written (relative paths resolve against the process working directory).
     pub path: PathBuf,
     /// Whether the entry may be absent;
-    ///  an absent optional entry is skipped and logged, an absent required entry is an error.
+    ///  an absent optional entry is skipped and logged,
+    /// an absent required entry is an error.
     pub optional: bool,
 }
 
@@ -42,12 +62,14 @@ pub struct RulesEntry {
 pub enum RulesListError {
     /// The whole value is empty.
     Empty,
-    /// An entry names no path: an empty entry or a bare `?`.
+    /// An entry names no path:
+    /// an empty entry or a bare `?`.
     EmptyEntry {
         /// 1-based position of the entry in the list.
         position: usize,
     },
-    /// The same path is named by two entries, whether or not either is optional.
+    /// The same path is named by two entries,
+    /// whether or not either is optional.
     DuplicatePath {
         /// 1-based position of the first entry naming the path.
         first: usize,
@@ -58,7 +80,8 @@ pub enum RulesListError {
 
 /// Renders the refusal as one line that quotes no path text.
 impl std::fmt::Display for RulesListError {
-    /// Writes the refusal with the entry position, so a long list stays diagnosable.
+    /// Writes the refusal with the entry position,
+    /// so a long list stays diagnosable.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Empty => return write!(formatter, "the rules list is empty; name at least one rules file"),
@@ -87,7 +110,9 @@ impl std::error::Error for RulesListError {}
 ///
 /// # Errors
 ///
-/// [`RulesListError::Empty`] for an empty value, [`RulesListError::EmptyEntry`] for an entry without a path, and
+/// [`RulesListError::Empty`] for an empty value,
+/// [`RulesListError::EmptyEntry`] for an entry without a path,
+/// and
 /// [`RulesListError::DuplicatePath`] when two entries name the same path.
 pub fn parse_rules_list(value: &str) -> Result<Vec<RulesEntry>, RulesListError> {
     if value.is_empty() {
@@ -114,7 +139,8 @@ pub fn parse_rules_list(value: &str) -> Result<Vec<RulesEntry>, RulesListError> 
     return Ok(entries);
 }
 
-/// Registers the grammar and adversarial-boundary tests (sidecar, lint-exempt).
+/// Registers the grammar and adversarial-boundary tests (sidecar,
+/// lint-exempt).
 #[cfg(test)]
 #[path = "rules_list_tests.rs"]
 mod tests;

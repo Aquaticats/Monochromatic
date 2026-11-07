@@ -6,7 +6,8 @@ use std::ffi::OsString;
 /// The first pause of the controls.
 const FIRST: Duration = Duration::from_secs(10);
 
-/// A scratch directory under the package's own build directory, removed by the caller.
+/// A scratch directory under the package's own build directory,
+/// removed by the caller.
 fn scratch(name: &str) -> PathBuf {
     let directory: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target").join("claim-watch-tests").join(format!("{name}-{}", std::process::id()));
     let _cleared = std::fs::remove_dir_all(&directory);
@@ -21,7 +22,8 @@ fn git_dir_with_work(root: &Path, name: &str) -> PathBuf {
     return git_dir;
 }
 
-/// The files of a store, by name.
+/// The files of a store,
+/// by name.
 fn files_of(store: &Path) -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(store).map_or_else(|_| { return Vec::new(); }, |listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); });
     names.sort();
@@ -61,8 +63,13 @@ fn every_directory_has_its_own_entry() {
     let _removed = std::fs::remove_dir_all(&root);
 }
 
-/// A directory that lost its work directory, a file that holds no path, and a work directory that is a link are certainly of no
-/// use: their files are removed, so a removed worktree is not looked at at every start. A file of another kind stays.
+/// A directory that lost its work directory,
+/// a file that holds no path,
+/// and a work directory that is a link are certainly of no
+/// use:
+/// their files are removed,
+/// so a removed worktree is not looked at at every start.
+/// A file of another kind stays.
 #[test]
 fn files_that_are_certainly_of_no_use_are_removed() {
     let root: PathBuf = scratch("dropped");
@@ -97,8 +104,12 @@ fn an_in_memory_watch_writes_nothing() {
     let _removed = std::fs::remove_dir_all(&root);
 }
 
-/// A file that cannot be written is not lost: the watch keeps the directory, asks to be tried again, and a try after the fault is
-/// mended writes it and hands the directory back, so that a service killed afterwards finds it.
+/// A file that cannot be written is not lost:
+/// the watch keeps the directory,
+/// asks to be tried again,
+/// and a try after the fault is
+/// mended writes it and hands the directory back,
+/// so that a service killed afterwards finds it.
 #[test]
 fn a_file_that_could_not_be_written_is_written_by_a_later_try() {
     let root: PathBuf = scratch("unwritable");
@@ -121,8 +132,12 @@ fn a_file_that_could_not_be_written_is_written_by_a_later_try() {
     let _removed = std::fs::remove_dir_all(&root);
 }
 
-/// A note that cannot be read is kept, not removed, and read again once the fault is over; the watch asks to be tried again
-/// meanwhile, so that the service neither forgets the repository nor exits idle.
+/// A note that cannot be read is kept,
+/// not removed,
+/// and read again once the fault is over;
+/// the watch asks to be tried again
+/// meanwhile,
+/// so that the service neither forgets the repository nor exits idle.
 #[test]
 fn a_note_that_could_not_be_read_is_kept_and_found_by_a_later_try() {
     let root: PathBuf = scratch("unreadable");
@@ -142,7 +157,8 @@ fn a_note_that_could_not_be_read_is_kept_and_found_by_a_later_try() {
     let _removed = std::fs::remove_dir_all(&root);
 }
 
-/// A store that cannot be listed is tried again; one that does not exist is a journal that never held a note.
+/// A store that cannot be listed is tried again;
+/// one that does not exist is a journal that never held a note.
 #[test]
 fn a_store_that_cannot_be_listed_is_tried_again() {
     let root: PathBuf = scratch("unlistable");
@@ -160,7 +176,9 @@ fn a_store_that_cannot_be_listed_is_tried_again() {
     let _removed = std::fs::remove_dir_all(&root);
 }
 
-/// A note that names a directory of another instance is not this instance's to look at: it is removed, and a directory of another
+/// A note that names a directory of another instance is not this instance's to look at:
+/// it is removed,
+/// and a directory of another
 /// instance is not written down.
 #[test]
 fn a_directory_of_another_instance_is_neither_kept_nor_written() {
@@ -182,7 +200,8 @@ fn a_directory_of_another_instance_is_neither_kept_nor_written() {
     let _removed = std::fs::remove_dir_all(&root);
 }
 
-/// A path that was redirected through a link to another repository names another instance, so the note that holds it is removed
+/// A path that was redirected through a link to another repository names another instance,
+/// so the note that holds it is removed
 /// and the other repository is not looked at.
 #[test]
 fn a_path_redirected_to_another_repository_is_not_followed() {
@@ -201,7 +220,9 @@ fn a_path_redirected_to_another_repository_is_not_followed() {
     let _removed = std::fs::remove_dir_all(&root);
 }
 
-/// A path that is not text, or that ends in a newline, is kept exactly and found again.
+/// A path that is not text,
+/// or that ends in a newline,
+/// is kept exactly and found again.
 #[test]
 fn a_path_is_kept_byte_for_byte() {
     let root: PathBuf = scratch("bytes");

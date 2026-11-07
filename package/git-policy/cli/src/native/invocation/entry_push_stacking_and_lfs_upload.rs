@@ -1,8 +1,11 @@
 //! What:
-//!  Turns a plain forward of a push into a stacked push or a push that uploads Git LFS objects first, and adds the
+//!  Turns a plain forward of a push into a stacked push or a push that uploads Git LFS objects first,
+//! and adds the
 //!  warnings and reference-lock notices a forwarded command owes the caller.
 //! Why:
-//!  A push that may lose a race, or that carries LFS objects, must run as a child so the wrapper can explain a failure;
+//!  A push that may lose a race,
+//! or that carries LFS objects,
+//! must run as a child so the wrapper can explain a failure;
 //!  every other forward stays a process replacement.
 //!
 //! In TS you'd write (pseudocode):
@@ -38,14 +41,24 @@ use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
 use std::path::Path;
 /// What:
-///  Whether `command` is a push that must upload LFS objects first, and the configuration warning for configured
-///  external hooks, when the same read shows any, as empty text otherwise.
-///  A dry-run push reads the configuration too, for the warning, but uploads nothing.
+///  Whether `command` is a push that must upload LFS objects first,
+/// and the configuration warning for configured
+///  external hooks,
+/// when the same read shows any,
+/// as empty text otherwise.
+///  A dry-run push reads the configuration too,
+/// for the warning,
+/// but uploads nothing.
 /// Why:
-///   A push that sends nothing (`--dry-run`) needs no upload, and a repository without LFS keys needs none either.
-///  One configuration read answers it, made with the invocation's own global options; when Git cannot list its
-///  configuration the hook is added anyway, because it then decides with Git's own answers.
-///  The warning costs no read of its own: a push is the one forwarded command that already holds the snapshot.
+///   A push that sends nothing (`--dry-run`) needs no upload,
+/// and a repository without LFS keys needs none either.
+///  One configuration read answers it,
+/// made with the invocation's own global options;
+/// when Git cannot list its
+///  configuration the hook is added anyway,
+/// because it then decides with Git's own answers.
+///  The warning costs no read of its own:
+/// a push is the one forwarded command that already holds the snapshot.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -93,11 +106,14 @@ fn needs_lfs_upload(
 ///  Turn the forward of a plain push that may be integrated into a run that can integrate it,
 ///  and put the Git LFS upload in front of every push that publishes.
 /// Why:
-///   A push that lost a race to another session cannot succeed again, and the wrapper can only look at its status
+///   A push that lost a race to another session cannot succeed again,
+/// and the wrapper can only look at its status
 ///  while it is alive;
-///  the stacked push itself carries `STACKED_PUSH_MARKER`, so it is forwarded as it is and never stacks again.
+///  the stacked push itself carries `STACKED_PUSH_MARKER`,
+/// so it is forwarded as it is and never stacks again.
 ///   A real push in a repository with LFS keys also runs as a child that the Git LFS upload (`lfs_upload`) precedes,
-///  the stacked push too, so the parent can explain a failed upload;
+///  the stacked push too,
+/// so the parent can explain a failed upload;
 ///  the integration step's own dry-run queries never upload.
 ///   Every other action is returned unchanged.
 ///

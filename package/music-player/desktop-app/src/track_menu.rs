@@ -148,10 +148,13 @@ pub fn track_menu_divider_flags(actions: &[TrackMenuAction]) -> Vec<bool> {
 }
 
 /// What:
-///      `ACCESS_KEYS` is the one table of the menu's access keys: the letter that runs each row while the menu is open.
+///      `ACCESS_KEYS` is the one table of the menu's access keys:
+/// the letter that runs each row while the menu is open.
 /// Why:
-///      D114 gives every row one unique letter taken from its own words and drawn underlined in the label, so the row can be
-///  run with one key press; keeping the letters in one table makes uniqueness testable.
+///      D114 gives every row one unique letter taken from its own words and drawn underlined in the label,
+/// so the row can be
+///  run with one key press;
+/// keeping the letters in one table makes uniqueness testable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -169,7 +172,8 @@ const ACCESS_KEYS: [(TrackMenuAction, char); 6] = [
 /// What:
 ///      `pub fn access_key(action: TrackMenuAction) -> char` returns the lowercase access letter of one row.
 /// Why:
-///      The window underlines it and the key classifier matches it, both from the same table.
+///      The window underlines it and the key classifier matches it,
+/// both from the same table.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -183,9 +187,11 @@ pub fn access_key(action: TrackMenuAction) -> char {
 }
 
 /// What:
-///      `pub fn access_action(letter: char) -> Option<TrackMenuAction>` finds the row an access letter runs, ignoring case.
+///      `pub fn access_action(letter: char) -> Option<TrackMenuAction>` finds the row an access letter runs,
+/// ignoring case.
 /// Why:
-///      A key press while the menu is open names a row by its letter; an unassigned letter runs nothing.
+///      A key press while the menu is open names a row by its letter;
+/// an unassigned letter runs nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -201,10 +207,16 @@ pub fn access_action(letter: char) -> Option<TrackMenuAction> {
 
 /// What:
 ///      `pub fn access_label(action: TrackMenuAction) -> (String, String, String)` splits a row's label around its access
-///  letter: the text before it, the letter as written in the label, and the text after it.
+///  letter:
+/// the text before it,
+/// the letter as written in the label,
+/// and the text after it.
 /// Why:
-///      The window draws the middle part underlined (the second channel besides the letter itself); the split is taken at the
-///  first occurrence of the letter in the label, ignoring case, so the three parts always join back into the label.
+///      The window draws the middle part underlined (the second channel besides the letter itself);
+/// the split is taken at the
+///  first occurrence of the letter in the label,
+/// ignoring case,
+/// so the three parts always join back into the label.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

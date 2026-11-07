@@ -1,6 +1,12 @@
-//! Controls for the guards of the subvolume removal of a worktree, run on a stand-in for the kernel so that they hold on
-//!  any filesystem: a worktree of another repository, a name Git resolves by its last components, a lock that cannot be
-//!  looked up, and objects swapped between the proof of cleanliness, the destroy and the removal of the registration.
+//! Controls for the guards of the subvolume removal of a worktree,
+//! run on a stand-in for the kernel so that they hold on
+//!  any filesystem:
+//! a worktree of another repository,
+//! a name Git resolves by its last components,
+//! a lock that cannot be
+//!  looked up,
+//! and objects swapped between the proof of cleanliness,
+//! the destroy and the removal of the registration.
 
 use super::*;
 use crate::fs_beneath::handle_path;
@@ -9,18 +15,26 @@ use std::cell::RefCell;
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 
-/// A hook that runs once, at a chosen step of the removal.
+/// A hook that runs once,
+/// at a chosen step of the removal.
 type Hook = RefCell<Option<Box<dyn FnOnce()>>>;
 
-/// A stand-in for the kernel and the cleanliness proof: the worktrees listed are "subvolume roots", the proof is the real
-///  one, and the destroy deletes the directory. Each hook runs once, at the named step, so a control can swap an object
+/// A stand-in for the kernel and the cleanliness proof:
+/// the worktrees listed are "subvolume roots",
+/// the proof is the real
+///  one,
+/// and the destroy deletes the directory.
+/// Each hook runs once,
+/// at the named step,
+/// so a control can swap an object
 ///  exactly where a concurrent process would.
 struct Stand {
     /// The directories the stand-in calls subvolume roots.
     subvolumes: Vec<PathBuf>,
     /// Runs after the proof of cleanliness succeeded.
     after_proof: Hook,
-    /// Runs inside the destroy, before the directory is deleted.
+    /// Runs inside the destroy,
+    /// before the directory is deleted.
     during_destroy: Hook,
 }
 
@@ -38,7 +52,9 @@ impl Stand {
     }
 }
 
-/// The real cleanliness proof, the hooks, and a deletion in place of the kernel call.
+/// The real cleanliness proof,
+/// the hooks,
+/// and a deletion in place of the kernel call.
 impl RemoveOperations for Stand {
     fn is_subvolume_root(&self, path: &Path) -> bool {
         return self.subvolumes.iter().any(|known: &PathBuf| { return known == path; });
@@ -73,7 +89,9 @@ fn repository_with_file(root: &Path, name: &str) -> PathBuf {
     return repo;
 }
 
-/// A linked worktree at `directory`, provably clean, and its real path.
+/// A linked worktree at `directory`,
+/// provably clean,
+/// and its real path.
 fn clean_worktree(repo: &Path, directory: &Path, branch: &str) -> PathBuf {
     git(repo, &["worktree", "add", "--quiet", "-b", branch, directory.to_str().expect("UTF-8")]);
     let canonical: PathBuf = std::fs::canonicalize(directory).expect("canonical");
@@ -98,7 +116,8 @@ fn admin_of(repo: &Path, name: &str) -> PathBuf {
     return std::fs::canonicalize(repo.join(".git/worktrees").join(name)).expect("administrative directory");
 }
 
-/// A worktree that another repository registered is not this repository's to remove: Git answers "is not a working tree".
+/// A worktree that another repository registered is not this repository's to remove:
+/// Git answers "is not a working tree".
 #[test]
 fn a_worktree_of_another_repository_is_left_to_git() {
     let root: PathBuf = fixture("remove-guard-other-repository");
@@ -114,7 +133,8 @@ fn a_worktree_of_another_repository_is_left_to_git() {
     remove(root.as_path());
 }
 
-/// Git matches the operand against the last components of every registered path before it resolves it as a path, so a
+/// Git matches the operand against the last components of every registered path before it resolves it as a path,
+/// so a
 ///  directory that exists under the operand's name is not what Git removes when another worktree ends in that name.
 #[test]
 fn a_name_that_git_resolves_by_its_last_components_is_left_to_git() {
@@ -200,8 +220,10 @@ fn an_ancestor_replaced_by_a_link_after_the_proof_does_not_redirect_the_destroy(
     remove(root.as_path());
 }
 
-/// An ancestor replaced by another real directory after the proof is not the directory that held the worktree: the held
-///  parent still leads to the proven worktree, but the path the person typed no longer does.
+/// An ancestor replaced by another real directory after the proof is not the directory that held the worktree:
+/// the held
+///  parent still leads to the proven worktree,
+/// but the path the person typed no longer does.
 #[test]
 fn an_ancestor_replaced_by_a_directory_after_the_proof_stops_the_removal() {
     let root: PathBuf = fixture("remove-guard-replaced-ancestor");
@@ -243,7 +265,8 @@ fn a_worktree_with_a_populated_submodule_is_left_to_git() {
 }
 
 /// A registration that cannot be removed after the destroy is reported as an incomplete removal that names the leftover
-///  and the way to finish, never as a success.
+///  and the way to finish,
+/// never as a success.
 #[test]
 fn a_registration_that_cannot_be_removed_after_the_destroy_is_an_incomplete_removal() {
     let root: PathBuf = fixture("remove-guard-incomplete");

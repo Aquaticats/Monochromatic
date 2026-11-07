@@ -1,11 +1,18 @@
 //! What:
-//!  A backup push the resident service made after a commit returned and the remote refused, shown by the next wrapper
+//!  A backup push the resident service made after a commit returned and the remote refused,
+//! shown by the next wrapper
 //!  command in the repository.
 //! Why:
-//!  The service pushes after the commit command exited, so nothing the commit printed can carry the refusal. Without a
+//!  The service pushes after the commit command exited,
+//! so nothing the commit printed can carry the refusal.
+//! Without a
 //!  record shown by a later command the person would never learn that their backup is missing
-//!  (`push_failure_notice.rs`). The remote here is a real bare repository whose `pre-receive` hook refuses every push, the
-//!  service is a real process, and the commands are the built wrapper; nothing is a stand-in.
+//!  (`push_failure_notice.rs`).
+//! The remote here is a real bare repository whose `pre-receive` hook refuses every push,
+//! the
+//!  service is a real process,
+//! and the commands are the built wrapper;
+//! nothing is a stand-in.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,13 +36,17 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::{Duration, Instant};
 
-/// What the remote's hook says when it refuses a push; the test looks for it in what the person is shown.
+/// What the remote's hook says when it refuses a push;
+/// the test looks for it in what the person is shown.
 const REFUSAL: &str = "refusing this push by test policy";
 
-/// The longest a control waits for the service's push, far beyond what a healthy run needs.
+/// The longest a control waits for the service's push,
+/// far beyond what a healthy run needs.
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// A repository with a tracked file, a bare remote that has the branch, and a service the commits go through.
+/// A repository with a tracked file,
+/// a bare remote that has the branch,
+/// and a service the commits go through.
 struct Setup {
     fixture: Fixture,
     repo: PathBuf,
@@ -47,7 +58,9 @@ fn setup(name: &str) -> Setup {
     return setup_with(name, &[]);
 }
 
-/// The same, with variables the service starts with, as the user manager's environment would give it.
+/// The same,
+/// with variables the service starts with,
+/// as the user manager's environment would give it.
 fn setup_with(name: &str, service_environment: &[(&str, &str)]) -> Setup {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
@@ -97,7 +110,8 @@ fn commit_through_service_in(setup: &Setup, directory: &Path, content: &str) -> 
     return String::from_utf8_lossy(&named.stdout).trim().to_string();
 }
 
-/// Waits until the condition holds; the service's push has no signal a control could block on.
+/// Waits until the condition holds;
+/// the service's push has no signal a control could block on.
 fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
     let began: Instant = Instant::now();
     while !condition() {
@@ -137,8 +151,12 @@ fn stderr_text(observed: &Observed) -> String {
     return String::from_utf8_lossy(observed.stderr.as_slice()).into_owned();
 }
 
-/// A push the remote refused after the commit returned is shown by the next wrapper command, with the branch, the commit,
-///  Git's own reason, the fact that the commit is saved here, and what to do.
+/// A push the remote refused after the commit returned is shown by the next wrapper command,
+/// with the branch,
+/// the commit,
+///  Git's own reason,
+/// the fact that the commit is saved here,
+/// and what to do.
 #[test]
 fn a_rejected_service_push_is_shown_on_the_next_command() {
     let setup: Setup = setup("push-failure-shown");
@@ -155,7 +173,8 @@ fn a_rejected_service_push_is_shown_on_the_next_command() {
     remove_settled(&setup.fixture);
 }
 
-/// The failure is shown once: the command after the one that showed it prints nothing about it.
+/// The failure is shown once:
+/// the command after the one that showed it prints nothing about it.
 #[test]
 fn a_shown_failure_is_not_shown_again() {
     let setup: Setup = setup("push-failure-once");
@@ -172,12 +191,17 @@ fn a_shown_failure_is_not_shown_again() {
     remove_settled(&setup.fixture);
 }
 
-/// The words the service's skipped push gives for the setting these tests make: the reason names the setting and the value
+/// The words the service's skipped push gives for the setting these tests make:
+/// the reason names the setting and the value
 ///  that leaves the branch no destination.
 const SKIP_REASON: &str = "`push.default` is `nothing`";
 
 /// A push the service skips because `push.default=nothing` leaves the branch no destination is told to the person by the next
-///  wrapper command, with the branch, the commit, the reason and what to do, and the remote has not received the commit.
+///  wrapper command,
+/// with the branch,
+/// the commit,
+/// the reason and what to do,
+/// and the remote has not received the commit.
 #[test]
 fn a_skipped_service_push_is_shown_on_the_next_command() {
     let setup: Setup = setup("push-skip-shown");
@@ -198,7 +222,9 @@ fn a_skipped_service_push_is_shown_on_the_next_command() {
     remove_settled(&setup.fixture);
 }
 
-/// A skipped push is not a successful one: it leaves an earlier unshown failure of the branch in place, and adds its own record.
+/// A skipped push is not a successful one:
+/// it leaves an earlier unshown failure of the branch in place,
+/// and adds its own record.
 #[test]
 fn a_skipped_service_push_keeps_an_earlier_failure() {
     let setup: Setup = setup("push-skip-keeps-failure");
@@ -235,7 +261,8 @@ fn push_item(setup: &Setup, commit: &str) -> WorkItem {
     };
 }
 
-/// Wakes the fixture's service for the repository, as the wrapper's commit does.
+/// Wakes the fixture's service for the repository,
+/// as the wrapper's commit does.
 fn wake_service(setup: &Setup) {
     let config: ClientConfig = ClientConfig {
         address: Bind::Path(socket_for(setup.service.runtime.as_path(), setup.repo.join(".git").as_path())),
@@ -246,7 +273,9 @@ fn wake_service(setup: &Setup) {
     wake(&config, common_dir(setup).as_path(), None, &mut std::io::sink()).expect("the service takes the wake");
 }
 
-/// Hands the service a push of `commit` as the wrapper's commit does, without running a wrapper command, and returns once
+/// Hands the service a push of `commit` as the wrapper's commit does,
+/// without running a wrapper command,
+/// and returns once
 ///  the service has settled it.
 fn push_through_service(setup: &Setup, commit: &str) {
     enqueue(work_directory(common_dir(setup).as_path()).as_path(), &push_item(setup, commit)).expect("the push is recorded for the service");
@@ -254,9 +283,15 @@ fn push_through_service(setup: &Setup, commit: &str) {
     wait_until_settled(setup, commit);
 }
 
-/// A claim a service left when it was killed mid-push, whose lease is almost over, is not run when the next service wakes for
-///  it, because its holder might still be running; nothing else wakes the service, yet the push is made once the lease is
-///  over: the service looks again by itself.
+/// A claim a service left when it was killed mid-push,
+/// whose lease is almost over,
+/// is not run when the next service wakes for
+///  it,
+/// because its holder might still be running;
+/// nothing else wakes the service,
+/// yet the push is made once the lease is
+///  over:
+/// the service looks again by itself.
 #[test]
 fn a_claim_left_by_a_killed_service_is_pushed_once_its_lease_is_over() {
     let setup: Setup = setup("push-claim-left");
@@ -280,7 +315,8 @@ fn a_claim_left_by_a_killed_service_is_pushed_once_its_lease_is_over() {
     remove_settled(&setup.fixture);
 }
 
-/// A later push of the branch that goes through clears a failure nobody has seen yet, so the person is not told about a
+/// A later push of the branch that goes through clears a failure nobody has seen yet,
+/// so the person is not told about a
 ///  backup that has since been made.
 #[test]
 fn a_later_successful_push_clears_the_unshown_failure() {
@@ -303,7 +339,9 @@ fn a_later_successful_push_clears_the_unshown_failure() {
 }
 
 /// A command whose output a program reads gets exactly Git's bytes on both streams and leaves the record for a person:
-///  porcelain status, null-separated status and plumbing all pass untouched, and the next ordinary command still shows it.
+///  porcelain status,
+/// null-separated status and plumbing all pass untouched,
+/// and the next ordinary command still shows it.
 #[test]
 fn machine_read_output_is_untouched_and_keeps_the_failure_for_a_person() {
     let setup: Setup = setup("push-failure-porcelain");
@@ -323,8 +361,11 @@ fn machine_read_output_is_untouched_and_keeps_the_failure_for_a_person() {
     remove_settled(&setup.fixture);
 }
 
-/// The commit name in the notice has the length Git gives it, `core.abbrev` honored, and the text does not call the commit
-///  the reader's own, because the command that shows it may be anyone's.
+/// The commit name in the notice has the length Git gives it,
+/// `core.abbrev` honored,
+/// and the text does not call the commit
+///  the reader's own,
+/// because the command that shows it may be anyone's.
 #[test]
 fn the_notice_names_the_commit_as_git_abbreviates_it() {
     let setup: Setup = setup("push-failure-abbrev");
@@ -346,14 +387,18 @@ fn linked_worktree(setup: &Setup, branch: &str) -> PathBuf {
     return path;
 }
 
-/// The Git directory of a linked worktree, which holds its own work records and notices.
+/// The Git directory of a linked worktree,
+/// which holds its own work records and notices.
 fn linked_git_dir(setup: &Setup, linked: &Path) -> PathBuf {
     let named = git(&setup.fixture, linked, &["rev-parse", "--absolute-git-dir"]);
     return PathBuf::from(String::from_utf8_lossy(&named.stdout).trim());
 }
 
 /// A failed push is recorded under the Git directory of the worktree that made the commit and shown to the commands of
-///  that worktree, and not to commands of another worktree of the repository, which keep their own output; the text names
+///  that worktree,
+/// and not to commands of another worktree of the repository,
+/// which keep their own output;
+/// the text names
 ///  the branch.
 #[test]
 fn a_failed_push_is_shown_in_the_worktree_that_made_the_commit() {
@@ -376,8 +421,11 @@ fn a_failed_push_is_shown_in_the_worktree_that_made_the_commit() {
     remove_settled(&setup.fixture);
 }
 
-/// A push stopped at its deadline in the service names a remedy that reaches the service: the variable of a terminal never
-///  does, so the text gives the user manager's command and the restart, and does not tell the person to set a variable.
+/// A push stopped at its deadline in the service names a remedy that reaches the service:
+/// the variable of a terminal never
+///  does,
+/// so the text gives the user manager's command and the restart,
+/// and does not tell the person to set a variable.
 #[test]
 fn a_deadline_notice_names_a_remedy_that_reaches_the_service() {
     let setup: Setup = setup_with("push-failure-deadline", &[("CLI_GIT_PUSH_DEADLINE_SECONDS", "1")]);
@@ -394,7 +442,8 @@ fn a_deadline_notice_names_a_remedy_that_reaches_the_service() {
     remove_settled(&setup.fixture);
 }
 
-/// A push work record for the branch of a linked worktree, left pending under that worktree's own Git directory.
+/// A push work record for the branch of a linked worktree,
+/// left pending under that worktree's own Git directory.
 fn leave_pending_push(setup: &Setup, linked: &Path, own: &Path, branch: &str) -> String {
     let named = git(&setup.fixture, linked, &["rev-parse", "HEAD"]);
     let commit: String = String::from_utf8_lossy(&named.stdout).trim().to_string();
@@ -412,7 +461,9 @@ fn leave_pending_push(setup: &Setup, linked: &Path, own: &Path, branch: &str) ->
     return commit;
 }
 
-/// A failure nobody has seen yet survives the removal of the worktree it belongs to: the next command anywhere shows it, so
+/// A failure nobody has seen yet survives the removal of the worktree it belongs to:
+/// the next command anywhere shows it,
+/// so
 ///  the person learns that the backup of that branch is missing.
 #[test]
 fn a_failed_push_of_a_branch_no_worktree_holds_is_shown_anywhere() {
@@ -432,7 +483,8 @@ fn a_failed_push_of_a_branch_no_worktree_holds_is_shown_anywhere() {
     remove_settled(&setup.fixture);
 }
 
-/// A push the service had not run yet when its worktree was removed is not lost without a word: the next command anywhere
+/// A push the service had not run yet when its worktree was removed is not lost without a word:
+/// the next command anywhere
 ///  names the branch and the commit.
 #[test]
 fn a_push_pending_when_its_worktree_is_removed_is_reported() {
@@ -464,7 +516,8 @@ fn a_push_pending_when_its_worktree_is_pruned_is_reported() {
     remove_settled(&setup.fixture);
 }
 
-/// A record that cannot be saved before the removal is told on standard error before Git runs, and the removal still happens.
+/// A record that cannot be saved before the removal is told on standard error before Git runs,
+/// and the removal still happens.
 #[test]
 fn a_record_that_cannot_be_saved_before_a_removal_is_told_to_the_person() {
     let setup: Setup = setup("push-pending-unsaved");
@@ -481,7 +534,8 @@ fn a_record_that_cannot_be_saved_before_a_removal_is_told_to_the_person() {
     remove_settled(&setup.fixture);
 }
 
-/// A record of a removed worktree that cannot be kept for the person is told on standard error by the next command, and shown
+/// A record of a removed worktree that cannot be kept for the person is told on standard error by the next command,
+/// and shown
 ///  by the one after it once the cause is gone.
 #[test]
 fn a_record_of_a_removed_worktree_that_cannot_be_kept_is_told_and_shown_later() {
@@ -502,7 +556,8 @@ fn a_record_of_a_removed_worktree_that_cannot_be_kept_is_told_and_shown_later() 
     remove_settled(&setup.fixture);
 }
 
-/// A removal Git refuses leaves the worktree and its work as they were: nothing is reported for a worktree that still exists.
+/// A removal Git refuses leaves the worktree and its work as they were:
+/// nothing is reported for a worktree that still exists.
 #[test]
 fn a_refused_removal_reports_nothing_and_keeps_the_pending_push() {
     let setup: Setup = setup("push-pending-kept");

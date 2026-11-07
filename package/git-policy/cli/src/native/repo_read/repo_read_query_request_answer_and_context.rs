@@ -1,9 +1,19 @@
 //! What:
-//!  What the in-process Git queries share: the request (`Query`), the answer (`Answer`), the parsed command line (`Parsed`),
-//!  the exact-flags check, and the context a query runs in (layout, index path, object directory, environment).
+//!  What the in-process Git queries share:
+//! the request (`Query`),
+//! the answer (`Answer`),
+//! the parsed command line (`Parsed`),
+//!  the exact-flags check,
+//! and the context a query runs in (layout,
+//! index path,
+//! object directory,
+//! environment).
 //! Why:
 //!  `repo_read_query.rs` dispatches the commands and `repo_read_query_quiet.rs` and `repo_read_query_refs.rs` answer some of
-//!  them; all three need these, and none of the three may depend on a file that depends on it, so they sit in a file that
+//!  them;
+//! all three need these,
+//! and none of the three may depend on a file that depends on it,
+//! so they sit in a file that
 //!  depends on none of them.
 //!
 //! In TS you'd write (pseudocode):
@@ -24,13 +34,16 @@ use std::path::{Path, PathBuf};
 
 /// The command line and surroundings of one query.
 pub struct Query<'a> {
-    /// The arguments given to Git, global options first.
+    /// The arguments given to Git,
+    /// global options first.
     pub arguments: &'a [OsString],
-    /// The directory Git would run in; `None` is the process directory.
+    /// The directory Git would run in;
+    /// `None` is the process directory.
     pub directory: Option<&'a Path>,
     /// The variables added to Git's environment for this run.
     pub variables: &'a [(OsString, OsString)],
-    /// The bytes sent to Git's standard input, for the commands that read object names from it.
+    /// The bytes sent to Git's standard input,
+    /// for the commands that read object names from it.
     pub input: Option<&'a [u8]>,
 }
 
@@ -57,7 +70,9 @@ pub(crate) struct Parsed<'a> {
     pub(crate) specs: Vec<&'a [u8]>,
 }
 
-/// Split the arguments: leading `-C <dir>` pairs move the start directory, `--no-literal-pathspecs` is Git's default.
+/// Split the arguments:
+/// leading `-C <dir>` pairs move the start directory,
+/// `--no-literal-pathspecs` is Git's default.
 pub(crate) fn parse<'a>(arguments: &'a [OsString], start: &mut PathBuf) -> Option<Parsed<'a>> {
     let mut index: usize = 0;
     while index < arguments.len() {
@@ -114,17 +129,20 @@ pub(crate) fn flags_are(flags: &[&str], required: &[&str], allowed: &[&str]) -> 
     return true;
 }
 
-/// Everything one query needs, opened lazily.
+/// Everything one query needs,
+/// opened lazily.
 pub(crate) struct Context {
     /// The repository.
     pub(crate) layout: RepoLayout,
     /// The index file Git would read.
     pub(crate) index_path: PathBuf,
-    /// The object directory override, if any.
+    /// The object directory override,
+    /// if any.
     pub(crate) objects: Option<PathBuf>,
     /// Where the system and global configuration files are.
     pub(crate) scope: ScopeEnvironment,
-    /// The environment Git would see, without the index and object directory variables.
+    /// The environment Git would see,
+    /// without the index and object directory variables.
     pub(crate) variables: Vec<(OsString, OsString)>,
 }
 
@@ -146,7 +164,8 @@ impl Context {
         return parse_index_with_tree(bytes.as_slice(), self.layout.object_format);
     }
 
-    /// The index as flat entries and its cache-tree, refusing unmerged or intent-to-add entries.
+    /// The index as flat entries and its cache-tree,
+    /// refusing unmerged or intent-to-add entries.
     pub(crate) fn resolved_index_with_tree(&self) -> Option<(Vec<FlatEntry>, Option<CacheTree>)> {
         let parsed: ParsedIndex = self.index_with_tree()?;
         for entry in &parsed.entries {

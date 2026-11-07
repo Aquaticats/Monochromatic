@@ -1,8 +1,13 @@
 //! What:
 //! Turns a scan into the text the shadow writes to standard error before it runs pnpm.
 //! Why:
-//! The message is the whole product of the shadow, so it names the affected files, says what is allowed, says what
-//! the shadow does and does not do, and says how to make it stop (fix the manifests; there is no switch).
+//! The message is the whole product of the shadow,
+//! so it names the affected files,
+//! says what is allowed,
+//! says what
+//! the shadow does and does not do,
+//! and says how to make it stop (fix the manifests;
+//! there is no switch).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,12 +21,17 @@ use std::path::Path;
 /// Imports the scan result.
 use crate::scan::ScanReport;
 
-/// The prefix every line carries. It does not name the wrapper: the wrapper names itself only after `--version` and
-/// `--help` (`shadow_notice.rs`), and these lines name the manifests and the rule instead.
+/// The prefix every line carries.
+/// It does not name the wrapper:
+/// the wrapper names itself only after `--version` and
+/// `--help` (`shadow_notice.rs`),
+/// and these lines name the manifests and the rule instead.
 pub const LINE_PREFIX: &str = "warning: ";
 
 /// What:
-/// `pub const RULE_SUMMARY: &str = "...";` is the closing paragraph: the rule in one sentence, then what the shadow
+/// `pub const RULE_SUMMARY: &str = "...";` is the closing paragraph:
+/// the rule in one sentence,
+/// then what the shadow
 /// does and does not do.
 /// Why:
 /// A reader who sees only one finding still learns every valid remedy and that pnpm was not stopped.
@@ -37,10 +47,12 @@ The warning appears on every run of a command that resolves or changes dependenc
 off; the way to silence it is to fix the manifests named above.";
 
 /// What:
-/// `pub fn render_report(root: &Path, report: &ScanReport) -> Option<String>` returns the text to print, or `None`
+/// `pub fn render_report(root: &Path, report: &ScanReport) -> Option<String>` returns the text to print,
+/// or `None`
 /// when the scan found nothing to say.
 /// Why:
-/// A clean workspace stays silent, so the warning means something when it appears.
+/// A clean workspace stays silent,
+/// so the warning means something when it appears.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

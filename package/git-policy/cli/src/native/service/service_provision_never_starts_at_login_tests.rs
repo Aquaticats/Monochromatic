@@ -1,14 +1,34 @@
 //! What:
-//!  Guards for the owner's rule that nothing of the wrapper starts at system startup or at login (owner, 2026-11-07: "Were you
-//!  implying our wrapper or something in it auto starts itself on system startup or user login? It should never do that! Follow
-//!  Bazel." Then: "Systemd units are fine."): the unit texts carry no install line, provisioning links nothing and writes only in the
-//!  runtime unit directory (it may remove the earlier releases' files in the user's own unit directory), and the manager is asked
-//!  only to reload, reset, start, stop and report a state.
+//!  Guards for the owner's rule that nothing of the wrapper starts at system startup or at login (owner,
+//! 2026-11-07:
+//! "Were you
+//!  implying our wrapper or something in it auto starts itself on system startup or user login?
+//! It should never do that!
+//! Follow
+//!  Bazel."
+//! Then:
+//! "Systemd units are fine."):
+//! the unit texts carry no install line,
+//! provisioning links nothing and writes only in the
+//!  runtime unit directory (it may remove the earlier releases' files in the user's own unit directory),
+//! and the manager is asked
+//!  only to reload,
+//! reset,
+//! start,
+//! stop and report a state.
 //! Why:
-//!  The service is started by the first command that needs it, through the socket the manager listens on for a runtime unit, and
-//!  exits after three idle hours, like Bazel's server. A unit that `systemctl --user enable` could link into a `*.wants` folder, a
-//!  file in the user's own unit directory, or a call that enables or links a unit would start it at login; each is guarded
-//!  here, beside the scan of the source (`source_guard/no_start_at_login_tests.rs`).
+//!  The service is started by the first command that needs it,
+//! through the socket the manager listens on for a runtime unit,
+//! and
+//!  exits after three idle hours,
+//! like Bazel's server.
+//! A unit that `systemctl --user enable` could link into a `*.wants` folder,
+//! a
+//!  file in the user's own unit directory,
+//! or a call that enables or links a unit would start it at login;
+//! each is guarded
+//!  here,
+//! beside the scan of the source (`source_guard/no_start_at_login_tests.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,7 +41,9 @@ use crate::no_start_at_login_tests::lines_that_start_at_login;
 use crate::test_support::remove;
 use std::collections::BTreeMap;
 
-/// The units the wrapper writes, as written for a machine: the two templates and every text a host would give them.
+/// The units the wrapper writes,
+/// as written for a machine:
+/// the two templates and every text a host would give them.
 #[test]
 fn the_unit_texts_the_wrapper_writes_carry_no_install_line() {
     let machine: Machine = machine("never-login-texts-lib");
@@ -41,7 +63,11 @@ fn the_unit_texts_the_wrapper_writes_carry_no_install_line() {
     remove(machine.root.as_path());
 }
 
-/// What a file system entry is, for the comparison before and after: a directory, a file with its bytes, or a link with its target.
+/// What a file system entry is,
+/// for the comparison before and after:
+/// a directory,
+/// a file with its bytes,
+/// or a link with its target.
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum Entry {
     Directory,
@@ -49,7 +75,9 @@ enum Entry {
     Link(PathBuf),
 }
 
-/// Every entry below `root`, by path, found with a work stack and not following links.
+/// Every entry below `root`,
+/// by path,
+/// found with a work stack and not following links.
 fn entries_below(root: &Path) -> BTreeMap<PathBuf, Entry> {
     let mut found: BTreeMap<PathBuf, Entry> = BTreeMap::new();
     let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
@@ -71,8 +99,11 @@ fn entries_below(root: &Path) -> BTreeMap<PathBuf, Entry> {
     return found;
 }
 
-/// Plants what the earlier releases left, so the removal paths run too: the single service's units in the user's own unit
-///  directory with the enabling link an earlier release made, and the same units in the runtime directory.
+/// Plants what the earlier releases left,
+/// so the removal paths run too:
+/// the single service's units in the user's own unit
+///  directory with the enabling link an earlier release made,
+/// and the same units in the runtime directory.
 fn plant_earlier_releases(machine: &Machine) {
     let user: PathBuf = machine.host.user_unit_dir.clone().expect("a user unit directory");
     earlier_service_files(machine, user.as_path());
@@ -82,8 +113,15 @@ fn plant_earlier_releases(machine: &Machine) {
     std::os::unix::fs::symlink(user.join(LEGACY_SOCKET_UNIT_NAME), wants.join(LEGACY_SOCKET_UNIT_NAME)).expect("the earlier enabling link");
 }
 
-/// The runs a guard looks at: a fresh machine, a second run, a machine the earlier releases left files on, and a unit naming a
-///  moved program. Each gives the machine, the entries before and after, and the manager's calls.
+/// The runs a guard looks at:
+/// a fresh machine,
+/// a second run,
+/// a machine the earlier releases left files on,
+/// and a unit naming a
+///  moved program.
+/// Each gives the machine,
+/// the entries before and after,
+/// and the manager's calls.
 fn runs() -> Vec<(Machine, BTreeMap<PathBuf, Entry>, BTreeMap<PathBuf, Entry>, Vec<String>)> {
     let mut all: Vec<(Machine, BTreeMap<PathBuf, Entry>, BTreeMap<PathBuf, Entry>, Vec<String>)> = Vec::new();
     for (name, plant, twice) in [("never-login-fresh-lib", false, false), ("never-login-second-lib", false, true), ("never-login-earlier-lib", true, false)] {
@@ -115,8 +153,11 @@ fn runs() -> Vec<(Machine, BTreeMap<PathBuf, Entry>, BTreeMap<PathBuf, Entry>, V
     return all;
 }
 
-/// Provisioning creates or changes entries only below the runtime unit directory, and creates no link and no `*.wants` or
-///  `*.requires` folder anywhere. The one allowed exception is removal: the earlier releases' files in the user's own unit
+/// Provisioning creates or changes entries only below the runtime unit directory,
+/// and creates no link and no `*.wants` or
+///  `*.requires` folder anywhere.
+/// The one allowed exception is removal:
+/// the earlier releases' files in the user's own unit
 ///  directory (and the earlier socket file in the runtime directory) may go.
 #[test]
 fn provisioning_writes_only_in_the_runtime_unit_directory_and_links_nothing() {
@@ -146,7 +187,9 @@ fn path_in_user_units(entries: &BTreeMap<PathBuf, Entry>, user_units: &Path) -> 
     return entries.keys().any(|path| { return path.starts_with(user_units) && path.to_string_lossy().contains(".wants/"); });
 }
 
-/// The earlier release's enabling link is removed with its unit, not kept: nothing in the user's own unit directory enables a
+/// The earlier release's enabling link is removed with its unit,
+/// not kept:
+/// nothing in the user's own unit directory enables a
 ///  unit after provisioning.
 #[test]
 fn an_earlier_releases_enabling_link_is_removed() {
@@ -159,8 +202,15 @@ fn an_earlier_releases_enabling_link_is_removed() {
     remove(machine.root.as_path());
 }
 
-/// The manager is asked only to reload, reset a failed unit, start, stop and report a state: no call enables, links, presets,
-///  masks or changes the default target, whatever the run.
+/// The manager is asked only to reload,
+/// reset a failed unit,
+/// start,
+/// stop and report a state:
+/// no call enables,
+/// links,
+/// presets,
+///  masks or changes the default target,
+/// whatever the run.
 #[test]
 fn provisioning_asks_the_manager_for_nothing_that_enables_a_unit() {
     let allowed: [&str; 6] = ["reload", "reset-failed", "start", "stop", "stop-alone", "state"];

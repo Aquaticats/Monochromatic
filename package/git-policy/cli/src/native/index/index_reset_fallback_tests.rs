@@ -1,4 +1,7 @@
-//! Controls for the forms the in-process reset leaves to Git: it returns `false`, leaves the index file as it was, and the
+//! Controls for the forms the in-process reset leaves to Git:
+//! it returns `false`,
+//! leaves the index file as it was,
+//! and the
 //! landing's follow-up then runs `git reset --no-refresh` on the same file.
 
 use super::support::{Edit, Plan, Scene, finish, git_with, index_bytes, landing_reset, landing_reset_copy, named, scene};
@@ -67,7 +70,9 @@ fn a_sparse_checkout_is_left_to_git() {
     finish(scene);
 }
 
-/// A required extension this reader does not know: Git would refuse the file, so Git is asked.
+/// A required extension this reader does not know:
+/// Git would refuse the file,
+/// so Git is asked.
 #[test]
 fn an_unknown_required_extension_is_left_to_git() {
     let scene: Scene = changed_a("index-fallback-required");
@@ -82,7 +87,8 @@ fn an_unknown_required_extension_is_left_to_git() {
     finish(scene);
 }
 
-/// Git runs `post-index-change` after it writes an index; the update would not.
+/// Git runs `post-index-change` after it writes an index;
+/// the update would not.
 #[test]
 fn a_post_index_change_hook_is_left_to_git() {
     let scene: Scene = changed_a("index-fallback-hook");
@@ -91,7 +97,8 @@ fn a_post_index_change_hook_is_left_to_git() {
     finish(scene);
 }
 
-/// An entry recorded in the second the index file was written is racily clean; Git hashes it from the worktree.
+/// An entry recorded in the second the index file was written is racily clean;
+/// Git hashes it from the worktree.
 #[test]
 fn a_racily_clean_entry_is_left_to_git() {
     let edits: Vec<Edit<'_>> = vec![Edit::Put { path: "a", mode: "100644", content: b"a two\n" }];
@@ -103,7 +110,10 @@ fn a_racily_clean_entry_is_left_to_git() {
     finish(scene);
 }
 
-/// Configuration the update does not reproduce: sparse checkout, index threads, and an untracked cache Git would add.
+/// Configuration the update does not reproduce:
+/// sparse checkout,
+/// index threads,
+/// and an untracked cache Git would add.
 #[test]
 fn configuration_the_update_does_not_reproduce_is_left_to_git() {
     for (key, value) in [("core.sparseCheckout", "true"), ("index.threads", "2"), ("core.untrackedCache", "true"), ("index.skipHash", "true"), ("core.hooksPath", "hooks-elsewhere")] {
@@ -125,7 +135,9 @@ fn a_file_where_the_index_has_a_directory_is_left_to_git() {
     finish(scene);
 }
 
-/// A damaged index (wrong checksum), a missing one, and the switch that turns the in-process readers off.
+/// A damaged index (wrong checksum),
+/// a missing one,
+/// and the switch that turns the in-process readers off.
 #[test]
 fn a_damaged_or_missing_index_and_the_off_switch_are_left_to_git() {
     let scene: Scene = changed_a("index-fallback-damaged");
@@ -144,8 +156,10 @@ fn a_damaged_or_missing_index_and_the_off_switch_are_left_to_git() {
     finish(scene);
 }
 
-/// Another run's temporary file is not this run's to remove or publish: a file already at the name an earlier version used for
-/// every run stays untouched, and the target still gets the complete result.
+/// Another run's temporary file is not this run's to remove or publish:
+/// a file already at the name an earlier version used for
+/// every run stays untouched,
+/// and the target still gets the complete result.
 #[test]
 fn another_runs_temporary_file_is_left_alone() {
     let scene: Scene = changed_a("index-fallback-decoy");
@@ -158,7 +172,8 @@ fn another_runs_temporary_file_is_left_alone() {
 }
 
 /// The names the update declines for the protection settings are names real Git 2.56.0 refuses to put in an index with those
-/// settings on (the default for NTFS), so declining them leaves Git to say so.
+/// settings on (the default for NTFS),
+/// so declining them leaves Git to say so.
 #[test]
 fn git_refuses_the_protected_names_the_update_declines() {
     let scene: Scene = changed_a("index-fallback-protected-names");
@@ -170,8 +185,13 @@ fn git_refuses_the_protected_names_the_update_declines() {
     finish(scene);
 }
 
-/// Names Git refuses by their NTFS short forms, among them the hashed short name of `.gitmodules` as a link, are in no index
-/// real `git reset --no-refresh` writes: it fails and leaves the index file as it was, and so does the update's decline; an
+/// Names Git refuses by their NTFS short forms,
+/// among them the hashed short name of `.gitmodules` as a link,
+/// are in no index
+/// real `git reset --no-refresh` writes:
+/// it fails and leaves the index file as it was,
+/// and so does the update's decline;
+/// an
 /// ordinary link name in the same position is taken by both and gives equal files.
 #[test]
 fn ntfs_short_names_are_refused_by_git_and_declined_by_the_update() {

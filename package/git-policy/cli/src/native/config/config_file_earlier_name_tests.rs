@@ -2,8 +2,10 @@
 //!  Disposable-directory controls for the settings file's two spellings.
 //! Why:
 //!  The owner renamed `cli-git.config.jsonc` to `monochromatic-git-policy-cli.config.jsonc` and decided that a repository
-//!  with only the old file is read with one notice that names the new name, that a repository with both reads the new one
-//!  and reports the old one as ignored, and that the wrapper never renames a committed file by itself.
+//!  with only the old file is read with one notice that names the new name,
+//! that a repository with both reads the new one
+//!  and reports the old one as ignored,
+//! and that the wrapper never renames a committed file by itself.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

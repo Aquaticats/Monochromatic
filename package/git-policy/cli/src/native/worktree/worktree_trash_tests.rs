@@ -1,5 +1,11 @@
-//! The leave-out of a snapshot of the main checkout (on btrfs), the hand-over of the trash to the service, and the service's
-//!  handler: what is set aside, what is kept, what the work item carries, and what the handler refuses to touch.
+//! The leave-out of a snapshot of the main checkout (on btrfs),
+//! the hand-over of the trash to the service,
+//! and the service's
+//!  handler:
+//! what is set aside,
+//! what is kept,
+//! what the work item carries,
+//! and what the handler refuses to touch.
 
 use super::*;
 use crate::claim_time::ClaimTime;
@@ -20,15 +26,19 @@ use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, su
 use crate::worktree_snapshot::take_snapshot;
 use crate::worktree_snapshot_source::choose_snapshot_source;
 
-/// Write a file, making its directories.
+/// Write a file,
+/// making its directories.
 fn put(root: &Path, path: &str, bytes: &[u8]) {
     let full: PathBuf = root.join(path);
     std::fs::create_dir_all(full.parent().expect("parent")).expect("directories");
     std::fs::write(full, bytes).expect("file");
 }
 
-/// A main checkout that is a subvolume, with ignored state of every shape the rule tells apart, a tracked directory whose name
-///  the rule would leave out, one nested worktree that is an ordinary directory and one that is a subvolume.
+/// A main checkout that is a subvolume,
+/// with ignored state of every shape the rule tells apart,
+/// a tracked directory whose name
+///  the rule would leave out,
+/// one nested worktree that is an ordinary directory and one that is a subvolume.
 fn main_with_state(root: &Path) -> PathBuf {
     let repo: PathBuf = subvolume_repository(root);
     tracked(repo.as_path(), "src/.cache/tracked.txt", b"tracked inside a directory named like a cache\n");
@@ -50,7 +60,9 @@ fn main_with_state(root: &Path) -> PathBuf {
     return repo;
 }
 
-/// Plant a trash directory `name` below the trash parent of `worktree` with `count` entries, each holding a file, and return
+/// Plant a trash directory `name` below the trash parent of `worktree` with `count` entries,
+/// each holding a file,
+/// and return
 ///  the manifest a leave-out would have written for it.
 fn plant_trash(worktree: &Path, name: &str, count: usize) -> TrashManifest {
     for index in 0..count {
@@ -64,7 +76,8 @@ fn plant_trash(worktree: &Path, name: &str, count: usize) -> TrashManifest {
     return TrashManifest { name: String::from(name), trash: identity_of(&trash).expect("trash identity"), entries };
 }
 
-/// A work item for the trash a manifest describes, as the hand-over writes it.
+/// A work item for the trash a manifest describes,
+/// as the hand-over writes it.
 fn item_of(worktree: &Path, git_dir: &Path, manifest: &TrashManifest) -> WorkItem {
     return WorkItem { kind: WorkKind::Trash, repository: worktree.display().to_string(), git_dir: git_dir.display().to_string(), branch_ref: String::from(TRASH_REFERENCE), oid: manifest.name.clone(), parent: manifest.encode(), created: now_iso(), tries: 0 };
 }
@@ -82,14 +95,18 @@ fn snapshot_of(root: &Path, repo: &Path) -> (PathBuf, crate::worktree_snapshot_s
     return (stage, source, taken.trash);
 }
 
-/// The trash directory a stage holds, if any.
+/// The trash directory a stage holds,
+/// if any.
 fn trash_of(stage: &Path) -> Option<PathBuf> {
     let parent: PathBuf = stage.join(TRASH_PARENT);
     return std::fs::read_dir(parent).ok()?.flatten().map(|entry: std::fs::DirEntry| { return entry.path(); }).next();
 }
 
-/// A snapshot of the main checkout sets aside the ordinary nested worktree (its pointer unlinked first), the other checkout and
-///  the caches and run records, keeps what a new worktree needs and every tracked directory, and the main checkout is not
+/// A snapshot of the main checkout sets aside the ordinary nested worktree (its pointer unlinked first),
+/// the other checkout and
+///  the caches and run records,
+/// keeps what a new worktree needs and every tracked directory,
+/// and the main checkout is not
 ///  blocked by the ordinary nested worktree.
 #[test]
 fn btrfs_a_snapshot_of_main_sets_aside_exactly_what_the_rule_leaves_out() {
@@ -115,7 +132,8 @@ fn btrfs_a_snapshot_of_main_sets_aside_exactly_what_the_rule_leaves_out() {
     remove(root.as_path());
 }
 
-/// The blocker that declined a snapshot over an ordinary nested worktree no longer applies to the main checkout, and still
+/// The blocker that declined a snapshot over an ordinary nested worktree no longer applies to the main checkout,
+/// and still
 ///  applies to a linked worktree.
 #[test]
 fn btrfs_the_ordinary_nested_worktree_does_not_block_a_snapshot_of_main() {
@@ -131,7 +149,8 @@ fn btrfs_the_ordinary_nested_worktree_does_not_block_a_snapshot_of_main() {
     remove(root.as_path());
 }
 
-/// A linked worktree sets nothing aside, whatever it holds.
+/// A linked worktree sets nothing aside,
+/// whatever it holds.
 #[test]
 fn btrfs_a_linked_source_sets_nothing_aside() {
     let Some(root) = btrfs_fixture("trash-linked") else { return };
@@ -144,7 +163,8 @@ fn btrfs_a_linked_source_sets_nothing_aside() {
     remove(root.as_path());
 }
 
-/// Without a route to the service the trash is emptied in the foreground, and the work item written for it is withdrawn once
+/// Without a route to the service the trash is emptied in the foreground,
+/// and the work item written for it is withdrawn once
 ///  it is gone.
 #[test]
 fn a_trash_the_service_cannot_be_reached_for_is_emptied_here() {
@@ -165,7 +185,8 @@ fn a_trash_the_service_cannot_be_reached_for_is_emptied_here() {
     remove(root.as_path());
 }
 
-/// The service's handler empties the one directory a well-formed item names, and refuses everything else.
+/// The service's handler empties the one directory a well-formed item names,
+/// and refuses everything else.
 #[test]
 fn the_handler_empties_only_the_trash_it_is_told_about() {
     let root: PathBuf = fixture("trash-handler");
@@ -241,17 +262,22 @@ fn the_drain_empties_a_trash_item() {
     remove(root.as_path());
 }
 
-/// What a fixture service did: every line it was sent, in order.
+/// What a fixture service did:
+/// every line it was sent,
+/// in order.
 #[cfg(target_os = "linux")]
 struct FixtureService {
     /// Raised to end the accept loop.
     finished: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    /// The loop, returning the non-empty lines it read.
+    /// The loop,
+    /// returning the non-empty lines it read.
     thread: std::thread::JoinHandle<Vec<String>>,
 }
 
-/// Serve `name` as a service of a release other than this one; when `retires` is true it is replaced by a service of this
-///  release as soon as it has been asked to retire, else it goes on answering as the earlier release.
+/// Serve `name` as a service of a release other than this one;
+/// when `retires` is true it is replaced by a service of this
+///  release as soon as it has been asked to retire,
+/// else it goes on answering as the earlier release.
 #[cfg(target_os = "linux")]
 fn serve_earlier_release(name: &str, retires: bool) -> FixtureService {
     use std::os::linux::net::SocketAddrExt;
@@ -291,7 +317,9 @@ fn serve_earlier_release(name: &str, retires: bool) -> FixtureService {
     return FixtureService { finished, thread };
 }
 
-/// A worktree with one trash directory in it, the admin directory it points at, and the manifest of that trash.
+/// A worktree with one trash directory in it,
+/// the admin directory it points at,
+/// and the manifest of that trash.
 #[cfg(target_os = "linux")]
 fn worktree_with_trash(label: &str, name: &str) -> (PathBuf, PathBuf, PathBuf, TrashManifest) {
     let root: PathBuf = fixture(label);
@@ -304,8 +332,11 @@ fn worktree_with_trash(label: &str, name: &str) -> (PathBuf, PathBuf, PathBuf, T
     return (root, worktree, git_dir, manifest);
 }
 
-/// A service of an earlier release that never retires is not given the work item: it is asked only to retire, the trash is
-///  emptied here, and no record is left for a later service to find.
+/// A service of an earlier release that never retires is not given the work item:
+/// it is asked only to retire,
+/// the trash is
+///  emptied here,
+/// and no record is left for a later service to find.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_service_of_an_earlier_release_that_will_not_retire_is_never_handed_trash() {
@@ -326,8 +357,10 @@ fn a_service_of_an_earlier_release_that_will_not_retire_is_never_handed_trash() 
     remove(root.as_path());
 }
 
-/// A service of an earlier release that retires is replaced before the hand-over: the work item reaches the current service,
-///  after the retire, and the trash stays for that service to empty.
+/// A service of an earlier release that retires is replaced before the hand-over:
+/// the work item reaches the current service,
+///  after the retire,
+/// and the trash stays for that service to empty.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_service_of_an_earlier_release_is_replaced_before_trash_is_handed_over() {
@@ -359,7 +392,8 @@ mod safety;
 /// What:
 ///  The `check-ignore` start that asks whether the trash location is ignored.
 /// Why:
-///   The owner's rule is that no Git start of the wrapper gets `--quiet` or `-q`; the answer is the exit status in both forms
+///   The owner's rule is that no Git start of the wrapper gets `--quiet` or `-q`;
+/// the answer is the exit status in both forms
 ///  (Git 2.56.0 `builtin/check-ignore.c` gates only the printing on the option).
 ///
 /// In TS you'd write (pseudocode):

@@ -37,7 +37,8 @@ pub(crate) struct FakeRunner {
     /// Answers by request-line prefix.
     rules: RefCell<Vec<(String, RunOutcome)>>,
     /// Answers that apply only once a request with the trigger prefix has been received:
-    /// the trigger, the request-line prefix to answer and the outcome.
+    /// the trigger,
+    /// the request-line prefix to answer and the outcome.
     after_rules: RefCell<Vec<(String, String, RunOutcome)>>,
     /// Side effects run when a request-line prefix matches.
     effects: RefCell<Vec<(String, Box<dyn Fn(&RunRequest)>)>>,

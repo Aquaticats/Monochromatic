@@ -1,10 +1,19 @@
 //! What:
-//!  SHA-1 and SHA-256 of a byte string, from the published `sha1` and `sha2` crates.
+//!  SHA-1 and SHA-256 of a byte string,
+//! from the published `sha1` and `sha2` crates.
 //! Why:
-//!  The last bytes of a Git index file are a checksum of everything before them (SHA-1, or SHA-256 in a repository of
-//!  that object format), and Git refuses an index whose checksum is wrong. The owner chose published crates over the
-//!  hand-written functions this file held (2026-11-07, "Digests: sha1 + sha2"); the controls still compare both functions with
-//!  the published test vectors and, in the migration controls, with the checksum real Git accepts.
+//!  The last bytes of a Git index file are a checksum of everything before them (SHA-1,
+//! or SHA-256 in a repository of
+//!  that object format),
+//! and Git refuses an index whose checksum is wrong.
+//! The owner chose published crates over the
+//!  hand-written functions this file held (2026-11-07,
+//! "Digests:
+//! sha1 + sha2");
+//! the controls still compare both functions with
+//!  the published test vectors and,
+//! in the migration controls,
+//! with the checksum real Git accepts.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

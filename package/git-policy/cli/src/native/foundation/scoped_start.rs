@@ -1,10 +1,20 @@
 //! What:
-//!  Start a job (a function and the state it reads) on a scoped thread, and run it on the calling thread when the system cannot start one.
+//!  Start a job (a function and the state it reads) on a scoped thread,
+//! and run it on the calling thread when the system cannot start one.
 //! Why:
-//!  `std::thread::Scope::spawn` panics with "failed to spawn thread" when the thread cannot start (the process limit, the address
-//!  space, no memory), and a panic on the service's landing thread takes the service down: the commit cannot land. The owner's rule
-//!  is "Commits should never fail.", and a thread is only a way to do the work sooner, so the work is done in turn where a thread
-//!  cannot start. The job is handed to the thread through a slot that either side can empty, because
+//!  `std::thread::Scope::spawn` panics with "failed to spawn thread" when the thread cannot start (the process limit,
+//! the address
+//!  space,
+//! no memory),
+//! and a panic on the service's landing thread takes the service down:
+//! the commit cannot land.
+//! The owner's rule
+//!  is "Commits should never fail.",
+//! and a thread is only a way to do the work sooner,
+//! so the work is done in turn where a thread
+//!  cannot start.
+//! The job is handed to the thread through a slot that either side can empty,
+//! because
 //!  `Builder::spawn_scoped` consumes its callable even when it fails.
 //!
 //! In TS you'd write (pseudocode):
@@ -20,11 +30,14 @@ use std::thread::{Scope, ScopedJoinHandle};
 
 #[cfg(test)]
 thread_local! {
-    /// A control makes every start from this thread fail, as the system does when it has no thread to give.
+    /// A control makes every start from this thread fail,
+    /// as the system does when it has no thread to give.
     pub(crate) static STARTS_FAIL_ON_THIS_THREAD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-/// While it lives, every scoped start from the thread that made it is refused, as when the system has no thread to give.
+/// While it lives,
+/// every scoped start from the thread that made it is refused,
+/// as when the system has no thread to give.
 #[cfg(test)]
 pub(crate) struct RefusedStarts;
 
@@ -44,16 +57,19 @@ impl Drop for RefusedStarts {
     }
 }
 
-/// A job that runs on a thread of its own, or that already ran on the thread that started it.
+/// A job that runs on a thread of its own,
+/// or that already ran on the thread that started it.
 pub enum Started<'scope, T> {
     /// The thread that runs it.
     Thread(ScopedJoinHandle<'scope, T>),
-    /// What the job returned (or the payload of its panic) on the calling thread, because no thread could start.
+    /// What the job returned (or the payload of its panic) on the calling thread,
+    /// because no thread could start.
     Inline(std::thread::Result<T>),
 }
 
 impl<T> Started<'_, T> {
-    /// Waits for the job and returns what it returned, or the payload of its panic.
+    /// Waits for the job and returns what it returned,
+    /// or the payload of its panic.
     pub fn join(self) -> std::thread::Result<T> {
         return match self {
             Started::Thread(handle) => handle.join(),
@@ -68,9 +84,11 @@ impl<T> Started<'_, T> {
 }
 
 /// What:
-///  Takes the job out of its shared slot, whether or not a panic poisoned the slot's lock.
+///  Takes the job out of its shared slot,
+/// whether or not a panic poisoned the slot's lock.
 /// Why:
-///  Whichever of the new thread and the starting thread gets here first runs the job; the other finds `None`.
+///  Whichever of the new thread and the starting thread gets here first runs the job;
+/// the other finds `None`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -84,11 +102,19 @@ fn take_job<J>(slot: &Mutex<Option<J>>) -> Option<J> {
 }
 
 /// What:
-///  Run `work(state)` on a new thread of `scope`, or here when the thread cannot start.
+///  Run `work(state)` on a new thread of `scope`,
+/// or here when the thread cannot start.
 /// Why:
-///   See the module comment. The job is a function and the state it reads, never a closure, so the caller's borrows are named in
-///  the state's type. A panic of the job run here is caught and handed to `join`, as a panic on a thread would be.
-///  `Builder::spawn_scoped` accepts only a callable, so this is the one place that makes the callable; it carries the slot
+///   See the module comment.
+/// The job is a function and the state it reads,
+/// never a closure,
+/// so the caller's borrows are named in
+///  the state's type.
+/// A panic of the job run here is caught and handed to `join`,
+/// as a panic on a thread would be.
+///  `Builder::spawn_scoped` accepts only a callable,
+/// so this is the one place that makes the callable;
+/// it carries the slot
 ///  that holds the job.
 ///
 /// In TS you'd write (pseudocode):
@@ -136,9 +162,11 @@ where
 }
 
 /// What:
-///  Start a thread that outlives the caller, and report a refusal as an error.
+///  Start a thread that outlives the caller,
+/// and report a refusal as an error.
 /// Why:
-///   `std::thread::spawn` panics where `Builder::spawn` returns the refusal; the callers of this have no way to do the work in turn
+///   `std::thread::spawn` panics where `Builder::spawn` returns the refusal;
+/// the callers of this have no way to do the work in turn
 ///  and say so in a message instead.
 ///
 /// In TS you'd write (pseudocode):
@@ -154,7 +182,9 @@ where
     return std::thread::Builder::new().name(String::from(name)).spawn(work);
 }
 
-/// Whether a thread may start now: always, except where a control made the start fail.
+/// Whether a thread may start now:
+/// always,
+/// except where a control made the start fail.
 fn starts() -> std::io::Result<()> {
     #[cfg(test)]
     if STARTS_FAIL_ON_THIS_THREAD.with(std::cell::Cell::get) {

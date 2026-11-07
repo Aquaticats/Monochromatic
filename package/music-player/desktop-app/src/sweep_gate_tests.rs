@@ -1,6 +1,10 @@
-//! Tests for `sweep_gate.rs`, pulled in by `#[cfg(test)] #[path = "sweep_gate_tests.rs"] mod tests;` at the bottom of
-//! that file. Parked workers are real threads; "still parked" is checked by waiting a short while for a signal that must
-//! not come, and "released" by waiting for one that must.
+//! Tests for `sweep_gate.rs`,
+//! pulled in by `#[cfg(test)] #[path = "sweep_gate_tests.rs"] mod tests;` at the bottom of
+//! that file.
+//! Parked workers are real threads;
+//! "still parked" is checked by waiting a short while for a signal that must
+//! not come,
+//! and "released" by waiting for one that must.
 
 use super::*;
 use std::sync::mpsc;
@@ -13,8 +17,11 @@ const PARKED_WATCH: Duration = Duration::from_millis(150);
 /// How long a worker that must wake is waited for.
 const WAKE_WITHIN: Duration = Duration::from_secs(5);
 
-/// What: `park_worker` starts a thread that asks the gate for admission once and reports the answer.
-/// Why: the answer arrives on a channel, so a test can tell "still parked" from "released".
+/// What:
+/// `park_worker` starts a thread that asks the gate for admission once and reports the answer.
+/// Why:
+/// the answer arrives on a channel,
+/// so a test can tell "still parked" from "released".
 fn park_worker(gate: &Arc<SweepGate>) -> mpsc::Receiver<Admission> {
     let (sender, receiver) = mpsc::channel();
     let worker_gate = Arc::clone(gate);

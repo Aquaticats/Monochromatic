@@ -1,13 +1,19 @@
 //! What:
 //!  The non-blocking warning a wrapped commit prints when the configuration sets `core.hooksPath`.
 //! Why:
-//!  Traditional hooks (executable scripts in `.git/hooks` or in a `core.hooksPath` directory) are unsupported, and
+//!  Traditional hooks (executable scripts in `.git/hooks` or in a `core.hooksPath` directory) are unsupported,
+//! and
 //!  their behavior with the wrapper is undefined.
-//!  The commit path may not look for them: a directory scan would cost file system calls on every commit.
-//!  It already holds one free signal, the configuration snapshot it read for other purposes, so a configured
-//!  `core.hooksPath` is the only trigger, decided from memory alone.
+//!  The commit path may not look for them:
+//! a directory scan would cost file system calls on every commit.
+//!  It already holds one free signal,
+//! the configuration snapshot it read for other purposes,
+//! so a configured
+//!  `core.hooksPath` is the only trigger,
+//! decided from memory alone.
 //!  Finding the scripts themselves is the job of `git monochromatic-git-policy-cli doctor`.
-//!  The line is a `configuration-warning` event, which never blocks a command.
+//!  The line is a `configuration-warning` event,
+//! which never blocks a command.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,7 +23,8 @@
 
 /// Debug logging of a stream that refused the warning.
 use crate::diagnostic_log::debug;
-/// The warning's JSONL rendering, shared with the other configuration warnings.
+/// The warning's JSONL rendering,
+/// shared with the other configuration warnings.
 use crate::diagnostics::render_configuration_warning;
 /// The configuration the commit read once.
 use crate::config_snapshot::ConfigSnapshot;
@@ -28,7 +35,8 @@ use crate::shadow_git::{SHADOW_NO_HOOKS_NAME, SHADOW_ROOT_NAME};
 use crate::random_id::is_canonical_uuid;
 /// A stream the warning is written to.
 use std::io::Write;
-/// `OsStr` is operating-system text; `Path` is a borrowed filesystem path.
+/// `OsStr` is operating-system text;
+/// `Path` is a borrowed filesystem path.
 use std::ffi::OsStr;
 use std::path::Path;
 
@@ -44,8 +52,10 @@ const TAG: &str = "traditionalHookWarning";
 /// What:
 ///  Whether a `core.hooksPath` value is one of the wrapper's own hooks-off values.
 /// Why:
-///   Every real Git the wrapper starts carries `core.hooksPath=/dev/null/cli-git-no-hooks`, and its shadow commands
-///  carry `<git-common-dir>/monochromatic-git-policy-cli/shadow/<transaction>/no-hooks`; a Git child that reads `GIT_CONFIG_PARAMETERS`
+///   Every real Git the wrapper starts carries `core.hooksPath=/dev/null/cli-git-no-hooks`,
+/// and its shadow commands
+///  carry `<git-common-dir>/monochromatic-git-policy-cli/shadow/<transaction>/no-hooks`;
+/// a Git child that reads `GIT_CONFIG_PARAMETERS`
 ///  sees them as `-c` values.
 ///  A command such as `git commit` run by such a child must not warn about a path the user never chose.
 ///
@@ -80,9 +90,12 @@ pub fn is_wrapper_hooks_path(value: &str) -> bool {
 }
 
 /// What:
-///  The `core.hooksPath` value the user configured, if the snapshot holds one.
+///  The `core.hooksPath` value the user configured,
+/// if the snapshot holds one.
 /// Why:
-///   The last entry of the key is the value Git uses; a valueless or empty entry names no directory, and the
+///   The last entry of the key is the value Git uses;
+/// a valueless or empty entry names no directory,
+/// and the
 ///  wrapper's own overrides are not the user's.
 ///
 /// In TS you'd write (pseudocode):
@@ -110,10 +123,14 @@ pub fn configured_hooks_path(snapshot: &ConfigSnapshot) -> Option<String> {
 }
 
 /// What:
-///  The warning line for a configured `core.hooksPath`, or nothing when the snapshot sets none.
+///  The warning line for a configured `core.hooksPath`,
+/// or nothing when the snapshot sets none.
 /// Why:
-///   The answer comes from the snapshot alone, so a repository without the setting pays no process start and no
-///  file system call; the directory is not looked at, because `git monochromatic-git-policy-cli doctor` does that on request.
+///   The answer comes from the snapshot alone,
+/// so a repository without the setting pays no process start and no
+///  file system call;
+/// the directory is not looked at,
+/// because `git monochromatic-git-policy-cli doctor` does that on request.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -137,9 +154,12 @@ pub fn traditional_hooks_warning(snapshot: Option<&ConfigSnapshot>) -> Option<St
 }
 
 /// What:
-///  Write the warning, when there is one, to `stream`.
+///  Write the warning,
+/// when there is one,
+/// to `stream`.
 /// Why:
-///   The command's exit status already carries its result, so a stream that refuses the line is logged and the
+///   The command's exit status already carries its result,
+/// so a stream that refuses the line is logged and the
 ///  command goes on.
 ///
 /// In TS you'd write (pseudocode):

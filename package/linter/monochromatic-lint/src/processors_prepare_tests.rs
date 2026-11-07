@@ -11,7 +11,7 @@
 //! ```
 
 /// Import the consumer helpers and atomic fix models shared by every processor test module.
-use super::{Edit, Fix, ProcessorLanguage, VirtualSource, fixed, inputs};
+use super::{Edit, Fix, FixClass, ProcessorLanguage, VirtualSource, fixed, inputs};
 /// Typed refusals carry the explanation and authored anchor under test.
 use crate::processors::ProcessorError;
 
@@ -55,6 +55,7 @@ fn processors_strip_bare_hidden_markers_to_empty_lines() {
             host,
             &virtuals[0],
             Fix {
+                class: FixClass::Content,
                 edits: vec![Edit {
                     start: literal,
                     end: literal + 1,
@@ -68,6 +69,7 @@ fn processors_strip_bare_hidden_markers_to_empty_lines() {
     let emptied: usize = virtuals[0].source().find("\n\nlet x").expect("bare marker") + 1;
     let unhidden: ProcessorError = virtuals[0]
         .project_fix(&Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start: emptied,
                 end: emptied,

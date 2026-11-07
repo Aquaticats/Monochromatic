@@ -99,7 +99,11 @@ each with the one closure it holds:
   the closure given to `catch_unwind` carries the state and the function.
   Its users are `guarded` (`repo_read/repo_read_hook.rs`,
   called by that file and by `index/index_reset_file.rs`),
-  `take_items` (`repair/package_repair_cargo_concurrent.rs`) and the inline path of `start_or_run_with`.
+  `take_items` (`repair/package_repair_cargo_concurrent.rs`),
+  the inline path of `start_or_run_with`
+  and `while_panics_are_expected` (`invocation/panic_notice.rs`),
+  which takes a function and its state and silences the panic notice around the call;
+  its users are `run_blocking_job` (`foundation/blocking_job.rs`) and `build_with_deadline` (`foundation/lazy_runtime.rs`).
 
 A change that lets one of the three callees take a function and an argument (a `catch_unwind_with`,
 for example)

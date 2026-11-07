@@ -4,7 +4,7 @@
 //!  and to the in-process `fix_source`,
 //!  and the two answers must be the same bytes.
 //! Why:
-//!  `fix_source` is documented as the executable's `--config --stdin --stdin-filename --fix` run
+//!  `fix_source` is documented as the executable's `--config --stdin --stdin-filename --fix-content` run
 //!  without the program start.
 //!  A caller (the Git policy wrapper) relies on that equality for the LFS image rule,
 //!  byte-order marks and astral characters,
@@ -153,7 +153,7 @@ fn run_executable(fixture: &Fixture, case: &Case) -> Output {
         .arg(config)
         .arg("--stdin")
         .arg(filename)
-        .arg("--fix")
+        .arg("--fix-content")
         .current_dir(fixture.top())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

@@ -1,4 +1,6 @@
-//! Controls for the shadow links: shared entries link, private entries never do.
+//! Controls for the shadow links:
+//! shared entries link,
+//! private entries never do.
 
 use super::*;
 use crate::test_support::{fixture, git, remove, repository};
@@ -31,7 +33,8 @@ fn shared_entries_link_and_private_entries_stay_absent() {
     remove(root.as_path());
 }
 
-/// A linked worktree keeps its `info` private, links the shared entries inside it,
+/// A linked worktree keeps its `info` private,
+/// links the shared entries inside it,
 ///  and copies its own sparse checkout and `config.worktree`.
 #[test]
 fn linked_worktree_copies_its_per_worktree_entries() {
@@ -70,7 +73,9 @@ fn linked_worktree_copies_its_per_worktree_entries() {
     remove(root.as_path());
 }
 
-/// The private-entry list names every conclusion entry, the sequencer, and lock files.
+/// The private-entry list names every conclusion entry,
+/// the sequencer,
+/// and lock files.
 #[test]
 fn private_names_cover_conclusion_state_and_locks() {
     for name in ["HEAD", "refs", "index", "MERGE_HEAD", "sequencer", "monochromatic-git-policy-cli", "cli-git", "ORIG_HEAD.lock"] {
@@ -125,7 +130,8 @@ fn linked_worktree_without_a_shared_info_directory_still_links() {
     remove(root.as_path());
 }
 
-/// A template entry the shadow already holds is replaced by the real link, whether it is a file or a directory.
+/// A template entry the shadow already holds is replaced by the real link,
+/// whether it is a file or a directory.
 #[cfg(unix)]
 #[test]
 fn existing_shadow_entries_are_replaced_by_links() {
@@ -145,7 +151,9 @@ fn existing_shadow_entries_are_replaced_by_links() {
     remove(root.as_path());
 }
 
-/// A location whose metadata cannot be read, other than an absent one, is an error and not an absent file.
+/// A location whose metadata cannot be read,
+/// other than an absent one,
+/// is an error and not an absent file.
 #[test]
 fn an_unreadable_sparse_location_is_an_error() {
     let root: PathBuf = fixture("shadow-links-unreadable");
@@ -161,7 +169,8 @@ fn an_unreadable_sparse_location_is_an_error() {
     remove(root.as_path());
 }
 
-/// A shared `info` location that is not a directory is an error, because only an absent one is tolerated.
+/// A shared `info` location that is not a directory is an error,
+/// because only an absent one is tolerated.
 #[test]
 fn a_shared_info_that_is_not_a_directory_is_an_error() {
     let root: PathBuf = fixture("shadow-links-shared-info-file");

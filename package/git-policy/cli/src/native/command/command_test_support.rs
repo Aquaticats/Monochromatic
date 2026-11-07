@@ -105,11 +105,18 @@ pub(crate) fn fixture(name: &str) -> PathBuf {
 }
 
 /// What:
-///  The records of the audit file of a common Git directory, each parsed: the lines that end with a newline and hold something.
+///  The records of the audit file of a common Git directory,
+/// each parsed:
+/// the lines that end with a newline and hold something.
 /// Why:
-///  Writers append whole lines without a lock, and a writer that sees no newline at the end because another is half-way through
-///  a write starts its own line on a fresh one, which leaves an empty line between records (`append_line` says readers skip
-///  it). A line without its newline is a record still being written, so a reader does not parse it. A file that is missing
+///  Writers append whole lines without a lock,
+/// and a writer that sees no newline at the end because another is half-way through
+///  a write starts its own line on a fresh one,
+/// which leaves an empty line between records (`append_line` says readers skip
+///  it).
+/// A line without its newline is a record still being written,
+/// so a reader does not parse it.
+/// A file that is missing
 ///  holds no record.
 ///
 /// In TS you'd write (pseudocode):
@@ -190,7 +197,8 @@ pub(crate) fn git_with_input(directory: &Path, arguments: &[OsString], input: &[
     return child.wait_with_output().expect("native Git fixture result");
 }
 
-/// The repository helper of the unit tests, with one empty commit on `main`.
+/// The repository helper of the unit tests,
+/// with one empty commit on `main`.
 pub(crate) use crate::test_support::repository;
 
 /// Create a fixture whose repository has `tracked.txt` committed;

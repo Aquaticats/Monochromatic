@@ -1,9 +1,17 @@
 //! What:
-//!  The object database of one repository read in process: loose objects, packs and alternates.
+//!  The object database of one repository read in process:
+//! loose objects,
+//! packs and alternates.
 //! Why:
 //!  A lookup that finds the object answers exactly what `git cat-file` would print for it;
-//!  a lookup that does not (missing, corrupt, too large, replaced by a `refs/replace` ref, in a shallow or grafted
-//!  history) returns `None`, and the caller asks Git, which words the failure or fetches a promised object itself.
+//!  a lookup that does not (missing,
+//! corrupt,
+//! too large,
+//! replaced by a `refs/replace` ref,
+//! in a shallow or grafted
+//!  history) returns `None`,
+//! and the caller asks Git,
+//! which words the failure or fetches a promised object itself.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,28 +27,51 @@ use crate::repo_read_pack::{BaseByName, Pack};
 use std::path::{Path, PathBuf};
 
 /// How many alternate object directories deep the reader follows `info/alternates`.
-///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
-///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  Exempt from a citation under `LQM` (class:
+/// reader fallback):
+/// a file,
+/// chain or count past this bound makes the reader
+///  decline and real Git answer,
+/// so a Git start is added and no result changes.
+/// Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
 const ALTERNATE_DEPTH_LIMIT: usize = 5;
 
 /// The largest `info/alternates` file the reader looks at.
-///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
-///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  Exempt from a citation under `LQM` (class:
+/// reader fallback):
+/// a file,
+/// chain or count past this bound makes the reader
+///  decline and real Git answer,
+/// so a Git start is added and no result changes.
+/// Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
 const ALTERNATES_LIMIT: u64 = 1 << 20;
 
 /// The largest `packed-refs` file the reader scans for replace refs.
-///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
-///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  Exempt from a citation under `LQM` (class:
+/// reader fallback):
+/// a file,
+/// chain or count past this bound makes the reader
+///  decline and real Git answer,
+/// so a Git start is added and no result changes.
+/// Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
 const PACKED_REFS_LIMIT: u64 = 256 << 20;
 
 thread_local! {
-    /// How many loose paths the readers of this thread have looked at. It is per thread, so that a control which shows a packed
+    /// How many loose paths the readers of this thread have looked at.
+    /// It is per thread,
+    /// so that a control which shows a packed
     ///  object costs none cannot be disturbed by another test's reads.
     static LOOSE_LOOKS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
@@ -54,15 +85,18 @@ pub(crate) fn loose_looks() -> u64 {
 /// The loose directories and packs of a repository and its alternates.
 #[derive(Debug)]
 pub struct ObjectDatabase {
-    /// The object directories, the repository's own first.
+    /// The object directories,
+    /// the repository's own first.
     roots: Vec<PathBuf>,
     /// Every pack of every directory.
     packs: Vec<Pack>,
-    /// The object format, which fixes the name length.
+    /// The object format,
+    /// which fixes the name length.
     format: ObjectFormat,
 }
 
-/// The extra object directories `objects/info/alternates` names; `None` when the file cannot be read.
+/// The extra object directories `objects/info/alternates` names;
+/// `None` when the file cannot be read.
 pub fn alternates_of(root: &Path, depth: usize, found: &mut Vec<PathBuf>) -> Option<()> {
     if depth > ALTERNATE_DEPTH_LIMIT {
         return None;
@@ -91,7 +125,10 @@ pub fn alternates_of(root: &Path, depth: usize, found: &mut Vec<PathBuf>) -> Opt
     return Some(());
 }
 
-/// Whether the repository changes what an object name means: replace refs, a shallow file, grafts.
+/// Whether the repository changes what an object name means:
+/// replace refs,
+/// a shallow file,
+/// grafts.
 fn objects_are_replaced(common_dir: &Path) -> bool {
     let replace_dir: PathBuf = common_dir.join("refs/replace");
     if let Ok(mut entries) = std::fs::read_dir(&replace_dir)
@@ -119,9 +156,11 @@ fn objects_are_replaced(common_dir: &Path) -> bool {
 }
 
 /// What:
-///  The base of a `REF_DELTA` found through the database, one step deeper in the delta chain than the object that asked.
+///  The base of a `REF_DELTA` found through the database,
+/// one step deeper in the delta chain than the object that asked.
 /// Why:
-///   The depth counts the bases already followed through names so a cycle ends; the database and the depth are the state the lookup needs.
+///   The depth counts the bases already followed through names so a cycle ends;
+/// the database and the depth are the state the lookup needs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -145,7 +184,8 @@ impl ObjectDatabase {
     ///  Open the database under `common_dir/objects` (or `objects_dir` when given) with its alternates;
     ///  `None` when anything makes object names mean more than the files say.
     /// Why:
-    ///   Opening lists the pack indexes once; every later lookup reads only the few bytes it needs.
+    ///   Opening lists the pack indexes once;
+    /// every later lookup reads only the few bytes it needs.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -179,17 +219,21 @@ impl ObjectDatabase {
         return Some(ObjectDatabase { roots, packs, format });
     }
 
-    /// The object named `name`, or `None` when it is absent, unreadable or beyond the size limit.
+    /// The object named `name`,
+    /// or `None` when it is absent,
+    /// unreadable or beyond the size limit.
     pub fn read(&self, name: &[u8]) -> Option<RawObject> {
         return self.read_at_depth(name, 0);
     }
 
-    /// How many pack entries this database has decoded so far, counting an entry each time its bytes are rebuilt.
+    /// How many pack entries this database has decoded so far,
+    /// counting an entry each time its bytes are rebuilt.
     pub fn decoded_entries(&self) -> u64 {
         return self.packs.iter().map(Pack::decoded_entries).sum();
     }
 
-    /// Whether the object named `name` is stored loose or in a pack, without reading it.
+    /// Whether the object named `name` is stored loose or in a pack,
+    /// without reading it.
     pub fn contains(&self, name: &[u8]) -> bool {
         if name.len() != name_length(self.format) {
             return false;
@@ -208,7 +252,8 @@ impl ObjectDatabase {
         return false;
     }
 
-    /// The same read, counting the delta bases already followed through names so a cycle ends.
+    /// The same read,
+    /// counting the delta bases already followed through names so a cycle ends.
     fn read_at_depth(&self, name: &[u8], depth: usize) -> Option<RawObject> {
         if name.len() != name_length(self.format) || depth > 8 {
             return None;

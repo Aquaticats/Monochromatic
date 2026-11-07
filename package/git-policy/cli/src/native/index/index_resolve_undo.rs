@@ -1,8 +1,12 @@
 //! What:
-//!  The `REUC` (resolve-undo) index extension: read, recorded into when an unmerged entry leaves the index, written back
+//!  The `REUC` (resolve-undo) index extension:
+//! read,
+//! recorded into when an unmerged entry leaves the index,
+//! written back
 //!  (`resolve-undo.c`).
 //! Why:
-//!  Git remembers the three sides of a path whose conflict entries it removes so `git checkout -m` can restore them; an
+//!  Git remembers the three sides of a path whose conflict entries it removes so `git checkout -m` can restore them;
+//! an
 //!  in-process index update that removes or replaces unmerged entries must record them the way `record_resolve_undo` does.
 //!
 //! In TS you'd write (pseudocode):
@@ -13,12 +17,16 @@
 use crate::index_byte_search::first_index_of_byte;
 use std::collections::BTreeMap;
 
-/// The three sides of one path: the mode and object name of stage 1, 2 and 3 (mode 0 means the side was absent).
+/// The three sides of one path:
+/// the mode and object name of stage 1,
+/// 2 and 3 (mode 0 means the side was absent).
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Sides {
-    /// The mode of each stage, 0 for none.
+    /// The mode of each stage,
+    /// 0 for none.
     pub mode: [u32; 3],
-    /// The object name of each stage, empty for none.
+    /// The object name of each stage,
+    /// empty for none.
     pub id: [Vec<u8>; 3],
 }
 
@@ -41,7 +49,8 @@ fn split_nul(bytes: &[u8]) -> Option<(&[u8], &[u8])> {
 }
 
 impl ResolveUndo {
-    /// The recorded paths of an extension's bytes, or `None` when Git reports invalid resolve-undo information.
+    /// The recorded paths of an extension's bytes,
+    /// or `None` when Git reports invalid resolve-undo information.
     pub fn read(bytes: &[u8], hash_length: usize) -> Option<ResolveUndo> {
         let mut paths: BTreeMap<Vec<u8>, Sides> = BTreeMap::new();
         let mut rest: &[u8] = bytes;
@@ -70,7 +79,8 @@ impl ResolveUndo {
         return Some(ResolveUndo { paths });
     }
 
-    /// Remember one unmerged entry that is leaving the index (`record_resolve_undo`); a resolved entry is ignored.
+    /// Remember one unmerged entry that is leaving the index (`record_resolve_undo`);
+    /// a resolved entry is ignored.
     pub fn record(&mut self, path: &[u8], stage: u8, mode: u32, id: &[u8]) {
         if stage == 0 {
             return;

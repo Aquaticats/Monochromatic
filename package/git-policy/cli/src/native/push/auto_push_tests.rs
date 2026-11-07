@@ -1,5 +1,7 @@
-//! Controls for post-commit auto-push against real repositories, bare remotes and hooks.
-//! The TypeScript corpus is `src/auto-push.unit.test.ts`; each case below reproduces one of its cases.
+//! Controls for post-commit auto-push against real repositories,
+//! bare remotes and hooks.
+//! The TypeScript corpus is `src/auto-push.unit.test.ts`;
+//! each case below reproduces one of its cases.
 
 use super::*;
 use crate::test_support::{fixture, git, remove};
@@ -7,7 +9,8 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-/// Marker the bare remote's post-receive hook prints, which Git relays as `remote: <marker>`.
+/// Marker the bare remote's post-receive hook prints,
+/// which Git relays as `remote: <marker>`.
 const REMOTE_HOOK_MARKER: &str = "marker-from-receive-hook";
 
 /// Environment of every Git child in these fixtures.
@@ -108,7 +111,8 @@ fn repo_with_remote_and_pre_push(root: &Path, code: i32) -> (PathBuf, PathBuf) {
     return (repo, log);
 }
 
-/// The pre-push log text, empty when no hook ran.
+/// The pre-push log text,
+/// empty when no hook ran.
 fn read_log(log: &Path) -> String {
     return std::fs::read_to_string(log).unwrap_or_default();
 }
@@ -176,7 +180,8 @@ fn skips_when_no_origin_remote_exists() {
     remove(&root);
 }
 
-/// A first push creates the branch on origin, prints only the `remote:` lines and records the upstream.
+/// A first push creates the branch on origin,
+/// prints only the `remote:` lines and records the upstream.
 #[test]
 fn pushes_and_surfaces_only_remote_lines_on_success() {
     let root = fixture("ap-success");
@@ -215,7 +220,8 @@ fn pushes_and_surfaces_only_remote_lines_on_success() {
     remove(&root);
 }
 
-/// An existing upstream on another remote is pushed to, and origin is never created or used.
+/// An existing upstream on another remote is pushed to,
+/// and origin is never created or used.
 #[test]
 fn pushes_to_an_existing_upstream_without_re_pointing_it_to_origin() {
     let root = fixture("ap-upstream");
@@ -251,7 +257,8 @@ fn pushes_to_an_existing_upstream_without_re_pointing_it_to_origin() {
     remove(&root);
 }
 
-/// A rejected push reports failure with its output, exits non-zero and keeps the commit.
+/// A rejected push reports failure with its output,
+/// exits non-zero and keeps the commit.
 #[test]
 fn reports_failure_and_surfaces_full_output_when_the_push_is_rejected() {
     let root = fixture("ap-rejected");
@@ -323,8 +330,12 @@ fn a_stalled_push_is_stopped_and_reported_as_a_failed_push() {
     remove(&root);
 }
 
-/// The default environment of an auto-push sets no low-speed abort for the push it runs: a push waits while its connection is
-///  open (owner, 2026-11-03: "Wait while connected (Recommended)"), and Git sets neither variable itself (`http.c` reads them
+/// The default environment of an auto-push sets no low-speed abort for the push it runs:
+/// a push waits while its connection is
+///  open (owner,
+/// 2026-11-03:
+/// "Wait while connected (Recommended)"),
+/// and Git sets neither variable itself (`http.c` reads them
 ///  only when the configuration or the environment gives them).
 #[test]
 fn a_push_runs_without_a_low_speed_abort_of_the_wrappers_own() {
@@ -376,7 +387,10 @@ fn a_push_keeps_the_low_speed_variables_the_person_set() {
     remove(&root);
 }
 
-/// A first push, one with no upstream yet, is never reconciled with a merge, even when the push destination resolves.
+/// A first push,
+/// one with no upstream yet,
+/// is never reconciled with a merge,
+/// even when the push destination resolves.
 #[test]
 fn a_first_push_rejected_for_a_moved_remote_branch_publishes_no_merge() {
     let root = fixture("ap-first-push-stale");
@@ -419,8 +433,10 @@ fn current_branch(repo: &Path) -> String {
         .to_owned();
 }
 
-/// A repository whose `feature` branch tracks the remote's default branch under another name, as a linked worktree
-/// created from `origin/<default>` does; the default branch is returned with the repository and the remote.
+/// A repository whose `feature` branch tracks the remote's default branch under another name,
+/// as a linked worktree
+/// created from `origin/<default>` does;
+/// the default branch is returned with the repository and the remote.
 fn repo_with_differently_named_upstream(root: &Path) -> (PathBuf, PathBuf, String) {
     let repo = root.join("repo");
     let remote = root.join("remote.git");
@@ -439,7 +455,8 @@ fn repo_with_differently_named_upstream(root: &Path) -> (PathBuf, PathBuf, Strin
     return (repo, remote, default);
 }
 
-/// A branch tracking a differently named remote branch is pushed to the tracked branch, not refused by Git.
+/// A branch tracking a differently named remote branch is pushed to the tracked branch,
+/// not refused by Git.
 #[test]
 fn a_branch_with_a_differently_named_upstream_is_pushed_to_the_tracked_branch() {
     let root = fixture("ap-renamed-upstream");
@@ -464,8 +481,12 @@ fn a_branch_with_a_differently_named_upstream_is_pushed_to_the_tracked_branch() 
     remove(&root);
 }
 
-/// The service pushes the branch its record names to the branch that branch tracks, when the two names differ, and does not
-/// re-point the upstream to a branch of the same name: the recorded branch is read as the branch it is, not as an unknown name.
+/// The service pushes the branch its record names to the branch that branch tracks,
+/// when the two names differ,
+/// and does not
+/// re-point the upstream to a branch of the same name:
+/// the recorded branch is read as the branch it is,
+/// not as an unknown name.
 #[test]
 fn a_named_branch_with_a_differently_named_upstream_is_pushed_to_the_tracked_branch() {
     let root = fixture("ap-named-renamed-upstream");
@@ -510,8 +531,10 @@ fn a_differently_named_upstream_that_moved_is_reconciled_on_the_tracked_branch()
     remove(&root);
 }
 
-/// The service's push of a named branch whose tracked remote branch moved is reconciled with a merge, as the wrapper's own is:
-/// the recorded branch has an upstream, so a rejection for a moved remote branch can be cured.
+/// The service's push of a named branch whose tracked remote branch moved is reconciled with a merge,
+/// as the wrapper's own is:
+/// the recorded branch has an upstream,
+/// so a rejection for a moved remote branch can be cured.
 #[test]
 fn a_named_branch_whose_tracked_remote_branch_moved_is_reconciled() {
     let root = fixture("ap-named-moved");
@@ -543,14 +566,18 @@ fn run_for_branch(repo: &Path, branch_ref: &str, landed: &str) -> (Result<AutoPu
     return (result, String::from_utf8_lossy(&err).into_owned());
 }
 
-/// What a bare remote holds under a branch name, nothing when the branch is absent.
+/// What a bare remote holds under a branch name,
+/// nothing when the branch is absent.
 fn remote_tip(remote: &Path, branch: &str) -> Option<String> {
     let output = crate::test_support::git_output(remote, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")]);
     return output.status.success().then(|| { return String::from_utf8_lossy(&output.stdout).trim().to_owned(); });
 }
 
-/// The service pushes the branch its record names, not the branch the worktree has checked out by the time it runs: a branch
-/// that tracks its remote branch is pushed there, and the checked-out branch's unpublished commit stays unpublished.
+/// The service pushes the branch its record names,
+/// not the branch the worktree has checked out by the time it runs:
+/// a branch
+/// that tracks its remote branch is pushed there,
+/// and the checked-out branch's unpublished commit stays unpublished.
 #[test]
 fn a_push_of_a_named_branch_does_not_follow_the_checked_out_branch() {
     let root = fixture("ap-named-tracked");
@@ -577,7 +604,8 @@ fn a_push_of_a_named_branch_does_not_follow_the_checked_out_branch() {
     remove(&root);
 }
 
-/// A named branch with no upstream is created on origin and tracks it, whatever the worktree has checked out.
+/// A named branch with no upstream is created on origin and tracks it,
+/// whatever the worktree has checked out.
 #[test]
 fn a_first_push_of_a_named_branch_creates_it_on_origin() {
     let root = fixture("ap-named-first");
@@ -619,9 +647,14 @@ fn a_named_branch_is_pushed_from_a_detached_worktree() {
     remove(&root);
 }
 
-/// Two services of two worktrees share the repository's references: while one holds the lock of a remote-tracking reference
-/// for a moment, Git still delivers the push, prints the refusal to update the reference and exits 0, and leaves the reference
-/// stale. The push is tried again until the reference agrees with what was delivered.
+/// Two services of two worktrees share the repository's references:
+/// while one holds the lock of a remote-tracking reference
+/// for a moment,
+/// Git still delivers the push,
+/// prints the refusal to update the reference and exits 0,
+/// and leaves the reference
+/// stale.
+/// The push is tried again until the reference agrees with what was delivered.
 #[test]
 fn a_tracking_reference_locked_for_a_moment_ends_up_to_date() {
     let root = fixture("ap-tracking-locked");
@@ -650,7 +683,8 @@ fn a_tracking_reference_locked_for_a_moment_ends_up_to_date() {
     remove(&root);
 }
 
-/// A Git that switches the worktree to `other` right after the first time the service starts it, as a person
+/// A Git that switches the worktree to `other` right after the first time the service starts it,
+/// as a person
 ///  switching branches while the service is between its decision and its push.
 fn switching_git(root: &Path, other: &str) -> PathBuf {
     let program = root.join("switching-git");
@@ -665,7 +699,8 @@ fn switching_git(root: &Path, other: &str) -> PathBuf {
 }
 
 /// The branch the record names is pushed even when the worktree switches to another branch between the service's check of
-/// `HEAD` and its push: the other branch is never published in its place.
+/// `HEAD` and its push:
+/// the other branch is never published in its place.
 #[test]
 fn a_branch_switch_between_the_check_and_the_push_does_not_change_what_is_pushed() {
     let root = fixture("ap-switch-window");
@@ -696,7 +731,9 @@ fn a_branch_switch_between_the_check_and_the_push_does_not_change_what_is_pushed
 }
 
 /// A recorded branch whose destination the settings leave unnamed (`push.default=matching`) is still pushed to the branch
-/// it tracks, by name, so the plan needs no `HEAD` for it.
+/// it tracks,
+/// by name,
+/// so the plan needs no `HEAD` for it.
 #[test]
 fn a_recorded_branch_with_an_unnamed_destination_is_pushed_to_its_tracked_branch() {
     let root = fixture("ap-unnamed-destination");
@@ -722,8 +759,12 @@ fn a_recorded_branch_with_an_unnamed_destination_is_pushed_to_its_tracked_branch
 const TRIANGULAR_BRANCH: &str = "feature";
 const TRIANGULAR_TRACKED: &str = "main";
 
-/// A triangular setup: `feature` tracks `upstream/main` and pushes to `origin`; one commit of `feature` is not yet published.
-/// Returns the repository, the push remote, the upstream remote and the unpublished commit.
+/// A triangular setup:
+/// `feature` tracks `upstream/main` and pushes to `origin`;
+/// one commit of `feature` is not yet published.
+/// Returns the repository,
+/// the push remote,
+/// the upstream remote and the unpublished commit.
 fn triangular_repo(root: &Path) -> (PathBuf, PathBuf, PathBuf, String) {
     let origin = root.join("origin.git");
     let upstream = root.join("upstream.git");
@@ -742,7 +783,9 @@ fn triangular_repo(root: &Path) -> (PathBuf, PathBuf, PathBuf, String) {
     return (repo, origin, upstream, landed);
 }
 
-/// Every branch a bare remote holds, as `name=oid` lines, so a test can show that nothing was published there.
+/// Every branch a bare remote holds,
+/// as `name=oid` lines,
+/// so a test can show that nothing was published there.
 fn remote_branches(remote: &Path) -> String {
     return String::from_utf8_lossy(&git(remote, &["for-each-ref", "--format=%(refname)=%(objectname)", "refs/heads"]).stdout).into_owned();
 }
@@ -753,7 +796,9 @@ fn push_triangular(repo: &Path, landed: &str) -> (AutoPushResult, String) {
     return (attempted.expect("push"), err);
 }
 
-/// A `remote.<name>.push` refspec decides where the branch goes: the review branch gets the commit, and neither the
+/// A `remote.<name>.push` refspec decides where the branch goes:
+/// the review branch gets the commit,
+/// and neither the
 /// branch's own name on the push remote nor the tracked branch is touched.
 #[test]
 fn a_configured_push_refspec_decides_where_a_named_branch_goes() {
@@ -781,7 +826,9 @@ fn a_glob_push_refspec_maps_a_named_branch_the_way_git_does() {
     remove(&root);
 }
 
-/// A refspec that does not cover the branch (it names the checked-out branch, `HEAD`) leaves Git with nothing to push for it, so
+/// A refspec that does not cover the branch (it names the checked-out branch,
+/// `HEAD`) leaves Git with nothing to push for it,
+/// so
 /// the service pushes nothing and says so.
 #[test]
 fn a_push_refspec_that_does_not_cover_the_branch_pushes_nothing_and_says_so() {
@@ -797,8 +844,11 @@ fn a_push_refspec_that_does_not_cover_the_branch_pushes_nothing_and_says_so() {
     remove(&root);
 }
 
-/// With `push.default=matching` a triangular branch the push remote does not have is not pushed, as Git does not push it: the
-/// plain push finds no branch in common and fails with Git's words, and nothing is published under the tracked branch's name.
+/// With `push.default=matching` a triangular branch the push remote does not have is not pushed,
+/// as Git does not push it:
+/// the
+/// plain push finds no branch in common and fails with Git's words,
+/// and nothing is published under the tracked branch's name.
 #[test]
 fn a_matching_push_of_a_branch_the_push_remote_lacks_publishes_nothing() {
     let root = fixture("ap-matching-absent");
@@ -813,7 +863,8 @@ fn a_matching_push_of_a_branch_the_push_remote_lacks_publishes_nothing() {
     remove(&root);
 }
 
-/// With `push.default=matching` a triangular branch the push remote has goes to the same name there, not to the tracked name.
+/// With `push.default=matching` a triangular branch the push remote has goes to the same name there,
+/// not to the tracked name.
 #[test]
 fn a_matching_push_of_a_branch_the_push_remote_has_goes_to_the_same_name() {
     let root = fixture("ap-matching-present");
@@ -830,7 +881,8 @@ fn a_matching_push_of_a_branch_the_push_remote_has_goes_to_the_same_name() {
 }
 
 /// `push.default=nothing` and a triangular `push.default=upstream` are settings under which Git itself refuses to push the
-/// branch, so the service publishes nothing for either.
+/// branch,
+/// so the service publishes nothing for either.
 #[test]
 fn a_setting_under_which_git_refuses_to_push_the_branch_publishes_nothing() {
     for mode in ["nothing", "upstream"] {

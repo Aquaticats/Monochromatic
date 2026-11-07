@@ -104,7 +104,9 @@ fn real_git_exit_statuses_map_to_the_three_states() {
     remove(directory.as_path());
 }
 
-/// The index check the wrapper makes before a merge, a commit and a restore starts no Git `diff-index`, and still says 0 for an
+/// The index check the wrapper makes before a merge,
+/// a commit and a restore starts no Git `diff-index`,
+/// and still says 0 for an
 /// index equal to `HEAD` and 1 for a staged change.
 #[test]
 fn the_index_check_starts_no_git() {

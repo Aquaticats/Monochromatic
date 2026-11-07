@@ -1,5 +1,13 @@
-//! Controls for the claim: the first claim, a live owner, a released claim, an owner that died, an owner whose PID was
-//!  reused, several claimants at once, the removal of older generations, and records that are not claims.
+//! Controls for the claim:
+//! the first claim,
+//! a live owner,
+//! a released claim,
+//! an owner that died,
+//! an owner whose PID was
+//!  reused,
+//! several claimants at once,
+//! the removal of older generations,
+//! and records that are not claims.
 
 use super::*;
 use crate::process_identity::current_birth_identity;
@@ -9,7 +17,8 @@ use crate::test_support::{fixture, remove};
 /// The prefix the controls use.
 const PREFIX_TEXT: &str = "item.owner";
 
-/// The prefix the controls use, as the claim functions take it.
+/// The prefix the controls use,
+/// as the claim functions take it.
 fn prefix() -> &'static OsStr {
     return OsStr::new(PREFIX_TEXT);
 }
@@ -41,7 +50,8 @@ fn present(directory: &Path) -> Vec<u64> {
     return generations(directory, prefix()).expect("listing");
 }
 
-/// The first claim is generation one, and it names this process.
+/// The first claim is generation one,
+/// and it names this process.
 #[test]
 fn the_first_claim_is_generation_one() {
     let directory: PathBuf = fixture("claim-first");
@@ -52,7 +62,9 @@ fn the_first_claim_is_generation_one() {
     remove(directory.as_path());
 }
 
-/// A live owner stops the next claimant, which is told the owner's process id and file, creates nothing and does not wait.
+/// A live owner stops the next claimant,
+/// which is told the owner's process id and file,
+/// creates nothing and does not wait.
 #[test]
 fn a_live_owner_stops_the_next_claimant() {
     let directory: PathBuf = fixture("claim-live");
@@ -63,7 +75,10 @@ fn a_live_owner_stops_the_next_claimant() {
     remove(directory.as_path());
 }
 
-/// A released claim, by `release` or by dropping, is taken by the next claimant as the next generation, and the older
+/// A released claim,
+/// by `release` or by dropping,
+/// is taken by the next claimant as the next generation,
+/// and the older
 ///  generation is removed.
 #[test]
 fn a_released_claim_is_replaced_by_the_next_generation() {
@@ -80,7 +95,8 @@ fn a_released_claim_is_replaced_by_the_next_generation() {
     remove(directory.as_path());
 }
 
-/// An owner that was killed leaves its claim file; the next claimant sees that no process has that id and takes over.
+/// An owner that was killed leaves its claim file;
+/// the next claimant sees that no process has that id and takes over.
 #[test]
 fn an_owner_that_died_is_replaced() {
     let directory: PathBuf = fixture("claim-died");
@@ -102,7 +118,9 @@ fn an_owner_whose_process_id_was_reused_is_replaced() {
     remove(directory.as_path());
 }
 
-/// Claimants that arrive together: exactly one takes the claim, and every other is told that it is busy.
+/// Claimants that arrive together:
+/// exactly one takes the claim,
+/// and every other is told that it is busy.
 #[test]
 fn only_one_of_many_simultaneous_claimants_holds_the_item() {
     let directory: PathBuf = fixture("claim-simultaneous");
@@ -139,7 +157,8 @@ fn only_this_items_numbered_files_are_generations() {
     remove(directory.as_path());
 }
 
-/// A newest generation that is not a claim cannot be judged: the claimant stops with the file named and changes nothing.
+/// A newest generation that is not a claim cannot be judged:
+/// the claimant stops with the file named and changes nothing.
 #[test]
 fn a_file_that_is_not_a_claim_stops_the_claimant_untouched() {
     let directory: PathBuf = fixture("claim-garbage");
@@ -151,9 +170,14 @@ fn a_file_that_is_not_a_claim_stops_the_claimant_untouched() {
     remove(directory.as_path());
 }
 
-/// Found by the audit of the names the rename changed: a claim file an earlier release wrote starts with its own spelling of the
-///  first line, and the files are named as before (`cli-git-convert.owner.N`), so a released or dead claim of the earlier release
-///  must be replaced like any other, and a live one must still stop the claimant. Writing stays in the current spelling.
+/// Found by the audit of the names the rename changed:
+/// a claim file an earlier release wrote starts with its own spelling of the
+///  first line,
+/// and the files are named as before (`cli-git-convert.owner.N`),
+/// so a released or dead claim of the earlier release
+///  must be replaced like any other,
+/// and a live one must still stop the claimant.
+/// Writing stays in the current spelling.
 #[test]
 fn a_claim_an_earlier_release_wrote_is_read_as_a_claim() {
     let earlier = |text: String| -> String { return text.replacen("monochromatic-git-policy-cli ", "cli-git ", 1); };
@@ -182,7 +206,8 @@ fn an_owner_in_another_pid_namespace_is_alive_while_its_claim_is_young() {
     remove(directory.as_path());
 }
 
-/// The text of every kind of claim record decodes to the record, and text that is not a claim decodes to nothing.
+/// The text of every kind of claim record decodes to the record,
+/// and text that is not a claim decodes to nothing.
 #[test]
 fn the_text_of_a_claim_round_trips() {
     for record in [
@@ -197,7 +222,9 @@ fn the_text_of_a_claim_round_trips() {
     }
 }
 
-/// A claimant whose listing went stale, because another command took a newer generation before this one published, withdraws
+/// A claimant whose listing went stale,
+/// because another command took a newer generation before this one published,
+/// withdraws
 ///  what it published and reports the live owner instead of holding the item beside it.
 #[test]
 fn a_claimant_with_a_stale_listing_withdraws_when_a_newer_generation_exists() {
@@ -215,9 +242,16 @@ fn a_claimant_with_a_stale_listing_withdraws_when_a_newer_generation_exists() {
     remove(directory.as_path());
 }
 
-/// A claim of another PID namespace older than the patience is neither alive nor dead (owner, 2026-11-04, "Refuse and name it
-/// (Recommended)"): taking the claim stops with an error that names the claim file, the owner and its namespace, its age and the
-/// `rm`, and the claim is left as it was, with no newer generation made.
+/// A claim of another PID namespace older than the patience is neither alive nor dead (owner,
+/// 2026-11-04,
+/// "Refuse and name it
+/// (Recommended)"):
+/// taking the claim stops with an error that names the claim file,
+/// the owner and its namespace,
+/// its age and the
+/// `rm`,
+/// and the claim is left as it was,
+/// with no newer generation made.
 #[test]
 fn a_claim_of_another_namespace_older_than_the_patience_is_refused_and_named_and_nothing_changes() {
     let directory: PathBuf = fixture("claim-foreign-expired");

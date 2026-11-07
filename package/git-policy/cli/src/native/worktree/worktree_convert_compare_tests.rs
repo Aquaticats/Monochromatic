@@ -5,7 +5,9 @@ use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, remove};
 
-/// Two trees with the same file, link and directory, the second one made by copying the first with its times.
+/// Two trees with the same file,
+/// link and directory,
+/// the second one made by copying the first with its times.
 fn twin_trees(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     let root: PathBuf = fixture(name);
     let old: PathBuf = root.join("old");
@@ -20,7 +22,8 @@ fn twin_trees(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     return (root, old, installed);
 }
 
-/// Trees that hold the same entries have no difference, and the installed tree may hold more.
+/// Trees that hold the same entries have no difference,
+/// and the installed tree may hold more.
 #[test]
 fn equal_trees_have_no_difference_and_more_in_the_installed_tree_is_fine() {
     let (root, old, installed) = twin_trees("compare-equal");
@@ -30,7 +33,11 @@ fn equal_trees_have_no_difference_and_more_in_the_installed_tree_is_fine() {
     remove(root.as_path());
 }
 
-/// A missing entry, another kind of entry, another size or time, and another link target are each named, and nothing is changed.
+/// A missing entry,
+/// another kind of entry,
+/// another size or time,
+/// and another link target are each named,
+/// and nothing is changed.
 #[test]
 fn each_kind_of_difference_is_named_and_nothing_is_changed() {
     let (root, old, installed) = twin_trees("compare-differences");
@@ -54,7 +61,8 @@ fn each_kind_of_difference_is_named_and_nothing_is_changed() {
     remove(root.as_path());
 }
 
-/// A subvolume inside the old tree is named as something the command does not delete, so the old tree is kept with the path.
+/// A subvolume inside the old tree is named as something the command does not delete,
+/// so the old tree is kept with the path.
 #[test]
 fn a_nested_subvolume_is_named_as_not_deleted() {
     let Some(base) = btrfs_fixture("compare-nested") else { return };

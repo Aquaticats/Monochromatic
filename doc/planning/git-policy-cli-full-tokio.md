@@ -2925,88 +2925,201 @@ Neither is a T5 regression.
 
 ### The five failures of the gate of `944bdd30b5`, 2026-11-07T17:30:00-05:00
 
-The coordinator's gate (log `${HOME}/temp/agent/tokio-merge-gate-944bdd30b5.log`): 5216 run, 5211 passed, 5 failed, under a load average of about 70; the
-branch's own gate on `ad314ca6eb` had passed 5209 of 5209. The coordinator's hypothesis, unmeasured, was that members of stopped trees are often in state
-`D` under disk pressure, so every stop now waits up to its ceiling and tests sized to the old five-second escalation run out their own bounds.
+The coordinator's gate (log `${HOME}/temp/agent/tokio-merge-gate-944bdd30b5.log`):
+5216 run,
+5211 passed,
+5 failed,
+under a load average of about 70;
+the
+branch's own gate on `ad314ca6eb` had passed 5209 of 5209.
+The coordinator's hypothesis,
+unmeasured,
+was that members of stopped trees are often in state
+`D` under disk pressure,
+so every stop now waits up to its ceiling and tests sized to the old five-second escalation run out their own bounds.
 
-- Measured against the hypothesis (Summary of what was measured, not guessed):
-  1. The stop controls took the same time in that gate as in the clean gate and in the gate before the change (for example 2.6, 4.6, 5.1 and 8.1 s for the
-     `git_stop_lock_tests` controls in all three; `child_watch` stop controls 1.2 to 3.1 s); none waited toward an 18 s ceiling.
-  2. A probe in `escalation_waits` (temporary, reverted) counted the looks that found a member in state `D` in 86 stop-related controls
-     (`git_stop_lock`, `child_watch`, `bounded_push`, `bounded_query`, `push_wait`, `signal_relay`) run on this host at a load average of 24 to 47: zero.
-     The unresponsive-holder controls do reach the looks past the grace, so the look was made; the holder was asleep (`S`), not in `D`.
-  3. Production code reaches `escalation_waits` only through a stop (`stop_push`, `stop_process`); the three aborted push controls log no stop (the slow-server
-     one logs only the first "waiting for the server" notice, which says the push is waited for and not stopped).
-  The hypothesis is therefore not supported for these failures. It is not refuted for real disk pressure, which could not be produced here.
-- The measured cause of four of the five is a host stall episode, not a wrapper change. Against the clean gate, 15 tests took more than ten seconds longer, and the
-  ones that need no wait took the longest: `auto_push_trigger::a_branch_that_grew_ahead_of_its_upstream_is_handed_over` 0.04 s to 122.3 s,
-  `bounded_query::a_finished_query_keeps_code_and_streams_apart` 0.02 s to 35.0 s, `worktree_copy_stage::copied_file_has_identical_bytes` 0.01 s to 18.9 s,
+- Measured against the hypothesis (Summary of what was measured,
+  not guessed):
+  1. The stop controls took the same time in that gate as in the clean gate and in the gate before the change (for example 2.6,
+     4.6,
+     5.1 and 8.1 s for the
+     `git_stop_lock_tests` controls in all three;
+     `child_watch` stop controls 1.2 to 3.1 s);
+     none waited toward an 18 s ceiling.
+  2. A probe in `escalation_waits` (temporary,
+     reverted) counted the looks that found a member in state `D` in 86 stop-related controls
+     (`git_stop_lock`,
+     `child_watch`,
+     `bounded_push`,
+     `bounded_query`,
+     `push_wait`,
+     `signal_relay`) run on this host at a load average of 24 to 47:
+     zero.
+     The unresponsive-holder controls do reach the looks past the grace,
+     so the look was made;
+     the holder was asleep (`S`),
+     not in `D`.
+  3. Production code reaches `escalation_waits` only through a stop (`stop_push`,
+     `stop_process`);
+     the three aborted push controls log no stop (the slow-server
+     one logs only the first "waiting for the server" notice,
+     which says the push is waited for and not stopped).
+  The hypothesis is therefore not supported for these failures.
+     It is not refuted for real disk pressure,
+     which could not be produced here.
+- The measured cause of four of the five is a host stall episode,
+  not a wrapper change.
+  Against the clean gate,
+  15 tests took more than ten seconds longer,
+  and the
+  ones that need no wait took the longest:
+  `auto_push_trigger::a_branch_that_grew_ahead_of_its_upstream_is_handed_over` 0.04 s to 122.3 s,
+  `bounded_query::a_finished_query_keeps_code_and_streams_apart` 0.02 s to 35.0 s,
+  `worktree_copy_stage::copied_file_has_identical_bytes` 0.01 s to 18.9 s,
   `auto_push_reconcile::what_the_fetch_and_the_fast_forward_say_is_kept_in_the_journal` 0.28 s to 174.5 s (aborted by the 120 s watchdog),
-  `push_slow_server_tests` two controls 4.4 s to 120.1 s and 12.4 s to 150.6 s (aborted); the sum of test seconds was 2108 against 1289. The three aborted
-  push controls, run alone afterwards at a load average of 24 to 47, took 0.31, 4.16 and 12.15 s, as in the clean gate. What main added since the clean gate
-  (`landing/earlier_service_*`, the settle command) does not touch push. The stall's resource (disk or processor) was not measured, and no fix in the wrapper
-  follows from it; the controls were not changed.
-- `bounded_push::a_tree_still_running_after_the_grace_is_swept_when_it_ends` (81.9 s, "a tree that still runs is not swept") is one of those victims whose
-  assertion depended on timing: its member was a `sleep 1`, which had ended by the time the control looked. Reproduced deterministically (a 1.5 s hold of the
-  control's thread before `settle_locks` gives the same message, run by hand and reverted), then fixed: the member is a `cat` that lives until the control closes
-  its input, and the control holds its own thread for 1.5 s on purpose, so the delay stays covered.
-- `service::service_reply::tests::a_queued_answer_is_written_before_the_connection_closes`: not this branch (the coordinator read the code: `write_until_answered_noting`
-  beats whenever 20 ms pass with nothing queued, and beats before an answer are allowed). Positive control first: the same control with the sender held for three
-  beats failed with `left: Heartbeat` every time (red commit); the control now skips beats, asserts the first other message is the answer and that only beats follow,
+  `push_slow_server_tests` two controls 4.4 s to 120.1 s and 12.4 s to 150.6 s (aborted);
+  the sum of test seconds was 2108 against 1289.
+  The three aborted
+  push controls,
+  run alone afterwards at a load average of 24 to 47,
+  took 0.31,
+  4.16 and 12.15 s,
+  as in the clean gate.
+  What main added since the clean gate
+  (`landing/earlier_service_*`,
+  the settle command) does not touch push.
+  The stall's resource (disk or processor) was not measured,
+  and no fix in the wrapper
+  follows from it;
+  the controls were not changed.
+- `bounded_push::a_tree_still_running_after_the_grace_is_swept_when_it_ends` (81.9 s,
+  "a tree that still runs is not swept") is one of those victims whose
+  assertion depended on timing:
+  its member was a `sleep 1`,
+  which had ended by the time the control looked.
+  Reproduced deterministically (a 1.5 s hold of the
+  control's thread before `settle_locks` gives the same message,
+  run by hand and reverted),
+  then fixed:
+  the member is a `cat` that lives until the control closes
+  its input,
+  and the control holds its own thread for 1.5 s on purpose,
+  so the delay stays covered.
+- `service::service_reply::tests::a_queued_answer_is_written_before_the_connection_closes`:
+  not this branch (the coordinator read the code:
+  `write_until_answered_noting`
+  beats whenever 20 ms pass with nothing queued,
+  and beats before an answer are allowed).
+  Positive control first:
+  the same control with the sender held for three
+  beats failed with `left: Heartbeat` every time (red commit);
+  the control now skips beats,
+  asserts the first other message is the answer and that only beats follow,
   and the late-sender variant stays as a permanent control.
-- Proposal, not implemented (nothing measured says the wait is a problem, so the owner's pick stays as applied): to tell a member that is finishing its cleanup
-  from one that is only doing input and output, the usable evidence is on disk. Measured on Git 2.56: a Git that holds a ref lock keeps no descriptor open on the
-  lock file (`/proc/<pid>/fd` listed only the three standard streams and no lock), and an unlink moves no `/proc/<pid>/io` byte counter, so open files and byte
-  counters cannot say it. What can: wait for a member in `D` only while the repository holds a lock file born since the step began that the sweep would judge
-  unproven (the `LockLedger` already names the repositories and the birth time), because the cut that leaves a lock is exactly the state after the pid file is
-  gone and before the lock is; with no such lock a member in `D` is only doing input and output and the kill goes at the grace as before. It needs a decision
-  on whether the extra look (a directory walk of the ledger's roots at the stop's 10 ms interval, or once per 100 ms) is worth it.
+- Proposal,
+  not implemented (nothing measured says the wait is a problem,
+  so the owner's pick stays as applied):
+  to tell a member that is finishing its cleanup
+  from one that is only doing input and output,
+  the usable evidence is on disk.
+  Measured on Git 2.56:
+  a Git that holds a ref lock keeps no descriptor open on the
+  lock file (`/proc/<pid>/fd` listed only the three standard streams and no lock),
+  and an unlink moves no `/proc/<pid>/io` byte counter,
+  so open files and byte
+  counters cannot say it.
+  What can:
+  wait for a member in `D` only while the repository holds a lock file born since the step began that the sweep would judge
+  unproven (the `LockLedger` already names the repositories and the birth time),
+  because the cut that leaves a lock is exactly the state after the pid file is
+  gone and before the lock is;
+  with no such lock a member in `D` is only doing input and output and the kill goes at the grace as before.
+  It needs a decision
+  on whether the extra look (a directory walk of the ledger's roots at the stop's 10 ms interval,
+  or once per 100 ms) is worth it.
 
 ### Gate after the fixes, with main merged again at `8b8c9440de`, 2026-11-07T18:20:00-05:00
 
-- Main merged again: no conflict, no source file of the wrapper changed besides one version line in its `Cargo.toml` and `Cargo.lock`; `sync:files` left the tree clean.
-- Unit `tokio-gate-final3` (`gate-final3.log`), load average about 66 during the run: 5217 run, 5217 passed (3 slow), 11 skipped, container Clippy clean. The package lint
+- Main merged again:
+  no conflict,
+  no source file of the wrapper changed besides one version line in its `Cargo.toml` and `Cargo.lock`;
+  `sync:files` left the tree clean.
+- Unit `tokio-gate-final3` (`gate-final3.log`),
+  load average about 66 during the run:
+  5217 run,
+  5217 passed (3 slow),
+  11 skipped,
+  container Clippy clean.
+  The package lint
   before it was clean.
 
 ### Steps T6 and T7 on `feat/git-policy-cli-tokio-steps-6-onward`, 2026-11-07T15:33:44-05:00
 
 - Branch and worktree:
-  created from `9afcac4a26`, the frozen tip of `feat/git-policy-cli-on-tokio`, in `.claude/worktrees/tokio-steps-6-onward`.
+  created from `9afcac4a26`,
+  the frozen tip of `feat/git-policy-cli-on-tokio`,
+  in `.claude/worktrees/tokio-steps-6-onward`.
   Main is not merged into it yet (the coordinator will say when).
-- What the two steps are, as they were built.
+- What the two steps are,
+  as they were built.
   The pattern of T4 and T5 held:
   each conversion is an `async` core plus the synchronous face that keeps today's name and signature and enters the runtime,
   so the controls of the callers are unchanged.
   The synchronous faces go when the callers are converted (T11).
-- Open choice 6 has the owner's answer in "The owner's answers at 2026-11-07" (choice 6, "Registry of children", with
+- Open choice 6 has the owner's answer in "The owner's answers at 2026-11-07" (choice 6,
+  "Registry of children",
+  with
   "Only that operation's children (Recommended)" and a stop of the service as an operation of its own),
-  so T7 was done, and open choice 4 ("Rewrite per-thread state") is the answer T10 will follow.
+  so T7 was done,
+  and open choice 4 ("Rewrite per-thread state") is the answer T10 will follow.
 
 #### T6, commits `4065cb84a5` (red), `2a6b9f66e9`, `347d570501`, `cc30b3f5f3`, `ea44eae518`
 
 - `push/start_retry.rs`:
-  the schedule of a refused start (`RefusalSchedule`, the 10 ms first pause doubling to 500 ms, the 5 s budget unchanged) is one value that
+  the schedule of a refused start (`RefusalSchedule`,
+  the 10 ms first pause doubling to 500 ms,
+  the 5 s budget unchanged) is one value that
   the sleeping loop and the new awaiting loop share;
   `retry_refused_start_awaiting_within` and `spawn_retrying_without_blocking` pause on `tokio::time::sleep`.
   `captured_child_run_to_its_end.rs` (`output_of`) starts that way.
-  Decision, the agent's and open to the owner's veto: the synchronous pause stays for the callers that have no runtime.
-  A forwarded command (`invocation/forwarding.rs`, `exec_retrying` and `status_retrying`) builds no runtime
-  (`binary/binary_forwarded_command_makes_no_thread_tests.rs`, the owner's "commits vs native git should not take 5s longer."
-  applies to it first), so its pause is the one `std::thread::sleep` in `push/start_retry.rs` (`sleep_for`),
+  Decision,
+  the agent's and open to the owner's veto:
+  the synchronous pause stays for the callers that have no runtime.
+  A forwarded command (`invocation/forwarding.rs`,
+  `exec_retrying` and `status_retrying`) builds no runtime
+  (`binary/binary_forwarded_command_makes_no_thread_tests.rs`,
+  the owner's "commits vs native git should not take 5s longer."
+  applies to it first),
+  so its pause is the one `std::thread::sleep` in `push/start_retry.rs` (`sleep_for`),
   and the T13 source guard against `thread::sleep` must allow exactly that function.
   Every other synchronous caller of `spawn_retrying` and `output_retrying` (13 files) keeps the sleeping pause until T11.
-- `push/bounded_push.rs`, `push/bounded_query.rs`:
-  `run_bounded_push_awaiting`, `run_bounded_query_awaiting`, `wait_until_done`, `wait_until_done_noting`, `stop_push`, `settle_locks`
+- `push/bounded_push.rs`,
+  `push/bounded_query.rs`:
+  `run_bounded_push_awaiting`,
+  `run_bounded_query_awaiting`,
+  `wait_until_done`,
+  `wait_until_done_noting`,
+  `stop_push`,
+  `settle_locks`
   and `wait_for_tree` are `async`;
-  `run_bounded_push_once` and `run_bounded_query` are the synchronous faces (`run_on_runtime`, a refusal becomes `SingleFlightError::Start`).
+  `run_bounded_push_once` and `run_bounded_query` are the synchronous faces (`run_on_runtime`,
+  a refusal becomes `SingleFlightError::Start`).
   The exit of the push is awaited on its pidfd (`OwnedChild::wait`);
-  the loop's pause is `tokio::time::timeout(POLL_PAUSE, ...)` around that wait, because the output size and the clock of signs of work
+  the loop's pause is `tokio::time::timeout(POLL_PAUSE, ...)` around that wait,
+  because the output size and the clock of signs of work
   have no event to wait on and are looked at every `POLL_PAUSE` as before.
-  `stop_push` takes the `OwnedChild`, and a child that was collected has nothing to hand over
-  (`OwnedChild::into_std_when_unreaped`, `OwnedChild::kill`, both new).
-  `sweep_after_exit` is a task of the runtime (`spawn_on_runtime`, `None` where the runtime has no worker, as when the thread could not start)
-  that adopts the standard-library child inside the task, so a task that never runs leaves the child as it was and never waits for it
-  (an `OwnedChild` dropped alive kills it and waits, which must not happen to a child in uninterruptible sleep);
+  `stop_push` takes the `OwnedChild`,
+  and a child that was collected has nothing to hand over
+  (`OwnedChild::into_std_when_unreaped`,
+  `OwnedChild::kill`,
+  both new).
+  `sweep_after_exit` is a task of the runtime (`spawn_on_runtime`,
+  `None` where the runtime has no worker,
+  as when the thread could not start)
+  that adopts the standard-library child inside the task,
+  so a task that never runs leaves the child as it was and never waits for it
+  (an `OwnedChild` dropped alive kills it and waits,
+  which must not happen to a child in uninterruptible sleep);
   its sweep of directories runs on the blocking pool.
   `settle_locks` takes `Option<Child>` (`None` is a collected child).
 - `repair/package_repair_command.rs`:
@@ -3014,111 +3127,230 @@ branch's own gate on `ad314ca6eb` had passed 5209 of 5209. The coordinator's hyp
   `run_tool` is the synchronous face;
   `reap_within` is `async` and hands a leader that has not ended in its budget to a task.
   The wait seam (`WAIT_FAILS_ONCE_THIS_FILE_EXISTS`) and the stop seam (`CONTROL_RULES` of `escalation_waits`) are thread-locals of the test thread,
-  and they still reach the code, because `Runtime::block_on` runs the future on the calling thread;
+  and they still reach the code,
+  because `Runtime::block_on` runs the future on the calling thread;
   the proof is that `a_member_held_for_ever_is_ended_at_the_ceiling_and_the_lock_is_swept` takes the same time as before
-  (4.2 s against 4.2 to 4.8 s), where an unreached seam would wait the real 18 s ceiling.
-  Only the two sweeps and the reaper of a late leader are spawned, and neither reads a seam.
+  (4.2 s against 4.2 to 4.8 s),
+  where an unreached seam would wait the real 18 s ceiling.
+  Only the two sweeps and the reaper of a late leader are spawned,
+  and neither reads a seam.
 - Files T6 changed:
-  `src/native/push/start_retry.rs`, `src/native/push/bounded_push.rs`, `src/native/push/bounded_query.rs`,
-  `src/native/process/child_awaited_through_a_pidfd.rs`, `src/native/process/captured_child_run_to_its_end.rs`,
-  `src/native/repair/package_repair_command.rs`, and the new test helper `src/native/testing/ticker_beside_a_wait.rs`.
+  `src/native/push/start_retry.rs`,
+  `src/native/push/bounded_push.rs`,
+  `src/native/push/bounded_query.rs`,
+  `src/native/process/child_awaited_through_a_pidfd.rs`,
+  `src/native/process/captured_child_run_to_its_end.rs`,
+  `src/native/repair/package_repair_command.rs`,
+  and the new test helper `src/native/testing/ticker_beside_a_wait.rs`.
   `push/child_watch.rs` was not touched.
-- Reachability of the `Nested` refusal (the synchronous faces refuse from inside the runtime, so a path from runtime code to one is a defect):
-  the code that runs inside the runtime today is the bodies of `spawn_on_runtime` tasks (the watcher of `child_watch.rs`, the sweep task),
-  `run_blocking_job` jobs (the stopped-step sweep, the sweep job, the runtime probe) and the futures of `run_on_runtime`
-  (`output_of`, the pipe reads, the `zbus` calls, the standards review).
-  `rg` for `run_bounded_push`, `run_bounded_query`, `run_tool`, `run_child`, `SignalGuard` and `run_clearing_locks` outside tests names only
-  `commit_preparation.rs`, `lfs_upload.rs`, `lfs_bounded_push.rs`, `auto_push_reconcile_basics_and_limits.rs`, `auto_push_single_flight.rs`,
-  `push_lock_clearing.rs`, `bounded_push.rs`, `bounded_query.rs`, the repair files and `signal_relay.rs`;
-  none of the runtime bodies above calls into them (`LockLedger::sweep` reaches `clear_stale_ref_locks` and the judge, which read files and `/proc`).
-  The chain stays synchronous at `run_clearing_locks`, which clears locks with code that is not asynchronous yet, so the bridge is placed below it.
+- Reachability of the `Nested` refusal (the synchronous faces refuse from inside the runtime,
+  so a path from runtime code to one is a defect):
+  the code that runs inside the runtime today is the bodies of `spawn_on_runtime` tasks (the watcher of `child_watch.rs`,
+  the sweep task),
+  `run_blocking_job` jobs (the stopped-step sweep,
+  the sweep job,
+  the runtime probe) and the futures of `run_on_runtime`
+  (`output_of`,
+  the pipe reads,
+  the `zbus` calls,
+  the standards review).
+  `rg` for `run_bounded_push`,
+  `run_bounded_query`,
+  `run_tool`,
+  `run_child`,
+  `SignalGuard` and `run_clearing_locks` outside tests names only
+  `commit_preparation.rs`,
+  `lfs_upload.rs`,
+  `lfs_bounded_push.rs`,
+  `auto_push_reconcile_basics_and_limits.rs`,
+  `auto_push_single_flight.rs`,
+  `push_lock_clearing.rs`,
+  `bounded_push.rs`,
+  `bounded_query.rs`,
+  the repair files and `signal_relay.rs`;
+  none of the runtime bodies above calls into them (`LockLedger::sweep` reaches `clear_stale_ref_locks` and the judge,
+  which read files and `/proc`).
+  The chain stays synchronous at `run_clearing_locks`,
+  which clears locks with code that is not asynchronous yet,
+  so the bridge is placed below it.
 - Controls.
-  Ported unchanged in assertions: all of `bounded_push_tests.rs`, `bounded_query_tests.rs`, `start_retry_tests.rs`, `package_repair_command_tests.rs`,
-  `git_stop_lock_tests.rs`, `push_slow_server_tests.rs`, `push_patience_tests.rs`;
+  Ported unchanged in assertions:
+  all of `bounded_push_tests.rs`,
+  `bounded_query_tests.rs`,
+  `start_retry_tests.rs`,
+  `package_repair_command_tests.rs`,
+  `git_stop_lock_tests.rs`,
+  `push_slow_server_tests.rs`,
+  `push_patience_tests.rs`;
   the two controls that called `sweep_after_exit` and `settle_locks` directly now join a task (`a_child_released_late_has_its_lock_swept_when_it_ends`,
-  `a_tree_still_running_after_the_grace_is_swept_when_it_ends`), and the three repair controls that gave the reaper a closure give an async closure.
-  New, each a task that counts every millisecond on the same thread as the wait
-  (`a_pause_between_refused_starts_lets_other_tasks_run`, `the_wait_for_a_running_push_lets_other_tasks_run`,
-  `the_stop_of_a_push_that_ignores_the_request_lets_other_tasks_run` (the stop run alone, so the ticks of the wait before it cannot count for it),
-  `the_wait_for_a_running_query_lets_other_tasks_run`, `the_wait_for_a_running_tool_lets_other_tasks_run`,
+  `a_tree_still_running_after_the_grace_is_swept_when_it_ends`),
+  and the three repair controls that gave the reaper a closure give an async closure.
+  New,
+  each a task that counts every millisecond on the same thread as the wait
+  (`a_pause_between_refused_starts_lets_other_tasks_run`,
+  `the_wait_for_a_running_push_lets_other_tasks_run`,
+  `the_stop_of_a_push_that_ignores_the_request_lets_other_tasks_run` (the stop run alone,
+  so the ticks of the wait before it cannot count for it),
+  `the_wait_for_a_running_query_lets_other_tasks_run`,
+  `the_wait_for_a_running_tool_lets_other_tasks_run`,
   `the_reaping_of_a_leader_that_does_not_end_lets_other_tasks_run`).
-  Planted controls, each run once and reverted:
+  Planted controls,
+  each run once and reverted:
   the red commit `4065cb84a5` ran the retry's pause as `thread::sleep` and the start-retry control read zero ticks over three pauses;
   with the old blocking shape planted in `wait_with_clock` and `stop_push` (a `thread::sleep` and a `try_wait` in place of the awaits)
   all three push and query controls failed;
-  with a 400 ms `thread::sleep` in `wait_status` and a `thread::sleep` of the budget in `reap_within`, both repair controls failed.
-- Measured, the seven file sets `bounded_push`, `bounded_query`, `start_retry`, `git_stop_lock`, `push_slow_server`, `push_patience` and
-  `package_repair_command` (68 tests before), three host runs each, on the branch tip before any edit
-  (`${HOME}/temp/agent/tokio-steps6/baseline-run*.log`, load average 40 to 76), after the push and query step
-  (`after-b-run*.log`, 74 tests, load average 27 to 31) and after the repair step and T7 (`after-c-run*.log`, 93 tests with the `signal_relay` set added,
+  with a 400 ms `thread::sleep` in `wait_status` and a `thread::sleep` of the budget in `reap_within`,
+  both repair controls failed.
+- Measured,
+  the seven file sets `bounded_push`,
+  `bounded_query`,
+  `start_retry`,
+  `git_stop_lock`,
+  `push_slow_server`,
+  `push_patience` and
+  `package_repair_command` (68 tests before),
+  three host runs each,
+  on the branch tip before any edit
+  (`${HOME}/temp/agent/tokio-steps6/baseline-run*.log`,
+  load average 40 to 76),
+  after the push and query step
+  (`after-b-run*.log`,
+  74 tests,
+  load average 27 to 31) and after the repair step and T7 (`after-c-run*.log`,
+  93 tests with the `signal_relay` set added,
   load average 38 to 72):
-  summary 72.3 to 73.0 s before and 72.3 to 72.4 s after the push step and 72.9 to 73.0 s after the last, and the per-test times agree within the spread of the three baseline runs
-  (the longest controls, `a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands` 65.07 to 65.14 s before and 65.08 to 65.09 s after;
+  summary 72.3 to 73.0 s before and 72.3 to 72.4 s after the push step and 72.9 to 73.0 s after the last,
+  and the per-test times agree within the spread of the three baseline runs
+  (the longest controls,
+  `a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands` 65.07 to 65.14 s before and 65.08 to 65.09 s after;
   `a_watched_stop_of_an_unresponsive_holder_leaves_no_lock` 8.20 to 8.31 s before and 8.20 to 8.70 s after).
-  The controls are dominated by waits that the tests themselves set, so they show no regression, and they cannot show a gain;
-  the exit of a push is now seen at once and not at the next 10 ms look, a difference below the spread.
-- Gate, snapshot `ea44eae518` (unit `t6-gate`, log `${HOME}/temp/agent/tokio-steps6/gate-t6.log`):
-  5225 tests run, 5225 passed (1 slow), 11 skipped, summary 570.7 s; container Clippy clean.
+  The controls are dominated by waits that the tests themselves set,
+  so they show no regression,
+  and they cannot show a gain;
+  the exit of a push is now seen at once and not at the next 10 ms look,
+  a difference below the spread.
+- Gate,
+  snapshot `ea44eae518` (unit `t6-gate`,
+  log `${HOME}/temp/agent/tokio-steps6/gate-t6.log`):
+  5225 tests run,
+  5225 passed (1 slow),
+  11 skipped,
+  summary 570.7 s;
+  container Clippy clean.
   Host Clippy and the package lint were clean on the tree after the last T6 commit.
 
 #### T7, commit `0a19f2cdc4`
 
-- Design (the agent's, built as the plan's choice 6 left it open; open to the owner's veto):
-  - The registry is one slot, because a process runs one operation with a signal of its own.
+- Design (the agent's,
+  built as the plan's choice 6 left it open;
+  open to the owner's veto):
+  - The registry is one slot,
+    because a process runs one operation with a signal of its own.
     The first `SignalGuard` of a process owns the four handlers and publishes its child;
-    a guard made while another owns them is made all the same, relays nothing and waits for no one
-    (the polling `install_guard_when_free` of `commit_preparation.rs`, `GUARD_WAIT_LIMIT`,
+    a guard made while another owns them is made all the same,
+    relays nothing and waits for no one
+    (the polling `install_guard_when_free` of `commit_preparation.rs`,
+    `GUARD_WAIT_LIMIT`,
     `retry_while_active` and the `SignalGuardActive` refusal type are gone).
-  - The recipient rule: a signal reaches only the child of the guard that owns the handlers.
+  - The recipient rule:
+    a signal reaches only the child of the guard that owns the handlers.
     A service calls `signal_relay::leave_signals_to_the_service` where it installs its own stop handler
-    (`service/service_signal.rs` `install`), after which no guard in that process takes the handlers or relays.
+    (`service/service_signal.rs` `install`),
+    after which no guard in that process takes the handlers or relays.
     Before this change a commit prepared inside the service replaced the service's stop handler for the length of the Git step
-    and relayed a stop of the service to that Git; now the service's own handling runs and the Git child is not signalled.
+    and relayed a stop of the service to that Git;
+    now the service's own handling runs and the Git child is not signalled.
     The consequence for the owner is the new open choice 12.
   - The pidfd and the descriptor number.
-    The handler signals through `rustix::process::pidfd_send_signal` (a raw system call of the Linux backend: no allocation, no `errno` write),
-    on one descriptor number that is made on the first publish (`/dev/null`, `RELAY_FD`) and never closed.
-    Publishing and retiring replace what the number refers to with `dup3`, atomically,
-    so the handler never reads a closed number, the number is never another process's pidfd (nothing else can be handed it),
+    The handler signals through `rustix::process::pidfd_send_signal` (a raw system call of the Linux backend:
+    no allocation,
+    no `errno` write),
+    on one descriptor number that is made on the first publish (`/dev/null`,
+    `RELAY_FD`) and never closed.
+    Publishing and retiring replace what the number refers to with `dup3`,
+    atomically,
+    so the handler never reads a closed number,
+    the number is never another process's pidfd (nothing else can be handed it),
     and a signal after the child was reaped finds `/dev/null` or a reaped pidfd and fails harmlessly.
     This is a proof by construction of what the plan said "needs a proof or a different mechanism";
     it costs one descriptor for the life of a process that relays.
-    The wait is `OwnedChild::wait` on a second pidfd, so `waitid(WNOWAIT)` and its blocked thread are gone.
+    The wait is `OwnedChild::wait` on a second pidfd,
+    so `waitid(WNOWAIT)` and its blocked thread are gone.
   - A failure to make the descriptor or the pidfd leaves the child unrelayed and logs it (`signalRelay`):
-    "Commits should never fail." outranks the relay.
-  - The non-Linux Unix path keeps the number-based `kill` (not converted: "Ignore Win and mac until I say so.").
+    "Commits should never fail."
+    outranks the relay.
+  - The non-Linux Unix path keeps the number-based `kill` (not converted:
+    "Ignore Win and mac until I say so.").
 - `run_child` is the synchronous face of `run_child_awaiting`.
-- Files T7 changed: `src/native/process/signal_relay.rs`, `src/native/commit/commit_preparation.rs`, `src/native/service/service_signal.rs`.
+- Files T7 changed:
+  `src/native/process/signal_relay.rs`,
+  `src/native/commit/commit_preparation.rs`,
+  `src/native/service/service_signal.rs`.
 - Controls.
-  Unchanged and green: `process_signal_is_relayed_and_the_child_outcome_is_reported`, `signal_during_start_is_relayed_after_the_child_starts`,
-  `terminal_interrupt_is_not_relayed_a_second_time`, `term_during_a_held_pre_commit_ends_git_and_reports_143`,
-  `dropping_the_guard_restores_the_previous_dispositions`, and at the binary level the twelve `signal` controls
+  Unchanged and green:
+  `process_signal_is_relayed_and_the_child_outcome_is_reported`,
+  `signal_during_start_is_relayed_after_the_child_starts`,
+  `terminal_interrupt_is_not_relayed_a_second_time`,
+  `term_during_a_held_pre_commit_ends_git_and_reports_143`,
+  `dropping_the_guard_restores_the_previous_dispositions`,
+  and at the binary level the twelve `signal` controls
   (`a_termination_sent_to_the_wrapper_alone_is_relayed_to_git` and its three siblings among them).
-  Removed with what they tested: the guard wait of `commit_preparation_tests.rs` (two controls), `a_second_guard_is_refused_until_the_first_is_dropped`,
-  `only_the_refusal_of_a_second_guard_is_recognized_as_such`, and the three controls of `wait_without_reaping`
-  (the call is gone; their two intents are kept as `waiting_ends_at_the_childs_exit_and_reports_it` and
-  `an_interrupted_wait_continues_until_the_child_exits`, on the new wait).
-  New: `a_second_guard_is_made_and_relays_nothing_while_the_first_owns_the_handlers`,
+  Removed with what they tested:
+  the guard wait of `commit_preparation_tests.rs` (two controls),
+  `a_second_guard_is_refused_until_the_first_is_dropped`,
+  `only_the_refusal_of_a_second_guard_is_recognized_as_such`,
+  and the three controls of `wait_without_reaping`
+  (the call is gone;
+  their two intents are kept as `waiting_ends_at_the_childs_exit_and_reports_it` and
+  `an_interrupted_wait_continues_until_the_child_exits`,
+  on the new wait).
+  New:
+  `a_second_guard_is_made_and_relays_nothing_while_the_first_owns_the_handlers`,
   `the_child_of_a_guard_without_handlers_is_never_published`,
   `the_relay_descriptor_names_the_child_while_it_runs_and_nothing_after`,
   `a_stop_of_a_service_is_not_relayed_to_the_child_of_a_commit`.
-  Planted controls, each run once and reverted:
+  Planted controls,
+  each run once and reverted:
   the guard without handlers made to publish (`run_relayed(command, true)`) failed the publish control;
   `leave_signals_to_the_service` made a no-op failed the service control;
   the retire left out failed the descriptor control;
   a second guard that claims to relay failed the second-guard control.
-- Gate, snapshot `0a19f2cdc4`, T6 and T7 together (unit `t7-gate`, log `${HOME}/temp/agent/tokio-steps6/gate-t7.log`):
-  5224 tests run, 5224 passed (1 slow), 11 skipped, summary 756.6 s; container Clippy clean.
-  The gate read longer than the T6 gate (the sum of per-test seconds is 1479 against 1140), and a failure or a slowness is a defect until measured:
+- Gate,
+  snapshot `0a19f2cdc4`,
+  T6 and T7 together (unit `t7-gate`,
+  log `${HOME}/temp/agent/tokio-steps6/gate-t7.log`):
+  5224 tests run,
+  5224 passed (1 slow),
+  11 skipped,
+  summary 756.6 s;
+  container Clippy clean.
+  The gate read longer than the T6 gate (the sum of per-test seconds is 1479 against 1140),
+  and a failure or a slowness is a defect until measured:
   the ten tests that slowed most against the T6 gate are in code the two steps do not touch
-  (for example `push::auto_push::tests::a_matching_push_of_a_branch_the_push_remote_has_goes_to_the_same_name` 0.11 s to 47.43 s and, beside it,
-  `a_matching_push_of_a_branch_the_push_remote_lacks_publishes_nothing` 0.07 s to 47.40 s, two figures equal to the hundredth,
-  which two tests that stalled together on the host show and a change in one of them does not), and six of them, run alone on the host afterwards at a load
-  average of 46, took 0.26 to 1.29 s.
-  So the cause of the extra time is a host stall episode, as in "The five failures of the gate of `944bdd30b5`", not these steps; the stall's resource was not measured.
-- Not measured, and why: `native:perf` (the plan asks for it after T10, T12 and T13).
-  T7 puts the runtime on the path of every commit's Git step (`run_child` enters it, building it on the first need, about 0.3 to 0.5 ms measured in
-  "The runtime"), plus one `pidfd_open` and one `dup3`; the exposure against "commits vs native git should not take 5s longer." is unmeasured
+  (for example `push::auto_push::tests::a_matching_push_of_a_branch_the_push_remote_has_goes_to_the_same_name` 0.11 s to 47.43 s and,
+  beside it,
+  `a_matching_push_of_a_branch_the_push_remote_lacks_publishes_nothing` 0.07 s to 47.40 s,
+  two figures equal to the hundredth,
+  which two tests that stalled together on the host show and a change in one of them does not),
+  and six of them,
+  run alone on the host afterwards at a load
+  average of 46,
+  took 0.26 to 1.29 s.
+  So the cause of the extra time is a host stall episode,
+  as in "The five failures of the gate of `944bdd30b5`",
+  not these steps;
+  the stall's resource was not measured.
+- Not measured,
+  and why:
+  `native:perf` (the plan asks for it after T10,
+  T12 and T13).
+  T7 puts the runtime on the path of every commit's Git step (`run_child` enters it,
+  building it on the first need,
+  about 0.3 to 0.5 ms measured in
+  "The runtime"),
+  plus one `pidfd_open` and one `dup3`;
+  the exposure against "commits vs native git should not take 5s longer."
+  is unmeasured
   until then and is a few milliseconds by construction.
 
 ### Where the remaining steps stand after T5
@@ -3558,41 +3790,54 @@ The owner's answer to choice 6 says a signal reaches only the children of the op
 and that a stop of the service is an operation of its own.
 Before T7 a commit prepared inside the service swapped the service's stop handler for the length of the Git step,
 so a stop of the service reached that one Git (and the service went on running).
-T7 builds the owner's rule literally (option A below), which leaves that Git running when the service is stopped.
+T7 builds the owner's rule literally (option A below),
+which leaves that Git running when the service is stopped.
 
 - A.
   The stop of the service has its own handling and signals no commit's Git child (as built).
   Pros:
   it is the owner's recipient rule as worded;
-  the service's stop handler is never replaced, so a stop is always the service's;
+  the service's stop handler is never replaced,
+  so a stop is always the service's;
   nothing in the handler touches a child.
   Cons:
   a Git that the service was running when it was stopped is left to end by itself,
-  and holds its index lock for as long as it takes (a commit step is bounded by the wrapper's own limits, not by the stop).
+  and holds its index lock for as long as it takes (a commit step is bounded by the wrapper's own limits,
+  not by the stop).
 - B.
   The stop of the service signals every child of every operation the service runs.
   Pros:
-  no Git outlives the service, as in the single-commit case before T7.
+  no Git outlives the service,
+  as in the single-commit case before T7.
   Cons:
   it is the recipient rule the owner did not pick ("a signal to the service reaches every child");
-  the one slot of T7 becomes a table that a handler reads, with a bound on its size
+  the one slot of T7 becomes a table that a handler reads,
+  with a bound on its size
   (a shipped limit that needs a measured or owner-decided figure) and a proof for its publication and retirement.
 - C.
   The stop of the service is an operation that ends the children it names:
-  the handler only records the stop, and the service's own shutdown code, not the handler,
-  signals the children of the operations it waits for, through a registry of those children.
+  the handler only records the stop,
+  and the service's own shutdown code,
+  not the handler,
+  signals the children of the operations it waits for,
+  through a registry of those children.
   Pros:
-  the stop is an operation of its own, as the owner said;
+  the stop is an operation of its own,
+  as the owner said;
   no Git outlives the service;
   the handler stays minimal and safe.
   Cons:
-  not designed: the registry is a table, the shutdown path must wait a bounded time for the children it signalled,
+  not designed:
+  the registry is a table,
+  the shutdown path must wait a bounded time for the children it signalled,
   and "nothing should ever wait forever" applies to that wait.
 - Ranking:
   C > A > B,
-  because C ends no stray Git and still treats the stop as an operation of its own, which A gives up for simplicity;
+  because C ends no stray Git and still treats the stop as an operation of its own,
+  which A gives up for simplicity;
   A > B because A is what the owner's rule says and B is the rule the owner declined.
-  The agent built A because it is the only option that needed no new design, and it is the narrowest;
+  The agent built A because it is the only option that needed no new design,
+  and it is the narrowest;
   a veto of A in favour of C is enough to start C.
 
 ## Cross-vendor review

@@ -22,7 +22,8 @@ fn context() -> GitContext {
 }
 
 /// A corrected file whose worktree copy still holds the original bytes is recorded with both blob names;
-///  a copy that changed since, a missing copy and a symbolic link are not.
+///  a copy that changed since,
+/// a missing copy and a symbolic link are not.
 #[test]
 fn selected_corrections_are_recorded_only_while_the_worktree_holds_the_original() {
     let root: PathBuf = fixture("worktree-records-selected");
@@ -88,7 +89,9 @@ fn non_ordinary_modes_get_no_completion() {
     assert_eq!(ordinary_git_mode(CandidateMode::Gitlink), None);
 }
 
-/// A correction whose index entry changed mode, or whose bytes equal the original, is not recorded.
+/// A correction whose index entry changed mode,
+/// or whose bytes equal the original,
+/// is not recorded.
 #[test]
 fn a_changed_mode_or_an_unchanged_blob_gets_no_completion() {
     let root: PathBuf = fixture("worktree-records-skips");
@@ -129,7 +132,8 @@ fn a_changed_mode_or_an_unchanged_blob_gets_no_completion() {
     remove(root.as_path());
 }
 
-/// A path whose index entries are all unmerged has no settled entry, and a stage-zero entry reports its mode and object.
+/// A path whose index entries are all unmerged has no settled entry,
+/// and a stage-zero entry reports its mode and object.
 #[test]
 fn only_a_stage_zero_entry_is_settled() {
     let root: PathBuf = fixture("worktree-records-settled");

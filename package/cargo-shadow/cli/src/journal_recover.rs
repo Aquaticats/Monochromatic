@@ -234,9 +234,14 @@ pub(crate) struct JournalListing {
 /// Why:
 /// A survivor check and a recovery both decide from the whole set;
 /// a set that could not be read completely cannot show that no earlier run left a writer
-/// (round 7, 6b2 1: `flatten()` and `is_dir()` dropped such entries).
+/// (round 7,
+/// 6b2 1:
+/// `flatten()` and `is_dir()` dropped such entries).
 /// Only the opening of the journal directory finding no directory is "no journals" (`None`);
-/// every failure after it, `NotFound` of one entry included, is an error that discards the partial listing (round 8, 7b P1-2).
+/// every failure after it,
+/// `NotFound` of one entry included,
+/// is an error that discards the partial listing (round 8,
+/// 7b P1-2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -251,11 +256,13 @@ pub(crate) fn list_journals(journals: &Path) -> io::Result<Option<JournalListing
     let inspection_fault: bool = crate::failpoints::fires(crate::failpoints::Point::ListingInspection);
     #[cfg(test)]
     let vanished_fault: bool = crate::failpoints::fires(crate::failpoints::Point::ListingEntryNotFound);
+    // A test replaces the result of the operation, so the failure takes the same path as a failure of the kernel (round 21, sixth pass,
+    // V1): the opening, the reading of an entry and its inspection each pass through the code that handles their real results.
     #[cfg(test)]
-    if open_fault {
-        return Err(io::Error::other("injected failure to open the journal directory"));
-    }
-    let entries: fs::ReadDir = match fs::read_dir(journals) {
+    let opened: io::Result<fs::ReadDir> = if open_fault { Err(io::Error::other("injected failure to open the journal directory")) } else { fs::read_dir(journals) };
+    #[cfg(not(test))]
+    let opened: io::Result<fs::ReadDir> = fs::read_dir(journals);
+    let entries: fs::ReadDir = match opened {
         Ok(found) => found,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),
@@ -265,25 +272,33 @@ pub(crate) fn list_journals(journals: &Path) -> io::Result<Option<JournalListing
     for (index, found) in entries.enumerate() {
         // The second entry is the one a test makes fail, so the first is already in the partial listing.
         #[cfg(test)]
-        if index == 1 && iteration_fault {
+        let read: io::Result<fs::DirEntry> = if index == 1 && iteration_fault {
             crate::bounded_run::trace(|| { return format!("listing fault iteration at entry {index} after {} accumulated", listing.open.len() + listing.done.len()); });
-            return Err(io::Error::other("injected failure to read an entry of the journal directory"));
-        }
-        let entry: fs::DirEntry = found?;
+            Err(io::Error::other("injected failure to read an entry of the journal directory"))
+        } else {
+            found
+        };
+        #[cfg(not(test))]
+        let read: io::Result<fs::DirEntry> = found;
+        let entry: fs::DirEntry = read?;
         let path: PathBuf = entry.path();
+        // Every entry is examined, a completed journal included: an entry that cannot be examined makes the whole listing fail.
         #[cfg(test)]
-        if index == 1 && inspection_fault {
+        let kind: io::Result<fs::FileType> = if index == 1 && inspection_fault {
             crate::bounded_run::trace(|| { return format!("listing fault inspection at entry {index} after {} accumulated", listing.open.len() + listing.done.len()); });
-            return Err(io::Error::other("injected failure to examine an entry of the journal directory"));
-        }
-        #[cfg(test)]
-        if index == 1 && vanished_fault {
+            Err(io::Error::other("injected failure to examine an entry of the journal directory"))
+        } else if index == 1 && vanished_fault {
             crate::bounded_run::trace(|| { return format!("listing fault entry-not-found at entry {index} after {} accumulated", listing.open.len() + listing.done.len()); });
-            return Err(io::Error::from(io::ErrorKind::NotFound));
-        }
+            Err(io::Error::from(io::ErrorKind::NotFound))
+        } else {
+            entry.file_type()
+        };
+        #[cfg(not(test))]
+        let kind: io::Result<fs::FileType> = entry.file_type();
+        let is_directory: bool = kind?.is_dir();
         if path.to_string_lossy().ends_with(DONE_SUFFIX) {
             listing.done.push(path);
-        } else if entry.file_type()?.is_dir() {
+        } else if is_directory {
             listing.open.push(path);
         }
     }
@@ -309,18 +324,26 @@ pub fn recover(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> 
 /// What a recovery says and whether the command that ran it may go on.
 #[derive(Debug)]
 pub struct RecoveryReport {
-    /// What to tell the person, one warning per entry.
+    /// What to tell the person,
+    /// one warning per entry.
     pub messages: Vec<String>,
-    /// Whether a mandatory phase of finishing a recovered journal failed (the output barrier before the marker, or the durable
-    /// completion marker itself): the journal is not finished, so the command must stop. A failed removal of a journal that is
-    /// already marked done is not one; it only warns.
+    /// Whether a mandatory phase of finishing a recovered journal failed (the output barrier before the marker,
+    /// or the durable
+    /// completion marker itself):
+    /// the journal is not finished,
+    /// so the command must stop.
+    /// A failed removal of a journal that is
+    /// already marked done is not one;
+    /// it only warns.
     pub mandatory_failure: bool,
 }
 
 /// What:
 /// `pub fn recover_report(root, judge) -> RecoveryReport` is `recover` that also says whether a mandatory phase of finishing failed.
 /// Why:
-/// The callers of a recovery stop on a failed mandatory phase and go on after a cleanup warning (certification, second pass, V5).
+/// The callers of a recovery stop on a failed mandatory phase and go on after a cleanup warning (certification,
+/// second pass,
+/// V5).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

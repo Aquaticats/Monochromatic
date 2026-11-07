@@ -1,15 +1,51 @@
-//! Shared helpers of the rendered window tests: a software-rendered window, its pixels, and rounded-box geometry.
+//! Shared helpers of the rendered window tests:
+//! a software-rendered window,
+//! its pixels,
+//! and rounded-box geometry.
 //!
-//! What: `Rendered` builds the real `AppWindow` on Slint's software renderer, wires it like the focus tests do, and draws it
-//! into a pixel buffer; `Frame` reads and compares those pixels; `RoundedBox` describes a box with per-corner radii and says
+//! What:
+//! `Rendered` builds the real `AppWindow` on Slint's software renderer,
+//! wires it like the focus tests do,
+//! and draws it
+//! into a pixel buffer;
+//! `Frame` reads and compares those pixels;
+//! `RoundedBox` describes a box with per-corner radii and says
 //! how far a point is from its edge.
-//! Why: whether a focus ring is where D117 puts it, and whether the element inside it changed, are properties of the
-//! pixels, and the geometry of the element is a property of the element tree; a test needs both on the same window.
-//! Note: one platform is installed per test thread, so a test builds one `Rendered`.
+//! Why:
+//! whether a focus ring is where D117 puts it,
+//! and whether the element inside it changed,
+//! are properties of the
+//! pixels,
+//! and the geometry of the element is a property of the element tree;
+//! a test needs both on the same window.
+//! Note:
+//! one platform is installed per test thread,
+//! so a test builds one `Rendered`.
 
-/// What: `use std::rc::Rc;` imports the single-thread reference-counted pointer from the standard library (`std`). Siblings:
-/// `Arc<T>` is the thread-safe version, `Box<T>` has exactly one owner, and a plain `T` is owned by one variable.
-/// Why: the platform and the `Rendered` value both need to hold the same window, and a test runs on one thread, so the
+/// What:
+/// `use std::cell::Cell;` imports the single-value mutable cell from the standard library (`std`).
+/// Siblings:
+/// `RefCell<T>` checks borrows while the program runs,
+/// and `Mutex<T>` is the thread-safe version.
+/// Why:
+/// the test clock is one `Duration` that a draw pass and `wait` change through a shared reference,
+/// and a `Cell` of a `Copy` value does that without borrow checks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // A plain `let clock = 0;` variable that any function may assign; there is nothing to import.
+/// ```
+use std::cell::Cell;
+/// What:
+/// `use std::rc::Rc;` imports the single-thread reference-counted pointer from the standard library (`std`).
+/// Siblings:
+/// `Arc<T>` is the thread-safe version,
+/// `Box<T>` has exactly one owner,
+/// and a plain `T` is owned by one variable.
+/// Why:
+/// the platform and the `Rendered` value both need to hold the same window,
+/// and a test runs on one thread,
+/// so the
 /// cheaper non-atomic counter is enough.
 ///
 /// In TS you'd write (pseudocode):
@@ -17,38 +53,71 @@
 /// // Every object is shared by reference and garbage collected; there is nothing to import.
 /// ```
 use std::rc::Rc;
+/// What:
+/// `use std::time::Duration;` imports the type for a span of time from the standard library.
+/// Siblings:
+/// `Instant` is a point in time and `SystemTime` is a point on the wall clock.
+/// Why:
+/// Slint's platform clock answers with a `Duration` since the program started,
+/// and the test clock is one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // Spans of time are plain numbers of milliseconds; there is nothing to import.
+/// ```
+use std::time::Duration;
 
-/// What: `use i_slint_backend_testing::ElementHandle;` imports the type that points at one element of the window's tree,
-/// from the Slint testing crate (a separate package, named by its crate name instead of `std` or `crate`).
-/// Why: `box_of` reads an element's position and size.
+/// What:
+/// `use i_slint_backend_testing::ElementHandle;` imports the type that points at one element of the window's tree,
+/// from the Slint testing crate (a separate package,
+/// named by its crate name instead of `std` or `crate`).
+/// Why:
+/// `box_of` reads an element's position and size.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { ElementHandle } from "i-slint-backend-testing";
 /// ```
 use i_slint_backend_testing::ElementHandle;
-/// What: `use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};` imports two items from a nested
-/// module path: a window that draws into memory, and the setting that says how a frame buffer is reused. The braces import
+/// What:
+/// `use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};` imports two items from a nested
+/// module path:
+/// a window that draws into memory,
+/// and the setting that says how a frame buffer is reused.
+/// The braces import
 /// several names from one path in one line.
-/// Why: the tests need pixels, which the normal windowing backend does not give.
+/// Why:
+/// the tests need pixels,
+/// which the normal windowing backend does not give.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { MinimalSoftwareWindow, RepaintBufferType } from "slint/platform/software_renderer";
 /// ```
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
-/// What: `use slint::platform::{Platform, WindowAdapter, WindowEvent};` imports the platform trait (an interface that says how to
-/// create windows), the window adapter trait, and the enum of window events.
-/// Why: the test platform implements `Platform`, and the helpers send `WindowEvent`s.
+/// What:
+/// `use slint::platform::{Platform, WindowAdapter, WindowEvent};` imports the platform trait (an interface that says how to
+/// create windows),
+/// the window adapter trait,
+/// and the enum of window events.
+/// Why:
+/// the test platform implements `Platform`,
+/// and the helpers send `WindowEvent`s.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { type Platform, type WindowAdapter, WindowEvent } from "slint/platform";
 /// ```
 use slint::platform::{Platform, WindowAdapter, WindowEvent};
-/// What: `use slint::{ComponentHandle, PlatformError, Rgb8Pixel};` imports a trait that gives windows `.window()` and `.global()`
-/// (a trait method is callable only when its trait is imported), the platform error type, and the 8-bit-per-channel pixel type.
-/// Why: the window needs the first, the platform's signature needs the second, and the frame buffer is made of the third.
+/// What:
+/// `use slint::{ComponentHandle, PlatformError, Rgb8Pixel};` imports a trait that gives windows `.window()` and `.global()`
+/// (a trait method is callable only when its trait is imported),
+/// the platform error type,
+/// and the 8-bit-per-channel pixel type.
+/// Why:
+/// the window needs the first,
+/// the platform's signature needs the second,
+/// and the frame buffer is made of the third.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -56,43 +125,57 @@ use slint::platform::{Platform, WindowAdapter, WindowEvent};
 /// ```
 use slint::{ComponentHandle, PlatformError, Rgb8Pixel};
 
-/// What: `use crate::AppWindow;` imports the window type that Slint generated from the `.slint` markup. `crate::` means "from the
+/// What:
+/// `use crate::AppWindow;` imports the window type that Slint generated from the `.slint` markup.
+/// `crate::` means "from the
 /// root of this crate".
-/// Why: the helpers build and drive the real window.
+/// Why:
+/// the helpers build and drive the real window.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { AppWindow } from "./main";
 /// ```
 use crate::AppWindow;
-/// What: `use crate::ui_host::Host;` imports the trait that the window's callbacks call to reach the engine.
-/// Why: the tests plug in a recording host in place of the engine.
+/// What:
+/// `use crate::ui_host::Host;` imports the trait that the window's callbacks call to reach the engine.
+/// Why:
+/// the tests plug in a recording host in place of the engine.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { type Host } from "./ui_host";
 /// ```
 use crate::ui_host::Host;
-/// What: `use crate::ui_screen::{project, update_state};` imports two functions: the one that writes the screen state to the window,
+/// What:
+/// `use crate::ui_screen::{project, update_state};` imports two functions:
+/// the one that writes the screen state to the window,
 /// and the one that changes the screen state.
-/// Why: the helpers reset the state and project it.
+/// Why:
+/// the helpers reset the state and project it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { project, updateState } from "./ui_screen";
 /// ```
 use crate::ui_screen::{project, update_state};
-/// What: `use crate::ui_screen_view::ScreenState;` imports the record that holds everything the window shows.
-/// Why: a test starts from an empty `ScreenState`.
+/// What:
+/// `use crate::ui_screen_view::ScreenState;` imports the record that holds everything the window shows.
+/// Why:
+/// a test starts from an empty `ScreenState`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { type ScreenState } from "./ui_screen_view";
 /// ```
 use crate::ui_screen_view::ScreenState;
-/// What: `use crate::ui_test_support::{RecordingHost, load_library, settle};` imports the recording host, the function that loads the
-/// test library into a window, and the function that runs Slint's pending timers.
-/// Why: the rendered window is set up like the focus tests' window.
+/// What:
+/// `use crate::ui_test_support::{RecordingHost, load_library, settle};` imports the recording host,
+/// the function that loads the
+/// test library into a window,
+/// and the function that runs Slint's pending timers.
+/// Why:
+/// the rendered window is set up like the focus tests' window.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -100,9 +183,47 @@ use crate::ui_screen_view::ScreenState;
 /// ```
 use crate::ui_test_support::{RecordingHost, load_library, settle};
 
-/// What: `struct SoftwarePlatform { window }` is a record with one field. There is no `pub`, so it is private to this file.
-/// `Rc<MinimalSoftwareWindow>` is a counted pointer: cloning it adds an owner and copies no window.
-/// Why: Slint needs a platform to create a window, and this one draws into memory. It holds the window so every
+/// What:
+/// `PASS_STEP` is how far the test clock moves before each draw pass:
+/// 150 ms.
+/// Why:
+/// an animation that starts during one pass must have ended by the next,
+/// whatever the speed of the build.
+/// 150 ms is the longest animation time in `ui/*.slint` (the Settings pane cross-fade and the deck move);
+/// the test `the_pass_step_covers_the_longest_animation_time_of_the_markup` fails when a longer one is written.
+pub(crate) const PASS_STEP: Duration = Duration::from_millis(150);
+
+/// What:
+/// `FRAME_STEP_MS` is the length of one frame that `Rendered::wait` moves the clock by:
+/// 16 ms.
+/// Why:
+/// a timer fires once per update however far the clock jumped,
+/// so a long wait is cut into frames like a window's
+/// (the same step as `advance` in `ui_test_support.rs`).
+const FRAME_STEP_MS: u64 = 16;
+
+thread_local! {
+    /// What:
+    /// `CLOCK` is how long the test thread's Slint clock says the program has run.
+    /// Why:
+    /// Slint animations read the platform's clock,
+    /// and the default clock is the wall clock,
+    /// so how far an animation had gone when a frame was drawn depended on how fast the build runs.
+    /// The test clock moves only when a test moves it:
+    /// `draw_frame` moves it by `PASS_STEP` before each pass.
+    static CLOCK: Cell<Duration> = const { Cell::new(Duration::ZERO) };
+}
+
+/// What:
+/// `struct SoftwarePlatform { window }` is a record with one field.
+/// There is no `pub`,
+/// so it is private to this file.
+/// `Rc<MinimalSoftwareWindow>` is a counted pointer:
+/// cloning it adds an owner and copies no window.
+/// Why:
+/// Slint needs a platform to create a window,
+/// and this one draws into memory.
+/// It holds the window so every
 /// `AppWindow` the test creates gets the same one.
 ///
 /// In TS you'd write (pseudocode):
@@ -110,9 +231,17 @@ use crate::ui_test_support::{RecordingHost, load_library, settle};
 /// class SoftwarePlatform { constructor(private window: MinimalSoftwareWindow) {} }
 /// ```
 struct SoftwarePlatform {
-    /// What: `window: Rc<MinimalSoftwareWindow>,` is the one field: a shared pointer to the software window. `Rc` is used, not
-    /// `Arc`, because the test runs on one thread, and not `Box`, because the test and the platform both hold it.
-    /// Why: the window every `AppWindow` of the test uses.
+    /// What:
+    /// `window: Rc<MinimalSoftwareWindow>,` is the one field:
+    /// a shared pointer to the software window.
+    /// `Rc` is used,
+    /// not
+    /// `Arc`,
+    /// because the test runs on one thread,
+    /// and not `Box`,
+    /// because the test and the platform both hold it.
+    /// Why:
+    /// the window every `AppWindow` of the test uses.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -121,19 +250,26 @@ struct SoftwarePlatform {
     window: Rc<MinimalSoftwareWindow>,
 }
 
-/// What: `impl Platform for SoftwarePlatform { ... }` says that `SoftwarePlatform` implements the `Platform` trait (an interface)
+/// What:
+/// `impl Platform for SoftwarePlatform { ... }` says that `SoftwarePlatform` implements the `Platform` trait (an interface)
 /// and holds the body of its required method.
-/// Why: Slint calls this when the first `AppWindow` is created.
+/// Why:
+/// Slint calls this when the first `AppWindow` is created.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class SoftwarePlatform implements Platform { createWindowAdapter() { ... } }
 /// ```
 impl Platform for SoftwarePlatform {
-    /// What: `fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, PlatformError>` gives the shared software window.
-    /// `&self` is a read-only borrow. `Result<T, E>` is Rust's stand-in for a function that may throw: `Ok(value)` is success and
-    /// `Err(error)` is failure. `Rc<dyn WindowAdapter>` is a counted pointer to any value that implements the `WindowAdapter` trait.
-    /// Why: the signature is fixed by the `Platform` trait.
+    /// What:
+    /// `fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, PlatformError>` gives the shared software window.
+    /// `&self` is a read-only borrow.
+    /// `Result<T, E>` is Rust's stand-in for a function that may throw:
+    /// `Ok(value)` is success and
+    /// `Err(error)` is failure.
+    /// `Rc<dyn WindowAdapter>` is a counted pointer to any value that implements the `WindowAdapter` trait.
+    /// Why:
+    /// the signature is fixed by the `Platform` trait.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -152,12 +288,26 @@ impl Platform for SoftwarePlatform {
         // ```
         return Ok(self.window.clone());
     }
+
+    /// What:
+    /// `duration_since_start` gives the test clock.
+    fn duration_since_start(&self) -> Duration {
+        return CLOCK.get();
+    }
 }
 
-/// What: `pub(crate) fn install_software_platform() -> Rc<MinimalSoftwareWindow>` installs the software renderer as this thread's
-/// platform and gives its window. `pub(crate)` makes the function visible inside this crate only (siblings: plain `pub` reaches
-/// other crates; no keyword is private to the file).
-/// Why: every window of a rendered test, the real one or a small fixture, draws into memory through it; a thread installs one.
+/// What:
+/// `pub(crate) fn install_software_platform() -> Rc<MinimalSoftwareWindow>` installs the software renderer as this thread's
+/// platform and gives its window.
+/// `pub(crate)` makes the function visible inside this crate only (siblings:
+/// plain `pub` reaches
+/// other crates;
+/// no keyword is private to the file).
+/// Why:
+/// every window of a rendered test,
+/// the real one or a small fixture,
+/// draws into memory through it;
+/// a thread installs one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -197,11 +347,22 @@ pub(crate) fn install_software_platform() -> Rc<MinimalSoftwareWindow> {
     return window;
 }
 
-/// What: `pub(crate) fn draw_frame(window: &MinimalSoftwareWindow, width: usize, height: usize) -> Frame` draws a software window into
-/// a pixel buffer and gives the pixels. `&MinimalSoftwareWindow` is a read-only borrow. `usize` is the unsigned integer wide enough
-/// to index memory (siblings: `u32`, `u64`, `i32`).
-/// Why: the first draws build what the properties asked for (a page that has just become visible), and the last draws it. `usize` is
-/// used, not `u32`, because the sizes index the pixel buffer and `Vec` indexes take `usize`.
+/// What:
+/// `pub(crate) fn draw_frame(window: &MinimalSoftwareWindow, width: usize, height: usize) -> Frame` draws a software window into
+/// a pixel buffer and gives the pixels.
+/// `&MinimalSoftwareWindow` is a read-only borrow.
+/// `usize` is the unsigned integer wide enough
+/// to index memory (siblings:
+/// `u32`,
+/// `u64`,
+/// `i32`).
+/// Why:
+/// the first draws build what the properties asked for (a page that has just become visible),
+/// and the last draws it.
+/// `usize` is
+/// used,
+/// not `u32`,
+/// because the sizes index the pixel buffer and `Vec` indexes take `usize`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -228,6 +389,15 @@ pub(crate) fn draw_frame(window: &MinimalSoftwareWindow, width: usize, height: u
     // for (let i = 0; i < 3; i++) {
     // ```
     for _ in 0..3 {
+        // What:     `CLOCK.set(CLOCK.get() + PASS_STEP);` moves the test clock forward by one step.
+        // Why:      Slint animations read the platform clock, and this clock moves only here, so an animation that started during
+        //           the previous pass has ended, and the picture is the same on a build of any speed.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // clock += PASS_STEP;
+        // ```
+        CLOCK.set(CLOCK.get() + PASS_STEP);
         // What:     `slint::platform::update_timers_and_animations();` runs the timers and animations that are due.
         // Why:      Slint advances them only when asked, and a draw must see their latest state.
         //
@@ -269,34 +439,56 @@ pub(crate) fn draw_frame(window: &MinimalSoftwareWindow, width: usize, height: u
     return Frame { width, height, pixels };
 }
 
-/// What: `pub(crate) struct Frame { width, height, pixels }` is one rendered picture of the window.
-/// Why: the tests read colours and compare two pictures.
+/// What:
+/// `pub(crate) struct Frame { width, height, pixels }` is one rendered picture of the window.
+/// Why:
+/// the tests read colours and compare two pictures.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type Frame = { width: number; height: number; pixels: Rgb8Pixel[] };
 /// ```
 pub(crate) struct Frame {
-    /// What: `pub width: usize,` is the width in pixels. `pub` makes the field readable from every module of the crate. `usize` is the
-    /// unsigned integer that indexes memory (siblings: `u32`, `u64`).
-    /// Why: pixel positions are computed as `y * width + x`, which needs the width as a `usize`.
+    /// What:
+    /// `pub width: usize,` is the width in pixels.
+    /// `pub` makes the field readable from every module of the crate.
+    /// `usize` is the
+    /// unsigned integer that indexes memory (siblings:
+    /// `u32`,
+    /// `u64`).
+    /// Why:
+    /// pixel positions are computed as `y * width + x`,
+    /// which needs the width as a `usize`.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// width: number;
     /// ```
     pub width: usize,
-    /// What: `pub height: usize,` is the height in pixels, the same type as the width.
-    /// Why: loops over rows stop at the height.
+    /// What:
+    /// `pub height: usize,` is the height in pixels,
+    /// the same type as the width.
+    /// Why:
+    /// loops over rows stop at the height.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// height: number;
     /// ```
     pub height: usize,
-    /// What: `pub pixels: Vec<Rgb8Pixel>,` is the pixels row by row. `Vec<T>` is an owned, growable list (siblings: `&[T]` is a borrowed
-    /// view of one, `[T; N]` a fixed-size array); `Rgb8Pixel` is a red, green and blue pixel with one byte per channel.
-    /// Why: the frame owns its pixels, and the size is known only at run time, so a `Vec` fits and a fixed array does not.
+    /// What:
+    /// `pub pixels: Vec<Rgb8Pixel>,` is the pixels row by row.
+    /// `Vec<T>` is an owned,
+    /// growable list (siblings:
+    /// `&[T]` is a borrowed
+    /// view of one,
+    /// `[T; N]` a fixed-size array);
+    /// `Rgb8Pixel` is a red,
+    /// green and blue pixel with one byte per channel.
+    /// Why:
+    /// the frame owns its pixels,
+    /// and the size is known only at run time,
+    /// so a `Vec` fits and a fixed array does not.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -305,17 +497,28 @@ pub(crate) struct Frame {
     pub pixels: Vec<Rgb8Pixel>,
 }
 
-/// What: `impl Frame { ... }` opens the block that holds the methods of `Frame`.
-/// Why: reading and comparing pixels belong to the picture.
+/// What:
+/// `impl Frame { ... }` opens the block that holds the methods of `Frame`.
+/// Why:
+/// reading and comparing pixels belong to the picture.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class Frame { /* the methods of the impl block */ }
 /// ```
 impl Frame {
-    /// What: `pub(crate) fn at(&self, x: usize, y: usize) -> [u8; 3]` gives the pixel at a column and row as `[red, green, blue]`.
-    /// `[u8; 3]` is an array of exactly three `u8` values; `u8` is an unsigned 8-bit integer, 0 to 255 (siblings: `u16`, `i8`).
-    /// Why: a colour channel is one byte, so `u8` is exact and `u32` would waste room; a fixed array is returned, not a `Vec`,
+    /// What:
+    /// `pub(crate) fn at(&self, x: usize, y: usize) -> [u8; 3]` gives the pixel at a column and row as `[red, green, blue]`.
+    /// `[u8; 3]` is an array of exactly three `u8` values;
+    /// `u8` is an unsigned 8-bit integer,
+    /// 0 to 255 (siblings:
+    /// `u16`,
+    /// `i8`).
+    /// Why:
+    /// a colour channel is one byte,
+    /// so `u8` is exact and `u32` would waste room;
+    /// a fixed array is returned,
+    /// not a `Vec`,
     /// because the length is always three and an array needs no heap.
     ///
     /// In TS you'd write (pseudocode):
@@ -343,12 +546,20 @@ impl Frame {
         return [pixel.r, pixel.g, pixel.b];
     }
 
-    /// What: `pub(crate) fn differing_box(&self, other: &Self) -> Option<(usize, usize, usize, usize)>` gives the smallest box
+    /// What:
+    /// `pub(crate) fn differing_box(&self, other: &Self) -> Option<(usize, usize, usize, usize)>` gives the smallest box
     /// `(left, top, right, bottom)` (right and bottom exclusive) around every pixel that differs between this frame and another of the
-    /// same size, or `None` when they are equal. `&Self` is a read-only borrow of a value of this same type (`Self` is an alias for
-    /// `Frame`). `Option<T>` is Rust's `T | null`: `Some(value)` or `None`. The `T` here is a tuple of four `usize` values, a fixed
+    /// same size,
+    /// or `None` when they are equal.
+    /// `&Self` is a read-only borrow of a value of this same type (`Self` is an alias for
+    /// `Frame`).
+    /// `Option<T>` is Rust's `T | null`:
+    /// `Some(value)` or `None`.
+    /// The `T` here is a tuple of four `usize` values,
+    /// a fixed
     /// group like TypeScript's `[number, number, number, number]`.
-    /// Why: the pixels a focus ring adds are exactly the pixels that differ between the frame with and without it.
+    /// Why:
+    /// the pixels a focus ring adds are exactly the pixels that differ between the frame with and without it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -420,42 +631,67 @@ impl Frame {
     }
 }
 
-/// What: `pub(crate) struct Rendered { app, window, width, height }` is the real window on the software renderer, with the library
+/// What:
+/// `pub(crate) struct Rendered { app, window, width, height }` is the real window on the software renderer,
+/// with the library
 /// loaded.
-/// Why: a test needs the window, the thing it draws into, and the size, together.
+/// Why:
+/// a test needs the window,
+/// the thing it draws into,
+/// and the size,
+/// together.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class Rendered { app: AppWindow; private window: MinimalSoftwareWindow; private width: number; private height: number; }
 /// ```
 pub(crate) struct Rendered {
-    /// What: `pub app: AppWindow,` is the window under test; `pub` lets tests read it directly.
-    /// Why: tests press keys and read properties through it.
+    /// What:
+    /// `pub app: AppWindow,` is the window under test;
+    /// `pub` lets tests read it directly.
+    /// Why:
+    /// tests press keys and read properties through it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// app: AppWindow;
     /// ```
     pub app: AppWindow,
-    /// What: `window: Rc<MinimalSoftwareWindow>,` is the software window the platform hands out, shared with the platform through an
-    /// `Rc` (a counted pointer; siblings: `Arc` for threads, `Box` for one owner). It is private (no `pub`).
-    /// Why: `frame` draws this window.
+    /// What:
+    /// `window: Rc<MinimalSoftwareWindow>,` is the software window the platform hands out,
+    /// shared with the platform through an
+    /// `Rc` (a counted pointer;
+    /// siblings:
+    /// `Arc` for threads,
+    /// `Box` for one owner).
+    /// It is private (no `pub`).
+    /// Why:
+    /// `frame` draws this window.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// private window: MinimalSoftwareWindow;
     /// ```
     window: Rc<MinimalSoftwareWindow>,
-    /// What: `width: usize,` is the width in pixels (`usize`, the unsigned integer that indexes memory; siblings: `u32`, `u64`).
-    /// Why: the frame buffer's size.
+    /// What:
+    /// `width: usize,` is the width in pixels (`usize`,
+    /// the unsigned integer that indexes memory;
+    /// siblings:
+    /// `u32`,
+    /// `u64`).
+    /// Why:
+    /// the frame buffer's size.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// private width: number;
     /// ```
     width: usize,
-    /// What: `height: usize,` is the height in pixels, the same type as the width.
-    /// Why: the frame buffer's size.
+    /// What:
+    /// `height: usize,` is the height in pixels,
+    /// the same type as the width.
+    /// Why:
+    /// the frame buffer's size.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -464,17 +700,26 @@ pub(crate) struct Rendered {
     height: usize,
 }
 
-/// What: `impl Rendered { ... }` opens the block that holds the methods of `Rendered`.
-/// Why: building, drawing and waiting belong to the rendered window.
+/// What:
+/// `impl Rendered { ... }` opens the block that holds the methods of `Rendered`.
+/// Why:
+/// building,
+/// drawing and waiting belong to the rendered window.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class Rendered { /* the methods of the impl block */ }
 /// ```
 impl Rendered {
-    /// What: `pub(crate) fn new(width: usize, height: usize) -> Self` builds the window at a size, in the light scheme, with the test
-    /// library loaded and the window active. `-> Self` means "returns a value of this same type", here `Rendered`.
-    /// Why: the same setup as the focus tests (`fresh_window_at`) but on a renderer that draws.
+    /// What:
+    /// `pub(crate) fn new(width: usize, height: usize) -> Self` builds the window at a size,
+    /// in the light scheme,
+    /// with the test
+    /// library loaded and the window active.
+    /// `-> Self` means "returns a value of this same type",
+    /// here `Rendered`.
+    /// Why:
+    /// the same setup as the focus tests (`fresh_window_at`) but on a renderer that draws.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -656,8 +901,11 @@ impl Rendered {
         return Self { app, window, width, height };
     }
 
-    /// What: `pub(crate) fn frame(&self) -> Frame` draws the window and gives the pixels.
-    /// Why: the first draws build what the properties asked for (a page that has just become visible), and the last draws it.
+    /// What:
+    /// `pub(crate) fn frame(&self) -> Frame` draws the window and gives the pixels.
+    /// Why:
+    /// the first draws build what the properties asked for (a page that has just become visible),
+    /// and the last draws it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -675,38 +923,75 @@ impl Rendered {
         return draw_frame(&self.window, self.width, self.height);
     }
 
-    /// What: `pub(crate) fn wait(&self, milliseconds: u64)` lets real time pass so a 100 ms or 120 ms fade has finished, then runs the
-    /// timers. `u64` is an unsigned 64-bit integer (siblings: `u32` is smaller, `i64` can be negative).
-    /// Why: the software platform uses the real clock, and a state layer or the menu fade is mid-way until it has run. `Duration::from_millis`
-    /// takes a `u64`, which is why the parameter is one.
+    /// What:
+    /// `pub(crate) fn wait(&self, milliseconds: u64)` moves the test clock forward by that many milliseconds,
+    /// in frames of `FRAME_STEP_MS`,
+    /// and runs the timers and animations after each frame.
+    /// `u64` is an unsigned 64-bit integer (siblings:
+    /// `u32` is smaller,
+    /// `i64` can be negative).
+    /// Why:
+    /// a state layer or the menu fade is mid-way until its time has passed.
+    /// The platform clock is the test clock,
+    /// so the time must be moved there;
+    /// sleeping would let the wall clock run while the animation clock stood still,
+    /// and the result of the next draw would depend on how fast the build runs.
+    /// A timer fires once per update however far the clock jumped,
+    /// so the clock moves in frames.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// wait(milliseconds: number): void { sleep(milliseconds); updateTimersAndAnimations(); }
+    /// wait(milliseconds: number): void { for (let left = milliseconds; left > 0; left -= FRAME_STEP_MS) { clock += min(left, FRAME_STEP_MS); updateTimersAndAnimations(); } }
     /// ```
     pub(crate) fn wait(&self, milliseconds: u64) {
-        // What:     `std::thread::sleep(std::time::Duration::from_millis(milliseconds));` blocks the thread for a span of time.
-        //           `Duration::from_millis(n)` builds a span of `n` milliseconds (siblings: `Instant` is a point in time, not a span).
-        // Why:      Animations run on the real clock, so the test must really wait.
-        // Gotcha:   Unlike `await sleep(...)` in TypeScript, this blocks the whole thread; nothing else runs meanwhile.
+        // What:     `let mut remaining = milliseconds;` counts the time still to pass; `mut` lets the loop lower it.
+        // Why:      The loop moves the clock one frame at a time.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // await sleep(milliseconds);
+        // let remaining = milliseconds;
         // ```
-        std::thread::sleep(std::time::Duration::from_millis(milliseconds));
-        // What:     `slint::platform::update_timers_and_animations();` runs the timers and animations that are now due.
-        // Why:      The elapsed time must be applied before the next draw.
+        let mut remaining = milliseconds;
+        // What:     `while remaining > 0 { ... }` repeats until no time is left to pass.
+        // Why:      Each round is one frame of the window.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // slint.updateTimersAndAnimations();
+        // while (remaining > 0) {
         // ```
-        slint::platform::update_timers_and_animations();
+        while remaining > 0 {
+            // What:     `let step = remaining.min(FRAME_STEP_MS);` takes a whole frame, or what is left when that is less.
+            // Why:      The last frame must not move the clock past the asked time.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const step = Math.min(remaining, FRAME_STEP_MS);
+            // ```
+            let step = remaining.min(FRAME_STEP_MS);
+            // What:     `CLOCK.set(CLOCK.get() + Duration::from_millis(step));` moves the test clock by the frame.
+            // Why:      Animations and timers read this clock, not the wall clock.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // clock += step;
+            // ```
+            CLOCK.set(CLOCK.get() + Duration::from_millis(step));
+            // What:     `slint::platform::update_timers_and_animations();` runs the timers and animations that are now due.
+            // Why:      The elapsed time must be applied before the next draw.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // slint.updateTimersAndAnimations();
+            // ```
+            slint::platform::update_timers_and_animations();
+            remaining -= step;
+        }
     }
 
-    /// What: `pub(crate) fn set_dark(&self, dark: bool)` switches between the light scheme (false) and the dark scheme (true).
-    /// Why: pixel tests run in both schemes.
+    /// What:
+    /// `pub(crate) fn set_dark(&self, dark: bool)` switches between the light scheme (false) and the dark scheme (true).
+    /// Why:
+    /// pixel tests run in both schemes.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -733,9 +1018,15 @@ impl Rendered {
         settle();
     }
 
-    /// What: `pub(crate) fn ring_frames(&self) -> (Frame, Frame)` draws the window with the keyboard ring on and again with it off,
-    /// and gives both. `(Frame, Frame)` is a tuple, a fixed pair like TypeScript's `[Frame, Frame]`.
-    /// Why: the focus stays where it is, so the two frames differ only by what the ring draws; any other difference is a
+    /// What:
+    /// `pub(crate) fn ring_frames(&self) -> (Frame, Frame)` draws the window with the keyboard ring on and again with it off,
+    /// and gives both.
+    /// `(Frame, Frame)` is a tuple,
+    /// a fixed pair like TypeScript's `[Frame, Frame]`.
+    /// Why:
+    /// the focus stays where it is,
+    /// so the two frames differ only by what the ring draws;
+    /// any other difference is a
     /// focus-driven change that D117 forbids.
     ///
     /// In TS you'd write (pseudocode):
@@ -828,9 +1119,16 @@ impl Rendered {
     }
 }
 
-/// What: `pub(crate) fn box_of(element: &ElementHandle) -> (f32, f32, f32, f32)` gives an element's window position and size as
-/// `(x, y, width, height)`. `f32` is a 32-bit floating point number (siblings: `f64` is twice the width, `i32` is an integer).
-/// Why: the element tree reports logical pixels as `f32`, so the pair of position and size is kept in the same type; an `f64` would
+/// What:
+/// `pub(crate) fn box_of(element: &ElementHandle) -> (f32, f32, f32, f32)` gives an element's window position and size as
+/// `(x, y, width, height)`.
+/// `f32` is a 32-bit floating point number (siblings:
+/// `f64` is twice the width,
+/// `i32` is an integer).
+/// Why:
+/// the element tree reports logical pixels as `f32`,
+/// so the pair of position and size is kept in the same type;
+/// an `f64` would
 /// only add casts.
 ///
 /// In TS you'd write (pseudocode):
@@ -864,10 +1162,15 @@ pub(crate) fn box_of(element: &ElementHandle) -> (f32, f32, f32, f32) {
     return (position.x, position.y, size.width, size.height);
 }
 
-/// What: `pub(crate) struct RoundedBox { x, y, width, height, radii }` is a box with a radius at each corner.
-/// `#[derive(Clone, Copy, Debug)]` asks the compiler to write three standard abilities: `Clone` and `Copy` (a value is duplicated by
-/// copying bits, so passing it never uses it up) and `Debug` (printing with `{:?}`).
-/// Why: the focus-ring tests compute distances to a rounded edge; a plain value that can be copied freely keeps the maths simple.
+/// What:
+/// `pub(crate) struct RoundedBox { x, y, width, height, radii }` is a box with a radius at each corner.
+/// `#[derive(Clone, Copy, Debug)]` asks the compiler to write three standard abilities:
+/// `Clone` and `Copy` (a value is duplicated by
+/// copying bits,
+/// so passing it never uses it up) and `Debug` (printing with `{:?}`).
+/// Why:
+/// the focus-ring tests compute distances to a rounded edge;
+/// a plain value that can be copied freely keeps the maths simple.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -875,41 +1178,62 @@ pub(crate) fn box_of(element: &ElementHandle) -> (f32, f32, f32, f32) {
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RoundedBox {
-    /// What: `pub x: f32,` is the left edge. `f32` is a 32-bit floating point number (siblings: `f64`, `i32`).
-    /// Why: layout positions are `f32` in Slint.
+    /// What:
+    /// `pub x: f32,` is the left edge.
+    /// `f32` is a 32-bit floating point number (siblings:
+    /// `f64`,
+    /// `i32`).
+    /// Why:
+    /// layout positions are `f32` in Slint.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// x: number;
     /// ```
     pub x: f32,
-    /// What: `pub y: f32,` is the top edge, the same type as `x`.
-    /// Why: layout positions are `f32` in Slint.
+    /// What:
+    /// `pub y: f32,` is the top edge,
+    /// the same type as `x`.
+    /// Why:
+    /// layout positions are `f32` in Slint.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// y: number;
     /// ```
     pub y: f32,
-    /// What: `pub width: f32,` is the width.
-    /// Why: layout sizes are `f32` in Slint.
+    /// What:
+    /// `pub width: f32,` is the width.
+    /// Why:
+    /// layout sizes are `f32` in Slint.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// width: number;
     /// ```
     pub width: f32,
-    /// What: `pub height: f32,` is the height.
-    /// Why: layout sizes are `f32` in Slint.
+    /// What:
+    /// `pub height: f32,` is the height.
+    /// Why:
+    /// layout sizes are `f32` in Slint.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// height: number;
     /// ```
     pub height: f32,
-    /// What: `pub radii: [f32; 4],` holds the radii of the top left, top right, bottom right and bottom left corners. `[f32; 4]` is an
-    /// array of exactly four `f32` values (siblings: `Vec<f32>` is growable, `&[f32]` is a borrowed view).
-    /// Why: there are always four corners, so a fixed array fits and needs no heap; it also keeps `RoundedBox` `Copy`.
+    /// What:
+    /// `pub radii: [f32; 4],` holds the radii of the top left,
+    /// top right,
+    /// bottom right and bottom left corners.
+    /// `[f32; 4]` is an
+    /// array of exactly four `f32` values (siblings:
+    /// `Vec<f32>` is growable,
+    /// `&[f32]` is a borrowed view).
+    /// Why:
+    /// there are always four corners,
+    /// so a fixed array fits and needs no heap;
+    /// it also keeps `RoundedBox` `Copy`.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -918,17 +1242,21 @@ pub(crate) struct RoundedBox {
     pub radii: [f32; 4],
 }
 
-/// What: `impl RoundedBox { ... }` opens the block that holds the methods of `RoundedBox`.
-/// Why: building and measuring a box belong to the type.
+/// What:
+/// `impl RoundedBox { ... }` opens the block that holds the methods of `RoundedBox`.
+/// Why:
+/// building and measuring a box belong to the type.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class RoundedBox { /* the methods of the impl block */ }
 /// ```
 impl RoundedBox {
-    /// What: `pub(crate) fn new(x: f32, y: f32, width: f32, height: f32, radius: f32) -> Self` makes a box with the same radius at every
+    /// What:
+    /// `pub(crate) fn new(x: f32, y: f32, width: f32, height: f32, radius: f32) -> Self` makes a box with the same radius at every
     /// corner.
-    /// Why: most boxes in the tests are uniformly rounded.
+    /// Why:
+    /// most boxes in the tests are uniformly rounded.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -947,11 +1275,17 @@ impl RoundedBox {
         return Self { x, y, width, height, radii: [radius; 4] };
     }
 
-    /// What: `pub(crate) fn grown(&self, amount: f32) -> Self` gives the box grown by an amount on every side, the way D117 grows the
-    /// element for each ring: every corner's radius grows by the amount, so a square corner becomes a corner of that radius when the box
+    /// What:
+    /// `pub(crate) fn grown(&self, amount: f32) -> Self` gives the box grown by an amount on every side,
+    /// the way D117 grows the
+    /// element for each ring:
+    /// every corner's radius grows by the amount,
+    /// so a square corner becomes a corner of that radius when the box
     /// grows and stays square when it shrinks.
-    /// Why: the near ring's outer edge is the element grown by 2 px and the outer ring's outer edge is the element grown by 3 px,
-    /// each with its corner radii grown the same, as Firefox's `PaintAutoStyleOutline` does.
+    /// Why:
+    /// the near ring's outer edge is the element grown by 2 px and the outer ring's outer edge is the element grown by 3 px,
+    /// each with its corner radii grown the same,
+    /// as Firefox's `PaintAutoStyleOutline` does.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -989,9 +1323,14 @@ impl RoundedBox {
         };
     }
 
-    /// What: `pub(crate) fn distance(&self, px: f32, py: f32) -> f32` gives the signed distance from a point to the box's edge: negative
-    /// inside, positive outside.
-    /// Why: a ring pixel is one between the outer and the inner edge, and the tests need a margin around both edges where the
+    /// What:
+    /// `pub(crate) fn distance(&self, px: f32, py: f32) -> f32` gives the signed distance from a point to the box's edge:
+    /// negative
+    /// inside,
+    /// positive outside.
+    /// Why:
+    /// a ring pixel is one between the outer and the inner edge,
+    /// and the tests need a margin around both edges where the
     /// anti-aliased pixels are not judged.
     ///
     /// In TS you'd write (pseudocode):
@@ -1080,10 +1419,14 @@ impl RoundedBox {
         return qx.max(0.0).hypot(qy.max(0.0)) + qx.max(qy).min(0.0) - radius;
     }
 
-    /// What: `pub(crate) fn near_a_curve(&self, px: f32, py: f32, margin: f32) -> bool` tells whether a point is within a margin of one of
+    /// What:
+    /// `pub(crate) fn near_a_curve(&self, px: f32, py: f32, margin: f32) -> bool` tells whether a point is within a margin of one of
     /// the box's rounded corners.
-    /// Why: the software renderer approximates the coverage of an arc, so a pixel on a curve is only roughly its band's color,
-    /// while a pixel on a straight edge is exact; a test judges the two differently.
+    /// Why:
+    /// the software renderer approximates the coverage of an arc,
+    /// so a pixel on a curve is only roughly its band's color,
+    /// while a pixel on a straight edge is exact;
+    /// a test judges the two differently.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

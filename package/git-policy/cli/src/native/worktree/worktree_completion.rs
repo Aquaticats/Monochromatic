@@ -24,7 +24,8 @@ pub use crate::worktree_completion_file_inspection::{InstallResult, WorktreeFile
 use crate::blob_batch::load_blob_batch;
 /// Diagnostics.
 use crate::diagnostic_log::{debug, warn};
-/// Exact path bytes as file names, and as text for messages.
+/// Exact path bytes as file names,
+/// and as text for messages.
 use crate::path_bytes::{os_from_path_bytes, path_message_text};
 /// Unique temporary names.
 use crate::random_id::random_uuid;

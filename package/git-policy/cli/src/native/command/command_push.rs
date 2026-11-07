@@ -79,7 +79,8 @@ pub const PORCELAIN: u16 = 4096;
 ///  record the pushed branch as the local branch's upstream.
 pub const SET_UPSTREAM: u16 = 8192;
 /// `--no-verify`:
-///  bypass the `pre-push` hooks, the Git LFS upload included.
+///  bypass the `pre-push` hooks,
+/// the Git LFS upload included.
 pub const NO_VERIFY: u16 = 16384;
 /// `--recurse-submodules`:
 ///  also push the submodules' commits.
@@ -172,7 +173,8 @@ pub struct PushRegion {
     pub atomic_stated: bool,
     /// The push sends no updates.
     pub dry_run: bool,
-    /// The `pre-push` hooks are bypassed (`--no-verify`, in any accepted abbreviation).
+    /// The `pre-push` hooks are bypassed (`--no-verify`,
+    /// in any accepted abbreviation).
     pub no_verify: bool,
     /// Wrapper-only flags in option position;
     ///  `flag` indexes the caller's list.
@@ -206,11 +208,16 @@ pub fn parse_push_region(
 }
 
 /// What:
-///  Where a push goes and what it names, read from its option region.
+///  Where a push goes and what it names,
+/// read from its option region.
 /// Why:
-///   The Git LFS upload that runs before a push needs the destination remote and the refs the push will send; an
-///  explicit repository and explicit refspecs name them, and the options that send more than the named refs
-///  (`--all`, `--tags`, `--mirror`) say which kinds of ref are sent.
+///   The Git LFS upload that runs before a push needs the destination remote and the refs the push will send;
+/// an
+///  explicit repository and explicit refspecs name them,
+/// and the options that send more than the named refs
+///  (`--all`,
+/// `--tags`,
+/// `--mirror`) say which kinds of ref are sent.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -218,28 +225,41 @@ pub fn parse_push_region(
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PushShape {
-    /// The repository the caller named (the first positional, or the value of `--repo`), if any.
+    /// The repository the caller named (the first positional,
+    /// or the value of `--repo`),
+    /// if any.
     pub repository: Option<OsString>,
-    /// The refspecs the caller named, in order, with `tag <name>` already joined into `refs/tags/<name>`.
+    /// The refspecs the caller named,
+    /// in order,
+    /// with `tag <name>` already joined into `refs/tags/<name>`.
     pub refspecs: Vec<OsString>,
-    /// `--all` or `--branches`: every local branch.
+    /// `--all` or `--branches`:
+    /// every local branch.
     pub branches: bool,
-    /// `--tags`: every local tag.
+    /// `--tags`:
+    /// every local tag.
     pub tags: bool,
-    /// `--mirror`: every ref, and the remote is made to match.
+    /// `--mirror`:
+    /// every ref,
+    /// and the remote is made to match.
     pub mirror: bool,
-    /// The push only deletes remote refs, so it sends no objects.
+    /// The push only deletes remote refs,
+    /// so it sends no objects.
     pub deletes: bool,
-    /// The value of `--recurse-submodules`, when one was written.
+    /// The value of `--recurse-submodules`,
+    /// when one was written.
     pub recurse_submodules: Option<OsString>,
 }
 
 /// What:
-///  The text written after the last occurrence of one option of a push, or `None` when the option is absent or
+///  The text written after the last occurrence of one option of a push,
+/// or `None` when the option is absent or
 ///  was written without a value.
-///  `Option<OsString>` is "the text, or no answer".
+///  `Option<OsString>` is "the text,
+/// or no answer".
 /// Why:
-///   `push_shape` reads several valued options (`--repo`, `--recurse-submodules`) the same way,
+///   `push_shape` reads several valued options (`--repo`,
+/// `--recurse-submodules`) the same way,
 ///  and a named function takes the place of a closure that would only borrow `parsed` and `region`.
 ///
 /// In TS you'd write (pseudocode):
@@ -256,7 +276,8 @@ fn option_value(parsed: &ParsedOptions, region: &[OsString], id: u16) -> Option<
 ///  Read the destination and the named refs of a push.
 ///  `None` when the region is one Git itself would refuse.
 /// Why:
-///   One reading of the arguments serves the upload plan, so the remote and the refs it names are the ones Git reads.
+///   One reading of the arguments serves the upload plan,
+/// so the remote and the refs it names are the ones Git reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -296,8 +317,11 @@ pub fn push_shape(region: &[OsString]) -> Option<PushShape> {
 }
 
 /// Options after which a rejected push is never integrated:
-///  each either rewrites or removes remote history, sends more than one kind of ref, changes what the caller
-///  reads back, or names its destination in a way the stacked push does not reproduce.
+///  each either rewrites or removes remote history,
+/// sends more than one kind of ref,
+/// changes what the caller
+///  reads back,
+/// or names its destination in a way the stacked push does not reproduce.
 const NOT_STACKABLE: &[u16] = &[
     DRY_RUN,
     FORCE,
@@ -315,13 +339,18 @@ const NOT_STACKABLE: &[u16] = &[
 ];
 
 /// What:
-///  The option tokens of a push that may be integrated after a rejection, or nothing when it may not.
-///  `Option<Vec<OsString>>` is "the tokens, or no answer".
+///  The option tokens of a push that may be integrated after a rejection,
+/// or nothing when it may not.
+///  `Option<Vec<OsString>>` is "the tokens,
+/// or no answer".
 /// Why:
 ///   Only a plain update of branches keeps its meaning when the wrapper merges what landed on the remote and pushes the
-///  merge; the stacked push repeats these tokens and replaces the remote and refspec arguments,
-///  so the caller's `--no-verify`, `--push-option` and the like still apply.
-///   A region the table refuses, a forced refspec (`+src:dst`) and every option in `NOT_STACKABLE` give nothing.
+///  merge;
+/// the stacked push repeats these tokens and replaces the remote and refspec arguments,
+///  so the caller's `--no-verify`,
+/// `--push-option` and the like still apply.
+///   A region the table refuses,
+/// a forced refspec (`+src:dst`) and every option in `NOT_STACKABLE` give nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

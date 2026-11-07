@@ -3,7 +3,8 @@
 //!  one block that selects the policy's rules for Markdown and MDX files,
 //!  as JSONC text for the linter library's in-process entry.
 //! Why:
-//!  The plan's contract (`doc/planning/unified-linter.md`, section "Distribution and consumers")
+//!  The plan's contract (`doc/planning/unified-linter.md`,
+//! section "Distribution and consumers")
 //!  is a one-rule configuration of the policy's own,
 //!  so a configuration the repository keeps for its own linting never changes what the commit-time policy does.
 //!  Each rule runs at `warn`,

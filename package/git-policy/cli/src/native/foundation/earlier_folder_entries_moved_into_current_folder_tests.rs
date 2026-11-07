@@ -1,4 +1,5 @@
-//! Controls for the move of an earlier folder's entries into the current folder, each in its own disposable folder.
+//! Controls for the move of an earlier folder's entries into the current folder,
+//! each in its own disposable folder.
 
 use super::*;
 use crate::earlier_log_lines_added_to_current_log::NeverStopped;
@@ -10,7 +11,8 @@ fn fixture(name: &str) -> PathBuf {
     return crate::test_support::fixture_with_prefix("native-folder-fold", name);
 }
 
-/// A stop that ends the fold when it has been told of `limit` steps, as a kill at that instant would.
+/// A stop that ends the fold when it has been told of `limit` steps,
+/// as a kill at that instant would.
 struct StopAfter {
     /// How many steps may pass.
     limit: usize,
@@ -25,14 +27,17 @@ impl FoldSteps for StopAfter {
     }
 }
 
-/// Write a file, making its folders.
+/// Write a file,
+/// making its folders.
 fn put(root: &Path, relative: &str, bytes: &str) {
     let path: PathBuf = root.join(relative);
     std::fs::create_dir_all(path.parent().expect("parent")).expect("folders");
     std::fs::write(path, bytes).expect("file");
 }
 
-/// Plant the shape measured in this repository: both folders hold `work/done` with different records, a file of the same name,
+/// Plant the shape measured in this repository:
+/// both folders hold `work/done` with different records,
+/// a file of the same name,
 ///  and a folder that only the earlier one holds.
 fn plant(root: &Path) {
     put(root, "cli-git/work/done/earlier-record", "earlier record");
@@ -43,8 +48,11 @@ fn plant(root: &Path) {
     put(root, "monochromatic-git-policy-cli/standards-review-shadow.md", "current shadow");
 }
 
-/// The entries of both folders end up below the current folder: a record only one holds moves in, a folder both hold is merged,
-///  a file both hold is kept twice, and the earlier folder is gone.
+/// The entries of both folders end up below the current folder:
+/// a record only one holds moves in,
+/// a folder both hold is merged,
+///  a file both hold is kept twice,
+/// and the earlier folder is gone.
 #[test]
 fn every_entry_of_both_folders_is_below_the_current_folder_and_the_earlier_folder_is_gone() {
     let root: PathBuf = fixture("merge");
@@ -63,7 +71,9 @@ fn every_entry_of_both_folders_is_below_the_current_folder_and_the_earlier_folde
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// Both names hold the same folder entry name as a file: both are kept, the current one under its own name.
+/// Both names hold the same folder entry name as a file:
+/// both are kept,
+/// the current one under its own name.
 #[test]
 fn an_entry_name_that_both_folders_hold_is_kept_twice() {
     let root: PathBuf = fixture("same-entry");
@@ -76,7 +86,10 @@ fn an_entry_name_that_both_folders_hold_is_kept_twice() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// The name with the suffix is taken too: the entry stays in the earlier folder, the fold says so, and nothing is replaced.
+/// The name with the suffix is taken too:
+/// the entry stays in the earlier folder,
+/// the fold says so,
+/// and nothing is replaced.
 #[test]
 fn an_entry_whose_second_name_is_taken_stays_and_is_reported() {
     let root: PathBuf = fixture("second-name-taken");
@@ -92,7 +105,10 @@ fn an_entry_whose_second_name_is_taken_stays_and_is_reported() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// A kill at every step, then one more fold: every file of both folders exists once, and no earlier folder is left.
+/// A kill at every step,
+/// then one more fold:
+/// every file of both folders exists once,
+/// and no earlier folder is left.
 #[test]
 fn a_kill_at_any_step_then_a_second_fold_leaves_every_file_once() {
     let mut limit: usize = 0;
@@ -138,7 +154,8 @@ fn a_link_moves_as_a_link() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// A Git directory that cannot be written: the fold fails and every entry stays in the earlier folder.
+/// A Git directory that cannot be written:
+/// the fold fails and every entry stays in the earlier folder.
 #[cfg(unix)]
 #[test]
 fn a_read_only_folder_fails_the_fold_and_keeps_every_entry() {
@@ -161,7 +178,8 @@ fn a_read_only_folder_fails_the_fold_and_keeps_every_entry() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// An earlier folder with nothing in it is removed, and a name that does not exist is nothing.
+/// An earlier folder with nothing in it is removed,
+/// and a name that does not exist is nothing.
 #[test]
 fn an_empty_earlier_folder_is_removed_and_a_missing_one_is_nothing() {
     let root: PathBuf = fixture("empty");

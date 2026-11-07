@@ -1,13 +1,17 @@
-//! What: The closure and plan, with every `planDependentBumps` case of
+//! What:
+//! The closure and plan,
+//! with every `planDependentBumps` case of
 //!       `dependent-version-bump.unit.test.ts`.
-//! Why: The walk decides which packages are released again.
+//! Why:
+//! The walk decides which packages are released again.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // expect(planDependentBumps({ manifests, bumpedNames: ['base'], publishableNames })).toEqual([...]);
 //! ```
 
-/// The walk, the plan and their types.
+/// The walk,
+/// the plan and their types.
 use super::{
     PlannedBump, WorkspaceNode, plan_dependent_bumps, transitive_dependent_names, utf16_order,
 };
@@ -15,7 +19,8 @@ use crate::dependent_version_release::{ReleaseBump, UnsupportedVersion};
 use std::cmp::Ordering;
 use std::collections::HashSet;
 
-/// A node whose directory is derived from its name, as in the incumbent's fixture.
+/// A node whose directory is derived from its name,
+/// as in the incumbent's fixture.
 fn node(name: &str, version: Option<&str>, edges: &[&str]) -> WorkspaceNode {
     return WorkspaceNode {
         name: String::from(name),
@@ -54,7 +59,8 @@ fn plan(
     return plan_dependent_bumps(nodes, &owned(bumped), &owned(publishable));
 }
 
-/// Ported: direct and transitive publishable dependents are bumped in name order.
+/// Ported:
+/// direct and transitive publishable dependents are bumped in name order.
 #[test]
 fn bumps_direct_and_transitive_dependents_in_name_order() {
     let nodes: Vec<WorkspaceNode> = vec![
@@ -73,7 +79,8 @@ fn bumps_direct_and_transitive_dependents_in_name_order() {
     );
 }
 
-/// Ported: the walk passes through unpublishable packages but bumps only publishable ones.
+/// Ported:
+/// the walk passes through unpublishable packages but bumps only publishable ones.
 #[test]
 fn walks_through_unpublishable_packages() {
     let nodes: Vec<WorkspaceNode> = vec![
@@ -87,7 +94,8 @@ fn walks_through_unpublishable_packages() {
     );
 }
 
-/// Ported: already raised and versionless dependents are skipped.
+/// Ported:
+/// already raised and versionless dependents are skipped.
 #[test]
 fn skips_raised_and_versionless_dependents() {
     let nodes: Vec<WorkspaceNode> = vec![
@@ -105,7 +113,8 @@ fn skips_raised_and_versionless_dependents() {
     );
 }
 
-/// Ported: external and self edges are ignored and cycles end.
+/// Ported:
+/// external and self edges are ignored and cycles end.
 #[test]
 fn ignores_external_and_self_edges_and_ends_on_cycles() {
     let nodes: Vec<WorkspaceNode> = vec![
@@ -122,7 +131,8 @@ fn ignores_external_and_self_edges_and_ends_on_cycles() {
     );
 }
 
-/// A raised name outside the workspace reaches nothing, even through an edge naming it.
+/// A raised name outside the workspace reaches nothing,
+/// even through an edge naming it.
 #[test]
 fn ignores_edges_to_names_outside_the_workspace() {
     let nodes: Vec<WorkspaceNode> = vec![node("a", Some("1.0.0"), &["external"])];
@@ -135,7 +145,8 @@ fn ignores_edges_to_names_outside_the_workspace() {
     assert!(transitive_dependent_names(&looped, &owned(&["a"])).is_empty());
 }
 
-/// Ported: nothing is planned when nothing was raised.
+/// Ported:
+/// nothing is planned when nothing was raised.
 #[test]
 fn plans_nothing_without_a_raised_package() {
     assert_eq!(
@@ -144,7 +155,9 @@ fn plans_nothing_without_a_raised_package() {
     );
 }
 
-/// Ported: a dependent on a prerelease stops the plan; the first such node is reported.
+/// Ported:
+/// a dependent on a prerelease stops the plan;
+/// the first such node is reported.
 #[test]
 fn reports_the_first_unsupported_dependent_in_node_order() {
     let nodes: Vec<WorkspaceNode> = vec![
@@ -161,7 +174,8 @@ fn reports_the_first_unsupported_dependent_in_node_order() {
     );
 }
 
-/// Names sort by UTF-16 code units, as JavaScript's `<` does.
+/// Names sort by UTF-16 code units,
+/// as JavaScript's `<` does.
 #[test]
 fn sorts_by_utf16_code_units() {
     assert_eq!(utf16_order("\u{10000}", "\u{ffff}"), Ordering::Less);

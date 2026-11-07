@@ -1,5 +1,6 @@
 //! Differential controls for the reference and configuration command lines:
-//!  standard output, standard error and the exit code equal real Git's wherever the readers answer,
+//!  standard output,
+//! standard error and the exit code equal real Git's wherever the readers answer,
 //!  and the states Git words by more than the files say are declined.
 
 use crate::repo_read_config_scan::ScopeEnvironment;
@@ -9,7 +10,10 @@ use crate::test_support::{REAL_GIT, fixture, git, git_output, remove};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-/// A repository with a remote, a tracking branch, light and annotated tags, a symbolic remote head and a deep branch.
+/// A repository with a remote,
+/// a tracking branch,
+/// light and annotated tags,
+/// a symbolic remote head and a deep branch.
 fn referenced_repository(root: &Path, name: &str, format: &str) -> PathBuf {
     let repo = root.join(name);
     std::fs::create_dir(&repo).expect("dir");
@@ -30,7 +34,9 @@ fn pairs(items: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
     return items.iter().map(|(name, value)| { return (OsString::from(*name), OsString::from(*value)); }).collect();
 }
 
-/// Configuration listings equal Git's with includes, subsections, bare names and injected command entries.
+/// Configuration listings equal Git's with includes,
+/// subsections,
+/// bare names and injected command entries.
 #[test]
 fn configuration_listings_equal_git() {
     let root = fixture("repo-read-refs-config");
@@ -63,9 +69,14 @@ fn configuration_listings_equal_git() {
     remove(root.as_path());
 }
 
-/// With the per-worktree file on, the listing carries its entries under the scope `worktree`, after the local ones,
-///  equal to Git's for the main and the linked worktree; with the extension off the file is not listed, and what the
-///  reader cannot follow (a conditional include, a value that is not a boolean) is left to Git.
+/// With the per-worktree file on,
+/// the listing carries its entries under the scope `worktree`,
+/// after the local ones,
+///  equal to Git's for the main and the linked worktree;
+/// with the extension off the file is not listed,
+/// and what the
+///  reader cannot follow (a conditional include,
+/// a value that is not a boolean) is left to Git.
 #[test]
 fn worktree_configuration_listings_equal_git() {
     let root = fixture("repo-read-refs-worktree-config");
@@ -98,7 +109,9 @@ fn worktree_configuration_listings_equal_git() {
 }
 
 /// Git clears the repository format when `core.repositoryformatversion` is absent (`read_repository_format` in
-///  `setup.c`), so `extensions.worktreeConfig` lists no `worktree` entries there; the reader must list what Git lists.
+///  `setup.c`),
+/// so `extensions.worktreeConfig` lists no `worktree` entries there;
+/// the reader must list what Git lists.
 #[test]
 fn an_absent_format_version_lists_no_worktree_entries() {
     let root = fixture("repo-read-refs-wt-no-version");
@@ -115,7 +128,8 @@ fn an_absent_format_version_lists_no_worktree_entries() {
     remove(root.as_path());
 }
 
-/// The listing of a repository with only its own file equals Git's, and so does a remote URL.
+/// The listing of a repository with only its own file equals Git's,
+/// and so does a remote URL.
 #[test]
 fn local_listings_and_remote_urls_equal_git() {
     let root = fixture("repo-read-refs-remote");
@@ -137,7 +151,8 @@ fn local_listings_and_remote_urls_equal_git() {
     remove(root.as_path());
 }
 
-/// Ref verification, the ref listing and the upstream name equal Git's in loose and packed states.
+/// Ref verification,
+/// the ref listing and the upstream name equal Git's in loose and packed states.
 #[test]
 fn references_equal_git() {
     let root = fixture("repo-read-refs-all");
@@ -173,7 +188,8 @@ fn references_equal_git() {
     remove(root.as_path());
 }
 
-/// `symbolic-ref --quiet HEAD` equals Git's for a branch, an unborn branch and a detached `HEAD`.
+/// `symbolic-ref --quiet HEAD` equals Git's for a branch,
+/// an unborn branch and a detached `HEAD`.
 #[test]
 fn the_symbolic_head_equals_git() {
     let root = fixture("repo-read-refs-symbolic");
@@ -187,8 +203,11 @@ fn the_symbolic_head_equals_git() {
     remove(root.as_path());
 }
 
-/// Symbolic chains, repeated upstream settings, dangling tracking refs and a bare-name file that shadows the short name
-///  are the cases where Git's answer differs from a plain read, so the reader leaves them to Git.
+/// Symbolic chains,
+/// repeated upstream settings,
+/// dangling tracking refs and a bare-name file that shadows the short name
+///  are the cases where Git's answer differs from a plain read,
+/// so the reader leaves them to Git.
 #[test]
 fn chains_repeats_and_shadows_are_declined() {
     let root = fixture("repo-read-refs-chains");
@@ -240,7 +259,9 @@ fn injected_content_keys_are_declined() {
     remove(root.as_path());
 }
 
-/// A listing with a ref whose object is missing, and a ref file with an odd spelling, are left to Git.
+/// A listing with a ref whose object is missing,
+/// and a ref file with an odd spelling,
+/// are left to Git.
 #[test]
 fn broken_refs_are_declined() {
     let root = fixture("repo-read-refs-broken");

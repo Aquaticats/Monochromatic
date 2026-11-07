@@ -1,23 +1,36 @@
 //! Tests for the key hint badge state and texts (D106).
 //!
-//! What: the state tests drive `KeyHints` with injected time; the text tests read `badge_text` for held sets.
-//! Why: D106 fixes the 300 ms hold, the narrowing as more modifiers are held, and the disappearance on release.
+//! What:
+//! the state tests drive `KeyHints` with injected time;
+//! the text tests read `badge_text` for held sets.
+//! Why:
+//! D106 fixes the 300 ms hold,
+//! the narrowing as more modifiers are held,
+//! and the disappearance on release.
 
 use super::*;
 
-/// What: `ctrl` is the held set with Control only.
+/// What:
+/// `ctrl` is the held set with Control only.
 const CTRL: HeldModifiers = HeldModifiers { ctrl: true, meta: false, alt: false, shift: false };
-/// What: `ctrl_shift` is the held set with Control and Shift.
+/// What:
+/// `ctrl_shift` is the held set with Control and Shift.
 const CTRL_SHIFT: HeldModifiers = HeldModifiers { ctrl: true, meta: false, alt: false, shift: true };
-/// What: `alt` is the held set with Alt only.
+/// What:
+/// `alt` is the held set with Alt only.
 const ALT: HeldModifiers = HeldModifiers { ctrl: false, meta: false, alt: true, shift: false };
-/// What: `alt_shift` is the held set with Alt and Shift.
+/// What:
+/// `alt_shift` is the held set with Alt and Shift.
 const ALT_SHIFT: HeldModifiers = HeldModifiers { ctrl: false, meta: false, alt: true, shift: true };
-/// What: `ctrl_alt` is the held set with Control and Alt.
+/// What:
+/// `ctrl_alt` is the held set with Control and Alt.
 const CTRL_ALT: HeldModifiers = HeldModifiers { ctrl: true, meta: false, alt: true, shift: false };
-/// What: `none` is the empty held set.
+/// What:
+/// `none` is the empty held set.
 const NONE: HeldModifiers = HeldModifiers { ctrl: false, meta: false, alt: false, shift: false };
-/// What: `command` is the held set with Command only, as the Mac map reads it.
+/// What:
+/// `command` is the held set with Command only,
+/// as the Mac map reads it.
 const COMMAND: HeldModifiers = HeldModifiers { ctrl: false, meta: true, alt: false, shift: false };
 
 #[test]

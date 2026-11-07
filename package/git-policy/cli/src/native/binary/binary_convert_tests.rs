@@ -1,11 +1,19 @@
 //! What:
-//!  `git monochromatic-git-policy-cli convert-worktree-to-subvolume` through the built executable, in the environment a person's shell gives it:
-//!  no forward-target variable, which the wrapper puts only into the environment of the Git processes it starts.
+//!  `git monochromatic-git-policy-cli convert-worktree-to-subvolume` through the built executable,
+//! in the environment a person's shell gives it:
+//!  no forward-target variable,
+//! which the wrapper puts only into the environment of the Git processes it starts.
 //! Why:
-//!  The conversion reads the Git configuration and the system attributes file in process, and where those files are is a
-//!  fact only the real Git the wrapper forwards to can give (`git var GIT_CONFIG_SYSTEM`, `git var GIT_ATTR_SYSTEM`). A
-//!  worktree whose index entries the stat data cannot vouch for is judged by content, and that judgment must know the real
-//!  Git without being handed the variable by its own caller: the command is started by a person, not by the wrapper.
+//!  The conversion reads the Git configuration and the system attributes file in process,
+//! and where those files are is a
+//!  fact only the real Git the wrapper forwards to can give (`git var GIT_CONFIG_SYSTEM`,
+//! `git var GIT_ATTR_SYSTEM`).
+//! A
+//!  worktree whose index entries the stat data cannot vouch for is judged by content,
+//! and that judgment must know the real
+//!  Git without being handed the variable by its own caller:
+//! the command is started by a person,
+//! not by the wrapper.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,7 +34,8 @@ const SYSTEM_ATTRIBUTES_UNKNOWN: &str = "the location of the system attributes f
 /// The words with which a worktree that really differs from its commit is refused.
 const DIFFERS: &str = "differs from the committed content";
 
-/// How far back a tracked file's modification time is set, so its index entry no longer matches it.
+/// How far back a tracked file's modification time is set,
+/// so its index entry no longer matches it.
 const STALE_BY: std::time::Duration = std::time::Duration::from_secs(900);
 
 /// Standard error as text.
@@ -34,8 +43,12 @@ fn stderr_text(observed: &Observed) -> String {
     return String::from_utf8_lossy(&observed.stderr).into_owned();
 }
 
-/// A repository with one tracked file and two linked worktrees inside it, `clean` and `edited`, whose index entries the
-///  stat data cannot vouch for: the tracked file's modification time is moved, and in `edited` its bytes are changed too.
+/// A repository with one tracked file and two linked worktrees inside it,
+/// `clean` and `edited`,
+/// whose index entries the
+///  stat data cannot vouch for:
+/// the tracked file's modification time is moved,
+/// and in `edited` its bytes are changed too.
 fn repository_with_unvouched_worktrees(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::write(repo.join("tracked.txt"), b"committed\n").expect("tracked file");
@@ -54,7 +67,10 @@ fn repository_with_unvouched_worktrees(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
-/// The dry run of the conversion for a worktree, started as a person starts it: the fixture's environment, and `unset`
+/// The dry run of the conversion for a worktree,
+/// started as a person starts it:
+/// the fixture's environment,
+/// and `unset`
 ///  variables removed from it.
 fn dry_run(fixture: &Fixture, repo: &Path, worktree: &str, unset: &[&str]) -> Observed {
     let mut command = wrapped(fixture);
@@ -65,10 +81,16 @@ fn dry_run(fixture: &Fixture, repo: &Path, worktree: &str, unset: &[&str]) -> Ob
     return observe(&mut command, b"");
 }
 
-/// Red until the conversion knows the real Git it forwards to: with the system configuration file and the system
-///  attributes file both left to the real Git (the person's own environment, no `GIT_CONFIG_NOSYSTEM`), a worktree whose
-///  stat data does not vouch for it is judged by content. The unchanged one is not refused for a reason about reading
-///  Git's files, and the changed one is refused because it differs, which proves the content was compared.
+/// Red until the conversion knows the real Git it forwards to:
+/// with the system configuration file and the system
+///  attributes file both left to the real Git (the person's own environment,
+/// no `GIT_CONFIG_NOSYSTEM`),
+/// a worktree whose
+///  stat data does not vouch for it is judged by content.
+/// The unchanged one is not refused for a reason about reading
+///  Git's files,
+/// and the changed one is refused because it differs,
+/// which proves the content was compared.
 #[test]
 fn a_worktree_the_stat_data_cannot_vouch_for_is_judged_by_content_not_refused_for_not_knowing_git() {
     let fixture: Fixture = fixture("convert-knows-real-git");
@@ -84,8 +106,11 @@ fn a_worktree_the_stat_data_cannot_vouch_for_is_judged_by_content_not_refused_fo
     remove(&fixture);
 }
 
-/// Red for the same defect through the other door: the fixture's own `GIT_CONFIG_NOSYSTEM` removes the system
-///  configuration file, so the configuration is readable, but the system attributes file (`GIT_ATTR_SYSTEM`) is still
+/// Red for the same defect through the other door:
+/// the fixture's own `GIT_CONFIG_NOSYSTEM` removes the system
+///  configuration file,
+/// so the configuration is readable,
+/// but the system attributes file (`GIT_ATTR_SYSTEM`) is still
 ///  the real Git's to locate.
 #[test]
 fn the_system_attributes_file_is_located_through_the_real_git_too() {

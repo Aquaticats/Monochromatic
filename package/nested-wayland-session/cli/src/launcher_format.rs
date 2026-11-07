@@ -10,17 +10,29 @@ use crate::launcher_history::LauncherUpdate;
 ///
 /// What:
 ///      `fn is_uri_safe(byte: u8) -> bool`.
-///  Letters, digits,
-///  and the marks `-`, `.`, `_`, `~`, `:`, `/`.
+///  Letters,
+/// digits,
+///  and the marks `-`,
+/// `.`,
+/// `_`,
+/// `~`,
+/// `:`,
+/// `/`.
 /// Why:
 ///       These cover ordinary `application://` URIs,
 ///  so the common case reads the same as the app sent it,
-///  while spaces, `;`, `=`, and line breaks always become escapes.
+///  while spaces,
+/// `;`,
+/// `=`,
+/// and line breaks always become escapes.
 fn is_uri_safe(byte: u8) -> bool {
     return byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b':' | b'/')
 }
 
-/// Percent-encodes an app URI so it contains no space, `;`, `=`, or line break.
+/// Percent-encodes an app URI so it contains no space,
+/// `;`,
+/// `=`,
+/// or line break.
 ///
 /// What:
 ///      `pub fn encode_uri(text: &str) -> String`.
@@ -53,8 +65,13 @@ pub fn encode_uri(text: &str) -> String {
 ///
 /// What:
 ///      `pub fn format_latest(update: &LauncherUpdate, now_ms: u64) -> String`.
-///  Fields appear in the order `uri`, `progress`, `visible`, `count`, `count-visible`,
-///  `urgent`, `age-ms`.
+///  Fields appear in the order `uri`,
+/// `progress`,
+/// `visible`,
+/// `count`,
+/// `count-visible`,
+///  `urgent`,
+/// `age-ms`.
 /// Why:
 ///       One line lets a test read every field of the newest update in a single round trip.
 pub fn format_latest(update: &LauncherUpdate, now_ms: u64) -> String {
@@ -86,7 +103,9 @@ pub fn format_record(update: &LauncherUpdate) -> String {
     )
 }
 
-/// Formats the `launcher-log` answer payload: a count, then the records.
+/// Formats the `launcher-log` answer payload:
+/// a count,
+/// then the records.
 ///
 /// What:
 ///      `pub fn format_log(records: &[&LauncherUpdate]) -> String`.

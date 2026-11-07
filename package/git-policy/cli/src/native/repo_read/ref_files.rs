@@ -3,9 +3,11 @@
 //!  and refuse to answer anything they cannot prove equal to Git's answer.
 //! Why:
 //!  `git symbolic-ref --quiet HEAD` only reads the worktree's `HEAD` file and,
-//!  for a branch, checks that the branch is not itself a symbolic ref.
+//!  for a branch,
+//! checks that the branch is not itself a symbolic ref.
 //!  A strict reader of the plain spellings saves a process on every commit,
-//!  and every other spelling (a different ref name shape, a link,
+//!  and every other spelling (a different ref name shape,
+//! a link,
 //!  a symbolic chain,
 //!  reftable storage) returns `None`,
 //!  which sends the caller to Git.
@@ -24,17 +26,31 @@ use std::path::Path;
 
 /// The longest `HEAD` file this reader looks at;
 ///  a real one is a short line.
-///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
-///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  Exempt from a citation under `LQM` (class:
+/// reader fallback):
+/// a file,
+/// chain or count past this bound makes the reader
+///  decline and real Git answer,
+/// so a Git start is added and no result changes.
+/// Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
 const HEAD_LIMIT: u64 = 512;
 
 /// The longest loose branch file this reader looks at;
 ///  a real one is an object name and a newline.
-///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
-///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  Exempt from a citation under `LQM` (class:
+/// reader fallback):
+/// a file,
+/// chain or count past this bound makes the reader
+///  decline and real Git answer,
+/// so a Git start is added and no result changes.
+/// Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
 const LOOSE_REF_LIMIT: u64 = 256;
 
@@ -89,7 +105,11 @@ fn is_zero_digit(byte: u8) -> bool {
     return byte == b'0';
 }
 
-/// Whether `byte` may appear in a component of a reference name this reader takes: a letter, a digit, `.`, `_` or `-`.
+/// Whether `byte` may appear in a component of a reference name this reader takes:
+/// a letter,
+/// a digit,
+/// `.`,
+/// `_` or `-`.
 fn is_reference_name_byte(byte: u8) -> bool {
     return byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-');
 }
@@ -115,12 +135,16 @@ fn is_object_name(text: &str, length: usize) -> bool {
 }
 
 /// What:
-///  Whether `name` is a branch ref name of a plain, always valid shape:
+///  Whether `name` is a branch ref name of a plain,
+/// always valid shape:
 ///  `refs/heads/` and then components of ASCII letters,
-///  digits, `.`, `_` and `-`.
+///  digits,
+/// `.`,
+/// `_` and `-`.
 /// Why:
 ///   Git refuses names with a component that starts with `.` or ends with `.lock`,
-///  a `..`, an empty component or a trailing `.`;
+///  a `..`,
+/// an empty component or a trailing `.`;
 ///  the plain alphabet needs no other rule,
 ///  and any other spelling is left to Git.
 ///
@@ -148,7 +172,9 @@ pub fn is_plain_branch_name(name: &str) -> bool {
 }
 
 /// What:
-///  Whether the loose file of a branch, if there is one, is a plain object name.
+///  Whether the loose file of a branch,
+/// if there is one,
+/// is a plain object name.
 /// Why:
 ///   `symbolic-ref` follows a branch that is itself a symbolic ref and fails on a broken one;
 ///  a missing loose file is an unborn or packed branch,

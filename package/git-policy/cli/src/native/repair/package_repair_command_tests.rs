@@ -1,5 +1,12 @@
-//! Finding a program on a search path and running it with a limit: found, missing, not executable, succeeded, failed with
-//!  its output, stopped at the limit, run in the named directory with the added variables.
+//! Finding a program on a search path and running it with a limit:
+//! found,
+//! missing,
+//! not executable,
+//! succeeded,
+//! failed with
+//!  its output,
+//! stopped at the limit,
+//! run in the named directory with the added variables.
 
 use super::*;
 use crate::test_support::executable;
@@ -22,10 +29,12 @@ const BRIEF: Duration = Duration::from_millis(300);
 /// The status the failing fixture exits with.
 const FAILING_STATUS: i32 = 7;
 
-/// How long the slow fixture would sleep if nothing stopped it; far past any limit used here.
+/// How long the slow fixture would sleep if nothing stopped it;
+/// far past any limit used here.
 const SLOW_SECONDS: u64 = 30;
 
-/// The first matching executable wins, in the order of the search path.
+/// The first matching executable wins,
+/// in the order of the search path.
 #[test]
 fn finds_the_first_executable_in_search_order() {
     let root: PathBuf = fixture("finds-first");
@@ -40,7 +49,8 @@ fn finds_the_first_executable_in_search_order() {
     remove(&root);
 }
 
-/// A name that is absent, a file that is not executable and an absent search path are all "not found".
+/// A name that is absent,
+/// a file that is not executable and an absent search path are all "not found".
 #[test]
 fn reports_missing_and_non_executable_programs_as_absent() {
     let root: PathBuf = fixture("finds-absent");
@@ -52,7 +62,8 @@ fn reports_missing_and_non_executable_programs_as_absent() {
     remove(&root);
 }
 
-/// The program runs in the named directory with the added variable, and a zero status is a success.
+/// The program runs in the named directory with the added variable,
+/// and a zero status is a success.
 #[test]
 fn runs_in_the_directory_with_the_variables_and_reports_success() {
     let root: PathBuf = fixture("runs-success");
@@ -85,7 +96,8 @@ fn reports_a_failure_with_its_status_and_output() {
     remove(&root);
 }
 
-/// A program that has shown no sign of work for its window is stopped, and the run says so.
+/// A program that has shown no sign of work for its window is stopped,
+/// and the run says so.
 #[test]
 fn stops_a_program_that_shows_no_sign_of_work_for_its_window() {
     let root: PathBuf = fixture("runs-limit");
@@ -98,7 +110,8 @@ fn stops_a_program_that_shows_no_sign_of_work_for_its_window() {
     remove(&root);
 }
 
-/// A program that cannot start is a failure that names the cause, never a panic.
+/// A program that cannot start is a failure that names the cause,
+/// never a panic.
 #[test]
 fn reports_a_program_that_cannot_start() {
     let root: PathBuf = fixture("runs-unstartable");
@@ -108,18 +121,23 @@ fn reports_a_program_that_cannot_start() {
     remove(&root);
 }
 
-/// Lines that only say the tool waited for another process are dropped from a failure's text; the reason stays.
+/// Lines that only say the tool waited for another process are dropped from a failure's text;
+/// the reason stays.
 #[test]
 fn a_failure_text_drops_wait_notices() {
     let text: String = tail_of(b"Blocking waiting for file lock on package cache\nerror: the real reason\n");
     assert_eq!(text, "error: the real reason");
 }
 
-/// The quiet window of the control below: longer than the sampling interval of the progress meter.
+/// The quiet window of the control below:
+/// longer than the sampling interval of the progress meter.
 const WORKING_WINDOW: Duration = Duration::from_millis(1200);
 
-/// A tool that keeps printing is never stopped however long it runs: the limit judges quiet time, not wall time.
-///  The fixture prints a line every pause for a multiple of the window, with no busy loop.
+/// A tool that keeps printing is never stopped however long it runs:
+/// the limit judges quiet time,
+/// not wall time.
+///  The fixture prints a line every pause for a multiple of the window,
+/// with no busy loop.
 #[test]
 fn a_program_that_keeps_working_is_never_stopped_however_long_it_runs() {
     let root: PathBuf = fixture("runs-working");
@@ -136,7 +154,9 @@ fn a_program_that_keeps_working_is_never_stopped_however_long_it_runs() {
     remove(&root);
 }
 
-/// The ceiling of the control below: well past the quiet window, well short of the fixture's length.
+/// The ceiling of the control below:
+/// well past the quiet window,
+/// well short of the fixture's length.
 const SHORT_CEILING: Duration = Duration::from_secs(2);
 
 /// Whether the process of this number exists and is not a zombie waiting to be reaped.
@@ -148,7 +168,9 @@ fn is_running(pid: i32) -> bool {
     return std::fs::read_to_string(format!("/proc/{pid}/stat")).map_or(true, |stat| { return !stat.rsplit(')').next().unwrap_or("").trim_start().starts_with('Z'); });
 }
 
-/// Waits a moment for a process to be gone: the stop reaches it with a signal, and its end is seen a moment later.
+/// Waits a moment for a process to be gone:
+/// the stop reaches it with a signal,
+/// and its end is seen a moment later.
 fn is_gone_soon(pid: i32) -> bool {
     let waiting_since: Instant = Instant::now();
     while is_running(pid) {
@@ -160,10 +182,20 @@ fn is_gone_soon(pid: i32) -> bool {
     return true;
 }
 
-/// Owner, 2026-11-04, "Silence plus a ceiling (Recommended)": a tool that keeps printing is ended at the ceiling, with its whole
-/// process group. The fixture starts two helpers, one that prints and one that has its output redirected away, and the control
-/// records each by the number the shell gives the background job (`$!`), which names the helper and not the shell that started it
-/// (sol-2: `$$` in a subshell is the parent's number), then checks that both are gone.
+/// Owner,
+/// 2026-11-04,
+/// "Silence plus a ceiling (Recommended)":
+/// a tool that keeps printing is ended at the ceiling,
+/// with its whole
+/// process group.
+/// The fixture starts two helpers,
+/// one that prints and one that has its output redirected away,
+/// and the control
+/// records each by the number the shell gives the background job (`$!`),
+/// which names the helper and not the shell that started it
+/// (sol-2:
+/// `$$` in a subshell is the parent's number),
+/// then checks that both are gone.
 #[test]
 fn a_program_that_keeps_working_is_ended_at_its_ceiling_with_its_whole_process_group() {
     let root: PathBuf = fixture("runs-ceiling");
@@ -191,8 +223,12 @@ fn a_program_that_keeps_working_is_ended_at_its_ceiling_with_its_whole_process_g
     remove(&root);
 }
 
-/// The leader exits and a helper it started keeps the tool's output open (sol-2, A): the run ends with the leader's status, and does
-/// not wait for the helper to close what it inherited. The control has a deadline of its own around the run.
+/// The leader exits and a helper it started keeps the tool's output open (sol-2,
+/// A):
+/// the run ends with the leader's status,
+/// and does
+/// not wait for the helper to close what it inherited.
+/// The control has a deadline of its own around the run.
 #[test]
 fn a_helper_that_keeps_the_output_open_after_the_leader_exits_does_not_hold_the_run() {
     let root: PathBuf = fixture("runs-helper-holds-output");
@@ -215,8 +251,11 @@ fn a_helper_that_keeps_the_output_open_after_the_leader_exits_does_not_hold_the_
     remove(&root);
 }
 
-/// The leader exits and a helper it started keeps writing to the tool's output (sol-1 and sol-2 round 2): the run ends with the
-/// leader's status and a finite snapshot, and the helper is left running. The control has a deadline of its own around the run.
+/// The leader exits and a helper it started keeps writing to the tool's output (sol-1 and sol-2 round 2):
+/// the run ends with the
+/// leader's status and a finite snapshot,
+/// and the helper is left running.
+/// The control has a deadline of its own around the run.
 #[test]
 fn a_helper_that_keeps_writing_after_the_leader_exits_does_not_hold_the_run() {
     let root: PathBuf = fixture("runs-helper-keeps-writing");
@@ -240,8 +279,11 @@ fn a_helper_that_keeps_writing_after_the_leader_exits_does_not_hold_the_run() {
     remove(&root);
 }
 
-/// The ceiling ends the run even when a helper left the tool's process group while it holds the output (sol-2, A): the stop of the
-/// group does not reach it, and the run must not wait for it either.
+/// The ceiling ends the run even when a helper left the tool's process group while it holds the output (sol-2,
+/// A):
+/// the stop of the
+/// group does not reach it,
+/// and the run must not wait for it either.
 #[test]
 fn a_helper_outside_the_process_group_that_holds_the_output_does_not_hold_the_ceiling() {
     let root: PathBuf = fixture("runs-helper-outside-group");
@@ -276,7 +318,10 @@ fn a_program_that_finishes_before_its_ceiling_succeeds() {
 }
 
 /// A leader that does not die when the group is stopped (a process in uninterruptible I/O ends only when the I/O does) is not waited
-/// for without a bound (sol-2 round 2): the reaping gives up after its budget, reports that it did, and hands the child to a thread
+/// for without a bound (sol-2 round 2):
+/// the reaping gives up after its budget,
+/// reports that it did,
+/// and hands the child to a thread
 /// that reaps it whenever it does end.
 #[test]
 fn a_leader_that_does_not_end_is_handed_to_a_reaper_after_the_budget() {
@@ -301,9 +346,14 @@ fn a_leader_that_ends_is_reaped_within_the_budget() {
     assert!(run_on_runtime(reap_within(child, Duration::from_secs(10))).expect("the runtime runs the reaping"));
 }
 
-/// A tool that writes more than the snapshot keeps, then fails: the person is told the start of its output is left out (sol-1 round 3,
-/// P2 E: the notes of the snapshot were dropped). A tool that succeeds with output that could not be taken whole says so in
-/// `notes`, which a parser of that output must look at.
+/// A tool that writes more than the snapshot keeps,
+/// then fails:
+/// the person is told the start of its output is left out (sol-1 round 3,
+/// P2 E:
+/// the notes of the snapshot were dropped).
+/// A tool that succeeds with output that could not be taken whole says so in
+/// `notes`,
+/// which a parser of that output must look at.
 #[test]
 fn output_past_the_snapshot_is_disclosed_to_the_person() {
     let root: PathBuf = fixture("runs-output-past-the-limit");
@@ -323,9 +373,14 @@ fn output_past_the_snapshot_is_disclosed_to_the_person() {
     remove(&root);
 }
 
-/// The stop path hands the killed leader to the reaper the run was given, after the captured pages were released (sol-1 round 3,
-/// P2 E and the test review: nothing showed that `run_tool` reaps within a budget when a killed leader does not end). The tool says
-/// when it has written, and the control checks that before it checks that the pages were released, so a tool that had not run yet
+/// The stop path hands the killed leader to the reaper the run was given,
+/// after the captured pages were released (sol-1 round 3,
+/// P2 E and the test review:
+/// nothing showed that `run_tool` reaps within a budget when a killed leader does not end).
+/// The tool says
+/// when it has written,
+/// and the control checks that before it checks that the pages were released,
+/// so a tool that had not run yet
 /// cannot make the emptiness hold by itself.
 #[test]
 fn a_stopped_tool_is_reaped_through_the_budgeted_reaper_after_its_output_is_released() {
@@ -351,8 +406,13 @@ fn a_stopped_tool_is_reaped_through_the_budgeted_reaper_after_its_output_is_rele
     remove(&root);
 }
 
-/// A failure to wait for the tool is a stop like any other: the process group is stopped, the pages are released and the leader goes
-/// to the reaper (sol-1 round 4: the wait error returned before any of that, and a descendant holding the files kept the pages). The
+/// A failure to wait for the tool is a stop like any other:
+/// the process group is stopped,
+/// the pages are released and the leader goes
+/// to the reaper (sol-1 round 4:
+/// the wait error returned before any of that,
+/// and a descendant holding the files kept the pages).
+/// The
 /// seam makes the wait fail once the tool says it has written.
 #[test]
 fn a_wait_that_fails_stops_the_tool_and_releases_its_output() {
@@ -378,7 +438,9 @@ fn a_wait_that_fails_stops_the_tool_and_releases_its_output() {
     remove(&root);
 }
 
-/// The wait for a tool is the runtime's: a task beside it runs while the tool does, and the run still reports its end.
+/// The wait for a tool is the runtime's:
+/// a task beside it runs while the tool does,
+/// and the run still reports its end.
 #[test]
 fn the_wait_for_a_running_tool_lets_other_tasks_run() {
     let root: PathBuf = fixture("runs-wait-beside-a-ticker");
@@ -396,7 +458,8 @@ fn the_wait_for_a_running_tool_lets_other_tasks_run() {
     remove(&root);
 }
 
-/// The reaping of a stopped leader is the runtime's too: a task beside it runs through the whole budget when the leader does not end.
+/// The reaping of a stopped leader is the runtime's too:
+/// a task beside it runs through the whole budget when the leader does not end.
 #[test]
 fn the_reaping_of_a_leader_that_does_not_end_lets_other_tasks_run() {
     let mut command: Command = Command::new("sleep");

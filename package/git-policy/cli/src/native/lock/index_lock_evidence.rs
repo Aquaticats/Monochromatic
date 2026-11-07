@@ -32,9 +32,17 @@ use std::path::{Path, PathBuf};
 
 /// Longest PID file text quoted in evidence,
 ///  in UTF-16 code units for ASCII text.
-///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
-///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
+///  Exempt from a citation under `LQM` (class:
+/// display cap):
+/// it limits how much text a message,
+/// log field or record
+///  names,
+/// and no command result or duration depends on it.
+/// Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 const QUOTED_TEXT_LIMIT: usize = 64;
 
 /// What:
@@ -430,8 +438,10 @@ fn holder_name(pid: i64, command: Option<&str>) -> String {
 ///  The one standard-error line naming a proven-alive holder.
 /// Why:
 ///   `provenHolderLine`:
-///  the person learns what the wait is for and that it lasts as long as the holder holds the lock; a holder proven alive
-///  will let go, so no time is named at which the wait ends.
+///  the person learns what the wait is for and that it lasts as long as the holder holds the lock;
+/// a holder proven alive
+///  will let go,
+/// so no time is named at which the wait ends.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -450,7 +460,9 @@ pub fn proven_holder_line(pid: i64, by_descriptor: bool, command: Option<&str>, 
 /// What:
 ///  The line that repeats while a proven-alive holder keeps the lock.
 /// Why:
-///   Each repeat names the holder, the proof and how long the wait has lasted, so a reader of the last line alone knows what
+///   Each repeat names the holder,
+/// the proof and how long the wait has lasted,
+/// so a reader of the last line alone knows what
 ///  is going on.
 ///
 /// In TS you'd write (pseudocode):
@@ -467,7 +479,8 @@ pub fn proven_holder_progress_line(pid: i64, by_descriptor: bool, command: Optio
     );
 }
 
-/// What the evidence says about the lock's owner, in words that fit after "found".
+/// What the evidence says about the lock's owner,
+/// in words that fit after "found".
 fn evidence_words(evidence: &Evidence) -> String {
     let descriptors: String = match &evidence.holders {
         Some(scan) if scan.partial.is_empty() => String::from("no process has the lock open"),
@@ -487,11 +500,17 @@ fn evidence_words(evidence: &Evidence) -> String {
 }
 
 /// What:
-///  The line that says a lock's owner cannot be proven alive, what is known about it, and what a person can do.
+///  The line that says a lock's owner cannot be proven alive,
+/// what is known about it,
+/// and what a person can do.
 /// Why:
-///   An owner nothing proves alive is waited for like one proven alive, with no bound, because the person's own `git commit`
-///  with its editor open holds the lock exactly so; the line says what was looked at and names the file to remove if no program
-///  is using the repository, which is the only case the wait cannot end by itself.
+///   An owner nothing proves alive is waited for like one proven alive,
+/// with no bound,
+/// because the person's own `git commit`
+///  with its editor open holds the lock exactly so;
+/// the line says what was looked at and names the file to remove if no program
+///  is using the repository,
+/// which is the only case the wait cannot end by itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -511,10 +530,14 @@ pub fn unproven_wait_line(lock_path: &Path, evidence: Option<&Evidence>) -> Stri
 }
 
 /// What:
-///  The line that names who still holds a lock when the wait for it reaches its ceiling, and what becomes of the command.
+///  The line that names who still holds a lock when the wait for it reaches its ceiling,
+/// and what becomes of the command.
 /// Why:
-///   The owner's rule is that nothing waits for ever: at the bound the command stops and says what blocked it, with the evidence
-///  there is, and what to run again.
+///   The owner's rule is that nothing waits for ever:
+/// at the bound the command stops and says what blocked it,
+/// with the evidence
+///  there is,
+/// and what to run again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -531,8 +554,12 @@ pub fn ceiling_line(lock_path: &Path, blocker: &str, waited_seconds: u64, conseq
 /// What:
 ///  The sentence that names the lock file and the fix when a wait ended at its ceiling on an owner nothing proves alive.
 /// Why:
-///   A lock without its marker is what plain Git leaves when it is killed holding it, and what a kill of the service leaves on a
-///  filesystem that places no file whole; nothing here removes it, because it may be a program that is still at work, so the
+///   A lock without its marker is what plain Git leaves when it is killed holding it,
+/// and what a kill of the service leaves on a
+///  filesystem that places no file whole;
+/// nothing here removes it,
+/// because it may be a program that is still at work,
+/// so the
 ///  person who knows no program is using the repository needs the file's name and the command to clear it.
 ///
 /// In TS you'd write (pseudocode):
@@ -548,10 +575,14 @@ pub fn unproven_removal_advice(lock_path: &Path) -> String {
 }
 
 /// What:
-///  The words for the owner of a lock that is held, from the evidence: a process proven alive, or an owner nothing proves alive
+///  The words for the owner of a lock that is held,
+/// from the evidence:
+/// a process proven alive,
+/// or an owner nothing proves alive
 ///  with what was looked at.
 /// Why:
-///   The line at the ceiling names the blocker, whatever the proof.
+///   The line at the ceiling names the blocker,
+/// whatever the proof.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -571,7 +602,8 @@ pub fn blocker_words(evidence: &Evidence) -> String {
 /// What:
 ///  The diagnostic for a lock whose Git lock PID file names a process that no longer runs.
 /// Why:
-///   That owner can never let go, so there is nothing to wait for.
+///   That owner can never let go,
+/// so there is nothing to wait for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

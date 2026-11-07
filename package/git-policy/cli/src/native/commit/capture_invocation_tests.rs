@@ -1,5 +1,8 @@
 //! Controls for the invocation capture:
-//!  the layout, the symbolic `HEAD`, the conclusion, the ref backend and the base.
+//!  the layout,
+//! the symbolic `HEAD`,
+//! the conclusion,
+//! the ref backend and the base.
 
 use super::*;
 use crate::ref_files::tests::{Probe, probe};
@@ -7,7 +10,8 @@ use crate::test_support::{fixture, git, git_context, git_text, repository, remov
 #[cfg(unix)]
 use crate::recording_git::{recorded_starts, recording_context};
 
-/// The conclusion kind of the repository at `repo`, with the layout Git reports for it.
+/// The conclusion kind of the repository at `repo`,
+/// with the layout Git reports for it.
 fn conclusion_of(repo: &Path, amend: bool) -> Result<Conclusion, GitFailure> {
     let found: Probe = probe(repo);
     let ref_files: RefFilesLayout<'_> = RefFilesLayout {
@@ -19,10 +23,13 @@ fn conclusion_of(repo: &Path, amend: bool) -> Result<Conclusion, GitFailure> {
     return resolve_conclusion_kind(&git_context(), repo, amend, &ref_files);
 }
 
-/// Git's empty tree under SHA-1, the object format of every fixture.
+/// Git's empty tree under SHA-1,
+/// the object format of every fixture.
 const SHA1_EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 
-/// A branch repository reports its branch as the target, a conclusion of none, and its layout.
+/// A branch repository reports its branch as the target,
+/// a conclusion of none,
+/// and its layout.
 #[test]
 fn branch_layout_names_the_branch_and_the_store() {
     let root: PathBuf = fixture("capture-invocation-branch");
@@ -75,7 +82,8 @@ fn the_empty_tree_of_a_known_format_starts_no_hash_object() {
 }
 
 /// The symbolic `HEAD` of a plain branch or a detached `HEAD` is read from the file:
-///  no `symbolic-ref` start happens, and the answer equals Git's.
+///  no `symbolic-ref` start happens,
+/// and the answer equals Git's.
 #[test]
 #[cfg(unix)]
 fn a_plain_head_starts_no_symbolic_ref() {
@@ -96,7 +104,8 @@ fn a_plain_head_starts_no_symbolic_ref() {
 }
 
 /// A `HEAD` the file reader declines is answered by Git with the same semantics as before:
-///  a symbolic branch resolves to the end of its chain, and a reftable repository names its real branch.
+///  a symbolic branch resolves to the end of its chain,
+/// and a reftable repository names its real branch.
 #[test]
 #[cfg(unix)]
 fn a_declined_head_falls_back_to_git() {
@@ -119,7 +128,8 @@ fn a_declined_head_falls_back_to_git() {
     remove(root.as_path());
 }
 
-/// The landing's compare-and-swap protection: a `HEAD` rewritten after the capture is seen by the next call,
+/// The landing's compare-and-swap protection:
+/// a `HEAD` rewritten after the capture is seen by the next call,
 ///  because the call reads the file again.
 #[test]
 fn a_head_rewritten_after_the_capture_is_seen_by_the_next_call() {
@@ -157,7 +167,8 @@ fn detached_head_targets_head_itself() {
     remove(root.as_path());
 }
 
-/// Amend wins over any conclusion marker, and each marker decides its own kind.
+/// Amend wins over any conclusion marker,
+/// and each marker decides its own kind.
 #[test]
 fn conclusion_markers_decide_the_kind() {
     let root: PathBuf = fixture("capture-invocation-conclusion");
@@ -187,7 +198,8 @@ fn conclusion_markers_decide_the_kind() {
     remove(root.as_path());
 }
 
-/// An unresolved marker file is not a conclusion: only a resolving pseudoref counts.
+/// An unresolved marker file is not a conclusion:
+/// only a resolving pseudoref counts.
 #[test]
 fn garbage_marker_is_not_a_conclusion() {
     let root: PathBuf = fixture("capture-invocation-garbage-marker");
@@ -217,7 +229,8 @@ fn a_marker_naming_a_missing_object_is_still_a_conclusion() {
     remove(root.as_path());
 }
 
-/// The base is the target's commit now, and an unborn target starts from the empty tree.
+/// The base is the target's commit now,
+/// and an unborn target starts from the empty tree.
 #[test]
 fn base_follows_the_target_and_unborn_uses_the_empty_tree() {
     let root: PathBuf = fixture("capture-invocation-base");
@@ -294,7 +307,8 @@ fn an_empty_layout_line_is_incomplete() {
     assert_eq!(required_line(&lines, 0), Ok(String::from("/repo")));
 }
 
-/// A stand-in Git that logs each start and fails, so a read that starts Git shows in the log.
+/// A stand-in Git that logs each start and fails,
+/// so a read that starts Git shows in the log.
 fn logging_stand_in(root: &Path) -> (GitContext, PathBuf) {
     let log: PathBuf = root.join("starts.log");
     let path: PathBuf = root.join("stand-in");
@@ -306,7 +320,8 @@ fn logging_stand_in(root: &Path) -> (GitContext, PathBuf) {
     );
 }
 
-/// A snapshot parsed from `(scope, record)` pairs, read with or without global options.
+/// A snapshot parsed from `(scope, record)` pairs,
+/// read with or without global options.
 fn listing_snapshot(records: &[(&str, &str)], without_global_options: bool) -> ConfigSnapshot {
     let mut bytes: Vec<u8> = Vec::new();
     for (scope, record) in records {
@@ -318,7 +333,8 @@ fn listing_snapshot(records: &[(&str, &str)], without_global_options: bool) -> C
     return ConfigSnapshot::parse(bytes.as_slice(), without_global_options).expect("a well-formed listing");
 }
 
-/// A snapshot without the ref storage key proves `files` with no Git start; every other snapshot asks Git.
+/// A snapshot without the ref storage key proves `files` with no Git start;
+/// every other snapshot asks Git.
 #[test]
 fn the_ref_format_comes_from_a_snapshot_that_proves_files_and_from_git_otherwise() {
     let root: PathBuf = fixture("capture-invocation-ref-format-snapshot");
@@ -338,7 +354,8 @@ fn the_ref_format_comes_from_a_snapshot_that_proves_files_and_from_git_otherwise
     remove(root.as_path());
 }
 
-/// Real Git: the layout's ref format equals `rev-parse --show-ref-format` for files and reftable repositories.
+/// Real Git:
+/// the layout's ref format equals `rev-parse --show-ref-format` for files and reftable repositories.
 #[test]
 fn the_layout_ref_format_matches_rev_parse_for_files_and_reftable() {
     let root: PathBuf = fixture("capture-invocation-ref-format-real");

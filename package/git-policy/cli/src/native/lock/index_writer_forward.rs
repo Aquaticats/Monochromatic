@@ -1,12 +1,20 @@
 //! What:
 //!  Running a forwarded index writer as a child of the wrapper:
-//!  wait for the commit service's own hold on the index, complete an isolated merge when one applies, run real Git
-//!  (again when the service took the index first), and report its status.
+//!  wait for the commit service's own hold on the index,
+//! complete an isolated merge when one applies,
+//! run real Git
+//!  (again when the service took the index first),
+//! and report its status.
 //! Why:
-//!  A writer competes for the index only through Git's own `index.lock`, as it does without the wrapper; the one holder
-//!  that is waited for is the commit service, whose hold ends by itself. The wrapper stays alive around Git so that a
+//!  A writer competes for the index only through Git's own `index.lock`,
+//! as it does without the wrapper;
+//! the one holder
+//!  that is waited for is the commit service,
+//! whose hold ends by itself.
+//! The wrapper stays alive around Git so that a
 //!  run the service beat to the lock can be started again and so that a merge the staged index would make Git refuse can
-//!  be completed. A command that needs neither replaces the process with Git.
+//!  be completed.
+//! A command that needs neither replaces the process with Git.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,13 +22,15 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, environment });
 //! ```
 
-/// The wait for any program's hold on the index lock, before a merge that native Git runs.
+/// The wait for any program's hold on the index lock,
+/// before a merge that native Git runs.
 use crate::index_holder_wait::wait_for_index_release_here;
 /// The wait for the commit service's own hold on the index.
 use crate::service_index_wait::wait_for_service_hold_here;
 /// Starting a command again when the commit service took the index first.
 use crate::service_hold_retry::{may_run_again, run_again_while_service_holds};
-/// Running real Git, settling the linked-worktree copy around it when one applies.
+/// Running real Git,
+/// settling the linked-worktree copy around it when one applies.
 use crate::worktree_copy_forward::{CopyFacts, ForwardedRun, run_forwarded_git};
 /// The resolved forwarded command.
 use crate::forwarded_command::ResolvedCommand;
@@ -34,11 +44,15 @@ use crate::diagnostics::{EngineFailureCode, render_engine_failure};
 use crate::git_version::check_git_version;
 /// The repository shape the invocation selects.
 use crate::worktree_identity::WorktreeIdentity;
-/// A merge the staged index would make native Git refuse, completed without disturbing the staged work.
+/// A merge the staged index would make native Git refuse,
+/// completed without disturbing the staged work.
 use crate::merge_isolation::{IsolatedMerge, IsolatedMergeInput, run_isolated_merge};
-/// A pull that merges, split into its fetch and its merge so the merge is completed in isolation.
+/// A pull that merges,
+/// split into its fetch and its merge so the merge is completed in isolation.
 use crate::pull_isolation::{PullStep, pull_step};
-/// The word-level second pass for the conflicts a merge, rebase, cherry-pick or revert created.
+/// The word-level second pass for the conflicts a merge,
+/// rebase,
+/// cherry-pick or revert created.
 use crate::merge_second_pass_worktree::{Watch, resolve_after, watch_before};
 /// Running real Git for the location query.
 use crate::transaction_git::GitContext;
@@ -50,9 +64,12 @@ use std::io::Write;
 use std::path::PathBuf;
 
 /// What:
-///  Everything a forward that stays alive around Git needs, owned, so the planned action can carry it.
+///  Everything a forward that stays alive around Git needs,
+/// owned,
+/// so the planned action can carry it.
 /// Why:
-///   The plan decides that the wrapper stays alive; the run performs it.
+///   The plan decides that the wrapper stays alive;
+/// the run performs it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,7 +91,8 @@ pub struct CoordinatedForward {
     pub command: ResolvedCommand,
     /// The environment the invocation inherited.
     pub environment: Vec<(OsString, OsString)>,
-    /// The linked-worktree copy to settle around Git, when it applies to this invocation.
+    /// The linked-worktree copy to settle around Git,
+    /// when it applies to this invocation.
     pub copy: Option<CopyFacts>,
 }
 
@@ -105,10 +123,14 @@ pub enum CoordinatedRun {
 }
 
 /// What:
-///  The location of the real index a command writes, or nothing when the command writes none that the commit service holds.
+///  The location of the real index a command writes,
+/// or nothing when the command writes none that the commit service holds.
 /// Why:
-///   Only a command that writes the worktree's own index competes with the service's landing; a command outside a
-///  repository, or one writing another index file, has nothing to wait for.
+///   Only a command that writes the worktree's own index competes with the service's landing;
+/// a command outside a
+///  repository,
+/// or one writing another index file,
+/// has nothing to wait for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,9 +151,14 @@ fn written_real_index(context: &GitContext, command: &ResolvedCommand) -> Result
 }
 
 /// What:
-///  Run the forward when it stays alive around Git, and say when it does not.
+///  Run the forward when it stays alive around Git,
+/// and say when it does not.
 /// Why:
-///   `forwardToRealGit`: a writer waits for the service's hold, runs Git as a child, and returns Git's status; a merge
+///   `forwardToRealGit`:
+/// a writer waits for the service's hold,
+/// runs Git as a child,
+/// and returns Git's status;
+/// a merge
 ///  that native Git would refuse only for the staged index is completed first.
 ///
 /// In TS you'd write (pseudocode):
@@ -251,7 +278,8 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
 /// What:
 ///  The coordinated run that a forwarded run stands for.
 /// Why:
-///   Both report the same two endings, so the status and the failure text pass through unchanged.
+///   Both report the same two endings,
+/// so the status and the failure text pass through unchanged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

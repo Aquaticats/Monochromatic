@@ -1,5 +1,6 @@
 //! Differential controls for the in-process repository location:
-//!  whenever the reader answers, `git rev-parse` prints the same five lines for the same start directory,
+//!  whenever the reader answers,
+//! `git rev-parse` prints the same five lines for the same start directory,
 //!  and every layout it must not guess is declined.
 
 use super::*;
@@ -7,7 +8,9 @@ use crate::repo_read_layout_environment_rules::ENV_CONFIG_ENTRY_LIMIT;
 use crate::test_support::{fixture, git, git_output, remove, repository};
 use std::os::unix::ffi::OsStringExt;
 
-/// The scope facts that match the hermetic environment `git_output` gives Git: no system file, no global file.
+/// The scope facts that match the hermetic environment `git_output` gives Git:
+/// no system file,
+/// no global file.
 pub(super) fn hermetic_scope(root: &Path) -> ScopeEnvironment {
     return ScopeEnvironment {
         home: Some(root.join("no-home")),
@@ -25,7 +28,8 @@ pub(super) fn read_here(root: &Path, directory: &Path) -> Option<RepoLayout> {
     return read_layout_with(directory, &[], &hermetic_scope(root));
 }
 
-/// The five lines real Git prints for the location query, or `None` when Git refuses.
+/// The five lines real Git prints for the location query,
+/// or `None` when Git refuses.
 pub(super) fn git_lines(directory: &Path) -> Option<Vec<Vec<u8>>> {
     let output = git_output(
         directory,
@@ -49,7 +53,8 @@ pub(super) fn spelled(layout: &RepoLayout) -> Vec<Vec<u8>> {
     ];
 }
 
-/// Require the reader to answer for `directory` and to equal Git; returns the layout.
+/// Require the reader to answer for `directory` and to equal Git;
+/// returns the layout.
 pub(super) fn answered_equal(root: &Path, directory: &Path, label: &str) -> RepoLayout {
     let Some(layout) = read_here(root, directory) else {
         panic!("{label}: the reader declined a plain layout");
@@ -63,7 +68,8 @@ pub(super) fn declined(root: &Path, directory: &Path, label: &str) {
     assert!(read_here(root, directory).is_none(), "{label}: the reader answered a layout it must leave to Git");
 }
 
-/// A main worktree answers at the top level and from nested directories, each equal to Git.
+/// A main worktree answers at the top level and from nested directories,
+/// each equal to Git.
 #[test]
 fn a_main_worktree_is_read_from_every_depth() {
     let root = fixture("repo-read-main");
@@ -93,7 +99,8 @@ fn a_sha256_repository_reports_its_format() {
     remove(root.as_path());
 }
 
-/// A linked worktree answers with its own Git directory under the common one, and declines Git paths it cannot split.
+/// A linked worktree answers with its own Git directory under the common one,
+/// and declines Git paths it cannot split.
 #[test]
 fn a_linked_worktree_is_read_and_its_git_paths_are_left_to_git() {
     let root = fixture("repo-read-linked");
@@ -121,7 +128,8 @@ fn a_gitfile_repository_is_read() {
     remove(root.as_path());
 }
 
-/// The name of a directory that ends in a carriage return, which Linux allows and Git's path text never includes.
+/// The name of a directory that ends in a carriage return,
+/// which Linux allows and Git's path text never includes.
 fn with_carriage_return(parent: &Path, name: &str) -> PathBuf {
     let mut bytes: Vec<u8> = name.as_bytes().to_vec();
     bytes.push(b'\r');
@@ -129,7 +137,8 @@ fn with_carriage_return(parent: &Path, name: &str) -> PathBuf {
 }
 
 /// Git strips every trailing carriage return and line feed from the `gitdir:` line (`read_gitfile_gently` in `setup.c`),
-///  so a `.git` file written with CRLF names the directory without the carriage return, even when a second Git
+///  so a `.git` file written with CRLF names the directory without the carriage return,
+/// even when a second Git
 ///  directory exists under the name with it.
 #[test]
 fn a_gitfile_ending_in_crlf_names_the_directory_without_the_carriage_return() {
@@ -151,7 +160,8 @@ fn a_gitfile_ending_in_crlf_names_the_directory_without_the_carriage_return() {
 
 /// Git strips every trailing carriage return and line feed from `commondir` (`get_common_dir_noenv` in `path.c`),
 ///  so a linked worktree whose `commondir` ends in CRLF has the directory without the carriage return as its common
-///  directory, even when a second Git directory exists under the name with it.
+///  directory,
+/// even when a second Git directory exists under the name with it.
 #[test]
 fn a_commondir_ending_in_crlf_names_the_directory_without_the_carriage_return() {
     let root = fixture("repo-read-commondir-crlf");
@@ -171,7 +181,8 @@ fn a_commondir_ending_in_crlf_names_the_directory_without_the_carriage_return() 
     remove(root.as_path());
 }
 
-/// A start directory reached through a symbolic link, a non-UTF-8 name and a very long path answer as Git does.
+/// A start directory reached through a symbolic link,
+/// a non-UTF-8 name and a very long path answer as Git does.
 #[test]
 fn awkward_paths_are_read_as_git_reads_them() {
     let root = fixture("repo-read-paths");
@@ -193,8 +204,15 @@ fn awkward_paths_are_read_as_git_reads_them() {
     remove(root.as_path());
 }
 
-/// Every layout the reader must leave to Git is declined: bare, inside `.git`, outside, `core.bare`,
-///  `core.worktree`, reftable, unknown extensions, a linked `.git` and unplain environments;
+/// Every layout the reader must leave to Git is declined:
+/// bare,
+/// inside `.git`,
+/// outside,
+/// `core.bare`,
+///  `core.worktree`,
+/// reftable,
+/// unknown extensions,
+/// a linked `.git` and unplain environments;
 ///  the per-worktree configuration has its own controls in `repo_read_layout_worktree_tests.rs`.
 #[test]
 fn layouts_that_need_git_are_declined() {
@@ -247,7 +265,9 @@ fn layouts_that_need_git_are_declined() {
     remove(root.as_path());
 }
 
-/// The entry limit bounds the walk, not what plain entries mean: exactly the limit of plain entries is read and found plain,
+/// The entry limit bounds the walk,
+/// not what plain entries mean:
+/// exactly the limit of plain entries is read and found plain,
 ///  and one entry more declines however plain it is.
 #[test]
 fn plain_entries_at_exactly_the_limit_are_read_and_one_more_declines() {
@@ -266,9 +286,12 @@ fn plain_entries_at_exactly_the_limit_are_read_and_one_more_declines() {
 }
 
 /// The package's own parameters (the image tag a developer exports to keep parallel runs apart) are named like Git's
-///  variables but Git never reads them, so a shell that exports one must not switch every in-process answer off;
-///  a name that only resembles the namespace still declines, because Git could define it.
-/// An exported tag made eight unit tests fail under every fixture root, which looked like a host layout difference
+///  variables but Git never reads them,
+/// so a shell that exports one must not switch every in-process answer off;
+///  a name that only resembles the namespace still declines,
+/// because Git could define it.
+/// An exported tag made eight unit tests fail under every fixture root,
+/// which looked like a host layout difference
 ///  (`doc/troubleshooting/cli-git-unit-tests-ambient-git-variables.md`).
 #[test]
 fn the_packages_own_variables_do_not_move_discovery() {
@@ -292,7 +315,9 @@ fn the_packages_own_variables_do_not_move_discovery() {
     remove(root.as_path());
 }
 
-/// A scope file that mentions `core.bare`, directly or through any include, makes the reader decline.
+/// A scope file that mentions `core.bare`,
+/// directly or through any include,
+/// makes the reader decline.
 #[test]
 fn scope_files_that_mention_discovery_keys_are_declined() {
     let root = fixture("repo-read-scopes");
@@ -332,8 +357,12 @@ fn git_paths_equal_rev_parse() {
     remove(root.as_path());
 }
 
-/// The `GIT_` variables that Git reads only to trace, to word its output, to reach a network or a tool, or to size a limit
-///  leave the environment plain: each is checked against Git 2.56.0's reader of it.
+/// The `GIT_` variables that Git reads only to trace,
+/// to word its output,
+/// to reach a network or a tool,
+/// or to size a limit
+///  leave the environment plain:
+/// each is checked against Git 2.56.0's reader of it.
 #[test]
 fn variables_that_cannot_change_a_config_or_attribute_or_layout_answer_are_plain() {
     for name in [
@@ -350,8 +379,14 @@ fn variables_that_cannot_change_a_config_or_attribute_or_layout_answer_are_plain
     }
 }
 
-/// Every variable that can change which configuration, attribute tree, repository, index, objects, refs or pathspec meaning an
-///  answer rests on keeps the environment from being plain, and so does a variable this list has never heard of.
+/// Every variable that can change which configuration,
+/// attribute tree,
+/// repository,
+/// index,
+/// objects,
+/// refs or pathspec meaning an
+///  answer rests on keeps the environment from being plain,
+/// and so does a variable this list has never heard of.
 #[test]
 fn variables_that_can_change_an_answer_are_not_plain() {
     for name in [

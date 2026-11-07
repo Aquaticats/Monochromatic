@@ -6,7 +6,8 @@ use crate::child_class::ChildClass;
 use crate::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING};
 use crate::wait_progress::Cadence;
 
-/// A function-like value with the right shape is a source of watch terms in these controls: the shipped caller writes a small struct.
+/// A function-like value with the right shape is a source of watch terms in these controls:
+/// the shipped caller writes a small struct.
 impl<Terms: Fn() -> WatchTerms> WatchTermsSource for Terms {
     fn terms(&self) -> WatchTerms {
         return self();
@@ -212,14 +213,16 @@ fn input_files_leave_nothing_behind() {
     remove(root.as_path());
 }
 
-/// A request that carries input needs a repository: without one the failure names the defect and writes nothing.
+/// A request that carries input needs a repository:
+/// without one the failure names the defect and writes nothing.
 #[test]
 fn input_without_a_repository_is_refused_naming_the_defect() {
     let error: std::io::Error = input_file(b"bytes", None).expect_err("no repository");
     assert!(error.to_string().contains("no repository scratch directory"), "{error}");
 }
 
-/// A common directory that does not exist is an error, and the input file is never made elsewhere.
+/// A common directory that does not exist is an error,
+/// and the input file is never made elsewhere.
 #[test]
 fn input_in_a_missing_common_directory_fails_without_a_fallback() {
     let root: PathBuf = fixture("transaction-git-input-missing");
@@ -229,11 +232,13 @@ fn input_in_a_missing_common_directory_fails_without_a_fallback() {
     remove(root.as_path());
 }
 
-/// A fake Git that prints where its standard input lives, which is the input file's name before it was unlinked.
+/// A fake Git that prints where its standard input lives,
+/// which is the input file's name before it was unlinked.
 #[cfg(target_os = "linux")]
 const FAKE_GIT_STDIN_PATH: &[u8] = b"#!/bin/sh\nreadlink /proc/$$/fd/0\n";
 
-/// The input a command gets is a file in the repository scratch directory of its context, and is gone afterwards.
+/// The input a command gets is a file in the repository scratch directory of its context,
+/// and is gone afterwards.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_command_reads_its_input_from_the_repository_scratch_directory() {
@@ -258,7 +263,8 @@ fn a_command_reads_its_input_from_the_repository_scratch_directory() {
     remove(root.as_path());
 }
 
-/// A fake Git that counts its runs, refuses the first `FAKE_REFUSALS` of them the way a host out of threads does,
+/// A fake Git that counts its runs,
+/// refuses the first `FAKE_REFUSALS` of them the way a host out of threads does,
 ///  and otherwise prints how many input bytes it read.
 const FAKE_GIT: &[u8] = b"#!/bin/sh\n\
 count=$(cat \"$FAKE_COUNT\" 2>/dev/null || echo 0)\n\
@@ -275,7 +281,9 @@ if [ -n \"$FAKE_OTHER_FAILURE\" ]; then\n\
 fi\n\
 echo \"read $bytes\"\n";
 
-/// A context running the fake Git, a request for `arguments` with the fake's counters, and the count file.
+/// A context running the fake Git,
+/// a request for `arguments` with the fake's counters,
+/// and the count file.
 fn fake_run(root: &Path, arguments: &[&str], refusals: u32, other_failure: bool) -> (GitContext, GitRequest, PathBuf) {
     let program: PathBuf = root.join("fake-git");
     executable(program.as_path(), FAKE_GIT);
@@ -301,11 +309,15 @@ fn runs_of(count: &Path) -> u32 {
     return std::fs::read_to_string(count).map_or(0, |text| { return text.trim().parse().unwrap_or(0); });
 }
 
-/// A pause that records nothing and waits for nothing, so the controls do not sleep.
+/// A pause that records nothing and waits for nothing,
+/// so the controls do not sleep.
 fn no_pause(_wait: Duration) {}
 
-/// A fake Git that runs until the file `FAKE_RELEASE` names exists, and then answers; it also ends when the test that started
-///  it is gone, so a failed test leaves no script waiting for a release nobody writes.
+/// A fake Git that runs until the file `FAKE_RELEASE` names exists,
+/// and then answers;
+/// it also ends when the test that started
+///  it is gone,
+/// so a failed test leaves no script waiting for a release nobody writes.
 fn slow_git(root: &Path) -> String {
     return format!("#!/bin/sh\nwhile [ ! -e \"$FAKE_RELEASE\" ] && {}; do sleep 0.02; done\necho slow\n", while_test_lives(root));
 }
@@ -322,17 +334,23 @@ fn slow_run(root: &Path, release: &Path) -> (GitContext, GitRequest) {
     return (context, request);
 }
 
-/// How long the control below waits for the fake Git to be gone, so a script that never ends fails it and never holds it.
+/// How long the control below waits for the fake Git to be gone,
+/// so a script that never ends fails it and never holds it.
 const SCRIPT_GONE_PATIENCE: Duration = Duration::from_secs(20);
 
 /// How often the control below looks at the fake Git.
 const SCRIPT_GONE_LOOK: Duration = Duration::from_millis(50);
 
 /// What:
-///  A fake Git that waits for a release file ends by itself once the test that started it is gone, however the test ended.
+///  A fake Git that waits for a release file ends by itself once the test that started it is gone,
+/// however the test ended.
 /// Why:
-///   Product code starts these scripts, so the test cannot kill them with a guard of its own; one that waited for a release a
-///  failed test never wrote ran on after the test, in a fixture that was already removed. The script watches its test.
+///   Product code starts these scripts,
+/// so the test cannot kill them with a guard of its own;
+/// one that waited for a release a
+///  failed test never wrote ran on after the test,
+/// in a fixture that was already removed.
+/// The script watches its test.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -381,7 +399,8 @@ fn a_fake_git_waiting_for_a_release_ends_when_its_test_is_gone() {
     assert!(!left, "the fake Git of process {pid} outlived the test that started it");
 }
 
-/// Terms of a limit, a quick cadence and the given sink.
+/// Terms of a limit,
+/// a quick cadence and the given sink.
 fn quick_terms(limit: Duration, notices: Box<dyn std::io::Write + Send>) -> WatchTerms {
     return WatchTerms {
         limit,
@@ -400,7 +419,8 @@ fn the_terms_of_a_request_follow_its_subcommand() {
     assert_eq!(terms_for_request(&bulk).limit, ChildClass::Object.limit());
 }
 
-/// A Git step that runs long is announced by name while it lasts, and its output still comes back.
+/// A Git step that runs long is announced by name while it lasts,
+/// and its output still comes back.
 #[test]
 fn a_git_step_that_runs_long_is_announced_by_name() {
     let root: PathBuf = fixture("transaction-git-slow");
@@ -426,7 +446,8 @@ fn a_git_step_that_runs_long_is_announced_by_name() {
     remove(root.as_path());
 }
 
-/// The quiet window of the controls below: past the sampling interval of the progress meter.
+/// The quiet window of the controls below:
+/// past the sampling interval of the progress meter.
 const QUIET_WINDOW: Duration = Duration::from_millis(1200);
 
 /// A fake Git that counts its runs in `FAKE_COUNT` and then sits silent for `FAKE_SILENT_SECONDS` before it answers `late`.
@@ -436,7 +457,8 @@ echo $((count + 1)) > \"$FAKE_COUNT\"\n\
 if [ \"$count\" -lt \"$FAKE_HANGS\" ]; then sleep \"$FAKE_SILENT_SECONDS\"; fi\n\
 echo late\n";
 
-/// A context running the silent fake Git, and a request for `arguments` that makes it sit silent in its first `hangs` runs.
+/// A context running the silent fake Git,
+/// and a request for `arguments` that makes it sit silent in its first `hangs` runs.
 fn silent_run(root: &Path, arguments: &[&str], hangs: u32, silent_seconds: u64) -> (GitContext, GitRequest, PathBuf) {
     let program: PathBuf = root.join("silent-git");
     executable(program.as_path(), SILENT_GIT);
@@ -451,10 +473,12 @@ fn silent_run(root: &Path, arguments: &[&str], hangs: u32, silent_seconds: u64) 
     return (context, request, count);
 }
 
-/// How long the silent fake sits silent when nothing ends it: far past the window.
+/// How long the silent fake sits silent when nothing ends it:
+/// far past the window.
 const FAR_PAST_THE_WINDOW_SECONDS: u64 = 30;
 
-/// A Git step that shows no sign of work for the window is ended and its step is run again, and the run again is the answer.
+/// A Git step that shows no sign of work for the window is ended and its step is run again,
+/// and the run again is the answer.
 #[test]
 fn a_silent_git_step_is_ended_after_the_quiet_window_and_redone() {
     let root: PathBuf = fixture("transaction-git-redo");
@@ -469,7 +493,8 @@ fn a_silent_git_step_is_ended_after_the_quiet_window_and_redone() {
     remove(root.as_path());
 }
 
-/// A step that is silent again in its redo fails with the quiet-time sentence, after exactly the ended run and the redo.
+/// A step that is silent again in its redo fails with the quiet-time sentence,
+/// after exactly the ended run and the redo.
 #[test]
 fn a_step_silent_in_its_redo_too_fails_naming_the_quiet_window() {
     let root: PathBuf = fixture("transaction-git-stuck");
@@ -490,8 +515,10 @@ fn a_step_silent_in_its_redo_too_fails_naming_the_quiet_window() {
     remove(root.as_path());
 }
 
-/// A step that may not be run twice (a reference update) is announced while it is silent and never ended: it runs once and
-///  its answer comes back, however long it was silent.
+/// A step that may not be run twice (a reference update) is announced while it is silent and never ended:
+/// it runs once and
+///  its answer comes back,
+/// however long it was silent.
 #[test]
 fn a_silent_writer_is_waited_for_and_never_ended() {
     let root: PathBuf = fixture("transaction-git-writer");
@@ -538,7 +565,8 @@ fn a_rerunnable_command_refused_inside_git_is_run_again_with_its_input() {
     remove(root.as_path());
 }
 
-/// A command that may not be run twice runs once, whatever Git says.
+/// A command that may not be run twice runs once,
+/// whatever Git says.
 #[test]
 fn a_writer_that_may_not_be_rerun_runs_once() {
     let root: PathBuf = fixture("transaction-git-once");
@@ -563,7 +591,8 @@ fn another_failure_is_not_run_again() {
     remove(root.as_path());
 }
 
-/// A refusal that outlasts the budget returns Git's own last output, after a bounded number of runs.
+/// A refusal that outlasts the budget returns Git's own last output,
+/// after a bounded number of runs.
 #[test]
 fn a_refusal_past_the_budget_returns_gits_last_output() {
     let root: PathBuf = fixture("transaction-git-budget");
@@ -576,7 +605,9 @@ fn a_refusal_past_the_budget_returns_gits_last_output() {
     remove(root.as_path());
 }
 
-/// The allow-list: reads and idempotent writers may be rerun, other writers and unrelated shapes may not.
+/// The allow-list:
+/// reads and idempotent writers may be rerun,
+/// other writers and unrelated shapes may not.
 #[test]
 fn only_harmless_commands_may_be_rerun() {
     let may = |arguments: &[&str], private_index: bool| -> bool {
@@ -604,10 +635,20 @@ fn only_harmless_commands_may_be_rerun() {
     assert!(!may(&["-c", "a=b"], false));
 }
 
-/// The owner's criterion (2026-11-04): a step keeps its ceiling exactly when it can run twice. Each form below was cut at every
-/// mutating system call, with SIGKILL and with SIGTERM, then run a second time, and its end state compared with an uncut run's
-/// (`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"). A form that came out identical every time ends at the
-/// ceiling of its class; the others are never ended: the commit service's landing thread waits for them, and any other command
+/// The owner's criterion (2026-11-04):
+/// a step keeps its ceiling exactly when it can run twice.
+/// Each form below was cut at every
+/// mutating system call,
+/// with SIGKILL and with SIGTERM,
+/// then run a second time,
+/// and its end state compared with an uncut run's
+/// (`doc/planning/cli-git-no-unbounded-waits.md`,
+/// "The cut experiment").
+/// A form that came out identical every time ends at the
+/// ceiling of its class;
+/// the others are never ended:
+/// the commit service's landing thread waits for them,
+/// and any other command
 /// stops waiting at its bound plus the short extra wait and leaves them running.
 #[test]
 fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_same_state() {
@@ -672,9 +713,15 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
     assert_eq!(bound(&["commit-tree", "abc", "-m", "x"], false), StepBound::EndAt(OBJECT_STEP_CEILING));
 }
 
-/// A step that cannot be run twice is left running by the command that started it, which stops waiting at the bound of the step's
-/// class plus the short extra wait; on the commit service's landing thread, whose clients are told through the protocol, it is
-/// waited for without a bound. The control shortens the bound of the class for the thread that runs it, and never the extra wait
+/// A step that cannot be run twice is left running by the command that started it,
+/// which stops waiting at the bound of the step's
+/// class plus the short extra wait;
+/// on the commit service's landing thread,
+/// whose clients are told through the protocol,
+/// it is
+/// waited for without a bound.
+/// The control shortens the bound of the class for the thread that runs it,
+/// and never the extra wait
 /// of production.
 #[test]
 fn a_step_that_cannot_run_twice_is_left_running_by_a_command_and_waited_for_by_the_landing_thread() {
@@ -696,8 +743,10 @@ fn a_step_that_cannot_run_twice_is_left_running_by_a_command_and_waited_for_by_t
     assert_eq!(step_bound(&GitRequest::new(Path::new("/repo"), &["rev-parse", "HEAD"])), StepBound::EndAt(PLUMBING_STEP_CEILING));
 }
 
-/// A Git that cannot be started at all is the caller's failure with its own kind, not a refusal to retry and not a
-///  failure of another kind: the error of a rerunnable command comes back as the operating system gave it.
+/// A Git that cannot be started at all is the caller's failure with its own kind,
+/// not a refusal to retry and not a
+///  failure of another kind:
+/// the error of a rerunnable command comes back as the operating system gave it.
 #[test]
 fn a_start_failure_keeps_its_kind_through_the_rerun_loop() {
     let root: PathBuf = fixture("transaction-git-missing");
@@ -711,9 +760,12 @@ fn a_start_failure_keeps_its_kind_through_the_rerun_loop() {
     remove(root.as_path());
 }
 
-/// A refused run followed by a run that cannot start reports the start failure, not the stale output of the refused
-///  run: the output of an earlier run answers only when the budget ran out on refusals.
-///  The fake Git refuses once and removes itself, so the second start finds no program.
+/// A refused run followed by a run that cannot start reports the start failure,
+/// not the stale output of the refused
+///  run:
+/// the output of an earlier run answers only when the budget ran out on refusals.
+///  The fake Git refuses once and removes itself,
+/// so the second start finds no program.
 #[test]
 fn a_refused_run_followed_by_a_start_failure_reports_the_start_failure() {
     let root: PathBuf = fixture("transaction-git-refused-then-gone");
@@ -742,8 +794,11 @@ fn only_a_refusal_by_the_system_counts() {
     assert!(!refused_by_the_system(&failure("fatal: bad object", Some(128))));
 }
 
-/// No hook of the person runs below a step the wrapper starts: every watched start carries the hooks directory that never
-///  exists and the switch of every hook event, `reference-transaction` included, so the stop of a quiet step can never end a
+/// No hook of the person runs below a step the wrapper starts:
+/// every watched start carries the hooks directory that never
+///  exists and the switch of every hook event,
+/// `reference-transaction` included,
+/// so the stop of a quiet step can never end a
 ///  person's hook and the watch needs no way to tell a hook from Git.
 #[test]
 fn a_watched_step_starts_with_every_hook_switched_off() {
@@ -760,8 +815,12 @@ fn a_watched_step_starts_with_every_hook_switched_off() {
     }
 }
 
-/// A person's merge whose fast-forward does not return: `run_git` hands back the error that says the result is not known, naming the
-/// step and what to check, at the bound of the class plus the extra wait (shortened for the control), and the step is left running
+/// A person's merge whose fast-forward does not return:
+/// `run_git` hands back the error that says the result is not known,
+/// naming the
+/// step and what to check,
+/// at the bound of the class plus the extra wait (shortened for the control),
+/// and the step is left running
 /// until it ends by itself.
 #[test]
 fn a_merge_that_does_not_return_gives_the_not_known_error_and_is_left_running() {
@@ -802,8 +861,12 @@ fn a_merge_that_does_not_return_gives_the_not_known_error_and_is_left_running() 
     remove(root.as_path());
 }
 
-/// Forms the cut experiment did not run get no ceiling (sol-1: the classifier failed open). Each is a form of a step the experiment
-/// did run, or a step it did not, that a rule by the name of the step would have ended at a ceiling.
+/// Forms the cut experiment did not run get no ceiling (sol-1:
+/// the classifier failed open).
+/// Each is a form of a step the experiment
+/// did run,
+/// or a step it did not,
+/// that a rule by the name of the step would have ended at a ceiling.
 #[test]
 fn a_form_the_cut_experiment_did_not_run_has_no_ceiling() {
     let ends = |arguments: &[&str]| -> bool { return matches!(step_bound(&GitRequest::new(Path::new("/repo"), arguments)), StepBound::EndAt(_)); };
@@ -871,10 +934,19 @@ fn a_form_the_cut_experiment_did_not_run_has_no_ceiling() {
     }
 }
 
-/// Which forms of `symbolic-ref` and `init` may be run again (sol-1 and sol-2 round 2): the forms the wrapper runs, and no other. A
-/// read changes nothing. A write of a symbolic ref is run twice only in a shadow repository the wrapper made for one transaction
-/// (the experiment: identical after a second run at every cut). `init` is only the shadow's creation, which is private and thrown
-/// away when it fails (the experiment: different after a second run, so a step ended there discards that transaction's shadow).
+/// Which forms of `symbolic-ref` and `init` may be run again (sol-1 and sol-2 round 2):
+/// the forms the wrapper runs,
+/// and no other.
+/// A
+/// read changes nothing.
+/// A write of a symbolic ref is run twice only in a shadow repository the wrapper made for one transaction
+/// (the experiment:
+/// identical after a second run at every cut).
+/// `init` is only the shadow's creation,
+/// which is private and thrown
+/// away when it fails (the experiment:
+/// different after a second run,
+/// so a step ended there discards that transaction's shadow).
 #[test]
 fn symbolic_ref_and_init_are_run_again_only_in_the_forms_the_wrapper_runs() {
     let may = |arguments: &[&str], shadow: bool| -> bool {
@@ -902,9 +974,12 @@ fn symbolic_ref_and_init_are_run_again_only_in_the_forms_the_wrapper_runs() {
     assert!(!may(&["init", "--separate-git-dir=/elsewhere", "--bare"], false));
 }
 
-/// The shadow's creation keeps its ceiling only in the exact form the wrapper runs and only for a request on a shadow: its creator
-/// discards a cut start's directory and starts again in a fresh one, which the experiment found equal to an uncut run (104 of 104).
-/// Any other `init` can touch the repository of the person, so it has no ceiling.
+/// The shadow's creation keeps its ceiling only in the exact form the wrapper runs and only for a request on a shadow:
+/// its creator
+/// discards a cut start's directory and starts again in a fresh one,
+/// which the experiment found equal to an uncut run (104 of 104).
+/// Any other `init` can touch the repository of the person,
+/// so it has no ceiling.
 #[test]
 fn only_the_shadow_creation_init_keeps_a_ceiling() {
     let ends = |arguments: &[&str], shadow: bool| -> bool {
@@ -923,10 +998,17 @@ fn only_the_shadow_creation_init_keeps_a_ceiling() {
     assert!(!ends(&["init", "--quiet", "--initial-branch=main"], true));
 }
 
-/// A side-ref write on the landing thread is never ended and never waited for without a bound (owner: "Never cut a branch write
-/// (Recommended)" covers the branch write; "nothing should ever wait forever or indefinitely" covers this): the landing thread stops
-/// waiting at the class ceiling plus the short extra wait, with the not-known error, and the step is left running. The branch write
-/// `update-ref --stdin` on the same thread is still waited for as long as it lives, and its record tells the clients behind it.
+/// A side-ref write on the landing thread is never ended and never waited for without a bound (owner:
+/// "Never cut a branch write
+/// (Recommended)" covers the branch write;
+/// "nothing should ever wait forever or indefinitely" covers this):
+/// the landing thread stops
+/// waiting at the class ceiling plus the short extra wait,
+/// with the not-known error,
+/// and the step is left running.
+/// The branch write
+/// `update-ref --stdin` on the same thread is still waited for as long as it lives,
+/// and its record tells the clients behind it.
 #[test]
 fn a_side_ref_write_that_hangs_on_the_landing_thread_is_left_running_after_a_bound() {
     let root: PathBuf = fixture("transaction-git-side-ref-landing");

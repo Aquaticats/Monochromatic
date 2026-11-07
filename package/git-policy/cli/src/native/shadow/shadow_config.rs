@@ -1,14 +1,18 @@
 //! What:
-//!  The shadow repository's `config` file, written by monochromatic-git-policy-cli itself,
+//!  The shadow repository's `config` file,
+//! written by monochromatic-git-policy-cli itself,
 //!       and the repository format facts it copies from the real common config.
 //! Why:
 //!  Git does not apply `core.repositoryformatversion` and `extensions.*` from an included file,
 //!  so they are copied explicitly.
-//!  The shadow names no hooks directory (traditional hooks are unsupported, and every shadow command passes its own
+//!  The shadow names no hooks directory (traditional hooks are unsupported,
+//! and every shadow command passes its own
 //!  `core.hooksPath`);
-//!  `core.worktree`, `gc.auto` and `maintenance.auto` follow the include,
+//!  `core.worktree`,
+//! `gc.auto` and `maintenance.auto` follow the include,
 //!  so the real config cannot redirect the worktree or start maintenance in the shadow;
-//!  `hook.<event>.enabled = false` for every hook event follows it too, because the wrapper supports no external hook
+//!  `hook.<event>.enabled = false` for every hook event follows it too,
+//! because the wrapper supports no external hook
 //!  (`src/shadow-repository/shadow-config.ts`).
 //!
 //! In TS you'd write (pseudocode):
@@ -16,11 +20,13 @@
 //! formatShadowConfig({ format, commonDir, worktreeRoot });
 //! ```
 
-/// Every hook event, switched off in the shadow.
+/// Every hook event,
+/// switched off in the shadow.
 use crate::hooks_off::HOOK_EVENTS;
 /// The one configuration read the commit shares.
 use crate::config_snapshot::ConfigSnapshot;
-/// One required Git start, and its failure text.
+/// One required Git start,
+/// and its failure text.
 use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
@@ -36,9 +42,12 @@ use std::path::Path;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RepositoryFormat {
-    /// `core.repositoryformatversion`, `0` when unset.
+    /// `core.repositoryformatversion`,
+    /// `0` when unset.
     pub version: String,
-    /// Every `extensions.*` key with its value, in file order, the prefix removed.
+    /// Every `extensions.*` key with its value,
+    /// in file order,
+    /// the prefix removed.
     pub extensions: Vec<(String, String)>,
 }
 
@@ -46,8 +55,11 @@ pub struct RepositoryFormat {
 ///  Quotes one value under Git's config syntax.
 /// Why:
 ///   The value is always double-quoted,
-///  so `;`, `#` and surrounding whitespace stay literal;
-///  backslash, double quote, newline and tab use Git's escapes.
+///  so `;`,
+/// `#` and surrounding whitespace stay literal;
+///  backslash,
+/// double quote,
+/// newline and tab use Git's escapes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -67,12 +79,15 @@ pub fn quote_git_config_value(value: &str) -> String {
     return format!("\"{body}\"");
 }
 
-/// Whether one byte is the NUL byte that ends each entry of `git config --list -z`. `&u8` borrows the byte, as `split` hands it over.
+/// Whether one byte is the NUL byte that ends each entry of `git config --list -z`.
+/// `&u8` borrows the byte,
+/// as `split` hands it over.
 fn is_nul_byte(byte: &u8) -> bool {
     return *byte == 0;
 }
 
-/// Whether one byte is the line feed that separates a key from its value in one entry. `&u8` borrows the byte.
+/// Whether one byte is the line feed that separates a key from its value in one entry.
+/// `&u8` borrows the byte.
 fn is_line_feed_byte(byte: &u8) -> bool {
     return *byte == b'\n';
 }
@@ -127,7 +142,8 @@ pub fn read_repository_format(
 /// What:
 ///  Record one config entry in the format facts when it is the version or an extension.
 /// Why:
-///   Both readers of the common config (Git's `--file` listing and the snapshot) keep the last version, and every
+///   Both readers of the common config (Git's `--file` listing and the snapshot) keep the last version,
+/// and every
 ///  extension in file order with the `extensions.` prefix removed.
 ///
 /// In TS you'd write (pseudocode):
@@ -150,12 +166,19 @@ fn note_format_entry(
 }
 
 /// What:
-///  The format facts from the configuration snapshot, when its local entries are exactly the common config file.
+///  The format facts from the configuration snapshot,
+/// when its local entries are exactly the common config file.
 /// Why:
-///   `git config --file config --list` reads that one file without includes, and the snapshot's `local` scope is
-///  that file plus whatever it includes; with no include key anywhere, and a read made without global options, the
-///  two lists are the same entries in the same order, so the facts are the same.
-///  Any include key makes the answer `None`, and the caller starts Git.
+///   `git config --file config --list` reads that one file without includes,
+/// and the snapshot's `local` scope is
+///  that file plus whatever it includes;
+/// with no include key anywhere,
+/// and a read made without global options,
+/// the
+///  two lists are the same entries in the same order,
+/// so the facts are the same.
+///  Any include key makes the answer `None`,
+/// and the caller starts Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -195,8 +218,12 @@ pub fn repository_format_from_snapshot(snapshot: &ConfigSnapshot) -> Option<Repo
 /// What:
 ///  Formats the shadow `config` file.
 /// Why:
-///   The line order is the incumbent's, minus its hooks path:
-///  format facts, the include, then the worktree, gc and maintenance overrides.
+///   The line order is the incumbent's,
+/// minus its hooks path:
+///  format facts,
+/// the include,
+/// then the worktree,
+/// gc and maintenance overrides.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -20,7 +20,8 @@ use std::ffi::OsString;
 use crate::test_support::{REAL_GIT, fixture, git, remove, repository};
 use std::path::{Path, PathBuf};
 
-/// The names asked about, as owned byte lists.
+/// The names asked about,
+/// as owned byte lists.
 fn asked(names: &[&str]) -> Vec<Vec<u8>> {
     return names.iter().map(|name| { return name.as_bytes().to_vec(); }).collect();
 }

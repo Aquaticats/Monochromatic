@@ -1,21 +1,37 @@
 //! Known-answer and property tests for the track fingerprint.
 //!
 //! Every expected digest below is the output of the xxHash reference C implementation
-//! (`XXH3_64bits`), not of `twox-hash`,
+//! (`XXH3_64bits`),
+//! not of `twox-hash`,
 //!  so these tests prove that `twox-hash` and the material
 //! layout match an independent implementation.
 //!  Provenance of the constants:
 //!
-//! - Reference: `https://github.com/Cyan4973/xxHash`, tag `v0.8.3`, commit
-//!   `e626a72bc2321cd320e953a0ccf1584cad60f363`, compiled with `gcc -O1` and
+//! - Reference:
+//!   `https://github.com/Cyan4973/xxHash`,
+//!   tag `v0.8.3`,
+//!   commit
+//!   `e626a72bc2321cd320e953a0ccf1584cad60f363`,
+//!   compiled with `gcc -O1` and
 //!   `#define XXH_INLINE_ALL` on x86_64.
-//! - Harness: the C program reproduced in `doc/decision/music-player-fingerprint-hash.md`
-//!   (section "Known-answer harness"). It builds the same material as `fingerprint_material` and
-//!   prints `XXH3_64bits(material)`; the `raw` vectors hash the byte pattern
+//! - Harness:
+//!   the C program reproduced in `doc/decision/music-player-fingerprint-hash.md`
+//!   (section "Known-answer harness").
+//!   It builds the same material as `fingerprint_material` and
+//!   prints `XXH3_64bits(material)`;
+//!   the `raw` vectors hash the byte pattern
 //!   `byte[i] = (i * 131 + 17) mod 256` of the stated length.
 //!
-//! The vectors cross the XXH3 length classes (0, 1 to 3, 4 to 8, 9 to 16, 17 to 128, 129 to 240,
-//! and above 240 where the AVX2, SSE2, or NEON stripe kernels run), so a known answer exists for
+//! The vectors cross the XXH3 length classes (0,
+//! 1 to 3,
+//! 4 to 8,
+//! 9 to 16,
+//! 17 to 128,
+//! 129 to 240,
+//! and above 240 where the AVX2,
+//! SSE2,
+//! or NEON stripe kernels run),
+//! so a known answer exists for
 //! the vectorized path as well as for the short scalar paths.
 
 use super::*;

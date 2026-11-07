@@ -1,8 +1,12 @@
 //! What:
-//!  Test-only hooks of the service's fault points: a control sets code to run, or a step to fail, at a named point of a landing on its own thread.
+//!  Test-only hooks of the service's fault points:
+//! a control sets code to run,
+//! or a step to fail,
+//! at a named point of a landing on its own thread.
 //! Why:
 //!  Kept in a file of its own so the shipped `service_fault.rs` holds no inline test module (`rust/tests-in-sidecars`);
-//!  it is declared there under `#[cfg(test)]`, so the release executable never contains it.
+//!  it is declared there under `#[cfg(test)]`,
+//! so the release executable never contains it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,7 +16,8 @@
 use std::cell::RefCell;
 
 thread_local! {
-    /// The steps of a landing on this thread, in the order they happened.
+    /// The steps of a landing on this thread,
+    /// in the order they happened.
     static EVENTS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     /// The point and the code to run at it.
     static HOOK: RefCell<Option<(String, std::rc::Rc<dyn Fn()>)>> = const { RefCell::new(None) };
@@ -45,7 +50,8 @@ pub(super) fn record(event: &str) {
     EVENTS.with(|events| { events.borrow_mut().push(event.to_string()); });
 }
 
-/// The steps reported on this thread since the last call, in order.
+/// The steps reported on this thread since the last call,
+/// in order.
 pub(crate) fn take_events() -> Vec<String> {
     return EVENTS.with(|events| { return std::mem::take(&mut *events.borrow_mut()); });
 }

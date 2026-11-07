@@ -2,19 +2,25 @@
 
 use super::*;
 
-/// A function-like value with the right shape is a start in these controls: the shipped callers write a small struct that holds the state.
+/// A function-like value with the right shape is a start in these controls:
+/// the shipped callers write a small struct that holds the state.
 impl<T, Start: FnMut() -> Result<T>> RefusableStart<T> for Start {
     fn start(&mut self) -> Result<T> {
         return self();
     }
 }
 
-/// The error a refused start returns: `EAGAIN`, which Rust reports as `WouldBlock`.
+/// The error a refused start returns:
+/// `EAGAIN`,
+/// which Rust reports as `WouldBlock`.
 fn refusal() -> Error {
     return Error::from_raw_os_error(libc::EAGAIN);
 }
 
-/// Run the retry with a recording pause: the result, the pauses it asked for, and how often it tried.
+/// Run the retry with a recording pause:
+/// the result,
+/// the pauses it asked for,
+/// and how often it tried.
 fn drive(
     budget: Duration,
     mut outcome: impl FnMut(u32) -> Result<i32>,
@@ -33,12 +39,15 @@ fn drive(
     return (result, pauses, tries);
 }
 
-/// The pauses in milliseconds, for readable assertions.
+/// The pauses in milliseconds,
+/// for readable assertions.
 fn millis(pauses: &[Duration]) -> Vec<u128> {
     return pauses.iter().map(Duration::as_millis).collect();
 }
 
-/// Check the retry's pause schedule: one pause per refusal, doubling from the first one and
+/// Check the retry's pause schedule:
+/// one pause per refusal,
+/// doubling from the first one and
 ///  never longer than the longest.
 fn assert_growing_pauses(pauses: &[Duration]) {
     let mut expected: Duration = FIRST_PAUSE;
@@ -110,7 +119,8 @@ fn a_start_refused_past_the_budget_fails_and_counts_the_refusals() {
     assert!(waited <= START_RETRY_BUDGET, "the pauses never pass the budget");
 }
 
-/// An error that is not a shortage of processes is the caller's at once, without a pause.
+/// An error that is not a shortage of processes is the caller's at once,
+/// without a pause.
 #[test]
 fn another_error_is_returned_at_once() {
     let (result, pauses, tries) = drive(START_RETRY_BUDGET, |_| { return Err(Error::from(ErrorKind::NotFound)); });
@@ -119,7 +129,8 @@ fn another_error_is_returned_at_once() {
     assert_eq!(tries, 1);
 }
 
-/// A real command starts through the retrying calls, and a program that does not exist fails at once.
+/// A real command starts through the retrying calls,
+/// and a program that does not exist fails at once.
 #[test]
 fn real_commands_start_through_the_retrying_calls() {
     assert!(Command::new("true").status_retrying().expect("true starts").success());
@@ -131,7 +142,8 @@ fn real_commands_start_through_the_retrying_calls() {
     assert_eq!(error.kind(), ErrorKind::NotFound);
 }
 
-/// A failed replacement of the process returns its error, and a missing program is not retried.
+/// A failed replacement of the process returns its error,
+/// and a missing program is not retried.
 #[cfg(unix)]
 #[test]
 fn a_failed_exec_returns_its_error_at_once() {
@@ -139,8 +151,12 @@ fn a_failed_exec_returns_its_error_at_once() {
     assert_eq!(error.kind(), ErrorKind::NotFound);
 }
 
-/// The retry run on a current-thread runtime next to a ticking task: how often the ticker ran, how often the start was tried, and the
-///  result. A pause that blocks the thread leaves the ticker no turn.
+/// The retry run on a current-thread runtime next to a ticking task:
+/// how often the ticker ran,
+/// how often the start was tried,
+/// and the
+///  result.
+/// A pause that blocks the thread leaves the ticker no turn.
 fn drive_awaiting_beside_a_ticker(budget: Duration) -> (Result<i32>, u32, u32) {
     let runtime: tokio::runtime::Runtime =
         tokio::runtime::Builder::new_current_thread().enable_time().build().expect("a current-thread runtime");
@@ -167,7 +183,9 @@ fn drive_awaiting_beside_a_ticker(budget: Duration) -> (Result<i32>, u32, u32) {
     return (result, ticks.load(std::sync::atomic::Ordering::SeqCst), tries);
 }
 
-/// The pause between two refused starts is the runtime's timer: a task beside the retry runs during every pause, which a pause that
+/// The pause between two refused starts is the runtime's timer:
+/// a task beside the retry runs during every pause,
+/// which a pause that
 ///  sleeps the thread never allows.
 #[test]
 fn a_pause_between_refused_starts_lets_other_tasks_run() {
@@ -188,7 +206,8 @@ fn the_awaiting_retry_refuses_in_the_same_words_as_the_sleeping_one() {
     assert_eq!(awaiting.expect_err("refused").to_string(), sleeping.expect_err("refused").to_string());
 }
 
-/// A real command starts through the awaiting call, and a program that does not exist fails at once.
+/// A real command starts through the awaiting call,
+/// and a program that does not exist fails at once.
 #[test]
 fn a_real_command_starts_through_the_awaiting_call() {
     let runtime: tokio::runtime::Runtime =

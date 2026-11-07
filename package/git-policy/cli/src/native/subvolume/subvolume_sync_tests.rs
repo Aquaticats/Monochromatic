@@ -1,7 +1,20 @@
-//! Controls for the tree pass: a first copy of every entry kind, the repeat that changes nothing, the deletion pass, the
-//!  update-only pass, a change of entry type, hard links, the files and directories this user cannot read, the entries
-//!  that are not recreated, the excluded path, and the stop at a simulated kill. They run on the stand-in platform
-//!  (clones refused, so the byte-copy path runs); the clone path is the btrfs control's.
+//! Controls for the tree pass:
+//! a first copy of every entry kind,
+//! the repeat that changes nothing,
+//! the deletion pass,
+//! the
+//!  update-only pass,
+//! a change of entry type,
+//! hard links,
+//! the files and directories this user cannot read,
+//! the entries
+//!  that are not recreated,
+//! the excluded path,
+//! and the stop at a simulated kill.
+//! They run on the stand-in platform
+//!  (clones refused,
+//! so the byte-copy path runs);
+//! the clone path is the btrfs control's.
 
 use super::*;
 use crate::subvolume_anchor::Anchor;
@@ -12,13 +25,15 @@ use crate::test_support::{fixture, remove};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{PermissionsExt, symlink};
 
-/// Whether the tests run as root, which can read every file and so cannot make an unreadable one.
+/// Whether the tests run as root,
+/// which can read every file and so cannot make an unreadable one.
 fn running_as_root() -> bool {
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     return unsafe { libc::geteuid() } == 0;
 }
 
-/// The default options: copy only.
+/// The default options:
+/// copy only.
 const COPY: SyncOptions<'static> = SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None };
 
 /// Set both times of a path to whole seconds after the epoch.
@@ -30,7 +45,8 @@ fn set_mtime(path: &Path, seconds: i64) {
     assert_eq!(result, 0, "set the time of {}", path.display());
 }
 
-/// A source tree with one of each kind of entry, and an empty destination beside it.
+/// A source tree with one of each kind of entry,
+/// and an empty destination beside it.
 fn trees(name: &str) -> (PathBuf, PathBuf, PathBuf) {
     let parent: PathBuf = fixture(name);
     let source: PathBuf = parent.join("source");
@@ -52,7 +68,10 @@ fn run(source: &Path, destination: &Path, options: SyncOptions<'_>) -> SyncStats
     return sync_tree(&PlainPlatform::new(), source, destination, options, &Interrupt::never()).expect("pass");
 }
 
-/// A first pass copies every kind with its bytes, mode, symbolic link and modification time to the nanosecond, and the
+/// A first pass copies every kind with its bytes,
+/// mode,
+/// symbolic link and modification time to the nanosecond,
+/// and the
 ///  counts say what was done.
 #[test]
 fn a_first_pass_copies_every_kind_of_entry() {
@@ -87,7 +106,8 @@ fn a_repeated_pass_changes_nothing() {
     remove(parent.as_path());
 }
 
-/// A changed file (new size) is replaced; one whose permission bits differ is replaced too.
+/// A changed file (new size) is replaced;
+/// one whose permission bits differ is replaced too.
 #[test]
 fn a_changed_file_is_copied_again() {
     let (parent, source, destination) = trees("sync-changed");
@@ -103,7 +123,8 @@ fn a_changed_file_is_copied_again() {
 }
 
 /// The deletion pass removes what the source lacks (files and whole directories) and keeps the excluded path in both
-///  directions: it is neither copied from the source nor deleted from the destination.
+///  directions:
+/// it is neither copied from the source nor deleted from the destination.
 #[test]
 fn the_deletion_pass_removes_extras_and_spares_the_excluded_path() {
     let (parent, source, destination) = trees("sync-delete");
@@ -123,7 +144,8 @@ fn the_deletion_pass_removes_extras_and_spares_the_excluded_path() {
     remove(parent.as_path());
 }
 
-/// Without the deletion switch extras stay; with the update-only switch they stay even when deletion is also asked.
+/// Without the deletion switch extras stay;
+/// with the update-only switch they stay even when deletion is also asked.
 #[test]
 fn extras_stay_without_deletion_and_with_update_only() {
     let (parent, source, destination) = trees("sync-extras");
@@ -137,7 +159,9 @@ fn extras_stay_without_deletion_and_with_update_only() {
     remove(parent.as_path());
 }
 
-/// The update-only pass keeps a destination file that is newer, replaces one that is older, and adds what is missing.
+/// The update-only pass keeps a destination file that is newer,
+/// replaces one that is older,
+/// and adds what is missing.
 #[test]
 fn the_update_only_pass_lets_the_newer_file_win() {
     let (parent, source, destination) = trees("sync-update");
@@ -155,8 +179,12 @@ fn the_update_only_pass_lets_the_newer_file_win() {
     remove(parent.as_path());
 }
 
-/// An entry that changed type is replaced: a directory where the destination has a file, a file where it has a
-///  directory, a link where it has a file, and a link whose target changed.
+/// An entry that changed type is replaced:
+/// a directory where the destination has a file,
+/// a file where it has a
+///  directory,
+/// a link where it has a file,
+/// and a link whose target changed.
 #[test]
 fn an_entry_that_changed_type_is_replaced() {
     let (parent, source, destination) = trees("sync-types");
@@ -173,7 +201,8 @@ fn an_entry_that_changed_type_is_replaced() {
     remove(parent.as_path());
 }
 
-/// A named pipe replaces a file of the same name, and a pipe already there is left alone.
+/// A named pipe replaces a file of the same name,
+/// and a pipe already there is left alone.
 #[test]
 fn a_named_pipe_replaces_a_file_and_is_then_unchanged() {
     let (parent, source, destination) = trees("sync-fifo");
@@ -186,7 +215,8 @@ fn a_named_pipe_replaces_a_file_and_is_then_unchanged() {
     remove(parent.as_path());
 }
 
-/// A pipe that cannot be made reports the operating system's words; a path with an interior NUL is refused as input.
+/// A pipe that cannot be made reports the operating system's words;
+/// a path with an interior NUL is refused as input.
 #[test]
 fn a_pipe_that_cannot_be_made_is_an_error() {
     let parent: PathBuf = fixture("sync-fifo-error");
@@ -198,7 +228,8 @@ fn a_pipe_that_cannot_be_made_is_an_error() {
     remove(parent.as_path());
 }
 
-/// Two names of one file become two names of one file in the copy; a copy whose link was broken is linked again.
+/// Two names of one file become two names of one file in the copy;
+/// a copy whose link was broken is linked again.
 #[test]
 fn hard_links_stay_hard_links_and_a_broken_link_is_restored() {
     let (parent, source, destination) = trees("sync-links");
@@ -221,7 +252,8 @@ fn hard_links_stay_hard_links_and_a_broken_link_is_restored() {
     remove(parent.as_path());
 }
 
-/// A destination directory that lacks owner write permission is made writable for the pass, and its final permission
+/// A destination directory that lacks owner write permission is made writable for the pass,
+/// and its final permission
 ///  bits are applied afterwards.
 #[test]
 fn a_read_only_directory_is_filled_and_ends_read_only() {
@@ -241,7 +273,9 @@ fn a_read_only_directory_is_filled_and_ends_read_only() {
     remove(parent.as_path());
 }
 
-/// A file this user may not read is left out, listed by its relative path, and does not stop the pass.
+/// A file this user may not read is left out,
+/// listed by its relative path,
+/// and does not stop the pass.
 #[test]
 fn an_unreadable_file_is_listed_and_the_pass_continues() {
     if running_as_root() {
@@ -256,7 +290,8 @@ fn an_unreadable_file_is_listed_and_the_pass_continues() {
     remove(parent.as_path());
 }
 
-/// A directory this user cannot list stops the pass, naming it.
+/// A directory this user cannot list stops the pass,
+/// naming it.
 #[test]
 fn an_unreadable_directory_stops_the_pass_naming_it() {
     if running_as_root() {
@@ -271,7 +306,8 @@ fn an_unreadable_directory_stops_the_pass_naming_it() {
     remove(parent.as_path());
 }
 
-/// A socket is not recreated and is listed; a source that does not exist is an error naming it.
+/// A socket is not recreated and is listed;
+/// a source that does not exist is an error naming it.
 #[test]
 fn a_socket_is_listed_and_a_missing_source_is_an_error() {
     let (parent, source, destination) = trees("sync-special");
@@ -288,7 +324,8 @@ fn a_socket_is_listed_and_a_missing_source_is_an_error() {
     remove(parent.as_path());
 }
 
-/// The simulated kill stops the pass at the chosen file, and a repeat completes the tree.
+/// The simulated kill stops the pass at the chosen file,
+/// and a repeat completes the tree.
 #[test]
 fn a_stopped_pass_is_completed_by_the_next_one() {
     let (parent, source, destination) = trees("sync-interrupted");
@@ -300,7 +337,8 @@ fn a_stopped_pass_is_completed_by_the_next_one() {
     remove(parent.as_path());
 }
 
-/// Extended attributes follow the file where the filesystem has them; a filesystem without them says so loudly.
+/// Extended attributes follow the file where the filesystem has them;
+/// a filesystem without them says so loudly.
 #[test]
 fn user_extended_attributes_are_copied() {
     let (parent, source, destination) = trees("sync-xattr");
@@ -329,7 +367,8 @@ fn user_extended_attributes_are_copied() {
 /// The update-only options.
 const UPDATE: SyncOptions<'static> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
 
-/// Replace a destination file the way an editor does: write a sibling and rename it over the name.
+/// Replace a destination file the way an editor does:
+/// write a sibling and rename it over the name.
 fn replace_atomically(path: &Path, contents: &[u8]) {
     let sibling: PathBuf = path.with_extension("editor-tmp");
     std::fs::write(sibling.as_path(), contents).expect("sibling");
@@ -353,8 +392,10 @@ fn a_killed_update_only_copy_is_not_mistaken_for_a_newer_file() {
     remove(parent.as_path());
 }
 
-/// A destination directory that took the place of a source file holds newer work: the update-only pass keeps it and
-///  names it, instead of deleting it recursively.
+/// A destination directory that took the place of a source file holds newer work:
+/// the update-only pass keeps it and
+///  names it,
+/// instead of deleting it recursively.
 #[test]
 fn an_update_only_pass_never_removes_a_destination_directory_or_a_newer_entry_of_another_type() {
     let (parent, source, destination) = trees("sync-conflict");
@@ -371,7 +412,8 @@ fn an_update_only_pass_never_removes_a_destination_directory_or_a_newer_entry_of
     remove(parent.as_path());
 }
 
-/// An older destination symlink or file of another type is still replaced by the update-only pass, so a real change in
+/// An older destination symlink or file of another type is still replaced by the update-only pass,
+/// so a real change in
 ///  the source wins.
 #[test]
 fn an_update_only_pass_replaces_an_older_entry_of_another_type() {
@@ -386,7 +428,8 @@ fn an_update_only_pass_replaces_an_older_entry_of_another_type() {
 }
 
 /// A destination name that was replaced with newer content while its sibling hard link stayed as copied must not pass its
-///  content on to the sibling, whichever of the two the pass meets first.
+///  content on to the sibling,
+/// whichever of the two the pass meets first.
 #[test]
 fn an_update_only_pass_does_not_spread_newer_content_through_a_hard_link() {
     for newer in ["dir/a", "dir/b"] {
@@ -403,7 +446,8 @@ fn an_update_only_pass_does_not_spread_newer_content_through_a_hard_link() {
     }
 }
 
-/// A platform that appends to `path` (and moves its time on) at the clone calls the predicate picks, as a writer would
+/// A platform that appends to `path` (and moves its time on) at the clone calls the predicate picks,
+/// as a writer would
 ///  between the moment the pass looked at the file and the moment it copies it.
 fn racing(path: PathBuf, picks: fn(u32) -> bool) -> Hooked {
     let on_clone = move |call: u32| {
@@ -417,8 +461,10 @@ fn racing(path: PathBuf, picks: fn(u32) -> bool) -> Hooked {
     return Hooked { inner: PlainPlatform::new(), on_clone: Box::new(on_clone), calls: std::cell::Cell::new(0), links_fail: false };
 }
 
-/// A source file that changes while it is being copied is copied again, and the copy carries the size and time of the
-///  content it holds, not those of the directory listing.
+/// A source file that changes while it is being copied is copied again,
+/// and the copy carries the size and time of the
+///  content it holds,
+/// not those of the directory listing.
 #[test]
 fn a_source_that_changes_during_the_copy_is_copied_again() {
     let (parent, source, destination) = trees("sync-racing");
@@ -430,7 +476,8 @@ fn a_source_that_changes_during_the_copy_is_copied_again() {
     remove(parent.as_path());
 }
 
-/// A source that never stops changing is an error naming the file, not a torn copy recorded as finished.
+/// A source that never stops changing is an error naming the file,
+/// not a torn copy recorded as finished.
 #[test]
 fn a_source_that_never_settles_is_an_error() {
     let (parent, source, destination) = trees("sync-racing-always");
@@ -455,7 +502,9 @@ fn hard_links_that_cannot_be_made_become_separate_copies() {
 }
 
 /// Directories of the destination that are replaced by links to other directories while the pass runs must not redirect
-///  the pass: the files outside the tree keep their content and times, and the replaced directories are listed.
+///  the pass:
+/// the files outside the tree keep their content and times,
+/// and the replaced directories are listed.
 #[test]
 fn a_destination_directory_replaced_by_a_link_during_the_pass_redirects_nothing() {
     let parent: PathBuf = fixture("sync-swapped");
@@ -495,7 +544,8 @@ fn a_destination_directory_replaced_by_a_link_during_the_pass_redirects_nothing(
     remove(parent.as_path());
 }
 
-/// A temporary entry left by a killed pass is removed by the next one, and a source entry of the same name is copied.
+/// A temporary entry left by a killed pass is removed by the next one,
+/// and a source entry of the same name is copied.
 #[test]
 fn a_leftover_temporary_entry_is_removed_and_its_name_in_the_source_is_respected() {
     let (parent, source, destination) = trees("sync-leftover");
@@ -510,7 +560,8 @@ fn a_leftover_temporary_entry_is_removed_and_its_name_in_the_source_is_respected
     remove(parent.as_path());
 }
 
-/// Set a user extended attribute; false (and a loud line) where the filesystem refuses.
+/// Set a user extended attribute;
+/// false (and a loud line) where the filesystem refuses.
 fn set_user_attribute(path: &Path, name: &str, value: &[u8]) -> bool {
     let (path_text, name_text) = (std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("path"), std::ffi::CString::new(name).expect("name"));
     // SAFETY: both strings are NUL-terminated and the value is readable for its length.
@@ -521,7 +572,8 @@ fn set_user_attribute(path: &Path, name: &str, value: &[u8]) -> bool {
     return set == 0;
 }
 
-/// The value of an extended attribute, or nothing when it is absent.
+/// The value of an extended attribute,
+/// or nothing when it is absent.
 fn read_attribute(path: &Path, name: &str) -> Option<Vec<u8>> {
     let (path_text, name_text) = (std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("path"), std::ffi::CString::new(name).expect("name"));
     let mut value: Vec<u8> = vec![0; 512];
@@ -543,7 +595,8 @@ fn remove_attribute(path: &Path, name: &str) {
 }
 
 /// The bytes of a POSIX ACL (`system.posix_acl_access`) that gives a named user `named_user` the permissions `named_bits`,
-///  the owner `owner_bits`, the group and the mask `group_bits` and the others nothing.
+///  the owner `owner_bits`,
+/// the group and the mask `group_bits` and the others nothing.
 fn acl_with_named_user(named_user: u32, named_bits: u16, owner_bits: u16, group_bits: u16) -> Vec<u8> {
     let mut bytes: Vec<u8> = 2u32.to_le_bytes().to_vec();
     for (tag, bits, id) in [(1u16, owner_bits, u32::MAX), (2, named_bits, named_user), (4, group_bits, u32::MAX), (0x10, group_bits, u32::MAX), (0x20, 0, u32::MAX)] {
@@ -554,8 +607,10 @@ fn acl_with_named_user(named_user: u32, named_bits: u16, owner_bits: u16, group_
     return bytes;
 }
 
-/// A change of a user attribute or of a named ACL entry alone (same size, time and mode) reaches the copy on the next
-///  pass, and an attribute the source lost is removed from the copy.
+/// A change of a user attribute or of a named ACL entry alone (same size,
+/// time and mode) reaches the copy on the next
+///  pass,
+/// and an attribute the source lost is removed from the copy.
 #[test]
 fn a_changed_or_removed_extended_attribute_or_acl_reaches_the_copy() {
     let (parent, source, destination) = trees("sync-xattr-delta");
@@ -633,14 +688,18 @@ fn pass_over<'a>(platform: &'a PlainPlatform, source: &'a Path, destination: &'a
     return Pass { platform, source, destination, options: COPY, interrupt, stats: SyncStats::default(), links: HashMap::new() };
 }
 
-/// The destination directory of a relative path, held open with the temporary name a pass uses.
+/// The destination directory of a relative path,
+/// held open with the temporary name a pass uses.
 fn directory_of(destination: &Path) -> Directory {
     let anchor: Anchor = Anchor::open_below(destination, Path::new("")).expect("open the destination");
     return Directory { anchor, temporary: OsString::from(PARTIAL_NAME) };
 }
 
-/// A read that found its entry gone is counted and skipped, a read that failed otherwise is returned, and one that worked
-///  counts nothing; the metadata of a listed entry that was removed after the listing is the vanished kind.
+/// A read that found its entry gone is counted and skipped,
+/// a read that failed otherwise is returned,
+/// and one that worked
+///  counts nothing;
+/// the metadata of a listed entry that was removed after the listing is the vanished kind.
 #[test]
 fn a_vanished_entry_is_counted_and_any_other_failure_is_returned() {
     let mut vanished: u64 = 0;
@@ -661,7 +720,8 @@ fn a_vanished_entry_is_counted_and_any_other_failure_is_returned() {
     remove(parent.as_path());
 }
 
-/// A directory that is gone when its turn comes is counted and adds no work; one that cannot be listed for another reason
+/// A directory that is gone when its turn comes is counted and adds no work;
+/// one that cannot be listed for another reason
 ///  stops the pass and names the directory.
 #[test]
 fn a_directory_that_vanished_is_counted_and_one_that_cannot_be_listed_is_an_error() {
@@ -681,7 +741,10 @@ fn a_directory_that_vanished_is_counted_and_one_that_cannot_be_listed_is_an_erro
     remove(parent.as_path());
 }
 
-/// A file that cannot be opened is told apart by the reason: gone is counted as vanished, unreadable is listed, and any
+/// A file that cannot be opened is told apart by the reason:
+/// gone is counted as vanished,
+/// unreadable is listed,
+/// and any
 ///  other failure stops the pass naming the file.
 #[test]
 fn an_unopenable_source_file_is_vanished_unreadable_or_an_error_by_its_reason() {
@@ -707,7 +770,9 @@ fn an_unopenable_source_file_is_vanished_unreadable_or_an_error_by_its_reason() 
     remove(parent.as_path());
 }
 
-/// A file with one name leaves no record of a link behind, and a file with several names leaves exactly one; a stale
+/// A file with one name leaves no record of a link behind,
+/// and a file with several names leaves exactly one;
+/// a stale
 ///  record (an inode number the source reused) never makes a single-name file a link of an earlier copy.
 #[test]
 fn only_a_file_with_several_names_is_recorded_and_linked() {

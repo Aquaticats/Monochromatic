@@ -310,7 +310,9 @@ fn bind_socket_in(directory: &Path, name: &str) -> std::os::unix::net::UnixListe
     return std::os::unix::net::UnixListener::bind(directory.join(name)).expect("socket");
 }
 
-/// A socket where a file is expected is a conflict, not a failure, and a symbolic link cannot be opened.
+/// A socket where a file is expected is a conflict,
+/// not a failure,
+/// and a symbolic link cannot be opened.
 #[cfg(unix)]
 #[test]
 fn a_socket_is_a_conflict_and_a_symbolic_link_is_not_opened() {

@@ -1,9 +1,18 @@
 //! What:
-//!  Runs a command to its end and returns its status and output, the way `Command::output` does, with the child started by the
-//!  standard library, awaited through its pidfd on the runtime, and its output read from anonymous files.
+//!  Runs a command to its end and returns its status and output,
+//! the way `Command::output` does,
+//! with the child started by the
+//!  standard library,
+//! awaited through its pidfd on the runtime,
+//! and its output read from anonymous files.
 //! Why:
-//!  The one-shot child waits of the wrapper (a question put to Git, a scan of lock holders) moved off `Command::output`, which
-//!  blocks a thread until the child ends, onto the runtime (`doc/planning/git-policy-cli-full-tokio.md`, step T4). The files
+//!  The one-shot child waits of the wrapper (a question put to Git,
+//! a scan of lock holders) moved off `Command::output`,
+//! which
+//!  blocks a thread until the child ends,
+//! onto the runtime (`doc/planning/git-policy-cli-full-tokio.md`,
+//! step T4).
+//! The files
 //!  mean no reader is needed and a child that writes a lot never waits for one.
 //!
 //! In TS you'd write (pseudocode):
@@ -18,10 +27,14 @@ use crate::start_retry::spawn_retrying_without_blocking;
 use std::process::{Command, Output};
 
 /// What:
-///  Runs `command` to its end. The start is the standard library's (a refused start leaves no child, and `EAGAIN` is retried
-///  within its budget); everything after it is owned by the awaiting value.
+///  Runs `command` to its end.
+/// The start is the standard library's (a refused start leaves no child,
+/// and `EAGAIN` is retried
+///  within its budget);
+/// everything after it is owned by the awaiting value.
 /// Why:
-///  The output is the last `STEP_OUTPUT_LIMIT` bytes of each stream, as every other captured step of the wrapper is.
+///  The output is the last `STEP_OUTPUT_LIMIT` bytes of each stream,
+/// as every other captured step of the wrapper is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -39,10 +52,15 @@ pub async fn output_of(command: &mut Command) -> std::io::Result<Output> {
 }
 
 /// What:
-///  `output_of` for synchronous code: enters the process's runtime, building it on the first need. From inside the runtime it
-///  returns an error instead of panicking, because waiting for the runtime from within it would never end.
+///  `output_of` for synchronous code:
+/// enters the process's runtime,
+/// building it on the first need.
+/// From inside the runtime it
+///  returns an error instead of panicking,
+/// because waiting for the runtime from within it would never end.
 /// Why:
-///  The callers are synchronous until their own callers become asynchronous (step T11); this bridge goes with the last of them.
+///  The callers are synchronous until their own callers become asynchronous (step T11);
+/// this bridge goes with the last of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

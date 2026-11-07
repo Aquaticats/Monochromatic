@@ -62,7 +62,8 @@ fn the_default_message_is_the_one_git_writes() {
     remove(parent.as_path());
 }
 
-/// Cleanup strips trailing space, collapses blank lines and ends in one line feed.
+/// Cleanup strips trailing space,
+/// collapses blank lines and ends in one line feed.
 #[test]
 fn cleanup_matches_a_commit_that_opens_no_editor() {
     let context = git_context();
@@ -71,7 +72,8 @@ fn cleanup_matches_a_commit_that_opens_no_editor() {
     assert_eq!(clean_message(&context, b"one").expect("cleaned"), b"one\n".to_vec());
 }
 
-/// Only the lines of `FETCH_HEAD` with two tabs after a full name are heads to merge, as `handle_fetch_head` reads them.
+/// Only the lines of `FETCH_HEAD` with two tabs after a full name are heads to merge,
+/// as `handle_fetch_head` reads them.
 #[test]
 fn only_the_for_merge_lines_of_fetch_head_are_heads() {
     let merged: String = "a".repeat(40);

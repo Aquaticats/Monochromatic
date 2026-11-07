@@ -1,10 +1,17 @@
 //! What:
-//!  Every name this program answers to or keeps on disk, as a pair: the name of this release and the name an earlier
+//!  Every name this program answers to or keeps on disk,
+//! as a pair:
+//! the name of this release and the name an earlier
 //!  release used before the program became `monochromatic-git-policy-cli`.
 //! Why:
-//!  The owner renamed the program, its command word, its settings file and the folders and files it keeps inside the Git
-//!  directory (`doc/planning/git-policy-cli-program-rename.md`). An older install, a settings file in a repository that has
-//!  not been renamed and a folder an older release wrote must all keep working, so each place that reads or writes one of
+//!  The owner renamed the program,
+//! its command word,
+//! its settings file and the folders and files it keeps inside the Git
+//!  directory (`doc/planning/git-policy-cli-program-rename.md`).
+//! An older install,
+//! a settings file in a repository that has
+//!  not been renamed and a folder an older release wrote must all keep working,
+//! so each place that reads or writes one of
 //!  these names takes the pair from here and never spells either half itself.
 //!
 //! In TS you'd write (pseudocode):

@@ -41,7 +41,8 @@ pub const REPOSITORY_REDIRECT_VARIABLES: [&str; 5] = [
     "GIT_INDEX_FILE",
 ];
 
-/// Name of the absent directory inside a shadow, named as the hooks path of monochromatic-git-policy-cli's own shadow commands.
+/// Name of the absent directory inside a shadow,
+/// named as the hooks path of monochromatic-git-policy-cli's own shadow commands.
 pub const SHADOW_NO_HOOKS_NAME: &str = "no-hooks";
 
 /// Name of the directory under `<git-common-dir>/monochromatic-git-policy-cli` that holds one shadow repository per transaction.

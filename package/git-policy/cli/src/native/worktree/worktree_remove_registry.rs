@@ -1,13 +1,20 @@
 //! What:
-//!  Which registration of the invoking repository a worktree directory belongs to, and whether Git would pick that same
+//!  Which registration of the invoking repository a worktree directory belongs to,
+//! and whether Git would pick that same
 //!  worktree for the name the person typed.
 //! Why:
-//!  Git removes only a worktree that its own list for the repository it runs in contains, found first by the last
-//!  components of every registered path and only then by the resolved path (`find_worktree` in Git's `worktree.c`). The
+//!  Git removes only a worktree that its own list for the repository it runs in contains,
+//! found first by the last
+//!  components of every registered path and only then by the resolved path (`find_worktree` in Git's `worktree.c`).
+//! The
 //!  `.git` file of a worktree and the `gitdir` file of an administrative directory that name each other prove only that
-//!  the pair is consistent, not that the repository the command runs in registered it, and a directory that exists under
-//!  the typed name proves nothing about the worktree Git would remove for that name. Anything but a registration of the
-//!  invoking repository that Git would also pick is left to Git, which words its own answer.
+//!  the pair is consistent,
+//! not that the repository the command runs in registered it,
+//! and a directory that exists under
+//!  the typed name proves nothing about the worktree Git would remove for that name.
+//! Anything but a registration of the
+//!  invoking repository that Git would also pick is left to Git,
+//! which words its own answer.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,7 +29,8 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  The registration of one linked worktree in the repository the command runs in.
 /// Why:
-///   The administrative directory is where the registration lives; its name is the worktree's id.
+///   The administrative directory is where the registration lives;
+/// its name is the worktree's id.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -32,11 +40,13 @@ use std::path::{Path, PathBuf};
 pub struct Registration {
     /// The name of the administrative directory below `worktrees`.
     pub id: OsString,
-    /// The canonical administrative directory, `<common>/worktrees/<id>`.
+    /// The canonical administrative directory,
+    /// `<common>/worktrees/<id>`.
     pub admin: PathBuf,
     /// The canonical `<common>/worktrees` directory.
     pub worktrees: PathBuf,
-    /// The bytes of the `gitdir` file as they were proven to name the worktree, to compare again before the removal.
+    /// The bytes of the `gitdir` file as they were proven to name the worktree,
+    /// to compare again before the removal.
     pub gitdir_text: Vec<u8>,
 }
 
@@ -46,10 +56,17 @@ fn without_newline(text: &[u8]) -> &[u8] {
 }
 
 /// What:
-///  Whether Git's match by last components finds `candidate` for `operand`: the operand is non-empty, ends the path, and
-///  starts at a directory boundary. ASCII case is ignored, which also covers `core.ignorecase`, so a match is never missed.
+///  Whether Git's match by last components finds `candidate` for `operand`:
+/// the operand is non-empty,
+/// ends the path,
+/// and
+///  starts at a directory boundary.
+/// ASCII case is ignored,
+/// which also covers `core.ignorecase`,
+/// so a match is never missed.
 /// Why:
-///   Git's `find_worktree_by_suffix`; a looser match only sends more removals to Git.
+///   Git's `find_worktree_by_suffix`;
+/// a looser match only sends more removals to Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -65,10 +82,16 @@ fn ends_with_name(candidate: &[u8], operand: &[u8]) -> bool {
 }
 
 /// What:
-///  Every worktree path the repository lists: the main one, and each `gitdir` of `worktrees/*`, as Git reads them.
+///  Every worktree path the repository lists:
+/// the main one,
+/// and each `gitdir` of `worktrees/*`,
+/// as Git reads them.
 /// Why:
-///   The list Git matches the typed name against. A `gitdir` file Git skips (unreadable or empty) is skipped; a
-///  `worktrees` directory that cannot be listed leaves the list unknown, which is an error.
+///   The list Git matches the typed name against.
+/// A `gitdir` file Git skips (unreadable or empty) is skipped;
+/// a
+///  `worktrees` directory that cannot be listed leaves the list unknown,
+/// which is an error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,10 +130,14 @@ fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<Vec<u8>>,
 }
 
 /// What:
-///  The registration of `target` in the repository whose common Git directory is `common_dir`, when it is a linked
+///  The registration of `target` in the repository whose common Git directory is `common_dir`,
+/// when it is a linked
 ///  worktree of that repository that Git would also pick for `operand`.
 /// Why:
-///   See the module description. The error is the reason, for the log; the removal is then left to Git.
+///   See the module description.
+/// The error is the reason,
+/// for the log;
+/// the removal is then left to Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

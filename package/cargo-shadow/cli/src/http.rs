@@ -57,7 +57,9 @@ pub const USER_AGENT: &str = "monochromatic-cargo-shadow (https://github.com/Aqu
 /// in bytes.
 /// A crate's whole version list is the largest response (a few megabytes).
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
+/// (handover "Picks made under the owner's delegation"),
+/// veto open;
+/// not a measurement.
 /// The cap is a ceiling far above that,
 /// so it only ends a response that is not a version list;
 /// it is not a measured worst case.
@@ -65,7 +67,9 @@ const MAX_BODY_BYTES: u64 = 128 * 1024 * 1024;
 
 /// How long one request may take before it counts as failed.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
+/// (handover "Picks made under the owner's delegation"),
+/// veto open;
+/// not a measurement.
 /// Chosen as a ceiling on one request that is long against a version list over an ordinary link and short against a person's patience;
 /// the slowest real request was not measured.
 /// A per-request limit is not an end-to-end limit:
@@ -83,7 +87,8 @@ const REQUEST_TIMEOUT_SECONDS: u64 = 120;
 /// At the bound the download ends with an error and the next run starts it again.
 /// The owner's rule of 2026-11-03 justifies that a bound exists;
 /// the number is a Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open.
+/// (handover "Picks made under the owner's delegation"),
+/// veto open.
 const DUMP_TIMEOUT_SECONDS: u64 = 3_600;
 
 /// A registry lookup that failed.

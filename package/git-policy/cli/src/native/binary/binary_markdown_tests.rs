@@ -12,7 +12,8 @@
 //!  an excluded file is left alone,
 //!      and a candidate the policy cannot check stops the command with exit status 2 and
 //!      stages nothing.
-//!  No linter is installed or found on PATH: the controls run with only the system programs after the wrapper.
+//!  No linter is installed or found on PATH:
+//! the controls run with only the system programs after the wrapper.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -206,7 +207,8 @@ fn the_linked_linter_rewrites_through_add_check_and_fix() {
     remove(&fixture);
 }
 
-/// The engine failure of a Markdown candidate the policy could not check, with no path because the failure is the
+/// The engine failure of a Markdown candidate the policy could not check,
+/// with no path because the failure is the
 /// policy's own option.
 fn unchecked_without_path(trigger: &str, reason: &str) -> String {
     // The message is a JSON string value, so the quotes in the pattern's reason are escaped as the event escapes them.
@@ -222,8 +224,10 @@ fn unchecked_without_path(trigger: &str, reason: &str) -> String {
     );
 }
 
-/// An exclude pattern the matcher cannot compile leaves a Markdown candidate unchecked: an add and a direct check
-/// stop with exit status 2 naming the pattern's reason, while an add with no Markdown file needs no pattern;
+/// An exclude pattern the matcher cannot compile leaves a Markdown candidate unchecked:
+/// an add and a direct check
+/// stop with exit status 2 naming the pattern's reason,
+/// while an add with no Markdown file needs no pattern;
 /// escaping the policy lets the Markdown add through.
 #[test]
 fn an_exclude_that_does_not_compile_stops_only_markdown_work() {
@@ -262,10 +266,13 @@ fn an_exclude_that_does_not_compile_stops_only_markdown_work() {
     remove(&fixture);
 }
 
-/// The bound of one commit under host load, in seconds; the shared bound is for single Git commands.
+/// The bound of one commit under host load,
+/// in seconds;
+/// the shared bound is for single Git commands.
 const COMMIT_BOUND_SECONDS: &str = "120";
 
-/// The commit `main` names, read by real Git.
+/// The commit `main` names,
+/// read by real Git.
 fn head(fixture: &Fixture, repo: &Path) -> String {
     return String::from_utf8_lossy(&git(fixture, repo, &["rev-parse", "HEAD"]).stdout)
         .trim()
@@ -273,8 +280,10 @@ fn head(fixture: &Fixture, repo: &Path) -> String {
 }
 
 /// A commit of a Markdown file lands with the linter linked in and no linter on the PATH:
-/// the stale object URL in the file comes back as the policy's warning on standard error, which only a run of the
-/// linter produces, and the commit still lands with exit status 0.
+/// the stale object URL in the file comes back as the policy's warning on standard error,
+/// which only a run of the
+/// linter produces,
+/// and the commit still lands with exit status 0.
 #[test]
 fn a_markdown_commit_is_checked_in_process_with_no_linter_on_the_path() {
     let fixture: Fixture = fixture("markdown-post-commit");
@@ -305,8 +314,11 @@ fn a_markdown_commit_is_checked_in_process_with_no_linter_on_the_path() {
     remove(&fixture);
 }
 
-/// A commit needs no system temporary directory either: with `TMPDIR` naming a path that does not exist the commit
-/// lands, the private scratch directory exists beside the repository's other private storage, and it is empty.
+/// A commit needs no system temporary directory either:
+/// with `TMPDIR` naming a path that does not exist the commit
+/// lands,
+/// the private scratch directory exists beside the repository's other private storage,
+/// and it is empty.
 #[test]
 fn a_commit_keeps_its_git_input_in_the_repository_scratch_directory() {
     let fixture: Fixture = fixture("commit-scratch-location");

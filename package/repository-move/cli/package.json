@@ -1,0 +1,40 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/repository-move-cli",
+  "description": "One-off tools for moving the repository and its worktree subvolumes to the 860 drive: a fail-closed btrfs send and receive copy, and a table of the uncommitted work a move would strand.",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "module": "dist/final/node/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "bin": {
+    "repository-move-copy": "dist/final/node/move-repository.mjs",
+    "repository-move-scan": "dist/final/node/list-uncommitted-work.mjs",
+    "repository-move-run": "dist/final/node/run-repository-move.mjs"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/repository-move/cli"
+  }
+}

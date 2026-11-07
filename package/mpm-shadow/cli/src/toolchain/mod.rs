@@ -94,6 +94,10 @@ pub mod archive_staging;
 /// The per-tree launcher for repository-published tools.
 pub mod launcher;
 
+/// The check that a launcher's records never lead back to the launcher or in a circle,
+/// so a launcher never starts itself.
+pub mod launcher_chain;
+
 /// What a launcher runs when its record's program is gone:
 /// the program under `current`,
 /// or the sentence that names both versions and the command that fixes it.
@@ -198,6 +202,8 @@ pub mod sync;
 
 /// Running the cleanup of old copies after `install` and printing its lines.
 pub mod sync_old_copies;
+/// The wording of what `install` prints for a sync.
+pub mod sync_report_text;
 
 /// CI detection by the rules of `ci-info`,
 /// which pnpm uses.
@@ -340,7 +346,8 @@ mod fakes_cargo;
 #[cfg(test)]
 mod cargo_installs_tests;
 
-/// The record of postinstall links made, and the retirement of those the lock no longer declares.
+/// The record of postinstall links made,
+/// and the retirement of those the lock no longer declares.
 pub mod postinstall_links;
 
 /// The failure of a repository crate whose `cargo binstall` found no usable release archive.
@@ -350,7 +357,8 @@ pub mod binstall_no_archive;
 #[cfg(all(test, unix))]
 mod postinstall_links_tests;
 
-/// The unit tests of the `cargo binstall` command: which crates may fall back to compiling.
+/// The unit tests of the `cargo binstall` command:
+/// which crates may fall back to compiling.
 #[cfg(test)]
 mod install_cargo_tests;
 

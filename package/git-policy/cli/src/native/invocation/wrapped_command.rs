@@ -306,12 +306,17 @@ fn prepare_guarded_command<F: RepositoryFacts>(
 }
 
 /// What:
-///  Run a real `git commit` through the commit transaction, or nothing when the command is anything else.
-///  `Option<WrappedOutcome>` is "the ending, or nothing to say".
+///  Run a real `git commit` through the commit transaction,
+/// or nothing when the command is anything else.
+///  `Option<WrappedOutcome>` is "the ending,
+/// or nothing to say".
 /// Why:
-///   Every non-dry-run commit goes through the transaction instead of being forwarded, because native `git commit`
-///   keeps `index.lock` on disk through hooks and the editor. A region Git's table refuses is not known to be a
-///   dry run, so it is treated as a real commit and Git itself rejects it.
+///   Every non-dry-run commit goes through the transaction instead of being forwarded,
+/// because native `git commit`
+///   keeps `index.lock` on disk through hooks and the editor.
+/// A region Git's table refuses is not known to be a
+///   dry run,
+/// so it is treated as a real commit and Git itself rejects it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

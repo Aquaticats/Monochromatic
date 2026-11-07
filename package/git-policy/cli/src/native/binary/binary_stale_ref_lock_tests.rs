@@ -1,11 +1,20 @@
 //! What:
 //!  Consumer-level controls for the person's own `git fetch` after a Git was killed while it held reference locks.
 //! Why:
-//!  The wrapper becomes Git for a plain fetch, so what the person sees is the wrapper's notice and then Git's own words. The
-//!  locks come from a real Git killed with `SIGKILL`, the command is the built wrapper, and a lock that a running Git holds
-//!  must survive it. Where the wrapper runs in the initial PID namespace it can prove a pid file's process gone and removes
-//!  the lock; anywhere else (a container) it cannot, and it describes the lock and leaves it. Each control pins the branch its
-//!  environment takes, and the unit controls pin both branches everywhere.
+//!  The wrapper becomes Git for a plain fetch,
+//! so what the person sees is the wrapper's notice and then Git's own words.
+//! The
+//!  locks come from a real Git killed with `SIGKILL`,
+//! the command is the built wrapper,
+//! and a lock that a running Git holds
+//!  must survive it.
+//! Where the wrapper runs in the initial PID namespace it can prove a pid file's process gone and removes
+//!  the lock;
+//! anywhere else (a container) it cannot,
+//! and it describes the lock and leaves it.
+//! Each control pins the branch its
+//!  environment takes,
+//! and the unit controls pin both branches everywhere.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,18 +38,22 @@ const GONE_REF: &str = "refs/remotes/origin/gone";
 /// The hook that holds a transaction where every lock is taken and writes the process that holds it.
 const HOLD_HOOK: &str = "#!/bin/sh\nif [ \"$1\" = prepared ] && [ -n \"$STALE_LOCK_READY\" ]; then\n  echo $$ > \"$STALE_LOCK_READY.part\"\n  mv \"$STALE_LOCK_READY.part\" \"$STALE_LOCK_READY\"\n  exec sleep 600\nfi\nexit 0\n";
 
-/// A Git a control started, ended when the control ends however it ends.
+/// A Git a control started,
+/// ended when the control ends however it ends.
 struct Held {
     /// The Git.
     child: Child,
-    /// Its input, kept open so a transaction waits.
+    /// Its input,
+    /// kept open so a transaction waits.
     _input: Option<ChildStdin>,
     /// The process the hook runs as.
     hook: Option<i32>,
 }
 
 impl Held {
-    /// Kill the Git with `SIGKILL`, so it runs no cleanup, and its hook.
+    /// Kill the Git with `SIGKILL`,
+    /// so it runs no cleanup,
+    /// and its hook.
     fn kill(&mut self) {
         self.child.kill().expect("SIGKILL the Git");
         self.child.wait().expect("reap the Git");
@@ -62,7 +75,8 @@ impl Drop for Held {
     }
 }
 
-/// A repository whose remote lost a branch, with the tracking references packed.
+/// A repository whose remote lost a branch,
+/// with the tracking references packed.
 struct Stage {
     /// The fixture.
     fixture: Fixture,
@@ -82,7 +96,8 @@ impl Stage {
     }
 }
 
-/// Build the stage; `lockfile_pid` writes `core.lockfilePid` into the repository's own configuration.
+/// Build the stage;
+/// `lockfile_pid` writes `core.lockfilePid` into the repository's own configuration.
 fn stage(name: &str, lockfile_pid: bool) -> Stage {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, std::ffi::OsStr::new("repo"));
@@ -100,7 +115,8 @@ fn stage(name: &str, lockfile_pid: bool) -> Stage {
     return Stage { fixture, repo };
 }
 
-/// Wait for a condition, at most `PATIENCE`.
+/// Wait for a condition,
+/// at most `PATIENCE`.
 fn wait_for(what: &str, condition: impl Fn() -> bool) {
     let started: Instant = Instant::now();
     while !condition() {
@@ -109,7 +125,8 @@ fn wait_for(what: &str, condition: impl Fn() -> bool) {
     }
 }
 
-/// Start `git fetch --prune origin` straight on real Git, held by the hook where its transaction has taken its locks.
+/// Start `git fetch --prune origin` straight on real Git,
+/// held by the hook where its transaction has taken its locks.
 fn hold_fetch(stage: &Stage) -> Held {
     let ready: PathBuf = stage.fixture.root.join("ready");
     let hook: PathBuf = stage.git_dir().join("hooks").join("reference-transaction");
@@ -124,7 +141,8 @@ fn hold_fetch(stage: &Stage) -> Held {
     return held;
 }
 
-/// Start `git update-ref --stdin` on real Git with `commands` prepared, and keep it waiting with its locks held.
+/// Start `git update-ref --stdin` on real Git with `commands` prepared,
+/// and keep it waiting with its locks held.
 fn hold_transaction(stage: &Stage, commands: &[&str]) -> Held {
     let mut command: Command = direct(&stage.fixture);
     command.current_dir(stage.repo.as_path()).args(["update-ref", "--stdin"]).stdin(Stdio::piped()).stdout(Stdio::piped());
@@ -146,12 +164,14 @@ fn hold_transaction(stage: &Stage, commands: &[&str]) -> Held {
     return held;
 }
 
-/// Let the locks grow older than the margin the wrapper waits for, so only the rules decide.
+/// Let the locks grow older than the margin the wrapper waits for,
+/// so only the rules decide.
 fn age_past_margin() {
     std::thread::sleep(MARGIN + Duration::from_millis(500));
 }
 
-/// Remove the hook and run the fetch the way the person does, through the wrapper.
+/// Remove the hook and run the fetch the way the person does,
+/// through the wrapper.
 fn wrapped_fetch(stage: &Stage) -> Observed {
     let _removed = std::fs::remove_file(stage.git_dir().join("hooks").join("reference-transaction"));
     return run_wrapped(&stage.fixture, stage.repo.as_path(), &["fetch", "--prune", "--quiet", "origin"]);
@@ -162,13 +182,17 @@ fn stderr_text(seen: &Observed) -> String {
     return String::from_utf8_lossy(seen.stderr.as_slice()).into_owned();
 }
 
-/// Whether this process can prove a pid file's process gone: it runs in the initial PID namespace.
+/// Whether this process can prove a pid file's process gone:
+/// it runs in the initial PID namespace.
 fn proof_available() -> bool {
     return Judge::here().pid_view_complete && current_pid_namespace().is_some();
 }
 
-/// A lock left by a killed fetch with a pid file: the wrapper removes it where it can prove the holder gone, otherwise it
-/// describes it; either way Git's own result follows.
+/// A lock left by a killed fetch with a pid file:
+/// the wrapper removes it where it can prove the holder gone,
+/// otherwise it
+/// describes it;
+/// either way Git's own result follows.
 #[test]
 fn a_fetch_after_a_killed_fetch_clears_the_locks_where_the_holder_is_provably_gone() {
     let stage: Stage = stage("stale-ref-locks-killed-fetch", true);
@@ -191,7 +215,10 @@ fn a_fetch_after_a_killed_fetch_clears_the_locks_where_the_holder_is_provably_go
     remove(&stage.fixture);
 }
 
-/// With no pid file nothing proves the holder gone anywhere: the lock stays, the notice gives the command, Git refuses.
+/// With no pid file nothing proves the holder gone anywhere:
+/// the lock stays,
+/// the notice gives the command,
+/// Git refuses.
 #[test]
 fn a_fetch_after_a_killed_fetch_with_no_pid_file_keeps_the_lock_and_gives_the_command() {
     let stage: Stage = stage("stale-ref-locks-no-pid-file", false);
@@ -208,7 +235,8 @@ fn a_fetch_after_a_killed_fetch_with_no_pid_file_keeps_the_lock_and_gives_the_co
     remove(&stage.fixture);
 }
 
-/// A Git that is still running holds its locks with no descriptor open, and a fetch must leave them.
+/// A Git that is still running holds its locks with no descriptor open,
+/// and a fetch must leave them.
 #[test]
 fn a_fetch_leaves_the_locks_of_a_git_that_is_still_running() {
     let stage: Stage = stage("stale-ref-locks-running", true);
@@ -222,7 +250,8 @@ fn a_fetch_leaves_the_locks_of_a_git_that_is_still_running() {
     remove(&stage.fixture);
 }
 
-/// A command that is not a fetch or a push is not preceded by a notice, and no lock is judged for it.
+/// A command that is not a fetch or a push is not preceded by a notice,
+/// and no lock is judged for it.
 #[test]
 fn another_command_gets_no_notice_and_clears_nothing() {
     let stage: Stage = stage("stale-ref-locks-other-command", true);

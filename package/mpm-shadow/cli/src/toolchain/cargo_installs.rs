@@ -94,7 +94,8 @@ pub fn is_repository_published(tool: &LockedTool) -> bool {
 /// Why:
 /// crates.io treats `Monochromatic_X` and `monochromatic-x` as one crate,
 /// so a spelling variant of a repository crate must not be taken for a third-party one
-/// (a third-party crate may fall back to compiling; a repository crate never does).
+/// (a third-party crate may fall back to compiling;
+/// a repository crate never does).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -376,11 +377,19 @@ pub fn observed_cargo_version(scope: &Scope, tool: &LockedTool) -> Option<String
     return recorded_version(&version_directory(&scope.toolchain_root, &crate_name, &tool.version), &crate_name);
 }
 
+/// Whether a character may appear in a word that needs no quoting.
+fn is_plain_word_character(character: char) -> bool {
+    return character.is_ascii_alphanumeric() || "@%+=:,./_-".contains(character);
+}
+
 /// What:
 /// `shell_word(word)` gives `word` as one word that a POSIX shell reads back unchanged:
-/// bare when every character is an ASCII letter, a digit or one of `@%+=:,./_-`,
+/// bare when every character is an ASCII letter,
+/// a digit or one of `@%+=:,./_-`,
 /// otherwise inside single quotes,
-/// with each single quote of the word written as `'\''` (close the quotes, an escaped quote, reopen them).
+/// with each single quote of the word written as `'\''` (close the quotes,
+/// an escaped quote,
+/// reopen them).
 /// An empty word becomes `''`.
 /// Why:
 /// The older-lock hints print a command for the person to paste into a shell;
@@ -406,9 +415,7 @@ pub fn shell_word(word: &str) -> String {
     // const plain = word !== '' && [...word].every((character) => /[A-Za-z0-9]/.test(character) || '@%+=:,./_-'.includes(character));
     // ```
     let plain: bool = !word.is_empty()
-        && word.chars().all(|character| {
-            return character.is_ascii_alphanumeric() || "@%+=:,./_-".contains(character);
-        });
+        && word.chars().all(is_plain_word_character);
     if plain {
         // What: `.to_string()` copies the borrowed text `&str` into a new owned `String` (TS strings need no such step).
         // Why: the function hands back text the caller keeps after `word` is gone.

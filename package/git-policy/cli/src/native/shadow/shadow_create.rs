@@ -18,7 +18,8 @@
 //! await createShadowRepository({ gitPath, cwd, capture, transactionId, transactionDirectory });
 //! ```
 
-/// Shadow path, redirect variables and the shadow request.
+/// Shadow path,
+/// redirect variables and the shadow request.
 use crate::shadow_git::{REPOSITORY_REDIRECT_VARIABLES, shadow_repository_path};
 /// Invocation capture.
 use crate::capture_invocation::{InvocationCapture, InvocationLayout};
@@ -43,7 +44,8 @@ use std::path::{Path, PathBuf};
 use std::ffi::OsString;
 
 /// What:
-///  Overwrites a file the shadow's `git init` already created, with private mode.
+///  Overwrites a file the shadow's `git init` already created,
+/// with private mode.
 /// Why:
 ///   The incumbent's `writeFile` replaces the template `config` and `alternates`,
 ///  while the exclusive writer used for new files would refuse them.
@@ -60,7 +62,8 @@ fn overwrite_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// What:
 ///  Gives a file the private file mode on Unix.
 /// Why:
-///   The shadow config names the real hooks directory and worktree; it stays private to the account.
+///   The shadow config names the real hooks directory and worktree;
+/// it stays private to the account.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -72,7 +75,8 @@ fn set_private_file(path: &Path) -> std::io::Result<()> {
     return std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
 }
 
-/// Windows has no mode bits for this file; the incumbent's ACL work is not ported.
+/// Windows has no mode bits for this file;
+/// the incumbent's ACL work is not ported.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(windows)]
 fn set_private_file(_path: &Path) -> std::io::Result<()> {
@@ -99,8 +103,10 @@ fn create_parent(shadow: &Path) -> std::io::Result<()> {
 /// What:
 ///  Create a private directory unless another process made it first.
 /// Why:
-///   Concurrent commits of one repository race to create the shared `monochromatic-git-policy-cli/shadow` parents; whoever loses has
-///   nothing left to do. A path that exists as anything but a directory is still a failure.
+///   Concurrent commits of one repository race to create the shared `monochromatic-git-policy-cli/shadow` parents;
+/// whoever loses has
+///   nothing left to do.
+/// A path that exists as anything but a directory is still a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -113,15 +119,25 @@ pub fn ensure_private_directory(directory: &Path) -> std::io::Result<()> {
     }
 }
 
-/// How many times the shadow's `git init` is started, each in a fresh directory, when a start is cut at its ceiling or refused by the
-///  system. Two: the start and one more, the same "redone once" the quiet-window rule reads (`doc/planning/cli-git-shipped-limits-audit.md`,
-///  pick 4, the coordinator's reading, open to veto); a shadow whose `init` is cut twice fails its transaction.
+/// How many times the shadow's `git init` is started,
+/// each in a fresh directory,
+/// when a start is cut at its ceiling or refused by the
+///  system.
+/// Two:
+/// the start and one more,
+/// the same "redone once" the quiet-window rule reads (`doc/planning/cli-git-shipped-limits-audit.md`,
+///  pick 4,
+/// the coordinator's reading,
+/// open to veto);
+/// a shadow whose `init` is cut twice fails its transaction.
 pub(crate) const SHADOW_CREATION_ATTEMPTS: u32 = 2;
 
 /// What:
-///  Creates an empty bare repository with `git init`, for the ref backend whose tables this crate does not write.
+///  Creates an empty bare repository with `git init`,
+/// for the ref backend whose tables this crate does not write.
 /// Why:
-///   Reftable tables carry their own format, so only Git creates them.
+///   Reftable tables carry their own format,
+/// so only Git creates them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -170,8 +186,11 @@ fn init_with_git(
 /// What:
 ///  Whether a start of `init` was ended at its ceiling or refused a process or a thread.
 /// Why:
-///   Only these leave a partial directory that a fresh start replaces. An I/O error of another kind (no such program, no permission)
-///  is not retried: a fresh start would fail the same way.
+///   Only these leave a partial directory that a fresh start replaces.
+/// An I/O error of another kind (no such program,
+/// no permission)
+///  is not retried:
+/// a fresh start would fail the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -188,7 +207,8 @@ fn start_was_cut_or_refused(outcome: &std::io::Result<GitOutput>) -> bool {
 /// What:
 ///  Removes what a cut `git init` left at the shadow's path.
 /// Why:
-///   A shadow is private to its transaction and holds nothing but what `init` made, so a partial one is discarded whole and never
+///   A shadow is private to its transaction and holds nothing but what `init` made,
+/// so a partial one is discarded whole and never
 ///  completed in place.
 ///
 /// In TS you'd write (pseudocode):
@@ -206,9 +226,11 @@ fn discard_partial_shadow(shadow: &Path) -> Result<(), GitFailure> {
 /// What:
 ///  Turn the result of a filesystem step on the shadow into a Git failure that names the verb and the shadow:
 ///  `<verb> <shadow> failed: <error>`.
-///  `std::io::Result<T>` is "the value, or an input/output error".
+///  `std::io::Result<T>` is "the value,
+/// or an input/output error".
 /// Why:
-///   Several steps of the creation report their failure this way, and a named function stands where a closure that built
+///   Several steps of the creation report their failure this way,
+/// and a named function stands where a closure that built
 ///  that text stood.
 ///
 /// In TS you'd write (pseudocode):
@@ -222,7 +244,8 @@ fn step_failure<T>(result: std::io::Result<T>, verb: &str, shadow: &Path) -> Res
     };
 }
 
-/// The same for a step that is named by a phrase and not by a verb and the shadow: `<phrase> failed: <error>`.
+/// The same for a step that is named by a phrase and not by a verb and the shadow:
+/// `<phrase> failed: <error>`.
 fn named_step_failure<T>(result: std::io::Result<T>, phrase: &str) -> Result<T, GitFailure> {
     return match result {
         Ok(value) => Ok(value),
@@ -234,7 +257,9 @@ fn named_step_failure<T>(result: std::io::Result<T>, phrase: &str) -> Result<T, 
 ///  Creates the shadow repository of one published transaction.
 /// Why:
 ///   Every step runs before any native Git command reads the shadow,
-///  so the first read already sees the real config, objects, links and refs.
+///  so the first read already sees the real config,
+/// objects,
+/// links and refs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -254,10 +279,14 @@ pub fn create_shadow_repository(
 }
 
 /// What:
-///  Creates a shadow repository at a given path, whose parent directory exists.
+///  Creates a shadow repository at a given path,
+/// whose parent directory exists.
 /// Why:
-///   The commit service builds the commits Git must build (an editor, a signature) in a scratch repository inside its own
-///  scratch directory, away from the registry directory that recovery scans, so no other process mistakes it for a dead
+///   The commit service builds the commits Git must build (an editor,
+/// a signature) in a scratch repository inside its own
+///  scratch directory,
+/// away from the registry directory that recovery scans,
+/// so no other process mistakes it for a dead
 ///  transaction's shadow.
 ///
 /// In TS you'd write (pseudocode):
@@ -275,12 +304,16 @@ pub fn create_shadow_repository_at(
 }
 
 /// What:
-///  `create_shadow_repository_at`, with the merge, cherry-pick and revert conclusion state of the worktree either copied into
+///  `create_shadow_repository_at`,
+/// with the merge,
+/// cherry-pick and revert conclusion state of the worktree either copied into
 ///  the scratch repository or left out of it.
 /// Why:
 ///   A commit of named paths while another session's merge is unfinished must build as an ordinary commit of those paths on
-///  `HEAD` (real Git refuses it as a partial commit during a merge); a scratch repository that holds no `MERGE_HEAD` builds
-///  exactly that, and the landing then leaves the worktree's own conclusion state alone because the scratch repository
+///  `HEAD` (real Git refuses it as a partial commit during a merge);
+/// a scratch repository that holds no `MERGE_HEAD` builds
+///  exactly that,
+/// and the landing then leaves the worktree's own conclusion state alone because the scratch repository
 ///  never held it.
 ///
 /// In TS you'd write (pseudocode):

@@ -321,17 +321,27 @@ impl fmt::Display for PlayerError {
 
 /// What:
 ///      `impl std::error::Error for PlayerError { fn source(..) }` marks the type as a STANDARD
-///           error and overrides `source()`, the cause-chain hook, to hand back the wrapped error of
-///           the `Io`, `Decode` and `Opus` variants. `Unsupported` and `Audio` hold only a message,
+///           error and overrides `source()`,
+/// the cause-chain hook,
+/// to hand back the wrapped error of
+///           the `Io`,
+/// `Decode` and `Opus` variants.
+/// `Unsupported` and `Audio` hold only a message,
 ///           so their `source()` is `None`.
 /// Why:
 ///       Lets `PlayerError` interoperate with `anyhow::Error` and `?` in callers
-///           that want a generic error, and lets a chain walker (the `anyhow` startup report, a log
-///           of `Error::source` links) reach the wrapped `std::io::Error`, symphonia error or opus
+///           that want a generic error,
+/// and lets a chain walker (the `anyhow` startup report,
+/// a log
+///           of `Error::source` links) reach the wrapped `std::io::Error`,
+/// symphonia error or opus
 ///           error instead of only the flattened `Display` line.
 /// Gotcha:
-///    `Display` for the three wrapper variants also prints the wrapped error, so a chain printed
-///           in full shows that text twice: once inside the `PlayerError` line, once as its cause.
+///    `Display` for the three wrapper variants also prints the wrapped error,
+/// so a chain printed
+///           in full shows that text twice:
+/// once inside the `PlayerError` line,
+/// once as its cause.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -340,9 +350,11 @@ impl fmt::Display for PlayerError {
 impl std::error::Error for PlayerError {
     /// What:
     ///      `fn source(&self) -> Option<&(dyn std::error::Error + 'static)>` borrows the wrapped
-    ///           error as a trait object; `'static` because the wrapped types own all their data.
+    ///           error as a trait object;
+    /// `'static` because the wrapped types own all their data.
     /// Why:
-    ///       The default returns `None`, which cuts the chain at `PlayerError`.
+    ///       The default returns `None`,
+    /// which cuts the chain at `PlayerError`.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

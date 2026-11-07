@@ -1,11 +1,14 @@
 //! What:
-//!  Proof, without a Git process, that a sequencer marker such as `MERGE_HEAD` names nothing.
+//!  Proof,
+//! without a Git process,
+//! that a sequencer marker such as `MERGE_HEAD` names nothing.
 //! Why:
 //!  A commit asks `git rev-parse --verify --quiet <marker>` for each of three markers,
 //!  and in almost every commit none exists.
 //!  On the files ref storage that question reads a fixed list of places,
 //!  so when every one of them is empty the answer is "absent" without a process;
-//!  any entry in any place, of any kind or content,
+//!  any entry in any place,
+//! of any kind or content,
 //!  says "maybe present" and the caller asks Git,
 //!  which alone decides whether the entry resolves (a dangling marker still counts as a conclusion).
 //!
@@ -23,9 +26,16 @@ use std::path::{Path, PathBuf};
 
 /// The most `packed-refs` bytes this check reads;
 ///  a bigger file is left to Git.
-///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
-///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  Exempt from a citation under `LQM` (class:
+/// reader fallback):
+/// a file,
+/// chain or count past this bound makes the reader
+///  decline and real Git answer,
+/// so a Git start is added and no result changes.
+/// Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
 const PACKED_REFS_LIMIT: u64 = 64 * 1024 * 1024;
 
@@ -34,7 +44,10 @@ const PACKED_REFS_LIMIT: u64 = 64 * 1024 * 1024;
 ///  in Git's order.
 /// Why:
 ///   Git's lookup rules try the name itself (a pseudoref in the worktree's Git directory),
-///  then `refs/`, `refs/tags/`, `refs/heads/`, `refs/remotes/` and `refs/remotes/<name>/HEAD`
+///  then `refs/`,
+/// `refs/tags/`,
+/// `refs/heads/`,
+/// `refs/remotes/` and `refs/remotes/<name>/HEAD`
 ///  in the common directory.
 ///
 /// In TS you'd write (pseudocode):
@@ -56,7 +69,9 @@ fn lookup_paths(layout: &RefFilesLayout<'_>, name: &str) -> Vec<PathBuf> {
 ///  Whether something exists at `path`,
 ///  where anything but a clean "nothing here" counts as existing.
 /// Why:
-///   A link, a directory, a file of any content and an unreadable parent all send the caller to Git.
+///   A link,
+/// a directory,
+/// a file of any content and an unreadable parent all send the caller to Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -122,11 +137,13 @@ fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
 }
 
 /// What:
-///  For each name, whether a marker of that name may exist:
+///  For each name,
+/// whether a marker of that name may exist:
 ///  `false` is proof that `git rev-parse --verify --quiet <name>` exits non-zero.
 /// Why:
 ///   The files backend resolves a name only through a loose entry at one of six paths
-///  or a line of `packed-refs`; reftable storage and anything unreadable answer "maybe".
+///  or a line of `packed-refs`;
+/// reftable storage and anything unreadable answer "maybe".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

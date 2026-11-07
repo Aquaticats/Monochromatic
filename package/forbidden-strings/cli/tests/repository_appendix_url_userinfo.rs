@@ -1,9 +1,16 @@
 //! Binary-boundary tests for the `url-userinfo-credential` rule of the repository's shared appendix.
 //!
-//! What: the scanner runs with the real `forbidden-strings.append.txt` of the repository against fixture files.
-//! Why: a credential inside a URL (`scheme://user:password@host`) is copied by every file, Git config value and log
-//! that holds the URL, and `git-lfs` once echoed such a URL into thousands of crash logs; the rule must fire on
-//! passwords and stay quiet on placeholders, plain URLs and account-only SSH URLs, or it blocks legitimate commits.
+//! What:
+//! the scanner runs with the real `forbidden-strings.append.txt` of the repository against fixture files.
+//! Why:
+//! a credential inside a URL (`scheme://user:password@host`) is copied by every file,
+//! Git config value and log
+//! that holds the URL,
+//! and `git-lfs` once echoed such a URL into thousands of crash logs;
+//! the rule must fire on
+//! passwords and stay quiet on placeholders,
+//! plain URLs and account-only SSH URLs,
+//! or it blocks legitimate commits.
 //! Every credential below is a made-up value assembled in this file.
 
 /// Imports ordinary filesystem operations for isolated fixtures.
@@ -22,7 +29,8 @@ const RULE_NAME: &str = "url-userinfo-credential";
 /// Made-up password long enough for the rule's minimum.
 const FAKE_PASSWORD: &str = "fake-password-for-tests";
 
-/// Repository shared appendix, relative to this package.
+/// Repository shared appendix,
+/// relative to this package.
 const APPENDIX_FROM_PACKAGE: &str = "../../../forbidden-strings.append.txt";
 
 /// Fixture file the scanner is asked to scan.
@@ -37,7 +45,8 @@ fn fixture(label: &str) -> PathBuf {
     return root;
 }
 
-/// Runtime cache directory beside the fixture root, outside it so a walk never reads the cache files.
+/// Runtime cache directory beside the fixture root,
+/// outside it so a walk never reads the cache files.
 fn cache_directory(root: &Path) -> PathBuf {
     let mut name = root.file_name().expect("fixture root has a name").to_os_string();
     name.push("-cache");
@@ -74,7 +83,8 @@ fn reports_rule(label: &str, line: &str) -> bool {
     return hit;
 }
 
-/// A password in the userinfo of a web URL is reported, and the finding never prints it.
+/// A password in the userinfo of a web URL is reported,
+/// and the finding never prints it.
 #[test]
 fn password_in_a_web_url_is_reported() {
     assert!(reports_rule("web", &format!("\turl = https://lfs:{FAKE_PASSWORD}@lfs.example.test")));
@@ -92,7 +102,9 @@ fn key_name_that_embeds_the_credential_is_reported() {
     assert!(reports_rule("key", &format!("[lfs \"https://lfs:{FAKE_PASSWORD}@lfs.example.test\"]")));
 }
 
-/// A placeholder in angle brackets, as documentation writes it, is not reported.
+/// A placeholder in angle brackets,
+/// as documentation writes it,
+/// is not reported.
 #[test]
 fn angle_bracket_placeholder_is_not_reported() {
     assert!(!reports_rule("angle", "url = https://lfs:<LFS_WRITE_TOKEN>@lfs.example.test"));
@@ -110,7 +122,9 @@ fn plain_url_is_not_reported() {
     assert!(!reports_rule("plain", "url = https://lfs.example.test/objects/batch"));
 }
 
-/// A user name alone on SSH names an account, not a secret, and is not reported.
+/// A user name alone on SSH names an account,
+/// not a secret,
+/// and is not reported.
 #[test]
 fn account_only_ssh_url_is_not_reported() {
     assert!(!reports_rule("account", "url = ssh://git@lfs.example.test/repo.git"));
@@ -122,7 +136,8 @@ fn at_sign_in_a_path_is_not_reported() {
     assert!(!reports_rule("path", "https://lfs.example.test/a:long-enough-segment-here@b"));
 }
 
-/// A password shorter than the rule's minimum is not reported, which keeps documentation examples quiet.
+/// A password shorter than the rule's minimum is not reported,
+/// which keeps documentation examples quiet.
 #[test]
 fn short_example_password_is_not_reported() {
     assert!(!reports_rule("short", "https://user:pass@lfs.example.test"));

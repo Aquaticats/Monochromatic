@@ -1,11 +1,13 @@
-//! Controls for the index parser on files real Git writes, in every version and with the extensions it adds;
+//! Controls for the index parser on files real Git writes,
+//! in every version and with the extensions it adds;
 //!  the listings built from it are compared with `git ls-files` in `repo_read_query_tests.rs`.
 
 use super::*;
 use crate::repo_read_object::to_hex;
 use crate::test_support::{executable, fixture, git, git_output, remove};
 
-/// Every entry of the index equals `git ls-files --stage`'s, in each index version.
+/// Every entry of the index equals `git ls-files --stage`'s,
+/// in each index version.
 #[test]
 fn entries_equal_the_listing_in_every_version() {
     let root = fixture("repo-read-index");
@@ -36,7 +38,8 @@ fn entries_equal_the_listing_in_every_version() {
     remove(root.as_path());
 }
 
-/// A reserved extended-flag bit is not a format Git reads: patching the one entry of an intent-to-add index is declined.
+/// A reserved extended-flag bit is not a format Git reads:
+/// patching the one entry of an intent-to-add index is declined.
 #[test]
 fn a_reserved_extended_flag_is_declined() {
     let root = fixture("repo-read-index-reserved");
@@ -56,7 +59,9 @@ fn a_reserved_extended_flag_is_declined() {
     remove(root.as_path());
 }
 
-/// A split index, a sparse index, damage and a wrong object format are declined.
+/// A split index,
+/// a sparse index,
+/// damage and a wrong object format are declined.
 #[test]
 fn what_cannot_be_read_is_declined() {
     let root = fixture("repo-read-index-declined");

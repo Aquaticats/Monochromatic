@@ -2,13 +2,20 @@
 //! The command `cargo-shadow acknowledge <journal directory>`:
 //! a person asserts that every process or worker of the run that left the journal has stopped.
 //! Why:
-//! Contract `doc/planning/cargo-shadow-guarantees.md`, "The weaker path":
-//! a journal of a run without a delegated control group, or whose containment cannot be examined, is refused by every recovery and
+//! Contract `doc/planning/cargo-shadow-guarantees.md`,
+//! "The weaker path":
+//! a journal of a run without a delegated control group,
+//! or whose containment cannot be examined,
+//! is refused by every recovery and
 //! every new transaction until a person acknowledges it.
-//! The acknowledgement is written under the workspace lock, to one journal, by an atomic publication,
+//! The acknowledgement is written under the workspace lock,
+//! to one journal,
+//! by an atomic publication,
 //! and it overrides only the uncertainty of the containment context:
 //! a recorded scope or process group that is positively observed to have a member still blocks,
-//! and every other check of the recovery (listing, snapshots, durability) still runs.
+//! and every other check of the recovery (listing,
+//! snapshots,
+//! durability) still runs.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -56,9 +63,12 @@ fn workspace_of(journal: &Path) -> Result<PathBuf, String> {
 /// `pub fn acknowledge(journal: &Path) -> Result<String, String>` acknowledges exactly one journal and returns what to tell the
 /// person.
 /// Why:
-/// The journal is named by its directory, resolved first so a link cannot point the acknowledgement at another journal.
-/// The workspace lock is tried, never waited for.
-/// The file is published whole by an atomic rename and the directory is synced, so an interrupted publication leaves the journal
+/// The journal is named by its directory,
+/// resolved first so a link cannot point the acknowledgement at another journal.
+/// The workspace lock is tried,
+/// never waited for.
+/// The file is published whole by an atomic rename and the directory is synced,
+/// so an interrupted publication leaves the journal
 /// unacknowledged.
 ///
 /// In TS you'd write (pseudocode):

@@ -1,11 +1,25 @@
-//! Rendered tests of the focus ring component alone (D117), on a small fixture window that places it around a pill, a circle, a
-//! rounded rectangle, a square-cornered box and a box inside a clipping parent.
+//! Rendered tests of the focus ring component alone (D117),
+//! on a small fixture window that places it around a pill,
+//! a circle,
+//! a
+//! rounded rectangle,
+//! a square-cornered box and a box inside a clipping parent.
 //!
-//! What: the fixture draws `FocusRing` from `ui/focus.slint` with the ring off and on, and the same pixel checks as the player
-//! tests read the bands. The clipping parent is drawn twice: with the ring inside it, as a control that shows the clip cutting a
-//! ring, and with the ring in a sibling layer above it, which must stay whole.
-//! Why: the real window has few places where a parent clips a ring, so the property "a ring in a layer above the clip is never
-//! cut" is proved here, where a clip is placed on purpose.
+//! What:
+//! the fixture draws `FocusRing` from `ui/focus.slint` with the ring off and on,
+//! and the same pixel checks as the player
+//! tests read the bands.
+//! The clipping parent is drawn twice:
+//! with the ring inside it,
+//! as a control that shows the clip cutting a
+//! ring,
+//! and with the ring in a sibling layer above it,
+//! which must stay whole.
+//! Why:
+//! the real window has few places where a parent clips a ring,
+//! so the property "a ring in a layer above the clip is never
+//! cut" is proved here,
+//! where a clip is placed on purpose.
 
 use slint::ComponentHandle;
 
@@ -51,7 +65,9 @@ slint::slint! {
     }
 }
 
-/// What: `fixture_frames` draws the fixture with the ring off and on, and gives the two frames and the roles of the scheme.
+/// What:
+/// `fixture_frames` draws the fixture with the ring off and on,
+/// and gives the two frames and the roles of the scheme.
 fn fixture_frames() -> (Frame, Frame, ([u8; 3], [u8; 3])) {
     let window = install_software_platform();
     let fixture = RingFixture::new().expect("the fixture builds");
@@ -67,7 +83,8 @@ fn fixture_frames() -> (Frame, Frame, ([u8; 3], [u8; 3])) {
     return (on, off, colors);
 }
 
-/// What: `check` checks one shape of the fixture and gives the counts.
+/// What:
+/// `check` checks one shape of the fixture and gives the counts.
 fn check(on: &Frame, off: &Frame, colors: ([u8; 3], [u8; 3]), shape: RoundedBox) -> Result<RingReport, String> {
     let options = Case { far: false, coverage: true, ..case("fixture", "", (0.0, 0.0), 0.0) };
     return check_ring(on, off, shape, colors, false, &options);

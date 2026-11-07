@@ -8,8 +8,10 @@
 //!  They are restated here once,
 //!  as pure
 //!      functions:
-//!  the rules-file precedence (the configured `rulesFile` entries, then the
-//!      `FORBIDDEN_STRINGS_RULES` list, else
+//!  the rules-file precedence (the configured `rulesFile` entries,
+//! then the
+//!      `FORBIDDEN_STRINGS_RULES` list,
+//! else
 //!      `forbidden-strings.local.txt` in the repository root) and the paths that hold
 //!      the rules themselves,
 //!  which would otherwise match their own content.
@@ -112,7 +114,8 @@ pub const SCANNER_SELF_MATCH_PATHS: &[&[u8]] = &[
 ///  A configured name or a set variable makes
 ///       a missing file an error unless its entry is optional;
 ///  only the default file may be missing.
-///  The variable is parsed with the scanner's own rules-list parser, so both tools read one grammar.
+///  The variable is parsed with the scanner's own rules-list parser,
+/// so both tools read one grammar.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

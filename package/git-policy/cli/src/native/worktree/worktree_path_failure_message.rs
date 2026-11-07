@@ -1,8 +1,11 @@
 //! What:
-//!  The one message shape the worktree commands give when a step on a path fails: `<path> <what> (<error>)`.
+//!  The one message shape the worktree commands give when a step on a path fails:
+//! `<path> <what> (<error>)`.
 //! Why:
-//!  Dozens of steps word their refusal this way. A named function that takes the path and the words stands where a closure
-//!  that captured them would, and it builds the message only when the step failed.
+//!  Dozens of steps word their refusal this way.
+//! A named function that takes the path and the words stands where a closure
+//!  that captured them would,
+//! and it builds the message only when the step failed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,9 +17,12 @@ use std::path::Path;
 
 /// What:
 ///  A step's outcome with its failure turned into the message `<path> <what> (<error>)`.
-///  `Result<T, E>` is Rust's "a value or an error"; `E: Display` means any error that can print itself.
+///  `Result<T, E>` is Rust's "a value or an error";
+/// `E: Display` means any error that can print itself.
 /// Why:
-///   The message is made only in the failing case, as a closure passed to `map_err` was; a step that succeeds pays nothing.
+///   The message is made only in the failing case,
+/// as a closure passed to `map_err` was;
+/// a step that succeeds pays nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -32,10 +38,14 @@ pub fn path_failure<T, E: Display>(outcome: Result<T, E>, path: &Path, what: &st
 }
 
 /// What:
-///  A step's outcome with its failure turned into the message `<subject> <what> (<error>)`, for a subject that is a name or
-///  a phrase and not a path. `&dyn Display` is a borrowed value of any type that can print itself.
+///  A step's outcome with its failure turned into the message `<subject> <what> (<error>)`,
+/// for a subject that is a name or
+///  a phrase and not a path.
+/// `&dyn Display` is a borrowed value of any type that can print itself.
 /// Why:
-///   Some steps name a trash directory or the snapshot, not a path, in the same shape of message.
+///   Some steps name a trash directory or the snapshot,
+/// not a path,
+/// in the same shape of message.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

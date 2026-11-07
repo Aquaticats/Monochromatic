@@ -1,10 +1,13 @@
 //! What:
-//!  The reversible, flat, case-insensitive-safe file name of one branch's push files.
+//!  The reversible,
+//! flat,
+//! case-insensitive-safe file name of one branch's push files.
 //! Why:
 //!  The failure notice of a push is kept per branch (`push_failure_notice`),
 //!  and the incumbent's per-branch push files (`src/auto-push-branch-key.ts`) used the same names,
 //!  so a name is the same in both wrappers.
-//!  Uppercase letters are escaped too, so refs that differ only in case never share a file
+//!  Uppercase letters are escaped too,
+//! so refs that differ only in case never share a file
 //!  on a case-insensitive filesystem.
 //!
 //! In TS you'd write (pseudocode):
@@ -42,7 +45,11 @@ impl std::error::Error for BranchKeyError {}
 /// The escape introducer `%`.
 const ESCAPE: u8 = b'%';
 
-/// Whether a byte is kept verbatim: lowercase ASCII letters, digits, `-`, `_` and `.`.
+/// Whether a byte is kept verbatim:
+/// lowercase ASCII letters,
+/// digits,
+/// `-`,
+/// `_` and `.`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -80,7 +87,8 @@ pub fn encode_branch_key(ref_name: &str) -> String {
 }
 
 /// What:
-///  Read one `%XX` escape starting at `index`, the position of the introducer.
+///  Read one `%XX` escape starting at `index`,
+/// the position of the introducer.
 /// Why:
 ///   Only the uppercase form `encode_branch_key` writes is accepted,
 ///  and an escape of a verbatim byte is refused,
@@ -116,7 +124,8 @@ fn decode_escape(key: &[u8], index: usize) -> Result<u8, BranchKeyError> {
     return Ok(byte);
 }
 
-/// Whether a byte is an uppercase hexadecimal digit, the only digits `encode_branch_key` writes.
+/// Whether a byte is an uppercase hexadecimal digit,
+/// the only digits `encode_branch_key` writes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -131,7 +140,8 @@ fn is_upper_hex_ref(digit: &u8) -> bool {
     return is_upper_hex(*digit);
 }
 
-/// The value of one uppercase hexadecimal digit; the caller has checked the digit.
+/// The value of one uppercase hexadecimal digit;
+/// the caller has checked the digit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -148,7 +158,8 @@ fn hex_value(digit: u8) -> u8 {
 ///  Reverse `encode_branch_key` in one left-to-right pass.
 ///       `Result<A, B>` is either the decoded ref name or a `BranchKeyError`.
 /// Why:
-///   A key with an unescaped non-verbatim character, a malformed escape,
+///   A key with an unescaped non-verbatim character,
+/// a malformed escape,
 ///  or bytes that are not UTF-8 names no branch and must stop the caller.
 ///
 /// In TS you'd write (pseudocode):

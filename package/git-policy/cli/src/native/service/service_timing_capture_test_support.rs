@@ -1,8 +1,11 @@
 //! What:
-//!  Test-only capture of the service's log entries: a control runs code and gets the entries it wrote on that thread, which are written nowhere else.
+//!  Test-only capture of the service's log entries:
+//! a control runs code and gets the entries it wrote on that thread,
+//! which are written nowhere else.
 //! Why:
 //!  Kept in a file of its own so the shipped `service_timing.rs` holds no inline test module (`rust/tests-in-sidecars`);
-//!  it is declared there under `#[cfg(test)]`, so the release executable never contains it.
+//!  it is declared there under `#[cfg(test)]`,
+//! so the release executable never contains it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,7 +15,10 @@
 use super::Priority;
 use std::cell::RefCell;
 
-/// One entry as written: its priority, its message with the time, and its fields.
+/// One entry as written:
+/// its priority,
+/// its message with the time,
+/// and its fields.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Captured {
     /// How serious the entry is.
@@ -32,7 +38,8 @@ pub fn active() -> bool {
     return ENTRIES.with(|entries| { return entries.borrow().is_some(); });
 }
 
-/// Notes an entry when a control is capturing on this thread; says whether it did.
+/// Notes an entry when a control is capturing on this thread;
+/// says whether it did.
 pub fn record(priority: Priority, message: &str, fields: &[(&str, String)]) -> bool {
     return ENTRIES.with(|entries| {
         return entries.borrow_mut().as_mut().is_some_and(|taken| {
@@ -42,7 +49,8 @@ pub fn record(priority: Priority, message: &str, fields: &[(&str, String)]) -> b
     });
 }
 
-/// Runs `body` and gives its entries, which are not written anywhere.
+/// Runs `body` and gives its entries,
+/// which are not written anywhere.
 pub fn entries_of(body: impl FnOnce()) -> Vec<Captured> {
     ENTRIES.with(|entries| { *entries.borrow_mut() = Some(Vec::new()); });
     body();

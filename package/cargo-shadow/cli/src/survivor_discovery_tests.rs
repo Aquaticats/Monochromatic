@@ -12,7 +12,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::crates::LockSnapshot;
-use crate::failpoints::{Point, arm};
+use crate::failpoints::{Point, arm, fires};
 use crate::journal::{begin, recover};
 use crate::journal_recover::survivor_note;
 use crate::journal_support::{journal_dirs, plant};
@@ -37,17 +37,22 @@ fn repository() -> tempfile::TempDir {
     return root;
 }
 
-/// A judge that refuses the live lockfile, so that a recovery which goes ahead restores the snapshot.
+/// A judge that refuses the live lockfile,
+/// so that a recovery which goes ahead restores the snapshot.
 fn refusing(_before: &[LockSnapshot], _live: &[LockSnapshot]) -> Vec<String> {
     return vec!["dep@1.0.1 refused".to_string()];
 }
 
-/// The four ways the listing of the journals can fail, each injected inside the listing,
+/// The four ways the listing of the journals can fail,
+/// each injected inside the listing,
 /// with the second entry as the one that fails so that the first is already in the partial listing.
 const LISTING_FAULTS: [Point; 4] = [Point::ListingOpen, Point::ListingIteration, Point::ListingInspection, Point::ListingEntryNotFound];
 
-/// Round 7 (6b2 1), round 8 (acceptance row V1, 7b P1-2):
-/// when the journals cannot be listed completely, however it fails,
+/// Round 7 (6b2 1),
+/// round 8 (acceptance row V1,
+/// 7b P1-2):
+/// when the journals cannot be listed completely,
+/// however it fails,
 /// a recovery changes nothing and says it could not list them.
 #[test]
 fn a_journal_listing_that_fails_in_any_way_stops_the_recovery() {
@@ -77,11 +82,15 @@ fn a_journal_listing_that_fails_in_any_way_stops_the_recovery() {
     }
 }
 
-/// Round 7 (6b2 1), round 8 (acceptance row V1, 7b P1-2):
+/// Round 7 (6b2 1),
+/// round 8 (acceptance row V1,
+/// 7b P1-2):
 /// the same failures stop a new transaction,
 /// and in particular an entry that vanished while the journals were listed (`NotFound` of one entry) is unknown,
 /// not "no earlier journals":
-/// the listing so far, which holds a journal, is not discarded.
+/// the listing so far,
+/// which holds a journal,
+/// is not discarded.
 #[test]
 fn a_journal_listing_that_fails_in_any_way_stops_a_new_transaction() {
     for fault in LISTING_FAULTS {
@@ -92,12 +101,43 @@ fn a_journal_listing_that_fails_in_any_way_stops_a_new_transaction() {
 
         let started = begin(root.path(), &[snapshot("second")], false);
 
-        assert!(started.is_err(), "{fault:?}: a transaction started on a journal set it could not list");
+        // Sixth pass, group 5: the refusal is the listing's own (the fault was reached, and the reason says the journals could not be
+        // listed), not a refusal that two journals already exist.
+        assert!(!fires(fault), "{fault:?}: the listing fault was never reached");
+        let reason: String = started.err().map(|error| { return error.to_string(); }).unwrap_or_else(|| { panic!("{fault:?}: a transaction started on a journal set it could not list"); });
+        assert!(reason.contains("could not be listed"), "{fault:?}: the refusal is not the listing's: {reason}");
         assert_eq!(journal_dirs(root.path()).len(), 2, "{fault:?}: the refused transaction left a journal");
     }
 }
 
-/// Acceptance row V1, the separate positive case:
+/// Sixth pass,
+/// group 5 (V1,
+/// the completed journals):
+/// a completed journal (`.done`) is examined like any other entry,
+/// so an examination that fails on it fails the listing too.
+/// Both journals here are completed,
+/// so the entry that fails is a completed one whichever the directory lists second.
+#[test]
+fn a_completed_journal_that_cannot_be_examined_fails_the_listing() {
+    for fault in [Point::ListingInspection, Point::ListingEntryNotFound] {
+        let root = repository();
+        let first = plant(root.path(), &[snapshot("original")], &[]);
+        let second = plant(root.path(), &[snapshot("original")], &[]);
+        for journal in [&first, &second] {
+            let done: std::path::PathBuf = std::path::PathBuf::from(format!("{}{}", journal.display(), crate::journal::DONE_SUFFIX));
+            fs::rename(journal, &done).expect("mark the journal done");
+        }
+        arm(fault);
+
+        let listed = crate::journal_recover::list_journals(&root.path().join(crate::journal::JOURNAL_DIR));
+
+        assert!(!fires(fault), "{fault:?}: the listing fault was never reached");
+        assert!(listed.is_err(), "{fault:?}: a completed journal that could not be examined was listed without examination");
+    }
+}
+
+/// Acceptance row V1,
+/// the separate positive case:
 /// a workspace that has no journal directory yet has no earlier journals,
 /// and both a recovery and a new transaction go on.
 #[test]
@@ -136,7 +176,8 @@ fn a_journal_that_lost_its_group_and_ready_records_is_a_possible_survivor() {
     assert_eq!(journal_dirs(root.path()), vec![journal], "the refused admission left a journal behind");
 }
 
-/// Round 7 (6b2 2), positive counterpart:
+/// Round 7 (6b2 2),
+/// positive counterpart:
 /// the directory a begin that was cut off right after its creation leaves holds nothing,
 /// and no child can have started.
 #[test]
@@ -149,7 +190,8 @@ fn an_empty_journal_directory_is_no_survivor() {
     assert_eq!(journal_dirs(root.path()).len(), 1);
 }
 
-/// Round 7 (6b2 2), positive counterpart:
+/// Round 7 (6b2 2),
+/// positive counterpart:
 /// a journal whose group record exists and is empty never started a child,
 /// because a record is written before every child starts.
 #[test]

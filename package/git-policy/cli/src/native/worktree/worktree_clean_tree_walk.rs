@@ -1,8 +1,12 @@
 //! What:
-//!  The walks of a worktree's tracked files against the index's recorded stat data, by metadata alone or by content for the
+//!  The walks of a worktree's tracked files against the index's recorded stat data,
+//! by metadata alone or by content for the
 //!  files whose metadata cannot vouch for them.
 //! Why:
-//!  A file's name, size and times are cheap to compare; only a file with a racy or stale time is read, and only then is
+//!  A file's name,
+//! size and times are cheap to compare;
+//! only a file with a racy or stale time is read,
+//! and only then is
 //!  its content judged against the committed bytes.
 //!
 //! In TS you'd write (pseudocode):
@@ -22,9 +26,11 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
 /// What:
-///  Whether the cached directory handle is not the one for `parents`, so the directory must be opened.
+///  Whether the cached directory handle is not the one for `parents`,
+/// so the directory must be opened.
 /// Why:
-///   Entries come in path order, so most share the directory of the one before.
+///   Entries come in path order,
+/// so most share the directory of the one before.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -38,10 +44,14 @@ fn cache_misses(cached: &Option<(Vec<std::ffi::OsString>, std::fs::File)>, paren
 }
 
 /// What:
-///  The first reason a tracked file of `root` differs from its index entry, or nothing when every file agrees.
+///  The first reason a tracked file of `root` differs from its index entry,
+/// or nothing when every file agrees.
 /// Why:
-///   After a snapshot the same comparison runs against the snapshot's own files, so a source that changed while the
-///  snapshot was taken is caught on the copy. The files are reached below a held root with no link followed, so a directory
+///   After a snapshot the same comparison runs against the snapshot's own files,
+/// so a source that changed while the
+///  snapshot was taken is caught on the copy.
+/// The files are reached below a held root with no link followed,
+/// so a directory
 ///  replaced by a link is not read through.
 ///
 /// In TS you'd write (pseudocode):
@@ -55,7 +65,9 @@ pub fn tree_differs_from_index(root: &Path, entries: &[StatEntry], index_seconds
     };
 }
 
-/// The first refusal of a tracked file of `root` against its index entry, with its kind; the files are reached below a held
+/// The first refusal of a tracked file of `root` against its index entry,
+/// with its kind;
+/// the files are reached below a held
 ///  root with no link followed.
 pub fn tree_refusal(root: &Path, entries: &[StatEntry], index_seconds: u32) -> Option<CleanRefusal> {
     return match open_root(root) {
@@ -64,7 +76,10 @@ pub fn tree_refusal(root: &Path, entries: &[StatEntry], index_seconds: u32) -> O
     };
 }
 
-/// What the content decision needs besides the entries: the worktree, its Git directories, the environment and the format.
+/// What the content decision needs besides the entries:
+/// the worktree,
+/// its Git directories,
+/// the environment and the format.
 pub struct ContentTarget<'a> {
     /// The worktree root.
     pub root: &'a Path,
@@ -79,13 +94,22 @@ pub struct ContentTarget<'a> {
 }
 
 /// What:
-///  The first reason a tracked file of the worktree differs from its index entry, deciding by content where the stat data
+///  The first reason a tracked file of the worktree differs from its index entry,
+/// deciding by content where the stat data
 ///  cannot vouch for the file.
 /// Why:
-///   Git hashes a racily clean entry and an entry whose stat data is stale; this does the same in process, so a clean
-///  worktree that was copied, cloned or written in the same second as its index is not refused. Every file is reached below a
-///  held root with no link followed, so a directory replaced by a link is refused instead of being read through. A file that
-///  really differs, or one a content conversion could change, is refused with the reason.
+///   Git hashes a racily clean entry and an entry whose stat data is stale;
+/// this does the same in process,
+/// so a clean
+///  worktree that was copied,
+/// cloned or written in the same second as its index is not refused.
+/// Every file is reached below a
+///  held root with no link followed,
+/// so a directory replaced by a link is refused instead of being read through.
+/// A file that
+///  really differs,
+/// or one a content conversion could change,
+/// is refused with the reason.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,11 +153,15 @@ pub fn tree_differs_from_index_by_content(target: &ContentTarget<'_>, entries: &
 }
 
 /// What:
-///  The first reason a tracked file below the held directory `root` differs from its index entry, or nothing when every
-///  file agrees; each file is looked at below handles opened without following a link.
+///  The first reason a tracked file below the held directory `root` differs from its index entry,
+/// or nothing when every
+///  file agrees;
+/// each file is looked at below handles opened without following a link.
 /// Why:
-///   A snapshot is checked against the index it will carry; a path walk through a link inside the snapshot would compare
-///  a file outside it, so every directory on the way must be a real one on the snapshot's device.
+///   A snapshot is checked against the index it will carry;
+/// a path walk through a link inside the snapshot would compare
+///  a file outside it,
+/// so every directory on the way must be a real one on the snapshot's device.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,7 +174,8 @@ pub fn tree_differs_from_index_beneath(root: &std::fs::File, entries: &[StatEntr
     };
 }
 
-/// The first refusal of a tracked file below the held directory `root` against its index entry, with its kind.
+/// The first refusal of a tracked file below the held directory `root` against its index entry,
+/// with its kind.
 fn tree_refusal_beneath(root: &std::fs::File, entries: &[StatEntry], index_seconds: u32) -> Option<CleanRefusal> {
     let mut cached: Option<(Vec<std::ffi::OsString>, std::fs::File)> = None;
     for entry in entries {
@@ -169,8 +198,11 @@ fn tree_refusal_beneath(root: &std::fs::File, entries: &[StatEntry], index_secon
 /// What:
 ///  A walk below a held directory that keeps the last directory it opened.
 /// Why:
-///   The paths of an index come in order, so most of them share their parent with the one before; one `openat2` chain per
-///  directory instead of per file is what the walk costs, and each file is still reached through handles that follow no link.
+///   The paths of an index come in order,
+/// so most of them share their parent with the one before;
+/// one `openat2` chain per
+///  directory instead of per file is what the walk costs,
+/// and each file is still reached through handles that follow no link.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -189,7 +221,8 @@ impl<'a> StatCursor<'a> {
         return Self { root, held: None };
     }
 
-    /// The metadata of the file `path` names below the root, or the reason it cannot be found through plain directories.
+    /// The metadata of the file `path` names below the root,
+    /// or the reason it cannot be found through plain directories.
     fn metadata(&mut self, path: &[u8]) -> Result<std::fs::Metadata, String> {
         let shown: String = String::from_utf8_lossy(path).into_owned();
         let Ok(names) = plain_components(Path::new(OsStr::from_bytes(path))) else { return Err(format!("{shown} is not a plain path")) };
@@ -205,7 +238,8 @@ impl<'a> StatCursor<'a> {
         };
     }
 
-    /// The stat fields of the tracked file `path` below the root, or nothing when it cannot be found through plain directories.
+    /// The stat fields of the tracked file `path` below the root,
+    /// or nothing when it cannot be found through plain directories.
     pub fn fields(&mut self, path: &[u8]) -> Option<StatFields> {
         return match self.metadata(path) {
             Ok(found) => Some(fields_of(&found)),
@@ -215,11 +249,17 @@ impl<'a> StatCursor<'a> {
 }
 
 /// What:
-///  Judge every tracked file below the held directory `root` against its index entry and return the stat fields of each, in
-///  entry order, in one walk.
+///  Judge every tracked file below the held directory `root` against its index entry and return the stat fields of each,
+/// in
+///  entry order,
+/// in one walk.
 /// Why:
-///   The snapshot's index takes the stat fields of the snapshot's own files, and the snapshot is proven equal to the source's
-///  index by the same stat data; the same `statx` serves both, so the files are looked at once, and the fields are the ones the
+///   The snapshot's index takes the stat fields of the snapshot's own files,
+/// and the snapshot is proven equal to the source's
+///  index by the same stat data;
+/// the same `statx` serves both,
+/// so the files are looked at once,
+/// and the fields are the ones the
 ///  verdict was given on.
 ///
 /// In TS you'd write (pseudocode):
@@ -244,9 +284,12 @@ pub fn tree_fields_beneath(root: &std::fs::File, entries: &[StatEntry], index_se
 }
 
 /// What:
-///  The stat fields of the tracked file `path` below the held directory `root`, found through handles, or nothing.
+///  The stat fields of the tracked file `path` below the held directory `root`,
+/// found through handles,
+/// or nothing.
 /// Why:
-///   The index of a snapshot takes the stat fields of the snapshot's own files; reading them by a path with several
+///   The index of a snapshot takes the stat fields of the snapshot's own files;
+/// reading them by a path with several
 ///  components would follow a link substituted below the root.
 ///
 /// In TS you'd write (pseudocode):

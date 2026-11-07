@@ -1,20 +1,39 @@
-//! The order of the folder walk as a comparison, so a path can be found in the queue without walking the folder.
+//! The order of the folder walk as a comparison,
+//! so a path can be found in the queue without walking the folder.
 //!
-//! What: `walk_cmp` orders two paths the way `scan_streaming` lists them (a folder's own files in natural order, then
-//! its subfolders in natural order, each subfolder's tree in full), and `locate`, `subtree_range` and `direct_files`
+//! What:
+//! `walk_cmp` orders two paths the way `scan_streaming` lists them (a folder's own files in natural order,
+//! then
+//! its subfolders in natural order,
+//! each subfolder's tree in full),
+//! and `locate`,
+//! `subtree_range` and `direct_files`
 //! use it to search the sorted queue by binary search.
-//! Why: D113 refreshes only what the watcher named. Deciding whether a named path is already in a queue of a million
-//! tracks must cost a few comparisons, not a walk of the library or a copy of the queue.
+//! Why:
+//! D113 refreshes only what the watcher named.
+//! Deciding whether a named path is already in a queue of a million
+//! tracks must cost a few comparisons,
+//! not a walk of the library or a copy of the queue.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const locate = (tracks: string[], root: string, path: string) => bsearch(tracks, (t) => walkCmp(root, t, path));
 //! ```
 
-/// What: `use std::cmp::Ordering;` imports the three-way comparison result enum (`Less`, `Equal`, `Greater`) from the
-/// standard library (`std`). Siblings: a plain `bool` answers only "less or not", and a TypeScript comparator returns a
-/// negative, zero or positive `number`; `Ordering` names those three outcomes.
-/// Why: every function here compares paths and answers with one of the three outcomes, which sorting and binary search
+/// What:
+/// `use std::cmp::Ordering;` imports the three-way comparison result enum (`Less`,
+/// `Equal`,
+/// `Greater`) from the
+/// standard library (`std`).
+/// Siblings:
+/// a plain `bool` answers only "less or not",
+/// and a TypeScript comparator returns a
+/// negative,
+/// zero or positive `number`;
+/// `Ordering` names those three outcomes.
+/// Why:
+/// every function here compares paths and answers with one of the three outcomes,
+/// which sorting and binary search
 /// both consume.
 ///
 /// In TS you'd write (pseudocode):
@@ -22,27 +41,48 @@
 /// type Ordering = "Less" | "Equal" | "Greater"; // a comparator would return -1, 0 or 1
 /// ```
 use std::cmp::Ordering;
-/// What: `use std::ffi::OsStr;` imports the borrowed operating-system string type. It is the text of one file or folder
-/// name exactly as the file system stores it (siblings: `&str` must be valid UTF-8, and `OsString` is the owned version).
-/// Why: file names on Linux may hold bytes that are not valid UTF-8, so a path component cannot always be a `&str`.
+/// What:
+/// `use std::ffi::OsStr;` imports the borrowed operating-system string type.
+/// It is the text of one file or folder
+/// name exactly as the file system stores it (siblings:
+/// `&str` must be valid UTF-8,
+/// and `OsString` is the owned version).
+/// Why:
+/// file names on Linux may hold bytes that are not valid UTF-8,
+/// so a path component cannot always be a `&str`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type OsStr = string; // TypeScript has one string type; Rust separates file-system text from UTF-8 text
 /// ```
 use std::ffi::OsStr;
-/// What: `use std::ops::Range;` imports the half-open interval type `start..end`, which includes `start` and excludes `end`.
-/// Why: the functions answer "which run of queue positions" as a `Range<usize>`, which can slice the queue directly.
+/// What:
+/// `use std::ops::Range;` imports the half-open interval type `start..end`,
+/// which includes `start` and excludes `end`.
+/// Why:
+/// the functions answer "which run of queue positions" as a `Range<usize>`,
+/// which can slice the queue directly.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type Range = { start: number; end: number }; // end is exclusive, like Array.prototype.slice(start, end)
 /// ```
 use std::ops::Range;
-/// What: `use std::path::{Component, Path, PathBuf};` imports three path types in one line: `Component` (one step of a
-/// path: a name, `..`, `.` or the root), `Path` (a borrowed view of a path) and `PathBuf` (an owned, growable path).
-/// Siblings of the last two: `&str` and `String` are the text-only counterparts.
-/// Why: the walk order compares paths level by level, which needs the steps (`Component`), and the queue stores owned
+/// What:
+/// `use std::path::{Component, Path, PathBuf};` imports three path types in one line:
+/// `Component` (one step of a
+/// path:
+/// a name,
+/// `..`,
+/// `.` or the root),
+/// `Path` (a borrowed view of a path) and `PathBuf` (an owned,
+/// growable path).
+/// Siblings of the last two:
+/// `&str` and `String` are the text-only counterparts.
+/// Why:
+/// the walk order compares paths level by level,
+/// which needs the steps (`Component`),
+/// and the queue stores owned
 /// paths (`PathBuf`) while the functions only look at them (`Path`).
 ///
 /// In TS you'd write (pseudocode):
@@ -51,9 +91,12 @@ use std::ops::Range;
 /// ```
 use std::path::{Component, Path, PathBuf};
 
-/// What: `use crate::natural_order::natural_cmp;` imports the repo's natural-order comparison (so `Track 2` sorts before
+/// What:
+/// `use crate::natural_order::natural_cmp;` imports the repo's natural-order comparison (so `Track 2` sorts before
 /// `Track 10`) from `src/natural_order.rs`.
-/// Why: the folder walk sorts names naturally, and this module must reproduce that order exactly.
+/// Why:
+/// the folder walk sorts names naturally,
+/// and this module must reproduce that order exactly.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -61,12 +104,25 @@ use std::path::{Component, Path, PathBuf};
 /// ```
 use crate::natural_order::natural_cmp;
 
-/// What: `fn compare_names(left: &OsStr, right: &OsStr) -> Ordering` orders two path components the way the walk sorts
-/// siblings: natural order of the name, then the plain bytes. There is no `pub`, so it is private to this file.
-/// `&OsStr` is a borrow: `&` means "I only look at this value, I do not take it". `-> Ordering` is the return type.
-/// Why: `sort_naturally` in the folder walk breaks ties with the whole path; siblings share their parent, so the
+/// What:
+/// `fn compare_names(left: &OsStr, right: &OsStr) -> Ordering` orders two path components the way the walk sorts
+/// siblings:
+/// natural order of the name,
+/// then the plain bytes.
+/// There is no `pub`,
+/// so it is private to this file.
+/// `&OsStr` is a borrow:
+/// `&` means "I only look at this value,
+/// I do not take it".
+/// `-> Ordering` is the return type.
+/// Why:
+/// `sort_naturally` in the folder walk breaks ties with the whole path;
+/// siblings share their parent,
+/// so the
 /// components decide.
-/// Gotcha: a `&OsStr` argument is never copied; the caller keeps the name and the function only reads it.
+/// Gotcha:
+/// a `&OsStr` argument is never copied;
+/// the caller keeps the name and the function only reads it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -91,12 +147,24 @@ fn compare_names(left: &OsStr, right: &OsStr) -> Ordering {
     return natural_cmp(&left.to_string_lossy(), &right.to_string_lossy()).then_with(|| return left.cmp(right));
 }
 
-/// What: `fn names_below<'a>(root: &Path, path: &'a Path) -> impl Iterator<Item = &'a OsStr>` gives the names of the path
-/// below the root, one per level. `'a` is a lifetime label: it says that the names returned are slices of `path`, so they
-/// are valid only as long as `path` is. `impl Iterator<Item = &'a OsStr>` means "some lazy sequence of names", without
+/// What:
+/// `fn names_below<'a>(root: &Path, path: &'a Path) -> impl Iterator<Item = &'a OsStr>` gives the names of the path
+/// below the root,
+/// one per level.
+/// `'a` is a lifetime label:
+/// it says that the names returned are slices of `path`,
+/// so they
+/// are valid only as long as `path` is.
+/// `impl Iterator<Item = &'a OsStr>` means "some lazy sequence of names",
+/// without
 /// naming the exact iterator type.
-/// Why: every comparison works level by level without building a list; a path outside the root keeps all its names.
-/// Gotcha: the returned sequence is lazy; nothing is computed until a caller pulls names from it, like a TypeScript
+/// Why:
+/// every comparison works level by level without building a list;
+/// a path outside the root keeps all its names.
+/// Gotcha:
+/// the returned sequence is lazy;
+/// nothing is computed until a caller pulls names from it,
+/// like a TypeScript
 /// generator and unlike a `map` that builds an array.
 ///
 /// In TS you'd write (pseudocode):
@@ -145,11 +213,21 @@ fn names_below<'a>(root: &Path, path: &'a Path) -> impl Iterator<Item = &'a OsSt
     });
 }
 
-/// What: `pub(crate) fn walk_cmp(root: &Path, left: &Path, right: &Path) -> Ordering` compares two file paths in the order
-/// the folder walk lists them. `pub(crate)` makes it visible inside this crate only (siblings: plain `pub` reaches other
-/// crates; no keyword keeps it private to this file).
-/// Why: at the first level where the names differ, a file (the last level of its path) comes before a subfolder (a
-/// level with more below it), and two of the same kind compare by name. This is exactly the walk: files first, then
+/// What:
+/// `pub(crate) fn walk_cmp(root: &Path, left: &Path, right: &Path) -> Ordering` compares two file paths in the order
+/// the folder walk lists them.
+/// `pub(crate)` makes it visible inside this crate only (siblings:
+/// plain `pub` reaches other
+/// crates;
+/// no keyword keeps it private to this file).
+/// Why:
+/// at the first level where the names differ,
+/// a file (the last level of its path) comes before a subfolder (a
+/// level with more below it),
+/// and two of the same kind compare by name.
+/// This is exactly the walk:
+/// files first,
+/// then
 /// each subfolder with everything under it.
 ///
 /// In TS you'd write (pseudocode):
@@ -237,14 +315,37 @@ pub(crate) fn walk_cmp(root: &Path, left: &Path, right: &Path) -> Ordering {
     }
 }
 
-/// What: `pub(crate) fn locate(tracks: &[PathBuf], root: &Path, path: &Path) -> Result<usize, usize>` finds a file in the
-/// sorted queue: its index, or where it would be inserted. `&[PathBuf]` is a borrowed slice, a read-only view of a run of
-/// owned paths (siblings: `Vec<PathBuf>` owns the paths, and `[PathBuf; N]` is a fixed-size array). `Result<usize, usize>`
-/// is `Ok(index)` for found and `Err(place)` for not found. `usize` is the unsigned integer wide enough to index memory
-/// (siblings: `u32`, `u64`, `i32`).
-/// Why: a binary search over the walk order; the queue is exactly the walk of its root, so the order holds. A slice is
-/// taken, not a `Vec`, so the caller keeps the queue; `usize` is used, not `u32`, because queue positions index a `Vec`.
-/// Gotcha: `Err` here is not a failure; it is the insertion point.
+/// What:
+/// `pub(crate) fn locate(tracks: &[PathBuf], root: &Path, path: &Path) -> Result<usize, usize>` finds a file in the
+/// sorted queue:
+/// its index,
+/// or where it would be inserted.
+/// `&[PathBuf]` is a borrowed slice,
+/// a read-only view of a run of
+/// owned paths (siblings:
+/// `Vec<PathBuf>` owns the paths,
+/// and `[PathBuf; N]` is a fixed-size array).
+/// `Result<usize, usize>`
+/// is `Ok(index)` for found and `Err(place)` for not found.
+/// `usize` is the unsigned integer wide enough to index memory
+/// (siblings:
+/// `u32`,
+/// `u64`,
+/// `i32`).
+/// Why:
+/// a binary search over the walk order;
+/// the queue is exactly the walk of its root,
+/// so the order holds.
+/// A slice is
+/// taken,
+/// not a `Vec`,
+/// so the caller keeps the queue;
+/// `usize` is used,
+/// not `u32`,
+/// because queue positions index a `Vec`.
+/// Gotcha:
+/// `Err` here is not a failure;
+/// it is the insertion point.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -262,10 +363,17 @@ pub(crate) fn locate(tracks: &[PathBuf], root: &Path, path: &Path) -> Result<usi
     return tracks.binary_search_by(|track| return walk_cmp(root, track, path));
 }
 
-/// What: `fn against_folder(root: &Path, track: &Path, folder: &[&OsStr]) -> Ordering` says where a track lies relative
-/// to everything under a folder: `Less` before it, `Equal` inside it, `Greater` after it. `&[&OsStr]` is a borrowed slice
+/// What:
+/// `fn against_folder(root: &Path, track: &Path, folder: &[&OsStr]) -> Ordering` says where a track lies relative
+/// to everything under a folder:
+/// `Less` before it,
+/// `Equal` inside it,
+/// `Greater` after it.
+/// `&[&OsStr]` is a borrowed slice
 /// of borrowed names.
-/// Why: the tracks under one folder are one run of the walk, so two partition points bound the run.
+/// Why:
+/// the tracks under one folder are one run of the walk,
+/// so two partition points bound the run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -336,9 +444,14 @@ fn against_folder(root: &Path, track: &Path, folder: &[&OsStr]) -> Ordering {
     return if names.peek().is_some() { Ordering::Equal } else { Ordering::Less };
 }
 
-/// What: `pub(crate) fn subtree_range(tracks: &[PathBuf], root: &Path, folder: &Path) -> Range<usize>` gives the indexes
-/// of every track under `folder`, however deep (empty when there is none), as a half-open `start..end` range.
-/// Why: a removed or renamed folder takes its whole run out of the queue, and a new folder is told apart from a known
+/// What:
+/// `pub(crate) fn subtree_range(tracks: &[PathBuf], root: &Path, folder: &Path) -> Range<usize>` gives the indexes
+/// of every track under `folder`,
+/// however deep (empty when there is none),
+/// as a half-open `start..end` range.
+/// Why:
+/// a removed or renamed folder takes its whole run out of the queue,
+/// and a new folder is told apart from a known
 /// one by whether it has a run.
 ///
 /// In TS you'd write (pseudocode):
@@ -387,10 +500,16 @@ pub(crate) fn subtree_range(tracks: &[PathBuf], root: &Path, folder: &Path) -> R
     return start..end.max(start);
 }
 
-/// What: `pub(crate) fn direct_files(tracks: &[PathBuf], folder: &Path, run: Range<usize>) -> Range<usize>` gives the
-/// files that sit directly in `folder` within its run: they come first. `run` is taken by value (a `Range` is two
-/// integers, cheap to copy).
-/// Why: a folder's own files precede its subfolders, so the direct files are a prefix of the run.
+/// What:
+/// `pub(crate) fn direct_files(tracks: &[PathBuf], folder: &Path, run: Range<usize>) -> Range<usize>` gives the
+/// files that sit directly in `folder` within its run:
+/// they come first.
+/// `run` is taken by value (a `Range` is two
+/// integers,
+/// cheap to copy).
+/// Why:
+/// a folder's own files precede its subfolders,
+/// so the direct files are a prefix of the run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -429,9 +548,13 @@ pub(crate) fn direct_files(tracks: &[PathBuf], folder: &Path, run: Range<usize>)
     return run.start..run.start + count;
 }
 
-/// What: `#[cfg(test)] #[path = "walk_order_tests.rs"] mod tests;` declares the module `tests` from the file
-/// `walk_order_tests.rs`, compiled only for `cargo test`.
-/// Why: the unit tests live in their own file to keep this one short, and stay out of the production build.
+/// What:
+/// `#[cfg(test)] #[path = "walk_order_tests.rs"] mod tests;` declares the module `tests` from the file
+/// `walk_order_tests.rs`,
+/// compiled only for `cargo test`.
+/// Why:
+/// the unit tests live in their own file to keep this one short,
+/// and stay out of the production build.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

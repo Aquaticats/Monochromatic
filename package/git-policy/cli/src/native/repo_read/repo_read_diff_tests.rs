@@ -1,4 +1,5 @@
-//! Controls for the list difference, the pathspec forms and the output spellings.
+//! Controls for the list difference,
+//! the pathspec forms and the output spellings.
 
 use super::*;
 
@@ -7,7 +8,9 @@ fn file(path: &str, id: u8) -> FlatEntry {
     return FlatEntry { path: path.as_bytes().to_vec(), mode: 0o100_644, id: vec![id; 20] };
 }
 
-/// Added, deleted, modified and type-changed paths are told apart and come out in path order.
+/// Added,
+/// deleted,
+/// modified and type-changed paths are told apart and come out in path order.
 #[test]
 fn statuses_follow_the_lists() {
     let old = vec![file("a", 1), file("b", 2), file("c", 3)];
@@ -19,7 +22,8 @@ fn statuses_follow_the_lists() {
     assert_eq!(summary, vec![(String::from("a"), 'M'), (String::from("c"), 'T'), (String::from("d"), 'A')]);
 }
 
-/// A path that is a file on one side and a directory on the other is declined, in both directions.
+/// A path that is a file on one side and a directory on the other is declined,
+/// in both directions.
 #[test]
 fn a_file_that_became_a_directory_is_declined() {
     let with_file = vec![file("a", 1)];
@@ -37,7 +41,9 @@ fn a_gitlink_is_declined() {
     assert!(diff_sorted(&[module], &[]).is_none());
 }
 
-/// Plain names match the path and what is below it; magic, globs and odd spellings are declined.
+/// Plain names match the path and what is below it;
+/// magic,
+/// globs and odd spellings are declined.
 #[test]
 fn pathspecs_are_literal_or_declined() {
     let filter = PathFilter::parse(&[b"dir", b":(top,literal)x.txt"], true).expect("plain");
@@ -55,7 +61,8 @@ fn pathspecs_are_literal_or_declined() {
     assert!(PathFilter::parse(&[b":/", b"*.txt"], true).is_none(), "a glob after `:/` is still checked");
 }
 
-/// The raw and name lines are spelled as Git spells them, with the zero name for an absent side.
+/// The raw and name lines are spelled as Git spells them,
+/// with the zero name for an absent side.
 #[test]
 fn lines_are_spelled_as_git_spells_them() {
     let changes = vec![Change { path: b"p".to_vec(), old_mode: 0, new_mode: 0o100_644, old_id: Vec::new(), new_id: vec![0xab; 20], status: b'A' }];

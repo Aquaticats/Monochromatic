@@ -1,9 +1,14 @@
 //! What:
-//!  The judging of stage claims and their temporaries, and the removal of the stages that interrupted copies and interrupted
+//!  The judging of stage claims and their temporaries,
+//! and the removal of the stages that interrupted copies and interrupted
 //!  `git worktree add` runs left behind.
 //! Why:
-//!  A claim is the record that a stage may exist. A claim whose owner is dead and whose stage no journal adopted is reaped; a
-//!  claim of an add names a stage by path alone, which proves nothing, so that stage is reported and never removed.
+//!  A claim is the record that a stage may exist.
+//! A claim whose owner is dead and whose stage no journal adopted is reaped;
+//! a
+//!  claim of an add names a stage by path alone,
+//! which proves nothing,
+//! so that stage is reported and never removed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,19 +31,30 @@ use std::path::{Path, PathBuf};
 
 /// What recovery decided about one add's record.
 pub struct Settlement {
-    /// What to tell the person, if anything.
+    /// What to tell the person,
+    /// if anything.
     pub notice: Option<String>,
     /// Whether the record and the claim stay because the record could not be read or settled.
     pub keep: bool,
 }
 
 /// What:
-///  Report an add that was interrupted before it was marked complete, and change nothing.
+///  Report an add that was interrupted before it was marked complete,
+/// and change nothing.
 /// Why:
-///   Recovery never deletes or unregisters a worktree: a path, a registration or a name can be changed by another process
-///  between any check and any act, so nothing the wrapper recorded earlier is a right to remove something later. The report
-///  names the worktree and the two commands that finish or remove it, as Git's own interrupted add leaves it. A record that
-///  cannot be read, and a marker that cannot be looked up, are not "incomplete" and not "complete": the record stays and the
+///   Recovery never deletes or unregisters a worktree:
+/// a path,
+/// a registration or a name can be changed by another process
+///  between any check and any act,
+/// so nothing the wrapper recorded earlier is a right to remove something later.
+/// The report
+///  names the worktree and the two commands that finish or remove it,
+/// as Git's own interrupted add leaves it.
+/// A record that
+///  cannot be read,
+/// and a marker that cannot be looked up,
+/// are not "incomplete" and not "complete":
+/// the record stays and the
 ///  report says that the state is unknown.
 ///
 /// In TS you'd write (pseudocode):
@@ -59,9 +75,12 @@ pub fn settle_interrupted_add(record: &Path) -> Settlement {
 }
 
 /// What:
-///  The settlement the completion marker alone decides, or nothing when the record must be read.
+///  The settlement the completion marker alone decides,
+/// or nothing when the record must be read.
 /// Why:
-///   A marker means the add finished, so its record is dropped; a marker that cannot be checked keeps the record.
+///   A marker means the add finished,
+/// so its record is dropped;
+/// a marker that cannot be checked keeps the record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -80,9 +99,13 @@ pub fn settle_marker(record: &Path, marker: std::io::Result<bool>) -> Option<Set
 }
 
 /// What:
-///  The settlement of an interrupted add from what its record said, or the failure to read it.
+///  The settlement of an interrupted add from what its record said,
+/// or the failure to read it.
 /// Why:
-///   A record that is gone, unreadable, planned or registered each ends differently, and none deletes what is not proven.
+///   A record that is gone,
+/// unreadable,
+/// planned or registered each ends differently,
+/// and none deletes what is not proven.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -125,11 +148,17 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
 }
 
 /// What:
-///  One claim file as read: the stage container it names, refused unless it is a monochromatic-git-policy-cli stage container name, and the owner
+///  One claim file as read:
+/// the stage container it names,
+/// refused unless it is a monochromatic-git-policy-cli stage container name,
+/// and the owner
 ///  token on its second line.
 /// Why:
-///   The container is deleted recursively, so a claim that names anything else is never acted on; the owner decides whether
-///  the claim may be reaped at all. A claim that vanished while it was read was removed by its owner or by another command.
+///   The container is deleted recursively,
+/// so a claim that names anything else is never acted on;
+/// the owner decides whether
+///  the claim may be reaped at all.
+/// A claim that vanished while it was read was removed by its owner or by another command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -185,7 +214,9 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
 /// What:
 ///  Removes the temporaries that dead writers left in the journal root.
 /// Why:
-///   A write cut off before its rename leaves a file nothing else names. The writer is in the file's name, so the sweep
+///   A write cut off before its rename leaves a file nothing else names.
+/// The writer is in the file's name,
+/// so the sweep
 ///  removes only what a dead process left and can never delete a temporary a live writer is about to rename.
 ///
 /// In TS you'd write (pseudocode):
@@ -199,7 +230,8 @@ pub fn remove_dead_temporaries(root: &Path, verdicts: &StageVerdicts) -> Result<
     return Ok(());
 }
 
-/// Which owners were found dead, decided before anything is removed.
+/// Which owners were found dead,
+/// decided before anything is removed.
 #[derive(Debug, Default)]
 pub struct StageVerdicts {
     /// The names of the claims whose owner is dead.
@@ -211,7 +243,9 @@ pub struct StageVerdicts {
 /// What:
 ///  Order two listed temporaries by name the way JavaScript's default sort does.
 /// Why:
-///   Which temporary is judged first, and so which refusal is reported first, must not depend on the directory's order.
+///   Which temporary is judged first,
+/// and so which refusal is reported first,
+/// must not depend on the directory's order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -222,10 +256,15 @@ fn by_temporary_name(left: &(String, PathBuf), right: &(String, PathBuf)) -> std
 }
 
 /// What:
-///  Judges the owner of every stage claim and every temporary in the journal root, and changes nothing.
+///  Judges the owner of every stage claim and every temporary in the journal root,
+/// and changes nothing.
 /// Why:
-///   A command that refuses an item of another namespace older than the patience must refuse before it changes anything, so every
-///  owner is judged first, once (sol-1 round 3, P1 C), and the sweep acts on the verdicts without judging again.
+///   A command that refuses an item of another namespace older than the patience must refuse before it changes anything,
+/// so every
+///  owner is judged first,
+/// once (sol-1 round 3,
+/// P1 C),
+/// and the sweep acts on the verdicts without judging again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -270,9 +309,12 @@ pub fn judge_stage_owners(common_dir: &Path) -> Result<StageVerdicts, WorktreeCo
 }
 
 /// What:
-///  Accepts a finished action, or one that found its directory absent, and reports every other failure.
+///  Accepts a finished action,
+/// or one that found its directory absent,
+/// and reports every other failure.
 /// Why:
-///   A root that was never created holds nothing to make durable, while any other refusal means the durable state is
+///   A root that was never created holds nothing to make durable,
+/// while any other refusal means the durable state is
 ///  unknown.
 ///
 /// In TS you'd write (pseudocode):
@@ -289,11 +331,16 @@ pub fn absent_is_fine(outcome: std::io::Result<()>) -> Result<(), WorktreeCopyEr
 }
 
 /// What:
-///  Removes every stage container that a dead owner's claim names and no journal does, then those claims, and says what it
+///  Removes every stage container that a dead owner's claim names and no journal does,
+/// then those claims,
+/// and says what it
 ///  removed.
 /// Why:
-///   A claim whose owner still runs belongs to an add or a copy between claiming and journaling, so it is left whole;
-///  a claimed container no journal names, whose owner is dead, was abandoned by a process that died.
+///   A claim whose owner still runs belongs to an add or a copy between claiming and journaling,
+/// so it is left whole;
+///  a claimed container no journal names,
+/// whose owner is dead,
+/// was abandoned by a process that died.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -303,7 +350,8 @@ pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeC
     return reap_judged_stages(common_dir, &judge_stage_owners(common_dir)?);
 }
 
-/// `reap_abandoned_stages` on verdicts that were made before the command changed anything; a claim or a temporary that the verdicts
+/// `reap_abandoned_stages` on verdicts that were made before the command changed anything;
+/// a claim or a temporary that the verdicts
 ///  do not name as dead is left whole.
 pub fn reap_judged_stages(common_dir: &Path, verdicts: &StageVerdicts) -> Result<Vec<String>, WorktreeCopyError> {
     let root: PathBuf = journal_root(common_dir);

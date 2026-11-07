@@ -1,15 +1,33 @@
 //! What:
-//!  The word-level second pass over the files a Git merge left conflicted: which conflicted files may be re-merged, their
-//!  re-merge by `word_merge`, the objects and the tree that carry the result, and the words that list every merged part
+//!  The word-level second pass over the files a Git merge left conflicted:
+//! which conflicted files may be re-merged,
+//! their
+//!  re-merge by `word_merge`,
+//! the objects and the tree that carry the result,
+//! and the words that list every merged part
 //!  on standard error and in the journal.
 //! Why:
 //!  The owner decided on 2026-11-03 (`doc/planning/cli-git-merge-auto-resolution.md`) that the merges a person runs and the
 //!  wrapper's own unattended merges get a second pass that accepts a file only when every part resolves and shows each part.
-//!  Four callers need the same answer from the same stage blobs: the forwarded merge, rebase, cherry-pick and revert
-//!  (`merge_second_pass_worktree.rs`), the isolated merge, the auto-push reconcile merge and the commit replay merge, which
-//!  work from objects (`merge_second_pass_tree.rs`). They differ in how Git is started, so they hand in a `GitRunner`.
-//!  Only a plain file whose three stages exist, with one mode on all three, that is text, small, and not claimed by a merge
-//!  driver or the `binary` attribute, is re-merged; everything else is left to the person exactly as Git left it.
+//!  Four callers need the same answer from the same stage blobs:
+//! the forwarded merge,
+//! rebase,
+//! cherry-pick and revert
+//!  (`merge_second_pass_worktree.rs`),
+//! the isolated merge,
+//! the auto-push reconcile merge and the commit replay merge,
+//! which
+//!  work from objects (`merge_second_pass_tree.rs`).
+//! They differ in how Git is started,
+//! so they hand in a `GitRunner`.
+//!  Only a plain file whose three stages exist,
+//! with one mode on all three,
+//! that is text,
+//! small,
+//! and not claimed by a merge
+//!  driver or the `binary` attribute,
+//! is re-merged;
+//! everything else is left to the person exactly as Git left it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,7 +48,8 @@ use std::path::Path;
 /// Tag used for diagnostics from this module.
 const TAG: &str = "wordMerge";
 
-/// The words every line about a merged part carries, so a reader finds them in a long output.
+/// The words every line about a merged part carries,
+/// so a reader finds them in a long output.
 pub const REPORT_MARK: &str = "word-level merge";
 
 /// The journal field that names the file of an entry.
@@ -42,47 +61,76 @@ pub const OPERATION_FIELD: &str = "CLI_GIT_WORD_MERGE_OPERATION";
 /// The journal field that counts the parts of the file that were merged by word.
 pub const PARTS_FIELD: &str = "CLI_GIT_WORD_MERGE_PARTS";
 
-/// The number of leading bytes in which Git looks for a NUL byte to call a file binary: `FIRST_FEW_BYTES` in Git 2.56.0's
-///  `xdiff-interface.c` line 197, used by `buffer_is_binary` and by the merge driver choice in `merge-ll.c` lines 120 to 122.
+/// The number of leading bytes in which Git looks for a NUL byte to call a file binary:
+/// `FIRST_FEW_BYTES` in Git 2.56.0's
+///  `xdiff-interface.c` line 197,
+/// used by `buffer_is_binary` and by the merge driver choice in `merge-ll.c` lines 120 to 122.
 const BINARY_PROBE_BYTES: usize = 8000;
 
-/// The size above which Git's own merge treats a file as binary and does not merge it by text: `MAX_XDIFF_SIZE`, 1023 MiB, in
-///  `xdiff-interface.h` line 14, tested in `merge-ll.c` lines 117 to 119.
+/// The size above which Git's own merge treats a file as binary and does not merge it by text:
+/// `MAX_XDIFF_SIZE`,
+/// 1023 MiB,
+/// in
+///  `xdiff-interface.h` line 14,
+/// tested in `merge-ll.c` lines 117 to 119.
 const GIT_MAX_XDIFF_SIZE: usize = 1024 * 1024 * 1023;
 
-/// The size above which this pass leaves a file to the person, although Git would still merge it by text. Git's value cannot
-///  bound the cost of this pass: measured on three texts that share no line, one 1 MiB of lines took 0.08 s and 45 MB, 8 MiB took
-///  0.73 s and 352 MB, 32 MiB took 4.12 s and 1320 MB (release build, Myers diff, one core), so a file at Git's limit would take
-///  minutes and tens of gigabytes. 8 MiB keeps the worst case under a second.
+/// The size above which this pass leaves a file to the person,
+/// although Git would still merge it by text.
+/// Git's value cannot
+///  bound the cost of this pass:
+/// measured on three texts that share no line,
+/// one 1 MiB of lines took 0.08 s and 45 MB,
+/// 8 MiB took
+///  0.73 s and 352 MB,
+/// 32 MiB took 4.12 s and 1320 MB (release build,
+/// Myers diff,
+/// one core),
+/// so a file at Git's limit would take
+///  minutes and tens of gigabytes.
+/// 8 MiB keeps the worst case under a second.
 const PASS_COST_LIMIT_BYTES: usize = 8 * 1024 * 1024;
 
-/// The largest blob the second pass re-merges: the smaller of Git's own limit and the one measured above.
+/// The largest blob the second pass re-merges:
+/// the smaller of Git's own limit and the one measured above.
 const LARGEST_BLOB_BYTES: usize = if PASS_COST_LIMIT_BYTES < GIT_MAX_XDIFF_SIZE { PASS_COST_LIMIT_BYTES } else { GIT_MAX_XDIFF_SIZE };
 
 /// The most characters of a merged part a report line shows.
 const EXCERPT_CHARACTERS: usize = 100;
 
-/// The modes of a plain file, with and without the executable bit.
+/// The modes of a plain file,
+/// with and without the executable bit.
 const PLAIN_FILE_MODES: [u32; 2] = [0o100_644, 0o100_755];
 
-/// The values of the `merge` attribute that leave the text merge to Git's own algorithm: none given, `merge` set, `text`.
+/// The values of the `merge` attribute that leave the text merge to Git's own algorithm:
+/// none given,
+/// `merge` set,
+/// `text`.
 const TEXT_MERGE_VALUES: [&str; 3] = ["unspecified", "set", "text"];
 
-/// The fields `git check-attr -z` prints for each answer: the path, the attribute and its value.
+/// The fields `git check-attr -z` prints for each answer:
+/// the path,
+/// the attribute and its value.
 const ATTRIBUTE_FIELDS: usize = 3;
 
 /// Why a conflicted path is left to the person.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Left {
-    /// A stage is missing: both sides added the path, or one side deleted it.
+    /// A stage is missing:
+    /// both sides added the path,
+    /// or one side deleted it.
     MissingStage,
-    /// The stages differ in mode, or the file is a link, a submodule or not a plain file.
+    /// The stages differ in mode,
+    /// or the file is a link,
+    /// a submodule or not a plain file.
     NotAPlainFile,
     /// A stage holds a NUL byte near its start.
     Binary,
     /// A stage is larger than the pass takes.
     TooLarge,
-    /// The `merge` attribute names a driver, `binary` or is unset, so the merge belongs to that setting.
+    /// The `merge` attribute names a driver,
+    /// `binary` or is unset,
+    /// so the merge belongs to that setting.
     Driver(String),
     /// At least one line region holds two different changes of the same words.
     Overlap(usize),
@@ -99,7 +147,8 @@ pub struct Merged {
     pub bytes: Vec<u8>,
     /// The line regions that needed the word pass.
     pub parts: Vec<MergedPart>,
-    /// The three stages the file was merged from, kept to put the conflict back if a later step fails.
+    /// The three stages the file was merged from,
+    /// kept to put the conflict back if a later step fails.
     pub stages: Conflict,
 }
 
@@ -118,9 +167,12 @@ pub enum Verdict {
 }
 
 /// What:
-///  Whether the bytes are text the pass may merge: no NUL byte near the start, and not larger than the limit.
+///  Whether the bytes are text the pass may merge:
+/// no NUL byte near the start,
+/// and not larger than the limit.
 /// Why:
-///   Git's own binary test looks at the first bytes only; a file it would call binary is never a candidate for a
+///   Git's own binary test looks at the first bytes only;
+/// a file it would call binary is never a candidate for a
 ///  line-and-word merge.
 ///
 /// In TS you'd write (pseudocode):
@@ -137,7 +189,8 @@ fn unfit(bytes: &[u8]) -> Option<Left> {
     return None;
 }
 
-/// The mode all three stages share, when it is a plain file's.
+/// The mode all three stages share,
+/// when it is a plain file's.
 fn shared_plain_mode(stages: [&Stage; 3]) -> Option<u32> {
     let mode: u32 = stages[0].mode;
     for stage in stages {
@@ -152,11 +205,17 @@ fn shared_plain_mode(stages: [&Stage; 3]) -> Option<u32> {
 }
 
 /// What:
-///  The value of the `merge` attribute of each path, from one `git check-attr` start.
+///  The value of the `merge` attribute of each path,
+/// from one `git check-attr` start.
 /// Why:
-///   A path with a driver, with `-merge` or with `merge=binary` must be merged the way its setting says, not by a second
-///  pass that ignores the setting. The caller's runner decides where attributes come from: the worktree for a merge a person
-///  runs, the attribute tree for a merge from objects.
+///   A path with a driver,
+/// with `-merge` or with `merge=binary` must be merged the way its setting says,
+/// not by a second
+///  pass that ignores the setting.
+/// The caller's runner decides where attributes come from:
+/// the worktree for a merge a person
+///  runs,
+/// the attribute tree for a merge from objects.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -184,9 +243,11 @@ fn merge_attributes(runner: &dyn GitRunner, paths: &[&[u8]]) -> Result<BTreeMap<
 }
 
 /// What:
-///  The bytes of the named blobs, from one `git cat-file --batch` start.
+///  The bytes of the named blobs,
+/// from one `git cat-file --batch` start.
 /// Why:
-///   One start reads every stage of every candidate file; the answer for a name is its header line and then its bytes.
+///   One start reads every stage of every candidate file;
+/// the answer for a name is its header line and then its bytes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -220,11 +281,18 @@ fn read_blobs(runner: &dyn GitRunner, oids: &[&str]) -> Result<BTreeMap<String, 
 }
 
 /// What:
-///  Re-merge every conflicted path that may be, and say what became of each.
+///  Re-merge every conflicted path that may be,
+/// and say what became of each.
 /// Why:
-///   A path is merged only when all three stages exist with one plain mode, are small text, and the `merge` attribute leaves
-///  the text merge to Git; and only when every line region resolves. Anything else is `Left`, so the caller keeps the conflict.
-///   `Err` means a Git start failed; the caller then leaves every conflict as Git left it.
+///   A path is merged only when all three stages exist with one plain mode,
+/// are small text,
+/// and the `merge` attribute leaves
+///  the text merge to Git;
+/// and only when every line region resolves.
+/// Anything else is `Left`,
+/// so the caller keeps the conflict.
+///   `Err` means a Git start failed;
+/// the caller then leaves every conflict as Git left it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -299,7 +367,9 @@ pub fn second_pass(runner: &dyn GitRunner, conflicts: &[Conflict]) -> Result<Vec
 /// What:
 ///  Write one merged file as a blob and return its object name.
 /// Why:
-///   `--no-filters` keeps the bytes exactly as merged; the checkout filters apply when a worktree file is made, not here.
+///   `--no-filters` keeps the bytes exactly as merged;
+/// the checkout filters apply when a worktree file is made,
+/// not here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -322,10 +392,13 @@ pub fn resolved_record(mode: u32, oid: &str, path: &[u8]) -> Vec<u8> {
 }
 
 /// What:
-///  The tree that is `tree` with the named files replaced, from a scratch index.
+///  The tree that is `tree` with the named files replaced,
+/// from a scratch index.
 /// Why:
-///   The tree `git merge-tree` wrote holds the conflicted file with markers; replacing it by the merged blob makes the tree
-///  of the merge as if Git had merged cleanly. A scratch index is the way to edit a tree with Git's own commands.
+///   The tree `git merge-tree` wrote holds the conflicted file with markers;
+/// replacing it by the merged blob makes the tree
+///  of the merge as if Git had merged cleanly.
+/// A scratch index is the way to edit a tree with Git's own commands.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -366,9 +439,11 @@ fn span_text(span: &LineSpan) -> String {
 }
 
 /// What:
-///  What a merged part became, as one escaped line of at most `EXCERPT_CHARACTERS` characters.
+///  What a merged part became,
+/// as one escaped line of at most `EXCERPT_CHARACTERS` characters.
 /// Why:
-///   The reader sees the new text without opening the file; escaping keeps a terminal control sequence in a file from
+///   The reader sees the new text without opening the file;
+/// escaping keeps a terminal control sequence in a file from
 ///  reaching the terminal.
 ///
 /// In TS you'd write (pseudocode):
@@ -383,7 +458,8 @@ fn excerpt(merged: &[u8]) -> String {
     };
 }
 
-/// One part as a sentence fragment: where it was in the three texts and what it became.
+/// One part as a sentence fragment:
+/// where it was in the three texts and what it became.
 pub fn part_text(part: &MergedPart) -> String {
     return format!(
         "base {}, ours {}, theirs {} became {}",
@@ -395,7 +471,9 @@ pub fn part_text(part: &MergedPart) -> String {
 }
 
 /// What:
-///  The lines that list a merged file: one per part, or one for the file when it needed no word pass.
+///  The lines that list a merged file:
+/// one per part,
+/// or one for the file when it needed no word pass.
 /// Why:
 ///   The owner's decision is that every merged part is visible by file and by part.
 ///
@@ -418,7 +496,9 @@ pub fn report_lines(prefix: &str, merged: &Merged) -> Vec<String> {
 /// What:
 ///  The message and the fields of the journal entry for a merged file.
 /// Why:
-///   One entry names the file, the operation and every part, so `journalctl` finds a merge by file.
+///   One entry names the file,
+/// the operation and every part,
+/// so `journalctl` finds a merge by file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -433,8 +513,10 @@ pub fn journal_entry(operation: &str, merged: &Merged) -> (String, Vec<(&'static
 /// What:
 ///  Send one journal entry for a merged file under the identifier of the program that merged it.
 /// Why:
-///   The wrapper's standard error is a terminal or a capture that is gone when the command ends; the journal keeps the
-///  file and each part for later. Code that runs inside the service sends under the service's identifier.
+///   The wrapper's standard error is a terminal or a capture that is gone when the command ends;
+/// the journal keeps the
+///  file and each part for later.
+/// Code that runs inside the service sends under the service's identifier.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -446,7 +528,9 @@ pub fn journal_merged(identifier: &str, operation: &str, merged: &Merged) {
     debug(TAG, format!("journal entry for a merged file: sent={sent}").as_str());
 }
 
-/// Controls for the parsing, the eligibility rules, the objects and the report words.
+/// Controls for the parsing,
+/// the eligibility rules,
+/// the objects and the report words.
 #[cfg(test)]
 #[path = "merge_second_pass_tests.rs"]
 pub(crate) mod tests;

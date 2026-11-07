@@ -1,5 +1,8 @@
 //! Binary-level controls for `git commit` through the native wrapper:
-//!  the transaction lands a commit, applies the policies, reports what blocked it, leaves nothing behind,
+//!  the transaction lands a commit,
+//! applies the policies,
+//! reports what blocked it,
+//! leaves nothing behind,
 //!  and replays or fails a commit that lost a landing race.
 //! Every control runs the built executable on a disposable repository with the host's Git.
 
@@ -12,12 +15,16 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-/// The bound of one commit under host load, in seconds; the shared 5-second bound is for single Git commands.
+/// The bound of one commit under host load,
+/// in seconds;
+/// the shared 5-second bound is for single Git commands.
 pub(super) const COMMIT_BOUND_SECONDS: &str = "120";
 
 /// Remove the fixture once nothing writes into it any more.
-///  A landed commit may leave a maintenance child finishing for a moment under load, and removing a directory that
-///  still gains entries fails with "Directory not empty"; the removal is tried again for up to five seconds.
+///  A landed commit may leave a maintenance child finishing for a moment under load,
+/// and removing a directory that
+///  still gains entries fails with "Directory not empty";
+/// the removal is tried again for up to five seconds.
 pub(super) fn remove_settled(fixture: &Fixture) {
     for _ in 0..50 {
         if std::fs::remove_dir_all(&fixture.root).is_ok() || !fixture.root.exists() {
@@ -63,14 +70,18 @@ fn edited_repository(fixture: &Fixture, name: &str) -> PathBuf {
 }
 
 /// Make the automatic maintenance a landing starts run to its end before the wrapper returns.
-///  Detached, Git 2.56.0 repacks even a repository this small in the background, and its `tmp_pack_*` and `tmp_idx_*`
-///  files are what `git count-objects -v` reports as garbage while the repack runs; a check made right after the
+///  Detached,
+/// Git 2.56.0 repacks even a repository this small in the background,
+/// and its `tmp_pack_*` and `tmp_idx_*`
+///  files are what `git count-objects -v` reports as garbage while the repack runs;
+/// a check made right after the
 ///  wrapper returns then races with it.
 pub(super) fn keep_maintenance_in_the_foreground(fixture: &Fixture, repo: &Path) {
     git(fixture, repo, &["config", "maintenance.autoDetach", "false"]);
 }
 
-/// The sorted file names in a pack directory, for failure messages that name what a garbage count stands for.
+/// The sorted file names in a pack directory,
+/// for failure messages that name what a garbage count stands for.
 fn pack_entries(pack_directory: &Path) -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(pack_directory)
         .map(|entries| {
@@ -84,7 +95,11 @@ fn pack_entries(pack_directory: &Path) -> Vec<String> {
     return names;
 }
 
-/// What a finished transaction must leave: no transaction directory, no lock, no shadow repository, no `.keep`.
+/// What a finished transaction must leave:
+/// no transaction directory,
+/// no lock,
+/// no shadow repository,
+/// no `.keep`.
 pub(super) fn assert_nothing_left(fixture: &Fixture, repo: &Path) {
     let git_dir: PathBuf = repo.join(".git");
     let registry: Vec<String> = std::fs::read_dir(git_dir.join("cli-git-transactions"))
@@ -121,15 +136,23 @@ pub(super) fn assert_nothing_left(fixture: &Fixture, repo: &Path) {
     assert_eq!(kept, Vec::<String>::new(), "no pack keeps the commit's objects alive");
 }
 
-/// How many small files the maintenance control stages, so that loose objects far exceed `gc.auto`.
+/// How many small files the maintenance control stages,
+/// so that loose objects far exceed `gc.auto`.
 const FILLER_FILES: usize = 3000;
 
-/// The automatic maintenance a landing hands to the service runs: with detaching off and the repack threshold at 1, the loose
-///  objects of the filler are packed once the service has settled the work records, and nothing of the repack stays behind.
-///  The count before the commit is the positive control: the filler is loose then.
-///  Git 2.56.0 decides automatic maintenance with its default geometric strategy, whose repack task reads
-///  `maintenance.geometric-repack.auto` (6700 objects by default) and not `gc.auto`; `gc.auto` of 1 alone leaves 3000 loose
-///  objects alone even when `git maintenance run --auto` is started by hand, so this control sets the threshold Git reads.
+/// The automatic maintenance a landing hands to the service runs:
+/// with detaching off and the repack threshold at 1,
+/// the loose
+///  objects of the filler are packed once the service has settled the work records,
+/// and nothing of the repack stays behind.
+///  The count before the commit is the positive control:
+/// the filler is loose then.
+///  Git 2.56.0 decides automatic maintenance with its default geometric strategy,
+/// whose repack task reads
+///  `maintenance.geometric-repack.auto` (6700 objects by default) and not `gc.auto`;
+/// `gc.auto` of 1 alone leaves 3000 loose
+///  objects alone even when `git maintenance run --auto` is started by hand,
+/// so this control sets the threshold Git reads.
 #[test]
 fn the_maintenance_a_landing_hands_to_the_service_runs_once_the_work_settled() {
     let fixture: Fixture = fixture("commit-service-maintenance");
@@ -171,7 +194,8 @@ fn an_explicit_path_commit_lands_once_and_leaves_nothing() {
     remove_settled(&fixture);
 }
 
-/// A final-newline correction lands in the commit and in the worktree copy, and the summary names the path.
+/// A final-newline correction lands in the commit and in the worktree copy,
+/// and the summary names the path.
 #[test]
 fn a_final_newline_correction_lands_in_the_commit_and_the_worktree() {
     let fixture: Fixture = fixture("commit-newline");
@@ -204,7 +228,8 @@ fn a_dry_run_commits_nothing() {
     remove_settled(&fixture);
 }
 
-/// `commit -a` commits every tracked change, including a deletion.
+/// `commit -a` commits every tracked change,
+/// including a deletion.
 #[test]
 fn a_commit_of_all_tracked_changes_lands_them() {
     let fixture: Fixture = fixture("commit-all");
@@ -261,7 +286,8 @@ fn a_correction_that_restores_the_base_is_a_no_change_normalization() {
     remove_settled(&fixture);
 }
 
-/// An amend replaces the head commit, and an empty commit lands only with `--allow-empty`.
+/// An amend replaces the head commit,
+/// and an empty commit lands only with `--allow-empty`.
 #[test]
 fn an_amend_replaces_the_head_and_an_empty_commit_needs_its_flag() {
     let fixture: Fixture = fixture("commit-amend");
@@ -285,7 +311,9 @@ fn an_amend_replaces_the_head_and_an_empty_commit_needs_its_flag() {
     remove_settled(&fixture);
 }
 
-/// An unknown option reaches Git, which refuses it; nothing lands.
+/// An unknown option reaches Git,
+/// which refuses it;
+/// nothing lands.
 #[test]
 fn an_unknown_option_is_refused_by_git_and_nothing_lands() {
     let fixture: Fixture = fixture("commit-unknown-option");
@@ -298,9 +326,14 @@ fn an_unknown_option_is_refused_by_git_and_nothing_lands() {
     remove_settled(&fixture);
 }
 
-/// A termination signal sent to the wrapper alone while the commit sits in the editor ends the commit's Git, leaves no
-///  transaction behind, and exits with 128 plus the signal number. The wrapper runs with no `timeout` in front of it: `timeout`
-///  forwards a signal to its whole process group, which would end Git and the editor directly and leave the wrapper's own
+/// A termination signal sent to the wrapper alone while the commit sits in the editor ends the commit's Git,
+/// leaves no
+///  transaction behind,
+/// and exits with 128 plus the signal number.
+/// The wrapper runs with no `timeout` in front of it:
+/// `timeout`
+///  forwards a signal to its whole process group,
+/// which would end Git and the editor directly and leave the wrapper's own
 ///  relay untested (`binary_fault_signal_tests.rs`).
 #[test]
 fn a_termination_signal_during_the_editor_ends_the_commit_and_leaves_nothing() {
@@ -321,7 +354,8 @@ fn a_termination_signal_during_the_editor_ends_the_commit_and_leaves_nothing() {
     remove_settled(&fixture);
 }
 
-/// `git commit --patch` stages the hunks chosen on standard input into the private index, and only those land.
+/// `git commit --patch` stages the hunks chosen on standard input into the private index,
+/// and only those land.
 #[test]
 fn a_patch_selection_lands_the_chosen_hunk() {
     let fixture: Fixture = fixture("commit-patch");
@@ -352,7 +386,8 @@ fn an_interactive_selection_lands_the_chosen_file() {
     remove_settled(&fixture);
 }
 
-/// With `--allow-empty`, a correction that restores the base still creates the commit the user asked for.
+/// With `--allow-empty`,
+/// a correction that restores the base still creates the commit the user asked for.
 #[test]
 fn an_allowed_empty_commit_is_not_a_no_change_normalization() {
     let fixture: Fixture = fixture("commit-allow-empty-normalized");
@@ -386,7 +421,8 @@ fn include_commits_the_named_path_together_with_the_staged_changes() {
     remove_settled(&fixture);
 }
 
-/// `--pathspec-from-file` names the committed paths from a file, and `-` reads them from standard input.
+/// `--pathspec-from-file` names the committed paths from a file,
+/// and `-` reads them from standard input.
 #[test]
 fn a_pathspec_file_selects_the_committed_paths() {
     let fixture: Fixture = fixture("commit-pathspec-file");
@@ -409,8 +445,10 @@ fn a_pathspec_file_selects_the_committed_paths() {
     remove_settled(&fixture);
 }
 
-/// An explicit-path commit cannot record a deletion staged for a path that stays on disk: the finding says so and
-/// offers the index-backed form, and that form records the deletion and keeps the file (issue 472).
+/// An explicit-path commit cannot record a deletion staged for a path that stays on disk:
+/// the finding says so and
+/// offers the index-backed form,
+/// and that form records the deletion and keeps the file (issue 472).
 #[test]
 fn an_explicit_path_commit_of_a_staged_deletion_that_stays_on_disk_offers_the_index_form() {
     let fixture: Fixture = fixture("commit-staged-deletion");
@@ -433,7 +471,8 @@ fn an_explicit_path_commit_of_a_staged_deletion_that_stays_on_disk_offers_the_in
     remove_settled(&fixture);
 }
 
-/// A staged deletion below an ignored directory gets the same finding, not Git's hint to force-add the ignored path.
+/// A staged deletion below an ignored directory gets the same finding,
+/// not Git's hint to force-add the ignored path.
 #[test]
 fn a_staged_deletion_below_an_ignored_directory_is_not_answered_with_a_force_add_hint() {
     let fixture: Fixture = fixture("commit-staged-deletion-ignored");
@@ -458,7 +497,9 @@ fn a_staged_deletion_below_an_ignored_directory_is_not_answered_with_a_force_add
 }
 
 /// Files an ignore rule matches but the real index stages are committed by a directory pathspec and by a file
-/// pathspec, with the worktree content, as native Git commits them (issue 1807).
+/// pathspec,
+/// with the worktree content,
+/// as native Git commits them (issue 1807).
 #[test]
 fn explicit_paths_commit_staged_additions_that_an_ignore_rule_matches() {
     let fixture: Fixture = fixture("commit-staged-ignored");
@@ -484,7 +525,8 @@ fn explicit_paths_commit_staged_additions_that_an_ignore_rule_matches() {
     remove_settled(&fixture);
 }
 
-/// An ignored path nothing stages is refused with the way forward, not with Git's force-add hint alone.
+/// An ignored path nothing stages is refused with the way forward,
+/// not with Git's force-add hint alone.
 #[test]
 fn an_explicit_path_commit_of_an_unstaged_ignored_path_names_the_way_forward() {
     let fixture: Fixture = fixture("commit-unstaged-ignored");
@@ -505,7 +547,8 @@ fn an_explicit_path_commit_of_an_unstaged_ignored_path_names_the_way_forward() {
     remove_settled(&fixture);
 }
 
-/// A repository nothing was staged in has no index file; an explicit-path commit there reads it as empty instead of
+/// A repository nothing was staged in has no index file;
+/// an explicit-path commit there reads it as empty instead of
 ///  failing on the missing file.
 #[test]
 fn an_explicit_path_commit_works_before_any_index_exists() {
@@ -529,7 +572,8 @@ fn an_explicit_path_commit_works_before_any_index_exists() {
     remove_settled(&fixture);
 }
 
-/// An explicit-path commit leaves every other staged entry (a rename, a new file) exactly as it was and says nothing
+/// An explicit-path commit leaves every other staged entry (a rename,
+/// a new file) exactly as it was and says nothing
 ///  about staged entries moving.
 #[test]
 fn an_explicit_path_commit_keeps_other_staged_entries_without_a_warning() {

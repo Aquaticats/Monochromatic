@@ -1,11 +1,14 @@
-//! Controls for the native check that decides whether a command left the branch ahead of its upstream: the walk over the
-//! commit parents against real Git, and the tip decision on disposable repositories.
+//! Controls for the native check that decides whether a command left the branch ahead of its upstream:
+//! the walk over the
+//! commit parents against real Git,
+//! and the tip decision on disposable repositories.
 
 use super::*;
 use crate::repo_read_layout::read_layout_in;
 use crate::test_support::{fixture, git, remove};
 
-/// A repository with a bare remote, `main` pushed and tracking `origin/main`.
+/// A repository with a bare remote,
+/// `main` pushed and tracking `origin/main`.
 fn repository(name: &str) -> (PathBuf, PathBuf) {
     let root = fixture(name);
     let remote = root.join("remote.git");
@@ -28,13 +31,15 @@ fn git_says_ancestor(repo: &Path, ancestor: &str, descendant: &str) -> bool {
     return crate::test_support::git_output(repo, &["merge-base", "--is-ancestor", ancestor, descendant]).status.success();
 }
 
-/// A watch of the repository as the wrapper would start it, with the fixture's environment.
+/// A watch of the repository as the wrapper would start it,
+/// with the fixture's environment.
 fn watch(repo: &Path) -> TipWatch {
     let overlay: Vec<(OsString, OsString)> = crate::test_support::isolated_overlay();
     return watch_tip(repo, Path::new("/usr/bin/git"), overlay.as_slice(), &[]).expect("a branch with a tip");
 }
 
-/// The walk answers like `git merge-base --is-ancestor` for ancestors, non-ancestors and the commit itself.
+/// The walk answers like `git merge-base --is-ancestor` for ancestors,
+/// non-ancestors and the commit itself.
 #[test]
 fn the_walk_agrees_with_git_about_ancestry() {
     let (root, repo) = repository("atr-walk");
@@ -59,7 +64,9 @@ fn the_walk_agrees_with_git_about_ancestry() {
     remove(&root);
 }
 
-/// A commit on top of the upstream is handed over; the same tip is not handed over twice, and an unmoved branch is not.
+/// A commit on top of the upstream is handed over;
+/// the same tip is not handed over twice,
+/// and an unmoved branch is not.
 #[test]
 fn a_branch_that_grew_ahead_of_its_upstream_is_handed_over() {
     let (root, repo) = repository("atr-grew");
@@ -70,7 +77,8 @@ fn a_branch_that_grew_ahead_of_its_upstream_is_handed_over() {
     remove(&root);
 }
 
-/// A branch reset to an older commit moved backwards, which is not growth.
+/// A branch reset to an older commit moved backwards,
+/// which is not growth.
 #[test]
 fn a_branch_that_moved_backwards_is_not_handed_over() {
     let (root, repo) = repository("atr-back");
@@ -82,7 +90,8 @@ fn a_branch_that_moved_backwards_is_not_handed_over() {
     remove(&root);
 }
 
-/// A rewritten branch (the same commits replayed) has grown past the upstream but not from its old tip: a rebase.
+/// A rewritten branch (the same commits replayed) has grown past the upstream but not from its old tip:
+/// a rebase.
 #[test]
 fn a_rewritten_branch_is_not_handed_over() {
     let (root, repo) = repository("atr-rewrite");
@@ -93,7 +102,8 @@ fn a_rewritten_branch_is_not_handed_over() {
     remove(&root);
 }
 
-/// A branch that has diverged from the tracking ref is not handed over, and neither is one without an upstream.
+/// A branch that has diverged from the tracking ref is not handed over,
+/// and neither is one without an upstream.
 #[test]
 fn a_diverged_branch_and_a_branch_without_an_upstream_are_not_handed_over() {
     let (root, repo) = repository("atr-diverged");

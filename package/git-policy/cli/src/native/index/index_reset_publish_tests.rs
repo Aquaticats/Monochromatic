@@ -1,4 +1,6 @@
-//! Controls for the temporary file, the file mode and the rename of the landing's private index, with the file system steps made
+//! Controls for the temporary file,
+//! the file mode and the rename of the landing's private index,
+//! with the file system steps made
 //! to fail or run short.
 
 use super::*;
@@ -27,7 +29,9 @@ fn mode_of(path: &Path) -> u32 {
     return std::fs::metadata(path).expect("metadata").permissions().mode() & 0o7777;
 }
 
-/// Each private copy has a directory of its own beside the live index, named at random, so two copies never share a name.
+/// Each private copy has a directory of its own beside the live index,
+/// named at random,
+/// so two copies never share a name.
 #[test]
 fn the_private_copy_has_a_directory_of_its_own_beside_the_live_index() {
     let root: PathBuf = fixture("index-reset-publish-copy-directory");
@@ -45,7 +49,11 @@ fn the_private_copy_has_a_directory_of_its_own_beside_the_live_index() {
     remove(root.as_path());
 }
 
-/// Git's `calc_shared_perm`: positive values add bits, negative values replace them, a read-only file gets no write bit, and an
+/// Git's `calc_shared_perm`:
+/// positive values add bits,
+/// negative values replace them,
+/// a read-only file gets no write bit,
+/// and an
 /// executable one gets execute where it gets read.
 #[test]
 fn shared_modes_follow_calc_shared_perm() {
@@ -58,9 +66,12 @@ fn shared_modes_follow_calc_shared_perm() {
     assert_eq!(shared_mode(0o660, 0o700), 0o770);
 }
 
-/// The mode is set before the first byte is written, also when `core.sharedRepository` is narrower than the mask gives: under a
+/// The mode is set before the first byte is written,
+/// also when `core.sharedRepository` is narrower than the mask gives:
+/// under a
 /// mask of 022 (the test runs in a child that starts with it) a value of 0640 never has the file readable by the world (a value
-/// that adds bits adds them to the 0644 Git's file has), and the file is empty when its mode is set.
+/// that adds bits adds them to the 0644 Git's file has),
+/// and the file is empty when its mode is set.
 #[test]
 fn the_mode_is_set_before_any_byte_is_written() {
     if crate::umask_child_test_support::ran_in_child(module_path!(), "the_mode_is_set_before_any_byte_is_written", 0o022) {
@@ -99,8 +110,13 @@ fn short_writes_publish_the_whole_file() {
     remove(root.as_path());
 }
 
-/// A write that fails midway, a write that takes nothing, a mode that cannot be set, a flush that fails and a rename that fails
-/// each end with an error, no file of this run left, and the target as it was.
+/// A write that fails midway,
+/// a write that takes nothing,
+/// a mode that cannot be set,
+/// a flush that fails and a rename that fails
+/// each end with an error,
+/// no file of this run left,
+/// and the target as it was.
 #[test]
 fn every_failed_step_leaves_the_target_and_no_temporary_file() {
     let broken = || -> std::io::Error { return std::io::Error::other("injected"); };
@@ -149,7 +165,9 @@ fn a_target_that_cannot_be_replaced_leaves_nothing() {
     remove(root.as_path());
 }
 
-/// A payload that checks itself: a 16-byte header naming the writer and the length, then the writer's byte to the end.
+/// A payload that checks itself:
+/// a 16-byte header naming the writer and the length,
+/// then the writer's byte to the end.
 fn payload(writer: u8, length: usize) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::with_capacity(length);
     bytes.extend_from_slice(&(length as u64).to_be_bytes());
@@ -167,8 +185,12 @@ fn is_whole(bytes: &[u8]) -> bool {
     return length == bytes.len() && bytes[8..16] == [bytes[8]; 8] && bytes[16..].iter().all(|byte| { return *byte == bytes[8]; });
 }
 
-/// Writers publishing different payloads to one target at once, with a reader reading it all the while: every read is one whole
-/// payload of one writer, the last one is whole, and nothing but the target and the live index is left.
+/// Writers publishing different payloads to one target at once,
+/// with a reader reading it all the while:
+/// every read is one whole
+/// payload of one writer,
+/// the last one is whole,
+/// and nothing but the target and the live index is left.
 #[test]
 fn concurrent_publications_of_different_payloads_are_always_whole() {
     let (root, _live, built) = directory("publish-concurrent");
@@ -214,9 +236,15 @@ fn concurrent_publications_of_different_payloads_are_always_whole() {
     remove(root.as_path());
 }
 
-/// A reader that reads the target while a publication is in flight (during its writes, at its flush, on both sides of its rename)
-/// sees the old payload whole until the rename and the new one whole after it. The reads are made from inside the publication's own
-/// steps, on another thread each time, so each provably overlaps it: the stress test above can finish without one doing so.
+/// A reader that reads the target while a publication is in flight (during its writes,
+/// at its flush,
+/// on both sides of its rename)
+/// sees the old payload whole until the rename and the new one whole after it.
+/// The reads are made from inside the publication's own
+/// steps,
+/// on another thread each time,
+/// so each provably overlaps it:
+/// the stress test above can finish without one doing so.
 #[test]
 fn a_read_inside_each_step_of_a_publication_sees_one_whole_payload() {
     let (root, _live, built) = directory("publish-overlap");
@@ -255,8 +283,12 @@ fn a_read_inside_each_step_of_a_publication_sees_one_whole_payload() {
     remove(root.as_path());
 }
 
-/// Under a real mask of 077, which the test sets in a child process, the system calls give Git's modes: the mask's for no shared
-/// repository, the widened one for `group` and the replaced one for a file mode value.
+/// Under a real mask of 077,
+/// which the test sets in a child process,
+/// the system calls give Git's modes:
+/// the mask's for no shared
+/// repository,
+/// the widened one for `group` and the replaced one for a file mode value.
 #[test]
 fn the_published_mode_under_a_real_umask_is_gits() {
     if crate::umask_child_test_support::ran_in_child(module_path!(), "the_published_mode_under_a_real_umask_is_gits", 0o077) {
@@ -270,7 +302,9 @@ fn the_published_mode_under_a_real_umask_is_gits() {
     remove(root.as_path());
 }
 
-/// A write that is interrupted by a signal is tried again, as `write_all` does, and the whole file is published.
+/// A write that is interrupted by a signal is tried again,
+/// as `write_all` does,
+/// and the whole file is published.
 #[test]
 fn an_interrupted_write_is_tried_again() {
     let (root, _live, built) = directory("publish-interrupted");

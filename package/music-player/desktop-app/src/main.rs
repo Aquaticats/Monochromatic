@@ -9,9 +9,12 @@
 //! event-loop thread.
 //!  Also handles CLI path arguments and the file-open dialog.
 //!
-//! On Windows the executable is linked for the GUI subsystem, so a double-click opens no console window;
-//!  `main` attaches to the console of the parent process first, so `--version` and the logs still print in a terminal
-//! (`src/console_attach.rs`, `doc/decision/music-player-windows-gui-subsystem.md`).
+//! On Windows the executable is linked for the GUI subsystem,
+//! so a double-click opens no console window;
+//!  `main` attaches to the console of the parent process first,
+//! so `--version` and the logs still print in a terminal
+//! (`src/console_attach.rs`,
+//! `doc/decision/music-player-windows-gui-subsystem.md`).
 //!  The unit-test build of this binary keeps the console subsystem so the test harness prints as usual.
 #![cfg_attr(all(windows, not(test)), windows_subsystem = "windows")]
 
@@ -121,52 +124,89 @@ mod ui_state_log;
 #[cfg(test)]
 mod ui_test_support;
 
-/// Window tests of the focus model: Tab order, rings and the lists' focus keys.
+/// Window tests of the focus model:
+/// Tab order,
+/// rings and the lists' focus keys.
 #[cfg(test)]
 mod ui_keys_focus_tests;
 
-/// Window tests of every D106 shortcut, pressed as real key events on the testing backend.
+/// Window tests of every D106 shortcut,
+/// pressed as real key events on the testing backend.
 #[cfg(test)]
 mod ui_keys_window_tests;
 
-/// Window tests of Auto-play on select (D129): the Settings switch row and what a click, Enter and a Search result do.
+/// Window tests of Auto-play on select (D129):
+/// the Settings switch row and what a click,
+/// Enter and a Search result do.
 #[cfg(test)]
 mod ui_auto_play_window_tests;
 
-/// Window tests of the Text size setting: the steppers, the reset row, the live window, the saves and the layout at the
+/// Window tests of the Text size setting:
+/// the steppers,
+/// the reset row,
+/// the live window,
+/// the saves and the layout at the
 /// ends of the range.
 #[cfg(test)]
 mod ui_text_size_window_tests;
 
-/// Window tests of the Licenses row of Settings and the Licenses page: the row, the AboutSlint widget, the keys and the ring.
+/// Window tests of the Licenses row of Settings and the Licenses page:
+/// the row,
+/// the AboutSlint widget,
+/// the keys and the ring.
 #[cfg(test)]
 mod ui_licenses_window_tests;
 
-/// Window tests of the empty, reading and failure states.
+/// Window tests of the empty,
+/// reading and failure states.
 #[cfg(test)]
 mod ui_states_window_tests;
 
-/// Window tests of the second polish review's interaction defects: click-through, menu position, rings, headers, fades.
+/// Window tests of the second polish review's interaction defects:
+/// click-through,
+/// menu position,
+/// rings,
+/// headers,
+/// fades.
 #[cfg(test)]
 mod ui_interaction_window_tests;
 
-/// Window tests of the list defects of the second polish review: long names, picker reveal, breakpoint scroll, scrollbars.
+/// Window tests of the list defects of the second polish review:
+/// long names,
+/// picker reveal,
+/// breakpoint scroll,
+/// scrollbars.
 #[cfg(test)]
 mod ui_lists_window_tests;
 
-/// Window tests of the folded folder picker: it never opens blank, whatever the library, the saved selection or the size.
+/// Window tests of the folded folder picker:
+/// it never opens blank,
+/// whatever the library,
+/// the saved selection or the size.
 #[cfg(test)]
 mod ui_picker_window_tests;
 
-/// Rendered tests of the list defects: the ellipsis, the playing-row marker and the scrollbar, read from pixels.
+/// Rendered tests of the list defects:
+/// the ellipsis,
+/// the playing-row marker and the scrollbar,
+/// read from pixels.
 #[cfg(test)]
 mod ui_lists_render_tests;
 
-/// Shared helpers of the rendered window tests: the software-rendered window, its pixels and rounded-box geometry.
+/// Shared helpers of the rendered window tests:
+/// the software-rendered window,
+/// its pixels and rounded-box geometry.
 #[cfg(test)]
 mod ui_render_support;
 
-/// Rendered tests of the focus ring on the player page (D117): its band, its shape and what focus leaves unchanged.
+/// Tests of the shared render support:
+/// its clock step against the animation times written in the markup.
+#[cfg(test)]
+mod ui_render_support_tests;
+
+/// Rendered tests of the focus ring on the player page (D117):
+/// its band,
+/// its shape and what focus leaves unchanged.
 #[cfg(test)]
 mod ui_focus_ring_tests;
 
@@ -174,15 +214,21 @@ mod ui_focus_ring_tests;
 #[cfg(test)]
 mod ui_focus_ring_pages_tests;
 
-/// Rendered tests of the Search page restyle (D126): the canvas header, the divider, the rounded rows and the status block.
+/// Rendered tests of the Search page restyle (D126):
+/// the canvas header,
+/// the divider,
+/// the rounded rows and the status block.
 #[cfg(test)]
 mod ui_search_restyle_tests;
 
-/// Rendered tests of the track menu: the ring on a row (D117) and the card's color and outline (D119).
+/// Rendered tests of the track menu:
+/// the ring on a row (D117) and the card's color and outline (D119).
 #[cfg(test)]
 mod ui_focus_ring_menu_tests;
 
-/// Rendered tests of the focus ring component alone: its shapes, and a ring above a clipping parent.
+/// Rendered tests of the focus ring component alone:
+/// its shapes,
+/// and a ring above a clipping parent.
 #[cfg(test)]
 mod ui_focus_ring_fixture_tests;
 
@@ -199,7 +245,8 @@ mod ui_overlays_model;
 #[path = "ui_layout_tests.rs"]
 mod ui_layout_tests;
 
-/// Synthetic libraries for the scale tests; the library crate compiles the same file.
+/// Synthetic libraries for the scale tests;
+/// the library crate compiles the same file.
 #[cfg(test)]
 #[path = "scale_library_tests.rs"]
 mod scale_library_tests;
@@ -208,7 +255,8 @@ mod scale_library_tests;
 #[cfg(test)]
 mod scale_tests;
 
-/// Search page tests with the testing backend: refresh in place while a slow scan adds tracks (D111).
+/// Search page tests with the testing backend:
+/// refresh in place while a slow scan adds tracks (D111).
 #[cfg(test)]
 #[path = "ui_search_ingest_tests.rs"]
 mod ui_search_ingest_tests;
@@ -435,7 +483,8 @@ use music_player::command::{Command, Update};
 /// ```ts
 /// import { Cli } from "music-player/cli";
 /// ```
-/// The Windows build parses through `cli::parse_with_color` instead, so it names neither `Cli` nor the trait.
+/// The Windows build parses through `cli::parse_with_color` instead,
+/// so it names neither `Cli` nor the trait.
 #[cfg(not(windows))]
 use music_player::cli::Cli;
 
@@ -497,17 +546,24 @@ use music_player::session::Session;
 /// ```
 use music_player::launcher::{self, Launcher};
 
-/// What: `use music_player::analysis_notification::{AnalysisNotifier, Identity, NotifierConfig};`.
-///  The system indicator for the true-peak analysis, and the app identity it shows.
+/// What:
+/// `use music_player::analysis_notification::{AnalysisNotifier, Identity, NotifierConfig};`.
+///  The system indicator for the true-peak analysis,
+/// and the app identity it shows.
 /// Why:
 ///       D107 replaces the in-app banner with a Plasma job or a freedesktop notification.
 use music_player::analysis_notification::{AnalysisNotifier, Identity, NotifierConfig};
-/// What: `use music_player::unplayable_notification::{UnplayableConfig, UnplayableNotifier};`.
-/// Why: the notification that replaced the "cannot be played" message in the window (D122).
+/// What:
+/// `use music_player::unplayable_notification::{UnplayableConfig, UnplayableNotifier};`.
+/// Why:
+/// the notification that replaced the "cannot be played" message in the window (D122).
 use music_player::unplayable_notification::{UnplayableConfig, UnplayableNotifier};
 
-/// What: `use music_player::sweep_gate::SweepGate;`. The pause gate of the background analysis sweep.
-/// Why: the indicator's Pause and Resume buttons stop and restart the sweep workers through it (D107).
+/// What:
+/// `use music_player::sweep_gate::SweepGate;`.
+/// The pause gate of the background analysis sweep.
+/// Why:
+/// the indicator's Pause and Resume buttons stop and restart the sweep workers through it (D107).
 use music_player::sweep_gate::SweepGate;
 
 /// What:
@@ -537,8 +593,11 @@ use music_player::sweep_gate::SweepGate;
 #[cfg(not(windows))]
 use clap::Parser;
 
-/// What: the startup steps that end the program when they fail, and the debug-build hook that fails one on purpose.
-/// Why: a failed double-click start on Windows is reported in a message box (`src/startup_failure.rs`).
+/// What:
+/// the startup steps that end the program when they fail,
+/// and the debug-build hook that fails one on purpose.
+/// Why:
+/// a failed double-click start on Windows is reported in a message box (`src/startup_failure.rs`).
 use music_player::startup_failure::StartupStep;
 
 /// What:
@@ -813,7 +872,8 @@ fn xdg_user_dir_music() -> Option<PathBuf> {
 ///           file via the `directories` crate,
 ///  then the `xdg-user-dir MUSIC`
 ///           command,
-///  then `Music` inside the home folder (D95: a library is always open).
+///  then `Music` inside the home folder (D95:
+/// a library is always open).
 ///  Returns `None` unless one yields an existing directory.
 /// Why:
 ///       The containerized `run` task bind-mounts the host music folder and
@@ -859,7 +919,8 @@ fn music_dir() -> Option<PathBuf> {
 ///      `fn color_scheme_from_env() -> i32`.
 ///  The `Theme.scheme-override` value that `MUSIC_PLAYER_COLOR_SCHEME` selects.
 /// Why:
-///       A mistyped value is logged and the window follows the system, so the app still opens.
+///       A mistyped value is logged and the window follows the system,
+/// so the app still opens.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -885,9 +946,16 @@ fn color_scheme_from_env() -> i32 {
     };
 }
 
-/// What: `start_analysis_notifier` starts the system indicator for the true-peak analysis (D107).
-/// Why: its Pause and Resume go to the sweep gate, which parks the sweep workers before their next claim; the callback
-/// only flips the gate, so it returns at once. The name and icon are those of the shipped desktop file, so a run
+/// What:
+/// `start_analysis_notifier` starts the system indicator for the true-peak analysis (D107).
+/// Why:
+/// its Pause and Resume go to the sweep gate,
+/// which parks the sweep workers before their next claim;
+/// the callback
+/// only flips the gate,
+/// so it returns at once.
+/// The name and icon are those of the shipped desktop file,
+/// so a run
 /// without the installed file still gets a named header.
 fn start_analysis_notifier() -> AnalysisNotifier {
     return AnalysisNotifier::spawn(NotifierConfig::session(
@@ -897,9 +965,13 @@ fn start_analysis_notifier() -> AnalysisNotifier {
     ))
 }
 
-/// What: `app_identity` names the app to the desktop for every system notification it posts.
-/// Why: the analysis indicator (D107) and the "cannot be played" notification (D122) show the same name, icon and
-/// desktop entry, so they are built from one value.
+/// What:
+/// `app_identity` names the app to the desktop for every system notification it posts.
+/// Why:
+/// the analysis indicator (D107) and the "cannot be played" notification (D122) show the same name,
+/// icon and
+/// desktop entry,
+/// so they are built from one value.
 fn app_identity() -> Identity {
     return Identity {
         desktop_entry: music_player::identity::APP_ID.to_string(),
@@ -908,19 +980,27 @@ fn app_identity() -> Identity {
     };
 }
 
-/// What: `start_unplayable_notifier` starts the system notification for files that cannot be played (D122).
-/// Why: the engine thread hands it the paths; it posts them on its own thread, so neither the engine nor the window
-/// waits on the bus. The window itself shows only the row mark.
+/// What:
+/// `start_unplayable_notifier` starts the system notification for files that cannot be played (D122).
+/// Why:
+/// the engine thread hands it the paths;
+/// it posts them on its own thread,
+/// so neither the engine nor the window
+/// waits on the bus.
+/// The window itself shows only the row mark.
 fn start_unplayable_notifier() -> UnplayableNotifier {
     return UnplayableNotifier::spawn(UnplayableConfig::session(app_identity()));
 }
 
 /// What:
 ///      `fn forced_failure(step: StartupStep) -> Result<(), slint::PlatformError>`.
-///  In a Windows debug build, fails `step` on purpose when `MUSIC_PLAYER_FORCE_STARTUP_FAILURE` names it.
+///  In a Windows debug build,
+/// fails `step` on purpose when `MUSIC_PLAYER_FORCE_STARTUP_FAILURE` names it.
 /// Why:
 ///       The Windows runner proves the failure report by forcing each step and reading the message box back
-///           (`.github/workflows/music-player-release.yml`, job `test-windows`). The error goes through the same
+///           (`.github/workflows/music-player-release.yml`,
+/// job `test-windows`).
+/// The error goes through the same
 ///           path as a real one.
 #[cfg(all(windows, debug_assertions))]
 fn forced_failure(step: StartupStep) -> Result<(), slint::PlatformError> {
@@ -935,9 +1015,11 @@ fn forced_failure(step: StartupStep) -> Result<(), slint::PlatformError> {
 
 /// What:
 ///      `fn forced_failure(_step: StartupStep) -> Result<(), slint::PlatformError>`.
-///  Release builds and non-Windows builds: never fails.
+///  Release builds and non-Windows builds:
+/// never fails.
 /// Why:
-///       The test hook is compiled out of the release; the call sites stay the same on every build.
+///       The test hook is compiled out of the release;
+/// the call sites stay the same on every build.
 #[cfg(not(all(windows, debug_assertions)))]
 fn forced_failure(_step: StartupStep) -> Result<(), slint::PlatformError> {
     return Ok(());
@@ -945,10 +1027,14 @@ fn forced_failure(_step: StartupStep) -> Result<(), slint::PlatformError> {
 
 /// What:
 ///      `fn startup_failed(step: StartupStep, error: slint::PlatformError) -> anyhow::Error`.
-///  Windows: reports the failed step (a message box when stderr reaches nobody, the text on stderr otherwise), then
+///  Windows:
+/// reports the failed step (a message box when stderr reaches nobody,
+/// the text on stderr otherwise),
+/// then
 ///  hands the error on to `main`.
 /// Why:
-///       A double-click start has no console, so the error `main` returns would be written nowhere.
+///       A double-click start has no console,
+/// so the error `main` returns would be written nowhere.
 #[cfg(windows)]
 fn startup_failed(step: StartupStep, error: slint::PlatformError) -> anyhow::Error {
     music_player::startup_failure_win32::report_startup_failure(step, &error.to_string());
@@ -958,7 +1044,9 @@ fn startup_failed(step: StartupStep, error: slint::PlatformError) -> anyhow::Err
 
 /// What:
 ///      `fn startup_failed(_step: StartupStep, error: slint::PlatformError) -> anyhow::Error`.
-///  Linux and macOS: hands the error on to `main` unchanged, which prints it as before.
+///  Linux and macOS:
+/// hands the error on to `main` unchanged,
+/// which prints it as before.
 /// Why:
 ///       Those builds always have a terminal or a session log for stderr.
 #[cfg(not(windows))]
@@ -1562,6 +1650,7 @@ fn main() -> Result<()> {
     return Ok(())
 }
 
-/// Registers the unit-test scratch root, placed in the build directory instead of `/tmp`.
+/// Registers the unit-test scratch root,
+/// placed in the build directory instead of `/tmp`.
 #[cfg(test)]
 mod test_scratch;

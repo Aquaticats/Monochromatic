@@ -1,10 +1,15 @@
-//! The command over several worktrees: `--all`, a dry run that lists reasons, exit statuses and the lines printed.
+//! The command over several worktrees:
+//! `--all`,
+//! a dry run that lists reasons,
+//! exit statuses and the lines printed.
 
 use super::*;
 use crate::subvolume_test_support::{PlainPlatform, backdate, checkout_with_worktree};
 use crate::test_support::{git, remove};
 
-/// A checkout with two quiet linked worktrees, `wt` and `second`, both inside it.
+/// A checkout with two quiet linked worktrees,
+/// `wt` and `second`,
+/// both inside it.
 fn two_worktrees(name: &str) -> (PathBuf, PathBuf) {
     let (parent, root) = checkout_with_worktree(name);
     git(root.as_path(), &["worktree", "add", "--quiet", "--detach", "second"]);
@@ -26,8 +31,11 @@ fn run(platform: &(dyn Platform + Sync), arguments: &ConvertArguments, cwd: &Pat
     return (code, lines);
 }
 
-/// `--all --dry-run` lists every worktree with what it would do or why it is skipped, and changes nothing; the real run
-///  then converts both, and a second run reports them as subvolumes.
+/// `--all --dry-run` lists every worktree with what it would do or why it is skipped,
+/// and changes nothing;
+/// the real run
+///  then converts both,
+/// and a second run reports them as subvolumes.
 #[test]
 fn all_worktrees_are_listed_then_converted() {
     let (parent, root) = two_worktrees("convert-command-all");
@@ -51,7 +59,8 @@ fn all_worktrees_are_listed_then_converted() {
     remove(parent.as_path());
 }
 
-/// A named worktree that is refused ends the command with status 1 and a reason; a path that is no worktree is refused too.
+/// A named worktree that is refused ends the command with status 1 and a reason;
+/// a path that is no worktree is refused too.
 #[test]
 fn a_refused_named_worktree_is_status_one_and_a_failure_is_status_two() {
     let (parent, root) = two_worktrees("convert-command-named");
@@ -79,7 +88,10 @@ fn help_is_printed() {
     assert!(matches!(action, Action::Exit { code: 0, ref stdout, .. } if stdout.contains("--abandon")));
 }
 
-/// A real run says the risk once, before it touches the first worktree; a dry run, an abandon and an empty list say nothing.
+/// A real run says the risk once,
+/// before it touches the first worktree;
+/// a dry run,
+/// an abandon and an empty list say nothing.
 #[test]
 fn the_risk_is_said_once_before_anything_is_converted() {
     let (parent, root) = two_worktrees("convert-command-risk");
@@ -95,7 +107,8 @@ fn the_risk_is_said_once_before_anything_is_converted() {
     remove(parent.as_path());
 }
 
-/// An attribute source chosen on the command line reaches the conversion: it refuses to decide by content.
+/// An attribute source chosen on the command line reaches the conversion:
+/// it refuses to decide by content.
 #[test]
 fn a_command_line_attribute_source_stops_the_content_shortcut() {
     let (parent, root) = two_worktrees("convert-command-source");

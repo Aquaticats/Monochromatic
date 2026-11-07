@@ -1,6 +1,11 @@
-//! What: Which dependents are scanned, which edges their source confirms, and which files
+//! What:
+//! Which dependents are scanned,
+//! which edges their source confirms,
+//! and which files
 //!       are read.
-//! Why: Scanning reads source files; it must read only what can change the plan and
+//! Why:
+//! Scanning reads source files;
+//! it must read only what can change the plan and
 //!      confirm exactly the edges the incumbent confirms.
 //!
 //! In TS you'd write (pseudocode):
@@ -8,13 +13,15 @@
 //! // expect(await bundledDevelopmentEdges({ reader, states, bumpedNames: ['@s/base'] })).toEqual(...);
 //! ```
 
-/// The scan, the state reader and the in-memory workspace.
+/// The scan,
+/// the state reader and the in-memory workspace.
 use super::bundled_development_edges;
 use crate::dependent_version_content::{ContentUnavailable, TrackedPath, WorkspaceContent};
 use crate::dependent_version_states::{ManifestState, read_manifest_states};
 use crate::dependent_version_test_support::{MemoryWorkspace, Read, unchanged, workspace};
 
-/// Scan a workspace for the given raised names, returning the edges and the source reads.
+/// Scan a workspace for the given raised names,
+/// returning the edges and the source reads.
 fn scan(
     memory: &mut MemoryWorkspace,
     bumped: &[&str],
@@ -87,7 +94,8 @@ fn confirms_imported_development_edges() {
     );
 }
 
-/// Edges through a package that reaches a raised one are scanned; others are not read.
+/// Edges through a package that reaches a raised one are scanned;
+/// others are not read.
 #[test]
 fn scans_only_edges_that_lead_to_a_raised_package() {
     let mut memory: MemoryWorkspace = workspace(vec![
@@ -118,7 +126,8 @@ fn scans_only_edges_that_lead_to_a_raised_package() {
     );
 }
 
-/// Undecodable source bytes are replaced, and the import around them is still found.
+/// Undecodable source bytes are replaced,
+/// and the import around them is still found.
 #[test]
 fn decodes_source_leniently() {
     let mut memory: MemoryWorkspace = workspace(vec![

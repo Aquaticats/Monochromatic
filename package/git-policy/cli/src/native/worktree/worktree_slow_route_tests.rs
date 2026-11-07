@@ -1,6 +1,10 @@
-//! Controls for the sentence that says why an add was not a snapshot: each cause is told in its own words with the remedy that
-//! fits it, a real source in each state produces the cause its state has, a path cannot carry control characters into the
-//! line, and a filesystem that is not btrfs gets no sentence.
+//! Controls for the sentence that says why an add was not a snapshot:
+//! each cause is told in its own words with the remedy that
+//! fits it,
+//! a real source in each state produces the cause its state has,
+//! a path cannot carry control characters into the
+//! line,
+//! and a filesystem that is not btrfs gets no sentence.
 
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
@@ -9,14 +13,16 @@ use crate::worktree_ladder_test_support::{main_identity, plan_to, subvolume_repo
 use crate::worktree_snapshot_source::source_refusal;
 use std::path::PathBuf;
 
-/// The route a real source in its current state gets, or the panic that says the source was not refused.
+/// The route a real source in its current state gets,
+/// or the panic that says the source was not refused.
 fn route_of(repo: &Path) -> SlowRoute {
     let identity: WorktreeIdentity = main_identity(repo);
     let refusal: Refusal = source_refusal(&git_context(), &identity).expect_err("the source is refused");
     return explain_refusal(&git_context(), &identity, &refusal).expect("a sentence");
 }
 
-/// A modified tracked file is counted and named, and the remedy is to commit or stash.
+/// A modified tracked file is counted and named,
+/// and the remedy is to commit or stash.
 #[test]
 fn btrfs_a_modified_file_is_an_uncommitted_change() {
     let Some(root) = btrfs_fixture("slow-modified") else { return };
@@ -33,7 +39,8 @@ fn btrfs_a_modified_file_is_an_uncommitted_change() {
     remove(root.as_path());
 }
 
-/// Two untracked files are two paths, and a control character in a name never reaches the line.
+/// Two untracked files are two paths,
+/// and a control character in a name never reaches the line.
 #[test]
 fn btrfs_untracked_files_are_counted_and_their_names_made_plain() {
     let Some(root) = btrfs_fixture("slow-untracked") else { return };
@@ -46,7 +53,8 @@ fn btrfs_untracked_files_are_counted_and_their_names_made_plain() {
     remove(root.as_path());
 }
 
-/// A running Git command (`index.lock`) is named as such, with the wait as the remedy.
+/// A running Git command (`index.lock`) is named as such,
+/// with the wait as the remedy.
 #[test]
 fn btrfs_a_lock_file_is_a_running_git_command() {
     let Some(root) = btrfs_fixture("slow-lock") else { return };
@@ -59,7 +67,8 @@ fn btrfs_a_lock_file_is_a_running_git_command() {
     remove(root.as_path());
 }
 
-/// An unfinished merge is named as an operation, with finishing it as the remedy.
+/// An unfinished merge is named as an operation,
+/// with finishing it as the remedy.
 #[test]
 fn btrfs_a_merge_in_progress_is_an_unfinished_operation() {
     let Some(root) = btrfs_fixture("slow-merge") else { return };
@@ -73,8 +82,11 @@ fn btrfs_a_merge_in_progress_is_an_unfinished_operation() {
     remove(root.as_path());
 }
 
-/// A file written in the second the index was written cannot be vouched for by the index, though nothing changed: `git status`
-///  is the remedy, and the sentence does not claim a change.
+/// A file written in the second the index was written cannot be vouched for by the index,
+/// though nothing changed:
+/// `git status`
+///  is the remedy,
+/// and the sentence does not claim a change.
 #[test]
 fn btrfs_a_file_as_new_as_the_index_is_a_stale_record_and_not_a_change() {
     let Some(root) = btrfs_fixture("slow-racy") else { return };
@@ -94,7 +106,9 @@ fn btrfs_a_file_as_new_as_the_index_is_a_stale_record_and_not_a_change() {
     remove(root.as_path());
 }
 
-/// An ordinary directory on btrfs is told to be converted, with the command that fits main or a linked worktree; a source on
+/// An ordinary directory on btrfs is told to be converted,
+/// with the command that fits main or a linked worktree;
+/// a source on
 ///  another filesystem gets no sentence.
 #[test]
 fn btrfs_a_source_that_is_no_subvolume_is_told_to_convert_and_another_filesystem_gets_nothing() {
@@ -115,7 +129,10 @@ fn btrfs_a_source_that_is_no_subvolume_is_told_to_convert_and_another_filesystem
     remove(root.as_path());
 }
 
-/// A feature a snapshot does not reproduce, and a snapshot that failed, are told in the check's own words, and no sentence
+/// A feature a snapshot does not reproduce,
+/// and a snapshot that failed,
+/// are told in the check's own words,
+/// and no sentence
 ///  names an internal step.
 #[test]
 fn unsupported_features_and_failures_are_told_in_the_checks_words() {
@@ -131,8 +148,13 @@ fn unsupported_features_and_failures_are_told_in_the_checks_words() {
     }
 }
 
-/// A Git status that failed is told with the run, its exit code, what Git said, and both remedies (read its error, or wait for a
-///  running command); with a stale index and a failing status the sentence names the failure and never "out of date".
+/// A Git status that failed is told with the run,
+/// its exit code,
+/// what Git said,
+/// and both remedies (read its error,
+/// or wait for a
+///  running command);
+/// with a stale index and a failing status the sentence names the failure and never "out of date".
 #[test]
 fn a_failed_status_is_told_with_its_error_and_the_remedies() {
     let root: PathBuf = crate::test_support::fixture("slow-status-failed");

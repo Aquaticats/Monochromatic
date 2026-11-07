@@ -13,7 +13,7 @@
 /// Import the common finding and edit models and the native parse interface.
 use crate::diagnostic::{Diagnostic, Severity};
 /// Import the edit and fix types that every finding constructor attaches to a diagnostic.
-use crate::edits::{Edit, Fix};
+use crate::edits::{Edit, Fix, FixClass};
 /// Import the parse error and source model that structure failures are built from.
 use crate::markdown_source::{MarkdownError, MarkdownSource};
 /// What:
@@ -52,7 +52,10 @@ pub(crate) fn finding(
         context.node_span(id),
     );
     if let Some(source_edit) = edit {
+        // Every rule built through this constructor rewrites a token or deletes one;
+        //  the line-break rule builds its own whitespace fix.
         diagnostic.fix = Some(Fix {
+            class: FixClass::Content,
             edits: vec![source_edit],
         });
     }

@@ -5,8 +5,10 @@ use super::*;
 use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 
-/// A staging file for `path` with `content` in it, and the refusal a filesystem with neither `renameat2` with `RENAME_NOREPLACE`
-///  nor hard links gives (`s3fs-fuse` answers `ENOTSUP` to the link), as `persist_noclobber` reports it with the file handed back.
+/// A staging file for `path` with `content` in it,
+/// and the refusal a filesystem with neither `renameat2` with `RENAME_NOREPLACE`
+///  nor hard links gives (`s3fs-fuse` answers `ENOTSUP` to the link),
+/// as `persist_noclobber` reports it with the file handed back.
 #[cfg(unix)]
 fn refused_publish(path: &Path, content: &[u8]) -> (PathBuf, Result<std::fs::File, tempfile::PersistError>) {
     let mut staged: tempfile::NamedTempFile = staging_beside(path).expect("staging file");
@@ -16,8 +18,12 @@ fn refused_publish(path: &Path, content: &[u8]) -> (PathBuf, Result<std::fs::Fil
     return (staged_path, Err(refusal));
 }
 
-/// The owner's answer on a filesystem that has neither (2026-11-07, "Keep the fallback (Recommended)"): the staged file is
-///  published by the rename, the staging name is gone, and nothing is left to remove later.
+/// The owner's answer on a filesystem that has neither (2026-11-07,
+/// "Keep the fallback (Recommended)"):
+/// the staged file is
+///  published by the rename,
+/// the staging name is gone,
+/// and nothing is left to remove later.
 #[cfg(unix)]
 #[test]
 fn a_filesystem_with_neither_no_replace_rename_nor_links_gets_the_checked_rename() {
@@ -32,7 +38,9 @@ fn a_filesystem_with_neither_no_replace_rename_nor_links_gets_the_checked_rename
     remove(root.as_path());
 }
 
-/// The fallback still refuses a taken name with `AlreadyExists`, leaves the record that holds it as it was, and leaves no
+/// The fallback still refuses a taken name with `AlreadyExists`,
+/// leaves the record that holds it as it was,
+/// and leaves no
 ///  staging file behind.
 #[cfg(unix)]
 #[test]
@@ -48,8 +56,11 @@ fn the_checked_rename_refuses_a_taken_name_and_leaves_no_staging_file() {
     remove(root.as_path());
 }
 
-/// A taken name is reported with the operating system's own `EEXIST`, straight from the publish, the record that holds the name
-///  is left as it was, and the refused write leaves no staging file.
+/// A taken name is reported with the operating system's own `EEXIST`,
+/// straight from the publish,
+/// the record that holds the name
+///  is left as it was,
+/// and the refused write leaves no staging file.
 #[cfg(unix)]
 #[test]
 fn a_taken_name_is_refused_with_the_operating_systems_error() {
@@ -65,7 +76,10 @@ fn a_taken_name_is_refused_with_the_operating_systems_error() {
     remove(root.as_path());
 }
 
-/// A publish that works leaves exactly the record, mode `0600`, and no staging file; a failure between the write and the publish
+/// A publish that works leaves exactly the record,
+/// mode `0600`,
+/// and no staging file;
+/// a failure between the write and the publish
 ///  leaves neither the record nor a staging file.
 #[cfg(unix)]
 #[test]
@@ -86,8 +100,10 @@ fn a_published_record_is_private_and_a_failed_publish_leaves_nothing() {
     remove(root.as_path());
 }
 
-/// A directory sync that failed in the flush itself stays an error with its own operating-system code; no unprivileged
-///  filesystem produces these, so the sync result is fed in.
+/// A directory sync that failed in the flush itself stays an error with its own operating-system code;
+/// no unprivileged
+///  filesystem produces these,
+/// so the sync result is fed in.
 #[cfg(unix)]
 #[test]
 fn a_failed_directory_flush_stays_an_error() {
@@ -98,7 +114,9 @@ fn a_failed_directory_flush_stays_an_error() {
     }
 }
 
-/// A filesystem that has no directory flush counts as synced, whichever of the three codes it answers with, and a
+/// A filesystem that has no directory flush counts as synced,
+/// whichever of the three codes it answers with,
+/// and a
 ///  sync that worked stays a success.
 #[cfg(unix)]
 #[test]
@@ -110,9 +128,12 @@ fn a_filesystem_without_directory_sync_counts_as_synced() {
     settle_directory_sync(Path::new("/unused"), Ok(())).expect("a sync that worked");
 }
 
-/// The owner's rulings of 2026-11-07 ("safe-file-saving shouldn't be something we own at all", and the answer "Keep the
+/// The owner's rulings of 2026-11-07 ("safe-file-saving shouldn't be something we own at all",
+/// and the answer "Keep the
 ///  fallback (Recommended)" on a filesystem that has neither `renameat2` with `RENAME_NOREPLACE` nor hard links) put the exclusive
-///  publish in the `tempfile` crate (`persist_noclobber`); the module keeps only the checked rename for that one case, so it holds
+///  publish in the `tempfile` crate (`persist_noclobber`);
+/// the module keeps only the checked rename for that one case,
+/// so it holds
 ///  no hard link of its own and builds no staging name of its own.
 #[test]
 fn the_exclusive_publish_is_the_tempfile_crates_and_the_module_links_nothing() {
@@ -124,8 +145,10 @@ fn the_exclusive_publish_is_the_tempfile_crates_and_the_module_links_nothing() {
     }
 }
 
-/// A staging file that cannot be made reports the system's own error, with its code and without the staging path the
-///  `tempfile` crate adds, so the callers' texts say exactly what they said when the standard library made the file.
+/// A staging file that cannot be made reports the system's own error,
+/// with its code and without the staging path the
+///  `tempfile` crate adds,
+/// so the callers' texts say exactly what they said when the standard library made the file.
 #[cfg(unix)]
 #[test]
 fn a_staging_file_that_cannot_be_made_reports_the_plain_system_error() {

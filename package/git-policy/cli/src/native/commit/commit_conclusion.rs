@@ -1,9 +1,14 @@
 //! What:
 //!  The events of a settled commit with the fix summary the policies' corrections earned.
 //! Why:
-//!  The summary appears only after some pass changed candidate bytes, and a normalization that removed every change always
-//!  reports it. The conclusion that once landed the commit itself (hook dispatcher, native preparation in the shadow, the
-//!  landing loop) is gone: the resident service is the only writer of a commit.
+//!  The summary appears only after some pass changed candidate bytes,
+//! and a normalization that removed every change always
+//!  reports it.
+//! The conclusion that once landed the commit itself (hook dispatcher,
+//! native preparation in the shadow,
+//! the
+//!  landing loop) is gone:
+//! the resident service is the only writer of a commit.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,7 +20,8 @@ use crate::policy_events::PolicyEvent;
 /// What:
 ///  The settled pass's events with the fix summary the corrections earned.
 /// Why:
-///   The summary appears only after some pass changed candidate bytes, naming each changed path once in byte order.
+///   The summary appears only after some pass changed candidate bytes,
+/// naming each changed path once in byte order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

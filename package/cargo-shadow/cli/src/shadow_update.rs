@@ -693,7 +693,9 @@ fn remove_placeholder(lock_path: &Path, keep_dir: &Path) {
 
 /// The most names tried to take the stand-in under.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
+/// (handover "Picks made under the owner's delegation"),
+/// veto open;
+/// not a measurement.
 /// Like the other name searches:
 /// one try is the normal case and the collision count was not counted.
 const MAX_TAKEN_NAMES: u32 = 100;

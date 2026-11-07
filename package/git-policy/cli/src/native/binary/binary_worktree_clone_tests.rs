@@ -1,9 +1,16 @@
 //! What:
-//!  Rung 2 of the cheap-worktree ladder through the built executable: `git worktree add` from a clean worktree that is no
-//!  subvolume is served by clones of its tracked files, and the result equals what Git's own checkout makes.
+//!  Rung 2 of the cheap-worktree ladder through the built executable:
+//! `git worktree add` from a clean worktree that is no
+//!  subvolume is served by clones of its tracked files,
+//! and the result equals what Git's own checkout makes.
 //! Why:
-//!  A clone shares data blocks with the source, which Git's checkout never does, so a shared physical extent is the sign
-//!  that clones served the command; contents, status, words and the ignored-state copy are compared with a control that
+//!  A clone shares data blocks with the source,
+//! which Git's checkout never does,
+//! so a shared physical extent is the sign
+//!  that clones served the command;
+//! contents,
+//! status,
+//! words and the ignored-state copy are compared with a control that
 //!  real Git made from the same commit.
 //!
 //! In TS you'd write (pseudocode):
@@ -19,10 +26,12 @@ use std::ffi::OsStr;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 
-/// `FS_IOC_FIEMAP`, `_IOWR('f', 11, struct fiemap)`.
+/// `FS_IOC_FIEMAP`,
+/// `_IOWR('f', 11, struct fiemap)`.
 const FS_IOC_FIEMAP: libc::c_ulong = 0xc020_660b;
 
-/// The physical address of the first extent of a file, which two files share when one is a clone of the other.
+/// The physical address of the first extent of a file,
+/// which two files share when one is a clone of the other.
 fn first_physical_extent(path: &Path) -> u64 {
     #[repr(C)]
     struct Request {
@@ -43,7 +52,8 @@ fn first_physical_extent(path: &Path) -> u64 {
     return u64::from_ne_bytes(request.extent[8..16].try_into().expect("eight bytes"));
 }
 
-/// A repository that is an ordinary directory with a large aged file, a second commit and an ignored directory.
+/// A repository that is an ordinary directory with a large aged file,
+/// a second commit and an ignored directory.
 fn ordinary_repository(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     tracked(repo.as_path(), ".gitignore", b"ignored/\n");
@@ -61,8 +71,12 @@ fn ordinary_repository(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
-/// A clean worktree that is no subvolume is cloned: the data blocks are shared, the content equals the control, the first
-///  status is clean, and the caller sees Git's own words.
+/// A clean worktree that is no subvolume is cloned:
+/// the data blocks are shared,
+/// the content equals the control,
+/// the first
+///  status is clean,
+/// and the caller sees Git's own words.
 #[test]
 fn a_clean_ordinary_main_checkout_is_cloned_and_equals_gits_own_checkout() {
     let fixture: Fixture = fixture("clone-main");
@@ -92,7 +106,8 @@ fn a_clean_ordinary_main_checkout_is_cloned_and_equals_gits_own_checkout() {
     remove(&fixture);
 }
 
-/// An older target gets the difference applied by Git on top of the clones, and equals the control.
+/// An older target gets the difference applied by Git on top of the clones,
+/// and equals the control.
 #[test]
 fn an_older_target_commit_is_cloned_and_updated() {
     let fixture: Fixture = fixture("clone-older");
@@ -112,7 +127,8 @@ fn an_older_target_commit_is_cloned_and_updated() {
     remove(&fixture);
 }
 
-/// A dirty source is cloned from by nothing: Git's checkout runs and the data blocks are not shared.
+/// A dirty source is cloned from by nothing:
+/// Git's checkout runs and the data blocks are not shared.
 #[test]
 fn a_dirty_ordinary_source_is_not_cloned() {
     let fixture: Fixture = fixture("clone-dirty");

@@ -10,7 +10,8 @@ fn words(texts: &[&str]) -> Vec<OsString> {
     return texts.iter().map(OsString::from).collect();
 }
 
-/// Only the few commands that take the index lock first and read nothing from the person run again, and only with options
+/// Only the few commands that take the index lock first and read nothing from the person run again,
+/// and only with options
 ///  that are known to leave that so.
 #[test]
 fn only_known_commands_with_known_options_may_run_again() {
@@ -43,7 +44,10 @@ fn only_known_commands_with_known_options_may_run_again() {
     }
 }
 
-/// A fake Git in `root`: it counts its starts in `count`, and from start number `succeeds_from` on it succeeds, before that
+/// A fake Git in `root`:
+/// it counts its starts in `count`,
+/// and from start number `succeeds_from` on it succeeds,
+/// before that
 ///  it dies with `refusal` on standard error and status 128.
 fn fake_git(root: &Path, succeeds_from: usize, refusal: &str) -> (PathBuf, PathBuf) {
     let count: PathBuf = root.join("starts");
@@ -69,7 +73,11 @@ fn starts(count: &Path) -> usize {
 /// The refusal names the lock the way Git does.
 const REFUSAL: &str = "fatal: Unable to create '/repo/.git/index.lock': File exists.";
 
-/// Lost to the service once: the command waits for the hold to end, runs again, succeeds, and the first refusal is never shown.
+/// Lost to the service once:
+/// the command waits for the hold to end,
+/// runs again,
+/// succeeds,
+/// and the first refusal is never shown.
 #[test]
 fn a_command_that_lost_the_index_to_the_service_runs_again_and_hides_the_lost_attempt() {
     let root: PathBuf = fixture("hold-retry-lost");
@@ -92,8 +100,11 @@ fn a_command_that_lost_the_index_to_the_service_runs_again_and_hides_the_lost_at
     remove(root.as_path());
 }
 
-/// A hold that never ends, with a command that is refused every time: the series of reruns ends at the ceiling with Git's words
-/// shown and its status, where the count of fifty starts would have kept it for as long as every wait lasts.
+/// A hold that never ends,
+/// with a command that is refused every time:
+/// the series of reruns ends at the ceiling with Git's words
+/// shown and its status,
+/// where the count of fifty starts would have kept it for as long as every wait lasts.
 #[test]
 fn a_hold_that_never_ends_stops_the_reruns_at_the_ceiling() {
     let root: PathBuf = fixture("hold-retry-ceiling");
@@ -117,7 +128,9 @@ fn a_hold_that_never_ends_stops_the_reruns_at_the_ceiling() {
     remove(root.as_path());
 }
 
-/// A lock that is a foreign program's is native Git's business: one start, and Git's words shown.
+/// A lock that is a foreign program's is native Git's business:
+/// one start,
+/// and Git's words shown.
 #[test]
 fn a_foreign_hold_is_not_waited_for_and_the_refusal_is_shown() {
     let root: PathBuf = fixture("hold-retry-foreign");
@@ -132,7 +145,9 @@ fn a_foreign_hold_is_not_waited_for_and_the_refusal_is_shown() {
     remove(root.as_path());
 }
 
-/// A status 128 that is not the lock's refusal is Git's own answer: one start, and the words shown.
+/// A status 128 that is not the lock's refusal is Git's own answer:
+/// one start,
+/// and the words shown.
 #[test]
 fn another_failure_with_the_same_status_is_not_run_again() {
     let root: PathBuf = fixture("hold-retry-other");
@@ -146,7 +161,8 @@ fn another_failure_with_the_same_status_is_not_run_again() {
     remove(root.as_path());
 }
 
-/// A service that keeps taking the index first ends the retries at the bound, and the last refusal is shown once.
+/// A service that keeps taking the index first ends the retries at the bound,
+/// and the last refusal is shown once.
 #[test]
 fn the_retries_end_at_the_bound_and_show_the_last_refusal_once() {
     let root: PathBuf = fixture("hold-retry-bound");

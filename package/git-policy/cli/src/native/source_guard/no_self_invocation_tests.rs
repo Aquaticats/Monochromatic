@@ -1,10 +1,23 @@
 //! The mechanical ban on the wrapper starting itself or writing shell text.
-//! The wrapper never starts its own executable (a child, a hook command, a shim, an `argv[0]` dispatch), never passes
-//!  management words to a process it starts, and never writes shell text or scripts. This scan reads the source of the
-//!  release code and fails on any line that does, unless an `ALLOWED` entry justifies it. Each entry must still match
-//!  something, so a cleaned file also shrinks the list. The scan is textual by design: the clippy ban on
-//!  `std::env::current_exe` (`clippy.toml`) covers the typed call, and this covers the spellings clippy cannot see.
-//! Explanations come from the parent process that owns a child; see `doc/planning/cli-git-no-self-invocation.md`.
+//! The wrapper never starts its own executable (a child,
+//! a hook command,
+//! a shim,
+//! an `argv[0]` dispatch),
+//! never passes
+//!  management words to a process it starts,
+//! and never writes shell text or scripts.
+//! This scan reads the source of the
+//!  release code and fails on any line that does,
+//! unless an `ALLOWED` entry justifies it.
+//! Each entry must still match
+//!  something,
+//! so a cleaned file also shrinks the list.
+//! The scan is textual by design:
+//! the clippy ban on
+//!  `std::env::current_exe` (`clippy.toml`) covers the typed call,
+//! and this covers the spellings clippy cannot see.
+//! Explanations come from the parent process that owns a child;
+//! see `doc/planning/cli-git-no-self-invocation.md`.
 
 use std::path::Path;
 
@@ -19,13 +32,23 @@ use crate::source_scan_tests::{CrateRoot, classified_sources, real_roots, source
 #[path = "no_self_invocation_fixture_tests.rs"]
 mod fixtures;
 
-/// One rule match: the source file as a path relative to `src/native`, the rule that matched, and the line number.
+/// One rule match:
+/// the source file as a path relative to `src/native`,
+/// the rule that matched,
+/// and the line number.
 type Finding = (String, &'static str, usize);
 
-/// The release source files under `root`, as `/`-separated paths relative to it: every file the module tree reaches
-///  from a crate root through declarations that no `cfg(test)` gates. Test sidecars, binary-level controls and support
-///  that only tests compile are told apart by the declarations that reach them, never by file name, so a nested file
-///  keeps its own classification; a tree that cannot be fully classified is an error.
+/// The release source files under `root`,
+/// as `/`-separated paths relative to it:
+/// every file the module tree reaches
+///  from a crate root through declarations that no `cfg(test)` gates.
+/// Test sidecars,
+/// binary-level controls and support
+///  that only tests compile are told apart by the declarations that reach them,
+/// never by file name,
+/// so a nested file
+///  keeps its own classification;
+/// a tree that cannot be fully classified is an error.
 fn release_sources_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<String>, String> {
     let mut found: Vec<String> = Vec::new();
     for file in classified_sources(root, roots)? {
@@ -36,7 +59,8 @@ fn release_sources_in(root: &Path, roots: &[CrateRoot]) -> Result<Vec<String>, S
     return Ok(found);
 }
 
-/// The lines of a source file that are code, with the following line joined so a call split over two lines still reads.
+/// The lines of a source file that are code,
+/// with the following line joined so a call split over two lines still reads.
 fn code_lines(text: &str) -> Vec<(usize, String, String)> {
     let lines: Vec<&str> = text.lines().collect();
     let mut code: Vec<(usize, String, String)> = Vec::new();
@@ -75,7 +99,8 @@ fn findings() -> Vec<Finding> {
     return findings_in(&source_root(), &real_roots()).expect("the crate's release sources");
 }
 
-/// The findings no `allowed` entry excuses, each as a `file:line [rule] reason` text.
+/// The findings no `allowed` entry excuses,
+/// each as a `file:line [rule] reason` text.
 fn unexplained(found: &[Finding], allowed: &[Allowed]) -> Vec<String> {
     return found
         .iter()
@@ -98,7 +123,8 @@ fn unexplained(found: &[Finding], allowed: &[Allowed]) -> Vec<String> {
         .collect();
 }
 
-/// The `allowed` entries no finding matches, each as a `file [rule]: why` text.
+/// The `allowed` entries no finding matches,
+/// each as a `file [rule]: why` text.
 fn stale(found: &[Finding], allowed: &[Allowed]) -> Vec<String> {
     return allowed
         .iter()
@@ -111,7 +137,10 @@ fn stale(found: &[Finding], allowed: &[Allowed]) -> Vec<String> {
         .collect();
 }
 
-/// No release code starts the wrapper, passes it management words, or writes shell text, beyond the justified list.
+/// No release code starts the wrapper,
+/// passes it management words,
+/// or writes shell text,
+/// beyond the justified list.
 #[test]
 fn the_release_code_never_starts_the_wrapper_or_writes_shell_text() {
     let unexplained: Vec<String> = unexplained(findings().as_slice(), ALLOWED);
@@ -123,14 +152,16 @@ fn the_release_code_never_starts_the_wrapper_or_writes_shell_text() {
     );
 }
 
-/// Every justified exception still matches code, so the list shrinks as the code is cleaned.
+/// Every justified exception still matches code,
+/// so the list shrinks as the code is cleaned.
 #[test]
 fn every_justified_exception_still_matches_code() {
     let stale: Vec<String> = stale(findings().as_slice(), ALLOWED);
     assert!(stale.is_empty(), "remove these entries from ALLOWED, their code is gone:\n{}", stale.join("\n"));
 }
 
-/// The scan reads the release files, and no release code defines a hook command at all.
+/// The scan reads the release files,
+/// and no release code defines a hook command at all.
 #[test]
 fn the_scan_reads_the_release_sources_and_no_hook_command_is_defined() {
     let root = source_root();
@@ -153,7 +184,8 @@ fn the_scan_reads_the_release_sources_and_no_hook_command_is_defined() {
     assert_eq!(definitions, Vec::<String>::new());
 }
 
-/// The rules fire on the text they exist for, so a rule that stopped matching would fail here.
+/// The rules fire on the text they exist for,
+/// so a rule that stopped matching would fail here.
 #[test]
 fn each_rule_fires_on_its_own_forbidden_text() {
     let samples: [(&str, &str); 6] = [

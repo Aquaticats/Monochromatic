@@ -41,7 +41,8 @@ fn trailing_whitespace_only_is_trimmed() {
     assert_eq!(trim_javascript_end(""), "");
 }
 
-/// Only an all-digit text of a positive safe integer is a number; leading zeros read as `Number` reads them.
+/// Only an all-digit text of a positive safe integer is a number;
+/// leading zeros read as `Number` reads them.
 #[test]
 fn a_decimal_attempt_is_a_positive_safe_integer() {
     assert_eq!(decimal_attempt("1"), Some(1));
