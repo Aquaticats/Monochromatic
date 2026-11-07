@@ -325,3 +325,21 @@ fn arithmetic_and_substitutions_end_where_their_parentheses_do() {
         ],
     );
 }
+
+/// Parentheses are counted inside a substitution,
+///  so it ends at its own closing parenthesis and not before or after it.
+#[test]
+fn a_substitution_ends_at_its_own_closing_parenthesis() {
+    assert_hits(
+        "echo \"$(a (b) | c)\"",
+        false,
+        &[(Construct::DollarParen, "$(", 0), (Construct::Pipe, "|", 0)],
+    );
+    assert_hits(
+        "echo \"$(a) | d\" | e",
+        false,
+        &[(Construct::DollarParen, "$(", 0), (Construct::Pipe, "|", 1)],
+    );
+    assert_hits("echo $x | c", false, &[(Construct::Pipe, "|", 0)]);
+    assert_hits("cmd >| out | b", false, &[(Construct::Pipe, "|", 1)]);
+}

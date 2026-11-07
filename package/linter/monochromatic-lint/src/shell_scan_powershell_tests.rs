@@ -229,3 +229,23 @@ fn comments_end_where_they_end() {
     assert_hits("xy <# a | b #>| d", &[(Construct::Pipe, "|", 1)]);
     assert_hits("xy <# a | b", &[]);
 }
+
+/// Parentheses are counted inside a sub-expression,
+///  so it ends at its own closing parenthesis and not before or after it.
+#[test]
+fn a_sub_expression_ends_at_its_own_closing_parenthesis() {
+    assert_hits(
+        "\"$(a (b) | c)\"",
+        &[(Construct::DollarParen, "$(", 0), (Construct::Pipe, "|", 0)],
+    );
+    assert_hits(
+        "\"$(a) | d\" | e",
+        &[(Construct::DollarParen, "$(", 0), (Construct::Pipe, "|", 1)],
+    );
+}
+
+/// A `<` that does not start a block comment is plain text.
+#[test]
+fn a_less_than_sign_is_not_a_block_comment() {
+    assert_hits("cmd < in.txt | x", &[(Construct::Pipe, "|", 0)]);
+}
