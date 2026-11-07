@@ -102,6 +102,26 @@ verbatim:
   (versions ending `-alpha.N` or `-beta.N` go to pnpr only;
   `-rc.N` and plain numbers go to pnpr and crates.io;
   owner's pick "Label decides").
+- 2026-11-07T02:44:49-05:00,
+  on the open points of the redone split:
+  - Which Git-free jobs become libraries:
+    no option picked;
+    the owner asked instead,
+    verbatim,
+    "Why are we not using already established crates for some functions?"
+    So each Git-free job is first checked against published crates;
+    a job a vetted crate already does needs no crate of ours.
+  - The test helpers:
+    "Not yet."
+  - The program's folders:
+    "One level of groups"
+    (one level of group folders in the program,
+    so a rule for how a group folder and its child folders relate is still needed from the owner).
+  - Where the libraries live and what they are named:
+    "Not yet."
+  - Rescan before step 0:
+    taken by the coordinator without asking (option A),
+    because the measured zero loops describe the tree of `f44d921e24`, not today's `main`.
 
 `AGENTS.md`,
 verbatim:
