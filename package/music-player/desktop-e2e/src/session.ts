@@ -5,7 +5,7 @@
  ```ts
  import { startSession, } from './session.ts';
  
- await using session = await startSession({ options, base, config, sinkName, runId: process.pid, },);
+ await using session = await startSession({ options, base, config, display, sinkName, runId: process.pid, },);
  ```
  
  @packageDocumentation
@@ -28,21 +28,29 @@ import {
   createControl,
 } from './control.ts';
 import { runCommand, } from './command.ts';
-import { expect, } from './errors.ts';
+import {
+  CheckFailureError,
+  expect,
+} from './errors.ts';
 import {
   ensureDirectory,
   pathExists,
 } from './files.ts';
+import {
+  describeStartStage,
+  startStageOf,
+} from './log-scan.ts';
 import { pollUntil, } from './poll.ts';
 import {
   cgroupBelongsToUnit,
+  type DisplayMode,
   hostEnvironment,
   type SessionOptions,
-  sessionEnvironment,
-  systemdRunArguments,
+  sessionLaunchArguments,
   unitNameOf,
 } from './session-launch.ts';
 import {
+  COLD_START_BOUND_MS,
   SOCKET_POLL,
   STOP_POLL,
 } from './timing.ts';
@@ -178,6 +186,9 @@ async function seedAutoPlayOff(xdg: string,): Promise<void> {
  
  @param config - paths of the run
  
+ @param display - where the compositor draws; headless sessions get `--headless` on a render node and no host display
+ variable
+ 
  @param sinkName - name of the private null sink the app is pointed at
  
  @param runId - process id of the runner, which makes the unit name unique
@@ -188,7 +199,7 @@ async function seedAutoPlayOff(xdg: string,): Promise<void> {
  
  @example
  ```ts
- await using session = await startSession({ options, base, config, sinkName, runId: process.pid, },);
+ await using session = await startSession({ options, base, config, display, sinkName, runId: process.pid, },);
  ```
  */
 export async function startSession(
@@ -196,11 +207,13 @@ export async function startSession(
     options,
     base,
     config,
+    display,
     sinkName,
     runId,
   }: {
     readonly base: string;
     readonly config: RunConfig;
+    readonly display: DisplayMode;
     readonly options: SessionOptions;
     readonly runId: number;
     readonly sinkName: string;
@@ -305,22 +318,22 @@ export async function startSession(
    */
   const launched = await runCommand({
     command: 'systemd-run',
-    args: systemdRunArguments({
+    args: sessionLaunchArguments({
+      display,
       unit,
       logPath,
-      environment: sessionEnvironment({
-        sinkName,
-        xdg,
-        binDir,
-        host: hostEnvironment(process.getuid?.() ?? 0,),
-        ...options.extraEnv === undefined ? {} : { extraEnv: options.extraEnv, },
-      },),
+      sinkName,
+      xdg,
+      binDir,
+      host: hostEnvironment(process.getuid?.() ?? 0,),
+      ...options.extraEnv === undefined ? {} : { extraEnv: options.extraEnv, },
       compositorPath: config.compositorPath,
       socket,
       options,
       releaseBinary: config.releaseBinary,
       limits: config.unitLimits,
     },),
+    timeoutMs: COLD_START_BOUND_MS,
   },);
   expect({
     condition: launched.status === 0,
@@ -339,10 +352,17 @@ export async function startSession(
       return pathExists(socket,);
     },
   },);
-  expect({
-    condition: appeared,
-    message: `the compositor socket never appeared; log: ${await log.tail(TAIL_CHARS,)}`,
-  },);
+  if (!appeared) {
+    /**
+     How far the start got, from the log.
+     */
+    const stage = startStageOf({ lines: await log.lines(), },);
+    throw new CheckFailureError(
+      `the compositor socket never appeared within ${COLD_START_BOUND_MS} ms; start stopped at: ${stage} (${
+        describeStartStage(stage,)
+      }); log: ${await log.tail(TAIL_CHARS,)}`,
+    );
+  }
 
   /**
    The app process id, once found.

@@ -613,7 +613,7 @@
     },
     "cargo:monochromatic-git-policy-cli": {
       "request": "github:Aquaticats/Monochromatic@latest",
-      "version": "0.6.0",
+      "version": "0.6.1-alpha.1",
       "route": "archive",
       "bins": [
         "monochromatic-git-policy-cli"
@@ -635,20 +635,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.0/monochromatic-git-policy-cli-0.6.0-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "377d2bd8b76ef87fa6257db09653063f2c8cf676d1b98a62621bdb2b8256ca3f"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.1/monochromatic-git-policy-cli-0.6.1-alpha.1-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "04476eca97249cbb6f72d38f03cf3a049930d07670a7f7cfb385f4092aab0deb"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.0/monochromatic-git-policy-cli-0.6.0-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "377d2bd8b76ef87fa6257db09653063f2c8cf676d1b98a62621bdb2b8256ca3f"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.1/monochromatic-git-policy-cli-0.6.1-alpha.1-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "04476eca97249cbb6f72d38f03cf3a049930d07670a7f7cfb385f4092aab0deb"
         },
         "linux-x64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.0/monochromatic-git-policy-cli-0.6.0-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "375b7064000ef8ca02e594cc1b3984e73b0078b69791c964c979e633d7f4f1e1"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.1/monochromatic-git-policy-cli-0.6.1-alpha.1-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "12963df14414a60b7212963b8468f4abd94f2583375bdaaf1157e8e4a196b35b"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.0/monochromatic-git-policy-cli-0.6.0-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "375b7064000ef8ca02e594cc1b3984e73b0078b69791c964c979e633d7f4f1e1"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.1/monochromatic-git-policy-cli-0.6.1-alpha.1-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "12963df14414a60b7212963b8468f4abd94f2583375bdaaf1157e8e4a196b35b"
         }
       }
     },
@@ -1654,5 +1654,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:24b96703f4e03e83b65e7ca9c45feb3790d5b4ea20ac4f36b515883a636bd334"
+  "digest": "sha256:8962019644181385f91b56a8074a3f0fdf2255150cafe94bf8b3e51379254527"
 }

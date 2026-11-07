@@ -1197,6 +1197,22 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   started it again,
   and its recursion guard stopped the run.
   A record that cannot be rewritten is one warning line on standard error and the program still runs.
+- A launcher never starts itself.
+  Before it replaces itself with the program it chose,
+  it follows the records from that program (`src/toolchain/launcher_chain.rs`):
+  a program that is this launcher,
+  a launcher already followed,
+  or a chain of more than eight launchers
+  is refused with exit status 126 and a message that says which,
+  and nothing is started.
+  Before this rule a record that named its own launcher,
+  or two records that named each other,
+  made each launcher replace itself with the other in the same process without end
+  (measured 2026-11-07: both bounded tests ran into their five second bound).
+  A launcher that names another launcher of a real program is fine.
+  A launcher sets no arrival marker and checks none:
+  a launcher in front of a shadow is the intended arrangement (`.cache/cargo-shadow-bin/cargo`),
+  and the shadow behind it decides (it stops when a shadow that started the launcher's process is the one that reached it).
   The launcher file is a hard link of the `mpm-shadow` that last ran `install` in that tree,
   so a tree that has not run `install` since this rule shipped still has the older launcher binary,
   which exits 127 for a deleted folder until `mise run toolchain:install` or `mpm install` runs in that tree
@@ -1593,13 +1609,35 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   so skipping only the binary's own path took the launcher for the real `mpm`,
   started it,
   and the chain repeated until the host refused new processes (issue 6259).
+- Never starts a shadow of any version as the real `mpm`:
+  A shadow never starts a shadow of any version as its real tool,
+  whatever the path or the version of the candidate
+  (owner, 2026-11-07: "We should never invoke ourselves recursively. That's bad design.").
+  Every shadow program (`cargo-shadow`,
+  `mpm-shadow`,
+  `pnpm-shadow` and `search-shadow`) carries the same identity text in the ELF section `.monochromatic_shadow_identity`
+  (`src/shadow_identity.rs`,
+  a byte-identical copy in each crate;
+  `package/search-shadow/cli/tests/shadow_identity_copies.rs` fails when the copies differ).
+  The lookup skips a candidate that carries it,
+  or a launcher whose record leads to one,
+  without starting it,
+  and the start checks the open file again.
+  A shadow that finds `MONOCHROMATIC_SHADOW_STARTED_BY` left for its own process or its direct parent
+  was started by a shadow:
+  it does nothing,
+  prints one line and exits with status 2.
+  The full description,
+  the measurement and the cost are in `package/search-shadow/cli/README.md`,
+  section "Never starts a shadow",
+  and the incident in `doc/troubleshooting/search-shadow-copies-start-each-other-without-end.md`.
 - Counts the shadows that started it in the `MPM_SHADOW_NESTING` environment variable,
   passes the count plus one to the program it starts,
   and refuses to start a program from the fourth level on (exit status 126,
   with a message that says why).
-  A chain of shadows is never intended;
-  the bound turns a runaway chain into a short,
-  explained failure.
+  Since the identity and arrival rules above a shadow that a shadow started stops at once,
+  so this count now bounds only what they cannot see:
+  indirect recursion through programs the real `mpm` runs.
 - Starts the real `mpm` again,
   with pauses that double up to half a second and total at most five seconds,
   when the system refuses the start for lack of processes (`EAGAIN`,

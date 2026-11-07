@@ -11,6 +11,7 @@ import {
 
 import {
   compositorVersionProblem,
+  FIRST_VERSION_WITH_HEADLESS_GPU_CHOICE,
   FIRST_VERSION_WITH_RUNNER_CONTROLS,
   isAtLeast,
   parseCompositorVersion,
@@ -74,18 +75,18 @@ await describe({
       name: 'accepts the first version with the controls and every newer one, with no message',
       fn: async ({ expect, }) => {
         expect(
-          compositorVersionProblem({ output: `nested ${FIRST_VERSION_WITH_RUNNER_CONTROLS}`, path: '/c', },),
+          compositorVersionProblem({ output: `nested ${FIRST_VERSION_WITH_RUNNER_CONTROLS}`, path: '/c', headless: false, },),
         ).toBe('',);
-        expect(compositorVersionProblem({ output: 'nested 0.4.1', path: '/c', },),).toBe('',);
-        expect(compositorVersionProblem({ output: 'nested 0.5.0', path: '/c', },),).toBe('',);
-        expect(compositorVersionProblem({ output: 'nested 1.0.0', path: '/c', },),).toBe('',);
-        expect(compositorVersionProblem({ output: 'nested 0.5.0-dev', path: '/c', },),).toBe('',);
+        expect(compositorVersionProblem({ output: 'nested 0.4.1', path: '/c', headless: false, },),).toBe('',);
+        expect(compositorVersionProblem({ output: 'nested 0.5.0', path: '/c', headless: false, },),).toBe('',);
+        expect(compositorVersionProblem({ output: 'nested 1.0.0', path: '/c', headless: false, },),).toBe('',);
+        expect(compositorVersionProblem({ output: 'nested 0.5.0-dev', path: '/c', headless: false, },),).toBe('',);
       },
     },),
     it({
       name: 'refuses an older compositor, naming its version, what is needed and both ways out',
       fn: async ({ expect, }) => {
-        const message = compositorVersionProblem({ output: 'nested 0.3.0', path: '/old/nested', },);
+        const message = compositorVersionProblem({ output: 'nested 0.3.0', path: '/old/nested', headless: false, },);
         expect(message,).toContain('/old/nested is 0.3.0',);
         expect(message,).toContain('compositor 0.4.0 or newer',);
         expect(message,).toContain('mise upgrade cargo:monochromatic-nested-wayland-session',);
@@ -96,10 +97,49 @@ await describe({
     it({
       name: 'refuses output with no version, with the same ways out',
       fn: async ({ expect, }) => {
-        const message = compositorVersionProblem({ output: 'oops', path: '/c', },);
+        const message = compositorVersionProblem({ output: 'oops', path: '/c', headless: false, },);
         expect(message,).toContain('printed no version ("oops")',);
         expect(message,).toContain('mise upgrade cargo:monochromatic-nested-wayland-session',);
         expect(message,).toContain('E2E_COMPOSITOR',);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: `${compositorVersionProblem.name} for a headless run`,
+  children: [
+    it({
+      name: 'needs the version that has --headless with --gpu and --list-gpus, and accepts it and every newer one',
+      fn: async ({ expect, }) => {
+        expect(
+          compositorVersionProblem({
+            output: `nested ${FIRST_VERSION_WITH_HEADLESS_GPU_CHOICE}`,
+            path: '/c',
+            headless: true,
+          },),
+        ).toBe('',);
+        expect(compositorVersionProblem({ output: 'nested 0.6.1', path: '/c', headless: true, },),).toBe('',);
+        expect(compositorVersionProblem({ output: 'nested 0.7.0-dev', path: '/c', headless: true, },),).toBe('',);
+      },
+    },),
+    it({
+      name: 'refuses a compositor that has the controls but not the device choice, naming --visible as a way out',
+      fn: async ({ expect, }) => {
+        const message = compositorVersionProblem({ output: 'nested 0.5.0', path: '/mid/nested', headless: true, },);
+        expect(message,).toContain('/mid/nested is 0.5.0',);
+        expect(message,).toContain(`compositor ${FIRST_VERSION_WITH_HEADLESS_GPU_CHOICE} or newer`,);
+        expect(message,).toContain('--gpu',);
+        expect(message,).toContain('--list-gpus',);
+        expect(message,).toContain('mise upgrade cargo:monochromatic-nested-wayland-session',);
+        expect(message,).toContain('E2E_COMPOSITOR',);
+        expect(message,).toContain('--visible',);
+      },
+    },),
+    it({
+      name: 'keeps the older floor for a visible run, which uses neither option',
+      fn: async ({ expect, }) => {
+        expect(compositorVersionProblem({ output: 'nested 0.5.0', path: '/c', headless: false, },),).toBe('',);
       },
     },),
   ],

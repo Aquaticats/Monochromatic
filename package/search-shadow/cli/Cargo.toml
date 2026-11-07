@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-search-shadow"
-version = "0.2.2"
+version = "0.2.3-alpha.1"
 categories = ["command-line-utilities", "development-tools"]
 edition = "2024"
 homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/search-shadow/cli"
@@ -54,6 +54,10 @@ clap = { workspace = true }
 # The only `unsafe` in the crate is the single call in src/priority.rs.
 libc = { workspace = true }
 
+# Reads the `real` field of a launcher record (`<launcher>.launch`, a JSON object written by mpm-shadow), so a launcher is judged by the
+# program it leads to (src/shadow_identity.rs).
+serde_json = { workspace = true }
+
 [dev-dependencies]
 # Disposable directories for the PATH, symlink and policy fixtures.
 tempfile = { workspace = true }
@@ -75,4 +79,5 @@ strip = true
 [workspace.dependencies]
 clap = ">=4.6.7"
 libc = ">=0.2.191"
+serde_json = ">=1.0.154"
 tempfile = ">=3.27.0"

@@ -199,6 +199,11 @@ mod ui_lists_render_tests;
 #[cfg(test)]
 mod ui_render_support;
 
+/// Tests of the shared render support:
+/// its clock step against the animation times written in the markup.
+#[cfg(test)]
+mod ui_render_support_tests;
+
 /// Rendered tests of the focus ring on the player page (D117):
 /// its band,
 /// its shape and what focus leaves unchanged.

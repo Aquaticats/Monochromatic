@@ -25,6 +25,10 @@ import { join, } from 'node:path';
  */
 export type Outcome = {
   readonly detail: string;
+  /**
+   Path of the file that keeps a failing check's text and last states; absent for a pass and a skip.
+   */
+  readonly evidence?: string;
   readonly id: string;
   readonly ms: number;
   readonly ok: boolean;

@@ -156,7 +156,7 @@ export component TrackListPane inherits Rectangle {
         }
     }
     changed focus-tick => {
-        if (root.wants-focus && root.active) {
+        if (root.wants-focus && root.active && Focus.player-active) {
             list-stop.focus();
         }
     }
@@ -219,9 +219,13 @@ export component TrackListPane inherits Rectangle {
     // Takes keyboard focus when the list is created for a request (the folded layout creates it when the picker closes).
     // A pane that has just been created is not laid out yet, and focusing it then loses the keyboard focus altogether, so
     // the timer waits one frame.
+    // While a page covers the player the list refuses focus (`Focus.player-active` is false), and a focus() on a stop that
+    // refuses it makes Slint hand the keyboard to the next element that accepts it, which on the Settings page is its Back
+    // button. A list made again under the page (a rescan shows the first-run pane and then the list) therefore waits: the
+    // timer starts when the player is back, which is when the asked-for list takes the keyboard.
     focus-timer := Timer {
         interval: 16ms;
-        running: root.wants-focus && root.active;
+        running: root.wants-focus && root.active && Focus.player-active;
         triggered => {
             self.running = false;
             list-stop.focus();
