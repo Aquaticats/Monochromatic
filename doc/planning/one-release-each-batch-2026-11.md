@@ -922,6 +922,27 @@ on the branch `feat/crate-release-register-every-published-crate`.
   `cli.fuzz` or `core.bench` pins.
   The entries of `monochromatic-cargo-shadow`,
   `monochromatic-git-policy-cli` and `monochromatic-mpm-shadow` already match the scan.
+- Proven on a runner without publishing:
+  the dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42363884326` of
+  `monochromatic-jsonc-edit` 0.1.2 to 0.1.3 (`mise run //package/jsonc-edit/core-rust:release -- --dry-run ...`,
+  merged at `a6104c0f64`) concluded `success` in 51 seconds.
+  Its log shows the crate manifest and all eight pin files edited, among them the multi-line table of
+  `package/jsonc-edit/core-rust.fuzz`,
+  then ten `cargo update --workspace` steps (one per lock directory),
+  the publish dry run, and `RELEASE COMMITTED` at 2026-11-07T10:26:13Z;
+  the push and publish jobs were skipped, as a dry run requires.
+  The dry run cannot show two things:
+  the push step (the watch set of `monochromatic-jsonc-edit` is the `cargo metadata` closure of ten lock directories,
+  which reaches most Rust code of the repository, so its real release is the one most likely to be refused for a moved
+  `main` and need a second dispatch; schedule it while no other Rust commits land),
+  and the Wayland library step of `monochromatic-nested-wayland-session` (its own dry run, the first step of the runbook,
+  is the proof).
+- The "Per wave" procedure and steps 3, 4 and 6 of the runbook describe route A and must be rewritten by the
+  coordinator as one dispatch per crate in wave order (dry run, real run, `release:wait`, for the libraries read the
+  `crates.io` line because their `release:wait` exits 1 on the missing release assets).
+  The wave-0 crates have no dependency among them;
+  a dependent's dispatch must wait until its dependencies are in the crates.io index,
+  and `release:wait` ends only after the publish run, so waiting for it is the order guard.
 
 ## Runbook
 
