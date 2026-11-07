@@ -82,16 +82,43 @@ await describe({
         it({
           name: 'lists only the crate files when there is no pin file',
           fn: async () => {
-            expect(commitPaths({ ...gitPolicyOptions, pinFiles: [] })).toEqual([
+            expect(commitPaths({ ...gitPolicyOptions, pinFiles: [], lockDirectories: [] })).toEqual([
               `package/git-policy/cli/${manifestFileName}`,
               `package/git-policy/cli/${lockFileName}`,
             ]);
           },
         }),
         it({
+          name: 'adds the lockfile of each lock directory that no pin file sits in, after the pin files, because the refresh changes it',
+          fn: async () => {
+            expect(commitPaths({
+              ...gitPolicyOptions,
+              lockDirectories: ['package/file-enforcer/cli', 'package/git-policy/cli.fuzz', 'package/git-policy/cli'],
+            })).toEqual([
+              `package/git-policy/cli/${manifestFileName}`,
+              `package/git-policy/cli/${lockFileName}`,
+              `package/git-policy/cli.fuzz/${manifestFileName}`,
+              `package/git-policy/cli.fuzz/${lockFileName}`,
+              `package/file-enforcer/cli/${lockFileName}`,
+            ]);
+          },
+        }),
+        it({
+          name: 'names a lock directory\'s lockfile only, never its manifest, which a lock refresh does not change',
+          fn: async () => {
+            const paths = commitPaths({ ...gitPolicyOptions, pinFiles: [], lockDirectories: ['package/a/b'] });
+            expect(paths).toContain(`package/a/b/${lockFileName}`);
+            expect(paths).not.toContain(`package/a/b/${manifestFileName}`);
+          },
+        }),
+        it({
           name: 'lists a path once when a pin file is the crate manifest',
           fn: async () => {
-            expect(commitPaths({ ...gitPolicyOptions, pinFiles: [`package/git-policy/cli/${manifestFileName}`] })).toEqual([
+            expect(commitPaths({
+              ...gitPolicyOptions,
+              pinFiles: [`package/git-policy/cli/${manifestFileName}`],
+              lockDirectories: [],
+            })).toEqual([
               `package/git-policy/cli/${manifestFileName}`,
               `package/git-policy/cli/${lockFileName}`,
             ]);
