@@ -5173,8 +5173,8 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 
 ### Known flakes and failures not yet fixed
 
-Branch `fix/git-policy-cli-flakes-and-open-findings` (2026-11-07; the report of its agent has the commits) closed the
-rest of the list that stood here:
+Branch `fix/git-policy-cli-flakes-and-open-findings` (2026-11-07;
+the report of its agent has the commits) closed the rest of the list that stood here:
 the conflict-marker message of a named-path commit during a merge (fixed on main by `2b8e4e82fa`),
 the foreign index holder control (fixed on main by `9ff1c52c87`),
 the descriptor-limit sweep (the named test was retired on main by `72e0534cca`;
@@ -5324,12 +5324,17 @@ termination forwarded to the whole process group,
 the legacy `flock` held beside the claim) is merged into main;
 its trade-offs are in `package/mutation-test/cli-cargo-mutants/README.md`.
 Still open from them:
-- the rotation of the timing logs and the push trigger log still replaces `.1`;
-  the audit file itself keeps numbered generations on main (pick 11, option C),
-  and a file left by a killed rotation gets a number from the next pass
-  (fixed 2026-11-07 on `fix/git-policy-cli-flakes-and-open-findings`);
-  whether "never discard user data" covers the one generation of the diagnostic logs stays a question for the owner,
+- the next rotation still replaces `.1`,
+  dropping older audit history as before;
+  a question for the owner (does "never discard user data" cover the audit history?),
   folded into the shipped-limits audit.
+  Status 2026-11-07:
+  the audit file itself keeps numbered generations on main (pick 11,
+  option C),
+  and a file left by a killed rotation gets a number from the next pass
+  (fixed on `fix/git-policy-cli-flakes-and-open-findings`);
+  the timing logs and the push trigger log still keep one generation,
+  which is what the question is about now.
 
 Accepted limit with a documented remedy,
 no code fix:

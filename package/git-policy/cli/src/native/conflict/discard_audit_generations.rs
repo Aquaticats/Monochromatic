@@ -390,8 +390,10 @@ fn is_second_name(file: &Piece, pieces: &[Piece]) -> bool {
         if other.identity != file.identity {
             continue;
         }
-        if file.number.is_none_or(|number| { return other_number < number; }) {
-            return true;
+        match file.number {
+            None => return true,
+            Some(number) if other_number < number => return true,
+            Some(_) => {}
         }
     }
     return false;
