@@ -127,9 +127,16 @@ mod layout_folder_links;
 /// The folders each folder uses with a proving reference,
 ///  and loops among folders or entries.
 mod layout_folder_uses;
+/// Which folders are groups,
+///  and the entry each folder belongs to.
+mod layout_group_entries;
 /// Group folders:
-///  a folder that holds child folders is a shelf with summary links.
+///  a folder that holds child folders is a shelf,
+///  never linked or named by a folder,
+///  and its entries form no loop.
 mod layout_group_folders;
+/// The `uses` summary of a group folder.
+mod layout_group_summary_links;
 /// What an index file (`mod.rs`,
 ///  or a crate root that is a folder's index) holds besides the index.
 mod layout_index_file_items;

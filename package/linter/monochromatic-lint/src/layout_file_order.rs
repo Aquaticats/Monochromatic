@@ -41,7 +41,7 @@
 use crate::{
     layout_finding::{LayoutFinding, shown},
     layout_folder_index_files::{file_name, files_by_folder, index_file, index_file_findings},
-    layout_group_folders::find_groups,
+    layout_group_entries::find_groups,
     layout_loops::find_loops,
     layout_module_tree::ModuleTree,
     layout_module_uses::ModuleUse,

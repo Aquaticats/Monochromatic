@@ -111,6 +111,29 @@ pub fn group_by_folder(tree: &ModuleTree, uses: &[ModuleUse]) -> FolderUses {
 }
 
 /// What:
+///  Whether a loop holds one of the wanted nodes,
+///  or any loop is wanted.
+/// Why:
+///  A loop of plain folders is a folder loop,
+///  which the folder check reports on its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function holdsOneOf(members: number[], nodes: Path[], wanted?: Set<Path>): boolean;
+/// ```
+fn holds_one_of(members: &[usize], nodes: &[PathBuf], wanted: Option<&BTreeSet<PathBuf>>) -> bool {
+    let Some(held) = wanted else {
+        return true;
+    };
+    for member in members {
+        if held.contains(&nodes[*member]) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  The findings for nodes that use each other,
 ///  directly or through others.
 /// Why:
@@ -145,13 +168,7 @@ pub fn use_loops(
     }
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     for members in find_loops(adjacency.as_slice()) {
-        let wanted: bool = match only_with {
-            Some(held) => members
-                .iter()
-                .any(|member| return held.contains(&nodes[*member])),
-            None => true,
-        };
-        if !wanted {
+        if !holds_one_of(&members, nodes, only_with) {
             continue;
         }
         let inside: BTreeSet<usize> = members.iter().copied().collect::<BTreeSet<usize>>();

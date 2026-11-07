@@ -29,7 +29,8 @@
 use crate::{
     layout_finding::{LayoutFinding, shown},
     layout_folder_uses::{FolderUses, Proof, group_by_folder, use_loops},
-    layout_group_folders::{find_groups, group_findings, group_loops, links_group},
+    layout_group_entries::find_groups,
+    layout_group_folders::{group_findings, group_loops, links_group},
     layout_link_entries::{USES_FOLDER, link_command, read_links},
     layout_module_tree::ModuleTree,
     layout_module_uses::{ModuleUse, folder_of},
