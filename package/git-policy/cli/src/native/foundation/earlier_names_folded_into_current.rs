@@ -34,7 +34,7 @@
 use crate::earlier_folder_entries_moved_into_current_folder::{FolderFold, fold_folder};
 use crate::earlier_log_lines_added_to_current_log::{FoldSteps, LogFold, NeverStopped, fold_log, numbered_copies};
 use crate::earlier_service_journal_adopted::earlier_journals_in_state;
-use crate::earlier_service_process_look::{Hold, ServiceLook, earlier_service_process_hold, effective_user};
+use crate::earlier_service_process_look::{Hold, Holding, ServiceLook, earlier_service_process_hold, effective_user};
 use crate::rename_that_never_replaces::rename_noreplace;
 use crate::service_instance::instance_of;
 use crate::wait_ceilings::PROCESS_LOOK_CEILING;
@@ -231,6 +231,12 @@ fn fold_one(directory: &Path, kept: KeptName, steps: &mut dyn FoldSteps) -> Outc
     }
 }
 
+/// The reason a look held a fold back,
+/// without the program behind it.
+fn reason_of(holding: Holding) -> Hold {
+    return holding.because;
+}
+
 /// The look at the earlier commit service of the worktree whose Git directory this is,
 /// processes only.
 fn earlier_program_hold(directory: &Path, surroundings: &FoldSurroundings) -> Option<Hold> {
@@ -243,7 +249,7 @@ fn earlier_program_hold(directory: &Path, surroundings: &FoldSurroundings) -> Op
         None => Vec::new(),
     };
     let look: ServiceLook = ServiceLook { instance, journals, own_pid: std::process::id(), own_user: effective_user(), ceiling: PROCESS_LOOK_CEILING };
-    return earlier_service_process_hold(look, surroundings.proc_root.as_path()).map(|holding| { return holding.because; });
+    return earlier_service_process_hold(look, surroundings.proc_root.as_path()).map(reason_of);
 }
 
 /// What:

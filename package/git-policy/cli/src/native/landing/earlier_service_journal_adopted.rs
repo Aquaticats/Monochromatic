@@ -95,6 +95,7 @@
 //! ```
 
 use crate::earlier_service_process_look::{Holding, ServiceLook, earlier_service_hold, effective_user};
+use crate::earlier_service_unsure_program::UnsureProgram;
 /// How long that look may take.
 use crate::wait_ceilings::PROCESS_LOOK_CEILING;
 /// The context a recovery runs in,
@@ -255,6 +256,14 @@ pub fn hold_on_earlier_helper(earlier: &EarlierJournals, instance: &str, proc_ro
     return earlier_service_hold(look, proc_root);
 }
 
+/// The log text that names the program behind a hold:
+/// its process,
+/// the program,
+/// the journal folder it names and why the folder was not resolved.
+fn program_note(program: &UnsureProgram) -> String {
+    return format!(" (process {}, program `{}`, journal folder `{}`: {}; its other arguments are not logged)", program.pid, program.program, program.journal_word, program.reason);
+}
+
 /// Whether the recovery's reports include the batch `seq`.
 fn was_reported(reports: &[RecoveryReport], seq: u64) -> bool {
     for report in reports {
@@ -300,9 +309,7 @@ pub fn settle_on_request(git: &GitContext, earlier: &EarlierJournals, instance: 
             earlier.per_instance.display(),
             earlier.shared.display(),
             because.because.words(),
-            because.program.as_ref().map_or_else(String::new, |program| {
-                return format!(" (process {}, program `{}`, journal folder `{}`: {}; its other arguments are not logged)", program.pid, program.program, program.journal_word, program.reason);
-            })
+            because.program.as_ref().map_or_else(String::new, program_note)
         );
         return RequestedSettlement::Held { open, because };
     }
