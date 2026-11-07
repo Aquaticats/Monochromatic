@@ -1,10 +1,16 @@
 //! Binary-boundary tests for the generated rule-source files when they are named as positional arguments.
 //!
-//! What: CI hands the scanner the changed files positionally
+//! What:
+//! CI hands the scanner the changed files positionally
 //! (`forbidden-strings --builtin-rules --rules ... <changed>...`).
-//! Why: the three generated rule-source files hold literal copies of rule bodies, so they always match their own
-//! rules. The `--all` walk skips them; the positional path skipped only the `forbidden-strings.*.txt` files at the
-//! working directory, so a push that renamed or edited a rule source failed the workflow on every later push
+//! Why:
+//! the three generated rule-source files hold literal copies of rule bodies,
+//! so they always match their own
+//! rules.
+//! The `--all` walk skips them;
+//! the positional path skipped only the `forbidden-strings.*.txt` files at the
+//! working directory,
+//! so a push that renamed or edited a rule source failed the workflow on every later push
 //! (the validated-tree watermark only advances on success).
 
 /// Imports ordinary filesystem operations for isolated fixtures.
@@ -17,10 +23,12 @@ use std::process::{Command, Output};
 /// Binary artifact built by Cargo for this integration test.
 const BIN: &str = env!("CARGO_BIN_EXE_forbidden-strings");
 
-/// Literal the fixture rules file forbids; it appears in every fixture file that should hit.
+/// Literal the fixture rules file forbids;
+/// it appears in every fixture file that should hit.
 const SENTINEL: &str = "VAULTTOKEN_LONG";
 
-/// The three generated rule-source files, relative to the repository root.
+/// The three generated rule-source files,
+/// relative to the repository root.
 const RULE_SOURCES: [&str; 3] = [
     "package/forbidden-strings/cli/data/betterleaks-default-config.toml",
     "package/forbidden-strings/cli/data/builtin-rules.txt",
@@ -39,7 +47,8 @@ fn fixture(label: &str) -> PathBuf {
     return root;
 }
 
-/// Writes a file below the fixture root, creating its directories.
+/// Writes a file below the fixture root,
+/// creating its directories.
 fn write_file(root: &Path, relative: &str, text: &str) {
     let path = root.join(relative);
     fs::create_dir_all(path.parent().expect("file has a parent")).expect("create parent directories");
@@ -56,7 +65,8 @@ fn remove_fixture(root: PathBuf) {
     fs::remove_dir_all(root).expect("remove fixture");
 }
 
-/// Runtime cache directory beside the fixture root, outside it so an `--all` walk never reads the cache files.
+/// Runtime cache directory beside the fixture root,
+/// outside it so an `--all` walk never reads the cache files.
 fn cache_directory(root: &Path) -> PathBuf {
     let mut name = root.file_name().expect("fixture root has a name").to_os_string();
     name.push("-cache");
@@ -74,7 +84,9 @@ fn scan(root: &Path, arguments: &[&str]) -> Output {
         .expect("run scanner");
 }
 
-/// The rule sources named positionally with relative paths, as CI's `git diff --name-only` lists them, pass.
+/// The rule sources named positionally with relative paths,
+/// as CI's `git diff --name-only` lists them,
+/// pass.
 #[test]
 fn positional_rule_sources_are_skipped() {
     let root = fixture("relative");
@@ -111,7 +123,10 @@ fn same_named_copy_elsewhere_is_still_scanned() {
     remove_fixture(root);
 }
 
-/// Positive control: an ordinary file with a hit, named beside the rule sources, still fails the run.
+/// Positive control:
+/// an ordinary file with a hit,
+/// named beside the rule sources,
+/// still fails the run.
 #[test]
 fn ordinary_file_with_a_hit_still_fails_beside_the_skipped_sources() {
     let root = fixture("control");
@@ -126,7 +141,8 @@ fn ordinary_file_with_a_hit_still_fails_beside_the_skipped_sources() {
     remove_fixture(root);
 }
 
-/// A rules file the user names positionally is still scanned: only the three generated sources are skipped.
+/// A rules file the user names positionally is still scanned:
+/// only the three generated sources are skipped.
 #[test]
 fn positional_rules_file_is_still_scanned() {
     let root = fixture("rules-file");

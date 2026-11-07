@@ -4,9 +4,13 @@
 //! compiler instead of the resharp/`regex` pipeline.
 //!  Two sources feed a scan:
 //!
-//! - the resolved runtime rules list (`--rules`, then `FORBIDDEN_STRINGS_RULES`,
-//!   then `forbidden-strings.local.txt`; one or more comma-separated files, see
-//!   `crate::rules_list`), joined into one text and
+//! - the resolved runtime rules list (`--rules`,
+//!   then `FORBIDDEN_STRINGS_RULES`,
+//!   then `forbidden-strings.local.txt`;
+//!   one or more comma-separated files,
+//!   see
+//!   `crate::rules_list`),
+//!   joined into one text and
 //!    loaded through the validated per-user runtime cache with text fallback;
 //!    and
 //! - the builtin baseline,
@@ -217,7 +221,8 @@ pub(crate) fn single_entry(path: &Path, builtin_rules: bool, explicit: bool) -> 
 ///  an optional entry whose file is absent is skipped and logged at `info` level,
 ///  and [`LoadedRules::skipped_optional`] lists it.
 ///  When no file is present the baseline scans alone under `--builtin-rules`;
-///  without it the load fails closed, because scanning with no rules would pass every file.
+///  without it the load fails closed,
+/// because scanning with no rules would pass every file.
 ///  `quiet_absence` logs skipped optional entries at `debug` instead of `info`;
 ///  only the implicit default file passes it,
 ///  so a repository without a local rules file does not print a line on every scan.
