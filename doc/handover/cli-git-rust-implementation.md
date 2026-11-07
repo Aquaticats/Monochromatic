@@ -3580,7 +3580,15 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   - fold late lines: read-lease design (`fix/git-policy-cli-fold-keeps-late-lines`);
   - tokio: the three coordinator settlements, then T8 and T9 (`feat/git-policy-cli-on-tokio`);
   - index lock without links or no-replace rename (`fix/git-policy-cli-index-lock-without-links`);
-  - mutation campaign over the merged tokio files (`test/git-policy-cli-tokio-mutants`);
+  - mutation campaign over the merged tokio files (`test/git-policy-cli-tokio-mutants`, worktree
+    `.claude/worktrees/tokio-mutants`): its agent stopped correctly, because `package/git-policy/cli/README.md`
+    ("Who runs a mutation campaign") reserves campaigns for the main session. The coordinator runs it: the gate proof
+    runs as unit `tokio-mutants-gate` (log `~/temp/agent/tokio-mutants-gate.log`), then
+    `native:mutation:parallel -- --passes 2 --timeout 900` over the eleven files plus the non-test siblings
+    `service/service_busy_answers_and_name_checks.rs`, `service/service_busy_step_record_on_this_thread.rs`,
+    `push/child_watch_step_bounds_and_errors.rs`. Before it starts, an agent fixes the launcher
+    (`fix/mutation-test-units-obey-disk-weight-and-task-limits`): its file units set `IOWeight=50` and no `TasksMax`,
+    against `CLAUDE.md` rule RXS; survivors then go to an agent for kill tests;
   - the settle-command test that fails only in its suite (`fix/git-policy-cli-settle-test-in-suite`).
 - `core-exec` depends branch merged as `adadb1d03b` (`buildAndTest` 52 suites pass, `lint:types` clean, `lint` 0
   warnings 0 errors; process-group kill and the daily-update lint cleanup included). Its lint run still logs
@@ -3647,8 +3655,12 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `mpm-shadow install` there, which treated main's recorded links as its own undeclared ones and removed them (08:42 for
   the fold worktree, 09:08:16 for the masking worktree). Main was reinstalled at 09:19:48 (`mise run toolchain:install`,
   all four links back). Until the fixed `mpm-shadow` is released and installed, every copy-route worktree add empties
-  main's links again: make new worktrees with `git worktree add --no-worktree-copy` plus `mise run toolchain:install`,
-  or reinstall main afterwards.
+  main's links again: make new worktrees with `git worktree add --no-worktree-copy` plus `mise run toolchain:install`
+  and `mise run prepare:pnpm:install -- --frozen-lockfile` (a no-copy worktree has no `node_modules`; the wrapper's
+  container gate then fails with `ERR_MODULE_NOT_FOUND` for `@monochromatic-dev/mutation-test-cli-cargo-mutants`),
+  or reinstall main afterwards. Seen 2026-11-07: that failed gate ran in a user unit that ended `Result=success`,
+  `ExecMainStatus=0`, although the task printed "ERROR task failed"; whether `mise run` returns 0 on a failed task is
+  being checked with an exit-status line in the rerun's log.
 - Release of the fix, first try (stopped before dispatch, nothing published): the installed 0.2.6 does resolve an
   unflagged `-alpha.N` GitHub release through `@latest` (fixture test on `test/mpm-shadow-cli-resolver-picks-alpha-release`,
   `aee8bf86c0`), but nothing enforces "only publish rc and stable releases on crates.io": `cargo-publish.yml` runs
