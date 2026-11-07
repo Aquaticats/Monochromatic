@@ -2063,6 +2063,98 @@ and the same race is in 0.6.0.
   41 worktree-add-timing lines),
   matching the earlier files' sizes.
 
+### Release record: the shadows never start a shadow, `monochromatic-search-shadow` 0.2.3-alpha.1, `monochromatic-pnpm-shadow` 0.1.3-alpha.1, `monochromatic-cargo-shadow` 0.1.5-alpha.3 and `monochromatic-mpm-shadow` 0.2.7-alpha.5 (2026-11-07T15:22:55-05:00)
+
+The owner's rules,
+verbatim:
+"Label decides";
+"I'm authorizing you to bump and publish any updates this session.";
+"We should never invoke ourselves recursively. That's bad design. Audit, remove, and ban that design aggressively.";
+"nothing should ever wait forever or indefinitely".
+Four alphas under the label gate:
+they go to the GitHub releases and the toolchain lock,
+not to crates.io.
+
+- The defect and the change (branch `fix/shadows-never-start-another-shadow`,
+  merged to main by `ec70e4cf26` 2026-11-07T15:02:22-05:00;
+  troubleshooting entry `doc/troubleshooting/search-shadow-copies-start-each-other-without-end.md`):
+  two `search-shadow` copies at different paths chose each other as the real `grep` and replaced themselves with each other without end
+  (measured 105 starts per second under `strace`, at a quarter of one CPU).
+  Every `PATH` lookup of the four shadows skipped only its own path;
+  now every shadow program carries an identity text in an ELF section,
+  the lookup skips any candidate that carries it (through launcher records),
+  the start goes through the file that was checked,
+  and a shadow started by a shadow stops at once with one line and exit status 2.
+  `mpm-shadow` launchers also refuse a record chain that leads back to a launcher.
+- Red first:
+  test commits `4b435e69f9` (search-shadow: three loops ended at the five second bound, two failures, two controls passed),
+  `679d141568` (pnpm-shadow: four red),
+  `6cebcb29ce` (cargo-shadow: four red) and `f9bafea350` (mpm-shadow: seven red,
+  two of them launcher loops that ended at the bound).
+  Fix commits `60c11621d4`,
+  `505fcdc7dc`,
+  `abb5b4210c`,
+  `ec51606c45` and `99f7f2beba`.
+- Gates on the merged tree:
+  `lint`,
+  `lint:clippy` with warnings denied and `test` for each crate:
+  search-shadow 97 of 97,
+  pnpm-shadow 97 of 97,
+  cargo-shadow 708 of 708 (18 skipped),
+  mpm-shadow 628 of 628.
+  One earlier full cargo-shadow run failed
+  `round_fourteen_tests::a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone`
+  twice (it needs a freed time namespace number to be reused,
+  and the allocator is shared by every session on the host);
+  it passed in the later full run without a change to that code.
+- Dry runs (each `success`,
+  `publish` skipped):
+  mpm-shadow `https://github.com/Aquaticats/Monochromatic/actions/runs/42409174548`,
+  search-shadow `.../42409864215`,
+  pnpm-shadow `.../42410075106`,
+  cargo-shadow `.../42410286984`.
+  Three dry runs started at once were cancelled by the workflow's one-run concurrency group (`.../42409146071`,
+  `.../42409153052`,
+  `.../42409159803`) and were started again one at a time.
+- Release runs and publish runs (each `success`):
+  mpm-shadow 0.2.7-alpha.4 to alpha.5 `.../42409491393` (bump `ffca464af8`),
+  publish `.../42409620811`;
+  search-shadow 0.2.2 to 0.2.3-alpha.1 `.../42409961703` (bump `b2b5a4f5bd`),
+  publish `.../42410050963`;
+  pnpm-shadow 0.1.2 to 0.1.3-alpha.1 `.../42410171012` (bump `1eb57682c6`),
+  publish `.../42410263305`;
+  cargo-shadow 0.1.5-alpha.2 to alpha.3 `.../42410399055` (bump `518be0a289`),
+  publish `.../42410470730`.
+  The wait task said for each `crates.io <version>: skipped, the alpha label is not published to crates.io`.
+  GitHub releases `monochromatic-<crate>-v<version>` (published 2026-11-07T20:13:06Z for mpm-shadow,
+  20:15:34Z for search-shadow,
+  20:18:24Z for pnpm-shadow and
+  20:21:17Z for cargo-shadow):
+  `isPrerelease` false,
+  `isDraft` false,
+  with both Linux tarballs and the checksums file.
+- Lock move (commit `2b9a1589ae`,
+  2026-11-07T15:22:55-05:00):
+  `mise run toolchain:update` moved the four tools and nothing else ("4 tools moved");
+  every aarch64 and x86_64 SHA-256 value in the lock equals the release's checksums file.
+  `mise run toolchain:install` reported `3 installed, 63 unchanged, 0 failed`
+  (the mpm-shadow copy that ran the install was already the newest).
+- Installed binaries:
+  `.cache/search-shadow-bin/rg --version` and `grep --version`,
+  `.cache/cargo-shadow-bin/cargo --version`,
+  `.cache/pnpm-shadow-bin/pnpm --version` and `.cache/mpm-shadow-bin/mpm --version` print the real tool's text and one line naming the shadow at its new version,
+  exit 0 (the first `mpm --version` call ran past a 20 second limit and was not reproduced:
+  four later calls took 0.2 to 3 seconds,
+  and a trace of one showed a single start of each program).
+  The two-copy reproduction with the installed 0.2.3-alpha.1 program and a copy of it made another version
+  ended by itself with exit 1 (grep, no match) after two starts (the shadow, then the real `grep` through the checked file),
+  where 0.2.2 never ended.
+  A shadow started by a script that runs another shadow stopped with exit status 2 and the one line.
+- Not done here:
+  a tree whose links point at an older shadow keeps the old behavior until `mise run toolchain:install` runs in it;
+  a shared crate for the identity rule was not added (the broader option,
+  left to the owner).
+
 ## Evidence log
 
 - crates.io API reads:

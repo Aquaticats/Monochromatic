@@ -231,9 +231,9 @@ pub mod markdown_semantic_breaks;
 /// Internal native Markdown/MDX parser interface.
 #[doc(hidden)]
 pub mod markdown_source;
-/// HTML/MDX cell-text encoding at the generated table boundary.
-mod markdown_table_text;
-/// Pipe-table reporting and source-preserving HTML fallback.
+/// The whitespace set of JavaScript trim, shared by the LFS rules.
+mod markdown_trim_space;
+/// Pipe-table reporting.
 #[doc(hidden)]
 pub mod markdown_tables;
 /// Validated arena traversal lists built by the source adapter's walk.
