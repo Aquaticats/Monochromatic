@@ -637,3 +637,59 @@ The locked release is `monochromatic-git-policy-cli` 0.6.0 (crates.io 2026-11-07
 - Historical records in `doc/` (research, handover, planning of earlier dates) keep the old link folder name as written (WR6).
 - The data names in `.git` and the wrapper's Rust code: another agent's fix
   (`fix/git-policy-cli-fold-earlier-names`) folds the earlier data names into the new ones.
+
+## Folding the earlier names when both exist
+
+Recorded 2026-11-07T11:00:00-05:00 on the branch `fix/git-policy-cli-fold-earlier-names` (unmerged, unreleased).
+This replaces "the old one is left untouched and reported" in "The settings file and the data the wrapper keeps" for the
+data folders and logs: the owner's rules "every name of a dirent must be understandable to a monkey" and "never discard user
+data" both rule out telling the person to merge folders by hand, and six lines on every command are noise.
+
+### What was measured
+
+2026-11-07T08:37:00-05:00, main Git directory of this repository: six names existed under both spellings (the data folder
+`cli-git`, `cli-git-push-trigger.jsonl`, `cli-git-worktree-copy`, `cli-git-audit.jsonl`, `cli-git-commit-timing.jsonl`,
+`cli-git-worktree-add-timing.jsonl`), so every command printed six lines.
+The current names were born on 2026-11-03 and 2026-11-04 (development builds of the renamed wrapper); the installed 0.5.34 kept
+writing the earlier names until 2026-11-07T08:24:40-05:00; 0.6.0 was installed at about 08:25.
+Linked worktrees (339 `.git/worktrees/*`) hold only the earlier spelling of the data folder (144) and of the merge records (16),
+never both, so the existing in-place rename covers them; the fold runs there too because it is part of the same settling.
+
+### What the fold does
+
+- Logs: `foundation/earlier_log_lines_added_to_current_log.rs`.
+  The earlier log is moved aside by `rename_noreplace` to `<current>.earlier-lines-to-add`, its bytes are appended to the current
+  log in one write, the append is synced, then the moved log and the journal are removed.
+  The journal `<current>.earlier-lines-journal` is also the lock (`flock`, released by the kernel when the process dies): it
+  records where the current log ended and which bytes of the moved log are being added, so a restart looks for exactly those
+  bytes (in the current log from that place and in its numbered older copies) and appends them only when absent.
+  A line a program with the moved log still open adds later is folded in a further round.
+- Not done, and why: lines are not interleaved by time stamp.
+  Other programs of this release append to the current log with no lock, so replacing or rewriting it would drop every line
+  appended between the read and the replace.
+  The earlier log's lines therefore end the current log, in the earlier log's order.
+  Every line keeps its bytes; the only added byte is a newline that ends a last line that had none.
+  The audit log's older lines carry `timeMillis` and no `time`, so a merge by time would also have needed two readers.
+- Folders: `foundation/earlier_folder_entries_moved_into_current_folder.rs`.
+  Every entry moves by `rename_noreplace`; a folder in both is merged one level at a time with a work stack; a file or link in
+  both keeps the earlier one as `<name>.from-earlier-release`; when that name is taken too the entry stays and one line says so.
+  Emptied earlier folders are removed deepest first.
+- When: `foundation/earlier_names_folded_into_current.rs`, from the settling of the Git directories, only for names that exist
+  twice, and only when no process has the start arguments of the earlier commit service of the Git directory's worktree
+  (`earlier_service_process_hold` in `landing/earlier_service_process_look.rs`: the process half of the existing look).
+  The sockets of the earlier units are not looked at: they stay active for good (27 `cli-git@*` units were listed on this host
+  at 2026-11-07) and write nothing.
+- Said: one line per process when the fold waits (with the `systemctl --user stop` command that lets it proceed) and one when a
+  name could not be folded; nothing after a fold.
+
+### Limits
+
+- The look sees the earlier service of the one worktree whose Git directory is being settled, in this user's PID namespace.
+  Short-lived programs of the earlier release in other checkouts (a checkout whose lock file still names an older release runs
+  that release's wrapper) are not seen; a line such a program appends to the moved log in the instant between the last size
+  check and the removal is lost, and one it appends later goes to a new earlier-named log that the next command folds again.
+- A write that a kill cut short can leave the first lines of a block in the current log; the restart adds the whole block again,
+  so those lines appear twice and none is lost.
+- Folding adds the earlier commit-timing log (250,668 bytes here) to a current one of 987,465 bytes, over the 1 MiB rotation
+  limit, so the next append moves it aside and replaces the existing `.1` (the one-generation policy of `discard_audit.rs`).
+- Numbered older copies of an earlier rotating log whose base name no longer exists are not revisited.
