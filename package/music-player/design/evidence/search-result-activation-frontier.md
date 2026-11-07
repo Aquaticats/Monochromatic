@@ -78,7 +78,8 @@ The visible Back arrow is a separate explicit exit (D64).
 
 ## Incumbent effects and selected consequence
 
-- **Folder result (D72):** return to player showing the selected folder,
+- **Folder result (D72):**
+  return to player showing the selected folder,
   without autoplay.
   `selectPage` already performs the selection and queue-scope change;
   closing Search exposes the folder's normal track view on both panels.
@@ -86,14 +87,16 @@ The visible Back arrow is a separate explicit exit (D64).
   folder's track view on the inner panel and be invisible on the cover.
   This coherence recommendation is now the D72 design direction,
   not evidence of an existing Search handler.
-- **Other track (D73):** start the directly named track using the
+- **Other track (D73):**
+  start the directly named track using the
   existing non-current player-row semantics.
   `playIndex` and `playCurrent` also select the track's owning page in
   source;
   they do not prove a scroll or focus jump to its row.
   A “reveal but do not play” workflow would be new behavior without a
   prior user signal.
-- **Already-current track (D73):** carry the existing player-row
+- **Already-current track (D73):**
+  carry the existing player-row
   play/pause distinction into a Search result for a query that actually
   matches that track.
   `togglePlay()` pauses when playing,
@@ -104,7 +107,8 @@ The visible Back arrow is a separate explicit exit (D64).
   do not label that route a toggle.
   The historical `cam` fixture's current deck track is **not** a valid
   result to test this case.
-- **Track navigation (D74):** after a successful **track** result action,
+- **Track navigation (D74):**
+  after a successful **track** result action,
   the user selected **Return to player**.
   The normal folder track view appears;
   a later Search visit begins with an empty query under D66.
@@ -113,7 +117,8 @@ The visible Back arrow is a separate explicit exit (D64).
   as previewed by the logic comparison.
   D51's retained deck made Stay coherent but did not make it mandatory.
   A failed/stale tap does not count as a successful action.
-- **Unavailable/stale target:** a result may disappear before activation.
+- **Unavailable/stale target:**
+  a result may disappear before activation.
   Treat that as an action failure requiring a truthful handler,
   not another user-preference axis.
   Do not substitute a different item,

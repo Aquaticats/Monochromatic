@@ -74,7 +74,7 @@ Interpretation notes applied to every candidate:
   G4 lists only evidence already gathered,
   marked "incidental".
 
-### workspaces-filter
+## workspaces-filter
 
 - URL:
   <https://github.com/tunnckoCore/workspaces-filter>
@@ -108,7 +108,7 @@ Interpretation notes applied to every candidate:
   exit at G1 (workspace filter plus script fan-out,
   no relationship-aware execution).
 
-### mr-yarn
+## mr-yarn
 
 - URL:
   <https://github.com/leecheneler/mr-yarn>
@@ -136,7 +136,7 @@ Interpretation notes applied to every candidate:
   exit at G1 (parallel script fan-out over Yarn workspaces;
   archived).
 
-### workspace-builder
+## workspace-builder
 
 - URL:
   <https://github.com/suchipi/workspace-builder>
@@ -189,7 +189,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 confusion (watch mode claimed with no documented way to enable it).
 
-### kodrdriv tree (@grunnverk/tree-execution, @grunnverk/commands-tree)
+## kodrdriv tree (@grunnverk/tree-execution, @grunnverk/commands-tree)
 
 - URL:
   <https://github.com/grunnverk/tree-execution>
@@ -235,7 +235,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (execution library and kodrdriv command module).
 
-### @jacob-ebey/mono-build
+## @jacob-ebey/mono-build
 
 - URL:
   <https://www.npmjs.com/package/@jacob-ebey/mono-build>
@@ -271,7 +271,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G2 (no source repository).
 
-### verify-grid
+## verify-grid
 
 - URL:
   <https://github.com/kirull1/verify-grid>
@@ -302,7 +302,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (task by service matrix runner without project relationships).
 
-### buildsure
+## buildsure
 
 - URL:
   <https://github.com/clasen/BuildSure>
@@ -331,7 +331,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (per-folder conditional build wrapper).
 
-### kitchen-tools
+## kitchen-tools
 
 - URL:
   <https://github.com/JacopoPatroclo/kitchen-tools>
@@ -359,7 +359,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (scaffolder and docker-compose wrapper).
 
-### workgraph
+## workgraph
 
 - URL:
   <https://www.npmjs.com/package/workgraph>
@@ -404,7 +404,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G2 (no source repository).
 
-### affected-ci
+## affected-ci
 
 - URL:
   <https://github.com/Cst2989/affected-ci>
@@ -436,7 +436,7 @@ Interpretation notes applied to every candidate:
   exit at G1 (file-level affected selector,
   no project model).
 
-### @monoloom/cli
+## @monoloom/cli
 
 - URL:
   <https://git.fallet.net/monoloom/workspace>
@@ -488,7 +488,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 confusion (CI example uses an undocumented `workspace-tools` command name).
 
-### @blaze-js/cli
+## @blaze-js/cli
 
 - URL:
   <https://www.npmjs.com/package/@blaze-js/cli>
@@ -519,7 +519,7 @@ Interpretation notes applied to every candidate:
   exit at G2 (no source repository;
   also no docs).
 
-### nasti-task (Nasti Plus)
+## nasti-task (Nasti Plus)
 
 - URL:
   <https://github.com/nasti-toolchain/nasti-task>
@@ -564,7 +564,7 @@ Interpretation notes applied to every candidate:
   exit at G3 confusion (undocumented CLI flag and target syntax;
   README is the only doc).
 
-### Hark (@hark/plugin-monorepo)
+## Hark (@hark/plugin-monorepo)
 
 - URL:
   <https://github.com/sparebytes/hark>
@@ -595,7 +595,7 @@ Interpretation notes applied to every candidate:
   the monorepo part is an undocumented plugin;
   archived).
 
-### gmm
+## gmm
 
 - URL:
   <https://github.com/k-koehler/gmm>
@@ -623,7 +623,7 @@ Interpretation notes applied to every candidate:
   exit at G2 (source repository missing;
   also no docs).
 
-### rumos
+## rumos
 
 - URL:
   <https://github.com/remirobichet/rumos>
@@ -657,7 +657,7 @@ Interpretation notes applied to every candidate:
   exit at G2 (no license file;
   docs are one command).
 
-### npm-mono-repo (Sodaru)
+## npm-mono-repo (Sodaru)
 
 - URL:
   <https://github.com/sodaru/mono-repo>
@@ -697,7 +697,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 confusion (undefined `packagesDir` setting).
 
-### @yamato-daiwa/monorepo-helper
+## @yamato-daiwa/monorepo-helper
 
 - URL:
   <https://github.com/TokugawaTakeshi/Yamato-Daiwa-Monorepo-Helper>
@@ -741,7 +741,7 @@ Interpretation notes applied to every candidate:
   version,
   and publish helper).
 
-### Rex (@rex-js/rex-cli, @rex-js/rex)
+## Rex (@rex-js/rex-cli, @rex-js/rex)
 
 - URL:
   <https://github.com/nikeokoronkwo/rex>
@@ -784,7 +784,7 @@ Interpretation notes applied to every candidate:
   truncated hooks page,
   dead wiki link).
 
-### fraktos
+## fraktos
 
 - URL:
   <https://github.com/holasoymalva/fraktos>
@@ -822,7 +822,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G2 (no license file).
 
-### robonaut
+## robonaut
 
 - URL:
   <https://github.com/f1lt3r/robotnaut>
@@ -859,7 +859,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (multi-repo release helper).
 
-### @emeryld/manager
+## @emeryld/manager
 
 - URL:
   <https://www.npmjs.com/package/@emeryld/manager>
@@ -894,7 +894,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (interactive wrapper over pnpm).
 
-### bdep
+## bdep
 
 - URL:
   <https://github.com/sourcewizard-ai/bdep>
@@ -947,7 +947,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 coverage (no extension mechanism) with a confusion trigger (build runner unclear).
 
-### Plymor (@plymor/cli, core, deploy adapters)
+## Plymor (@plymor/cli, core, deploy adapters)
 
 - URL:
   <https://github.com/plymor/plymor>
@@ -978,7 +978,7 @@ Interpretation notes applied to every candidate:
   exit at G2 (no accessible source repository;
   also no docs).
 
-### npm-ws
+## npm-ws
 
 - URL:
   <https://github.com/bstefanescu/npm-ws>
@@ -1022,7 +1022,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 confusion (docs defer configuration to another project's package.json).
 
-### auto-n-glad
+## auto-n-glad
 
 - URL:
   <https://www.npmjs.com/package/auto-n-glad>
@@ -1051,7 +1051,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (folder-wide script fan-out).
 
-### monopod
+## monopod
 
 - URL:
   <https://github.com/studio-b12/monopod>
@@ -1079,7 +1079,7 @@ Interpretation notes applied to every candidate:
   exit at G1 (bootstrap-only linker;
   archived).
 
-### obr (One Big Repo)
+## obr (One Big Repo)
 
 - URL:
   <https://github.com/sourcewizard-ai/obr>
@@ -1111,7 +1111,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G2 (source repository missing).
 
-### sail (@tylerbu/sail)
+## sail (@tylerbu/sail)
 
 - URL:
   <https://github.com/tylerbutler/tools-monorepo>
@@ -1167,7 +1167,7 @@ Interpretation notes applied to every candidate:
   exit at G3 confusion (workspace flag described as a release group;
   install section "Coming soon").
 
-### @anzerr/mono.cli
+## @anzerr/mono.cli
 
 - URL:
   <https://github.com/anzerr/mono.cli>
@@ -1203,7 +1203,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 confusion (undocumented commands and flags in example-only README).
 
-### @sfomin/for-each-package
+## @sfomin/for-each-package
 
 - URL:
   <https://github.com/slavafomin/for-each-package>
@@ -1230,7 +1230,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (per-package command fan-out).
 
-### mrex
+## mrex
 
 - URL:
   <https://github.com/ssupinsky/mrex>
@@ -1265,7 +1265,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G2 (no license file).
 
-### hwan
+## hwan
 
 - URL:
   <https://www.npmjs.com/package/hwan>
@@ -1300,7 +1300,7 @@ Interpretation notes applied to every candidate:
   exit at G3 confusion (README is a TODO placeholder;
   archived).
 
-### alle (with alle-publish)
+## alle (with alle-publish)
 
 - URL:
   <https://github.com/kogosoftwarellc/alle>
@@ -1331,7 +1331,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (dependency analyzer plus publish add-on).
 
-### orca (@fasunle/orca)
+## orca (@fasunle/orca)
 
 - URL:
   <https://github.com/fasunle/orca>
@@ -1370,7 +1370,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G2 (no license file).
 
-### bun-cache (@fasunle/bun-cache)
+## bun-cache (@fasunle/bun-cache)
 
 - URL:
   <https://github.com/fasunle/bun-cache>
@@ -1405,7 +1405,7 @@ Interpretation notes applied to every candidate:
   superseded by orca,
   same repo).
 
-### spinx
+## spinx
 
 - URL:
   <https://github.com/nirikshan/spinx>
@@ -1442,7 +1442,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G2 (no license file).
 
-### monob
+## monob
 
 - URL:
   <https://www.npmjs.com/package/monob>
@@ -1471,7 +1471,7 @@ Interpretation notes applied to every candidate:
   exit at G2 (no source repository,
   no license).
 
-### lolaus
+## lolaus
 
 - URL:
   <https://gitlab.com/tom.davidson/lolaus>
@@ -1498,7 +1498,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (git-diff directory command loop).
 
-### @cvsky/monorepo-builder
+## @cvsky/monorepo-builder
 
 - URL:
   <https://www.npmjs.com/package/@cvsky/monorepo-builder>
@@ -1523,7 +1523,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G2 (no source repository).
 
-### ditoh
+## ditoh
 
 - URL:
   <https://github.com/katerman/ditoh>
@@ -1549,7 +1549,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (root script launcher).
 
-### BuildNet (@musclemap.me/buildnet)
+## BuildNet (@musclemap.me/buildnet)
 
 - URL:
   <https://musclemap.me/buildnet>
@@ -1602,7 +1602,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G2 (daemon source not available).
 
-### onom
+## onom
 
 - URL:
   <https://github.com/pshrmn/onom>
@@ -1629,7 +1629,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (linking library).
 
-### @mono-repo/cli
+## @mono-repo/cli
 
 - URL:
   <https://github.com/mono-repo/mono-repo>
@@ -1658,7 +1658,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G2 (source repository missing).
 
-### monorunyg
+## monorunyg
 
 - URL:
   <https://www.npmjs.com/package/monorunyg>
@@ -1696,7 +1696,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G2 (no license file).
 
-### @kienleholdings/mrt-run
+## @kienleholdings/mrt-run
 
 - URL:
   <https://github.com/kienleholdings/monorepo-tools>
@@ -1725,7 +1725,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (script fan-out over a packages directory).
 
-### mr-monorepo
+## mr-monorepo
 
 - URL:
   <https://github.com/SoulEvans07/mr-monorepo>
@@ -1751,7 +1751,7 @@ Interpretation notes applied to every candidate:
   exit at G2 (source repository missing;
   placeholder package).
 
-### @mykulyak/linterpol
+## @mykulyak/linterpol
 
 - URL:
   <https://github.com/mykulyak/linterpol>
@@ -1777,7 +1777,7 @@ Interpretation notes applied to every candidate:
   exit at G1 (modified-package script runner;
   archived).
 
-### @messman/node-mono-builder
+## @messman/node-mono-builder
 
 - URL:
   <https://github.com/messman/node-mono-builder>
@@ -1817,7 +1817,7 @@ Interpretation notes applied to every candidate:
   exit at G3 confusion (pseudocode config;
   CLI example contradicts the command list).
 
-### quimera
+## quimera
 
 - URL:
   <https://github.com/Tautorn/quimera>
@@ -1851,7 +1851,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 confusion (README truncated after its first heading).
 
-### tukod
+## tukod
 
 - URL:
   <https://github.com/vexCoder/tukod>
@@ -1878,7 +1878,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (app scaffolder).
 
-### deicide
+## deicide
 
 - URL:
   <https://github.com/binbandit/deicide>
@@ -1903,7 +1903,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (tsconfig generator and diagnostics).
 
-### ghidora (@hyperforge/ghidora)
+## ghidora (@hyperforge/ghidora)
 
 - URL:
   <https://ghidora.hyperforge.in>
@@ -1980,7 +1980,7 @@ Interpretation notes applied to every candidate:
   exit at G3 coverage (no extension mechanism),
   also a confusion trigger (contradictory `dependsOn` comments).
 
-### ystage
+## ystage
 
 - URL:
   <https://github.com/amurdock/ystage>
@@ -2010,7 +2010,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G2 (no license file).
 
-### @linbop/modulify
+## @linbop/modulify
 
 - URL:
   <https://linbop.github.io/modulify>
@@ -2047,7 +2047,7 @@ Interpretation notes applied to every candidate:
   docs site is also a JS shell;
   archived).
 
-### bun-pkg
+## bun-pkg
 
 - URL:
   <https://github.com/thejasonxie/bun-pkg>
@@ -2076,7 +2076,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (recursive fan-out without documented relationships).
 
-### bouddha-monorepo
+## bouddha-monorepo
 
 - URL:
   <https://github.com/andrade0/bouddha-monorepo>
@@ -2102,7 +2102,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (shared-library copier).
 
-### umrepo
+## umrepo
 
 - URL:
   <https://github.com/umrepo/um>
@@ -2129,7 +2129,7 @@ Interpretation notes applied to every candidate:
   exit at G2 (source repository missing;
   placeholder package).
 
-### @osndot/osn
+## @osndot/osn
 
 - URL:
   <https://github.com/osndot/osn>
@@ -2154,7 +2154,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (single-project task runner with plugins).
 
-### rootrun
+## rootrun
 
 - URL:
   <https://github.com/Barani1912/rootrun>
@@ -2180,7 +2180,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (concurrent script fan-out).
 
-### Sleet (sleetrepo)
+## Sleet (sleetrepo)
 
 - URL:
   <https://github.com/dupyjs/sleet>
@@ -2208,7 +2208,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G2 (proprietary).
 
-### simplebuild (@simple-software/simplebuild)
+## simplebuild (@simple-software/simplebuild)
 
 - URL:
   <https://github.com/SimpleSoftwareOrg/Simple-Build>
@@ -2239,7 +2239,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (single-project Bazel wrapper).
 
-### Makedown (@makedown/cli, engine and family)
+## Makedown (@makedown/cli, engine and family)
 
 - URL:
   <https://github.com/khoi03/makedown>
@@ -2269,7 +2269,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (LLM workflow build system).
 
-### oxymake (@noogram/oxymake)
+## oxymake (@noogram/oxymake)
 
 - URL:
   <https://noogram.org/oxymake>
@@ -2300,7 +2300,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (data workflow engine).
 
-### linkctl
+## linkctl
 
 - URL:
   <https://github.com/saintparish4/linkctl>
@@ -2355,7 +2355,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G3 confusion (getting-started run output contradicts `dependsOn` semantics).
 
-### reckon (@andrew24601/reckon)
+## reckon (@andrew24601/reckon)
 
 - URL:
   <https://www.npmjs.com/package/@andrew24601/reckon>
@@ -2386,7 +2386,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (build-graph library).
 
-### nalth
+## nalth
 
 - URL:
   <https://www.nalthjs.com>
@@ -2416,7 +2416,7 @@ Interpretation notes applied to every candidate:
 - Final:
   exit at G1 (single-app web toolchain).
 
-### machora
+## machora
 
 - URL:
   <https://github.com/jasonz1987/machora>

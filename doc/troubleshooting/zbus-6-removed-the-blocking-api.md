@@ -44,29 +44,68 @@ and the match-rule builder no longer returns a
 
 ## Verification
 
-With `zbus-5` selected (below),
-`cargo metadata` on the three music-player lock files leaves one zbus,
-5.19.0,
-and the full
-release build no longer reports these errors (see the planning document for the build result).
+The ports are in the Resolution section; `mise run //package/nested-wayland-session/cli:test` and
+`mise run //package/music-player/desktop-app:test` pass on zbus 6.2.1.
 
-## Verified workarounds
+## Resolution
 
-`package/music-player/desktop-app` selects the named catalog `zbus-5` (`^5.19.0`),
-the repair that
-`doc/planning/toolchain-always-latest.md` records for open-ended floors (as `bincode-1`).
+Recorded 2026-11-07T12:09:19-05:00:
+the hold is gone.
+Both crates are ported to zbus 6's async API,
+the named catalog `zbus-5` and its selector in `package/music-player/desktop-app/Cargo.toml` were removed
+through file-enforcer,
+and the desktop app's lock moved to zbus 6.2.1 through the repository's `cargo` wrapper (`cargo-shadow`).
 
-Tradeoff:
-the crate stays one major behind.
-The port to `zbus::block_on` touches the launcher,
-the analysis and unplayable
-notification workers,
-the thread-priority call and the dialog backend (about ten files);
-a connection made inside one
-`block_on` only runs inside it,
-so each worker needs its own.
-Open work;
-remove the named catalog when it lands.
+The replacement for a blocking call is `zbus::block_on` around the async one (zbus `CHANGELOG.md` 6.0.0,
+"Remove the blocking API";
+the book's "Upgrading to zbus 6.0",
+section "The blocking API is gone";
+`src/utils.rs` of zbus 6.2.1,
+documentation of `block_on`).
+Each synchronous thread drives its own calls with it.
+With the default `default-rt` feature it runs zbus's own `zruntime` on the calling thread,
+and a connection built inside the call is served by that thread while it is inside `block_on` and by a helper
+thread of zbus between calls,
+so a connection made inside one `block_on` call keeps working in the next one and on another thread (the first
+draft of this note said otherwise;
+the tests of both crates serve and call across threads).
+No second runtime and no event-loop integration were added.
+
+What the port had to change besides the call sites:
+
+- `zbus::blocking::*` is gone;
+  clients use `zbus::Connection`,
+  `zbus::Proxy` and `zbus::fdo::DBusProxy`.
+- `zbus::zvariant::Value` and `OwnedValue` are `zbus::Variant` and `OwnedVariant` (the old paths still compile
+  with a deprecation warning,
+  which the repository's clippy gate turns into an error).
+- A blocking iterator is a `zbus::MessageStream` read with `StreamExt::next`;
+  `MessageStream::for_match_rule` registers the rule and opens the stream in one step.
+- Builder and match-rule setters no longer return `Result`;
+  `build()` returns the first error.
+- A reply whose error name `zbus::fdo::Error` defines (`NotSupported`,
+  `ServiceUnknown`,
+  `InvalidArgs`) is `zbus::Error::FDO`,
+  not `zbus::Error::MethodError`;
+  tests that matched the variant now read the wire name from either.
+- `Builder::method_timeout` bounds method calls only,
+  zbus's own timeout helper is crate-private,
+  and a connect or a signal send has no bound of its own.
+  Both crates race `zruntime`'s timer (`SharedRuntime::current().timeout`) from inside `block_on`:
+`src/bus_step_bound.rs` in `package/nested-wayland-session/cli` and `src/dbus_step_bound.rs` in
+  `package/music-player/desktop-app`.
+  A signal listener thread's read of its stream has no bound by design;
+  it ends when the connection closes.
+
+Slint (`i-slint-backend-winit`),
+accesskit and `ksni` still depend on zbus 5.19.0,
+so `package/music-player/desktop-app/Cargo.lock`,
+`package/terminal/app/Cargo.lock` and `package/ide/app/Cargo.lock` hold zbus 5.19.0 beside the 6.2.1 the
+desktop app names.
+That is those crates' choice;
+this repository cannot move it.
+
+
 
 ## What does not work
 

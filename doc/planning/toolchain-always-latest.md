@@ -656,11 +656,11 @@ on the branch with the new locks:
   remove it when `turso_core` requires `branches` 0.5 or newer
   (`doc/troubleshooting/branches-0-4-calls-removed-core-intrinsics-abort.md`).
 - zbus 6:
-  the daily update locked 6.2.1,
-  which removed `zbus::blocking`.
-  `package/music-player/desktop-app` is held on 5.x by the named catalog `zbus-5`;
-  `package/nested-wayland-session/cli` uses `zbus::blocking` too and was not built;
-  the port to `zbus::block_on` is open
+  done on 2026-11-07.
+  The daily update locked 6.2.1,
+  which removed `zbus::blocking`;
+  `package/music-player/desktop-app` and `package/nested-wayland-session/cli` are ported to `zbus::block_on`
+  and the named catalog `zbus-5` is gone
   (`doc/troubleshooting/zbus-6-removed-the-blocking-api.md`).
 - cargo-fuzz:
   the next point release may break the fuzz crates;

@@ -4241,6 +4241,22 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     the agent proposes the smallest shared piece,
     keeps a red-first guard against reaching the owner's bus,
     and limits a real run to one summary notification.
+- zbus 6:
+  `package/nested-wayland-session/cli` and `package/music-player/desktop-app` ported to zbus 6 async
+  (`zbus::block_on` on zbus's own runtime;
+  every D-Bus step bounded,
+  5 s and 3 s,
+  measured connect 1.2 to 1.4 ms)
+  and merged into main `83b7328102` (293 and 1600 tests);
+  the `zbus-5` hold is gone.
+  Commit `566c50665d` over-claims its subject;
+  corrected by commit comment 208708911.
+  Found on main and given to an agent (`fix/three-packages-red-after-the-daily-update`):
+  `package/ide/app` Clippy `E0308` at `src/tile_scene.rs:141` after a `parley` API change;
+  `package/terminal/app` lint fails in the `libghostty-vt-sys` build script fetching Ghostty;
+  `cargo-shadow install` offline fails on the music player because the cached index marks `clipboard-win` 5.4.1 yanked.
+  The music-player ellipsis test passed three times for the zbus agent;
+  its cause is still unmeasured.
 - Held settle message:
   merged into main `66dbb1ca27` (gate 5194 of 5194,
   lint clean).

@@ -512,7 +512,7 @@ Commands to finish once the baseline passes:
 then the same with `--file src/native/capture_order.rs` alone,
 then `--file src/native/commit/commit_args.rs` alone.
 
-## Trailing gates
+## Trailing gates, mutation campaigns
 
 The coordinator moved lane mutation campaigns behind the cutover.
 What ran,
@@ -587,7 +587,7 @@ and what is still open:
 
 Rerun commands once the blocker is cleared or the skip is used:
 
-```
+```text
 systemd-run --user --unit=<name> --collect --property=MemoryMax=12G --working-directory=<worktree> node <gate-slot> env GIT_POLICY_NATIVE_IMAGE_TAG=capture NATIVE_MUTATION_BASELINE_SKIP=index_lock_holders::tests::a_real_child_holding_the_lock_is_found_on_linux mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/shadow/shadow_create.rs --file src/native/shadow/shadow_links.rs
 ```
 

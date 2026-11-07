@@ -18,8 +18,7 @@ use tracing::{debug, info, warn};
 /// Imports the items this module uses from `zbus`.
 use zbus::{
     object_server::SignalEmitter,
-    zvariant::{OwnedObjectPath, OwnedValue},
-    ObjectServer,
+    ObjectServer, OwnedObjectPath, OwnedVariant,
 };
 
 /// Imports the items this module uses from `crate`.
@@ -160,7 +159,7 @@ const _: () = {
             &self,
             desktop_entry: String,
             capabilities: i32,
-            hints: HashMap<String, OwnedValue>,
+            hints: HashMap<String, OwnedVariant>,
             #[zbus(object_server)] server: &ObjectServer,
         ) -> zbus::fdo::Result<OwnedObjectPath> {
             let request = JobRequest { api: 2, desktop_entry, capabilities, hints: summarize_map(&hints) };

@@ -11,8 +11,8 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use zbus::blocking::{Connection, MessageIterator};
-use zbus::zvariant::OwnedValue;
+use futures_util::StreamExt;
+use zbus::{Connection, MessageStream, OwnedVariant};
 
 /// One recorded `Notify` call, reduced to what the tests assert.
 #[derive(Clone, Debug, PartialEq)]
@@ -33,7 +33,7 @@ pub(crate) struct Call {
 pub(crate) type Calls = Arc<Mutex<Vec<Call>>>;
 
 /// What the `Notify` call carries on the wire, in the order the specification gives.
-type NotifyBody = (String, u32, String, String, String, Vec<String>, HashMap<String, OwnedValue>, i32);
+type NotifyBody = (String, u32, String, String, String, Vec<String>, HashMap<String, OwnedVariant>, i32);
 
 /// Reduces a decoded `Notify` body to the fields the tests assert.
 fn record(body: NotifyBody) -> Call {
@@ -55,9 +55,15 @@ pub(crate) struct Behavior {
 
 /// Answers `Notify` calls on `connection` until the bus goes away, recording each and replying with the call count
 /// after the delay of `behavior`; the first `refuse_first` calls get an error reply instead.
-fn answer_notify_calls(connection: &Connection, incoming: MessageIterator, calls: &Calls, behavior: Behavior) {
+fn answer_notify_calls(connection: &Connection, incoming: MessageStream, calls: &Calls, behavior: Behavior) {
+    zbus::block_on(answer_notify_calls_async(connection, incoming, calls, behavior));
+}
+
+/// The body of `answer_notify_calls`, run inside one `zbus::block_on` call on the service thread.
+/// The delay is a blocking sleep on purpose: it stands for a service that stopped answering.
+async fn answer_notify_calls_async(connection: &Connection, mut incoming: MessageStream, calls: &Calls, behavior: Behavior) {
     let mut refused = 0;
-    for received in incoming {
+    while let Some(received) = incoming.next().await {
         let Ok(message) = received else {
             return;
         };
@@ -71,7 +77,7 @@ fn answer_notify_calls(connection: &Connection, incoming: MessageIterator, calls
         std::thread::sleep(behavior.delay);
         if refused < behavior.refuse_first {
             refused += 1;
-            if connection.reply_error(&header, "org.freedesktop.DBus.Error.Failed", &("refused on purpose",)).is_err() {
+            if connection.reply_error(&header, "org.freedesktop.DBus.Error.Failed", &("refused on purpose",)).await.is_err() {
                 return;
             }
             continue;
@@ -81,10 +87,11 @@ fn answer_notify_calls(connection: &Connection, incoming: MessageIterator, calls
             recorded.push(record(body));
             u32::try_from(recorded.len()).expect("a test makes few calls")
         };
-        if connection.reply(&header, &(id,)).is_err() {
+        if connection.reply(&header, &(id,)).await.is_err() {
             return;
         }
     }
+    tracing::debug!("the recording notification service stopped reading its connection");
 }
 
 /// A `dbus-daemon` on a private socket, killed and cleaned up on drop.
@@ -133,7 +140,7 @@ impl PrivateBus {
 
     /// Connects a client to this bus with a bounded reply wait.
     pub(crate) fn connect(&self, timeout: Duration) -> zbus::Result<Connection> {
-        return zbus::blocking::connection::Builder::address(self.address.as_str())?.method_timeout(timeout).build();
+        return crate::dbus_step_bound::connect(zbus::connection::Builder::address(self.address.as_str()), timeout);
     }
 
     /// Starts a recording notification service on this bus and returns its connection and calls.
@@ -144,14 +151,15 @@ impl PrivateBus {
     /// Starts a recording notification service that misbehaves as `behavior` says.
     pub(crate) fn serve_notifications_with(&self, behavior: Behavior) -> (Connection, Calls) {
         let calls: Calls = Arc::new(Mutex::new(Vec::new()));
-        let connection = zbus::blocking::connection::Builder::address(self.address.as_str())
-            .and_then(|builder| return builder.name("org.freedesktop.Notifications"))
-            .and_then(|builder| return builder.build())
-            .expect("the recording notification service starts");
+        let connection = crate::dbus_step_bound::connect(
+            zbus::connection::Builder::address(self.address.as_str()).name("org.freedesktop.Notifications"),
+            crate::dbus_step_bound::DBUS_STEP_BOUND,
+        )
+        .expect("the recording notification service starts");
         let serving = connection.clone();
         // The iterator is made here, before the thread starts: a call that arrives before an iterator exists is never
         // delivered to it, and a loaded host delayed the thread past the first call, which then timed out.
-        let incoming = MessageIterator::from(&connection);
+        let incoming = MessageStream::from(&connection);
         let recorded = Arc::clone(&calls);
         std::thread::spawn(move || answer_notify_calls(&serving, incoming, &recorded, behavior));
         return (connection, calls);

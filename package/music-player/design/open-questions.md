@@ -18,7 +18,8 @@ sections are history for the next round,
  Rejected patterns live
 only in the NO lists of `decisions.md`;
  they never reappear here as candidates.
-**PROVISIONAL** marks a usable design baseline with a stated revisit point, not a final
+**PROVISIONAL** marks a usable design baseline with a stated revisit point,
+not a final
 choice.
  **DEVELOPER-OWNED** marks work the user assigned to developers instead of design
 rounds (2026-09-17):
@@ -111,7 +112,10 @@ and authorizes no dependent implementation.
 All filename investigations exclude matcher choices,
 new IME work and native accessibility acceptance.
 
-- **PROVISIONAL, revisit in another major version (D46, D104): folded-cover picker P4 with an upward caret while open.**
+- **PROVISIONAL,
+  revisit in another major version (D46,
+  D104):
+  folded-cover picker P4 with an upward caret while open.**
   The app-bar folder title and caret
   open the picker in the list slot while the deck remains visible.
   The P comparison
@@ -119,37 +123,47 @@ new IME work and native accessibility acceptance.
   Post-decision native captures now
   show P4 in dark at 200% and L3 light at 100% and 200% (D46 follow-up).
   The 200% mode
-  group border remains visible, and L3's two seams remain distinct from the folder
+  group border remains visible,
+  and L3's two seams remain distinct from the folder
   selection cue.
   An interactive debug-only P4 study at 200% subsequently verified title open/close,
-  Android Back, same-folder selection dismissal, and keyboard focus retained on the
+  Android Back,
+  same-folder selection dismissal,
+  and keyboard focus retained on the
   trigger after Back (see D46 and the interaction evidence JSON).
   Touch dismissal
   leaves keyboard focus unset in touch mode.
   TalkBack accessibility focus remains
-  unmeasured; do not infer it from the keyboard-focus check or static captures.
+  unmeasured;
+  do not infer it from the keyboard-focus check or static captures.
   The cover panel is 1080 × 2424 physical px,
   approximately 443 × 994dp
   at this AVD's measured 390dpi,
   with D41/D42 dark structure and D45
   light seams.
   Selection does not authorize production work.
-- **SETTLED (D104), further improvement deferred to another major version: the folded-cover picker (D46).**
-  The human approved P5 without its container: P4 with the caret pointing up while open.
+- **SETTLED (D104),
+  further improvement deferred to another major version:
+  the folded-cover picker (D46).**
+  The human approved P5 without its container:
+  P4 with the caret pointing up while open.
   They are still unsatisfied and will deal with it in another major version.
   The built P5 is shown beside P4 in `questions/cover-picker-revisit.html`;
   the plan is `doc/planning/music-player-cover-picker-revisit.md`.
   On 2026-10-10 the human asked for the exploration now and left the angle to the agent
-  (one alternative built from the best of the agent's design judgment, then asked to approve).
+  (one alternative built from the best of the agent's design judgment,
+  then asked to approve).
   The user chose P4 while
   believing a better solution exists.
   Explore alternatives at a future design round,
   without assuming an improved replacement must be found or adopted.
   P1 to P3 were not
-  chosen as the working baseline, not banned from exploration.
+  chosen as the working baseline,
+  not banned from exploration.
   K1's discouraging back
   navigation and K3's non-local sheet remain rejected.
-- **SETTLED: Fold Search A with result heading and measured IME exceptions (D47 to D55).**
+- **SETTLED:
+  Fold Search A with result heading and measured IME exceptions (D47 to D55).**
   D47 chooses a Search
   button opening a separate page;
   D48 puts Back,
@@ -223,10 +237,13 @@ new IME work and native accessibility acceptance.
   results starting directly below the one header.
   A later real Gboard probe found a floating keyboard by invoking
   `Show on-screen keyboard` from its physical-keyboard side-toolbar menu.
-  A key tap changed Search's query, but at 200% text the floating key
+  A key tap changed Search's query,
+  but at 200% text the floating key
   surface obscured part of the deck title.
   Dragging it lower obscured more controls rather than docking it.
-  On the folded cover, real Gboard key taps produced `cam`, while the
+  On the folded cover,
+  real Gboard key taps produced `cam`,
+  while the
   floating keyboard completely covered both matching result labels.
   D53 accepts the measured floating-Gboard overlap with the unfolded deck.
   D55 accepts the measured floating cover keyboard obscuring both matching
@@ -382,8 +399,10 @@ new IME work and native accessibility acceptance.
   their activation was settled as D72 to D74 under review task 129,
   but native behavior remains unverified.
   See `evidence/search-result-overflow.md` for bounds and test limitations.
-- **CLOSED as a design item (D103): remaining Search behavior after D51/D52.**
-  What is left is native verification, which waits for an implementation.
+- **CLOSED as a design item (D103):
+  remaining Search behavior after D51/D52.**
+  What is left is native verification,
+  which waits for an implementation.
   Keep positive results,
   no-results/unavailable states and open/back behavior distinct;
   do not
@@ -453,7 +472,9 @@ new IME work and native accessibility acceptance.
   the broad debug unavailable wording was rejected.
   D72 to D74 settle the desired Search result effects:
   folder hits open their folder without autoplay,
-  other track hits start playback (changed by D127 on 2026-10-14: they select the track paused, as a row click does),
+  other track hits start playback (changed by D127 on 2026-10-14:
+  they select the track paused,
+  as a row click does),
   already-current track hits toggle play/pause,
   and successful track actions return to player.
   See `evidence/search-result-activation-frontier.md` and the archived
@@ -481,7 +502,9 @@ new IME work and native accessibility acceptance.
   Cover-specific accessibility remains open;
   D39/D40 settled only the unfolded
   screen.
-- **SETTLED floor; OPEN verification: player information clearance across the crease (E2).**
+- **SETTLED floor;
+  OPEN verification:
+  player information clearance across the crease (E2).**
   The user
   corrected the fixed 24dp unpainted gap:
   keep opposing **informational
@@ -570,7 +593,9 @@ new IME work and native accessibility acceptance.
   its wording and layout were approved as built (D101).
   Production source-status/recovery binding and native accessibility
   acceptance remain separate.
-- **DEVELOPER-OWNED: desktop window default size (11c, D49).**
+- **DEVELOPER-OWNED:
+  desktop window default size (11c,
+  D49).**
   Choose an
   implementation window frame around the Fold-derived treatments;
   do not use it as
@@ -578,7 +603,8 @@ new IME work and native accessibility acceptance.
 - Custom display templating (11e) is settled:
   the editor (D89 to D96,
   D98) and the two lines that get a template (D99).
-- **DEVELOPER-OWNED: MD3-on-Slint feasibility (A4).**
+- **DEVELOPER-OWNED:
+  MD3-on-Slint feasibility (A4).**
   The user assigned feasibility and
  porting studies to developers on 2026-09-17;
   design rounds settle user-facing treatments.
@@ -804,7 +830,8 @@ what the deck’s subtitle shows when the playing track is not in the visible fo
 
 ## 3b. Scrollbars — SETTLED (D22): desktop bar always visible, letter rail has none
 The per-surface table in candidate scroll-a stands otherwise.
- Amended by D125 (2026-10-14): the desktop folder names list has none either.
+ Amended by D125 (2026-10-14):
+the desktop folder names list has none either.
  Original note kept:
 
 ### (history) SPEC PROPOSED, awaiting verdict (candidate scroll-a)
@@ -830,14 +857,17 @@ Open:
 
 ## 3c. Reviewer feedback, 2026-09-03 — decided, now needing build
 
-- **Volume icon + vertical popover** — historical D20 treatment, superseded by D43.
-   No in-app volume control remains; the ↑/↓ keyboard question remains open in section 6.
+- **Volume icon + vertical popover** — historical D20 treatment,
+  superseded by D43.
+   No in-app volume control remains;
+  the ↑/↓ keyboard question remains open in section 6.
 - **Command bar** — historical D21 decision superseded by D47's Search button and
   separate page.
   Do not carry the old global hotkey or Settings row onto Search
   without a new decision;
   see section 0b.
-- **Picker names not as a wall of chips** — settled by D31: wrapped plain-text names,
+- **Picker names not as a wall of chips** — settled by D31:
+  wrapped plain-text names,
   with the current folder marked by primary color and a bottom-edge indicator.
 
 ## 4. Desktop toolkit — SETTLED: Slint, hand-porting accepted (D19 section, A4)
@@ -873,14 +903,18 @@ single revised map rather than binding-by-binding questions.
  Also still open:
  the ↑/↓ popover question dissolved when D43 removed in-app
 volume;
- decide what ↑/↓ does instead (system volume session, or nothing);
+ decide what ↑/↓ does instead (system volume session,
+or nothing);
  and the
 Android media notification appearance is settled by D82:
 accept the platform presentation with no special design.
-**Status (2026-10-10): SETTLED (D102).**
+**Status (2026-10-10):
+SETTLED (D102).**
  The human accepted the whole-map proposal at
 `questions/keyboard-map.prototype.html` as built,
-including the playback-area scope for Space, previous, next and `Ctrl+M`,
+including the playback-area scope for Space,
+previous,
+next and `Ctrl+M`,
 and bare arrows keeping native behavior.
 `evidence/keyboard-map-boundaries.md` separates actual browser behavior
 from unverified OS/native delivery.
@@ -1014,7 +1048,8 @@ of decisions.md.
    section 0b.
 - **Keyboard map / IntelliJ alignment pass** — SETTLED (D102):
    see section 6.
-- **Accessibility pass — SETTLED for the unfolded screen (D39, D40).**
+- **Accessibility pass — SETTLED for the unfolded screen (D39,
+  D40).**
    Other surfaces
   get their accessibility treatment inside their own rounds.
 - **Android media notification presentation** is settled by D82:
@@ -1132,7 +1167,8 @@ surface with a Search button and page.
  the template-aware filename-design work and deferred native
  acceptance.
  Reconsidering the picker
-remains a separate pre-1.x question, not a promise to replace it;
+remains a separate pre-1.x question,
+not a promise to replace it;
  the whole-map keyboard proposal is verified but not adopted;
  the remaining light surfaces are listed in section 11d;
  Android notification presentation is settled by D82;
@@ -1140,9 +1176,12 @@ remains a separate pre-1.x question, not a promise to replace it;
   window sizing follows the Fold design as developer-owned work (D49).
 
 ### 11d. Light-theme surfaces remaining to be drawn
-D45 settles the cover's flat L3 surface with hairlines at both seams, and the P2 picker
+D45 settles the cover's flat L3 surface with hairlines at both seams,
+and the P2 picker
 was captured in that scheme.
- P4, the provisional D46 choice, now has its own L3
+ P4,
+the provisional D46 choice,
+now has its own L3
 captures at 100% and 200% text.
 The first-run/no-library study now has its own inspected native evidence.
 D83's error/Undo overlays also have a completed light/dark study:

@@ -72,9 +72,11 @@ any storage implementing `has`,
 `delete` and `clear`.
  All of `has`,
  `get`,
- and `set` may return promises, so asynchronous
+ and `set` may return promises,
+so asynchronous
 storages work.
- `false` disables caching entirely: only concurrent calls with
+ `false` disables caching entirely:
+only concurrent calls with
 one key share a result.
 
 #### In-flight promises
@@ -162,7 +164,8 @@ sidecar's differential oracle can compare both implementations directly.
 
 Upstream `p-memoize` depends on `mimic-function` for function-identity
 copying and `type-fest` for types.
- Both are gone: `mimic-function` is inlined
+ Both are gone:
+`mimic-function` is inlined
 in `src/mimic-function.ts` (same MIT license,
  attribution above) and the
 awaited return type is derived inline,
@@ -177,7 +180,8 @@ any conforming runtime.
 
 Upstream's `try`/`finally` cleanup becomes `try`/`catch` with the in-flight
 cleanup duplicated before each `return` (repository lint bans `try`/`finally`).
- The duplicate placements preserve upstream's ordering: cleanup runs
+ The duplicate placements preserve upstream's ordering:
+cleanup runs
 before each settlement.
 
 ### Tracking upstream 9.0.0
@@ -196,7 +200,8 @@ started.
  the cleanup ran before the registration landed,
  so the rejected promise stayed in the in-flight map and later calls with the
 same key replayed that rejection.
- Upstream 9.0.0 (commit `a8cec6126`, issues 55 and 62) yields one microtask
+ Upstream 9.0.0 (commit `a8cec6126`,
+issues 55 and 62) yields one microtask
 before running the wrapped function when caching is disabled,
  so registration comes first and a later call recomputes.
 

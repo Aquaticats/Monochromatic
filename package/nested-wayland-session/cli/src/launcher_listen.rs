@@ -4,12 +4,13 @@
 //!  that changed.
 //!  The listener merges each change into what it last knew for that URI and appends the
 //!  result to the bounded history.
-//!  It listens only on the private bus, never on the host session bus.
+//!  It listens only on the private bus,
+//!  never on the host session bus.
 
 /// Imports the per-URI property memory and the lock-protected history.
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    sync::{mpsc, Arc, Mutex, MutexGuard, PoisonError},
     time::Instant,
 };
 
@@ -22,27 +23,30 @@ use tracing::{debug, warn};
 /// Imports the bus types the listener needs.
 ///
 /// What:
-///      `Connection` is the blocking client connection,
-///  `MessageIterator` yields every message the connection receives,
+///      `Connection` is the client connection,
+///  `MessageStream` yields every message that matches the rule it was opened with,
 ///  `MatchRule` names the signals a connection wants,
-///  `OwnedValue` holds one dynamically typed property,
+///  `OwnedVariant` holds one dynamically typed property,
 ///  and `Message` is one received message.
 /// Why:
-///       The listener subscribes with a match rule, then decodes each signal body.
+///       The listener subscribes with a match rule,
+///  then decodes each signal body.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { BusConnection, MatchRule, Message, Variant } from "./dbus";
 /// ```
 use zbus::{
-    blocking::{fdo::DBusProxy, MessageIterator},
     message::{Message, Type},
-    zvariant::OwnedValue,
-    MatchRule,
+    MatchRule, MessageStream, OwnedVariant,
 };
+
+/// Imports `StreamExt` for `next` on the message stream.
+use futures_util::StreamExt;
 
 /// Imports the bounded history the listener appends to.
 use crate::{
+    bus_step_bound::{connect_within_bound, within, BUS_STEP_BOUND},
     launcher_history::{LauncherHistory, LauncherUpdate},
     private_bus::PrivateBus,
 };
@@ -53,7 +57,8 @@ const LAUNCHER_INTERFACE: &str = "com.canonical.Unity.LauncherEntry";
 /// The signal name that carries one update.
 const LAUNCHER_MEMBER: &str = "Update";
 
-/// The properties one launcher entry holds, as last reported.
+/// The properties one launcher entry holds,
+///  as last reported.
 ///
 /// What:
 ///      `pub struct LauncherProperties { ... }`.
@@ -63,15 +68,20 @@ const LAUNCHER_MEMBER: &str = "Update";
 ///  so the listener needs the earlier values to fill the rest.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LauncherProperties {
-    /// Progress between 0 and 1; `0` until the app reports one.
+    /// Progress between 0 and 1;
+    ///  `0` until the app reports one.
     pub progress: f64,
-    /// Whether the progress bar is shown; `false` until the app shows it.
+    /// Whether the progress bar is shown;
+    ///  `false` until the app shows it.
     pub progress_visible: bool,
-    /// Badge number; `0` until the app reports one.
+    /// Badge number;
+    ///  `0` until the app reports one.
     pub count: i64,
-    /// Whether the badge is shown; `false` until the app shows it.
+    /// Whether the badge is shown;
+    ///  `false` until the app shows it.
     pub count_visible: bool,
-    /// Whether the app asks for attention; `false` until the app asks.
+    /// Whether the app asks for attention;
+    ///  `false` until the app asks.
     pub urgent: bool,
 }
 
@@ -82,7 +92,9 @@ impl Default for LauncherProperties {
     /// What:
     ///      `fn default() -> Self`.
     /// Why:
-    ///       A fresh entry shows no progress, no badge, and no attention request.
+    ///       A fresh entry shows no progress,
+    ///  no badge,
+    ///  and no attention request.
     fn default() -> Self {
         return Self {
             progress: 0.0,
@@ -103,7 +115,8 @@ impl Default for LauncherProperties {
 ///       The control thread reads the history on the compositor thread,
 ///  while the listener appends from its own thread.
 pub struct LauncherLog {
-    /// The bounded history, shared with the listener thread.
+    /// The bounded history,
+    ///  shared with the listener thread.
     history: Arc<Mutex<LauncherHistory>>,
 }
 
@@ -119,41 +132,31 @@ impl LauncherLog {
     ///       `dbus-daemon` delivers a broadcast signal only to connections with a matching rule,
     ///  and `start_time` is the compositor's own clock for every timestamp.
     pub fn start(bus: &PrivateBus, start_time: Instant) -> Result<Self> {
-        // What:     Open a client connection to the private bus address only.
-        // Why:      The compositor's inherited `DBUS_SESSION_BUS_ADDRESS` is the host bus,
-        //           and it must never be read here.
-        let connection = zbus::blocking::connection::Builder::address(bus.address())?
-            .build()
-            .context("connecting the launcher listener to the private bus")?;
-
-        // What:     Match only the signal name and interface, not the object path, because
-        //           senders choose their own path under `/com/canonical/unity/launcherentry/`.
-        // Why:      A rule without a match would receive nothing at all.
-        let rule = MatchRule::builder()
-            .msg_type(Type::Signal)
-            .interface(LAUNCHER_INTERFACE)?
-            .member(LAUNCHER_MEMBER)?
-            .build();
-        DBusProxy::new(&connection)
-            .context("creating the bus proxy for the launcher listener")?
-            .add_match_rule(rule)
-            .context("subscribing the launcher listener to LauncherEntry.Update")?;
-
-        // What:     `let messages = MessageIterator::from(&connection);`. Opens the message
-        //           stream here, before the thread starts, and the iterator keeps its own
-        //           connection handle alive.
-        // Why:      A stream opened later could miss an update that arrived in between.
-        let messages = MessageIterator::from(&connection);
-
         // What:     `let history = Arc::new(Mutex::new(LauncherHistory::default()));` then a
         //           second owner for the thread.
         // Why:      The thread appends while the control thread reads.
         let history = Arc::new(Mutex::new(LauncherHistory::default()));
         let shared = Arc::clone(&history);
+        let address = bus.address().to_owned();
+
+        // What:     A one-slot channel the thread answers once the match rule is registered.
+        // Why:      The connection must be built and drained on the thread that runs it, because
+        //           `zbus::block_on` drives a connection built inside it on the calling thread,
+        //           so `start` waits for that thread's word that the subscription is live.
+        let (ready_sender, ready_receiver) = mpsc::sync_channel::<Result<(), String>>(1);
         std::thread::Builder::new()
             .name("nws-launcher".to_owned())
-            .spawn(move || return listen(messages, shared, start_time))
+            .spawn(move || return run_listener(&address, &shared, start_time, &ready_sender))
             .context("starting the launcher listener thread")?;
+
+        // What:     `recv_timeout` with twice the step bound.
+        // Why:      The thread bounds its connect and its registration at one step bound each,
+        //           and the wait never outlives both.
+        match ready_receiver.recv_timeout(BUS_STEP_BOUND * 2) {
+            Ok(Ok(())) => {}
+            Ok(Err(reason)) => anyhow::bail!("subscribing the launcher listener to LauncherEntry.Update: {reason}"),
+            Err(error) => anyhow::bail!("the launcher listener thread did not report a subscription: {error}"),
+        }
         debug!("launcher listener subscribed to LauncherEntry.Update on the private bus");
         return Ok(Self { history })
     }
@@ -171,22 +174,96 @@ impl LauncherLog {
     }
 }
 
-/// Reads signals until the private bus closes.
+/// Subscribes on the private bus,
+///  reports readiness,
+///  and reads signals until the bus closes.
 ///
 /// What:
-///      `fn listen(messages: MessageIterator, history: Arc<Mutex<LauncherHistory>>, start_time: Instant)`.
-///  Owns the subscribed message stream and the per-URI memory for the thread's lifetime.
+///      `fn run_listener(address: &str, history: &Arc<Mutex<LauncherHistory>>, start_time: Instant,
+///           ready:
+///  &mpsc::SyncSender<Result<(),
+///  String>>)`.
+///  One `zbus::block_on` call covers the connect,
+///  the registration,
+///  and the read loop,
+///  so this thread drives the connection it reads.
 /// Why:
 ///       The compositor exits when the bus goes away,
 ///  and the listener needs no separate shutdown signal.
-fn listen(messages: MessageIterator, history: Arc<Mutex<LauncherHistory>>, start_time: Instant) {
+fn run_listener(
+    address: &str,
+    history: &Arc<Mutex<LauncherHistory>>,
+    start_time: Instant,
+    ready: &mpsc::SyncSender<Result<(), String>>,
+) {
+    zbus::block_on(async {
+        let stream = match subscribe(address).await {
+            Ok(stream) => stream,
+            Err(error) => {
+                warn!(error = %format!("{error:#}"), "launcher listener could not subscribe on the private bus");
+                let _ = ready.send(Err(format!("{error:#}")));
+                return;
+            }
+        };
+        let _ = ready.send(Ok(()));
+        listen(stream, history, start_time).await;
+    });
+}
+
+/// Opens a client connection to the private bus and registers the launcher match rule on it.
+///
+/// What:
+///      `async fn subscribe(address: &str) -> Result<MessageStream>`.
+///  The connect and the registration each end after one step bound.
+/// Why:
+///       `MessageStream::for_match_rule` registers the rule and opens the stream in one step,
+///  so an update sent after this returns is never missed.
+async fn subscribe(address: &str) -> Result<MessageStream> {
+    // What:     Open a client connection to the private bus address only.
+    // Why:      The compositor's inherited `DBUS_SESSION_BUS_ADDRESS` is the host bus,
+    //           and it must never be read here.
+    let connection = connect_within_bound(
+        zbus::connection::Builder::address(address),
+        "connecting the launcher listener to the private bus",
+    )
+    .await?;
+
+    // What:     Match only the signal name and interface, not the object path, because
+    //           senders choose their own path under `/com/canonical/unity/launcherentry/`.
+    // Why:      A rule without a match would receive nothing at all.
+    let rule = MatchRule::builder()
+        .msg_type(Type::Signal)
+        .interface(LAUNCHER_INTERFACE)
+        .member(LAUNCHER_MEMBER)
+        .build()
+        .context("building the LauncherEntry.Update match rule")?;
+    return within(
+        BUS_STEP_BOUND,
+        "subscribing the launcher listener to LauncherEntry.Update",
+        MessageStream::for_match_rule(rule, &connection, None),
+    )
+    .await;
+}
+
+/// Reads signals until the private bus closes.
+///
+/// What:
+///      `async fn listen(messages: MessageStream, history: &Arc<Mutex<LauncherHistory>>, start_time: Instant)`.
+///  Owns the subscribed message stream and the per-URI memory for the thread's lifetime.
+///  This read has no time bound by design:
+///  it waits for senders,
+///  and the stream ends when the connection closes.
+/// Why:
+///       The compositor exits when the bus goes away,
+///  and the listener needs no separate shutdown signal.
+async fn listen(mut messages: MessageStream, history: &Arc<Mutex<LauncherHistory>>, start_time: Instant) {
     // What:     `let mut entries: HashMap<String, LauncherProperties> = HashMap::new();`.
     //           The last known properties for each app URI.
     // Why:      Partial updates merge into this memory.
     let mut entries: HashMap<String, LauncherProperties> = HashMap::new();
-    for received in messages {
+    while let Some(received) = messages.next().await {
         match received {
-            Ok(message) => record_message(&message, &mut entries, &history, start_time),
+            Ok(message) => record_message(&message, &mut entries, history, start_time),
             Err(error) => {
                 debug!(%error, "launcher listener stopped reading the private bus");
                 return;
@@ -196,11 +273,16 @@ fn listen(messages: MessageIterator, history: Arc<Mutex<LauncherHistory>>, start
     debug!("launcher listener ended because the private bus closed");
 }
 
-/// Decodes one update, merges it, and appends the result to the history.
+/// Decodes one update,
+///  merges it,
+///  and appends the result to the history.
 ///
 /// What:
 ///      `fn record_message(message: &Message, entries: &mut HashMap<String, LauncherProperties>,
-///           history: &Mutex<LauncherHistory>, start_time: Instant)`.
+///           history:
+///  &Mutex<LauncherHistory>,
+///  start_time:
+///  Instant)`.
 ///  A body that does not match `(s, a{sv})` is logged and skipped.
 /// Why:
 ///       One malformed signal from one app must not end the listener for every app.
@@ -219,10 +301,10 @@ fn record_message(
         return;
     }
 
-    // What:     `message.body().deserialize::<(String, HashMap<String, OwnedValue>)>()`.
+    // What:     `message.body().deserialize::<(String, HashMap<String, OwnedVariant>)>()`.
     //           Decodes the URI and the changed-property map in one step.
     // Why:      The signature `(sa{sv})` is the documented shape of the update.
-    let (app_uri, changes) = match message.body().deserialize::<(String, HashMap<String, OwnedValue>)>() {
+    let (app_uri, changes) = match message.body().deserialize::<(String, HashMap<String, OwnedVariant>)>() {
         Ok(body) => body,
         Err(error) => {
             warn!(%error, "ignored a LauncherEntry.Update whose body does not match (sa{{sv}})");
@@ -257,16 +339,17 @@ fn record_message(
 /// Applies the keys present in one update over the previous properties.
 ///
 /// What:
-///      `pub fn merge_properties(previous: LauncherProperties, changes: &HashMap<String, OwnedValue>)
+///      `pub fn merge_properties(previous: LauncherProperties, changes: &HashMap<String, OwnedVariant>)
 ///           -> LauncherProperties`.
 ///  Each known key that holds a value of the expected type replaces the previous value.
-///  An unknown key is ignored, and a key of the wrong type is logged and keeps the previous value.
+///  An unknown key is ignored,
+///  and a key of the wrong type is logged and keeps the previous value.
 /// Why:
 ///       Senders send only what changed,
 ///  and the Unity convention is that absent properties keep their state.
 pub fn merge_properties(
     previous: LauncherProperties,
-    changes: &HashMap<String, OwnedValue>,
+    changes: &HashMap<String, OwnedVariant>,
 ) -> LauncherProperties {
     return LauncherProperties {
         progress: read_property(changes, "progress", previous.progress),
@@ -277,18 +360,20 @@ pub fn merge_properties(
     }
 }
 
-/// Reads one typed property, keeping `previous` when it is absent or the wrong type.
+/// Reads one typed property,
+///  keeping `previous` when it is absent or the wrong type.
 ///
 /// What:
-///      `fn read_property<'a, T>(changes: &'a HashMap<String, OwnedValue>, key: &str,
-///           previous: T) -> T`.
+///      `fn read_property<'a, T>(changes: &'a HashMap<String, OwnedVariant>, key: &str,
+///           previous:
+///  T) -> T`.
 ///  `T` is the Rust type the D-Bus variant must convert to.
 /// Why:
 ///       One helper keeps the absent and wrong-type rules identical for every property.
-fn read_property<'a, T>(changes: &'a HashMap<String, OwnedValue>, key: &str, previous: T) -> T
+fn read_property<'a, T>(changes: &'a HashMap<String, OwnedVariant>, key: &str, previous: T) -> T
 where
-    T: TryFrom<&'a OwnedValue>,
-    <T as TryFrom<&'a OwnedValue>>::Error: std::fmt::Display,
+    T: TryFrom<&'a OwnedVariant>,
+    <T as TryFrom<&'a OwnedVariant>>::Error: std::fmt::Display,
 {
     // What:     `match changes.get(key) { None => previous, Some(value) => ... }`. An absent
     //           key keeps the previous value without any log.

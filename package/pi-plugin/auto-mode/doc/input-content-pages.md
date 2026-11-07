@@ -13,7 +13,8 @@ Identical-input controls retain 1,091,016 and 1,029,504 bytes,
 a spread of 61,512 bytes.
 Every reconstructed version matches its original SHA-256 digest.
 The changing-input case fails the eight-MiB additional-storage regression budget.
-Receipt: `content-sequence-before.log` in the session's private verification directory.
+Receipt:
+`content-sequence-before.log` in the session's private verification directory.
 
 `input-content-pieces.ts` owns detached chunks and immutable pages of at most 256 chunk references.
 Complete versions retain page references.

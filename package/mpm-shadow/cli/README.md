@@ -664,7 +664,9 @@ A tool's `env` block names environment variables the tool needs in every process
 `ANDROID_HOME` and `ANDROID_SDK_ROOT` for the Android SDK.
 Nothing exports them by itself:
 `install` writes them into a generated mise configuration fragment,
-and mise, which runs every task and shell of the repository, reads that fragment.
+and mise,
+which runs every task and shell of the repository,
+reads that fragment.
 
 - The repository scope writes `.config/mise/conf.d/30-toolchain-env.local.toml` in the worktree.
   The `.local.` part keeps it out of git through the `*.local.*` ignore pattern,
@@ -672,11 +674,14 @@ and mise, which runs every task and shell of the repository, reads that fragment
   The machine-global scope (`install --global`) writes no tool environment at all:
   tool variables are exported in this repository's worktrees only,
   never in a shell outside the repository,
-  so a global lock's `env` block (its `RUSTUP_TOOLCHAIN`, for one) reaches no process through `install --global`.
+  so a global lock's `env` block (its `RUSTUP_TOOLCHAIN`,
+  for one) reaches no process through `install --global`.
   The hand-written global `config.toml` is never edited.
-- Mise reads every file of a `conf.d` directory in name order, so no committed file points at the fragment.
+- Mise reads every file of a `conf.d` directory in name order,
+  so no committed file points at the fragment.
   An `include` of the generated file from a committed one would make mise fail on a fresh clone,
-  before the first `install`, because mise refuses an include of a file that is missing.
+  before the first `install`,
+  because mise refuses an include of a file that is missing.
 - A value with a `/` is relative to the repository scope's toolchain root
   (`<data home>/monochromatic-dev/toolchain`)
   and is written as an absolute path:
@@ -692,17 +697,24 @@ and mise, which runs every task and shell of the repository, reads that fragment
   `update` and other partial syncs leave it alone.
   Tools for another OS family are skipped.
 - A name that is not a plain identifier,
-  a relative value that is absolute or holds an empty, `.` or `..` segment,
-  a value with a control character, a brace or a dollar sign,
+  a relative value that is absolute or holds an empty,
+  `.` or `..` segment,
+  a value with a control character,
+  a brace or a dollar sign,
   and one name declared with two values are refused.
-  Mise reads every value as a Tera template (`{{ }}`, `{% %}`, `{# #}`) and expands `$NAME`,
+  Mise reads every value as a Tera template (`{{ }}`,
+  `{% %}`,
+  `{# #}`) and expands `$NAME`,
   so these are not escaped but refused.
-  The refusal fails the `install` with the tool, the variable and the remedy,
+  The refusal fails the `install` with the tool,
+  the variable and the remedy,
   and leaves the fragment of the last good run as it was.
-  Quotes and backslashes are escaped, since mise reads them back as they were.
+  Quotes and backslashes are escaped,
+  since mise reads them back as they were.
 - The variables reach mise only through directory activation,
   so a process started from outside the worktree (and outside any activated shell) does not have them.
-  `mise exec`, `mise run` and an activated shell in the worktree do.
+  `mise exec`,
+  `mise run` and an activated shell in the worktree do.
 
 ### Updating named tools
 
@@ -930,8 +942,10 @@ cargo binstall --no-confirm --root <toolchain root>/cargo/monochromatic-mpm-shad
 - A crate this repository publishes never compiles:
   `--disable-strategies compile,quick-install` makes a missing or unusable release archive fail the install instead of building the
   crate from source (cargo-binstall 1.26.2 otherwise builds it silently;
-  measured 2026-11-04: the installed `cli-git-native` of `monochromatic-git-policy-cli` 0.5.34 was 13,710,088 bytes
-  against the archive's 13,728,056, beside a `cli-git-service` the archive lacks).
+  measured 2026-11-04:
+  the installed `cli-git-native` of `monochromatic-git-policy-cli` 0.5.34 was 13,710,088 bytes
+  against the archive's 13,728,056,
+  beside a `cli-git-service` the archive lacks).
   When cargo-binstall stops with `Fallback to cargo-install is disabled`,
   the failure names the tool,
   the crate,
@@ -939,21 +953,32 @@ cargo binstall --no-confirm --root <toolchain root>/cargo/monochromatic-mpm-shad
   cargo-binstall's own `WARN resolve:` and `ERROR resolve:` lines,
   and the ways forward (publish a release whose archive holds every declared program,
   lock a version whose archive fits,
-  or, for a timeout or rate limit, give the install a GitHub token or a longer
+  or,
+  for a timeout or rate limit,
+  give the install a GitHub token or a longer
   `BINSTALL_MAXIMUM_RESOLUTION_TIMEOUT`).
   Any other binstall failure keeps the generic message.
   A third-party crate keeps cargo-binstall's strategies,
   so one with no prebuilt archive is still compiled when needed.
   The same flag switches off the quick-install strategy (the third-party cargo-quickinstall host of prebuilt binaries)
-  for these crates, so their binaries come only from the crate's own release archive.
+  for these crates,
+  so their binaries come only from the crate's own release archive.
   cargo-binstall still finds that archive itself from the crate's published binstall metadata;
   mpm-shadow passes no URL.
-  Owner decision 2026-11-04 (question tool), "A: one flag, our crates (Recommended)":
+  Owner decision 2026-11-04 (question tool),
+  "A:
+  one flag,
+  our crates (Recommended)":
   "The point of cargo-binstall is for us to not manually point to gh releases ourselves!"
-  Since 2026-11-07 the repository's seven locked tools no longer take this path: they use the `archive` route of the
-  repository's GitHub releases, because their later `-alpha` releases skip crates.io; the owner's answer and what is
-  still open are in `doc/decision/mpm-toolchain-adoption.md`, "Our seven tools install from GitHub release archives".
-  A third-party crate keeps both strategies (measured 2026-11-04: `fastmod` and `apple-codesign` resolve only through quick-install).
+  Since 2026-11-07 the repository's seven locked tools no longer take this path:
+  they use the `archive` route of the
+  repository's GitHub releases,
+  because their later `-alpha` releases skip crates.io;
+  the owner's answer and what is
+  still open are in `doc/decision/mpm-toolchain-adoption.md`,
+  "Our seven tools install from GitHub release archives".
+  A third-party crate keeps both strategies (measured 2026-11-04:
+  `fastmod` and `apple-codesign` resolve only through quick-install).
 - Tracking stays on (no `--no-track`):
   the root's `.crates.toml` is the record `list` and `install` read,
   and cargo-binstall's own lock then covers two trees installing one version at once.
@@ -964,9 +989,12 @@ cargo binstall --no-confirm --root <toolchain root>/cargo/monochromatic-mpm-shad
   each tree's `.cache/toolchain-bin` links the version its own lock names.
 - A tool whose crate name starts with `monochromatic-` (the prefix the registry prune already uses for this
   repository's own crates) is repository-published.
-  Letter case and `_` versus `-` are ignored, as crates.io ignores them, so `Monochromatic_X` is the same crate;
+  Letter case and `_` versus `-` are ignored,
+  as crates.io ignores them,
+  so `Monochromatic_X` is the same crate;
   a name that merely contains `monochromatic` elsewhere is not.
-  The same rule decides the newest-only layout and the never-compile rule, so the two cannot disagree.
+  The same rule decides the newest-only layout and the never-compile rule,
+  so the two cannot disagree.
   So is an `archive` tool whose request names `github:Aquaticats/Monochromatic`
   (in any letter case,
   because GitHub owner and repository names are case-insensitive)
@@ -1062,7 +1090,8 @@ the newest finished copy wins wherever it is.
   `mpm update <tool id>` for a tree,
   and `mpm update -g <tool id>` for the machine-global lock.
   The id is printed as one shell word,
-  single-quoted when it holds anything other than letters, digits and `@%+=:,./_-`,
+  single-quoted when it holds anything other than letters,
+  digits and `@%+=:,./_-`,
   so the command can be pasted as it is.
   It names no mise task,
   because the repository is moving away from mise and `mpm update -g` works from any directory.
@@ -1234,30 +1263,44 @@ which the same `install` retires (see "Old copies of this repository's tools").
 ### Postinstall links the lock no longer declares
 
 A postinstall link (such as `cargo` for `cargo-shadow` in `.cache/cargo-shadow-bin`) that is dropped from the plan,
-renamed, or moved to another directory used to stay where it was,
+renamed,
+or moved to another directory used to stay where it was,
 and a directory early on `PATH` kept running a tool the plan had stopped linking.
-`install` now keeps a record of the links it makes, `.postinstall-links.json` in the scope's launcher directory,
+`install` now keeps a record of the links it makes,
+`.postinstall-links.json` in the scope's launcher directory,
 and removes a recorded link the lock no longer declares.
 
 - A recorded link is removed only while it is still the symlink the record names.
-  A regular file, a directory, or a symlink to somewhere else at that path belongs to a person:
-  it stays untouched, `install` prints a warning that names the path and what is there,
+  A regular file,
+  a directory,
+  or a symlink to somewhere else at that path belongs to a person:
+  it stays untouched,
+  `install` prints a warning that names the path and what is there,
   and the path leaves the record so the warning appears once.
-- A link made before the record existed is not in it, so it is never removed; delete such a link by hand once.
-- A repository scope retires only links inside its own checkout, and none inside a checkout nested in it
+- A link made before the record existed is not in it,
+  so it is never removed;
+  delete such a link by hand once.
+- A repository scope retires only links inside its own checkout,
+  and none inside a checkout nested in it
   (a directory with a `.git` entry between the checkout root and the link).
-  A new worktree starts as a snapshot of the checkout it was made from, `.cache` included,
+  A new worktree starts as a snapshot of the checkout it was made from,
+  `.cache` included,
   so its first record names that checkout's links by absolute path;
   `install` in the new worktree never inspects or removes those paths and leaves them out of the record it writes.
-  Before this rule, that install removed the source checkout's links and left its `.cache/*-bin` folders empty
+  Before this rule,
+  that install removed the source checkout's links and left its `.cache/*-bin` folders empty
   (`doc/troubleshooting/mpm-shadow-record-copied-into-a-new-worktree-retires-the-source-links.md`).
-- The global scope keeps retiring every path its own record names, because nothing copies that record.
+- The global scope keeps retiring every path its own record names,
+  because nothing copies that record.
 - A repository scope no longer retires a link whose plan `linkDir` is an absolute path outside the checkout;
-  the plan uses only relative ones, and such a link is left where it is.
-- A partial `install` (named tools, or the `update` that installs a few) keeps the recorded links of the other tools.
+  the plan uses only relative ones,
+  and such a link is left where it is.
+- A partial `install` (named tools,
+  or the `update` that installs a few) keeps the recorded links of the other tools.
 - An unreadable record retires nothing and says so.
 - Each removal is one line of the install report (`retired the postinstall link ...`).
-- Where the link is a hard link instead of a symlink (a platform without symlinks), it counts as a person's file
+- Where the link is a hard link instead of a symlink (a platform without symlinks),
+  it counts as a person's file
   and is left with a warning.
 
 ### Old copies of this repository's tools
@@ -1521,29 +1564,44 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   so it cannot be read as part of the mpm command that ran before it.
   Nothing is printed when nothing was removed.
   `MPM_SHADOW_VERBOSE=1` adds one `mpm-shadow: deleted stale <path>` line per removed path after the summary.
-  A path that could not be removed is always listed, with the system's reason,
+  A path that could not be removed is always listed,
+  with the system's reason,
   and the summary line counts it.
 - Skips every candidate that resolves to its own executable when it looks for the real `mpm`,
   and every launcher whose record names its own executable.
-  `install` links `mpm` to a per-tree launcher (a copy or hard link of this binary with a `.launch` record beside it), which starts the installed binary under the name `mpm`;
-  the launcher is another file, so skipping only the binary's own path took the launcher for the real `mpm`,
-  started it, and the chain repeated until the host refused new processes (issue 6259).
+  `install` links `mpm` to a per-tree launcher (a copy or hard link of this binary with a `.launch` record beside it),
+  which starts the installed binary under the name `mpm`;
+  the launcher is another file,
+  so skipping only the binary's own path took the launcher for the real `mpm`,
+  started it,
+  and the chain repeated until the host refused new processes (issue 6259).
 - Counts the shadows that started it in the `MPM_SHADOW_NESTING` environment variable,
   passes the count plus one to the program it starts,
-  and refuses to start a program from the fourth level on (exit status 126, with a message that says why).
-  A chain of shadows is never intended; the bound turns a runaway chain into a short, explained failure.
-- Starts the real `mpm` again, with pauses that double up to half a second and total at most five seconds,
-  when the system refuses the start for lack of processes (`EAGAIN`, "Resource temporarily unavailable").
-  A refused start started nothing, so starting again is safe.
+  and refuses to start a program from the fourth level on (exit status 126,
+  with a message that says why).
+  A chain of shadows is never intended;
+  the bound turns a runaway chain into a short,
+  explained failure.
+- Starts the real `mpm` again,
+  with pauses that double up to half a second and total at most five seconds,
+  when the system refuses the start for lack of processes (`EAGAIN`,
+  "Resource temporarily unavailable").
+  A refused start started nothing,
+  so starting again is safe.
   After a start that needed retries it says so once on standard error.
-- Explains a start that fails for good, instead of one bare line:
+- Explains a start that fails for good,
+  instead of one bare line:
   the command that was run,
   the program it tried,
   the stage,
-  the cause in plain words (a process limit, missing permission, a missing program or interpreter, or the system's own words),
+  the cause in plain words (a process limit,
+  missing permission,
+  a missing program or interpreter,
+  or the system's own words),
   what to do,
   the exit status (126) and why the command reports it,
-  and what had completed (nothing of the command ran, and the post-run cleanup does not run).
+  and what had completed (nothing of the command ran,
+  and the post-run cleanup does not run).
 - Shows that it is a shadow in the two places a person looks,
   after mpm's own output and only after a successful run:
   a top-level `mpm --version` prints mpm's version text,

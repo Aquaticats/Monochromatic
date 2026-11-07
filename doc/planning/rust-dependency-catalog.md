@@ -228,10 +228,10 @@ Primary sources gathered by a research subagent;
 - A crate inherits only from a workspace it is a member of;
    membership brings that root's single `Cargo.lock` and root-only `[profile.*]`.
    [Cargo workspaces reference][cargo-workspaces].
-- Nested workspaces ([rust-lang/cargo#5042]) is open,
+- Nested workspaces ([rust-lang/cargo#5042][]) is open,
    needs an RFC,
    and nobody is working on it.
-   Remote version definitions ([rust-lang/cargo#15435]) is open with no accepted design.
+   Remote version definitions ([rust-lang/cargo#15435][]) is open with no accepted design.
 - A registry dependency without `version`,
    `path`,
    `git`,
@@ -276,7 +276,7 @@ Probe (throwaway crate,
    `cargo-workspaces`,
    and `cargo-rail` all work within one workspace at a time.
 - Cargo's `unused_workspace_dependencies` lint flags a `[workspace.dependencies]` entry no member inherits;
-   stabilized for Rust 1.100 ([rust-lang/cargo#17298]),
+   stabilized for Rust 1.100 ([rust-lang/cargo#17298][]),
    present on the repo's nightly.
    Fleet-wide staleness (an entry no crate uses) still has to live in the generator.
 - `cargo-deny` `[bans.workspace-dependencies]` flags literal declarations beside an inherited one,
@@ -284,8 +284,8 @@ Probe (throwaway crate,
 - Renovate's cargo manager extracts `[workspace.dependencies]` and can group updates across roots with `groupName`;
    propagating a catalog bump needs the generator to run (`postUpgradeTasks`,
   admin-allowed).
-   Dependabot has open bugs for many roots in one repo ([dependabot-core#11861]) and for files that are both package and
-   workspace root ([dependabot-core#16037]).
+   Dependabot has open bugs for many roots in one repo ([dependabot-core#11861][]) and for files that are both package and
+   workspace root ([dependabot-core#16037][]).
 
 ### Precedent
 
@@ -579,7 +579,7 @@ On the repo's cargo (`1.101.0-nightly`),
  `cargo -Zunstable-options generate-lockfile --help` lists
  `--publish-time <yyyy-mm-ddThh:mm:ssZ>`,
  "Latest publish time allowed for registry packages (unstable)"
- (tracking issue [rust-lang/cargo#16271]);
+ (tracking issue [rust-lang/cargo#16271][]);
  `cargo update --help` lists no such flag.
 So a release age can bound a full re-resolution but not a selective `cargo update <spec>`.
 The index `pubtime` field it relies on was stabilized in Rust 1.94.0.
