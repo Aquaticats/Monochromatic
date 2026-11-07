@@ -187,7 +187,7 @@ and the worktree subvolumes are nested inside it.
   A user-level copy cannot read them;
   only a root-level copy (send and receive,
   or `rsync` as root) keeps them.
-  The count is in the whole-set section.
+  The count (126) is in the section "Whole-set figure".
 
 ### Free space after each scope
 
@@ -212,14 +212,13 @@ because the nested worktrees decide what can fit:
   This scope cannot be done.
 - Scope three:
   main plus all worktrees with extent sharing kept (send and receive with clone sources):
-  main's 80.5 GiB plus the exclusive bytes of the worktrees.
-  The 137 small worktrees are below 2000 MiB each in total,
-  the 84 large ones share most extents with main
-  (sample:
-  384 MiB exclusive of 44 GiB).
-  The measured whole-set figure replaces this estimate;
-  the estimate is main plus roughly 250 to 300 GiB,
-  unmeasured.
+  263.6 GiB of logical bytes measured in "Whole-set figure",
+  fewer on disk after compression.
+  860 free:
+  662G minus at most 263.6 GiB leaves at least about 398 GiB.
+  NVMe free after the owner removes the old copy:
+  up to the shared-extent footprint of that copy comes back,
+  which this plan did not separate from other data on the NVMe pool and does not estimate.
 - Scope four:
   main plus a chosen subset of worktrees (for example the 44 unmerged branches plus the 116 detached
   ones,
@@ -228,18 +227,27 @@ because the nested worktrees decide what can fit:
 
 ### Whole-set figure
 
-The reflink-aware measurement started at 2026-11-07T05:41:25-05:00 and was still running when this file was first
-committed.
-If the next section is empty,
-rerun `btrfs filesystem du --summarize --raw /var/home/user/Monochromatic`
-inside `systemd-run --user --scope` with the same four bounds,
-and read total,
-exclusive and set shared;
-the sum of exclusive and set shared is the sharing-preserving footprint,
-before compression.
+`btrfs filesystem du --summarize --raw /var/home/user/Monochromatic`
+(inside `systemd-run --user --scope` with the four bounds,
+started 2026-11-07T05:41:25-05:00,
+finished before 2026-11-07T05:53:59-05:00;
+it descends into nested subvolumes) printed:
 
-Result:
-pending.
+- Total 4115920404480 bytes (3833 GiB),
+  the sum with every shared extent counted once per reference.
+- Exclusive 106125254656 bytes (98.8 GiB).
+- Set shared 176884908032 bytes (164.7 GiB).
+- Exclusive plus set shared is 283010162688 bytes (263.6 GiB):
+  the footprint with sharing preserved,
+  as logical bytes before zstd compression.
+  The per-worktree `du` sum (3753 GiB) is on-disk compressed bytes per worktree with sharing ignored,
+  which is why it
+  is close to the Total.
+- Unreadable files:
+  126 permission errors (all root-owned mode 600 `*.log.jsonl` and `*.probe.tmp` files under
+  `node_modules/.monochromatic/`):
+  90 in worktree `agent-a6f97f5da6f22de4d` and 36 in `package/wg/cli-quicker`.
+  Their bytes are missing from these figures.
 
 ## Inventory of what names or depends on the repository path
 
@@ -1182,7 +1190,6 @@ cons and a ranking.
 - The systemd source was read at the `main` branch,
   not at the installed 262.1 tag.
 - The reflink-preserving behavior of send with clone sources and of `rsync --inplace` was not run.
-- The whole-set `btrfs filesystem du` figure was pending at the first commit.
 - Uncommitted work inside the 243 worktrees was not measured.
 - The `notify-send` deadlock candidate is a reading of the unit script,
   not an observation.
