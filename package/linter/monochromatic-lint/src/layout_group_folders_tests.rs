@@ -402,3 +402,32 @@ fn layout_the_smallest_proof_wins_among_the_folders_one_child_uses_in_a_group() 
     );
     assert!(missing[0].contains("src/g/b"), "{}", missing[0]);
 }
+
+/// One reference that reaches two folders of a group,
+///  by naming a re-exporting folder and the folder that defines the item,
+///  makes one missing-summary finding that names the first of the two.
+#[cfg(unix)]
+#[test]
+fn layout_one_reference_that_reaches_two_folders_of_a_group_names_the_first() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod g;\nmod h;\n"),
+        ("src/g/mod.rs", "//! The group g.\nmod a;\nmod b;\n"),
+        ("src/g/a/mod.rs", "pub use super::b::Thing;\n"),
+        ("src/g/b/mod.rs", "pub struct Thing;\n"),
+        ("src/h/mod.rs", "mod c;\n"),
+        ("src/h/c/mod.rs", "use crate::g::a::Thing;\n"),
+    ]);
+    link(&fixture.path, "src/g/a/uses/b", "../../b");
+    link(&fixture.path, "src/h/c/uses/a", "../../../g/a");
+    link(&fixture.path, "src/h/c/uses/b", "../../../g/b");
+    let missing: Vec<String> = findings_of(&fixture.path)
+        .into_iter()
+        .filter(|item| return item.contains("src/h/uses has no link to src/g"))
+        .collect::<Vec<String>>();
+    assert_eq!(missing.len(), 1, "{missing:#?}");
+    assert!(
+        missing[0].contains("src/h/c uses the folder src/g/a ("),
+        "{}",
+        missing[0]
+    );
+}
