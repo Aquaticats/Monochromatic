@@ -1576,6 +1576,15 @@ fractional or non-numeric value is ignored.
   The failure record then starts with plain words that say which one it was, above Git's own words
    (for a decline, the message the server's hook printed).
   A rejection by the server whose reason is none of these is tried again, and the journal names its line.
+  The service never asks anyone for a login.
+  The Git and `git-lfs` children it starts (the push, the fetch of a reconcile, the LFS upload, upkeep, landing) run with
+   `GIT_ASKPASS` set to the empty string and `GIT_TERMINAL_PROMPT=0`, because Git and `git-lfs` try `GIT_ASKPASS`, `core.askPass`
+   and `SSH_ASKPASS` before they read `GIT_TERMINAL_PROMPT`, and the manager that starts the service can carry
+   `SSH_ASKPASS=/usr/bin/ksshaskpass` and a display.
+  A push whose credential helper gives no answer therefore fails at once with "terminal prompts disabled", which is the login
+   failure above, and no desktop password dialog opens for nobody to answer.
+  `SSH_ASKPASS` stays in the environment for OpenSSH's key passphrases, and a command you type keeps Git's own prompting.
+  The evidence is in [the askpass troubleshooting note][askpass-dialog].
   The failure record the next command shows says that the service keeps trying, and goes when the push lands.
   The plan survives a restart of the service: it is kept on disk, one small file per branch, in the service instance's own
    journal (`push-retries`), and the service that starts next rebuilds it and tries again with no wrapper command.
@@ -1936,6 +1945,18 @@ cargo build --release --locked --bin monochromatic-git-policy-cli
 The release profile keeps `panic = "unwind"` and `overflow-checks = true`.
 The linked scanner turns a matcher panic into a failing finding by catching the unwind,
 and the crate refuses to compile under `panic = "abort"`.
+
+### Git commands that may need a login
+
+NDG:
+ Git or git-lfs commands this package's tests, scripts or agents start that may reach a login set `GIT_ASKPASS` to the empty string and `GIT_TERMINAL_PROMPT=0`
+ ([why][askpass-dialog]).
+
+Set only `GIT_TERMINAL_PROMPT=0` and the desktop's password dialog still opens on a host whose `SSH_ASKPASS` names one.
+In a Rust test that is `.env("GIT_ASKPASS", "").env("GIT_TERMINAL_PROMPT", "0")`.
+A test that has to see the prompt program start (the controls in `src/native/landing/service_push_retry_tests.rs`) points
+`SSH_ASKPASS` at a recorder that answers a name,
+so no window opens.
 
 ### Git's own fsmonitor
 
@@ -2541,6 +2562,7 @@ The license texts are in `LICENSES/`.
 
 [mise]: https://mise.jdx.dev/
 [repository]: https://github.com/Aquaticat/Monochromatic
+[askpass-dialog]: ../../../doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md
 
 ## The commit service
 
