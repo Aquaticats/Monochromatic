@@ -3973,8 +3973,21 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     a file system
     without leases makes the fold fail with its one-line message and keep every byte;
   - tokio (`feat/git-policy-cli-on-tokio`,
-    tip `1dc503d259`,
-    not merged):
+    tip `944bdd30b5` after the coordinator merged main and resolved the plan-doc conflict to the branch side,
+    whose only main change was the linter's whitespace reflow;
+    the agent's last gate was 5209 of 5209 on `ad314ca6eb`;
+    the merged tree's gate runs as unit `tokio-merge-gate-944bdd30b5`,
+    log `~/temp/agent/tokio-merge-gate-944bdd30b5.log`;
+    then merge into main,
+    `native:perf`,
+    a wrapper alpha,
+    and the mutation campaign over the changed files;
+    the D-state stop and the 18 s held-name wait are in;
+    one unexplained failure in that agent's first gate,
+    `repair::package_repair_command::tests::a_helper_that_keeps_writing_after_the_leader_exits_does_not_hold_the_run`
+    (0.506 s against 0.32 s,
+    untouched code),
+    is open):
     the three settlements (one-shot pipe reader,
     futex name-claim wait,
     measured bounds),
@@ -4902,6 +4915,26 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   Its worktree `.claude/worktrees/lfs-credential-fix` is still there.
 
 ### Repository on the 860: plan revised, owner questions next
+
+- Owner,
+  2026-11-07T12:46:40-05:00,
+  on the one remaining decision (the cut-over window),
+  verbatim:
+  "No need to wait for me.
+  Do it whenever you see fit."
+  Recorded in the plan (`06184a2f7d`,
+  section "The owner's go-ahead on timing").
+  The coordinator picks the window when no agent works in a worktree.
+  Every copy step needs root,
+  so the owner runs them from one guided script
+  (fixture test,
+  `R0` inventory,
+  first pass,
+  then the final pass and the link at the chosen moment).
+  Next:
+  build that script with the `wizard` skill from the plan's runbook and its `move-repository.ts`,
+  dry-run it in print mode,
+  at the first free agent slot.
 
 - The symlink plan is committed (`4f430a0683`,
   `837fc9a6eb`) in `doc/planning/repository-on-the-860-drive.md`;
