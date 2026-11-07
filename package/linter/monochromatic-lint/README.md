@@ -579,8 +579,7 @@ which leaves its other rules selected:
 
 Two crate-wide rules check that the folder tree of a Rust package shows who depends on whom
 (`AGENTS.md` rules LYD,
-LYL,
-LYC and LYF).
+LYL and LYF).
 Both are off by default and are switched on for a package in configuration,
 by selecting them for any of its Rust files:
 
@@ -966,6 +965,11 @@ A root named by a `[[bin]]` path anywhere else is not read for code.
 - A group is recognised by its child folders,
   so a folder that holds child folders must be a shelf;
   the rules have no way to say that a folder with code and child folders is on purpose.
+- The group checks are part of `rust/folder-uses-links`,
+  and `rust/file-order-in-folder` leaves a group folder alone.
+  With only the file rule selected,
+  code in a group's `mod.rs` is therefore not reported,
+  where the file rule's index check reported it before the group rules.
 - Only `[lib] path` and `[[bin]] path` written as `path = "..."` lines are read from `Cargo.toml`;
   dotted keys and inline tables are not,
   and test,
