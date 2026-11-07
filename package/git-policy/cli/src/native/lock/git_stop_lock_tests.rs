@@ -74,6 +74,9 @@ enum Holder {
     /// a `SIGKILL` at the end of the grace then
     ///  falls between the removal of the pid file and the removal of the lock.
     SlowToFinishCleanup,
+    /// As `SlowToFinishCleanup`, held for twice `STOP_GRACE`: the watched stop's grace is that constant, and the kill at its end falls
+    ///  inside the hold.
+    HeldPastTheStopGrace,
 }
 
 /// How long the handler of the slow holder is held after its first `unlink`,
@@ -145,6 +148,7 @@ fn holder(stage: &Stage, kind: Holder) -> Command {
     // `strace` holds the first `unlink` of Git after it ran: the handler removes the pid file first and the lock second.
     let git: String = match kind {
         Holder::SlowToFinishCleanup => format!("strace -f -o /dev/null -e trace=unlink -e inject=unlink:delay_exit={CLEANUP_DELAY_MICROSECONDS}:when=1 /usr/bin/git"),
+        Holder::HeldPastTheStopGrace => format!("strace -f -o /dev/null -e trace=unlink -e inject=unlink:delay_exit={}:when=1 /usr/bin/git", 2 * crate::bounded_push::STOP_GRACE.as_micros()),
         Holder::Responsive | Holder::Unresponsive => String::from("/usr/bin/git"),
     };
     let script: String = format!(
@@ -253,7 +257,7 @@ fn bounded_run_leaves_no_lock(kind: Holder, name: &str) {
     let stage: Stage = stage(name);
     let grace: Duration = match kind {
         Holder::Responsive => RESPONSIVE_GRACE,
-        Holder::Unresponsive | Holder::SlowToFinishCleanup => SHORT_GRACE,
+        Holder::Unresponsive | Holder::SlowToFinishCleanup | Holder::HeldPastTheStopGrace => SHORT_GRACE,
     };
     // The slow holder is held in a traced stop, which only the control's rule counts as a wait the stop may extend (see above).
     let _rules = matches!(kind, Holder::SlowToFinishCleanup).then(|| { return rules_for_this_thread(ControlRules { blocked: held_where_a_signal_cannot_act, ceiling: STOP_CEILING }); });
@@ -309,6 +313,29 @@ fn a_push_stop_of_a_responsive_holder_leaves_no_lock() {
 #[test]
 fn a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock() {
     bounded_run_leaves_no_lock(Holder::SlowToFinishCleanup, "stop-lock-push-slow-cleanup");
+}
+
+/// A kill that falls between Git's two unlinks leaves no lock either, whatever the load.
+/// Why:
+///  Git's handler removes the pid file of a lock and then the lock; a stop whose kill arrives between the two leaves the lock with
+///  no pid file, and the sweep, which had only that pid file to name the holder, left it as unproven (the container gate of 2026-11-07
+///  left `refs/remotes/origin/main.lock` after 29.9 s while the host was loaded). The stop that waits while a member cannot be
+///  interrupted only makes the cut rarer. The holder here is held after its first unlink by a traced stop, which the production rule
+///  does not count as a wait, so the kill at the end of the grace falls exactly between the two. The wrapper saw the pid file name the
+///  holder before it signalled it, so the lock is the holder's by its own observation.
+#[test]
+fn a_kill_between_the_pid_file_and_the_lock_still_leaves_no_lock() {
+    let stage: Stage = stage("stop-lock-push-cut-cleanup");
+    let attempt = run_bounded_push(holder(&stage, Holder::SlowToFinishCleanup), Patience::Fixed(HOLD_DEADLINE), SHORT_GRACE, scratch_environment().as_slice()).expect("runs");
+    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its deadline");
+    assert_clean_after_stop(&stage, Holder::SlowToFinishCleanup, "bounded run cut between the unlinks");
+    remove(stage.root.as_path());
+}
+
+/// The same cut in the watched path leaves no lock.
+#[test]
+fn a_watched_kill_between_the_pid_file_and_the_lock_still_leaves_no_lock() {
+    watched_step_leaves_no_lock(Holder::HeldPastTheStopGrace, "stop-lock-watched-cut-cleanup");
 }
 
 /// A member that never leaves the state where a signal cannot act is still ended at the stop's ceiling:
