@@ -714,7 +714,7 @@ dependencies = [
 
 [[package]]
 name = "monochromatic-browserslist"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64",
  "directories",
@@ -732,7 +732,7 @@ dependencies = [
 
 [[package]]
 name = "monochromatic-dependency-catalog"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "toml_edit",
 ]
@@ -769,11 +769,11 @@ dependencies = [
 
 [[package]]
 name = "monochromatic-jsonc-edit"
-version = "0.1.2"
+version = "0.1.3"
 
 [[package]]
 name = "monochromatic-xml-edit"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "notify"

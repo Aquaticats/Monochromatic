@@ -8,7 +8,9 @@ A KDE dialog titled for SSH credentials appears on the desktop with a prompt suc
 Username for "http://127.0.0.1:18765"
 ```
 
-It was seen on 2026-11-07 while an agent ran an LFS end-to-end test against a fake LFS server on `127.0.0.1:18765`.
+It was seen at 2026-11-07T06:21:00-05:00, open for 115 seconds by then,
+while an agent ran an LFS end-to-end test against a fake LFS server on `127.0.0.1:18765`;
+it was closed at 2026-11-07T06:23:10-05:00.
 The dialog was `/usr/bin/ksshaskpass` (PID 3682988).
 Its parent had already exited, so `systemd --user` had adopted it,
 and it sat open with nobody left to read the answer.
@@ -189,7 +191,7 @@ const arms: [string, Record<string, string>][] = [
 ];
 ```
 
-It ran on 2026-11-07 in `systemd-run --user --scope` with `CPUQuota=200%`, `MemoryMax=1G`, `TasksMax=200` and `IOWeight=10`.
+It finished at 2026-11-07T06:25:36-05:00 (the time of its `result.json`) in `systemd-run --user --scope` with `CPUQuota=200%`, `MemoryMax=1G`, `TasksMax=200` and `IOWeight=10`.
 
 ### Runs that open a prompt program
 
@@ -285,14 +287,14 @@ The probe did not run this form.
 
 ## What this repository does about it
 
-The wrapper's production code set neither `GIT_ASKPASS` nor `GIT_TERMINAL_PROMPT` on 2026-11-07
+The wrapper's production code set neither `GIT_ASKPASS` nor `GIT_TERMINAL_PROMPT` at main `73173e0f41` (2026-11-07T06:30:33-05:00)
 (`rg 'GIT_ASKPASS|GIT_TERMINAL_PROMPT' package/git-policy/cli/src` found them only in tests and in the list of
 names a plain read tolerates, `repo_read_layout_environment_rules.rs`).
 Its background service runs under the systemd user manager, which carries `SSH_ASKPASS` and a display,
 so a background push whose credential helper gives no answer could open this dialog.
 That was a reading of the code, not a run.
 
-The owner's answers on 2026-11-07:
+The owner's answers, recorded in `ad1802df3c` (2026-11-07T06:37:42-05:00):
 
 - Asked what the wrapper's background Git should do, the owner picked "Never prompt (Recommended)":
   background Git and git-lfs run with `GIT_ASKPASS=` and `GIT_TERMINAL_PROMPT=0`,
@@ -309,14 +311,14 @@ The owner's answers on 2026-11-07:
 
 ## Upstream filing decision
 
-Checked on 2026-11-07.
+Checked for `ccdf827304` (2026-11-07T06:30:01-05:00).
 `.out-of-scope/` has no entry for Git or git-lfs.
 Nothing is drafted, because the first constraint fails.
 
 1. Is it upstream's fault?
    No.
    The order is Git's documented behavior.
-   The `gitcredentials` manual ([gitcredentials][git-doc-credentials]) says, read on 2026-11-07:
+   The `gitcredentials` manual ([gitcredentials][git-doc-credentials]) says, read for `ccdf827304` (2026-11-07T06:30:01-05:00):
    "If the GIT_ASKPASS environment variable is set, the program specified by the variable is invoked.",
    then "Otherwise, if the core.askPass configuration variable is set",
    then "Otherwise, if the SSH_ASKPASS environment variable is set",

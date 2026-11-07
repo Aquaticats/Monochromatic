@@ -52,11 +52,11 @@ clap = { workspace = true, features = ["derive"] }
 # `preserve_order` keeps every key in its original position through a read-modify-write.
 serde_json = { workspace = true, features = ["preserve_order"] }
 # Plans `rust-catalog.toml` and every `[workspace.dependencies]` table for the `rust-catalog` rule kind.
-monochromatic-dependency-catalog = { path = "../../dependency-catalog/core-native", version = "=0.2.0" }
+monochromatic-dependency-catalog = { path = "../../dependency-catalog/core-native", version = "=0.2.1" }
 # Resolves `.browserslistrc` against the pinned data lock for the `browserslist` rule kind.
-monochromatic-browserslist = { path = "../../browserslist/core-rust", version = "=0.1.0" }
+monochromatic-browserslist = { path = "../../browserslist/core-rust", version = "=0.1.1" }
 # Edits the JetBrains settings XML attribute by attribute for the `jetbrains-harper` rule kind.
-monochromatic-xml-edit = { path = "../../xml-edit/core-rust", version = "=0.1.0" }
+monochromatic-xml-edit = { path = "../../xml-edit/core-rust", version = "=0.1.1" }
 
 [dev-dependencies]
 # Disposable worktrees and runtime directories for the binary tests.

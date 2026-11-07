@@ -56,7 +56,7 @@ path = "src/native/candidate/candidate_consumer_tests.rs"
 
 [dependencies]
 # Both native tools use the already adopted comment-preserving JSONC foundation.
-monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.2" }
+monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.3" }
 # The pure catalog specifier rule behind the `mono/catalog-specifiers` policy: manifest bytes in, findings out.
 # The pnpm wrapper shares it, so the policy never re-implements the grammar (doc/handover/catalog-specifier-policy.md).
 monochromatic-catalog-specifier = { path = "../../catalog-specifier/core-rust", version = "=0.1.0" }

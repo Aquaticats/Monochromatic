@@ -3578,6 +3578,41 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The wrapper (0.5.34 to 0.6.0) can go after the other 15 crates.
 - The earlier per-user scratch (`<state>/cli-git/scratch`) is still not swept; the owner's pick covered the repository scratch only.
 - The daily toolchain timer must not run for real until the batch ends (its agent was told).
+- The batch agent started after merge `73173e0f41` with the 15 crates; "go wrapper" waits for the background-prompt fix below.
+  It runs on the default subagent model because an `opus` override was refused by a permission rule;
+  the owner, asked, answered "Keep it running (Recommended)".
+- While tracing the dialog, a pattern read of another process's environment (`CLAUDE[A-Z_]*`) printed an API key and a
+  messaging token into the session log; the owner answered "I'll rotate it" and, asked whether to add an `AGENTS.md`
+  rule for exact-name environment reads, "Don't add it".
+
+### Background Git never prompts (owner pick 2026-11-07)
+
+- Cause and probe: `doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`.
+  The dialogs the owner saw came from the LFS agent's test with `/usr/bin/git`, not from the wrapper.
+- Owner: "Never prompt (Recommended)" for the wrapper's background Git, and "Neither, rule pkg-local." for agents.
+- An agent builds it on `fix/git-policy-cli-background-git-never-prompts` (red test with a recorder as `SSH_ASKPASS`,
+  one shared place for background spawns, foreground forwarded commands unchanged, unclear spawn sites reported, not decided,
+  tagged rule in `package/git-policy/cli/README.md`, container gate).
+  Merge it, then send the batch agent "go wrapper" so 0.6.0 carries it.
+- `package/config/lfs-r2-worker` gets the same package-local rule after "unpause lfs".
+
+### Repository on the 860: plan revised, owner questions next
+
+- The symlink plan is committed (`4f430a0683`, `837fc9a6eb`) in `doc/planning/repository-on-the-860-drive.md`; nothing moved.
+- A cross-vendor review of it runs (`~/temp/agent/860-review/sol-review.txt`); fold its findings in.
+  Then ask the owner only the items among Q1 to Q9 that are real decisions: the answer changes what happens,
+  no owner decision or measurement settles it, and it is destructive or a matter of preference.
+  Settled or reversible items with a clear ranking are adopted and recorded in the plan, not asked.
+  Owner, 2026-11-07: "Overloading me with non-question questions will only make things worse."
+  Notices and disclosures go in plain text, never as question-tool options.
+  Which questions to ask and how to word them is open in issue #6262
+  (owner: "This is about how you ask questions and which questions to ask. Your wording is bad.");
+  the owner settles it in another session, so no rule change until then.
+- The plan agent left two btrfs scratch subvolumes it could not delete as the user
+  (`/var/home/user/temp/agent/dangling/svfix` and `svfix-snap`; the 860 lacks `user_subvol_rm_allowed`):
+  the owner removes them with sudo, or they go when Q3 adds the mount option.
+- Its guard fixture mounted a tmpfs at `/dev/shm/dangling-world` inside `podman unshare`, outside the scratch rule;
+  the mount ended with the namespace and the empty folder was removed.
 
 ### Known flakes and failures not yet fixed
 

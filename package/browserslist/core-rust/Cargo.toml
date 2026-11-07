@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-browserslist"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Aquaticat"]
 categories = ["parser-implementations", "development-tools"]
 documentation = "https://docs.rs/monochromatic-browserslist"
