@@ -256,3 +256,42 @@ fn a_third_party_tool_and_another_operating_system_never_warn() {
     let linux = older_lock_warnings(scope, &lock.tools, Some(OsFamily::Linux));
     assert_eq!(linux, vec![older_lock_message(PUBLISHED, "0.4.0", "0.4.4")]);
 }
+
+/// Two pre-releases of one version, whose numbers differ in length:
+/// semver reads the identifier after `alpha` as a number, so `.10` is newer than `.9`.
+const EARLIER_ALPHA: &str = "0.4.5-alpha.9";
+
+/// The newer pre-release of the same version as `EARLIER_ALPHA`.
+const LATER_ALPHA: &str = "0.4.5-alpha.10";
+
+/// The crate name of `PUBLISHED`.
+const PUBLISHED_CRATE: &str = "monochromatic-mpm-shadow";
+
+#[test]
+fn the_newest_installed_version_reads_a_longer_alpha_number_as_the_newer_one() {
+    let rig = Rig::new();
+    for version in [LATER_ALPHA, EARLIER_ALPHA] {
+        finish_install(&version_directory(&rig.scope.toolchain_root, PUBLISHED_CRATE, version), PUBLISHED_CRATE, version, &["mpm-shadow"]);
+    }
+    assert_eq!(newest_installed(&rig.scope.toolchain_root, PUBLISHED_CRATE).as_deref(), Some(LATER_ALPHA));
+}
+
+#[test]
+fn pointing_current_at_the_newest_and_removing_the_older_ones_keep_the_longer_alpha_number() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    for version in [LATER_ALPHA, EARLIER_ALPHA] {
+        finish_install(&version_directory(&root, PUBLISHED_CRATE, version), PUBLISHED_CRATE, version, &["mpm-shadow"]);
+    }
+    let pointed = super::cargo_installs::point_current_at_newest(&root, PUBLISHED_CRATE).expect("pointed");
+    assert_eq!(pointed.as_deref(), Some(LATER_ALPHA));
+    let removed = super::cargo_installs::remove_older_than_newest(&root, PUBLISHED_CRATE).expect("removed");
+    assert_eq!(removed, vec![version_directory(&root, PUBLISHED_CRATE, EARLIER_ALPHA)]);
+    assert!(version_directory(&root, PUBLISHED_CRATE, LATER_ALPHA).exists());
+}
+
+#[test]
+fn a_used_version_is_newer_than_the_locked_one_by_the_alpha_number_read_as_a_number() {
+    assert!(super::cargo_installs::is_newer_than_locked(LATER_ALPHA, EARLIER_ALPHA));
+    assert!(!super::cargo_installs::is_newer_than_locked(EARLIER_ALPHA, LATER_ALPHA));
+}

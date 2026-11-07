@@ -52,6 +52,50 @@ fn the_newest_release_of_the_named_program_wins_over_newer_releases_of_others() 
 }
 
 #[test]
+fn an_alpha_release_that_github_does_not_flag_as_a_prerelease_beats_the_older_stable_release() {
+    let mut rig = Rig::new();
+    let declaration = prefixed(&mut rig);
+    // `gh release create` without `--prerelease` (what `.github/workflows/cargo-publish.yml` runs) leaves the flag false.
+    let list: Vec<String> = vec![
+        listed("other-v9.0.0", false, false),
+        listed("tool-v2.2.0-alpha.1", false, false),
+        listed("tool-v2.1.0", false, false),
+    ];
+    let url = page_url(1);
+    rig.http.serve(&url, format!("[{}]", list.join(", ")).as_bytes());
+    let resolution = resolve_github(&rig.context(), &declaration, "o/r", None).expect("resolved");
+    assert_eq!(resolution.version, "2.2.0-alpha.1", "an unflagged alpha of a higher core version is the newest release");
+    let linux_x64 = resolution.artifacts.iter().find(|(platform, _)| return platform == "linux-x64").expect("row");
+    assert_eq!(
+        linux_x64.1.url,
+        "https://github.com/o/r/releases/download/tool-v2.2.0-alpha.1/tool-v2.2.0-alpha.1-linux-x64.tar.gz"
+    );
+    let mut flagged = Rig::new();
+    let flagged_declaration = prefixed(&mut flagged);
+    let flagged_list: Vec<String> = vec![listed("tool-v2.2.0-alpha.1", false, true), listed("tool-v2.1.0", false, false)];
+    flagged.http.serve(&url, format!("[{}]", flagged_list.join(", ")).as_bytes());
+    assert_eq!(
+        resolve_github(&flagged.context(), &flagged_declaration, "o/r", None).expect("resolved").version,
+        "2.1.0",
+        "the same alpha flagged as a prerelease is skipped"
+    );
+}
+
+#[test]
+fn a_later_alpha_number_wins_when_it_has_more_digits() {
+    let mut rig = Rig::new();
+    let declaration = prefixed(&mut rig);
+    let list: Vec<String> = vec![
+        listed("tool-v2.2.0-alpha.2", false, false),
+        listed("tool-v2.2.0-alpha.10", false, false),
+        listed("tool-v2.2.0-alpha.9", false, false),
+    ];
+    rig.http.serve(&page_url(1), format!("[{}]", list.join(", ")).as_bytes());
+    let resolution = resolve_github(&rig.context(), &declaration, "o/r", None).expect("resolved");
+    assert_eq!(resolution.version, "2.2.0-alpha.10", "semver compares the identifier after alpha as a number");
+}
+
+#[test]
 fn a_match_on_a_later_page_is_found_and_the_search_stops_when_a_page_is_short() {
     let mut rig = Rig::new();
     let declaration = prefixed(&mut rig);

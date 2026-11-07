@@ -64,6 +64,7 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -74,12 +75,21 @@ jobs:
         # (no `before`) as a bump.
         fetch-depth: 2
 
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/forbidden-strings/cli/Cargo.toml'
+
     - name: Detect version bump
       id: detect
       env:
         BEFORE_SHA: ${{ github.event.before }}
         EVENT_NAME: ${{ github.event_name }}
         INPUT_CRATE: ${{ github.event.inputs.crate }}
+        GOES_TO_CRATES_IO: ${{ steps.label.outputs.goes_to_crates_io }}
       run: |
         set -euo pipefail
         cargo_toml='package/forbidden-strings/cli/Cargo.toml'
@@ -110,10 +120,12 @@ jobs:
           publish=true
         elif [ "$EVENT_NAME" = 'push' ] && [ "$before" != "$after" ]; then
           publish=true
+          # An alpha or a beta never goes to crates.io, so a push of one asks the index nothing and builds its GitHub release.
           # A moved Cargo.toml has no `before` at its new path, so a package move reads as a
           # bump. A crates.io version can be published only once: skip the push when the
           # index already lists it, so the build, publish, and release jobs stay idle.
-          if curl -sSf -H 'User-Agent: monochromatic-ci' https://index.crates.io/fo/rb/forbidden-strings \
+          if [ "$GOES_TO_CRATES_IO" = 'true' ] \
+          && curl -sSf -H 'User-Agent: monochromatic-ci' https://index.crates.io/fo/rb/forbidden-strings \
             | grep -q "\"vers\":\"${after}\""; then
             echo "::notice::forbidden-strings ${after} is already on crates.io; nothing to publish."
             publish=false
@@ -173,6 +185,7 @@ jobs:
     # .crate as part of its post-upload cleanup when --no-verify is NOT
     # passed; that was the 0.1.6 failure mode.
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/forbidden-strings/cli
       run: cargo package
 
@@ -183,23 +196,23 @@ jobs:
         du --max-depth=2 --human-readable package/forbidden-strings/cli/target | sort --human-numeric-sort --reverse | head --lines=15 || true
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/forbidden-strings/cli/target/package/forbidden-strings-${{ needs.detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/forbidden-strings/cli
       run: cargo publish --dry-run --no-verify
 
     - name: Publish
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/forbidden-strings/cli
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -336,14 +349,20 @@ jobs:
         VERSION: ${{ needs.detect.outputs.version }}
         SHA: ${{ github.sha }}
         REPO: ${{ github.repository }}
+        GOES_TO_CRATES_IO: ${{ needs.detect.outputs.goes_to_crates_io }}
       run: |
         set -euo pipefail
         tag="forbidden-strings-v${VERSION}"
+        if [ "$GOES_TO_CRATES_IO" = 'true' ]; then
+          crates_io_note="crates.io: https://crates.io/crates/forbidden-strings/${VERSION}"
+        else
+          crates_io_note='Not published to crates.io: a version labelled alpha or beta goes to GitHub releases only.'
+        fi
         ls -la assets/
         gh release create "$tag" assets/* \
           --repo "$REPO" \
           --title "forbidden-strings v${VERSION}" \
-          --notes "forbidden-strings v${VERSION}. crates.io: https://crates.io/crates/forbidden-strings/${VERSION}" \
+          --notes "forbidden-strings v${VERSION}. ${crates_io_note}" \
           --target "$SHA"
 
   # monochromatic-nested-wayland-session: a Wayland compositor, so LINUX-ONLY
@@ -370,11 +389,20 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/nested-wayland-session/cli/Cargo.toml'
 
     - name: Detect version bump
       id: detect
@@ -469,6 +497,7 @@ jobs:
           cargo-v2-publish-nws-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-
 
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.nws-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/nested-wayland-session/cli
       run: cargo package
 
@@ -479,18 +508,18 @@ jobs:
         du --max-depth=2 --human-readable package/nested-wayland-session/cli/target | sort --human-numeric-sort --reverse | head --lines=15 || true
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.nws-detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/nested-wayland-session/cli/target/package/monochromatic-nested-wayland-session-${{ needs.nws-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.nws-detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.nws-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/nested-wayland-session/cli
       run: cargo publish --dry-run --no-verify
 
@@ -499,7 +528,7 @@ jobs:
       # Publishing cannot be configured until the crate exists). This step is
       # idempotent: it skips when the version is already present, so re-running
       # to (re)build the release binaries never fails on a duplicate upload.
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.nws-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/nested-wayland-session/cli
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -727,14 +756,20 @@ jobs:
         VERSION: ${{ needs.nws-detect.outputs.version }}
         SHA: ${{ github.sha }}
         REPO: ${{ github.repository }}
+        GOES_TO_CRATES_IO: ${{ needs.nws-detect.outputs.goes_to_crates_io }}
       run: |
         set -euo pipefail
         tag="monochromatic-nested-wayland-session-v${VERSION}"
+        if [ "$GOES_TO_CRATES_IO" = 'true' ]; then
+          crates_io_note="crates.io: https://crates.io/crates/monochromatic-nested-wayland-session/${VERSION}"
+        else
+          crates_io_note='Not published to crates.io: a version labelled alpha or beta goes to GitHub releases only.'
+        fi
         ls -la assets/
         gh release create "$tag" assets/* \
           --repo "$REPO" \
           --title "nested-wayland-session v${VERSION}" \
-          --notes "monochromatic-nested-wayland-session v${VERSION}. crates.io: https://crates.io/crates/monochromatic-nested-wayland-session/${VERSION}. Linux only (x86_64 and aarch64 gnu). Verify an archive with sha256sum --check against the checksums file or with gh attestation verify." \
+          --notes "monochromatic-nested-wayland-session v${VERSION}. ${crates_io_note}. Linux only (x86_64 and aarch64 gnu). Verify an archive with sha256sum --check against the checksums file or with gh attestation verify." \
           --target "$SHA"
 
   # forbidden-regex: the regex engine LIBRARY powering forbidden-strings.
@@ -748,11 +783,20 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/forbidden-strings/core/Cargo.toml'
 
     - name: Detect version bump
       id: detect
@@ -821,22 +865,23 @@ jobs:
 
     # Not cached: the cold build takes 6 s; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.fr-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/forbidden-strings/core
       run: cargo package
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.fr-detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/forbidden-strings/core/target/package/forbidden-regex-${{ needs.fr-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.fr-detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.fr-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/forbidden-strings/core
       run: cargo publish --dry-run --no-verify
 
@@ -845,7 +890,7 @@ jobs:
       # Publishing cannot be configured until the crate exists), mirroring the
       # nested-wayland-session bootstrap. Idempotent: skips when the version is
       # already present, so re-runs never fail on a duplicate upload.
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.fr-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/forbidden-strings/core
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -864,11 +909,20 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/jsonc-edit/core-rust/Cargo.toml'
 
     - name: Detect version bump
       id: detect
@@ -937,22 +991,23 @@ jobs:
 
     # Not cached: the cold build takes under 1 s; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.je-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/jsonc-edit/core-rust
       run: cargo package
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.je-detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/jsonc-edit/core-rust/target/package/monochromatic-jsonc-edit-${{ needs.je-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.je-detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.je-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/jsonc-edit/core-rust
       run: cargo publish --dry-run --no-verify
 
@@ -962,7 +1017,7 @@ jobs:
       # doc/runbook/publish-crate-first-time.md, mirroring the forbidden-regex and
       # nested-wayland-session bootstraps. Idempotent: skips when the version is
       # already present, so re-runs never fail on a duplicate upload.
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.je-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/jsonc-edit/core-rust
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -990,11 +1045,20 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/search-shadow/cli/Cargo.toml'
 
     - name: Detect version bump
       id: detect
@@ -1063,29 +1127,30 @@ jobs:
 
     # Not cached: the cold build takes a few seconds (clap is the only sizeable dependency); a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.ss-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/search-shadow/cli
       run: cargo package
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.ss-detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/search-shadow/cli/target/package/monochromatic-search-shadow-${{ needs.ss-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.ss-detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.ss-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/search-shadow/cli
       run: cargo publish --dry-run --no-verify
 
     - name: Publish (skips if this version is already on crates.io)
       # Idempotent: skips when the version is already present, so re-runs never fail on a
       # duplicate upload, and a dispatch with dry-run off on 0.1.0 proves the OIDC route.
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.ss-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/search-shadow/cli
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -1310,14 +1375,20 @@ jobs:
         VERSION: ${{ needs.ss-detect.outputs.version }}
         SHA: ${{ github.sha }}
         REPO: ${{ github.repository }}
+        GOES_TO_CRATES_IO: ${{ needs.ss-detect.outputs.goes_to_crates_io }}
       run: |
         set -euo pipefail
         tag="monochromatic-search-shadow-v${VERSION}"
+        if [ "$GOES_TO_CRATES_IO" = 'true' ]; then
+          crates_io_note="crates.io: https://crates.io/crates/monochromatic-search-shadow/${VERSION}"
+        else
+          crates_io_note='Not published to crates.io: a version labelled alpha or beta goes to GitHub releases only.'
+        fi
         ls -la assets/
         gh release create "$tag" assets/* \
           --repo "$REPO" \
           --title "search-shadow v${VERSION}" \
-          --notes "monochromatic-search-shadow v${VERSION}. crates.io: https://crates.io/crates/monochromatic-search-shadow/${VERSION}. Linux only (x86_64 and aarch64 gnu). Verify an archive with sha256sum --check against the checksums file or with gh attestation verify." \
+          --notes "monochromatic-search-shadow v${VERSION}. ${crates_io_note}. Linux only (x86_64 and aarch64 gnu). Verify an archive with sha256sum --check against the checksums file or with gh attestation verify." \
           --target "$SHA"
 
   # monochromatic-mpm-shadow: the mpm shadow that deletes stale cached copies of the repository's own crates
@@ -1333,11 +1404,20 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/mpm-shadow/cli/Cargo.toml'
 
     - name: Detect version bump
       id: detect
@@ -1406,29 +1486,30 @@ jobs:
 
     # Not cached: the cold build takes a few seconds (clap and serde_json are the only sizeable dependencies); a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.ms-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/mpm-shadow/cli
       run: cargo package
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.ms-detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/mpm-shadow/cli/target/package/monochromatic-mpm-shadow-${{ needs.ms-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.ms-detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.ms-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/mpm-shadow/cli
       run: cargo publish --dry-run --no-verify
 
     - name: Publish (skips if this version is already on crates.io)
       # Idempotent: skips when the version is already present, so re-runs never fail on a
       # duplicate upload, and a dispatch with dry-run off on 0.1.0 proves the OIDC route.
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.ms-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/mpm-shadow/cli
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -1650,14 +1731,20 @@ jobs:
         VERSION: ${{ needs.ms-detect.outputs.version }}
         SHA: ${{ github.sha }}
         REPO: ${{ github.repository }}
+        GOES_TO_CRATES_IO: ${{ needs.ms-detect.outputs.goes_to_crates_io }}
       run: |
         set -euo pipefail
         tag="monochromatic-mpm-shadow-v${VERSION}"
+        if [ "$GOES_TO_CRATES_IO" = 'true' ]; then
+          crates_io_note="crates.io: https://crates.io/crates/monochromatic-mpm-shadow/${VERSION}"
+        else
+          crates_io_note='Not published to crates.io: a version labelled alpha or beta goes to GitHub releases only.'
+        fi
         ls -la assets/
         gh release create "$tag" assets/* \
           --repo "$REPO" \
           --title "mpm-shadow v${VERSION}" \
-          --notes "monochromatic-mpm-shadow v${VERSION}. crates.io: https://crates.io/crates/monochromatic-mpm-shadow/${VERSION}. Linux only (x86_64 and aarch64 gnu). Verify an archive with sha256sum --check against the checksums file or with gh attestation verify." \
+          --notes "monochromatic-mpm-shadow v${VERSION}. ${crates_io_note}. Linux only (x86_64 and aarch64 gnu). Verify an archive with sha256sum --check against the checksums file or with gh attestation verify." \
           --target "$SHA"
 
   # monochromatic-pnpm-shadow: the pnpm shadow that warns about dependency versions that are not catalog: or workspace:*
@@ -1672,11 +1759,20 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/pnpm-shadow/cli/Cargo.toml'
 
     - name: Detect version bump
       id: detect
@@ -1745,29 +1841,30 @@ jobs:
 
     # Not cached: the cold build takes a few seconds (clap and the ignore crate are the only sizeable dependencies); a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.ps-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/pnpm-shadow/cli
       run: cargo package
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.ps-detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/pnpm-shadow/cli/target/package/monochromatic-pnpm-shadow-${{ needs.ps-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.ps-detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.ps-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/pnpm-shadow/cli
       run: cargo publish --dry-run --no-verify
 
     - name: Publish (skips if this version is already on crates.io)
       # Idempotent: skips when the version is already present, so re-runs never fail on a
       # duplicate upload, and a dispatch with dry-run off on 0.1.0 proves the OIDC route.
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.ps-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/pnpm-shadow/cli
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -1989,14 +2086,20 @@ jobs:
         VERSION: ${{ needs.ps-detect.outputs.version }}
         SHA: ${{ github.sha }}
         REPO: ${{ github.repository }}
+        GOES_TO_CRATES_IO: ${{ needs.ps-detect.outputs.goes_to_crates_io }}
       run: |
         set -euo pipefail
         tag="monochromatic-pnpm-shadow-v${VERSION}"
+        if [ "$GOES_TO_CRATES_IO" = 'true' ]; then
+          crates_io_note="crates.io: https://crates.io/crates/monochromatic-pnpm-shadow/${VERSION}"
+        else
+          crates_io_note='Not published to crates.io: a version labelled alpha or beta goes to GitHub releases only.'
+        fi
         ls -la assets/
         gh release create "$tag" assets/* \
           --repo "$REPO" \
           --title "pnpm-shadow v${VERSION}" \
-          --notes "monochromatic-pnpm-shadow v${VERSION}. crates.io: https://crates.io/crates/monochromatic-pnpm-shadow/${VERSION}. Linux only (x86_64 and aarch64 gnu). Verify an archive with sha256sum --check against the checksums file or with gh attestation verify." \
+          --notes "monochromatic-pnpm-shadow v${VERSION}. ${crates_io_note}. Linux only (x86_64 and aarch64 gnu). Verify an archive with sha256sum --check against the checksums file or with gh attestation verify." \
           --target "$SHA"
 
   # monochromatic-lint: the repository's Rust, Markdown and MDX linter
@@ -2021,11 +2124,20 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/linter/monochromatic-lint/Cargo.toml'
 
     - name: Detect version bump
       id: detect
@@ -2110,6 +2222,7 @@ jobs:
     # Verifying compiles the packaged crate against its crates.io dependencies,
     # including the published monochromatic-jsonc-edit rather than the path copy.
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.ml-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/linter/monochromatic-lint
       run: cargo package
 
@@ -2120,23 +2233,23 @@ jobs:
         du --max-depth=2 --human-readable package/linter/monochromatic-lint/target | sort --human-numeric-sort --reverse | head --lines=15 || true
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.ml-detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/linter/monochromatic-lint/target/package/monochromatic-lint-${{ needs.ml-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.ml-detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.ml-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/linter/monochromatic-lint
       run: cargo publish --dry-run --no-verify
 
     - name: Publish (skips if this version is already on crates.io)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.ml-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/linter/monochromatic-lint
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -2277,14 +2390,20 @@ jobs:
         VERSION: ${{ needs.ml-detect.outputs.version }}
         SHA: ${{ github.sha }}
         REPO: ${{ github.repository }}
+        GOES_TO_CRATES_IO: ${{ needs.ml-detect.outputs.goes_to_crates_io }}
       run: |
         set -euo pipefail
         tag="monochromatic-lint-v${VERSION}"
+        if [ "$GOES_TO_CRATES_IO" = 'true' ]; then
+          crates_io_note="crates.io: https://crates.io/crates/monochromatic-lint/${VERSION}"
+        else
+          crates_io_note='Not published to crates.io: a version labelled alpha or beta goes to GitHub releases only.'
+        fi
         ls -la assets/
         gh release create "$tag" assets/* \
           --repo "$REPO" \
           --title "monochromatic-lint v${VERSION}" \
-          --notes "monochromatic-lint v${VERSION}. crates.io: https://crates.io/crates/monochromatic-lint/${VERSION}" \
+          --notes "monochromatic-lint v${VERSION}. ${crates_io_note}" \
           --target "$SHA"
 
   # monochromatic-git-policy-cli: the native Git policy wrapper (doc/planning/cli-git-native-cutover.md,
@@ -2315,11 +2434,20 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/git-policy/cli/Cargo.toml'
 
     - name: Detect version bump
       id: detect
@@ -2392,6 +2520,7 @@ jobs:
     # The Rust catalog writes path dependencies as exact requirements (`version = "=0.5.0"`),
     # and the index lists bare versions (`"vers":"0.5.0"`), so the extraction drops a leading `=`.
     - name: Wait for the required forbidden-strings release
+      if: ${{ needs.gpc-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/git-policy/cli
       run: |
         set -euo pipefail
@@ -2430,6 +2559,7 @@ jobs:
     # Verifying compiles the packaged crate against its crates.io dependencies,
     # including the published forbidden-strings and monochromatic-jsonc-edit rather than the path copies.
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.gpc-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/git-policy/cli
       run: cargo package --locked
 
@@ -2440,23 +2570,23 @@ jobs:
         du --max-depth=2 --human-readable package/git-policy/cli/target | sort --human-numeric-sort --reverse | head --lines=15 || true
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.gpc-detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/git-policy/cli/target/package/monochromatic-git-policy-cli-${{ needs.gpc-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.gpc-detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.gpc-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/git-policy/cli
       run: cargo publish --dry-run --locked --no-verify
 
     - name: Publish (skips if this version is already on crates.io)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.gpc-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/git-policy/cli
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -2579,14 +2709,20 @@ jobs:
         VERSION: ${{ needs.gpc-detect.outputs.version }}
         SHA: ${{ github.sha }}
         REPO: ${{ github.repository }}
+        GOES_TO_CRATES_IO: ${{ needs.gpc-detect.outputs.goes_to_crates_io }}
       run: |
         set -euo pipefail
         tag="monochromatic-git-policy-cli-v${VERSION}"
+        if [ "$GOES_TO_CRATES_IO" = 'true' ]; then
+          crates_io_note="crates.io: https://crates.io/crates/monochromatic-git-policy-cli/${VERSION}"
+        else
+          crates_io_note='Not published to crates.io: a version labelled alpha or beta goes to GitHub releases only.'
+        fi
         ls -la assets/
         gh release create "$tag" assets/* \
           --repo "$REPO" \
           --title "monochromatic-git-policy-cli v${VERSION}" \
-          --notes "monochromatic-git-policy-cli v${VERSION}. crates.io: https://crates.io/crates/monochromatic-git-policy-cli/${VERSION}" \
+          --notes "monochromatic-git-policy-cli v${VERSION}. ${crates_io_note}" \
           --target "$SHA"
 
   # The Rust file-enforcer (doc/decision/file-enforcer-rust-rewrite.md) is five crates that publish in
@@ -2607,11 +2743,20 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/xml-edit/core-rust/Cargo.toml'
 
     - name: Detect version bump
       id: detect
@@ -2682,22 +2827,23 @@ jobs:
 
     # Not cached: the crate has no dependencies, so the cold build takes about a second; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.xe-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/xml-edit/core-rust
       run: cargo package
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.xe-detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/xml-edit/core-rust/target/package/monochromatic-xml-edit-${{ needs.xe-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.xe-detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.xe-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/xml-edit/core-rust
       run: cargo publish --dry-run --no-verify
 
@@ -2706,7 +2852,7 @@ jobs:
       # cannot configure it until the crate exists (doc/runbook/publish-crate-first-time.md).
       # Idempotent: skips when the version is already present, so re-runs never fail on a
       # duplicate upload.
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.xe-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/xml-edit/core-rust
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -2729,11 +2875,20 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/catalog-specifier/core-rust/Cargo.toml'
 
     - name: Detect version bump
       id: detect
@@ -2802,22 +2957,23 @@ jobs:
 
     # Not cached: the crate's only dependency is the small monochromatic-jsonc-edit, so the cold build takes seconds (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.cs-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/catalog-specifier/core-rust
       run: cargo package
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.cs-detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/catalog-specifier/core-rust/target/package/monochromatic-catalog-specifier-${{ needs.cs-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.cs-detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.cs-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/catalog-specifier/core-rust
       run: cargo publish --dry-run --no-verify
 
@@ -2825,7 +2981,7 @@ jobs:
       # The first version is published by hand to bootstrap Trusted Publishing, because crates.io
       # cannot configure it until the crate exists (doc/runbook/publish-crate-first-time.md).
       # Idempotent: skips when the version is already present, so re-runs never fail on a duplicate upload.
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.cs-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/catalog-specifier/core-rust
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -2844,11 +3000,20 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/dependency-catalog/core-native/Cargo.toml'
 
     - name: Detect version bump
       id: detect
@@ -2919,22 +3084,23 @@ jobs:
 
     # Not cached: the only dependency is toml_edit, so the cold build takes a few seconds; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.dc-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/dependency-catalog/core-native
       run: cargo package
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.dc-detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/dependency-catalog/core-native/target/package/monochromatic-dependency-catalog-${{ needs.dc-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.dc-detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.dc-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/dependency-catalog/core-native
       run: cargo publish --dry-run --no-verify
 
@@ -2943,7 +3109,7 @@ jobs:
       # cannot configure it until the crate exists (doc/runbook/publish-crate-first-time.md).
       # Idempotent: skips when the version is already present, so re-runs never fail on a
       # duplicate upload.
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.dc-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/dependency-catalog/core-native
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -2962,11 +3128,20 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/browserslist/core-rust/Cargo.toml'
 
     - name: Detect version bump
       id: detect
@@ -3037,22 +3212,23 @@ jobs:
 
     # Not cached: the cold build takes about 15 s (the rustls and hyper stack is the only sizeable dependency); a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.bl-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/browserslist/core-rust
       run: cargo package
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.bl-detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/browserslist/core-rust/target/package/monochromatic-browserslist-${{ needs.bl-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.bl-detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.bl-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/browserslist/core-rust
       run: cargo publish --dry-run --no-verify
 
@@ -3061,7 +3237,7 @@ jobs:
       # cannot configure it until the crate exists (doc/runbook/publish-crate-first-time.md).
       # Idempotent: skips when the version is already present, so re-runs never fail on a
       # duplicate upload.
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.bl-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/browserslist/core-rust
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -3080,11 +3256,20 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/file-enforcer/core-rust/Cargo.toml'
 
     - name: Detect version bump
       id: detect
@@ -3155,22 +3340,23 @@ jobs:
 
     # Not cached: the cold build takes about 10 s; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.fe-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/file-enforcer/core-rust
       run: cargo package
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.fe-detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/file-enforcer/core-rust/target/package/monochromatic-file-enforcer-${{ needs.fe-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.fe-detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.fe-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/file-enforcer/core-rust
       run: cargo publish --dry-run --no-verify
 
@@ -3179,7 +3365,7 @@ jobs:
       # cannot configure it until the crate exists (doc/runbook/publish-crate-first-time.md).
       # Idempotent: skips when the version is already present, so re-runs never fail on a
       # duplicate upload.
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.fe-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/file-enforcer/core-rust
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -3198,11 +3384,20 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/file-enforcer/cli/Cargo.toml'
 
     - name: Detect version bump
       id: detect
@@ -3273,22 +3468,23 @@ jobs:
 
     # Not cached: the cold build takes about 15 s; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.fec-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/file-enforcer/cli
       run: cargo package
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.fec-detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/file-enforcer/cli/target/package/monochromatic-file-enforcer-cli-${{ needs.fec-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.fec-detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.fec-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/file-enforcer/cli
       run: cargo publish --dry-run --no-verify
 
@@ -3297,7 +3493,7 @@ jobs:
       # cannot configure it until the crate exists (doc/runbook/publish-crate-first-time.md).
       # Idempotent: skips when the version is already present, so re-runs never fail on a
       # duplicate upload.
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.fec-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/file-enforcer/cli
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -3525,14 +3721,20 @@ jobs:
         VERSION: ${{ needs.fec-detect.outputs.version }}
         SHA: ${{ github.sha }}
         REPO: ${{ github.repository }}
+        GOES_TO_CRATES_IO: ${{ needs.fec-detect.outputs.goes_to_crates_io }}
       run: |
         set -euo pipefail
         tag="monochromatic-file-enforcer-cli-v${VERSION}"
+        if [ "$GOES_TO_CRATES_IO" = 'true' ]; then
+          crates_io_note="crates.io: https://crates.io/crates/monochromatic-file-enforcer-cli/${VERSION}"
+        else
+          crates_io_note='Not published to crates.io: a version labelled alpha or beta goes to GitHub releases only.'
+        fi
         ls -la assets/
         gh release create "$tag" assets/* \
           --repo "$REPO" \
           --title "file-enforcer v${VERSION}" \
-          --notes "monochromatic-file-enforcer-cli v${VERSION}. crates.io: https://crates.io/crates/monochromatic-file-enforcer-cli/${VERSION}. Linux only (x86_64 and aarch64 gnu). Verify an archive with sha256sum --check against the checksums file or with gh attestation verify." \
+          --notes "monochromatic-file-enforcer-cli v${VERSION}. ${crates_io_note}. Linux only (x86_64 and aarch64 gnu). Verify an archive with sha256sum --check against the checksums file or with gh attestation verify." \
           --target "$SHA"
 
   # monochromatic-cargo-shadow: the cargo shadow that, before a command that resolves dependencies, makes Cargo.lock satisfy
@@ -3547,11 +3749,20 @@ jobs:
     outputs:
       should_publish: ${{ steps.detect.outputs.should_publish }}
       version: ${{ steps.detect.outputs.version }}
+      goes_to_crates_io: ${{ steps.label.outputs.goes_to_crates_io }}
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         fetch-depth: 2
+
+    # The label rule of the owner (doc/planning/crates-io-footprint.md): only a plain number and -rc.N go to crates.io.
+    # Every step below that touches crates.io reads this decision of its own crate.
+    - name: Decide whether the version goes to crates.io
+      id: label
+      uses: ./.github/actions/decide-whether-a-version-goes-to-crates-io
+      with:
+        manifest-path: 'package/cargo-shadow/cli/Cargo.toml'
 
     - name: Detect version bump
       id: detect
@@ -3620,29 +3831,30 @@ jobs:
 
     # Not cached: the cold build takes a few seconds (clap and the ignore crate are the only sizeable dependencies); a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
+      if: ${{ needs.cgs-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/cargo-shadow/cli
       run: cargo package
 
     - name: Attest .crate provenance
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.cgs-detect.outputs.goes_to_crates_io == 'true' }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
         subject-path: 'package/cargo-shadow/cli/target/package/monochromatic-cargo-shadow-${{ needs.cgs-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.cgs-detect.outputs.goes_to_crates_io == 'true' }}
       id: auth
       uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
 
     - name: Publish (dry run)
-      if: ${{ inputs.dry-run }}
+      if: ${{ inputs.dry-run && needs.cgs-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/cargo-shadow/cli
       run: cargo publish --dry-run --no-verify
 
     - name: Publish (skips if this version is already on crates.io)
       # Idempotent: skips when the version is already present, so re-runs never fail on a
       # duplicate upload, and a dispatch with dry-run off on 0.1.0 proves the OIDC route.
-      if: ${{ !inputs.dry-run }}
+      if: ${{ !inputs.dry-run && needs.cgs-detect.outputs.goes_to_crates_io == 'true' }}
       working-directory: package/cargo-shadow/cli
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -3864,12 +4076,18 @@ jobs:
         VERSION: ${{ needs.cgs-detect.outputs.version }}
         SHA: ${{ github.sha }}
         REPO: ${{ github.repository }}
+        GOES_TO_CRATES_IO: ${{ needs.cgs-detect.outputs.goes_to_crates_io }}
       run: |
         set -euo pipefail
         tag="monochromatic-cargo-shadow-v${VERSION}"
+        if [ "$GOES_TO_CRATES_IO" = 'true' ]; then
+          crates_io_note="crates.io: https://crates.io/crates/monochromatic-cargo-shadow/${VERSION}"
+        else
+          crates_io_note='Not published to crates.io: a version labelled alpha or beta goes to GitHub releases only.'
+        fi
         ls -la assets/
         gh release create "$tag" assets/* \
           --repo "$REPO" \
           --title "cargo-shadow v${VERSION}" \
-          --notes "monochromatic-cargo-shadow v${VERSION}. crates.io: https://crates.io/crates/monochromatic-cargo-shadow/${VERSION}. Linux only (x86_64 and aarch64 gnu). Verify an archive with sha256sum --check against the checksums file or with gh attestation verify." \
+          --notes "monochromatic-cargo-shadow v${VERSION}. ${crates_io_note}. Linux only (x86_64 and aarch64 gnu). Verify an archive with sha256sum --check against the checksums file or with gh attestation verify." \
           --target "$SHA"
