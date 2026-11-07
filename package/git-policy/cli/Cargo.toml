@@ -107,6 +107,11 @@ sha2 = { workspace = true }
 # so the time-zone database stays off.
 jiff = { workspace = true, default-features = false, features = ["std"] }
 
+# The memory the budget may use: the system's available memory and the control groups' limits, read by the published crate in
+# place of the wrapper's own `/proc` and cgroup parsers (owner, 2026-11-07: "Memory headroom: sysinfo"). Only its memory part is
+# used, so processes, disks, networks and components stay off.
+sysinfo = { workspace = true, default-features = false, features = ["system"] }
+
 # `sigaction` with signal details, `kill` and process-group facts, which the standard library does not expose.
 # Already in the lockfile through the scanner's dependencies.
 [target.'cfg(unix)'.dependencies]
@@ -168,6 +173,7 @@ serde_json = ">=1.0.154"
 sha1 = ">=0.11.0"
 sha2 = ">=0.11.1"
 similar = { version = ">=3.2.1", default-features = false }
+sysinfo = { version = ">=0.40.1", default-features = false }
 tempfile = ">=3.27.0"
 tokio = ">=1.54.1"
 ureq = { version = ">=3.5.0", default-features = false }

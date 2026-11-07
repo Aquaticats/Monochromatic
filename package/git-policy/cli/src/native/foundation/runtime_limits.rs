@@ -11,7 +11,6 @@
 //! const limits = RuntimeLimits.read(); // { addressSpaceLeft?: number; threadsLeft?: number }
 //! ```
 
-use crate::parallel_budget::control_group_path;
 use std::path::{Path, PathBuf};
 
 /// Where the kernel lists the size of this process's mappings and its thread count.
@@ -55,6 +54,16 @@ pub fn system_threads_from(load: &str) -> Option<u64> {
     let field: &str = load.split_whitespace().nth(3)?;
     let (_running, total) = field.split_once('/')?;
     return total.parse().ok();
+}
+
+/// The path of the unified (version 2) control group in `/proc/self/cgroup` text: the line that starts with `0::`.
+pub fn control_group_path(text: &str) -> Option<String> {
+    for line in text.lines() {
+        if let Some(path) = line.strip_prefix("0::") {
+            return Some(String::from(path));
+        }
+    }
+    return None;
 }
 
 /// What is left of a limit that is `limit` (nothing when unlimited) with `used` already taken.

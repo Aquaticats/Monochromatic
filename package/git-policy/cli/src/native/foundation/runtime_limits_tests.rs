@@ -71,3 +71,10 @@ fn this_process_reads_its_own_limits() {
         assert!(left <= limit);
     }
 }
+
+/// The control group is the version 2 line of the process's group file.
+#[test]
+fn the_control_group_is_the_version_two_line() {
+    assert_eq!(control_group_path("12:cpu:/old\n0::/user.slice/session.scope\n"), Some(String::from("/user.slice/session.scope")));
+    assert_eq!(control_group_path("12:cpu:/old\n"), None);
+}
