@@ -1,12 +1,11 @@
 # Toolchain always latest
 
-Status as of 2026-11-07T07:00:00-05:00:
+Status as of 2026-11-07T08:33:17-05:00:
 the plan,
 both locks and the container builds follow the newest versions;
 the daily update is built,
-rehearsed in a throwaway worktree and installed with the timer left off
-until the crate release batch is done.
-The first real run waits for the coordinator's word (section "First run").
+rehearsed in a throwaway worktree, and since 2026-11-07T08:29:48-05:00 enabled as a timer;
+its first real run ended at 2026-11-07T08:33:17-05:00 with result `success` (section "First run").
 
 ## Owner's words
 
@@ -440,20 +439,29 @@ from 2026-11-07T06:39:09-05:00.
 
 ## First run
 
-Not made yet.
-The coordinator holds it until the crate release batch is done,
-because a lock update that lands on `main`
-during the batch makes a release's push step refuse when Cargo manifests,
-a `Cargo.lock` of its closure or
-`rust-catalog.toml` changed.
-The units are installed with the timer left off (`mise run toolchain:timer:install -- --no-enable`).
-When the go-ahead comes:
-merge `feat/toolchain-always-latest-landing` (the plan and lock commit,
-and the `bincode-1` catalog that must exist before the first run can lock the placeholder bincode 3.0.0;
-the dependency locks themselves come from the run),
-run `mise run toolchain:timer:install` to enable the timer,
-then `systemctl --user start toolchain-daily-update.service`
-and read `journalctl --user --unit toolchain-daily-update`.
+Run 2026-11-07T08:30:04-05:00 to 2026-11-07T08:33:17-05:00, after the crate release batch finished
+(2026-11-07T13:10:36Z) and the seven repository tools moved to the `archive` route (`doc/planning/one-release-each-batch-2026-11.md`,
+"Steps after the batch").
+
+- Steps taken: merge `feat/toolchain-always-latest-landing` (`ea2f72c3c1`, 2026-11-07T08:20:23-05:00);
+  `mise run toolchain:timer:install` (2026-11-07T08:29:48-05:00, timer enabled, next run 2026-11-08T00:07:05-05:00);
+  `systemctl --user start --no-block toolchain-daily-update.service`, followed with `journalctl --user --unit toolchain-daily-update`.
+- Result of the service: `success`; 3 min 12.6 s wall clock, 1 min 15.3 s CPU, 1.4 G memory peak
+  (the rehearsal took 20 min 51 s because its global install compiled the wrapper; now every repository tool installs from an archive).
+- Repository toolchain: unchanged, 0 files committed (the lock had just been updated by hand through `toolchain:update`);
+  `toolchain:update` 38 s, `toolchain:install` 3 s.
+- Machine-global toolchain: unchanged, 0 files committed (outside the repository); `toolchain:update:global` 24 s,
+  `toolchain:install:global` 14 s.
+- Dependency locks: landed, 51 files in one commit, `d61dc1934a` (2026-11-07T08:33:16-05:00, pushed):
+  `deps:update` 6 s, `cargo-shadow update` 76 s, `catalog:tighten` 6 s, `sync:files` 2 s, `pnpm install` 4 s,
+  `cargo-shadow install` 16 s, `check:files` 3 s; 35 lockfiles satisfy their manifests; `bincode` stayed on 1.3.3 in `package/git-policy/cli/Cargo.lock`
+  (the `bincode-1` catalog held).
+- No group failed; no restore and no notification were triggered.
+- Seen, not changed: `toolchain:install:global` and `toolchain:list:global` disagree about 12 npm-routed global tools
+  (`npm:@github/copilot`, `npm:@deepseek-ai/dsh` and others): each install reports them installed
+  (`12 installed, 50 unchanged, 0 failed`, again on the repeated run), the list reports them absent
+  (`12 of 62 tools drifted`) and an `unresolved bins:` line names their programs.
+  The service still ends `success`, because the install step exits 0.
 
 ## Dependency locks: what the daily update changes and what usually breaks
 

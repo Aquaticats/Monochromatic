@@ -1,8 +1,10 @@
 # One release of each published crate: execution plan for the 2026-11 batch
 
 Status:
-the batch is running (first publish 2026-11-07T11:43:35Z);
-the release record in the runbook lists what was dispatched and published (nothing is yanked).
+the batch finished at 2026-11-07T13:10:36Z (first publish 2026-11-07T11:43:35Z);
+the release record in the runbook lists what was dispatched and published,
+and its "Steps after the batch" entry lists the lock move, the live wrapper check, the 14 yanks and the first daily run
+(2026-11-07T08:20:23-05:00 to 2026-11-07T08:33:17-05:00).
 Written before that as a plan only.
 Written 2026-11-07T04:36:34-05:00 and checked against `main` at `7956f6c4c9` (the checks ran while `main` moved from
 `17eff86b35` through `d62451d591`;
@@ -1260,6 +1262,45 @@ proved the Wayland library step.
 - Lock move (2026-11-07T08:24:40-05:00, commit `c048f3a566`, after the merge `ea2f72c3c1` of `feat/toolchain-always-latest-landing`):
   the seven locked tools moved from the `cargo-binstall` route to the `archive` route of their GitHub releases,
   at 0.5.1, 0.6.0, 0.1.4, 0.1.2, 0.2.2, 0.1.3 and 0.6.3 (crate order of "Yank step"); the yank still waits for the live check below.
+
+### Steps after the batch
+
+Run 2026-11-07T08:20:23-05:00 to 2026-11-07T08:33:17-05:00 on the main checkout, in the order of the owner's decisions.
+
+- Merge (2026-11-07T08:20:23-05:00, 0.3 s): `feat/toolchain-always-latest-landing` into `main` with `--no-ff` as `ea2f72c3c1`
+  (`6e17549cc4` the plan tracks latest, `7f1c244e4d` the `bincode-1` catalog); no conflict.
+- Archive route (`c048f3a566`, 2026-11-07T08:24:40-05:00): in `toolchain.plan.jsonc` the seven tools take
+  `"request": "github:Aquaticats/Monochromatic@latest"`, `"route": "archive"` and `options.tagPrefix` `monochromatic-<crate>-v`,
+  as `mpm-shadow` does; the ids keep their `cargo:` spelling because `.github/workflows/catalog-specifiers.yml` and
+  `.github/actions/repo-tools-setup/action.yml` read the lock by them.
+  The wrapper's `bins` and `postinstall.link.sourceBin` became `monochromatic-git-policy-cli` (the link folder `.cache/cli-git-bin` stays).
+  `mise run toolchain:update` wrote the lock (8 tools moved: the seven plus `mpm-shadow` 0.2.5 to 0.2.6 by `@latest`);
+  every Linux archive SHA-256 in it equals the digest GitHub reports for that release asset.
+  The first update attempt (08:21:17, 69 s) wrote nothing because one lookup failed (`conda:bubblewrap`, HTTP 503 from
+  `api.anaconda.org`, an outage that ended about a minute later); the second (08:23:43, 38 s) wrote the lock.
+  The machine-global plan (outside the repository) got the same change for its `cargo:monochromatic-git-policy-cli` row,
+  without `linkDir` (the link stays in `~/.local/bin`), and `toolchain:update:global -- cargo:monochromatic-git-policy-cli`
+  moved that row alone, 0.5.34 to 0.6.0.
+- Install: `mise run toolchain:install` 31.7 s (19 installed; the six other repository tools in `cargo-monochromatic-*`
+  directories with a `.mpm-shadow-installed` marker, no compile) and `toolchain:install:global` 17.3 s (12 installed).
+  The rehearsal's global install took 14 min 34 s because it compiled the wrapper.
+- Wrapper 0.6.0 live: `git --version` 12 ms and prints `monochromatic-git-policy-cli 0.6.0, shadowing git at /usr/bin/git`;
+  `git monochromatic-git-policy-cli doctor` 25 ms.
+  The commit `5fa212ddac` (this record's lock-move entry) landed through the new unit
+  `monochromatic-git-policy-cli@fc85fdf7a58f866b7f7a84b44fe0b69a` (release 0.6.0, protocol 7) in 2.2 s
+  (`reachMs` 645 for the first start, `answerWaitMs` 51) and was pushed in 2.0 s.
+  The old unit `cli-git@fc85fdf7a58f866b7f7a84b44fe0b69a` of the 0.5.34 service was not stopped:
+  `package/git-policy/cli/README.md` says the 0.6.0 release "neither stops it nor removes the old units"
+  (it keeps running from the 0.5.34 install folder until it exits idle after three hours or someone stops it).
+- Yank (2026-11-07T08:28:45-05:00 to 08:29:19-05:00): the 14 older versions of "Yank step", one at a time with
+  `cargo yank --version <v> <crate>` from `/var/home/user/temp/agent/post-release/yank`; after each one the crates.io API showed the old
+  version `yanked` true and the new one false; no 429.
+  Afterwards the unyanked versions are the new one of each of the 14, and `forbidden-regex` 0.1.2 and 0.1.1,
+  `forbidden-strings` 0.6.2 and 0.6.1 (exempt).
+- Daily timer: `mise run toolchain:timer:install` at 2026-11-07T08:29:48-05:00 enabled `toolchain-daily-update.timer`
+  (next run 2026-11-08T00:07:05-05:00).
+  First run, `systemctl --user start --no-block toolchain-daily-update.service`: 08:30:04 to 08:33:17 (3 min 12.6 s wall,
+  1 min 15.3 s CPU, 1.4 G memory peak), result `success`; see `doc/planning/toolchain-always-latest.md`, "First run".
 
 ## Evidence log
 
