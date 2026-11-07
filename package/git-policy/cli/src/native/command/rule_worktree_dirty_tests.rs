@@ -95,24 +95,24 @@ fn ask(repo: &std::path::Path, scope: DirtyScope) -> bool {
 /// A Git directory without an `index` file is absent; one with an `index` file, empty included, is not.
 #[test]
 fn the_index_file_is_absent_only_where_the_git_directory_has_none() {
-    let fixture = fixture("index-file-absent");
-    let git_directory = fixture.root.join("git-directory");
+    let root = fixture("index-file-absent");
+    let git_directory = root.join("git-directory");
     std::fs::create_dir(&git_directory).expect("git directory");
     assert!(index_file_is_absent(Some(git_directory.as_path()), None));
     std::fs::write(git_directory.join("index"), b"").expect("empty index file");
     assert!(!index_file_is_absent(Some(git_directory.as_path()), None));
-    remove(&fixture);
+    remove(root.as_path());
 }
 
 /// A Git directory that does not exist, no Git directory, and a `GIT_INDEX_FILE` that names another index leave the question to the status.
 #[test]
 fn the_index_file_is_not_absent_when_the_question_is_not_the_default_index() {
-    let fixture = fixture("index-file-unknown");
-    let missing = fixture.root.join("no-such-git-directory");
+    let root = fixture("index-file-unknown");
+    let missing = root.join("no-such-git-directory");
     assert!(!index_file_is_absent(Some(missing.as_path()), None));
     assert!(!index_file_is_absent(None, None));
-    let git_directory = fixture.root.join("git-directory");
+    let git_directory = root.join("git-directory");
     std::fs::create_dir(&git_directory).expect("git directory");
     assert!(!index_file_is_absent(Some(git_directory.as_path()), Some(OsStr::new("other-index"))));
-    remove(&fixture);
+    remove(root.as_path());
 }
