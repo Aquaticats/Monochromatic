@@ -127,7 +127,8 @@ fn a_notification_opens_and_is_replaced_over_a_private_bus() {
     let (service, calls) = bus.serve_notifications(Duration::ZERO);
     let client = bus.connect(METHOD_TIMEOUT).expect("the client connects");
     let mut open = FdoNotification::open(&client, &identity(), true, &view(10, "1 of 10", false)).expect("the notification opens");
-    assert!(open.owns(&service.unique_name().expect("the service has a unique name").to_string(), 1));
+    let owner = service.unique_name().expect("the service has a unique name");
+    assert!(open.owns(owner.as_str(), 1));
     open.update(&identity(), true, &view(20, "2 of 10", false)).expect("the replacement is sent");
     let seen = calls.lock().expect("not poisoned").clone();
     assert_eq!(seen.len(), 2);
