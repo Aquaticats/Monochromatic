@@ -13,10 +13,13 @@ import {
 import {
   cgroupBelongsToUnit,
   DEFAULT_UNIT_LIMITS,
+  type DisplayMode,
+  HOST_DISPLAY_VARIABLES,
   hostEnvironment,
   runRefusal,
   SESSION_IO_WEIGHT,
   sessionEnvironment,
+  sessionLaunchArguments,
   type SessionOptions,
   systemdRunArguments,
   unitNameOf,
@@ -34,6 +37,16 @@ const OPTIONS: SessionOptions = {
   library: '/lib',
   label: 'wide',
 };
+
+/**
+ The display mode of a run that asked for a visible window.
+ */
+const VISIBLE: DisplayMode = { kind: 'visible', };
+
+/**
+ The display mode of a run that asked for nothing: headless on a named render node.
+ */
+const HEADLESS: DisplayMode = { kind: 'headless', gpu: '/dev/dri/renderD129', };
 
 /**
  Highest `IOWeight` a per-command cgroup may carry: the owner's rule in `CLAUDE.md` (RXS) says never above 10.
@@ -106,6 +119,7 @@ await describe({
       name: 'points the app at the private sink and into scratch XDG directories',
       fn: async ({ expect, }) => {
         const env = sessionEnvironment({
+          display: VISIBLE,
           sinkName: 'music_player_e2e_7',
           xdg: '/scratch/wide-xdg',
           binDir: '/scratch/bin',
@@ -127,6 +141,7 @@ await describe({
       name: 'lets a session add and replace variables',
       fn: async ({ expect, }) => {
         const env = sessionEnvironment({
+          display: VISIBLE,
           sinkName: 's',
           xdg: '/x',
           binDir: '/b',
@@ -147,6 +162,7 @@ await describe({
       name: 'starts a user unit that holds the compositor and the app, with a memory cap and the log as output',
       fn: async ({ expect, }) => {
         const args = systemdRunArguments({
+          display: VISIBLE,
           unit: 'music-player-e2e-1-wide',
           logPath: '/scratch/wide.log',
           environment: { PIPEWIRE_NODE: 'sink', },
@@ -187,6 +203,7 @@ await describe({
       name: 'sets memory, CPU, task and disk-weight limits on the unit, one of each',
       fn: async ({ expect, }) => {
         const args = systemdRunArguments({
+          display: VISIBLE,
           unit: 'u',
           logPath: '/l',
           environment: {},
@@ -204,6 +221,7 @@ await describe({
       name: 'never sets a disk weight above the owner limit',
       fn: async ({ expect, }) => {
         const args = systemdRunArguments({
+          display: VISIBLE,
           unit: 'u',
           logPath: '/l',
           environment: {},
@@ -223,6 +241,7 @@ await describe({
       name: 'passes the limits it is given',
       fn: async ({ expect, }) => {
         const args = systemdRunArguments({
+          display: VISIBLE,
           unit: 'u',
           logPath: '/l',
           environment: {},
@@ -241,6 +260,7 @@ await describe({
       name: 'passes explicit app arguments instead of the library',
       fn: async ({ expect, }) => {
         const args = systemdRunArguments({
+          display: VISIBLE,
           unit: 'u',
           logPath: '/l',
           environment: {},
@@ -257,6 +277,7 @@ await describe({
       name: 'never carries a command that signals a process',
       fn: async ({ expect, }) => {
         const args = systemdRunArguments({
+          display: VISIBLE,
           unit: 'u',
           logPath: '/l',
           environment: {},
@@ -311,6 +332,121 @@ await describe({
         expect(runRefusal(listing,),).toBe(
           `another end-to-end run is active, and this one must run alone:\n${listing.trim()}`,
         );
+      },
+    },),
+  ],
+},);
+
+/**
+ What the display variables of the host are named in the environment of a process that would open a window on it.
+ The test states them itself, so a change to the implementation's own list cannot shrink the claim.
+ */
+const HOST_DISPLAY_NAMES = ['WAYLAND_DISPLAY', 'DISPLAY', 'WAYLAND_SOCKET', 'XAUTHORITY',] as const;
+
+/**
+ Parts of a full launch that the tests below inspect.
+ */
+function launchOf(display: DisplayMode,): readonly string[] {
+  return sessionLaunchArguments({
+    display,
+    unit: 'music-player-e2e-1-wide',
+    logPath: '/scratch/wide.log',
+    sinkName: 'sink',
+    xdg: '/scratch/wide-xdg',
+    binDir: '/scratch/bin',
+    host: { waylandDisplay: 'wayland-0', runtimeDir: '/run/user/1000', path: '/usr/bin', },
+    compositorPath: '/bin/compositor',
+    socket: '/scratch/wide.sock',
+    options: OPTIONS,
+    releaseBinary: '/app/music-player',
+    limits: DEFAULT_UNIT_LIMITS,
+  },);
+}
+
+await describe({
+  name: 'a headless launch',
+  children: [
+    it({
+      name: 'starts the compositor headless on the chosen node, before the app command',
+      fn: async ({ expect, }) => {
+        const args = launchOf(HEADLESS,);
+        const compositor = args.indexOf('/bin/compositor',);
+        const separator = args.indexOf('--',);
+        expect(args.slice(compositor + 1, compositor + 4,),).toEqual(['--headless', '--gpu', '/dev/dri/renderD129',],);
+        expect(compositor,).toBeGreaterThan(-1,);
+        expect(args.indexOf('--headless',),).toBeLessThan(separator,);
+        expect(args.slice(separator + 1,),).toEqual(['/app/music-player', '/lib',],);
+      },
+    },),
+    it({
+      name: 'gives the unit no variable that names the display of the host, and removes the ones the user manager holds',
+      fn: async ({ expect, }) => {
+        const args = launchOf(HEADLESS,);
+        for (const name of HOST_DISPLAY_NAMES)
+          expect(args.some((argument,) => argument.startsWith(`--setenv=${name}=`,),),).toBe(false,);
+        const [unset,] = propertyValues({ args, property: 'UnsetEnvironment', },);
+        expect(unset,).toBeDefined();
+        for (const name of HOST_DISPLAY_NAMES)
+          expect((unset ?? '').split(' ',),).toContain(name,);
+        expect([...HOST_DISPLAY_VARIABLES,].toSorted(),).toEqual([...HOST_DISPLAY_NAMES,].toSorted(),);
+      },
+    },),
+    it({
+      name: 'keeps the runtime directory, where the nested socket lives',
+      fn: async ({ expect, }) => {
+        expect(launchOf(HEADLESS,),).toContain('--setenv=XDG_RUNTIME_DIR=/run/user/1000',);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: 'a visible launch, which only an explicit request gives',
+  children: [
+    it({
+      name: 'names the display of the host and starts the compositor without --headless',
+      fn: async ({ expect, }) => {
+        const args = launchOf(VISIBLE,);
+        expect(args,).toContain('--setenv=WAYLAND_DISPLAY=wayland-0',);
+        expect(args,).not.toContain('--headless',);
+        expect(args,).not.toContain('--gpu',);
+        expect(propertyValues({ args, property: 'UnsetEnvironment', },),).toEqual([],);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: `${sessionEnvironment.name} without a visible window`,
+  children: [
+    it({
+      name: 'carries none of the display variables of the host, even when the host has them',
+      fn: async ({ expect, }) => {
+        const env = sessionEnvironment({
+          display: HEADLESS,
+          sinkName: 's',
+          xdg: '/x',
+          binDir: '/b',
+          host: { waylandDisplay: 'wayland-0', runtimeDir: '/r', path: '/p', },
+        },);
+        for (const name of HOST_DISPLAY_NAMES)
+          expect(Object.keys(env,),).not.toContain(name,);
+        expect(env.XDG_RUNTIME_DIR,).toBe('/r',);
+      },
+    },),
+    it({
+      name: 'does not let a session variable bring the host display back',
+      fn: async ({ expect, }) => {
+        const env = sessionEnvironment({
+          display: HEADLESS,
+          sinkName: 's',
+          xdg: '/x',
+          binDir: '/b',
+          host: { waylandDisplay: 'wayland-0', runtimeDir: '/r', path: '/p', },
+          extraEnv: { WAYLAND_DISPLAY: 'wayland-5', DISPLAY: ':0', },
+        },);
+        for (const name of HOST_DISPLAY_NAMES)
+          expect(Object.keys(env,),).not.toContain(name,);
       },
     },),
   ],

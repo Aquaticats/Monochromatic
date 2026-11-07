@@ -32,7 +32,7 @@ import { checkPreconditions, } from './run.ts';
  @returns the fake compositor's path and the message of the precondition failure, empty when all preconditions held
  */
 async function preconditionMessage(
-  { versionOutput, }: { readonly versionOutput: string; },
+  { versionOutput, visible = false, }: { readonly versionOutput: string; readonly visible?: boolean; },
 ): Promise<{ readonly compositor: string; readonly message: string; }> {
   const appDir = await mkdtemp(join(scratchRoot(), 'e2e-pre-',),);
   await using _scratch = {
@@ -49,7 +49,7 @@ async function preconditionMessage(
     await checkPreconditions(loadRunConfig({
       appDir,
       home: scratchRoot(),
-      overrides: { compositorPath: compositor, },
+      overrides: { compositorPath: compositor, ...visible ? { visible: true, } : {}, },
       defaultCompositorPath: '/no/such/compositor',
     },),);
   }
@@ -130,8 +130,21 @@ await describe({
       fn: async ({ expect, }) => {
         const newer = await preconditionMessage({ versionOutput: 'monochromatic-nested-wayland-session 9.9.9', },);
         expect(newer.message,).not.toContain('the compositor',);
-        const prerelease = await preconditionMessage({ versionOutput: 'monochromatic-nested-wayland-session 0.5.0-dev', },);
+        const prerelease = await preconditionMessage({ versionOutput: 'monochromatic-nested-wayland-session 0.6.0-dev', },);
         expect(prerelease.message,).not.toContain('the compositor',);
+      },
+    },),
+    it({
+      name: 'asks a headless run, which is the default, for a compositor with the device choice, and a visible run for less',
+      fn: async ({ expect, }) => {
+        const headless = await preconditionMessage({ versionOutput: 'monochromatic-nested-wayland-session 0.5.0', },);
+        expect(headless.message,).toContain(`the compositor ${headless.compositor} is 0.5.0`,);
+        expect(headless.message,).toContain('--visible',);
+        const visible = await preconditionMessage({
+          versionOutput: 'monochromatic-nested-wayland-session 0.5.0',
+          visible: true,
+        },);
+        expect(visible.message,).not.toContain('the compositor',);
       },
     },),
   ],

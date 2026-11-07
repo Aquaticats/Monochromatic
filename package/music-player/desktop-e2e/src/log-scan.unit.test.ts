@@ -11,7 +11,9 @@ import {
 
 import {
   countShortcutUses,
+  describeStartStage,
   isDisplayName,
+  startStageOf,
   waylandDisplayOf,
 } from './log-scan.ts';
 
@@ -96,6 +98,69 @@ await describe({
       fn: async ({ expect, }) => {
         const lines = ['Created new socket name=None', 'Created new socket name=Some("wayland-2")',];
         expect(waylandDisplayOf(lines,),).toBe('wayland-2',);
+      },
+    },),
+  ],
+},);
+
+/**
+ Lines of a session log as the compositor and the app write them, from a headless run measured on 2026-11-07.
+ */
+const COMPOSITOR_FIRST = 'INFO nested_wayland_session::backend_select: selected the render backend choice=BackendChoice';
+const SOCKET_LINE = 'INFO nested_wayland_session::control_socket: control socket listening at /s/wide.sock';
+const SPAWNED_LINE = 'INFO nested_wayland_session::child: spawned hosted client /app/music-player on "wayland-2"';
+const APP_LINE = 'DEBUG music_player::ui_theme: no accent override, following the system accent';
+const STATE_LINE = 'INFO music_player::ui_state_log: ui_state {"seq":1}';
+
+await describe({
+  name: startStageOf.name,
+  children: [
+    it({
+      name: 'says the compositor wrote nothing for an empty log',
+      fn: async ({ expect, }) => {
+        expect(startStageOf({ lines: [], },),).toBe('compositor-silent',);
+        expect(startStageOf({ lines: ['',], },),).toBe('compositor-silent',);
+      },
+    },),
+    it({
+      name: 'walks through the stages in the order a start passes them',
+      fn: async ({ expect, }) => {
+        expect(startStageOf({ lines: [COMPOSITOR_FIRST,], },),).toBe('compositor-starting',);
+        expect(startStageOf({ lines: [COMPOSITOR_FIRST, SOCKET_LINE,], },),).toBe('socket-listening',);
+        expect(startStageOf({ lines: [COMPOSITOR_FIRST, SOCKET_LINE, SPAWNED_LINE,], },),).toBe('app-spawned',);
+        expect(startStageOf({ lines: [COMPOSITOR_FIRST, SOCKET_LINE, SPAWNED_LINE, APP_LINE,], },),).toBe('app-running',);
+        expect(startStageOf({ lines: [COMPOSITOR_FIRST, SOCKET_LINE, SPAWNED_LINE, APP_LINE, STATE_LINE,], },),).toBe(
+          'state-line',
+        );
+      },
+    },),
+    it({
+      name: 'reads the furthest stage reached, whatever order the lines are in',
+      fn: async ({ expect, }) => {
+        expect(startStageOf({ lines: [STATE_LINE, COMPOSITOR_FIRST,], },),).toBe('state-line',);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: describeStartStage.name,
+  children: [
+    it({
+      name: 'names the last point the start reached in plain words, one text per stage',
+      fn: async ({ expect, }) => {
+        const stages = [
+          'compositor-silent',
+          'compositor-starting',
+          'socket-listening',
+          'app-spawned',
+          'app-running',
+          'state-line',
+        ] as const;
+        const texts = stages.map((stage,) => describeStartStage(stage,),);
+        expect(new Set(texts,).size,).toBe(stages.length,);
+        expect(describeStartStage('app-spawned',),).toContain('app',);
+        expect(describeStartStage('compositor-silent',),).toContain('compositor',);
       },
     },),
   ],
