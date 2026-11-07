@@ -2,7 +2,7 @@
 
 Status:
 plan only,
-written 2026-11-07T05:50:00-05:00 for the owner's decision.
+written 2026-11-07T05:47:00-05:00 for the owner's decision.
 Nothing was moved,
 copied,
 mounted,
@@ -45,7 +45,7 @@ ranked.
 
 ## Measurements
 
-All sizes were taken on 2026-11-07 between 05:00:00-05:00 and 05:45:00-05:00 while other sessions kept committing,
+All sizes were taken on 2026-11-07 between 05:16:00-05:00 and 05:47:00-05:00 while other sessions kept committing,
 so each number is a snapshot,
 not a quiet-host figure.
 
@@ -121,7 +121,17 @@ and the worktree subvolumes are nested inside it.
   Packs are 709.78 MiB (4 packs,
   413533 objects);
   loose objects 1.55 MiB (184);
-  the rest is wrapper records and 340 `worktrees/<id>` administrative directories.
+  measured split of the 2158 MiB (capped `du --summarize` per part):
+  `objects` 728 MiB (packs and loose objects together),
+  `worktrees` 881 MiB (340 administrative directories),
+  `lfs` 362 MiB,
+  `rr-cache` 94 MiB,
+  `lost-found` 15 MiB,
+  `logs` 8 MiB,
+  wrapper records `monochromatic-git-policy-cli` 16 MiB and its `-worktree-copy` 2 MiB,
+  the remainder (index,
+  refs,
+  small files) is the difference to the total.
   `.git/config` carries a credential inside the `lfs.url` value,
   so every copy of `.git` copies that credential;
   the new subvolume's top directory must be mode 0700 (the 860's top level is mode 777).
@@ -263,7 +273,12 @@ programs that call `realpath` or `canonicalize` see the first.
   Without `--follow`,
   `rg` skips symlinks and misses the first:
   the unit file `claude-cpu-watch.service` is itself a
-  symlink to `/home/user/Monochromatic/package/claude-cpu-cap/daemon/systemd/claude-cpu-watch.service`.
+  symlink to `/home/user/Monochromatic/package/claude-cpu-cap/daemon/systemd/claude-cpu-watch.service`,
+  so the user manager dereferences the repository path when it loads units,
+  before any `ExecStart` runs.
+  Under the recommended design that is a bounded stall at every login,
+  and a stall as long as the unlock timeout when the unlock fails;
+  the runbook replaces the symlink with a copy of the unit file first.
 - System units and autostart:
   `rg` over `/etc/systemd`,
   `/usr/lib/systemd`,
@@ -496,6 +511,12 @@ so the fixture test in the runbook repeats these):
   so the unit is named for
   `/var/home/user/Monochromatic`,
   not `/home/user/Monochromatic`.
+- A mount unit gains `Before=local-fs.target` unless `nofail` is among its options
+  (`systemd.mount(5)`,
+  "Default Dependencies";
+  `mount_is_nofail` in `src/core/mount.c`),
+  and `mount-860.service` is `After=local-fs.target`,
+  so the mount unit needs `nofail` or the pair forms an ordering cycle.
 - Idle expiry is off unless `TimeoutIdleSec=` is set;
   the plan leaves it off.
 - `mount-860.service` is `Type=oneshot`,
@@ -822,6 +843,8 @@ the copy is real work.
     5.  `notify-send` while the user manager is blocked on the path:
         does `mount-860.service` finish?
     6.  Mounting the same btrfs twice with different options (A3).
+    7.  `systemd-analyze verify` on the two units prints no ordering cycle,
+        and the mount unit has no `Before=local-fs.target` (`nofail` in `Options=`).
 2.  Pre-checks,
     read-only:
     record `git worktree list --porcelain | sha256sum`,
@@ -835,7 +858,11 @@ the copy is real work.
     (`sudo find ... -user root`).
     Confirm the 860 has the required free space for the chosen scope.
 3.  Lock the 71 worktrees on the 860 (`git worktree lock` per worktree) so a missing mount cannot prune them.
-4.  Install the bounding drop-in on `mount-860.service` and the `timeout 5` around its notification
+4.  Replace the symlink `~/.config/systemd/user/claude-cpu-watch.service` with a regular copy of the unit file
+    (the repository keeps the original;
+    the copy names `ExecStart` in the repository as before),
+    so the user manager no longer dereferences the repository path while it loads units.
+    Then install the bounding drop-in on `mount-860.service` and the `timeout 5` around its notification
     (root commands below);
     run `systemctl daemon-reload`;
     confirm the value with `systemctl show mount-860.service --property=TimeoutStartUSec`.
@@ -976,7 +1003,9 @@ JobTimeoutSec=240s
 What=/var/mnt/encrypted/Monochromatic
 Where=/var/home/user/Monochromatic
 Type=none
-Options=bind
+# nofail: without it the mount unit gains Before=local-fs.target, and with After=mount-860.service (which is itself
+# After=local-fs.target) that is an ordering cycle. The repository is not needed for boot, so nofail is also right.
+Options=bind,nofail
 TimeoutSec=60s
 ```
 
