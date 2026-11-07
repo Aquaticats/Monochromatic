@@ -2593,12 +2593,22 @@ The commit service warms the compiled forbidden-strings rules (`src/native/landi
 after the first landing it sees for a repository,
 after a landing that changes a path of the rules,
 right after it starts for the repository named in `rules-repository` in its state directory,
-and on a `warm` message (`{"type":"warm","version":<n>,"gitDir":<absolute>,"repository":<absolute>}`, never answered).
-The work is a job of the blocking pool and never runs on the landing thread, and one warm runs at a time.
-The client sends `warm` only after `merge`, `pull`, `checkout`, `switch`, `rebase` or `reset` exits 0 and the digest of the rules text
-it would load changed, only to a service of that worktree that already runs (found by its start arguments), and never starts a process.
+and on a `warm` message (`{"type":"warm","version":<n>,"gitDir":<absolute>,"repository":<absolute>}`,
+never answered).
+The work is a job of the blocking pool and never runs on the landing thread,
+and one warm runs at a time.
+The client sends `warm` only after `merge`,
+`pull`,
+`checkout`,
+`switch`,
+`rebase` or `reset` exits 0 and the digest of the rules text
+it would load changed,
+only to a service of that worktree that already runs (found by its start arguments),
+and never starts a process.
 The client keeps compiling on a cache miss.
-The waiting notice of the commit Git builds in the scratch repository names that `git commit`, signing, the signing program,
+The waiting notice of the commit Git builds in the scratch repository names that `git commit`,
+signing,
+the signing program,
 and that the step has no time limit (`src/native/commit/native_commit_waiting_notice.rs`).
 
 ##### The quiet windows are labelled unmeasured

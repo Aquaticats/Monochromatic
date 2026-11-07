@@ -2721,7 +2721,9 @@ Each line names what the command waits for,
    The guard contains a hang and a panic,
   not a stack overflow or an abort in the linter.
 - The `git commit` a commit that Git must build runs in its scratch repository
-   (a template, a clean-up mode, or `commit.gpgsign`):
+   (a template,
+  a clean-up mode,
+  or `commit.gpgsign`):
    it says the command waits for that `git commit` (its process),
    says the commit is signed when `commit.gpgsign` or `-S` asks for it,
    names the signing program while one runs below it,
@@ -2745,12 +2747,20 @@ The forbidden-strings rules are compiled once per text of the rules files and ke
 (`~/.cache/forbidden-strings/v<version>/<platform>/<digest of the rules text>/rules.bin`).
 A commit that finds no compiled form compiles the rules itself in its prepare phase,
 about 1.3 s on a quiet host and about 20 s on the first commit of a fresh cache under load.
-The commit service therefore compiles them on its own time, on the blocking pool and never on the landing thread:
+The commit service therefore compiles them on its own time,
+on the blocking pool and never on the landing thread:
 
-- after the first landing it sees for a repository, and after a landing that changes a path of the rules,
-- right after it starts, for the repository it remembered in its state directory (`rules-repository`),
+- after the first landing it sees for a repository,
+  and after a landing that changes a path of the rules,
+- right after it starts,
+  for the repository it remembered in its state directory (`rules-repository`),
   so a service restarted by an upgrade fills the new release's cache at once,
-- when the client asks it to: after `merge`, `pull`, `checkout`, `switch`, `rebase` or `reset` exits 0,
+- when the client asks it to:
+  after `merge`,
+  `pull`,
+  `checkout`,
+  `switch`,
+  `rebase` or `reset` exits 0,
   the client compares a digest of the rules text it would load before and after,
   and when it differs sends a one-way `warm` message to the service of that worktree that already runs.
   The client never starts a service or a process for this,
