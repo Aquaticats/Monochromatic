@@ -85,6 +85,7 @@ use crate::real_binary::find_in_path;
 use crate::report::render_report;
 /// Imports the workspace scan.
 use crate::scan::{find_workspace_root, scan_workspace};
+/// Imports the arrival and vetting rules a start goes through.
 use crate::shadow_identity::{ARRIVAL_EXIT_CODE, StartMode, Vetted, arrival_at_this_process, arrival_line, mark_start, vet};
 /// Imports the notice that follows pnpm's version and help.
 use crate::shadow_notice::{TopLevelRequest, notice_text, top_level_request};
@@ -188,6 +189,16 @@ pub fn warn_about_workspace(start: &Path, sink: &mut dyn Write) {
     }
 }
 
+/// The paths as display text separated by `, `,
+/// for the message that names every shadow the lookup skipped.
+fn joined_display(paths: &[PathBuf]) -> String {
+    let mut texts: Vec<String> = Vec::with_capacity(paths.len());
+    for path in paths {
+        texts.push(path.display().to_string());
+    }
+    return texts.join(", ");
+}
+
 /// What:
 /// `pub fn run_shim(arguments: Vec<OsString>) -> i32` takes the arguments pnpm was started with (an owned list) and
 /// returns the exit code.
@@ -224,7 +235,7 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
     if hops >= MAX_HOPS {
         eprintln!(
             "pnpm-shadow: stopped after {hops} hops: the {SHADOWED_NAME} found on PATH keeps leading back to this shadow (tried {})",
-            skipped.iter().map(|path| { return path.display().to_string(); }).collect::<Vec<String>>().join(", ")
+            joined_display(&skipped)
         );
         return EXEC_FAILED_EXIT_CODE;
     }

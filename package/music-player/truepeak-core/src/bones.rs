@@ -108,7 +108,7 @@ fn decode_coded_number(buf: &[u8], offset: usize, max_length: usize) -> Option<(
         return Some((u64::from(first), 1));
     }
     // Count the leading ones to get the coded length, then fold the continuation bytes.
-    let length = (0..8).take_while(|shift| return first & (0x80 >> shift) != 0).count();
+    let length: usize = usize::try_from(first.leading_ones()).unwrap_or(0);
     if !(2..=max_length).contains(&length) {
         return None;
     }
@@ -197,9 +197,10 @@ fn parse_frame_header(buf: &[u8], offset: usize, info: &StreamInfo) -> Option<Fr
     }
     // CRC-8 over every header byte up to the CRC itself.
     let crc_byte = *buf.get(cursor)?;
-    let crc = buf[offset..cursor]
-        .iter()
-        .fold(0u8, |accumulator, &byte| return CRC8_TABLE[usize::from(accumulator ^ byte)]);
+    let mut crc: u8 = 0;
+    for &byte in &buf[offset..cursor] {
+        crc = CRC8_TABLE[usize::from(crc ^ byte)];
+    }
     if crc != crc_byte {
         return None;
     }
@@ -262,11 +263,28 @@ fn parse_metadata(buf: &[u8]) -> Result<(StreamInfo, usize), BonesError> {
     }
     // The confirmed STREAMINFO gets its own name so it does not shadow the
     // accumulator `Option` above.
-    let stream_info = info.ok_or_else(|| return BonesError { message: "flac: no STREAMINFO block".to_owned() })?;
+    let Some(stream_info) = info else {
+        return Err(BonesError { message: "flac: no STREAMINFO block".to_owned() });
+    };
     if stream_info.sample_rate == 0 {
         return Err(BonesError { message: "flac: zero sample rate".to_owned() });
     }
     return Ok((stream_info, offset))
+}
+
+/// The first sample a frame holds:
+/// the coded number itself for variable blocking,
+/// the frame number times the constant block size for fixed blocking.
+fn start_sample_of(header: &FrameHeader, nominal_block_size: u64) -> u64 {
+    if header.blocking_strategy == 1 {
+        return header.coded_number;
+    }
+    return header.coded_number * nominal_block_size;
+}
+
+/// Whether a byte is the first byte of a frame sync code.
+fn is_sync_byte(byte: &u8) -> bool {
+    return *byte == 0xff;
 }
 
 /// Walk audio frames from the first frame to EOF,
@@ -279,21 +297,19 @@ fn parse_metadata(buf: &[u8]) -> Result<(StreamInfo, usize), BonesError> {
 ///  Why:
 ///  the byte spans are the profile.
 fn walk_frames(buf: &[u8], first_frame_offset: usize, info: &StreamInfo) -> Result<(Vec<WalkedFrame>, f64), BonesError> {
-    let first = parse_frame_header(buf, first_frame_offset, info)
-        .ok_or_else(|| return BonesError { message: "flac: no frame at first-frame offset".to_owned() })?;
+    let Some(first) = parse_frame_header(buf, first_frame_offset, info) else {
+        return Err(BonesError { message: "flac: no frame at first-frame offset".to_owned() });
+    };
     let blocking_strategy = first.blocking_strategy;
     // Fixed blocking: start sample = frame number times the constant first block size.
     let nominal_block_size = u64::from(first.block_size);
-    let start_sample_of = |header: &FrameHeader| {
-        if header.blocking_strategy == 1 { return header.coded_number } else { return header.coded_number * nominal_block_size }
-    };
     let mut frames: Vec<WalkedFrame> = Vec::new();
     let mut previous_offset = first_frame_offset;
     let mut previous = first;
     let mut search_from = first_frame_offset + MIN_FRAME_BYTES;
     while search_from < buf.len() {
         // Jump to the next 0xff sync candidate.
-        let Some(found) = buf[search_from..].iter().position(|&byte| return byte == 0xff) else {
+        let Some(found) = buf[search_from..].iter().position(is_sync_byte) else {
             break;
         };
         let candidate = search_from + found;
@@ -306,7 +322,7 @@ fn walk_frames(buf: &[u8], first_frame_offset: usize, info: &StreamInfo) -> Resu
             continue;
         }
         let expected = if blocking_strategy == 1 {
-            start_sample_of(&previous) + u64::from(previous.block_size)
+            start_sample_of(&previous, nominal_block_size) + u64::from(previous.block_size)
         } else {
             previous.coded_number + 1
         };
@@ -315,7 +331,7 @@ fn walk_frames(buf: &[u8], first_frame_offset: usize, info: &StreamInfo) -> Resu
             continue;
         }
         frames.push(WalkedFrame {
-            start_sample: start_sample_of(&previous),
+            start_sample: start_sample_of(&previous, nominal_block_size),
             block_size: previous.block_size,
             byte_count: candidate - previous_offset,
         });
@@ -323,7 +339,7 @@ fn walk_frames(buf: &[u8], first_frame_offset: usize, info: &StreamInfo) -> Resu
         previous = header;
         search_from = candidate + MIN_FRAME_BYTES;
     }
-    let last_start = start_sample_of(&previous);
+    let last_start = start_sample_of(&previous, nominal_block_size);
     frames.push(WalkedFrame {
         start_sample: last_start,
         block_size: previous.block_size,
@@ -375,6 +391,12 @@ pub fn flac_bones_profile(buf: &[u8]) -> Result<Vec<f64>, BonesError> {
     return Ok(slots)
 }
 
+/// Orders two pairs of a weight and an index by weight,
+/// heaviest first.
+fn heavier_first(left: &(f64, usize), right: &(f64, usize)) -> std::cmp::Ordering {
+    return f64::total_cmp(&right.0, &left.0);
+}
+
 /// The indices of the `top` hottest byte slots,
 ///  the probe's bones seeds.
 ///
@@ -384,9 +406,15 @@ pub fn flac_bones_profile(buf: &[u8]) -> Result<Vec<f64>, BonesError> {
 /// the resolver decodes these slots (each with its neighbors) before the even pass.
 pub fn bones_hot_bins(profile: &[f64], top: usize) -> Vec<usize> {
     // Sort indices by descending byte weight, then truncate.
-    let mut order: Vec<usize> = (0..profile.len()).collect();
-    order.sort_by(|&a, &b| return f64::total_cmp(&profile[b], &profile[a]));
-    order.truncate(top);
+    let mut weighted: Vec<(f64, usize)> = Vec::with_capacity(profile.len());
+    for (index, &weight) in profile.iter().enumerate() {
+        weighted.push((weight, index));
+    }
+    weighted.sort_by(heavier_first);
+    let mut order: Vec<usize> = Vec::with_capacity(weighted.len().min(top));
+    for &(_, index) in weighted.iter().take(top) {
+        order.push(index);
+    }
     return order
 }
 

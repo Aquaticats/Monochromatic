@@ -64,15 +64,15 @@ pub fn response(input: &str, parent: &Path) -> io::Result<String> {
         return Err(io::Error::other("Expected a Bash PreToolUse event."));
     }
     // Require the command container without inventing a default command.
-    let tool_input = event.get("tool_input").ok_or_else(|| {
-        // Return this diagnostic from the zero-argument error factory (`||`).
-        return io::Error::other("The Bash hook event has no tool_input.");
-    })?;
+    let Some(tool_input) = event.get("tool_input") else {
+        // Return this diagnostic.
+        return Err(io::Error::other("The Bash hook event has no tool_input."));
+    };
     // Borrow the exact decoded command string supplied by Codex.
-    let original = tool_input.get("command").and_then(Value::as_str).ok_or_else(|| {
+    let Some(original) = tool_input.get("command").and_then(Value::as_str) else {
         // Distinguish absent or non-string input from a legitimate empty command.
-        return io::Error::other("The Bash hook event requires a command string.");
-    })?;
+        return Err(io::Error::other("The Bash hook event requires a command string."));
+    };
     // Check the real parent controls before releasing any original command text.
     crate::limits::verify(parent)?;
     // Derive the only writable cgroup child used by the hook.
@@ -86,10 +86,10 @@ pub fn response(input: &str, parent: &Path) -> io::Result<String> {
         return Err(io::Error::other("The worker cgroup membership target must be a file."));
     }
     // Require lossless path text before shell quoting.
-    let membership_text = membership.to_str().ok_or_else(|| {
+    let Some(membership_text) = membership.to_str() else {
         // Reject unrepresentable path bytes instead of changing the target.
-        return io::Error::other("The worker membership path must be UTF-8.");
-    })?;
+        return Err(io::Error::other("The worker membership path must be UTF-8."));
+    };
     // Own the prefix buffer; the original shell body is appended without shell parsing.
     let mut command = String::from("command printf '%s' \"$$\" > ");
     // Borrow the separately shell-encoded pathname for appending.

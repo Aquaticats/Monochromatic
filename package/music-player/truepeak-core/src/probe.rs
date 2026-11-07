@@ -100,11 +100,16 @@ fn measure_bin(
 ) -> Result<(), TruePeakError> {
     // Seek to the bin start and measure one window; a failure names the bin at debug before
     // it propagates (the service fold warns on the typed error).
-    source
-        .seek_to_frame(index as u64 * plan.bin_frames)
-        .inspect_err(|error| tracing::debug!(bin = index, cause = %error, "probe seek failed"))?;
-    let window_peak = measure_window(source, channels, plan.bin_frames)
-        .inspect_err(|error| tracing::debug!(bin = index, cause = %error, "probe measure failed"))?;
+    let seek_result = source.seek_to_frame(index as u64 * plan.bin_frames);
+    if let Err(error) = &seek_result {
+        tracing::debug!(bin = index, cause = %error, "probe seek failed");
+    }
+    seek_result?;
+    let measure_result = measure_window(source, channels, plan.bin_frames);
+    if let Err(error) = &measure_result {
+        tracing::debug!(bin = index, cause = %error, "probe measure failed");
+    }
+    let window_peak = measure_result?;
     frontier.measured[index] = true;
     frontier.used += 1;
     if window_peak > frontier.peak {
