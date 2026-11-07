@@ -1,13 +1,23 @@
 //! What:
-//!  Empty a directory that is held open, one descriptor-relative step at a time, refusing every nested subvolume and mount
+//!  Empty a directory that is held open,
+//! one descriptor-relative step at a time,
+//! refusing every nested subvolume and mount
 //!  point before anything is deleted.
 //! Why:
-//!  `std::fs::remove_dir_all` crosses into a nested subvolume (it is a directory to the kernel) and into a bind mount, and
-//!  deletes what is there; those hold data that is not part of the tree being removed. Every directory is opened below the
-//!  descriptor of its parent without following links or crossing a mount (`openat2`), compared with the device of the top
-//!  directory (a nested subvolume has its own), and then emptied through its own descriptor, so a path swapped for another
-//!  directory or a link after the check cannot redirect any deletion. A first pass visits the whole tree and deletes nothing;
-//!  the second pass does the same checks again at each directory, which catches a boundary that appeared in between.
+//!  `std::fs::remove_dir_all` crosses into a nested subvolume (it is a directory to the kernel) and into a bind mount,
+//! and
+//!  deletes what is there;
+//! those hold data that is not part of the tree being removed.
+//! Every directory is opened below the
+//!  descriptor of its parent without following links or crossing a mount (`openat2`),
+//! compared with the device of the top
+//!  directory (a nested subvolume has its own),
+//! and then emptied through its own descriptor,
+//! so a path swapped for another
+//!  directory or a link after the check cannot redirect any deletion.
+//! A first pass visits the whole tree and deletes nothing;
+//!  the second pass does the same checks again at each directory,
+//! which catches a boundary that appeared in between.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,7 +32,8 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 
 /// The inode number btrfs gives the empty directory that stands for a nested subvolume in a snapshot (`BTRFS_EMPTY_SUBVOL_DIR_OBJECTID`):
-///  it reports a device of its own, yet holds nothing and belongs to the snapshot being removed.
+///  it reports a device of its own,
+/// yet holds nothing and belongs to the snapshot being removed.
 const EMPTY_SUBVOLUME_PLACEHOLDER_INODE: u64 = 2;
 
 /// Which of the two passes is running.
@@ -30,21 +41,29 @@ const EMPTY_SUBVOLUME_PLACEHOLDER_INODE: u64 = 2;
 enum Pass {
     /// Visit every directory and delete nothing.
     Check,
-    /// Delete every entry, directories last.
+    /// Delete every entry,
+    /// directories last.
     Remove,
 }
 
-/// One directory on the work stack: its handle, its name in the parent, and the entries still to visit.
+/// One directory on the work stack:
+/// its handle,
+/// its name in the parent,
+/// and the entries still to visit.
 struct Frame {
     /// The directory's descriptor.
     directory: File,
-    /// The name in the parent frame's directory; absent for the top.
+    /// The name in the parent frame's directory;
+    /// absent for the top.
     name: Option<OsString>,
-    /// Entries not visited yet, each with whether it is a directory (a link is not one).
+    /// Entries not visited yet,
+    /// each with whether it is a directory (a link is not one).
     pending: Vec<(OsString, bool)>,
 }
 
-/// The entries of an open directory, each with whether it is a directory; only the directories when `directories_only`.
+/// The entries of an open directory,
+/// each with whether it is a directory;
+/// only the directories when `directories_only`.
 fn list(directory: &File, directories_only: bool) -> std::io::Result<Vec<(OsString, bool)>> {
     let mut entries: Vec<(OsString, bool)> = Vec::new();
     for found in std::fs::read_dir(handle_path(directory))? {
@@ -57,7 +76,8 @@ fn list(directory: &File, directories_only: bool) -> std::io::Result<Vec<(OsStri
     return Ok(entries);
 }
 
-/// The path of the directory on top of the stack, for messages.
+/// The path of the directory on top of the stack,
+/// for messages.
 fn shown_path(top: &Path, stack: &[Frame], name: &OsString) -> PathBuf {
     let mut path: PathBuf = top.to_path_buf();
     for frame in stack {
@@ -69,7 +89,10 @@ fn shown_path(top: &Path, stack: &[Frame], name: &OsString) -> PathBuf {
     return path;
 }
 
-/// The error that names a boundary: the path, what it is, and the ways forward.
+/// The error that names a boundary:
+/// the path,
+/// what it is,
+/// and the ways forward.
 fn boundary_error(top: &Path, found: &Path, what: &str) -> std::io::Error {
     return std::io::Error::new(
         std::io::ErrorKind::CrossesDevices,
@@ -85,7 +108,9 @@ fn boundary_error(top: &Path, found: &Path, what: &str) -> std::io::Error {
     );
 }
 
-/// Walk the tree below `top` and, in the removal pass, delete it (not `top` itself).
+/// Walk the tree below `top` and,
+/// in the removal pass,
+/// delete it (not `top` itself).
 fn walk(top: &File, shown: &Path, pass: Pass) -> std::io::Result<()> {
     let baseline: u64 = device_of(top)?;
     // A directory the user does not own keeps its mode; the removal below then reports the operating system's refusal.
@@ -130,8 +155,10 @@ fn walk(top: &File, shown: &Path, pass: Pass) -> std::io::Result<()> {
 }
 
 /// What:
-///  Visit every directory below `top` and fail on the first nested subvolume or mount point; delete nothing.
-///  Directories the owner cannot read get the owner's access first (a change of mode, never of content).
+///  Visit every directory below `top` and fail on the first nested subvolume or mount point;
+/// delete nothing.
+///  Directories the owner cannot read get the owner's access first (a change of mode,
+/// never of content).
 /// Why:
 ///   The removal that follows is refused as a whole before it changes anything.
 ///
@@ -144,9 +171,11 @@ pub fn verify_below(top: &File, shown: &Path) -> std::io::Result<()> {
 }
 
 /// What:
-///  Delete everything below `top` (not `top` itself), refusing a nested subvolume or mount point wherever one is met.
+///  Delete everything below `top` (not `top` itself),
+/// refusing a nested subvolume or mount point wherever one is met.
 /// Why:
-///   See the module description. `shown` is the path that messages use for `top`.
+///   See the module description.
+/// `shown` is the path that messages use for `top`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,8 +1,12 @@
-//! Controls for the mountinfo reader: line shapes, escapes, the longest-mount rule and the option lookup.
+//! Controls for the mountinfo reader:
+//! line shapes,
+//! escapes,
+//! the longest-mount rule and the option lookup.
 
 use super::*;
 
-/// The live line of this machine's `/var/home` (from `doc/planning/cli-git-btrfs-worktree.md`), with the option the
+/// The live line of this machine's `/var/home` (from `doc/planning/cli-git-btrfs-worktree.md`),
+/// with the option the
 ///  doctor asks about among the super options.
 const BTRFS_HOME_LINE: &str = "181 177 0:48 /home /var/home rw,relatime shared:1 - btrfs /dev/dm-1 \
 rw,seclabel,compress=zstd:1,ssd,discard=async,space_cache=v2,user_subvol_rm_allowed,subvolid=257,subvol=/home";
@@ -13,7 +17,8 @@ const BTRFS_ROOT_LINE: &str = "100 1 0:30 /root / rw,relatime shared:2 - btrfs /
 /// An overlay root with an optional field absent and a mount point holding an escaped space.
 const OVERLAY_LINE: &str = "55 40 0:50 / /mnt/a\\040b rw - overlay overlay rw,lowerdir=/l,upperdir=/u,userxattr";
 
-/// A btrfs line with the option in the super options is found, and the option is not found on the line without it.
+/// A btrfs line with the option in the super options is found,
+/// and the option is not found on the line without it.
 #[test]
 fn the_option_is_read_from_the_super_options() {
     let table: Vec<MountFacts> = parse_mount_table(format!("{BTRFS_ROOT_LINE}\n{BTRFS_HOME_LINE}\n").as_bytes());
@@ -27,7 +32,8 @@ fn the_option_is_read_from_the_super_options() {
     assert!(!table[1].has_option("compress"), "an option is matched whole, not by prefix");
 }
 
-/// The octal escape in a mount point is decoded, and an optional-field-free line parses.
+/// The octal escape in a mount point is decoded,
+/// and an optional-field-free line parses.
 #[test]
 fn an_escaped_mount_point_is_decoded() {
     let table: Vec<MountFacts> = parse_mount_table(OVERLAY_LINE.as_bytes());
@@ -36,7 +42,9 @@ fn an_escaped_mount_point_is_decoded() {
     assert_eq!(table[0].filesystem_type, "overlay");
 }
 
-/// A line without the separator, a short line and an empty line are skipped, and the readable lines remain.
+/// A line without the separator,
+/// a short line and an empty line are skipped,
+/// and the readable lines remain.
 #[test]
 fn unreadable_lines_are_skipped() {
     let text: String = format!("garbage\n\n1 2 3 - btrfs\n{BTRFS_HOME_LINE}\n");
@@ -45,7 +53,9 @@ fn unreadable_lines_are_skipped() {
     assert_eq!(table[0].mount_point, PathBuf::from("/var/home"));
 }
 
-/// The longest ancestor mount wins, a sibling that shares a name prefix does not count, and a stacked mount at the
+/// The longest ancestor mount wins,
+/// a sibling that shares a name prefix does not count,
+/// and a stacked mount at the
 ///  same mount point is decided by the later line.
 #[test]
 fn the_longest_ancestor_mount_holds_the_path() {
@@ -60,7 +70,9 @@ fn the_longest_ancestor_mount_holds_the_path() {
     assert_eq!(mount_holding(&[], Path::new("/x")), None);
 }
 
-/// The live table answers for the working directory of the test: some mount holds it, and its type is not empty.
+/// The live table answers for the working directory of the test:
+/// some mount holds it,
+/// and its type is not empty.
 #[test]
 fn the_live_table_answers_for_an_existing_path() {
     let facts: MountFacts = read_mount_facts(Path::new(env!("CARGO_MANIFEST_DIR"))).expect("readable").expect("a mount holds it");
@@ -68,15 +80,18 @@ fn the_live_table_answers_for_an_existing_path() {
     assert!(facts.mount_point.is_absolute());
 }
 
-/// A path that does not exist is an error that names the path, never a guess.
+/// A path that does not exist is an error that names the path,
+/// never a guess.
 #[test]
 fn a_missing_path_is_an_error() {
     let message: String = read_mount_facts(Path::new("/definitely/not/here")).expect_err("no such path");
     assert!(message.contains("/definitely/not/here"), "{message}");
 }
 
-/// The mountinfo ids tell a hidden mount from a visible one: a mount made at `/repo/work` and then covered by a mount at
-///  `/repo` does not hold `/repo/work`, but a mount made at `/repo/work` after the cover does.
+/// The mountinfo ids tell a hidden mount from a visible one:
+/// a mount made at `/repo/work` and then covered by a mount at
+///  `/repo` does not hold `/repo/work`,
+/// but a mount made at `/repo/work` after the cover does.
 #[test]
 fn a_mount_hidden_under_a_later_mount_does_not_hold_the_path() {
     let root: &str = "10 1 0:1 / / rw - btrfs /dev/a rw";
@@ -92,8 +107,12 @@ fn a_mount_hidden_under_a_later_mount_does_not_hold_the_path() {
     assert_eq!(mount_holding(with_later.as_slice(), Path::new("/repo/other")).expect("a mount").source, "/dev/c");
 }
 
-/// A mount stacked over another at one mount point, and a table whose parent ids do not link, are both resolved: the
-///  topmost stacked mount holds the path, and an unlinked table falls back to the longest mount point.
+/// A mount stacked over another at one mount point,
+/// and a table whose parent ids do not link,
+/// are both resolved:
+/// the
+///  topmost stacked mount holds the path,
+/// and an unlinked table falls back to the longest mount point.
 #[test]
 fn stacked_mounts_resolve_to_the_top_and_an_unlinked_table_to_the_longest_mount_point() {
     let table: Vec<MountFacts> = parse_mount_table(
@@ -113,8 +132,12 @@ fn a_line_with_non_numeric_ids_is_skipped() {
     assert!(parse_mount_table("x y 0:1 / / rw - btrfs /dev/a rw\n".as_bytes()).is_empty());
 }
 
-/// A line is skipped when the separator comes too early or when fewer than the three fields follow it, whichever of the two
-///  holds; a line with exactly the three fields after the separator is read. Each short shape is its own case, because the
+/// A line is skipped when the separator comes too early or when fewer than the three fields follow it,
+/// whichever of the two
+///  holds;
+/// a line with exactly the three fields after the separator is read.
+/// Each short shape is its own case,
+/// because the
 ///  two checks must each refuse what the other would let through.
 #[test]
 fn a_line_is_read_only_with_the_separator_late_enough_and_three_fields_after_it() {
@@ -128,8 +151,10 @@ fn a_line_is_read_only_with_the_separator_late_enough_and_three_fields_after_it(
     }
 }
 
-/// When the ids do not chain from any mount on the path (a mount whose parent is listed but sits elsewhere), the mount with
-///  the longest mount point above the path holds it, and the later of two at one mount point wins.
+/// When the ids do not chain from any mount on the path (a mount whose parent is listed but sits elsewhere),
+/// the mount with
+///  the longest mount point above the path holds it,
+/// and the later of two at one mount point wins.
 #[test]
 fn a_path_no_chain_of_ids_reaches_falls_back_to_the_longest_mount_point() {
     let elsewhere: &str = "10 1 0:1 / /a rw - btrfs /dev/a rw";

@@ -5,7 +5,8 @@ use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 
-/// Two directories swap atomically: each path then holds what the other held.
+/// Two directories swap atomically:
+/// each path then holds what the other held.
 #[test]
 fn an_exchange_swaps_two_directories() {
     let root: PathBuf = fixture("fs-exchange");
@@ -43,7 +44,8 @@ fn an_exchange_path_with_a_nul_byte_is_refused() {
 }
 
 /// A clone either succeeds with equal content (a reflink filesystem) or fails with a typed feature-missing error and
-///  leaves the destination empty; it never panics and never half-copies.
+///  leaves the destination empty;
+/// it never panics and never half-copies.
 #[test]
 fn a_clone_succeeds_or_reports_a_missing_feature() {
     let root: PathBuf = fixture("fs-clone-any");
@@ -61,7 +63,8 @@ fn a_clone_succeeds_or_reports_a_missing_feature() {
     remove(root.as_path());
 }
 
-/// On btrfs the clone always succeeds inside one filesystem and shares nothing observable but content; a clone of a
+/// On btrfs the clone always succeeds inside one filesystem and shares nothing observable but content;
+/// a clone of a
 ///  directory descriptor is refused.
 #[test]
 fn btrfs_a_clone_succeeds_with_equal_content_and_a_directory_is_refused() {

@@ -1,8 +1,17 @@
 //! What:
-//!  The state one migration command carries between its steps: the platform, the paths, the journal, the progress
-//!  sink, the list of files this user may not read, and the helper that runs one tree pass and reports it.
+//!  The state one migration command carries between its steps:
+//! the platform,
+//! the paths,
+//! the journal,
+//! the progress
+//!  sink,
+//! the list of files this user may not read,
+//! and the helper that runs one tree pass and reports it.
 //! Why:
-//!  The migrate, rollback and remove-old commands share it, so each pass is timed, counted and reported the same way
+//!  The migrate,
+//! rollback and remove-old commands share it,
+//! so each pass is timed,
+//! counted and reported the same way
 //!  and the unreadable-file list is written the same way after every pass (a kill between passes loses nothing).
 //!
 //! In TS you'd write (pseudocode):
@@ -20,7 +29,9 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-/// The path, relative to a checkout, of the lock the migration holds during its last pass.
+/// The path,
+/// relative to a checkout,
+/// of the lock the migration holds during its last pass.
 pub const INDEX_LOCK: &str = ".git/index.lock";
 
 /// What:
@@ -40,17 +51,20 @@ pub struct Run<'a> {
     pub layout: &'a Layout,
     /// The journal.
     pub journal: Journal,
-    /// The simulated kill of the controls; never in release use.
+    /// The simulated kill of the controls;
+    /// never in release use.
     pub interrupt: &'a Interrupt,
     /// The progress sink.
     pub say: &'a mut dyn FnMut(&str),
-    /// Relative paths of files this user may not read, which stay in the old tree.
+    /// Relative paths of files this user may not read,
+    /// which stay in the old tree.
     pub unreadable: BTreeSet<PathBuf>,
 }
 
 impl Run<'_> {
     /// What:
-    ///  Start the state: load the journal and the unreadable list left by an earlier run.
+    ///  Start the state:
+    /// load the journal and the unreadable list left by an earlier run.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -87,9 +101,13 @@ impl Run<'_> {
     }
 
     /// What:
-    ///  Run one tree pass, report its counts and time, and record the unreadable files it found.
+    ///  Run one tree pass,
+    /// report its counts and time,
+    /// and record the unreadable files it found.
     /// Why:
-    ///   The list is written after every pass, so a kill between passes keeps it; the report names the count and the file.
+    ///   The list is written after every pass,
+    /// so a kill between passes keeps it;
+    /// the report names the count and the file.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -101,7 +119,8 @@ impl Run<'_> {
         return Ok(stats);
     }
 
-    /// Record the unreadable files a pass found in the list beside the checkout, and say so.
+    /// Record the unreadable files a pass found in the list beside the checkout,
+    /// and say so.
     fn record_unreadable(&mut self, label: &str, stats: &SyncStats) -> Result<(), MigrateError> {
         if !stats.unreadable.is_empty() {
             self.unreadable.extend(stats.unreadable.iter().cloned());
@@ -112,10 +131,14 @@ impl Run<'_> {
     }
 
     /// What:
-    ///  Run one tree pass and report its counts and time, without recording the unreadable files it found.
+    ///  Run one tree pass and report its counts and time,
+    /// without recording the unreadable files it found.
     /// Why:
-    ///   The rollback's carry-back pass reads the new root, whose unreadable files are not the old tree's: they must
-    ///  not enter the list that guards the deletion of the old tree, and the rollback decides about them itself.
+    ///   The rollback's carry-back pass reads the new root,
+    /// whose unreadable files are not the old tree's:
+    /// they must
+    ///  not enter the list that guards the deletion of the old tree,
+    /// and the rollback decides about them itself.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -126,12 +149,17 @@ impl Run<'_> {
     }
 
     /// What:
-    ///  Run the update-only pass that carries what was written to the old tree after the catch-up: files newer than
-    ///  their copy, and files the new root lacks that are no older than `since` (seconds after the epoch).
+    ///  Run the update-only pass that carries what was written to the old tree after the catch-up:
+    /// files newer than
+    ///  their copy,
+    /// and files the new root lacks that are no older than `since` (seconds after the epoch).
     /// Why:
-    ///   Programs that kept a descriptor in the old tree can write there until the person stops them, and the deletion
-    ///  of the old tree must not be the end of those writes. A file the new root lacks that is older than the catch-up
-    ///  was deleted there on purpose and stays deleted. Unreadable files found are recorded like any other pass.
+    ///   Programs that kept a descriptor in the old tree can write there until the person stops them,
+    /// and the deletion
+    ///  of the old tree must not be the end of those writes.
+    /// A file the new root lacks that is older than the catch-up
+    ///  was deleted there on purpose and stays deleted.
+    /// Unreadable files found are recorded like any other pass.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -146,7 +174,9 @@ impl Run<'_> {
         return Ok(stats);
     }
 
-    /// The pass itself: the lock files of both trees are added to the excluded paths, and the counts are reported.
+    /// The pass itself:
+    /// the lock files of both trees are added to the excluded paths,
+    /// and the counts are reported.
     fn pass_core(&mut self, label: &str, source: &Path, destination: &Path, requested: SyncOptions<'_>) -> Result<SyncStats, MigrateError> {
         let mut excluded: Vec<PathBuf> = relative_lock_paths(source);
         excluded.extend(relative_lock_paths(destination));
