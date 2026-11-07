@@ -14,9 +14,15 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  assertPrivateBus,
   type RecordedGhCall,
   runWholePath,
 } from './daily-update-whole-path-fixture.ts';
+
+/**
+ A directory the guard tests treat as the private one.
+ */
+const PRIVATE_DIRECTORY = '/scratch/private';
 
 /**
  Calls of one `gh` verb pair, such as `issue create`.
@@ -43,6 +49,39 @@ function callsOf({
 await describe({
   name: 'the whole daily update path with a stand-in gh',
   children: [
+    describe({
+      name: assertPrivateBus.name,
+      children: [
+        it({
+          name: 'accepts a bus under the private directory with no runtime directory',
+          fn: async () => {
+            expect(() => {
+              assertPrivateBus({
+                environment: { DBUS_SESSION_BUS_ADDRESS: `unix:path=${PRIVATE_DIRECTORY}/bus`, },
+                privateDirectory: PRIVATE_DIRECTORY,
+              },);
+            }).not.toThrow();
+          },
+        },),
+        it({
+          name: 'refuses the host bus, a missing bus, a runtime directory that leads to the host bus, and a lookalike path',
+          fn: async () => {
+            for (
+              const environment of [
+                { DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus', },
+                {},
+                { DBUS_SESSION_BUS_ADDRESS: `unix:path=${PRIVATE_DIRECTORY}/bus`, XDG_RUNTIME_DIR: '/run/user/1000', },
+                { DBUS_SESSION_BUS_ADDRESS: `unix:path=${PRIVATE_DIRECTORY}-elsewhere/bus`, },
+              ]
+            ) {
+              expect(() => {
+                assertPrivateBus({ environment, privateDirectory: PRIVATE_DIRECTORY, },);
+              }).toThrow('private',);
+            }
+          },
+        },),
+      ],
+    },),
     it({
       name: 'opens one issue for the crate the update broke, none for the crate that was already red, and keeps both commits',
       fn: async () => {
@@ -66,9 +105,10 @@ await describe({
         expect(create?.stdin,).toContain('mise run //package/a/broken-crate:lint:clippy',);
         expect(create?.stdin,).toContain('toolchain-daily-update package=package/a/broken-crate task=lint:clippy cause=E0433',);
         expect(result.pendingText,).toBe('',);
-        expect(result.notifications.length,).toBe(1,);
-        expect(result.notifications[0]?.bus.endsWith('no-session-bus',),).toBe(true,);
-        expect(result.notifications[0]?.args.join(' ',),).toContain('issue opened',);
+        // The real `notify-send` ran against the private bus, which has no notification service, and was refused there.
+        expect(result.notificationTitles,).toEqual(['Daily update needs a look',],);
+        expect(result.journal,).toContain('ServiceUnknown',);
+        expect(result.journal,).toContain('issue opened',);
         for (const call of result.ghCalls) {
           expect(call.environment.GIT_ASKPASS,).toBe('',);
           expect(call.environment.GIT_TERMINAL_PROMPT,).toBe('0',);
@@ -85,7 +125,7 @@ await describe({
         expect(callsOf({ calls: result.ghCalls, verb: 'issue create', },).length,).toBe(0,);
         expect(result.pendingText,).toContain('package/a/broken-crate',);
         expect(result.journal,).toContain('error connecting to api.github.com',);
-        expect(result.notifications.length,).toBe(1,);
+        expect(result.notificationTitles.length,).toBe(1,);
       },
     },),
   ],
