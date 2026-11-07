@@ -18,6 +18,48 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Answered 2026-11-07T13:52:06-05:00 to 13:57:11-05:00 (question tool, then plain messages)
+
+- Enforcing "agents never run sudo" after an agent ran `sudo -n true`
+  (options:
+  guardrail hook plus AGENTS.md rule,
+  AGENTS.md rule only,
+  leave as is):
+  "Leave as is".
+- Rule SCR (no bash scripts) against the wizard skill's bash root scripts:
+  "Wizard writes TypeScript,
+  and you just do the move yourself,
+  no need to delegate to me."
+  The 860 move is run by the coordinator,
+  not handed to the owner;
+  its runner becomes TypeScript (sent to the preparation agent).
+  The wizard skill itself is to emit TypeScript (queued).
+- The plugin bundle drift check (options A,
+  B,
+  C):
+  "Open a gh issue.
+  Do not address it in this session as we need to focus on our git wrapper."
+  Opened as issue #6265;
+  nothing else this session.
+- Sudo,
+  in plain messages after the questions:
+  "Please run sudo."
+  Then:
+  "Please run sudo -n true to test,
+  and run sudo whenever needed for the move,
+  and run sudo for anything.
+  I authorize you to do and use all of it without my prior approval."
+  Then:
+  "I authorize you to send any messages about sudo to subagents."
+  The coordinator ran `sudo -n true`:
+  exit status 0 (passwordless).
+  Coordinator's practice:
+  subagents still run no privileged command;
+  they send the coordinator the exact command,
+  so every privileged command has one record in the main session.
+- Also said:
+  "I'll be away for a few hours."
+
 ## Answered 2026-11-07T11:52:20-05:00 (in the question tool)
 
 - How much longer than the measured worst case the Git wrapper waits before giving up,
