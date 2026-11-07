@@ -1943,8 +1943,8 @@ for that one case only: the publish answered by neither `renameat2` with `RENAME
   package lint clean. Container gate (snapshot at `c5b4559b88`): 5134 run, 5134 passed (2 slow), 8 skipped, Clippy clean.
 - Main merged again at `d628f74005` (the fold of the earlier data names `38d54f9b2b`, the verbose masking `870962b7f2`): no conflict, nothing of
   this branch touches `landing/earlier_service_process_look.rs`. After the merge: host lib tests 4464 of 4464, package lint clean; the container
-  gate of the merged tree runs as the user unit `tokio-gate-merge2` (log `${HOME}/temp/agent/tokio-steps/gate-merge2.log`; read the
-  `Summary [` line for the test count and the end of the log for Clippy).
+  gate of the merged tree ran as the user unit `tokio-gate-merge2` (log `${HOME}/temp/agent/tokio-steps/gate-merge2.log`): 5165 tests run,
+  5165 passed (1 slow), 8 skipped, Clippy clean. The coordinator merged that tree into main as `48611f7e09`.
 - Files T5 changed, for the mutation campaign: `src/native/foundation/lazy_runtime.rs`, `src/native/foundation/runtime_plan.rs`,
   `src/native/push/child_watch.rs`, `src/native/push/child_watch_clock_marks_and_stopping.rs`; and for the decide fix
   `src/native/foundation/name_held_while_one_thread_publishes_it.rs` and `src/native/foundation/private_storage.rs`.
