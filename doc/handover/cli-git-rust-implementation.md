@@ -3570,9 +3570,13 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 - Decision record `doc/decision/mpm-toolchain-adoption.md`, section "Our seven tools install from GitHub release archives"
   (`0c7b081fbd`), holds the owner's answer: "GitHub, but I'm still not seeing the research I asked you to do on some sort of
   workspace protocol. ... I'm also wondering if pnpm's new rust management capabilities can help."
+- Research on a `workspace:`-like protocol and pnpm's Rust support is done
+  (`doc/research/rust-workspace-protocol-and-pnpm-rust.md`, cross-vendor reviewed); the owner answered at
+  2026-11-07T09:32:48-05:00: tools stay on GitHub release archives, the lock keeps `@latest`
+  (`doc/decision/mpm-toolchain-adoption.md`, `4386795db8`). Its probe ran a real `cargo publish` of two fixture crates to
+  a throwaway pnpr on `127.0.0.1` (nothing left the machine), against a brief that said publish nothing; disclosed in
+  the doc. The `registry` key and pnpr `packages:` entries wait for the pnpr Cargo workload (task "pnpr serves crates").
 - Running, each told to report back:
-  - research on a `workspace:`-like protocol for Cargo and pnpm's Rust support (doc under `doc/research/`, cross-vendor
-    reviewed before hand-back); it answers the owner's 2026-11-05 request that the earlier research missed;
   - the wrapper folds the old `cli-git` data names into the new ones losslessly, so the six "both exist" notices stop
     (`fix/git-policy-cli-fold-earlier-names`; no release yet, and an `-alpha` would not reach this machine through `@latest`);
   - the tokio continuation on `feat/git-policy-cli-on-tokio` (main merge allowed; coordinator merges after its final gate).
@@ -3599,11 +3603,13 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   which keeps crates.io untouched; a plain `0.2.7` was the other compliant route and would add a crates.io version.
   "Day-to-day releases carry `-alpha.N`" in `crates-io-footprint.md` is the session's plan under the pick
   "Label decides", not an owner quote. An agent is on it (`fix/crate-release-label-gate`).
-- Also running since about 09:10 (-05:00): the masking of Git output in `diagnostic_log::debug` under
-  `MONOCHROMATIC_VERBOSE=true` (`fix/git-policy-cli-mask-verbose-git-output`), and the diagnosis of the emptied link
-  folders. Tried and refused at the same time by the five-agent limit, so they start at the next free slot:
-  bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`), and the
-  terminal and music-player Containerfiles taking Zig from the lock row instead of `ZIG_VERSION=0.15.2`
+- Masking of Git output in `diagnostic_log` debug and warning lines merged as `870962b7f2` (gate 5131 of 5131, lint and
+  Clippy clean; red test first; every caller goes through `diagnostic_line`, which now applies the shared
+  `mask_userinfo_text`). Plain pass-through of Git's own stderr is unchanged. Its first gate run had one failure,
+  `program_rename_guard::both_names_of_a_kept_kind_use_the_new_and_report_the_earlier` (empty stderr), which passed on rerun
+  and alone; handed to the fold agent, whose change owns that notice and test.
+- The diagnosis of the emptied link folders ran at the same time. Bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`)
+  started about 09:34. Still waiting for a slot: the terminal and music-player Containerfiles taking Zig from the lock row instead of `ZIG_VERSION=0.15.2`
   (`fix/containers-zig-from-lock`); both briefs are saved in
   `~/temp/agent/coordinator-briefs/waiting-for-a-slot.md` (scratch, lost on reboot).
 - Tokio T1 to T4 merged into main as `5e441f25d3` (branch gate 5127 of 5127, Clippy and lint clean; main's only wrapper
@@ -3691,7 +3697,6 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   are unchanged; package rule `NDG` in `package/git-policy/cli/README.md`. Merged to main; "go wrapper" sent, so
   0.6.0 carries it. The push-record leak needed no fix: its writer was deleted in `69d275d92b` (2026-11-01), the
   3 records holding a credential predate that, and a guard test now checks no wrapper file keeps one.
-  Open, minor: `diagnostic_log::debug` writes local Git output to stderr unmasked under `MONOCHROMATIC_VERBOSE=true`.
 - `package/config/lfs-r2-worker` gets the same package-local rule after "unpause lfs".
 - Second fix on the same branch (sent by 2026-11-07T07:11:35-05:00 by the coordinator after the LFS report):
   push records (`.git/monochromatic-git-policy-cli/push/*.last-pushed.json`) store failed push output with URL userinfo
