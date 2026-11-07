@@ -45,8 +45,11 @@ so the next slow commit names its step without touching the key.
 Four commits on 2026-11-07 stopped after up to 20 minutes behind one `index.lock`
 (size 0,
 no Git PID file,
-no process found holding it,
-most likely left by a killed Git started outside the wrapper).
+no process found holding it;
+who created it is not known:
+no retained record names it,
+and neither journal shows an out-of-memory or systemd kill between 12:50 and 13:10,
+though a direct kill such as a tool timeout is not journaled).
 An agent finally removed it by hand.
 The fix on branch `fix/git-policy-cli-commits-never-stall-on-an-unproven-lock` (gate 5205 of 5205,
 not merged yet)
