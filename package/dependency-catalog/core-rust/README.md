@@ -22,9 +22,13 @@ windows = "0.58"
 ```
 
 - `[catalog]` holds `>=` floors and git pins (`git` plus `rev`).
-- `[catalogs.<name>]` holds bounded requirements (`"0.58"`, `"^0.58"`, `"~0.58.1"`, `"=0.58.0"`);
+- `[catalogs.<name>]` holds bounded requirements (`"0.58"`,
+  `"^0.58"`,
+  `"~0.58.1"`,
+  `"=0.58.0"`);
   a `>=` floor there would be pulled to the newest release by the next update.
-- `package` renames a dependency, as in Cargo.
+- `package` renames a dependency,
+  as in Cargo.
 - `features`,
   `optional`,
   and `default-features` belong to the crate that uses the dependency,

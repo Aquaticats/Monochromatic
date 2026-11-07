@@ -596,14 +596,30 @@ and a separate process per program.
 The page replays captured output;
 it does not run Node inside the browser.
 
-| Program | Recorded behavior | Exit status |
-| --- | --- | --- |
-| Ordinary throw | Catch prints A failure; B runs | 1 |
-| Awaited save | Catch prints A failure; B runs | 1 |
-| Detached save without listener | A body passes; Node prints `Error: save failed`; B does not run | 1 |
-| Detached save with listener | A body passes; observer reports error; B runs | 1 |
-| Shared runtime | One listener added; two rejections reported; both body markers printed | 1 |
-| Shared context storage | B starts before the observer reports A; B body completes | 1 |
+Each program is listed with its recorded behavior,
+and every one exited with status 1:
+
+- Ordinary throw:
+  catch prints A failure;
+  B runs.
+- Awaited save:
+  catch prints A failure;
+  B runs.
+- Detached save without listener:
+  A body passes;
+  Node prints `Error: save failed`;
+  B does not run.
+- Detached save with listener:
+  A body passes;
+  observer reports error;
+  B runs.
+- Shared runtime:
+  one listener added;
+  two rejections reported;
+  both body markers printed.
+- Shared context storage:
+  B starts before the observer reports A;
+  B body completes.
 
 The final example's downloaded bytes matched the source embedded in the HTML.
 Running that downloaded file reproduced the captured stdout,

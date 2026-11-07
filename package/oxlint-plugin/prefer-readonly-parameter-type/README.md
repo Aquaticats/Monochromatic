@@ -227,7 +227,8 @@ at most 1 GiB (1024 MiB) and 16384 entries,
 with the oldest entries evicted first and any entry older than 7 days removed.
 The 36 packages under `package/translation-repair/` need 8269 entries and 508,090,059 bytes between them,
 so smaller bounds made each package's lint evict the others' entries and run cold
-(312 s for the family warm, against 71 s with larger bounds).
+(312 s for the family warm,
+against 71 s with larger bounds).
 The bounds sit at about twice that measured need.
 
 CLI diagnostics are authoritative because Oxlint's language server does not execute JavaScript plugins.
@@ -245,7 +246,10 @@ and a read tries the shared entry first and the project's own entry second.
 
 The key digests everything that can change one source's direct summaries:
 
-- the analyzer digest, which covers the cache schema, the TypeScript version, and the implementation bytes;
+- the analyzer digest,
+  which covers the cache schema,
+  the TypeScript version,
+  and the implementation bytes;
 - the file name and the digest of the source text;
 - the closure,
   which holds every file reached through a module reference,
@@ -273,9 +277,21 @@ The key digests everything that can change one source's direct summaries:
 The key leaves out the project's file list,
 its declaration files that no source reaches,
 and the options that only steer module resolution
-(`paths`, `baseUrl`, `rootDirs`, `rootDir`, `outDir`, `declarationDir`, `tsBuildInfoFile`, `typeRoots`,
-`mapRoot`, `sourceRoot`, `project`, `configFilePath`, `pathsBasePath`).
-A change in what a reference resolves to changes the closure, so two projects whose `paths` differ share an entry
+(`paths`,
+`baseUrl`,
+`rootDirs`,
+`rootDir`,
+`outDir`,
+`declarationDir`,
+`tsBuildInfoFile`,
+`typeRoots`,
+`mapRoot`,
+`sourceRoot`,
+`project`,
+`configFilePath`,
+`pathsBasePath`).
+A change in what a reference resolves to changes the closure,
+so two projects whose `paths` differ share an entry
 exactly when the files their references reach agree.
 
 ### Fallbacks
@@ -290,7 +306,12 @@ and the reason is counted while verification is on:
 - `script-source`:
   the source is a global script rather than a module;
 - `implicit-import-file`:
-  the closure reaches a `.tsx`, `.jsx`, `.astro`, `.mdx`, `.vue`, or `.svelte` file,
+  the closure reaches a `.tsx`,
+  `.jsx`,
+  `.astro`,
+  `.mdx`,
+  `.vue`,
+  or `.svelte` file,
   whose runtime import from `jsxImportSource` the parser does not list;
 - `unresolved-specifier`:
   a module reference resolves to no program file;
@@ -311,12 +332,21 @@ omission reasons,
 and omissions inside installed packages with the entry that was read.
 Each difference is logged as an error and counted as a mismatch.
 `PRPT_VERIFY_SHARED_DIR=<directory>` makes each process write a counter file named `<pid>-<thread>.json`
-(eligible keys, shared writes, invalid entries, misses, hits, cross-project hits, verified hits, mismatches,
-fallbacks by reason, and the mismatch records),
+(eligible keys,
+shared writes,
+invalid entries,
+misses,
+hits,
+cross-project hits,
+verified hits,
+mismatches,
+fallbacks by reason,
+and the mismatch records),
 and a `<pid>-<thread>-keys.jsonl` trace of each key's components.
 `PRPT_VERIFY_SHARED_CLOSURES=1` adds a `-closures.jsonl` trace of the closure behind each key.
 
-Verification is a probe, not a gate setting.
+Verification is a probe,
+not a gate setting.
 The fresh analysis repeats the work that sharing saves,
 so it is several times slower:
 the 36 packages under `package/translation-repair/` lint cold in about 131 s without it,

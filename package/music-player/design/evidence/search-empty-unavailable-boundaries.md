@@ -76,12 +76,16 @@ not selected just because it was captured.
 
 ## Distinct evidence states
 
-- **Empty query, library usable:** no lookup needs to have failed.
+- **Empty query,
+  library usable:**
+  no lookup needs to have failed.
   A prompt can explain Search's folder/track scope rather than claim “no
   results.”
   D63's intended keyboard-open entry means a keyboard-closed old screenshot
   cannot certify final fit.
-- **Nonempty query, zero direct-name hits:** evaluation must have
+- **Nonempty query,
+  zero direct-name hits:**
+  evaluation must have
   **completed** for the current query and established source scope with
   enough coverage to assert there are no matching folder or track names.
   Keep the query and Clear accessible;
@@ -90,7 +94,8 @@ not selected just because it was captured.
   Folder hits without track hits (or the reverse) are ordinary positive
   results,
   not a no-match state.
-- **Confirmed empty searchable inventory:** no searchable items are
+- **Confirmed empty searchable inventory:**
+  no searchable items are
   established in the selected scope,
   not merely a zero-length track list.
   `LibrarySource.load` returns tracks;
@@ -99,7 +104,8 @@ not selected just because it was captured.
   the current folder or a wider library.
   D10's player-level empty treatment and Search's right-pane message may
   need different affordances without duplicating them.
-- **Known access or source failure:** only a genuinely known cause can
+- **Known access or source failure:**
+  only a genuinely known cause can
   justify “unavailable” and a matching recovery action.
   This state can take precedence over either empty query or no-match
   messages;
@@ -107,12 +113,15 @@ not selected just because it was captured.
   A playable file becoming inaccessible is not by itself proof that
   folder/track names cannot be searched;
   row activation belongs to the later result-action review.
-- **Source loading, partial coverage or refresh:** a temporarily empty
+- **Source loading,
+  partial coverage or refresh:**
+  a temporarily empty
   result list is not a completed failed query or an inaccessible library.
   Do not pass off last-known results from another query/source as current
   matches,
   nor claim a full no-match verdict before current enumeration ends.
-- **Analysis in progress:** peak analysis is distinct from discovering
+- **Analysis in progress:**
+  peak analysis is distinct from discovering
   searchable folder/track names.
   D27 allows playback before analysis;
   do not gate Search or show “library unavailable” merely because analysis

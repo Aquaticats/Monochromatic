@@ -5,12 +5,17 @@
 The user withdrew the general requirement to display HTML in a visible browser window.
 Keep building self-contained review forms and verifying their rendered content and interactions.
 Headless browser verification is valid;
-window activation, minimization, monitor placement, and keeping a window visible are not completion gates.
-Follow an explicit request to show a design, rather than assuming every HTML artifact requires window management.
+window activation,
+minimization,
+monitor placement,
+and keeping a window visible are not completion gates.
+Follow an explicit request to show a design,
+rather than assuming every HTML artifact requires window management.
 
 This correction supersedes the generic opening and activation instructions in this handoff
 and the former window-opening clause in `review-notes.md` standing standard 9.
-Historical window IDs and observations remain for traceability, not as instructions to reopen or activate them.
+Historical window IDs and observations remain for traceability,
+not as instructions to reopen or activate them.
 
 ## Handoff: the design is in production (2026-10-10)
 
@@ -19,41 +24,75 @@ tell the next session that design rounds are closed and the accepted design is b
 and where the live state is kept.
 This section is newer than every section below it.
 
-The human closed the design rounds (D102 keyboard map accepted, D103 Search closed, D104 cover picker, D105 trash)
+The human closed the design rounds (D102 keyboard map accepted,
+D103 Search closed,
+D104 cover picker,
+D105 trash)
 and then said to go to production on Android first and desktop second,
 with finished products on both by the end of the session.
 The live record is `doc/planning/music-player-production-implementation.md`:
-its Log lists what landed, what was verified how, and the known gaps.
+its Log lists what landed,
+what was verified how,
+and the known gaps.
 Work happens in the worktree branch `feat/music-player-production`
 and each verified package is fast-forwarded into `main`.
 
-What is verified and what is not, as of 2026-10-11 (everything is on `main`):
+What is verified and what is not,
+as of 2026-10-11 (everything is on `main`):
 
-Android, on the owned Fold emulator with the real `MainActivity`, the native library and a generated 13-track library
-(a scripted run, 31 of 32 steps passing, the one remaining step explained below):
-the library loads, rows show real length and true peak (`0:20 −21.1 dBTP`), tapping a row plays it and the deck follows,
-Ctrl+F opens Search and typing finds results, the long-press menu opens under its row,
+Android,
+on the owned Fold emulator with the real `MainActivity`,
+the native library and a generated 13-track library
+(a scripted run,
+31 of 32 steps passing,
+the one remaining step explained below):
+the library loads,
+rows show real length and true peak (`0:20 −21.1 dBTP`),
+tapping a row plays it and the deck follows,
+Ctrl+F opens Search and typing finds results,
+the long-press menu opens under its row,
 Move to trash through Android's own
-system dialog removes the row and Undo restores it (both panels), Settings opens,
+system dialog removes the row and Undo restores it (both panels),
+Settings opens,
 and the declined first-run state shows on the
 inner screen.
-On the folded cover the declined launch shows Android's own permission prompt first, which is the designed auto-request.
+On the folded cover the declined launch shows Android's own permission prompt first,
+which is the designed auto-request.
 Unit tests (about 600) and detekt pass.
-Not exercised: the trash flow for a folder opened through the picker (the copy-back route), Show in file manager,
+Not exercised:
+the trash flow for a folder opened through the picker (the copy-back route),
+Show in file manager,
 the clipboard,
-TalkBack, a physical device, and the release build.
-The debug APK built by Gradle alone has no native library: run the package's `build:native` task first.
+TalkBack,
+a physical device,
+and the release build.
+The debug APK built by Gradle alone has no native library:
+run the package's `build:native` task first.
 
-Desktop, running the real binary (577 tests, clippy clean on the host):
+Desktop,
+running the real binary (577 tests,
+clippy clean on the host):
 the real window was driven through the Slint MCP server headless and nested in the `cage` compositor,
 with the same test library,
-in the cover and two-pane layouts, light and dark:
-rows with length and peak, the deck, the folder picker, Search with emphasis, Settings, the template editor,
+in the cover and two-pane layouts,
+light and dark:
+rows with length and peak,
+the deck,
+the folder picker,
+Search with emphasis,
+Settings,
+the template editor,
 the track menu,
-the scan indicator with real sweep progress, and the empty-folder state.
-Not exercised: Re-analyse end to end in the window, the new first-run copy states in the window,
+the scan indicator with real sweep progress,
+and the empty-folder state.
+Not exercised:
+Re-analyse end to end in the window,
+the new first-run copy states in the window,
 key repeat (Slint 1.17 has no
-repeat flag), a session on the user's live desktop, and the macOS and Windows branches, which were never compiled.
+repeat flag),
+a session on the user's live desktop,
+and the macOS and Windows branches,
+which were never compiled.
 The container clippy and test tasks fail on the existing `truepeak-core` path dependency,
 which the container does not mount.
 
@@ -218,9 +257,11 @@ The human approved the declined state as built (D101) and added the rule on long
 `.config/file-enforcer/claude-preamble.md`.
 The first-run page shows the declined state as approved.
 The human then accepted the whole keyboard map as built (D102) and closed the Search catch-all as a design item (D103).
-The D46 cover-picker revisit is built: `questions/cover-picker-revisit.html` shows P4 beside the agent's P5
+The D46 cover-picker revisit is built:
+`questions/cover-picker-revisit.html` shows P4 beside the agent's P5
 (`doc/planning/music-player-cover-picker-revisit.md`).
-The human approved P5 without its container (D104), declined another round,
+The human approved P5 without its container (D104),
+declined another round,
 and deferred further improvement to another major version.
 Nothing in the design queue waits on the human now.
 
@@ -467,7 +508,8 @@ The single whole-map keyboard proposal is now built and browser-verified.
 control and popup ownership without files or audio;
 `evidence/keyboard-map-boundaries.md` preserves the new-binding proposal
 and OS-delivery limits.
-The human accepted the map as built (D102); it is not a production implementation.
+The human accepted the map as built (D102);
+it is not a production implementation.
 No per-key questionnaire is queued.
 `doc/planning/music-player-light-error-undo.md` records the completed
 source/fit/publication queue under D83's current overlay treatment.
@@ -589,7 +631,10 @@ light/dark schemes.
 The source audit is done.
 Production Settings is a page-control chooser,
 not D11's three rows
-(note 2026-10-13: the chooser and every page-control style are deleted, D120, and Settings follows D109).
+(note 2026-10-13:
+the chooser and every page-control style are deleted,
+D120,
+and Settings follows D109).
 The proposed placement to build follows D51:
 Settings on the right of the inner panel with the browser and deck kept,
 and one full-width destination on the cover.
@@ -4880,8 +4925,11 @@ entirely,
  so the cover deck carries no
 volume element and the capture markers no longer expect one.
  Candidates:
-`cover-dark-wallpaper`, `cover-dark-coral`, `cover-light-l1`,
-`cover-light-l2`, `cover-light-l3`.
+`cover-dark-wallpaper`,
+`cover-dark-coral`,
+`cover-light-l1`,
+`cover-light-l2`,
+`cover-light-l3`.
  The light trio is the round's open user choice:
  ramp with a
 deck-seam hairline,
@@ -4919,109 +4967,185 @@ cannot reach the GitHub API from this session,
 
 ## Cover round verification and presentation
 
-The cover questionnaire embeds nine opaque 1080 × 2424 rasters, byte-bound to their
-source files, and shows no page overflow at 1920 × 1080 or 390 × 500 in either color
+The cover questionnaire embeds nine opaque 1080 × 2424 rasters,
+byte-bound to their
+source files,
+and shows no page overflow at 1920 × 1080 or 390 × 500 in either color
 scheme.
- Axe reports zero violations and zero incomplete checks: twenty page passes in each
+ Axe reports zero violations and zero incomplete checks:
+twenty page passes in each
 scheme and twelve open-dialog passes.
  The preview settles Fit at 22% on the mobile
-viewport without scrolling, renders native pixels as exactly 1080 × 2424 CSS px inside a
-1225 × 2566 frame with scrolling disclosed, resets to 411 × 923 inside 466 × 977, restores
-focus on Escape, and every one of the nine preview paths matches its title, source, alt
-text, and natural dimensions.
- The form requires the single radio group, rejects
+viewport without scrolling,
+renders native pixels as exactly 1080 × 2424 CSS px inside a
+1225 × 2566 frame with scrolling disclosed,
+resets to 411 × 923 inside 466 × 977,
+restores
+focus on Escape,
+and every one of the nine preview paths matches its title,
+source,
+alt
+text,
+and natural dimensions.
+ The form requires the single radio group,
+rejects
 whitespace corrections with the "spaces alone" validity message while keeping the previous
-prepared answer, invalidates prepared output on radio change and on correction input, and
+prepared answer,
+invalidates prepared output on radio change and on correction input,
+and
 clears on reset.
  Offline reload keeps all nine rasters with zero network resources.
 
-The cover mutation harness genuinely rejects ten faults: removed ranking, duplicated
-raster, swapped embedded references, clipboard control, painted-over true-black top row,
-fixed-color current row replacing the D42 neutral, an added hairline on L2, a restored
-volume content-desc, a collapsed 200% mode arrangement, and mismatched role-environment
+The cover mutation harness genuinely rejects ten faults:
+removed ranking,
+duplicated
+raster,
+swapped embedded references,
+clipboard control,
+painted-over true-black top row,
+fixed-color current row replacing the D42 neutral,
+an added hairline on L2,
+a restored
+volume content-desc,
+a collapsed 200% mode arrangement,
+and mismatched role-environment
 metadata.
  Its disposable worktree is removed.
 
 The capture script now folds and unlocks the emulator itself and restores the original
-device state and settings in its finally block; the device was returned to the unfolded
+device state and settings in its finally block;
+the device was returned to the unfolded
 state after the round.
 
 ## Picker opened state and the D44 deck correction
 
-User correction one: the first cover form omitted the subdirectory picker's opened state.
-The round now asks a second decision, K, with three native candidates that all reuse the
-D28 rail and D31 name presentation: K1 full-screen picker page, K2 dropdown panel under
-the chip, K3 modal bottom sheet with scrim.
- Ranking K1 > K3 > K2: the full page gives the
-name wall its settled room with one scroll region; the sheet is the Material-blessed
-modal container; the dropdown panel leaves neither surface calm.
+User correction one:
+the first cover form omitted the subdirectory picker's opened state.
+The round now asks a second decision,
+K,
+with three native candidates that all reuse the
+D28 rail and D31 name presentation:
+K1 full-screen picker page,
+K2 dropdown panel under
+the chip,
+K3 modal bottom sheet with scrim.
+ Ranking K1 > K3 > K2:
+the full page gives the
+name wall its settled room with one scroll region;
+the sheet is the Material-blessed
+modal container;
+the dropdown panel leaves neither surface calm.
  Five more captures
-carry the picker states, including K1 at 200% and K1 in light under L1.
+carry the picker states,
+including K1 at 200% and K1 in light under L1.
 
-User correction two: the 200% cover capture clipped the segmented mode group's bottom
+User correction two:
+the 200% cover capture clipped the segmented mode group's bottom
 border because the deck kept the unfolded 440dp scroll cap.
  D44 removes the cap on the
-cover only: the deck takes its content height and the list absorbs the remainder, so no
+cover only:
+the deck takes its content height and the list absorbs the remainder,
+so no
 control clips at any preset while the unfolded deck keeps its accepted cap.
 
 The extended form embeds fourteen opaque rasters with six radios in two fieldsets.
-Re-verification: no page overflow at desktop or 390 × 500 in either scheme, Axe zero
-violations and zero incomplete (twenty page passes per scheme, twelve dialog passes),
-offline reload keeps all fourteen rasters with zero network resources, and the
+Re-verification:
+no page overflow at desktop or 390 × 500 in either scheme,
+Axe zero
+violations and zero incomplete (twenty page passes per scheme,
+twelve dialog passes),
+offline reload keeps all fourteen rasters with zero network resources,
+and the
 twelve-fault mutation harness fails every fault with its intended diagnostic before
 restoring.
  The questionnaire is re-presented in normal Helium in the current system color
 scheme.
- That K-round form was superseded: L settled by D45 and K was replaced by the
-P prototypes; D46 records the subsequent provisional P4 choice.
+ That K-round form was superseded:
+L settled by D45 and K was replaced by the
+P prototypes;
+D46 records the subsequent provisional P4 choice.
 
 ## P prototype iteration and D45
 
-The user rejected K1's back navigation as discouraging and K3's sheet as non-local, asked
-for a refined K2 and more prototypes, and pointed at the Material 3 archive.
+The user rejected K1's back navigation as discouraging and K3's sheet as non-local,
+asked
+for a refined K2 and more prototypes,
+and pointed at the Material 3 archive.
  The archive
-confirms the lone pill chip was the wrong trigger: M3 chips are rounded rectangles that
-appear in sets, menus are the specified temporary surface opening from fields or buttons,
+confirms the lone pill chip was the wrong trigger:
+M3 chips are rounded rectangles that
+appear in sets,
+menus are the specified temporary surface opening from fields or buttons,
 and sheets are for secondary content only.
  The round now crosses two triggers (outlined
 exposed-dropdown field versus app-bar title) with two containers (inset floating menu
 panel versus in-slot picker that replaces the list slot while the deck stays visible):
-P1 field plus menu panel, P2 field plus in-slot, P3 title plus menu panel, P4 title plus
+P1 field plus menu panel,
+P2 field plus in-slot,
+P3 title plus menu panel,
+P4 title plus
 in-slot.
- The comparison ranked P2 > P4 > P1 > P3: P2's field states the selection semantics a
-bare title only implies; in-slot keeps one calm surface with the deck visible; the
+ The comparison ranked P2 > P4 > P1 > P3:
+P2's field states the selection semantics a
+bare title only implies;
+in-slot keeps one calm surface with the deck visible;
+the
 floating panel at least pairs with a control-like trigger in P1.
  The user subsequently
-chose P4 as the temporary pre-1.x baseline (D46), superseding this recommendation.
- D45 records the settled light surface: L3 flat
-with hairlines at both seams, chosen because L1's ramp plus deck-seam hairline can make a
+chose P4 as the temporary pre-1.x baseline (D46),
+superseding this recommendation.
+ D45 records the settled light surface:
+L3 flat
+with hairlines at both seams,
+chosen because L1's ramp plus deck-seam hairline can make a
 selected first track read as detached from the list.
 
-Capture plumbing learned two emulator facts: the display sleeps mid-run unless woken per
-capture (`input keyevent 224` plus `cmd window dismiss-keyguard`, with
-`stay_on_while_plugged_in` pinned and restored), and uiautomator omits scrolled-out nodes,
+Capture plumbing learned two emulator facts:
+the display sleeps mid-run unless woken per
+capture (`input keyevent 224` plus `cmd window dismiss-keyguard`,
+with
+`stay_on_while_plugged_in` pinned and restored),
+and uiautomator omits scrolled-out nodes,
 so 200% markers must name visible nodes and 200% pixel samples move into the visible slot
 band.
- The form embeds eleven rasters with four radios in one fieldset; verification repeats
-the standing battery (overflow, Axe both schemes, eleven preview paths, form invalidation
-and whitespace rejection, offline) and the eleven-fault mutation harness fails every fault
+ The form embeds eleven rasters with four radios in one fieldset;
+verification repeats
+the standing battery (overflow,
+Axe both schemes,
+eleven preview paths,
+form invalidation
+and whitespace rejection,
+offline) and the eleven-fault mutation harness fails every fault
 with its intended diagnostic.
 
 ## MD3 text-field correction to the picker trigger
 
-The user challenged the dropdown field as not MD3, correctly: the first pass had read the
-chips, menus, and sheets pages but not the text-field specs where the exposed dropdown
+The user challenged the dropdown field as not MD3,
+correctly:
+the first pass had read the
+chips,
+menus,
+and sheets pages but not the text-field specs where the exposed dropdown
 lives.
- Against those specs the field deviated in four ways: 48dp instead of the 56dp
-container and target height, no floating label on the outline, uniform 16dp padding
-instead of 12dp sides with icons plus 16dp between icon and text, and an untinted
+ Against those specs the field deviated in four ways:
+48dp instead of the 56dp
+container and target height,
+no floating label on the outline,
+uniform 16dp padding
+instead of 12dp sides with icons plus 16dp between icon and text,
+and an untinted
 trailing icon.
- The trigger is now an outlined text field in exposed-dropdown form: 56dp container,
-floating Folder label notched into the 1dp outline, 4dp corners, bodyLarge value,
-onSurfaceVariant trailing dropdown icon, spec paddings.
+ The trigger is now an outlined text field in exposed-dropdown form:
+56dp container,
+floating Folder label notched into the 1dp outline,
+4dp corners,
+bodyLarge value,
+onSurfaceVariant trailing dropdown icon,
+spec paddings.
  The 4dp corners and 1dp outline
 were already correct.
- One deviation remains by necessity and is disclosed in the form prose: the menu panel
+ One deviation remains by necessity and is disclosed in the form prose:
+the menu panel
 keeps the baseline 4dp corner but exceeds the 112 to 280dp menu width cap because the D31
 name wall needs the full panel.
  All picker captures were retaken with the corrected
@@ -5032,50 +5156,71 @@ field and the standing verification battery plus the eleven-fault harness pass a
 The user chose P4 (app-bar title and caret opening an in-slot picker with the deck visible)
 while explicitly believing a better solution exists.
  D46 makes it the temporary pre-1.x
-design baseline, not final acceptance or permission to implement production UI.
+design baseline,
+not final acceptance or permission to implement production UI.
  Do not
 ask for the P choice again.
- The P-only comparison form is historical evidence: eleven
-rasters include all four options at dark 100%, but dark 200% and L3 light 100% depict
-P2, not P4; no L3 light 200% picker capture exists.
+ The P-only comparison form is historical evidence:
+eleven
+rasters include all four options at dark 100%,
+but dark 200% and L3 light 100% depict
+P2,
+not P4;
+no L3 light 200% picker capture exists.
  The form's P2 > P4 > P1 > P3 ranking is superseded by the user's
 selection.
  The form itself passed its verification battery after the MD3 field fix:
-no overflow at desktop or 390 × 500 in either scheme, Axe zero violations and zero
-incomplete, eleven preview paths exact, offline reload keeps all eleven rasters with zero
-network resources, and eleven mutation faults fail with their intended diagnostics.
-Those tests validate the historical form, not P4 at the missing font-scale and light
+no overflow at desktop or 390 × 500 in either scheme,
+Axe zero violations and zero
+incomplete,
+eleven preview paths exact,
+offline reload keeps all eleven rasters with zero
+network resources,
+and eleven mutation faults fail with their intended diagnostics.
+Those tests validate the historical form,
+not P4 at the missing font-scale and light
 states or its native focus behavior.
- Commits: prototype `4ff352c1b` for the MD3 text-field trigger and main
-`406663175` for the recapture; D46 is in `decisions.md`.
+ Commits:
+prototype `4ff352c1b` for the MD3 text-field trigger and main
+`406663175` for the recapture;
+D46 is in `decisions.md`.
 
 Post-decision folded native P4 captures in dark at 200% and L3 light at 100% and 200%
 were carried to the design evidence in `1c33fc833`.
  The opaque 1080 × 2424px rasters
-keep the 200% mode-group bottom border visible, with the L3 hairlines at both seams and
+keep the 200% mode-group bottom border visible,
+with the L3 hairlines at both seams and
 the selected-folder indicator inside the picker.
  A separate interactive P4 study in the prototype worktree (commits `c4e75cfd8`,
-`2341294f0`, `1ccb8a027`) was installed on the folded cover at 200%.
+`2341294f0`,
+`1ccb8a027`) was installed on the folded cover at 200%.
  The hierarchy
 snapshots and checked summary in
 `questions/evidence/cover-round-cover-picker-p4-interaction.json` show title open/close,
-Back closing, same-folder selection dismissal, and keyboard input focus retained on the
+Back closing,
+same-folder selection dismissal,
+and keyboard input focus retained on the
 trigger after Back.
  Touch dismissal leaves keyboard focus unset in touch mode.
  This
 prototype does not select a different library and its tests do not establish TalkBack
-accessibility focus; keep cover-specific accessibility open.
+accessibility focus;
+keep cover-specific accessibility open.
  The AVD's original unfolded
 state was restored after the interaction check.
 
-The next recommended surface round is the command bar's content and actions (D21), with
+The next recommended surface round is the command bar's content and actions (D21),
+with
 search targets/results and its relationship to the folder picker (D25) treated as
 separate questions.
- Revisit the picker before 1.x to explore alternatives; no improved
+ Revisit the picker before 1.x to explore alternatives;
+no improved
 replacement is guaranteed or required for this provisional choice to be meaningful.
 Do not quietly promote the temporary baseline to final.
  The existing P questionnaire
-is comparison evidence, not an unanswered question; subsequent visual reviews show only
+is comparison evidence,
+not an unanswered question;
+subsequent visual reviews show only
 active P4 unless the user explicitly requests the rejected comparison (RVC).
  The
 keyboard map,
@@ -5087,7 +5232,8 @@ at this historical checkpoint.
 Android notification presentation is now settled by D82;
 the current queue is recorded in `open-questions.md` section 0b.
  The user's "What next?"
-asked for a recommendation, not authorization for production changes.
+asked for a recommendation,
+not authorization for production changes.
 
 ## Command-bar round, first draft withdrawn (2026-09-23)
 
@@ -5121,8 +5267,11 @@ withdrawn.
 
 ## Second desktop command-bar draft, visually rejected (2026-09-23)
 
-The new Slint study at prototype branch commits `ee1b2d59c`, `dbbf5116e`,
-`6d533f740`, with its render task at `e70b40e6a`, asks three independent choices:
+The new Slint study at prototype branch commits `ee1b2d59c`,
+`dbbf5116e`,
+`6d533f740`,
+with its render task at `e70b40e6a`,
+asks three independent choices:
 I1 docked below header,
  I2 floating inside player,
  I3 content replacement;
@@ -5842,7 +5991,8 @@ changing the dent.
  About 45dp is only this 390dpi AVD configuration's
 conversion of 110px.
  `max(min_padding, crease_width)` defines separation
-of **informational material**, not a visually blank gap between two halves.
+of **informational material**,
+not a visually blank gap between two halves.
 Borders,
  padding,
  background surfaces and hit regions may cross.
@@ -6196,13 +6346,17 @@ A subsequent **real Gboard** test found the side physical-keyboard toolbar
 on fresh Search focus even after changing its preference switches and
 restarting Gboard.
  The side-toolbar menu's `Show on-screen keyboard`
-action displayed a floating keyboard, and a key tap changed the focused
+action displayed a floating keyboard,
+and a key tap changed the focused
 query.
- At 200% text, Gboard's x `[274,1180)`, y `[310,1081)` key surface
+ At 200% text,
+Gboard's x `[274,1180)`,
+y `[310,1081)` key surface
 intersected the deck title's `[258,1042][781,1145]` bounds;
 its screenshot showed the title partially covered.
  Dragging the keyboard
-toward the bottom moved it over additional deck controls, not into a
+toward the bottom moved it over additional deck controls,
+not into a
 docked keyboard.
  A fresh Search launch returned to the toolbar-only state.
 Repeating the menu action after restoring the original Gboard preferences
@@ -6212,28 +6366,36 @@ zero-height IME insets source with bottom hint 0;
 Android SDK `InsetsSource.calculateInsets` therefore supplies no bottom
 inset for that source.
  The floating key touch region is a separate
-WindowManager measurement, not a bottom IME inset.
+WindowManager measurement,
+not a bottom IME inset.
 These observations **do not overturn D51's selected A** but reveal that
 the currently selected prototype does not meet D50 with the tested real
 floating Gboard arrangement.
  On the cover panel at 100% text,
 real Gboard key taps entered `cam` but the floating key surface at
-x `[0,830)`, y `[304,1025)` covered both the matching folder label
+x `[0,830)`,
+y `[304,1025)` covered both the matching folder label
 `[127,374][286,433]` and track label `[127,569][432,628]`.
  The
-cover query remained visible, but its results could not be read while
+cover query remained visible,
+but its results could not be read while
 that keyboard stayed in place.
  This is a separate result-visibility
 failure from the unfolded deck occlusion.
  The device's original Gboard preferences
-(off for `Show on-screen keyboard`, on for `Show toolbar`), font scale
-1.0, framework hardware-keyboard setting 0, and selected Gboard were
+(off for `Show on-screen keyboard`,
+on for `Show toolbar`),
+font scale
+1.0,
+framework hardware-keyboard setting 0,
+and selected Gboard were
 restored and verified.
  Investigation and commands are in
 `doc/troubleshooting/android-17-fold-emulator-ime-probe.md`.
  A fresh private
 Pixel 9 Pro Fold AVD now exists at
-`/home/user/temp/agent/fold-no-hardware-avd/`, with `hw.keyboard=no`.
+`/home/user/temp/agent/fold-no-hardware-avd/`,
+with `hw.keyboard=no`.
 The capped Podman test did not reach Android:
  without a display its host-GL renderer failed;
  with container-local Xvfb the emulator raised its guest RAM request to
@@ -6384,20 +6546,25 @@ onto the hinge.
 Its title paint appeared intact,
 but accessibility bounds clipped its leading 16px at the scroll viewport;
 recheck this before offering the variant for adoption.
-These are **synthetic IME**, not real Gboard, after-state observations.
+These are **synthetic IME**,
+not real Gboard,
+after-state observations.
 The 415dp stress screenshots and full hierarchies remain in private agent
 scratch;
 they are not the published 300dp selected review captures.
 
 The debug-only app probe logged a settled Compose IME bottom of `1011px`,
-a platform bottom of `1011px`, `isVisible=true`,
+a platform bottom of `1011px`,
+`isVisible=true`,
 and the app-delivered bounding rectangle
 `Rect(0, 1141 - 2076, 2152)` for the tall system IME.
 At Gboard's settled split inner height,
 it logged `800px` for both bottoms and
 `Rect(0, 1352 - 2076, 2152)`.
 During the synthetic IME appearance,
-Compose reported `759`, then `987`, then `1011px` while the platform
+Compose reported `759`,
+then `987`,
+then `1011px` while the platform
 reported `1011px` in all sampled frames.
 The prototype's `1000px` stress trigger changed its layout only at the
 last sample;
@@ -6492,7 +6659,8 @@ not this recheck as proof of visibility.
 
 ## Accepted corrected A and next design gate
 
-On 2026-09-25 the user said “Okay, I like it” about the refreshed
+On 2026-09-25 the user said “Okay,
+I like it” about the refreshed
 `questions/current.html` review.
 Treat D51's retained folder browser,
 shortened upper-left viewport,
@@ -6638,9 +6806,11 @@ GitHub themselves later.
  issue tracking uses Linear
 instead of GitHub.
 
-Option C, codifying the design-acceptance gate in `AGENTS.md`,
+Option C,
+codifying the design-acceptance gate in `AGENTS.md`,
  is already tracked in
-Linear as AQU-487 "docs(agents): gate production work after design acceptance" in Triage,
+Linear as AQU-487 "docs(agents):
+gate production work after design acceptance" in Triage,
 with GitHub #508 attached.
  No duplicate issue was opened.
 
@@ -7101,7 +7271,8 @@ No production Search or new IME experiment was authorized.
 ## Historical pre-D59 Search membership and order checkpoint
 
 At this earlier checkpoint,
-`questions/archive/search-ranking-before-dm.html` was a **separate, unselected** #116
+`questions/archive/search-ranking-before-dm.html` was a **separate,
+unselected** #116
 review from the D58-corrected APK.
 D59 later superseded its unhighlighted evidence and rebuilt the form
 with OS-accent OKLCH match highlights;
@@ -7184,7 +7355,10 @@ D59 records the directive.
 The corrected debug-only prototype commit `b471ec537` derives span fill
 from `MaterialTheme.colorScheme.primary` (the A3 OS accent) through the
 existing `mixOklchWithNeutral` utility
-(note 2026-10-13: that utility is deleted, and the match fill is now a `core/ThemeRoles.kt` role, D108);
+(note 2026-10-13:
+that utility is deleted,
+and the match fill is now a `core/ThemeRoles.kt` role,
+D108);
 it changes neither result membership nor item activation.
 The installed disposable APK and local build share SHA-256
 `7195af99031158bfb8efce2abab3c98ebaf17928739c290010bc6dea1317244f`.
@@ -7313,7 +7487,8 @@ Review tasks 127 through 129 and 118 remained separate pending UI reviews at thi
 ## Historical mid-word exploration, superseded by D62
 
 `questions/archive/search-word-boundary-deferred.html` preserves one
-**unselected**, now-withdrawn #116
+**unselected**,
+now-withdrawn #116
 question for both eligible D60 item kinds:
 should `cam` inside an uninterrupted own name count?
 W retains three accepted controls in selected D61 mixed order:

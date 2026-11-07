@@ -28,7 +28,7 @@ the stat result is `ENOENT`,
 replacing the original mkdir error.
 This explains the observed diagnostic without treating the kernel or mount as defective.
 
-Source was fetched from the [Node v26.12.0 release],
+Source was fetched from the [Node v26.12.0 release][],
 with the deciding branch at lines 2043 to 2100.
 The retained local source is `node-v26.12.0-node-file.cc` in the verification directory.
 

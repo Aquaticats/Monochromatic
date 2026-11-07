@@ -248,26 +248,34 @@ Current and ordinary titles share x=1107 at native resolution,
  proving equal text width.
 Each row then combines cues without relying solely on color or shape:
 
-- **T1, explicit label:**
+- **T1,
+  explicit label:**
    bold title plus bold `Playing` text in the existing
   supporting line.
-- **T2, accent:**
+- **T2,
+  accent:**
    primary-colored bold title.
-- **T3, soft container:**
+- **T3,
+  soft container:**
    neutral `surfaceContainerLow` row plus bold title.
-- **T4, outlined row:**
+- **T4,
+  outlined row:**
    primary rounded boundary plus bold title.
 
 The separate Open-action columns retain the folder icon and explicit `Open` label while
 adding a button container:
 
-- **O1, filled:**
+- **O1,
+  filled:**
    primary fill with contrasting icon and label.
-- **O2, tonal:**
+- **O2,
+  tonal:**
    secondary-container fill with contrasting icon and label.
-- **O3, elevated:**
+- **O3,
+  elevated:**
    elevated surface container with primary icon and label.
-- **O4, outlined:**
+- **O4,
+  outlined:**
    outline boundary with neutral icon and label.
 
 Prototype commits `e4f9d9484` and `4cae242a7` implement the corrected four-by-four
@@ -992,32 +1000,62 @@ subfolders (unconfirmed — see open-questions.md #3).
 
 ## Cover picker opened-state prototypes (P round, native captures)
 
-Supersedes the K round: K1 (full-screen page with Navigate up) rejected as discouraging,
-K3 (modal bottom sheet) rejected as non-local, K2 refined into the P set after reading the
-chips, menus, sheets, and text-field specs.
+Supersedes the K round:
+K1 (full-screen page with Navigate up) rejected as discouraging,
+K3 (modal bottom sheet) rejected as non-local,
+K2 refined into the P set after reading the
+chips,
+menus,
+sheets,
+and text-field specs.
 
-- **P1** — outlined MD3 text-field trigger (56dp, floating Folder label, 4dp corners) plus
-  an inset floating menu container (4dp corners, fixed high step in dark) over the list,
-  ending above the deck. Not selected for the provisional baseline.
-- **P2** — same field trigger; the picker replaces the list slot in place while the deck
-  stays visible; caret flips to close. The comparison recommended P2, but the user chose
+- **P1** — outlined MD3 text-field trigger (56dp,
+  floating Folder label,
+  4dp corners) plus
+  an inset floating menu container (4dp corners,
+  fixed high step in dark) over the list,
+  ending above the deck.
+  Not selected for the provisional baseline.
+- **P2** — same field trigger;
+  the picker replaces the list slot in place while the deck
+  stays visible;
+  caret flips to close.
+  The comparison recommended P2,
+  but the user chose
   P4 for the provisional baseline.
-- **P3** — app-bar title plus caret trigger with the P1 floating menu container. Not
+- **P3** — app-bar title plus caret trigger with the P1 floating menu container.
+  Not
   selected for the provisional baseline.
-- **P4** — app-bar title trigger with the P2 in-slot container. Selected by D46 as a
-  **temporary pre-1.x decision**; the user believes a better solution exists.
+- **P4** — app-bar title trigger with the P2 in-slot container.
+  Selected by D46 as a
+  **temporary pre-1.x decision**;
+  the user believes a better solution exists.
 
 All four reuse the D28 adaptive rail and the D31 wrapped plain-text names at 48dp with
-primary plus 2dp indicator on the current folder. Captures: `cover-round-cover-picker-*`
-in `questions/render`, dark at 100%, P2 at 200%, and P2 in light under the settled L3
-(D45). Post-decision P4 captures now cover dark 200%, L3 light 100%, and L3 light 200%
-under the same folded native geometry; the original P form remains historical and does
+primary plus 2dp indicator on the current folder.
+Captures:
+`cover-round-cover-picker-*`
+in `questions/render`,
+dark at 100%,
+P2 at 200%,
+and P2 in light under the settled L3
+(D45).
+Post-decision P4 captures now cover dark 200%,
+L3 light 100%,
+and L3 light 200%
+under the same folded native geometry;
+the original P form remains historical and does
 not contain those later rasters.
- A separate debug-only interactive P4 study at 200% verified title open/close, Android
-Back, selection dismissal, and keyboard focus retained after Back; TalkBack focus is not
+ A separate debug-only interactive P4 study at 200% verified title open/close,
+Android
+Back,
+selection dismissal,
+and keyboard focus retained after Back;
+TalkBack focus is not
 covered (`questions/evidence/cover-round-cover-picker-p4-interaction.json`).
  Documented
-P1/P3 deviation: the floating menu panel exceeds the baseline menu's 112 to 280dp width
+P1/P3 deviation:
+the floating menu panel exceeds the baseline menu's 112 to 280dp width
 cap because the D31 name wall needs the full panel.
 
 ## Historical desktop command-bar visual drafts, withdrawn
@@ -1040,21 +1078,24 @@ The withdrawn I/G/R variant roles were:
   **I2** float
   within the player;
   **I3** replace the content region.
-  In-app ranking: I1 > I2 >
+  In-app ranking:
+  I1 > I2 >
   I3,
   based on source anchoring and retained context.
 - **G1** raise the player when the optional D21 global hotkey is used from another
   app;
   **G2** show a detached quick-window concept above that app (recommended).
   Global
-  ranking: G2 > G1,
+  ranking:
+  G2 > G1,
   for preserving the previous task.
   The OS second window and
   hotkey are not implemented by this study.
 - **R1** give future Ctrl+F a distinct search destination (recommended);
   **R2** enter
   explicit search mode in the command surface.
-  Search relationship ranking: R1 >
+  Search relationship ranking:
+  R1 >
   R2,
   for dedicated result room rather than mode switching.
   D25 settles the shortcut

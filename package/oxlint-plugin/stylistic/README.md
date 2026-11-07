@@ -372,7 +372,8 @@ keeping those rule files minimal.
 - `rule/`:
    one file per rule,
    each exporting a `CreateOnceRule`;
-  `require-asterisk-prefix.ts` reads configured mode during `Program`, when Oxlint has installed per-file options
+  `require-asterisk-prefix.ts` reads configured mode during `Program`,
+  when Oxlint has installed per-file options
 - `utility/item-per-line.ts`:
    shared detection and reporting logic for per-line rules
 - `utility/item-per-line-fix.ts`:
@@ -419,4 +420,7 @@ mise run //package/oxlint-plugin/stylistic:test:unit
 ```
 
 Test fixtures live in `package/test-fixture/oxlint-stylistic/src/` with `valid/` and `invalid/` directories.
-Dedicated configs verify `always`, `never`, missing-mode, and invalid-mode behavior.
+Dedicated configs verify `always`,
+`never`,
+missing-mode,
+and invalid-mode behavior.

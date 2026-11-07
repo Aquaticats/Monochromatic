@@ -2,10 +2,13 @@
 
 ## Retired native pipeline, 2026-10-19
 
-The user removed `bin`, `native`, and the generated `dist` tree.
+The user removed `bin`,
+`native`,
+and the generated `dist` tree.
 The agent introduced this copied/transformed Pi architecture without user approval.
 The rebuild must use Pi's public plugin API and must not modify Pi source or runtime internals.
-Ordinary plugin output may use `dist`; the native Pi build must not return.
+Ordinary plugin output may use `dist`;
+the native Pi build must not return.
 Historical source paths in this document now refer to the preserved pre-rebuild worktree
 at `~/temp/agent/pi-auto-mode-before-rebuild-20261019/package/pi-plugin/auto-mode/`.
 The historical claim that the extension interface cannot supply the required behavior is not established

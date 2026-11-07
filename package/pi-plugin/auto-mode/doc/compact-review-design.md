@@ -2,17 +2,26 @@
 
 ## Implemented architecture
 
-The 2026-10-17 refactor shares actual Pi preparation, execution, and finalization phases
+The 2026-10-17 refactor shares actual Pi preparation,
+execution,
+and finalization phases
 across top-level and Codemode child groups.
 `prepared-dispatch.mjs` retains the actual prepared records,
-reviews the complete group, and releases those records into native execution.
+reviews the complete group,
+and releases those records into native execution.
 The qualified SDK supplies the phase bodies through `createOwnedToolPhases`.
 
-`integration/native-batch/prepared-group.mjs` owns membership, review disposition,
-source checks, confirmation, and execution maps.
+`integration/native-batch/prepared-group.mjs` owns membership,
+review disposition,
+source checks,
+confirmation,
+and execution maps.
 Automatic uncertainty and assessment failure use that group's scoped selector.
 Established stale decisions remain withheld.
-The separate manual group, original-source approval router, child dispatcher, whole-call runner API,
+The separate manual group,
+original-source approval router,
+child dispatcher,
+whole-call runner API,
 and suspended-before-hook protocols are removed.
 
 The caller constructs one native session preset and awaits cleanup.
@@ -42,14 +51,20 @@ it does not qualify its retirement timing for active/concurrent operations or pr
 Its original-request size,
 historical response count,
 completed executions and latest diagnostic assertions prevent a missing-work or cleared-history false pass.
-The production owner keeps each consumer's current judgment and retires only completed, superseded judgments.
-The handler completes its producer after group and selector disposal, including exceptional paths.
+The production owner keeps each consumer's current judgment and retires only completed,
+superseded judgments.
+The handler completes its producer after group and selector disposal,
+including exceptional paths.
 The frozen production qualification passes its fifteen build/type/consumer tasks;
 its actual-session guard retains 16,688,184 additional heap bytes with every historical response still live.
 New lifetime cases and built mutation controls extend this evidence separately.
-The completed mutation set rebuilds removal of completion, removal of payload release,
-premature active retirement, cross-consumer shared state and ambiguity checks during cleanup.
-Every mutation fails its named regression; the restored native build, lifetime cases and memory guard pass.
+The completed mutation set rebuilds removal of completion,
+removal of payload release,
+premature active retirement,
+cross-consumer shared state and ambiguity checks during cleanup.
+Every mutation fails its named regression;
+the restored native build,
+lifetime cases and memory guard pass.
 The earlier group-only review-retirement test covers a different owner and cannot establish producer retirement.
 The first maintained producer guard fails on an incorrect whole-outcome comparison:
 the actual native outcome also includes its diagnostic reason.
@@ -60,14 +75,17 @@ Late response reuse invalidates authority without removing the original operatio
 The committed cleanup regression fails the built pre-correction artifact with Node's `SuppressedError`:
 the disposer adds a second ownership failure over the original operation failure.
 Cleanup therefore checks exact original consumer ownership without authorizing a policy read.
-New reservations and policy reads still reject ambiguous responses; response/stream tombstones remain.
-The corrected build passes every nine lifetime cases, constructor and execution catalogs,
+New reservations and policy reads still reject ambiguous responses;
+response/stream tombstones remain.
+The corrected build passes every nine lifetime cases,
+constructor and execution catalogs,
 and the actual-session memory guard at 17,742,936 retained heap bytes.
 The older MiMo OOM still requires full-history replay on the corrected artifact.
 
 ### Native fixture declarations
 
-Typed fixture callers consume the immutable native artifact, whose runtime modules retain source-owner identity.
+Typed fixture callers consume the immutable native artifact,
+whose runtime modules retain source-owner identity.
 Copying source declarations into that artifact leaves their imports pointing at nonexistent source paths,
 or makes the caller's composite TypeScript project traverse raw built implementations outside its file list.
 The existing Rolldown/Oxc declaration generator now closes those types in a type-only fixture entry.
@@ -89,45 +107,72 @@ calling `defineTool` before discarding its erasure does not fix the registration
 No predicate can claim schema-valid input merely to satisfy that contract.
 The SDK's later argument validation remains responsible for malformed model arguments.
 
-The source compiler retains clause, heading, incorporation, authorization, admission,
+The source compiler retains clause,
+heading,
+incorporation,
+authorization,
+admission,
 and complete-operation fallback semantics.
-Model replies supply estimates; selected readable instructions and observed authorization supply authority.
-Question binding, source attribution, currentness, and callback reentrancy checks protect these boundaries.
+Model replies supply estimates;
+selected readable instructions and observed authorization supply authority.
+Question binding,
+source attribution,
+currentness,
+and callback reentrancy checks protect these boundaries.
 Consolidation removes repeated execution ownership without discarding those checks.
 
-[Decision review](decision-review.md), [instruction collection](instruction-collection.md),
+[Decision review](decision-review.md),
+[instruction collection](instruction-collection.md),
 and [operation preparation](operation-preparation.md) identify callers and alternatives.
-Finite program profiles retain the real VM, recorder, queues, conversion, and issued-work drain.
+Finite program profiles retain the real VM,
+recorder,
+queues,
+conversion,
+and issued-work drain.
 
 ## Artifact layout
 
 Qualified upstream TypeScript stays in its verified compiler checkout.
-Native output contains emitted SDK runtime, maintained contracts, generated helpers,
-policy output, metadata, and licensing.
+Native output contains emitted SDK runtime,
+maintained contracts,
+generated helpers,
+policy output,
+metadata,
+and licensing.
 Identical files share storage across immutable releases.
 
 The earlier proposal to prune everything outside a literal graph is not implemented.
 Native verification loads contract fixtures from the generated artifact,
 and generation uses imports absent from the literal source graph.
 Retaining this development output preserves real consumers without another staging protocol.
-The emitted graph explicitly records computed imports; an unreached file is not automatically dead.
+The emitted graph explicitly records computed imports;
+an unreached file is not automatically dead.
 The active artifact contains 1,030 regular files totaling 8,211,396 bytes.
 Its conservatively reachable graph contains 794 files totaling 6,099,319 bytes.
 Shared external dependency targets are excluded.
 
 Maintenance removes 43 inactive build copies after live-process and repository-consumer checks,
 retaining active output and verified rollback.
-Builds preserve old paths for running sessions; automatic release eviction is not implemented.
+Builds preserve old paths for running sessions;
+automatic release eviction is not implemented.
 
 ## Executable evidence
 
-All 22 real native lifecycle modes pass, including child preparation, hook blocking,
-unsealed arguments, and cancellation.
-The 24-case fallback matrix, native execution catalogs, full package units, and type check pass.
+All 22 real native lifecycle modes pass,
+including child preparation,
+hook blocking,
+unsealed arguments,
+and cancellation.
+The 24-case fallback matrix,
+native execution catalogs,
+full package units,
+and type check pass.
 
 The final configured MiMo replay completes all 16 original calls,
 with zero selectors and 17 actual live-Luna requests.
-Positive-controlled payload inspection excludes raw structured commands, thinking, and signatures.
+Positive-controlled payload inspection excludes raw structured commands,
+thinking,
+and signatures.
 A prohibited process/Bash pair is withheld without a selector.
 Removing both independent denial barriers through a process-local load hook makes the real test
 execute three harmless fixture commands and fail.
@@ -140,15 +185,21 @@ Captured traces remain in private evidence after inactive build cleanup.
 
 ## Source inventory and limits
 
-The parser inventory counts 813 tracked source files, 103,885 physical lines,
-65,692 nonblank code lines, and 29,136 runtime statements.
-It removes comments, interfaces, type aliases, and type-only declarations.
+The parser inventory counts 813 tracked source files,
+103,885 physical lines,
+65,692 nonblank code lines,
+and 29,136 runtime statements.
+It removes comments,
+interfaces,
+type aliases,
+and type-only declarations.
 Remaining annotations and string data count as code lines.
 Positive controls preserve a comment-looking string and detect an added statement.
 
 The literal source graph reaches 296 files and 20,357 code lines.
 Filename-classified verification accounts for 28,596 code lines in 290 files.
-Build inputs and other files outside the graph are reported separately, not declared unused.
+Build inputs and other files outside the graph are reported separately,
+not declared unused.
 The intermediate compact-design baseline was 68,040 code lines and 30,301 statements;
 the retired extension deletion predates that baseline.
 There is no accepted numeric line budget.
@@ -170,7 +221,8 @@ a host path through an unmounted symlink is not an accessible handoff.
 The user keeps root `MWK` unchanged and records these concrete monitor lessons here.
 Pi accepts steering during a model request and delivers it after the current turn's tools;
 follow-ups wait until the agent would otherwise stop.
-The package's input records are owned instrumentation, not additional SDK contracts.
+The package's input records are owned instrumentation,
+not additional SDK contracts.
 Their origin category cannot turn ordinary queued input into a manual approval request.
 The category gate and its later whitelist repair are removed after actual configured-host reproduction.
 Genuine changes to governing policy or executable tools still invalidate the corresponding approval inputs.

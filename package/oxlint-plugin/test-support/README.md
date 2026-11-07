@@ -10,15 +10,26 @@ It is private because the helpers support this monorepo's tests rather than a pu
 
 ## Exports
 
-- `OXLINT_PLUGIN_TEST_ROOT`: the workspace root, which is the working directory of every oxlint run.
-- `fixturePackageRoot`, `fixtureSourceRoot` and `fixtureConfigPath`: locate a package under `package/test-fixture`,
-  its `src` directory, and a config file inside it.
-- `resolveFixtureTarget`: resolves a relative fixture path against a source root and keeps an absolute path as is.
-- `createTempFixtureFile`: copies a fixture into a disposable temp directory,
+- `OXLINT_PLUGIN_TEST_ROOT`:
+  the workspace root,
+  which is the working directory of every oxlint run.
+- `fixturePackageRoot`,
+  `fixtureSourceRoot` and `fixtureConfigPath`:
+  locate a package under `package/test-fixture`,
+  its `src` directory,
+  and a config file inside it.
+- `resolveFixtureTarget`:
+  resolves a relative fixture path against a source root and keeps an absolute path as is.
+- `createTempFixtureFile`:
+  copies a fixture into a disposable temp directory,
   and returns its path with an async disposer that removes the directory.
-- `runOxlintFixture`: runs oxlint over one target and returns the diagnostics of one plugin.
-- `uniqueRuleCodes`: the sorted, de-duplicated rule codes of a diagnostic list.
-- `OxlintOutputParseError`: the error `runOxlintFixture` throws when oxlint prints text instead of JSON.
+- `runOxlintFixture`:
+  runs oxlint over one target and returns the diagnostics of one plugin.
+- `uniqueRuleCodes`:
+  the sorted,
+  de-duplicated rule codes of a diagnostic list.
+- `OxlintOutputParseError`:
+  the error `runOxlintFixture` throws when oxlint prints text instead of JSON.
 
 ## `runOxlintFixture`
 
@@ -45,30 +56,40 @@ const diagnostics = await runOxlintFixture({
 
 ### Required options
 
-- `codePrefix`: the diagnostic code prefix to keep, including the opening parenthesis,
+- `codePrefix`:
+  the diagnostic code prefix to keep,
+  including the opening parenthesis,
   such as `'tsdoc('`.
   The type is `` `${string}(` ``,
   so a prefix without the parenthesis does not compile.
   Diagnostics of other plugins and of oxlint's built-in rules are dropped.
-- `configFlag`: the spelling of the config flag passed to oxlint, either `'-c'` or `'--config'`.
+- `configFlag`:
+  the spelling of the config flag passed to oxlint,
+  either `'-c'` or `'--config'`.
   Use the spelling the plugin's fixture setup accepts.
-- `fixtureConfig`: the absolute path of the oxlint config the run loads.
-- `target`: the absolute path of the one source file to lint.
+- `fixtureConfig`:
+  the absolute path of the oxlint config the run loads.
+- `target`:
+  the absolute path of the one source file to lint.
 
 ### Optional options
 
-- `threads`: a number passed to oxlint as `--threads <n>`.
+- `threads`:
+  a number passed to oxlint as `--threads <n>`.
   Leave it out to use oxlint's default.
   Set it for plugins whose tests are sensitive to resource use.
-- `fix`: asks oxlint to write fixes back to `target`.
+- `fix`:
+  asks oxlint to write fixes back to `target`.
   Leave it out to only lint,
   which leaves the target untouched even when a rule offers a fix.
   `'fixes'` passes `--fix`.
   `'fixes-and-suggestions'` passes `--fix` and `--fix-suggestions`.
   The run returns the diagnostics left after the fixes were applied,
   and a test reads the target back to check the rewritten source.
-  Pass a temp copy from `createTempFixtureFile`, never a checked-in fixture.
-- `environment`: variables added to the environment of the oxlint process,
+  Pass a temp copy from `createTempFixtureFile`,
+  never a checked-in fixture.
+- `environment`:
+  variables added to the environment of the oxlint process,
   such as a fault injection loaded through `NODE_OPTIONS`.
   They are merged over the environment of the test process,
   so variables that are not listed keep their current values.

@@ -90,26 +90,32 @@ second operating-system window or a global-hotkey feasibility test.
 The independent axes are:
 
 - **S1,
-  docked under the player header:** the command surface stays with its source
+  docked under the player header:**
+  the command surface stays with its source
   window,
   covering content below the folder row.
 - **S2,
-  floating inside the player:** centered and scrimmed,
+  floating inside the player:**
+  centered and scrimmed,
   detached from the header
   but still inside the app.
 - **S3,
-  detached quick-window concept:** a separate-looking palette over the player,
+  detached quick-window concept:**
+  a separate-looking palette over the player,
   intended to express the globally invoked state when the player is not focused.
 - **C1,
-  actions only:** results are executable commands;
+  actions only:**
+  results are executable commands;
   Ctrl+F remains a separate
   future media search entry.
 - **C2,
-  explicit modes:** Actions,
+  explicit modes:**
+  Actions,
   Tracks and Folders scopes share a palette but do not
   mix their results in one list.
 - **C3,
-  mixed results:** folders,
+  mixed results:**
+  folders,
   tracks and actions appear together under group labels.
 
 C2 and C3 use tracks and folders as illustrative result types,
@@ -121,14 +127,16 @@ could coexist with either in-app surface;
 
 ## Historical first-draft ranking (withdrawn)
 
-- **Surface:** S1 > S2 > S3 was not a valid exclusive ranking.
+- **Surface:**
+  S1 > S2 > S3 was not a valid exclusive ranking.
   S1 and S2 address
   in-app placement;
   S3 addresses a globally invoked window relationship that may
   coexist with either.
   The draft did not depict another app in focus or an actual
   detached OS window.
-- **Content:** C1 > C2 > C3.
+- **Content:**
+  C1 > C2 > C3.
   The claimed D25 justification was incorrect:
   D25 reserves shortcuts but does not require separate surfaces.
   C1 might still have a useful separation tradeoff;
@@ -150,21 +158,24 @@ historical evidence,
  not a live comparison.
  Every proposed state has an opaque light and dark Slint raster:
 
-- **I (in-app placement):** I1 docked below the header,
+- **I (in-app placement):**
+  I1 docked below the header,
   I2 floating within the player,
   I3 replacing the content region.
   All show the same typed `open` action query,
   matching actions and selected result.
   Each appears at 480 × 600 and 1100 × 640px.
   I1 also has a 360 × 640px synthetic larger-text and long-label stress capture.
-- **G (optional global invocation):** G1 raises the player from a previously active
+- **G (optional global invocation):**
+  G1 raises the player from a previously active
   notes app,
   G2 draws a detached quick surface over that app.
   I and G are
   complementary;
   the Slint scenes do not implement an actual second OS window or
   hotkey.
-- **R (future Ctrl+F):** R1 uses a separate search destination,
+- **R (future Ctrl+F):**
+  R1 uses a separate search destination,
   R2 an explicit
   search mode in the command surface.
   Both depict the same illustrative `cam`
@@ -172,7 +183,8 @@ historical evidence,
   D25 settles only the reserved shortcut,
   not
   whether those surfaces are shared.
-- **Edge probes:** E1 names no matching actions;
+- **Edge probes:**
+  E1 names no matching actions;
   E2 explicitly names an action
   unavailable during a scan.
   They are contextual evidence,

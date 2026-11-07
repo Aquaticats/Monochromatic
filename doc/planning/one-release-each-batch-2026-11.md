@@ -1741,6 +1741,127 @@ not to crates.io.
   and its tests build `Route` only as the same struct literals this change already updated or with
   `..RouteSettings::default()`.
 
+### Release record: `monochromatic-lint` 0.5.2-alpha.1, the package passes its own gates (2026-11-07T12:21:14-05:00)
+
+The owner's rules,
+verbatim:
+"My thinking is to deploy all releases on pnpr,
+but only publish rc and stable releases on crates.io";
+"Label decides";
+"I'm authorizing you to bump and publish any updates this session.";
+"Mutation runs don't block publish and release."
+The third run under the label gate,
+again an alpha:
+it goes to the GitHub release and the toolchain lock,
+not to crates.io.
+
+- What it carries (branch `fix/monochromatic-lint-package-gates-clean`,
+  merge `b75b3755ea` 2026-11-07T12:20:34-05:00):
+  the layout rules and the group folder checks added since 0.5.1,
+  and these gate fixes.
+  Formatting `5deefd74ba` (2026-11-07T11:57:31-05:00):
+  `format:rust` on the files that failed `lint:rustfmt`;
+  the nextest test list before and after is identical and `lint` passes;
+  the changes are line wrapping,
+  trailing commas,
+  a moved `mod` and `use` order,
+  and a `;` after `return` in four test files.
+  Mutation scopes `14744ea632` (2026-11-07T12:00:26-05:00).
+  README line breaks `0e272fd324` (2026-11-07T12:01:19-05:00),
+  whitespace only:
+  identical after collapsing whitespace.
+  Test sidecar `80e791cb38` (2026-11-07T12:13:08-05:00),
+  avoidable closures and tuple field docs `121630f4e8` (2026-11-07T12:13:18-05:00),
+  rustdoc line breaks `525dca3f93` (2026-11-07T12:13:34-05:00),
+  comment text only.
+- Mutation scopes:
+  `mutation:coverage` failed before the change with every mutant of the `layout_*` modules outside every scope,
+  and also with the workflow and shell modules,
+  `rust_manifest.rs` and `rust_file_engine_syntax.rs` outside every scope.
+  The new scopes are `--layout` (`mutation:layout`,
+  `mutation:list:layout`) for `src/layout_*.rs` against the `layout_` tests,
+  and `--workflow-shell` (`mutation:workflow-shell`,
+  `mutation:list:workflow-shell`) for `src/workflow_*.rs` and `src/shell_*.rs`.
+  The manifest lookup and the syntax router joined `--semantic`.
+  `mutation:coverage` then exited 0 with the union equal to the unscoped listing and nothing outside or unknown.
+  No mutation campaign ran;
+  the coordinator runs them.
+- Gates on the branch (nothing in `package/linter` changed by the second merge of main):
+  `test` 869 tests run,
+  869 passed,
+  2 skipped by `#[ignore]`
+  (`panic_hook_child`,
+  which only runs as the child of the panic-hook control,
+  and `host_real_run_over_wg_quicker_exempt`,
+  which `test:host` runs);
+  `test:layout` 137 of 137;
+  `lint`,
+  `lint:types` and `lint:rustfmt` exit 0;
+  `mise run lint:monochromatic-lint -- package/linter/monochromatic-lint` printed no finding,
+  with the `rust/avoidable-closure` check running (a first run that skipped it for a removed `cargo-shadow` launcher was not counted).
+- Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42395888611`
+  (`workflow_dispatch`,
+  2026-11-07T12:21:14-05:00 to 12:23:11-05:00,
+  `success`),
+  bump commit `7b5438db2f`
+  (2026-11-07T12:23:01-05:00),
+  version 0.5.1 to 0.5.2-alpha.1.
+- Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42396050013`
+  (built from `7b5438db2f`,
+  2026-11-07T12:23:09-05:00 to 12:32:17-05:00,
+  `success`).
+  The `ml-detect` job printed `package/linter/monochromatic-lint/Cargo.toml holds version '0.5.2-alpha.1': label alpha, goes to crates.io: false`.
+  In `ml-publish-crate` the steps "Build .crate package (verifies by compile)",
+  "Attest .crate provenance",
+  "Authenticate with crates.io (Trusted Publishing)",
+  "Publish (dry run)" and "Publish (skips if this version is already on crates.io)"
+  were `skipped`,
+  and the job itself ran,
+  so `ml-create-release` was not skipped;
+  every `ml-build-binary` job succeeded.
+- crates.io does not hold it:
+  `https://crates.io/api/v1/crates/monochromatic-lint/0.5.2-alpha.1` answered HTTP 404
+  (`crate ... does not have a version 0.5.2-alpha.1`,
+  user agent `crate-release-plan-check`,
+  no token),
+  and the crate's newest version is still 0.5.1.
+  The wait task said `crates.io 0.5.2-alpha.1: skipped, the alpha label is not published to crates.io`.
+- GitHub release `monochromatic-lint-v0.5.2-alpha.1` (published 2026-11-07T12:32:14-05:00):
+  `isPrerelease` false,
+  `isDraft` false.
+  The release holds no checksums file;
+  the asset digests GitHub reports for the four Linux archives equal the lock's values.
+- Lock move (commit `86ce4da394`,
+  2026-11-07T12:35:04-05:00):
+  `mise run toolchain:update` moved `cargo:monochromatic-lint` 0.5.1 to 0.5.2-alpha.1 and nothing else (1 tool moved);
+  `mise run toolchain:install` installed it (`1 installed, 65 unchanged, 0 failed`) and `monochromatic-lint --version`
+  prints `monochromatic-lint 0.5.2-alpha.1`.
+- Whether the fixer's output changed:
+  no,
+  measured.
+  The source diff from 0.5.1 changes no Markdown rule,
+  but `Cargo.lock` moved `icu_segmenter`,
+  `unicode-width`,
+  `unicase`,
+  `utf8_iter` and others,
+  so the output was compared instead of inferred.
+  A copy of every tracked Markdown and MDX file (3051 files and the root config) was fixed with `--fix` by the 0.5.1 binary,
+  by a debug build of the branch,
+  and by the installed 0.5.2-alpha.1 binary:
+  `diff --recursive` of the three result trees was empty and the three finding logs were identical.
+  The git wrapper's documentation reflow on `fix/git-policy-cli-passes-the-repository-linter` is therefore not affected by this release.
+  Evidence files:
+  `~/temp/agent/lint-gates/` (`corpusA`,
+  `corpusB`,
+  `corpusC`,
+  `fixA.log`,
+  `fixB.log`,
+  `fixC.log`,
+  `coverage-before.log`,
+  `coverage-after.log`,
+  `final-test.log`,
+  `release-wait.log`).
+
 ## Evidence log
 
 - crates.io API reads:

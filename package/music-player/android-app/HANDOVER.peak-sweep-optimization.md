@@ -74,7 +74,8 @@ windows.
 - The debug build is `run-as`-able.
    Clear the one-time flag and cache with
   `adb shell run-as dev.monochromatic.musicplayer rm -f files/peaks.json shared_prefs/peak-sweep.xml`.
-  (Note 2026-10-13: those two files are the original layout.
+  (Note 2026-10-13:
+  those two files are the original layout.
    Today the peaks live in the native decision database `files/decisions.db`
   (`TruePeakGain.kt`),
    and the record of which tracks were analyzed is the ledger `files/sweep-ledger.bin` (`core/SweepLedger.kt`);
@@ -96,7 +97,8 @@ windows.
 - Parallel foreground sweep (commit 86b303840):
    `PeakSweepService` (auto-started from
   `MainActivity.onCreate`
-  (as first committed; see the start path in the next note),
+  (as first committed;
+  see the start path in the next note),
    dataSync foreground service,
    4-worker default-priority pool,
    one-time
@@ -114,16 +116,25 @@ windows.
    fills the cache,
    no crash.
    Detekt and Android Lint clean.
-  (Note 2026-10-13: the start path changed after this commit, in `fa7ab1b0cc`, D113.
+  (Note 2026-10-13:
+  the start path changed after this commit,
+  in `fa7ab1b0cc`,
+  D113.
    No activity starts the service any more.
    `MainActivity.onCreate` only binds `PlaybackService` and starts the notification-permission prompt,
    and `MusicPlayerApplication.onCreate` only warms up the native library and preference files.
    `PlaybackService.analyzeNewTracks` calls `PeakSweepService.startIfNeeded` after the first library load,
    after a picked-folder load and after every live-update rescan,
    and `startIfNeeded` calls `startForegroundService` only when the library is readable and the ledger plan
-   (`sweep-ledger.bin`, `core/SweepLedger.kt`, `core/shouldStartAnalysis`) holds new, changed or retryable tracks.
-   The one-time SharedPreferences flag no longer exists: the ledger replaced it, so the foreground service also runs
-   for files added later, and the low-priority `PeakSweepWorker` upkeep that `PeakSweepScheduler.enqueue` queues from
+   (`sweep-ledger.bin`,
+  `core/SweepLedger.kt`,
+  `core/shouldStartAnalysis`) holds new,
+  changed or retryable tracks.
+   The one-time SharedPreferences flag no longer exists:
+  the ledger replaced it,
+  so the foreground service also runs
+   for files added later,
+  and the low-priority `PeakSweepWorker` upkeep that `PeakSweepScheduler.enqueue` queues from
    `PlaybackService` stays as the charging-plus-idle path.)
 - Android-Lint fixes to `PeakSweepService.kt` (commit 0ba1fe3e4).
 - Windowed true-peak scan in `rust/src/truepeak.rs` (commit 9eea1b840):
@@ -341,7 +352,8 @@ isolated transients at a modest scan-time cost,
   not committed to main.
    `am instrument` does not launch `MainActivity`
   and nothing under `app/src/androidTest` starts `PlaybackService`
-  (the path that triggers the auto-sweep, see the 2026-10-13 note under "Shipped and committed"),
+  (the path that triggers the auto-sweep,
+  see the 2026-10-13 note under "Shipped and committed"),
    so it never triggers the
   auto-sweep,
    the benchmark stays clean.
