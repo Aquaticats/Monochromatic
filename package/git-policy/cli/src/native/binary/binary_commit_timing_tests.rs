@@ -259,7 +259,7 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
 
 /// How long the stand-in Git sleeps before it runs the commit step,
 /// in seconds.
-const SLOW_STEP_SECONDS: u64 = 1;
+const SLOW_STEP_SECONDS: u64 = 3;
 
 /// A directory with a stand-in `git` that sleeps `SLOW_STEP_SECONDS` before any run whose words include `commit`,
 /// then runs the
@@ -270,7 +270,7 @@ fn slow_commit_git(fixture: &Fixture) -> PathBuf {
     std::fs::create_dir_all(&directory).expect("directory of the stand-in");
     let program: PathBuf = directory.join("git");
     let source: String = format!(
-        "#!/bin/sh\nfor word in \"$@\"; do\n  if [ \"$word\" = commit ]; then /usr/bin/sleep {SLOW_STEP_SECONDS}; break; fi\ndone\nexec /usr/bin/git \"$@\"\n"
+        "#!/bin/sh\nslow=no\nfor word in \"$@\"; do\n  if [ \"$word\" = cat-file ]; then slow=no; break; fi\n  if [ \"$word\" = commit ]; then slow=yes; fi\ndone\nif [ $slow = yes ]; then /usr/bin/sleep {SLOW_STEP_SECONDS}; fi\nexec /usr/bin/git \"$@\"\n"
     );
     std::fs::write(&program, source).expect("the stand-in");
     std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
@@ -964,4 +964,86 @@ fn a_service_stopped_while_standard_error_is_a_full_pipe_still_exits() {
 #[test]
 fn a_service_on_a_journal_stream_that_is_a_full_pipe_still_exits() {
     stopped_with_a_full_pipe("signal-full-stream", true);
+}
+
+/// The seconds the notice controls make the scratch Git, or its signer, take.
+const WAIT_SECONDS: u64 = 3;
+
+/// A signer stand-in for `gpg.program`: it answers Git's status protocol and prints a signature, after `WAIT_SECONDS` seconds.
+fn slow_signer(fixture: &Fixture) -> PathBuf {
+    let program: PathBuf = fixture.root.join("slow-signer");
+    let source: String = format!(
+        "#!/bin/sh\n/usr/bin/cat > /dev/null\n/usr/bin/sleep {WAIT_SECONDS}\necho '[GNUPG:] SIG_CREATED D 1 8 00 1 1 ABC' >&2\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nZmFrZQ==\\n-----END PGP SIGNATURE-----\\n'\n"
+    );
+    std::fs::write(&program, source).expect("the signer stand-in");
+    std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    return program;
+}
+
+/// One wrapped commit of `a.txt` in a repository whose configuration says `configuration`, with a notice interval of one second,
+///  extra words after `commit`, and the stand-in Git (when `slow_git`) that sleeps in `commit`; returns what the command wrote to standard error.
+fn commit_noticing(name: &str, configuration: &[(&str, String)], extra_words: &[&str], slow_git: bool) -> String {
+    let fixture: Fixture = fixture(name);
+    let repo: PathBuf = base_repository(&fixture);
+    // A configuration key the service does not embed makes Git build the commit, in the scratch repository.
+    git_text(&fixture, &repo, &["config", "commit.verbose", "false"]);
+    for (key, value) in configuration {
+        git_text(&fixture, &repo, &["config", key, value.as_str()]);
+    }
+    let service_name: String = format!("{name}-{}", std::process::id());
+    let places: Places = places_for(&fixture, service_name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    std::fs::write(repo.join("a.txt"), format!("edit by {}\n", std::process::id())).expect("a.txt");
+    let mut arguments: Vec<&str> = vec!["commit"];
+    arguments.extend_from_slice(extra_words);
+    arguments.extend_from_slice(&["-m", MESSAGE, "--", "a.txt"]);
+    let mut command: Command = wrapped_commit(&fixture, &repo, arguments.as_slice());
+    command.env("XDG_RUNTIME_DIR", runtime_for(service_name.as_str())).env("CLI_GIT_WAIT_NOTICE_SECONDS", "1").env("GIT_EDITOR", "/usr/bin/true");
+    if slow_git {
+        let mut path: std::ffi::OsString = slow_commit_git(&fixture).into_os_string();
+        path.push(":");
+        path.push(fixture.root.join("bin"));
+        command.env("PATH", path);
+    }
+    let served = observe(&mut command, b"");
+    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
+    remove_settled(&fixture);
+    return stderr;
+}
+
+/// The commit Git builds in the scratch repository names what the command waits for, like every other wait (issue 1811).
+/// Why:
+///  That step runs with the terminal attached and no watch, so a commit that waited minutes in it printed nothing at all; the owner
+///  asked that it say what it waits for. It carries no time limit (an open question for the owner): the line says so.
+#[test]
+fn a_slow_scratch_commit_says_what_the_command_waits_for() {
+    let said: String = commit_noticing("notice-scratch-commit", &[], &[], true);
+    let line: &str = said.lines().find(|line| { return line.contains("`git commit`"); }).unwrap_or_else(|| { panic!("a three second wait said nothing about the commit Git builds: {said}") });
+    assert!(line.starts_with("monochromatic-git-policy-cli: "), "{line}");
+    assert!(line.contains("`git commit`") && line.contains("scratch repository"), "{line}");
+    assert!(line.contains("no time limit"), "no ceiling is added: {line}");
+    assert!(!line.contains("signs"), "nothing is signed here: {line}");
+    assert!(!said.contains(MESSAGE), "the person's text is not in a notice: {said}");
+}
+
+/// With `commit.gpgsign` set the notice says the commit is signed, and names the signing program when it runs.
+#[test]
+fn a_slow_signing_commit_says_it_waits_for_the_signature() {
+    let fixture_for_signer: Fixture = fixture("notice-signer-path");
+    let signer: PathBuf = slow_signer(&fixture_for_signer);
+    let configuration: Vec<(&str, String)> = vec![("commit.gpgsign", String::from("true")), ("gpg.program", signer.display().to_string()), ("user.signingkey", String::from("ABC"))];
+    let said: String = commit_noticing("notice-signing-commit", configuration.as_slice(), &[], false);
+    let line: &str = said.lines().find(|line| { return line.contains("`git commit`"); }).unwrap_or_else(|| { panic!("a three second wait for a signer said nothing about the commit: {said}") });
+    assert!(line.contains("`git commit`") && line.contains("signs the commit") && line.contains("`commit.gpgsign`"), "{line}");
+    assert!(line.contains("slow-signer"), "the signing program is named while it runs: {line}");
+    remove_settled(&fixture_for_signer);
+}
+
+/// A commit that opens the person's editor says nothing: the person is the wait.
+#[test]
+fn a_commit_that_opens_an_editor_prints_no_waiting_notice() {
+    let said: String = commit_noticing("notice-editor", &[], &["--edit"], true);
+    assert!(!said.contains("`git commit`"), "the person at the editor is not told the command waits: {said}");
 }
