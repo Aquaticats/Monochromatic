@@ -37,7 +37,8 @@ The archived `components/search/specs/index.html` lists the **divided**
 style as available in baseline M3 and explains that a divider separates
 Search input from suggestions/results.
  It also distinguishes the
-contained, expressive style;
+contained,
+expressive style;
  D47/D48 did not opt into Expressive.
 The baseline anatomy is a Search bar and a container for suggestions or
 results,

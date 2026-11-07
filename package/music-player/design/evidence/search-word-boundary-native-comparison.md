@@ -106,11 +106,15 @@ it does not assume W or A or direct a user to choose a backend library.
 
 ## Unadopted comparison and scope correction
 
-- **W, word-start-only fixture:** demonstrates the accepted controls and
+- **W,
+  word-start-only fixture:**
+  demonstrates the accepted controls and
   excludes the two interior-only names.
   A user remembering an interior fragment would not find them under
   this illustrative rule.
-- **A, anywhere-substring fixture:** demonstrates optional `Scamper` and
+- **A,
+  anywhere-substring fixture:**
+  demonstrates optional `Scamper` and
   `Dreamcam` rows;
   additional interior matches could vary in usefulness.
   Real-library counts were not measured.

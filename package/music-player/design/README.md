@@ -28,7 +28,8 @@ Read these files in order:
 
 The D46 folded-cover picker revisit is in
 [`questions/cover-picker-revisit.html`](questions/cover-picker-revisit.html):
-P4 beside the agent's P5, eight inspected native views,
+P4 beside the agent's P5,
+eight inspected native views,
 not a ballot.
 
 The first-run/no-library study is in
@@ -134,7 +135,8 @@ native accessibility and Firefox acceptance are not claimed;
 full Android lint still has inherited failures.
 D81's template editor is a separate design problem with its own built study:
 [`evidence/template-editor-boundaries.md`](evidence/template-editor-boundaries.md) describes it,
-and its [verified offline review](questions/template-editor.html) shows the editor as decided (D89 to D96, D98)
+and its [verified offline review](questions/template-editor.html) shows the editor as decided (D89 to D96,
+D98)
 and the two lines that get a template (D99).
 The design round for templates is closed (D96 keeps the field list where it is).
 No light surface from the original queue is left undrawn.
@@ -236,16 +238,26 @@ prepared a visible answer and directed the user to reply in chat;
 clipboard API or copy button.
 
 The folded-cover screen round compared four native subdirectory-picker prototypes:
-P1 outlined text field plus floating menu panel, P2 the same field plus in-slot picker,
-P3 app-bar title plus floating panel, and P4 title plus in-slot picker.
+P1 outlined text field plus floating menu panel,
+P2 the same field plus in-slot picker,
+P3 app-bar title plus floating panel,
+and P4 title plus in-slot picker.
  D46 selects P4
-as a **temporary pre-1.x decision**: it is the current design baseline, but the user
+as a **temporary pre-1.x decision**:
+it is the current design baseline,
+but the user
 believes a better picker exists.
  Post-decision native P4 captures now cover dark at 200% and accepted L3 light at
-100% and 200%, in addition to dark at 100%; the opened-state visuals fit without mode
+100% and 200%,
+in addition to dark at 100%;
+the opened-state visuals fit without mode
 border clipping.
- A debug-only native interaction study verifies title open/close, Back, same-folder
-dismissal, and keyboard focus retained after Back at 200%; TalkBack focus remains
+ A debug-only native interaction study verifies title open/close,
+Back,
+same-folder
+dismissal,
+and keyboard focus retained after Back at 200%;
+TalkBack focus remains
 unmeasured.
  The light surface itself is settled by D45 (flat with hairlines
 at both seams).
@@ -306,7 +318,8 @@ the floating keyboard obscured both matching result labels while typing;
 D55 separately accepts that state while the query remains visible.
 The user's A selection is unchanged.
 A disposable Fold then verified real split inner and full-width cover Gboard
-at 100% and 200% text, with the deck and cover results visible in settled
+at 100% and 200% text,
+with the deck and cover results visible in settled
 states.
 Its Gboard font-update banner briefly clipped the final inner mode;
 D54 accepts that measured brief overlap.
@@ -381,7 +394,9 @@ and [archived Stay/Return logic comparison](questions/archive/search-result-acti
 explain the choice;
 `questions/current.html` shows only the selected action goals.
 No Search result tap handler had been tested or implemented when D72 to D74 were written;
-D127 (2026-10-14) later changed the other-track result from "start" to "select, paused", as for a track row.
+D127 (2026-10-14) later changed the other-track result from "start" to "select,
+paused",
+as for a track row.
 D75 to D80 adopt query-first accessibility entry,
 contiguous Search reading order,
 single-action rows,

@@ -26,7 +26,8 @@ The archived Material 3 Search guidance indexed in
 says a focused search bar's Back icon releases focus and returns the bar
 to its original state;
 they also keep submitted result-query text visible but unfocused.
-That is about an expanding **search bar**, not D47's separate Search
+That is about an expanding **search bar**,
+not D47's separate Search
 page;
 its Back transition cannot be copied as a rule that the selected
 page merely collapses a field.
@@ -102,28 +103,33 @@ not the first tap's exact outcome while typing.
 
 ## Compared directions and selected behavior
 
-- **Entry edit focus (D63):** request query focus/keyboard on entry,
+- **Entry edit focus (D63):**
+  request query focus/keyboard on entry,
   not wait for explicit field focus.
   E-fast was selected;
   E2 remains the unrelated accepted crease-clearance code.
-- **Visible Back arrow (D64):** return directly to player even with a
+- **Visible Back arrow (D64):**
+  return directly to player even with a
   keyboard shown,
   not hide the keyboard first while retaining Search.
   Material's in-place bar-collapse guidance did not determine this.
-- **Clear (D65):** erase query and stay in Search while retaining the
+- **Clear (D65):**
+  erase query and stay in Search while retaining the
   existing edit-focus/keyboard state,
   not force new focus.
   The logic model compared typing,
   dismissal with edit focus retained,
   and moved-away edit focus.
-- **Re-entry query and position (D66/D67):** open with a fresh empty
+- **Re-entry query and position (D66/D67):**
+  open with a fresh empty
   query on the next visit.
   Independently,
   if a future design restores query text,
   start those results at the top rather than the prior deep position.
   Conditional P-top does not override the active Q-new direction.
   The temporary debug `onBack` reset was not decision evidence.
-- **Same-query refocus (D68):** preserve the intended row's **visibility**
+- **Same-query refocus (D68):**
+  preserve the intended row's **visibility**
   after the viewport shrinks;
   raw offset alone produced the observed final-row extra swipe.
   The comparison separately modeled a middle row and final row;
