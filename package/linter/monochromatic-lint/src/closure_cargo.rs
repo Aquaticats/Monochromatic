@@ -111,6 +111,19 @@ pub fn cargo_program() -> PathBuf {
 /// ```
 const UNSTARTABLE_PROGRAM_STATUSES: [i32; 2] = [126, 127];
 
+/// What:
+///  Whether a process status is one of the statuses of a program that exists and cannot be started.
+/// Why:
+///  A named predicate keeps the status filter a reusable function path instead of a capture-free closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isUnstartableStatus(code: number): boolean;
+/// ```
+fn is_unstartable_status(code: i32) -> bool {
+    return UNSTARTABLE_PROGRAM_STATUSES.contains(&code);
+}
+
 /// What cargo prints when asked for a subcommand it does not have,
 ///  the only answer that means cargo-dylint is not installed.
 const NO_SUCH_COMMAND: &str = "no such command";
@@ -134,10 +147,16 @@ const NO_SUCH_COMMAND: &str = "no such command";
 pub enum ProbeFailure {
     /// `cargo` is not on the machine or `cargo-dylint` is not installed:
     /// skip the packages with this reason.
-    Absent(String),
+    Absent(
+        /// Why the packages are skipped.
+        String,
+    ),
     /// `cargo` started and exited 126 or 127:
     /// fail the run with this explanation.
-    Broken(String),
+    Broken(
+        /// What went wrong and what to do about it.
+        String,
+    ),
 }
 
 /// The methods of `ProbeFailure`.
@@ -186,10 +205,7 @@ pub fn dylint_probe(cargo: &Path) -> Result<String, ProbeFailure> {
                 output.status
             )));
         }
-        let unstartable: bool = output
-            .status
-            .code()
-            .is_some_and(|code| return UNSTARTABLE_PROGRAM_STATUSES.contains(&code));
+        let unstartable: bool = output.status.code().is_some_and(is_unstartable_status);
         let diagnosis: String = if unstartable {
             format!(
                 "`{} dylint --version` exited with {}, the status of a program that exists and cannot be started, so this is a broken `cargo` link or launcher and not a missing cargo-dylint.",
