@@ -133,9 +133,7 @@ fn help_and_version_remain_available_without_setup() {
     }
     // Help is written for the person running the command, not copied from source documentation.
     assert!(
-        rendered.starts_with(
-            format!("{ABOUT}\n\nUsage: {PROGRAM} [OPTIONS] [PATH]...").as_str()
-        )
+        rendered.starts_with(format!("{ABOUT}\n\nUsage: {PROGRAM} [OPTIONS] [PATH]...").as_str())
     );
     assert!(!rendered.contains("In TS you'd write"));
     assert!(!rendered.contains("What:"));

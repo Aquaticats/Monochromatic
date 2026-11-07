@@ -20,7 +20,9 @@ use crate::{
     closure_cargo::{
         DylintRun, cargo_program, dependencies_missing, dylint_probe, run_dylint, rustc_dev_missing,
     },
-    closure_driver::{DriverGaps, DriverSite, driver_gaps, driver_site_from_environment},
+    closure_driver::{
+        DriverGaps, DriverSite, driver_gaps, driver_site_from_environment, gaps_hold_library,
+    },
     closure_findings::{RULE, Targets, findings_from, targets_of},
     closure_manifest::{Prerequisite, read_prerequisites},
     closure_packages::{ClosurePackage, group_packages},
@@ -332,11 +334,7 @@ pub fn run_closure_step_at(
     let targets: Targets = targets_of(plans);
     let search: OsString = std::env::var_os("PATH").unwrap_or_default();
     for package in &grouping.packages {
-        if gaps
-            .gaps
-            .iter()
-            .any(|gap| return gap.library == package.library)
-        {
+        if gaps_hold_library(gaps.gaps.as_slice(), &package.library) {
             continue;
         }
         absorb(

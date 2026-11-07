@@ -212,7 +212,10 @@ impl ConfigStore {
     /// ```ts
     /// ConfigStore.fromSource(cwd, source)
     /// ```
-    pub fn from_source(cwd: &Path, source: ConfigurationSource) -> Result<ConfigStore, ConfigError> {
+    pub fn from_source(
+        cwd: &Path,
+        source: ConfigurationSource,
+    ) -> Result<ConfigStore, ConfigError> {
         let prepared: Arc<PreparedConfiguration> = Arc::new(prepare_configuration(source)?);
         return Ok(ConfigStore::with_explicit(cwd, Some(prepared)));
     }

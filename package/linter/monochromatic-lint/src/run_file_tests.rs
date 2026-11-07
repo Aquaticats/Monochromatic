@@ -128,10 +128,7 @@ fn a_fix_that_would_empty_the_file_is_refused() {
     assert_eq!(read(&fixture.path, "a.md"), source);
     assert_eq!(
         codes(outcome.findings.as_slice()),
-        [
-            FIX_REFUSED,
-            "markdown/link-image-reference-definitions"
-        ]
+        [FIX_REFUSED, "markdown/link-image-reference-definitions"]
     );
     let refusal = &outcome.findings[0];
     assert!(refusal.processing_failure);
@@ -186,10 +183,7 @@ fn unreadable_and_non_utf8_files_are_processing_findings() {
     let fixture: Fixture = Fixture::new();
     write(&fixture.path, CONFIG, ALL_RULES);
     let missing: FileOutcome = process(&fixture.path, "missing.md", true);
-    assert_eq!(
-        codes(missing.findings.as_slice()),
-        [PROCESSING_FAILURE]
-    );
+    assert_eq!(codes(missing.findings.as_slice()), [PROCESSING_FAILURE]);
     assert!(
         missing.findings[0].message.starts_with("Cannot read "),
         "{}",
@@ -200,10 +194,7 @@ fn unreadable_and_non_utf8_files_are_processing_findings() {
     assert!(!missing.written);
     std::fs::write(fixture.path.join("binary.md"), [b'#', b' ', 0xff, b'\n']).expect("bytes");
     let binary: FileOutcome = process(&fixture.path, "binary.md", true);
-    assert_eq!(
-        codes(binary.findings.as_slice()),
-        [PROCESSING_FAILURE]
-    );
+    assert_eq!(codes(binary.findings.as_slice()), [PROCESSING_FAILURE]);
     assert!(
         binary.findings[0]
             .message
@@ -247,10 +238,7 @@ fn a_directory_named_like_a_source_file_is_a_processing_finding() {
     write(&fixture.path, CONFIG, ALL_RULES);
     std::fs::create_dir(fixture.path.join("dir.md")).expect("directory");
     let outcome: FileOutcome = process(&fixture.path, "dir.md", true);
-    assert_eq!(
-        codes(outcome.findings.as_slice()),
-        [PROCESSING_FAILURE]
-    );
+    assert_eq!(codes(outcome.findings.as_slice()), [PROCESSING_FAILURE]);
     assert!(!outcome.written);
     assert!(fixture.path.join("dir.md").is_dir());
 }

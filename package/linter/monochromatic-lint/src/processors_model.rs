@@ -115,7 +115,8 @@ pub(crate) enum Guard {
     /// Hidden-line stripping and synthetic-main preparation.
     Prepared,
     /// A workflow step's script;
-    ///  steps carry no fixes, so nothing is re-extracted.
+    ///  steps carry no fixes,
+    /// so nothing is re-extracted.
     Step,
 }
 

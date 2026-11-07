@@ -6,7 +6,8 @@
 //! Why:
 //!  The walker needs a key's column and its value's bytes,
 //!  and nothing else of YAML;
-//!  a form this reader cannot place is reported, not guessed.
+//!  a form this reader cannot place is reported,
+//! not guessed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

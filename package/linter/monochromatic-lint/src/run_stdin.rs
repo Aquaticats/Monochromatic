@@ -15,8 +15,8 @@ use crate::{
     run_finish::finish,
     run_modes::SetupError,
     run_output::RunOutput,
-    run_source::{SourceRun, lint_source_bytes, require_supported_name},
     run_plan::ConfigStore,
+    run_source::{SourceRun, lint_source_bytes, require_supported_name},
 };
 /// Import the reader trait for standard input and borrowed native paths.
 use std::{io::Read, path::Path};
