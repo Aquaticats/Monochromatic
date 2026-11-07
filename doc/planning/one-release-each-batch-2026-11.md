@@ -1250,6 +1250,13 @@ proved the Wayland library step.
   crates.io `2026-11-07T12:58:55.297025Z`, `yanked` false.
   GitHub release `monochromatic-file-enforcer-cli-v0.1.3` holds both Linux tarballs and the checksums file. Wave 2 (before the wrapper) is complete.
 
+- `monochromatic-git-policy-cli` 0.5.34 to 0.6.0:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42374936121`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42375444159`
+  (built from `3cd939e8e9`),
+  crates.io `2026-11-07T13:10:36.327011Z`, `yanked` false.
+  Released after "go wrapper". GitHub release `monochromatic-git-policy-cli-v0.6.0` holds both Linux tarballs. Nothing was yanked; the batch is complete.
+
 ## Evidence log
 
 - crates.io API reads:
