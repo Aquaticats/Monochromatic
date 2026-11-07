@@ -3652,9 +3652,13 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   - Guardrail bundle `package/claude-code-plugin/guardrail/bundle/node/index.mjs` still has the old refusal text; a
     rebuild also pulls about 300 KB of unrelated source drift (patch at `~/temp/agent/guardrail-bundle-rebuild.patch`).
     Rebuild deliberately through its task, attribute the drift to source commits, run the plugin's tests, commit.
-  - `package/music-player/desktop-e2e` lint: 11 errors and 89 warnings, older than the audit (not counted on an
-    unmodified main yet). Owner: "Principle 1: Lint issues need to be taken care of asap." Running
-    (`fix/music-player-desktop-e2e-lint-clean`; start recorded by `1a47d9353f`).
+  - `package/music-player/desktop-e2e` lint: merged `d248a15f60`, 0 errors and 0 warnings (baseline 11 and 89), no
+    suppression added, unit tests pass. Queued from it: `settings/licenses-row` and `settings/escape-ladder` fail on
+    unmodified main too; `click-through/unreadable-row` passed 2 of 3 on main and on the branch alike (timed out
+    waiting for a highlighted result); about twenty older `no-await-in-loop` disables in the package have no `.md`
+    doc (rule LN3).
+  - Guardrail bundle rebuild: running (`fix/claude-code-plugin-guardrail-bundle-matches-sources`): attribute the
+    drift to source commits, test and smoke-run the bundle before committing, find why it drifted.
   - Daily-update fix-forward issues: running (`feat/monorepo-task-daily-update-opens-fix-forward-issues`; start
     recorded by `1a47d9353f`).
 - `monochromatic-lint` group folders merged into main `62874c227d` (869 of 869 tests; every new check red first).
