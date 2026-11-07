@@ -1,5 +1,7 @@
 //! Controls for the shadow repository as a whole:
-//!  what it answers for `HEAD`, the upstream, conditional includes and the real refs,
+//!  what it answers for `HEAD`,
+//! the upstream,
+//! conditional includes and the real refs,
 //!  and that creating it leaves the real refs and index unchanged.
 
 use super::*;
@@ -9,13 +11,16 @@ use crate::shadow_git::shadow_request;
 use crate::transaction_git::run_git_checked;
 use crate::transaction_journal::RefFormat;
 
-/// Captures the invocation of a repository's working directory, as the transaction does.
+/// Captures the invocation of a repository's working directory,
+/// as the transaction does.
 fn capture_of(repo: &Path) -> InvocationCapture {
     let layout = capture_invocation_layout(&git_context(), repo, false).expect("layout");
     return capture_invocation_base(&git_context(), repo, layout).expect("capture");
 }
 
-/// Reads one shadow answer, through the shadow request, with the variables stripped.
+/// Reads one shadow answer,
+/// through the shadow request,
+/// with the variables stripped.
 fn shadow_text(shadow: &Path, arguments: &[&str]) -> String {
     let output = run_git_checked(&git_context(), &shadow_request(shadow, shadow, arguments))
         .expect("shadow answer");
@@ -41,7 +46,8 @@ fn create(repo: &Path, root: &Path, transaction_id: &str) -> (PathBuf, PathBuf, 
 /// A fixed transaction ID of the shape the registry accepts.
 const TRANSACTION: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
 
-/// The shadow answers `HEAD`, the base and the upstream the way the real repository does,
+/// The shadow answers `HEAD`,
+/// the base and the upstream the way the real repository does,
 ///  and sits under the transaction's path in the common directory.
 #[test]
 fn shadow_answers_head_base_and_upstream_like_the_real_repository() {
@@ -104,7 +110,8 @@ fn detached_repository_gives_a_detached_shadow() {
     remove(root.as_path());
 }
 
-/// The shadow links shared entries and never carries the real index, `HEAD`'s private copies or objects.
+/// The shadow links shared entries and never carries the real index,
+/// `HEAD`'s private copies or objects.
 #[test]
 fn shadow_links_shared_entries_and_keeps_private_ones_out() {
     let root: PathBuf = fixture("shadow-create-links");
@@ -122,7 +129,8 @@ fn shadow_links_shared_entries_and_keeps_private_ones_out() {
     remove(root.as_path());
 }
 
-/// Creating the shadow leaves the real refs, the real index and the worktree bytes unchanged.
+/// Creating the shadow leaves the real refs,
+/// the real index and the worktree bytes unchanged.
 #[test]
 fn creating_the_shadow_leaves_real_state_unchanged() {
     let root: PathBuf = fixture("shadow-create-unchanged");
@@ -138,7 +146,8 @@ fn creating_the_shadow_leaves_real_state_unchanged() {
     remove(root.as_path());
 }
 
-/// A merge in progress is copied into the shadow and the comparison copies, as its own bytes.
+/// A merge in progress is copied into the shadow and the comparison copies,
+/// as its own bytes.
 #[test]
 fn a_merge_in_progress_is_copied_to_the_shadow() {
     let root: PathBuf = fixture("shadow-create-merge");
@@ -183,7 +192,8 @@ fn sha256_and_reftable_repositories_get_matching_shadows() {
     remove(root.as_path());
 }
 
-/// The shadow and the directories above it are private, as the incumbent's recursive private mkdir makes them.
+/// The shadow and the directories above it are private,
+/// as the incumbent's recursive private mkdir makes them.
 #[cfg(unix)]
 #[test]
 fn shadow_and_its_parents_are_private() {
@@ -217,7 +227,8 @@ fn overwritten_shadow_files_are_private() {
     remove(root.as_path());
 }
 
-/// The `config` starts Git logged to a trace file, as their argument lists.
+/// The `config` starts Git logged to a trace file,
+/// as their argument lists.
 fn config_starts(trace: &Path) -> Vec<String> {
     return std::fs::read_to_string(trace)
         .unwrap_or_default()
@@ -228,7 +239,8 @@ fn config_starts(trace: &Path) -> Vec<String> {
         .collect();
 }
 
-/// Creating a shadow reads the repository format from the snapshot when it can, and from Git's `--file` listing
+/// Creating a shadow reads the repository format from the snapshot when it can,
+/// and from Git's `--file` listing
 ///  when the configuration includes another file.
 #[test]
 fn the_repository_format_comes_from_the_snapshot_unless_the_configuration_includes_a_file() {
@@ -264,7 +276,9 @@ fn the_repository_format_comes_from_the_snapshot_unless_the_configuration_includ
     remove(root.as_path());
 }
 
-/// A directory that exists already is accepted, a file in its place is not, and a missing parent fails.
+/// A directory that exists already is accepted,
+/// a file in its place is not,
+/// and a missing parent fails.
 #[test]
 fn an_existing_private_directory_is_accepted_and_a_file_is_not() {
     let root: PathBuf = fixture("shadow-ensure");
@@ -296,10 +310,14 @@ fn concurrent_creators_of_the_shared_parents_all_succeed() {
 }
 
 /// What:
-///  The `git init` that makes a reftable shadow, as the wrapper starts it.
+///  The `git init` that makes a reftable shadow,
+/// as the wrapper starts it.
 /// Why:
-///   The owner's rule is that no Git start of the wrapper or the service gets `--quiet` or `-q`; the reftable shadow is the
-///  one whose tables only Git writes, so it is made by a start of `init`, which is looked at.
+///   The owner's rule is that no Git start of the wrapper or the service gets `--quiet` or `-q`;
+/// the reftable shadow is the
+///  one whose tables only Git writes,
+/// so it is made by a start of `init`,
+/// which is looked at.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -326,9 +344,16 @@ fn the_reftable_shadow_is_made_by_an_init_without_quiet() {
     remove(root.as_path());
 }
 
-/// A reftable repository, and a Git shim that hangs in the first `hang` starts of `init` after it made a partial shadow directory
-///  (the way a cut `init` leaves one), and passes everything else to real Git. Returns the context, the repository, its capture, the
-///  file that counts the starts of `init`, and the transaction directory.
+/// A reftable repository,
+/// and a Git shim that hangs in the first `hang` starts of `init` after it made a partial shadow directory
+///  (the way a cut `init` leaves one),
+/// and passes everything else to real Git.
+/// Returns the context,
+/// the repository,
+/// its capture,
+/// the
+///  file that counts the starts of `init`,
+/// and the transaction directory.
 fn reftable_with_hanging_init(root: &Path, hang: u32) -> (GitContext, PathBuf, InvocationCapture, PathBuf, PathBuf) {
     let reftable: PathBuf = root.join("reftable");
     std::fs::create_dir(&reftable).expect("reftable directory");
@@ -352,10 +377,15 @@ fn reftable_with_hanging_init(root: &Path, hang: u32) -> (GitContext, PathBuf, I
     return (context, reftable, capture, count, transaction);
 }
 
-/// A shadow whose `init` was ended at its ceiling is thrown away and made again in a fresh directory, never run again in the partial
-/// one: the experiment found a cut `init` does not run twice to the same state in place (50 of 104 second runs ended with
-/// different reftable tables), and after the partial directory is discarded the second run equals an uncut one (104 of 104; the owner's
-/// "Never cut a branch write (Recommended)": a step that cannot run twice has no ceiling unless it is restartable like this).
+/// A shadow whose `init` was ended at its ceiling is thrown away and made again in a fresh directory,
+/// never run again in the partial
+/// one:
+/// the experiment found a cut `init` does not run twice to the same state in place (50 of 104 second runs ended with
+/// different reftable tables),
+/// and after the partial directory is discarded the second run equals an uncut one (104 of 104;
+/// the owner's
+/// "Never cut a branch write (Recommended)":
+/// a step that cannot run twice has no ceiling unless it is restartable like this).
 #[test]
 fn a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory() {
     let root: PathBuf = fixture("shadow-create-init-cut");
@@ -370,8 +400,10 @@ fn a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory() {
     remove(root.as_path());
 }
 
-/// The fresh start is made a bounded number of times: a shadow whose `init` is cut every time fails the transaction with a message
-/// that names the step, and leaves no partial directory.
+/// The fresh start is made a bounded number of times:
+/// a shadow whose `init` is cut every time fails the transaction with a message
+/// that names the step,
+/// and leaves no partial directory.
 #[test]
 fn a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing() {
     let root: PathBuf = fixture("shadow-create-init-cut-always");
@@ -390,9 +422,15 @@ fn a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_not
     remove(root.as_path());
 }
 
-/// Which outcomes of a start of `init` are retried in a fresh directory (sol-1 round 4): a start ended at its ceiling, a start the system
-/// refused as a finished command with Git's words, and a start the system refused before the command ran (`EAGAIN`, which reaches here
-/// as an I/O error of kind `WouldBlock`). Another I/O error is not retried, and neither is a finished command.
+/// Which outcomes of a start of `init` are retried in a fresh directory (sol-1 round 4):
+/// a start ended at its ceiling,
+/// a start the system
+/// refused as a finished command with Git's words,
+/// and a start the system refused before the command ran (`EAGAIN`,
+/// which reaches here
+/// as an I/O error of kind `WouldBlock`).
+/// Another I/O error is not retried,
+/// and neither is a finished command.
 #[test]
 fn only_a_cut_or_refused_start_of_init_is_retried() {
     let refused_text = b"fatal: unable to create thread: Resource temporarily unavailable\n".to_vec();

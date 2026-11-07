@@ -1,6 +1,8 @@
 //! What:
 //!  Running real Git against the shadow repository for replay:
-//!       the shadow selection, an optional private index, bytes on standard input,
+//!       the shadow selection,
+//! an optional private index,
+//! bytes on standard input,
 //!       and the caller's kept global options when a signed rebuild needs them.
 //! Why:
 //!  Every replay step runs in `git --git-dir=<shadow>` so its objects stay in the shadow store
@@ -23,7 +25,8 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  Runs one shadow Git command and requires success.
 /// Why:
-///   Replay cannot continue after a failed `merge-base`, `hash-object` or `read-tree`;
+///   Replay cannot continue after a failed `merge-base`,
+/// `hash-object` or `read-tree`;
 ///       the caller maps the failure to `transaction-failed`.
 ///
 /// In TS you'd write (pseudocode):
@@ -47,9 +50,11 @@ pub fn run_shadow_checked(
 }
 
 /// What:
-///  The private index file a replay step edits, named by the replay number.
+///  The private index file a replay step edits,
+/// named by the replay number.
 /// Why:
-///   Each replay keeps its own index under the transaction directory, so a later replay never reads an earlier one.
+///   Each replay keeps its own index under the transaction directory,
+/// so a later replay never reads an earlier one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

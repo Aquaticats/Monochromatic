@@ -1,11 +1,13 @@
-//! Controls for the shadow ref store, on both ref backends.
+//! Controls for the shadow ref store,
+//! on both ref backends.
 
 use super::*;
 use crate::private_storage::take_file_syncs;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use std::path::PathBuf;
 
-/// A bare shadow repository in the fixture, with the given ref backend.
+/// A bare shadow repository in the fixture,
+/// with the given ref backend.
 fn bare_shadow(root: &Path, ref_format: &str, real_objects: &Path) -> PathBuf {
     let shadow: PathBuf = root.join("shadow");
     let format_argument: String = format!("--ref-format={ref_format}");
@@ -24,7 +26,9 @@ fn bare_shadow(root: &Path, ref_format: &str, real_objects: &Path) -> PathBuf {
     return shadow;
 }
 
-/// A repository with a tag, a symbolic branch and a second branch, so the snapshot has every kind.
+/// A repository with a tag,
+/// a symbolic branch and a second branch,
+/// so the snapshot has every kind.
 fn decorated_repository(root: &Path) -> (PathBuf, String) {
     let repo: PathBuf = repository(root, "repo");
     git(repo.as_path(), &["tag", "v1"]);
@@ -34,7 +38,9 @@ fn decorated_repository(root: &Path) -> (PathBuf, String) {
     return (repo, head);
 }
 
-/// Packed text names the header, every direct ref except the target, and no symbolic ref.
+/// Packed text names the header,
+/// every direct ref except the target,
+/// and no symbolic ref.
 #[test]
 fn packed_refs_skip_the_target_and_symbolic_refs() {
     let refs: Vec<RefSnapshotEntry> = vec![
@@ -60,7 +66,9 @@ fn packed_refs_skip_the_target_and_symbolic_refs() {
     );
 }
 
-/// The real ref listing sorts by raw bytes, so `Zeta` precedes `main`, and marks symbolic refs.
+/// The real ref listing sorts by raw bytes,
+/// so `Zeta` precedes `main`,
+/// and marks symbolic refs.
 #[test]
 fn real_refs_sort_by_bytes_and_mark_symbolic_refs() {
     let root: PathBuf = fixture("shadow-refs-list");
@@ -75,7 +83,9 @@ fn real_refs_sort_by_bytes_and_mark_symbolic_refs() {
     remove(root.as_path());
 }
 
-/// A files shadow holds the snapshot, the loose target, the symbolic ref and `HEAD` on the branch.
+/// A files shadow holds the snapshot,
+/// the loose target,
+/// the symbolic ref and `HEAD` on the branch.
 #[test]
 fn files_shadow_snapshots_refs_and_points_head_at_the_branch() {
     let root: PathBuf = fixture("shadow-refs-files");
@@ -98,7 +108,9 @@ fn files_shadow_snapshots_refs_and_points_head_at_the_branch() {
     remove(root.as_path());
 }
 
-/// The files snapshot is published whole and made no file sync: the shadow is thrown away, and nothing reads its refs
+/// The files snapshot is published whole and made no file sync:
+/// the shadow is thrown away,
+/// and nothing reads its refs
 ///  after a crash.
 #[test]
 fn the_files_snapshot_is_not_synced() {
@@ -121,7 +133,8 @@ fn the_files_snapshot_is_not_synced() {
     remove(root.as_path());
 }
 
-/// A detached shadow has no symbolic `HEAD`, only the base as a direct value.
+/// A detached shadow has no symbolic `HEAD`,
+/// only the base as a direct value.
 #[test]
 fn detached_shadow_head_is_the_base() {
     let root: PathBuf = fixture("shadow-refs-detached");
@@ -146,7 +159,8 @@ fn detached_shadow_head_is_the_base() {
     remove(root.as_path());
 }
 
-/// A detached `HEAD` without a base cannot be written, and the failure says why.
+/// A detached `HEAD` without a base cannot be written,
+/// and the failure says why.
 #[test]
 fn detached_without_a_base_fails() {
     let root: PathBuf = fixture("shadow-refs-detached-unborn");
