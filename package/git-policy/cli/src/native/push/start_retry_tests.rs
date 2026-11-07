@@ -158,10 +158,11 @@ fn drive_awaiting_beside_a_ticker(budget: Duration) -> (Result<i32>, u32, u32) {
             return Err::<i32, Error>(refusal());
         };
         let retry = retry_refused_start_awaiting_within("a test child", budget, &mut refused);
-        tokio::select! {
+        let outcome: Result<i32> = tokio::select! {
             result = retry => result,
             () = ticker => unreachable!("the ticker never ends"),
-        }
+        };
+        return outcome;
     });
     return (result, ticks.load(std::sync::atomic::Ordering::SeqCst), tries);
 }

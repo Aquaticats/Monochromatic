@@ -130,6 +130,7 @@ async fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
     while grace_remains(waited.elapsed(), grace) && tree.iter().any(still_running) {
         tokio::time::sleep(POLL_PAUSE).await;
     }
+    return;
 }
 
 /// What a clock keeps as the longest quiet gap: its figure when it reads anything, nothing when it reads nothing.
