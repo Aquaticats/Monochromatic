@@ -8,7 +8,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! type WatchTerms = { class: ChildClass; interval: number; limit: number };
-//! function stopProcess(pid: number, locks: LockLedger, incoming: Receiver<Mark>): void; // ask, wait the grace, kill, sweep
+//! function stopProcess(pid: number, locks: LockLedger, incoming: Receiver<Mark>): Promise<void>; // ask, wait the grace, kill, sweep
 //! ```
 
 use crate::child_class::ChildClass;
@@ -18,7 +18,7 @@ use crate::push_progress::Clock;
 use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::mpsc::{Receiver, RecvTimeoutError};
+use tokio::sync::mpsc::UnboundedReceiver;
 use crate::stopped_git_locks::LockLedger;
 use crate::bounded_push::STOP_GRACE;
 use crate::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
@@ -102,7 +102,7 @@ pub(crate) enum Mark {
 /// How often a stopped step is looked at while it ends.
 pub(crate) const STOP_POLL: Duration = Duration::from_millis(10);
 
-/// The marks of the wait the watcher is watching, kept by the watcher thread alone.
+/// The marks of the wait the watcher is watching, kept by the watcher task alone.
 pub(crate) struct Marks {
     /// When the current wait began, or nothing between waits.
     pub(crate) since: Option<Instant>,
@@ -178,7 +178,7 @@ pub(crate) fn signal_root(root: &Option<TreeMember>, identified: bool, raw: i32,
 /// process.kill(pid, 'SIGTERM'); await Promise.race([exited, delay(graceMs)]) || process.kill(pid, 'SIGKILL'); locks.sweep(tree.as_slice());
 /// ```
 #[cfg(unix)]
-pub(crate) fn stop_process(pid: u32, locks: &LockLedger, incoming: &Receiver<Mark>) {
+pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut UnboundedReceiver<Mark>) {
     let Ok(raw) = i32::try_from(pid) else {
         return;
     };
@@ -199,7 +199,7 @@ pub(crate) fn stop_process(pid: u32, locks: &LockLedger, incoming: &Receiver<Mar
     terminate_members(below.as_slice());
     let asked: Instant = Instant::now();
     while asked.elapsed() < STOP_GRACE && tree.iter().any(still_running) {
-        std::thread::sleep(STOP_POLL);
+        tokio::time::sleep(STOP_POLL).await;
     }
     signal_root(&root, identified, raw, libc::SIGKILL);
     kill_members(below.as_slice());
@@ -207,21 +207,28 @@ pub(crate) fn stop_process(pid: u32, locks: &LockLedger, incoming: &Receiver<Mar
     // lets it go, which can be long after the bound; the locks it creates on the way out are swept then, or when the watch
     // is dropped, whichever comes first.
     while tree.iter().any(still_running) {
-        match incoming.recv_timeout(STOP_POLL) {
-            Err(RecvTimeoutError::Disconnected) => break,
-            Ok(_) | Err(RecvTimeoutError::Timeout) => {}
+        // A mark that arrives is ignored, and a timeout is the next look; a closed channel means the watch was dropped, so nobody
+        // is left to tell and the locks are swept below.
+        if let Ok(None) = tokio::time::timeout(STOP_POLL, incoming.recv()).await {
+            break;
         }
     }
-    locks.sweep(tree.as_slice());
+    // The sweep reads and removes files in the repository, which can wait on a disk, so it runs on the blocking pool; where no
+    // thread can start it is not run (the owner, 2026-11-07, "Fail plainly": no inline run of a call that can wait on storage),
+    // and the next Git command that meets such a lock names it.
+    let sweeping: LockLedger = locks.clone();
+    if let Err(error) = crate::blocking_job::run_blocking_job(move || { sweeping.sweep(tree.as_slice()); }).await {
+        crate::diagnostic_log::debug("childWatch", format!("the lock files of the stopped step {pid} were not swept: {error}").as_str());
+    }
 }
 
 /// A platform without signals cannot end the child from the watcher; the wait is only announced.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(unix))]
-pub(crate) fn stop_process(_pid: u32, _locks: &LockLedger, _incoming: &Receiver<Mark>) {}
+pub(crate) async fn stop_process(_pid: u32, _locks: &LockLedger, _incoming: &mut UnboundedReceiver<Mark>) {}
 
 /// What:
-///  The three flags the waiting thread and the watcher thread share.
+///  The flags the waiting thread and the watcher task share.
 /// Why:
 ///   They travel together to the watcher, which writes `expired` and `longest` and reads `stoppable`.
 ///

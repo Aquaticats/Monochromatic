@@ -82,3 +82,13 @@ fn a_call_from_inside_the_runtime_is_refused() {
         .expect("the outer call runs");
     assert_eq!(inner, Err(true));
 }
+
+/// A task spawned on the runtime runs while the thread that spawned it is blocked in a plain wait, which is what a watcher does
+///  beside a blocked reader; the control would fail if the task ran only when the caller drove the runtime.
+#[test]
+fn a_spawned_task_runs_while_the_caller_is_blocked() {
+    let (sender, receiver) = std::sync::mpsc::channel::<u8>();
+    let task = spawn_on_runtime(async move { let _sent = sender.send(7); });
+    assert!(task.is_some(), "this host's plan has workers, so the runtime is multi-thread");
+    assert_eq!(receiver.recv_timeout(Duration::from_secs(30)).expect("the task ran on a worker"), 7);
+}
