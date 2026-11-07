@@ -153,7 +153,8 @@ and compares each file with its tracked copy.
 CI runs it in `.github/workflows/advisory-core.yml` after `prepare:pnpm`, next to the file-enforcer drift steps.
 Pros:
 it covers all plugin bundles at once
-(`bash-output-filter` and `terminal-title` also inline `unbash` and still carry 6.0.1),
+(`bash-output-filter` and `terminal-title` inline `unbash` too and had drifted the same way until their
+2026-11-07 rebuilds),
 it needs no new tool, and it fails on the change that causes the drift.
 Cons:
 it reports drift after the push, not at commit time,
