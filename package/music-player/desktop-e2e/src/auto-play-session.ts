@@ -21,6 +21,9 @@ import {
   clickAt,
   isPaused,
   modeIs,
+  pauseFor,
+  repeatAction,
+  sequenceOf,
   tapKey,
 } from './actions.ts';
 import {
@@ -66,6 +69,22 @@ const ROWS_FROM_LICENSES_TO_SWITCH = 6;
  How long the app is given to move the keyboard position after a navigation key of the Settings list, in milliseconds.
  */
 const MOVE_SETTLE_MS = 250;
+
+/**
+ Moves the keyboard position to the last row of the Settings list and gives the app a moment to move it.
+ */
+const MOVE_TO_LAST_ROW = sequenceOf([
+  tapKey('end',),
+  pauseFor(MOVE_SETTLE_MS,),
+],);
+
+/**
+ Moves the keyboard position one row up the Settings list and gives the app a moment to move it.
+ */
+const MOVE_UP_ONE_ROW = sequenceOf([
+  tapKey('up',),
+  pauseFor(MOVE_SETTLE_MS,),
+],);
 
 /**
  How many times the app process is looked for after Ctrl+Q.
@@ -139,6 +158,54 @@ function isSettingsPage(state: UiState,): boolean {
  */
 function isPlayerRoute(state: UiState,): boolean {
   return state.route === 'Player';
+}
+
+/**
+ Condition: some row is selected and plays.
+
+ @param state - a state of the app
+
+ @returns whether a track is selected and playing
+
+ @example
+ ```ts
+ aSelectedRowPlays(state,);
+ ```
+ */
+function aSelectedRowPlays(state: UiState,): boolean {
+  return (state.current_index !== NO_INDEX) && state.playing;
+}
+
+/**
+ Condition: the Auto-play on select setting is off.
+
+ @param state - a state of the app
+
+ @returns whether the setting is off
+
+ @example
+ ```ts
+ settingOff(state,);
+ ```
+ */
+function settingOff(state: UiState,): boolean {
+  return !state.auto_play_on_select;
+}
+
+/**
+ Condition: some row is selected and paused.
+
+ @param state - a state of the app
+
+ @returns whether a track is selected and paused
+
+ @example
+ ```ts
+ rowSelectedPaused(state,);
+ ```
+ */
+function rowSelectedPaused(state: UiState,): boolean {
+  return (state.current_index !== NO_INDEX) && (!state.playing);
 }
 
 /**
@@ -295,9 +362,7 @@ async function runFirstLaunch(context: RunContext,): Promise<void> {
       const playingA = await press({
         session,
         act: clickAt(ROW_A,),
-        until: function rowAPlaysAtOnce(state: UiState,): boolean {
-          return (state.current_index !== NO_INDEX) && state.playing;
-        },
+        until: aSelectedRowPlays,
         what: 'a click on row A selecting it and playing it at once',
       },);
       rows.a = playingA.current_index;
@@ -309,7 +374,9 @@ async function runFirstLaunch(context: RunContext,): Promise<void> {
         session,
         act: clickAt(ROW_B,),
         until: function rowBPlaysAtOnce(state: UiState,): boolean {
-          return (state.current_index !== rows.a) && (state.current_index !== NO_INDEX) && state.playing;
+          return (state.current_index !== rows.a)
+            && (state.current_index !== NO_INDEX)
+            && state.playing;
         },
         what: 'a click on row B selecting it and playing it at once',
       },);
@@ -348,14 +415,13 @@ async function runFirstLaunch(context: RunContext,): Promise<void> {
       },);
       // A move between rows writes no state line, so each key is waited out for a moment instead of waited for: waiting for
       // a newer line only passed when a late hint-badge line of the chord happened to arrive.
-      await session.tap('end',);
-      await wait(MOVE_SETTLE_MS,);
+      await MOVE_TO_LAST_ROW(session,);
       // The Licenses row is the last stop; the switch row is six rows above it, past the Reset text sizes row and the four
       // Text size stepper rows.
-      for (let rowsUp = 0; rowsUp < ROWS_FROM_LICENSES_TO_SWITCH; rowsUp += 1) {
-        await session.tap('up',);
-        await wait(MOVE_SETTLE_MS,);
-      }
+      await repeatAction({
+        action: MOVE_UP_ONE_ROW,
+        times: ROWS_FROM_LICENSES_TO_SWITCH,
+      },)(session,);
       expect({
         condition: isSettingsPage(await session.last(),) && (await session.last()).auto_play_on_select,
         message: 'moving the keyboard position toggled the setting or left Settings',
@@ -366,9 +432,7 @@ async function runFirstLaunch(context: RunContext,): Promise<void> {
       const turnedOff = await press({
         session,
         act: tapKey('space',),
-        until: function settingOff(state: UiState,): boolean {
-          return !state.auto_play_on_select;
-        },
+        until: settingOff,
         what: 'Space turning Auto-play on select off',
       },);
       expect({
@@ -470,9 +534,7 @@ async function runSecondLaunch(context: RunContext,): Promise<void> {
       const state = await press({
         session,
         act: clickAt(ROW_B,),
-        until: function rowSelectedPaused(candidate: UiState,): boolean {
-          return (candidate.current_index !== NO_INDEX) && (!candidate.playing);
-        },
+        until: rowSelectedPaused,
         what: 'a click on row B selecting it paused after the restart',
       },);
       await session.shot('auto-play-after-restart-selected',);

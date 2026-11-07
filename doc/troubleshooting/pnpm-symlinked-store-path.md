@@ -721,9 +721,40 @@ because pnpm refuses a global bin directory that `PATH` holds in another spellin
 `list` keeps reading the broken groups as absent until `install --global` runs again;
 that run observes the tools absent, runs `pnpm add --global` for each with the physical home,
 and the links are rewritten, after which `list` agrees.
-The abandoned group directories of the earlier installs stay on disk.
+The abandoned group directories of the earlier installs were expected to stay on disk;
+the measurement below says pnpm removed them.
+
+### Status at 2026-11-07T11:31:39-05:00
+
+The machine was repaired with one `mise run toolchain:install:global` run of `mpm-shadow` 0.2.7-alpha.2
+(`toolchain install: 11 installed, 51 unchanged, 0 failed`).
+Before it, `toolchain:list:global` printed `11 of 62 tools drifted`, all eleven `npm:` tools observed `(absent)`;
+after it, `62 tools in sync with toolchain.lock.json`, and each of the eleven at its locked version.
+The twelfth tool of the handover was not found: one list run before the repair printed eleven drifted rows, and so did the next.
+
+The group directories under `~/.local/share/pnpm/global/v11` were listed before and after.
+The eleven that held the dangling links (named `20842b-...` to `2089ef-...`) are gone,
+and the hash links that named them now name new directories:
+pnpm removed a group when it re-added the package into a new one.
+Afterwards the directory holds one hash link for each group directory,
+no link dangles, and no group has a `node_modules` link that fails to resolve,
+so no abandoned group directory is left to report.
+The before and after listings are in `~/temp/agent/mpm-shadow-alpha2/groups-before.txt` and `groups-after.txt`.
+This was measured once, with the pnpm of the toolchain lock; another pnpm release may keep what it replaced.
+
+### What changed afterwards
+
+`install` no longer trusts pnpm's exit status for the `mpm-pnpm` route:
+after `pnpm add --global` it reads the package back with the same `pnpm list --global --depth=0 --json` that `list` uses
+(`install_managers.rs`, `install_mpm_pnpm`),
+and a package that is absent or listed at another version fails the install with the package, the locked version and the observed state.
+A different pnpm link defect therefore surfaces at `install` and not at the next `list`.
+The tests are `an_npm_tool_that_pnpm_added_but_does_not_list_is_a_failed_install`,
+`an_npm_tool_that_pnpm_lists_at_another_version_is_a_failed_install`
+and the positive control `an_npm_tool_that_pnpm_lists_at_the_locked_version_is_installed` in `install_tests.rs`;
+the fix shipped in 0.2.7-alpha.2 (`doc/planning/one-release-each-batch-2026-11.md`, "Release record: `monochromatic-mpm-shadow` 0.2.7-alpha.2").
 
 ### Not fixed here
 
-`install` still trusts pnpm's exit status and does not look the package up again afterwards,
-so a different pnpm link defect would again read as installed until the next `list`.
+The `uv tool install` route (`install_mpm_uvx`) still trusts the exit status of `uv` and does not read the tool back.
+No defect of that kind was observed for it, so it was left as it was.
