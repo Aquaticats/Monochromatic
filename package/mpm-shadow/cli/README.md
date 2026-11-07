@@ -851,9 +851,14 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
   straight from the lock.
 - `cargo binstall --no-confirm --root <toolchain root>/cargo/<crate>/<locked> --version <locked> <crate>`
   (see "Cargo tool installs").
-- `pnpm add --global <package>@<locked>`
-  and `uv tool install --force <package>==<locked>`,
-  or a wheel whose SHA-256 the lock records.
+- `pnpm add --global <package>@<locked>`,
+  after which `install` reads the package back with the `pnpm list --global --depth=0 --json` that `list` uses:
+  pnpm exits 0 for a package whose links it wrote unreadably,
+  so a package that is still absent or listed at another version fails the install,
+  naming the package and what was observed.
+  `uv tool install --force <package>==<locked>`,
+  or a wheel whose SHA-256 the lock records,
+  is trusted on the exit status of `uv`.
 - `archive` tools are downloaded,
   checked against the lock's SHA-256,
   and only then unpacked with `tar` or `unzip`.

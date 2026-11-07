@@ -145,3 +145,22 @@ fn reading_a_plan_file_decodes_it() {
     let plan = read_plan(&path).expect("the written plan reads");
     assert_eq!(plan, sample_plan());
 }
+
+/// The machine-global plan keeps the id `cargo:monochromatic-git-policy-cli` for an entry that moved to the `archive` route
+/// and reads its releases through `options.tagPrefix`;
+/// a binary that reported `tools.cargo:monochromatic-git-policy-cli.options.tagPrefix is not a known field` predated the option
+/// (`monochromatic-mpm-shadow` 0.2.0), not this decoder.
+#[test]
+fn an_entry_with_a_cargo_id_on_the_archive_route_takes_a_tag_prefix_and_a_postinstall_link() {
+    let source = "{ \"schemaVersion\": 1, \"tools\": { \"cargo:monochromatic-git-policy-cli\": {\n\
+        \"request\": \"github:Aquaticats/Monochromatic@latest\", \"route\": \"archive\",\n\
+        \"bins\": [\"monochromatic-git-policy-cli\"], \"os\": [\"linux\"],\n\
+        \"options\": { \"tagPrefix\": \"monochromatic-git-policy-cli-v\",\n\
+        \"postinstall\": { \"when\": \"always\", \"link\": { \"sourceBin\": \"monochromatic-git-policy-cli\", \"linkName\": \"git\" } } }\n\
+        } } }";
+    let plan = parse_plan(source, "global-plan.jsonc").expect("the global plan's entry decodes");
+    let wrapper = &plan.tools[0];
+    assert_eq!(wrapper.route, Route::Archive);
+    assert_eq!(wrapper.options.tag_prefix.as_deref(), Some("monochromatic-git-policy-cli-v"));
+    assert!(matches!(wrapper.options.postinstall, Some(Postinstall::Link(_))));
+}

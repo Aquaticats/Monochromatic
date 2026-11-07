@@ -35,8 +35,8 @@ use super::install_support::{artifact_for_host, download_verified, run_checked};
 use super::layout::tool_install_dir;
 /// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
-/// Imports `package_name` from `super::observe`.
-use super::observe::package_name;
+/// Imports what this module uses from `super::observe`.
+use super::observe::{observe_tool, package_name, satisfies_lock};
 /// Imports `RunRequest` from `super::runner`.
 use super::runner::RunRequest;
 
@@ -59,7 +59,21 @@ fn prerequisite(ctx: &Context, tool_id: &str) -> Result<PathBuf, ToolchainError>
     };
 }
 
-/// `pnpm add --global [--allow-build <package>]... <package>@<locked version>`.
+/// What:
+/// `pnpm add --global [--allow-build <package>]... <package>@<locked version>`,
+/// then the same `pnpm list --global` reading that `list` uses.
+/// Why:
+/// `pnpm add --global` exits 0 when the links it wrote cannot be read back
+/// (a home spelled through a symbolic link wrote dangling ones),
+/// so the exit status alone would report an unreadable package as installed.
+/// A package that is still absent,
+/// or listed at another version,
+/// fails the install with the package and what was observed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function installMpmPnpm(ctx: Context, tool: LockedTool): void
+/// ```
 pub fn install_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
     let pnpm: PathBuf = prerequisite(ctx, "pnpm")?;
     let mut args: Vec<String> = vec!["add".to_string(), "--global".to_string()];
@@ -75,7 +89,20 @@ pub fn install_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchai
         cwd: None,
     };
     run_checked(ctx, &request, "pnpm add --global", &tool.declaration.id)?;
-    return Ok(());
+    let package: String = package_name(tool);
+    let observed: Option<String> = observe_tool(ctx, tool);
+    let state: String = match observed.as_deref() {
+        Some(version) if satisfies_lock(tool, version) => return Ok(()),
+        Some(version) => format!("listed at version {version}"),
+        None => "absent".to_string(),
+    };
+    return Err(ToolchainError::failure(format!(
+        "pnpm add --global exited 0 for {package}@{} (tool {}), but pnpm list --global then reports {package} {state}; \
+         pnpm wrote the package where its own listing cannot read it (a link that resolves nowhere, for one). \
+         Check that the `node_modules/{package}` link in the group directory under pnpm's global home resolves \
+         (`pnpm root --global` names the current group's `node_modules`), then run the install again",
+        tool.version, tool.declaration.id
+    )));
 }
 
 /// What:
