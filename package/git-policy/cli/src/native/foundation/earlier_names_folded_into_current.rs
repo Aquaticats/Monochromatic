@@ -188,7 +188,7 @@ fn earlier_program_hold(directory: &Path, surroundings: &FoldSurroundings) -> Op
         None => Vec::new(),
     };
     let look: ServiceLook = ServiceLook { instance, journals, own_pid: std::process::id(), own_user: effective_user(), ceiling: PROCESS_LOOK_CEILING };
-    return earlier_service_process_hold(look, surroundings.proc_root.as_path());
+    return earlier_service_process_hold(look, surroundings.proc_root.as_path()).map(|holding| { return holding.because; });
 }
 
 /// What:
