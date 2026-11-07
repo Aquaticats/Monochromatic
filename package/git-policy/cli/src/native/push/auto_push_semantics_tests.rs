@@ -1,6 +1,7 @@
 //! Controls that the service never pushes where a plain `git push` of the same branch would not.
 //! Each case compares the service's push with the plan real Git (`git push --dry-run --porcelain`) makes for the branch
-//! checked out, in disposable repositories with a local bare remote.
+//! checked out,
+//! in disposable repositories with a local bare remote.
 
 use super::*;
 use crate::test_support::{fixture, git, git_output, remove};
@@ -15,7 +16,8 @@ const BRANCH_REF: &str = "refs/heads/feature";
 
 /// A bare remote and a repository with `feature` checked out and one commit of it not yet published.
 struct Rig {
-    /// Fixture root, removed when the test ends.
+    /// Fixture root,
+    /// removed when the test ends.
     root: PathBuf,
     /// The bare remote named `origin`.
     remote: PathBuf,
@@ -55,8 +57,11 @@ fn push_git(root: &Path) -> PushGit {
     };
 }
 
-/// Create the remote with `main`, `release` and `other`, and the repository on `feature` with an unpublished commit.
-/// `feature` tracks `origin/main`; no `push.default` is set.
+/// Create the remote with `main`,
+/// `release` and `other`,
+/// and the repository on `feature` with an unpublished commit.
+/// `feature` tracks `origin/main`;
+/// no `push.default` is set.
 fn rig(name: &str) -> Rig {
     let root = fixture(name);
     let remote = root.join("remote.git");
@@ -74,7 +79,8 @@ fn rig(name: &str) -> Rig {
     return Rig { root, remote, repo, landed };
 }
 
-/// Every ref of the bare remote with its object, so a test can show what a push changed.
+/// Every ref of the bare remote with its object,
+/// so a test can show what a push changed.
 fn remote_refs(remote: &Path) -> BTreeMap<String, String> {
     let listing = String::from_utf8_lossy(&git(remote, &["for-each-ref", "--format=%(refname) %(objectname)"]).stdout).into_owned();
     return listing
@@ -85,7 +91,8 @@ fn remote_refs(remote: &Path) -> BTreeMap<String, String> {
         .collect();
 }
 
-/// What a plain `git push` of the checked-out branch would do, according to real Git.
+/// What a plain `git push` of the checked-out branch would do,
+/// according to real Git.
 struct GitPlan {
     /// Whether Git refused before updating anything.
     refused: bool,
@@ -93,7 +100,8 @@ struct GitPlan {
     destinations: BTreeSet<String>,
 }
 
-/// Ask real Git what `git push origin` would send for the branch checked out in `repo`, without sending it.
+/// Ask real Git what `git push origin` would send for the branch checked out in `repo`,
+/// without sending it.
 fn git_plan(repo: &Path) -> GitPlan {
     let output = git_output(repo, &["push", "--dry-run", "--porcelain", "origin"]);
     let text = String::from_utf8_lossy(&output.stdout).into_owned();
@@ -120,7 +128,8 @@ fn service_push(rig: &Rig) -> (AutoPushResult, String) {
     return (result, String::from_utf8_lossy(&err).into_owned());
 }
 
-/// The remote refs a push changed, with what they hold now.
+/// The remote refs a push changed,
+/// with what they hold now.
 fn changed_refs(before: &BTreeMap<String, String>, after: &BTreeMap<String, String>) -> BTreeMap<String, String> {
     return after
         .iter()
@@ -133,13 +142,16 @@ fn changed_refs(before: &BTreeMap<String, String>, after: &BTreeMap<String, Stri
         .collect();
 }
 
-/// Give `feature` the two upstreams `main` and `release`, as `git config --add` does.
+/// Give `feature` the two upstreams `main` and `release`,
+/// as `git config --add` does.
 fn track_two_branches(rig: &Rig) {
     git(&rig.repo, &["config", "--add", "branch.feature.merge", "refs/heads/release"]);
 }
 
-/// Under `simple` and `upstream` Git refuses a branch with several upstream branches before it updates anything; the first
-/// upstream still resolves, which is why the service's upstream query alone does not show the refusal.
+/// Under `simple` and `upstream` Git refuses a branch with several upstream branches before it updates anything;
+/// the first
+/// upstream still resolves,
+/// which is why the service's upstream query alone does not show the refusal.
 #[test]
 fn several_upstream_branches_are_refused_where_git_refuses() {
     for mode in ["simple", "upstream", "tracking"] {
@@ -162,7 +174,9 @@ fn several_upstream_branches_are_refused_where_git_refuses() {
     }
 }
 
-/// `current` never asks for the upstream, so several of them are no obstacle: the branch goes to its own name.
+/// `current` never asks for the upstream,
+/// so several of them are no obstacle:
+/// the branch goes to its own name.
 #[test]
 fn several_upstream_branches_do_not_stop_a_current_push() {
     let rig = rig("aps-two-merges-current");
@@ -180,9 +194,12 @@ fn several_upstream_branches_do_not_stop_a_current_push() {
 struct RefspecCase {
     /// Test-name part.
     name: &'static str,
-    /// The values of `remote.origin.push`, in order.
+    /// The values of `remote.origin.push`,
+    /// in order.
     refspecs: &'static [&'static str],
-    /// Whether the service must publish exactly Git's destinations; otherwise it may publish fewer, never more.
+    /// Whether the service must publish exactly Git's destinations;
+    /// otherwise it may publish fewer,
+    /// never more.
     exact: bool,
 }
 
@@ -204,7 +221,8 @@ const REFSPEC_CASES: &[RefspecCase] = &[
     RefspecCase { name: "matching-refspec", refspecs: &[":"], exact: false },
 ];
 
-/// For every configuration the service publishes `feature` to the destinations real Git does and to no other, or says why not.
+/// For every configuration the service publishes `feature` to the destinations real Git does and to no other,
+/// or says why not.
 #[test]
 fn a_configured_push_refspec_sends_the_branch_where_git_does() {
     for case in REFSPEC_CASES {
@@ -233,7 +251,9 @@ fn a_configured_push_refspec_sends_the_branch_where_git_does() {
     }
 }
 
-/// A remote that cannot be asked is a failed push with Git's own words, not a skip: the person must learn the branch is
+/// A remote that cannot be asked is a failed push with Git's own words,
+/// not a skip:
+/// the person must learn the branch is
 /// unpublished.
 #[test]
 fn a_matching_push_to_an_unreachable_remote_fails_loudly() {
@@ -251,7 +271,9 @@ fn a_matching_push_to_an_unreachable_remote_fails_loudly() {
     remove(&rig.root);
 }
 
-/// A branch that tracks a local branch has the remote `.`; there is nowhere to push, and the note says so.
+/// A branch that tracks a local branch has the remote `.`;
+/// there is nowhere to push,
+/// and the note says so.
 #[test]
 fn a_branch_that_tracks_a_local_branch_is_skipped_with_a_note() {
     let rig = rig("aps-local-upstream");
@@ -268,8 +290,11 @@ fn a_branch_that_tracks_a_local_branch_is_skipped_with_a_note() {
     remove(&rig.root);
 }
 
-/// Git refuses a branch pushed by name to a remote configured as a mirror ("--mirror can't be combined with refspecs"), and a
-/// plain `git push` there mirrors every ref and deletes the remote's others, which the service never does: it skips with a note.
+/// Git refuses a branch pushed by name to a remote configured as a mirror ("--mirror can't be combined with refspecs"),
+/// and a
+/// plain `git push` there mirrors every ref and deletes the remote's others,
+/// which the service never does:
+/// it skips with a note.
 #[test]
 fn a_mirror_remote_is_skipped_with_a_note() {
     let rig = rig("aps-mirror");
@@ -285,7 +310,8 @@ fn a_mirror_remote_is_skipped_with_a_note() {
     remove(&rig.root);
 }
 
-/// Give the local `other` branch a commit that the remote lacks, so a plain matching push has a second branch to send.
+/// Give the local `other` branch a commit that the remote lacks,
+/// so a plain matching push has a second branch to send.
 fn advance_other(rig: &Rig) -> String {
     git(&rig.repo, &["push", "--quiet", "origin", "other:other"]);
     git(&rig.repo, &["switch", "--quiet", "other"]);
@@ -295,8 +321,11 @@ fn advance_other(rig: &Rig) -> String {
     return tip;
 }
 
-/// Under `push.default=matching` the service runs the plain `git push <remote>` and lets Git match: every local branch the
-/// remote also has is sent, the recorded branch and its siblings alike, exactly as Git's own dry run lists them.
+/// Under `push.default=matching` the service runs the plain `git push <remote>` and lets Git match:
+/// every local branch the
+/// remote also has is sent,
+/// the recorded branch and its siblings alike,
+/// exactly as Git's own dry run lists them.
 #[test]
 fn a_matching_push_sends_every_branch_the_remote_has() {
     let mut rig = rig("aps-matching-siblings");
@@ -318,8 +347,11 @@ fn a_matching_push_sends_every_branch_the_remote_has() {
     remove(&rig.root);
 }
 
-/// Git's matching skips a branch the remote lacks, so a branch deleted on the remote stays deleted; the owner accepts what
-/// Git does, and the push of the branches the remote still has succeeds.
+/// Git's matching skips a branch the remote lacks,
+/// so a branch deleted on the remote stays deleted;
+/// the owner accepts what
+/// Git does,
+/// and the push of the branches the remote still has succeeds.
 #[test]
 fn a_matching_push_leaves_a_branch_the_remote_deleted_as_git_does() {
     let rig = rig("aps-matching-deleted");
@@ -334,7 +366,8 @@ fn a_matching_push_leaves_a_branch_the_remote_deleted_as_git_does() {
     remove(&rig.root);
 }
 
-/// With no branch in common Git does nothing and says so with a failure, which the service reports as it is.
+/// With no branch in common Git does nothing and says so with a failure,
+/// which the service reports as it is.
 #[test]
 fn a_matching_push_with_no_branch_in_common_fails_with_gits_words() {
     let rig = rig("aps-matching-nothing");
@@ -349,7 +382,9 @@ fn a_matching_push_with_no_branch_in_common_fails_with_gits_words() {
     remove(&rig.root);
 }
 
-/// A second bare repository beside the rig's remote, with `main` and `feature` pushed to it, to serve as a push URL.
+/// A second bare repository beside the rig's remote,
+/// with `main` and `feature` pushed to it,
+/// to serve as a push URL.
 fn second_remote(rig: &Rig, name: &str) -> PathBuf {
     let path = rig.root.join(name);
     git(&rig.root, &["init", "--bare", "--quiet", "--initial-branch=main", name]);
@@ -357,7 +392,8 @@ fn second_remote(rig: &Rig, name: &str) -> PathBuf {
     return path;
 }
 
-/// Plain `git push` follows the remote's push URL, so under `matching` the branches of the push URL are updated and the
+/// Plain `git push` follows the remote's push URL,
+/// so under `matching` the branches of the push URL are updated and the
 /// fetch URL is not touched.
 #[test]
 fn a_matching_push_goes_to_the_push_url() {

@@ -1,17 +1,32 @@
 //! What:
-//!  The record of a backup push that failed after its commit was saved, and the rule for when the wrapper shows it:
-//!  the resident service writes one record per failed push under the Git directory of the worktree whose commit it was, a
-//!  later wrapper command in that worktree shows each record once on standard error, and a later push of the same branch
+//!  The record of a backup push that failed after its commit was saved,
+//! and the rule for when the wrapper shows it:
+//!  the resident service writes one record per failed push under the Git directory of the worktree whose commit it was,
+//! a
+//!  later wrapper command in that worktree shows each record once on standard error,
+//! and a later push of the same branch
 //!  that succeeds removes the records of that branch.
 //! Why:
-//!  The push runs in the service after the commit command returned, so nothing is attached to the command that could
-//!  print its failure; without a record the person would never learn that their backup push was refused
-//!  (`doc/planning/cli-git-resident-service.md`, "After-commit work"). Records are plain files in the worktree's
-//!  own Git directory so the check on every command is one directory read that finds nothing when nothing failed. A record holds
-//!  the branch, the whole commit name and Git's words with credentials already masked; the wrapper words the notice when it
-//!  shows it, so the commit name is abbreviated the way Git abbreviates it in the repository as it is then. Records are
-//!  shown on standard error only, and not at all to a command whose output a program reads (`--porcelain`, `-z`,
-//!  plumbing), so that program neither sees the text in its output nor consumes the record before a person can read it.
+//!  The push runs in the service after the commit command returned,
+//! so nothing is attached to the command that could
+//!  print its failure;
+//! without a record the person would never learn that their backup push was refused
+//!  (`doc/planning/cli-git-resident-service.md`,
+//! "After-commit work").
+//! Records are plain files in the worktree's
+//!  own Git directory so the check on every command is one directory read that finds nothing when nothing failed.
+//! A record holds
+//!  the branch,
+//! the whole commit name and Git's words with credentials already masked;
+//! the wrapper words the notice when it
+//!  shows it,
+//! so the commit name is abbreviated the way Git abbreviates it in the repository as it is then.
+//! Records are
+//!  shown on standard error only,
+//! and not at all to a command whose output a program reads (`--porcelain`,
+//! `-z`,
+//!  plumbing),
+//! so that program neither sees the text in its output nor consumes the record before a person can read it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -31,34 +46,59 @@ use std::path::{Path, PathBuf};
 /// Directory under the worktree's own Git directory that holds the records for the person.
 pub const NOTICE_DIRECTORY: &str = "monochromatic-git-policy-cli/notices";
 
-/// Directory under the repository's common Git directory that holds the records of removed worktrees, which any worktree's
+/// Directory under the repository's common Git directory that holds the records of removed worktrees,
+/// which any worktree's
 ///  command shows because the worktree they were made for is gone.
 pub const ORPHAN_NOTICE_DIRECTORY: &str = "monochromatic-git-policy-cli/orphaned-notices";
 
-/// First line of a record of a push that was lost with its worktree; its fields are those of a failure record, without words.
+/// First line of a record of a push that was lost with its worktree;
+/// its fields are those of a failure record,
+/// without words.
 const LOST_MAGIC: &str = "monochromatic-git-policy-cli push lost 1";
 
-/// Separates the parts of a record's name; it is not a character a branch key can contain.
+/// Separates the parts of a record's name;
+/// it is not a character a branch key can contain.
 const NAME_SEPARATOR: char = '+';
 
-/// The longest branch key a record name carries whole; a longer key is cut and tagged with a hash of the whole key, so the
+/// The longest branch key a record name carries whole;
+/// a longer key is cut and tagged with a hash of the whole key,
+/// so the
 ///  name stays a valid file name and two long branch names do not share records.
-///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
-///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
+///  Exempt from a citation under `LQM` (class:
+/// display cap):
+/// it limits how much text a message,
+/// log field or record
+///  names,
+/// and no command result or duration depends on it.
+/// Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 const LONGEST_KEY: usize = 100;
 
 /// The most bytes of Git's own words a record keeps.
-///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
-///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
+///  Exempt from a citation under `LQM` (class:
+/// display cap):
+/// it limits how much text a message,
+/// log field or record
+///  names,
+/// and no command result or duration depends on it.
+/// Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 const LONGEST_REASON: usize = 4000;
 
-/// First line of a record that holds its parts as fields; a file without it is the finished text an earlier release wrote.
+/// First line of a record that holds its parts as fields;
+/// a file without it is the finished text an earlier release wrote.
 const RECORD_MAGIC: &str = "monochromatic-git-policy-cli push notice 1";
 
-/// First line of a record of a push the service did not make because the branch has no destination it can name; its fields are
-///  those of a failure record, and its reason is the service's own words.
+/// First line of a record of a push the service did not make because the branch has no destination it can name;
+/// its fields are
+///  those of a failure record,
+/// and its reason is the service's own words.
 const SKIPPED_MAGIC: &str = "monochromatic-git-policy-cli push skipped 1";
 
 /// The field names of a record's header lines.
@@ -73,7 +113,8 @@ pub fn notice_directory(git_dir: &Path) -> PathBuf {
     return path_for_reading(git_dir, NOTICE_DIRECTORY);
 }
 
-/// A 64-bit FNV-1a hash of the text, in hexadecimal.
+/// A 64-bit FNV-1a hash of the text,
+/// in hexadecimal.
 pub fn fnv_hex(text: &str) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in text.bytes() {
@@ -96,11 +137,20 @@ pub fn record_name(branch_ref: &str, commit: &str) -> String {
 }
 
 /// What:
-///  Git's words for the person: the user name and password of every URL masked, control characters dropped, and the
+///  Git's words for the person:
+/// the user name and password of every URL masked,
+/// control characters dropped,
+/// and the
 ///  length bounded.
 /// Why:
-///   The text came from a remote and from Git, and is printed on a terminal; a URL with a user name and password, or an
-///  escape sequence, must not reach the screen or a log of it. Only the credentials are masked, never the line around them,
+///   The text came from a remote and from Git,
+/// and is printed on a terminal;
+/// a URL with a user name and password,
+/// or an
+///  escape sequence,
+/// must not reach the screen or a log of it.
+/// Only the credentials are masked,
+/// never the line around them,
 ///  because the line often says why the push failed (the wrapper's own Git LFS failure line names the endpoint setting and
 ///  carries the exit status).
 ///
@@ -136,11 +186,19 @@ pub fn clean_reason(said: &str) -> String {
 }
 
 /// What:
-///  The text shown for a failed backup push, with the commit named as given and Git's words already cleaned.
+///  The text shown for a failed backup push,
+/// with the commit named as given and Git's words already cleaned.
 /// Why:
-///   It names the branch and the commit, gives Git's own reason, says the commit is safe on this computer, and says what to
-///  do; the service runs with its own settings, which is the first thing to check when a push that works in a terminal
-///  fails here. The command that shows it may be anyone's, so it never calls the commit the reader's own.
+///   It names the branch and the commit,
+/// gives Git's own reason,
+/// says the commit is safe on this computer,
+/// and says what to
+///  do;
+/// the service runs with its own settings,
+/// which is the first thing to check when a push that works in a terminal
+///  fails here.
+/// The command that shows it may be anyone's,
+/// so it never calls the commit the reader's own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -164,9 +222,11 @@ fn worded(branch_ref: &str, shown: &str, reason: &str) -> String {
 }
 
 /// What:
-///  The text shown for a failed backup push, from Git's raw words.
+///  The text shown for a failed backup push,
+/// from Git's raw words.
 /// Why:
-///   The commit is named as the caller gives it, so a caller that has the repository passes Git's own abbreviation.
+///   The commit is named as the caller gives it,
+/// so a caller that has the repository passes Git's own abbreviation.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -177,11 +237,21 @@ pub fn push_failure_text(branch_ref: &str, commit: &str, said: &str) -> String {
 }
 
 /// What:
-///  The text shown for a push the service did not make, with the commit named as given and the service's words already cleaned.
+///  The text shown for a push the service did not make,
+/// with the commit named as given and the service's words already cleaned.
 /// Why:
-///   Nothing failed and nothing was sent, so the text says that and not that the push was refused; it names the branch and the
-///  commit, gives the service's reason, says the commit is saved here, and names both ways out: a destination the service can
-///  name, or a push by hand. The command that shows it may be anyone's, so it never calls the commit the reader's own.
+///   Nothing failed and nothing was sent,
+/// so the text says that and not that the push was refused;
+/// it names the branch and the
+///  commit,
+/// gives the service's reason,
+/// says the commit is saved here,
+/// and names both ways out:
+/// a destination the service can
+///  name,
+/// or a push by hand.
+/// The command that shows it may be anyone's,
+/// so it never calls the commit the reader's own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -203,10 +273,14 @@ fn worded_skipped(branch_ref: &str, shown: &str, reason: &str) -> String {
 }
 
 /// What:
-///  Leaves the record of one push the service did not make, replacing an earlier record of the same commit on the same branch.
+///  Leaves the record of one push the service did not make,
+/// replacing an earlier record of the same commit on the same branch.
 /// Why:
-///   The service settles such a push as done because nothing is left for it to retry, and the person would otherwise never
-///  learn that the backup does not exist. The name is the failure record's, so a later successful push of the branch removes
+///   The service settles such a push as done because nothing is left for it to retry,
+/// and the person would otherwise never
+///  learn that the backup does not exist.
+/// The name is the failure record's,
+/// so a later successful push of the branch removes
 ///  it with the failures.
 ///
 /// In TS you'd write (pseudocode):
@@ -228,10 +302,13 @@ pub fn record_push_skip(git_dir: &Path, branch_ref: &str, commit: &str, said: &s
 }
 
 /// What:
-///  Leaves the record of one failed push, replacing an earlier record of the same commit on the same branch.
+///  Leaves the record of one failed push,
+/// replacing an earlier record of the same commit on the same branch.
 /// Why:
-///   The name is derived from the branch and the commit, so a push that is tried again and fails again leaves one record.
-///  The reason is cleaned before it is written, so no credential reaches the disk.
+///   The name is derived from the branch and the commit,
+/// so a push that is tried again and fails again leaves one record.
+///  The reason is cleaned before it is written,
+/// so no credential reaches the disk.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -255,7 +332,10 @@ pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, said:
 /// What:
 ///  The text shown for a push that had not finished when the worktree that made the commit was removed.
 /// Why:
-///   Nothing says whether the push ran, failed or never started, so the text says only what is known: the commit is saved here
+///   Nothing says whether the push ran,
+/// failed or never started,
+/// so the text says only what is known:
+/// the commit is saved here
 ///  and the branch may not be on the remote.
 fn worded_lost(branch_ref: &str, shown: &str) -> String {
     let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
@@ -267,10 +347,12 @@ fn worded_lost(branch_ref: &str, shown: &str) -> String {
 }
 
 /// What:
-///  Leaves the record of a push that was lost with its worktree, unless a record of that commit on that branch is already
+///  Leaves the record of a push that was lost with its worktree,
+/// unless a record of that commit on that branch is already
 ///  there.
 /// Why:
-///   An existing record holds Git's own words about a failed push, which say more than this one does.
+///   An existing record holds Git's own words about a failed push,
+/// which say more than this one does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -294,20 +376,26 @@ pub fn record_lost_push(common_dir: &Path, branch_ref: &str, commit: &str) -> Re
 
 /// What a record says besides its branch and commit.
 enum RecordKind<'a> {
-    /// A failed push, with Git's cleaned words.
+    /// A failed push,
+    /// with Git's cleaned words.
     Failed(&'a str),
-    /// A push the service did not make, with its cleaned words.
+    /// A push the service did not make,
+    /// with its cleaned words.
     Skipped(&'a str),
     /// A push lost with its worktree.
     Lost,
 }
 
 /// What:
-///  The current first line a record's first line stands for: the line itself, or the same line in the spelling an earlier
+///  The current first line a record's first line stands for:
+/// the line itself,
+/// or the same line in the spelling an earlier
 ///  release wrote (`cli-git push notice 1`).
 /// Why:
-///   The folder of the records is moved to its current name in place, so records written before the rename are still there with
-///  their own first lines, and they are records of the same fields.
+///   The folder of the records is moved to its current name in place,
+/// so records written before the rename are still there with
+///  their own first lines,
+/// and they are records of the same fields.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -323,7 +411,8 @@ fn current_magic_of(line: &str) -> Option<&'static str> {
     return None;
 }
 
-/// The branch, the commit and the kind of a record written by this release or by the release before the rename.
+/// The branch,
+/// the commit and the kind of a record written by this release or by the release before the rename.
 fn parse_record(text: &str) -> Option<(&str, &str, RecordKind<'_>)> {
     let mut lines = text.splitn(5, '\n');
     let magic: &str = current_magic_of(lines.next()?)?;
@@ -341,9 +430,11 @@ fn parse_record(text: &str) -> Option<(&str, &str, RecordKind<'_>)> {
 }
 
 /// What:
-///  Removes the records of one branch, after a push of that branch succeeded.
+///  Removes the records of one branch,
+/// after a push of that branch succeeded.
 /// Why:
-///   A successful push of the branch carries every earlier commit of it, so an earlier failure is no longer true.
+///   A successful push of the branch carries every earlier commit of it,
+/// so an earlier failure is no longer true.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -354,11 +445,16 @@ pub fn clear_push_failures(git_dir: &Path, branch_ref: &str) {
 }
 
 /// What:
-///  Removes the records of one branch that were written no later than `cutoff`, after a push of that branch succeeded.
+///  Removes the records of one branch that were written no later than `cutoff`,
+/// after a push of that branch succeeded.
 /// Why:
-///   A push carries the commits that existed when it began. A record written after that moment is about a newer commit, which
-///  another instance of the service may have pushed and failed to push while this push's result was still being handled; the
-///  older push says nothing about it, so it stays.
+///   A push carries the commits that existed when it began.
+/// A record written after that moment is about a newer commit,
+/// which
+///  another instance of the service may have pushed and failed to push while this push's result was still being handled;
+/// the
+///  older push says nothing about it,
+/// so it stays.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -381,18 +477,21 @@ pub fn clear_push_failures_before(git_dir: &Path, branch_ref: &str, cutoff: std:
     }
 }
 
-/// Where the worktrees of a repository stand: the branch the asking worktree has checked out and every branch any
+/// Where the worktrees of a repository stand:
+/// the branch the asking worktree has checked out and every branch any
 ///  worktree has checked out.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Worktrees {
-    /// The branch reference the command's worktree has checked out; nothing for a detached head or an unknown worktree.
+    /// The branch reference the command's worktree has checked out;
+    /// nothing for a detached head or an unknown worktree.
     pub here: Option<String>,
     /// The branch references checked out in every worktree of the repository.
     pub all: Vec<String>,
 }
 
 /// What:
-///  The branch reference a `HEAD` file names, or nothing for a detached head or an unreadable file.
+///  The branch reference a `HEAD` file names,
+/// or nothing for a detached head or an unreadable file.
 /// Why:
 ///   Only the plain `ref: refs/heads/<name>` form names a branch.
 ///
@@ -410,9 +509,11 @@ pub fn branch_of_head(git_dir: &Path) -> Option<String> {
 }
 
 /// What:
-///  The branches checked out in the repository's worktrees: the main one and each linked one.
+///  The branches checked out in the repository's worktrees:
+/// the main one and each linked one.
 /// Why:
-///   A linked worktree keeps its own `HEAD` under `worktrees/<name>`; the main worktree's is the common directory's.
+///   A linked worktree keeps its own `HEAD` under `worktrees/<name>`;
+/// the main worktree's is the common directory's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -428,7 +529,9 @@ pub fn checked_out_branches(common_dir: &Path) -> Vec<String> {
     return branches;
 }
 
-/// Whether a record of `branch_ref` is for the asking worktree: it has the branch checked out, or no worktree has.
+/// Whether a record of `branch_ref` is for the asking worktree:
+/// it has the branch checked out,
+/// or no worktree has.
 fn is_for(worktrees: &Worktrees, branch_ref: &str) -> bool {
     if worktrees.here.as_deref() == Some(branch_ref) {
         return true;
@@ -443,10 +546,14 @@ fn is_for(worktrees: &Worktrees, branch_ref: &str) -> bool {
 
 /// What:
 ///  Where a failure notice asks for the name of a commit as the person should read it.
-///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+///  A `trait` is a named set of methods that different types can each supply,
+/// like a TypeScript `interface`.
 /// Why:
-///   The name is Git's abbreviation in the repository as it is when the notice is shown, asked of Git once per shown notice; the
-///  state the question needs (the Git context, the directories) is a small struct that implements this.
+///   The name is Git's abbreviation in the repository as it is when the notice is shown,
+/// asked of Git once per shown notice;
+/// the
+///  state the question needs (the Git context,
+/// the directories) is a small struct that implements this.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -458,11 +565,16 @@ pub trait CommitNamer {
 }
 
 /// What:
-///  Reads and removes the records that are for the asking worktree (all of them when no worktree is given), oldest name
-///  first, worded with the commit named by `abbreviate`.
+///  Reads and removes the records that are for the asking worktree (all of them when no worktree is given),
+/// oldest name
+///  first,
+/// worded with the commit named by `abbreviate`.
 /// Why:
-///   A record is shown once, to the worktree whose commit it is about; another worktree's command leaves it where it is.
-///  When nothing failed the notice directory does not exist, and this is one directory read.
+///   A record is shown once,
+/// to the worktree whose commit it is about;
+/// another worktree's command leaves it where it is.
+///  When nothing failed the notice directory does not exist,
+/// and this is one directory read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -473,10 +585,13 @@ pub fn take_push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abb
 }
 
 /// What:
-///  Reads and removes the records of removed worktrees, which belong to no worktree and so are shown to the first command
+///  Reads and removes the records of removed worktrees,
+/// which belong to no worktree and so are shown to the first command
 ///  that asks.
 /// Why:
-///   The worktree a record was made for is gone, so nobody else could ever be shown it; one directory read when none exist.
+///   The worktree a record was made for is gone,
+/// so nobody else could ever be shown it;
+/// one directory read when none exist.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -486,7 +601,8 @@ pub fn take_orphaned_failures(common_dir: &Path, abbreviate: &dyn CommitNamer) -
     return take_records_from(common_dir.join(ORPHAN_NOTICE_DIRECTORY).as_path(), None, abbreviate);
 }
 
-/// Reads and removes the records in one directory that are for the asking worktree, oldest name first.
+/// Reads and removes the records in one directory that are for the asking worktree,
+/// oldest name first.
 fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<String> {
     let Ok(listing) = std::fs::read_dir(directory) else { return Vec::new() };
     let mut paths: Vec<PathBuf> = Vec::new();
@@ -519,7 +635,8 @@ fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
 }
 
 /// What:
-///  Reads and removes every record, with each commit named in full.
+///  Reads and removes every record,
+/// with each commit named in full.
 /// Why:
 ///   The service's own controls and a repository with no worktree to ask need all of them.
 ///
@@ -531,7 +648,8 @@ pub fn take_push_failures(git_dir: &Path) -> Vec<String> {
     return take_push_failures_for(git_dir, None, &FullCommitName);
 }
 
-/// A commit name as it is, for the callers that show commits in full.
+/// A commit name as it is,
+/// for the callers that show commits in full.
 struct FullCommitName;
 
 impl CommitNamer for FullCommitName {
@@ -540,7 +658,9 @@ impl CommitNamer for FullCommitName {
     }
 }
 
-/// The lines of `reason`, each with four spaces in front, joined by newlines.
+/// The lines of `reason`,
+/// each with four spaces in front,
+/// joined by newlines.
 fn indented(reason: &str) -> String {
     let mut lines: Vec<String> = Vec::new();
     for line in reason.lines() {

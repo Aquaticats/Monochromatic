@@ -1,9 +1,14 @@
-//! Controls for the record of a failed backup push: its text, its masking, its names, and which commands show it.
+//! Controls for the record of a failed backup push:
+//! its text,
+//! its masking,
+//! its names,
+//! and which commands show it.
 
 use super::*;
 use std::ffi::OsString;
 
-/// A function-like value with the right shape is a namer in these controls: the shipped caller writes a small struct that holds the state.
+/// A function-like value with the right shape is a namer in these controls:
+/// the shipped caller writes a small struct that holds the state.
 impl<Name: Fn(&str) -> String> CommitNamer for Name {
     fn name_of(&self, commit: &str) -> String {
         return self(commit);
@@ -19,7 +24,11 @@ fn region(words: &[&str]) -> Vec<OsString> {
     return words.iter().map(OsString::from).collect();
 }
 
-/// The text names the branch, the commit, Git's own reason, that the commit is saved here, and what to do.
+/// The text names the branch,
+/// the commit,
+/// Git's own reason,
+/// that the commit is saved here,
+/// and what to do.
 #[test]
 fn the_text_names_the_branch_the_commit_the_reason_and_the_remedy() {
     let said: &str = "! [rejected] main -> main (non-fast-forward)";
@@ -33,7 +42,10 @@ fn the_text_names_the_branch_the_commit_the_reason_and_the_remedy() {
     assert!(text.ends_with(PUSH_FAILED_NOTE), "{text}");
 }
 
-/// A skipped push is worded as not made, with the service's own reason, and never as a refusal by the remote; it is shown
+/// A skipped push is worded as not made,
+/// with the service's own reason,
+/// and never as a refusal by the remote;
+/// it is shown
 ///  once and a later successful push of the branch removes it with the failures.
 #[test]
 fn a_skipped_push_is_worded_as_not_made_and_cleared_by_a_later_push() {
@@ -52,7 +64,8 @@ fn a_skipped_push_is_worded_as_not_made_and_cleared_by_a_later_push() {
     remove(directory.as_path());
 }
 
-/// A successful push removes the records written before it began and keeps one written after: that one is about a commit the
+/// A successful push removes the records written before it began and keeps one written after:
+/// that one is about a commit the
 ///  push could not have carried.
 #[test]
 fn a_successful_push_keeps_a_record_written_after_it_began() {
@@ -72,7 +85,8 @@ fn a_successful_push_keeps_a_record_written_after_it_began() {
     remove(directory.as_path());
 }
 
-/// A reason that Git left empty is said so, rather than printing an empty quotation.
+/// A reason that Git left empty is said so,
+/// rather than printing an empty quotation.
 #[test]
 fn an_empty_reason_is_said_plainly() {
     let text: String = push_failure_text(BRANCH, COMMIT, "  \n");
@@ -80,8 +94,11 @@ fn an_empty_reason_is_said_plainly() {
     assert!(!text.contains("Git said:"), "{text}");
 }
 
-/// A remote URL's user name and password never reach the text, including in a line that names the Git LFS endpoint
-///  setting; the line itself stays, with its host.
+/// A remote URL's user name and password never reach the text,
+/// including in a line that names the Git LFS endpoint
+///  setting;
+/// the line itself stays,
+/// with its host.
 #[test]
 fn credentials_are_masked_and_the_lfs_endpoint_line_stays() {
     let said: &str = "fatal: unable to access 'https://user:s3cret@example.invalid/repo.git/': 403\n\
@@ -96,7 +113,8 @@ fn credentials_are_masked_and_the_lfs_endpoint_line_stays() {
     assert!(text.contains("remote: denied"), "{text}");
 }
 
-/// The wrapper's own failure line for a Git LFS push, which names the endpoint setting in prose and carries the exit status,
+/// The wrapper's own failure line for a Git LFS push,
+/// which names the endpoint setting in prose and carries the exit status,
 ///  reaches the person whole.
 #[test]
 fn the_wrappers_own_lfs_failure_line_keeps_its_status() {
@@ -132,7 +150,8 @@ fn userinfo_is_masked_in_every_shape_a_url_takes() {
     assert!(several.contains("one.invalid/a") && several.contains("two.invalid/b"), "{several}");
 }
 
-/// Control characters from a remote's words cannot move the cursor or recolour the terminal; tabs and lines stay.
+/// Control characters from a remote's words cannot move the cursor or recolour the terminal;
+/// tabs and lines stay.
 #[test]
 fn control_characters_are_dropped_and_long_output_is_cut() {
     let cleaned: String = clean_reason("remote: \u{1b}[31mred\u{1b}[0m\u{7}\n\tindented");
@@ -143,7 +162,9 @@ fn control_characters_are_dropped_and_long_output_is_cut() {
     assert!(cut.ends_with("(Git's output is cut here.)"));
 }
 
-/// The record name belongs to its branch; one branch's name is never the start of another's, and a very long branch
+/// The record name belongs to its branch;
+/// one branch's name is never the start of another's,
+/// and a very long branch
 ///  name still makes a file name the file system accepts.
 #[test]
 fn record_names_separate_branches_and_stay_valid_file_names() {
@@ -155,7 +176,9 @@ fn record_names_separate_branches_and_stay_valid_file_names() {
     assert_ne!(record_name(huge.as_str(), COMMIT), record_name(format!("{huge}x").as_str(), COMMIT));
 }
 
-/// A failure is taken once; a second take finds nothing, and a repeat of the same failure leaves one record.
+/// A failure is taken once;
+/// a second take finds nothing,
+/// and a repeat of the same failure leaves one record.
 #[test]
 fn a_record_is_taken_once_and_a_repeat_leaves_one() {
     let root: PathBuf = fixture("push-failure-once");
@@ -167,7 +190,8 @@ fn a_record_is_taken_once_and_a_repeat_leaves_one() {
     remove(root.as_path());
 }
 
-/// A repository where nothing failed has no notice directory, and taking from it shows nothing and creates nothing.
+/// A repository where nothing failed has no notice directory,
+/// and taking from it shows nothing and creates nothing.
 #[test]
 fn nothing_failed_means_nothing_to_read_and_nothing_created() {
     let root: PathBuf = fixture("push-failure-none");
@@ -189,7 +213,8 @@ fn clearing_a_branch_keeps_the_records_of_other_branches() {
     remove(root.as_path());
 }
 
-/// Plumbing and the forms that ask for output made for a program are machine-read; ordinary human commands are not.
+/// Plumbing and the forms that ask for output made for a program are machine-read;
+/// ordinary human commands are not.
 #[test]
 fn machine_read_commands_are_told_from_human_ones() {
     for command in ["rev-parse", "cat-file", "for-each-ref", "ls-files", "config", "upload-pack", "update-ref", "diff-index"] {
@@ -205,7 +230,8 @@ fn machine_read_commands_are_told_from_human_ones() {
     assert!(!is_machine_read(b"log", &region(&["--", "-z"])));
 }
 
-/// The record names the commit as the asker's abbreviation gives it, and the text does not call it the reader's own.
+/// The record names the commit as the asker's abbreviation gives it,
+/// and the text does not call it the reader's own.
 #[test]
 fn a_record_is_worded_with_the_askers_abbreviation() {
     let root: PathBuf = fixture("push-failure-abbreviated");
@@ -217,7 +243,9 @@ fn a_record_is_worded_with_the_askers_abbreviation() {
     remove(root.as_path());
 }
 
-/// A record is for the worktree that has its branch checked out; another worktree leaves it, and when no worktree has the
+/// A record is for the worktree that has its branch checked out;
+/// another worktree leaves it,
+/// and when no worktree has the
 ///  branch any command takes it.
 #[test]
 fn a_record_waits_for_the_worktree_that_has_its_branch() {
@@ -242,7 +270,11 @@ fn a_record_waits_for_the_worktree_that_has_its_branch() {
     remove(root.as_path());
 }
 
-/// A record an earlier release wrote, which is finished text, is still shown, to anyone, and once.
+/// A record an earlier release wrote,
+/// which is finished text,
+/// is still shown,
+/// to anyone,
+/// and once.
 #[test]
 fn a_record_of_an_earlier_release_is_shown_as_it_was_written() {
     let root: PathBuf = fixture("push-failure-earlier");
@@ -256,9 +288,14 @@ fn a_record_of_an_earlier_release_is_shown_as_it_was_written() {
     remove(root.as_path());
 }
 
-/// Found by the audit of the names the rename changed: the three magic first lines of the records name a format, and the records
-///  an earlier release wrote carry its spelling. They are read as the records they are (worded for the asking worktree, held
-///  for the worktree that has the branch), not shown as raw text with their first line.
+/// Found by the audit of the names the rename changed:
+/// the three magic first lines of the records name a format,
+/// and the records
+///  an earlier release wrote carry its spelling.
+/// They are read as the records they are (worded for the asking worktree,
+/// held
+///  for the worktree that has the branch),
+/// not shown as raw text with their first line.
 #[test]
 fn a_record_of_an_earlier_release_with_its_own_first_line_is_read_as_a_record() {
     let root: PathBuf = fixture("push-failure-earlier-magic");
@@ -296,7 +333,8 @@ fn the_record_on_disk_holds_no_credential() {
     remove(root.as_path());
 }
 
-/// Only the plain `ref:` line of a `HEAD` file names a branch, in the main worktree and in each linked one.
+/// Only the plain `ref:` line of a `HEAD` file names a branch,
+/// in the main worktree and in each linked one.
 #[test]
 fn the_branches_of_the_worktrees_are_read_from_their_head_files() {
     let root: PathBuf = fixture("push-failure-heads");

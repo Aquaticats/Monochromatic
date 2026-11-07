@@ -1,16 +1,22 @@
 //! What:
-//!  The commits a push newly publishes, relative to what each destination remote already has.
+//!  The commits a push newly publishes,
+//! relative to what each destination remote already has.
 //! Why:
-//!  The manual-push policies scan only what becomes public. A pushed commit is already published when a
-//!  remote-tracking ref of the destination, or an authoritative prior value of an update to that remote,
-//!  reaches it (`src/policy-engine/manual-push-published.ts`). The rest of the history is the scan's range.
+//!  The manual-push policies scan only what becomes public.
+//! A pushed commit is already published when a
+//!  remote-tracking ref of the destination,
+//! or an authoritative prior value of an update to that remote,
+//!  reaches it (`src/policy-engine/manual-push-published.ts`).
+//! The rest of the history is the scan's range.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const published = publishedTips({ updates, peeled, tracking });
 //! ```
 
-/// The Git runner, the probe's update type, and the object name helpers.
+/// The Git runner,
+/// the probe's update type,
+/// and the object name helpers.
 use crate::auto_push_single_flight::{PushGit, git_command};
 use crate::manual_push_cause::ManualPushCause;
 use crate::manual_push_probe::PushUpdate;
@@ -30,7 +36,8 @@ const TRACKING_NAMESPACE: &str = "refs/remotes/";
 /// What:
 ///  Why the range could not be computed.
 /// Why:
-///   Every variant stops the lifecycle with a failure event; a guessed range would hide commits from the scan.
+///   Every variant stops the lifecycle with a failure event;
+/// a guessed range would hide commits from the scan.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -40,7 +47,8 @@ const TRACKING_NAMESPACE: &str = "refs/remotes/";
 pub struct ManualPushRangeError {
     /// Diagnostic naming the failed query.
     pub message: String,
-    /// What the person can do about it, which the hint is chosen by.
+    /// What the person can do about it,
+    /// which the hint is chosen by.
     pub cause: ManualPushCause,
 }
 
@@ -66,8 +74,10 @@ fn range_error(cause: ManualPushCause, message: String) -> ManualPushRangeError 
 /// What:
 ///  Run a Git query with stdin text and return its exact stdout bytes.
 /// Why:
-///   Batch queries (`cat-file --batch-check`, `rev-list --stdin`) read their requests from stdin,
-///  and any Git failure is an error, never an empty answer.
+///   Batch queries (`cat-file --batch-check`,
+/// `rev-list --stdin`) read their requests from stdin,
+///  and any Git failure is an error,
+/// never an empty answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -130,10 +140,13 @@ fn lines_of(bytes: &[u8]) -> Vec<String> {
 }
 
 /// What:
-///  The commit a prior destination value names, when it exists locally and is a commit.
+///  The commit a prior destination value names,
+/// when it exists locally and is a commit.
 ///  `Option<T>` is "a value or nothing".
 /// Why:
-///   Only locally present commits can bound the range; an object Git never fetched is unknown, not published.
+///   Only locally present commits can bound the range;
+/// an object Git never fetched is unknown,
+/// not published.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -184,9 +197,11 @@ pub fn peel_commits(
 }
 
 /// What:
-///  The commits each destination remote is known to have, from its remote-tracking refs.
+///  The commits each destination remote is known to have,
+/// from its remote-tracking refs.
 /// Why:
-///   The namespace is matched literally, so a remote name is never read as a pattern.
+///   The namespace is matched literally,
+/// so a remote name is never read as a pattern.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -229,9 +244,11 @@ pub fn tracking_commits(
 }
 
 /// What:
-///  The published tips of each remote: its tracking commits and the commits of its prior destination values.
+///  The published tips of each remote:
+/// its tracking commits and the commits of its prior destination values.
 /// Why:
-///   Every update to one remote contributes its prior value, so a second branch is bounded by the first's prior state.
+///   Every update to one remote contributes its prior value,
+/// so a second branch is bounded by the first's prior state.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -261,7 +278,8 @@ pub fn published_tips(
 /// What:
 ///  The scope one pushed update contributes to the scan.
 /// Why:
-///   A deletion publishes nothing; a commit with a known published base contributes its new commits;
+///   A deletion publishes nothing;
+/// a commit with a known published base contributes its new commits;
 ///  a commit with no known base contributes its whole history's tree.
 ///
 /// In TS you'd write (pseudocode):
@@ -270,18 +288,22 @@ pub fn published_tips(
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UpdateScope {
-    /// Nothing new is published: a deletion or a commit the remote already has.
+    /// Nothing new is published:
+    /// a deletion or a commit the remote already has.
     None,
     /// The commits not reachable from anything the remote has.
     Commits(Vec<String>),
-    /// No published base is known: the pushed tip's whole tree is new.
+    /// No published base is known:
+    /// the pushed tip's whole tree is new.
     FinalTree(String),
 }
 
 /// What:
-///  The scope of one update, from its local object and the published tips of its remote.
+///  The scope of one update,
+/// from its local object and the published tips of its remote.
 /// Why:
-///   `rev-list` names exactly the commits the remote lacks, so a scan never repeats published history.
+///   `rev-list` names exactly the commits the remote lacks,
+/// so a scan never repeats published history.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
