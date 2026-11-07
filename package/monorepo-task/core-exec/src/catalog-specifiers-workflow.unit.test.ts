@@ -18,6 +18,11 @@ import {
 import { readFile, } from 'node:fs/promises';
 
 /**
+ Length of a SHA-256 in lowercase hex digits.
+ */
+const SHA256_HEX_LENGTH = 64;
+
+/**
  The workflow under test.
  */
 const WORKFLOW = await readFile(new URL('../../../../.github/workflows/catalog-specifiers.yml', import.meta.url,), 'utf8',);
@@ -38,7 +43,16 @@ await describe({
         expect(WORKFLOW,).toContain('uses: ./.github/actions/repo-tools-setup',);
         expect(WORKFLOW,).toContain('tools: git-policy-cli',);
         expect(WORKFLOW,).not.toContain('binstall',);
-        expect(WORKFLOW,).not.toContain('crates.io',);
+        expect(WORKFLOW,).not.toContain('cargo-bins',);
+      },
+    },),
+    it({
+      name: 'runs the policy by the names the job env gives, which are the names of the installed program',
+      fn: async function namesMatch() {
+        expect(WORKFLOW,).toContain('      CLI_PROGRAM: monochromatic-git-policy-cli\n',);
+        expect(WORKFLOW,).toContain('      CLI_WORD: monochromatic-git-policy-cli\n',);
+        expect(WORKFLOW,).toContain('      CLI_SETTINGS: monochromatic-git-policy-cli.config.jsonc\n',);
+        expect(WORKFLOW,).toContain('node package/monorepo-task/core-exec/src/catalog-specifiers-negative-control.ts',);
       },
     },),
     it({
@@ -51,7 +65,10 @@ await describe({
         for (const platform of ['linux-x64', 'linux-arm64',] as const) {
           const artifact = row?.artifacts[platform];
           expect(artifact?.url.startsWith('https://github.com/Aquaticats/Monochromatic/releases/download/',),).toBe(true,);
-          expect(artifact?.sha256,).toMatch(/^[0-9a-f]{64}$/u,);
+          expect(artifact?.sha256.length,).toBe(SHA256_HEX_LENGTH,);
+          expect(Array.from(artifact?.sha256 ?? '',).every(function isHexDigit(character: string,) {
+            return '0123456789abcdef'.includes(character,);
+          },),).toBe(true,);
         }
       },
     },),

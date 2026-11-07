@@ -96,7 +96,7 @@ finish(rule.status, 0);
  Source of the stand-in `podman`.
 
  `--version` prints a fixed version; `build` prints one line and ends with the status in `FAKE_PODMAN_BUILD_EXIT`;
- `login` records what it read on standard input; `push --digestfile <file>` writes `FAKE_PODMAN_DIGEST` (a well-formed
+ `login` records what it read on standard input; `push --digestfile <file>` writes `FAKE_PODMAN_DIGEST` (unless `FAKE_PODMAN_SKIP_DIGEST_FILE` is set; a well-formed
  digest when unset) into the file and ends with the status in `FAKE_PODMAN_PUSH_EXIT`.
  */
 export const FAKE_PODMAN_SOURCE: string = `
@@ -115,7 +115,9 @@ if (args[0] === '--version') {
   console.log('Login Succeeded!');
 } else if (args[0] === 'push') {
   const digestFile = args[args.indexOf('--digestfile') + 1];
-  fs.writeFileSync(digestFile, process.env.FAKE_PODMAN_DIGEST ?? ('sha256:' + 'a'.repeat(64)));
+  if (process.env.FAKE_PODMAN_SKIP_DIGEST_FILE === undefined) {
+    fs.writeFileSync(digestFile, process.env.FAKE_PODMAN_DIGEST ?? ('sha256:' + 'a'.repeat(64)));
+  }
   console.log('Writing manifest to image destination');
   process.exit(Number(process.env.FAKE_PODMAN_PUSH_EXIT ?? 0));
 }
