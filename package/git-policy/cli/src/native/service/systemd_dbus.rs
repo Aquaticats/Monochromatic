@@ -62,6 +62,9 @@ pub const RESET_FAILED_UNIT: Target<'static> =
 /// `GetUnit` on the user manager: the object path of a loaded unit.
 pub const GET_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "GetUnit" };
 
+/// The job mode that applies a stop to the named unit only, leaving the units that require it running.
+pub const STOP_ALONE_MODE: &str = "ignore-dependencies";
+
 /// The interface whose `Get` reads one property of an object.
 const PROPERTIES_INTERFACE: &str = "org.freedesktop.DBus.Properties";
 
@@ -331,6 +334,21 @@ impl Bus {
     /// Stops a unit, replacing a queued job for it.
     pub fn stop_unit(&mut self, name: &str) -> Result<(), CallError> {
         return self.call(&STOP_UNIT, &[name, "replace"]).map(drop);
+    }
+
+    /// What:
+    ///  Stops one unit and nothing that depends on it (job mode `ignore-dependencies`).
+    /// Why:
+    ///   A service that `Requires=` a socket is stopped by the manager when that socket is stopped in the `replace` mode
+    ///  (`systemd.unit(5)`, `Requires=`), which would cut the batch of a helper that is running. This mode applies the job to
+    ///  the named unit only.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await bus.stopUnitAlone('cli-git@3f9a.socket') // the service of that socket keeps running
+    /// ```
+    pub fn stop_unit_alone(&mut self, name: &str) -> Result<(), CallError> {
+        return self.call(&STOP_UNIT, &[name, STOP_ALONE_MODE]).map(drop);
     }
 
     /// What:

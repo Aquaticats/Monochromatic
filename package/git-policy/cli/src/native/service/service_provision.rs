@@ -30,7 +30,7 @@ pub use crate::service_provision_unit_file_ownership_and_writes::OWN_MARKERS;
 use crate::service_provision_unit_file_ownership_and_writes::{any_named_anywhere, carries_own_marker, is_own_unit_file, own_unit_file_in_runtime_or_user_directory, remove_settled, write_atomically};
 use crate::service_messages::{ClientFailure, Platform};
 use crate::service_client_listen_and_ask_to_retire::ask_to_retire;
-use crate::service_instance::{LEGACY_SOCKET_RELATIVE, service_unit_instance, socket_path, socket_unit_instance};
+use crate::service_instance::{LEGACY_SOCKET_RELATIVE, earlier_service_unit_instance, earlier_socket_path, earlier_socket_unit_instance, service_unit_instance, socket_path, socket_unit_instance};
 use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
 use std::path::{Path, PathBuf};
 
@@ -92,6 +92,8 @@ pub trait Manager {
     fn start(&mut self, unit: &str) -> Result<(), CallError>;
     /// Stops a unit.
     fn stop(&mut self, unit: &str) -> Result<(), CallError>;
+    /// Stops a unit and none of the units that require it.
+    fn stop_alone(&mut self, unit: &str) -> Result<(), CallError>;
     /// The unit's state as the manager reports it (`active`, `deactivating`, `inactive`, `failed`), or nothing when the
     ///  manager holds no such unit.
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError>;
@@ -116,6 +118,10 @@ impl Manager for Bus {
 
     fn stop(&mut self, unit: &str) -> Result<(), CallError> {
         return Bus::stop_unit(self, unit);
+    }
+
+    fn stop_alone(&mut self, unit: &str) -> Result<(), CallError> {
+        return Bus::stop_unit_alone(self, unit);
     }
 
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
@@ -444,6 +450,7 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         }
         return Err(refusal(error));
     }
+    stop_earlier_instance_socket(host, manager);
     return Ok(());
 }
 
@@ -461,6 +468,11 @@ fn ask_manager(manager: &mut dyn Manager, reload: bool, known: bool, instance: &
         }
     }
     return manager.start(socket_unit_instance(instance).as_str());
+}
+
+/// Stops the socket of the earlier release for this worktree; stubbed until the controls for it are written.
+fn stop_earlier_instance_socket(host: &ProvisionHost, manager: &mut dyn Manager) {
+    let _unused = (host, manager, earlier_service_unit_instance, earlier_socket_path, earlier_socket_unit_instance);
 }
 
 /// Provisions through the session bus, unless the units and the socket are already in place.

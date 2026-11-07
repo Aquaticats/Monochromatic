@@ -13,6 +13,8 @@ struct Recorder {
     failure: Arc<Mutex<Option<CallError>>>,
     /// What a stop is answered with, when it is not the general failure.
     stop_failure: Arc<Mutex<Option<CallError>>>,
+    /// What a stop that spares the units requiring the stopped one is answered with, when it fails.
+    stop_alone_failure: Arc<Mutex<Option<CallError>>>,
     /// The states a unit reports in turn, the last one repeating; a unit without a script is not held by the manager.
     states: Arc<Mutex<std::collections::HashMap<String, Vec<String>>>>,
     /// What a state question is answered with instead of a state, when it is made to fail.
@@ -47,6 +49,11 @@ impl Manager for Recorder {
             return Err(refusal);
         }
         return self.failure.lock().expect("lock").clone().map_or(Ok(()), Err);
+    }
+
+    fn stop_alone(&mut self, unit: &str) -> Result<(), CallError> {
+        self.calls.lock().expect("lock").push(format!("stop-alone {unit}"));
+        return self.stop_alone_failure.lock().expect("lock").clone().map_or(Ok(()), Err);
     }
 
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
@@ -658,3 +665,211 @@ fn the_earlier_service_is_stopped_only_after_it_has_left() {
     assert!(service_states.iter().filter(|index| { return **index < stop; }).count() >= 3, "it was asked until it was inactive before the stop: {calls:?}");
     remove(machine.root.as_path());
 }
+
+//region the earlier release's socket of the same worktree
+//  The earlier release set up `cli-git@<instance>.socket` for each worktree; the owner's pick of 2026-11-07 ("Stop the old
+//  socket") has the new provisioning stop it, so that the batches its helper left open can be finished at once.
+
+/// The instance of another worktree of the same account.
+const OTHER_INSTANCE: &str = "fedcba9876543210fedcba9876543210";
+
+/// The earlier release's units of an instance, as the manager is asked about them.
+fn earlier_socket() -> String {
+    return earlier_socket_unit_instance(INSTANCE);
+}
+
+fn earlier_service() -> String {
+    return earlier_service_unit_instance(INSTANCE);
+}
+
+/// What the earlier release wrote: its two templates, which every worktree's instance is made from.
+fn earlier_templates(machine: &Machine) -> Vec<PathBuf> {
+    let directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
+    std::fs::create_dir_all(&directory).expect("unit directory");
+    let mut files: Vec<PathBuf> = Vec::new();
+    for name in ["cli-git@.socket", "cli-git@.service"] {
+        let file: PathBuf = directory.join(name);
+        std::fs::write(&file, "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n").expect("earlier template");
+        files.push(file);
+    }
+    return files;
+}
+
+/// The socket file the manager made for the earlier unit of an instance.
+fn earlier_socket_file(machine: &Machine, instance: &str) -> PathBuf {
+    let file: PathBuf = earlier_socket_path(machine.host.runtime_dir.as_path(), instance);
+    std::fs::create_dir_all(file.parent().expect("socket directory")).expect("directories");
+    std::fs::write(&file, b"").expect("the earlier socket's file");
+    return file;
+}
+
+/// The earlier socket of the same worktree is stopped, after the instance of this release has started; the units it was made
+///  from are shared with every other worktree and stay.
+#[test]
+fn the_same_worktrees_earlier_socket_is_stopped_after_the_new_instance_started() {
+    let machine: Machine = machine("provision-earlier-socket-stopped-lib");
+    let templates: Vec<PathBuf> = earlier_templates(&machine);
+    let socket_file: PathBuf = earlier_socket_file(&machine, INSTANCE);
+    let mut recorder: Recorder = Recorder::default();
+    script(&recorder, earlier_socket().as_str(), &["active", "inactive"]);
+    script(&recorder, earlier_service().as_str(), &["inactive"]);
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    // The manager leaves the file of a stopped socket behind (measured with a throwaway socket unit), and a file that is left
+    //  would send every later commit to the bus again.
+    assert!(!socket_file.exists(), "the stopped socket's file is removed");
+    let calls: Vec<String> = recorder.calls();
+    assert!(
+        position(&calls, format!("stop-alone {}", earlier_socket()).as_str()) > position(&calls, format!("start {}", instance_socket()).as_str()),
+        "{calls:?}"
+    );
+    assert!(templates.iter().all(|file| { return file.exists(); }), "the templates of the other worktrees' instances stay");
+    remove(machine.root.as_path());
+}
+
+/// The stop spares the earlier service: the manager stops a service that requires the stopped socket, so the stop goes out in
+///  the mode that names the one unit, and no stop of the earlier service is ever sent.
+#[test]
+fn the_earlier_socket_is_stopped_without_stopping_the_unit_that_requires_it() {
+    let machine: Machine = machine("provision-earlier-socket-alone-lib");
+    let mut recorder: Recorder = Recorder::default();
+    script(&recorder, earlier_socket().as_str(), &["active"]);
+    let socket_file: PathBuf = earlier_socket_file(&machine, INSTANCE);
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    let calls: Vec<String> = recorder.calls();
+    assert!(socket_file.exists(), "a socket the manager still reports active keeps its file; the next commit looks again");
+    assert!(calls.contains(&format!("stop-alone {}", earlier_socket())), "{calls:?}");
+    assert!(!calls.contains(&format!("stop {}", earlier_socket())), "a plain stop would stop the service too: {calls:?}");
+    assert!(!calls.iter().any(|call| { return call.starts_with("stop") && call.ends_with(earlier_service().as_str()); }), "{calls:?}");
+    remove(machine.root.as_path());
+}
+
+/// The earlier socket of another worktree is not this worktree's to stop: no call names it.
+#[test]
+fn another_worktrees_earlier_socket_is_left_alone() {
+    let machine: Machine = machine("provision-earlier-socket-other-lib");
+    let mut recorder: Recorder = Recorder::default();
+    script(&recorder, earlier_socket_unit_instance(OTHER_INSTANCE).as_str(), &["active"]);
+    script(&recorder, earlier_service_unit_instance(OTHER_INSTANCE).as_str(), &["active"]);
+    let other_file: PathBuf = earlier_socket_file(&machine, OTHER_INSTANCE);
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    let calls: Vec<String> = recorder.calls();
+    assert!(!calls.iter().any(|call| { return call.contains(OTHER_INSTANCE); }), "{calls:?}");
+    assert!(other_file.exists());
+    assert!(!calls.iter().any(|call| { return call.starts_with("stop"); }), "nothing else is stopped: {calls:?}");
+    remove(machine.root.as_path());
+}
+
+/// A worktree that never had an earlier socket has nothing to stop, and a unit the manager has just unloaded is no error.
+#[test]
+fn a_missing_earlier_unit_is_not_an_error() {
+    let machine: Machine = machine("provision-earlier-socket-missing-lib");
+    let mut recorder: Recorder = Recorder::default();
+    let entries = crate::service_timing::capture::entries_of(|| { provision_with(&machine.host, &mut recorder).expect("provisioned"); });
+    assert!(recorder.calls().contains(&format!("state {}", earlier_socket())), "the manager was asked: {:?}", recorder.calls());
+    assert!(!recorder.calls().iter().any(|call| { return call.starts_with("stop"); }), "{:?}", recorder.calls());
+    assert!(entries.is_empty(), "nothing to say: {entries:?}");
+    let machine: Machine = self::machine("provision-earlier-socket-vanished-lib");
+    let mut vanishing: Recorder = Recorder::default();
+    script(&vanishing, earlier_socket().as_str(), &["active"]);
+    *vanishing.stop_alone_failure.lock().expect("lock") = Some(CallError::Manager { name: NO_SUCH_UNIT.to_string(), text: String::from("not loaded") });
+    let entries = crate::service_timing::capture::entries_of(|| { provision_with(&machine.host, &mut vanishing).expect("provisioned"); });
+    assert!(entries.is_empty(), "a unit that is gone is what the stop was for: {entries:?}");
+    remove(machine.root.as_path());
+}
+
+/// A manager that cannot be asked, refuses, or runs out of time for the earlier socket never fails the commit ("Commits should
+///  never fail."): the failure is written to the log and the provisioning is done.
+#[test]
+fn a_failure_to_stop_the_earlier_socket_is_logged_and_never_fails_provisioning() {
+    let failures: [CallError; 4] = [
+        CallError::Connection(String::from("broken pipe")),
+        CallError::TimedOut,
+        CallError::Manager { name: String::from("org.freedesktop.DBus.Error.AccessDenied"), text: String::from("permission denied") },
+        CallError::Malformed(String::from("odd reply")),
+    ];
+    for failure in failures {
+        let machine: Machine = machine("provision-earlier-socket-failure-lib");
+        let mut recorder: Recorder = Recorder::default();
+        script(&recorder, earlier_socket().as_str(), &["active"]);
+        *recorder.stop_alone_failure.lock().expect("lock") = Some(failure.clone());
+        let entries = crate::service_timing::capture::entries_of(|| { provision_with(&machine.host, &mut recorder).expect("provisioned"); });
+        assert!(entries.iter().any(|entry| { return entry.message.contains(earlier_socket().as_str()); }), "{failure:?}: logged plainly, naming the unit: {entries:?}");
+        assert!(recorder.calls().contains(&format!("start {}", instance_socket())), "the instance of this release was started");
+        remove(machine.root.as_path());
+    }
+    let machine: Machine = machine("provision-earlier-socket-question-lib");
+    let mut recorder: Recorder = Recorder::default();
+    *recorder.state_failure.lock().expect("lock") = Some(CallError::TimedOut);
+    let entries = crate::service_timing::capture::entries_of(|| { provision_with(&machine.host, &mut recorder).expect("provisioned"); });
+    assert!(!entries.is_empty(), "a question that cannot be answered is logged too");
+    assert!(!recorder.calls().iter().any(|call| { return call.starts_with("stop"); }), "nothing is stopped on a guess");
+    remove(machine.root.as_path());
+}
+
+/// Every call about the earlier socket has a time of its own, as the reload and the start do, so that a bus that stalls delays
+///  the commit by no more than one exchange.
+#[test]
+fn the_questions_about_the_earlier_socket_have_a_budget_of_their_own() {
+    let machine: Machine = machine("provision-earlier-socket-budget-lib");
+    let mut recorder: Recorder = Recorder::default();
+    script(&recorder, earlier_socket().as_str(), &["active"]);
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    let budgets = recorder.budgets.lock().expect("lock").clone();
+    assert_eq!(budgets.len(), 2, "one for the start and one for the earlier socket: {budgets:?}");
+    assert_eq!(budgets.last().copied(), Some(EXCHANGE_WAIT));
+    remove(machine.root.as_path());
+}
+
+/// A helper of the earlier release that is running (or starting, or stopping) finishes its batch: nothing is stopped, the log
+///  stays quiet, and the next provisioning looks again.
+#[test]
+fn a_running_earlier_helper_is_not_stopped_and_its_socket_is_kept() {
+    for state in ["active", "activating", "deactivating", "reloading"] {
+        let machine: Machine = machine("provision-earlier-helper-running-lib");
+        let mut recorder: Recorder = Recorder::default();
+        script(&recorder, earlier_socket().as_str(), &["active"]);
+        script(&recorder, earlier_service().as_str(), &[state]);
+        let socket_file: PathBuf = earlier_socket_file(&machine, INSTANCE);
+        let entries = crate::service_timing::capture::entries_of(|| { provision_with(&machine.host, &mut recorder).expect("provisioned"); });
+        let calls: Vec<String> = recorder.calls();
+        assert!(calls.contains(&format!("state {}", earlier_service())), "{state}: the helper was looked for before anything was stopped: {calls:?}");
+        assert!(!calls.iter().any(|call| { return call.starts_with("stop"); }), "{state}: {calls:?}");
+        assert!(entries.is_empty(), "{state}: {entries:?}");
+        assert!(socket_file.exists(), "{state}: the helper's socket file stays");
+        remove(machine.root.as_path());
+    }
+}
+
+/// The socket file of the earlier unit keeps the installation from counting as in place, so a commit that follows a stop that
+///  failed or was skipped tries again; the manager removes the file with the socket.
+#[test]
+fn an_earlier_socket_file_of_the_worktree_keeps_the_installation_from_being_in_place() {
+    let machine: Machine = machine("provision-earlier-socket-in-place-lib");
+    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
+    add_socket(&machine);
+    assert!(in_place(&machine.host));
+    let other: PathBuf = earlier_socket_file(&machine, OTHER_INSTANCE);
+    assert!(in_place(&machine.host), "another worktree's earlier socket says nothing about this one");
+    std::fs::remove_file(other).expect("removed");
+    let own: PathBuf = earlier_socket_file(&machine, INSTANCE);
+    assert!(!in_place(&machine.host));
+    std::fs::remove_file(own).expect("removed");
+    assert!(in_place(&machine.host));
+    remove(machine.root.as_path());
+}
+
+/// A socket file whose unit the manager no longer holds, with no helper running, is what a stop leaves behind: it is removed,
+///  and a file of another worktree's socket is not.
+#[test]
+fn a_socket_file_left_by_an_unloaded_earlier_unit_is_removed_and_another_worktrees_is_not() {
+    let machine: Machine = machine("provision-earlier-socket-stale-lib");
+    let own: PathBuf = earlier_socket_file(&machine, INSTANCE);
+    let other: PathBuf = earlier_socket_file(&machine, OTHER_INSTANCE);
+    let mut recorder: Recorder = Recorder::default();
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    assert!(!own.exists());
+    assert!(other.exists());
+    assert!(!recorder.calls().iter().any(|call| { return call.starts_with("stop"); }), "{:?}", recorder.calls());
+    remove(machine.root.as_path());
+}
+//endregion

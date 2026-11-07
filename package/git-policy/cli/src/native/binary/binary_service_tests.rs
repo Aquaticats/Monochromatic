@@ -231,11 +231,13 @@ fn an_instance_removes_the_old_finished_batches_of_the_earlier_shared_journal() 
     remove_settled(&fixture);
 }
 
-/// Starts the service of one worktree with its journal in `journal`, as the unit does with `--journal` and `--instance`.
-fn start_instance_service(name: &str, journal: &Path, instance: &str) -> Service {
+/// Starts the service of one worktree with its journal in `journal`, as the unit does with `--journal` and `--instance`,
+///  and with the further words a control gives.
+fn start_instance_service(name: &str, journal: &Path, instance: &str, further: &[&str]) -> Service {
     let mut command: Command = super::support::service_command();
     command
         .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name, "--instance", instance])
+        .args(further)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::inherit());
@@ -256,7 +258,7 @@ fn a_batch_the_earlier_helper_left_open_is_finished_by_the_service_of_this_relea
     std::fs::create_dir_all(&earlier).expect("the earlier journal");
     // The earlier helper lands a commit and is killed; its batch is then open, as after a kill between landing and finishing.
     let first_name: String = address(&fixture, "adopt-first");
-    let first: Service = start_instance_service(first_name.as_str(), earlier.as_path(), instance.as_str());
+    let first: Service = start_instance_service(first_name.as_str(), earlier.as_path(), instance.as_str(), &[]);
     wait_until_reachable(first_name.as_str());
     let sent: CommitRequest = request(&fixture, &repo, "adopt-1", "a.txt", "a\n");
     submit_quietly(&config(first_name.as_str()), &sent).expect("answered");
@@ -272,7 +274,7 @@ fn a_batch_the_earlier_helper_left_open_is_finished_by_the_service_of_this_relea
     std::fs::rename(&finished[0], &open).expect("reopen the batch");
     // The service of this release starts for the same worktree, with its journal in the new place.
     let second_name: String = address(&fixture, "adopt-second");
-    let second: Service = start_instance_service(second_name.as_str(), current.as_path(), instance.as_str());
+    let second: Service = start_instance_service(second_name.as_str(), current.as_path(), instance.as_str(), &["--adopt-earlier-journals"]);
     wait_until_reachable(second_name.as_str());
     // The first answer comes after the recovery at the start.
     let next: CommitRequest = request(&fixture, &repo, "adopt-2", "b.txt", "b\n");
@@ -284,6 +286,48 @@ fn a_batch_the_earlier_helper_left_open_is_finished_by_the_service_of_this_relea
     assert!(matches!(again, Submitted::Landed { already: true, .. }), "{again:?}");
     assert_eq!(count_of(&fixture, &repo, "message of adopt-1"), 1, "the batch landed once, not twice");
     assert_healthy(&fixture, &repo, "adopt");
+    stop(second);
+    remove_settled(&fixture);
+}
+
+/// Review finding of 2026-11-07 (cross-vendor, round 5): the look at the earlier sockets and processes cannot exclude an
+///  earlier-release wrapper that sets its socket unit up and starts the helper between the look and the end of the adoption, and
+///  masking the unit would make that wrapper fail its commits. The unit this release writes does not pass the option that turns
+///  the adoption on, so a service started as the unit starts it leaves the earlier journal alone.
+#[test]
+fn a_batch_the_earlier_helper_left_open_is_left_alone_unless_the_adoption_is_turned_on() {
+    let fixture: Fixture = fixture("service-adopt-held");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let state: PathBuf = fixture.root.join("state");
+    let earlier: PathBuf = state.join("cli-git/service").join(instance.as_str());
+    let current: PathBuf = state.join("monochromatic-git-policy-cli/service").join(instance.as_str());
+    std::fs::create_dir_all(&earlier).expect("the earlier journal");
+    // The earlier helper lands a commit and is killed; its batch is then open, as after a kill between landing and finishing.
+    let first_name: String = address(&fixture, "held-first");
+    let first: Service = start_instance_service(first_name.as_str(), earlier.as_path(), instance.as_str(), &[]);
+    wait_until_reachable(first_name.as_str());
+    let sent: CommitRequest = request(&fixture, &repo, "held-1", "a.txt", "a\n");
+    submit_quietly(&config(first_name.as_str()), &sent).expect("answered");
+    stop(first);
+    let finished: Vec<PathBuf> = std::fs::read_dir(&earlier)
+        .expect("the earlier journal lists")
+        .flatten()
+        .map(|entry| { return entry.path(); })
+        .filter(|path| { return path.extension().is_some_and(|extension| { return extension == DONE_EXTENSION; }); })
+        .collect();
+    assert_eq!(finished.len(), 1, "one landed batch");
+    let open: PathBuf = finished[0].with_extension(git_policy_cli::service_journal::OPEN_EXTENSION);
+    std::fs::rename(&finished[0], &open).expect("reopen the batch");
+    // The service of this release starts for the same worktree, with its journal in the new place.
+    let second_name: String = address(&fixture, "held-second");
+    let second: Service = start_instance_service(second_name.as_str(), current.as_path(), instance.as_str(), &[]);
+    wait_until_reachable(second_name.as_str());
+    // The first answer comes after the start, where the adoption would have run.
+    let next: CommitRequest = request(&fixture, &repo, "held-2", "b.txt", "b\n");
+    submit_quietly(&config(second_name.as_str()), &next).expect("answered");
+    assert!(open.exists(), "the open batch of the earlier journal is left where it is");
+    assert!(!finished[0].exists(), "and is not marked finished by the service of this release");
     stop(second);
     remove_settled(&fixture);
 }
