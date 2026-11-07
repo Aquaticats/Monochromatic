@@ -158,7 +158,7 @@ fn fold_one(directory: &Path, kept: KeptName, steps: &mut dyn FoldSteps) -> Outc
         KeptKind::Folder => match fold_folder(directory, kept.name, steps) {
             Ok(FolderFold::Nothing) => return Outcome::Nothing,
             Ok(FolderFold::Folded { .. }) => return Outcome::Folded,
-            Ok(FolderFold::Left { kept }) => return Outcome::Left(kept),
+            Ok(FolderFold::Left { kept: stayed }) => return Outcome::Left(stayed),
             Ok(FolderFold::Stopped(step)) => return Outcome::Stopped(step),
             Err(error) => return Outcome::Failed(error.to_string()),
         },
