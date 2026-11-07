@@ -95,6 +95,7 @@ const { values } = parseArgs({
     cold: { type: 'boolean' },
     // How many tracked text files every commit sample edits and commits by name (the size of the commit), default one.
     files: { type: 'string', },
+    'new-files': { type: 'string', },
     // Milliseconds to wait after each round, so the work a commit leaves running after its answer is over before the next one.
     pause: { type: 'string' },
   },
@@ -209,6 +210,8 @@ const wrappedRepository = await fixture('wrapped-repo');
  */
 const edits = await sampleEditsOf({
   ...(values.files === undefined ? {} : { files: values.files, }),
+  ...(values['new-files'] === undefined ? {} : { added: values['new-files'], }),
+  root,
   shaped: values.shape !== undefined,
   directory: directRepository,
 });
@@ -339,7 +342,7 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
           '--quiet',
           `--message=perf ${String(sample)}`,
           '--',
-          ...edits.names,
+          ...edits.pathsOf(sample),
         ];
       },
       kind: 'commit',

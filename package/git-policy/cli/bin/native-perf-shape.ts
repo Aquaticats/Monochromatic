@@ -9,6 +9,7 @@ import {
   appendFile,
   copyFile,
   readdir,
+  writeFile,
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -276,10 +277,11 @@ export function makeFixture({
 
 /**
  The files every commit sample edits and how it edits them: the repository-relative paths the commit of a sample names, and a
- `prepare` step that appends one line to each of them in a repository, so the next commit of those files is a real change.
+ `prepare` step that appends one line to each of them in a repository, so the next commit of those files is a real change, and
+ creates and stages the new files of the sample, so the commit names staged additions as well.
  */
 export type SampleEdits = {
-  readonly names: readonly string[];
+  readonly pathsOf: (sample: number) => readonly string[];
   readonly prepare: (target: {
     readonly directory: string;
     readonly sample: number;
@@ -294,6 +296,11 @@ export type SampleEdits = {
  repository holds many of them. The two fixtures of a run are copies of each other, so the names hold in both.
 
  @param files - the `--files` text, how many files a sample edits; absent means one
+
+ @param added - the `--new-files` text, how many new files each sample creates and stages with `git add` before its commit, which
+   then names them with the edited ones; absent means none
+
+ @param root - scratch root that holds `bin` and `home`, which staging runs in
 
  @param shaped - whether the fixtures are copies of a prepared repository, which tracks `README.md` at its root (`DPL`), instead of
    the thirty generated files
@@ -311,10 +318,14 @@ export type SampleEdits = {
  */
 export async function sampleEditsOf({
   files,
+  added,
+  root,
   shaped,
   directory,
 }: {
   readonly files?: string;
+  readonly added?: string;
+  readonly root: string;
   readonly shaped: boolean;
   readonly directory: string;
 }): Promise<SampleEdits> {
@@ -359,8 +370,38 @@ export async function sampleEditsOf({
   if (names.length < count) {
     throw new Error(`the repository tracks ${String(names.length)} text files, fewer than the ${String(count)} asked for`);
   }
+  /**
+   How many new files each sample creates and stages.
+   */
+  const created = Number(added ?? '0');
+  if ((!Number.isInteger(created)) || (created < 0)) {
+    throw new Error('--new-files must be a non-negative integer');
+  }
+  /**
+   The new files of one sample, named by the sample so no two samples share one.
+
+   @param sample - number of the sample
+
+   @returns repository-relative names
+   */
+  function addedBy(sample: number): readonly string[] {
+    return Array.from(
+      { length: created, },
+      function nameOf(
+        _unused,
+        index
+      ) {
+        return `perf-added-${String(sample)}-${String(index)}.txt`;
+      },
+    );
+  }
   return {
-    names,
+    pathsOf(sample) {
+      return [
+        ...names,
+        ...addedBy(sample),
+      ];
+    },
     async prepare({
       directory: target,
       sample,
@@ -374,6 +415,27 @@ export async function sampleEditsOf({
           `edit ${String(sample)} ${String(Math.random())}\n`,
         );
       }));
+      if (created > 0) {
+        await Promise.all(addedBy(sample)
+          .map(function create(name) {
+            return writeFile(
+              join(
+                target,
+                name,
+              ),
+              `new ${name}\n`,
+            );
+          }));
+        await setup({
+          root,
+          directory: target,
+          arguments_: [
+            'add',
+            '--',
+            ...addedBy(sample),
+          ],
+        });
+      }
     },
   };
 }
