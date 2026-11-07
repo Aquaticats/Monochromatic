@@ -135,6 +135,15 @@ pub struct SettledBatch {
     pub report: RecoveryReport,
 }
 
+/// An open batch of the worktree that the recovery could not examine, with the journal it is in.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnansweredBatch {
+    /// The journal the batch is in.
+    pub journal: PathBuf,
+    /// The batch.
+    pub seq: u64,
+}
+
 /// What a settling on request came to.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RequestedSettlement {
@@ -147,8 +156,13 @@ pub enum RequestedSettlement {
         /// Why nothing was settled.
         because: Hold,
     },
-    /// The batches were dealt with by the finish-only recovery; a batch Git could not answer for is not among them.
-    Settled(Vec<SettledBatch>),
+    /// The batches were dealt with by the finish-only recovery, and the batches it could not examine are named.
+    Settled {
+        /// The batches the recovery dealt with.
+        batches: Vec<SettledBatch>,
+        /// The open batches of the worktree that Git gave no answer for; their intents stay on disk.
+        unanswered: Vec<UnansweredBatch>,
+    },
 }
 
 /// The look at the sockets and processes of the earlier helper of an instance, for journals in `earlier`.
@@ -200,7 +214,7 @@ pub fn settle_on_request(git: &GitContext, earlier: &EarlierJournals, instance: 
         log_adopted_batches(reports.as_slice(), journal.as_path());
         settled.extend(reports.into_iter().map(|report| { return SettledBatch { journal: journal.clone(), report }; }));
     }
-    return RequestedSettlement::Settled(settled);
+    return RequestedSettlement::Settled { batches: settled, unanswered: Vec::new() };
 }
 
 /// What:

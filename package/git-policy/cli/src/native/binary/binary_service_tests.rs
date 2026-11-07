@@ -292,6 +292,57 @@ fn the_settle_command_finishes_a_batch_the_earlier_helper_left_open() {
     remove_settled(&fixture);
 }
 
+/// A batch the command cannot examine (here its repository is gone) is named with its journal, stays on disk untouched, and
+///  makes the exit status nonzero, even though another batch was finished in the same run.
+#[test]
+fn the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero() {
+    let fixture: Fixture = fixture("service-settle-unanswered");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let earlier: PathBuf = fixture.root.join("home/.local/state/cli-git/service").join(instance.as_str());
+    let (open, finished) = leave_a_batch_open(&fixture, &repo, instance.as_str(), earlier.as_path(), "unanswered");
+    let mut intent = git_policy_cli::service_journal::parse_intent(std::fs::read_to_string(&open).expect("read").as_str()).expect("parse");
+    intent.seq += 1;
+    intent.repository = fixture.root.join("repository-that-is-not-there");
+    git_policy_cli::service_journal::write_intent(earlier.as_path(), &intent).expect("an intent whose repository is gone");
+    let unavailable: PathBuf = earlier.join(format!("{}.intent", intent.seq));
+    let settled = super::support::run_wrapped(&fixture, &repo, &["monochromatic-git-policy-cli", "service", "settle-earlier-batches"]);
+    let stdout: String = String::from_utf8_lossy(settled.stdout.as_slice()).into_owned();
+    let stderr: String = String::from_utf8_lossy(settled.stderr.as_slice()).into_owned();
+    assert_eq!(settled.code, Some(1), "{stdout}{stderr}");
+    assert!(stdout.contains("finished batch 1"), "the batch that could be examined is finished: {stdout}");
+    assert!(stdout.contains(format!("batch {}", intent.seq).as_str()) && stdout.contains("could not be examined"), "the other is named: {stdout}");
+    assert!(unavailable.exists(), "its intent stays on disk");
+    assert!(!open.exists() && finished.exists());
+    remove_settled(&fixture);
+}
+
+/// When the safety condition cannot be delivered (standard error is closed), the command settles nothing: the batch is still
+///  open afterwards and the exit status is not success.
+#[test]
+fn the_settle_command_changes_nothing_when_its_condition_cannot_be_written() {
+    let fixture: Fixture = fixture("service-settle-closed-stderr");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let earlier: PathBuf = fixture.root.join("home/.local/state/cli-git/service").join(instance.as_str());
+    let (open, finished) = leave_a_batch_open(&fixture, &repo, instance.as_str(), earlier.as_path(), "closed");
+    let mut command: Command = super::support::wrapped(&fixture);
+    command
+        .current_dir(&repo)
+        .args(["monochromatic-git-policy-cli", "service", "settle-earlier-batches"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    let mut child: Child = command.spawn().expect("the wrapper starts");
+    // The reader goes away at once, so the first write to standard error fails.
+    drop(child.stderr.take());
+    let status = child.wait().expect("the wrapper ends");
+    assert_ne!(status.code(), Some(0), "{status:?}");
+    assert!(open.exists(), "the batch is still open");
+    assert!(!finished.exists(), "and was not marked finished");
+    remove_settled(&fixture);
+}
+
 /// Review finding of 2026-11-07 (cross-vendor, rounds 5 and 6): the look at the earlier sockets and processes cannot exclude an
 ///  earlier-release wrapper that sets its socket unit up and starts the helper between the look and the end of a recovery, and
 ///  masking the unit would make that wrapper fail its commits. So the service runs no adoption at all: whatever options it is

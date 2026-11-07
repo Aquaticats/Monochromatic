@@ -61,8 +61,18 @@ const EARLIER_SHARED_SOCKET_FILE: &str = "service.sock";
 pub enum Hold {
     /// A socket of an earlier unit listens: a connection to it starts the earlier helper at any moment.
     SocketListens,
+    /// The earlier release's socket of this worktree (`cli-git/<instance>.sock`) listens.
+    InstanceSocketListens,
+    /// The socket of the single service of the first releases (`cli-git/service.sock`) listens; it serves every worktree.
+    SharedSocketListens,
     /// A process has the start arguments of the earlier helper of the worktree.
     ServiceRuns,
+    /// A process runs as the earlier helper of this worktree (its journal or its instance is this worktree's).
+    InstanceHelperRuns,
+    /// A process runs as the single service of the first releases (its journal is the shared one); it serves every worktree.
+    SharedHelperRuns,
+    /// A process has a journal option whose folder could not be resolved, so it may be an earlier helper.
+    HelperUnsure,
     /// The sockets or the processes could not be looked at (a table or a command line that cannot be read, a look that ran out of time).
     CannotLook,
 }
@@ -71,6 +81,7 @@ impl Hold {
     /// The reason in plain words, as a sentence part that follows "because".
     pub fn words(self) -> &'static str {
         return match self {
+            Hold::InstanceSocketListens | Hold::SharedSocketListens | Hold::InstanceHelperRuns | Hold::SharedHelperRuns | Hold::HelperUnsure => "",
             Hold::SocketListens => "an earlier socket of this worktree listens, and a connection to it starts the earlier helper at any moment",
             Hold::ServiceRuns => "a process runs as the earlier helper of this worktree, and it finishes its own batches",
             Hold::CannotLook => "the sockets and processes of the earlier helper could not be looked at in time, so it is not known whether one runs",

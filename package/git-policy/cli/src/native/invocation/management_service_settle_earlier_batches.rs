@@ -141,7 +141,7 @@ pub(crate) fn settle_earlier_batches_action(request: &SettleRequest<'_>, conditi
     let _said = condition_out.write_all(CONDITION.as_bytes());
     let _flushed = condition_out.flush();
     let settled = match settle_on_request(git, &earlier, instance.as_str(), request.proc_root, LOCK_CEILING) {
-        RequestedSettlement::Settled(batches) => batches,
+        RequestedSettlement::Settled { batches, .. } => batches,
         RequestedSettlement::Held { because, .. } => return held(because),
         RequestedSettlement::NothingOpen => return Action::Exit { code: 0, stdout: String::from("No batch of the earlier release is left open for this worktree. Nothing to settle.\n"), stderr: String::new() },
     };

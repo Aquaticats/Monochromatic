@@ -136,28 +136,69 @@ fn a_command_that_cannot_find_the_worktree_or_the_journals_says_so_and_changes_n
     remove(world.root.as_path());
 }
 
-/// A socket that listens, a process that runs, and a look that cannot be made each hold the command back with their own
-///  words, the count of open batches, what was not done, and what to do; nothing is changed and nothing was said as if acting.
+/// Appends a listening socket line to the fake table.
+fn listen_at(world: &Setup, file: &str) {
+    let table: PathBuf = world.proc_root.join("net/unix");
+    let before: String = std::fs::read_to_string(&table).expect("table");
+    std::fs::write(&table, format!("{before}0000000000000001: 00000002 00000000 00010000 0001 01 1 /run/user/1000/cli-git/{file}\n")).expect("a listening socket");
+}
+
+/// Puts a fake process with `words` in the table.
+fn run_process(world: &Setup, words: &[String]) {
+    let process: PathBuf = world.proc_root.join("77");
+    std::fs::create_dir_all(&process).expect("process");
+    let mut bytes: Vec<u8> = Vec::new();
+    for word in words {
+        bytes.extend(word.as_bytes());
+        bytes.push(0);
+    }
+    std::fs::write(process.join("cmdline"), bytes).expect("command line");
+}
+
+/// A socket that listens, a process that runs, and a look that cannot be made each hold the command back with their own words,
+///  the count of open batches, what was not done, and the way on that fits the cause; nothing is changed and nothing was said
+///  as if acting. This worktree's units are named for this worktree's socket and helper; the single service of the first
+///  releases is named as serving every worktree, with the units that exist for it; a way on never names units that are not the
+///  cause, and the wait for an idle exit is offered only where no socket listens that would start the helper again.
 #[test]
-fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the_way_on() {
+fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the_way_that_fits() {
     let world: Setup = setup("settle-command-held");
     world.leave_open_batches(2);
     let instance: String = world.instance();
+    let own_units: String = format!("cli-git@{instance}.socket cli-git@{instance}.service");
     let table: PathBuf = world.proc_root.join("net/unix");
     let header: String = std::fs::read_to_string(&table).expect("header");
-    std::fs::write(&table, format!("{header}0000000000000001: 00000002 00000000 00010000 0001 01 1 /run/user/1000/cli-git/{instance}.sock\n")).expect("a listening socket");
+    listen_at(&world, format!("{instance}.sock").as_str());
     let ((socket_code, socket_out, socket_err), before) = run(&world.request());
     assert_eq!((socket_code, socket_out.as_str(), before.as_str()), (1, "", ""));
-    for wanted in ["2 batches", "listens", "Nothing was changed", "systemctl --user stop", "three hours", COMMAND] {
+    for wanted in ["2 batches", "listens", "Nothing was changed", own_units.as_str(), COMMAND] {
         assert!(socket_err.contains(wanted), "{wanted}: {socket_err}");
     }
-    std::fs::write(&table, header).expect("an empty table");
-    let process: PathBuf = world.proc_root.join("77");
-    std::fs::create_dir_all(&process).expect("process");
-    std::fs::write(process.join("cmdline"), format!("/p/cli-git\0cli-git\0service\0run\0--instance\0{instance}\0")).expect("command line");
+    assert!(!socket_err.contains("three hours") && !socket_err.contains("cli-git.socket"), "a listening socket does not stop by waiting: {socket_err}");
+    std::fs::write(&table, header.as_str()).expect("an empty table");
+    listen_at(&world, "service.sock");
+    let ((shared_code, _, shared_err), _) = run(&world.request());
+    assert_eq!(shared_code, 1);
+    for wanted in ["every worktree", "systemctl --user stop cli-git.socket cli-git.service", "Nothing was changed"] {
+        assert!(shared_err.contains(wanted), "{wanted}: {shared_err}");
+    }
+    assert!(!shared_err.contains(own_units.as_str()) && !shared_err.contains("three hours"), "units that are not the cause, or a wait that clears nothing: {shared_err}");
+    std::fs::write(&table, header.as_str()).expect("an empty table");
+    run_process(&world, &[String::from("/p/cli-git"), String::from("cli-git"), String::from("service"), String::from("run"), String::from("--instance"), instance.clone()]);
     let ((process_code, _, process_err), _) = run(&world.request());
     assert_eq!(process_code, 1);
-    assert!(process_err.contains("runs as the earlier helper") && process_err.contains("Nothing was changed"), "{process_err}");
+    for wanted in ["runs as the earlier helper", "Nothing was changed", own_units.as_str(), "three hours"] {
+        assert!(process_err.contains(wanted), "{wanted}: {process_err}");
+    }
+    run_process(&world, &[String::from("/p/cli-git-native"), String::from("--journal"), world.state.join("cli-git/service").display().to_string()]);
+    let ((single_code, _, single_err), _) = run(&world.request());
+    assert_eq!(single_code, 1);
+    assert!(single_err.contains("every worktree") && single_err.contains("systemctl --user stop cli-git.socket cli-git.service") && !single_err.contains(own_units.as_str()), "{single_err}");
+    run_process(&world, &[String::from("/p/cli-git-native"), String::from("--journal"), String::from("/nowhere/at/all")]);
+    let ((unsure_code, _, unsure_err), _) = run(&world.request());
+    assert_eq!(unsure_code, 1);
+    assert!(unsure_err.contains(own_units.as_str()) && unsure_err.contains("cli-git.socket cli-git.service"), "both sets of units, because the cause is not known: {unsure_err}");
+    std::fs::remove_dir_all(world.proc_root.join("77")).expect("process gone");
     std::fs::remove_file(&table).expect("no table");
     let ((blind_code, _, blind_err), _) = run(&world.request());
     assert_eq!(blind_code, 1);
@@ -167,9 +208,10 @@ fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the
 }
 
 /// Before it acts, the command says the condition it is safe under, in plain words, and what an earlier-release wrapper does
-///  to it. Here Git gives no answer for the batch, so the batch stays open and nothing is discarded.
+///  to it. Here Git gives no answer for the batch, so the batch is named as one the command could not examine, stays on disk,
+///  and the exit status says that something was not done.
 #[test]
-fn the_condition_is_said_before_the_command_acts_and_a_batch_git_cannot_answer_for_stays_open() {
+fn the_condition_is_said_before_the_command_acts_and_a_batch_git_cannot_answer_for_is_named() {
     let world: Setup = setup("settle-command-condition");
     world.leave_open_batches(1);
     let ((code, _, stderr), before) = run(&world.request());
@@ -177,9 +219,49 @@ fn the_condition_is_said_before_the_command_acts_and_a_batch_git_cannot_answer_f
         assert!(before.contains(wanted), "{wanted}: {before}");
     }
     assert_eq!(code, 1);
-    assert!(stderr.contains("could not be settled now") && stderr.contains("nothing was discarded"), "{stderr}");
+    for wanted in ["batch 1", "could not be examined", "stays on disk", "nothing was discarded"] {
+        assert!(stderr.contains(wanted), "{wanted}: {stderr}");
+    }
     assert_eq!(world.open_files(), 1);
     remove(world.root.as_path());
+}
+
+/// A writer that fails, as standard error does when it is closed or its reader is gone.
+struct FailingWriter {
+    fail_flush_only: bool,
+}
+
+impl std::io::Write for FailingWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if self.fail_flush_only {
+            return Ok(bytes.len());
+        }
+        return Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "standard error is closed"));
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "standard error is closed"));
+    }
+}
+
+/// The condition must reach the person before anything is changed: when it cannot be written (or flushed), the command refuses,
+///  says so, and has settled and examined nothing, so no intent is touched and nothing is logged as examined.
+#[test]
+fn a_condition_that_cannot_be_delivered_stops_the_command_before_it_acts() {
+    for fail_flush_only in [false, true] {
+        let world: Setup = setup("settle-command-writer");
+        world.leave_open_batches(1);
+        let entries = crate::service_timing::capture::entries_of(|| {
+            let action: Action = settle_earlier_batches_action(&world.request(), &mut FailingWriter { fail_flush_only });
+            let (code, stdout, stderr) = parts(action);
+            assert_eq!((code, stdout.as_str()), (1, ""));
+            assert!(stderr.contains("could not be written") && stderr.contains("nothing was settled"), "{stderr}");
+            assert!(!stderr.contains("could not be examined"), "the recovery did not start: {stderr}");
+        });
+        assert!(entries.iter().all(|entry| { return !entry.message.contains("Git gave no answer"); }), "{entries:?}");
+        assert_eq!(world.open_files(), 1);
+        remove(world.root.as_path());
+    }
 }
 
 /// The doctor's note counts the open batches of the worktree without changing a file, names the command, says it only
