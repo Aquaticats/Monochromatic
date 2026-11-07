@@ -37,6 +37,16 @@ pub const PROCESS_LOOK_CEILING: Duration = Duration::from_secs(10);
 ///  a person's `git commit` with its editor open for longer than this makes ours stop with the error.
 pub const LOCK_CEILING: Duration = Duration::from_secs(10 * 60);
 
+/// The longest wait for a foreign program's `index.lock` that ended because the program let go, in the commit service's journal.
+///  Measured on 2026-11-07 over the journal since 2026-11-01 (`waited for the index lock` lines): three waits ended by the holder
+///  letting go, at 1,034 ms, 1,516 ms and 8,000 ms; every other wait in that journal (five, 600,090 ms to 600,718 ms, all one
+///  lock) was one lock that never went, left for 62 minutes by a live `git commit` the wait could not name. The sample is three
+///  waits on one host.
+pub const LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT: Duration = Duration::from_millis(8_000);
+
+/// The longest a landing waits for a foreign program's `index.lock`, and so the longest a commit waits behind one.
+pub const LANDING_LOCK_CEILING: Duration = LOCK_CEILING;
+
 /// The longest a forwarded `git add`, `rm` or `mv` waits for the commit service's hold on the index, and the longest its whole
 ///  series of reruns lasts. Measured: the longest of 715 logged service holds was 119,721 ms (disk sync of the new index). Ten
 ///  minutes is five times that.

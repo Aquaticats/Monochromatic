@@ -226,6 +226,24 @@ pub fn scan_proc_fd_holders(proc_root: &Path, device: u64, inode: u64, self_pid:
 /// ```
 #[cfg(unix)]
 pub fn scan_proc_fd_holders_until(proc_root: &Path, device: u64, inode: u64, self_pid: u32, deadline: Option<std::time::Instant>) -> HolderEvidence {
+    return scan_proc_fd_holders_stopping(proc_root, device, inode, self_pid, &|_reached| {
+        return deadline.is_some_and(|limit| { return std::time::Instant::now() >= limit; });
+    });
+}
+
+/// What:
+///  `scan_proc_fd_holders_until` with the stop given as a question asked before each process,
+/// so a control can cut a scan after a number of processes instead of racing a clock.
+/// Why:
+///   `stop(reached)` is asked with the number of processes already looked at;
+/// `true` ends the scan, and the evidence says how far it got.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await scanProcFdHolders({ device, inode, procRoot, selfPid, stop: (reached) => reached >= 5 });
+/// ```
+#[cfg(unix)]
+pub fn scan_proc_fd_holders_stopping(proc_root: &Path, device: u64, inode: u64, self_pid: u32, stop: &dyn Fn(usize) -> bool) -> HolderEvidence {
     let mut evidence: HolderEvidence = HolderEvidence {
         method: "proc-fd",
         holders: Vec::new(),
@@ -247,9 +265,7 @@ pub fn scan_proc_fd_holders_until(proc_root: &Path, device: u64, inode: u64, sel
         }
     }
     for (reached, pid) in pids.iter().enumerate() {
-        if let Some(limit) = deadline
-            && std::time::Instant::now() >= limit
-        {
+        if stop(reached) {
             evidence.partial.push(format!("stopped at the time bound after {reached} of {} processes", pids.len()));
             break;
         }
