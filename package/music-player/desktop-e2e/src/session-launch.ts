@@ -24,9 +24,58 @@ import { join, } from 'node:path';
 export const UNIT_PREFIX = 'music-player-e2e-';
 
 /**
- Memory ceiling of one session unit.
+ Memory ceiling, as a systemd `MemoryMax` value, of one session unit, which holds the compositor and the app.
+
+ Measured on 2026-11-07 by sampling every `music-player-e2e-*` unit of this runner every 200 ms during a full run
+ (122 checks passed, 209 s, one unrelated Unicode-typing check failed) and a `seek` run: the widest `memory.peak` of
+ any unit was 411123712 bytes (the `wide` session of the `seek` run), and the app process alone peaked at 138828 KiB
+ resident. 2G is about five times the widest peak. The value before this measurement, 8G, had no record. Raise it with
+ `E2E_UNIT_MEMORY_MAX` when a unit is killed for memory.
  */
-const SESSION_MEMORY_MAX = '8G';
+export const SESSION_MEMORY_MAX = '2G';
+
+/**
+ CPU ceiling, as a systemd `CPUQuota` value, of one session unit; `400%` is four hardware threads.
+
+ The widest CPU time of any unit in the measurement of `SESSION_MEMORY_MAX` was 3.3 s over a session that lasted
+ several seconds (`usage_usec` 3286059 for the `wide` session of the full run), far under one thread on average, so four
+ threads leave room for the compositor's render and encoder threads without letting a runaway app take the host. Raise
+ it with `E2E_UNIT_CPU_QUOTA`.
+ */
+export const SESSION_CPU_QUOTA = '400%';
+
+/**
+ Task limit, as a systemd `TasksMax` value, of one session unit. A control group counts threads as well as processes.
+
+ The widest `pids.peak` of any unit in the measurement of `SESSION_MEMORY_MAX` was 88 (the `visual-light` session), and
+ the app alone ran 66 threads. 512 is a power of two over five times that, because a start that hits the limit fails
+ with a bare `EAGAIN` that names no limit. Raise it with `E2E_UNIT_TASKS_MAX`.
+ */
+export const SESSION_TASKS_MAX = '512';
+
+/**
+ Disk weight, as a systemd `IOWeight` value, of one session unit. The owner's rule (`CLAUDE.md`, rule RXS) is never
+ above 10; a unit without the property gets systemd's default of 100. No option raises it.
+ */
+export const SESSION_IO_WEIGHT = 10;
+
+/**
+ The memory, CPU and task limits of one session unit, each a systemd value.
+ */
+export type UnitLimits = {
+  readonly cpuQuota: string;
+  readonly memoryMax: string;
+  readonly tasksMax: string;
+};
+
+/**
+ The limits a session unit gets when the run names none.
+ */
+export const DEFAULT_UNIT_LIMITS: UnitLimits = {
+  memoryMax: SESSION_MEMORY_MAX,
+  cpuQuota: SESSION_CPU_QUOTA,
+  tasksMax: SESSION_TASKS_MAX,
+};
 
 /**
  Display name to use when the host environment names none.
@@ -196,11 +245,13 @@ export function sessionEnvironment(
  
  @param releaseBinary - the app executable
  
+ @param limits - memory, CPU and task limits of the unit; the disk weight is fixed
+ 
  @returns the arguments, in order
  
  @example
  ```ts
- const args = systemdRunArguments({ unit, logPath, environment, compositorPath, socket, options, releaseBinary, },);
+ const args = systemdRunArguments({ unit, logPath, environment, compositorPath, socket, options, releaseBinary, limits, },);
  ```
  */
 export function systemdRunArguments(
@@ -212,9 +263,11 @@ export function systemdRunArguments(
     socket,
     options,
     releaseBinary,
+    limits,
   }: {
     readonly compositorPath: string;
     readonly environment: Readonly<Record<string, string>>;
+    readonly limits: UnitLimits;
     readonly logPath: string;
     readonly options: SessionOptions;
     readonly releaseBinary: string;
@@ -226,7 +279,10 @@ export function systemdRunArguments(
     '--user',
     `--unit=${unit}`,
     '--collect',
-    `--property=MemoryMax=${SESSION_MEMORY_MAX}`,
+    `--property=MemoryMax=${limits.memoryMax}`,
+    `--property=CPUQuota=${limits.cpuQuota}`,
+    `--property=TasksMax=${limits.tasksMax}`,
+    `--property=IOWeight=${String(SESSION_IO_WEIGHT,)}`,
     `--property=StandardOutput=append:${logPath}`,
     `--property=StandardError=append:${logPath}`,
     ...Object.entries(environment,)

@@ -12,8 +12,10 @@ import {
 
 import {
   cgroupBelongsToUnit,
+  DEFAULT_UNIT_LIMITS,
   hostEnvironment,
   runRefusal,
+  SESSION_IO_WEIGHT,
   sessionEnvironment,
   type SessionOptions,
   systemdRunArguments,
@@ -152,12 +154,13 @@ await describe({
           socket: '/scratch/wide.sock',
           options: OPTIONS,
           releaseBinary: '/app/music-player',
+          limits: DEFAULT_UNIT_LIMITS,
         },);
         expect(args.slice(0, 4,),).toEqual([
           '--user',
           '--unit=music-player-e2e-1-wide',
           '--collect',
-          '--property=MemoryMax=8G',
+          `--property=MemoryMax=${DEFAULT_UNIT_LIMITS.memoryMax}`,
         ],);
         expect(args,).toContain('--property=StandardOutput=append:/scratch/wide.log',);
         expect(args,).toContain('--property=StandardError=append:/scratch/wide.log',);
@@ -191,6 +194,7 @@ await describe({
           socket: '/s',
           options: OPTIONS,
           releaseBinary: '/app',
+          limits: DEFAULT_UNIT_LIMITS,
         },);
         for (const property of ['MemoryMax', 'CPUQuota', 'TasksMax', 'IOWeight',])
           expect(propertyValues({ args, property, },),).toHaveLength(1,);
@@ -207,10 +211,12 @@ await describe({
           socket: '/s',
           options: OPTIONS,
           releaseBinary: '/app',
+          limits: DEFAULT_UNIT_LIMITS,
         },);
         const [weight,] = propertyValues({ args, property: 'IOWeight', },);
         expect(Number(weight,),).toBeGreaterThan(0,);
         expect(Number(weight,),).toBeLessThanOrEqual(OWNER_MAXIMUM_IO_WEIGHT,);
+        expect(SESSION_IO_WEIGHT,).toBeLessThanOrEqual(OWNER_MAXIMUM_IO_WEIGHT,);
       },
     },),
     it({
@@ -225,7 +231,7 @@ await describe({
           options: OPTIONS,
           releaseBinary: '/app',
           limits: { memoryMax: '3G', cpuQuota: '700%', tasksMax: '77', },
-        } as Parameters<typeof systemdRunArguments>[0],);
+        },);
         expect(propertyValues({ args, property: 'MemoryMax', },),).toEqual(['3G',],);
         expect(propertyValues({ args, property: 'CPUQuota', },),).toEqual(['700%',],);
         expect(propertyValues({ args, property: 'TasksMax', },),).toEqual(['77',],);
@@ -242,6 +248,7 @@ await describe({
           socket: '/s',
           options: { ...OPTIONS, appArgs: ['--flag', '/other',], },
           releaseBinary: '/app',
+          limits: DEFAULT_UNIT_LIMITS,
         },);
         expect(args.slice(-3,),).toEqual(['/app', '--flag', '/other',],);
       },
@@ -257,6 +264,7 @@ await describe({
           socket: '/s',
           options: OPTIONS,
           releaseBinary: '/app',
+          limits: DEFAULT_UNIT_LIMITS,
         },);
         expect(['kill', 'pkill', 'signal',].some((word,) => args.join(' ',).includes(word,),),).toBe(false,);
       },

@@ -13,6 +13,7 @@ import {
   loadRunConfig,
   overridesFromEnvironment,
 } from './config.ts';
+import { DEFAULT_UNIT_LIMITS, } from './session-launch.ts';
 
 await describe({
   name: loadRunConfig.name,
@@ -34,6 +35,7 @@ await describe({
           outputRoot: '/work/app/target/e2e',
           releaseBinary: '/work/app/target/release/music-player',
           scratchRoot: '/home/tester/temp/agent/music-player-e2e',
+          unitLimits: DEFAULT_UNIT_LIMITS,
         },);
       },
     },),
@@ -61,7 +63,7 @@ await describe({
           home: '/home/tester',
           overrides: { unitMemoryMax: '3G', unitCpuQuota: '700%', unitTasksMax: '77', },
           defaultCompositorPath: '/mise/installs/nested/bin/nested',
-        } as Parameters<typeof loadRunConfig>[0],) as Record<string, unknown>;
+        },);
         expect(config.unitLimits,).toEqual({ memoryMax: '3G', cpuQuota: '700%', tasksMax: '77', },);
       },
     },),
@@ -73,9 +75,8 @@ await describe({
           home: '/home/tester',
           overrides: {},
           defaultCompositorPath: '/mise/installs/nested/bin/nested',
-        },) as Record<string, unknown>;
-        const limits = config.unitLimits as Record<string, string> | undefined;
-        expect(Object.keys(limits ?? {},).toSorted(),).toEqual(['cpuQuota', 'memoryMax', 'tasksMax',],);
+        },);
+        expect(Object.keys(config.unitLimits,).toSorted(),).toEqual(['cpuQuota', 'memoryMax', 'tasksMax',],);
       },
     },),
     it({
@@ -105,7 +106,7 @@ await describe({
         process.env.E2E_UNIT_MEMORY_MAX = '3G';
         process.env.E2E_UNIT_CPU_QUOTA = '700%';
         process.env.E2E_UNIT_TASKS_MAX = '77';
-        const read = overridesFromEnvironment() as Record<string, unknown>;
+        const read = overridesFromEnvironment();
         for (const [name, value,] of saved)
           if (value === undefined)
             Reflect.deleteProperty(process.env, name,);
@@ -119,7 +120,16 @@ await describe({
     it({
       name: 'reads only the variables that are set',
       fn: async ({ expect, }) => {
-        const names = ['E2E_COMPOSITOR', 'E2E_LIBRARY_GENERATOR', 'E2E_ONLY', 'E2E_OUT', 'E2E_TMP',] as const;
+        const names = [
+          'E2E_COMPOSITOR',
+          'E2E_LIBRARY_GENERATOR',
+          'E2E_ONLY',
+          'E2E_OUT',
+          'E2E_TMP',
+          'E2E_UNIT_CPU_QUOTA',
+          'E2E_UNIT_MEMORY_MAX',
+          'E2E_UNIT_TASKS_MAX',
+        ] as const;
         const saved = names.map((name,) => [name, process.env[name],] as const);
         for (const name of names)
           Reflect.deleteProperty(process.env, name,);
