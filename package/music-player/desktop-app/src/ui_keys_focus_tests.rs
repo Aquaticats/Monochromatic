@@ -181,3 +181,23 @@ fn the_settings_page_keeps_tab_inside_it_and_a_template_line_does_not_swallow_ta
     let after_field = labels.iter().position(|label| return label == "template-field").expect("reached");
     assert_ne!(labels.get(after_field + 1).map(String::as_str), Some("template-field"), "Tab leaves the template line");
 }
+
+#[test]
+fn opening_settings_after_a_request_for_the_track_list_leaves_the_keyboard_on_the_settings_list() {
+    let (app, _host) = fresh_window_at(850.0, 900.0);
+    load_library(&app);
+    chord(&app, &["Alt"], "2");
+    advance(64);
+    assert_eq!(focus_label(&app), "track-list", "Alt+2 asks for the track list and it takes the keyboard");
+    chord(&app, &["Ctrl", "Alt"], "s");
+    assert_eq!(app.get_route(), Route::Settings.to_int());
+    assert_eq!(focus_label(&app), "settings-list", "Settings opens with its list focused");
+    // The track list of the player page is still asked for (the request stays until another one replaces it). Frames pass,
+    // so the list's own focus timer gets its turn while the page covers the player and the list refuses focus.
+    advance(200);
+    assert_eq!(
+        focus_label(&app),
+        "settings-list",
+        "the covered track list must not move the keyboard to the Back button when its focus timer fires"
+    );
+}
