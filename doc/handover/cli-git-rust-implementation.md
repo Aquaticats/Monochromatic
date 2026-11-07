@@ -4241,6 +4241,26 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     the agent proposes the smallest shared piece,
     keeps a red-first guard against reaching the owner's bus,
     and limits a real run to one summary notification.
+- Held settle message:
+  merged into main `66dbb1ca27` (gate 5194 of 5194,
+  lint clean).
+  It names the process ID,
+  the program (first word of the command line)
+  and the unresolved `--journal` folder,
+  says other arguments are not shown because any can be a secret,
+  and agrees in number ("1 batch ... was").
+  The service log line carries the same and no other argument.
+  Not merged into the fold of earlier names,
+  which still reports only the reason.
+- Worktree tools:
+  a shell started in the main checkout resolves `cargo` in a linked worktree to main's
+  `.cache/toolchain-launchers/cargo-shadow`,
+  so after main locked `cargo-shadow` `0.1.5-alpha.1` (`c6177b875b`) a worktree whose lock still says 0.1.4 failed its host tests,
+  and `toolchain:install` in the worktree did not clear it.
+  Agent running on `fix/worktrees-use-their-own-locked-tools`
+  (reproduce with the exact error,
+  fix in the owning tool,
+  release if needed).
 - Future task,
   not now (owner,
   verbatim:
