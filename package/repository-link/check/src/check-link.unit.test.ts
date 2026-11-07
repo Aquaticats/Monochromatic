@@ -65,6 +65,26 @@ function readyAfter(): World {
   return readyAfterAt(ROOT,);
 }
 
+/** A copy of a record without one key. */
+function without<Value,>(record: Record<string, Value>, key: string,): Record<string, Value> {
+  return Object.fromEntries(Object.entries(record,).filter(([name,],) => name !== key),);
+}
+
+type ScratchFolder = {
+  readonly path: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+async function makeFolder(): Promise<ScratchFolder> {
+  const path = await mkdtemp(join(scratchRoot(), 'repository-link-open-',),);
+  return {
+    path,
+    async [Symbol.asyncDispose]() {
+      await rm(path, { recursive: true, force: true, },);
+    },
+  };
+}
+
 function probeOf(world: World,): Probe {
   return {
     lstat: async (path,) => {
@@ -134,7 +154,7 @@ await describe({
           name: 'says the link is gone when nothing is at the path',
           fn: async () => {
             const world = readyAfter();
-            delete world.entries[LINK];
+            world.entries = without(world.entries, LINK);
             expect((await answerFor({ identity: AFTER, world, },)).kind,).toBe('link-missing',);
           },
         },),
@@ -180,7 +200,7 @@ await describe({
           name: 'refuses a wrong filesystem mounted at the mount point (a target with no UUID at all)',
           fn: async () => {
             const world = readyAfter();
-            delete world.uuids[ROOT];
+            world.uuids = without(world.uuids, ROOT);
             const answer = await answerFor({ identity: AFTER, world, },);
             expect(answer.kind,).toBe('wrong-filesystem',);
             expect(answer.message,).toContain('unknown',);
@@ -190,7 +210,7 @@ await describe({
           name: 'refuses a root without a .git folder, and a .git on another filesystem',
           fn: async () => {
             const noGit = readyAfter();
-            delete noGit.entries[`${ROOT}/.git`];
+            noGit.entries = without(noGit.entries, `${ROOT}/.git`);
             expect((await answerFor({ identity: AFTER, world: noGit, },)).kind,).toBe('not-a-repository',);
             const otherGit = readyAfter();
             otherGit.uuids[`${ROOT}/.git`] = 'OTHER';
@@ -201,7 +221,7 @@ await describe({
           name: 'refuses a root whose marker is absent or differs, naming both values',
           fn: async () => {
             const absent = readyAfter();
-            delete absent.texts[`${ROOT}/.git/monochromatic-root-commit`];
+            absent.texts = without(absent.texts, `${ROOT}/.git/monochromatic-root-commit`);
             expect((await answerFor({ identity: AFTER, world: absent, },)).kind,).toBe('wrong-repository',);
             const differs = readyAfter();
             differs.texts[`${ROOT}/.git/monochromatic-root-commit`] = 'zzz';
@@ -301,7 +321,7 @@ await describe({
               deadlineSeconds: 0.3,
             },);
             expect(answer.kind,).toBe('drive-did-not-answer',);
-            expect(performance.now() - started,).toBeLessThan(3000,);
+            expect(performance.now() - started,).toBeLessThan(3_000,);
           },
         },),
       ],
@@ -312,31 +332,26 @@ await describe({
         it({
           name: 'opens the resolved root as a directory descriptor when ready, and refuses with the plain message when not',
           fn: async () => {
-            const folder = await mkdtemp(join(scratchRoot(), 'repository-link-open-',),);
+            await using folder = await makeFolder();
+            await mkdir(join(folder.path, 'root',),);
+            const identityFile = join(folder.path, 'identity.json',);
+            const root = join(folder.path, 'root',);
+            const identity = { ...AFTER, linkText: root, canonicalRoot: root, };
+            await writeIdentity({ path: identityFile, identity, },);
+            const world = readyAfterAt(root,);
+            const ready = probeOf(world,);
+            const opened = await openRepositoryRoot({ identityFile, probe: ready, },);
+            expect(opened.descriptorPath.startsWith('/proc/self/fd/',),).toBe(true,);
+            await opened.handle.close();
+            let caught: unknown;
             try {
-              await mkdir(join(folder, 'root',),);
-              const identityFile = join(folder, 'identity.json',);
-              const root = join(folder, 'root',);
-              const identity = { ...AFTER, linkText: root, canonicalRoot: root, };
-              await writeIdentity({ path: identityFile, identity, },);
-              const world = readyAfterAt(root,);
-              const ready = probeOf(world,);
-              const opened = await openRepositoryRoot({ identityFile, probe: ready, },);
-              expect(opened.descriptorPath,).toMatch(/^\/proc\/self\/fd\/\d+$/v,);
-              await opened.handle.close();
-              let caught: unknown;
-              try {
-                await openRepositoryRoot({ identityFile, probe: probeOf({ ...world, entries: { [LINK]: 'directory', }, },), },);
-              }
-              catch (error) {
-                caught = error;
-              }
-              expect(caught,).toBeInstanceOf(RepositoryLinkNotReadyError,);
-              expect((caught as Error).message,).toContain('real folder',);
+              await openRepositoryRoot({ identityFile, probe: probeOf({ ...world, entries: { [LINK]: 'directory', }, },), },);
             }
-            finally {
-              await rm(folder, { recursive: true, force: true, },);
+            catch (error) {
+              caught = error;
             }
+            expect(caught,).toBeInstanceOf(RepositoryLinkNotReadyError,);
+            expect((caught as Error).message,).toContain('real folder',);
           },
         },),
       ],

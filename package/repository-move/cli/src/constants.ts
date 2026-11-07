@@ -108,10 +108,6 @@ export const EXTERNAL_RSYNC_ARGUMENTS: readonly string[] = [
   '--one-file-system',
 ];
 
-/**
- Pattern of an external worktree folder name the tool accepts.
- */
-export const PLAIN_NAME: RegExp = /^[\w.@+\-]+$/v;
 
 /**
  Exit status of `timeout` when it ended the command at its deadline.

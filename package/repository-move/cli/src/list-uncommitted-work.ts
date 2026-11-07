@@ -14,12 +14,18 @@ import { SCAN_DEFAULT_PER_WORKTREE_SECONDS, } from './constants.ts';
 import { MoveStopError, } from './errors.ts';
 import { buildUncommittedWorkTable, } from './uncommitted-work-table.ts';
 
+/**
+ The parts of the value this function uses, taken out of it.
+ */
 const [mainWorktree = '', outputFile = '', timeoutText = '',] = argv.slice(2,);
 
 try {
   if ((mainWorktree === '') || (outputFile === '')) {
     throw new MoveStopError('usage: list-uncommitted-work.ts <main worktree> <output file> [timeout seconds]',);
   }
+  /**
+   The table of uncommitted work.
+   */
   const table = await buildUncommittedWorkTable({
     mainWorktree,
     perWorktreeSeconds: timeoutText === '' ? SCAN_DEFAULT_PER_WORKTREE_SECONDS : Number(timeoutText,),

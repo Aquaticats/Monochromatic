@@ -24,7 +24,7 @@ export const DEFAULT_DEADLINE_SECONDS = 5;
 /**
  Milliseconds in a second.
  */
-export const MILLISECONDS_PER_SECOND = 1000;
+export const MILLISECONDS_PER_SECOND = 1_000;
 
 /**
  Folder of the identity file below the home folder, and its name: the plan's `~/.config/monochromatic-dev/repository-link.json`.

@@ -8,28 +8,64 @@
  @module
  */
 
-import { stdout, argv, execPath, exit, env, } from 'node:process';
 import { realpath, } from 'node:fs/promises';
+import {
+  argv,
+  env,
+  execPath,
+  exit,
+  stdout,
+} from 'node:process';
 import { createGuidedConfig, } from './guided-config.ts';
 import {
   parseGuidedFlags,
   runGuided,
 } from './guided-runner.ts';
-import { GuidedStop, } from './guided-engine.ts';
+import { GuidedStopError, } from './guided-stop.ts';
+
+/**
+ The environment without its unset entries, as plain text values.
+ */
+const definedEnvironment: Record<string, string> = {};
+for (const name of Object.keys(env,)) {
+  /**
+   The value of one environment variable.
+   */
+  const value = env[name];
+  if (value !== undefined) {
+    definedEnvironment[name] = value;
+  }
+}
+
+/**
+ Writes text to standard output.
+
+ @param text - the text
+ */
+function write(text: string,): void {
+  stdout.write(text,);
+}
 
 try {
+  /**
+   The flags of this invocation.
+   */
   const flags = parseGuidedFlags(argv.slice(2,),);
-  const config = await createGuidedConfig({ env, nodePath: await realpath(execPath,), },);
+  /**
+   The runner's configuration.
+   */
+  const config = await createGuidedConfig({
+    env: definedEnvironment,
+    nodePath: await realpath(execPath,),
+  },);
   exit(await runGuided({
     config,
     flags,
-    out: function write(text: string,) {
-      stdout.write(text,);
-    },
+    out: write,
   },),);
 }
 catch (error) {
-  if (error instanceof GuidedStop) {
+  if (error instanceof GuidedStopError) {
     console.error(error.message,);
     exit(error.status,);
   }

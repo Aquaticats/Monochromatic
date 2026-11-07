@@ -4,7 +4,11 @@
  @module
  */
 
-import { EXIT_GIT_FATAL, EXIT_TEMPFAIL, DEFAULT_DEADLINE_SECONDS, } from './constants.ts';
+import {
+  EXIT_GIT_FATAL,
+  EXIT_TEMPFAIL,
+  DEFAULT_DEADLINE_SECONDS,
+} from './constants.ts';
 import { identityPathFor, } from './identity-file.ts';
 
 /**
@@ -23,34 +27,56 @@ export type BinOptions = {
  Reading stops at the first argument that is not an option or is `--`, and the rest is the command to run.
 
  @param argv - arguments after the program name
+ 
  @param home - the home folder for the default identity file
+ 
  @returns the options and the rest
  */
 export function parseBinOptions(
-  { argv, home, }: {
+  {
+    argv,
+    home,
+  }: {
     readonly argv: readonly string[];
     readonly home: string;
   },
 ): BinOptions {
+  /**
+   The leading of this step.
+   */
   const leading: string[] = [];
   for (const argument of argv) {
-    if (!argument.startsWith('--',) || argument === '--') {
+    if ((!argument.startsWith('--',)) || (argument === '--')) {
       break;
     }
     leading.push(argument,);
   }
-  const rest = argv.slice(leading.length,).filter(function dropSeparator(argument, index,) {
-    return !(index === 0 && argument === '--');
-  },);
+  /**
+   The rest of this step.
+   */
+  const rest = argv.slice(leading.length,)
+    .filter(function dropSeparator(
+      argument,
+      index,
+    ) {
+      return !((index === 0) && (argument === '--'));
+    },);
 
   /**
    Reads the value of one leading option.
 
    @param name - the option name without dashes
+   
    @returns the value, or an empty string when absent
    */
   function value(name: string,): string {
+    /**
+     The flag prefix searched for.
+     */
     const lead = `--${name}=`;
+    /**
+     The found of this step.
+     */
     const found = leading.find(function startsWithLead(argument,) {
       return argument.startsWith(lead,);
     },);

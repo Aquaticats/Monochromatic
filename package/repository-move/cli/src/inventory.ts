@@ -30,6 +30,9 @@ export type Subvolume = {
   readonly uuid: string;
 };
 
+/**
+ Runs a program and waits for it to end.
+ */
 const execFileAsync = promisify(execFile,);
 
 /**
@@ -59,10 +62,13 @@ const PATH_LABEL = ' path ';
  
  @returns absolute paths, in Git's order
  
- @throws {MoveStopError} when Git cannot list them
+ @throws MoveStopError when Git cannot list them
  */
 export async function listRegisteredWorktrees(mainPath: string,): Promise<readonly string[]> {
   try {
+    /**
+     The output of the listing command.
+     */
     const listing = await execFileAsync(
       GIT,
       [
@@ -163,22 +169,53 @@ const TOP_LEVEL_LABEL = ' top level ';
  Parses one inventory row.
 
  @param row - a row of `btrfs subvolume list -u`
+ 
  @returns the row's columns
- @throws {MoveStopError} when the row lacks an ID, a parent ID, a UUID or a path
+ 
+ @throws MoveStopError when the row lacks an ID, a parent ID, a UUID or a path
  */
 function parseRow(row: string,): ListedRow {
+  /**
+   The uuid at of this step.
+   */
   const uuidAt = row.indexOf(UUID_LABEL,);
-  const pathAt = row.indexOf(PATH_LABEL, uuidAt,);
+  /**
+   The path at of this step.
+   */
+  const pathAt = row.indexOf(
+    PATH_LABEL,
+    uuidAt,
+  );
+  /**
+   The top at of this step.
+   */
   const topAt = row.indexOf(TOP_LEVEL_LABEL,);
-  if (!row.startsWith(ID_LABEL,) || uuidAt < 0 || pathAt < 0 || topAt < 0) {
+  if ((!row.startsWith(ID_LABEL,)) || (uuidAt === (-1))
+    || (pathAt === (-1))
+    || (topAt === (-1))) {
     throw new MoveStopError(
       `inventory line not understood or without a UUID (list the filesystem with 'btrfs subvolume list -u'): ${row}`,
     );
   }
   return {
-    id: row.slice(ID_LABEL.length, row.indexOf(' ', ID_LABEL.length,),),
-    topLevel: row.slice(topAt + TOP_LEVEL_LABEL.length, row.indexOf(' ', topAt + TOP_LEVEL_LABEL.length,),),
-    uuid: row.slice(uuidAt + UUID_LABEL.length, pathAt,),
+    id: row.slice(
+      ID_LABEL.length,
+      row.indexOf(
+        ' ',
+        ID_LABEL.length,
+      ),
+    ),
+    topLevel: row.slice(
+      topAt + TOP_LEVEL_LABEL.length,
+      row.indexOf(
+        ' ',
+        topAt + TOP_LEVEL_LABEL.length,
+      ),
+    ),
+    uuid: row.slice(
+      uuidAt + UUID_LABEL.length,
+      pathAt,
+    ),
     path: row.slice(pathAt + PATH_LABEL.length,),
   };
 }
@@ -191,33 +228,67 @@ function parseRow(row: string,): ListedRow {
  parent.
 
  @param rows - every listed row
+ 
  @returns the rows with full paths, in the same order
  */
 export function resolveFullPaths(rows: readonly ListedRow[],): readonly Subvolume[] {
+  /**
+   The by id of this step.
+   */
   const byId = new Map(rows.map(function toEntry(row,) {
-    return [row.id, row,] as const;
+    return [
+      row.id,
+      row,
+    ] as const;
   },),);
 
   /**
    Full path of one row, following parents.
 
    @param row - the row
+   
    @param depth - recursion guard against a cycle in malformed input
+   
    @returns the full path
    */
-  function fullPath({ row, depth, }: { readonly row: ListedRow; readonly depth: number; },): string {
+  function fullPath({
+    row,
+    depth,
+  }: {
+    readonly row: ListedRow;
+    readonly depth: number
+  },): string {
+    /**
+     The parent entry of the subvolume, when it has one.
+     */
     const parent = byId.get(row.topLevel,);
-    if (parent === undefined || parent.id === row.id || depth > rows.length) {
+    if ((parent === undefined) || (parent.id === row.id)
+      || (depth > rows.length)) {
       return row.path;
     }
-    const parentFull = fullPath({ row: parent, depth: depth + 1, },);
-    return row.path.startsWith(`${parent.path}/`,)
-      ? `${parentFull}${row.path.slice(parent.path.length,)}`
+    /**
+     The parent full of this step.
+     */
+    const parentFull = fullPath({
+      row: parent,
+      depth: depth + 1,
+    },);
+    return row.path
+      .startsWith(`${parent.path}/`,)
+      ? `${parentFull}${row.path
+        .slice(parent.path
+          .length,)}`
       : `${parentFull}/${row.path}`;
   }
 
   return rows.map(function toSubvolume(row,) {
-    return { uuid: row.uuid, path: fullPath({ row, depth: 0, },), };
+    return {
+      uuid: row.uuid,
+      path: fullPath({
+        row,
+        depth: 0,
+      },),
+    };
   },);
 }
 
@@ -230,7 +301,7 @@ export function resolveFullPaths(rows: readonly ListedRow[],): readonly Subvolum
  
  @returns the main checkout's row as listed, unmapped, because only its UUID is used (empty path when it has no row), and the nested subvolumes mapped to real paths, sorted
  
- @throws {MoveStopError} when a row cannot be understood or a path is outside the prefix
+ @throws MoveStopError when a row cannot be understood or a path is outside the prefix
  */
 export function parseInventory(
   {
@@ -244,6 +315,9 @@ export function parseInventory(
   readonly main: Subvolume;
   readonly nested: readonly Subvolume[];
 } {
+  /**
+   The rows this step builds or reads.
+   */
   const rows = resolveFullPaths(text.split('\n',)
     .filter(function notBlank(row,) {
       return row.trim() !== '';
@@ -253,11 +327,13 @@ export function parseInventory(
   /**
    Maps a top-level path to a real path.
 
-   @param subvolume - the parsed row
+   @param path - the path column as resolved
+   
+   @param uuid - the subvolume UUID
    
    @returns the same UUID at the mapped path
    
-   @throws {MoveStopError} when the path is outside the prefix
+   @throws MoveStopError when the path is outside the prefix
    */
   function mapped({
     path,
@@ -273,6 +349,9 @@ export function parseInventory(
     };
   }
 
+  /**
+   The main checkout.
+   */
   const main = rows.find(function isMain(row,) {
     return row.path === options.inventoryMain;
   },);
@@ -308,7 +387,7 @@ export function parseInventory(
  
  @returns main first, then nested
  
- @throws {MoveStopError} when the two lists differ, or run mode has no inventory
+ @throws MoveStopError when the two lists differ, or run mode has no inventory
  */
 export async function reconcileInventory(
   {
@@ -319,13 +398,22 @@ export async function reconcileInventory(
     readonly log: (message: string,) => void;
   },
 ): Promise<readonly Subvolume[]> {
+  /**
+   The worktrees of this step.
+   */
   const worktrees = await listRegisteredWorktrees(options.mainPath,);
+  /**
+   The subvolume flags of this step.
+   */
   const subvolumeFlags = await Promise.all(worktrees.map(async function check(path,) {
     return await isSubvolume({
       path,
       marker: options.subvolumeMarker,
     },);
   },),);
+  /**
+   The registered of this step.
+   */
   const registered = worktrees.filter(function keepSubvolume(
     _path,
     index,
@@ -333,6 +421,9 @@ export async function reconcileInventory(
     return subvolumeFlags[index] === true;
   },)
     .toSorted();
+  /**
+   The limited of this step.
+   */
   const limited = registered.slice(
     0,
     options.limit,
@@ -356,6 +447,9 @@ export async function reconcileInventory(
       },),
     ];
   }
+  /**
+   The parts of the value this function uses, taken out of it.
+   */
   const {
     main,
     nested,
@@ -366,12 +460,21 @@ export async function reconcileInventory(
     ),
     options,
   },);
+  /**
+   The listed paths of this step.
+   */
   const listedPaths = nested.map(function pathOf(row,) {
     return row.path;
   },);
+  /**
+   The unknown to git of this step.
+   */
   const unknownToGit = listedPaths.filter(function notRegistered(path,) {
     return !registered.includes(path,);
   },);
+  /**
+   The not subvolumes of this step.
+   */
   const notSubvolumes = registered.filter(function notListed(path,) {
     return !listedPaths.includes(path,);
   },);

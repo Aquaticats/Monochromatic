@@ -6,27 +6,32 @@
  @module
  */
 
-import { fixtureStages, } from './guided-fixture-stages.data.ts';
-import {
-  externalNames,
-  preflight,
-  prepareUnitEdit,
-  SUBVOLUME_REMOVAL_OPTION,
-} from './guided-internal.ts';
+import { fixtureStages, } from './guided-loop-image-stages.data.ts';
 import type {
   GuidedConfig,
   Stage,
 } from './guided-types.ts';
+import {
+  hookPreflight,
+  hookUnitEdit,
+} from './guided-stage-hooks.ts';
+import { externalNames, } from './guided-holders.ts';
+import { SUBVOLUME_REMOVAL_OPTION, } from './guided-unit-edit.ts';
 
 /**
  The argument list of the copy tool for the real move.
 
  @param c - the configuration
+ 
  @param inventory - the inventory file
+ 
  @returns the arguments shared by every pass
  */
 export function realArguments(
-  { c, inventory, }: {
+  {
+    c,
+    inventory,
+  }: {
     readonly c: GuidedConfig;
     readonly inventory: string;
   },
@@ -38,20 +43,46 @@ export function realArguments(
  The stages of `prepare`.
 
  @param c - the configuration
+ 
  @param fixtureFolder - the fixture folder, or a placeholder when it does not exist yet
+ 
  @returns the stages in order
  */
 export async function prepareStages(
-  { c, fixtureFolder, }: {
+  {
+    c,
+    fixtureFolder,
+  }: {
     readonly c: GuidedConfig;
     readonly fixtureFolder: string;
   },
 ): Promise<readonly Stage[]> {
+  /**
+   The external worktree folder names.
+   */
   const names = await externalNames(c,);
+  /**
+   The external worktree folder names, space separated.
+   */
   const nameList = names.join(' ',);
-  const args = realArguments({ c, inventory: c.inventory, },);
+  /**
+   The arguments shared by the commands of this step.
+   */
+  const args = realArguments({
+    c,
+    inventory: c.inventory,
+  },);
+  /**
+   The copy tool command, run as the user.
+   */
   const copy = `${c.nodePath} ${c.copyTool}`;
+  /**
+   The copy tool command, run through sudo with the absolute path of node.
+   */
   const rootCopy = `sudo ${c.nodePath} ${c.copyTool}`;
+  /**
+   The installed link check command.
+   */
   const link = `${c.nodePath} ${c.linkBinFolder}`;
   return [
     {
@@ -88,7 +119,10 @@ export async function prepareStages(
       root: 'no',
       unprivileged: 'not needed: written as the user below the config folder',
     },
-    ...fixtureStages({ c, fx: fixtureFolder, },),
+    ...fixtureStages({
+      c,
+      fx: fixtureFolder,
+    },),
     {
       id: 'r0-inventory',
       title: 'Inventory R0',
@@ -120,7 +154,10 @@ sudo findmnt --list --output TARGET,SOURCE,FSTYPE | grep --fixed-strings ${c.rep
       check: `awk 'END { exit !(NF >= 4 && $2 + $3 > 0) }' ${c.wiz}/main-du.txt`,
       checkText: 'the output has a total row with exclusive plus set shared above zero',
       rollback: 'read-only',
-      timer: { file: 'du-seconds', mode: 'set', },
+      timer: {
+        file: 'du-seconds',
+        mode: 'set',
+      },
       root: 'yes',
       unprivileged: 'none: btrfs filesystem du needs root; a plain du as the user counts shared extents once per file and overestimates, which is safe for the space rule but is not the plan\'s figure',
     },
@@ -130,7 +167,8 @@ sudo findmnt --list --output TARGET,SOURCE,FSTYPE | grep --fixed-strings ${c.rep
       says: 'Pre-flight 2 of 3: the on-disk size of each external worktree (plain directories on the NVMe, nothing shared on the 860).',
       command: `for p in ${names.map(function toPath(name,) {
         return `${c.externalWorktrees}/${name}`;
-      },).join(' ',)}; do du --summarize --one-file-system --block-size=1 -- "$p"; done | tee ${c.wiz}/external-du.txt`,
+      },)
+        .join(' ',)}; do du --summarize --one-file-system --block-size=1 -- "$p"; done | tee ${c.wiz}/external-du.txt`,
       check: `test -s ${c.wiz}/external-du.txt`,
       checkText: 'one size row per external folder',
       rollback: 'read-only',
@@ -142,7 +180,7 @@ sudo findmnt --list --output TARGET,SOURCE,FSTYPE | grep --fixed-strings ${c.rep
       title: 'Pre-flight: the rule',
       says: `Pre-flight 3 of 3: the rule from the plan. The 860's free space after the estimate plus a quarter margin must stay at least ${String(c.minFreeGiB,)} GiB, and the NVMe at least ${String(c.nvmeMinFreeGiB,)} GiB. A refusal here is the rule working: free space or the estimate changed since the plan was written.`,
       command: 'true',
-      internal: async ({ config, },) => await preflight(config,),
+      internal: hookPreflight,
       check: `grep --fixed-strings 'pre-flight passed' "$OUTPUT_FILE"`,
       checkText: "the rule prints 'pre-flight passed'",
       rollback: "read-only. If refused, free space on the 860 or lower the scope (the plan's scope four) before running prepare again",
@@ -172,7 +210,7 @@ stat --format='%U:%G %a %n' ${c.snapshots} ${c.destRoot} ${c.received} ${c.exter
       title: 'Prepare the edited 860 mount unit',
       says: `The 860 mount gains ${SUBVOLUME_REMOVAL_OPTION} (the plan's adopted decision) so the wrapper can remove a worktree subvolume with BTRFS_IOC_SNAP_DESTROY. This step only writes the edited copy of ${c.unitPath} and keeps the unit as it is, both in ${c.wiz}; nothing live changes.`,
       command: 'true',
-      internal: async ({ config, },) => await prepareUnitEdit(config,),
+      internal: hookUnitEdit,
       check: `test -e ${c.wiz}/mount-860.service.new || grep --fixed-strings --quiet ${SUBVOLUME_REMOVAL_OPTION} ${c.unitPath}`,
       checkText: 'the edited copy exists, or the unit already has the option',
       rollback: 'read-only',
@@ -218,8 +256,12 @@ ${rootCopy} --run --pass=first ${args} --deadline-seconds=${String(c.transferDea
       check: `grep --fixed-strings 'pass first finished' "$OUTPUT_FILE" && while IFS=$'\\t' read -r name path uuid; do test -e ${c.moveState}/$name.received.json || { echo "no received record for $name $path"; exit 1; }; done < ${c.moveState}/first-pass-manifest.tsv`,
       checkText: "'pass first finished' and a received record for every row of the manifest",
       rollback: "nothing on the NVMe tree changed (snapshots only). A partial receive is named by the tool with the exact 'btrfs subvolume delete' for you to run",
-      timeoutSeconds: c.firstPassTotalSeconds + c.killGraceSeconds * 2,
-      timer: { file: 'first-pass-seconds', mode: 'add', },
+      timeoutSeconds: c.firstPassTotalSeconds + (c.killGraceSeconds
+        * 2),
+      timer: {
+        file: 'first-pass-seconds',
+        mode: 'add',
+      },
       root: 'yes',
       unprivileged: "none for send and receive (CAP_SYS_ADMIN). The plan's method M2 (unprivileged copy plus per-worktree snapshots) needs no root but writes every extent again, so the copy would not share space between worktrees and would not fit",
     },
@@ -231,7 +273,8 @@ ${rootCopy} --run --pass=first ${args} --deadline-seconds=${String(c.transferDea
       check: `for name in ${nameList}; do test -d ${c.externalFinal}/$name || exit 1; done`,
       checkText: 'every external folder has a copy',
       rollback: `the sources are untouched; the copies are new subvolumes under ${c.externalFinal} (delete them yourself with rmdir after emptying, or btrfs subvolume delete as root)`,
-      timeoutSeconds: c.firstPassTotalSeconds + c.killGraceSeconds * 2,
+      timeoutSeconds: c.firstPassTotalSeconds + (c.killGraceSeconds
+        * 2),
       root: 'yes',
       unprivileged: 'a user-level rsync of the user\'s own worktrees works (the 860 top level is user-writable, and btrfs subvolume create works unprivileged on a user-owned folder); root is used to read files the user cannot (the plan found root-owned files inside some worktrees)',
     },

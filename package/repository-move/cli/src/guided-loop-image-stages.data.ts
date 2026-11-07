@@ -14,6 +14,7 @@ import type {
  The argument list of the copy tool against the fixture's filesystems.
 
  @param fx - the fixture folder
+ 
  @returns the shared arguments
  */
 function fixtureArguments(fx: string,): string {
@@ -24,18 +25,35 @@ function fixtureArguments(fx: string,): string {
  The fixture stages.
 
  @param c - the configuration
+ 
  @param fx - the fixture folder; a placeholder in a dry run, before the folder exists
+ 
  @returns the stages in order
  */
 export function fixtureStages(
-  { c, fx, }: {
+  {
+    c,
+    fx,
+  }: {
     readonly c: GuidedConfig;
     readonly fx: string;
   },
 ): readonly Stage[] {
+  /**
+   The arguments shared by the commands of this step.
+   */
   const args = fixtureArguments(fx,);
+  /**
+   The copy tool command, run as the user.
+   */
   const copy = `${c.nodePath} ${c.copyTool}`;
+  /**
+   The copy tool command, run through sudo with the absolute path of node.
+   */
   const rootCopy = `sudo ${c.nodePath} ${c.copyTool}`;
+  /**
+   The fixture step deadline in seconds.
+   */
   const timeout = c.fixtureStepTimeoutSeconds;
   return [
     {

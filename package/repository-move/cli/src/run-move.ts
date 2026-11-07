@@ -20,11 +20,20 @@ import { parseMoveOptions, } from './move-options.ts';
 
  @param argv - arguments after the program name
  
- @throws {MoveStopError} when a step stops the run; every earlier step is recorded
+ @throws MoveStopError when a step stops the run; every earlier step is recorded
  */
 export async function runMove(argv: readonly string[],): Promise<void> {
+  /**
+   The options of this invocation.
+   */
   const options = parseMoveOptions(argv,);
+  /**
+   The clock of this step.
+   */
   const clock = startDeadlineClock({ totalSeconds: options.totalDeadlineSeconds, },);
+  /**
+   The runner of this step.
+   */
   const runner = createRunner({
     options,
     clock,
@@ -39,7 +48,10 @@ export async function runMove(argv: readonly string[],): Promise<void> {
   if (options.pass === 'thaw') {
     await thaw({
       loadCurrent: async function loadCurrent() {
-        return await reconcileInventory({ options, log: runner.log, },);
+        return await reconcileInventory({
+          options,
+          log: runner.log,
+        },);
       },
       runner,
       stateFolder: options.stateFolder,
@@ -47,6 +59,9 @@ export async function runMove(argv: readonly string[],): Promise<void> {
     },);
     return;
   }
+  /**
+   The subvolumes this step covers.
+   */
   const subvolumes = await reconcileInventory({
     options,
     log: runner.log,

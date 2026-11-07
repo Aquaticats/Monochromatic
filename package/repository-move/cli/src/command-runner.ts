@@ -19,6 +19,7 @@ import {
 } from './deadline-clock.ts';
 import { MoveStopError, } from './errors.ts';
 import type { MoveOptions, } from './move-options.ts';
+import { isSafeWord, } from './text-checks.ts';
 
 /**
  One command to show and, in run mode, run.
@@ -62,12 +63,10 @@ type ChildFailure = {
   readonly message: string;
 };
 
-const execFileAsync = promisify(execFile,);
-
 /**
- Characters of a command word that need no quoting when the command is shown.
+ Runs a program and waits for it to end.
  */
-const SAFE_WORD = /^[\w@%+=:,.\/\-]+$/v;
+const execFileAsync = promisify(execFile,);
 
 /**
  Quotes a word for display so a shown command can be pasted into a shell.
@@ -77,7 +76,7 @@ const SAFE_WORD = /^[\w@%+=:,.\/\-]+$/v;
  @returns the word, single-quoted when it has unusual characters
  */
 function quote(word: string,): string {
-  return SAFE_WORD.test(word,) ? word : `'${word.replaceAll(
+  return isSafeWord(word,) ? word : `'${word.replaceAll(
     "'",
     `'\\''`,
   )}'`;
@@ -117,7 +116,7 @@ export function createRunner(
    
    @returns the command's standard output, or an empty string in print mode
    
-   @throws {MoveStopError} when the total deadline passed, or the command failed or timed out
+   @throws MoveStopError when the total deadline passed, or the command failed or timed out
    */
   async function exec(request: ExecRequest,): Promise<string> {
     if (options.run && (clock.remainingSeconds() <= 0)) {
@@ -131,13 +130,25 @@ export function createRunner(
             .join(' ',)}; every earlier step is recorded, and a rerun continues`,
       );
     }
+    /**
+     The is transfer of this step.
+     */
     const isTransfer = request.transfer === true;
+    /**
+     The step seconds of this step.
+     */
     const stepSeconds = request.deadlineSeconds
       ?? (isTransfer ? options.transferDeadlineSeconds : options.commandDeadlineSeconds);
+    /**
+     The deadline in seconds.
+     */
     const seconds = boundedSeconds({
       stepSeconds,
       clock,
     },);
+    /**
+     The parts of the value this function uses, taken out of it.
+     */
     const [program = '', ...argv] = [
       ...(isTransfer && (!options.noScope) ? [
         'systemd-run',
@@ -160,6 +171,9 @@ export function createRunner(
       return '';
     }
     try {
+      /**
+       What the call returned.
+       */
       const result = await execFileAsync(
         program,
         argv,
@@ -172,8 +186,17 @@ export function createRunner(
       return result.stdout;
     }
     catch (error) {
+      /**
+       The caught failure, in the shape the caller reads.
+       */
       const failure = error as ChildFailure;
+      /**
+       The limited by total of this step.
+       */
       const limitedByTotal = seconds < stepSeconds;
+      /**
+       The ended of this step.
+       */
       const ended = limitedByTotal && ((failure.code === TERMINATED_BY_TIMEOUT) || ((typeof failure.code) !== 'number'))
         ? `the total deadline of ${String(clock.totalSeconds,)} s ended this step: `
         : '';

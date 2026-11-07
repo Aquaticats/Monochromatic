@@ -30,7 +30,7 @@ import {
   cutoverStages,
   footprintOf,
   type GuidedConfig,
-  GuidedStop,
+  GuidedStopError,
   holderPatterns,
   parseGuidedFlags,
   preflight,
@@ -48,22 +48,46 @@ import {
 const execFileAsync = promisify(execFile,);
 const BIN = new URL('../dist/final/node/run-repository-move.mjs', import.meta.url,).pathname;
 
+type HomeFolder = {
+  readonly path: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+async function makeHome(): Promise<HomeFolder> {
+  const path = await mkdtemp(join(scratchRoot(), 'guided-home-',),);
+  return {
+    path,
+    async [Symbol.asyncDispose]() {
+      await rm(path, { recursive: true, force: true, },);
+    },
+  };
+}
+
 async function withConfig(
   fn: (args: { config: GuidedConfig; home: string; },) => Promise<void>,
   extraEnv: Record<string, string> = {},
 ): Promise<void> {
-  const home = await mkdtemp(join(scratchRoot(), 'guided-home-',),);
-  try {
-    const config = await createGuidedConfig({ env: { HOME: home, ...extraEnv, }, nodePath: process.execPath, },);
-    await fn({ config, home, },);
-  }
-  finally {
-    await rm(home, { recursive: true, force: true, },);
-  }
+  await using home = await makeHome();
+  const config = await createGuidedConfig({ env: { HOME: home.path, ...extraEnv, }, nodePath: process.execPath, },);
+  await fn({ config, home: home.path, },);
 }
 
-function stage(overrides: Partial<Stage> & { id: string; command: string; },): Stage {
-  return { title: overrides.id, says: 'says', root: 'no', unprivileged: 'not needed: test', ...overrides, };
+type StageInput = Omit<Stage, 'title' | 'says' | 'root' | 'unprivileged'>;
+
+function stage(input: StageInput,): Stage {
+  return { title: input.id, says: 'says', root: 'no', unprivileged: 'not needed: test', ...input, };
+}
+
+type FlagOverrides = {
+  readonly dryRun?: boolean;
+  readonly redo?: string[];
+  readonly asserted?: string[];
+};
+
+/** The words of a shell command, split at spaces, newlines and the characters that end a word. */
+function commandWords(command: string,): readonly string[] {
+  return ['\n', ';', '|', '&', '(', ')', '\t',].reduce((text, separator,) => text.replaceAll(separator, ' ',), command,)
+    .split(' ',).filter((word,) => word !== '');
 }
 
 async function exists(path: string,): Promise<boolean> {
@@ -74,10 +98,10 @@ async function runStages(
   { config, stages, flags = {}, }: {
     config: GuidedConfig;
     stages: readonly Stage[];
-    flags?: Partial<{ dryRun: boolean; redo: string[]; asserted: string[]; }>;
+    flags?: FlagOverrides;
   },
 ): Promise<{ error: unknown; output: string; }> {
-  let output = '';
+  const lines: string[] = [];
   try {
     await runPhase({
       config,
@@ -85,18 +109,18 @@ async function runStages(
       phase: 'prepare',
       stages,
       out: (text,) => {
-        output += text;
+        lines.push(text,);
       },
     },);
-    return { error: undefined, output, };
+    return { error: undefined, output: lines.join('',), };
   }
   catch (error) {
-    return { error, output, };
+    return { error, output: lines.join('',), };
   }
 }
 
 async function resolvedCommand({ stage: s, config, }: { stage: Stage; config: GuidedConfig; },): Promise<string> {
-  return typeof s.command === 'string' ? s.command : await s.command({ config, },);
+  return (typeof s.command) === 'string' ? s.command : await s.command({ config, },);
 }
 
 await describe({
@@ -132,12 +156,18 @@ await describe({
                 stage({ id: 'never', command: `touch ${home}/never`, },),
               ];
               const { error, } = await runStages({ config, stages, },);
-              expect(error,).toBeInstanceOf(GuidedStop,);
-              expect((error as GuidedStop).status,).toBe(1,);
-              expect((error as GuidedStop).rollback,).toBe('undo bad',);
-              expect(await exists(join(config.wiz, 'done', 'prepare', 'ok',),),).toBe(true,);
-              expect(await exists(join(config.wiz, 'done', 'prepare', 'bad',),),).toBe(false,);
-              expect(await exists(join(home, 'never',),),).toBe(false,);
+              expect(error,).toBeInstanceOf(GuidedStopError,);
+              expect((error as GuidedStopError).status,).toBe(1,);
+              expect((error as GuidedStopError).rollback,).toBe('undo bad',);
+              expect(
+                await exists(join(config.wiz, 'done', 'prepare', 'ok',),),
+              ).toBe(true,);
+              expect(
+                await exists(join(config.wiz, 'done', 'prepare', 'bad',),),
+              ).toBe(false,);
+              expect(
+                await exists(join(home, 'never',),),
+              ).toBe(false,);
             },);
           },
         },),
@@ -146,11 +176,11 @@ await describe({
           fn: async () => {
             await withConfig(async ({ config, },) => {
               const failedCheck = await runStages({ config, stages: [stage({ id: 'c', command: 'true', check: 'false', checkText: 'the thing', },),], },);
-              expect((failedCheck.error as GuidedStop).message,).toContain('its check failed: the thing',);
+              expect((failedCheck.error as GuidedStopError).message,).toContain('its check failed: the thing',);
               const accepted = await runStages({ config, stages: [stage({ id: 'k', command: 'exit 1', okCodes: [1,], },),], },);
               expect(accepted.error,).toBeUndefined();
               const refusedZero = await runStages({ config, stages: [stage({ id: 'z', command: 'true', okCodes: [1,], },),], },);
-              expect((refusedZero.error as GuidedStop).status,).toBe(1,);
+              expect((refusedZero.error as GuidedStopError).status,).toBe(1,);
             },);
           },
         },),
@@ -160,11 +190,15 @@ await describe({
             await withConfig(async ({ config, home, },) => {
               const stages = [stage({ id: 'ask', command: `touch ${home}/ran`, assertion: 'no agent works.', },),];
               const refused = await runStages({ config, stages, },);
-              expect((refused.error as GuidedStop).status,).toBe(2,);
-              expect((refused.error as GuidedStop).message,).toContain('--assert=ask',);
-              expect(await exists(join(home, 'ran',),),).toBe(false,);
+              expect((refused.error as GuidedStopError).status,).toBe(2,);
+              expect((refused.error as GuidedStopError).message,).toContain('--assert=ask',);
+              expect(
+                await exists(join(home, 'ran',),),
+              ).toBe(false,);
               expect((await runStages({ config, stages, flags: { asserted: ['ask',], }, },)).error,).toBeUndefined();
-              expect(await exists(join(home, 'ran',),),).toBe(true,);
+              expect(
+                await exists(join(home, 'ran',),),
+              ).toBe(true,);
             },);
           },
         },),
@@ -173,8 +207,8 @@ await describe({
           fn: async () => {
             await withConfig(async ({ config, },) => {
               const { error, } = await runStages({ config, stages: [stage({ id: 'slow', command: 'sleep 20', timeoutSeconds: 1, },),], },);
-              expect((error as GuidedStop).status,).toBe(1,);
-              expect((error as GuidedStop).message,).toContain('exited 124',);
+              expect((error as GuidedStopError).status,).toBe(1,);
+              expect((error as GuidedStopError).message,).toContain('exited 124',);
             },);
           },
         },),
@@ -189,7 +223,9 @@ await describe({
               },);
               expect(error,).toBeUndefined();
               expect(output,).toContain('dry run: this stage is shown',);
-              expect(await exists(join(home, 'touched',),),).toBe(false,);
+              expect(
+                await exists(join(home, 'touched',),),
+              ).toBe(false,);
               expect(await exists(config.wiz,),).toBe(false,);
             },);
           },
@@ -210,8 +246,12 @@ await describe({
               ];
               expect((await runStages({ config, stages, },)).error,).toBeUndefined();
               expect((await runStages({ config, stages, },)).output,).toContain('stage 2/2 always',);
-              expect(Number((await readFile(join(config.wiz, 'seconds',), 'utf8',)).trim(),),).toBeGreaterThanOrEqual(0,);
-              expect(await exists(join(config.wiz, 'done', 'prepare', 'always',),),).toBe(false,);
+              expect(
+                Number((await readFile(join(config.wiz, 'seconds',), 'utf8',)).trim(),),
+              ).toBeGreaterThanOrEqual(0,);
+              expect(
+                await exists(join(config.wiz, 'done', 'prepare', 'always',),),
+              ).toBe(false,);
             },);
           },
         },),
@@ -227,10 +267,12 @@ await describe({
               ];
               const first = await runStages({ config, stages: [stages[0] as Stage,], },);
               expect(first.error,).toBeUndefined();
-              await new Promise((resolve,) => setTimeout(resolve, 2100,));
+              await new Promise((resolve,) => setTimeout(resolve, 2_100,));
               const { error, } = await runStages({ config, stages, },);
-              expect((error as GuidedStop).status,).toBe(3,);
-              expect(await exists(join(home, 'later',),),).toBe(false,);
+              expect((error as GuidedStopError).status,).toBe(3,);
+              expect(
+                await exists(join(home, 'later',),),
+              ).toBe(false,);
             },);
           },
         },),
@@ -369,7 +411,7 @@ await describe({
               redo: ['a',],
               asserted: ['b', 'c',],
             },);
-            expect(() => parseGuidedFlags(['sideways',],),).toThrow(GuidedStop,);
+            expect(() => parseGuidedFlags(['sideways',],),).toThrow(GuidedStopError,);
           },
         },),
         it({
@@ -408,9 +450,9 @@ await describe({
                   const command = await resolvedCommand({ stage: s, config, },);
                   expect(s.unprivileged.length,).toBeGreaterThan(10,);
                   // The one stage that only prints the removals for a person to run names sudo in text it echoes.
-                  const usesSudo = s.id === 'f8-cleanup-printed' ? false : /\bsudo\b/v.test(command,);
+                  const usesSudo = s.id === 'f8-cleanup-printed' ? false : commandWords(command,).includes('sudo',);
                   expect([phase, s.id, usesSudo,],).toEqual([phase, s.id, s.root === 'yes',],);
-                  expect(/(^|[\s;|&(])node\s/u.test(command,),).toBe(false,);
+                  expect(commandWords(command,).includes('node',),).toBe(false,);
                   for (const line of command.split('\n',).filter((row,) => row.includes('sudo',) && (row.includes(config.copyTool,) || row.includes(config.scanTool,)))) {
                     expect(line,).toContain(`sudo ${config.nodePath} `,);
                   }

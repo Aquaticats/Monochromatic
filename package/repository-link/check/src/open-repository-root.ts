@@ -31,6 +31,11 @@ export class RepositoryLinkNotReadyError extends Error {
    */
   public readonly answer: LinkAnswer;
 
+  /**
+   Creates the refusal.
+
+   @param answer - the check's answer
+   */
   public constructor(answer: LinkAnswer,) {
     super(answer.message,);
     this.name = 'RepositoryLinkNotReadyError';
@@ -62,24 +67,57 @@ export type OpenedRepositoryRoot = {
  Checks the link, then opens the resolved root as a directory descriptor.
 
  @param identityFile - the identity file; the default is the one under the home folder
+ 
  @param home - the home folder, for a disposable home in tests
+ 
  @param probe - the probe; the default reads the running system
+ 
  @returns the opened root
+ 
  @throws RepositoryLinkNotReadyError when the check is not ready, carrying its plain message
  */
 export async function openRepositoryRoot(
-  { identityFile = '', home = '', probe = realProbe, }: {
+  {
+    identityFile = '',
+    home = '',
+    probe = realProbe,
+  }: {
     readonly identityFile?: string;
     readonly home?: string;
     readonly probe?: Probe;
   } = {},
 ): Promise<OpenedRepositoryRoot> {
-  const read = await readIdentity(identityFile === '' ? identityPathFor(home === '' ? (process.env['HOME'] ?? '') : home,) : identityFile,);
-  const answer = await checkRepositoryLink({ read, probe, },);
+  /**
+   The value read.
+   */
+  const read = await readIdentity(identityFile === '' ? identityPathFor(home === '' ? (process.env
+    .HOME
+    ?? '') : home,) : identityFile,);
+  /**
+   The answer of this step.
+   */
+  const answer = await checkRepositoryLink({
+    read,
+    probe,
+  },);
   if (!answer.ready) {
     throw new RepositoryLinkNotReadyError(answer,);
   }
-  const root = await probe.realpath(read.identity.linkPath,);
-  const handle = await open(root, constants.O_RDONLY | constants.O_DIRECTORY,);
-  return { handle, descriptorPath: `/proc/self/fd/${String(handle.fd,)}`, root, };
+  /**
+   The root of this step.
+   */
+  const root = await probe.realpath(read.identity
+    .linkPath,);
+  /**
+   The handle of this step.
+   */
+  const handle = await open(
+    root,
+    constants.O_RDONLY | constants.O_DIRECTORY,
+  );
+  return {
+    handle,
+    descriptorPath: `/proc/self/fd/${String(handle.fd,)}`,
+    root,
+  };
 }

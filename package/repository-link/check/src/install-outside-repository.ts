@@ -29,42 +29,97 @@ import { pathExists, } from './path-exists.ts';
 /**
  Names of the bins and the built file each one runs.
  */
-const BINS: readonly (readonly [string, string])[] = [
-  ['repository-link-check', 'check.mjs',],
-  ['repository-link-run', 'run.mjs',],
-  ['repository-link-record', 'record.mjs',],
+const BINS: readonly (readonly [
+  string,
+  string
+])[] = [
+  [
+    'repository-link-check',
+    'check.mjs',
+  ],
+  [
+    'repository-link-run',
+    'run.mjs',
+  ],
+  [
+    'repository-link-record',
+    'record.mjs',
+  ],
 ];
 
 /**
  The built files of this package.
  */
-const builtFolder = new URL('../dist/final/node/', import.meta.url,).pathname;
+const builtFolder = new URL(
+  '../dist/final/node/',
+  import.meta.url,
+).pathname;
 
 /**
  The data home to install below.
  */
 const dataHome = argv.find(function isDataHome(argument,) {
   return argument.startsWith('--data-home=',);
-},)?.slice('--data-home='.length,) ?? env['XDG_DATA_HOME'] ?? join(homedir(), '.local', 'share',);
+},)
+  ?.slice('--data-home='.length,)
+  ?? env.XDG_DATA_HOME
+  ?? join(
+    homedir(),
+    '.local',
+    'share',
+  );
 
 /**
  The folder the copy goes to.
  */
-const target = join(dataHome, INSTALL_FOLDER,);
+const target = join(
+  dataHome,
+  INSTALL_FOLDER,
+);
 
-if (!await pathExists(join(builtFolder, 'check.mjs',),)) {
+if (!await pathExists(join(
+  builtFolder,
+  'check.mjs',
+),)) {
   throw new Error(`${builtFolder} has no built check.mjs; build the package first`,);
 }
-await mkdir(target, { recursive: true, },);
+await mkdir(
+  target,
+  { recursive: true, },
+);
 for (const file of (await readdir(builtFolder,)).filter(function isModule(name,) {
   return name.endsWith('.mjs',);
 },)) {
-  await copyFile(join(builtFolder, file,), join(target, file,),);
-  await chmod(join(target, file,), INSTALLED_BIN_MODE,);
+  await copyFile(
+    join(
+      builtFolder,
+      file,
+    ),
+    join(
+      target,
+      file,
+    ),
+  );
+  await chmod(
+    join(
+      target,
+      file,
+    ),
+    INSTALLED_BIN_MODE,
+  );
 }
 for (const [name, file,] of BINS) {
-  if (!await pathExists(join(target, name,),)) {
-    await symlink(file, join(target, name,),);
+  if (!await pathExists(join(
+    target,
+    name,
+  ),)) {
+    await symlink(
+      file,
+      join(
+        target,
+        name,
+      ),
+    );
   }
 }
 console.log(`installed ${String(BINS.length,)} bins to ${target}`,);

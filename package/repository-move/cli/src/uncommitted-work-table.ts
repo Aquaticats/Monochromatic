@@ -27,6 +27,9 @@ export type UncommittedWorkTable = {
   readonly dirty: number;
 };
 
+/**
+ Runs a program and waits for it to end.
+ */
 const execFileAsync = promisify(execFile,);
 
 /**
@@ -88,6 +91,9 @@ async function git(
   },
 ): Promise<GitResult> {
   try {
+    /**
+     What the call returned.
+     */
     const result = await execFileAsync(
       GIT,
       [
@@ -112,7 +118,7 @@ async function git(
     return {
       ok: false,
       stdout: '',
-      failure: Error.isError(error,) ? error.message : String(error,),
+      failure: String(error,),
     };
   }
 }
@@ -144,6 +150,9 @@ async function rowOf(
       dirty: false,
     };
   }
+  /**
+   The exit status or result of the call.
+   */
   const status = await git({
     directory: path,
     args: [
@@ -163,16 +172,28 @@ async function rowOf(
       dirty: false,
     };
   }
+  /**
+   The lines of text this step works on.
+   */
   const lines = status.stdout
     .split('\n',)
     .filter(function notBlank(line,) {
       return line !== '';
     },);
+  /**
+   The number of untracked files.
+   */
   const untracked = lines.filter(function isUntracked(line,) {
     return line.startsWith(UNTRACKED_PREFIX,);
   },)
     .length;
+  /**
+   The number of changed files.
+   */
   const changed = lines.length - untracked;
+  /**
+   The worktree's Git directory.
+   */
   const gitDirectory =
     (await git({
       directory: path,
@@ -183,12 +204,18 @@ async function rowOf(
       timeoutMilliseconds,
     },)).stdout
       .trim();
+  /**
+   Which unfinished-operation markers exist.
+   */
   const present = await Promise.all(UNFINISHED_MARKERS.map(async function exists(name,) {
     return (gitDirectory !== '') && await pathExists(join(
       gitDirectory,
       name,
     ),);
   },),);
+  /**
+   The unfinished operations found.
+   */
   const unfinished = UNFINISHED_MARKERS.filter(function isPresent(
     _name,
     index,
@@ -196,10 +223,16 @@ async function rowOf(
     return present[index] === true;
   },)
     .join(',',);
+  /**
+   Whether an index lock is held.
+   */
   const indexLock = (gitDirectory !== '') && await pathExists(join(
     gitDirectory,
     'index.lock',
   ),);
+  /**
+   The commit HEAD names.
+   */
   const head = (await git({
     directory: path,
     args: [
@@ -209,10 +242,16 @@ async function rowOf(
     timeoutMilliseconds,
   },)).stdout
     .trim();
+  /**
+   The path of the worktree's index file.
+   */
   const indexPath = join(
     gitDirectory,
     'index',
   );
+  /**
+   The SHA-256 of the index file, or empty when there is none.
+   */
   const indexSha256 = (gitDirectory !== '') && await pathExists(indexPath,)
     ? createHash('sha256',)
       .update(await readFile(indexPath,),)
@@ -236,7 +275,7 @@ async function rowOf(
  
  @returns the table text and counts
  
- @throws {MoveStopError} when Git cannot list the worktrees
+ @throws MoveStopError when Git cannot list the worktrees
  */
 export async function buildUncommittedWorkTable(
   {
@@ -247,7 +286,13 @@ export async function buildUncommittedWorkTable(
     readonly perWorktreeSeconds: number;
   },
 ): Promise<UncommittedWorkTable> {
+  /**
+   The limit of each Git call, in milliseconds.
+   */
   const timeoutMilliseconds = perWorktreeSeconds * MILLISECONDS_PER_SECOND;
+  /**
+   The output of the listing command.
+   */
   const listing = await git({
     directory: mainWorktree,
     args: [
@@ -260,6 +305,9 @@ export async function buildUncommittedWorkTable(
   if (!listing.ok) {
     throw new MoveStopError(`cannot list worktrees: ${listing.failure}`,);
   }
+  /**
+   The paths of the registered worktrees.
+   */
   const paths = listing.stdout
     .split('\n',)
     .filter(function isWorktreeLine(line,) {
@@ -268,6 +316,9 @@ export async function buildUncommittedWorkTable(
     .map(function stripLabel(line,) {
       return line.slice('worktree '.length,);
     },);
+  /**
+   The rows this step builds or reads.
+   */
   const rows = [];
   for (const path of paths) {
     rows.push(await rowOf({

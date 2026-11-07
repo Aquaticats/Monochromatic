@@ -82,7 +82,13 @@ function flagValue(
     readonly name: string;
   },
 ): string {
+  /**
+   The flag prefix searched for.
+   */
   const lead = `--${name}=`;
+  /**
+   The found of this step.
+   */
   const found = argv.find(function startsWithLead(argument,) {
     return argument.startsWith(lead,);
   },);
@@ -98,7 +104,7 @@ function flagValue(
  
  @returns the value
  
- @throws {MoveStopError} when the flag is absent
+ @throws MoveStopError when the flag is absent
  */
 function requiredFlag(
   {
@@ -109,6 +115,9 @@ function requiredFlag(
     readonly name: string;
   },
 ): string {
+  /**
+   The value this step works on.
+   */
   const value = flagValue({
     argv,
     name,
@@ -130,7 +139,7 @@ function requiredFlag(
  
  @returns the number
  
- @throws {MoveStopError} when the value is not a non-negative number
+ @throws MoveStopError when the value is not a non-negative number
  */
 function numberFlag(
   {
@@ -143,6 +152,9 @@ function numberFlag(
     readonly fallback: number;
   },
 ): number {
+  /**
+   The text this step works on.
+   */
   const text = flagValue({
     argv,
     name,
@@ -150,6 +162,9 @@ function numberFlag(
   if (text === '') {
     return fallback;
   }
+  /**
+   The value this step works on.
+   */
   const value = Number(text,);
   if ((!Number.isFinite(value,)) || (value < 0)) {
     throw new MoveStopError(`--${name}= must be a non-negative number, got ${text}`,);
@@ -177,9 +192,12 @@ function isPass(value: string,): value is MovePass {
  
  @returns the options; `--print` after `--run` wins, so print mode can always be forced
  
- @throws {MoveStopError} when a required flag is missing or a value is malformed
+ @throws MoveStopError when a required flag is missing or a value is malformed
  */
 export function parseMoveOptions(argv: readonly string[],): MoveOptions {
+  /**
+   The pass of this step.
+   */
   const pass = requiredFlag({
     argv,
     name: 'pass',
@@ -187,11 +205,20 @@ export function parseMoveOptions(argv: readonly string[],): MoveOptions {
   if (!isPass(pass,)) {
     throw new MoveStopError(`--pass must be one of ${PASSES.join(', ',)}`,);
   }
+  /**
+   The mapping of this step.
+   */
   const mapping = flagValue({
     argv,
     name: 'inventory-prefix',
   },) || DEFAULT_PREFIX;
+  /**
+   The parts of the value this function uses, taken out of it.
+   */
   const [prefixFrom = '', prefixTo = '',] = mapping.split('=',);
+  /**
+   The clone sources of this step.
+   */
   const cloneSources = flagValue({
     argv,
     name: 'clone-sources',

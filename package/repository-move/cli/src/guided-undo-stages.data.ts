@@ -15,10 +15,17 @@ import type {
  The stages that undo the freeze: thaw the subvolumes, unmount the external binds, restart the stopped units.
 
  @param c - the configuration
+ 
  @returns the stages
  */
 export function thawStages(c: GuidedConfig,): readonly Stage[] {
-  const args = realArguments({ c, inventory: `${c.wiz}/inventory-final.txt`, },);
+  /**
+   The arguments shared by the commands of this step.
+   */
+  const args = realArguments({
+    c,
+    inventory: `${c.wiz}/inventory-final.txt`,
+  },);
   return [
     {
       id: 't1-thaw-subvolumes',
@@ -66,17 +73,31 @@ if grep --fixed-strings --line-regexp --quiet claude-cpu-watch.service ${c.wiz}/
  The stages of the fast rollback after the swap, before the thaw stages.
 
  @param c - the configuration
+ 
  @param stamp - the swap's timestamp
+ 
  @returns the stages
  */
 export function rollbackStages(
-  { c, stamp, }: {
+  {
+    c,
+    stamp,
+  }: {
     readonly c: GuidedConfig;
     readonly stamp: string;
   },
 ): readonly Stage[] {
+  /**
+   Where the old checkout is renamed to at the swap.
+   */
   const oldRepo = `${c.repo}.nvme-before-860-${stamp}`;
+  /**
+   Where the old external worktrees folder is renamed to at the swap.
+   */
   const oldExternal = `${c.externalWorktrees}.nvme-before-860-${stamp}`;
+  /**
+   The identity file of the repository link check.
+   */
   const identity = `${c.homeDir}/.config/monochromatic-dev/repository-link.json`;
   return [
     {

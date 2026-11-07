@@ -19,7 +19,10 @@ import { parseBinOptions, } from './run-options.ts';
 /**
  The options of this call.
  */
-const options = parseBinOptions({ argv: argv.slice(2,), home: homedir(), },);
+const options = parseBinOptions({
+  argv: argv.slice(2,),
+  home: homedir(),
+},);
 
 /**
  The check's answer.

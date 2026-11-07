@@ -73,7 +73,9 @@ await describe({
             expect(result.status,).toBe(1,);
             expect(await records(fixture,),).toContain('s000.received.json',);
             expect(await records(fixture,),).not.toContain('s001.received.json',);
-            expect(await exists(join(fixture.base, 'snap', 's002',),),).toBe(false,);
+            expect(
+              await exists(join(fixture.base, 'snap', 's002',),),
+            ).toBe(false,);
           },
         },),
         it({
@@ -85,7 +87,9 @@ await describe({
             expect(result.status,).toBe(1,);
             expect(result.stderr,).toContain('exists without a completion record',);
             expect(result.stderr,).toContain('btrfs subvolume delete',);
-            expect(await exists(join(fixture.base, 'recv', 's001',),),).toBe(true,);
+            expect(
+              await exists(join(fixture.base, 'recv', 's001',),),
+            ).toBe(true,);
           },
         },),
         it({
@@ -177,11 +181,17 @@ await describe({
           fn: async () => {
             await using fixture = await makeFixture({ names: ['a', 'b',], },);
             expect((await runCopyTool({ fixture, pass: 'freeze', },)).status,).toBe(0,);
-            expect(await exists(join(fixture.base, 'snap', 's000',),),).toBe(false,);
+            expect(
+              await exists(join(fixture.base, 'snap', 's000',),),
+            ).toBe(false,);
             expect(await metaOf(fixture.main,),).toContain('ro=true',);
-            expect(await metaOf(join(fixture.main, 'wt', 'b',),),).toContain('ro=true',);
+            expect(
+              await metaOf(join(fixture.main, 'wt', 'b',),),
+            ).toContain('ro=true',);
             expect((await runCopyTool({ fixture, pass: 'thaw', },)).status,).toBe(0,);
-            expect(await metaOf(join(fixture.main, 'wt', 'a',),),).toContain('ro=false',);
+            expect(
+              await metaOf(join(fixture.main, 'wt', 'a',),),
+            ).toContain('ro=false',);
           },
         },),
         it({
@@ -194,7 +204,9 @@ await describe({
             const result = await runCopyTool({ fixture, pass: 'thaw', },);
             expect(result.status,).toBe(0,);
             expect(await metaOf(fixture.main,),).toContain('ro=false',);
-            expect(await metaOf(join(fixture.main, 'wt', 'a',),),).toContain('ro=false',);
+            expect(
+              await metaOf(join(fixture.main, 'wt', 'a',),),
+            ).toContain('ro=false',);
           },
         },),
         it({
@@ -214,7 +226,9 @@ await describe({
             const result = await runCopyTool({ fixture, pass: 'final', },);
             expect(result.status,).toBe(1,);
             expect(result.stderr,).toContain('not frozen',);
-            expect(await exists(join(fixture.base, 'snap', 'f000',),),).toBe(false,);
+            expect(
+              await exists(join(fixture.base, 'snap', 'f000',),),
+            ).toBe(false,);
           },
         },),
         it({
@@ -303,7 +317,7 @@ await describe({
               extra: ['--deadline-seconds=14400', '--total-deadline-seconds=50', '--print',],
             },);
             expect(result.status,).toBe(0,);
-            expect(result.stdout,).toMatch(/timeout --kill-after=30 (49|50) /v,);
+            expect(result.stdout.includes('timeout --kill-after=30 49 ',) || result.stdout.includes('timeout --kill-after=30 50 ',),).toBe(true,);
           },
         },),
       ],
@@ -327,7 +341,9 @@ await describe({
             const result = await runCopyTool({ fixture, pass: 'external-final', extra, },);
             expect(result.status,).toBe(0,);
             expect(result.stderr,).toContain('deleted at the source after pass one: 1 in w1',);
-            expect(await exists(join(target, 'w1', 'gone.txt',),),).toBe(true,);
+            expect(
+              await exists(join(target, 'w1', 'gone.txt',),),
+            ).toBe(true,);
             expect(await readFile(join(fixture.base, 'state', 'external-w1.deleted.txt',), 'utf8',),).toContain(
               'gone.txt',
             );
@@ -346,7 +362,9 @@ await describe({
             const result = await runCopyTool({ fixture, pass: 'external-final', extra, },);
             expect(result.status,).toBe(0,);
             expect(result.stderr,).toContain('has no first-pass copy',);
-            expect(await exists(join(target, 'late', 'f.txt',),),).toBe(true,);
+            expect(
+              await exists(join(target, 'late', 'f.txt',),),
+            ).toBe(true,);
           },
         },),
         it({

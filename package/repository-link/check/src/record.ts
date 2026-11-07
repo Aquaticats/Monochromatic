@@ -13,7 +13,10 @@ import {
   exit,
 } from 'node:process';
 import { EXIT_TEMPFAIL, } from './constants.ts';
-import { recordIdentity, RecordIdentityError, } from './record-identity.ts';
+import {
+  recordIdentity,
+  RecordIdentityError,
+} from './record-identity.ts';
 import { realProbe, } from './real-probe.ts';
 import { parseBinOptions, } from './run-options.ts';
 
@@ -25,19 +28,30 @@ const DEFAULT_MOUNT_POINT = '/var/mnt/encrypted';
 /**
  The leading options of this call.
  */
-const options = parseBinOptions({ argv: argv.slice(2,), home: homedir(), },);
+const options = parseBinOptions({
+  argv: argv.slice(2,),
+  home: homedir(),
+},);
 
 /**
  Reads one `--name=value` among the arguments.
 
  @param name - the option name without dashes
+ 
  @returns the value, or an empty string
  */
 function option(name: string,): string {
+  /**
+   The flag prefix searched for.
+   */
   const lead = `--${name}=`;
-  const found = argv.slice(2,).find(function startsWithLead(argument,) {
-    return argument.startsWith(lead,);
-  },);
+  /**
+   The found of this step.
+   */
+  const found = argv.slice(2,)
+    .find(function startsWithLead(argument,) {
+      return argument.startsWith(lead,);
+    },);
   return found === undefined ? '' : found.slice(lead.length,);
 }
 
@@ -46,15 +60,24 @@ function option(name: string,): string {
  */
 const phase = option('phase',);
 
-if (phase !== 'before' && phase !== 'after') {
+if ((phase !== 'before') && (phase !== 'after')) {
   console.error('usage: repository-link-record --phase=before|after [--identity=<file>] [--link-path=<path>] [--mount-point=<path>]',);
   exit(EXIT_TEMPFAIL,);
 }
 try {
-  const { identity, answer, } = await recordIdentity({
+  /**
+   The parts of the value this function uses, taken out of it.
+   */
+  const {
+    identity,
+    answer,
+  } = await recordIdentity({
     phase,
     identityFile: options.identityFile,
-    linkPath: option('link-path',) || join(homedir(), 'Monochromatic',),
+    linkPath: option('link-path',) || join(
+      homedir(),
+      'Monochromatic',
+    ),
     mountPoint: option('mount-point',) || DEFAULT_MOUNT_POINT,
     probe: realProbe,
   },);

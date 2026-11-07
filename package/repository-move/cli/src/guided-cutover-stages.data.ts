@@ -6,47 +6,109 @@
  @module
  */
 
-import {
-  externalNames,
-  holderScanCommand,
-  selectVerify,
-  windowMaximum,
-} from './guided-internal.ts';
 import { realArguments, } from './guided-prepare-stages.data.ts';
 import type {
   GuidedConfig,
   Stage,
 } from './guided-types.ts';
+import {
+  hookHoldersBefore,
+  hookHoldersFrozen,
+  hookSelectVerify,
+  hookWindowMaximum,
+} from './guided-stage-hooks.ts';
+import { externalNames, } from './guided-holders.ts';
 
 /**
  The stages of `cutover`.
 
  @param c - the configuration
+ 
  @param stamp - the timestamp that names the aside folders of the swap
+ 
  @returns the stages in order
  */
 export async function cutoverStages(
-  { c, stamp, }: {
+  {
+    c,
+    stamp,
+  }: {
     readonly c: GuidedConfig;
     readonly stamp: string;
   },
 ): Promise<readonly Stage[]> {
+  /**
+   The external worktree folder names.
+   */
   const names = (await externalNames(c,)).join(' ',);
+  /**
+   The inventory taken at the start of the cut-over.
+   */
   const finalInventory = `${c.wiz}/inventory-final.txt`;
-  const args = realArguments({ c, inventory: finalInventory, },);
+  /**
+   The arguments shared by the commands of this step.
+   */
+  const args = realArguments({
+    c,
+    inventory: finalInventory,
+  },);
+  /**
+   The copy tool command, run as the user.
+   */
   const copy = `${c.nodePath} ${c.copyTool}`;
+  /**
+   The copy tool command, run through sudo with the absolute path of node.
+   */
   const rootCopy = `sudo ${c.nodePath} ${c.copyTool}`;
+  /**
+   The scan tool command.
+   */
   const scan = `${c.nodePath} ${c.scanTool}`;
+  /**
+   The installed link check command.
+   */
   const link = `${c.nodePath} ${c.linkBinFolder}`;
+  /**
+   The prefix that runs a command as the user.
+   */
   const userRun = `runuser -u ${c.userName} -- env HOME=${c.homeDir}`;
+  /**
+   Where the old checkout is renamed to at the swap.
+   */
   const oldRepo = `${c.repo}.nvme-before-860-${stamp}`;
+  /**
+   Where the old external worktrees folder is renamed to at the swap.
+   */
   const oldExternal = `${c.externalWorktrees}.nvme-before-860-${stamp}`;
+  /**
+   Seconds between the terminate signal and the kill of a timed-out step.
+   */
   const killGrace = String(c.killGraceSeconds,);
+  /**
+   The deadline of the whole scan, in seconds.
+   */
   const scanTime = String(c.scanTimeoutSeconds,);
+  /**
+   The deadline of one worktree scan, in seconds.
+   */
   const perScan = String(c.scanPerWorktreeSeconds,);
+  /**
+   The deadline of one footprint measurement, in seconds.
+   */
   const measure = String(c.measureTimeoutSeconds,);
+  /**
+   The sharing limit in percent.
+   */
   const sharing = String(c.sharingLimitPercent,);
-  const underVar = c.drive.startsWith('/var/',) ? c.drive.slice('/var'.length,) : c.drive;
+  /**
+   The mount point below `/var`, as the hidden path sees it.
+   */
+  const underVar = c.drive
+    .startsWith('/var/',) ? c.drive
+      .slice('/var'.length,) : c.drive;
+  /**
+   The rollback text shared by the window stages.
+   */
   const thawRollback = 'run the thaw command (unfreezes everything and restarts the stopped units)';
   return [
     {
@@ -85,7 +147,10 @@ echo checks passed`,
       check: `awk -F'\\t' 'NR > 1 && ($2 != "ok" || $5 != "" || $6 == "true") { print "settle first: " $1 " (" $2 " " $5 " lock=" $6 ")"; bad = 1 } END { exit bad }' ${c.wiz}/pre-freeze.tsv`,
       checkText: 'no worktree is missing, failing, mid-operation or holding index.lock',
       rollback: 'read-only',
-      timer: { file: 'scan-seconds', mode: 'set', },
+      timer: {
+        file: 'scan-seconds',
+        mode: 'set',
+      },
       root: 'no',
       unprivileged: 'not needed: git status of the user\'s own worktrees runs as the user',
     },
@@ -94,7 +159,7 @@ echo checks passed`,
       title: 'Window maximum',
       says: 'The stated maximum of the cut-over window, from numbers this runner measured: first pass + a content-check allowance (one more first-pass duration, the author\'s choice) + 2 x scan + 2 x footprint. You may shorten it with MOVE_WINDOW_MAX_SECONDS, never lengthen it.',
       command: 'true',
-      internal: async ({ config, },) => await windowMaximum(config,),
+      internal: hookWindowMaximum,
       check: `test -s ${c.wiz}/window-max-seconds`,
       checkText: 'the maximum is recorded',
       rollback: 'nothing started; the clock starts only at the step that stops the units',
@@ -105,8 +170,11 @@ echo checks passed`,
       id: 'c03-holders-before',
       title: 'Holder scan before the freeze',
       says: `Holder scan before the freeze: any process whose working folder or open file lies in the repository, in ${c.externalWorktrees}, or in a worktree elsewhere. Run as root so rootless containers are seen. Nothing is signalled.`,
-      command: async ({ config, },) => await holderScanCommand({ config, name: 'holders-before', },),
-      okCodes: [0, 1,],
+      command: hookHoldersBefore,
+      okCodes: [
+        0,
+        1,
+      ],
       check: `echo "scanner messages: $(wc --lines < ${c.wiz}/holders-before.err)"; test ! -s ${c.wiz}/holders-before.txt || { echo 'holders found:'; cat ${c.wiz}/holders-before.txt; exit 1; }`,
       checkText: `no holder (find may exit 1 for processes that vanish while scanning; ${c.wiz}/holders-before.err keeps its messages)`,
       rollback: 'nothing changed. Ask each session to finish, then run the cut-over again',
@@ -175,8 +243,11 @@ done`,
       title: 'Holder scan after the freeze',
       window: true,
       says: 'Holder scan after the freeze. A holder now has a descriptor open that the freeze cannot stop: thaw and report it.',
-      command: async ({ config, },) => await holderScanCommand({ config, name: 'holders-frozen', },),
-      okCodes: [0, 1,],
+      command: hookHoldersFrozen,
+      okCodes: [
+        0,
+        1,
+      ],
       check: `echo "scanner messages: $(wc --lines < ${c.wiz}/holders-frozen.err)"; test ! -s ${c.wiz}/holders-frozen.txt || { echo 'holders found:'; cat ${c.wiz}/holders-frozen.txt; echo 'run the thaw command'; exit 1; }`,
       checkText: 'no holder',
       rollback: thawRollback,
@@ -247,7 +318,7 @@ for f in ${c.moveState}/external-*.deleted.txt; do [ -e "$f" ] && echo "$f: $(wc
       window: true,
       says: "Choose the subvolumes whose content is compared byte by byte: the checkout, every worktree with a non-clean baseline row, and the six largest and six smallest by the size table. The plan says the rest 'if time allows'; this runner checks the rest by file count in the count stage.",
       command: 'true',
-      internal: async ({ config, },) => await selectVerify(config,),
+      internal: hookSelectVerify,
       check: `test -s ${c.wiz}/verify-set.tsv`,
       checkText: 'the selection is not empty',
       rollback: 'read-only',

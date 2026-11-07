@@ -21,11 +21,11 @@ import {
 } from './completion-records.ts';
 import {
   EXTERNAL_RSYNC_ARGUMENTS,
-  PLAIN_NAME,
   STATE_FOLDER_MODE,
 } from './constants.ts';
 import { MoveStopError, } from './errors.ts';
 import type { MoveOptions, } from './move-options.ts';
+import { isPlainName, } from './text-checks.ts';
 
 /**
  Marker of a file that only the destination has, in `rsync --itemize-changes` output.
@@ -39,9 +39,12 @@ const DELETING_MARKER = '*deleting';
  
  @returns the sorted names
  
- @throws {MoveStopError} when a name has a character this tool does not quote into commands
+ @throws MoveStopError when a name has a character this tool does not quote into commands
  */
 async function externalNames(source: string,): Promise<readonly string[]> {
+  /**
+   The entries of this step.
+   */
   const entries = await readdir(
     source,
     { withFileTypes: true, },
@@ -54,7 +57,7 @@ async function externalNames(source: string,): Promise<readonly string[]> {
     },)
     .toSorted()
     .map(function requirePlain(name,) {
-      if (!PLAIN_NAME.test(name,)) {
+      if (!isPlainName(name,)) {
         throw new MoveStopError(`external worktree folder name has a character this tool does not handle: ${name}`,);
       }
       return name;
@@ -126,6 +129,9 @@ async function reportDeletions(
     readonly name: string;
   },
 ): Promise<void> {
+  /**
+   The itemized of this step.
+   */
   const itemized = await rsyncCopy({
     options,
     runner,
@@ -136,6 +142,9 @@ async function reportDeletions(
       '--itemize-changes',
     ],
   },);
+  /**
+   The deleted of this step.
+   */
   const deleted = itemized.split('\n',)
     .filter(function isDeletion(line,) {
       return line.startsWith(DELETING_MARKER,);
@@ -170,7 +179,7 @@ async function reportDeletions(
  
  @param runner - the runner
  
- @throws {MoveStopError} when a source or destination folder is missing, a name is unsafe, or a command fails
+ @throws MoveStopError when a source or destination folder is missing, a name is unsafe, or a command fails
  */
 export async function runExternalPass(
   {
@@ -181,6 +190,9 @@ export async function runExternalPass(
     readonly runner: Runner;
   },
 ): Promise<void> {
+  /**
+   The parts of the value this function uses, taken out of it.
+   */
   const {
     externalSource: source,
     externalFinal: destination,
@@ -191,10 +203,16 @@ export async function runExternalPass(
   if ((!await pathExists(source,)) || (options.run && (!await pathExists(destination,)))) {
     throw new MoveStopError(`${await pathExists(source,) ? destination : source} does not exist`,);
   }
+  /**
+   The run's record store.
+   */
   const records = createRecords({
     stateFolder: options.stateFolder,
     writable: options.run,
   },);
+  /**
+   The step of this step.
+   */
   const step = options.pass === 'external-first' ? 'first' : 'final';
   if (options.run) {
     await mkdir(

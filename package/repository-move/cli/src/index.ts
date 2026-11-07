@@ -21,18 +21,16 @@ export {
 export { runMove, } from './run-move.ts';
 export { buildUncommittedWorkTable, } from './uncommitted-work-table.ts';
 export { createGuidedConfig, } from './guided-config.ts';
-export {
-  GuidedStop,
-  runPhase,
-} from './guided-engine.ts';
+export { runPhase, } from './guided-engine.ts';
+export { GuidedStopError, } from './guided-stop.ts';
 export {
   footprintOf,
-  holderPatterns,
   preflight,
-  prepareUnitEdit,
-  selectVerify,
   windowMaximum,
-} from './guided-internal.ts';
+} from './guided-computations.ts';
+export { holderPatterns, } from './guided-holders.ts';
+export { prepareUnitEdit, } from './guided-unit-edit.ts';
+export { selectVerify, } from './guided-verify-set.ts';
 export {
   parseGuidedFlags,
   runGuided,

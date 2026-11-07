@@ -27,12 +27,16 @@ import { parseBinOptions, } from './run-options.ts';
 /**
  The options of this call.
  */
-const options = parseBinOptions({ argv: argv.slice(2,), home: homedir(), },);
+const options = parseBinOptions({
+  argv: argv.slice(2,),
+  home: homedir(),
+},);
 
 /**
  The moment after which the wait gives up, in milliseconds since the epoch.
  */
-const giveUpAt = Date.now() + options.waitSeconds * MILLISECONDS_PER_SECOND;
+const giveUpAt = Date.now() + (options.waitSeconds
+  * MILLISECONDS_PER_SECOND);
 
 /**
  Asks once.
@@ -53,22 +57,45 @@ async function ask(): ReturnType<typeof checkRepositoryLink> {
  @returns the last answer
  */
 async function askUntilReadyOrGiveUp(): ReturnType<typeof ask> {
+  /**
+   The answer of this step.
+   */
   const answer = await ask();
-  if (answer.ready || Date.now() >= giveUpAt) {
+  if (answer.ready || (Date.now() >= giveUpAt)) {
     return answer;
   }
   await wait(WAIT_STEP_SECONDS * MILLISECONDS_PER_SECOND,);
   return await askUntilReadyOrGiveUp();
 }
 
+/**
+ The parts of the value this function uses, taken out of it.
+ */
 const [command = '', ...commandArguments] = options.rest;
 if (command === '') {
   console.error('usage: repository-link-run [--wait-seconds=<n>] [--] <command...>',);
   exit(options.failureStatus,);
 }
+/**
+ The answer of this step.
+ */
 const answer = await askUntilReadyOrGiveUp();
 if (!answer.ready) {
   console.error(answer.message,);
   exit(options.failureStatus,);
 }
-execve(await resolveCommand({ command, pathVariable: env['PATH'] ?? '', },), [command, ...commandArguments,], env,);
+if ((typeof execve) !== 'function') {
+  console.error('this node has no process.execve, so repository-link-run cannot replace itself with the command',);
+  exit(options.failureStatus,);
+}
+execve(
+  await resolveCommand({
+    command,
+    pathVariable: env.PATH ?? '',
+  },),
+  [
+    command,
+    ...commandArguments,
+  ],
+  env,
+);

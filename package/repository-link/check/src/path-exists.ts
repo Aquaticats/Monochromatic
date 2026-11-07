@@ -15,7 +15,9 @@ const MISSING_PATH_CODE = 'ENOENT';
  Tells whether a path exists.
 
  @param path - the path
+ 
  @returns true when it exists
+ 
  @throws Error when the path cannot be inspected for a reason other than absence
  */
 export async function pathExists(path: string,): Promise<boolean> {

@@ -13,6 +13,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { isDigits, } from './text-checks.ts';
 
 /**
  Suffix of the snapshot records, which double as the ledger of copy names.
@@ -22,6 +23,9 @@ import { join, } from 'node:path';
  */
 export const MISSING_PATH_CODE = 'ENOENT';
 
+/**
+ Suffix of the snapshot records, which double as the ledger of copy names.
+ */
 const SNAPSHOT_SUFFIX = '.snapshot.json';
 
 /**
@@ -130,7 +134,9 @@ export function createRecords(
   /**
    Path of one record file.
 
-   @param key - the record's key
+   @param name - the copy name
+   
+   @param step - the step name
    
    @returns the path
    */
@@ -147,18 +153,30 @@ export function createRecords(
   /**
    Tells whether a record exists.
 
-   @param key - the record's key
+   @param name - the copy name
+   
+   @param step - the step name
    
    @returns true when it exists
    */
-  async function has(key: RecordKey,): Promise<boolean> {
-    return await pathExists(recordPath(key,),);
+  async function has({
+    name,
+    step,
+  }: RecordKey,): Promise<boolean> {
+    return await pathExists(recordPath({
+      name,
+      step,
+    },),);
   }
 
   /**
    Writes a record unless this is print mode.
 
-   @param entry - the record
+   @param name - the copy name
+   
+   @param step - the step name
+   
+   @param data - what the record carries
    */
   async function write({
     name,
@@ -206,16 +224,25 @@ export async function readSnapshotEntries(
   if (!await pathExists(stateFolder,)) {
     return [];
   }
+  /**
+   The files this step reads.
+   */
   const files = (await readdir(stateFolder,)).filter(function isSnapshotRecord(file,) {
+    /**
+     The digits part of a copy name.
+     */
     const digits = file.slice(
       prefix.length,
       -SNAPSHOT_SUFFIX.length,
     );
     return file.startsWith(prefix,) && file.endsWith(SNAPSHOT_SUFFIX,)
-      && /^\d+$/v.test(digits,);
+      && isDigits(digits,);
   },)
     .toSorted();
   return await Promise.all(files.map(async function readEntry(file,) {
+    /**
+     The parsed content of a record file.
+     */
     const data = JSON.parse(await readFile(
       join(
         stateFolder,

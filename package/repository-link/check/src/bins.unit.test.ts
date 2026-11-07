@@ -36,7 +36,7 @@ import {
 
 const execFileAsync = promisify(execFile,);
 const BIN_FOLDER = new URL('../dist/final/node/', import.meta.url,).pathname;
-const INSTALLER = new URL('./install-outside-repository.ts', import.meta.url,).pathname;
+const INSTALLER = new URL('install-outside-repository.ts', import.meta.url,).pathname;
 
 type Run = { status: number; stdout: string; stderr: string; };
 
@@ -51,17 +51,38 @@ async function run({ file, args, cwd = '/', }: { file: string; args: readonly st
   }
 }
 
-async function withHome(fn: (home: string,) => Promise<void>,): Promise<void> {
-  const home = await mkdtemp(join(scratchRoot(), 'repository-link-home-',),);
-  try {
-    await fn(home,);
-  }
-  finally {
-    await rm(home, { recursive: true, force: true, },);
-  }
+type HomeFolder = {
+  readonly path: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+async function makeHome(): Promise<HomeFolder> {
+  const path = await mkdtemp(join(scratchRoot(), 'repository-link-home-',),);
+  return {
+    path,
+    async [Symbol.asyncDispose]() {
+      await rm(path, { recursive: true, force: true, },);
+    },
+  };
 }
 
-function identityOf(overrides: Partial<LinkIdentity>,): LinkIdentity {
+async function withHome(fn: (home: string,) => Promise<void>,): Promise<void> {
+  await using home = await makeHome();
+  await fn(home.path,);
+}
+
+type IdentityInput = Omit<LinkIdentity, 'canonicalRoot' | 'driveUuid' | 'linkPath' | 'linkText' | 'mountPoint' | 'nvmeUuid' | 'phase' | 'rootCommit'> & {
+  readonly canonicalRoot?: string;
+  readonly driveUuid?: string;
+  readonly linkPath?: string;
+  readonly linkText?: string;
+  readonly mountPoint?: string;
+  readonly nvmeUuid?: string;
+  readonly phase?: LinkIdentity['phase'];
+  readonly rootCommit?: string;
+};
+
+function identityOf(overrides: IdentityInput,): LinkIdentity {
   return {
     linkPath: '',
     linkText: '',
@@ -88,7 +109,7 @@ await describe({
             const mounts = parseMountInfo(
               [
                 '24 1 0:21 / / rw - btrfs /dev/mapper/root rw',
-                '25 24 0:22 / /var/mnt/with\\040space rw shared:1 - btrfs /dev/mapper/crypt_sda rw',
+                String.raw`25 24 0:22 / /var/mnt/with\040space rw shared:1 - btrfs /dev/mapper/crypt_sda rw`,
                 '',
               ].join('\n',),
             );
@@ -120,14 +141,30 @@ await describe({
               expect((await realProbe.lstat(join(home, 'file',),)).kind,).toBe('file',);
               expect((await realProbe.lstat(join(home, 'absent',),)).kind,).toBe('missing',);
               expect((await realProbe.lstat(join(home, 'file', 'under',),)).kind,).toBe('missing',);
-              expect(await realProbe.realpath(join(home, 'link2',),),).toBe(await realProbe.realpath(join(home, 'dir',),),);
-              expect(await realProbe.realpath(join(home, 'dangling',),),).toBe('',);
-              expect(await realProbe.readText(join(home, 'absent',),),).toBe('',);
-              expect(await realProbe.readText(join(home, 'file',),),).toBe('x',);
-              expect(await realProbe.readlink(join(home, 'link1',),),).toBe(join(home, 'dir',),);
+              expect(
+                await realProbe.realpath(join(home, 'link2',),),
+              ).toBe(
+                await realProbe.realpath(join(home, 'dir',),),
+              );
+              expect(
+                await realProbe.realpath(join(home, 'dangling',),),
+              ).toBe('',);
+              expect(
+                await realProbe.readText(join(home, 'absent',),),
+              ).toBe('',);
+              expect(
+                await realProbe.readText(join(home, 'file',),),
+              ).toBe('x',);
+              expect(
+                await realProbe.readlink(join(home, 'link1',),),
+              ).toBe(join(home, 'dir',),);
               expect(await realProbe.isMountPoint('/',),).toBe(true,);
-              expect(await realProbe.isMountPoint(join(home, 'dir',),),).toBe(false,);
-              expect(await realProbe.uuidOf(join(home, 'absent',),),).toBe('',);
+              expect(
+                await realProbe.isMountPoint(join(home, 'dir',),),
+              ).toBe(false,);
+              expect(
+                await realProbe.uuidOf(join(home, 'absent',),),
+              ).toBe('',);
             },);
           },
         },),
@@ -277,7 +314,7 @@ await describe({
                 file: join(BIN_FOLDER, 'run.mjs',),
                 args: [`--identity=${identityFile}`, '--wait-seconds=15', '--', 'node', '-e', "console.log('command ran')",],
               },);
-              await new Promise((resolve,) => setTimeout(resolve, 1500,));
+              await new Promise((resolve,) => setTimeout(resolve, 1_500,));
               await writeIdentity({ path: identityFile, identity: identityOf({ linkPath: folder, nvmeUuid: uuid, phase: 'before', },), },);
               const result = await pending;
               expect(result.status,).toBe(0,);
@@ -304,7 +341,7 @@ await describe({
         it({
           name: resolveCommand.name,
           fn: async () => {
-            expect(await resolveCommand({ command: 'node', pathVariable: process.env['PATH'] ?? '', },),).toMatch(/\/node$/v,);
+            expect((await resolveCommand({ command: 'node', pathVariable: process.env.PATH ?? '', },)).endsWith('/node',),).toBe(true,);
             expect(await resolveCommand({ command: './x', pathVariable: '', },),).toBe('./x',);
             expect(await resolveCommand({ command: 'no-such-program-here', pathVariable: '/usr/bin', },),).toBe('no-such-program-here',);
           },

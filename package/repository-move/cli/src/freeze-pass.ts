@@ -57,6 +57,9 @@ export async function readFreezeManifest(stateFolder: string,): Promise<FreezeMa
       frozen: [],
     };
   }
+  /**
+   The text this step works on.
+   */
   const text = await readFile(
     manifestPath(stateFolder,),
     'utf8',
@@ -68,6 +71,9 @@ export async function readFreezeManifest(stateFolder: string,): Promise<FreezeMa
         return row !== '';
       },)
       .map(function parseRow(row,) {
+        /**
+         The parts of the value this function uses, taken out of it.
+         */
         const [uuid = '', path = '',] = row.split('\t',);
         return {
           uuid,
@@ -116,7 +122,7 @@ async function readOnlyValue(
  
  @param value - `true` to freeze, `false` to thaw
  
- @throws {MoveStopError} when a subvolume does not read back the value
+ @throws MoveStopError when a subvolume does not read back the value
  */
 async function setReadOnly(
   {
@@ -143,6 +149,9 @@ async function setReadOnly(
     },);
   }
   for (const { path, } of subvolumes) {
+    /**
+     The value read.
+     */
     const read = await readOnlyValue({
       runner,
       path,
@@ -214,7 +223,7 @@ export async function freeze(
  
  @param run - false in print mode
  
- @throws {MoveStopError} when run mode finds no manifest
+ @throws MoveStopError when run mode finds no manifest
  */
 export async function thaw(
   {
@@ -229,10 +238,16 @@ export async function thaw(
     readonly run: boolean;
   },
 ): Promise<void> {
+  /**
+   The freeze manifest.
+   */
   const manifest = await readFreezeManifest(stateFolder,);
   if ((!manifest.present) && run) {
     throw new MoveStopError(`no ${FREEZE_MANIFEST} in ${stateFolder}: this tool froze nothing, so it thaws nothing`,);
   }
+  /**
+   The subvolumes this step covers.
+   */
   const subvolumes = manifest.present ? manifest.frozen : await loadCurrent();
   await setReadOnly({
     runner,
@@ -253,7 +268,7 @@ export async function thaw(
  
  @param stateFolder - the state folder
  
- @throws {MoveStopError} when one is not in the freeze manifest or does not read `ro=true`
+ @throws MoveStopError when one is not in the freeze manifest or does not read `ro=true`
  */
 export async function requireFrozen(
   {
@@ -266,7 +281,13 @@ export async function requireFrozen(
     readonly stateFolder: string;
   },
 ): Promise<void> {
+  /**
+   The freeze manifest.
+   */
   const manifest = await readFreezeManifest(stateFolder,);
+  /**
+   The frozen of this step.
+   */
   const frozen = new Set(manifest.frozen
     .map(function toKey({
       uuid,
@@ -274,6 +295,9 @@ export async function requireFrozen(
     },) {
       return `${uuid}\t${path}`;
     },),);
+  /**
+   The not frozen of this step.
+   */
   const notFrozen = current.filter(function isMissing({
     uuid,
     path,
@@ -295,6 +319,9 @@ export async function requireFrozen(
     );
   }
   for (const { path, } of current) {
+    /**
+     The value read.
+     */
     const read = await readOnlyValue({
       runner,
       path,

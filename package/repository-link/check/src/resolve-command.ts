@@ -15,11 +15,16 @@ import { join, } from 'node:path';
  Resolves a command to a file path.
 
  @param command - a path (when it has a slash) or a bare program name
+ 
  @param pathVariable - the `PATH` value to search
+ 
  @returns the path of the first executable match, or the command unchanged when none matches
  */
 export async function resolveCommand(
-  { command, pathVariable, }: {
+  {
+    command,
+    pathVariable,
+  }: {
     readonly command: string;
     readonly pathVariable: string;
   },
@@ -28,13 +33,22 @@ export async function resolveCommand(
     return command;
   }
   for (const folder of pathVariable.split(':',)) {
-    const candidate = join(folder === '' ? '.' : folder, command,);
+    /**
+     The candidate of this step.
+     */
+    const candidate = join(
+      folder === '' ? '.' : folder,
+      command,
+    );
     try {
-      await access(candidate, constants.X_OK,);
+      await access(
+        candidate,
+        constants.X_OK,
+      );
       return candidate;
     }
     catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && (error as NodeJS.ErrnoException).code !== 'EACCES') {
+      if (((error as NodeJS.ErrnoException).code !== 'ENOENT') && ((error as NodeJS.ErrnoException).code !== 'EACCES')) {
         throw error;
       }
     }

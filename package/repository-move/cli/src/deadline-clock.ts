@@ -39,6 +39,9 @@ export function startDeadlineClock(
     readonly now?: () => number;
   },
 ): DeadlineClock {
+  /**
+   When the step started, in milliseconds since the epoch.
+   */
   const started = now();
 
   /**

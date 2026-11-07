@@ -9,10 +9,13 @@
  */
 
 import { readdir, } from 'node:fs/promises';
-import { pathExists, } from './completion-records.ts';
-import type { SnapshotEntry, } from './completion-records.ts';
+import {
+  pathExists,
+  type SnapshotEntry,
+} from './completion-records.ts';
 import { NAME_DIGITS, } from './constants.ts';
 import type { Subvolume, } from './inventory.ts';
+import { isDigits, } from './text-checks.ts';
 
 /**
  A subvolume with the copy name it was given.
@@ -50,12 +53,21 @@ async function usedNumbers(
   if (!await pathExists(folder,)) {
     return [];
   }
+  /**
+   The numbers already used.
+   */
   const numbers: number[] = [];
   for (const entry of await readdir(folder,)) {
+    /**
+     The entry name before its first dot.
+     */
     const stem = entry.split('.',)[0] ?? '';
+    /**
+     The digits part of a copy name.
+     */
     const digits = stem.slice(prefix.length,);
     if (stem.startsWith(prefix,) && (digits.length >= NAME_DIGITS)
-      && /^\d+$/v.test(digits,)) {
+      && isDigits(digits,)) {
       numbers.push(Number(digits,),);
     }
   }
@@ -112,6 +124,9 @@ function describeNew(
     readonly ledger: readonly SnapshotEntry[];
   },
 ): Change {
+  /**
+   The ledger entry at the same path, when there is one.
+   */
   const samePath = ledger.find(function atPath(entry,) {
     return entry.path === subvolume.path;
   },);
@@ -122,6 +137,9 @@ function describeNew(
         + `it is copied as a new subvolume, and ${stays(samePath,)}`,
     };
   }
+  /**
+   The ledger entry with the same UUID, when there is one.
+   */
   const sameUuid = ledger.find(function withUuid(entry,) {
     return entry.uuid === subvolume.uuid;
   },);
@@ -167,6 +185,9 @@ export async function assignNames(
   readonly named: readonly NamedSubvolume[];
   readonly changes: readonly Change[];
 }> {
+  /**
+   The numbers that are already taken.
+   */
   const reserved = [
     ...ledger.map(function numberOf(entry,) {
       return Number(entry.name
@@ -179,42 +200,57 @@ export async function assignNames(
       },);
     },),)).flat(),
   ];
-  let next = Math.max(
+  /**
+   The first number a new copy name takes.
+   */
+  const base = Math.max(
     -1,
     ...reserved,
   ) + 1;
-  const named: NamedSubvolume[] = [];
-  for (const subvolume of current) {
+  /**
+   The subvolumes that have no ledger entry yet.
+   */
+  const missing = current.filter(function hasNoEntry(subvolume,) {
+    return !ledger.some(function matches(entry,) {
+      return isSame({
+        entry,
+        subvolume,
+      },);
+    },);
+  },);
+  /**
+   The subvolumes with their copy names.
+   */
+  const named = current.map(function toNamed(subvolume,): NamedSubvolume {
+    /**
+     The ledger entry of this subvolume, when it has one.
+     */
     const existing = ledger.find(function matches(entry,) {
       return isSame({
         entry,
         subvolume,
       },);
     },);
-    if (existing === undefined) {
-      named.push({
-        ...subvolume,
-        name: `${prefix}${String(next,)
+    return {
+      ...subvolume,
+      name: existing === undefined
+        ? `${prefix}${String(base + missing.indexOf(subvolume,),)
           .padStart(
             NAME_DIGITS,
             '0',
-          )}`,
-      },);
-      next += 1;
-    }
-    else {
-      named.push({
-        ...subvolume,
-        name: existing.name,
-      },);
-    }
-  }
+          )}`
+        : existing.name,
+    };
+  },);
   if (ledger.length === 0) {
     return {
       named,
       changes: [],
     };
   }
+  /**
+   The changes for subvolumes that are new.
+   */
   const added = current.filter(function hasNoEntry(subvolume,) {
     return !ledger.some(function matches(entry,) {
       return isSame({
@@ -229,6 +265,9 @@ export async function assignNames(
         ledger,
       },);
     },);
+  /**
+   The changes for ledger entries that are gone.
+   */
   const removed = ledger.filter(function isGone(entry,) {
     return !current.some(function sharesIdentity(subvolume,) {
       return (subvolume.path === entry.path) || (subvolume.uuid === entry.uuid);

@@ -104,16 +104,16 @@ export type Probe = {
  */
 export type AnswerKind =
   | 'drive-did-not-answer'
-  | 'drive-not-mounted'
-  | 'identity-missing'
-  | 'link-missing'
-  | 'mounted-folder-missing'
-  | 'not-a-repository'
-  | 'ready-after'
-  | 'ready-before'
-  | 'real-folder-replaced-link'
-  | 'wrong-filesystem'
-  | 'wrong-repository';
+    | 'drive-not-mounted'
+    | 'identity-missing'
+    | 'link-missing'
+    | 'mounted-folder-missing'
+    | 'not-a-repository'
+    | 'ready-after'
+    | 'ready-before'
+    | 'real-folder-replaced-link'
+    | 'wrong-filesystem'
+    | 'wrong-repository';
 
 /**
  The check's answer: a kind, whether the repository is ready, and the plain message for a person.
