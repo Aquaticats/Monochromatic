@@ -456,12 +456,12 @@ pub fn output_watched_within(
     }
     // Taken before the child starts, so a lock born earlier is never taken for the child's.
     let locks: LockLedger = LockLedger::before_start(command);
-    let started: std::io::Result<Child> = command.spawn_retrying();
+    let spawned: std::io::Result<Child> = command.spawn_retrying();
     // The command holds the write ends of the pipes until they are replaced, and the readers see no end of output while it does.
     if pipes.is_some() {
         release_write_ends(command);
     }
-    let child: Child = started?;
+    let child: Child = spawned?;
     let started: ChildWatch = ChildWatch::start_with_locks(waiting_for, child.id(), terms, locks).kept_as(ledger_step);
     // A step with no ceiling is waited for as long as it lives: the watch starts without one.
     let watch: ChildWatch = match ceiling {

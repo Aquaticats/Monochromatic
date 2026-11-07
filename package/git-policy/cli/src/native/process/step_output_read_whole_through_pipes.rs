@@ -102,9 +102,9 @@ impl StepPipes {
             };
             drop(input_closed.stdin.take());
             let mut owned = adopt(input_closed);
-            let (stdout, stderr, status) = tokio::join!(read_whole(standard_output), read_whole(standard_error), owned.wait());
-            let status: ExitStatus = status?;
-            return Ok(Output { status, stdout: stdout?, stderr: stderr? });
+            let (read_output, read_error, waited) = tokio::join!(read_whole(standard_output), read_whole(standard_error), owned.wait());
+            let status: ExitStatus = waited?;
+            return Ok(Output { status, stdout: read_output?, stderr: read_error? });
         });
         return match finished {
             Ok(output) => output,
