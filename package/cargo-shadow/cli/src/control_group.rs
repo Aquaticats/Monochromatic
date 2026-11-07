@@ -40,6 +40,9 @@
 //! export function query(record: ScopeRecord): 'gone' | 'alive' | { unknown: string }
 //! ```
 
+/// Error text built only on failure,
+/// from a `format_args!` value.
+use crate::lazy_error_text::{ExplainedError, OrText};
 /// Imports `std::fmt` for this file.
 use std::fmt;
 
@@ -343,8 +346,31 @@ fn is_hex_id(text: &str, groups: &[usize]) -> bool {
     if parts.len() != groups.len() {
         return false;
     }
-    let shaped: bool = parts.iter().zip(groups.iter()).all(|(part, length)| { return part.len() == *length && part.bytes().all(|byte| { return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte); }); });
-    return shaped && text.bytes().any(|byte| { return byte != b'0' && byte != b'-'; });
+    let mut shaped: bool = true;
+    for (part, length) in parts.iter().zip(groups.iter()) {
+        if !(part.len() == *length && part.bytes().all(is_lower_hex_digit)) {
+            shaped = false;
+            break;
+        }
+    }
+    return shaped && text.bytes().any(is_not_zero_or_dash);
+}
+
+/// What:
+/// `fn is_lower_hex_digit(byte: u8) -> bool` says whether a byte is `0` to `9` or `a` to `f`.
+/// Why:
+/// `bytes().all` takes it by path instead of a closure.
+fn is_lower_hex_digit(byte: u8) -> bool {
+    return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte);
+}
+
+/// What:
+/// `fn is_not_zero_or_dash(byte: u8) -> bool` says whether a byte is neither `0` nor `-`.
+/// Why:
+/// An identity of only zeros and dashes names nothing,
+/// and `bytes().any` takes this by path instead of a closure.
+fn is_not_zero_or_dash(byte: u8) -> bool {
+    return byte != b'0' && byte != b'-';
 }
 
 /// The group lengths of the boot id (`8-4-4-4-12`).
@@ -393,10 +419,34 @@ impl Identity {
 /// function isViewLine(line: string): boolean
 /// ```
 fn is_view_line(line: &str) -> bool {
-    let Some((mount_text, inode_text)) = line.strip_prefix("view ").and_then(|rest| { return rest.split_once(':'); }) else {
+    let Some((mount_text, inode_text)) = line.strip_prefix("view ").and_then(split_at_colon) else {
         return false;
     };
-    return [mount_text, inode_text].iter().all(|number| { return !number.is_empty() && number.bytes().all(|byte| { return byte.is_ascii_digit(); }) && number.parse::<u64>().is_ok(); });
+    return is_decimal_number(mount_text) && is_decimal_number(inode_text);
+}
+
+/// What:
+/// `fn split_at_colon(rest: &str) -> Option<(&str, &str)>` splits text at its first colon.
+/// Why:
+/// `Option::and_then` takes it by path instead of a closure.
+fn split_at_colon(rest: &str) -> Option<(&str, &str)> {
+    return rest.split_once(':');
+}
+
+/// What:
+/// `fn is_decimal_number(number: &str) -> bool` says whether text is a non-empty run of digits that fits a `u64`.
+/// Why:
+/// The two numbers of a view line are checked alike.
+fn is_decimal_number(number: &str) -> bool {
+    return !number.is_empty() && number.bytes().all(is_digit_byte) && number.parse::<u64>().is_ok();
+}
+
+/// What:
+/// `fn is_digit_byte(byte: u8) -> bool` says whether a byte is `0` to `9`.
+/// Why:
+/// `bytes().all` takes it by path instead of a closure.
+fn is_digit_byte(byte: u8) -> bool {
+    return byte.is_ascii_digit();
 }
 
 /// What:
@@ -470,12 +520,12 @@ pub(crate) fn read_identity_text(text: &str) -> Option<Identity> {
 /// ```
 pub(crate) fn read_authoritative_boot_id(path: &Path) -> Result<String, String> {
     let opened: OwnedFd = rustix::fs::open(path, rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
-        .map_err(|error| { return format!("{} cannot be opened without following a link ({error})", path.display()); })?;
-    let found = rustix::fs::fstatfs(&opened).map_err(|error| { return format!("{} cannot be examined ({error})", path.display()); })?;
+        .explained(format_args!("{} cannot be opened without following a link", path.display()))?;
+    let found = rustix::fs::fstatfs(&opened).explained(format_args!("{} cannot be examined", path.display()))?;
     if u64::try_from(found.f_type).unwrap_or(0) != PROC_MAGIC {
         return Err(format!("{} is not served by procfs, so it may be a file put over the kernel's", path.display()));
     }
-    let attributes = statx(&opened, "", AtFlags::EMPTY_PATH, StatxFlags::TYPE).map_err(|error| { return format!("{} cannot be examined ({error})", path.display()); })?;
+    let attributes = statx(&opened, "", AtFlags::EMPTY_PATH, StatxFlags::TYPE).explained(format_args!("{} cannot be examined", path.display()))?;
     if !attributes.stx_attributes_mask.contains(rustix::fs::StatxAttributes::MOUNT_ROOT) {
         return Err("the kernel does not say whether the boot id file is the root of a mount".to_string());
     }
@@ -483,8 +533,16 @@ pub(crate) fn read_authoritative_boot_id(path: &Path) -> Result<String, String> 
         return Err(format!("{} is the root of a mount of its own, so it was put over the kernel's file", path.display()));
     }
     let mut text: String = String::new();
-    fs::File::from(opened).read_to_string(&mut text).map_err(|error| { return format!("the boot id cannot be read ({error})"); })?;
+    fs::File::from(opened).read_to_string(&mut text).explained(format_args!("the boot id cannot be read"))?;
     return Ok(text);
+}
+
+/// What:
+/// `fn single_line(text: String) -> String` drops one trailing newline.
+/// Why:
+/// The boot id and the machine id files end with a newline that is not part of the identity.
+fn single_line(text: String) -> String {
+    return text.strip_suffix('\n').unwrap_or(&text).to_string();
 }
 
 /// What:
@@ -500,9 +558,8 @@ pub(crate) fn read_authoritative_boot_id(path: &Path) -> Result<String, String> 
 /// export function readCurrentIdentity(bootPath: string, machinePath: string): Identity  // throws the reason
 /// ```
 pub(crate) fn read_current_identity(boot_path: &Path, machine_path: &Path) -> Result<Identity, String> {
-    let single_line = |text: String| -> String { return text.strip_suffix('\n').unwrap_or(&text).to_string(); };
     let boot: String = single_line(read_authoritative_boot_id(boot_path)?);
-    let machine: String = single_line(fs::read_to_string(machine_path).map_err(|error| { return format!("the machine id cannot be read ({error})"); })?);
+    let machine: String = single_line(fs::read_to_string(machine_path).explained(format_args!("the machine id cannot be read"))?);
     let identity: Identity = Identity { boot, machine };
     if !identity.is_well_formed() {
         return Err("the boot id or the machine id is empty or not in the format of an id".to_string());
@@ -634,18 +691,18 @@ struct ProcRoot {
 /// ```
 fn open_proc_root() -> Result<ProcRoot, String> {
     let directory: OwnedFd = rustix::fs::open("/proc", rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::DIRECTORY | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
-        .map_err(|error| { return format!("/proc cannot be opened ({error})"); })?;
-    let found = rustix::fs::fstatfs(&directory).map_err(|error| { return format!("/proc cannot be examined ({error})"); })?;
+        .explained(format_args!("/proc cannot be opened"))?;
+    let found = rustix::fs::fstatfs(&directory).explained(format_args!("/proc cannot be examined"))?;
     if u64::try_from(found.f_type).unwrap_or(0) != PROC_MAGIC {
         return Err("/proc is not a procfs".to_string());
     }
-    let attributes = statx(&directory, "", AtFlags::EMPTY_PATH, StatxFlags::TYPE).map_err(|error| { return format!("/proc cannot be examined ({error})"); })?;
+    let attributes = statx(&directory, "", AtFlags::EMPTY_PATH, StatxFlags::TYPE).explained(format_args!("/proc cannot be examined"))?;
     if !attributes.stx_attributes_mask.contains(rustix::fs::StatxAttributes::MOUNT_ROOT) || !attributes.stx_attributes.contains(rustix::fs::StatxAttributes::MOUNT_ROOT) {
         return Err("/proc is not the root of a procfs mount".to_string());
     }
     let own: i32 = rustix::process::getpid().as_raw_nonzero().get();
-    let link = rustix::fs::readlinkat(&directory, "self", Vec::new()).map_err(|error| { return format!("the procfs does not name this process ({error})"); })?;
-    let named: i32 = link.to_str().ok().and_then(|text| { return text.parse::<i32>().ok(); }).ok_or_else(|| { return "the procfs names this process in a form that is not a number".to_string(); })?;
+    let link = rustix::fs::readlinkat(&directory, "self", Vec::new()).explained(format_args!("the procfs does not name this process"))?;
+    let named: i32 = link.to_str().ok().and_then(parse_pid_text).or_text(format_args!("the procfs names this process in a form that is not a number"))?;
     if named != own {
         return Err(format!("the mounted procfs numbers this process {named} and this process is {own}, so it serves another process id namespace than this process is in"));
     }
@@ -715,6 +772,37 @@ fn read_in_proc(root: &ProcRoot, relative: &str) -> io::Result<String> {
 }
 
 /// What:
+/// `fn parse_pid_text(text: &str) -> Option<i32>` reads a process id from text.
+/// Why:
+/// `Option::and_then` takes it by path instead of a closure.
+fn parse_pid_text(text: &str) -> Option<i32> {
+    return text.parse::<i32>().ok();
+}
+
+/// What:
+/// `fn pid_line_value(candidate: &str) -> Option<&str>` returns the text after a `Pid:` prefix.
+/// Why:
+/// `find_map` takes it by path instead of a closure.
+fn pid_line_value(candidate: &str) -> Option<&str> {
+    return candidate.strip_prefix("Pid:");
+}
+
+/// What:
+/// `fn number_in_procfs(root: &ProcRoot, pid: i32, pidfd: &OwnedFd) -> Result<i32, String>` reads the number that the mounted procfs
+/// gives to the process a pidfd names.
+/// Why:
+/// Only when it is the id asked for does `/proc/<pid>` name that process;
+/// a function replaces the closure that captured the three arguments.
+fn number_in_procfs(root: &ProcRoot, pid: i32, pidfd: &OwnedFd) -> Result<i32, String> {
+    /// The raw descriptor number of the process handle,
+    /// which names its entry in `/proc/self/fdinfo`.
+    use std::os::fd::AsRawFd;
+    let info: String = read_in_proc(root, &format!("{}/fdinfo/{}", root.own, pidfd.as_raw_fd())).explained(format_args!("the pidfd of process {pid} cannot be examined through procfs"))?;
+    let line: &str = info.lines().find_map(pid_line_value).or_text(format_args!("the pidfd of process {pid} has no Pid line in procfs"))?;
+    return line.trim().parse::<i32>().explained(format_args!("the Pid line of the pidfd of process {pid} is not a number"));
+}
+
+/// What:
 /// `fn start_of(pid: i32) -> StartOf` reads the start time of a process id after showing that the mounted procfs numbers processes
 /// as this process's own namespace does.
 /// Why:
@@ -738,9 +826,6 @@ fn read_in_proc(root: &ProcRoot, relative: &str) -> io::Result<String> {
 /// function startOf(pid: number): { gone } | { start: number } | { unknown: string }
 /// ```
 fn start_of(pid: i32) -> StartOf {
-    /// The raw descriptor number of the process handle,
-    /// which names its entry in `/proc/self/fdinfo`.
-    use std::os::fd::AsRawFd;
     let Some(found) = Pid::from_raw(pid) else {
         return StartOf::Unknown(format!("{pid} is not a process id"));
     };
@@ -753,20 +838,20 @@ fn start_of(pid: i32) -> StartOf {
         Ok(opened) => opened,
         Err(reason) => return StartOf::Unknown(reason),
     };
-    let number_in_procfs = || -> Result<i32, String> {
-        let info: String = read_in_proc(&root, &format!("{}/fdinfo/{}", root.own, pidfd.as_raw_fd())).map_err(|error| { return format!("the pidfd of process {pid} cannot be examined through procfs ({error})"); })?;
-        let line: &str = info.lines().find_map(|candidate| { return candidate.strip_prefix("Pid:"); }).ok_or_else(|| { return format!("the pidfd of process {pid} has no Pid line in procfs"); })?;
-        return line.trim().parse::<i32>().map_err(|error| { return format!("the Pid line of the pidfd of process {pid} is not a number ({error})"); });
-    };
-    match number_in_procfs() {
+    match number_in_procfs(&root, pid, &pidfd) {
         Ok(number) if number == pid => {}
         Ok(number) => return StartOf::Unknown(format!("the mounted procfs numbers process {pid} as {number}, so it serves another process id namespace than this process is in")),
         Err(reason) => return StartOf::Unknown(reason),
     }
-    return match read_in_proc(&root, &format!("{pid}/stat")).and_then(|text| { return parse_stat(pid, &text); }) {
+    let stat_read: io::Result<String> = read_in_proc(&root, &format!("{pid}/stat"));
+    let stat_parsed: io::Result<(u64, char)> = match stat_read {
+        Ok(text) => parse_stat(pid, &text),
+        Err(error) => Err(error),
+    };
+    return match stat_parsed {
         Ok((start, _)) => StartOf::Process(start),
         // The same process was numbered `pid` a moment ago: if the procfs now has no entry, it ended (its number is then -1), or hides it.
-        Err(error) if error.kind() == io::ErrorKind::NotFound => match number_in_procfs() {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => match number_in_procfs(&root, pid, &pidfd) {
             Ok(number) => missing_entry_verdict(i64::from(number), pid, &error.to_string()),
             Err(reason) => StartOf::Unknown(reason),
         },
@@ -899,13 +984,37 @@ pub(crate) fn process_start(pid: i32) -> io::Result<u64> {
 /// function parseStat(pid: number, text: string): [number, string]
 /// ```
 fn parse_stat(pid: i32, text: &str) -> io::Result<(u64, char)> {
-    let invalid = || -> io::Error { return io::Error::new(io::ErrorKind::InvalidData, format!("/proc/{pid}/stat is not understood: {text:?}")); };
-    let after: &str = text.rsplit_once(')').ok_or_else(invalid)?.1;
+    let Some((_, after)) = text.rsplit_once(')') else {
+        return Err(invalid_stat(pid, text));
+    };
     let fields: Vec<&str> = after.split_whitespace().collect();
     // After the name: state is field 3, start time is field 22, so index 0 and 19 of what follows.
-    let state: char = fields.first().and_then(|field| { return field.chars().next(); }).ok_or_else(invalid)?;
-    let start: u64 = fields.get(19).ok_or_else(invalid)?.parse::<u64>().map_err(|_| { return invalid(); })?;
+    let Some(state) = fields.first().and_then(first_char_of) else {
+        return Err(invalid_stat(pid, text));
+    };
+    let Some(start_text) = fields.get(19) else {
+        return Err(invalid_stat(pid, text));
+    };
+    let Ok(start) = start_text.parse::<u64>() else {
+        return Err(invalid_stat(pid, text));
+    };
     return Ok((start, state));
+}
+
+/// What:
+/// `fn first_char_of(field: &&str) -> Option<char>` returns the first character of a field.
+/// Why:
+/// `Option::and_then` takes it by path instead of a closure.
+fn first_char_of(field: &&str) -> Option<char> {
+    return field.chars().next();
+}
+
+/// What:
+/// `fn invalid_stat(pid: i32, text: &str) -> io::Error` is the error for a `stat` text that is not understood.
+/// Why:
+/// A function replaces the closure that captured the process id and the text.
+fn invalid_stat(pid: i32, text: &str) -> io::Error {
+    return io::Error::new(io::ErrorKind::InvalidData, format!("/proc/{pid}/stat is not understood: {text:?}"));
 }
 
 /// What:
@@ -988,14 +1097,29 @@ fn namespace_id() -> io::Result<u64> {
 /// function onPath(program: string): boolean
 /// ```
 fn on_path(program: &str) -> bool {
-    /// The permission bits that tell an executable file from a plain one.
-    use std::os::unix::fs::PermissionsExt;
-    let executable = |candidate: &Path| -> bool { return fs::metadata(candidate).map(|found| { return found.is_file() && found.permissions().mode() & 0o111 != 0; }).unwrap_or(false); };
     if program.contains('/') {
-        return executable(Path::new(program));
+        return is_executable_file(Path::new(program));
     }
     let search: String = std::env::var("PATH").unwrap_or_default();
-    return search.split(':').any(|directory| { return !directory.is_empty() && executable(&Path::new(directory).join(program)); });
+    for directory in search.split(':') {
+        if !directory.is_empty() && is_executable_file(&Path::new(directory).join(program)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+/// `fn is_executable_file(candidate: &Path) -> bool` says whether a path is a regular file with an execute bit.
+/// Why:
+/// A function replaces the closure that `on_path` called for each search directory.
+pub(crate) fn is_executable_file(candidate: &Path) -> bool {
+    /// The permission bits that tell an executable file from a plain one.
+    use std::os::unix::fs::PermissionsExt;
+    match fs::metadata(candidate) {
+        Ok(found) => return found.is_file() && found.permissions().mode() & 0o111 != 0,
+        Err(_) => return false,
+    }
 }
 
 /// What:
@@ -1020,7 +1144,7 @@ fn run_plain(program: &str, arguments: &[&str], environment: &[(String, Option<S
             None => command.env_remove(name),
         };
     }
-    let mut child = command.spawn().map_err(|error| { return format!("{program} could not be started ({error})"); })?;
+    let mut child = command.spawn().explained(format_args!("{program} could not be started"))?;
     // One deadline for the reading, the killing and the reaping (contract V6; round 10, 9a D3).
     let deadline: Instant = Instant::now() + bound;
     let cancel: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
@@ -1033,22 +1157,17 @@ fn run_plain(program: &str, arguments: &[&str], environment: &[(String, Option<S
     let err_reader = crate::bounded_io::collect(OwnedFd::from(err_pipe), Arc::clone(&cancel));
     // Every exit from here ends the readers, kills a child that is still running, and reaps it within what is left of the deadline.
     // It returns the text that says so when the child was not reaped in time.
-    let ended = |running: &mut std::process::Child, readers: &Arc<AtomicBool>| -> &'static str {
-        readers.store(true, Ordering::Relaxed);
-        let _ = running.kill();
-        return unreaped_note(reap_within(running, deadline));
-    };
     let status = loop {
         match child.try_wait() {
             Ok(Some(found)) => break found,
             Ok(None) => {}
             Err(error) => {
-                let note: &str = ended(&mut child, &cancel);
+                let note: &str = end_child(&mut child, &cancel, deadline);
                 return Err(format!("{program} could not be waited for ({error}){note}"));
             }
         }
         if Instant::now() >= deadline {
-            let note: &str = ended(&mut child, &cancel);
+            let note: &str = end_child(&mut child, &cancel, deadline);
             return Err(format!("{program} did not answer within {bound:?}{note}"));
         }
         std::thread::sleep(DISCOVERY_POLL);
@@ -1058,7 +1177,7 @@ fn run_plain(program: &str, arguments: &[&str], environment: &[(String, Option<S
     let out: Vec<u8> = match out_reader.recv_timeout(out_wait) {
         Ok(Ok(bytes)) => bytes,
         _ => {
-            let note: &str = ended(&mut child, &cancel);
+            let note: &str = end_child(&mut child, &cancel, deadline);
             return Err(format!("{program} did not answer within {bound:?} (its output was not closed){note}"));
         }
     };
@@ -1066,7 +1185,7 @@ fn run_plain(program: &str, arguments: &[&str], environment: &[(String, Option<S
     let err: Vec<u8> = match err_reader.recv_timeout(err_wait) {
         Ok(Ok(bytes)) => bytes,
         _ => {
-            let note: &str = ended(&mut child, &cancel);
+            let note: &str = end_child(&mut child, &cancel, deadline);
             return Err(format!("{program} did not answer within {bound:?} (its error output was not closed){note}"));
         }
     };
@@ -1076,6 +1195,20 @@ fn run_plain(program: &str, arguments: &[&str], environment: &[(String, Option<S
         return Err(format!("{program} failed ({})", message.lines().next().unwrap_or("no message").trim()));
     }
     return Ok(String::from_utf8_lossy(&out).to_string());
+}
+
+/// What:
+/// `fn end_child(running: &mut std::process::Child, readers: &Arc<AtomicBool>, deadline: Instant) -> &'static str` ends the readers,
+/// kills a child that is still running,
+/// and reaps it within what is left of the deadline.
+/// Why:
+/// Every exit from the wait ends the child this way,
+/// and a function replaces the closure that captured the deadline.
+/// It returns the text that says so when the child was not reaped in time.
+fn end_child(running: &mut std::process::Child, readers: &Arc<AtomicBool>, deadline: Instant) -> &'static str {
+    readers.store(true, Ordering::Relaxed);
+    let _ = running.kill();
+    return unreaped_note(reap_within(running, deadline));
 }
 
 /// What:
@@ -1148,6 +1281,14 @@ pub(crate) fn kill_file_present(directory: &Path) -> bool {
 }
 
 /// What:
+/// `fn unavailable(reason: String) -> GroupUnavailable` wraps a reason in the refusal that route discovery returns.
+/// Why:
+/// A function replaces the closure that `detect_route` called at every refusal.
+pub(crate) fn unavailable(reason: String) -> GroupUnavailable {
+    return GroupUnavailable { reason };
+}
+
+/// What:
 /// `pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnavailable>` finds out whether this host can give a
 /// delegated scope,
 /// and where the manager keeps its scopes.
@@ -1162,7 +1303,6 @@ pub(crate) fn kill_file_present(directory: &Path) -> bool {
 /// export function detectRoute(settings: RouteSettings): Route  // throws GroupUnavailable
 /// ```
 pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnavailable> {
-    let unavailable = |reason: String| -> GroupUnavailable { return GroupUnavailable { reason }; };
     match is_cgroup2(&settings.cgroup_root) {
         Ok(true) => {}
         Ok(false) => return Err(unavailable(format!("{} is not a cgroup v2 mount", settings.cgroup_root.display()))),
@@ -1174,13 +1314,18 @@ pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnava
     // An inactive slice has no control group yet (a fresh login, a runner whose manager has run no application): starting it is
     // idempotent, and it is still the discovery of a capability, so a manager that cannot start it is a missing capability.
     if settings.question.is_none() {
-        run_plain(&settings.systemctl, &["--user", "start", &settings.slice], &settings.environment, settings.discovery_bound)
-            .map_err(|reason| { return unavailable(format!("the user manager cannot start {} ({reason})", settings.slice)); })?;
+        let started: Result<String, String> = run_plain(&settings.systemctl, &["--user", "start", &settings.slice], &settings.environment, settings.discovery_bound);
+        if let Err(reason) = started {
+            return Err(unavailable(format!("the user manager cannot start {} ({reason})", settings.slice)));
+        }
     }
     let ordinary: Vec<String> = vec!["--user".to_string(), "show".to_string(), settings.slice.clone(), "--property=ControlGroup".to_string(), "--value".to_string()];
     let question: Vec<&str> = settings.question.as_ref().unwrap_or(&ordinary).iter().map(String::as_str).collect();
-    let answer: String = run_plain(&settings.systemctl, &question, &settings.environment, settings.discovery_bound)
-        .map_err(|reason| { return unavailable(format!("the user manager cannot be asked where {} is ({reason})", settings.slice)); })?;
+    let asked: Result<String, String> = run_plain(&settings.systemctl, &question, &settings.environment, settings.discovery_bound);
+    let answer: String = match asked {
+        Ok(text) => text,
+        Err(reason) => return Err(unavailable(format!("the user manager cannot be asked where {} is ({reason})", settings.slice))),
+    };
     let reported: &str = answer.trim();
     if reported.is_empty() || !reported.starts_with('/') || reported.contains('\n') {
         return Err(unavailable(format!("the user manager reports no control group for {}", settings.slice)));
@@ -1189,16 +1334,28 @@ pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnava
     if slice_dir.to_str().is_none() {
         return Err(unavailable(format!("{} is not UTF-8, which the journal record cannot hold", slice_dir.display())));
     }
-    if !fs::metadata(&slice_dir).map(|found| { return found.is_dir(); }).unwrap_or(false) {
+    let slice_is_directory: bool = match fs::metadata(&slice_dir) {
+        Ok(found) => found.is_dir(),
+        Err(_) => false,
+    };
+    if !slice_is_directory {
         return Err(unavailable(format!("{} does not exist in the cgroup file system", slice_dir.display())));
     }
     if !kill_file_present(&slice_dir) {
         return Err(unavailable(format!("{} has no cgroup.kill; Linux 5.14 or later is needed", slice_dir.display())));
     }
-    let namespace: u64 = namespace_id().map_err(|error| { return unavailable(format!("the cgroup namespace cannot be identified ({error})")); })?;
-    let slice_view: View = view_of(&slice_dir).map_err(|error| { return unavailable(format!("{} cannot be examined ({error})", slice_dir.display())); })?;
-    let limits: InheritedLimits = caller_limits(&settings.own_cgroup_file, &settings.cgroup_root, &slice_dir)
-        .map_err(|error| { return unavailable(format!("the resource limits of the caller's control group cannot be read ({error}), and a scope without them would loosen the run")); })?;
+    let namespace: u64 = match namespace_id() {
+        Ok(found) => found,
+        Err(error) => return Err(unavailable(format!("the cgroup namespace cannot be identified ({error})"))),
+    };
+    let slice_view: View = match view_of(&slice_dir) {
+        Ok(found) => found,
+        Err(error) => return Err(unavailable(format!("{} cannot be examined ({error})", slice_dir.display()))),
+    };
+    let limits: InheritedLimits = match caller_limits(&settings.own_cgroup_file, &settings.cgroup_root, &slice_dir) {
+        Ok(found) => found,
+        Err(error) => return Err(unavailable(format!("the resource limits of the caller's control group cannot be read ({error}), and a scope without them would loosen the run"))),
+    };
     return Ok(Route { systemd_run: settings.systemd_run.clone(), slice: settings.slice.clone(), slice_dir, namespace, slice_view, limits: Arc::new(limits) });
 }
 
@@ -1461,7 +1618,10 @@ impl ControlGroup {
         };
         let mut found: Vec<i32> = Vec::new();
         for line in text.lines() {
-            found.push(line.trim().parse::<i32>().map_err(|error| { return io::Error::new(io::ErrorKind::InvalidData, format!("cgroup.procs holds {line:?} ({error})")); })?);
+            match line.trim().parse::<i32>() {
+                Ok(number) => found.push(number),
+                Err(error) => return Err(io::Error::new(io::ErrorKind::InvalidData, format!("cgroup.procs holds {line:?} ({error})"))),
+            }
         }
         return Ok(found);
     }
@@ -1574,7 +1734,7 @@ impl ControlGroup {
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 self.absence_is_verified()?;
                 #[cfg(test)]
-                crate::bounded_run::trace(|| { return "scope proved absent".to_string(); });
+                crate::bounded_run::trace(format_args!("scope proved absent"));
                 return Ok(true);
             }
             // The signal pass below does the stopping when the kill file cannot be written.
@@ -1585,7 +1745,7 @@ impl ControlGroup {
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 self.absence_is_verified()?;
                 #[cfg(test)]
-                crate::bounded_run::trace(|| { return "scope proved absent".to_string(); });
+                crate::bounded_run::trace(format_args!("scope proved absent"));
                 return Ok(true);
             }
             Err(error) => return Err(error),
@@ -1595,7 +1755,7 @@ impl ControlGroup {
                 // The authoritative proof: the kernel reports the scope unpopulated after the kill (a test build traces it, so a
                 // test sees that a successful stop went through this check and not through a snapshot of the members).
                 #[cfg(test)]
-                crate::bounded_run::trace(|| { return "scope proved empty".to_string(); });
+                crate::bounded_run::trace(format_args!("scope proved empty"));
                 return Ok(true);
             }
             self.signal_members()?;
@@ -1715,7 +1875,7 @@ impl fmt::Display for Record {
 /// function parseNumber(text: string, what: string, line: string): number
 /// ```
 fn parse_number(text: &str, what: &str, line: &str) -> Result<u64, String> {
-    return text.parse::<u64>().map_err(|error| { return format!("{line:?} has no {what} ({error})"); });
+    return text.parse::<u64>().explained(format_args!("{line:?} has no {what}"));
 }
 
 /// What:
@@ -1733,7 +1893,7 @@ pub(crate) fn parse_record(line: &str) -> Result<Record, String> {
         return Ok(Record::ProcessGroupStarting);
     }
     if let Some(rest) = line.strip_prefix("pgroup ") {
-        let leader: i32 = rest.trim().parse::<i32>().map_err(|error| { return format!("{line:?} is not a process group ({error})"); })?;
+        let leader: i32 = rest.trim().parse::<i32>().explained(format_args!("{line:?} is not a process group"))?;
         if leader <= 0 {
             return Err(format!("{line:?} is not a process group"));
         }
@@ -1742,7 +1902,7 @@ pub(crate) fn parse_record(line: &str) -> Result<Record, String> {
     if let Some(rest) = line.strip_prefix("launcher ") {
         let mut parts = rest.splitn(4, ' ');
         let pid_text: &str = parts.next().unwrap_or("");
-        let pid: i32 = pid_text.parse::<i32>().map_err(|error| { return format!("{line:?} has no launcher process id ({error})"); })?;
+        let pid: i32 = pid_text.parse::<i32>().explained(format_args!("{line:?} has no launcher process id"))?;
         if pid <= 0 {
             return Err(format!("{line:?} has no launcher process id"));
         }
@@ -1765,7 +1925,7 @@ pub(crate) fn parse_record(line: &str) -> Result<Record, String> {
         let mut parts = rest.splitn(3, ' ');
         let namespace: u64 = parse_number(parts.next().unwrap_or(""), "namespace id", line)?;
         let view_text: &str = parts.next().unwrap_or("");
-        let (mount_text, inode_text) = view_text.split_once(':').ok_or_else(|| { return format!("{line:?} has no mount view"); })?;
+        let (mount_text, inode_text) = view_text.split_once(':').or_text(format_args!("{line:?} has no mount view"))?;
         let parent_view: View = View { mount: parse_number(mount_text, "mount id", line)?, inode: parse_number(inode_text, "inode", line)? };
         let path: &str = parts.next().unwrap_or("");
         if path.is_empty() {

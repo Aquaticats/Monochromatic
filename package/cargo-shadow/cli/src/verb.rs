@@ -247,7 +247,8 @@ pub fn find_verb(arguments: &[OsString]) -> Option<String> {
     // ```ts
     // list.map(f).filter(g)
     // ```
-    return find_verb_position(&words).map(|position| { return words[position].clone(); });
+    let position: usize = find_verb_position(&words)?;
+    return Some(words[position].clone());
 }
 
 /// What:

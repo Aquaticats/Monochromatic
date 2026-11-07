@@ -460,7 +460,10 @@ static UNSYNCED_UNKNOWN: std::sync::atomic::AtomicBool = std::sync::atomic::Atom
 /// function rememberUnsynced(directory: string): void
 /// ```
 fn remember_unsynced(directory: &Path) {
-    let resolved: PathBuf = fs::canonicalize(directory).unwrap_or_else(|_| { return directory.to_path_buf(); });
+    let resolved: PathBuf = match fs::canonicalize(directory) {
+        Ok(found) => found,
+        Err(_) => directory.to_path_buf(),
+    };
     match UNSYNCED.try_lock() {
         Ok(mut known) => {
             known.insert(resolved);
@@ -502,7 +505,10 @@ fn is_unsynced(directory: &Path) -> bool {
     if UNSYNCED_UNKNOWN.load(std::sync::atomic::Ordering::Relaxed) {
         return true;
     }
-    return UNSYNCED.try_lock().map(|known| { return known.contains(directory); }).unwrap_or(true);
+    return match UNSYNCED.try_lock() {
+        Ok(known) => known.contains(directory),
+        Err(_) => true,
+    };
 }
 
 /// What:
@@ -570,7 +576,7 @@ pub fn create_directories_with(path: &Path, sync_dir: &dyn Fn(&Path) -> io::Resu
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
             Err(error) => return Err(error),
         }
-        if let Err(error) = sync_dir(directory).and_then(|()| { return sync_dir(&parent_of(directory)); }) {
+        if let Err(error) = sync_directory_and_parent(sync_dir, directory) {
             remember_unsynced(directory);
             return Err(error);
         }
@@ -588,7 +594,7 @@ pub fn create_directories_with(path: &Path, sync_dir: &dyn Fn(&Path) -> io::Resu
 /// export function createDirectoriesSynced(path: string): void
 /// ```
 pub fn create_directories_synced(path: &Path) -> io::Result<()> {
-    return create_directories_with(path, &sync_directory).map(|_created| {});
+    return create_directories_with(path, &sync_directory).map(drop);
 }
 
 /// What:
@@ -848,27 +854,9 @@ fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, ops: &Ops) -> Result
                     // assumed durable. A directory this call created, or one this process knows it left unsynchronized, is not.
                     // The path is resolved first, so a link or a relative path names the directories that really hold the entries.
                     // The walk fails, and preservation is not reported, when any barrier fails.
-                    let durable_up_to_the_anchor = || -> io::Result<()> {
-                        let resolved: PathBuf = fs::canonicalize(&directory)?;
-                        let created_here: Vec<PathBuf> = created.iter().filter_map(|made| { return fs::canonicalize(made).ok(); }).collect();
-                        let mut current: PathBuf = resolved;
-                        let mut child: Option<PathBuf> = None;
-                        loop {
-                            (ops.sync_dir)(&current)?;
-                            if let Some(synced_child) = child.take() {
-                                forget_unsynced(&synced_child);
-                            }
-                            if !created_here.contains(&current) && !is_unsynced(&current) {
-                                return Ok(());
-                            }
-                            let Some(parent) = current.parent() else {
-                                return Ok(());
-                            };
-                            child = Some(current.clone());
-                            current = parent.to_path_buf();
-                        }
-                    };
-                    durable_up_to_the_anchor().map_err(|error| { return PreserveFailure::Durability { kept: candidate.clone(), error }; })?;
+                    if let Err(error) = durable_up_to_the_anchor(&directory, &created, ops) {
+                        return Err(PreserveFailure::Durability { kept: candidate.clone(), error });
+                    }
                     return Ok(candidate);
                 }
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
@@ -898,14 +886,60 @@ pub fn keep_name(displaced: &Path, target: &Path, keep: &KeepAs) -> io::Result<P
     // Closure `|failure|`: an anonymous function, like a TS arrow function.
     // Borrow `&Ops`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
-    return preserve(displaced, target, keep, &Ops::standard()).map_err(|failure| {
-        // `match`: picks the arm whose pattern fits the value.
-        return match failure {
-            PreserveFailure::Data(error) | PreserveFailure::Link(error) => error,
-            // Macro `format!`: builds or prints text (or a list) from a template.
-            PreserveFailure::Durability { kept, error } => io::Error::other(format!("kept as {} but not made durable: {error}", kept.display())),
+    return preserve(displaced, target, keep, &Ops::standard()).map_err(preserve_failure_error);
+}
+
+/// What:
+/// `fn preserve_failure_error(failure: PreserveFailure) -> io::Error` turns a failure to keep a file into the `io::Error` the caller reports.
+/// Why:
+/// `Result::map_err` takes it by path instead of a closure.
+fn preserve_failure_error(failure: PreserveFailure) -> io::Error {
+    return match failure {
+        PreserveFailure::Data(error) | PreserveFailure::Link(error) => error,
+        PreserveFailure::Durability { kept, error } => io::Error::other(format!("kept as {} but not made durable: {error}", kept.display())),
+    };
+}
+
+/// What:
+/// `fn durable_up_to_the_anchor(directory: &Path, created: &[PathBuf], ops: &Ops) -> io::Result<()>` makes the entries of the kept copy durable from the kept directory up to the first directory that existed before this transaction.
+/// Why:
+/// The walk stops there (contract assumption b): a pre-existing directory and its path are assumed durable.
+/// A directory this call created, or one this process knows it left unsynchronized, is not.
+/// The path is resolved first, so a link or a relative path names the directories that really hold the entries.
+/// The walk fails, and preservation is not reported, when any barrier fails.
+fn durable_up_to_the_anchor(directory: &Path, created: &[PathBuf], ops: &Ops) -> io::Result<()> {
+    let resolved: PathBuf = fs::canonicalize(directory)?;
+    let mut created_here: Vec<PathBuf> = Vec::new();
+    for made in created {
+        if let Ok(found) = fs::canonicalize(made) {
+            created_here.push(found);
+        }
+    }
+    let mut current: PathBuf = resolved;
+    let mut child: Option<PathBuf> = None;
+    loop {
+        (ops.sync_dir)(&current)?;
+        if let Some(synced_child) = child.take() {
+            forget_unsynced(&synced_child);
+        }
+        if !created_here.contains(&current) && !is_unsynced(&current) {
+            return Ok(());
+        }
+        let Some(parent) = current.parent() else {
+            return Ok(());
         };
-    });
+        child = Some(current.clone());
+        current = parent.to_path_buf();
+    }
+}
+
+/// What:
+/// `fn sync_directory_and_parent(sync_dir: &dyn Fn(&Path) -> io::Result<()>, directory: &Path) -> io::Result<()>` syncs a directory and then the directory that holds it.
+/// Why:
+/// A function replaces the closure that `and_then` ran after the first sync.
+fn sync_directory_and_parent(sync_dir: &dyn Fn(&Path) -> io::Result<()>, directory: &Path) -> io::Result<()> {
+    sync_dir(directory)?;
+    return sync_dir(&parent_of(directory));
 }
 
 /// What:
@@ -934,13 +968,17 @@ fn keep_and_unlink(name: &Path, target: &Path, keep: &KeepAs, ops: &Ops) -> io::
             // Closure `|error|`: an anonymous function, like a TS arrow function.
             // `.map_err(...)`: converts the callee's error into this function's error type.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            fs::remove_file(name).map_err(|error| { return io::Error::other(format!("{} is kept as {} but its temporary name {} could not be removed: {error}", target.display(), kept.display(), name.display())); })?;
+            if let Err(error) = fs::remove_file(name) {
+                return Err(io::Error::other(format!("{} is kept as {} but its temporary name {} could not be removed: {error}", target.display(), kept.display(), name.display())));
+            }
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Closure `|error|`: an anonymous function, like a TS arrow function.
             // Borrow `&parent`: lends the value without copying or giving it away.
             // `.map_err(...)`: converts the callee's error into this function's error type.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            (ops.sync_dir)(&parent).map_err(|error| { return io::Error::other(format!("{} is kept as {} but {} could not be synced: {error}", target.display(), kept.display(), parent.display())); })?;
+            if let Err(error) = (ops.sync_dir)(&parent) {
+                return Err(io::Error::other(format!("{} is kept as {} but {} could not be synced: {error}", target.display(), kept.display(), parent.display())));
+            }
             Ok(Ok(kept))
         }
         // `Err(...)`: builds the success or the failure variant of a `Result`.
@@ -950,7 +988,9 @@ fn keep_and_unlink(name: &Path, target: &Path, keep: &KeepAs, ops: &Ops) -> io::
             // Borrow `&parent`: lends the value without copying or giving it away.
             // `.map_err(...)`: converts the callee's error into this function's error type.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            (ops.sync_dir)(&parent).map_err(|error| { return io::Error::other(format!("the displaced file stays as {} but {} could not be synced: {error}", name.display(), parent.display())); })?;
+            if let Err(error) = (ops.sync_dir)(&parent) {
+                return Err(io::Error::other(format!("the displaced file stays as {} but {} could not be synced: {error}", name.display(), parent.display())));
+            }
             Ok(Err(name.to_path_buf()))
         }
         // `Err(...)`: builds the success or the failure variant of a `Result`.

@@ -26,6 +26,9 @@
 //! export function trackingRef(config: ParsedConfig, layout: GitLayout, branch: string): string | undefined  // throws: ask Git
 //! ```
 
+/// Error text built only on failure,
+/// from a `format_args!` value.
+use crate::lazy_error_text::ExplainedError;
 /// Imports `fs` to read the repository files.
 use std::fs;
 /// Imports the borrowed and owned path types.
@@ -391,7 +394,10 @@ fn is_symbolic_link(path: &Path) -> bool {
     // value ?? fallback
     // ```
     // Adapter `.map(`: transforms or selects items with a closure.
-    return fs::symlink_metadata(path).map(|metadata| { return metadata.file_type().is_symlink(); }).unwrap_or(false);
+    return match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata.file_type().is_symlink(),
+        Err(_) => false,
+    };
 }
 
 /// What:
@@ -475,7 +481,7 @@ fn read_text(path: &Path) -> Result<String, String> {
     // ```ts
     // try { ... } catch (error) { throw new MyError(String(error)); }
     // ```
-    return fs::read_to_string(path).map_err(|error| { return cannot_read(path, &error); });
+    return fs::read_to_string(path).described(format_args!("{} cannot be read", path.display()));
 }
 
 /// What:
@@ -568,7 +574,7 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
     // Borrow `&dot_git`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Review finding (4a 5): Git inspects the `.git` entry itself (an `lstat`), so a link is not followed and is Git's to judge.
-    let metadata = fs::symlink_metadata(&dot_git).map_err(|error| { return cannot_read(&dot_git, &error); })?;
+    let metadata = fs::symlink_metadata(&dot_git).described(format_args!("{} cannot be read", dot_git.display()))?;
     if metadata.file_type().is_symlink() {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
@@ -654,7 +660,7 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
         // Borrow `&error`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `owner: u32`.
-        let owner: u32 = fs::symlink_metadata(owned).map_err(|error| { return cannot_read(owned, &error); })?.uid();
+        let owner: u32 = fs::symlink_metadata(owned).described(format_args!("{} cannot be read", owned.display()))?.uid();
         if owner != environment.user_id {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
@@ -794,7 +800,14 @@ fn read_reference(layout: &GitLayout, name: &str) -> Result<Option<String>, Stri
 pub fn lookup_ref(layout: &GitLayout, name: &str) -> Result<Option<String>, String> {
     // Closure `|namespace|`: an anonymous function, like a TS arrow function.
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-    if !SHARED_NAMESPACES.iter().any(|namespace| { return name.starts_with(namespace); }) {
+    let mut in_shared_namespace: bool = false;
+    for namespace in SHARED_NAMESPACES {
+        if name.starts_with(namespace) {
+            in_shared_namespace = true;
+            break;
+        }
+    }
+    if !in_shared_namespace {
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         // Macro `format!`: builds or prints text (or a list) from a template.
         return Err(format!("{name:?} is outside refs/heads, refs/remotes and refs/tags, so only Git reads it"));

@@ -541,14 +541,14 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
     let own_barrier: io::Result<()> = sync_directory(&directory);
     own_barrier?;
     #[cfg(test)]
-    crate::bounded_run::trace(|| { return "journal directory synced".to_string(); });
+    crate::bounded_run::trace(format_args!("journal directory synced"));
     #[cfg(test)]
     let parent_barrier: io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::JournalParentSync) { Err(io::Error::other("injected failure to make the journal's name durable")) } else { sync_directory(&journals) };
     #[cfg(not(test))]
     let parent_barrier: io::Result<()> = sync_directory(&journals);
     parent_barrier?;
     #[cfg(test)]
-    crate::bounded_run::trace(|| { return "journal published".to_string(); });
+    crate::bounded_run::trace(format_args!("journal published"));
     // `Some`: the present or the absent value of an `Option`.
     let scope: RunScope = RunScope::open(directory.join(GROUPS_FILE));
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
@@ -606,7 +606,7 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
 /// ```
 pub fn announce_kept_notice(notice: &str) {
     #[cfg(test)]
-    crate::bounded_run::trace(|| { return format!("kept notice {notice}"); });
+    crate::bounded_run::trace(format_args!("kept notice {notice}"));
     eprintln!("{notice}");
 }
 
@@ -707,7 +707,11 @@ impl Transaction {
         // `.collect()`: runs the iterator and gathers the items into the bound collection type.
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         // Adapter `.map(`: transforms or selects items with a closure.
-        *self.manifests.borrow_mut() = edits.iter().map(|edit| { return edit.path.clone(); }).collect();
+        let mut paths: Vec<PathBuf> = Vec::new();
+        for edit in edits {
+            paths.push(edit.path.clone());
+        }
+        *self.manifests.borrow_mut() = paths;
         return sync_directory(&self.directory);
     }
 
@@ -788,7 +792,10 @@ pub fn publish_done(directory: &Path) -> io::Result<PathBuf> {
         Some(found) => found.to_path_buf(),
         None => PathBuf::from("."),
     };
-    let name: String = directory.file_name().map(|found| { return found.to_string_lossy().to_string(); }).unwrap_or_default();
+    let name: String = match directory.file_name() {
+        Some(found) => found.to_string_lossy().to_string(),
+        None => String::new(),
+    };
     let done: PathBuf = if name.ends_with(DONE_SUFFIX) { directory.to_path_buf() } else { parent.join(format!("{name}{DONE_SUFFIX}")) };
     // The two real steps of the marker each have a failpoint, so a test fails the rename itself and the sync that follows it.
     #[cfg(test)]
@@ -799,7 +806,7 @@ pub fn publish_done(directory: &Path) -> io::Result<PathBuf> {
         fs::rename(directory, &done)?;
     }
     #[cfg(test)]
-    crate::bounded_run::trace(|| { return "marker renamed".to_string(); });
+    crate::bounded_run::trace(format_args!("marker renamed"));
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::CompletionSync) {
         return Err(io::Error::other("injected failure of the completion directory sync"));
@@ -822,7 +829,7 @@ pub fn publish_done(directory: &Path) -> io::Result<PathBuf> {
 fn sync_marker_parent(parent: &Path) -> io::Result<()> {
     sync_directory(parent)?;
     #[cfg(test)]
-    crate::bounded_run::trace(|| { return "marker parent synced".to_string(); });
+    crate::bounded_run::trace(format_args!("marker parent synced"));
     return Ok(());
 }
 
@@ -844,6 +851,26 @@ pub fn remove_done(done: &Path) -> io::Result<()> {
 }
 
 /// What:
+/// `fn metadata_of(found: fs::DirEntry) -> io::Result<fs::Metadata>` reads the metadata of a directory entry.
+/// Why:
+/// `Result::and_then` takes it by path instead of a closure.
+fn metadata_of(found: fs::DirEntry) -> io::Result<fs::Metadata> {
+    return found.metadata();
+}
+
+/// What:
+/// `fn joined_places(places: &[PathBuf]) -> String` writes paths separated by a comma and a space.
+/// Why:
+/// A loop replaces the `map` and `collect` closure of the inventory message.
+fn joined_places(places: &[PathBuf]) -> String {
+    let mut texts: Vec<String> = Vec::new();
+    for place in places {
+        texts.push(place.display().to_string());
+    }
+    return texts.join(", ");
+}
+
+/// What:
 /// `pub fn mark_done_and_remove(directory: &Path) -> io::Result<()>` publishes the completion marker of a journal and removes it.
 /// Why:
 /// A recovery settles a journal in one step;
@@ -854,7 +881,20 @@ pub fn remove_done(done: &Path) -> io::Result<()> {
 /// export function markDoneAndRemove(directory: string): void
 /// ```
 pub fn mark_done_and_remove(directory: &Path) -> io::Result<()> {
-    return finish_journal(directory).map_err(|error| { return io::Error::other(std::error::Error::source(&error).map_or_else(|| { return error.to_string(); }, ToString::to_string)); });
+    return finish_journal(directory).map_err(finish_failure_text);
+}
+
+/// What:
+/// `fn finish_failure_text(error: FinishError) -> io::Error` turns a failure to finish a journal into an `io::Error` whose text is the cause when there is one,
+/// else the failure's own text.
+/// Why:
+/// `Result::map_err` takes it by path instead of a closure.
+fn finish_failure_text(error: FinishError) -> io::Error {
+    let text: String = match std::error::Error::source(&error) {
+        Some(cause) => cause.to_string(),
+        None => error.to_string(),
+    };
+    return io::Error::other(text);
 }
 
 /// What:
@@ -874,7 +914,7 @@ pub fn finish_journal(directory: &Path) -> Result<(), FinishError> {
     let done: PathBuf = publish_done(directory).map_err(FinishError::completion)?;
     // The removal of a journal that is already marked done is the cleanup, which a test can make fail after the marker (V5).
     #[cfg(test)]
-    crate::bounded_run::trace(|| { return "cleanup attempted".to_string(); });
+    crate::bounded_run::trace(format_args!("cleanup attempted"));
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::FinishCleanup) {
         return Err(FinishError::cleanup(io::Error::other("injected cleanup failure")));
@@ -954,7 +994,7 @@ fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<String> {
     match fs::read_dir(&directory) {
         Ok(listing) => {
             for entry in listing {
-                match entry.and_then(|found| { return found.metadata(); }) {
+                match entry.and_then(metadata_of) {
                     Ok(metadata) => {
                         central += 1;
                         bytes += u128::from(metadata.len());
@@ -1002,7 +1042,7 @@ fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<String> {
     } else {
         format!(
             " {} could not be listed, so the number of files kept there is unknown; look at {}.",
-            unlisted.iter().map(|place| { return place.display().to_string(); }).collect::<Vec<String>>().join(", "),
+            joined_places(&unlisted),
             if unlisted.len() == 1 { "it" } else { "them" }
         )
     };

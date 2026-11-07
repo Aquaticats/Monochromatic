@@ -28,6 +28,9 @@
 // ```ts
 // import { Name } from './module.ts';
 // ```
+/// Error text built only on failure,
+/// from a `format_args!` value.
+use crate::lazy_error_text::ExplainedError;
 /// Imports `OsStr`,
 /// whose `to_str` turns a file extension into text.
 use std::ffi::OsStr;
@@ -193,6 +196,30 @@ fn read_at(file: &File, offset: u64, length: usize) -> std::io::Result<Vec<u8>> 
 }
 
 /// What:
+/// `fn fanout_entry(fanout: &[u8], position: usize) -> u64` reads one four-byte entry of a pack index fan-out table.
+/// Why:
+/// A function replaces the closure that captured the table.
+fn fanout_entry(fanout: &[u8], position: usize) -> u64 {
+    return big_endian(&fanout[position * 4..position * 4 + 4]);
+}
+
+/// What:
+/// `fn is_object_name(bytes: &[u8]) -> bool` says whether bytes are the hexadecimal name of a Git object.
+/// Why:
+/// A function replaces the closure that checked the tree and parent names of a commit.
+fn is_object_name(bytes: &[u8]) -> bool {
+    return bytes.len() == OBJECT_NAME_DIGITS && bytes.iter().all(u8::is_ascii_hexdigit);
+}
+
+/// What:
+/// `fn is_digit_byte(byte: u8) -> bool` says whether a byte is `0` to `9`.
+/// Why:
+/// `bytes().all` takes it by path instead of a closure.
+fn is_digit_byte(byte: u8) -> bool {
+    return byte.is_ascii_digit();
+}
+
+/// What:
 /// `fn big_endian(bytes: &[u8]) -> u64` decodes a big-endian unsigned integer.
 /// Why:
 /// Pack indexes store their numbers that way.
@@ -244,9 +271,8 @@ fn pack_offset(index: &File, name: &[u8; OBJECT_NAME_BYTES]) -> Result<Option<u6
     let fanout: Vec<u8> = read_at(index, fanout_start, FANOUT_ENTRIES * 4).map_err(index_failure)?;
     // Closure `|position: usize|`: an anonymous function, like a TS arrow function.
     // Borrow `&fanout`: lends the value without copying or giving it away.
-    let entry = |position: usize| { return big_endian(&fanout[position * 4..position * 4 + 4]); };
     // Typed binding: `total: u64`.
-    let total: u64 = entry(FANOUT_ENTRIES - 1);
+    let total: u64 = fanout_entry(&fanout, FANOUT_ENTRIES - 1);
     // Typed binding: `first_byte: usize`.
     let first_byte: usize = usize::from(name[0]);
     // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
@@ -258,10 +284,10 @@ fn pack_offset(index: &File, name: &[u8; OBJECT_NAME_BYTES]) -> Result<Option<u6
     // ```
     // `let mut`: a binding that may change.
     // Typed binding: `low: u64`.
-    let mut low: u64 = if first_byte == 0 { 0 } else { entry(first_byte - 1) };
+    let mut low: u64 = if first_byte == 0 { 0 } else { fanout_entry(&fanout, first_byte - 1) };
     // `let mut`: a binding that may change.
     // Typed binding: `high: u64`.
-    let mut high: u64 = entry(first_byte);
+    let mut high: u64 = fanout_entry(&fanout, first_byte);
     // Typed binding: `names_start: u64`.
     // Cast `as u64`: converts between numeric types.
     let names_start: u64 = fanout_start + (FANOUT_ENTRIES as u64) * 4;
@@ -345,8 +371,11 @@ pub(crate) fn open_regular(path: &Path) -> Result<File, String> {
     // Opened without waiting and without following a final link: a path swapped for a FIFO after any earlier check cannot block
     // the open, and the descriptor that was opened is the one inspected (round 6, 5a F7).
     let flags: i32 = (rustix::fs::OFlags::NONBLOCK | rustix::fs::OFlags::NOFOLLOW).bits().try_into().unwrap_or(0);
-    let file: File = std::os::unix::fs::OpenOptionsExt::custom_flags(std::fs::OpenOptions::new().read(true), flags).open(path).map_err(|error| { return format!("{} cannot be read: {error}", path.display()); })?;
-    let is_file: bool = file.metadata().map(|metadata| { return metadata.file_type().is_file(); }).unwrap_or(false);
+    let file: File = std::os::unix::fs::OpenOptionsExt::custom_flags(std::fs::OpenOptions::new().read(true), flags).open(path).described(format_args!("{} cannot be read", path.display()))?;
+    let is_file: bool = match file.metadata() {
+        Ok(metadata) => metadata.file_type().is_file(),
+        Err(_) => false,
+    };
     if !is_file {
         return Err(format!("{} is not a regular file, so only Git reads it", path.display()));
     }
@@ -365,15 +394,14 @@ pub(crate) fn open_regular(path: &Path) -> Result<File, String> {
 fn looks_like_commit(body: &[u8]) -> bool {
     // Git's `parse_commit_buffer` (commit.c): the tree line must be followed by at least one more byte, and so must every
     // parent line (`tail <= bufptr + entry_len + 1` is an error). Mirrored exactly, never loosened (round 6, 5a F3 A).
-    let hex_name = |bytes: &[u8]| -> bool { return bytes.len() == OBJECT_NAME_DIGITS && bytes.iter().all(u8::is_ascii_hexdigit); };
     let tree_entry: usize = "tree ".len() + OBJECT_NAME_DIGITS;
-    if body.len() <= tree_entry + 1 || !body.starts_with(b"tree ") || !hex_name(&body[5..tree_entry]) || body[tree_entry] != b'\n' {
+    if body.len() <= tree_entry + 1 || !body.starts_with(b"tree ") || !is_object_name(&body[5..tree_entry]) || body[tree_entry] != b'\n' {
         return false;
     }
     let parent_entry: usize = "parent ".len() + OBJECT_NAME_DIGITS;
     let mut position: usize = tree_entry + 1;
     while position + parent_entry < body.len() && body[position..].starts_with(b"parent ") {
-        if body.len() <= position + parent_entry + 1 || !hex_name(&body[position + 7..position + parent_entry]) || body[position + parent_entry] != b'\n' {
+        if body.len() <= position + parent_entry + 1 || !is_object_name(&body[position + 7..position + parent_entry]) || body[position + parent_entry] != b'\n' {
             return false;
         }
         position += parent_entry + 1;
@@ -435,7 +463,7 @@ fn inflate_complete(mut source: impl Read, output_limit: usize, input_limit: u64
             // Borrow `&mut input`: lends the value without copying or giving it away.
             // `.map_err(...)`: converts the callee's error into this function's error type.
             // Macro `format!`: builds or prints text (or a list) from a template.
-            available = source.read(&mut input).map_err(|error| { return format!("an object could not be read: {error}"); })?;
+            available = source.read(&mut input).described(format_args!("an object could not be read"))?;
             used = 0;
             // Cast `as u64`: converts between numeric types.
             read_total += available as u64;
@@ -456,7 +484,7 @@ fn inflate_complete(mut source: impl Read, output_limit: usize, input_limit: u64
         // Borrow `&input`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        let status = inflater.decompress(&input[used..available], &mut chunk, FlushDecompress::None).map_err(|error| { return format!("an object is not a valid zlib stream: {error}"); })?;
+        let status = inflater.decompress(&input[used..available], &mut chunk, FlushDecompress::None).described(format_args!("an object is not a valid zlib stream"))?;
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         used += usize::try_from(inflater.total_in() - before_in).unwrap_or(0);
         // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -500,7 +528,7 @@ fn inflate_complete(mut source: impl Read, output_limit: usize, input_limit: u64
 /// ```
 fn canonical_size(text: &str) -> Option<usize> {
     // Closure `|byte|`: an anonymous function, like a TS arrow function.
-    if text.is_empty() || !text.bytes().all(|byte| { return byte.is_ascii_digit(); }) || (text.len() > 1 && text.starts_with('0')) {
+    if text.is_empty() || !text.bytes().all(is_digit_byte) || (text.len() > 1 && text.starts_with('0')) {
         // `None`: the present or the absent value of an `Option`.
         return None;
     }
@@ -532,9 +560,16 @@ fn loose_commit(path: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<(), Strin
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `inflated: Vec<u8>`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let length: u64 = file.metadata().map_err(|error| { return format!("{} cannot be inspected: {error}", path.display()); })?.len();
-    let (inflated, consumed): (Vec<u8>, u64) = inflate_complete(file, usize::try_from(MAX_COMMIT_BYTES).unwrap_or(usize::MAX), MAX_COMMIT_BYTES).map_err(|message| { return format!("{}: {message}", path.display()); })?;
-    let Some(end) = inflated.iter().position(|byte| { return *byte == 0; }) else {
+    let length: u64 = file.metadata().described(format_args!("{} cannot be inspected", path.display()))?.len();
+    let (inflated, consumed): (Vec<u8>, u64) = inflate_complete(file, usize::try_from(MAX_COMMIT_BYTES).unwrap_or(usize::MAX), MAX_COMMIT_BYTES).described(format_args!("{}", path.display()))?;
+    let mut header_end: Option<usize> = None;
+    for (position, byte) in inflated.iter().enumerate() {
+        if *byte == 0 {
+            header_end = Some(position);
+            break;
+        }
+    }
+    let Some(end) = header_end else {
         return Err(format!("{} has no object header", path.display()));
     };
     let header: String = String::from_utf8_lossy(&inflated[..end]).to_string();
@@ -715,7 +750,7 @@ fn packed_commit(objects: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<bool,
         Err(error) => return Err(format!("{} cannot be listed: {error}", pack_directory.display())),
     };
     for item in listing {
-        let path: PathBuf = item.map_err(|error| { return format!("{} cannot be listed: {error}", pack_directory.display()); })?.path();
+        let path: PathBuf = item.described(format_args!("{} cannot be listed", pack_directory.display()))?.path();
         if path.extension().and_then(OsStr::to_str) != Some("idx") {
             continue;
         }

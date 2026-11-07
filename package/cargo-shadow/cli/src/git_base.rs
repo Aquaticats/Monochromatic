@@ -17,6 +17,9 @@
 //! export async function createGitBaseLockReader({ root, base }): Promise<(crateDir: string) => string>
 //! ```
 
+/// Error text built only on failure,
+/// from a `format_args!` value.
+use crate::lazy_error_text::OrText;
 /// What:
 /// `use std::path::Path;` imports `Path` from the standard library so this file can name it unqualified.
 /// Why:
@@ -259,7 +262,9 @@ pub(crate) fn run_git(environment: &NativeEnvironment, root: &Path, arguments: &
     // ```ts
     // list.map(f).filter(g)
     // ```
-    command.envs(environment.git.environment.iter().map(|(name, value)| { return (name.as_str(), value.as_str()); }));
+    for (name, value) in environment.git.environment.iter() {
+        command.env(name.as_str(), value.as_str());
+    }
     command.args(arguments).current_dir(root);
     // Typed binding: `bound: Bound`.
     let bound: Bound = Bound {
@@ -280,14 +285,19 @@ pub(crate) fn run_git(environment: &NativeEnvironment, root: &Path, arguments: &
     // ```
     // A cleared environment is rebuilt from the variables set on the command, which the scope launcher must be told.
     let ran = if environment.git.clean_environment { output_within_clean_environment(&mut command, input, &bound) } else { output_within(&mut command, input, &bound) };
-    return ran.map_err(|error| {
-        // `match`: picks the arm whose pattern fits the value.
-        return match error {
-            RunError::Io(inner) => git_start_failure(inner),
-            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-            timed_out => timed_out.to_string(),
-        };
-    });
+    return ran.map_err(run_error_text);
+}
+
+/// What:
+/// `fn run_error_text(error: RunError) -> String` words a failed Git run: the start failure of Git for an I/O error,
+/// the error's own text for a timeout or another bound.
+/// Why:
+/// `Result::map_err` takes it by path instead of a closure.
+fn run_error_text(error: RunError) -> String {
+    return match error {
+        RunError::Io(inner) => git_start_failure(inner),
+        timed_out => timed_out.to_string(),
+    };
 }
 
 /// How asking Git about one revision failed.
@@ -430,7 +440,10 @@ fn batch_answers(environment: &NativeEnvironment, root: &Path) -> Result<Batch, 
     // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
     // Adapter `.map(`: transforms or selects items with a closure.
     // Typed binding: `answers: Vec<Option<String>>`.
-    let answers: Vec<Option<String>> = (0..inputs.len()).map(|position| { return lines.get(position).copied().and_then(commit_of_line); }).collect();
+    let mut answers: Vec<Option<String>> = Vec::new();
+    for position in 0..inputs.len() {
+        answers.push(lines.get(position).copied().and_then(commit_of_line));
+    }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(Batch::Complete(answers));
 }
@@ -749,15 +762,36 @@ const SYSTEM_CONFIG_CACHE: &str = ".cache/cargo-shadow/git-system-config";
 /// function findProgram(program: string, search: string, workingDirectory: string): string | undefined
 /// ```
 fn find_program(program: &Path, search: &str, working_directory: &Path) -> Option<PathBuf> {
-    let runnable = |candidate: &Path| -> bool { return candidate.metadata().is_ok_and(|metadata| { return metadata.is_file() && std::os::unix::fs::PermissionsExt::mode(&metadata.permissions()) & 0o111 != 0; }); };
     if program.components().count() > 1 {
         let anchored: PathBuf = working_directory.join(program);
         return Some(anchored);
     }
-    return search
-        .split(':')
-        .map(|directory| { return working_directory.join(if directory.is_empty() { "." } else { directory }).join(program); })
-        .find(|candidate| { return runnable(candidate); });
+    for directory in search.split(':') {
+        let candidate: PathBuf = working_directory.join(if directory.is_empty() { "." } else { directory }).join(program);
+        if crate::control_group::is_executable_file(&candidate) {
+            return Some(candidate);
+        }
+    }
+    return None;
+}
+
+/// What:
+/// `fn seen_variable(environment: &NativeEnvironment, name: &str) -> String` returns the value that the compiled Git would read for a variable:
+/// the last one set on the command,
+/// else the caller's when the run keeps the caller's environment,
+/// else an empty string.
+/// Why:
+/// A function replaces the closure that captured the environment.
+fn seen_variable(environment: &NativeEnvironment, name: &str) -> String {
+    for (key, value) in environment.git.environment.iter().rev() {
+        if key == name {
+            return value.clone();
+        }
+    }
+    if environment.git.clean_environment {
+        return String::new();
+    }
+    return std::env::var(name).unwrap_or_default();
 }
 
 /// What:
@@ -783,42 +817,19 @@ fn find_program(program: &Path, search: &str, working_directory: &Path) -> Optio
 /// ```
 pub(crate) fn system_config_of_git(environment: &NativeEnvironment, root: &Path, starts: &Cell<u32>) -> Result<PathBuf, String> {
     // Typed binding: `search: String`.
-    let search: String = environment
-        .git
-        .environment
-        // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-        .iter()
-        // Closure `|(name, _)|`: an anonymous function, like a TS arrow function.
-        .find(|(name, _)| { return name == "PATH"; })
-        // Closure `|(_, value)|`: an anonymous function, like a TS arrow function.
-        // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
-        // Why:      The copy can be stored or moved elsewhere while the original stays in place.
-        // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // structuredClone(value)  // or [...list] / {...object}
-        // ```
-        // Adapter `.map(`: transforms or selects items with a closure.
-        .map(|(_, value)| { return value.clone(); })
-        // `None`: the present or the absent value of an `Option`.
-        // What:     `.ok()` turns a `Result` into an `Option` (dropping the error); `.ok_or(e)` turns an `Option` into a `Result` with the given error.
-        // Why:      The next step wants a value-or-nothing, or a value-or-error, not the other form.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // try { return compute(); } catch { return undefined; }
-        // ```
-        .or_else(|| { return if environment.git.clean_environment { None } else { std::env::var("PATH").ok() }; })
-        // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
-        // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
-        // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // value ?? fallback
-        // ```
-        .unwrap_or_default();
+    // The variable set on the command wins; without one, a run that keeps the caller's environment reads the caller's PATH.
+    let mut search: String = String::new();
+    let mut set_on_command: bool = false;
+    for (name, value) in environment.git.environment.iter() {
+        if name == "PATH" {
+            search = value.clone();
+            set_on_command = true;
+            break;
+        }
+    }
+    if !set_on_command && !environment.git.clean_environment {
+        search = std::env::var("PATH").unwrap_or_default();
+    }
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&environment.git.program`: lends the value without copying or giving it away.
     // `.ok()`/`.ok_or()`: converts between `Result` and `Option`.
@@ -831,39 +842,51 @@ pub(crate) fn system_config_of_git(environment: &NativeEnvironment, root: &Path,
     // ```ts
     // // TS has one type for this: string
     // ```
-    let program: PathBuf = find_program(&environment.git.program, &search, root).ok_or_else(|| { return format!("{} was not found on the search path, so its system configuration is unknown", environment.git.program.display()); })?;
+    let program: PathBuf = find_program(&environment.git.program, &search, root).or_text(format_args!("{} was not found on the search path, so its system configuration is unknown", environment.git.program.display()))?;
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Closure `|error|`: an anonymous function, like a TS arrow function.
     // Borrow `&program`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `canonical: PathBuf`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let canonical: PathBuf = std::fs::canonicalize(&program).map_err(|error| { return format!("{} cannot be resolved: {error}", program.display()); })?;
+    let canonical: PathBuf = match std::fs::canonicalize(&program) {
+        Ok(found) => found,
+        Err(error) => return Err(format!("{} cannot be resolved: {error}", program.display())),
+    };
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Closure `|error|`: an anonymous function, like a TS arrow function.
     // Borrow `&canonical`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let metadata = std::fs::metadata(&canonical).map_err(|error| { return format!("{} cannot be inspected: {error}", canonical.display()); })?;
+    let metadata = match std::fs::metadata(&canonical) {
+        Ok(found) => found,
+        Err(error) => return Err(format!("{} cannot be inspected: {error}", canonical.display())),
+    };
     // Closure `|time|`: an anonymous function, like a TS arrow function.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // `.ok()`/`.ok_or()`: converts between `Result` and `Option`.
     // Adapter `.and_then(`: transforms or selects items with a closure.
     // Typed binding: `modified_nanos: u128`.
-    let modified_nanos: u128 = metadata.modified().ok().and_then(|time| { return time.duration_since(std::time::UNIX_EPOCH).ok(); }).map(|elapsed| { return elapsed.as_nanos(); }).unwrap_or(0);
+    let modified_nanos: u128 = match metadata.modified() {
+        Ok(time) => match time.duration_since(std::time::UNIX_EPOCH) {
+            Ok(elapsed) => elapsed.as_nanos(),
+            Err(_) => 0,
+        },
+        Err(_) => 0,
+    };
     // Typed binding: `key: String`.
     // Macro `format!`: builds or prints text (or a list) from a template.
     // An answer is reused only for a compiled program: a script may forward to any Git, chosen by files, variables or the
     // directory, so nothing about the script says which Git answers (round 6, 5a F5).
     let compiled: bool = {
         let mut magic: [u8; 4] = [0; 4];
-        std::fs::File::open(&canonical).and_then(|mut file| { return std::io::Read::read_exact(&mut file, &mut magic); }).is_ok() && magic == *b"\x7fELF"
+        let read_magic: bool = match std::fs::File::open(&canonical) {
+            Ok(mut file) => std::io::Read::read_exact(&mut file, &mut magic).is_ok(),
+            Err(_) => false,
+        };
+        read_magic && magic == *b"\x7fELF"
     };
     // What the compiled program reads to find its system configuration: its own file and the two variables that move or remove it.
-    let seen = |name: &str| -> String {
-        let given: Option<String> = environment.git.environment.iter().rev().find(|(key, _)| { return key == name; }).map(|(_, value)| { return value.clone(); });
-        return given.or_else(|| { return if environment.git.clean_environment { None } else { std::env::var(name).ok() }; }).unwrap_or_default();
-    };
     let key: String = {
         format!(
             "{}\t{}\t{}\t{}\t{modified_nanos}\t{}\t{}\t{}\t{}",
@@ -872,9 +895,9 @@ pub(crate) fn system_config_of_git(environment: &NativeEnvironment, root: &Path,
             std::os::unix::fs::MetadataExt::ino(&metadata),
             metadata.len(),
             std::os::unix::fs::MetadataExt::ctime_nsec(&metadata) + std::os::unix::fs::MetadataExt::ctime(&metadata) * 1_000_000_000,
-            seen("GIT_CONFIG_SYSTEM"),
-            seen("GIT_CONFIG_NOSYSTEM"),
-            seen("GIT_EXEC_PATH")
+            seen_variable(environment, "GIT_CONFIG_SYSTEM"),
+            seen_variable(environment, "GIT_CONFIG_NOSYSTEM"),
+            seen_variable(environment, "GIT_EXEC_PATH")
         )
     };
     // Typed binding: `cache: PathBuf`.

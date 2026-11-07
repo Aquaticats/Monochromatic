@@ -15,6 +15,9 @@
 //! export function findInPath(name: string, pathVariable: string, skip: string): string | undefined { ... }
 //! ```
 
+/// Error text built only on failure,
+/// from a `format_args!` value.
+use crate::lazy_error_text::ExplainedError;
 /// Imports the file-system module (resolves symlinks,
 /// reads permissions).
 use std::fs;
@@ -120,7 +123,12 @@ pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option
 pub fn find_in_path_with_image(name: &str, path_variable: &str, skip: &[PathBuf], image: Option<(u64, u64)>) -> Option<PathBuf> {
     // The skipped executables by file identity: a hard link to the shadow resolves to another pathname than the shadow's own and is
     // still the same file, so the pathname alone cannot tell it (certification, third pass); the running image is one of them.
-    let mut skipped: Vec<(u64, u64)> = skip.iter().filter_map(|path| { return identity_of(path); }).collect();
+    let mut skipped: Vec<(u64, u64)> = Vec::new();
+    for path in skip {
+        if let Some(found) = identity_of(path) {
+            skipped.push(found);
+        }
+    }
     skipped.extend(image);
     for directory in path_variable.split(':') {
         // An empty PATH entry means the current directory in a shell; the shadow ignores it on purpose.
@@ -135,7 +143,7 @@ pub fn find_in_path_with_image(name: &str, path_variable: &str, skip: &[PathBuf]
         // `fs::canonicalize(&candidate)` resolves every symlink to the final path, so every link to the shadow
         // resolves to the one executable and is recognized under whatever name it was found. The `&&` joins two
         // conditions inside one `if let`.
-        if identity_of(&candidate).is_some_and(|found| { return skipped.contains(&found); }) {
+        if has_skipped_identity(&candidate, &skipped) {
             continue;
         }
         if let Ok(resolved) = fs::canonicalize(&candidate)
@@ -196,7 +204,7 @@ pub fn refuse_if_ourselves(program: &Path) -> Result<(), String> {
     let Some(image) = running_image_identity() else {
         return Ok(());
     };
-    let named_us: bool = identity_of(program) == Some(image) || fs::canonicalize(program).is_ok_and(|resolved| { return leads_back_to(&resolved, &[], &[image]); });
+    let named_us: bool = identity_of(program) == Some(image) || leads_back_through(program, image);
     if named_us {
         return Err(format!("{} names this program itself at the moment of the start, so it was not started", program.display()));
     }
@@ -285,15 +293,21 @@ pub fn vet(program: &Path) -> Result<Vetted, String> {
             /// The raw open flag `O_PATH`,
             /// which opens a file only as an identity when its content cannot be read.
             use std::os::unix::fs::OpenOptionsExt;
-            let by_path: fs::File = fs::OpenOptions::new().read(true).custom_flags(OPEN_BY_PATH_ONLY).open(program).map_err(|second| { return format!("{} cannot be opened ({error}; by path only: {second})", program.display()); })?;
+            let by_path: fs::File = match fs::OpenOptions::new().read(true).custom_flags(OPEN_BY_PATH_ONLY).open(program) {
+                Ok(opened) => opened,
+                Err(second) => return Err(format!("{} cannot be opened ({error}; by path only: {second})", program.display())),
+            };
             (by_path, false)
         }
         Err(error) => return Err(format!("{} cannot be opened ({error})", program.display())),
     };
-    let metadata: fs::Metadata = file.metadata().map_err(|error| { return format!("{} cannot be examined ({error})", program.display()); })?;
+    let metadata: fs::Metadata = file.metadata().explained(format_args!("{} cannot be examined", program.display()))?;
     let image: Option<(u64, u64)> = running_image_identity();
     let named_us: bool = image == Some((metadata.dev(), metadata.ino()))
-        || image.is_some_and(|found| { return fs::canonicalize(format!("/proc/self/fd/{}", file.as_raw_fd())).is_ok_and(|resolved| { return leads_back_to(&resolved, &[], &[found]); }); });
+        || match image {
+            Some(found) => leads_back_through(Path::new(&format!("/proc/self/fd/{}", file.as_raw_fd())), found),
+            None => false,
+        };
     if named_us {
         return Err(format!("{} names this program itself at the moment of the start, so it was not started", program.display()));
     }
@@ -386,7 +400,9 @@ impl Vetted {
 pub fn running_image_identity() -> Option<(u64, u64)> {
     /// The device and inode numbers that identify an executable whatever its name.
     use std::os::unix::fs::MetadataExt;
-    return fs::File::open("/proc/self/exe").and_then(|image| { return image.metadata(); }).ok().map(|found| { return (found.dev(), found.ino()); });
+    let image: fs::File = fs::File::open("/proc/self/exe").ok()?;
+    let found: fs::Metadata = image.metadata().ok()?;
+    return Some((found.dev(), found.ino()));
 }
 
 /// What:
@@ -405,7 +421,41 @@ pub fn running_image_identity() -> Option<(u64, u64)> {
 fn identity_of(path: &Path) -> Option<(u64, u64)> {
     /// The device and inode numbers that identify an executable whatever its name.
     use std::os::unix::fs::MetadataExt;
-    return fs::metadata(path).ok().map(|found| { return (found.dev(), found.ino()); });
+    let found: fs::Metadata = fs::metadata(path).ok()?;
+    return Some((found.dev(), found.ino()));
+}
+
+/// What:
+/// `fn has_skipped_identity(path: &Path, skipped: &[(u64, u64)]) -> bool` says whether the file a path names is one of the skipped files.
+/// Why:
+/// A function replaces the closure that compared the identity with the skipped list.
+fn has_skipped_identity(path: &Path, skipped: &[(u64, u64)]) -> bool {
+    return match identity_of(path) {
+        Some(found) => skipped.contains(&found),
+        None => false,
+    };
+}
+
+/// What:
+/// `fn leads_back_through(path: &Path, image: (u64, u64)) -> bool` says whether a path,
+/// once resolved,
+/// is a launcher whose record leads back to the running image.
+/// Why:
+/// A function replaces the closure that `is_ok_and` ran after the resolution.
+fn leads_back_through(path: &Path, image: (u64, u64)) -> bool {
+    return match fs::canonicalize(path) {
+        Ok(resolved) => leads_back_to(&resolved, &[], &[image]),
+        Err(_) => false,
+    };
+}
+
+/// What:
+/// `fn real_path_of_record(text: &str) -> Option<PathBuf>` reads the `real` path from the JSON text of a launch record.
+/// Why:
+/// A function replaces the closure that `and_then` ran on the parsed value.
+fn real_path_of_record(text: &str) -> Option<PathBuf> {
+    let value: serde_json::Value = serde_json::from_str(text).ok()?;
+    return value.get("real")?.as_str().map(PathBuf::from);
 }
 
 /// What:
@@ -438,13 +488,13 @@ fn leads_back_to(resolved: &Path, skip: &[PathBuf], skipped: &[(u64, u64)]) -> b
         let Ok(text) = fs::read_to_string(PathBuf::from(record_name)) else {
             return false;
         };
-        let Some(real) = serde_json::from_str::<serde_json::Value>(&text).ok().and_then(|value| { return value.get("real")?.as_str().map(PathBuf::from); }) else {
+        let Some(real) = real_path_of_record(&text) else {
             return false;
         };
         let Ok(target) = fs::canonicalize(&real) else {
             return false;
         };
-        if skip.contains(&target) || identity_of(&target).is_some_and(|found| { return skipped.contains(&found); }) {
+        if skip.contains(&target) || has_skipped_identity(&target, skipped) {
             return true;
         }
         current = target;

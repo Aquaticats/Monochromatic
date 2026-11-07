@@ -190,27 +190,53 @@ thread_local! {
 }
 
 /// What:
-/// `fn trace(event: impl FnOnce() -> String)` appends an event to this thread's trace in a test build and does nothing otherwise.
+/// `fn scope_state_of(entry: &(u64, Rc<ScopeState>)) -> Rc<ScopeState>` clones the state of one stack entry.
+/// Why:
+/// `Option::map` takes it by path instead of a closure.
+fn scope_state_of(entry: &(u64, Rc<ScopeState>)) -> Rc<ScopeState> {
+    return Rc::clone(&entry.1);
+}
+
+/// What:
+/// `fn trace(event: fmt::Arguments<'_>)` appends an event to this thread's trace in a test build and does nothing otherwise.
 /// Why:
 /// The order record write,
 /// durability barrier,
 /// launch is a property of the real boundaries,
 /// so the tests read an ordered trace of
 /// them (certification group 2).
+/// The event is a `format_args!` value: nothing is formatted unless a test build turns it into text,
+/// and a production build drops it unread.
+/// An event whose arguments would compute something (read a file, call a function with a cost) is not passed here;
+/// its statement carries `#[cfg(test)]` and calls `trace_text`,
+/// so a production build never evaluates it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function trace(event: () => string): void
+/// function trace(event: string): void  // the argument is a template that is only rendered in a test build
 /// ```
 #[cfg(test)]
-pub(crate) fn trace(event: impl FnOnce() -> String) {
-    let text: String = event();
+pub(crate) fn trace(event: std::fmt::Arguments<'_>) {
+    trace_text(event.to_string());
+}
+
+/// What:
+/// `fn trace_text(text: String)` appends an already formatted event to this thread's trace.
+/// Why:
+/// The statements that compute their text are compiled in a test build only.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function traceText(text: string): void
+/// ```
+#[cfg(test)]
+pub(crate) fn trace_text(text: String) {
     TRACE.with(|slot| { slot.borrow_mut().push(text); });
 }
 
 /// The production build keeps no trace.
 #[cfg(not(test))]
-fn trace(_event: impl FnOnce() -> String) {}
+fn trace(_event: std::fmt::Arguments<'_>) {}
 
 /// What:
 /// `pub(crate) fn take_trace_for_test() -> Vec<String>` returns and clears this thread's trace.
@@ -282,9 +308,13 @@ impl RunScope {
     /// static open(groupLog: string): RunScope
     /// ```
     pub fn open(group_log: PathBuf) -> RunScope {
-        let id: u64 = NEXT_SCOPE.with(|next| { return next.replace(next.get() + 1); });
+        let id: u64 = NEXT_SCOPE.get();
+        NEXT_SCOPE.set(id + 1);
         let state: Rc<ScopeState> = Rc::new(ScopeState { log: group_log, lost: Cell::new(false), process_group_only: Cell::new(false) });
-        SCOPES.with(|stack| { stack.borrow_mut().push((id, Rc::clone(&state))); });
+        // The stack is taken out of its cell and put back, so no closure holds the borrow; nothing else runs in between.
+        let mut stack: Vec<(u64, Rc<ScopeState>)> = SCOPES.take();
+        stack.push((id, Rc::clone(&state)));
+        SCOPES.set(stack);
         return RunScope { id, state, _on_one_thread: PhantomData };
     }
 
@@ -331,7 +361,17 @@ impl Drop for RunScope {
     /// [Symbol.dispose](): void
     /// ```
     fn drop(&mut self) {
-        SCOPES.with(|stack| { stack.borrow_mut().retain(|(id, _)| { return *id != self.id; }); });
+        // Taken out of its cell and put back: nothing else runs in between.
+        let mut stack: Vec<(u64, Rc<ScopeState>)> = SCOPES.take();
+        let mut index: usize = 0;
+        while index < stack.len() {
+            if stack[index].0 == self.id {
+                stack.remove(index);
+            } else {
+                index += 1;
+            }
+        }
+        SCOPES.set(stack);
     }
 }
 
@@ -424,7 +464,11 @@ impl std::fmt::Display for RunError {
 /// function currentScope(): ScopeState | undefined
 /// ```
 fn current_scope() -> Option<Rc<ScopeState>> {
-    return SCOPES.with(|stack| { return stack.borrow().last().map(|(_, state)| { return Rc::clone(state); }); });
+    // Taken out of its cell and put back: nothing else runs in between.
+    let stack: Vec<(u64, Rc<ScopeState>)> = SCOPES.take();
+    let innermost: Option<Rc<ScopeState>> = stack.last().map(scope_state_of);
+    SCOPES.set(stack);
+    return innermost;
 }
 
 /// What:
@@ -474,7 +518,7 @@ pub(crate) fn append_record_with(log: &Path, record: &Record, sync: bool) -> io:
         Record::ProcessGroup(_) => "pgroup",
         Record::ProcessGroupStarting => "pgroup-starting",
     };
-    trace(|| format!("attempt {kind_name}"));
+    trace(format_args!("attempt {kind_name}"));
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::RecordWrite) {
         return Err(io::Error::other("injected failure to write the containment record"));
@@ -488,19 +532,21 @@ pub(crate) fn append_record_with(log: &Path, record: &Record, sync: bool) -> io:
     if written != line.len() {
         return Err(io::Error::new(io::ErrorKind::WriteZero, "the containment record was cut short"));
     }
-    trace(|| format!("written {kind_name}"));
+    trace(format_args!("written {kind_name}"));
     if !sync {
         return Ok(());
     }
     // The record is durable before the program it describes can start: a sync that fails stops the start.
-    trace(|| format!("sync {kind_name} whole={}", std::fs::read_to_string(log).is_ok_and(|text| { return text.ends_with(&line); })));
+    // The text reads the log file, so this statement exists in a test build only.
+    #[cfg(test)]
+    trace_text(format!("sync {kind_name} whole={}", std::fs::read_to_string(log).is_ok_and(|text| { return text.ends_with(&line); })));
     // A test replaces the result of the sync, so the failure takes the path of a failure of the kernel (round 21, sixth pass, V3).
     #[cfg(test)]
     let synced: io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::RecordSync) { Err(io::Error::other("injected failure to make the containment record durable")) } else { fsync(&file).map_err(io::Error::from) };
     #[cfg(not(test))]
     let synced: io::Result<()> = fsync(&file).map_err(io::Error::from);
     synced?;
-    trace(|| format!("synced {kind_name}"));
+    trace(format_args!("synced {kind_name}"));
     return Ok(());
 }
 
@@ -618,11 +664,11 @@ impl RouteCache {
         if let Ok(held) = self.slot.try_lock()
             && let Some(answer) = held.as_ref()
         {
-            return answer.clone().map_err(|reason| { return GroupUnavailable { reason }; });
+            return answer.clone().map_err(crate::control_group::unavailable);
         }
         let found: Result<Route, GroupUnavailable> = discover();
         if let Ok(mut held) = self.slot.try_lock() {
-            *held = Some(found.as_ref().map(Clone::clone).map_err(|unavailable| { return unavailable.reason.clone(); }));
+            *held = Some(found.as_ref().map(Clone::clone).map_err(reason_of));
         }
         return found;
     }
@@ -667,7 +713,7 @@ fn find_route() -> Result<Route, GroupUnavailable> {
     /// The route found once for the process,
     /// so later bounded runs do not detect it again.
     static ROUTE: RouteCache = RouteCache::new();
-    return ROUTE.get_or_discover(&|| { return detect_route(&RouteSettings::default()); });
+    return ROUTE.get_or_discover(&discover_default_route);
 }
 
 /// What:
@@ -743,19 +789,6 @@ pub(crate) fn weaker_notice(unavailable: &GroupUnavailable) -> String {
 /// function contain(): Containment
 /// ```
 fn contain() -> Containment {
-    let weaker = |unavailable: GroupUnavailable| -> Containment {
-        // The notice this run is given is part of the trace, so a test sees the notice of the run and not a text it formats itself.
-        trace(|| { return format!("notice {}", weaker_notice(&unavailable)); });
-        if !WEAKER_NOTICE_GIVEN.swap(true, std::sync::atomic::Ordering::SeqCst) {
-            #[cfg(test)]
-            {
-                NOTICE_ENTERED.store(true, std::sync::atomic::Ordering::SeqCst);
-                drop(NOTICE_GATE.lock());
-            }
-            eprintln!("{}", weaker_notice(&unavailable));
-        }
-        return Containment::ProcessGroup;
-    };
     return match find_route() {
         Ok(route) => match ControlGroup::plan(&route) {
             Ok(group) => Containment::Scope { group, route },
@@ -763,6 +796,27 @@ fn contain() -> Containment {
         },
         Err(unavailable) => weaker(unavailable),
     };
+}
+
+/// What:
+/// `fn weaker(unavailable: GroupUnavailable) -> Containment` gives the notice that the run is contained by a process group only,
+/// and returns that containment.
+/// Why:
+/// A function replaces the closure that `contain` called at both refusals.
+fn weaker(unavailable: GroupUnavailable) -> Containment {
+    // The notice this run is given is part of the trace, so a test sees the notice of the run and not a text it formats itself.
+    // The text is computed, so this statement exists in a test build only.
+    #[cfg(test)]
+    trace_text(format!("notice {}", weaker_notice(&unavailable)));
+    if !WEAKER_NOTICE_GIVEN.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        #[cfg(test)]
+        {
+            NOTICE_ENTERED.store(true, std::sync::atomic::Ordering::SeqCst);
+            drop(NOTICE_GATE.lock());
+        }
+        eprintln!("{}", weaker_notice(&unavailable));
+    }
+    return Containment::ProcessGroup;
 }
 
 /// What:
@@ -1024,7 +1078,7 @@ fn run_bounded(command: &mut Command, input: Option<&[u8]>, bound: &Bound, clean
     let stdout = collect(OwnedFd::from(stdout_handle), Arc::clone(&cancel));
     let stderr = collect(OwnedFd::from(stderr_handle), Arc::clone(&cancel));
     // A descriptor that becomes readable when the child ends, so the wait wakes at the exit instead of at the next poll.
-    let exit_watch: Option<OwnedFd> = Pid::from_raw(i32::try_from(child.id()).unwrap_or(0)).and_then(|pid| { return pidfd_open(pid, PidfdFlags::empty()).ok(); });
+    let exit_watch: Option<OwnedFd> = Pid::from_raw(i32::try_from(child.id()).unwrap_or(0)).and_then(open_pidfd);
     let status: ExitStatus = loop {
         match child.try_wait() {
             Ok(Some(found)) => break found,
@@ -1068,16 +1122,29 @@ fn run_bounded(command: &mut Command, input: Option<&[u8]>, bound: &Bound, clean
 /// function programResolves(command: Command): boolean
 /// ```
 fn program_resolves(command: &Command) -> bool {
-    /// The permission bits that tell an executable file from a plain one.
-    use std::os::unix::fs::PermissionsExt;
-    let executable = |candidate: &Path| -> bool { return std::fs::metadata(candidate).map(|found| { return found.is_file() && found.permissions().mode() & 0o111 != 0; }).unwrap_or(false); };
     let program: &std::ffi::OsStr = command.get_program();
     let relative_to: PathBuf = command.get_current_dir().map(Path::to_path_buf).unwrap_or_default();
     if program.as_encoded_bytes().contains(&b'/') {
-        return executable(&relative_to.join(program));
+        return crate::control_group::is_executable_file(&relative_to.join(program));
     }
-    let own_path: Option<std::ffi::OsString> = command.get_envs().find(|(name, _)| { return *name == "PATH"; }).and_then(|(_, value)| { return value.map(std::ffi::OsStr::to_os_string); }).or_else(|| { return std::env::var_os("PATH"); });
-    return own_path.is_some_and(|search| { return std::env::split_paths(&search).any(|directory| { return executable(&relative_to.join(directory).join(program)); }); });
+    let mut own_path: Option<std::ffi::OsString> = None;
+    for (name, value) in command.get_envs() {
+        if name == "PATH" {
+            own_path = value.map(std::ffi::OsStr::to_os_string);
+            break;
+        }
+    }
+    if own_path.is_none() {
+        own_path = std::env::var_os("PATH");
+    }
+    if let Some(search) = own_path {
+        for directory in std::env::split_paths(&search) {
+            if crate::control_group::is_executable_file(&relative_to.join(directory).join(program)) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -1122,13 +1189,64 @@ fn run_start_hook() {}
 /// ```
 fn note_launcher(log: &Path, scope: &Path, child: &Child) {
     let pid: i32 = i32::try_from(child.id()).unwrap_or(0);
-    let noted: io::Result<()> = crate::control_group::process_start(pid).and_then(|start| {
-        let pid_namespace: u64 = crate::control_group::pid_namespace_id()?;
-        return append_record_with(log, &Record::Launcher { pid, start, pid_namespace, path: scope.to_path_buf() }, false);
-    });
+    let noted: io::Result<()> = match crate::control_group::process_start(pid) {
+        Ok(start) => record_launcher(log, scope, pid, start),
+        Err(error) => Err(error),
+    };
     if let Err(error) = noted {
         eprintln!("cargo-shadow: warning: the launcher of {} could not be recorded ({error}); if this wrapper is killed, a recovery will ask for an acknowledgement", scope.display());
     }
+}
+
+/// What:
+/// `fn reason_of(unavailable: &GroupUnavailable) -> String` clones the reason of a refusal.
+/// Why:
+/// `Result::map_err` takes it by path instead of a closure.
+fn reason_of(unavailable: &GroupUnavailable) -> String {
+    return unavailable.reason.clone();
+}
+
+/// What:
+/// `fn discover_default_route() -> Result<Route, GroupUnavailable>` detects the route with the default settings.
+/// Why:
+/// `get_or_discover` takes it by path instead of a closure that captured nothing.
+#[cfg(not(test))]
+fn discover_default_route() -> Result<Route, GroupUnavailable> {
+    return detect_route(&RouteSettings::default());
+}
+
+/// What:
+/// `fn open_pidfd(pid: Pid) -> Option<OwnedFd>` opens a descriptor that becomes readable when the process ends,
+/// or `None` when the kernel refuses.
+/// Why:
+/// `Option::and_then` takes it by path instead of a closure.
+fn open_pidfd(pid: Pid) -> Option<OwnedFd> {
+    return pidfd_open(pid, PidfdFlags::empty()).ok();
+}
+
+/// What:
+/// `fn record_launcher(log: &Path, scope: &Path, pid: i32, start: u64) -> io::Result<()>` appends the launcher record.
+/// Why:
+/// A function replaces the closure that `note_launcher` passed to `and_then`.
+fn record_launcher(log: &Path, scope: &Path, pid: i32, start: u64) -> io::Result<()> {
+    let pid_namespace: u64 = crate::control_group::pid_namespace_id()?;
+    return append_record_with(log, &Record::Launcher { pid, start, pid_namespace, path: scope.to_path_buf() }, false);
+}
+
+/// What:
+/// `fn scope_record_failed(error: io::Error) -> RunError` is the refusal for a scope record that could not be written.
+/// Why:
+/// `Result::map_err` takes it by path instead of a closure.
+fn scope_record_failed(error: io::Error) -> RunError {
+    return RunError::Io(io::Error::new(error.kind(), format!("{error} (a program whose scope cannot be recorded is not started)")));
+}
+
+/// What:
+/// `fn group_announcement_failed(error: io::Error) -> RunError` is the refusal for a process-group announcement that could not be written.
+/// Why:
+/// `Result::map_err` takes it by path instead of a closure.
+fn group_announcement_failed(error: io::Error) -> RunError {
+    return RunError::Io(io::Error::new(error.kind(), format!("{error} (a child whose process group cannot be announced is not started)")));
 }
 
 /// What:
@@ -1152,17 +1270,17 @@ fn start_contained(command: &mut Command, containment: &Containment, scope: Opti
                 return Err(RunError::Io(io::Error::new(io::ErrorKind::NotFound, format!("{:?} was not found (os error 2)", command.get_program()))));
             }
             if let Some(state) = scope {
-                append_record(&state.log, &group.record()).map_err(|error| {
-                    return RunError::Io(io::Error::new(error.kind(), format!("{error} (a program whose scope cannot be recorded is not started)")));
-                })?;
+                append_record(&state.log, &group.record()).map_err(scope_record_failed)?;
             }
             run_start_hook();
             let mut launch: Command = group.launcher(route, command, clean_environment);
             configure_stdio(&mut launch, has_input);
-            trace(|| { return format!("launch scope {}", group.directory().file_name().map_or_else(String::new, |name| { return name.to_string_lossy().into_owned(); })); });
+            // The text computes a file name, so this statement exists in a test build only.
+            #[cfg(test)]
+            trace_text(format!("launch scope {}", group.directory().file_name().map_or_else(String::new, |name| { return name.to_string_lossy().into_owned(); })));
             let child: Child = launch.spawn().map_err(RunError::Io)?;
             // The direct child of this process, as the kernel numbered it: a test compares it with what the program says it is.
-            trace(|| { return format!("spawned {}", child.id()); });
+            trace(format_args!("spawned {}", child.id()));
             if let Some(state) = scope {
                 note_launcher(&state.log, group.directory(), &child);
             }
@@ -1176,14 +1294,12 @@ fn start_contained(command: &mut Command, containment: &Containment, scope: Opti
             // The child's group is its process id, known only after the spawn: a "starting" line is durable before it, so a
             // wrapper killed in between is seen by a recovery as one that may have a child running.
             if let Some(state) = scope {
-                append_record(&state.log, &Record::ProcessGroupStarting).map_err(|error| {
-                    return RunError::Io(io::Error::new(error.kind(), format!("{error} (a child whose process group cannot be announced is not started)")));
-                })?;
+                append_record(&state.log, &Record::ProcessGroupStarting).map_err(group_announcement_failed)?;
             }
             run_start_hook();
-            trace(|| { return "launch pgroup".to_string(); });
+            trace(format_args!("launch pgroup"));
             let mut child: Child = command.spawn().map_err(RunError::Io)?;
-            trace(|| { return format!("spawned {}", child.id()); });
+            trace(format_args!("spawned {}", child.id()));
             let leader: i32 = i32::try_from(child.id()).unwrap_or(0);
             if let Some(state) = scope
                 && let Err(error) = append_record(&state.log, &Record::ProcessGroup(leader))
@@ -1228,7 +1344,7 @@ pub fn mark_scope_lost_for_test() {
 /// export function setRerun(command?: string): void
 /// ```
 pub fn set_rerun(command: Option<String>) {
-    RERUN.with(|slot| { *slot.borrow_mut() = command; });
+    RERUN.set(command);
 }
 
 /// What:
@@ -1241,5 +1357,12 @@ pub fn set_rerun(command: Option<String>) {
 /// export function rerunText(): string
 /// ```
 pub fn rerun_text() -> String {
-    return RERUN.with(|slot| { return slot.borrow().clone().map(|command| { return format!("`{command}`"); }).unwrap_or_else(|| { return "the command you ran".to_string(); }); });
+    // Taken out of its cell and put back: nothing else runs in between.
+    let held: Option<String> = RERUN.take();
+    let text: String = match held.clone() {
+        Some(command) => format!("`{command}`"),
+        None => "the command you ran".to_string(),
+    };
+    RERUN.set(held);
+    return text;
 }

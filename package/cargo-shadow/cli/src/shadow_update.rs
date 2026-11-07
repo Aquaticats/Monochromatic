@@ -531,10 +531,73 @@ fn report_install(outcome: Result<InstallReport, crate::install::InstallError>, 
 fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, forward: &[String], sink: &mut dyn Write) -> i32 {
     let lock_path = prepared.catalog_root.join(&crate_dirs[0]).join(LOCKFILE_NAME);
     // Borrow `&lock_path`: lends the value without copying or giving it away.
-    return run_with_placeholder_lock(&lock_path, &prepared.catalog_root.join(crate::journal::QUARANTINE_DIR), dry_run, &mut || {
-        // Borrow `&UpdateKind`: lends the value without copying or giving it away.
-        return run_update(prepared, crate_dirs, dry_run, &UpdateKind::Full, forward, sink);
-    });
+    return run_with_placeholder_lock(&lock_path, &prepared.catalog_root.join(crate::journal::QUARANTINE_DIR), dry_run, &mut FullUpdate { prepared, crate_dirs, dry_run, forward, sink });
+}
+
+/// What:
+/// `pub trait PlaceholderBody` is the work that runs while a stand-in lockfile may be in place:
+/// `run(&mut self)` does it and returns the exit status.
+/// Why:
+/// `run_with_placeholder_lock` takes the work as a value instead of a closure,
+/// so the work can be a struct that holds what it needs.
+/// Every `FnMut() -> i32` is a `PlaceholderBody` too,
+/// so a test passes a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface PlaceholderBody { run(): number; }
+/// ```
+pub trait PlaceholderBody {
+    /// What:
+    /// `run(&mut self)` does the work once.
+    /// Why:
+    /// The exit status decides whether the stand-in is kept or removed.
+    fn run(&mut self) -> i32;
+}
+
+/// What:
+/// The implementation of `PlaceholderBody` for every function that takes nothing and returns an exit status.
+/// Why:
+/// Tests and callers that already hold a closure need no wrapper.
+impl<F: FnMut() -> i32> PlaceholderBody for F {
+    /// What:
+    /// Calls the function.
+    /// Why:
+    /// The function is the work.
+    fn run(&mut self) -> i32 {
+        return self();
+    }
+}
+
+/// What:
+/// `struct FullUpdate<'a>` is the work of one full update of the crate roots.
+/// Why:
+/// It holds what the closure that stood in `run_full_update` captured.
+struct FullUpdate<'a> {
+    /// The prepared catalog and its settings.
+    prepared: &'a Prepared,
+    /// The crate roots to update.
+    crate_dirs: &'a [String],
+    /// Whether the update is a dry run.
+    dry_run: bool,
+    /// The arguments forwarded to cargo.
+    forward: &'a [String],
+    /// Where the update writes its report.
+    sink: &'a mut dyn Write,
+}
+
+/// What:
+/// The implementation of `PlaceholderBody` for `FullUpdate`.
+/// Why:
+/// `run_with_placeholder_lock` runs it with the stand-in lockfile in place.
+impl PlaceholderBody for FullUpdate<'_> {
+    /// What:
+    /// Runs the full update.
+    /// Why:
+    /// The exit status is the update's.
+    fn run(&mut self) -> i32 {
+        return run_update(self.prepared, self.crate_dirs, self.dry_run, &UpdateKind::Full, self.forward, self.sink);
+    }
 }
 
 /// What:
@@ -557,7 +620,7 @@ fn run_full_update(prepared: &Prepared, crate_dirs: &[String], dry_run: bool, fo
 /// ```ts
 /// export function runWithPlaceholderLock(lockPath: string, dryRun: boolean, body: () => number): number
 /// ```
-pub fn run_with_placeholder_lock(lock_path: &Path, keep_dir: &Path, dry_run: bool, body: &mut dyn FnMut() -> i32) -> i32 {
+pub fn run_with_placeholder_lock(lock_path: &Path, keep_dir: &Path, dry_run: bool, body: &mut dyn PlaceholderBody) -> i32 {
     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
     // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
     //
@@ -711,7 +774,7 @@ const MAX_TAKEN_NAMES: u32 = 100;
 /// ```ts
 /// export function runWithPlaceholderLockHooked(lockPath: string, dryRun: boolean, body: () => number, beforeCleanup: (path: string) => void): number
 /// ```
-pub fn run_with_placeholder_lock_hooked(lock_path: &Path, keep_dir: &Path, dry_run: bool, body: &mut dyn FnMut() -> i32, before_cleanup: &dyn Fn(&Path)) -> i32 {
+pub fn run_with_placeholder_lock_hooked(lock_path: &Path, keep_dir: &Path, dry_run: bool, body: &mut dyn PlaceholderBody, before_cleanup: &dyn Fn(&Path)) -> i32 {
     // `create_new(true)` fails with `AlreadyExists` instead of truncating (the exclusive-create flag `wx` of Node), so the
     // check and the creation are one step another writer cannot slip into.
     let created_placeholder: bool = match std::fs::OpenOptions::new().write(true).create_new(true).open(lock_path) {
@@ -728,7 +791,7 @@ pub fn run_with_placeholder_lock_hooked(lock_path: &Path, keep_dir: &Path, dry_r
     // ```ts
     // // TS has one type for this: number
     // ```
-    let code: i32 = body();
+    let code: i32 = body.run();
     if created_placeholder && (code != 0 || dry_run) {
         before_cleanup(lock_path);
         remove_placeholder(lock_path, keep_dir);

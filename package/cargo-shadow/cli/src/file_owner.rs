@@ -185,16 +185,51 @@ pub fn clock_ns() -> i128 {
 }
 
 /// What:
-/// `pub fn timed<T>(run: impl FnOnce() -> T) -> (T, Window)` runs a child and returns its result with the window it ran in.
+/// `pub trait RecordedWork<T>` is a piece of work whose files are attributed by evidence:
+/// `run(self)` does it once and returns its result.
+/// Why:
+/// `timed`,
+/// `run_recording` and `run_recording_manifests` take the work as a value instead of a closure.
+/// Every `FnOnce() -> T` is a `RecordedWork<T>` too,
+/// so a test passes a closure and the commands pass a named type that holds what the work needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface RecordedWork<T> { run(): T; }
+/// ```
+pub trait RecordedWork<T> {
+    /// What:
+    /// `run(self)` does the work once.
+    /// Why:
+    /// The caller measures the window the work ran in around this call.
+    fn run(self) -> T;
+}
+
+/// What:
+/// The implementation of `RecordedWork` for every function that takes nothing and returns the result.
+/// Why:
+/// Tests and callers that already hold a closure need no wrapper.
+impl<T, F: FnOnce() -> T> RecordedWork<T> for F {
+    /// What:
+    /// Calls the function.
+    /// Why:
+    /// The function is the work.
+    fn run(self) -> T {
+        return self();
+    }
+}
+
+/// What:
+/// `pub fn timed<T>(work: impl RecordedWork<T>) -> (T, Window)` runs a child and returns its result with the window it ran in.
 /// Why:
 /// Every call that may write a file the transaction restores goes through it,
 /// so the evidence exists for each one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function timed<T>(run: () => T): [T, Window]
+/// export function timed<T>(work: RecordedWork<T>): [T, Window]
 /// ```
-pub fn timed<T>(run: impl FnOnce() -> T) -> (T, Window) {
+pub fn timed<T>(work: impl RecordedWork<T>) -> (T, Window) {
     // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
     // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
     //
@@ -204,7 +239,7 @@ pub fn timed<T>(run: impl FnOnce() -> T) -> (T, Window) {
     // ```
     let start_ns: i128 = clock_ns() - START_SLACK_NS;
     // Typed binding: `result: T`.
-    let result: T = run();
+    let result: T = work.run();
     // Typed binding: `end_ns: i128`.
     let end_ns: i128 = clock_ns();
     return (result, Window { start_ns, end_ns });

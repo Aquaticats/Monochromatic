@@ -77,7 +77,13 @@ use crate::journal_manifests::{JournaledManifest, RootDecision, read_manifest_in
 /// ```
 pub(crate) fn read_journal(directory: &Path) -> io::Result<Vec<LockSnapshot>> {
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let corrupt = |why: &str| -> io::Error { return io::Error::new(io::ErrorKind::InvalidData, format!("the lockfile index is corrupt: {why}")); };
+    /// What:
+    /// `fn corrupt(why: &str) -> io::Error` is the error for a record that is damaged: "the lockfile index is corrupt: " and the reason.
+    /// Why:
+    /// A function replaces the closure that every refusal of this reader called.
+    fn corrupt(why: &str) -> io::Error {
+        return io::Error::new(io::ErrorKind::InvalidData, format!("the lockfile index is corrupt: {why}"));
+    }
     let index: String = fs::read_to_string(directory.join(INDEX_FILE))?;
     // `let mut`: a binding that may change.
     let mut lines = index.lines();
@@ -99,7 +105,10 @@ pub(crate) fn read_journal(directory: &Path) -> io::Result<Vec<LockSnapshot>> {
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Closure `|_|`: an anonymous function, like a TS arrow function.
             // `.map_err(...)`: converts the callee's error into this function's error type.
-            ended = Some(count.trim().parse().map_err(|_| { return corrupt("the end count is not a number"); })?);
+            let Ok(end_count) = count.trim().parse() else {
+                return Err(corrupt("the end count is not a number"));
+            };
+            ended = Some(end_count);
             continue;
         }
         if ended.is_some() {
@@ -142,7 +151,13 @@ pub(crate) struct Ready {
 /// ```
 pub(crate) fn read_ready(directory: &Path) -> io::Result<Option<Ready>> {
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let corrupt = |why: &str| -> io::Error { return io::Error::new(io::ErrorKind::InvalidData, format!("the ready record is corrupt: {why}")); };
+    /// What:
+    /// `fn corrupt(why: &str) -> io::Error` is the error for a record that is damaged: "the ready record is corrupt: " and the reason.
+    /// Why:
+    /// A function replaces the closure that every refusal of this reader called.
+    fn corrupt(why: &str) -> io::Error {
+        return io::Error::new(io::ErrorKind::InvalidData, format!("the ready record is corrupt: {why}"));
+    }
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `text: String`.
     let text: String = match fs::read_to_string(directory.join(READY_FILE)) {
@@ -181,11 +196,18 @@ pub(crate) fn read_ready(directory: &Path) -> io::Result<Option<Ready>> {
             return Err(corrupt("text after the end line"));
         }
         if let Some(count) = line.strip_prefix("end ") {
-            ended = Some(count.trim().parse().map_err(|_| { return corrupt("the end count is not a number"); })?);
+            let Ok(end_count) = count.trim().parse() else {
+                return Err(corrupt("the end count is not a number"));
+            };
+            ended = Some(end_count);
             continue;
         }
-        let (name, length) = line.split_once('\t').ok_or_else(|| { return corrupt("a line has no tab"); })?;
-        let expected: u64 = length.parse().map_err(|_| { return corrupt("a length is not a number"); })?;
+        let Some((name, length)) = line.split_once('\t') else {
+            return Err(corrupt("a line has no tab"));
+        };
+        let Ok(expected) = length.parse::<u64>() else {
+            return Err(corrupt("a length is not a number"));
+        };
         let found: u64 = fs::metadata(directory.join(name))?.len();
         if found != expected {
             return Err(corrupt(&format!("{name} has {found} bytes, the record says {expected}")));
@@ -199,13 +221,17 @@ pub(crate) fn read_ready(directory: &Path) -> io::Result<Option<Ready>> {
         return Err(corrupt("no end line, or its count does not match the lines"));
     }
     // The listed set must be exactly the payload a recovery needs: the index, one snapshot per root, and the manifest index when promised.
-    let roots: usize = fs::read_to_string(directory.join(INDEX_FILE))?.lines().filter(|line| { return !line.starts_with("end ") && *line != "v2"; }).count();
+    let roots: usize = count_index_entries(&fs::read_to_string(directory.join(INDEX_FILE))?, "v2");
     let mut required: Vec<String> = vec![INDEX_FILE.to_string()];
-    required.extend((0..roots).map(|position| { return format!("{position}.lock"); }));
+    for position in 0..roots {
+        required.push(format!("{position}.lock"));
+    }
     if manifests {
         required.push(MANIFEST_INDEX_FILE.to_string());
-        let snapshots: usize = fs::read_to_string(directory.join(MANIFEST_INDEX_FILE))?.lines().filter(|line| { return !line.starts_with("end ") && *line != "v1"; }).count();
-        required.extend((0..snapshots).map(|position| { return format!("m{position}.toml"); }));
+        let snapshots: usize = count_index_entries(&fs::read_to_string(directory.join(MANIFEST_INDEX_FILE))?, "v1");
+        for position in 0..snapshots {
+            required.push(format!("m{position}.toml"));
+        }
     }
     // The listed files are exactly the payload the indexes imply: no omission, no duplicate, no extra.
     let mut sorted_listed: Vec<&String> = listed.iter().collect();
@@ -273,7 +299,7 @@ pub(crate) fn list_journals(journals: &Path) -> io::Result<Option<JournalListing
         // The second entry is the one a test makes fail, so the first is already in the partial listing.
         #[cfg(test)]
         let read: io::Result<fs::DirEntry> = if index == 1 && iteration_fault {
-            crate::bounded_run::trace(|| { return format!("listing fault iteration at entry {index} after {} accumulated", listing.open.len() + listing.done.len()); });
+            crate::bounded_run::trace(format_args!("listing fault iteration at entry {index} after {} accumulated", listing.open.len() + listing.done.len()));
             Err(io::Error::other("injected failure to read an entry of the journal directory"))
         } else {
             found
@@ -285,10 +311,10 @@ pub(crate) fn list_journals(journals: &Path) -> io::Result<Option<JournalListing
         // Every entry is examined, a completed journal included: an entry that cannot be examined makes the whole listing fail.
         #[cfg(test)]
         let kind: io::Result<fs::FileType> = if index == 1 && inspection_fault {
-            crate::bounded_run::trace(|| { return format!("listing fault inspection at entry {index} after {} accumulated", listing.open.len() + listing.done.len()); });
+            crate::bounded_run::trace(format_args!("listing fault inspection at entry {index} after {} accumulated", listing.open.len() + listing.done.len()));
             Err(io::Error::other("injected failure to examine an entry of the journal directory"))
         } else if index == 1 && vanished_fault {
-            crate::bounded_run::trace(|| { return format!("listing fault entry-not-found at entry {index} after {} accumulated", listing.open.len() + listing.done.len()); });
+            crate::bounded_run::trace(format_args!("listing fault entry-not-found at entry {index} after {} accumulated", listing.open.len() + listing.done.len()));
             Err(io::Error::from(io::ErrorKind::NotFound))
         } else {
             entry.file_type()
@@ -316,7 +342,7 @@ pub(crate) fn list_journals(journals: &Path) -> io::Result<Option<JournalListing
 /// ```ts
 /// export function recover(root: string, judge: Judge): string[]
 /// ```
-pub fn recover(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>) -> Vec<String> {
+pub fn recover(root: &Path, judge: &dyn Judge) -> Vec<String> {
     // Borrow `&no_hook`: lends the value without copying or giving it away.
     return recover_with(root, judge, &no_hook);
 }
@@ -339,6 +365,55 @@ pub struct RecoveryReport {
 }
 
 /// What:
+/// `pub trait Judge` is the judgement a recovery asks of the policy about one root: the findings that would refuse a killed run's lockfile.
+/// `judge(old, live)` takes the lockfile as the killed run found it and as it stands now,
+/// and returns the refusals (empty when it passes).
+/// Why:
+/// A recovery takes the judgement as a value instead of a closure.
+/// Every function with the shape `Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>` is a `Judge` too,
+/// so a test passes a closure and the installer passes a `PolicyJudge`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface Judge { judge(old: LockSnapshot[], live: LockSnapshot[]): string[]; }
+/// ```
+pub trait Judge {
+    /// What:
+    /// `judge(&self, old, live)` returns the refusals for one root.
+    /// Why:
+    /// An empty list lets the recovery restore or keep the lockfile.
+    fn judge(&self, old: &[LockSnapshot], live: &[LockSnapshot]) -> Vec<String>;
+}
+
+/// What:
+/// The implementation of `Judge` for every function with the judgement's shape.
+/// Why:
+/// Tests and callers that already hold such a function need no wrapper.
+impl<F: Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>> Judge for F {
+    /// What:
+    /// Calls the function.
+    /// Why:
+    /// The function is the judgement.
+    fn judge(&self, old: &[LockSnapshot], live: &[LockSnapshot]) -> Vec<String> {
+        return self(old, live);
+    }
+}
+
+/// What:
+/// `fn count_index_entries(text: &str, header: &str) -> usize` counts the lines of an index that are neither its `end` line nor its header.
+/// Why:
+/// A loop replaces the `filter` closure that counted the roots and the manifest snapshots.
+fn count_index_entries(text: &str, header: &str) -> usize {
+    let mut count: usize = 0;
+    for line in text.lines() {
+        if !line.starts_with("end ") && line != header {
+            count += 1;
+        }
+    }
+    return count;
+}
+
+/// What:
 /// `pub fn recover_report(root, judge) -> RecoveryReport` is `recover` that also says whether a mandatory phase of finishing failed.
 /// Why:
 /// The callers of a recovery stop on a failed mandatory phase and go on after a cleanup warning (certification,
@@ -349,7 +424,7 @@ pub struct RecoveryReport {
 /// ```ts
 /// export function recoverReport(root: string, judge: Judge): { messages: string[]; mandatoryFailure: boolean }
 /// ```
-pub fn recover_report(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>) -> RecoveryReport {
+pub fn recover_report(root: &Path, judge: &dyn Judge) -> RecoveryReport {
     return recover_report_with(root, judge, &no_hook);
 }
 
@@ -365,7 +440,7 @@ pub fn recover_report(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapsho
 /// ```ts
 /// export function recoverWith(root: string, judge: Judge, between: (path: string) => void): string[]
 /// ```
-pub fn recover_with(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path)) -> Vec<String> {
+pub fn recover_with(root: &Path, judge: &dyn Judge, between: &dyn Fn(&Path)) -> Vec<String> {
     return recover_report_with(root, judge, between).messages;
 }
 
@@ -378,7 +453,7 @@ pub fn recover_with(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]
 /// ```ts
 /// export function recoverReportWith(root: string, judge: Judge, between: (path: string) => void): RecoveryReport
 /// ```
-pub fn recover_report_with(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path)) -> RecoveryReport {
+pub fn recover_report_with(root: &Path, judge: &dyn Judge, between: &dyn Fn(&Path)) -> RecoveryReport {
     let mut mandatory: bool = false;
     let messages: Vec<String> = recover_messages(root, judge, between, &mut mandatory);
     return RecoveryReport { messages, mandatory_failure: mandatory };
@@ -394,7 +469,7 @@ pub fn recover_report_with(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSn
 /// ```ts
 /// function recoverMessages(root: string, judge: Judge, between: (path: string) => void, mandatory: { value: boolean }): string[]
 /// ```
-fn recover_messages(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path), mandatory: &mut bool) -> Vec<String> {
+fn recover_messages(root: &Path, judge: &dyn Judge, between: &dyn Fn(&Path), mandatory: &mut bool) -> Vec<String> {
     let mut messages: Vec<String> = Vec::new();
     let journals: PathBuf = root.join(JOURNAL_DIR);
     // A metadata failure is not "no journals" (round 7, 6b2 1).
@@ -442,7 +517,12 @@ fn recover_messages(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]
         }
     }
     let open: Vec<PathBuf> = listing.open;
-    let survivors: Vec<String> = open.iter().filter_map(|directory| { return survivor_note(directory); }).collect();
+    let mut survivors: Vec<String> = Vec::new();
+    for directory in &open {
+        if let Some(note) = survivor_note(directory) {
+            survivors.push(note);
+        }
+    }
     if !survivors.is_empty() {
         messages.extend(survivors);
         messages.push("no journal of this workspace was recovered while a child of an earlier run may still be writing".to_string());
@@ -498,7 +578,7 @@ fn report_leftover_temporaries(root: &Path, crate_dirs: &[String], messages: &mu
 /// ```ts
 /// function recoverOne(root: string, directory: string, judge: Judge, messages: string[]): void
 /// ```
-fn recover_one(root: &Path, directory: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path), messages: &mut Vec<String>, mandatory: &mut bool) {
+fn recover_one(root: &Path, directory: &Path, judge: &dyn Judge, between: &dyn Fn(&Path), messages: &mut Vec<String>, mandatory: &mut bool) {
     let ready: Ready = match read_ready(directory) {
         Ok(Some(found)) => found,
         Ok(None) => {
@@ -595,11 +675,11 @@ fn recover_one(root: &Path, directory: &Path, judge: &dyn Fn(&[LockSnapshot], &[
 /// ```ts
 /// function recoverRoot(root: string, old: LockSnapshot, now: LockSnapshot, judge: Judge, messages: string[]): RootDecision
 /// ```
-fn recover_root(root: &Path, old: &LockSnapshot, now: &LockSnapshot, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path), messages: &mut Vec<String>) -> RootDecision {
+fn recover_root(root: &Path, old: &LockSnapshot, now: &LockSnapshot, judge: &dyn Judge, between: &dyn Fn(&Path), messages: &mut Vec<String>) -> RootDecision {
     if old.source == now.source {
         return RootDecision::Restored;
     }
-    let problems: Vec<String> = judge(std::slice::from_ref(old), std::slice::from_ref(now));
+    let problems: Vec<String> = judge.judge(std::slice::from_ref(old), std::slice::from_ref(now));
     if problems.is_empty() {
         messages.push(format!("{}/{LOCKFILE_NAME} was left by a run that was killed; its new versions pass the policy, so it was kept", old.crate_dir));
         return RootDecision::Kept;

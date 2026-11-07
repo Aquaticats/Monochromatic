@@ -127,7 +127,14 @@ pub fn prune_selectors(selectors: &[String], locked: &BTreeSet<String>) -> Vec<S
         }
         if parsed.versions.is_empty() {
             let prefix: String = format!("{}@", parsed.pattern);
-            if locked.iter().any(|entry| { return entry.starts_with(&prefix); }) {
+            let mut locks_pattern: bool = false;
+            for entry in locked.iter() {
+                if entry.starts_with(&prefix) {
+                    locks_pattern = true;
+                    break;
+                }
+            }
+            if locks_pattern {
                 kept.push(selector.clone());
             }
             continue;

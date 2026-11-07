@@ -11,6 +11,9 @@
 //! export function readConfig(layout: GitLayout, env: NativeEnvironment): ParsedConfig  // throws: ask Git
 //! ```
 
+/// Error text built only on failure,
+/// from a `format_args!` value.
+use crate::lazy_error_text::ExplainedError;
 /// Imports the path types.
 use std::cell::Cell;
 // What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
@@ -66,6 +69,17 @@ const BRANCH_STRING_KEYS: [&str; 5] = ["remote", "merge", "pushremote", "descrip
 const REBASE_WORDS: [&str; 3] = ["merges", "interactive", "i"];
 
 /// What:
+/// `fn rejected_entry(name: &str, why: &str) -> String` words the refusal of one configuration entry:
+/// the entry's name,
+/// the reason,
+/// and that Git rejects it or this reader cannot judge it.
+/// Why:
+/// A function replaces the closure that captured the entry.
+fn rejected_entry(name: &str, why: &str) -> String {
+    return format!("{name} {why}, which Git rejects or this reader cannot judge");
+}
+
+/// What:
 /// `pub(crate) fn check_remote_and_branch_settings(config: &ParsedConfig) -> Result<(), String>` checks every `remote.*` and
 /// `branch.*` variable in the configuration,
 /// against the classes Git loads them as.
@@ -107,7 +121,6 @@ pub(crate) fn check_remote_and_branch_settings(config: &ParsedConfig) -> Result<
         // Typed binding: `has_subsection: bool`.
         let has_subsection: bool = rest.contains('.');
         // Macro `format!`: builds or prints text (or a list) from a template.
-        let bad = |why: &str| -> String { return format!("{} {why}, which Git rejects or this reader cannot judge", entry.name); };
         // Typed binding: `value: Option<&str>`.
         let value: Option<&str> = entry.value.as_deref();
         // `match`: picks the arm whose pattern fits the value.
@@ -117,33 +130,35 @@ pub(crate) fn check_remote_and_branch_settings(config: &ParsedConfig) -> Result<
                 Some(spec) => check_refspec(spec)?,
                 // `Err(...)`: builds the success or the failure variant of a `Result`.
                 // `None`: the present or the absent value of an `Option`.
-                None => return Err(bad("is written without a value")),
+                None => return Err(rejected_entry(&entry.name, "is written without a value")),
             },
             // Borrow `&key`: lends the value without copying or giving it away.
             ("remote", true) if REMOTE_BOOLEAN_KEYS.contains(&key) => {
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // Closure `|_|`: an anonymous function, like a TS arrow function.
                 // `.map_err(...)`: converts the callee's error into this function's error type.
-                parse_bool(value).map_err(|_| { return bad("is not a boolean"); })?;
+                if parse_bool(value).is_err() {
+                    return Err(rejected_entry(&entry.name, "is not a boolean"));
+                }
             }
             // Borrow `&key`: lends the value without copying or giving it away.
             ("remote", true) if REMOTE_STRING_KEYS.contains(&key) => {
                 if value.is_none() {
                     // `Err(...)`: builds the success or the failure variant of a `Result`.
-                    return Err(bad("is written without a value"));
+                    return Err(rejected_entry(&entry.name, "is written without a value"));
                 }
             }
             ("remote", false) if key == "pushdefault" => {
                 if value.is_none() {
                     // `Err(...)`: builds the success or the failure variant of a `Result`.
-                    return Err(bad("is written without a value"));
+                    return Err(rejected_entry(&entry.name, "is written without a value"));
                 }
             }
             // Borrow `&key`: lends the value without copying or giving it away.
             ("branch", true) if BRANCH_STRING_KEYS.contains(&key) => {
                 if value.is_none() {
                     // `Err(...)`: builds the success or the failure variant of a `Result`.
-                    return Err(bad("is written without a value"));
+                    return Err(rejected_entry(&entry.name, "is written without a value"));
                 }
             }
             ("branch", true) if key == "rebase" => {
@@ -156,13 +171,13 @@ pub(crate) fn check_remote_and_branch_settings(config: &ParsedConfig) -> Result<
                     && !REBASE_WORDS.contains(&text)
                 {
                     // `Err(...)`: builds the success or the failure variant of a `Result`.
-                    return Err(bad("is neither a boolean nor a rebase mode"));
+                    return Err(rejected_entry(&entry.name, "is neither a boolean nor a rebase mode"));
                 }
             }
             // Borrow `&key`: lends the value without copying or giving it away.
             ("branch", false) if ["autosetupmerge", "autosetuprebase", "sort"].contains(&key) => {}
             // `Err(...)`: builds the success or the failure variant of a `Result`.
-            _ => return Err(bad("is a setting this reader has no class for")),
+            _ => return Err(rejected_entry(&entry.name, "is a setting this reader has no class for")),
         }
     }
     return Ok(());
@@ -280,7 +295,7 @@ pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment, root: &P
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `parsed: ParsedConfig`.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        let parsed: ParsedConfig = parse_config(&text).map_err(|message| { return format!("{}: {message}", file.display()); })?;
+        let parsed: ParsedConfig = parse_config(&text).described(format_args!("{}", file.display()))?;
         merged.extend_with(parsed);
     }
     if merged.has_include {

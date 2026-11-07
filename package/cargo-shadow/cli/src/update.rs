@@ -138,7 +138,7 @@ use crate::crates::{LockSnapshot, read_locks};
 /// ```ts
 /// import { policy_findings } from 'crate/install';
 /// ```
-use crate::install::{LockBaseFactory, policy_findings};
+use crate::install::{LockBaseFactory, PolicyJudge};
 /// What:
 /// `use crate::journal::{begin, finish, note_produced, process_exists, recover, restore_if_unchanged};` imports `begin`,
 /// `finish`,
@@ -699,15 +699,105 @@ fn sync_recording(request: &UpdateRequest, edits: &RefCell<Vec<ManifestEdit>>) -
     // function f(registry: Registry) { ... }  // an interface type
     // ```
     // Constructor `Box::new(`: an empty owned collection or a boxed value.
-    let mut run: Box<dyn FnOnce() -> io::Result<Result<String, String>> + '_> = Box::new(|| { return Ok(request.syncer.sync(request.root)); });
+    let mut chain: SyncChain = SyncChain::Sync(request);
     for crate_dir in request.crate_dirs {
-        let inner = run;
-        // Closure `|answer|`: an anonymous function, like a TS arrow function.
-        // Adapter `.and_then(`: transforms or selects items with a closure.
-        // Constructor `Box::new(`: an empty owned collection or a boxed value.
-        run = Box::new(move || { return run_recording_manifests(crate_dir, edits, inner).and_then(std::convert::identity); });
+        chain = SyncChain::Around { crate_dir, edits, inner: Box::new(chain) };
     }
-    return run();
+    return crate::file_owner::RecordedWork::run(chain);
+}
+
+/// What:
+/// `enum SyncChain<'a>` is the work of the `--breaking` sync:
+/// `Sync` runs the syncer,
+/// and `Around` runs the work inside it with the manifests of one crate root recorded.
+/// Why:
+/// The sync runs inside one recording per crate root,
+/// the innermost first,
+/// and an enum replaces the boxed closures that were nested for it.
+enum SyncChain<'a> {
+    /// The innermost work: the syncer itself.
+    Sync(&'a UpdateRequest<'a>),
+    /// Work wrapped in the recording of one crate root's manifests.
+    Around {
+        /// The crate root whose manifests are recorded.
+        crate_dir: &'a str,
+        /// The manifest edits the recording attributes.
+        edits: &'a RefCell<Vec<ManifestEdit>>,
+        /// The work that runs inside the recording.
+        inner: Box<SyncChain<'a>>,
+    },
+}
+
+/// What:
+/// The implementation of `RecordedWork` for `SyncChain`.
+/// Why:
+/// `run_recording_manifests` runs it between its before and after observations.
+impl crate::file_owner::RecordedWork<io::Result<Result<String, String>>> for SyncChain<'_> {
+    /// What:
+    /// Runs the syncer,
+    /// or the inner work inside the recording of one crate root's manifests.
+    /// Why:
+    /// The result of the recording is flattened into the sync's own result.
+    fn run(self) -> io::Result<Result<String, String>> {
+        match self {
+            SyncChain::Sync(request) => return Ok(request.syncer.sync(request.root)),
+            SyncChain::Around { crate_dir, edits, inner } => return run_recording_manifests(crate_dir, edits, *inner).and_then(std::convert::identity),
+        }
+    }
+}
+
+/// What:
+/// `pub(crate) struct CargoRun<'a> { request, crate_dir, args }` is the work of running one cargo command in a crate root and failing with the crate named when it exits non-zero.
+/// Why:
+/// `run_recording` takes the work as a value,
+/// and this holds what the closure that stood here captured.
+pub(crate) struct CargoRun<'a> {
+    /// The update request.
+    pub(crate) request: &'a UpdateRequest<'a>,
+    /// The crate root cargo runs in.
+    pub(crate) crate_dir: &'a str,
+    /// The arguments of the cargo command.
+    pub(crate) args: &'a [String],
+}
+
+/// What:
+/// The implementation of `RecordedWork` for `CargoRun`.
+/// Why:
+/// `run_recording` runs it between its before and after observations.
+impl crate::file_owner::RecordedWork<Result<CargoOutcome, UpdateError>> for CargoRun<'_> {
+    /// What:
+    /// Runs the cargo command.
+    /// Why:
+    /// The result is the one the closure returned.
+    fn run(self) -> Result<CargoOutcome, UpdateError> {
+        return run_or_fail(self.request, self.crate_dir, self.args);
+    }
+}
+
+/// What:
+/// `struct ManifestsThenCargo<'a>` is the work of running one cargo command with the manifests of its crate root recorded.
+/// Why:
+/// `run_recording` takes the work as a value,
+/// and this holds what the closure that stood here captured.
+struct ManifestsThenCargo<'a> {
+    /// The cargo command to run.
+    cargo: CargoRun<'a>,
+    /// The manifest edits the recording attributes.
+    edits: &'a RefCell<Vec<ManifestEdit>>,
+}
+
+/// What:
+/// The implementation of `RecordedWork` for `ManifestsThenCargo`.
+/// Why:
+/// `run_recording` runs it between its before and after observations.
+impl crate::file_owner::RecordedWork<io::Result<Result<CargoOutcome, UpdateError>>> for ManifestsThenCargo<'_> {
+    /// What:
+    /// Runs the cargo command inside the recording of the manifests.
+    /// Why:
+    /// The result is the one the closure returned.
+    fn run(self) -> io::Result<Result<CargoOutcome, UpdateError>> {
+        return run_recording_manifests(self.cargo.crate_dir, self.edits, self.cargo);
+    }
 }
 
 /// What:
@@ -832,10 +922,7 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
             for crate_dir in request.crate_dirs {
                 // Both the lockfile and the manifests of this root are attributed by the evidence in `file_owner.rs`, whether the
                 // call succeeds or fails; the manifests of other roots are never claimed by this call.
-                let (ran, _claim): (io::Result<Result<CargoOutcome, UpdateError>>, Claim) = run_recording(request.root, crate_dir, produced, || {
-                    // Borrow `&args`: lends the value without copying or giving it away.
-                    return run_recording_manifests(crate_dir, edits, || { return run_or_fail(request, crate_dir, &args); });
-                })
+                let (ran, _claim): (io::Result<Result<CargoOutcome, UpdateError>>, Claim) = run_recording(request.root, crate_dir, produced, ManifestsThenCargo { cargo: CargoRun { request, crate_dir, args: &args }, edits })
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 // `.map_err(...)`: converts the callee's error into this function's error type.
                 .map_err(other_text)?;
@@ -1040,12 +1127,8 @@ fn run_update(request: &UpdateRequest, kind: &UpdateKind, before: &[LockSnapshot
 /// export async function updateRustLockfiles(args): Promise<UpdateReport>
 /// ```
 pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Result<UpdateReport, UpdateError> {
-    // Closure `|old, live|`: an anonymous function, like a TS arrow function.
-    // Borrow `&process_exists`: lends the value without copying or giving it away.
     // Typed binding: `recovered: Vec<String>`.
-    let recovery = recover_report(request.root, &|old, live| {
-        return policy_findings(request.settings, request.registry, request.now, old, live);
-    });
+    let recovery = recover_report(request.root, &PolicyJudge { settings: request.settings, registry: request.registry, now: request.now });
     let mandatory_recovery_failure: bool = recovery.mandatory_failure;
     let recovered: Vec<String> = recovery.messages;
     // Borrow `&recovered`: lends the value without copying or giving it away.

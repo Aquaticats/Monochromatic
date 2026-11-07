@@ -85,6 +85,10 @@ pub mod journal_unready;
 /// Runs a child process within a time bound.
 pub mod bounded_run;
 
+/// Error text that is built only when a failure happens,
+/// passed as a `format_args!` value instead of a closure.
+pub mod lazy_error_text;
+
 /// SHA-1,
 /// only to check that a stored Git object has the name it is stored under.
 pub mod git_sha1;
