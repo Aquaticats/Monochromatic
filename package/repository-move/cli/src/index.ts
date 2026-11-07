@@ -5,6 +5,14 @@
  */
 
 export { MoveStopError, } from './errors.ts';
+export {
+  FIXTURE_COPY_SETS_KEPT,
+  FIXTURE_GUARD_MIN_GIB,
+  FIXTURE_IMAGE_MARGIN_PERCENT,
+  FIXTURE_MAIN_DATA_MIB,
+  FIXTURE_SUBVOLUME_COUNT,
+  fixtureImageGiB,
+} from './constants.ts';
 export { execFileAsync, } from './exec-file-async.ts';
 export { childFailureOf, } from './json-text-fields.ts';
 export {

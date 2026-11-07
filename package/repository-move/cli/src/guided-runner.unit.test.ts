@@ -230,6 +230,25 @@ async function runStages(
   }
 }
 
+/** The whole number at the start of a text, or NaN when it starts with no digit. */
+function leadingNumber(text: string,): number {
+  const firstOther = Array.from(text,).findIndex((character,) => (character < '0') || (character > '9'),);
+  const digits = firstOther === (-1) ? text : text.slice(0, firstOther,);
+  return digits === '' ? Number.NaN : Math.trunc(Number(digits,),);
+}
+
+/** The whole number that follows each occurrence of a marker in a text, in order; an occurrence with no digits after it is skipped. */
+function numbersAfter({ text, marker, }: { text: string; marker: string; },): number[] {
+  const found: number[] = [];
+  for (const part of text.split(marker,).slice(1,)) {
+    const value = leadingNumber(part,);
+    if (!Number.isNaN(value,)) {
+      found.push(value,);
+    }
+  }
+  return found;
+}
+
 async function resolvedCommand({ stage: s, config, }: { stage: Stage; config: GuidedConfig; },): Promise<string> {
   return (typeof s.command) === 'string' ? s.command : await s.command({ config, },);
 }
@@ -648,17 +667,21 @@ await describe({
           fn: async () => {
             await withConfig(async ({ config, },) => {
               const stages = await prepareStages({ c: config, fixtureFolder: '/x', },);
-              const images = stages.find((s,) => s.id === 'f1-images',) as Stage;
-              const sizes = [...images.command.matchAll(/truncate --size=(\d+)G/g,),].map((match,) => Number(match[1],),);
+              const images = await resolvedCommand({ stage: stages.find((s,) => s.id === 'f1-images',) as Stage, config, },);
+              const sizes = numbersAfter({ text: images, marker: 'truncate --size=', },);
               const bytesWrittenMiB = FIXTURE_MAIN_DATA_MIB * FIXTURE_SUBVOLUME_COUNT * FIXTURE_COPY_SETS_KEPT;
               const mibPerGib = 1_024;
               expect(sizes.length,).toBeGreaterThan(0,);
               for (const size of sizes) {
                 expect(size * mibPerGib,).toBeGreaterThanOrEqual(bytesWrittenMiB + (FIXTURE_GUARD_MIN_GIB * mibPerGib),);
               }
-              const populate = stages.find((s,) => s.id === 'f2-populate',) as Stage;
-              expect(populate.command,).toContain(`head --bytes=${String(FIXTURE_MAIN_DATA_MIB,)}M`,);
-              const guards = stages.flatMap((s,) => [...(s.command ?? '').matchAll(/--min-free-gib=(\d+)/g,),].map((match,) => Number(match[1],),),);
+              const populate = await resolvedCommand({ stage: stages.find((s,) => s.id === 'f2-populate',) as Stage, config, },);
+              expect(populate,).toContain(`head --bytes=${String(FIXTURE_MAIN_DATA_MIB,)}M`,);
+              const guards: number[] = [];
+              for (const s of stages) {
+                // oxlint-disable-next-line eslint/no-await-in-loop -- the stages are resolved in order and each resolution is cheap
+                guards.push(...numbersAfter({ text: await resolvedCommand({ stage: s, config, },), marker: '--min-free-gib=', },),);
+              }
               expect(guards.length,).toBeGreaterThan(0,);
               for (const guard of guards.filter((value,) => value !== config.minFreeGiB,)) {
                 expect(guard,).toBe(FIXTURE_GUARD_MIN_GIB,);
