@@ -3572,12 +3572,23 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   (`8bfa833de3`): `doc/decision/ide-releases.md` and `doc/decision/desktop-app-podman-build.md`, each with the old
   statement kept in an amended note.
 - Running (briefs and resume notes in `~/temp/agent/coordinator-briefs/`):
-  - Zig: finish lint, Clippy and nextest, image tasks that rebuild when their lock-driven arguments change, the
-    prelude's missing build arguments, the music-player `branches` 0.4.6 break on the new nightly, the plan doc
-    (`fix/containers-zig-from-lock`);
+  - Zig: merged into main `c3198db0d0` (2026-11-07). Containers take Zig from the lock row; images carry the label
+    `dev.monochromatic.image-build-inputs-sha256` and rebuild only when it differs; five images on Zig 0.17.1; the
+    `branches` 0.4.6 break fixed through named catalog `branches-0-4` (removal condition in
+    `doc/troubleshooting/branches-0-4-calls-removed-core-intrinsics-abort.md`); commit `8b4ae3025f` is mis-scoped,
+    corrected by commit comment 208703294. Left from it: the music player is held on zbus 5 (named catalog `zbus-5`,
+    a pin back against "Move anyway, fix forward"), which the zbus 6 port agent removes
+    (`fix/nested-wayland-session-cli-zbus-6-async`); one music-player test fails,
+    `ui_lists_render_tests::a_search_result_title_wider_than_the_page_ends_in_an_ellipsis`
+    (`src/ui_lists_render_tests.rs:227`), cause not measured, queued; `image:windows-gnu` and
+    `nested-wayland-session` image tasks still use the old exists check;
   - the `mpm-shadow` alpha: crates.io absence check, lock update, install, worktree check, records;
   - `core-exec`: finish the lint cleanup and gate (`fix/monorepo-task-core-exec-depends-test-time`);
-  - fold late lines: read-lease design (`fix/git-policy-cli-fold-keeps-late-lines`);
+  - fold late lines: merged into main `baf4c039f2` (gate 5179 of 5179 on its second run; the first run failed only
+    `a_push_stop_of_a_responsive_holder_leaves_no_lock`, the same incident the tokio agent is measuring). A read lease
+    probes for an open writer; a writer still open leaves the moved log and an append-only journal for a later command;
+    eight rounds per command at most. Facts in `doc/planning/git-policy-cli-program-rename.md`. Limit: a file system
+    without leases makes the fold fail with its one-line message and keep every byte;
   - tokio: the three coordinator settlements, then T8 and T9 (`feat/git-policy-cli-on-tokio`);
   - index lock without links or no-replace rename (`fix/git-policy-cli-index-lock-without-links`);
   - mutation campaign over the merged tokio files (`test/git-policy-cli-tokio-mutants`, worktree
@@ -3622,7 +3633,10 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     rebuild also pulls about 300 KB of unrelated source drift (patch at `~/temp/agent/guardrail-bundle-rebuild.patch`).
     Rebuild deliberately through its task, attribute the drift to source commits, run the plugin's tests, commit.
   - `package/music-player/desktop-e2e` lint: 11 errors and 89 warnings, older than the audit (not counted on an
-    unmodified main yet). Owner: "Principle 1: Lint issues need to be taken care of asap."
+    unmodified main yet). Owner: "Principle 1: Lint issues need to be taken care of asap." Running since
+    2026-11-07T11:55-05:00 (`fix/music-player-desktop-e2e-lint-clean`).
+  - Daily-update fix-forward issues: running since 2026-11-07T11:55-05:00
+    (`feat/monorepo-task-daily-update-opens-fix-forward-issues`).
 - Settle test in suite: merged `58d910f99e` (gate 5166 of 5166, lint clean; test-only). Cause shown by sharing state:
   another test's fixture service shows the earlier `--journal` word before it creates that folder (measured median
   1.7 ms, max 485 ms alone), and the settle command's process look counts it as `Hold::HelperUnsure`, settles nothing
@@ -3741,10 +3755,9 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   end, every byte kept), folders merged entry by entry with `rename_noreplace`, a clash keeps both
   (`<name>.from-earlier-release`); a journal plus `flock` makes every step restartable; it waits while this
   worktree's earlier commit service runs (main's `cli-git@fc85fdf7a58f866b7f7a84b44fe0b69a` is running now), with about
-  10 ms per command while waiting. The old notice and its flaky test are gone. Known gap, must close before the next
-  wrapper release: a line an earlier-release wrapper writes into the moved-aside log after the last size check is lost
-  when the moved file is removed (about 216 checkouts lock older releases); agent on
-  `fix/git-policy-cli-fold-keeps-late-lines`. Another suite-only failure seen once in its gates:
+  10 ms per command while waiting. The old notice and its flaky test are gone. The late-line gap is closed in main
+  (`baf4c039f2`). The next wrapper release waits only for the tokio agent's measured cause of the leftover ref lock.
+  Another suite-only failure seen once in its gates:
   `service::the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero` (passed alone and in three later
   gates; cause not measured; queued). Its agent wrote a planning section into main's checkout by mistake and removed
   exactly its own lines with `git apply --reverse`; main was clean after.
@@ -3754,9 +3767,7 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `fix/monorepo-task-core-exec-depends-test-time` (`b9bbbb4268`), not merged. Back with its agent for a process-group
   kill (a timed-out pipeline survives today) and for the package lint, which fails on main with 16 warnings in
   `daily-update-*.ts`, `mpm-shadow.unit.test.ts` and `playwright-image.unit.test.ts`. Bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`)
-  started about 09:34. Still waiting for a slot: the terminal and music-player Containerfiles taking Zig from the lock row instead of `ZIG_VERSION=0.15.2`
-  (`fix/containers-zig-from-lock`); both briefs are saved in
-  `~/temp/agent/coordinator-briefs/waiting-for-a-slot.md` (scratch, lost on reboot).
+  started about 09:34.
 - Tokio T1 to T4 merged into main as `5e441f25d3` (branch gate 5127 of 5127, Clippy and lint clean; main's only wrapper
   changes since the branch's last main merge were rename step 3's README and two TypeScript files). It brings the fix for the
   service decision file that needed hard links. The agent's two owner questions were settled from owner rules, recorded in
