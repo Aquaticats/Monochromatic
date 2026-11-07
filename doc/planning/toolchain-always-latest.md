@@ -448,8 +448,9 @@ a `Cargo.lock` of its closure or
 `rust-catalog.toml` changed.
 The units are installed with the timer left off (`mise run toolchain:timer:install -- --no-enable`).
 When the go-ahead comes:
-merge `feat/toolchain-always-latest-landing` (the plan and lock commit, and the `bincode-1` catalog that must exist
-before the first run can lock the placeholder bincode 3.0.0; the dependency locks themselves come from the run),
+merge `feat/toolchain-always-latest-landing` (the plan and lock commit,
+and the `bincode-1` catalog that must exist before the first run can lock the placeholder bincode 3.0.0;
+the dependency locks themselves come from the run),
 run `mise run toolchain:timer:install` to enable the timer,
 then `systemctl --user start toolchain-daily-update.service`
 and read `journalctl --user --unit toolchain-daily-update`.
