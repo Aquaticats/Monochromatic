@@ -18,6 +18,30 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: must fenced Rust examples inside docs carry rustdoc? (not asked yet)
+
+The linter's `rust/require-rustdoc` also checks Rust in fenced code blocks inside Markdown,
+and 200 such warnings remain
+(per-file list `~/temp/agent/lint2/fenced-rustdoc-warnings.txt`):
+`doc/audit` 133 (mostly fuzz reproductions),
+`doc/planning` 41 (design sketches),
+`.agents/skills/dum-dum-non-ts/SKILL.md` 24 (deliberately undocumented "Bad" examples,
+whose lesson documenting would break),
+`doc/research` 2.
+Exempting any of them loosens a lint rule,
+which needs your approval.
+- A:
+  exempt fenced Rust in Markdown from `rust/require-rustdoc` everywhere
+  (code files keep the rule).
+- B:
+  exempt only the "Bad" examples
+  (a marker on those fences),
+  and document the other 176 by hand.
+- C:
+  no exemption;
+  document all 200,
+  including the "Bad" examples.
+
 ## Open: may an agent time a signed commit with your real signing setup? (not asked yet)
 
 A commit on 2026-11-07 (request `72c24f69`) spent 241 s in its build step,
