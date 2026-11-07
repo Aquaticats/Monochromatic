@@ -3,7 +3,9 @@
 //!  and `close` answers:
 //!  which toplevels the clients have mapped and which one has keyboard focus.
 //!  A toplevel is mapped once its client has committed a buffer;
-//!  before that it has no extent, no pointer hits it, and the answers do not list it.
+//!  before that it has no extent,
+//! no pointer hits it,
+//! and the answers do not list it.
 
 /// Standard library items.
 use std::sync::PoisonError;
