@@ -81,10 +81,10 @@ function state(fields: Readonly<Record<string, unknown>> = {},): UiState {
     first_run_title: '',
     badges: [],
     auto_play_on_select: false,
-  text_size_pane_title_px: 20,
-  text_size_group_heading_px: 20,
-  text_size_folder_name_px: 14,
-  text_size_track_title_px: 14,
+    text_size_pane_title_px: 20,
+    text_size_group_heading_px: 20,
+    text_size_folder_name_px: 14,
+    text_size_track_title_px: 14,
     ...fields,
   } as UiState;
 }
