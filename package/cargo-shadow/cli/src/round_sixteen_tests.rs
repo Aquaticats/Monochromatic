@@ -271,13 +271,15 @@ fn the_record_is_written_made_durable_and_only_then_the_program_is_launched() {
 
         output_within(&mut Command::new("true"), None, &bound(Duration::from_secs(30))).expect("runs");
         use_route_settings_for_test(None);
-        // The scope's name follows the launch event, and a weaker-path notice comes first and is observed by its own test; the order of the
-        // record, its sync and the launch is what is compared here.
-        let trace: Vec<String> = take_trace_for_test().into_iter().filter(|event| { return !event.starts_with("notice "); }).map(|event| { return if event.starts_with("launch scope ") { "launch scope".to_string() } else { event }; }).collect();
+        // The scope's name follows the launch event and the direct child's process id follows the spawned event (both vary per run), and a
+        // weaker-path notice comes first and is observed by its own test; the order of the record, its sync, the launch and the spawn is what
+        // is compared here.
+        let trace: Vec<String> = take_trace_for_test().into_iter().filter(|event| { return !event.starts_with("notice "); }).map(|event| { return if event.starts_with("launch scope ") { "launch scope".to_string() } else if event.starts_with("spawned ") { "spawned".to_string() } else { event }; }).collect();
 
         let kind: &str = if weaker { "pgroup-starting" } else { "scope" };
         let launch: &str = if weaker { "launch pgroup" } else { "launch scope" };
-        let intended: Vec<String> = vec![format!("attempt {kind}"), format!("written {kind}"), format!("sync {kind} whole=true"), format!("synced {kind}"), launch.to_string()];
+        // The spawn of the direct child is traced right after the launch (round 21), before the launcher line or the group record.
+        let intended: Vec<String> = vec![format!("attempt {kind}"), format!("written {kind}"), format!("sync {kind} whole=true"), format!("synced {kind}"), launch.to_string(), "spawned".to_string()];
         assert_eq!(trace[..intended.len()], intended[..], "weaker={weaker}: the order is not record, sync, launch: {trace:?}");
         let rest: Vec<&str> = trace[intended.len()..].iter().map(String::as_str).collect();
         if weaker {
@@ -337,7 +339,9 @@ fn the_direct_child_is_reaped_after_a_normal_return_and_after_a_timeout() {
         let direct: PathBuf = root.path().join("direct");
         let script: String = format!("echo $$ > {file}.part; mv {file}.part {file}; {finish}", file = direct.display(), finish = if at_the_bound { "exec sleep 600" } else { "echo done" });
 
+        let _ = crate::bounded_run::take_trace_for_test();
         let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(if at_the_bound { 3 } else { 30 })));
+        let events: Vec<String> = crate::bounded_run::take_trace_for_test();
 
         crate::cgroup_test_support::assert_scope_record(&journal.join("groups").display().to_string());
         if at_the_bound {
@@ -345,7 +349,7 @@ fn the_direct_child_is_reaped_after_a_normal_return_and_after_a_timeout() {
         } else {
             result.expect("runs");
         }
-        crate::contain_counterexample_tests::assert_reaped(crate::contain_counterexample_tests::read_pid(&direct), if at_the_bound { "at the bound" } else { "after a normal return" });
+        crate::contain_counterexample_tests::assert_spawned_child_is_the_program_and_reaped(crate::contain_counterexample_tests::read_pid(&direct), &events, if at_the_bound { "at the bound" } else { "after a normal return" });
         drop(transaction);
     }
 }
@@ -493,7 +497,9 @@ fn a_scope_startup_that_stalls_before_the_payload_ends_at_the_bound() {
     let marker: PathBuf = directory.path().join("payload-ran");
     let started = std::time::Instant::now();
 
+    let _ = crate::bounded_run::take_trace_for_test();
     let result = output_within(Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound(Duration::from_secs(2)));
+    let events: Vec<String> = crate::bounded_run::take_trace_for_test();
     let elapsed: Duration = started.elapsed();
     use_route_settings_for_test(None);
 
@@ -502,7 +508,7 @@ fn a_scope_startup_that_stalls_before_the_payload_ends_at_the_bound() {
     assert!(elapsed >= Duration::from_secs(2) && elapsed < Duration::from_secs(8), "the run returned after {elapsed:?}: not at its bound of two seconds");
     assert!(!marker.exists(), "the payload ran although its startup was held");
     let launcher: i32 = fs::read_to_string(directory.path().join("pid-1")).expect("pid").trim().parse::<i32>().expect("a pid");
-    crate::contain_counterexample_tests::assert_reaped(launcher, "a stalled startup");
+    crate::contain_counterexample_tests::assert_spawned_child_is_the_program_and_reaped(launcher, &events, "a stalled startup");
     assert!(!transaction.writers_may_remain(), "nothing could have started, yet the scope reports writers that may remain");
     crate::cgroup_test_support::assert_scope_record(&journal.join("groups").display().to_string());
 }

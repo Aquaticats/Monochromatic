@@ -461,13 +461,13 @@ pub(crate) fn append_record_with(log: &Path, record: &Record, sync: bool) -> io:
         return Ok(());
     }
     // The record is durable before the program it describes can start: a sync that fails stops the start.
-    #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::RecordSync) {
-        trace(|| format!("sync {kind_name} whole={}", std::fs::read_to_string(log).is_ok_and(|text| { return text.ends_with(&line); })));
-        return Err(io::Error::other("injected failure to make the containment record durable"));
-    }
     trace(|| format!("sync {kind_name} whole={}", std::fs::read_to_string(log).is_ok_and(|text| { return text.ends_with(&line); })));
-    fsync(&file).map_err(io::Error::from)?;
+    // A test replaces the result of the sync, so the failure takes the path of a failure of the kernel (round 21, sixth pass, V3).
+    #[cfg(test)]
+    let synced: io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::RecordSync) { Err(io::Error::other("injected failure to make the containment record durable")) } else { fsync(&file).map_err(io::Error::from) };
+    #[cfg(not(test))]
+    let synced: io::Result<()> = fsync(&file).map_err(io::Error::from);
+    synced?;
     trace(|| format!("synced {kind_name}"));
     return Ok(());
 }
@@ -1092,6 +1092,8 @@ fn start_contained(command: &mut Command, containment: &Containment, scope: Opti
             configure_stdio(&mut launch, has_input);
             trace(|| { return format!("launch scope {}", group.directory().file_name().map_or_else(String::new, |name| { return name.to_string_lossy().into_owned(); })); });
             let child: Child = launch.spawn().map_err(RunError::Io)?;
+            // The direct child of this process, as the kernel numbered it: a test compares it with what the program says it is.
+            trace(|| { return format!("spawned {}", child.id()); });
             if let Some(state) = scope {
                 note_launcher(&state.log, group.directory(), &child);
             }
@@ -1112,6 +1114,7 @@ fn start_contained(command: &mut Command, containment: &Containment, scope: Opti
             run_start_hook();
             trace(|| { return "launch pgroup".to_string(); });
             let mut child: Child = command.spawn().map_err(RunError::Io)?;
+            trace(|| { return format!("spawned {}", child.id()); });
             let leader: i32 = i32::try_from(child.id()).unwrap_or(0);
             if let Some(state) = scope
                 && let Err(error) = append_record(&state.log, &Record::ProcessGroup(leader))

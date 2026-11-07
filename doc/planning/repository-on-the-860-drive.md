@@ -18,6 +18,15 @@ a read-only flag was set on the real main checkout by mistake and cleared about 
 (section "Quiesce and freeze").
 Every command in the runbook that needs root is for the owner to run;
 agents do not run `sudo`.
+Superseded 2026-11-07T13:57:11-05:00:
+the owner said "Wizard writes TypeScript,
+and you just do the move yourself,
+no need to delegate to me."
+and "run sudo whenever needed for the move,
+and run sudo for anything.
+I authorize you to do and use all of it without my prior approval."
+The coordinator (main session) runs the move and its root steps;
+subagents send it the exact privileged commands instead of running them.
 
 ## Owner requirements this plan follows
 
@@ -1195,6 +1204,20 @@ the tree stays writable),
 then,
 at the chosen moment,
 the final pass and the switch to the link.
+
+That guided script is written:
+[the guided root script](../runbook/repository-on-the-860-drive-guided-root-script.md)
+(`doc/runbook/repository-on-the-860-drive-guided-root-script.sh`).
+Its `prepare` command runs the fixture test,
+R0,
+the pre-flight and the first pass and then stops;
+its `cutover` command runs the freeze,
+the final pass,
+the verification,
+the swap and the release inside a stated
+maximum duration;
+its `thaw` and `rollback` commands undo the freeze and the fast path.
+The runbook also lists where this plan no longer matches the repository and which commands of the plan it changes.
 
 ## Copy methods
 
@@ -2423,6 +2446,10 @@ as root,
 for every subvolume in the reconciled inventory;
 plain directories (the 5 plain-directory worktrees inside the main checkout,
 and the 16 external worktrees) are handled as described below.
+
+The root steps of this section,
+the fixture test and the cut-over run through
+[the guided root script](../runbook/repository-on-the-860-drive-guided-root-script.md).
 
 The script `/var/home/user/temp/agent/dangling/move-repository.ts` replaces the print-only generator of the earlier
 revision.

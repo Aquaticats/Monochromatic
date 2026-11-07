@@ -664,6 +664,8 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
 /// ```
 pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport, InstallError> {
     if request.frozen {
+        // A frozen run starts no transaction, so the kept-files warning is announced here (it is promised on every run past the count).
+        crate::journal_transaction::announce_kept_files_for(request.root, request.crate_dirs);
         // The stamp showed the lockfiles consistent, so no cargo call asks again; the policy check below still runs.
         if !request.known_consistent {
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -823,6 +825,8 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
                 // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 // Macro `format!`: builds or prints text (or a list) from a template.
                 Ok(report) if !report.problems.is_empty() => format!("\nThe policy refused it: {}", report.problems.join("; ")),
+                // The command's own failure came first: the rollback failure is added to it, never put in its place.
+                Err(original) => format!("\nThe run had already failed: {original}"),
                 // Constructor `String::new()`: an empty owned collection or a boxed value.
                 _ => String::new(),
             };

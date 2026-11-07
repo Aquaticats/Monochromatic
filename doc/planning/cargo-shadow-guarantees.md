@@ -2421,6 +2421,10 @@ Substantive findings and their state:
   Closing it means executing an opened descriptor,
   which breaks scripts and proxies that open their own path,
   so it is not done and needs an owner decision.
+  Superseded in round 21:
+  the owner's rule ("We should never invoke ourselves recursively.")
+  settles it;
+  see the round 21 block.
   Owner decision of 2026-11-04 (option A):
   a launcher with no record that leads back no longer gets a bounded fallback;
   the second
@@ -2472,6 +2476,104 @@ Substantive findings and their state:
   the assertion that
   the start-time error line names the namespace;
   the actual spawned child's id for the reap check.
+
+### Round 21 additions (sixth certification pass, 2026-11-04T17:40:00-05:00)
+
+- **Check-to-start race,
+  closed for compiled programs.**
+  `real_binary::vet` opens the chosen real cargo once (close-on-exec),
+  runs the running-image and recorded-launcher checks on the
+  open file,
+  and recognises a compiled (ELF) program by its first bytes.
+  `Vetted::command` then starts a compiled program through
+  `/proc/self/fd/<n>` with the chosen path as `argv[0]`,
+  so a path made to name the shadow after the check cannot reach the start
+  and rustup's proxy still picks the tool by name.
+  The two starts that this process makes itself use it (`shim::run_program` and the
+  shim exec site).
+  The cargo of an install step (`RealCargo::run`) runs inside a scope whose launcher (`systemd-run`) takes the program
+  as an argument and starts it from its own process,
+  so no descriptor of this process can name it there,
+  and the launcher would also
+  replace `argv[0]`;
+  that start keeps the path with the check repeated right before (`Vetted::command_by_path`),
+  and its window ends
+  at the arrival stop like the script residual below (`a_compiled_real_cargo_runs_in_the_contained_runner_of_the_install_step`,
+  red
+  when that start uses the descriptor).
+  `a_compiled_real_cargo_swapped_to_the_shadow_after_the_check_still_runs_the_real_one` swaps the checked path to a hard link of the
+  running image between the check and the start (the `after_check_for_test` seam) and requires the real program's output;
+  red with
+  the start by pathname and no second check (the shadow listed its tests instead),
+  planted.
+- **Script and contained-start residual.**
+  A script cannot be started through a close-on-exec descriptor (the interpreter opens the path after the descriptor is gone,
+  and
+  the start fails with ENOENT),
+  so a script keeps its pathname and is checked again immediately before the start
+  (`a_script_real_cargo_swapped_to_the_shadow_after_the_check_is_refused_at_the_start`).
+  The instants between that second check and
+  the start remain;
+  a hit there reaches the arrival stop of the second cargo-shadow (exit status 2),
+  so nothing runs twice.
+  The
+  owner has not been asked to accept this residual beyond the rule above;
+  it is stated,
+  not hidden.
+- **Group 2 and group 4 named fixes.**
+  `a_wait_that_fails_is_not_a_reap` bounds the wait and requires the elapsed time to match the bound (red with a one-shot extra
+  budget,
+  planted).
+  The quiescence tests wait for the program's ready marker,
+  require the fault to be consumed,
+  and require the
+  program to have run in the recorded scope (`assert_ran_in_recorded_scope`),
+  in both the inspection schedule and the joined
+  install test.
+
+- **Review of 2026-11-07 (merge of round 21,
+  cross-vendor reviewer `cargo-shadow-r21-sol-1.txt`),
+  what changed and what stays limited.**
+  The exec site dropped the open file before `exec` (a binding named `_vetted` is a binding,
+  not a discard),
+  so a compiled real cargo
+  failed to start there;
+  the vetted program now lives to the `exec`,
+  and `a_compiled_real_cargo_is_started_by_the_exec_branch_with_its_arguments`
+  and `a_compiled_real_cargo_is_started_by_the_child_branch_with_its_arguments` start a compiled program through both of the shim's own
+  starts (red at the exec site before the fix).
+  An execute-only program (the search for the real cargo accepts it) is opened by `O_PATH` for the identity checks and started by path with
+  the check repeated,
+  because a file that cannot be read cannot be told from a script and a script must be given its own path
+  (`an_execute_only_compiled_real_cargo_is_started_like_any_other`,
+  `an_execute_only_script_real_cargo_is_given_its_own_path_by_the_kernel`,
+  red before the fix).
+  The first process id Linux never allocates (the value of `pid_max`,
+  "one greater than the maximum PID") no longer counts as an
+  acknowledging process.
+  Limits that stay,
+  stated so the claim above is read as it is:
+  the descriptor start pins the file object that was checked,
+  not its bytes (an in-place rewrite,
+  or an `ETXTBSY` refusal while a
+  writer holds the file,
+  is not covered);
+  it needs a working `/proc/self/fd`:
+  a missing directory makes the start by path with the repeated check,
+  and a directory that exists and does not work is not detected,
+  so the start fails instead;
+  the identity checks run on the open file,
+  while the launcher-record check reads `.launch` files and their targets by pathname;
+  a program that is not a readable ELF file (a script,
+  any other format,
+  or a file this process cannot read) is started by path;
+  the printed Fix B record uses the lossy text of a path,
+  so a path with bytes that are not UTF-8 is not reproduced faithfully;
+  the script swap test proves the refusal at the repeated check,
+  not a swap after it;
+  the journal-barrier tests prove failure propagation and trace order,
+  not the syscalls themselves (open list,
+  group 5).
 
 ### What the map does not claim
 

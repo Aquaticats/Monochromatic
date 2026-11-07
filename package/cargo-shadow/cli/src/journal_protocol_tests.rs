@@ -1602,7 +1602,7 @@ fn make_durable_fixture() {
 fn the_output_barrier_syncs_the_file_and_then_its_directory_as_the_kernel_sees_it() {
     let found = std::process::Command::new("strace").arg("--version").output();
     if found.is_err() {
-        eprintln!("skipped: strace is not installed, so the system calls of the barrier cannot be observed here");
+        crate::test_scratch::skip_or_fail("strace is not installed, so the system calls of the barrier cannot be observed here");
         return;
     }
     let root = repository("final output");

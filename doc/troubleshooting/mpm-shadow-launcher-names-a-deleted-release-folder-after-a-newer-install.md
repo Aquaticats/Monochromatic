@@ -3,11 +3,11 @@
 Recorded 2026-11-07T13:05:00-05:00.
 
 Status:
-the launcher follows the tool's `current` link when the folder its record names is gone,
-in the release of `monochromatic-mpm-shadow` that follows 0.2.7-alpha.2
-(the version and its release record are filled in `doc/planning/one-release-each-batch-2026-11.md`,
-section "Release record: `monochromatic-mpm-shadow` launcher follows current").
-A tree whose launcher binary predates that release keeps failing until `mise run toolchain:install` runs in it.
+fixed in `monochromatic-mpm-shadow` 0.2.7-alpha.4 (the launcher follows `current` since 0.2.7-alpha.3 and rewrites its stale record since alpha.4)
+and `monochromatic-lint` 0.5.2-alpha.2 (the closure check fails instead of skipping);
+the lock has named them since commits `ee2d870060` and `5cd86b210f`
+(`doc/planning/one-release-each-batch-2026-11.md`, section "Release record: `monochromatic-mpm-shadow` 0.2.7-alpha.3 and 0.2.7-alpha.4").
+A tree whose launcher binary predates alpha.4 keeps failing until `mise run toolchain:install` runs in it.
 The tool is `package/mpm-shadow/cli`,
 which this repository owns,
 so there is no upstream to file against.
@@ -126,6 +126,21 @@ and the two controls of the unit tests passed.
 otherwise the program of the same file name found under the `current` link above it,
 and `missing_program_advice` is the sentence printed after `could not start` when nothing is found.
 The README section "The launcher" of `package/mpm-shadow/cli` describes both.
+
+### Third layer: the shadow behind the launcher took the launcher for the real tool
+
+With the first fix alone, a launcher whose record was stale ran `cargo-shadow`, which looked for the real `cargo` on `PATH`.
+Its launcher skip (`leads_back_to` in `package/cargo-shadow/cli/src/real_binary.rs`) canonicalizes the record's `real` path;
+the deleted folder cannot be resolved, so the launcher was not skipped, was chosen as the real `cargo`, started `cargo-shadow` again,
+and the recursion guard stopped `mise run //package/mpm-shadow/cli:lint` with
+`cargo-shadow: stopped at once, before doing anything, because cargo-shadow was started by cargo-shadow.`
+(measured 2026-11-07 in the disposable worktree with a copy of the fixed launcher and a record that named the deleted 0.1.4 folder).
+The launcher now rewrites its own record to the program it started
+(`refresh_stale_record` in `launcher.rs`; tests `a_launcher_rewrites_a_stale_record_to_the_program_it_started_so_a_shadow_behind_it_can_see_where_it_leads`
+and `a_record_that_cannot_be_rewritten_is_a_warning_and_the_program_still_runs`),
+so the record is true again before any shadow reads it.
+`pnpm-shadow` and `search-shadow` have the same skip rule and are covered by the same rewrite;
+only `cargo-shadow` was run in this measurement.
 
 ## Limits
 

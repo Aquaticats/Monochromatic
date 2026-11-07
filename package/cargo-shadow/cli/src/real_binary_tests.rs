@@ -418,3 +418,56 @@ fn a_chosen_path_that_names_the_running_image_at_the_start_is_refused() {
     let refused = crate::real_binary::refuse_if_ourselves(&chosen);
     assert!(refused.is_err_and(|reason| { return reason.contains("names this program itself"); }), "a path that names the running image was started");
 }
+
+/// The one argument the stand-in real program is run with. It is also a listing request that the test image itself answers at once, so a
+/// regression that starts the swapped-in shadow lists tests and exits instead of running tests recursively.
+const REAL_PROGRAM_ARGUMENT: &str = "--list";
+
+/// Round 21 (group 15, b): a chosen real cargo that is a compiled program is started through the file that was checked, so a path made to
+/// name the shadow between the check and the start does not reach the start: the real program runs, not the shadow.
+/// The program here is a copy of `echo` (a compiled program); between the check and the start the path is replaced by a hard link of the
+/// running image (the seam of `after_check_for_test`). Started by path it would be the test image; started through the checked file it
+/// prints its arguments.
+#[test]
+fn a_compiled_real_cargo_swapped_to_the_shadow_after_the_check_still_runs_the_real_one() {
+    let directory = scratch();
+    let chosen: PathBuf = directory.path().join(NAME);
+    std::fs::copy("/usr/bin/echo", &chosen).expect("a compiled stand-in for the real cargo");
+    std::fs::set_permissions(&chosen, std::fs::Permissions::from_mode(EXECUTABLE_MODE)).expect("set the mode");
+    let vetted = crate::real_binary::vet(&chosen).expect("a program that is not the shadow passes the check");
+    let swapped: PathBuf = chosen.clone();
+    crate::real_binary::after_check_for_test(Some(std::rc::Rc::new(move || {
+        let link: PathBuf = swapped.with_extension("swap");
+        std::fs::hard_link(std::env::current_exe().expect("this test executable"), &link).expect("a hard link of the shadow");
+        std::fs::rename(&link, &swapped).expect("name the shadow at the chosen path");
+    })));
+
+    let mut command = vetted.command().expect("a compiled program is started through its checked file");
+    crate::real_binary::after_check_for_test(None);
+    let output = command.arg(REAL_PROGRAM_ARGUMENT).output().expect("starts");
+
+    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{REAL_PROGRAM_ARGUMENT}\n"), "the shadow was started in place of the real cargo: {output:?}");
+    assert!(crate::real_binary::refuse_if_ourselves(&chosen).is_err(), "the swap did not name the shadow, so the test showed nothing");
+}
+
+/// Round 21: a script cannot be started through a descriptor, so it keeps its pathname and is checked again at the start; a path swapped
+/// to the shadow after the first check is refused there (the residual window of scripts is the instants after that second check, which
+/// ends at the arrival stop of the second cargo-shadow).
+#[test]
+fn a_script_real_cargo_swapped_to_the_shadow_after_the_check_is_refused_at_the_start() {
+    let directory = scratch();
+    let chosen: PathBuf = directory.path().join(NAME);
+    write_program(directory.path(), EXECUTABLE_MODE);
+    let vetted = crate::real_binary::vet(&chosen).expect("a script that is not the shadow passes the check");
+    let swapped: PathBuf = chosen.clone();
+    crate::real_binary::after_check_for_test(Some(std::rc::Rc::new(move || {
+        let link: PathBuf = swapped.with_extension("swap");
+        std::fs::hard_link(std::env::current_exe().expect("this test executable"), &link).expect("a hard link of the shadow");
+        std::fs::rename(&link, &swapped).expect("name the shadow at the chosen path");
+    })));
+
+    let started = vetted.command();
+    crate::real_binary::after_check_for_test(None);
+
+    assert!(started.is_err_and(|reason| { return reason.contains("names this program itself"); }), "a script swapped to the shadow was started");
+}

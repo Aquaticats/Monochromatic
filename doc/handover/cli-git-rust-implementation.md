@@ -3976,9 +3976,29 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     tip `944bdd30b5` after the coordinator merged main and resolved the plan-doc conflict to the branch side,
     whose only main change was the linter's whitespace reflow;
     the agent's last gate was 5209 of 5209 on `ad314ca6eb`;
-    the merged tree's gate runs as unit `tokio-merge-gate-944bdd30b5`,
-    log `~/temp/agent/tokio-merge-gate-944bdd30b5.log`;
-    then merge into main,
+    the merged tree's gate (unit `tokio-merge-gate-944bdd30b5`,
+    log `~/temp/agent/tokio-merge-gate-944bdd30b5.log`)
+    failed 5 of 5216:
+    `SIGABRT` in `push::auto_push_reconcile::tests::what_the_fetch_and_the_fast_forward_say_is_kept_in_the_journal`
+    and the two `push::push_slow_server_tests` HTTP controls,
+    `push::bounded_push::tests::a_tree_still_running_after_the_grace_is_swept_when_it_ends`
+    ("a tree that still runs is not swept"),
+    and `service::service_reply::tests::a_queued_answer_is_written_before_the_connection_closes`
+    (read `Heartbeat`,
+    expected `Landed`);
+    that last one is a race in a test main has had since `8183dcc6fd`,
+    not a tokio regression:
+    the branch changes nothing it uses,
+    the writer sends a beat after `recv_timeout` of 20 ms (`service_reply.rs:123-136`),
+    and the test asserts the queued answer is the first line (`service_reply_tests.rs:65-71`),
+    so a test thread scheduled more than 20 ms late reads a beat first;
+    the tokio agent fixes the test with a sleep control proving the race;
+    back with the tokio agent for measured causes of the four push failures;
+    the coordinator's unmeasured hypothesis is that stops now wait up to 18 s whenever a member is in `D` under disk pressure,
+    which would be a production regression too;
+    not merged;
+    after a clean gate:
+    merge into main,
     `native:perf`,
     a wrapper alpha,
     and the mutation campaign over the changed files;
@@ -4192,11 +4212,21 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     start recorded by `f191d45681`),
     with an alpha release
     and lock move.
-    Separately unmerged since 2026-11-04:
-    round 21 `feat/cargo-shadow-check-to-start-race`
-    (16 commits,
-    worktree `.claude/worktrees/cargo-shadow-r21`,
-    no agent on it).
+    Round 21 `feat/cargo-shadow-check-to-start-race` merged to main 2026-11-07T14:01:31-05:00 (`4c31f33751`),
+    released as 0.1.5-alpha.2 and locked (`62d3f69165`);
+    what it did,
+    the review and the open sixth-pass list (groups 5,
+    8 to 14,
+    the fifth-pass list,
+    packets cert7):
+    `doc/planning/cargo-shadow-update.md`,
+    "Round 21 merge record (2026-11-07)".
+    Worktree `.claude/worktrees/cargo-shadow-r21` is merged and can be removed.
+    Open defect found on the way,
+    not cargo-shadow's:
+    `search-shadow` links of two versions on `PATH` (a worktree's stale `.cache/search-shadow-bin` and main's)
+    each pick the other as the real `grep` and re-`execve` forever at about 89 percent CPU;
+    a stale worktree `.cache` is refreshed by `mise run toolchain:install` in that worktree.
   - Guardrail bundle `package/claude-code-plugin/guardrail/bundle/node/index.mjs` still has the old refusal text;
     a
     rebuild also pulls about 300 KB of unrelated source drift (patch at `~/temp/agent/guardrail-bundle-rebuild.patch`).
@@ -4300,8 +4330,66 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `package/ide/app` Clippy `E0308` at `src/tile_scene.rs:141` after a `parley` API change;
   `package/terminal/app` lint fails in the `libghostty-vt-sys` build script fetching Ghostty;
   `cargo-shadow install` offline fails on the music player because the cached index marks `clipboard-win` 5.4.1 yanked.
-  The music-player ellipsis test passed three times for the zbus agent;
-  its cause is still unmeasured.
+  Measured cause of the `terminal/app` failure:
+  the build script runs `git clone --no-checkout` into cargo's build folder and then `git checkout <commit>`,
+  and the Git wrapper read the clone's unwritten index as uncommitted changes
+  (`linked-worktree-only/linked-worktree-required`).
+  Wrapper fix on that branch,
+  following Git's own rule that an unborn index is an initial checkout
+  (`read-cache.c:2429-2432` `is_index_unborn`,
+  `builtin/checkout.c:829`,
+  Git 2.56.0):
+  red tests `3d81ae9d73`,
+  fix `6b33a8963c` (HEAD-only forms only;
+  `reset --hard`,
+  `checkout -f`,
+  `restore` and `clean` stay guarded),
+  lint and Clippy clean,
+  container gate running;
+  it merges into main without waiting for the tokio branch and ships in the next wrapper alpha.
+  The owner approved two `terminal/app` route edits (2026-11-07);
+  the one that strips the wrapper from `PATH` is not used,
+  and the container fallback is kept only in case the wrapper fix fails.
+- Incident (disk wear):
+  `package/ide/app` test `change_watch recovery::queue_overflow_requests_a_full_reread`
+  creates `max_queued_events / 2` files,
+  and this host's `fs.inotify.max_queued_events` is 10000000;
+  one run wrote more than 4 million files in a worktree's `target/tmp` in 20 minutes before the agent stopped and deleted them.
+  Assigned to the same agent:
+  an injected overflow event with a small fixed count,
+  never writes scaled by a host limit,
+  and a search for other tests sized from `/proc/sys`.
+- Music player:
+  merged into main `9944c1ffe8` (1601 of 1601 desktop-app tests,
+  Clippy and e2e lint clean;
+  worktree and branch removed).
+  The ellipsis test failed only in release builds,
+  because the Search page's fade-in read the wall clock and a release build drew before the fade ended
+  (red `80e9ead693`,
+  fix `96c1da743a`:
+  the test clock advances by `Theme.motion-enter` per draw pass);
+  `src/ui_render_support.rs` also reads the wall clock.
+  `click-through/unreadable-row` raced a fixed 1500 ms pause;
+  the app now writes a state line on each search answer and the check waits for it
+  (red `25c717f5b9`,
+  fixes `c0d7b7dcf6`,
+  `6f2c48339e`).
+  `settings/licenses-row` and `settings/escape-ladder` did not reproduce headless,
+  and no failure text was kept from the reported runs,
+  which used the visible nested window;
+  `browse/alt-down-up` failed once and is untouched.
+  Docs:
+  `doc/troubleshooting/slint-render-test-fade-in-reads-the-wall-clock.md`,
+  `doc/troubleshooting/music-player-e2e-search-answer-and-headless-start.md`.
+  Queued for the next free agent slot:
+  make the e2e runner headless by default for agents
+  (the working wrapper lives only in scratch,
+  `~/temp/agent/four-tests/headless-compositor.ts`,
+  with `--headless --gpu /dev/dri/renderD129`;
+  `--gpu auto` took about 56 s to open the control socket against the runner's 30 s poll),
+  fix the start stall,
+  keep each failing check's text and last `ui_state` lines,
+  then measure the three open checks and the wall-clock read in `ui_render_support.rs`.
 - Held settle message:
   merged into main `66dbb1ca27` (gate 5194 of 5194,
   lint clean).
@@ -4689,7 +4777,27 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The old notice and its flaky test are gone.
   The late-line gap is closed in main
   (`baf4c039f2`).
-  The next wrapper release waits only for the tokio agent's measured cause of the leftover ref lock.
+  The next wrapper release waited for the tokio agent's measured cause of the leftover ref lock;
+  that cause is measured
+  (Git's own SIGTERM cleanup removes the lock's pid file and then the lock,
+  and a 5 s stop can land between the two),
+  and the race is the same in the installed 0.6.0,
+  so the alpha no longer waits for the tokio branch.
+  Measured 2026-11-07:
+  the installed 0.6.0 still prints six old-name lines on every command;
+  the old files in the main Git directory were last written between 07:06 and 08:24
+  and nothing under `.git/cli-git` changed after 08:25.
+  Next:
+  after the no-checkout clone fix merges,
+  one container gate on main,
+  then a wrapper alpha from main (fold,
+  late-line fix,
+  no-checkout fix,
+  held message,
+  index-lock fallback),
+  lock,
+  install,
+  and a check that the six lines are gone and the old logs' lines are in the current logs.
   Another suite-only failure seen once in its gates:
   `service::the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero` (passed alone and in three later
   gates;
@@ -4950,10 +5058,42 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `R0` inventory,
   first pass,
   then the final pass and the link at the chosen moment).
+  The guided script is merged (`4980c200ea`):
+  `doc/runbook/repository-on-the-860-drive-guided-root-script.sh` and its `.md`,
+  commands `prepare` (25 stages,
+  fixture test to first pass) and `cutover` (24 stages,
+  window clock,
+  freeze,
+  final pass,
+  verification,
+  guard,
+  swap,
+  release),
+  dry runs and a failing stand-in step checked without root.
+  Not ready to run:
+  W1 to W15 (the dangling-link checks per tool) are not built,
+  the 860 lacks `user_subvol_rm_allowed`,
+  `move-repository.ts` keys its records by position (a resume after a worktree change refuses),
+  the window maximum's allowance is the agent's choice,
+  the 860's free space leaves about 160 GiB against the plan's 150,
+  and the two scripts the wizard needs live in `~/temp/agent/dangling`.
+  The plan's own commands had defects the script works around (`sudo node` with mise's node,
+  F5 reusing F3's folders,
+  `list -o` not recursive,
+  `--freeze` joined to the copy,
+  no `--delete` in the second external pass,
+  root `git` in verification).
+  Incident:
+  that agent ran `sudo -n true` once to check for passwordless sudo
+  (a no-op that changed nothing,
+  against the brief's "No sudo");
+  the guardrail has no `sudo` rule (`package/claude-code-plugin/guardrail/src/index.ts`,
+  searched).
   Next:
-  build that script with the `wizard` skill from the plan's runbook and its `move-repository.ts`,
-  dry-run it in print mode,
-  at the first free agent slot.
+  the preparation work (W1 first,
+  the `move-repository.ts` fixes,
+  both scripts into the repository),
+  given to an agent 2026-11-07.
 
 - The symlink plan is committed (`4f430a0683`,
   `837fc9a6eb`) in `doc/planning/repository-on-the-860-drive.md`;
