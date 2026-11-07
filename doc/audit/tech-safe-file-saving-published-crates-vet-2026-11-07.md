@@ -193,14 +193,10 @@ The output is `${HOME}/temp/agent/tokio/safe-save-probe.out`; all 15 lines read 
 Each item names the evidence and what the replacement does instead.
 
 - G1, the fallback to a checked rename on a filesystem that supports neither `renameat2` with `RENAME_NOREPLACE` nor hard links.
-  `tempfile::persist_noclobber` tries `renameat_with(NOREPLACE)`, then `hard_link`, and returns the link error
-  (`src/file/imp/unix.rs`, function `persist`, lines 94 to 133 of 3.27.0).
+  `tempfile::persist_noclobber` tries `renameat_with(NOREPLACE)`, ignores `EINVAL` and `ENOSYS`, then `hard_link`, and returns the
+  link error (`src/file/imp/unix.rs`, function `persist`, lines 94 to 133 of 3.27.0).
   The incumbent's test `a_refused_link_falls_back_to_the_rename` pins the fallback.
-  Not triggered here: no such filesystem was available (a FAT or some FUSE mounts would be).
-  Effect of dropping it:
-  on such a filesystem the publish fails with the operating system's error and the staged file is returned inside
-  `PersistError` (nothing is lost, the caller reports the path), where the incumbent publishes.
-  Open for the owner: accept, or keep a checked rename beside the call.
+  The facts the coordinator asked for are in the section "Facts for the owner's answer on G1" below.
 - G2, killed between the staging file and the publish:
   a `SIGKILL` leaves `.<prefix>.<random>.partial` (the incumbent does the same, and recovery ignores such names).
   No crate removes it; `tempfile` deletes on drop only.
@@ -215,6 +211,81 @@ Each item names the evidence and what the replacement does instead.
   `tempfile` is synchronous.
   The composition in G3 runs on the blocking pool through `run_blocking_job`, which returns "the system refused a thread" as a
   plain error (the owner's choice 11).
+
+## Facts for the owner's answer on G1
+
+Written 2026-11-07T08:20:00-05:00.
+The owner's two rules in conflict: "Commits should never fail" (choice 10: "Strong: what Git completes, we complete") and
+"safe-file-saving shouldn't be something we own at all" (choice 5).
+This section gives facts only; the incumbent's checked rename stays in `foundation/private_storage.rs` until the owner answers.
+
+### Which Linux filesystems lack both
+
+- Kernel source read: `torvalds/linux` at `d48723711bae9b8cdc56719c448ba42fef28cbee` (master on 2026-11-07), fetched to
+  `${HOME}/temp/agent/tokio/kernel/`.
+- The VFS makes the `RENAME_NOREPLACE` existence check itself (`fs/namei.c` line 4110, `-EEXIST` when the target exists); a
+  filesystem only has to accept the flag in its `.rename`.
+- exFAT accepts it: `fs/exfat/namei.c` line 1283, `if (flags & ~RENAME_NOREPLACE) return -EINVAL;` (so the flag passes).
+  exFAT has no hard links: its `exfat_dir_inode_operations` (lines 1342 to 1352) has no `.link`.
+- FAT (`vfat`) has no `.link` either (`fs/fat/namei_vfat.c` lines 1190 to 1201), and its `.rename` is `vfat_rename2`;
+  the `rename(2)` manual page of this host says "Support for many other filesystems was added in Linux 4.9, including ext2, minix,
+  reiserfs, jfs, vfat" (`/usr/share/man/man2/rename.2.gz`).
+- NFS rejects every flag (`fs/nfs/dir.c` lines 2781 and 2782, `if (flags) return -EINVAL;`) and has hard links (`nfs_link`, line 2702).
+- ntfs3 has `.link` (`fs/ntfs3/namei.c` line 537).
+- FUSE passes the flag only when the server implements `FUSE_RENAME2`, otherwise `-EINVAL` (`fs/fuse/dir.c` lines 1310 to 1337), and
+  returns `-ENOSYS` from `link` when the server has none (`fuse_link`, lines 1344 to 1353).
+- So no in-kernel filesystem read lacks both.
+  The filesystems that lack both are FUSE servers that implement neither.
+  Source evidence of one: `s3fs-fuse` at `015af0dd73c89880380e6fcbf8997eb6c40cc664`, `src/s3fs.cpp`:
+  `s3fs_rename` rejects every flag with `EINVAL` (lines 2016 to 2030, the comment says S3 cannot honor `RENAME_NOREPLACE`) and
+  `s3fs_link` returns `-ENOTSUP` (lines 2098 to 2108).
+  `sshfs` at `9b68e5f1b978c1d3c6ef7632b68d580a52ec0232` honors `RENAME_NOREPLACE` (`sshfs.c` line 2719), so it is not one.
+- Measured as the user: `fuse2fs` mounting an ext4 image under `${HOME}/temp/agent/tokio/fsm/` (a FUSE server of libfuse):
+  `renameat2(NOREPLACE)` onto a free name gave `EINVAL`, onto a taken name `EEXIST`, and `link` succeeded; tmpfs (control) gave 0,
+  `EEXIST` and success.
+  That is the case `tempfile` handles (it falls through to the hard link), not G1.
+  A server that lacks both could not be mounted here (`ntfs-3g` refuses an unprivileged mount; vfat and exFAT need a privileged mount,
+  and their in-kernel code supports the flag anyway), so G1 itself was emulated (next section), not mounted.
+
+### What a person sees with `tempfile` only
+
+Emulation: a scratch control (patch kept at `${HOME}/temp/agent/tokio/g1-scratch-private-storage.patch`, test at
+`${HOME}/temp/agent/tokio/g1-scratch-test.rs`, both reverted) made the link in `publish_exclusive` fail with error 95
+(`ENOTSUP`, what `s3fs` returns) for paths under one repository, and in the second arm also removed the fallback, which is what
+`persist_noclobber` does when `renameat2` answers `EINVAL`.
+Each run is a real wrapped commit through the resident service on the built binary.
+With today's fallback every run below lands.
+Without it:
+
+- A plain explicit-path commit (`git commit --message=x -- a.txt`):
+  the commit lands (exit 0) and the person sees
+  "Your commit is saved. Its backup push and upkeep could not be handed to the commit service: writing the work item
+  push-<commit id> failed: Operation not supported (os error 95). Run `git push` when ready."
+  Only the wrapper's record of work to do after the commit is lost; the push has to be run by hand.
+- A partial commit while another session's merge is unfinished: the commit fails (exit 1) with
+  "writing packed-refs failed: Operation not supported (os error 95)".
+- The commit that concludes the merge: the commit fails (exit 1) with
+  "copying a conclusion entry into the shadow failed: Operation not supported (os error 95)".
+- Read from the code, not run (the same error text follows the colon):
+  `push/push_failure_notice.rs` ("writing the notice failed: ..."), `push/push_retry_store.rs` ("writing the plan failed: ..."):
+  wrapper records after a push, the commit has landed;
+  `merge/merge_isolation_journal.rs`, `worktree/worktree_removal_rescue.rs`, `worktree_copying/worktree_copy_journal.rs`,
+  `landing/service_prepare_changes_config_and_pathspec_steps.rs` (the pathspec read from standard input) and
+  `landing/service_claim_watch.rs` return the error to their caller; whether each fails a command was not exercised.
+- Independent of G1 and measured with `strace` injecting `EOPNOTSUPP` into the service's `link` and `linkat` calls: the service's
+  journal publishes its decision file by `hard_link` with no fallback (`service/service_busy.rs` line 149), so on a state directory
+  that refuses links a commit through the service already fails today:
+  "The commit service could not finish this commit, so it was not made. Run the commit again; ...".
+  The writers above matter when the repository is on the filesystem that refuses links and the state directory is not.
+
+### How much of our own code the fallback is
+
+- In `publish_exclusive` (`foundation/private_storage.rs` lines 191 to 206) ten code lines are the fallback:
+  the `Err(error) =>` arm with its `debug` call (six lines), the `symlink_metadata` check (three lines) and the `rename` (one line).
+  The paragraph of the doc comment that explains it is four lines, and its control `a_refused_link_falls_back_to_the_rename`
+  is fifteen lines (`foundation/private_storage_publish_tests.rs`).
+- The fallback is weaker than `RENAME_NOREPLACE`: it checks that the name is free, then renames, and a rename onto a name taken in
+  between replaces it without error; the writers of one record are one process, which the incumbent's comment relies on.
 
 ## Parity ledger (RCO)
 

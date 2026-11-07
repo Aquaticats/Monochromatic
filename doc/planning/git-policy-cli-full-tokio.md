@@ -1809,6 +1809,14 @@ The one behavior no crate gives is the fallback to a checked rename on a filesys
 with `RENAME_NOREPLACE` nor hard links (evidence: `tempfile-3.27.0/src/file/imp/unix.rs`, function `persist`, lines 94 to 133).
 `openat2` with `RESOLVE_NO_SYMLINKS` was measured and is stricter than the wrapper's `O_NOFOLLOW` (it refused every path on this host because the scratch folder sits behind a link), so it is not adopted for reads.
 The replacement lands with the conversion of the callers (the 38 files that use `foundation/private_storage.rs`), not before.
+The coordinator asked for facts on the one item in conflict with "Commits should never fail" (G1); they are in the vet report,
+section "Facts for the owner's answer on G1".
+In short: no in-kernel filesystem read lacks both `RENAME_NOREPLACE` and hard links (FAT and exFAT have no links but accept the flag;
+NFS rejects the flag but has links); FUSE servers such as `s3fs-fuse` lack both; with `tempfile` only, a plain commit still lands
+(only the post-commit work item is lost), but a commit during or concluding an unfinished merge fails with
+"writing packed-refs failed: Operation not supported (os error 95)" or
+"copying a conclusion entry into the shadow failed: Operation not supported (os error 95)"; the fallback is ten code lines.
+Until the owner answers, today's checked rename stays and the replacement of `private_storage.rs` waits.
 
 ### What is left
 

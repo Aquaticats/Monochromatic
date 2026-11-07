@@ -35,7 +35,7 @@
 - T4 remainder: the descriptor-limit sweeps for the child helper; nothing else on Linux.
 - T5 to T13 as listed in the plan, with the owner's answers applied (task-local state instead of a `LocalSet`, the registry of
   children for the relay, no inline fallback when no thread starts).
-- The replacement of `foundation/private_storage.rs` by the crates of the vet report, with the owner's answer on its item G1.
+- The replacement of `foundation/private_storage.rs` by the crates of the vet report; it waits for the owner's answer on item G1 (facts in the vet report, section "Facts for the owner's answer on G1"); today's checked rename stays until then.
 - `zbus` 6 for the service client (step T8): main's `toolchain.lock.json` now names `nightly-2026-11-07`, so it compiles; the catalog
   floor is 5.19 and the release-age exclusion names `zbus@5.19.0`, both to be moved to 6.
 - The mutation campaign (`native:mutation:scoped`) over the new files and the planted controls.
