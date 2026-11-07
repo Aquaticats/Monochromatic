@@ -53,6 +53,22 @@
       },
     },
   },
+  // The terminal has no finding left, so it holds the line at error severity.
+  {
+    "name": "closure-check-terminal",
+    "files": [
+      "package/terminal/app/**/*.rs",
+    ],
+    "ignores": [
+      "**/*.md/**",
+      "**/*.mdx/**",
+    ],
+    "rules": {
+      "rust/avoidable-closure": {
+        "severity": "error",
+      },
+    },
+  },
   // The linter package has no finding left, so it holds the line at error severity.
   {
     "name": "closure-check-monochromatic-lint",

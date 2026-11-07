@@ -326,13 +326,15 @@ impl Drop for PtySession {
 /// Why:
 ///       `CommandBuilder::new` needs a stable string while building the command.
 fn default_shell_path() -> String {
-    // What:     `env::var("SHELL").ok()` reads `$SHELL` and converts `Result` to
-    //           `Option`. `filter` rejects empty strings.
+    // What:     `match env::var("SHELL")` reads `$SHELL`; the guard `if !value.is_empty()`
+    //           rejects empty strings, and every other outcome (unset, not Unicode, empty)
+    //           falls to the second arm, which allocates `"/bin/sh"`.
     // Why:      Desktop launches may have a configured shell; empty values are unusable.
-    let shell = env::var("SHELL").ok().filter(|value| return !value.is_empty());
-    // What:     `unwrap_or_else(...)` returns `$SHELL` or allocates `"/bin/sh"`.
-    // Why:      POSIX systems should always have `/bin/sh` as a fallback shell.
-    return shell.unwrap_or_else(|| return "/bin/sh".to_string())
+    //           POSIX systems should always have `/bin/sh` as a fallback shell.
+    return match env::var("SHELL") {
+        Ok(value) if !value.is_empty() => value,
+        _ => "/bin/sh".to_string(),
+    };
 }
 
 /// What:

@@ -14,6 +14,7 @@
 /// Import the prerequisite kinds and the platform-specific preparations.
 use crate::{
     closure_manifest::Prerequisite,
+    closure_probe_ghostty::ghostty_setup,
     closure_probe_platform::{android_setup, ide_setup},
 };
 /// Import the borrowed operating-system string type,
@@ -241,6 +242,13 @@ pub fn prepare(
                 Err(reason) => Some(reason),
             },
             Prerequisite::IdeRuntimeArtifacts => match ide_setup(directory) {
+                Ok(variables) => {
+                    setup.environment.extend(variables);
+                    None
+                }
+                Err(reason) => Some(reason),
+            },
+            Prerequisite::LibghosttyOfflineInputs => match ghostty_setup(directory) {
                 Ok(variables) => {
                     setup.environment.extend(variables);
                     None

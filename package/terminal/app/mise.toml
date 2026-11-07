@@ -46,10 +46,12 @@ const { globSync } = await import('node:fs')
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
+// fetchGhosttyOfflineInputs leaves Ghostty's source and the Zig packages of libghostty-vt-sys under target/ghostty-offline (bin/fetch-ghostty-offline-inputs.ts, SHA-256 pinned in ghostty-offline-inputs.json, a no-op when current), so no cargo run downloads while compiling: libghostty-vt-sys reads GHOSTTY_SOURCE_DIR and GHOSTTY_ZIG_SYSTEM_DIR (the closure check of monochromatic-lint sets the same two variables itself).
+const fetchGhosttyOfflineInputs = () => execFileSync('node', ['bin/fetch-ghostty-offline-inputs.ts'], { stdio: 'inherit' })
 const hostEnv = () => {
   const clangDirs = globSync('/usr/lib/clang/*').sort()
   const resourceDir = clangDirs[clangDirs.length - 1]
-  return { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: `-resource-dir=${resourceDir}`, ZIG_GLOBAL_CACHE_DIR: `${process.cwd()}/target/zig-global-cache` }
+  return { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: `-resource-dir=${resourceDir}`, ZIG_GLOBAL_CACHE_DIR: `${process.cwd()}/target/zig-global-cache`, GHOSTTY_SOURCE_DIR: `${process.cwd()}/target/ghostty-offline/source`, GHOSTTY_ZIG_SYSTEM_DIR: `${process.cwd()}/target/ghostty-offline/packages` }
 }
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
@@ -61,10 +63,11 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 // containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
+  fetchGhosttyOfflineInputs()
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', `${process.cwd()}:/work`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', `${process.cwd()}:/work`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', '--env', 'GHOSTTY_SOURCE_DIR=/work/target/ghostty-offline/source', '--env', 'GHOSTTY_ZIG_SYSTEM_DIR=/work/target/ghostty-offline/packages', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
-const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
+const runCargo = (cargoArgs) => { if (hostOk) { fetchGhosttyOfflineInputs(); execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 """
 
 # Stages the libghostty-vt shared libraries a cargo build installed through the
@@ -119,6 +122,14 @@ const stageLibghosttyRuntimeLibs = (profile) => {
   }
 }
 """
+
+[tasks."fetch:ghostty-offline-inputs"]
+description = "Fetch Ghostty's source at the commit libghostty-vt-sys pins and its Zig packages (each archive's SHA-256 pinned in ghostty-offline-inputs.json) into target/ghostty-offline, so no build downloads while compiling"
+run = "node bin/fetch-ghostty-offline-inputs.ts"
+
+[tasks."test:bin"]
+description = "Check the pure rules of the offline-inputs fetch with node:test"
+run = "node --test bin/ghostty-offline-inputs.test.ts"
 
 [tasks.image]
 description = "Build the CachyOS build/run container image"

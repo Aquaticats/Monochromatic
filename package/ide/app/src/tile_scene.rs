@@ -36,7 +36,7 @@ use crate::shaped_text::{
 /// Failures of the layout walk reach the caller.
 use anyhow::{Result, bail};
 /// A shaped paragraph and its positioned runs.
-use parley::{Layout, PositionedLayoutItem};
+use parley::{Layout, PositionedLayoutItem, Run};
 /// One positioned glyph of a run,
 /// in the layout's own pixel units.
 use vello::Glyph;
@@ -89,6 +89,26 @@ fn row_band(top: f32, bottom: f32) -> (f32, f32) {
 }
 
 /// What:
+///  The raw fixed-point `i16` bits of a run's normalized variation coordinates.
+/// Why:
+///  Parley 0.12 returns `NormalizedCoord` newtypes that its crate does not re-export,
+///  so no function can name that type;
+///  a loop reads each through its `to_bits` method,
+///  and Vello draws from the bits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function rawCoordinates(run: Run): number[];
+/// ```
+fn raw_coordinates(run: &Run<'_, u32>) -> Vec<i16> {
+    let mut bits: Vec<i16> = Vec::with_capacity(run.normalized_coords().len());
+    for coord in run.normalized_coords() {
+        bits.push(coord.to_bits());
+    }
+    return bits;
+}
+
+/// What:
 ///  The glyph runs of one visual row of `layout`,
 ///  as items in `ink`,
 ///  for the glyphs whose boxes reach the tile's width.
@@ -138,12 +158,7 @@ fn run_items(
             GlyphItem {
                 font: run.font().clone(),
                 size: run.font_size(),
-                // Parley 0.12 returns `NormalizedCoord` newtypes; Vello draws from the raw fixed-point `i16` bits of each.
-                coords: run
-                    .normalized_coords()
-                    .iter()
-                    .map(|coord| return coord.to_bits())
-                    .collect(),
+                coords: raw_coordinates(run),
                 origin,
                 ink: [0; 4],
                 glyphs,
