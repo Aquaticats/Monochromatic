@@ -120,7 +120,10 @@ pub fn format_log(records: &[&LauncherUpdate]) -> String {
     if records.is_empty() {
         return "0".to_string();
     }
-    let rendered: Vec<String> = records.iter().map(|record| return format_record(record)).collect();
+    let mut rendered: Vec<String> = Vec::new();
+    for record in records {
+        rendered.push(format_record(record));
+    }
     return format!("{} {}", records.len(), rendered.join("; "))
 }
 

@@ -1600,6 +1600,11 @@ the highest is
  Rotated files that name no saved copy still on disk are kept up to four mebibytes,
 oldest removed first;
  a rotated file with a `saved-conflict` line whose copy still exists is never removed.
+ A rotation killed between taking the file and placing it leaves the file at a private name (`.moving-<process>-<count>`);
+ the next rotation gives it the next free number,
+ so every line is read by number,
+ and the time of a line is in the line,
+ not in its number.
  The four mebibytes are derived from the measured rate of this file (about 23 KB a day) and the 30 days copies are kept;
  the timing logs and the push trigger log keep one rotated file,
 `.1`.
@@ -3558,7 +3563,55 @@ missed,
 timed out or unviable.
 For `native:mutation:parallel`,
 start the same launcher command again;
-each file resumes its own campaign.
+each file resumes its own campaign
+(see "Image tags of a parallel launch" for what the launcher does to the unit image tags first).
+
+### Image tags of a parallel launch
+
+Each file unit of `native:mutation:parallel` runs the image `localhost/git-policy-native-test:<label><index>`
+(the shared launcher's default `--tag-template`,
+one tag per file).
+Those tags do not exist after a gate,
+so before it starts any unit the launcher makes them
+(`bin/native-mutation-parallel.ts`,
+`ensureUnitImages` in the shared package;
+its README,
+"Image tags",
+has the rules):
+it runs `podman tag <full ID of the gate image> localhost/git-policy-native-test:<label><index>` for every unit,
+reads every tag back,
+and starts nothing if one does not name the gate image.
+A plain `native:mutation:parallel -- <label> <files>` therefore works right after `native:test:container`,
+with no `podman tag` by hand.
+
+The gate image is the one the last `native:test:container` built,
+`localhost/git-policy-native-test:<tag>` with the tag from `GIT_POLICY_NATIVE_IMAGE_TAG`,
+or `development` when that variable is not set in the launcher's shell
+(`gateImageTagOf` in `bin/native-gate-image-tag.ts`,
+which the gate,
+the campaign task,
+the controls-only task and the launcher all use,
+so they name one image).
+To make the tags from another gate image,
+pass `--from-tag <tag>` after the `--`:
+the person's flag comes after the launcher's own,
+and the later one wins.
+A relaunch of a label after a new gate moves that label's tags to the new image and prints a line for each
+(the old image stays in storage).
+A running unit keeps the image it started with,
+and a resumed campaign over a new image is another campaign directory.
+If the gate image does not exist,
+nothing starts and the message names the image and `--from-tag`.
+The launcher exits 0 only when every file unit started:
+a unit that `systemd-run` refuses is named with its error and the launcher exits 1,
+while the other units keep running
+(the shared launcher's README,
+"Exit status and errors").
+A refused launch prints only the plain message,
+with no stack trace.
+Before this change the launcher started units whose tags did not exist,
+every one died at once with "image not known",
+and the launcher exited 0 (2026-11-07).
 
 The campaign's results are in `target/verification/native-mutation-<key>/`,
 where the key names the gate image,

@@ -60,7 +60,12 @@ fn split_spec(spec: &str) -> Result<(Vec<&str>, &str), String> {
             None => ("", spec),
         }
     };
-    let modifiers: Vec<&str> = head.split('+').filter(|name| return !name.is_empty()).collect();
+    let mut modifiers: Vec<&str> = Vec::new();
+    for name in head.split('+') {
+        if !name.is_empty() {
+            modifiers.push(name);
+        }
+    }
     return Ok((modifiers, target))
 }
 

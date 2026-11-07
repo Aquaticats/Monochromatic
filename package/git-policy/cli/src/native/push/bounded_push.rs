@@ -33,8 +33,6 @@ use crate::push_deadline_advice::extend_clause;
 /// The clock that stops a push on a stall,
 /// and the wait it lets pass instead.
 use crate::push_progress::{Clock, WaitReport};
-/// The helpers and hooks a stopped push leaves running.
-use crate::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
 /// The lock files a stopped push leaves,
 /// and the ledger that finds them.
 use crate::stopped_git_locks::LockLedger;
@@ -42,7 +40,13 @@ use crate::stopped_git_locks::LockLedger;
 /// The anonymous output file of the push,
 /// made in the per-user scratch directory.
 use crate::scratch_location::scratch_file;
-use crate::start_retry::RetryStart;
+use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
+use crate::lazy_runtime::run_on_runtime;
+/// The stop of a push and the sweep of the locks it leaves,
+/// and the pause between two looks at a running push.
+use crate::stop_of_a_push_and_sweep_of_its_locks::POLL_PAUSE;
+pub use crate::stop_of_a_push_and_sweep_of_its_locks::{settle_locks, stop_push, sweep_after_exit};
+use crate::start_retry::spawn_retrying_without_blocking;
 /// Owned OS strings of the child environment.
 use std::ffi::OsString;
 /// `File` is the shared anonymous output file;
@@ -50,12 +54,12 @@ use std::ffi::OsString;
 /// `Seek` and `SeekFrom` read it back from its start.
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
-/// `Child` is the running push;
+/// `Child` is a push handed to the sweeper;
 /// `Command` describes it;
 /// `Stdio` connects its streams.
 use std::process::{Child, Command, ExitStatus, Stdio};
 /// Time spans and the monotonic clock.
-use std::time::{Duration, Instant};
+use std::time::Duration;
 pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH_DEADLINE_VARIABLE, Patience, positive_seconds, push_deadline, push_patience, strip_one_line_break};
 
 /// Tag used for diagnostics from this module.
@@ -104,41 +108,6 @@ pub const STOPPED_EXIT_CODE: i64 = 124;
 /// when it waited with its connection open.
 pub const WAIT_NOTE_PHRASE: &str = "is waiting for the server";
 
-/// Pause between two looks at the running push.
-const POLL_PAUSE: Duration = Duration::from_millis(10);
-
-/// Ask a running push to end,
-///  so Git can stop the helper processes it started.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// child.kill('SIGTERM');
-/// ```
-#[cfg(unix)]
-fn ask_to_stop(child: &Child) {
-    let Ok(pid) = libc::pid_t::try_from(child.id()) else {
-        return;
-    };
-    // SAFETY: `kill` sends one signal to the PID of a child this module started and has not reaped;
-    // a failure is ignored because the child may have ended.
-    unsafe { libc::kill(pid, libc::SIGTERM) };
-}
-
-/// Platforms without a polite stop signal go straight to the kill.
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-#[cfg(not(unix))]
-fn ask_to_stop(_child: &Child) {}
-
-/// Whether part of the grace is still left after the stop request.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// asked < grace
-/// ```
-fn grace_remains(asked: Duration, grace: Duration) -> bool {
-    return asked < grace;
-}
-
 /// Whether an output of this size is a flood:
 /// only a size past the cap is.
 ///
@@ -150,21 +119,6 @@ fn is_flood(size: u64) -> bool {
     return size > MAX_PUSH_OUTPUT;
 }
 
-/// Wait,
-/// bounded by `grace`,
-/// until every member of a stopped tree has ended.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await Promise.race([allEnded(tree), delay(graceMs)]);
-/// ```
-fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
-    let waited: Instant = Instant::now();
-    while grace_remains(waited.elapsed(), grace) && tree.iter().any(still_running) {
-        std::thread::sleep(POLL_PAUSE);
-    }
-}
-
 /// What a clock keeps as the longest quiet gap:
 /// its figure when it reads anything,
 /// nothing when it reads nothing.
@@ -173,136 +127,6 @@ fn quiet_gap_kept(watched: &Clock) -> Option<Duration> {
         return Some(watched.longest_quiet());
     }
     return None;
-}
-
-/// What:
-///  Collect a killed child that the kernel has not released,
-/// and sweep the locks it leaves,
-/// on a thread of its own.
-/// Why:
-///   A killed process in an uninterruptible call (a stalled disk or file system) ends only when the kernel lets it go,
-///  and on its way out it can create a lock file that nothing will remove (measured on 2026-11-03:
-/// empty tracking-ref
-///  locks born about 37 seconds after the stop).
-/// The push is reported at its deadline and does not wait for that,
-/// so
-///  the child is collected here,
-/// and its locks are swept when it is gone.
-/// The thread holds no lock and ends with the child.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// void child.exited.then(() => locks.sweep(tree));
-/// ```
-pub fn sweep_after_exit(mut child: Child, tree: Vec<TreeMember>, locks: LockLedger) -> Option<std::thread::JoinHandle<()>> {
-    let started = std::thread::Builder::new()
-        .name(String::from("cli-git-lock-sweep"))
-        .spawn(move || {
-            // The exit status is not reported: the push was reported at its deadline.
-            let _status = child.wait();
-            // Nothing waits for this thread, so it waits for the rest of the tree as long as that runs.
-            while tree.iter().any(still_running) {
-                std::thread::sleep(POLL_PAUSE);
-            }
-            locks.sweep(tree.as_slice());
-        });
-    return match started {
-        Ok(handle) => Some(handle),
-        Err(error) => {
-            debug(TAG, &format!("could not start the thread that sweeps a stopped push's locks: {error}"));
-            None
-        }
-    };
-}
-
-/// What:
-///  Stop a running push:
-/// ask politely,
-///  wait the grace,
-///  then kill and collect it,
-///  and judge the reference locks it may have left.
-/// Why:
-///   Git's own signal handling ends the helpers it started and removes its lock files,
-///  and a push that ignores the request cannot outlive the kill.
-///  A killed push leaves its lock files,
-/// which fail every later Git command on the same refs,
-/// so once the push and
-///  what it started are gone the locks they hold are swept.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL'); locks.sweep(tree.as_slice());
-/// ```
-pub fn stop_push(mut child: Child, grace: Duration, locks: LockLedger) {
-    // Read before the push is signalled: once it has exited, its helpers and hooks no longer point to it.
-    let below: Vec<TreeMember> = i32::try_from(child.id()).map(descendants_of).unwrap_or_default();
-    let mut tree: Vec<TreeMember> = i32::try_from(child.id()).ok().and_then(member_of).into_iter().collect();
-    tree.extend(below.iter().cloned());
-    ask_to_stop(&child);
-    terminate_members(below.as_slice());
-    let asked: Instant = Instant::now();
-    let mut ended: bool = false;
-    while !ended && grace_remains(asked.elapsed(), grace) {
-        match child.try_wait() {
-            Ok(Some(_)) | Err(_) => ended = true,
-            Ok(None) => std::thread::sleep(POLL_PAUSE),
-        }
-    }
-    let mut collected: bool = ended;
-    if !ended {
-        // The child is being abandoned; its exit is not reported, only the cause.
-        let _killed = child.kill();
-        // A killed process that sits in uninterruptible I/O (a stalled disk or network file system) cannot be
-        //  collected until the kernel releases it, so the wait is bounded by the grace again and the child is then
-        //  left to be collected on a thread of its own, instead of holding the service's push for as long as the stall.
-        let killed_at: Instant = Instant::now();
-        while grace_remains(killed_at.elapsed(), grace) {
-            match child.try_wait() {
-                Ok(Some(_)) | Err(_) => {
-                    collected = true;
-                    break;
-                }
-                Ok(None) => std::thread::sleep(POLL_PAUSE),
-            }
-        }
-    }
-    // What the push started outlives it: its transport helper holds the connection and its hook may never exit
-    // (measured: 60 seconds for a helper, for good for a `git-lfs` that never answers). They were asked to end with
-    // the push, so they get what is left of the grace and are then killed.
-    while grace_remains(asked.elapsed(), grace) && below.iter().any(still_running) {
-        std::thread::sleep(POLL_PAUSE);
-    }
-    kill_members(below.as_slice());
-    let _sweeper = settle_locks(child, collected, tree, locks, grace);
-}
-
-/// What:
-///  Remove the locks of a stopped tree now when it has ended,
-/// or on a thread of its own when it has not.
-/// Why:
-///   A killed process ends only when the kernel has run it once more,
-/// which a loaded or stalled host may not do within the
-///  grace;
-/// a sweep before that finds the tree running and removes nothing,
-/// and nothing would try again.
-/// The thread waits for
-///  the whole tree and then sweeps.
-/// Returns the thread,
-/// if one was started.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (collected && allEnded(tree)) { locks.sweep(tree.as_slice()); return undefined; } return sweepAfterExit(child, tree, locks);
-/// ```
-pub fn settle_locks(child: Child, collected: bool, tree: Vec<TreeMember>, locks: LockLedger, grace: Duration) -> Option<std::thread::JoinHandle<()>> {
-    if collected {
-        wait_for_tree(tree.as_slice(), grace);
-        if !tree.iter().any(still_running) {
-            locks.sweep(tree.as_slice());
-            return None;
-        }
-    }
-    return sweep_after_exit(child, tree, locks);
 }
 
 /// Read the shared output file back from its start,
@@ -373,15 +197,15 @@ pub enum StopCause {
 /// ```ts
 /// await Promise.race([exited, stalled, flood]); // never by elapsed time
 /// ```
-pub fn wait_until_done(
-    child: &mut Child,
+pub async fn wait_until_done(
+    child: &mut OwnedChild,
     outputs: &[&File],
     patience: Patience,
     quiet: &mut Option<Duration>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let mut waits: Vec<WaitReport> = Vec::new();
     let clock: Clock = Clock::start(child.id(), patience).without_wall_fallback();
-    return wait_with_clock(child, outputs, clock, "git", &mut waits, quiet);
+    return wait_with_clock(child, outputs, clock, "git", &mut waits, quiet).await;
 }
 
 /// What:
@@ -398,8 +222,8 @@ pub fn wait_until_done(
 /// ```ts
 /// await Promise.race([exited, stalled, flood]); // waits.push(report) when the push begins to wait for the server
 /// ```
-pub fn wait_until_done_noting(
-    child: &mut Child,
+pub async fn wait_until_done_noting(
+    child: &mut OwnedChild,
     outputs: &[&File],
     patience: Patience,
     label: &str,
@@ -407,13 +231,13 @@ pub fn wait_until_done_noting(
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let clock: Clock = Clock::start(child.id(), patience);
     let mut unused: Option<Duration> = None;
-    return wait_with_clock(child, outputs, clock, label, waits, &mut unused);
+    return wait_with_clock(child, outputs, clock, label, waits, &mut unused).await;
 }
 
 /// The loop of both waits,
 /// over a clock the caller made.
-fn wait_with_clock(
-    child: &mut Child,
+async fn wait_with_clock(
+    child: &mut OwnedChild,
     outputs: &[&File],
     mut clock: Clock,
     label: &str,
@@ -422,7 +246,9 @@ fn wait_with_clock(
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     // Nothing is kept where the clock reads nothing: its figure would be the elapsed time, not a quiet gap.
     loop {
-        if let Some(status) = child.try_wait().map_err(SingleFlightError::Start)? {
+        // The exit is awaited on the child's pidfd; the pause is the look at the output sizes and the clock, a few times a second.
+        if let Ok(waited) = tokio::time::timeout(POLL_PAUSE, child.wait()).await {
+            let status: ExitStatus = waited.map_err(SingleFlightError::Start)?;
             *quiet = quiet_gap_kept(&clock);
             return Ok(Ok(status));
         }
@@ -445,7 +271,6 @@ fn wait_with_clock(
             warn(TAG, &wait_line(label, &report));
             waits.push(report);
         }
-        std::thread::sleep(POLL_PAUSE);
     }
 }
 
@@ -543,6 +368,32 @@ pub fn run_bounded_push(
 /// async function runBoundedPush({ command, deadlineMs, graceMs }): Promise<PushAttempt>;
 /// ```
 pub fn run_bounded_push_once(
+    command: Command,
+    patience: Patience,
+    grace: Duration,
+    environment: &[(OsString, OsString)],
+) -> Result<PushAttempt, SingleFlightError> {
+    return match run_on_runtime(run_bounded_push_awaiting(command, patience, grace, environment)) {
+        Ok(attempt) => attempt,
+        Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
+    };
+}
+
+/// What:
+///  `run_bounded_push_once` as a task of the runtime:
+/// every wait in it is awaited,
+/// and no worker is held while the push runs.
+/// Why:
+///   The synchronous face enters the runtime until the callers are asynchronous themselves;
+/// from inside the runtime that face
+///  refuses,
+/// and this one is called.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const attempt = await runBoundedPushAwaiting({ command, patience, graceMs, environment });
+/// ```
+pub async fn run_bounded_push_awaiting(
     mut command: Command,
     patience: Patience,
     grace: Duration,
@@ -558,12 +409,13 @@ pub fn run_bounded_push_once(
     // Taken before the push starts, so a lock born earlier is never taken for the push's.
     let locks: LockLedger = LockLedger::before_start(&command);
     let label: String = command_label(&command);
-    let mut child: Child = command.spawn_retrying().map_err(SingleFlightError::Start)?;
+    let started: Child = spawn_retrying_without_blocking(&mut command).await.map_err(SingleFlightError::Start)?;
     drop(command);
+    let mut child: OwnedChild = adopt(started);
     let mut waits: Vec<WaitReport> = Vec::new();
-    let ended: Result<ExitStatus, StopCause> = wait_until_done_noting(&mut child, &[&output], patience, label.as_str(), &mut waits)?;
+    let ended: Result<ExitStatus, StopCause> = wait_until_done_noting(&mut child, &[&output], patience, label.as_str(), &mut waits).await?;
     if ended.is_err() {
-        stop_push(child, grace, locks);
+        stop_push(child, grace, locks).await;
     }
     let captured: String = read_output(&mut output)?;
     let mut shown_text: String = strip_one_line_break(captured.as_str()).to_owned();
@@ -626,3 +478,8 @@ pub fn run_bounded_push_once(
 #[cfg(test)]
 #[path = "bounded_push_tests.rs"]
 mod tests;
+
+/// Controls that the waits are awaited on the runtime stay out of the release executable.
+#[cfg(test)]
+#[path = "bounded_push_awaiting_tests.rs"]
+mod awaiting_tests;

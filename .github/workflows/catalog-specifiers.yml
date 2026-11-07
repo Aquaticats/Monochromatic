@@ -25,59 +25,29 @@ jobs:
   check:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      # What the steps below run: the program, the word after it, and the settings file it reads.
+      CLI_PROGRAM: monochromatic-git-policy-cli
+      CLI_WORD: monochromatic-git-policy-cli
+      CLI_SETTINGS: monochromatic-git-policy-cli.config.jsonc
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       with:
         persist-credentials: false
 
-    - name: Install the cli-git release pinned in toolchain.lock.json
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      run: |
-        set -euo pipefail
-        binstall_url=$(jq --raw-output '.tools."cargo-binstall".artifacts."linux-x64".url' toolchain.lock.json)
-        binstall_sha256=$(jq --raw-output '.tools."cargo-binstall".artifacts."linux-x64".sha256' toolchain.lock.json)
-        cli_git=$(jq --raw-output '.tools."cargo:monochromatic-git-policy-cli".version' toolchain.lock.json)
-        case "$binstall_url" in
-          https://github.com/cargo-bins/cargo-binstall/releases/download/v*) ;;
-          *) echo "::error::Unexpected cargo-binstall archive in toolchain.lock.json: '$binstall_url'"; exit 1 ;;
-        esac
-        case "$cli_git" in
-          [0-9]*.[0-9]*.[0-9]*) ;;
-          *) echo "::error::Unexpected git-policy-cli version in toolchain.lock.json: '$cli_git'"; exit 1 ;;
-        esac
-        # cargo-binstall comes from the prebuilt archive the lock pins, verified by the lock's sha256; compiling it
-        # with `cargo install` costs minutes and bypasses the lock (AGENTS.md CM7).
-        mkdir --parents "$RUNNER_TEMP/binstall"
-        curl --silent --show-error --fail --location --output "$RUNNER_TEMP/binstall.tgz" "$binstall_url"
-        echo "$binstall_sha256  $RUNNER_TEMP/binstall.tgz" | sha256sum --check --strict
-        tar --extract --gzip --file "$RUNNER_TEMP/binstall.tgz" --directory "$RUNNER_TEMP/binstall"
-        # `--disable-strategies compile` makes a missing release archive fail the step instead of compiling the crate.
-        "$RUNNER_TEMP/binstall/cargo-binstall" --no-confirm --disable-strategies compile \
-          --root "$RUNNER_TEMP/cli-git" --version "$cli_git" monochromatic-git-policy-cli
-        echo "$RUNNER_TEMP/cli-git/bin" >> "$GITHUB_PATH"
-        # The pinned release may predate the rename of the program (2026-11-04): it then holds `cli-git-native`, answers
-        # `git cli-git <command>` and reads `cli-git.config.jsonc`; a release after it holds `monochromatic-git-policy-cli`
-        # for all three. The steps below use whichever the pinned release has.
-        program=cli-git-native
-        if [ -x "$RUNNER_TEMP/cli-git/bin/monochromatic-git-policy-cli" ]; then
-          program=monochromatic-git-policy-cli
-          { echo 'CLI_PROGRAM=monochromatic-git-policy-cli'; echo 'CLI_WORD=monochromatic-git-policy-cli'; echo 'CLI_SETTINGS=monochromatic-git-policy-cli.config.jsonc'; } >> "$GITHUB_ENV"
-        else
-          { echo 'CLI_PROGRAM=cli-git-native'; echo 'CLI_WORD=cli-git'; echo 'CLI_SETTINGS=cli-git.config.jsonc'; } >> "$GITHUB_ENV"
-          # Once the checkout's settings file carries the new name (the lock step renames it), the earlier program, which
-          # reads only the earlier name, gets a copy of the file under that name in this disposable checkout.
-          if [ -f monochromatic-git-policy-cli.config.jsonc ] && [ ! -e cli-git.config.jsonc ]; then
-            cp monochromatic-git-policy-cli.config.jsonc cli-git.config.jsonc
-          fi
-        fi
-        "$RUNNER_TEMP/cli-git/bin/$program" --version
+    # The git policy CLI comes from the GitHub release archive that toolchain.lock.json pins for this runner (an alpha goes
+    # to GitHub releases only, never to crates.io), verified against the sha256 recorded beside it, by the same action
+    # that installs the other repository tools. It puts monochromatic-git-policy-cli on PATH.
+    - name: Install the git policy CLI pinned in toolchain.lock.json
+      uses: ./.github/actions/repo-tools-setup
+      with:
+        tools: git-policy-cli
 
     - name: Check every tracked manifest
       # Exit 0 means every `package.json` uses `catalog:`, `catalog:<name>` or exactly `workspace:*` (peer dependencies:
       # `*`, `catalog:` or `catalog:<name>`) and no `package.json5`, `package.yaml` or `package.yml` is tracked.
-      # Exit 2 means the policy is not listed in the repository's settings file (monochromatic-git-policy-cli.config.jsonc, or cli-git.config.jsonc for a pinned release before the rename), so the check would have run nothing; that fails too.
+      # Exit 2 means the policy is not listed in the repository's settings file (monochromatic-git-policy-cli.config.jsonc), so the check would have run nothing; that fails too.
       run: |
         set -euo pipefail
         "$CLI_PROGRAM" "$CLI_WORD" check --all --policy mono/catalog-specifiers
@@ -85,23 +55,5 @@ jobs:
     - name: Negative control, the check must reject a literal version
       # A check that cannot fail proves nothing. This stages one literal dependency in a throwaway repository and
       # requires exit 1 with the `disallowed-specifier` finding, so an exit 2 configuration failure cannot pass here.
-      run: |
-        set -euo pipefail
-        control="$RUNNER_TEMP/catalog-specifiers-control"
-        mkdir --parents "$control"
-        cd "$control"
-        git init --quiet
-        printf '%s\n' '{ "policies": { "mono/catalog-specifiers": "error" } }' > "$CLI_SETTINGS"
-        printf '%s\n' '{ "name": "control", "dependencies": { "left-pad": "1.3.0" } }' > package.json
-        git add -- "$CLI_SETTINGS" package.json
-        status=0
-        output=$("$CLI_PROGRAM" "$CLI_WORD" check --all --policy mono/catalog-specifiers) || status=$?
-        if [ "$status" -ne 1 ]; then
-          echo "::error::The negative control exited $status, expected 1."
-          echo "$output"
-          exit 1
-        fi
-        case "$output" in
-          *mono/catalog-specifiers/disallowed-specifier*) echo 'The negative control was rejected as expected.' ;;
-          *) echo '::error::The negative control exited 1 without the disallowed-specifier finding.'; echo "$output"; exit 1 ;;
-        esac
+      # The work is one Node command, tested by catalog-specifiers-negative-control.unit.test.ts beside it.
+      run: node package/monorepo-task/core-exec/src/catalog-specifiers-negative-control.ts

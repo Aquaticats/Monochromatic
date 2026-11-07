@@ -34,6 +34,7 @@ import {
   EnvLocalJsonPathError,
   EnvLocalJsonReadError,
 } from './errors.ts';
+import { repositoryLinkCause, } from './repository-link-cause.ts';
 import { resolveSopsExecutable, } from './sops-executable.ts';
 import { runSopsDecrypt, } from './sops.ts';
 import {
@@ -86,6 +87,8 @@ function absentResult(): ReadEnvLocalJsonResult {
 
  @param explicit - whether the caller supplied the path
 
+ @param home - home directory that holds the repository link identity file
+
  @returns raw ciphertext
 
  @throws EnvLocalJsonPathError when an explicit path cannot be read
@@ -100,9 +103,11 @@ function absentResult(): ReadEnvLocalJsonResult {
 async function readCiphertext({
   path,
   explicit,
+  home,
 }: {
   readonly path: string;
   readonly explicit: boolean;
+  readonly home: string;
 },): Promise<string> {
   try {
     return await readFile(
@@ -114,13 +119,24 @@ async function readCiphertext({
     readLogger.error(
       `env store ${path} could not be read: ${caughtValueText(error,)}`,
     );
+    /**
+     Plain cause when the path goes through the repository link to the 860 drive.
+     */
+    const linkCause = await repositoryLinkCause({
+      path,
+      home,
+    },);
     if (explicit) {
       throw new EnvLocalJsonPathError({
         path,
         reason: 'unreadable',
+        linkCause,
       },);
     }
-    throw new EnvLocalJsonReadError({ path, },);
+    throw new EnvLocalJsonReadError({
+      path,
+      linkCause,
+    },);
   }
 }
 
@@ -181,6 +197,7 @@ async function loadStore({
    */
   const ciphertext = await readCiphertext({
     explicit,
+    home,
     path: storePath,
   },);
   assertSopsEnvelope({

@@ -14,8 +14,9 @@
    install it into the toolchain root as `mpm-shadow install` does (`mpm-shadow-lock-install.ts`).
  - A copy older than the lock never runs.
 
- The same fetch-and-check steps are in `.github/actions/repo-tools-setup/action.yml` for CI (plain shell there, because it
- runs before any Node exists); this module is the developer-machine counterpart. It and its sibling modules import only `node:`
+ The same fetch-and-check steps are in `.github/actions/repo-tools-setup/action.yml` for CI, which runs
+ `repo-tools-setup.ts` beside this module (also from source, with the Node already on `PATH`); this module is the
+ developer-machine counterpart. It and its sibling modules import only `node:`
  modules, so that they run from source on a checkout that has no `node_modules` yet.
 
  A platform the lock has no archive row for (the plan's `mpm-shadow` entry is Linux-only) cannot be fetched, so there the

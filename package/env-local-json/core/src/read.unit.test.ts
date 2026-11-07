@@ -22,6 +22,7 @@ import {
 
 import {
   createIdentityFile,
+  createRepositoryOnGoneDrive,
   createSopsFixture,
   createTempRoot,
   encryptJson,
@@ -260,6 +261,46 @@ await describe({
         expect(caught,).toBeInstanceOf(EnvLocalJsonPathError,);
       },
       name: 'raises a path error for a missing explicit path',
+    },),
+    it({
+      fn: async () => {
+        /**
+         A repository whose link to the 860 drive dangles.
+         */
+        const gone = await createRepositoryOnGoneDrive({ root: temp.root, },);
+        /**
+         Rejection for an explicit path through the dangling link.
+         */
+        const caught = await captureReadError({
+          env: fixtureEnvironment({}),
+          home: gone.home,
+          keys: ['EXA_API_KEY',],
+          path: gone.store,
+        },);
+        expect(caught,).toBeInstanceOf(EnvLocalJsonPathError,);
+        if (!(caught instanceof EnvLocalJsonPathError))
+          throw new Error('dangling-link rejection was not the path error',);
+        expect(caught.reason,).toBe('missing',);
+        expect(caught.message,).toContain(`the 860 drive is not mounted yet (${gone.mountPoint} is empty)`,);
+        expect(caught.message,).toContain(gone.store,);
+      },
+      name: 'names the drive when an explicit path goes through the repository link and the drive is not mounted',
+    },),
+    it({
+      fn: async () => {
+        /**
+         Rejection for a missing path with no identity file in the home.
+         */
+        const caught = await captureReadError({
+          env: fixtureEnvironment({}),
+          home: fixture.root,
+          keys: ['EXA_API_KEY',],
+          path: join(temp.root, 'repolink', 'other.json',),
+        },);
+        expect(caught,).toBeInstanceOf(EnvLocalJsonPathError,);
+        expect((caught as Error).message,).not.toContain('860',);
+      },
+      name: 'keeps the plain path message when no identity file records a repository link',
     },),
     it({
       fn: async () => {

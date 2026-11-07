@@ -348,7 +348,7 @@ use jni::EnvUnowned;
 /// Runs a body with the call's `Env`,
 /// catching a panic and logging it,
 /// as every entry point of this crate does.
-use crate::jni_call::run_with_env;
+use crate::jni_call::{ArrayLength, CopyArrayRegion, ReadJavaString, run_with_env};
 
 // What:     `#[unsafe(no_mangle)]` is an ATTRIBUTE (a compiler annotation, written
 //           `#[...]`) telling the compiler "do NOT rename this function's symbol".
@@ -602,9 +602,8 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeDec
     // ```ts
     // // (no-op in TS; env is already reassignable)
     // ```
-    // What:     `let Some(path_str) = run_with_env(&mut env, ..., |jni_env| ...) else { ... };` with the
-    //           closure body `return path.try_to_string(jni_env)`.
-    //           `run_with_env` lends the `Env` to the closure, where `path.try_to_string(env)`
+    // What:     `let Some(path_str) = run_with_env(&mut env, ..., ReadJavaString { text: &path }) else { ... };`.
+    //           `run_with_env` lends the `Env` to the `ReadJavaString` body, which
     //           pulls the Java string into Rust; `path` is BORROWED (read-only loan, no
     //           ownership transfer). The helper returns `None` after logging when the
     //           read fails, so the `else` arm returns the sentinel. `path_str` is an
@@ -618,9 +617,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeDec
     // let pathStr: string;
     // try { pathStr = env.getString(path); } catch { return -1.0; }
     // ```
-    let Some(path_str) = run_with_env(&mut env, "nativeDecodeBenchmark path", |jni_env| {
-        return path.try_to_string(jni_env);
-    }) else {
+    let Some(path_str) = run_with_env(&mut env, "nativeDecodeBenchmark path", ReadJavaString { text: &path }) else {
         // What:     The `else` arm `return -1.0` exits the whole function with the
         //           "-1 bad path string" sentinel; `run_with_env` already logged the cause.
         // Why:      If the JVM string could not be read, report the bad-path code.
@@ -833,7 +830,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTru
     if channels <= 0 {
         return 0.0;
     }
-    // What:     `let Some(len) = run_with_env(..., |jni_env| samples.len(jni_env)) else {`
+    // What:     `let Some(len) = run_with_env(..., ArrayLength { array: &samples }) else {`
     //           `return -1.0 };`. Ask the JVM how many floats the array holds.
     //           `JFloatArray::len` borrows the array and returns `Result<usize>`
     //           (jni 0.22 returns `usize`, not `jsize`); on error `run_with_env` logs and
@@ -844,9 +841,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTru
     // ```ts
     // const len = samples.length;
     // ```
-    let Some(len) = run_with_env(&mut env, "nativeTruePeakSynthetic length", |jni_env| {
-        return samples.len(jni_env);
-    }) else {
+    let Some(len) = run_with_env(&mut env, "nativeTruePeakSynthetic length", ArrayLength { array: &samples }) else {
         return -1.0;
     };
     // What:     `if len == 0 { return 0.0; }`. An empty array measures as silence.
@@ -869,7 +864,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTru
     // const buf = new Float32Array(len);
     // ```
     let mut buf = vec![0.0f32; len];
-    // What:     `let copied = run_with_env(..., |jni_env| samples.get_region(jni_env, 0, &mut buf));`
+    // What:     `let copied = run_with_env(..., CopyArrayRegion::new(&samples, &mut buf));`
     //           then `if copied.is_none() { return -1.0; }`. Copy all `len` floats from index 0 of
     //           the JVM array into `buf`; on any JNI error, bail with the `-1.0` sentinel.
     // Why:      Brings the synthetic PCM into Rust so the meter can scan it.
@@ -878,9 +873,7 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeTru
     // ```ts
     // // copy samples[0..len] into buf
     // ```
-    let copied = run_with_env(&mut env, "nativeTruePeakSynthetic copy", |jni_env| {
-        return samples.get_region(jni_env, 0, &mut buf);
-    });
+    let copied = run_with_env(&mut env, "nativeTruePeakSynthetic copy", CopyArrayRegion::new(&samples, &mut buf));
     if copied.is_none() {
         return -1.0;
     }

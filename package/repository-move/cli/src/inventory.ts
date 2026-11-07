@@ -18,8 +18,10 @@ import {
 } from './completion-records.ts';
 import { canonicalOptions, } from './canonical-path.ts';
 import { SUBVOLUME_ROOT_INODE, } from './constants.ts';
+import { errorCodeOf, } from './error-code-of.ts';
 import { MoveStopError, } from './errors.ts';
 import type { MoveOptions, } from './move-options.ts';
+import { isSubvolume, } from './subvolume-root-check.ts';
 import {
   describeDisagreement,
   listRegisteredWorktreeSpellings,
@@ -34,7 +36,8 @@ export type Subvolume = {
 
   /**
    The UUID of the subvolume this one was snapshotted from: the dash when it has none (a plain `subvolume create`), and
-   the question mark when the inventory was taken without the parent column.
+   the question mark when the inventory was taken without `-q`. Information only: no send starts from a related
+   subvolume (see `send-plan.ts`).
    */
   readonly parentUuid: string;
 };
@@ -58,51 +61,6 @@ const UUID_LABEL = ' uuid ';
  Separator before the path in an inventory row.
  */
 const PATH_LABEL = ' path ';
-
-/**
- Tells whether a folder is a subvolume root: inode 256 on btrfs, or the marker file in tests.
-
- @param path - the folder
- 
- @param marker - name of the marker file that stands for a subvolume in tests; empty on a real filesystem
- 
- @returns true for a subvolume root
-
- @example
- ```ts
- import { isSubvolume, } from './inventory.ts';
- 
- const result = await isSubvolume({ path, marker, },);
- ```
- */
-export async function isSubvolume(
-  {
-    path,
-    marker,
-  }: {
-    readonly path: string;
-    readonly marker: string;
-  },
-): Promise<boolean> {
-  if (marker !== '') {
-    return await pathExists(join(
-      path,
-      marker,
-    ),);
-  }
-  try {
-    return (await stat(
-      path,
-      { bigint: true, },
-    )).ino === SUBVOLUME_ROOT_INODE;
-  }
-  catch (error) {
-    if ((error as NodeJS.ErrnoException).code === MISSING_PATH_CODE) {
-      return false;
-    }
-    throw error;
-  }
-}
 
 /**
  One row of `btrfs subvolume list -u` as printed: its ID, the ID of its parent subvolume (the `top level` column), its
@@ -520,17 +478,29 @@ export async function reconcileInventory(
     const givenRows = parseInventory({
       text: inventoryText,
       options: givenOptions,
-    },).nested;
+    },)
+      .nested;
     throw new MoveStopError(describeDisagreement({
       unknownToGit,
       notSubvolumes,
-      listedAs: new Map(nested.map(function entryOf(row, index,): readonly [string, string,] {
+      listedAs: new Map(nested.map(function entryOf(
+        row,
+        index,
+      ): readonly [
+        string,
+        string,
+      ] {
         return [
           row.path,
-          givenRows[index]?.path ?? row.path,
+          givenRows[index]
+            ?.path
+            ?? row.path,
         ];
       },),),
-      registeredAs: new Map(worktrees.map(function entryOf(entry,): readonly [string, string,] {
+      registeredAs: new Map(worktrees.map(function entryOf(entry,): readonly [
+        string,
+        string,
+      ] {
         return [
           entry.canonical,
           entry.given,
@@ -540,14 +510,6 @@ export async function reconcileInventory(
   }
   if (main.path === '') {
     throw new MoveStopError(`the inventory has no row for the main checkout at ${canonical.inventoryMain}`,);
-  }
-  if (canonical.run && [main, ...nested,].some(function lacksParent(row,) {
-    return row.parentUuid === PARENT_UNKNOWN;
-  },)) {
-    throw new MoveStopError(
-      'the inventory was taken without the parent column, which decides what each send may start from; take it again '
-        + `with 'btrfs subvolume list -u -q' (root) and run again: ${canonical.inventoryFile}`,
-    );
   }
   log(`inventory agrees: ${String(nested.length,)} nested subvolumes`,);
   return [

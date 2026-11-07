@@ -243,15 +243,23 @@ fn namespaces_match_appearance(namespaces: &[String]) -> bool {
     if namespaces.is_empty() {
         return true;
     }
-    return namespaces.iter().any(|namespace| {
-        if namespace.is_empty() || namespace == "*" || namespace == APPEARANCE_NAMESPACE {
+    for namespace in namespaces {
+        if namespace_selects_appearance(namespace) {
             return true;
         }
-        if let Some(prefix) = namespace.strip_suffix('*') {
-            return APPEARANCE_NAMESPACE.starts_with(prefix);
-        }
-        return false;
-    });
+    }
+    return false;
+}
+
+/// Returns whether one portal namespace filter requests appearance values.
+fn namespace_selects_appearance(namespace: &str) -> bool {
+    if namespace.is_empty() || namespace == "*" || namespace == APPEARANCE_NAMESPACE {
+        return true;
+    }
+    if let Some(prefix) = namespace.strip_suffix('*') {
+        return APPEARANCE_NAMESPACE.starts_with(prefix);
+    }
+    return false;
 }
 
 /// What the private portal is asked to serve.

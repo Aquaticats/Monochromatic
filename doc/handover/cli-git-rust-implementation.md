@@ -1910,7 +1910,18 @@ At 2026-11-04T06:55:05-05:00 (main `a72b474e1d`):
   `index_is_hardened` replaced with `true` and with `false`);
   pass 2 did not run because the planted control "self-exclusion by identity and content" matches 0 times in `invocation/real_git_candidate.rs`.
   An agent fixes the stale control and kills both survivors (`fix/git-policy-cli-planted-control-and-durable-survivors`);
-  campaign tags need one `podman tag` of the gate image per unit (`m0528-durable0` was added by hand).
+  campaign tags no longer need a `podman tag` by hand:
+  `native:mutation:parallel` makes each unit's tag from the gate image before it starts any unit,
+  and refuses to start when a tag cannot be made
+  (`fix/mutation-launcher-makes-image-tags`;
+  `package/mutation-test/cli-cargo-mutants/README.md`,
+  "Image tags").
+  Dated note,
+  2026-11-07T18:04:24-05:00:
+  before that change a campaign needed one `podman tag` of the gate image per unit (`m0528-durable0` was added by hand),
+  and a launch without the tags started units that died at once with "image not known" while the launcher exited 0
+  (`tokio-062`,
+  21 units).
 
 Flagged for the owner (measured,
 not forecasts):
@@ -4023,8 +4034,10 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     one unexplained failure in that agent's first gate,
     `repair::package_repair_command::tests::a_helper_that_keeps_writing_after_the_leader_exits_does_not_hold_the_run`
     (0.506 s against 0.32 s,
-    untouched code),
-    is open):
+    untouched code;
+    the cause was the shared offset of the output capture files,
+    fixed on `fix/git-policy-cli-flakes-and-open-findings`),
+    is closed):
     the three settlements (one-shot pipe reader,
     futex name-claim wait,
     measured bounds),
@@ -5320,46 +5333,63 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 
 ### Known flakes and failures not yet fixed
 
-- Shipped in 0.5.27,
-  seen live 2026-11-03T12:00 on the 0.5.28 base:
-  `git commit -m <subject> -- <path>` during a merge,
-  with the conflict resolved in the file but not staged,
-  landed a one-parent commit of that path (`f1f78f7920`,
-  as SPEC designs:
-  "Named paths during a merge:
-  Git refuses;
-  the wrapper lands them and the merge is carried on")
-  and printed that the path "still has conflict markers,
-  and they were committed",
-  though the committed file has none.
-  `service_prepare.rs:445` lists every path that was unmerged in the index before the commit,
-  whatever the content holds.
-  Its advice (another `git commit -- <path>`) also leaves the merge open.
-  The merge was concluded with a plain `git commit` (`cfd30ccd18`);
-  a corrective comment is on `f1f78f7920`
-  (<https://github.com/Aquaticats/Monochromatic/commit/f1f78f7920e379b3d45893e25739a689be60331e#commitcomment-207965325>).
-  Fix running with the word-level agent.
-- `a_commit_that_waits_for_a_foreign_index_holder_is_attributed_to_that_wait` failed twice alone at load 38 to 44
-  (`objects_ms=6760`,
-  `attempts=2`:
-  the stand-in holder let go before the commit's wait) and passed at load 11;
-  an agent is making the holder release only once the commit is observably waiting,
-  on branch `fix/git-policy-cli-foreign-index-holder-test-waits-for-the-wait` (started 2026-11-03).
+Branch `fix/git-policy-cli-flakes-and-open-findings` (2026-11-07;
+the report of its agent has the commits) closed the rest of the list that stood here:
+the conflict-marker message of a named-path commit during a merge (fixed on main by `2b8e4e82fa`),
+the foreign index holder control (fixed on main by `9ff1c52c87`),
+the descriptor-limit sweep (the named test was retired on main by `72e0534cca`;
+its two successors measured 2.4 s and 14.1 s),
+the slow-job runner control (it shared the production runner with the ceiling control under a threaded test run),
+and the repair helper control
+(the output capture files shared one offset between writers,
+which loses a line;
+they and the scratch files that hold a child's standard error,
+used by the LFS upload and the held-lock retry,
+are in append mode now).
+
+- `fault_limits::a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_is_raised` failed once in the
+  gate of the repository-lint branch at `d75d5a2d91`:
+  the service logged `cannot start the thread for the after-commit work: Resource temporarily unavailable (os error 11)`
+  and the further commit found no service;
+  a rerun passed.
+  The service ends with status 4 on that error by design (the manager starts it again),
+  so the one defect found is in the fixture:
+  it counted a service as started when its socket accepted a connection,
+  which the kernel does as soon as the service listens,
+  before the service starts its work thread,
+  and the control lowers the service's process limit right after the start.
+  Fixed on `fix/git-policy-cli-flakes-and-open-findings` by counting a service as started when it greets a connection.
+  Not reproduced:
+  0 of 60 services lowered after the start ended early at full CPU and at a 15% quota,
+  and a thread census right after the start found all threads in place in every sample,
+  so the window is closed by the fix on code reading and the log line alone;
+  a failure that keeps the service's own log would settle it.
 - `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other` failed
   once in a full
   binary run,
   then passed 15 of 15 alone and in later full runs.
-- `fault_limits::a_descriptor_limit_hit_at_any_open_leaves_a_recoverable_repository` ran over 60 s in two separate
-  runs
-  (passed;
-  not looked at).
-- Found 2026-11-07 by the published-crates study (`doc/research/wrapper-git-free-jobs-and-published-crates.md`):
-  `the_runner_waits_for_a_slow_job_and_contains_a_panic` fails (`Busy` instead of `Finished(7)`) in a selection run of
-  the `systemd_dbus`,
-  `standards_review` and `source_guard` tests on unchanged code,
-  and passes alone twice;
-  an ordering or contention defect of the suite,
-  not yet looked at (the full container gate passes it).
+  The assertion that failed was not recorded.
+  Not reproduced on 2026-11-07:
+  passes at CPU quotas of 50%,
+  25% (8 of 8) and 10% of one CPU on the test's own cgroup,
+  and with a stand-in upload of 8 s;
+  the fixture pushes before the commit returns,
+  so the origin read is not a race.
+  Two probes of the wait notice proved nothing:
+  setting `CLI_GIT_WAIT_NOTICE_SECONDS` outside the test never reaches the wrapper
+  (`hermetic()` in `binary_support.rs` clears the environment),
+  and the variable is read as a whole number of seconds,
+  so a fraction falls back to the 10 s default.
+  Passing the variable through `commit_file`'s environment argument from the two threads hung the test;
+  that was a lock-order inversion of the test harness alone
+  (`gdb` showed one thread in `service_runtime` at the environment lock
+  and the other in `give_service_environment` at the service lock,
+  with no wrapper or service process started),
+  and no shipped code takes those locks.
+  It is fixed on `fix/git-policy-cli-flakes-and-open-findings`.
+  The same variable set on the command alone passed in 4 s with no notice and no positive control,
+  so the notice hypothesis is still untested.
+  Open until a failure keeps its output.
 - Found 2026-11-07 by the same study:
   `zbus` 5.19.0 and 6.x do not compile on the pinned `nightly-2026-11-01`
   (`E0391: cycle detected when computing when ...::signature::child::Child needs async drop`)
@@ -5487,14 +5517,17 @@ termination forwarded to the whole process group,
 the legacy `flock` held beside the claim) is merged into main;
 its trade-offs are in `package/mutation-test/cli-cargo-mutants/README.md`.
 Still open from them:
-- a kill between the rotation's two renames leaves an orphan `.moving-*` file that audit readers do not read
-  (no line lost);
 - the next rotation still replaces `.1`,
   dropping older audit history as before;
   a question for the owner (does "never discard user data" cover the audit history?),
-  folded into the shipped-limits audit;
-- a non-file at `slot-N.lock` makes `holdLegacyLock` return `absent`,
-  which the gate treats as an earlier-release holder forever.
+  folded into the shipped-limits audit.
+  Status 2026-11-07:
+  the audit file itself keeps numbered generations on main (pick 11,
+  option C),
+  and a file left by a killed rotation gets a number from the next pass
+  (fixed on `fix/git-policy-cli-flakes-and-open-findings`);
+  the timing logs and the push trigger log still keep one generation,
+  which is what the question is about now.
 
 Accepted limit with a documented remedy,
 no code fix:

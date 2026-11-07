@@ -209,7 +209,44 @@ pub fn prepare_user_scratch(environment: &[(OsString, OsString)]) -> Result<Path
 /// ```
 pub fn scratch_file(environment: &[(OsString, OsString)]) -> std::io::Result<std::fs::File> {
     let directory: PathBuf = prepare_user_scratch(environment).map_err(std::io::Error::other)?;
-    return tempfile::tempfile_in(directory);
+    let file: std::fs::File = tempfile::tempfile_in(directory)?;
+    append_only(&file)?;
+    return Ok(file);
+}
+
+/// What:
+///  Puts the file in append mode:
+/// every write goes to the end of the file,
+/// whatever offset the writer last left.
+/// Why:
+///   The callers give clones of the file to a child as its standard error,
+/// and the child and any helper it starts share one
+///  offset:
+/// a write at a position another process has moved past overwrites that process's line (measured:
+/// a leader's line
+///  was lost in 5 of 150 runs of a leader and a helper writing to one shared file at a 20% CPU quota,
+/// and in none of 300 runs in
+///  append mode,
+/// `process/output_capture.rs`).
+/// The mode belongs to the open file,
+/// so every clone has it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_APPEND);
+/// ```
+fn append_only(file: &std::fs::File) -> std::io::Result<()> {
+    use std::os::unix::io::AsRawFd;
+    // SAFETY: the descriptor belongs to `file`, which outlives both calls; `F_GETFL` and `F_SETFL` take no pointers.
+    let flags: libc::c_int = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETFL) };
+    if flags < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    // SAFETY: as above.
+    if unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETFL, flags | libc::O_APPEND) } < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    return Ok(());
 }
 
 /// What:

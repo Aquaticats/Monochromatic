@@ -1,5 +1,7 @@
 //! Commands about the keyboard repeat announcement and window closing.
 
+/// Error text that is built only on failure.
+use crate::lazy_error_text::{option_or_text, result_or_text};
 /// Sibling modules of this crate.
 use super::Command;
 
@@ -50,12 +52,18 @@ pub(super) fn parse_repeat_info(tokens: &mut std::str::SplitWhitespace) -> Resul
     let Some(rate_text) = tokens.next() else {
         return Ok(Command::RepeatInfo(None))
     };
-    let delay_text = tokens.next().ok_or_else(|| return "repeat-info expects RATE DELAY_MS or nothing".to_string())?;
+    let delay_text = option_or_text(tokens.next(), format_args!("repeat-info expects RATE DELAY_MS or nothing"))?;
     if tokens.next().is_some() {
         return Err("repeat-info expects RATE DELAY_MS or nothing".to_string())
     }
-    let rate = rate_text.parse::<i32>().map_err(|_| return format!("repeat-info rate is not a whole number: {rate_text}"))?;
-    let delay = delay_text.parse::<i32>().map_err(|_| return format!("repeat-info delay is not a whole number: {delay_text}"))?;
+    let rate = result_or_text(
+        rate_text.parse::<i32>(),
+        format_args!("repeat-info rate is not a whole number: {rate_text}"),
+    )?;
+    let delay = result_or_text(
+        delay_text.parse::<i32>(),
+        format_args!("repeat-info delay is not a whole number: {delay_text}"),
+    )?;
     if !(0..=MAX_REPEAT_RATE).contains(&rate) {
         return Err(format!("repeat-info rate must be from 0 to {MAX_REPEAT_RATE} per second, got: {rate}"))
     }
@@ -81,7 +89,10 @@ pub(super) fn parse_repeat_info(tokens: &mut std::str::SplitWhitespace) -> Resul
 pub(super) fn parse_close(tokens: &mut std::str::SplitWhitespace) -> Result<Command, String> {
     let index = match tokens.next() {
         None => None,
-        Some(text) => Some(text.parse::<usize>().map_err(|_| return format!("close index is not a whole number: {text}"))?),
+        Some(text) => Some(result_or_text(
+            text.parse::<usize>(),
+            format_args!("close index is not a whole number: {text}"),
+        )?),
     };
     if tokens.next().is_some() {
         return Err("close takes at most a window index".to_string())

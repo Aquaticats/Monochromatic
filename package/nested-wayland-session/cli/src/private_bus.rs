@@ -39,6 +39,9 @@ use std::time::Duration;
 /// Imports shared error context and result channel.
 use anyhow::{Context, Result};
 
+/// Error text that is built only on failure.
+use crate::lazy_error_text::with_message;
+
 /// Bounds time spent waiting for private bus startup address.
 const PRIVATE_BUS_ADDRESS_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -142,8 +145,8 @@ impl PrivateBus {
             "monochromatic-nested-wayland-session-{}-{sequence}",
             std::process::id(),
         ));
-        std::fs::create_dir(&directory)
-            .with_context(|| format!("creating private D-Bus directory: {}", directory.display()))?;
+        let created = std::fs::create_dir(&directory);
+        with_message(created, format_args!("creating private D-Bus directory: {}", directory.display()))?;
         let socket_path = directory.join("bus");
         let config_path = directory.join("bus.conf");
         // Write the service-free configuration beside the socket; clean the directory on failure.
@@ -155,8 +158,8 @@ impl PrivateBus {
                     "failed to clean private D-Bus directory after configuration write error",
                 );
             }
-            return Err(error)
-                .with_context(|| format!("writing private D-Bus configuration: {}", config_path.display()));
+            return Err(anyhow::Error::new(error)
+                .context(format!("writing private D-Bus configuration: {}", config_path.display())));
         }
         // What:     `OsString::from(...)` starts an owned OS-native string (sibling: UTF-8
         //           `String`); `.push(&config_path)` appends the path's raw bytes, borrowed.
@@ -170,7 +173,7 @@ impl PrivateBus {
         let mut config_argument = OsString::from("--config-file=");
         config_argument.push(&config_path);
         // `--config-file` replaces `--session`, which would load the stock service directories.
-        let daemon = Command::new("dbus-daemon")
+        let spawned = Command::new("dbus-daemon")
             .arg(config_argument)
             .arg("--nofork")
             .arg("--nopidfile")
@@ -178,17 +181,18 @@ impl PrivateBus {
             .arg("--print-address=1")
             .arg(format!("--address=unix:path={}", socket_path.display()))
             .stdout(Stdio::piped())
-            .spawn()
-            .inspect_err(|_error| {
-                if let Err(cleanup_error) = std::fs::remove_dir_all(&directory) {
-                    tracing::warn!(
-                        %cleanup_error,
-                        path = %directory.display(),
-                        "failed to clean private D-Bus directory after spawn error",
-                    );
-                }
-            })
-            .context("starting private dbus-daemon for the nested session")?;
+            .spawn();
+        // Clean the directory when the spawn failed, as the former `inspect_err` did.
+        if spawned.is_err()
+            && let Err(cleanup_error) = std::fs::remove_dir_all(&directory)
+        {
+            tracing::warn!(
+                %cleanup_error,
+                path = %directory.display(),
+                "failed to clean private D-Bus directory after spawn error",
+            );
+        }
+        let daemon = spawned.context("starting private dbus-daemon for the nested session")?;
         let mut bus = Self { daemon, directory, address: String::new() };
         let stdout = bus
             .daemon

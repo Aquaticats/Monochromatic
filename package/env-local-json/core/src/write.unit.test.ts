@@ -23,6 +23,7 @@ import {
 
 import {
   createIdentityFile,
+  createRepositoryOnGoneDrive,
   createSopsFixture,
   createTempRoot,
   decryptStore,
@@ -313,6 +314,31 @@ await describe({
         expect(caught,).toBeInstanceOf(EnvLocalJsonPathError,);
       },
       name: 'requires an existing store',
+    },),
+    it({
+      fn: async () => {
+        /**
+         A repository whose link to the 860 drive dangles.
+         */
+        const gone = await createRepositoryOnGoneDrive({ root: tempMissingRoot.root, },);
+        /**
+         Rejection from the store behind the dangling link.
+         */
+        const caught = await captureWriteError({
+          env: {},
+          home: gone.home,
+          path: gone.store,
+          values: { EXA_API_KEY: 'x', },
+        },);
+        expect(caught,).toBeInstanceOf(EnvLocalJsonPathError,);
+        expect((caught as Error).message,).toContain(`the 860 drive is not mounted yet (${gone.mountPoint} is empty)`,);
+        /**
+         Entries beside the link after the failed write.
+         */
+        const entries = await readdir(tempMissingRoot.root,);
+        expect(entries.some((name,) => name.includes('.tmp-',),),).toBe(false,);
+      },
+      name: 'names the drive and writes nothing when the store is behind a dangling repository link',
     },),
     it({
       fn: async () => {

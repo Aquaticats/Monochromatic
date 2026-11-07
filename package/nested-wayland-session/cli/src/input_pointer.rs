@@ -80,7 +80,14 @@ impl HeldButtons {
     ///       Every path that releases a button goes through here,
     ///  so the record cannot claim a button is down after the seat released it.
     pub fn release(&mut self, code: u32) {
-        self.codes.retain(|held| return *held != code);
+        let mut index = 0;
+        while index < self.codes.len() {
+            if self.codes[index] == code {
+                self.codes.remove(index);
+            } else {
+                index += 1;
+            }
+        }
     }
 }
 

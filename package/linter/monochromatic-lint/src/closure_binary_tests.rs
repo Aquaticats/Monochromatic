@@ -412,13 +412,39 @@ fn a_non_diagnostic_cargo_failure_exits_two() {
 #[test]
 fn a_machine_without_cargo_dylint_skips_everything() {
     let fixture: Fixture = Fixture::new();
-    let stub = scenario(&[("dylint-version.status", "1")]);
+    let stub = scenario(&[
+        ("dylint-version.status", "101"),
+        (
+            "dylint-version.stderr",
+            "error: no such command: `dylint`\n",
+        ),
+    ]);
     let output: Run = run(&fixture, &stub, &["my pkg"]);
     assert_eq!(output.status, 0);
     assert!(
         output.stderr.contains("skipped all 1 package(s)"),
         "{}",
         output.stderr
+    );
+}
+
+/// A tool that lags the lock fails the probe with some other status and its own words:
+///  the executable exits 2 and names the install command,
+///  where a skip would exit 0 and hide the stale install.
+#[test]
+fn a_stale_installed_cargo_fails_the_run_with_status_two() {
+    let fixture: Fixture = Fixture::new();
+    let stub = scenario(&[
+        ("dylint-version.status", "1"),
+        ("dylint-version.stderr", "a tool that lags the lock\n"),
+    ]);
+    let output: Run = run(&fixture, &stub, &["my pkg"]);
+    assert_eq!(output.status, 2, "{}", output.stderr);
+    assert!(!output.stderr.contains("skipped all"), "{}", output.stderr);
+    assert!(
+        output.stdout.contains("mise run toolchain:install"),
+        "{}",
+        output.stdout
     );
 }
 

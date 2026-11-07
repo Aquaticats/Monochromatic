@@ -113,6 +113,16 @@ fn return_with(serial: u32, signature: &str, body: &[u8]) -> Vec<u8> {
     return message;
 }
 
+/// The reply to `Hello`:
+/// the connection's unique name.
+fn unique_name_return(serial: u32) -> Vec<u8> {
+    let name: &str = ":1.42";
+    let mut body: Vec<u8> = u32::try_from(name.len()).expect("short").to_le_bytes().to_vec();
+    body.extend(name.as_bytes());
+    body.push(0);
+    return return_with(serial, "s", &body);
+}
+
 /// The reply to `GetUnit`:
 /// the object path of the unit,
 /// whichever unit was asked for.
@@ -156,12 +166,20 @@ fn serve_connection(mut stream: std::os::unix::net::UnixStream, refuse: bool, on
         return asked;
     }
     let _sent = stream.write_all(b"OK 00112233445566778899aabbccddeeff\r\n");
-    let mut begin: Vec<u8> = Vec::new();
-    while !begin.ends_with(b"\r\n") {
-        if stream.read_exact(&mut one).is_err() {
-            return asked;
+    // `zbus` pipelines `NEGOTIATE_UNIX_FD` and `BEGIN` after the answer: the stand-in agrees to the first and stops at the second.
+    loop {
+        let mut begin: Vec<u8> = Vec::new();
+        while !begin.ends_with(b"\r\n") {
+            if stream.read_exact(&mut one).is_err() {
+                return asked;
+            }
+            begin.push(one[0]);
         }
-        begin.push(one[0]);
+        if begin == b"NEGOTIATE_UNIX_FD\r\n" {
+            let _agreed = stream.write_all(b"AGREE_UNIX_FD\r\n");
+        } else {
+            break;
+        }
     }
     loop {
         let mut header: Vec<u8> = vec![0; 16];
@@ -188,6 +206,8 @@ fn serve_connection(mut stream: std::os::unix::net::UnixStream, refuse: bool, on
             start();
         }
         let answer: Vec<u8> = match member {
+            // `zbus` reads the unique name that `Hello` returns, so the reply to it carries one.
+            "Hello" => unique_name_return(serial),
             "GetUnit" => unit_path_return(serial),
             "Get" => inactive_state_return(serial),
             _ => return_for(serial),

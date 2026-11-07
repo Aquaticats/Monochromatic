@@ -1,0 +1,886 @@
+{
+  "comment": "One table of fixture states for the repository link check. The TypeScript suite package/repository-link/check/src/check-link.unit.test.ts and the Rust suite src/native/repository_link_check/repository_link_shared_table_tests.rs both run every row against their own check and assert rowCount; edit a row here and both follow. A world answers the check's filesystem questions: entries (lstat kind by path), links (readlink text), real (realpath result; absent means it does not resolve), texts (small file text), uuids (filesystem UUID of the filesystem holding a path; absent means none), mounted (paths that are mount points). Each row gives the identity as changes to baseIdentity.",
+  "baseIdentity": {
+    "linkPath": "/home/u/Monochromatic",
+    "linkText": "/mnt/860/repository/Monochromatic",
+    "canonicalRoot": "/mnt/860/repository/Monochromatic",
+    "mountPoint": "/mnt/860",
+    "driveUuid": "DRIVE",
+    "nvmeUuid": "NVME",
+    "rootCommit": "abc123",
+    "phase": "after"
+  },
+  "rowCount": 25,
+  "rows": [
+    {
+      "name": "after: ready for the recorded link, root, filesystem and marker",
+      "found": true,
+      "identity": {
+        "phase": "after"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "ready-after",
+        "ready": true
+      }
+    },
+    {
+      "name": "after: the drive is not mounted",
+      "found": true,
+      "identity": {
+        "phase": "after"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {},
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": []
+      },
+      "expect": {
+        "kind": "drive-not-mounted",
+        "ready": false,
+        "message": "the 860 drive is not mounted yet (/mnt/860 is empty), so the repository at /home/u/Monochromatic is not there; unlock it (the mount-860 service does that at login) and run this again"
+      }
+    },
+    {
+      "name": "after: the drive is mounted but the folder is missing",
+      "found": true,
+      "identity": {
+        "phase": "after"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "mounted-folder-missing",
+        "ready": false,
+        "message": "the 860 drive is mounted but /mnt/860/repository/Monochromatic does not exist; nothing was written"
+      }
+    },
+    {
+      "name": "after: a real folder replaced the link",
+      "found": true,
+      "identity": {
+        "phase": "after"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "real-folder-replaced-link",
+        "ready": false,
+        "message": "/home/u/Monochromatic is a real folder, not the link to the 860; nothing was written"
+      }
+    },
+    {
+      "name": "after: the link is gone",
+      "found": true,
+      "identity": {
+        "phase": "after"
+      },
+      "world": {
+        "entries": {
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "link-missing",
+        "ready": false
+      }
+    },
+    {
+      "name": "after: the link text differs from the recorded text",
+      "found": true,
+      "identity": {
+        "phase": "after"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/elsewhere"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "wrong-repository",
+        "ready": false,
+        "contains": [
+          "/elsewhere",
+          "/mnt/860/repository/Monochromatic"
+        ]
+      }
+    },
+    {
+      "name": "after: the path is a file, not a link",
+      "found": true,
+      "identity": {
+        "phase": "after"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "file",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "wrong-repository",
+        "ready": false
+      }
+    },
+    {
+      "name": "after: the link resolves to another root than the approved one",
+      "found": true,
+      "identity": {
+        "phase": "after"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Other",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "wrong-repository",
+        "ready": false
+      }
+    },
+    {
+      "name": "after: the target is on another filesystem",
+      "found": true,
+      "identity": {
+        "phase": "after"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "OTHER",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "wrong-filesystem",
+        "ready": false,
+        "contains": [
+          "OTHER",
+          "DRIVE"
+        ]
+      }
+    },
+    {
+      "name": "after: the target has no filesystem UUID at all (a wrong filesystem at the mount point)",
+      "found": true,
+      "identity": {
+        "phase": "after"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "wrong-filesystem",
+        "ready": false,
+        "contains": [
+          "unknown"
+        ]
+      }
+    },
+    {
+      "name": "after: the root has no .git folder",
+      "found": true,
+      "identity": {
+        "phase": "after"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "not-a-repository",
+        "ready": false
+      }
+    },
+    {
+      "name": "after: the .git folder is on another filesystem",
+      "found": true,
+      "identity": {
+        "phase": "after"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "OTHER"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "wrong-filesystem",
+        "ready": false
+      }
+    },
+    {
+      "name": "after: the root commit marker is absent",
+      "found": true,
+      "identity": {
+        "phase": "after"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {},
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "wrong-repository",
+        "ready": false
+      }
+    },
+    {
+      "name": "after: the root commit marker differs",
+      "found": true,
+      "identity": {
+        "phase": "after"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "zzz"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "wrong-repository",
+        "ready": false,
+        "contains": [
+          "zzz",
+          "abc123"
+        ]
+      }
+    },
+    {
+      "name": "after: the identity recorded no drive UUID",
+      "found": true,
+      "identity": {
+        "phase": "after",
+        "driveUuid": ""
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "wrong-filesystem",
+        "ready": false
+      }
+    },
+    {
+      "name": "after: the identity recorded no root commit",
+      "found": true,
+      "identity": {
+        "phase": "after",
+        "rootCommit": ""
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "wrong-repository",
+        "ready": false
+      }
+    },
+    {
+      "name": "after: a link text with a newline is ready when it is the recorded text",
+      "found": true,
+      "identity": {
+        "phase": "after",
+        "linkText": "/mnt/860/a\nb",
+        "canonicalRoot": "/mnt/860/real"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory",
+          "/mnt/860/real": "directory",
+          "/mnt/860/real/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/a\nb"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/real",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n",
+          "/mnt/860/real/.git/monochromatic-root-commit": "abc123"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE",
+          "/mnt/860/real": "DRIVE",
+          "/mnt/860/real/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "ready-after",
+        "ready": true
+      }
+    },
+    {
+      "name": "after: a link text with a space is ready when it is the recorded text",
+      "found": true,
+      "identity": {
+        "phase": "after",
+        "linkText": "/mnt/860/a b",
+        "canonicalRoot": "/mnt/860/real"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory",
+          "/mnt/860/real": "directory",
+          "/mnt/860/real/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/a b"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/real",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n",
+          "/mnt/860/real/.git/monochromatic-root-commit": "abc123"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE",
+          "/mnt/860/real": "DRIVE",
+          "/mnt/860/real/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "ready-after",
+        "ready": true
+      }
+    },
+    {
+      "name": "after: a link text with dot-dot segments is ready when it is the recorded text",
+      "found": true,
+      "identity": {
+        "phase": "after",
+        "linkText": "/mnt/860/x/../y",
+        "canonicalRoot": "/mnt/860/real"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory",
+          "/mnt/860/real": "directory",
+          "/mnt/860/real/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/x/../y"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/real",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n",
+          "/mnt/860/real/.git/monochromatic-root-commit": "abc123"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE",
+          "/mnt/860/real": "DRIVE",
+          "/mnt/860/real/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "ready-after",
+        "ready": true
+      }
+    },
+    {
+      "name": "after: a link text with a command substitution is ready when it is the recorded text",
+      "found": true,
+      "identity": {
+        "phase": "after",
+        "linkText": "/mnt/860/$(touch z)",
+        "canonicalRoot": "/mnt/860/real"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory",
+          "/mnt/860/real": "directory",
+          "/mnt/860/real/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/$(touch z)"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/real",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n",
+          "/mnt/860/real/.git/monochromatic-root-commit": "abc123"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE",
+          "/mnt/860/real": "DRIVE",
+          "/mnt/860/real/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "ready-after",
+        "ready": true
+      }
+    },
+    {
+      "name": "before: ready for a real folder with a .git folder on the recorded NVMe",
+      "found": true,
+      "identity": {
+        "phase": "before",
+        "linkText": ""
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "directory",
+          "/home/u/Monochromatic/.git": "directory"
+        },
+        "links": {},
+        "real": {},
+        "texts": {},
+        "uuids": {
+          "/home/u/Monochromatic": "NVME"
+        },
+        "mounted": []
+      },
+      "expect": {
+        "kind": "ready-before",
+        "ready": true
+      }
+    },
+    {
+      "name": "before: a link where the real folder is expected",
+      "found": true,
+      "identity": {
+        "phase": "before",
+        "linkText": ""
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link"
+        },
+        "links": {},
+        "real": {},
+        "texts": {},
+        "uuids": {
+          "/home/u/Monochromatic": "NVME"
+        },
+        "mounted": []
+      },
+      "expect": {
+        "kind": "not-a-repository",
+        "ready": false
+      }
+    },
+    {
+      "name": "before: the folder is on another filesystem",
+      "found": true,
+      "identity": {
+        "phase": "before",
+        "linkText": ""
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "directory",
+          "/home/u/Monochromatic/.git": "directory"
+        },
+        "links": {},
+        "real": {},
+        "texts": {},
+        "uuids": {
+          "/home/u/Monochromatic": "OTHER"
+        },
+        "mounted": []
+      },
+      "expect": {
+        "kind": "wrong-filesystem",
+        "ready": false
+      }
+    },
+    {
+      "name": "before: no .git folder",
+      "found": true,
+      "identity": {
+        "phase": "before",
+        "linkText": ""
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "directory"
+        },
+        "links": {},
+        "real": {},
+        "texts": {},
+        "uuids": {
+          "/home/u/Monochromatic": "NVME"
+        },
+        "mounted": []
+      },
+      "expect": {
+        "kind": "not-a-repository",
+        "ready": false
+      }
+    },
+    {
+      "name": "identity file missing: nothing was read",
+      "found": false,
+      "identity": {
+        "phase": "after"
+      },
+      "world": {
+        "entries": {
+          "/home/u/Monochromatic": "link",
+          "/mnt/860/repository/Monochromatic": "directory",
+          "/mnt/860/repository/Monochromatic/.git": "directory"
+        },
+        "links": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic"
+        },
+        "real": {
+          "/home/u/Monochromatic": "/mnt/860/repository/Monochromatic",
+          "/mnt/860": "/mnt/860"
+        },
+        "texts": {
+          "/mnt/860/repository/Monochromatic/.git/monochromatic-root-commit": "abc123\n"
+        },
+        "uuids": {
+          "/mnt/860/repository/Monochromatic": "DRIVE",
+          "/mnt/860/repository/Monochromatic/.git": "DRIVE"
+        },
+        "mounted": [
+          "/mnt/860"
+        ]
+      },
+      "expect": {
+        "kind": "identity-missing",
+        "ready": false
+      }
+    }
+  ]
+}

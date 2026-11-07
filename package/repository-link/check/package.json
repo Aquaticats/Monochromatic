@@ -17,7 +17,8 @@
   "bin": {
     "repository-link-check": "dist/final/node/check.mjs",
     "repository-link-run": "dist/final/node/run.mjs",
-    "repository-link-record": "dist/final/node/record.mjs"
+    "repository-link-record": "dist/final/node/record.mjs",
+    "repository-link-launch": "dist/final/node/launch.mjs"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",

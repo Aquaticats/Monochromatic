@@ -1,6 +1,8 @@
 //! What:
 //!  The one HTTPS call of the standards-review shadow run,
-//! made in-process and ended only when it shows no sign of work.
+//! made in-process on `hyper` and the process's runtime,
+//! and ended only
+//!  when it shows no sign of work.
 //! Why:
 //!  The root `mise.toml` task `shadow-review` calls `fetch` with a 30 s signal.
 //! This port calls the same endpoint from
@@ -13,14 +15,18 @@
 //! pick 9 of `doc/planning/cli-git-shipped-limits-audit.md`,
 //! the
 //!  coordinator's under the owner's delegation and open to the owner's veto).
-//! The transport's own idle timeouts do the
-//!  judging:
-//! resolving,
-//! connecting,
-//! and each read and each write of the connection (TLS handshake,
-//! request,
-//! response head and
-//!  body) may stay silent for the quiet window and no longer,
+//! One clock does the judging:
+//! a wrapper around the
+//!  connection (`Marking`) records every read and write that completes,
+//! and the call ends when nothing has moved for the quiet
+//!  window,
+//! the connect and the TLS handshake included (the owner,
+//! 2026-11-07:
+//! "Adopt tokio,
+//! do not adopt ureq,
+//! use the `hyper` set of
+//!  https libs.";
+//! the previous client set one timeout per phase),
 //! and one ceiling covers the call as a whole (owner,
 //! 2026-11-04,
 //!  "Silence plus a ceiling (Recommended)";
@@ -42,8 +48,12 @@
 /// The measuring of a call's quiet gap,
 /// beside the call.
 use crate::thread_quiet::QuietMeasurement;
-use std::time::Duration;
-use ureq::tls::{Certificate, RootCerts, TlsConfig};
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::task::{Context, Poll};
+use std::time::{Duration, Instant};
 
 /// How long a call may stay silent before it is ended,
 /// when the caller sets nothing else (the script's own figure,
@@ -134,76 +144,288 @@ pub fn post_decision(gateway: &Gateway, body: &str) -> Result<Reply, String> {
     return reply;
 }
 
-/// `post_decision` without the measuring thread.
-fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, String> {
-    let tls: TlsConfig = match gateway.trusted_pem {
-        Some(pem) => {
-            let authority: Certificate<'static> = match Certificate::from_pem(pem) {
-                Ok(parsed) => parsed,
-                Err(error) => return Err(format!("the trusted authority is unreadable: {error}")),
-            };
-            TlsConfig::builder().root_certs(RootCerts::new_with_certs(&[authority])).build()
-        }
-        None => TlsConfig::default(),
-    };
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        // Each phase and each transport read or write may be silent for the window; no timeout covers the call as a whole.
-        .timeout_resolve(Some(gateway.quiet_window))
-        .timeout_connect(Some(gateway.quiet_window))
-        .timeout_per_read(Some(gateway.quiet_window))
-        .timeout_per_write(Some(gateway.quiet_window))
-        // The one clock over the whole call: a call that keeps moving bytes is ended here (owner, 2026-11-04, "Silence plus a
-        // ceiling (Recommended)").
-        .timeout_global(Some(gateway.ceiling))
-        .http_status_as_error(false)
-        .max_redirects(0)
-        .proxy(None)
-        .tls_config(tls)
-        .build()
-        .into();
-    let sent = agent
-        .post(gateway.url)
-        .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {}", gateway.api_key))
-        .send(body.as_bytes());
-    let mut response = match sent {
-        Ok(received) => received,
-        Err(error) => return Err(describe(error, gateway.ceiling)),
-    };
-    let status: u16 = response.status().as_u16();
-    let text: String = match response.body_mut().read_to_string() {
-        Ok(read) => read,
-        Err(error) => return Err(describe(error, gateway.ceiling)),
-    };
-    return Ok(Reply { status, body: text });
-}
-
 /// What:
-///  A failure as the log line prints it:
-/// the sentence for the ceiling,
-/// the script's timeout wording for an idle timeout,
-///  otherwise `fetch failed` and the cause.
+///  The instant of the last byte moved on any connection of one call.
 /// Why:
-///   Node prints only `fetch failed` and hides the cause;
-/// the cause is what a person needs.
-/// The ceiling's sentence names the call,
-///  the ceiling and the command that reviews the commit again,
-/// because the call ran as long as monochromatic-git-policy-cli lets it and a person
-///  reading the log entry needs to know that it was not the endpoint's silence.
+///  The quiet window is judged against it;
+/// the connect and the handshake count as movement when they complete.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// error instanceof Error ? error.message : String(error)
+/// class Progress { began = Date.now(); lastMs = 0; mark() { this.lastMs = Date.now() - this.began; } quietFor() { return Date.now() - this.began - this.lastMs; } }
 /// ```
-fn describe(error: ureq::Error, ceiling: Duration) -> String {
-    return match error {
-        ureq::Error::Timeout(ureq::Timeout::Global) => format!(
+struct Progress {
+    /// When the call began.
+    began: Instant,
+    /// Milliseconds after `began` of the last movement.
+    last_ms: AtomicU64,
+}
+
+impl Progress {
+    /// Milliseconds since the call began,
+    /// saturated.
+    fn elapsed_ms(&self) -> u64 {
+        return u64::try_from(self.began.elapsed().as_millis()).unwrap_or(u64::MAX);
+    }
+
+    /// Records that bytes moved now.
+    fn mark(&self) {
+        self.last_ms.store(self.elapsed_ms(), Ordering::Relaxed);
+    }
+
+    /// How long nothing has moved.
+    fn quiet_for(&self) -> Duration {
+        return Duration::from_millis(self.elapsed_ms().saturating_sub(self.last_ms.load(Ordering::Relaxed)));
+    }
+}
+
+/// A connection that marks every read or write that moves bytes,
+/// so the call can be ended when nothing has moved for the window.
+struct Marking<T> {
+    /// The connection underneath.
+    inner: T,
+    /// Where the movement is recorded.
+    progress: Arc<Progress>,
+}
+
+impl<T: hyper::rt::Read + Unpin> hyper::rt::Read for Marking<T> {
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: hyper::rt::ReadBufCursor<'_>) -> Poll<std::io::Result<()>> {
+        let polled = Pin::new(&mut self.inner).poll_read(cx, buf);
+        if let Poll::Ready(Ok(())) = &polled {
+            self.progress.mark();
+        }
+        return polled;
+    }
+}
+
+impl<T: hyper::rt::Write + Unpin> hyper::rt::Write for Marking<T> {
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
+        let polled = Pin::new(&mut self.inner).poll_write(cx, buf);
+        if let Poll::Ready(Ok(count)) = &polled
+            && *count > 0
+        {
+            self.progress.mark();
+        }
+        return polled;
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        return Pin::new(&mut self.inner).poll_flush(cx);
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        return Pin::new(&mut self.inner).poll_shutdown(cx);
+    }
+}
+
+impl<T: hyper_util::client::legacy::connect::Connection> hyper_util::client::legacy::connect::Connection for Marking<T> {
+    fn connected(&self) -> hyper_util::client::legacy::connect::Connected {
+        return self.inner.connected();
+    }
+}
+
+/// The plain TCP connector,
+/// wrapping each connection it makes in `Marking`.
+#[derive(Clone)]
+struct MarkingConnector {
+    /// The connector underneath.
+    inner: hyper_util::client::legacy::connect::HttpConnector,
+    /// Where the movement is recorded.
+    progress: Arc<Progress>,
+}
+
+impl tower_service::Service<hyper::Uri> for MarkingConnector {
+    type Response = Marking<hyper_util::rt::TokioIo<tokio::net::TcpStream>>;
+    type Error = <hyper_util::client::legacy::connect::HttpConnector as tower_service::Service<hyper::Uri>>::Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        return self.inner.poll_ready(cx);
+    }
+
+    fn call(&mut self, uri: hyper::Uri) -> Self::Future {
+        let connecting = self.inner.call(uri);
+        let progress: Arc<Progress> = Arc::clone(&self.progress);
+        return Box::pin(async move {
+            let stream = connecting.await?;
+            progress.mark();
+            return Ok(Marking { inner: stream, progress });
+        });
+    }
+}
+
+/// What:
+///  Ends when `progress` has been quiet for `window`.
+/// Why:
+///  The call is raced against it;
+/// sleeping for what is left of the window means a call that keeps moving is never woken for nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// while (progress.quietFor() < window) await sleep(window - progress.quietFor());
+/// ```
+async fn silence(progress: Arc<Progress>, window: Duration) {
+    loop {
+        let quiet: Duration = progress.quiet_for();
+        if quiet >= window {
+            return;
+        }
+        tokio::time::sleep(window - quiet).await;
+    }
+}
+
+/// The client's TLS configuration:
+/// the roots embedded in the binary,
+/// or the one authority a caller trusts instead.
+fn client_config(trusted_pem: Option<&[u8]>) -> Result<rustls::ClientConfig, String> {
+    use rustls::pki_types::pem::PemObject as _;
+    let mut roots: rustls::RootCertStore = rustls::RootCertStore::empty();
+    match trusted_pem {
+        Some(pem) => {
+            let authority = rustls::pki_types::CertificateDer::from_pem_slice(pem).map_err(authority_unreadable)?;
+            roots.add(authority).map_err(authority_unreadable)?;
+        }
+        None => roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned()),
+    }
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let config = rustls::ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .map_err(text_of)?
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+    return Ok(config);
+}
+
+/// An error as its text,
+/// for the places that turn a failure into the call's message.
+fn text_of(error: impl std::fmt::Display) -> String {
+    return error.to_string();
+}
+
+/// A failure to read the trusted authority,
+/// in the call's words.
+fn authority_unreadable(error: impl std::fmt::Display) -> String {
+    return format!("the trusted authority is unreadable: {error}");
+}
+
+/// A failure of the call,
+/// in the words the log line prints.
+fn fetch_failed(error: impl std::fmt::Display) -> String {
+    return format!("fetch failed: {error}");
+}
+
+/// A failure of the call with every cause below it,
+/// in the words the log line prints.
+fn fetch_failed_with_causes(error: impl std::error::Error) -> String {
+    return format!("fetch failed: {}", error_chain(&error));
+}
+
+/// An error with every cause below it,
+/// as `a: b: c`,
+/// because the first line of a transport error hides what a person needs.
+fn error_chain(error: &dyn std::error::Error) -> String {
+    let mut text: String = error.to_string();
+    let mut below = error.source();
+    while let Some(cause) = below {
+        text.push_str(": ");
+        text.push_str(cause.to_string().as_str());
+        below = cause.source();
+    }
+    return text;
+}
+
+/// What:
+///  The request and its reply on one new connection,
+/// every byte it moves marked in `progress`.
+/// Why:
+///  A client per call,
+/// as the previous agent was per call;
+/// no redirect is followed,
+/// no proxy variable is read,
+/// and plain `http` is
+///  accepted for the loopback mock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const response = await fetch(url, { method: 'POST', headers, body, redirect: 'error' });
+/// ```
+async fn exchange(gateway: &Gateway<'_>, body: &str, progress: Arc<Progress>) -> Result<Reply, String> {
+    use http_body_util::BodyExt as _;
+    let tls: rustls::ClientConfig = client_config(gateway.trusted_pem)?;
+    let mut http = hyper_util::client::legacy::connect::HttpConnector::new();
+    http.enforce_http(false);
+    http.set_nodelay(true);
+    let connector = hyper_rustls::HttpsConnectorBuilder::new()
+        .with_tls_config(tls)
+        .https_or_http()
+        .enable_http1()
+        .wrap_connector(MarkingConnector { inner: http, progress });
+    let client: hyper_util::client::legacy::Client<_, http_body_util::Full<bytes::Bytes>> =
+        hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new()).build(connector);
+    let request = hyper::Request::post(gateway.url)
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", gateway.api_key))
+        .body(http_body_util::Full::new(bytes::Bytes::copy_from_slice(body.as_bytes())))
+        .map_err(fetch_failed)?;
+    let response = client.request(request).await.map_err(fetch_failed_with_causes)?;
+    let status: u16 = response.status().as_u16();
+    let collected = response.into_body().collect().await.map_err(fetch_failed_with_causes)?;
+    let text: String = String::from_utf8(collected.to_bytes().to_vec()).map_err(fetch_failed)?;
+    return Ok(Reply { status, body: text });
+}
+
+/// How a call that was raced against the silence ended.
+enum Raced {
+    /// The call finished first,
+    /// with its reply or its failure.
+    Finished(Result<Reply, String>),
+    /// Nothing moved for the quiet window.
+    Quiet,
+}
+
+/// What:
+///  Runs `call_future` until it ends or `quiet_future` does,
+/// whichever is first.
+/// Why:
+///  Both are polled by the same task,
+/// so the silence cannot be ended before the call has had its poll.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await Promise.race([call.then(Finished), quiet.then(() => Quiet)]);
+/// ```
+async fn race<F, Q>(call_future: F, quiet_future: Q) -> Raced
+where
+    F: Future<Output = Result<Reply, String>>,
+    Q: Future<Output = ()>,
+{
+    let mut call = std::pin::pin!(call_future);
+    let mut quiet = std::pin::pin!(quiet_future);
+    // The call is polled first, so the silence cannot end a call that has just finished.
+    let raced: Raced = tokio::select! {
+        biased;
+        result = &mut call => Raced::Finished(result),
+        () = &mut quiet => Raced::Quiet,
+    };
+    return raced;
+}
+
+/// `post_decision` without the measuring thread.
+fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, String> {
+    let progress: Arc<Progress> = Arc::new(Progress { began: Instant::now(), last_ms: AtomicU64::new(0) });
+    let (ceiling, window): (Duration, Duration) = (gateway.ceiling, gateway.quiet_window);
+    let outcome = crate::lazy_runtime::run_on_runtime(async {
+        return tokio::time::timeout(ceiling, race(exchange(gateway, body, Arc::clone(&progress)), silence(Arc::clone(&progress), window))).await;
+    })
+    .map_err(text_of)?;
+    return match outcome {
+        Ok(Raced::Finished(reply)) => reply,
+        Ok(Raced::Quiet) => Err(String::from("The operation was aborted due to timeout")),
+        Err(_elapsed) => Err(format!(
             "the standards-review gateway call ran for {} seconds, the longest monochromatic-git-policy-cli lets it run, and was ended, so this commit has no \
              verdict; review it again with `SHADOW_REVIEW_SHA=<commit> mise run shadow-review`",
             ceiling.as_secs()
-        ),
-        ureq::Error::Timeout(_) => String::from("The operation was aborted due to timeout"),
-        other => format!("fetch failed: {other}"),
+        )),
     };
 }
 

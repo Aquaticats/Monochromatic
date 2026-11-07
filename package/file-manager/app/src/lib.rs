@@ -164,8 +164,12 @@ use crate::constants::{APP_ID, QUIT_MS_ENV};
 ///  Returns GTK's process exit code for `main` to propagate.
 pub fn run() -> glib::ExitCode {
     let (writer, _guard) = tracing_appender::non_blocking(std::io::stderr());
+    let env_filter = match EnvFilter::try_from_default_env() {
+        Ok(filter) => filter,
+        Err(_) => EnvFilter::new("info"),
+    };
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| return EnvFilter::new("info")))
+        .with_env_filter(env_filter)
         .with_writer(writer)
         .init();
     enable_windows_gpu_rendering();
@@ -215,6 +219,15 @@ fn enable_windows_gpu_rendering() {
 fn enable_windows_gpu_rendering() {}
 
 /// What:
+///  parse a millisecond count,
+///  or nothing when the text is not a `u64`.
+/// Why:
+///  a named function lets `and_then` take it by path instead of through a closure.
+fn parse_milliseconds(value: &str) -> Option<u64> {
+    return value.parse::<u64>().ok()
+}
+
+/// What:
 ///  if `FM_QUIT_MS` holds a millisecond count,
 ///  quit `app` after that delay.
 /// Why:
@@ -226,7 +239,7 @@ fn schedule_self_quit(app: &Application) {
     let Some(raw) = std::env::var_os(QUIT_MS_ENV) else {
         return;
     };
-    let Some(ms) = raw.to_str().and_then(|value| return value.parse::<u64>().ok()) else {
+    let Some(ms) = raw.to_str().and_then(parse_milliseconds) else {
         return;
     };
     let owned_app = app.clone();

@@ -64,8 +64,8 @@
     {
       "kind": "toml-keys",
       "id": "cargo-dylint",
-      "manifests": ["package/*/*/Cargo.toml"],
-      "onlyDirs": ["package/file-enforcer/cli", "package/forbidden-strings/cli", "package/forbidden-strings/core", "package/git-policy/cli", "package/ide/app", "package/linter/monochromatic-lint", "package/music-player/desktop-app"],
+      "manifests": ["package/*/*/Cargo.toml", "package/*/*/*/Cargo.toml"],
+      "onlyDirs": ["package/file-enforcer/cli", "package/forbidden-strings/cli", "package/forbidden-strings/core", "package/git-policy/cli", "package/ide/app", "package/linter/monochromatic-lint", "package/music-player/android-app/rust", "package/music-player/desktop-app", "package/nested-wayland-session/cli"],
       "edits": [
         {
           "guard": ["lints", "rust", "unexpected_cfgs"],

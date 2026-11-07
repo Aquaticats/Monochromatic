@@ -150,6 +150,48 @@ fn without_a_record_the_same_binary_is_the_ordinary_command_line_tool() {
     assert!(String::from_utf8_lossy(&output.stdout).starts_with("mpm-shadow"), "{}", String::from_utf8_lossy(&output.stdout));
 }
 
+/// A home whose identity file names the tree as the repository,
+/// with a check program that says the drive is not mounted;
+/// returns the home.
+fn home_where_the_repository_is_gone(tree: &Tree) -> PathBuf {
+    let home = tree.directory.path().join("home-with-identity");
+    let identity = home.join(".config/monochromatic-dev/repository-link.json");
+    fs::create_dir_all(identity.parent().expect("a parent")).expect("make the config folder");
+    fs::write(&identity, format!("{{\"linkPath\":\"{}\",\"canonicalRoot\":\"/nowhere\",\"phase\":\"after\"}}", tree.directory.path().display()))
+        .expect("write the identity");
+    let check = home.join(".local/share/monochromatic-dev/repository-link/repository-link-check");
+    fs::create_dir_all(check.parent().expect("a parent")).expect("make the install folder");
+    fs::write(&check, "#!/bin/sh\necho 'the 860 drive is not mounted yet' >&2\nexit 75\n").expect("write the check");
+    fs::set_permissions(&check, fs::Permissions::from_mode(0o755)).expect("chmod");
+    return home;
+}
+
+#[test]
+fn an_unreadable_lock_under_a_repository_that_is_not_there_names_the_cause_and_still_runs_the_tool() {
+    let tree = Tree::new("0.4.0", "0.4.4");
+    fs::remove_file(tree.lock_file()).expect("remove the lock");
+    let home = home_where_the_repository_is_gone(&tree);
+    let direct = run(&tree.real(), &["x"], &[]);
+    let launched = run(&tree.launcher(), &["x"], &[("HOME", home.to_str().expect("a text path"))]);
+    assert_eq!(launched.stdout, direct.stdout, "the tool ran and its output is its own");
+    assert_eq!(launched.status.code(), Some(0));
+    let stderr = String::from_utf8_lossy(&launched.stderr);
+    let first = stderr.lines().next().unwrap_or_default();
+    assert!(first.starts_with("mpm-shadow: warning: "), "{stderr}");
+    assert!(first.contains("the 860 drive is not mounted yet"), "{stderr}");
+    assert!(first.contains("toolchain.lock.json"), "the line names the unreadable file: {stderr}");
+}
+
+#[test]
+fn an_unreadable_lock_with_no_identity_file_stays_silent_as_before() {
+    let tree = Tree::new("0.4.0", "0.4.4");
+    fs::remove_file(tree.lock_file()).expect("remove the lock");
+    let direct = run(&tree.real(), &["x"], &[]);
+    let launched = run(&tree.launcher(), &["x"], &[("HOME", tree.directory.path().to_str().expect("a text path"))]);
+    assert_eq!(launched.stderr, direct.stderr, "no line without an identity file");
+    assert_eq!(launched.stdout, direct.stdout);
+}
+
 /// A tree for the toolchain verbs:
 /// a plan and a signed lock pinning the demo tool at `locked`,
 /// and a home whose toolchain root holds the tool at `installed`.

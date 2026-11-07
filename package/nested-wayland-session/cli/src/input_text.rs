@@ -96,7 +96,14 @@ fn tap_character(state: &mut Compositor, character: char, spare: &[char]) {
         }
         return;
     }
-    let Some(index) = spare.iter().position(|candidate| return *candidate == character) else {
+    let mut spare_index = None;
+    for (position, candidate) in spare.iter().enumerate() {
+        if *candidate == character {
+            spare_index = Some(position);
+            break;
+        }
+    }
+    let Some(index) = spare_index else {
         debug!("character U+{:04X} has neither a layout key nor a spare key", u32::from(character));
         return;
     };

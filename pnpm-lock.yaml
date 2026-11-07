@@ -2069,6 +2069,9 @@ importers:
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core
+      '@monochromatic-dev/repository-link-check':
+        specifier: workspace:*
+        version: link:../../repository-link/check
       string-dedent:
         specifier: 'catalog:'
         version: 3.0.2

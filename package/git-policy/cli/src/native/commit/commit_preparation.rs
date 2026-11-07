@@ -31,7 +31,7 @@ use crate::hooks_off::NO_HOOKS_DIRECTORY;
 /// The shadow request and the real-Git command builder.
 use crate::shadow_git::shadow_request;
 use crate::forwarding::git_command;
-use crate::signal_relay::{SignalGuard, is_guard_active_refusal};
+use crate::signal_relay::SignalGuard;
 /// Context,
 /// one required Git start and failure text.
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
@@ -149,60 +149,6 @@ fn native_commit_arguments(request: &PreparationRequest) -> Vec<String> {
 }
 
 /// What:
-///  Install the signal guard,
-/// waiting while another thread of this process holds it.
-/// Why:
-///   One wrapper process runs one Git child at a time,
-/// so the wait never happens there;
-/// library tests run several
-///  preparations in threads of one process,
-/// and the guard is process-wide.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const guard = installSignalGuard();
-/// ```
-pub fn install_guard_when_free() -> std::io::Result<SignalGuard> {
-    return retry_while_active(SignalGuard::install, GUARD_WAIT_LIMIT, GUARD_WAIT_DELAY);
-}
-
-/// The most times the guard installation is retried while another thread holds the guard.
-const GUARD_WAIT_LIMIT: u32 = 1_200;
-
-/// The pause between two tries of the guard installation.
-const GUARD_WAIT_DELAY: std::time::Duration = std::time::Duration::from_millis(50);
-
-/// What:
-///  Run `install` again while it fails only because another holder is active,
-/// up to `limit` more times.
-/// Why:
-///   Any other failure,
-/// and a holder that never lets go,
-/// end the wait with the failure itself.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (let attempt = 0; ; attempt += 1) { try { return install(); } catch (e) { if (!isActive(e) || attempt >= limit) throw e; await wait(delay); } }
-/// ```
-pub fn retry_while_active<Value>(
-    mut install: impl FnMut() -> std::io::Result<Value>,
-    limit: u32,
-    delay: std::time::Duration,
-) -> std::io::Result<Value> {
-    let mut attempts: u32 = 0;
-    loop {
-        match install() {
-            Ok(value) => return Ok(value),
-            Err(error) if is_guard_active_refusal(&error) && attempts < limit => {
-                attempts += 1;
-                std::thread::sleep(delay);
-            }
-            Err(error) => return Err(error),
-        }
-    }
-}
-
-/// What:
 ///  Runs native `git commit` in the shadow with the terminal attached and returns its exit code.
 /// Why:
 ///   The editor output reaches the user unchanged,
@@ -242,7 +188,7 @@ pub fn run_native_commit(
 /// using guard = installSignalGuard(); return exitCode(await guard.runChild(command));
 /// ```
 fn run_guarded_child(command: &mut std::process::Command) -> Result<i32, PreparationError> {
-    let guard: SignalGuard = match install_guard_when_free() {
+    let guard: SignalGuard = match SignalGuard::install() {
         Ok(installed) => installed,
         Err(error) => {
             return Err(PreparationError::Git(GitFailure(format!("installing the signal guard failed: {error}"))));

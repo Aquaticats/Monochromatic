@@ -4,6 +4,8 @@
 //!  `no_arguments` helper,
 //! so only the optional record count needs a parser here.
 
+/// Error text that is built only on failure.
+use crate::lazy_error_text::result_or_text;
 /// Reuse the command representation the executor matches on.
 use super::Command;
 
@@ -23,9 +25,7 @@ pub(super) fn parse_log(tokens: &mut std::str::SplitWhitespace) -> Result<Comman
     //           Parse the optional count, falling back to the default when absent.
     // Why:      A bare `launcher-log` is the common request.
     let count = match tokens.next() {
-        Some(text) => text
-            .parse::<usize>()
-            .map_err(|_| return "launcher-log count is not a whole number".to_string())?,
+        Some(text) => result_or_text(text.parse::<usize>(), format_args!("launcher-log count is not a whole number"))?,
         None => DEFAULT_LOG_COUNT,
     };
     if count == 0 {

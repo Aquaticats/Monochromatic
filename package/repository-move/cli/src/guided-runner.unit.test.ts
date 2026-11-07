@@ -7,7 +7,6 @@
  @module
  */
 
-import { execFile, } from 'node:child_process';
 import {
   chmod,
   mkdir,
@@ -23,7 +22,7 @@ import {
   dirname,
   join,
 } from 'node:path';
-import { promisify, } from 'node:util';
+import { setTimeout as wait, } from 'node:timers/promises';
 import {
   describe,
   expect,
@@ -32,8 +31,15 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import {
+  childFailureOf,
   createGuidedConfig,
+  STOP_PATH_MARKER,
+  FIXTURE_COPY_SETS_KEPT,
+  FIXTURE_GUARD_MIN_GIB,
+  FIXTURE_MAIN_DATA_MIB,
+  FIXTURE_SUBVOLUME_COUNT,
   cutoverStages,
+  execFileAsync,
   footprintOf,
   type GuidedConfig,
   GuidedStopError,
@@ -51,8 +57,9 @@ import {
   windowMaximum,
 } from '../dist/final/node/index.mjs';
 
-const execFileAsync = promisify(execFile,);
 const BIN = new URL('../dist/final/node/run-repository-move.mjs', import.meta.url,).pathname;
+/** Milliseconds the window test waits so a one-second window is over (a little more than one second). */
+const WINDOW_PAUSE_MILLISECONDS = 2_100;
 /** Mode of the stand-in `sudo` script: readable and executable by everyone, writable by its owner. */
 const EXECUTABLE_MODE = 0o755;
 const TOOLS_FOLDER = dirname(new URL(import.meta.url,).pathname,);
@@ -99,6 +106,13 @@ function commandWords(command: string,): readonly string[] {
     .split(' ',).filter((word,) => word !== '');
 }
 
+type ResolvedStage = { readonly stage: Stage; readonly command: string; };
+
+/** Pairs every stage with the command text it runs once its internal step has written what the command reads. */
+async function withCommands({ stages, config, }: { stages: readonly Stage[]; config: GuidedConfig; },): Promise<readonly ResolvedStage[]> {
+  return await Promise.all(stages.map(async (candidate,) => ({ stage: candidate, command: await resolvedCommand({ stage: candidate, config, },), }),),);
+}
+
 async function exists(path: string,): Promise<boolean> {
   return await stat(path,).then(() => true, () => false);
 }
@@ -123,10 +137,10 @@ async function writeStandIns(home: string,): Promise<StandIns> {
   const scripts: Record<string, string> = {
     sudo: [
       '#!/bin/sh',
-      'printf \'%s\\n\' "$*" >> "$STAND_IN_SUDO_LOG"',
+      String.raw`printf '%s\n' "$*" >> "$STAND_IN_SUDO_LOG"`,
       'case "$1" in',
       '  --non-interactive|mkfs.btrfs|umount) exit 0 ;;',
-      '  mount) for last; do :; done; printf \'%s\\n\' "$(realpath "$last")" >> "$STAND_IN_MOUNTS"; exit 0 ;;',
+      String.raw`  mount) for last; do :; done; printf '%s\n' "$(realpath "$last")" >> "$STAND_IN_MOUNTS"; exit 0 ;;`,
       '  mkdir) exec "$@" ;;',
       'esac',
       'echo "stand-in sudo refuses: $*" >&2',
@@ -138,7 +152,7 @@ async function writeStandIns(home: string,): Promise<StandIns> {
       'for last; do :; done',
       'resolved=$(realpath "$last" 2>/dev/null) || exit 1',
       'grep --fixed-strings --line-regexp --quiet "$resolved" "$STAND_IN_MOUNTS" 2>/dev/null || exit 1',
-      'printf \'/dev/loop0 %s\\n\' "$resolved"',
+      String.raw`printf '/dev/loop0 %s\n' "$resolved"`,
       '',
     ].join('\n',),
     mountpoint: [
@@ -217,6 +231,38 @@ async function runStages(
   }
 }
 
+/** The stop block of the 860 mount unit as it is today (`systemctl cat mount-860.service`, 2026-11-07). */
+const OLD_STOP_BLOCK = `ExecStop=/bin/bash -c '\\
+  umount /var/mnt/encrypted 2>/dev/null; \\
+  cryptsetup luksClose crypt_sda 2>/dev/null'
+`;
+
+/** The script inside the new unit's `ExecStop=/bin/bash -c '...'` line, its continuation lines joined the way systemd joins them. */
+function stopScriptOf(unit: string,): string {
+  const start = unit.indexOf("ExecStop=/bin/bash -c '",) + "ExecStop=/bin/bash -c '".length;
+  const end = unit.indexOf("'\n", start,);
+  return unit.slice(start, end,).replaceAll('\\\n', ' ',);
+}
+
+/** The whole number at the start of a text, or NaN when it starts with no digit. */
+function leadingNumber(text: string,): number {
+  const firstOther = Array.from(text,).findIndex((character,) => (character < '0') || (character > '9'),);
+  const digits = firstOther === (-1) ? text : text.slice(0, firstOther,);
+  return digits === '' ? Number.NaN : Math.trunc(Number(digits,),);
+}
+
+/** The whole number that follows each occurrence of a marker in a text, in order; an occurrence with no digits after it is skipped. */
+function numbersAfter({ text, marker, }: { text: string; marker: string; },): number[] {
+  const found: number[] = [];
+  for (const part of text.split(marker,).slice(1,)) {
+    const value = leadingNumber(part,);
+    if (!Number.isNaN(value,)) {
+      found.push(value,);
+    }
+  }
+  return found;
+}
+
 async function resolvedCommand({ stage: s, config, }: { stage: Stage; config: GuidedConfig; },): Promise<string> {
   return (typeof s.command) === 'string' ? s.command : await s.command({ config, },);
 }
@@ -277,6 +323,12 @@ await describe({
               expect((failedCheck.error as GuidedStopError).message,).toContain('its check failed: the thing',);
               const accepted = await runStages({ config, stages: [stage({ id: 'k', command: 'exit 1', okCodes: [1,], },),], },);
               expect(accepted.error,).toBeUndefined();
+              expect(await readFile(join(config.wiz, 'done', 'prepare', 'k',), 'utf8',),).toContain('exit status 1',);
+              const stoppedFor = await runStages({ config, stages: [stage({ id: 'two', command: 'exit 2', okCodes: [0, 1,], },),], },);
+              expect((stoppedFor.error as GuidedStopError).message,).toContain('exited 2',);
+              const finished = await runStages({ config, stages: [stage({ id: 'ok', command: 'true', okCodes: [0, 1,], },),], },);
+              expect(finished.error,).toBeUndefined();
+              expect(await readFile(join(config.wiz, 'done', 'prepare', 'ok',), 'utf8',),).toContain('exit status 0',);
               const refusedZero = await runStages({ config, stages: [stage({ id: 'z', command: 'true', okCodes: [1,], },),], },);
               expect((refusedZero.error as GuidedStopError).status,).toBe(1,);
             },);
@@ -365,7 +417,7 @@ await describe({
               ];
               const first = await runStages({ config, stages: [stages[0] as Stage,], },);
               expect(first.error,).toBeUndefined();
-              await new Promise((resolve,) => setTimeout(resolve, 2_100,));
+              await wait(WINDOW_PAUSE_MILLISECONDS,);
               const { error, } = await runStages({ config, stages, },);
               expect((error as GuidedStopError).status,).toBe(3,);
               expect(
@@ -392,7 +444,10 @@ await describe({
               await mkdir(config.wiz, { recursive: true, },);
               await writeFile(join(config.wiz, 'main-du.txt',), 'Total Exclusive Set shared Filename\n1000 1000 1000 /x\n',);
               await writeFile(join(config.wiz, 'external-du.txt',), '2000\t/y\n',);
-              expect(await preflight(config,),).toContain('pre-flight passed',);
+              const passed = await preflight(config,);
+              expect(passed,).toContain('pre-flight passed',);
+              expect(passed,).toContain('clone-limit allowance: 13038362624 bytes',);
+              expect(passed,).toContain('estimate: 12 GiB',);
               const tight = await createGuidedConfig({
                 env: { HOME: home, MOVE_DRIVE: home, MOVE_MIN_FREE_GIB: '99999999', },
                 nodePath: process.execPath,
@@ -439,9 +494,9 @@ await describe({
               await mkdir(config.wiz, { recursive: true, },);
               await mkdir(config.moveState, { recursive: true, },);
               const paths = Array.from({ length: 20, }, (_, index,) => `/r/wt${String(index,).padStart(2, '0',)}`);
-              for (const [index, path,] of ['/r', ...paths,].entries()) {
+              await Promise.all(['/r', ...paths,].map(async (path, index,) => {
                 await writeFile(join(config.moveState, `f${String(index,).padStart(3, '0',)}.snapshot.json`,), JSON.stringify({ path, },),);
-              }
+              },),);
               await writeFile(join(config.wiz, 'baseline-frozen.tsv',), [
                 'path\tstate\tchanged\tuntracked\tunfinished\tindexLock\thead\tindexSha256',
                 '/r/wt07\tok\t2\t0\t\tfalse\th\ts',
@@ -462,11 +517,11 @@ await describe({
             await withConfig(async ({ config, home, },) => {
               const unit = join(home, 'mount-860.service',);
               const configured = await createGuidedConfig({ env: { HOME: home, MOVE_MOUNT_UNIT: unit, }, nodePath: process.execPath, },);
-              await writeFile(unit, 'ExecStart=/bin/bash -c \'mount -o compress=zstd:3,noatime /dev/x /y\'\n',);
+              await writeFile(unit, `ExecStart=/bin/bash -c 'mount -o compress=zstd:3,noatime /dev/x /y'\n${OLD_STOP_BLOCK}`,);
               expect(await prepareUnitEdit(configured,),).toContain('compress=zstd:3,noatime,user_subvol_rm_allowed',);
               expect(await readFile(join(configured.wiz, 'mount-860.service.new',), 'utf8',),).toContain('noatime,user_subvol_rm_allowed /dev/x',);
               expect(await readFile(join(configured.wiz, 'mount-860.service.before',), 'utf8',),).not.toContain('user_subvol_rm_allowed',);
-              await writeFile(unit, 'mount -o compress=zstd:3,noatime a\nmount -o compress=zstd:3,noatime b\n',);
+              await writeFile(unit, `mount -o compress=zstd:3,noatime a\nmount -o compress=zstd:3,noatime b\n${OLD_STOP_BLOCK}`,);
               let caught: unknown;
               try {
                 await prepareUnitEdit(configured,);
@@ -475,9 +530,70 @@ await describe({
                 caught = error;
               }
               expect((caught as Error).message,).toContain('exactly one',);
-              await writeFile(unit, 'mount -o compress=zstd:3,noatime,user_subvol_rm_allowed a\n',);
+              await writeFile(unit, `mount -o compress=zstd:3,noatime,user_subvol_rm_allowed a\nExecStop=/bin/bash -c 'echo ${STOP_PATH_MARKER}'\n`,);
               expect(await prepareUnitEdit(configured,),).toContain('already holds',);
               expect(config.unitPath,).toBe('/etc/systemd/system/mount-860.service',);
+            },);
+          },
+        },),
+        it({
+          name: 'the edited unit stops the drive only when nothing holds it: it lists the holders, never closes the drive after a failed unmount, and never forces one',
+          fn: async () => {
+            await withConfig(async ({ home, },) => {
+              const unit = join(home, 'mount-860.service',);
+              const configured = await createGuidedConfig({ env: { HOME: home, MOVE_MOUNT_UNIT: unit, }, nodePath: process.execPath, },);
+              await writeFile(unit, `ExecStart=/bin/bash -c 'mount -o compress=zstd:3,noatime /dev/x /y'\n${OLD_STOP_BLOCK}`,);
+              await prepareUnitEdit(configured,);
+              const edited = await readFile(join(configured.wiz, 'mount-860.service.new',), 'utf8',);
+              expect(edited,).toContain(STOP_PATH_MARKER,);
+              expect(edited,).not.toContain('2>/dev/null',);
+              // The script runs on stand-ins and on a scratch mount point and mapper name, never on the real drive: `bash -c` started
+              // over a socket (the way Node starts it) reads ~/.bashrc and gets the real PATH back, so it runs with --norc too.
+              const mountPoint = join(home, 'mount-point',);
+              const mapper = 'crypt_stand_in';
+              const script = stopScriptOf(edited,).replaceAll('/var/mnt/encrypted', mountPoint,)
+                .replaceAll('crypt_sda', mapper,);
+              for (const afterUmount of script.split('umount ',).slice(1,)) {
+                expect(afterUmount.startsWith('-',),).toBe(false,);
+              }
+              expect(script,).not.toContain('--lazy',);
+              expect(script,).not.toContain('--force',);
+              const fakes = join(home, 'fakes',);
+              await mkdir(fakes, { recursive: true, },);
+              const log = join(home, 'calls.log',);
+              const fake = async ({ name, body, }: { name: string; body: string; },) => {
+                await writeFile(join(fakes, name,), `#!/bin/sh\necho "${name} $*" >> ${log}\n${body}\n`,);
+                await chmod(join(fakes, name,), EXECUTABLE_MODE,);
+              };
+              await fake({ name: 'mountpoint', body: 'test "$MOUNTED" = yes', },);
+              await fake({ name: 'umount', body: 'test "$HELD" != yes', },);
+              await fake({ name: 'cryptsetup', body: 'true', },);
+              await fake({ name: 'fuser', body: 'echo "USER PID ACCESS COMMAND: shell 1234 c"', },);
+              const stop = async (state: { MOUNTED: string; HELD: string; },) => {
+                await writeFile(log, '',);
+                try {
+                  const done = await execFileAsync('bash', ['--noprofile', '--norc', '-c', script,], { env: { PATH: `${fakes}:/usr/bin:/bin`, ...state, }, encoding: 'utf8', },);
+                  return { code: 0, out: `${done.stdout}${done.stderr}`, calls: await readFile(log, 'utf8',), };
+                }
+                catch (error) {
+                  const failure = childFailureOf(error,);
+                  return { code: failure.code, out: `${failure.stdout}${failure.stderr}`, calls: await readFile(log, 'utf8',), };
+                }
+              };
+              const held = await stop({ MOUNTED: 'yes', HELD: 'yes', },);
+              expect(held.code,).toBe(1,);
+              expect(held.out,).toContain('held open',);
+              expect(held.out,).not.toContain('pcloudcc',);
+              expect(held.out,).toContain('shell 1234',);
+              expect(held.calls,).toContain(`umount ${mountPoint}`,);
+              expect(held.calls,).not.toContain('cryptsetup',);
+              const free = await stop({ MOUNTED: 'yes', HELD: 'no', },);
+              expect(free.code,).toBe(0,);
+              expect(free.calls,).toContain(`cryptsetup luksClose ${mapper}`,);
+              const unmounted = await stop({ MOUNTED: 'no', HELD: 'no', },);
+              expect(unmounted.code,).toBe(0,);
+              expect(unmounted.calls,).not.toContain('umount',);
+              expect(unmounted.calls,).toContain(`cryptsetup luksClose ${mapper}`,);
             },);
           },
         },),
@@ -513,6 +629,46 @@ await describe({
           },
         },),
         it({
+          name: 'parseGuidedFlags refuses every flag it does not know, an empty value, and extra words, naming them and the valid flags',
+          fn: async () => {
+            for (const bad of [['--log-file=/x',], ['--redo=',], ['--assert=',], ['--dryrun',], ['extra',], ['--redo',],]) {
+              let caught: unknown;
+              try {
+                parseGuidedFlags(['prepare', ...bad,],);
+              }
+              catch (error) {
+                caught = error;
+              }
+              expect(caught,).toBeInstanceOf(GuidedStopError,);
+              expect((caught as GuidedStopError).message,).toContain(bad[0] ?? '',);
+              expect((caught as GuidedStopError).message,).toContain('--dry-run',);
+            }
+          },
+        },),
+        it({
+          name: 'runGuided refuses a --redo or --assert that names no stage of the command, listing the stage ids',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const outcomes = await Promise.all([{ redo: ['no-such-stage',], asserted: [], }, { redo: [], asserted: ['no-such-stage',], },].map(async (flags,) => {
+                const lines: string[] = [];
+                const status = await runGuided({
+                  config,
+                  flags: { command: 'prepare', dryRun: true, ...flags, },
+                  out: (text,) => {
+                    lines.push(text,);
+                  },
+                },);
+                return { status, text: lines.join('',), };
+              },),);
+              for (const { status, text, } of outcomes) {
+                expect(status,).toBe(64,);
+                expect(text,).toContain('no-such-stage',);
+                expect(text,).toContain('f1-images',);
+              }
+            },);
+          },
+        },),
+        it({
           name: 'createGuidedConfig refuses a path with a character the shown commands would not quote',
           fn: async () => {
             await withConfig(async ({ home, },) => {
@@ -542,10 +698,14 @@ await describe({
                 thaw: thawStages(config,),
                 rollback: rollbackStages({ c: config, stamp: '20260101T000000Z', },),
               };
-              for (const [phase, stages,] of Object.entries(sets,)) {
+              const resolved = await Promise.all(Object.entries(sets,).map(async ([phase, stages,],) => ({
+                phase,
+                stages,
+                withCommands: await withCommands({ stages, config, },),
+              }),),);
+              for (const { phase, stages, withCommands: pairs, } of resolved) {
                 expect(new Set(stages.map((s,) => s.id),).size,).toBe(stages.length,);
-                for (const s of stages) {
-                  const command = await resolvedCommand({ stage: s, config, },);
+                for (const { stage: s, command, } of pairs) {
                   expect(s.unprivileged.length,).toBeGreaterThan(10,);
                   // The one stage that only prints the removals for a person to run names sudo in text it echoes.
                   const usesSudo = s.id === 'f8-cleanup-printed' ? false : commandWords(command,).includes('sudo',);
@@ -570,10 +730,53 @@ await describe({
               expect(ids.indexOf('f2b-snapshot-folder',),).toBeLessThan(ids.indexOf('f3a-print',),);
               expect(made.root,).toBe('yes',);
               expect(made.command,).toContain('sudo mkdir --parents /x/source/snap',);
-              for (const s of stages) {
-                const texts = [await resolvedCommand({ stage: s, config, },), s.check ?? '', s.rollback ?? '',].join('\n',);
+              for (const { stage: s, command, } of await withCommands({ stages, config, },)) {
+                const texts = [command, s.check ?? '', s.rollback ?? '',].join('\n',);
                 expect([s.id, texts.includes('/x/snap',),],).toEqual([s.id, false,],);
               }
+            },);
+          },
+        },),
+        it({
+          name: 'the fixture images are sized from what the fixture stages write, and every stage that guards free space uses the one guard minimum',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const stages = await prepareStages({ c: config, fixtureFolder: '/x', },);
+              const images = await resolvedCommand({ stage: stages.find((s,) => s.id === 'f1-images',) as Stage, config, },);
+              const sizes = numbersAfter({ text: images, marker: 'truncate --size=', },);
+              const bytesWrittenMiB = FIXTURE_MAIN_DATA_MIB * FIXTURE_SUBVOLUME_COUNT * FIXTURE_COPY_SETS_KEPT;
+              const mibPerGib = 1_024;
+              expect(sizes.length,).toBeGreaterThan(0,);
+              for (const size of sizes) {
+                expect(size * mibPerGib,).toBeGreaterThanOrEqual(bytesWrittenMiB + (FIXTURE_GUARD_MIN_GIB * mibPerGib),);
+              }
+              const populate = await resolvedCommand({ stage: stages.find((s,) => s.id === 'f2-populate',) as Stage, config, },);
+              expect(populate,).toContain(`head --bytes=${String(FIXTURE_MAIN_DATA_MIB,)}M`,);
+              const guards: number[] = [];
+              for (const s of stages) {
+                // oxlint-disable-next-line eslint/no-await-in-loop -- the stages are resolved in order and each resolution is cheap
+                guards.push(...numbersAfter({ text: await resolvedCommand({ stage: s, config, },), marker: '--min-free-gib=', },),);
+              }
+              expect(guards.length,).toBeGreaterThan(0,);
+              for (const guard of guards.filter((value,) => value !== config.minFreeGiB,)) {
+                expect(guard,).toBe(FIXTURE_GUARD_MIN_GIB,);
+              }
+            },);
+          },
+        },),
+        it({
+          name: 'the deadline stage declares the statuses it accepts instead of swallowing them in its shell text, and works in fresh folders so a rerun never meets its own partial receive',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const stages = await prepareStages({ c: config, fixtureFolder: '/x', },);
+              const deadline = stages.find((s,) => s.id === 'f5a-deadline',) as Stage;
+              expect(deadline.okCodes,).toEqual([0, 1,],);
+              const command = await resolvedCommand({ stage: deadline, config, },);
+              expect(command,).not.toContain('$?',);
+              expect(command,).not.toContain('script exit status',);
+              expect(command,).toContain('mktemp --directory /x/dest/recv-f5a.',);
+              expect(deadline.check,).toContain('exited 124',);
+              expect((stages.find((s,) => s.id === 'f5b-leftover',) as Stage).okCodes,).toEqual([1,],);
             },);
           },
         },),
@@ -615,12 +818,15 @@ await describe({
           name: 'a dry run of every command through the built bin exits 0, lists its stages and creates no state',
           fn: async () => {
             await withConfig(async ({ config, home, },) => {
-              for (const command of ['prepare', 'cutover', 'thaw', 'rollback',]) {
-                const result = await execFileAsync(process.execPath, [BIN, command, '--dry-run',], {
+              const results = await Promise.all(['prepare', 'cutover', 'thaw', 'rollback',].map(async (command,) => ({
+                command,
+                result: await execFileAsync(process.execPath, [BIN, command, '--dry-run',], {
                   encoding: 'utf8',
                   env: { ...process.env, HOME: home, },
                   cwd: '/',
-                },);
+                },),
+              }),),);
+              for (const { command, result, } of results) {
                 expect(result.stdout,).toContain(`${command} finished (dry run`,);
                 expect(result.stdout,).toContain('== stage 1/',);
               }
@@ -688,7 +894,9 @@ await describe({
               await markPrepareDone({ config, ids: ['i1-install-link-check', 'i2-record-before',], },);
               const first = await runPrepareWithStandIns({ home, standIns, },);
               expect(first,).toContain('both mount lines are loop devices',);
-              expect(await exists(join(config.wiz, 'done', 'prepare', 'f1-images',),),).toBe(true,);
+              expect(
+                await exists(join(config.wiz, 'done', 'prepare', 'f1-images',),),
+              ).toBe(true,);
               const again = await runPrepareWithStandIns({ home, standIns, flags: ['--redo=f1-images',], },);
               expect(again,).not.toContain('cannot overwrite',);
               expect(again,).not.toContain('File exists',);
@@ -706,9 +914,10 @@ await describe({
                 thawStages(config,),
                 rollbackStages({ c: config, stamp: 'S', },),
               ];
-              for (const stages of sets) {
-                for (const s of stages) {
-                  const texts = [await resolvedCommand({ stage: s, config, },), s.check ?? '', s.rollback ?? '',];
+              const resolvedSets = await Promise.all(sets.map(async (stages,) => await withCommands({ stages, config, },),),);
+              for (const pairs of resolvedSets) {
+                for (const { stage: s, command, } of pairs) {
+                  const texts = [command, s.check ?? '', s.rollback ?? '',];
                   for (const text of texts) {
                     for (const line of ['\n', ';', '|', '&', '(', ')',].reduce((joined, separator,) => joined.replaceAll(separator, '\n',), text,).split('\n',).filter((row,) => row.includes('findmnt',))) {
                       const words = commandWords(line,);
@@ -735,6 +944,38 @@ await describe({
           },
         },),
         it({
+          name: 'status says not to delete the old tree after the swap until the checksum verification of the final copies is done',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              await mkdir(join(config.wiz, 'done', 'cutover',), { recursive: true, },);
+              await writeFile(join(config.wiz, 'swap-timestamp',), '20260101T000000Z\n',);
+              const before: string[] = [];
+              await runGuided({ config, flags: { command: 'status', dryRun: false, redo: [], asserted: [], }, out: (text,) => {
+                before.push(text,);
+              }, },);
+              expect(before.join('',),).toContain('DO NOT DELETE the old tree',);
+              await writeFile(join(config.wiz, 'done', 'cutover', 'c22-verify-final-checksum',), 'done\n',);
+              const after: string[] = [];
+              await runGuided({ config, flags: { command: 'status', dryRun: false, redo: [], asserted: [], }, out: (text,) => {
+                after.push(text,);
+              }, },);
+              expect(after.join('',),).toContain('may be deleted by you',);
+            },);
+          },
+        },),
+        it({
+          name: 'the cut-over verifies the final copies inside the window after the final pass and by checksum after the release',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const ids = (await cutoverStages({ c: config, stamp: 'S', },)).map((s,) => s.id);
+              const at = (id: string,) => ids.indexOf(id,);
+              expect(at('c10-final-pass',),).toBeLessThan(at('c10b-verify-final',),);
+              expect(at('c10b-verify-final',),).toBeLessThan(at('c19-swap',),);
+              expect(at('c21-release',),).toBeLessThan(at('c22-verify-final-checksum',),);
+            },);
+          },
+        },),
+        it({
           name: 'status lists nothing completed on a fresh home, and an unknown command exits 64',
           fn: async () => {
             await withConfig(async ({ home, },) => {
@@ -745,7 +986,7 @@ await describe({
                 await execFileAsync(process.execPath, [BIN, 'sideways',], { encoding: 'utf8', env: { ...process.env, HOME: home, }, cwd: '/', },);
               }
               catch (error) {
-                code = (error as { code: number; }).code;
+                code = Number(childFailureOf(error,).code,);
               }
               expect(code,).toBe(64,);
             },);
@@ -766,8 +1007,9 @@ await describe({
                 },);
               }
               catch (error) {
-                code = (error as { code: number; }).code;
-                stderr = (error as { stdout: string; }).stdout;
+                const failure = childFailureOf(error,);
+                code = Number(failure.code,);
+                stderr = failure.stdout;
               }
               expect(code,).toBe(64,);
               expect(stderr,).toContain('inside the repository',);

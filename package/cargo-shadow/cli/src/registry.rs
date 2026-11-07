@@ -325,6 +325,14 @@ pub fn sparse_index_path(name: &str) -> String {
     return format!("{}/{}/{lower}", &lower[..2], &lower[2..4]);
 }
 
+/// What:
+/// `fn registry_error_of_dump(error: DumpFormatError) -> RegistryError` words a malformed dump as a registry failure with no status.
+/// Why:
+/// `Result::map_err` takes it by path instead of a closure.
+fn registry_error_of_dump(error: crate::csv::DumpFormatError) -> RegistryError {
+    return RegistryError { message: error.message, status: None, retry_after_seconds: 0 };
+}
+
 /// Reads a string field,
 /// empty when absent or not a string.
 fn string_field(object: &Value, key: &str) -> String {
@@ -989,7 +997,7 @@ impl Registry for CratesIo {
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Closure `|error|`: an anonymous function, like a TS arrow function.
             // `.map_err(...)`: converts the callee's error into this function's error type.
-            .map_err(|error| { return RegistryError { message: error.message, status: None, retry_after_seconds: 0 }; })?;
+            .map_err(registry_error_of_dump)?;
         // Macro `eprintln!`: builds or prints text (or a list) from a template.
         eprintln!(
             "cargo-shadow: dump: {} found, {} written, {} already cached, {} left to the API (possible Trusted Publishing releases)",
@@ -1080,7 +1088,14 @@ impl Registry for CratesIo {
         let known: BTreeSet<&str> = cached.iter().map(version_number_of).collect();
         // Closure `|version|`: an anonymous function, like a TS arrow function.
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-        if !cached.is_empty() && versions.iter().all(|version| { return known.contains(version.as_str()); }) {
+        let mut all_known: bool = true;
+        for version in versions {
+            if !known.contains(version.as_str()) {
+                all_known = false;
+                break;
+            }
+        }
+        if !cached.is_empty() && all_known {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             return Ok(cached);
         }

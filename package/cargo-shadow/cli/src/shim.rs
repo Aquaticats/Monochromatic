@@ -379,10 +379,29 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
 pub(crate) fn rerun_command(arguments: &[std::ffi::OsString]) -> String {
     // POSIX shell quoting: a word of plain characters stays as it is; anything else is single-quoted, with each single quote
     // written as close-quote, escaped quote, open-quote. Bytes that are not text are shown as the replacement character.
-    let word = |argument: &std::ffi::OsString| -> String {
-        let text: String = argument.to_string_lossy().to_string();
-        let plain: bool = !text.is_empty() && text.chars().all(|character| { return character.is_ascii_alphanumeric() || "_@%+=:,./-".contains(character); });
-        return if plain { text } else { format!("'{}'", text.replace('\'', "'\\''")) };
-    };
-    return format!("cargo {}", arguments.iter().map(word).collect::<Vec<String>>().join(" "));
+    let mut words: Vec<String> = Vec::new();
+    for argument in arguments {
+        words.push(shell_word(argument.as_os_str()));
+    }
+    return format!("cargo {}", words.join(" "));
+}
+
+/// What:
+/// `fn shell_word(argument: &std::ffi::OsStr) -> String` writes one argument as a POSIX shell word:
+/// a word of plain characters stays as it is,
+/// anything else is single-quoted.
+/// Why:
+/// A function replaces the closure that `rerun` mapped over the arguments.
+fn shell_word(argument: &std::ffi::OsStr) -> String {
+    let text: String = argument.to_string_lossy().to_string();
+    let plain: bool = !text.is_empty() && text.chars().all(is_plain_shell_character);
+    return if plain { text } else { format!("'{}'", text.replace('\'', "'\\''")) };
+}
+
+/// What:
+/// `fn is_plain_shell_character(character: char) -> bool` says whether a character needs no quoting in a shell word.
+/// Why:
+/// `chars().all` takes it by path instead of a closure.
+fn is_plain_shell_character(character: char) -> bool {
+    return character.is_ascii_alphanumeric() || "_@%+=:,./-".contains(character);
 }

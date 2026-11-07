@@ -98,6 +98,20 @@ const MAX_REVEAL_ATTEMPTS: u32 = 20;
 const REVEAL_INTERVAL_MS: u64 = 8;
 
 /// What:
+///  the source of the widget for a pane that has none yet.
+/// Why:
+///  `reconcile` builds missing widgets through this trait instead of a closure,
+///  so the strip passes itself as data and no callable is created per call.
+pub(crate) trait PaneWidgetBuilder {
+    /// What:
+    ///  build the widget for pane `id`.
+    /// Why:
+    ///  the layout owns placement,
+    ///  the implementor owns what a pane shows.
+    fn build_widget(&self, id: PaneId) -> Widget;
+}
+
+/// What:
 ///  the sticky layout adapter for the pane strip.
 /// Why:
 ///  callers provide placements and widget builders;
@@ -239,7 +253,7 @@ impl StickyLayout {
 
     /// What:
     ///  reconcile GTK widgets to `placements`,
-    ///  building missing panes through `build_widget`.
+    ///  building missing panes through `builder`.
     /// Why:
     ///  one idempotent pass after each model mutation removes stale widgets,
     ///  creates missing
@@ -249,13 +263,16 @@ impl StickyLayout {
     pub(crate) fn reconcile(
         self: &Rc<Self>,
         placements: Vec<Placement>,
-        mut build_widget: impl FnMut(PaneId) -> Widget,
+        builder: &impl PaneWidgetBuilder,
     ) {
         self.placements.replace(placements.clone());
-        let live: Vec<PaneId> = placements.iter().map(|placement| return placement.id).collect();
+        let mut live: Vec<PaneId> = Vec::new();
+        for placement in &placements {
+            live.push(placement.id);
+        }
         self.remove_stale(&live);
         for placement in &placements {
-            self.ensure_pane_widget(placement, &mut build_widget);
+            self.ensure_pane_widget(placement, builder);
         }
         self.set_content_size(&placements);
         self.position_all();
@@ -267,13 +284,12 @@ impl StickyLayout {
     /// Why:
     ///  closed panes must leave the canvas and the widget map.
     fn remove_stale(&self, live: &[PaneId]) {
-        let stale: Vec<PaneId> = self
-            .widgets
-            .borrow()
-            .keys()
-            .copied()
-            .filter(|id| return !live.contains(id))
-            .collect();
+        let mut stale: Vec<PaneId> = Vec::new();
+        for id in self.widgets.borrow().keys() {
+            if !live.contains(id) {
+                stale.push(*id);
+            }
+        }
         for id in stale {
             if let Some(widget) = self.widgets.borrow_mut().remove(&id) {
                 self.canvas.remove(&widget);
@@ -289,12 +305,12 @@ impl StickyLayout {
     fn ensure_pane_widget(
         &self,
         placement: &Placement,
-        build_widget: &mut impl FnMut(PaneId) -> Widget,
+        builder: &impl PaneWidgetBuilder,
     ) {
         if self.widgets.borrow().contains_key(&placement.id) {
             return;
         }
-        let widget = build_widget(placement.id);
+        let widget = builder.build_widget(placement.id);
         widget.set_size_request(PANE_WIDTH, PANE_HEIGHT);
         self.canvas
             .put(&widget, column_x(placement.column), band::row_y(placement.row));
@@ -306,9 +322,14 @@ impl StickyLayout {
     /// Why:
     ///  the scroller's ranges on both axes follow the canvas's requested size.
     fn set_content_size(&self, placements: &[Placement]) {
-        let max_column = placements.iter().map(|placement| return placement.column).max();
-        let max_row = placements.iter().map(|placement| return placement.row).max();
-        let (Some(last_column), Some(last_row)) = (max_column, max_row) else {
+        let mut extent: Option<(usize, usize)> = None;
+        for placement in placements {
+            extent = match extent {
+                Some((column, row)) => Some((column.max(placement.column), row.max(placement.row))),
+                None => Some((placement.column, placement.row)),
+            };
+        }
+        let Some((last_column, last_row)) = extent else {
             self.canvas.set_size_request(0, 0);
             return;
         };
@@ -372,13 +393,7 @@ impl StickyLayout {
     ///  a cost the
     ///      original also pays and the browser build does not.
     pub(crate) fn scroll_to_pane(self: &Rc<Self>, id: PaneId) {
-        let Some(placement) = self
-            .placements
-            .borrow()
-            .iter()
-            .find(|placement| return placement.id == id)
-            .copied()
-        else {
+        let Some(placement) = band::placement_by_id(&self.placements.borrow(), id) else {
             return;
         };
         let pane = self.widgets.borrow().get(&id).cloned();

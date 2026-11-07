@@ -4,10 +4,12 @@
  @module
  */
 
-import { execFile, } from 'node:child_process';
 import { join, } from 'node:path';
-import { promisify, } from 'node:util';
 import type { Fixture, } from './move-fixture.ts';
+import {
+  execFileAsync,
+  childFailureOf,
+} from '../dist/final/node/index.mjs';
 
 /**
  What a run of the copy tool printed and how it ended.
@@ -17,11 +19,6 @@ export type RunResult = {
   readonly stdout: string;
   readonly stderr: string;
 };
-
-/**
- Runs a program and waits for it to end.
- */
-const execFileAsync = promisify(execFile,);
 
 /**
  Name of the folder inside the fixture that stands for the filesystem's top level in the inventory paths.
@@ -51,6 +48,8 @@ export const COPY_TOOL: string = new URL(
  
  @param run - false for print mode, which shows every command and runs none; true by default
  
+ @param minFreeGiB - the free space the received folder's filesystem must keep before each copy; zero (no guard) by default
+ 
  @param snapshotFolder - the snapshot folder; the fixture's own `snap` folder when absent
  
  @param receivedFolder - the received folder; the fixture's own `recv` folder when absent
@@ -73,16 +72,24 @@ export async function runCopyTool(
     extra = [],
     env = {},
     run = true,
+    minFreeGiB = 0,
     mainPath = fixture.main,
     inventoryBase = fixture.base,
-    snapshotFolder = join(fixture.base, 'snap',),
-    receivedFolder = join(fixture.base, 'recv',),
+    snapshotFolder = join(
+      fixture.base,
+      'snap',
+    ),
+    receivedFolder = join(
+      fixture.base,
+      'recv',
+    ),
   }: {
     readonly fixture: Fixture;
     readonly pass: string;
     readonly extra?: readonly string[];
     readonly env?: Readonly<Record<string, string>>;
     readonly run?: boolean;
+    readonly minFreeGiB?: number;
     readonly mainPath?: string;
     readonly inventoryBase?: string;
     readonly snapshotFolder?: string;
@@ -116,7 +123,7 @@ export async function runCopyTool(
         ...(run ? ['--run',] : []),
         '--no-scope',
         '--subvolume-marker=.stub-subvolume',
-        '--min-free-gib=0',
+        `--min-free-gib=${String(minFreeGiB,)}`,
         ...extra,
       ],
       {
@@ -127,6 +134,7 @@ export async function runCopyTool(
             .PATH
             ?? ''}`,
           BTRFS_DOUBLE_LOG: fixture.doubleLog,
+          BTRFS_DOUBLE_ROOT: fixture.base,
           ...env,
         },
       },
@@ -141,13 +149,9 @@ export async function runCopyTool(
     /**
      The caught failure, in the shape the caller reads.
      */
-    const failure = error as {
-      readonly code: number;
-      readonly stdout: string;
-      readonly stderr: string;
-    };
+    const failure = childFailureOf(error,);
     return {
-      status: failure.code,
+      status: (typeof failure.code) === 'number' ? failure.code : 1,
       stdout: failure.stdout,
       stderr: failure.stderr,
     };

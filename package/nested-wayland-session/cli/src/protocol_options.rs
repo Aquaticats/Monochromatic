@@ -3,6 +3,9 @@
 /// Sibling modules of this crate.
 use crate::key_chord::parse_chord;
 
+/// Error text that is built only on failure.
+use crate::lazy_error_text::result_or_text;
+
 /// Positional arguments and `name=value` options split apart.
 ///
 /// What:
@@ -55,8 +58,10 @@ pub(super) fn split<'a>(
         if !allowed.contains(&name) {
             return Err(format!("{verb} does not take {name}=; its options are {}", allowed.join(", ")))
         }
-        if pairs.iter().any(|(existing, _)| return *existing == name) {
-            return Err(format!("{verb} option {name}= was given twice"))
+        for (existing, _) in &pairs {
+            if *existing == name {
+                return Err(format!("{verb} option {name}= was given twice"))
+            }
         }
         pairs.push((name, value));
     }
@@ -78,11 +83,18 @@ impl Options<'_> {
     /// number(name: string, fallback: number, range: [number, number]): number { ... }
     /// ```
     pub(super) fn number(&self, name: &str, default: u64, range: (u64, u64)) -> Result<u64, String> {
-        let Some((_, value)) = self.pairs.iter().find(|(key, _)| return *key == name) else {
+        let mut found = None;
+        for (key, value) in &self.pairs {
+            if *key == name {
+                found = Some(value);
+                break;
+            }
+        }
+        let Some(value) = found else {
             return Ok(default)
         };
         let verb = self.verb;
-        let parsed = value.parse::<u64>().map_err(|_| return format!("{verb} {name}= is not a whole number: {value}"))?;
+        let parsed = result_or_text(value.parse::<u64>(), format_args!("{verb} {name}= is not a whole number: {value}"))?;
         if parsed < range.0 || parsed > range.1 {
             return Err(format!("{verb} {name}= must be from {} to {}, got: {parsed}", range.0, range.1))
         }
@@ -103,10 +115,19 @@ impl Options<'_> {
     /// modifiers(): string { ... }
     /// ```
     pub(super) fn modifiers(&self) -> Result<String, String> {
-        let Some((_, value)) = self.pairs.iter().find(|(key, _)| return *key == "mods") else {
+        let mut found = None;
+        for (key, value) in &self.pairs {
+            if *key == "mods" {
+                found = Some(value);
+                break;
+            }
+        }
+        let Some(value) = found else {
             return Ok(String::new())
         };
-        parse_chord(value).map_err(|message| return format!("{} mods= {message}", self.verb))?;
+        if let Err(message) = parse_chord(value) {
+            return Err(format!("{} mods= {message}", self.verb))
+        }
         return Ok((*value).to_string())
     }
 }

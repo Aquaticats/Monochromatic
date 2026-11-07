@@ -32,6 +32,13 @@
 
 /// The patience of a run that ends on a stall.
 use crate::bounded_push::Patience;
+/// A child owned until it is reaped,
+/// and awaited on the runtime through its pidfd.
+use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
+/// The process's runtime:
+/// the synchronous face enters it,
+/// and the reaper of a late leader runs on it.
+use crate::lazy_runtime::{run_on_runtime, spawn_on_runtime};
 /// The clock that reads the signs of work of a process tree.
 use crate::push_progress::Clock;
 /// The longest quiet gap of each tool,
@@ -285,7 +292,16 @@ fn describe_status(status: std::process::ExitStatus) -> String {
 /// async function runTool(program: string, command: ToolCommand, limits: { windowMs: number; ceilingMs: number }): Promise<ToolRun>;
 /// ```
 pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> ToolRun {
-    return run_tool_reaping(program, command, limits, &reap_within_stop_grace);
+    let started: Instant = Instant::now();
+    return match run_on_runtime(run_tool_reaping(program, command, limits, &reap_within_stop_grace)) {
+        Ok(run) => run,
+        Err(refusal) => ToolRun {
+            end: ToolEnd::Failed(format!("{} could not be run: {refusal}", program.display())),
+            millis: started.elapsed().as_millis(),
+            stdout: Vec::new(),
+            notes: Vec::new(),
+        },
+    };
 }
 
 /// What:
@@ -300,8 +316,8 @@ pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> To
 /// ```ts
 /// const reapWithinStopGrace = (leader: Child, _captured: Capture) => reapWithin(leader, STOP_GRACE);
 /// ```
-fn reap_within_stop_grace(leader: Child, _captured: &Capture) -> bool {
-    return reap_within(leader, crate::bounded_push::STOP_GRACE);
+async fn reap_within_stop_grace(leader: Child, _captured: &Capture) -> bool {
+    return reap_within(leader, crate::bounded_push::STOP_GRACE).await;
 }
 
 /// The run of a tool that never started because the files for its output could not be made.
@@ -309,9 +325,12 @@ fn no_place_for_output(program: &Path, started: Instant, error: &std::io::Error)
     return ToolRun { end: ToolEnd::Failed(format!("{} could not be started: no place for its output ({error})", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() };
 }
 
-/// `run_tool` with the reaper of a stopped leader given:
+/// `run_tool` as a task of the runtime,
+/// with the reaper of a stopped leader given:
 /// a control sees that the stop path reaps through it.
-pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimits, reap: &dyn Fn(Child, &Capture) -> bool) -> ToolRun {
+///  The wait for the tool is awaited on its pidfd,
+/// and the looks at the clock and the ceiling are made at `POLL_INTERVAL`.
+pub async fn run_tool_reaping<Reap: AsyncFn(Child, &Capture) -> bool>(program: &Path, command: &ToolCommand, limits: ToolLimits, reap: &Reap) -> ToolRun {
     use std::os::unix::process::CommandExt;
     let started: Instant = Instant::now();
     let mut starting: Command = Command::new(program);
@@ -331,15 +350,15 @@ pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimit
     for (name, value) in &command.set {
         starting.env(name, value);
     }
-    let mut child: Child = match starting.spawn() {
-        Ok(running) => running,
+    let mut child: OwnedChild = match starting.spawn() {
+        Ok(running) => adopt(running),
         Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not start: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() },
     };
     let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall: limits.window }).without_wall_fallback();
     let mut at_ceiling: bool = false;
     let mut wait_failure: Option<std::io::Error> = None;
     let status: Option<std::process::ExitStatus> = loop {
-        match wait_status(&mut child) {
+        match wait_status(&mut child).await {
             Ok(Some(done)) => break Some(done),
             // The ceiling ends the program whatever it shows (owner, 2026-11-04, "Silence plus a ceiling (Recommended)").
             Ok(None) if started.elapsed() >= limits.ceiling => {
@@ -347,7 +366,7 @@ pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimit
                 break None;
             }
             Ok(None) if clock.check().is_some() => break None,
-            Ok(None) => std::thread::sleep(POLL_INTERVAL),
+            Ok(None) => {}
             // A wait that fails is a stop like the others: the group is stopped, the pages are released and the leader is reaped below.
             Err(error) => {
                 wait_failure = Some(error);
@@ -360,12 +379,15 @@ pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimit
         quiet_ledger::note(tool_step(program, command).as_str(), clock.longest_quiet(), status.is_none() && !at_ceiling && wait_failure.is_none());
     }
     let Some(finished) = status else {
-        stop_group(&child);
+        stop_group(child.id());
         // The leader is reaped so it leaves no zombie, within a budget: a process in uninterruptible I/O ends only when the I/O does,
         // and a wait with no bound would keep the add for as long as it lasts. Nothing waits for the output, which is in files.
         // What the tool wrote is released first: nobody reads it, and a descendant that keeps the files open would keep the pages.
         captured.discard();
-        let _reaped_in_time: bool = reap(child, &captured);
+        // A leader that the wait has collected (it ended while the wait failed) has nothing left to reap.
+        if let Some(leader) = child.into_std_when_unreaped() {
+            let _reaped_in_time: bool = reap(leader, &captured).await;
+        }
         let end: ToolEnd = match wait_failure {
             Some(error) => ToolEnd::Failed(format!("{} could not be waited for: {error}", program.display())),
             None if at_ceiling => ToolEnd::CeilingReached(limits.ceiling),
@@ -388,14 +410,19 @@ pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimit
     return ToolRun { end: ToolEnd::Failed(format!("{}: {text}{disclosed}", describe_status(finished))), millis, stdout: Vec::new(), notes: shown.notes };
 }
 
-/// `Child::try_wait`,
-/// and in a control an error once the file the seam names exists.
-fn wait_status(child: &mut Child) -> std::io::Result<Option<std::process::ExitStatus>> {
+/// The child's end if it comes within `POLL_INTERVAL`,
+/// awaited on its pidfd,
+/// and in a control an error once the file the seam
+///  names exists.
+async fn wait_status(child: &mut OwnedChild) -> std::io::Result<Option<std::process::ExitStatus>> {
     #[cfg(test)]
     if WAIT_FAILS_ONCE_THIS_FILE_EXISTS.with(|seam| { return seam.borrow().as_ref().is_some_and(|path| { return path.exists(); }); }) {
         return Err(std::io::Error::other("the wait failed"));
     }
-    return child.try_wait();
+    return match tokio::time::timeout(POLL_INTERVAL, child.wait()).await {
+        Ok(ended) => ended.map(Some),
+        Err(_not_yet) => Ok(None),
+    };
 }
 
 #[cfg(test)]
@@ -408,32 +435,31 @@ thread_local! {
 /// What:
 ///  Reap `child` within `budget`;
 /// when it has not ended by then,
-/// hand it to a thread that reaps it whenever it does.
+/// hand it to a task that reaps it whenever it does.
 /// Why:
 ///   The stop is a signal,
 /// and a process whose kernel call cannot be interrupted ends only when the call does.
 /// The add returns
 ///  without it,
-/// and the thread keeps the leader from becoming a zombie for good.
+/// and the task keeps the leader from becoming a zombie for good.
 /// True when the leader ended within the budget.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const ended = await reapWithin(child, budgetMs); // false: a background task reaps it later
 /// ```
-fn reap_within(mut child: Child, budget: Duration) -> bool {
-    let began: Instant = Instant::now();
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => return true,
-            Ok(None) if began.elapsed() < budget => std::thread::sleep(POLL_INTERVAL),
-            Ok(None) | Err(_) => break,
-        }
+async fn reap_within(child: Child, budget: Duration) -> bool {
+    let mut owned: OwnedChild = adopt(child);
+    if let Ok(Ok(_status)) = tokio::time::timeout(budget, owned.wait()).await {
+        return true;
     }
-    // A thread that cannot be started leaves the leader to the system's init when this process ends; the add goes on either way.
-    let _handed = std::thread::Builder::new().name(String::from("cli-git-leader-reaper")).spawn(move || {
-        let _reaped = child.wait();
-    });
+    // A runtime with no worker leaves the leader to the system's init when this process ends; the add goes on either way.
+    if let Some(late) = owned.into_std_when_unreaped() {
+        let _handed = spawn_on_runtime(async move {
+            let mut reaper: OwnedChild = adopt(late);
+            let _reaped = reaper.wait().await;
+        });
+    }
     return false;
 }
 
@@ -472,8 +498,8 @@ fn tool_step(program: &Path, command: &ToolCommand) -> String {
 /// ```ts
 /// process.kill(-child.pid, 'SIGKILL');
 /// ```
-fn stop_group(child: &Child) {
-    let Ok(leader) = libc::pid_t::try_from(child.id()) else { return };
+fn stop_group(leader_id: u32) {
+    let Ok(leader) = libc::pid_t::try_from(leader_id) else { return };
     // SAFETY: `kill` takes a process-group id and a signal number and touches no memory; the group was made by this process.
     let _stopped = unsafe { libc::kill(-leader, libc::SIGKILL) };
 }

@@ -16,7 +16,10 @@ import {
   hookUnitEdit,
 } from './guided-stage-hooks.ts';
 import { externalNames, } from './guided-holders.ts';
-import { SUBVOLUME_REMOVAL_OPTION, } from './guided-unit-edit.ts';
+import {
+  STOP_PATH_MARKER,
+  SUBVOLUME_REMOVAL_OPTION,
+} from './guided-unit-edit.ts';
 
 /**
  The argument list of the copy tool for the real move.
@@ -222,11 +225,11 @@ stat --format='%U:%G %a %n' ${c.snapshots} ${c.destRoot} ${c.received} ${c.exter
     {
       id: 'm1a-unit-edit',
       title: 'Prepare the edited 860 mount unit',
-      says: `The 860 mount gains ${SUBVOLUME_REMOVAL_OPTION} (the plan's adopted decision) so the wrapper can remove a worktree subvolume with BTRFS_IOC_SNAP_DESTROY. This step only writes the edited copy of ${c.unitPath} and keeps the unit as it is, both in ${c.wiz}; nothing live changes.`,
+      says: `The 860 mount gains ${SUBVOLUME_REMOVAL_OPTION} (the plan's adopted decision) so the wrapper can remove a worktree subvolume with BTRFS_IOC_SNAP_DESTROY. The stop block of the unit changes too (plan item W11): when something still holds ${c.drive} open, stopping the unit lists the holders and leaves the drive open instead of hiding the failure and closing the encrypted volume under them; no lazy or forced unmount is ever used. This step only writes the edited copy of ${c.unitPath} and keeps the unit as it is, both in ${c.wiz}; nothing live changes.`,
       command: 'true',
       internal: hookUnitEdit,
-      check: `test -e ${c.wiz}/mount-860.service.new || grep --fixed-strings --quiet ${SUBVOLUME_REMOVAL_OPTION} ${c.unitPath}`,
-      checkText: 'the edited copy exists, or the unit already has the option',
+      check: `test -e ${c.wiz}/mount-860.service.new || (grep --fixed-strings --quiet ${SUBVOLUME_REMOVAL_OPTION} ${c.unitPath} && grep --fixed-strings --quiet '${STOP_PATH_MARKER}' ${c.unitPath})`,
+      checkText: 'the edited copy exists, or the unit already has the option and the new stop block',
       rollback: 'read-only',
       root: 'no',
       unprivileged: 'not needed: the unit is world-readable and the edit is made on a copy',
@@ -239,8 +242,8 @@ stat --format='%U:%G %a %n' ${c.snapshots} ${c.destRoot} ${c.received} ${c.exter
 sudo systemctl daemon-reload
 sudo mount -o remount,${SUBVOLUME_REMOVAL_OPTION} ${c.drive}
 findmnt --target ${c.drive} --output OPTIONS`,
-      check: `grep --fixed-strings --quiet ${SUBVOLUME_REMOVAL_OPTION} ${c.unitPath} && findmnt --noheadings --target ${c.drive} --output OPTIONS | grep --fixed-strings --quiet ${SUBVOLUME_REMOVAL_OPTION} && systemctl cat mount-860.service | grep --fixed-strings --quiet ${SUBVOLUME_REMOVAL_OPTION}`,
-      checkText: `the unit file, systemctl cat and the live mount options all name ${SUBVOLUME_REMOVAL_OPTION}`,
+      check: `grep --fixed-strings --quiet ${SUBVOLUME_REMOVAL_OPTION} ${c.unitPath} && findmnt --noheadings --target ${c.drive} --output OPTIONS | grep --fixed-strings --quiet ${SUBVOLUME_REMOVAL_OPTION} && systemctl cat mount-860.service | grep --fixed-strings --quiet ${SUBVOLUME_REMOVAL_OPTION} && systemctl cat mount-860.service | grep --fixed-strings --quiet '${STOP_PATH_MARKER}'`,
+      checkText: `the unit file, systemctl cat and the live mount options all name ${SUBVOLUME_REMOVAL_OPTION}, and systemctl cat shows the stop block that names the holders`,
       rollback: `sudo cp ${c.wiz}/mount-860.service.before ${c.unitPath} && sudo systemctl daemon-reload (the live mount keeps the option until the next mount; a remount without it is: sudo mount -o remount,nouser_subvol_rm_allowed ${c.drive})`,
       root: 'yes',
       unprivileged: 'none: a remount and a file under /etc/systemd/system both need root',
@@ -302,6 +305,19 @@ ${rootCopy} --run --pass=first ${args} --deadline-seconds=${String(c.transferDea
       rollback: 'read-only',
       root: 'yes',
       unprivileged: 'du of the checkout works as the user except for root-owned files; root is used so every file is counted',
+    },
+    {
+      id: 'p4f-verify-first',
+      title: 'Verify every first-pass copy',
+      says: `Every first-pass copy against the read-only snapshot it was sent from, with rsync --dry-run by path, type, size, time and mode (no data is read), outside any window because both sides are immutable. The nested subvolume folders a snapshot shows empty are the only excused differences. A difference stops the run and names the copy.`,
+      command: `${rootCopy} --run --pass=verify-first ${args} --deadline-seconds=${String(c.transferDeadlineSeconds,)} --total-deadline-seconds=${String(c.firstPassTotalSeconds,)}`,
+      check: `grep --fixed-strings 'verify-first finished' "$OUTPUT_FILE"`,
+      checkText: "'verify-first finished': every copy matches its snapshot",
+      rollback: 'read-only comparison; nothing changed. A copy that differs is deleted by you (the tool names it) and sent again',
+      timeoutSeconds: c.firstPassTotalSeconds + (c.killGraceSeconds
+        * 2),
+      root: 'yes',
+      unprivileged: 'none: the comparison reads files only root can read (root-owned logs inside some worktrees) and the copy tool runs the same root scopes as the transfers',
     },
   ];
 }

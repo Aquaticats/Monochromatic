@@ -64,6 +64,8 @@ export class EnvLocalJsonPathError extends Error {
 
    @param reason - why the path could not be used
 
+   @param linkCause - plain cause from the repository link check, empty or absent when the path is not under the repository link
+
    @example
    ```ts
    throw new EnvLocalJsonPathError({ path: '/no/store.json', reason: 'missing' });
@@ -72,11 +74,13 @@ export class EnvLocalJsonPathError extends Error {
   public constructor({
     path,
     reason,
+    linkCause,
   }: {
     readonly path: string;
     readonly reason: EnvLocalJsonPathFailureReason;
+    readonly linkCause?: string;
   },) {
-    super(`env-local-json path ${path} ${PATH_FAILURE_TEXT[reason]}`,);
+    super(`env-local-json path ${path} ${PATH_FAILURE_TEXT[reason]}${(linkCause ?? '') === '' ? '' : `; ${linkCause ?? ''}`}`,);
     this.name = 'EnvLocalJsonPathError';
     this.path = path;
     this.reason = reason;
@@ -111,13 +115,21 @@ export class EnvLocalJsonReadError extends Error {
 
    @param path - canonical store path
 
+   @param linkCause - plain cause from the repository link check, empty or absent when the path is not under the repository link
+
    @example
    ```ts
    throw new EnvLocalJsonReadError({ path: '/repo/.env.local.json' });
    ```
    */
-  public constructor({ path, }: { readonly path: string; },) {
-    super(`env store ${path} could not be read`,);
+  public constructor({
+    path,
+    linkCause,
+  }: {
+    readonly path: string;
+    readonly linkCause?: string;
+  },) {
+    super(`env store ${path} could not be read${(linkCause ?? '') === '' ? '' : `; ${linkCause ?? ''}`}`,);
     this.name = 'EnvLocalJsonReadError';
     this.path = path;
   }

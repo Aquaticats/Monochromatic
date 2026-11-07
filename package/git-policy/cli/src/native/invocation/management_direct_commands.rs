@@ -15,6 +15,7 @@
 
 /// Import the sibling modules the decision combines.
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure};
+use crate::repository_link_answer::EXIT_GIT_FATAL;
 /// A direct command asks for the worktree files its scope selects.
 use crate::candidate_prediction::CandidateRequest;
 use crate::child_environment::{child_environment_overlay, environment_value};
@@ -295,6 +296,13 @@ pub(crate) fn plan_direct(
         Gate::Stop(stderr) => {
             return Action::Exit {
                 code: ENGINE_FAILURE_EXIT_CODE,
+                stdout: String::new(),
+                stderr,
+            };
+        }
+        Gate::RepositoryUnreachable(stderr) => {
+            return Action::Exit {
+                code: EXIT_GIT_FATAL,
                 stdout: String::new(),
                 stderr,
             };

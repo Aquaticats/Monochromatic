@@ -24,7 +24,7 @@
 //! ```
 
 use crate::repo_read_layout::read_layout_in;
-use crate::service_instance::{SOCKET_DIRECTORY, instance_of, socket_for};
+use crate::service_instance::{SOCKET_DIRECTORY, socket_path, try_instance_of};
 use crate::service_provision::{ProvisionHost, RETIREMENT_WAIT};
 use crate::service_server::Bind;
 use crate::systemd_dbus::session_bus_path;
@@ -121,7 +121,10 @@ pub fn user_unit_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<
 /// ```
 pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
     let runtime_dir = inputs.runtime_dir?;
-    let socket: PathBuf = socket_for(runtime_dir, inputs.git_dir);
+    // A Git directory that cannot be resolved (a link to a drive that is not mounted) names no instance: no socket path or
+    // unit instance is made for it.
+    let instance: String = try_instance_of(inputs.git_dir).ok()?;
+    let socket: PathBuf = socket_path(runtime_dir, instance.as_str());
     let socket_exists: bool = socket.exists();
     // A bus socket that is not there is no bus to provision through.
     let bus: PathBuf = match session_bus_path(inputs.bus_address, Some(runtime_dir)) {
@@ -140,7 +143,7 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
         bus,
         service_binary,
         git: inputs.real_git.to_path_buf(),
-        instance: instance_of(inputs.git_dir),
+        instance,
         retirement_wait: RETIREMENT_WAIT,
     };
     return Some(Route { address: Bind::Path(socket), provision: Some(host) });
@@ -287,7 +290,19 @@ fn any_socket_answers(directory: &Path) -> bool {
 /// ```
 pub fn service_status(runtime_dir: Option<&Path>, git_dir: Option<&Path>) -> StatusReport {
     let (answered, what): (bool, &str) = match (runtime_dir, git_dir) {
-        (Some(runtime), Some(git)) => (service_answers(socket_for(runtime, git).as_path()), "The commit service of this worktree"),
+        (Some(runtime), Some(git)) => match try_instance_of(git) {
+            Ok(instance) => (service_answers(socket_path(runtime, instance.as_str()).as_path()), "The commit service of this worktree"),
+            Err(unreachable) => {
+                return StatusReport {
+                    code: 1,
+                    stdout: String::new(),
+                    stderr: format!(
+                        "The commit service of this worktree cannot be asked: {unreachable}. Nothing was connected to or started; \
+                         if the repository is on a drive that is not mounted, mount it and run this again.\n"
+                    ),
+                };
+            }
+        },
         (Some(runtime), None) => {
             let any: bool = any_socket_answers(runtime.join(SOCKET_DIRECTORY).as_path());
             (any, "A commit service")
