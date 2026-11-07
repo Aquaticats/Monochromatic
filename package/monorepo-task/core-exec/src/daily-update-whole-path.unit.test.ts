@@ -13,8 +13,8 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { assertPrivateBus, } from './daily-update-private-bus-fixture.ts';
 import {
-  assertPrivateBus,
   type RecordedGhCall,
   runWholePath,
 } from './daily-update-whole-path-fixture.ts';

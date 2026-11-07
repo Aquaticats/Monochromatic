@@ -375,7 +375,7 @@ export function updateEffects({
   /**
    Paths that became dirty because a command edited them.
    */
-  const edited = new Set<string>(options.dirty ?? [],);
+  const edited = new Set<string>(options.dirty,);
   return {
     repository: FIXTURE_REPOSITORY,
     runCommand: function runScripted(command: UpdateCommand,) {

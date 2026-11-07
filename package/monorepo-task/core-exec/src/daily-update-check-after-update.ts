@@ -220,6 +220,22 @@ export async function toolchainMoves({
 export const LISTED_ISSUE_LINES = 5;
 
 /**
+ The issue number written as `#N`, or nothing when there is none.
+
+ @param issueNumber - the number, absent when unknown
+
+ @returns the words
+
+ @example
+ ```ts
+ numberWords(7,); // '#7'
+ ```
+ */
+export function numberWords(issueNumber?: number,): string {
+  return issueNumber === undefined ? '' : `#${issueNumber}`;
+}
+
+/**
  Words that say what became of one issue, with where to find it.
 
  @param outcome - what came of publishing it
@@ -237,11 +253,7 @@ export function outcomeWords(outcome: PublishOutcome,): string {
   /**
    Where the issue is: its address when `gh` printed one, otherwise its number.
    */
-  const where = outcome.address !== undefined && outcome.address !== ''
-    ? outcome.address
-    : outcome.issueNumber === undefined
-    ? ''
-    : `#${outcome.issueNumber}`;
+  const where = (outcome.address ?? '') !== '' ? outcome.address : numberWords(outcome.issueNumber,);
   return `${outcome.action === 'created' ? 'issue opened' : 'comment added'}${where === '' ? '' : ` (${where})`}`;
 }
 

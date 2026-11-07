@@ -91,9 +91,31 @@ export function splitNul(output: string,): readonly string[] {
 export function notifierEnvironment({
   environment,
 }: {
-  readonly environment: NodeJS.ProcessEnv;
-},): NodeJS.ProcessEnv {
+  readonly environment: Readonly<Record<string, string>>;
+},): Readonly<Record<string, string>> {
   return { ...environment, };
+}
+
+/**
+ This process's environment without the variables that are unset.
+
+ @returns the variables that have a value
+
+ @example
+ ```ts
+ const environment = definedEnvironment();
+ ```
+ */
+export function definedEnvironment(): Readonly<Record<string, string>> {
+  /**
+   Variables with a value.
+   */
+  const defined: Record<string, string> = {};
+  for (const [name, value,] of Object.entries(process.env,)) {
+    if (value !== undefined)
+      defined[name] = value;
+  }
+  return defined;
 }
 
 /**
@@ -136,7 +158,7 @@ export async function notifyOwner({
         shown,
       ],
       {
-        env: notifierEnvironment({ environment: process.env, },),
+        env: notifierEnvironment({ environment: definedEnvironment(), },),
         timeout: NOTIFY_TIMEOUT_MS,
       },
     );
