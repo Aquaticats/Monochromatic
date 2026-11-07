@@ -19,7 +19,7 @@ fn a_current_thread_plan_builds_the_current_thread_runtime() {
         build_with_deadline(RuntimePlan::CurrentThread, BUILD_DEADLINE, |_workers, _blocking| { panic!("the multi-thread builder ran") })
             .expect("a current-thread runtime");
     assert_eq!(built.flavor, BuiltFlavor::CurrentThread);
-    assert_eq!(built.runtime.block_on(async { 7 }), 7);
+    assert_eq!(built.runtime.block_on(async { return 7; }), 7);
 }
 
 /// A multi-thread plan whose build finishes in time gives the multi-thread runtime with the planned workers.
@@ -27,7 +27,7 @@ fn a_current_thread_plan_builds_the_current_thread_runtime() {
 fn a_multi_thread_plan_that_builds_in_time_gives_the_multi_thread_runtime() {
     let built: BuiltRuntime = build_with_deadline(TWO, BUILD_DEADLINE, real_multi_thread).expect("a runtime");
     assert_eq!(built.flavor, BuiltFlavor::MultiThread { workers: 2 });
-    assert_eq!(built.runtime.block_on(async { 7 }), 7);
+    assert_eq!(built.runtime.block_on(async { return 7; }), 7);
 }
 
 /// A build that outlasts the deadline is left running and the current-thread runtime stands in, by the deadline.
@@ -44,7 +44,7 @@ fn a_build_that_outlasts_the_deadline_is_replaced_by_the_current_thread_runtime(
     assert_eq!(built.flavor, BuiltFlavor::CurrentThreadAfterDeadline);
     assert!(took >= deadline, "the deadline was not waited for: {took:?}");
     assert!(took < deadline * 3, "the build waited far past its deadline: {took:?}");
-    assert_eq!(built.runtime.block_on(async { 7 }), 7);
+    assert_eq!(built.runtime.block_on(async { return 7; }), 7);
 }
 
 /// A build that panics, as tokio's does when the system refuses a thread, is replaced at once.
@@ -68,17 +68,17 @@ fn a_build_that_fails_is_replaced_by_the_current_thread_runtime() {
 #[test]
 fn every_call_runs_on_the_same_runtime() {
     assert_eq!(built_flavor(), None, "nothing is built before the first need");
-    assert_eq!(run_on_runtime(async { 1 }).expect("runs"), 1);
+    assert_eq!(run_on_runtime(async { return 1; }).expect("runs"), 1);
     let first: Option<BuiltFlavor> = built_flavor();
     assert!(first.is_some());
-    assert_eq!(run_on_runtime(async { 2 }).expect("runs"), 2);
+    assert_eq!(run_on_runtime(async { return 2; }).expect("runs"), 2);
     assert_eq!(built_flavor(), first);
 }
 
 /// A call from inside the runtime is refused with an error where `block_on` would panic.
 #[test]
 fn a_call_from_inside_the_runtime_is_refused() {
-    let inner = run_on_runtime(async { return run_on_runtime(async { 1 }).map_err(|error| { return matches!(error, RuntimeError::Nested); }); })
+    let inner = run_on_runtime(async { return run_on_runtime(async { return 1; }).map_err(|error| { return matches!(error, RuntimeError::Nested); }); })
         .expect("the outer call runs");
     assert_eq!(inner, Err(true));
 }
