@@ -5,7 +5,8 @@ proposal only.
 No port code is written,
 no TypeScript file is deleted,
 no mise task is changed.
-Written 2026-11-07T17:40:00-05:00 on a worktree of `6e8521c8fa` (the merge that put the wrapper on tokio).
+First drafted 2026-11-07T17:06:00-05:00 and revised after two cross-vendor review runs at 2026-11-07T17:40:00-05:00,
+on a worktree of `6e8521c8fa` (the merge that put the wrapper on tokio).
 Every count and run time in this proposal was measured on that tree on 2026-11-07,
 and its source is named beside it;
 a figure with no named source is not claimed.
@@ -2852,6 +2853,80 @@ so the cost is a measurement the first skeleton step must take with `cargo check
 
 The list in "What names the TypeScript and has to change with it" is the work of the last step,
 and each deletion commit updates the documents it breaks.
+
+## Review record
+
+The proposal was reviewed by a model of another vendor (GPT 6.1 sol),
+started as `pi --model openai/gpt-6.1-sol --print --no-tools --no-skills --no-themes --thinking xhigh`
+with whole files attached:
+this proposal,
+`CLAUDE.md`,
+`package/git-policy/cli/mise.toml`,
+`package/git-policy/cli/package.json`,
+the import specifiers of every TypeScript file,
+the line counts and the first deletion simulation.
+The same question ran twice by a launch slip,
+and both runs finished;
+the reports are `${HOME}/temp/agent/ts-to-rust/sol-review-1.txt` and `sol-review-2.txt`.
+No Claude subagent pass was used.
+
+Folded into the text:
+
+- The deletion model now treats remaining tests as roots,
+  deletes each test at the earliest step that deletes a file it imports,
+  and validates after every step that no remaining file imports a deleted file.
+  The first model left the wrapper-snapshot test importing deleted files;
+  the gate step now deletes that test together with the snapshot modules it imports.
+- Scenario definitions are deleted by the last-importer rule in the computed order,
+  not by removing a catalog line,
+  and a Rust consumer plus a union task that checks names against an independent expected catalog
+  exist before the first scenario is deleted.
+- The proof of the suite compares verdicts exactly and applies a spread only to printed durations;
+  the TypeScript side is the set of reports captured for a seed corpus before any deletion,
+  since a TypeScript checkout later needs its workspace packages installed to run.
+- The benchmark proof compares counts,
+  pairing,
+  the 95th percentile and the largest paired commit delta,
+  with a planted tail and pairing defect,
+  not medians alone.
+- Positive controls were made executable:
+  a guard is a function separate from its test,
+  removing its enforcement is the proof,
+  a blinded control keeps its test and disables its assertion,
+  and a missing named test must fail the harness.
+- Each step lists its negative controls,
+  and the design states a cleanup contract for deadlines,
+  overflow,
+  cancellation and failed starts.
+- Record compatibility distinguishes parsed,
+  accepted as proof and intentionally rejected,
+  and unstable fixtures block their step instead of being dropped.
+- The engine choice gained the option of a Rust crate in the existing shared package folder,
+  a count of what a seam over the TypeScript engine would still have to copy,
+  and an endpoint and blocked steps for every option;
+  the hook choice separates a standalone helper with modes from the banned reuse of the runner;
+  option attributions to rules `VGW` and `SBS` and unmeasured speed and build claims were corrected.
+- New choices:
+  the shared command runner,
+  fuzzing the ported readers,
+  the seed corpus,
+  flag parsing and task names.
+- Smaller corrections:
+  the consumer count,
+  importer counts that now say whether tests are included,
+  relative-position wording,
+  the release guard's description,
+  the lease guard's replacement,
+  and the unconditional layout rules.
+
+Claims the reviewer could not check from its attachments were checked here against the files:
+every quoted owner sentence and its lines,
+the repository-wide searches (run with `rg`),
+that the wrapper's names are declared `pub`,
+and the catalog entries.
+Not checked:
+that those `pub` items are reachable from another crate (nothing was compiled),
+and the container behavior of any step.
 
 ## Deletion manifest by step
 
