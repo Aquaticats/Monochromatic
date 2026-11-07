@@ -1229,6 +1229,13 @@ proved the Wayland library step.
   crates.io `2026-11-07T12:40:03.706516Z`, `yanked` false.
   GitHub release `monochromatic-cargo-shadow-v0.1.4` holds both Linux tarballs and the checksums file.
 
+- `forbidden-strings` 0.6.1 to 0.6.2:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42373581094`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42373820150`
+  (built from `f707a66cda`),
+  crates.io `2026-11-07T12:48:15.573379Z`, `yanked` false.
+  Exempt crate: no README notice. GitHub release `forbidden-strings-v0.6.2` holds all eight target assets. Wave 1 is complete on crates.io.
+
 ## Evidence log
 
 - crates.io API reads:
