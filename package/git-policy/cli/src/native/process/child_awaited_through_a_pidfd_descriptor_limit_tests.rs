@@ -100,14 +100,14 @@ fn a_limit_that_refuses_the_pidfd_changes_the_wait_and_nothing_else() {
         let child: std::process::Child = quick_child(3).expect("a start with room");
         let held: Vec<File> = leave_free(free);
         // The registration with the reactor needs the runtime, so the child is adopted inside it.
-        let (used_the_pidfd, status) = run_on_runtime(async {
+        let (used_the_pidfd, waited) = run_on_runtime(async {
             let mut owned: OwnedChild = adopt(child);
             let used: bool = owned.waits_on_a_pidfd();
             return (used, owned.wait().await);
         })
         .expect("the runtime");
         seen.push((free, used_the_pidfd));
-        let status = status.expect("the wait");
+        let status = waited.expect("the wait");
         assert_eq!(status.code(), Some(3), "{free} free: the status of the child that started");
         drop(held);
         restore_limit(before);
