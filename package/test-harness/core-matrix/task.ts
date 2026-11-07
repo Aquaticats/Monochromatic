@@ -26,6 +26,8 @@ export default {
       'node src/container.unit.test.ts',
       'node src/cachyos-image.unit.test.ts',
       'node src/discover.unit.test.ts',
+      'node src/locked-rust-toolchain.unit.test.ts',
+      'node src/locked-tool-build-arguments.unit.test.ts',
     ],
   },
 } satisfies PackageTaskFile;

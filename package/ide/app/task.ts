@@ -12,7 +12,7 @@ export default {
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
 const { execFileSync } = await import('node:child_process')
-execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', 'localhost/monochromatic/ide', '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', 'localhost/monochromatic/ide', '--file', 'Containerfile', '.'], { stdio: 'inherit' })
 ` },
   },
   "image:release": {
@@ -21,7 +21,7 @@ execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag'
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
 const { execFileSync } = await import('node:child_process')
-execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', 'localhost/monochromatic/ide-release', '--file', 'Containerfile.release', '.'], { stdio: 'inherit' })
+execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', 'localhost/monochromatic/ide-release', '--file', 'Containerfile.release', '.'], { stdio: 'inherit' })
 ` },
   },
   "fetch": {
@@ -36,7 +36,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -72,7 +72,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -173,7 +173,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -205,8 +205,11 @@ try {
 } catch (error) {
   version = 'none (' + String(error.message).split(String.fromCharCode(10))[0] + ')'
 }
-if (version !== 'cargo-about 0.9.2') {
-  throw new Error('The build image has no cargo-about 0.9.2 (found: ' + version + '). Rebuild the image with task-run //package/ide/app:image, which installs it, then run this task again.')
+// The image installs the cargo-about version toolchain.lock.json records (Containerfile, build argument CARGO_ABOUT_VERSION),
+// so a lock update leaves an older image stale and this check names the rebuild.
+const lockedVersion = execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().replace('CARGO_ABOUT_VERSION=', 'cargo-about ')
+if (version !== lockedVersion) {
+  throw new Error('The build image has ' + version + ', but toolchain.lock.json records ' + lockedVersion + '. Rebuild the image with task-run //package/ide/app:image, which installs it, then run this task again.')
 }
 // The list depends only on these inputs, and one run takes about a minute, so an unchanged list is kept.
 const inputs = createHash('sha256')
@@ -241,7 +244,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -286,7 +289,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -351,7 +354,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -388,7 +391,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -477,7 +480,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -515,7 +518,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -552,7 +555,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -590,7 +593,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -642,7 +645,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -678,7 +681,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -714,7 +717,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -751,7 +754,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -788,7 +791,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -832,7 +835,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -872,7 +875,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -909,7 +912,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -946,7 +949,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -983,7 +986,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1069,7 +1072,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1105,7 +1108,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1142,7 +1145,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1178,7 +1181,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1323,7 +1326,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1397,7 +1400,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1441,7 +1444,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1478,7 +1481,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1516,7 +1519,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1553,7 +1556,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1590,7 +1593,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1627,7 +1630,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1664,7 +1667,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1747,7 +1750,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1944,7 +1947,7 @@ const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an

@@ -12,8 +12,8 @@ FROM ${CACHYOS_IMAGE}
 # Build tools:
 #   rustup-installed nightly Rust with clippy, not the distro's rust (the repository builds everything with
 #   the nightly pinned in toolchain.lock.json).
-#   Zig 0.15.2 from ziglang.org, because libghostty-vt-sys requires Zig 0.15.x
-#   and the distro's zig package follows a different release line.
+#   Zig from the archive toolchain.lock.json records (the lock moves it with every release; see the ZIG_ARCHIVE_URL
+#   comment below), for libghostty-vt-sys. The distro's zig package follows a different release line.
 #   git, curl, tar, xz for libghostty-vt-sys vendored Ghostty fetch and Zig.
 # Runtime libraries (Arch packages carry their headers, so no separate -devel packages exist):
 #   mesa, libglvnd, wayland, libxkbcommon for Slint winit/femtovg.
@@ -35,20 +35,22 @@ RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed 
       noto-fonts noto-fonts-cjk \
     && rm --recursive --force /var/cache/pacman/pkg/*
 
-ENV ZIG_VERSION=0.15.2
-RUN arch="$(uname -m)" \
-    && case "$arch" in \
-      x86_64) zig_arch="x86_64"; zig_sha="02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239" ;; \
-      aarch64) zig_arch="aarch64"; zig_sha="958ed7d1e00d0ea76590d27666efbf7a932281b3d7ba0c6b01b0ff26498f667f" ;; \
-      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
-    esac \
-    && curl --fail --location --show-error \
-      "https://ziglang.org/download/${ZIG_VERSION}/zig-${zig_arch}-linux-${ZIG_VERSION}.tar.xz" \
-      --output /tmp/zig.tar.xz \
-    && echo "${zig_sha}  /tmp/zig.tar.xz" | sha256sum --check --strict \
-    && tar --extract --file /tmp/zig.tar.xz --directory /opt \
-    && ln --symbolic "/opt/zig-${zig_arch}-linux-${ZIG_VERSION}/zig" /usr/local/bin/zig \
-    && rm /tmp/zig.tar.xz
+# Zig is the archive toolchain.lock.json records (`.tools.zig.artifacts`), so the image builds with what developers and CI
+# build with, and a daily lock update moves it. The build context is this package directory, not the repository root, so the
+# lock cannot be read at build time: the caller reads the row and passes both values as
+# `--build-arg` (package/test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts zig prints them for the host's
+# platform); an empty value stops the build, and the download is checked against the recorded sha256.
+ARG ZIG_ARCHIVE_URL
+ARG ZIG_ARCHIVE_SHA256
+RUN test -n "${ZIG_ARCHIVE_URL}" && test -n "${ZIG_ARCHIVE_SHA256}" \
+    || { echo "ZIG_ARCHIVE_URL or ZIG_ARCHIVE_SHA256 is empty: pass both as --build-arg, as printed by package/test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts zig" >&2; exit 1; }
+RUN curl --fail --location --show-error "${ZIG_ARCHIVE_URL}" --output /tmp/zig.tar.xz \
+    && echo "${ZIG_ARCHIVE_SHA256}  /tmp/zig.tar.xz" | sha256sum --check --strict \
+    && mkdir --parents /opt/zig \
+    && tar --extract --file /tmp/zig.tar.xz --directory /opt/zig --strip-components=1 \
+    && ln --symbolic /opt/zig/zig /usr/local/bin/zig \
+    && rm /tmp/zig.tar.xz \
+    && zig version
 
 # The toolchain is the one toolchain.lock.json pins (`.tools.rust.version`), so the image builds with what
 # developers and CI build with. The build context is this package directory, not the repository root, so the

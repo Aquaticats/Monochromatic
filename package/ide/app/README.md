@@ -6260,10 +6260,12 @@ Just it."
 
 #### How the build carries them
 
-- `Containerfile` installs cargo-about 0.9.2 into the build image
-  (`mise run //package/ide/app:image`).
-  The `notices` task first checks `cargo-about --version` and,
-  in an image built before this change,
+- `Containerfile` and `Containerfile.release` install the cargo-about version `toolchain.lock.json` records
+  into the build image
+  (`mise run //package/ide/app:image` passes it as the build argument `CARGO_ABOUT_VERSION`;
+  0.9.2 is the version this section vetted, and the lock has moved on).
+  The `notices` task first checks `cargo-about --version` against the lock and,
+  in an image built before the lock moved,
   stops and names the `image` task.
 - `notices` runs after `fetch`:
   cargo-about's `generate` with `--frozen`,

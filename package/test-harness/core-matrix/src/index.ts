@@ -95,3 +95,16 @@ export {
   RUST_TOOLCHAIN_BUILD_ARGUMENT_NAME,
   TOOLCHAIN_LOCK_FILE_NAME,
 } from './locked-rust-toolchain.ts';
+
+/**
+ Build arguments that hand the lock row of Zig or `cargo-about` to a container build that installs the tool itself.
+ */
+export {
+  LOCK_FILE_NAME,
+  LOCKED_BUILD_ARGUMENT_TOOLS,
+  LockedToolBuildArgumentsError,
+  lockedToolBuildArgumentsFromText,
+  readLockedToolBuildArguments,
+  ZIG_LOCK_PLATFORM_BY_HOST_ARCHITECTURE,
+} from './locked-tool-build-arguments.ts';
+export type { LockedBuildArgumentTool, } from './locked-tool-build-arguments.ts';

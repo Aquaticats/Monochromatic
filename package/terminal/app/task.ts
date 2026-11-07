@@ -15,7 +15,9 @@ export default {
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
-execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' })
 ` },
   },
   "image:release": {
@@ -23,7 +25,9 @@ execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustTo
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArgument = execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()
-execFileSync('podman', ['build', '--build-arg', rustToolchainBuildArgument, '--tag', 'localhost/monochromatic/terminal-release', '--file', 'Containerfile.release', '.'], { stdio: 'inherit' })
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
+execFileSync('podman', ['build', '--build-arg', rustToolchainBuildArgument, ...zigArchiveBuildArguments(), '--tag', 'localhost/monochromatic/terminal-release', '--file', 'Containerfile.release', '.'], { stdio: 'inherit' })
 ` },
   },
   "build": {
@@ -44,10 +48,12 @@ const hostEnv = () => {
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -74,10 +80,12 @@ const hostEnv = () => {
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -192,10 +200,12 @@ const hostEnv = () => {
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -221,10 +231,12 @@ const hostEnv = () => {
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -250,10 +262,12 @@ const hostEnv = () => {
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -279,10 +293,12 @@ const hostEnv = () => {
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -308,10 +324,12 @@ const hostEnv = () => {
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -406,10 +424,12 @@ const hostEnv = () => {
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -436,10 +456,12 @@ const hostEnv = () => {
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -465,10 +487,12 @@ const hostEnv = () => {
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -494,10 +518,12 @@ const hostEnv = () => {
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
@@ -526,10 +552,12 @@ const hostEnv = () => {
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+// ZIG_ARCHIVE_URL and ZIG_ARCHIVE_SHA256 are the Zig archive toolchain.lock.json records for this host; the Containerfile has no default, so a build without them stops.
+const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'zig'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim().split(String.fromCharCode(10)).flatMap((line) => ['--build-arg', line])
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', 'localhost/monochromatic/terminal'], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  if (!imageExists) { execFileSync('podman', ['build', ...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments(), '--tag', 'localhost/monochromatic/terminal', '--file', 'Containerfile', '.'], { stdio: 'inherit' }) }
   execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
