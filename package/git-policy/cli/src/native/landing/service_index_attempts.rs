@@ -2,7 +2,8 @@
 //!  The attempts and the wait of an acquisition of `index.lock`:
 //! placement tried again after each wake,
 //! a dead service's lock reclaimed at once,
-//! a holder proven alive and an owner nothing proves alive both waited for on the watch with no bound,
+//! a holder proven alive and an owner nothing proves alive both waited for on the watch until the ceiling,
+//! a lock that already outlasted one commit's wait refused at once to the commits queued behind it,
 //! polled for where no watch can be set,
 //! a dead holder reported at once,
 //! and the notices that name the holder.
@@ -57,11 +58,11 @@ const COMMIT_NOT_MADE: &str = "this commit was not made";
 /// What one look at a held lock proved.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Proved {
-    /// A holder is proven alive; it is waited for with no bound.
+    /// A holder is proven alive; it is waited for until the ceiling.
     Alive,
     /// The PID file names a process that is gone; nothing will release the lock.
     Dead,
-    /// Nothing proves a holder alive or dead; it is waited for like a proven one.
+    /// Nothing proves a holder alive or dead; it is waited for like a proven one, until the ceiling.
     Nothing,
     /// The lock was gone when the evidence was read; the next attempt will find out.
     Gone,

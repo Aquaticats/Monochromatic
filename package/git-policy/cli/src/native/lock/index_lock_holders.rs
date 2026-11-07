@@ -264,8 +264,8 @@ pub fn scan_proc_fd_holders_stopping(proc_root: &Path, device: u64, inode: u64, 
             pids.push(name);
         }
     }
-    // Newest first: the holder of a lock made a moment ago is a recent process, which has the highest number, and a scan that is cut
-    //  short must have reached it. Walking upward reached the old daemons first and the holder last, and never at all when the bound hit.
+    // Newest number first: the holder of a lock made a moment ago is usually a recent process, so a scan that is cut short has
+    //  looked at the likeliest ones. Process numbers wrap, so this is a hedge and the bound (`SERVICE_SCAN_BUDGET`) is the fix.
     pids.sort_by_key(|name| { return std::cmp::Reverse(name.parse::<u64>().unwrap_or(0)); });
     for (reached, pid) in pids.iter().enumerate() {
         if stop(reached) {
