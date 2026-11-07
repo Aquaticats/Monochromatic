@@ -76,6 +76,22 @@ in the disposable worktree it printed `0 installed, 66 unchanged, 0 failed`
 and rewrote `real` to the 0.1.5-alpha.1 folder.
 The agent's report that it did not clear the failure was not reproduced.
 
+## Second symptom: `rust/avoidable-closure` skipped with exit 0
+
+The agent of the linter package reported on 2026-11-07 that `mise run lint:monochromatic-lint` silently skipped
+`rust/avoidable-closure` in a worktree whose lock named an older `cargo-shadow` than main had installed.
+The cause is the same dangling launcher:
+`dylint_probe` in `package/linter/monochromatic-lint/src/closure_cargo.rs` ran `cargo dylint --version` with standard error discarded,
+treated every non-zero status as "cargo-dylint is not installed", and `run_closure_step_at` in `closure_step.rs` turned that into
+`rust/avoidable-closure skipped all N package(s): ` followed by `` `cargo dylint --version` failed (exit status: 127); install cargo-dylint and dylint-link with mise install ``.
+That is a skip with exit 0 and a wrong remedy.
+The red run of the new test printed exactly that text for status 126 before the change.
+Now a `cargo` that starts and exits 126 or 127 fails the run with a processing failure that quotes the `cargo` standard error,
+which for the launcher fix above includes the tool, both versions and `` `mpm install` in <tree> ``.
+A `cargo` missing from the machine and a `cargo` answering 101 (no `cargo-dylint`) stay documented skips.
+The tests are `a_cargo_that_cannot_start_its_program_fails_the_run_instead_of_skipping` (`closure_step_tests.rs`)
+and `a_cargo_that_exits_126_or_127_is_broken_and_any_other_failure_is_absent` (`closure_cargo_tests.rs`).
+
 ## Verification
 
 Under test:
