@@ -49,7 +49,8 @@ pub const LOCATION_VARIABLES: &[&str] =
 
 /// What:
 ///  One lookup run:
-///  its program, its arguments and the directory it runs in.
+///  its program,
+/// its arguments and the directory it runs in.
 /// Why:
 ///  The project is named only as the working directory and inside the absolute
 ///  program path,
