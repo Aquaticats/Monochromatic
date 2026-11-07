@@ -1,9 +1,11 @@
 # cli-git policies platform implementation grilling handover
 
-Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
 the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
-and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
 (the list is in `doc/planning/git-policy-cli-program-rename.md`).
 The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
@@ -73,15 +75,18 @@ absolute path.
 or enabling
   the optional policy.
 - `package/git-policy/repository/src/index.ts`
-  (deleted 2026-10-13: now `package/git-policy/cli/src/native/dependent_version/policy_dependent_version.rs`)
+  (deleted 2026-10-13:
+  now `package/git-policy/cli/src/native/dependent_version/policy_dependent_version.rs`)
   remains the canonical repository-policy source.
   File-enforcer generates `package/git-policy/cli/src/optional/repository-policy.ts`
-  (deleted 2026-09-14 and 2026-10-13: now `package/git-policy/cli/src/native/dependent_version/policy_dependent_version.rs`)
+  (deleted 2026-09-14 and 2026-10-13:
+  now `package/git-policy/cli/src/native/dependent_version/policy_dependent_version.rs`)
   for self-contained source-level
   trusted config bundling.
 - `package/git-policy/api` owns the cycle-free policy contract used by separately owned policy source packages.
 - `package/git-policy/cli/src/bin.ts`
-  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/main.rs`)
+  (moved on 2026-10-13 with the TypeScript wrapper:
+  now `package/git-policy/cli/src/native/main.rs`)
   runs the configurable policy engine before a sequential fixed-transform `RULES`
 array.
 - Current policy order is:
@@ -1610,7 +1615,8 @@ and points it at the repository's
   and worst added latency was 1,205.014 ms.
   Every sample remained below the strict 2,000 ms ceiling.
   The committed harness is `package/git-policy/cli/perf/manual-push-latency-benchmark.ts`
-  (deleted 2026-10-13 with the performance harness, no replacement yet);
+  (deleted 2026-10-13 with the performance harness,
+  no replacement yet);
   raw samples live in `package/git-policy/cli/perf/manual-push-latency-2026-07-10.json`.
 - The latest hosted forbidden-strings workflow at pre-integration `origin/main` revision `ef179a737` failed on one
   credential-shaped patch-context line and credential-shaped literals in the concurrently landed forbidden-regex tests.
@@ -1848,12 +1854,14 @@ global,
 unrelated-key preservation,
 and root-task fixtures.
 The fresh-context procedure is `doc/runbook/remove-retired-hk-git-config.md`
-(deleted 2026-10-13 with the hk cleanup, no replacement).
+(deleted 2026-10-13 with the hk cleanup,
+no replacement).
 Automated verification never touches real per-user Git state.
 (Retired 2026-10-13:
 the task `cleanup:hk-git-config`,
 the fixture task `test:hk-config-cleanup`
-and `doc/runbook/remove-retired-hk-git-config.md` (deleted 2026-10-13 with the hk cleanup, no replacement) are deleted;
+and `doc/runbook/remove-retired-hk-git-config.md` (deleted 2026-10-13 with the hk cleanup,
+no replacement) are deleted;
 the manual removal is in
 `doc/troubleshooting/cli-git-hk-retirement-stale-hook-config.md`.)
 

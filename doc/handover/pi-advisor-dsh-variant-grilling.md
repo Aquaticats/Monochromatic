@@ -24,14 +24,19 @@
 > `package/pi-plugin/search-fetch` is now `package/search-fetch/pi-plugin`;
 > `package/dsh-plugin/search-fetch` is now `package/search-fetch/dsh-plugin`.
 
-Purpose: record the design interview that gives `package/pi-plugin/advisor` a DSH variant
+Purpose:
+record the design interview that gives `package/pi-plugin/advisor` a DSH variant
 on a shared package,
 and the decisions settled so far.
-Status: interview complete.
+Status:
+interview complete.
 Shared understanding confirmed on 2026-10-20 (Q13);
 implementation is authorized and underway.
 This file is also the working handover:
- commits, decisions since the interview, measured failures, and the queue
+ commits,
+decisions since the interview,
+measured failures,
+and the queue
  live in Implementation progress.
 
 ## Request
@@ -41,34 +46,53 @@ and use a shared package.
 
 ## Settled decisions
 
-- Q1 Deliverable shape: the full triple mirroring `search-fetch`:
+- Q1 Deliverable shape:
+  the full triple mirroring `search-fetch`:
   `package/agent-harness-shared/advisor` (shared core),
   new `package/dsh-plugin/advisor` (DSH variant),
   `package/pi-plugin/advisor` rewired onto the core.
-  Rejected: dsh consuming pi build output.
+  Rejected:
+  dsh consuming pi build output.
 - Q2 Pi rewiring happens in the same series,
   deleting pi's private copies of moved modules.
 - Q3 Fixes are allowed inside the move,
   not frozen to behavior identity.
-  Attribution mitigation: every behavior pick lands with an updated test
+  Attribution mitigation:
+  every behavior pick lands with an updated test
   in the same commit.
-- Q4 Day-one DSH surface: `advisor` tool plus `/advisor` command parity
-  (all five subcommands: bare, `<slug>`, `status`, `off`, `on`).
+- Q4 Day-one DSH surface:
+  `advisor` tool plus `/advisor` command parity
+  (all five subcommands:
+  bare,
+  `<slug>`,
+  `status`,
+  `off`,
+  `on`).
   Anything DSH cannot express becomes a documented deliberate gap.
-- Q5 Behavior picks when merged copies disagree: default to richer,
+- Q5 Behavior picks when merged copies disagree:
+  default to richer,
   no approval round,
   reported after the series in an end-of-series report with before/after per pick.
-- Q6 Tie-break when richer is ambiguous: incumbent wins
+- Q6 Tie-break when richer is ambiguous:
+  incumbent wins
   (repo's existing shared implementation when one exists,
   otherwise the information-preserving variant).
-- Q7 Shared-core depth: middle.
+- Q7 Shared-core depth:
+  middle.
   Pure modules plus the pi-ai-typed pipeline move behind narrow ports
-  (model resolution, transcript source, theme tokens).
-  Adapters keep registration, commands, pi-tui rendering, session plumbing.
-- Q8 Config semantics: unified at today's paths,
+  (model resolution,
+  transcript source,
+  theme tokens).
+  Adapters keep registration,
+  commands,
+  pi-tui rendering,
+  session plumbing.
+- Q8 Config semantics:
+  unified at today's paths,
   `~/.pi/agent/extensions/pi-advisor.json` global plus
   `.pi/extensions/pi-advisor.json` project.
-  Both variants read the same files; pi-visible behavior stays untouched.
+  Both variants read the same files;
+  pi-visible behavior stays untouched.
 
 ## Adopted without asking
 
@@ -76,19 +100,27 @@ and use a shared package.
   `@monochromatic-dev/agent-harness-shared-advisor`,
   `@monochromatic-dev/dsh-plugin-advisor`.
 - All new packages are `private: true`.
-  Evidence: every precedent package measured private
-  (`pi-plugin/advisor`, `pi-plugin/search-fetch`,
-  `agent-harness-shared/search-fetch`, `pi-shared/model-selection`).
-- Full behavior depth including hedging, overlap, deadline, and ledger.
+  Evidence:
+  every precedent package measured private
+  (`pi-plugin/advisor`,
+  `pi-plugin/search-fetch`,
+  `agent-harness-shared/search-fetch`,
+  `pi-shared/model-selection`).
+- Full behavior depth including hedging,
+  overlap,
+  deadline,
+  and ledger.
   Forced by Q4 parity plus the report showing that machinery is host-neutral pure code.
 - Extraction and pi rewiring land before the DSH adapter.
 - Slopo issue 621 (shared fake pi extension host) stays out of this series,
-  the narrow reading; proposed follow-up.
+  the narrow reading;
+  proposed follow-up.
 - Issue tracking follows the `pi-advisor-413` precedent:
   a planning doc plus a GitHub issue opened `needs-triage`.
 - Verification runs on a disposable fixture profile first (THR),
   never the live profile.
-- New packages get `README.md`, sibling-mirroring `mise.toml` tasks
+- New packages get `README.md`,
+  sibling-mirroring `mise.toml` tasks
   (`verify:extension` analogues),
   and `/ts` subpath exports (ST3).
 
@@ -99,18 +131,28 @@ and use a shared package.
   `dsh-plugin/search-fetch` is a configuration-only DSH bundle
   (`cordis.patch.yml` mounting `@deepseek-ai/dsh-mcp-client`)
   with no `src/`.
-- Advisor inventory: 67 `.ts` files, 13,040 lines.
+- Advisor inventory:
+  67 `.ts` files,
+  13,040 lines.
   Pure (no pi imports) about 2,840 lines;
   pi-ai-typed pipeline about 1,600;
   host-coupled about 4,700
-  (`pi-tui` rendering, `ModelRegistry` selection, `SessionEntry` context,
+  (`pi-tui` rendering,
+  `ModelRegistry` selection,
+  `SessionEntry` context,
   `ExtensionAPI` registration).
 - Advisor already consumes `@monochromatic-dev/pi-shared-model-selection`
   from 10 source files (scope resolution and default model selection).
 - Host APIs used by the pi variant:
-  `pi.registerTool`, `pi.registerCommand`, `pi.registerMessageRenderer`,
-  `pi.on`, `pi.sendMessage`,
-  `ctx.modelRegistry`, `ctx.waitForIdle`, `ctx.ui.notify`, `ctx.signal`.
+  `pi.registerTool`,
+  `pi.registerCommand`,
+  `pi.registerMessageRenderer`,
+  `pi.on`,
+  `pi.sendMessage`,
+  `ctx.modelRegistry`,
+  `ctx.waitForIdle`,
+  `ctx.ui.notify`,
+  `ctx.signal`.
 - No in-repo DSH plugin authoring guide exists;
   the only DSH package is the config-only search-fetch bundle.
   `doc/audit/dsh-setup-gaps-2026-10-17.md:485-487` records that
@@ -125,10 +167,15 @@ and use a shared package.
 
 - Q9 `package/pi-shared/model-selection` moves and renames to
   `package/agent-harness-shared/model-selection`
-  in this series, dir plus name plus consumers together
-  (`pi-plugin/advisor`, `pi-plugin/goal`, the new core),
+  in this series,
+  dir plus name plus consumers together
+  (`pi-plugin/advisor`,
+  `pi-plugin/goal`,
+  the new core),
   keeping tiered exports and pi optional peers.
-  Rejected: splitting tiers, leaving it in place,
+  Rejected:
+  splitting tiers,
+  leaving it in place,
   absorbing selection into the advisor core.
   `doc/todo/pi-shared-model-selection.md` gets rewritten to the new home.
 - Q10 After disposable-profile verification passes,
@@ -142,33 +189,43 @@ and use a shared package.
   its Cordis `Config` holds only structural fields,
   and its README records the deliberate deviation
   from the DSH "tunables in `cordis.patch.yml`" practice.
-  Rejected: Cordis-config tunables (second source of truth),
+  Rejected:
+  Cordis-config tunables (second source of truth),
   split across `dsh-settings` and files.
 - Q12 Default reviewer choice without cost metadata:
   a `defaultReviewerModel` key in the unified config wins when set,
   otherwise the DSH variant ranks by largest `contextWindow` then name.
   The pi variant keeps its highest-expected-cost ranking when the key is unset.
   When the key is set it wins in both variants.
-  Rejected: the pi-ai catalog cost side-table (the recommended option),
+  Rejected:
+  the pi-ai catalog cost side-table (the recommended option),
   fail-loudly without a model.
-- Q12 amendment (user, 2026-10-20):
+- Q12 amendment (user,
+  2026-10-20):
   `defaultReviewerModel` is set in the user's own global config
   `~/.pi/agent/extensions/pi-advisor.json` to `opencode-go/kimi-k3`
-  (provider `opencode-go`, model `kimi-k3`, "Kimi K3",
+  (provider `opencode-go`,
+  model `kimi-k3`,
+  "Kimi K3",
   verified in `~/.pi/agent/models-store.json`),
   because the DSH LLM seam exposes no model cost metadata.
-  Correction: an earlier draft of this record claimed the key
+  Correction:
+  an earlier draft of this record claimed the key
   ships as a schema default value;
   that claim is retracted.
   The schema key is optional with no baked-in default.
-  Selection order: explicit tool `model` parameter,
+  Selection order:
+  explicit tool `model` parameter,
   then `defaultReviewerModel` when resolvable in the current scope,
   then the variant fallback (pi highest expected cost,
   dsh largest `contextWindow` then name).
-  Explicitly clearing the key, or naming a model absent from the scope,
+  Explicitly clearing the key,
+  or naming a model absent from the scope,
   falls through to the variant fallback.
-  Untouched by this request: pi `settings.json` `defaultProvider`
-  and `defaultModel`, and any DSH profile default model.
+  Untouched by this request:
+  pi `settings.json` `defaultProvider`
+  and `defaultModel`,
+  and any DSH profile default model.
   The config write is safe before the schema change lands:
   valibot `v.object` strips unknown keys,
   probed on the installed valibot where a parse of
@@ -178,32 +235,52 @@ and use a shared package.
 
 ## DSH API probe findings (forced adoptions)
 
-- Form: in-process Cordis plugin.
+- Form:
+  in-process Cordis plugin.
   `ctx.tools.register(defineTool(...))` and `ctx.commands.register(...)`
   both exist;
   the MCP-bundle form cannot express commands at all.
-- Model calls: `ctx.llm.stream` plus `listProviders()`,
+- Model calls:
+  `ctx.llm.stream` plus `listProviders()`,
   the only supported path into provider adapters
   (dsh-llm README).
   Direct pi-ai import is rejected as a bypass
-  of routes, credentials, retry, and session-log vocabulary.
-- Command mapping: one `/advisor` handler parses its unstructured raw input
-  (bare, `<slug>`, `status`, `off`, `on`);
+  of routes,
+  credentials,
+  retry,
+  and session-log vocabulary.
+- Command mapping:
+  one `/advisor` handler parses its unstructured raw input
+  (bare,
+  `<slug>`,
+  `status`,
+  `off`,
+  `on`);
   toggling maps to `ctx.tools.restrict`.
-- Rendering: tool `output.render` produces `text` ContentBlocks
+- Rendering:
+  tool `output.render` produces `text` ContentBlocks
   with markdown riding inside text;
-  no progress channel exists, so a tool call settles once
+  no progress channel exists,
+  so a tool call settles once
   and live progress text is a documented deliberate gap (Q4 clause).
-- Transcript source for the DSH port: derived session message history
+- Transcript source for the DSH port:
+  derived session message history
   through the session surface and `SessionProjection` state.
-  Fallback if binding proves insufficient: the tool `question` parameter
+  Fallback if binding proves insufficient:
+  the tool `question` parameter
   carries the content.
-- Verification: fixture profile via `dsh --profile <fixture>`
-  (`DSH_PROFILE`, `DSH_PROFILE_DIR`),
+- Verification:
+  fixture profile via `dsh --profile <fixture>`
+  (`DSH_PROFILE`,
+  `DSH_PROFILE_DIR`),
   checked with `cordis_inspect_query`;
   then the Q10 live install.
-- Cost metadata: the LLM seam exposes none for text
-  (`LlmModelInfo` is id, name, description, modalities);
+- Cost metadata:
+  the LLM seam exposes none for text
+  (`LlmModelInfo` is id,
+  name,
+  description,
+  modalities);
   pi-ai catalogs do carry `cost: ModelCost`,
   which Q12 declined to use.
 
@@ -227,11 +304,15 @@ Authoritative task state,
 
 - `b710410e81` `refactor(*): move model-selection to agent-harness-shared`:
   the Q9 move,
-  dir plus name plus consumers (advisor, goal, thinking-default, model-retirement),
+  dir plus name plus consumers (advisor,
+  goal,
+  thinking-default,
+  model-retirement),
   the `mise.toml` PATH entry,
   the pnpr OIDC allowlist entry,
   a regenerated lockfile (rename-only,
-  measured: no dependency version changed),
+  measured:
+  no dependency version changed),
   and the WR6 note in `doc/todo/pi-shared-model-selection.md`.
 - `c8d9af87d5` `fix(*): stub new pi-coding-agent 1.3.0 ExtensionAPI members in verify fakes`:
   TS2740 stubs in advisor,
@@ -256,11 +337,14 @@ Authoritative task state,
 
 ### Decisions since the interview
 
-- 2026-10-20 user directive: fix pre-existing failures too,
+- 2026-10-20 user directive:
+  fix pre-existing failures too,
   not only this series' regressions.
-- 2026-10-20 user directive: keep this handover current,
+- 2026-10-20 user directive:
+  keep this handover current,
   updating it as work lands.
-- 2026-10-20 user directive: use subagents aggressively,
+- 2026-10-20 user directive:
+  use subagents aggressively,
   delegating independent workstreams in parallel.
 - `defaultReviewerModel` stays user config only
   (`~/.pi/agent/extensions/pi-advisor.json`,
@@ -285,7 +369,8 @@ Fixed with the commits recorded in `### Commits`:
   `pi-plugin/model-retirement` (catalog drift fixture),
   `cli/unused-export` (yuku-analyzer 0.19.0 API).
 
-Full sweep 2026-10-20: 213 packages with a `lint:types` task,
+Full sweep 2026-10-20:
+213 packages with a `lint:types` task,
 170 pass,
 43 fail.
 Of the 43:
@@ -304,7 +389,8 @@ the sweep matched the comment text).
 Delegated 2026-10-20 (subagents,
 disjoint write scopes):
 
-- extraction fork `40eef920`: DONE 2026-10-20,
+- extraction fork `40eef920`:
+  DONE 2026-10-20,
   shared core `package/agent-harness-shared/advisor` (new)
   plus `package/pi-plugin/advisor` rewired onto it.
   Commits:
@@ -338,34 +424,41 @@ disjoint write scopes):
   pi 4 PASS suites,
   0 FAIL).
   Lockfile and `config/pnpr` changes belonged to this scope alone.
-- docs subagent `94e9414e`: `doc/troubleshooting/*` only,
+- docs subagent `94e9414e`:
+  `doc/troubleshooting/*` only,
   the 2026-10 dependency API drift write-up.
-- sweep subagent `25c55b61`: the 38 build-class packages only;
+- sweep subagent `25c55b61`:
+  the 38 build-class packages only;
   parked until the repo-wide `mise run build` ends
   (no concurrent builds),
   lead wakes it on the build's completion.
-  NOTE 2026-10-20: became unresumable after parking
+  NOTE 2026-10-20:
+  became unresumable after parking
   (`send_message` target not found);
   scope handed to replacement `bd3dc9b4`,
   which also takes its findings (the three `module/*` TS2305s were
   stale-dist artifacts,
   `translation-repair/source-scan` and `translation-repair/test-fixture`
   ship no `dist` by design).
-  `bd3dc9b4` DONE 2026-10-20: all 39 packages pass `lint:types` after the
+  `bd3dc9b4` DONE 2026-10-20:
+  all 39 packages pass `lint:types` after the
   rebuild,
   zero source drift,
   zero commits.
   Green validated with positive controls (deliberate TS2322 probes that
   made `lint:types` fail,
   then removed).
-  Count correction: 35 `translation-repair` packages were red at sweep
+  Count correction:
+  35 `translation-repair` packages were red at sweep
   time (38 build-class total with the three `module/*`),
   not 36;
   `translation-repair/test-fixture` was green even then.
   `source-scan`'s red was missing dependency dists (TS2307 on
   `@monochromatic-dev/translation-repair-markup` and siblings).
-- design subagent `1d3fe543`: DONE 2026-10-20,
-  commit `f382400eab`: `doc/planning/pi-advisor-dsh-variant.md`
+- design subagent `1d3fe543`:
+  DONE 2026-10-20,
+  commit `f382400eab`:
+  `doc/planning/pi-advisor-dsh-variant.md`
   (probed host API signatures,
   capability gaps each with a designed fallback).
   Probe corrections to the briefing:
@@ -383,14 +476,16 @@ disjoint write scopes):
   and a ranking seam in `selectAdvisorModel`
   (pi expected cost versus DSH largest `contextWindow` then `name`,
   both supplied externally).
-- docs subagent `94e9414e`: DONE,
+- docs subagent `94e9414e`:
+  DONE,
   commit `601c69399e`:
   `doc/troubleshooting/deps-update-api-drift.md` (new class doc,
   unbash 6.0.0 / yuku-analyzer 0.19.0 / pi-ai catalog incidents,
   symptoms reproduced from a pre-fix worktree at `b710410e81`)
   plus two pi-1.3.0 sections in
   `doc/troubleshooting/pi-0-87-extension-api-breakage.md`.
-- build-fixes subagent `63d2bd1d`: DONE 2026-10-20,
+- build-fixes subagent `63d2bd1d`:
+  DONE 2026-10-20,
   three pre-existing build failures fixed
   (separate incidents,
   separate commits):
@@ -410,7 +505,8 @@ disjoint write scopes):
   so `cargo metadata` `build_directory` must be searched
   alongside `target/`,
   in both dir layouts).
-- follow-up subagent `9f07ca3d`: DONE 2026-10-20,
+- follow-up subagent `9f07ca3d`:
+  DONE 2026-10-20,
   `32308cbf48` corrects the libghostty-vt staging diagnosis in
   `doc/troubleshooting/mise-dependency-freshness.md`
   (WR6 correction note plus a durable `cargo metadata`
@@ -439,7 +535,8 @@ only ordinary commits
 and the landing machinery's fast-forward merges.
 Lost:
 
-- destroyed: the staged `git mv` batch
+- destroyed:
+  the staged `git mv` batch
   (36 core files plus 17 tests into `package/agent-harness-shared/advisor/src`)
   and the unstaged pi-adapter edits
   (`index.ts`,
@@ -454,7 +551,8 @@ Lost:
   `package.json`,
   `config/pnpr/config.yaml`,
   `pnpm-lock.yaml`);
-- survived: `package/agent-harness-shared/advisor` root files
+- survived:
+  `package/agent-harness-shared/advisor` root files
   (`package.json`,
   `mise.toml`,
   `tsconfig.json`,
@@ -637,14 +735,17 @@ ask Claude
 ## Next action
 
 Implementation,
- in this order (user directives 2026-10-20: fix pre-existing failures too;
+ in this order (user directives 2026-10-20:
+fix pre-existing failures too;
  use subagents aggressively):
 
 1. DONE,
-   commit `b710410e81`: move `package/pi-shared/model-selection` to
+   commit `b710410e81`:
+   move `package/pi-shared/model-selection` to
    `package/agent-harness-shared/model-selection`
    (dir plus name plus consumers).
-2. DONE: fix the measured pre-existing failures
+2. DONE:
+   fix the measured pre-existing failures
    (`3b9bb3ad6b`,
    `fce8efd40e`,
    `ad7a5a67b4`,
@@ -694,11 +795,13 @@ Implementation,
    (`plugin_manager install_bundle`).
    Fixture 1 `advisor-fixture-minimal` created from the headless
    template and the bundle linked via `dsh plugin --profile ... add`;
-   `--dump-config` composes `id: advisor`, `config: {}`.
+   `--dump-config` composes `id: advisor`,
+   `config: {}`.
    Measured fixture-surface gaps (diagnosed 2026-10-20):
    headless sessions mount no inspect tools,
    needing inserted rows `cordis-host-runner`,
-   `cordis-inspect-providers`, and `tool-cordis`;
+   `cordis-inspect-providers`,
+   and `tool-cordis`;
    fixtures do not share the live profile credential store;
    the `MISSING_CREDENTIAL` diagnostic sanctions exporting keys
    in the launching environment,
@@ -715,7 +818,8 @@ Implementation,
    and `doc/troubleshooting/dsh-cordis-inspect-query-input-coerced-to-string.md`
    (`c94dc5ed69`),
    both indexed in `doc/troubleshooting/README.md`.
-   Measured defect (fixture 1, 2026-10-20):
+   Measured defect (fixture 1,
+   2026-10-20):
    every `advisor` tool call failed with
    `prompt variable "{{model}}" has no value for this assembly`
    (section `deployment:persona-prefix`).
@@ -728,8 +832,10 @@ Implementation,
    `DshAdvisorAgentSurface.assembleContext` forwards
    `assembleContextFor(agent, signal)` from `@deepseek-ai/dsh-agent`,
    matching the agent-loop's own assembly call shape.
-   Measured defect 2 (fixture 1, 2026-10-20):
-   after the first fix, calls failed with
+   Measured defect 2 (fixture 1,
+   2026-10-20):
+   after the first fix,
+   calls failed with
    `advisor: no scoped models with configured auth`.
    Root cause:
    `createDshAdvisorRunContext` exposed no `getScopedModels` seam,
@@ -737,7 +843,8 @@ Implementation,
    and resolved zero entries in DSH.
    Fixed (`07ad8133c5`):
    the run context exposes `getScopedModels` backed by the catalog
-   `getAvailable()` routes, the DSH equivalent of pi's live scope.
+   `getAvailable()` routes,
+   the DSH equivalent of pi's live scope.
    Boundary re-probe (2026-10-20):
    the unknown-slug parity error now fires exactly
    (`advisor: model slug "no-such-model-slug" was not found in scoped
@@ -749,18 +856,23 @@ Implementation,
    (no command tool or commands service),
    so `/advisor` parity moves to the user boundary after Q10,
    the plan's known gap.
-   Fixture 2 PASS (2026-10-20, disposable home and project configs):
+   Fixture 2 PASS (2026-10-20,
+   disposable home and project configs):
    default call served `llmgateway-devpass/deepseek-v4.1-flash-1017`
    (project `defaultReviewerModel: opencode-go/kimi-k3` unresolvable,
-   falling through to the ranking pick, not global `claude-haiku-5-5`),
+   falling through to the ranking pick,
+   not global `claude-haiku-5-5`),
    and the reported deadline (`222222` minus elapsed) proves the project
    scalar `timeoutMs` won the merge;
    explicit `llmgateway-devpass/claude-haiku-5-5` served exactly.
    The result line `deadline remaining <timeoutMs - elapsed>ms`
    is the merged-config observable at the tool boundary.
-   Fixture 1b PASS (2026-10-20, empty disposable home, non-project cwd):
+   Fixture 1b PASS (2026-10-20,
+   empty disposable home,
+   non-project cwd):
    default call reported `deadline remaining 594995ms` after `5005ms`
-   elapsed (`600000` equals `DEFAULT_TIMEOUT_MS`: config paths absent)
+   elapsed (`600000` equals `DEFAULT_TIMEOUT_MS`:
+   config paths absent)
    and served the ranking pick `llmgateway-devpass/deepseek-v4.1-flash-1017`;
    `llmgateway-devpass/claude` raised the exact not-found parity error
    (slug matching is exact,
@@ -769,9 +881,13 @@ Implementation,
    shared `normalizeModelArgument` drops blank model values
    (`agent-harness-shared/advisor/src/tool-params.ts`),
    so `model slug must not be empty` is a command-form error only.
-   Q10 live install: DONE 2026-10-20
-   (`plugin_manager install_bundle`: `application: applied`,
-   `warnings: []`; `--dump-config` shows `id: advisor`, `config: {}`;
+   Q10 live install:
+   DONE 2026-10-20
+   (`plugin_manager install_bundle`:
+   `application: applied`,
+   `warnings: []`;
+   `--dump-config` shows `id: advisor`,
+   `config: {}`;
    the web app has no CLI task mode,
    so the live tool catalog is confirmed in a fresh GUI chat).
    QUEUED at the user boundary (tracked in issue `#1792`):
@@ -781,22 +897,30 @@ Implementation,
    a leading-slash task line (`/advisor status`) reaches headless
    agents as an ordinary user message with no command dispatch,
    closing the dispatch probe.
-   Parallel (subagent `5b28eefd`): DONE
+   Parallel (subagent `5b28eefd`):
+   DONE
    (see the monochromatic-lint incident section).
-5. Tests, lint, and `mise` tasks for every new and moved package;
+5. Tests,
+   lint,
+   and `mise` tasks for every new and moved package;
    behavior picks recorded per Q5 and Q6
    plus the 2026-10-20 reviewer-fallback decision
    (initial reviewer,
    serial fallback kept,
    explicit is exact).
 6. DONE 2026-10-20:
-   fixture-profile verification (fixtures 1, 2, and the empty-home 1b;
+   fixture-profile verification (fixtures 1,
+   2,
+   and the empty-home 1b;
    fixture 3 toggle parity deferred to the user boundary)
-   and the Q10 live install (`application: applied`, `warnings: []`).
+   and the Q10 live install (`application: applied`,
+   `warnings: []`).
 7. DONE 2026-10-20:
    READMEs (dsh capability gaps now record the scope mapping
    and the command-parity boundary),
-   planning doc (fixture findings, Q10 deviation, completion status),
+   planning doc (fixture findings,
+   Q10 deviation,
+   completion status),
    GitHub issue `#1792` (`needs-triage`),
    and this handover's completion record.
 8. DONE 2026-10-20:
@@ -817,21 +941,34 @@ Implementation,
 
 ## Completion record (2026-10-20)
 
-The series landed as commits `16a22cd7de`, `39d452035a`, `effcff526e`,
-`3583eec279`, `85434d0c40`, and `07ad8133c5`, with doc commits alongside.
+The series landed as commits `16a22cd7de`,
+`39d452035a`,
+`effcff526e`,
+`3583eec279`,
+`85434d0c40`,
+and `07ad8133c5`,
+with doc commits alongside.
 The Q5 end-of-series picks report:
 merged-copy disagreements defaulted to richer with no approval round,
 and the recorded picks (initial-reviewer `defaultReviewerModel`,
-explicit exact selection, serial fallback kept, the Q12 ranking order,
-derived-history usage fabrication, unknown window `128_000`)
+explicit exact selection,
+serial fallback kept,
+the Q12 ranking order,
+derived-history usage fabrication,
+unknown window `128_000`)
 are documented in `package/dsh-plugin/advisor/README.md`
 and the Q5/Q6 sections of this handover,
 each pick landed with its test in the same commit.
-Verification: fixtures 1, 2, and 1b green with the measured evidence above;
+Verification:
+fixtures 1,
+2,
+and 1b green with the measured evidence above;
 fixture 3 toggle parity and `/advisor` command parity wait on the user
 boundary (issue `#1792`).
-Rollback for the live install: `plugin_manager remove_bundle` with the
+Rollback for the live install:
+`plugin_manager remove_bundle` with the
 absolute `package/dsh-plugin/advisor` target,
 then re-check `dsh --profile web --dump-config`.
-Residue to clean: fixture profile `advisor-fixture-minimal`
+Residue to clean:
+fixture profile `advisor-fixture-minimal`
 and `~/temp/agent/advisor-fixture-*` inputs.
