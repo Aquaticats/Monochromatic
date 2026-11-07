@@ -4212,11 +4212,21 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     start recorded by `f191d45681`),
     with an alpha release
     and lock move.
-    Separately unmerged since 2026-11-04:
-    round 21 `feat/cargo-shadow-check-to-start-race`
-    (16 commits,
-    worktree `.claude/worktrees/cargo-shadow-r21`,
-    no agent on it).
+    Round 21 `feat/cargo-shadow-check-to-start-race` merged to main 2026-11-07T14:01:31-05:00 (`4c31f33751`),
+    released as 0.1.5-alpha.2 and locked (`62d3f69165`);
+    what it did,
+    the review and the open sixth-pass list (groups 5,
+    8 to 14,
+    the fifth-pass list,
+    packets cert7):
+    `doc/planning/cargo-shadow-update.md`,
+    "Round 21 merge record (2026-11-07)".
+    Worktree `.claude/worktrees/cargo-shadow-r21` is merged and can be removed.
+    Open defect found on the way,
+    not cargo-shadow's:
+    `search-shadow` links of two versions on `PATH` (a worktree's stale `.cache/search-shadow-bin` and main's)
+    each pick the other as the real `grep` and re-`execve` forever at about 89 percent CPU;
+    a stale worktree `.cache` is refreshed by `mise run toolchain:install` in that worktree.
   - Guardrail bundle `package/claude-code-plugin/guardrail/bundle/node/index.mjs` still has the old refusal text;
     a
     rebuild also pulls about 300 KB of unrelated source drift (patch at `~/temp/agent/guardrail-bundle-rebuild.patch`).
