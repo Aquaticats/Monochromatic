@@ -443,7 +443,14 @@ The check needs the shared nightly toolchain with `rustc-dev`,
 `cargo-dylint` and `dylint-link`.
 Without them,
 or without `cargo` itself,
-every package is skipped with one message:
+every package is skipped with one message.
+The only evidence of a missing `cargo-dylint` is cargo's own `no such command` for `dylint`.
+Any other failure of `cargo dylint --version`,
+including the statuses 126 and 127 of a launcher that cannot start its program,
+is a `cargo` that is broken or older than `toolchain.lock.json`,
+and it fails the run with status `2`,
+with what cargo printed and the command `mise run toolchain:install`,
+because a skip that exits `0` would hide the stale install:
 
 ```text
 monochromatic-lint: rust/avoidable-closure skipped all 24 package(s): ...
