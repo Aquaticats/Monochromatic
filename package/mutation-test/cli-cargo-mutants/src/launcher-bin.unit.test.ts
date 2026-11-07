@@ -118,11 +118,12 @@ async function launch({
 }
 
 /**
- Unit names the stand-in `systemd-run` was asked to start, in call order.
+ Unit names the stand-in `systemd-run` was asked to start.
 
  @param fake - the fixture
 
- @returns the names, or none when it was never called
+ @returns the names in alphabetical order, because the units start together and call order is not defined; none when it was
+ never called
  */
 async function startedUnits(fake: FakePodman): Promise<readonly string[]> {
   if (!(await readdir(fake.directory)).includes(startLogName))
@@ -137,7 +138,8 @@ async function startedUnits(fake: FakePodman): Promise<readonly string[]> {
     .split('\n')
     .filter(function isName(name) {
       return name !== '';
-    });
+    })
+    .toSorted();
 }
 
 await describe({
