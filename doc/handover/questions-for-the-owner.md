@@ -18,6 +18,30 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Waiting on you: two actions the auto-mode safety check refused to agents (2026-11-07)
+
+The coordinator will not route around a refusal,
+so each needs you to run it,
+or to allow it in the permission settings.
+- Release `monochromatic-lint` 0.5.2-alpha.6
+  (refused as "[Create Public Surface]";
+  the dry run passed,
+  run 42427210564;
+  an alpha goes to a GitHub release only).
+  It makes the closure check run on `ide/app` and `terminal/app`,
+  merged as `1d3e9bcdec`.
+  The command,
+  from the repository root:
+  `mise run //package/linter/monochromatic-lint:release -- 0.5.2-alpha.5 0.5.2-alpha.6 "The closure check builds ide/app and terminal/app: IDE links where build.rs reads them; new prerequisite libghostty-offline-inputs hands the fetched Ghostty source and Zig packages to the build"`.
+  After it,
+  the coordinator does the wait,
+  lock,
+  install and proof.
+- The repository move's W6 and W7 edits to `~/.claude/settings.json`,
+  `~/.claude.json` and `~/.codex/config.toml`
+  (the exact new values are in `doc/handover/repository-move-dangling-link-items.md`,
+  section "W6 and W7 edits to apply").
+
 ## Told, not a question: a wrapper mutation campaign ran against a recorded pause (2026-11-07)
 
 Mutation campaigns over the wrapper were paused on 2026-11-04 after you asked

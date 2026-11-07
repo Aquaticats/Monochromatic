@@ -163,6 +163,26 @@ fn a_work_message_round_trips_and_hostile_directories_are_refused() {
     assert!(decode_client(missing.as_str()).is_err());
 }
 
+/// A warm message round-trips,
+/// and a relative,
+/// empty or NUL-holding directory or repository,
+/// and a missing one,
+/// are refused.
+#[test]
+fn a_warm_message_round_trips_and_hostile_paths_are_refused() {
+    let sent: ClientMessage = ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from("/srv/repo") };
+    assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent.clone()));
+    let line: String = encode_client(&sent);
+    for bad in ["relative/.git", "", "\\u0000/.git"] {
+        let hostile: String = line.replace("/srv/repo/.git", bad);
+        assert!(decode_client(hostile.as_str()).is_err(), "{bad:?}");
+    }
+    let relative_repository: String = line.replace("\"/srv/repo\"", "\"repo\"");
+    assert!(decode_client(relative_repository.as_str()).is_err());
+    let missing: String = format!("{{\"type\":\"warm\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\"}}");
+    assert!(decode_client(missing.as_str()).is_err());
+}
+
 /// A commit built elsewhere is named whole,
 /// alone or with an amend,
 /// never together with a tree;

@@ -47,6 +47,27 @@ A background PTY reader thread forwards bytes to the Slint UI thread,
    and resizes
   the kernel PTY.
 
+## Offline build inputs
+
+`libghostty-vt-sys` builds Ghostty with Zig.
+Left to itself its build script clones Ghostty and lets `zig build` download Zig packages while Cargo compiles,
+with no checksum of this repository,
+and Zig 0.17.1 cannot connect on this host (`doc/troubleshooting/zig-downloader-cannot-connect.md`).
+
+`mise run //package/terminal/app:fetch:ghostty-offline-inputs` fetches them first:
+Ghostty at the commit the crate pins,
+and every Zig package its library build needs,
+each from an archive whose SHA-256 is pinned in `ghostty-offline-inputs.json`.
+Everything lands in `target/ghostty-offline`,
+the file `ready` last.
+The task refuses a Ghostty commit that differs from the crate's,
+so a `libghostty-rs` update stops there until the manifest is re-derived.
+The cargo tasks of this package run it first (a no-op when current) and pass `GHOSTTY_SOURCE_DIR` and
+`GHOSTTY_ZIG_SYSTEM_DIR` to cargo.
+`monochromatic-lint.prerequisites.jsonc` names the same inputs for the closure check,
+which skips this package with the task's name when they are missing.
+`mise run //package/terminal/app:test:bin` checks the manifest rules.
+
 ## Scroll bridge
 
 Slint stores the pixel scroll offset in the `Flickable` viewport.

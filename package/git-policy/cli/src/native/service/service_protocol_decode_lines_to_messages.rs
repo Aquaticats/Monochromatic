@@ -59,6 +59,16 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
             }
             return Ok(ClientMessage::Scratch { git_dir, path });
         }
+        "warm" => {
+            let git_dir: PathBuf = PathBuf::from(field(&value, "gitDir")?);
+            let repository: PathBuf = PathBuf::from(field(&value, "repository")?);
+            for path in [&git_dir, &repository] {
+                if !path.is_absolute() || path.to_string_lossy().contains('\0') {
+                    return Err(String::from("warm request is not acceptable"));
+                }
+            }
+            return Ok(ClientMessage::Warm { git_dir, repository });
+        }
         "work" => {
             let git_dir: PathBuf = PathBuf::from(field(&value, "gitDir")?);
             if !git_dir.is_absolute() || git_dir.to_string_lossy().contains('\0') {

@@ -115,6 +115,8 @@ fn line_for(request: &str, reference: &str, landing: &LandTiming) -> String {
         answer: Duration::from_millis(ANSWER_MS),
         total: Duration::from_millis(READ_MS + QUEUED_MS + SETTLE_MS) + land_total + Duration::from_millis(ANSWER_MS),
         quiet: &[],
+        steps: &[],
+        steps_dropped: 0,
     });
 }
 
@@ -364,13 +366,47 @@ fn the_answered_line_states_the_quiet_gaps_of_the_steps() {
         answer: Duration::ZERO,
         total: Duration::ZERO,
         quiet: quiet.as_slice(),
+        steps: &[],
+        steps_dropped: 0,
     });
     assert!(line.contains(" quiet_ms=300.000 "), "{line}");
     assert!(
         line.contains("quiet_steps=\"git fast-import=300.000;git update-ref=2.500;git reset [ended for being quiet]=9000.000\""),
         "{line}"
     );
-    assert!(line_for("r", "refs/heads/main", &landing).ends_with("quiet_ms=0.000 quiet_steps=\"\""));
+    assert!(line_for("r", "refs/heads/main", &landing).contains(" quiet_ms=0.000 quiet_steps=\"\" "));
+}
+
+/// The answered line names every Git step of the service with its offset and duration,
+/// and says how many it dropped.
+#[test]
+fn the_answered_line_names_each_step_with_its_offset_and_duration() {
+    let landing: LandTiming = LandTiming::default();
+    let steps: Vec<crate::transaction_step_durations::StepFigure> = vec![
+        crate::transaction_step_durations::StepFigure { name: String::from("git rev-parse"), offset_ms: 3, duration_ms: 4 },
+        crate::transaction_step_durations::StepFigure { name: String::from("git update-ref"), offset_ms: 9, duration_ms: 2 },
+    ];
+    let dropped: usize = 5;
+    let line: String = answered_line(&Answered {
+        request: "r",
+        reference: "refs/heads/main",
+        outcome: "landed",
+        batch: 1,
+        size: 1,
+        position: 1,
+        arrival: Arrival { accepted: Instant::now(), read: Duration::ZERO },
+        queued: Duration::ZERO,
+        settle: Duration::ZERO,
+        landing: &landing,
+        land_total: Duration::ZERO,
+        answer: Duration::ZERO,
+        total: Duration::ZERO,
+        quiet: &[],
+        steps: steps.as_slice(),
+        steps_dropped: dropped,
+    });
+    assert!(line.ends_with(" steps=\"git rev-parse@3+4;git update-ref@9+2\" steps_dropped=5"), "{line}");
+    assert_eq!(fields(line.as_str()).get("steps_dropped").map(String::as_str), Some("5"));
 }
 
 /// An `answered` line written before the index step was named by its role calls the same duration `sync_ms`:

@@ -528,13 +528,7 @@ pub fn encode_terminal_key(key_text: &str, control: bool, alt: bool) -> Option<V
     // What:     `let encoded = ...?` tries control, named, and printable encoders.
     //           The `?` returns `None` if all encoders reject the key.
     // Why:      Modifier-only or unknown special keys should not write text to the shell.
-    let encoded = if control {
-        encode_control_key(key_text)
-            .or_else(|| return encode_named_key(key_text))
-            .or_else(|| return encode_printable_text(key_text))?
-    } else {
-        encode_named_key(key_text).or_else(|| return encode_printable_text(key_text))?
-    };
+    let encoded = encode_unprefixed_key(key_text, control)?;
     // What:     `if alt { ... } else { ... }` optionally prefixes ESC for Alt-modified
     //           terminal input. `Some(...)` wraps the present byte vector.
     // Why:      Many terminal programs treat Alt+x as ESC followed by x.
@@ -557,6 +551,24 @@ pub fn encode_terminal_key(key_text: &str, control: bool, alt: bool) -> Option<V
         // Why:      No Alt prefix is needed.
         return Some(encoded)
     }
+}
+
+/// What:
+///  `fn encode_unprefixed_key(...) -> Option<Vec<u8>>` tries the control encoder (only while Ctrl is held),
+///  then the named-key encoder,
+///  then the printable-text encoder,
+///  and returns the first encoding found.
+/// Why:
+///  A chain of `Option::or_else` closures would capture `key_text` only to call each encoder;
+///  early returns say the same order without closures.
+fn encode_unprefixed_key(key_text: &str, control: bool) -> Option<Vec<u8>> {
+    if control && let Some(encoded) = encode_control_key(key_text) {
+        return Some(encoded);
+    }
+    if let Some(encoded) = encode_named_key(key_text) {
+        return Some(encoded);
+    }
+    return encode_printable_text(key_text);
 }
 
 /// What:

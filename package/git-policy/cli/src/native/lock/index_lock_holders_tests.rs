@@ -167,6 +167,44 @@ fn the_proc_scan_matches_descriptors_by_identity() {
     remove(root.as_path());
 }
 
+/// A scan cut short looks at the newest processes first.
+/// Why:
+///  The holder of a lock made a moment ago is a recent process,
+/// and its number is the highest on the host.
+///  On 2026-11-07 a live `git commit` held a lock for 62 minutes and 62 looks never named it,
+/// because every look walked the
+///  numbers upward and stopped at its time bound before it reached the newest ones.
+#[test]
+fn a_scan_cut_short_looks_at_the_newest_processes_first() {
+    let root: PathBuf = fixture("holders-newest-first");
+    let lock: PathBuf = root.join("index.lock");
+    std::fs::write(&lock, b"").expect("lock");
+    let (device, inode): (u64, u64) = identity_of(lock.as_path());
+    let other: PathBuf = root.join("other");
+    std::fs::write(&other, b"x").expect("another file");
+    let proc_root: PathBuf = root.join("proc");
+    // Many old processes that hold other files, and the holder with the highest number.
+    let old_processes: std::ops::Range<u32> = 100..140;
+    for number in old_processes.clone() {
+        std::fs::create_dir_all(proc_root.join(number.to_string()).join("fd")).expect("fd directory");
+        std::os::unix::fs::symlink(&other, proc_root.join(number.to_string()).join("fd/3")).expect("link");
+    }
+    let holder_number: u32 = old_processes.end + 5000;
+    std::fs::create_dir_all(proc_root.join(holder_number.to_string()).join("fd")).expect("holder fd directory");
+    std::os::unix::fs::symlink(&lock, proc_root.join(holder_number.to_string()).join("fd/3")).expect("holder link");
+    std::fs::write(proc_root.join(holder_number.to_string()).join("comm"), b"git\n").expect("holder name");
+    // The scan may look at a handful of processes before it is cut, far fewer than the host has.
+    let few: usize = 5;
+    let evidence: HolderEvidence = scan_proc_fd_holders_stopping(proc_root.as_path(), device, inode, 7, ScanLimit { deadline: None, processes: Some(few) });
+    assert_eq!(
+        evidence.holders,
+        vec![Holder { pid: i64::from(holder_number), command: Some(String::from("git")) }],
+        "{evidence:?}"
+    );
+    assert!(evidence.partial.iter().any(|reason| { return reason.contains("time bound"); }), "{evidence:?}");
+    remove(root.as_path());
+}
+
 /// A proc root that cannot be listed is partial evidence with its path,
 ///  never a silent absence.
 #[test]

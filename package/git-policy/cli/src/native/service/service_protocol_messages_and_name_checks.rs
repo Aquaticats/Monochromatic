@@ -360,6 +360,20 @@ pub enum ClientMessage {
         /// never in a work item or on disk.
         review_key: Option<ReviewKey>,
     },
+    /// The rules text of this repository changed (a checkout,
+    /// merge or pull of the person's own command);
+    /// compile its forbidden-strings rules into the shared cache,
+    /// on the service's own time.
+    /// Nothing is answered:
+    /// the connection is closed after the line is read.
+    Warm {
+        /// The worktree's own Git directory,
+        /// which names the instance that serves it.
+        git_dir: PathBuf,
+        /// The repository's top level,
+        /// whose configuration names the rules files.
+        repository: PathBuf,
+    },
 }
 
 /// What the service sends.
