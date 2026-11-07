@@ -47,6 +47,11 @@ use crate::types::PaneId;
 /// Why:
 ///  this module extends `StripLayout` while retaining access to its private fields.
 use super::StripLayout;
+/// What:
+///  imports the placement lookup by id.
+/// Why:
+///  reveal starts from the target pane's placement snapshot.
+use super::placement_queries::placement_by_id;
 
 /// What:
 ///  how many timed passes to retry revealing a spawned pane before giving up.
@@ -74,13 +79,7 @@ impl StripLayout {
     ///  a spawn must bring the newly focused pane into view even though GTK updates scroll
     ///      bounds one layout pass after reconciliation.
     pub(crate) fn scroll_to_pane(self: &Rc<Self>, id: PaneId) {
-        let Some(placement) = self
-            .placements
-            .borrow()
-            .iter()
-            .find(|placement| return placement.id == id)
-            .copied()
-        else {
+        let Some(placement) = placement_by_id(&self.placements.borrow(), id) else {
             return;
         };
         let outer_h = self.outer.hadjustment();

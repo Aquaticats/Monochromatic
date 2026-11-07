@@ -65,7 +65,15 @@ mod geometry;
 ///  imports lane geometry helper functions and rectangle type.
 /// Why:
 ///  app-scroll sync uses these helpers while keeping GTK-specific code in this file.
-use geometry::{LaneRect, direct_child_groups, lane_base_bottom, lane_width, placement_by_id};
+use geometry::{LaneRect, direct_child_groups, lane_base_bottom, lane_width, lowered_bound, raised_bound};
+/// What:
+///  imports the placement queries that replace iterator-adapter closures.
+/// Why:
+///  lookups,
+///  extents and sort keys over placement snapshots are named loop functions.
+use super::placement_queries::{
+    last_column_of, last_row_of, lane_contains, parent_of, placement_by_id, row_then_id,
+};
 
 /// What:
 ///  app-scroll sync and debug-lane methods on the layout adapter.
@@ -96,9 +104,17 @@ impl StripLayout {
         let placements = self.placements.borrow().clone();
         let groups = direct_child_groups(&placements);
         let active: Vec<PaneId> = groups.keys().copied().collect();
-        self.lane_offsets
-            .borrow_mut()
-            .retain(|parent, _| return active.contains(parent));
+        let mut offsets = self.lane_offsets.borrow_mut();
+        let mut dropped: Vec<PaneId> = Vec::new();
+        for parent in offsets.keys() {
+            if !active.contains(parent) {
+                dropped.push(*parent);
+            }
+        }
+        for parent in dropped {
+            offsets.remove(&parent);
+        }
+        drop(offsets);
         let mut updates = Vec::new();
         for parent in active {
             if let Some(parent_placement) = placement_by_id(&placements, parent)
@@ -129,10 +145,10 @@ impl StripLayout {
             let Some(present_widget) = widget else {
                 continue;
             };
-            let y = positions
-                .get(&placement.id)
-                .copied()
-                .unwrap_or_else(|| return self.desired_y_for_pane(*placement));
+            let y = match positions.get(&placement.id) {
+                Some(resolved) => *resolved,
+                None => self.desired_y_for_pane(*placement),
+            };
             if let Some(view) = self.columns.borrow().get(placement.column) {
                 view.fixed.move_(&present_widget, 0.0, y);
             }
@@ -208,15 +224,15 @@ impl StripLayout {
         let placements = self.placements.borrow().clone();
         let groups = direct_child_groups(&placements);
         let scroll = self.outer.vadjustment().value();
-        let updates: Vec<(PaneId, f64)> = groups
-            .iter()
-            .filter_map(|(parent, children)| {
-                let parent_placement = placement_by_id(&placements, *parent)?;
-                let max = self.lane_max_offset(parent_placement, children);
-                let top = scroll::row_y(parent_placement.row);
-                return Some((*parent, (scroll - top).clamp(0.0, max)))
-            })
-            .collect();
+        let mut updates: Vec<(PaneId, f64)> = Vec::new();
+        for (parent, children) in &groups {
+            let Some(parent_placement) = placement_by_id(&placements, *parent) else {
+                continue;
+            };
+            let max = self.lane_max_offset(parent_placement, children);
+            let top = scroll::row_y(parent_placement.row);
+            updates.push((*parent, (scroll - top).clamp(0.0, max)));
+        }
         for (parent, next) in updates {
             self.lane_offsets.borrow_mut().insert(parent, next);
         }
@@ -239,10 +255,10 @@ impl StripLayout {
     ///  reveal code needs the same non-overlap and rail-bound position used by rendering.
     pub(super) fn visual_y_for_pane(&self, placement: PanePlacement) -> f64 {
         let placements = self.placements.borrow().clone();
-        return self.resolved_y_positions(&placements)
-            .get(&placement.id)
-            .copied()
-            .unwrap_or_else(|| return self.desired_y_for_pane(placement))
+        match self.resolved_y_positions(&placements).get(&placement.id) {
+            Some(resolved) => return *resolved,
+            None => return self.desired_y_for_pane(placement),
+        }
     }
 
     /// What:
@@ -259,7 +275,7 @@ impl StripLayout {
         }
         let mut positions = HashMap::new();
         for (_, mut column) in columns {
-            column.sort_by_key(|placement| return (placement.row, placement.id.0));
+            column.sort_by_key(row_then_id);
             let resolved = self.resolve_column_positions(&column, placements, &groups);
             for (id, y) in resolved {
                 positions.insert(id, y);
@@ -280,16 +296,15 @@ impl StripLayout {
         groups: &HashMap<PaneId, Vec<PanePlacement>>,
     ) -> Vec<(PaneId, f64)> {
         let stride = f64::from(PANE_HEIGHT + PANE_GAP);
-        let mut rows: Vec<(PaneId, f64, f64, f64)> = column
-            .iter()
-            .map(|placement| {
-                let (min_y, max_y) = self
-                    .allowed_y_for_pane_in(*placement, placements, groups)
-                    .unwrap_or((f64::NEG_INFINITY, f64::INFINITY));
-                let y = self.desired_y_for_pane(*placement).clamp(min_y, max_y);
-                return (placement.id, y, min_y, max_y)
-            })
-            .collect();
+        let mut rows: Vec<(PaneId, f64, f64, f64)> = Vec::new();
+        for placement in column {
+            let (min_y, max_y) = match self.allowed_y_for_pane_in(*placement, placements, groups) {
+                Some(bounds) => bounds,
+                None => (f64::NEG_INFINITY, f64::INFINITY),
+            };
+            let y = self.desired_y_for_pane(*placement).clamp(min_y, max_y);
+            rows.push((placement.id, y, min_y, max_y));
+        }
         for index in 1..rows.len() {
             let floor = rows[index - 1].1 + stride;
             rows[index].1 = rows[index].1.max(floor).min(rows[index].3);
@@ -298,7 +313,11 @@ impl StripLayout {
             let ceiling = rows[index + 1].1 - stride;
             rows[index].1 = rows[index].1.min(ceiling).max(rows[index].2);
         }
-        return rows.into_iter().map(|(id, y, _, _)| return (id, y)).collect()
+        let mut resolved: Vec<(PaneId, f64)> = Vec::new();
+        for (id, y, _, _) in rows {
+            resolved.push((id, y));
+        }
+        return resolved
     }
 
     /// What:
@@ -324,9 +343,7 @@ impl StripLayout {
         let mut min_y: Option<f64> = None;
         let mut max_y: Option<f64> = None;
         for (parent, children) in groups {
-            let contains = *parent == placement.id
-                || children.iter().any(|child| return child.id == placement.id);
-            if !contains {
+            if !lane_contains(*parent, children, placement.id) {
                 continue;
             }
             let Some(parent_placement) = placement_by_id(placements, *parent) else {
@@ -334,8 +351,8 @@ impl StripLayout {
             };
             let top = scroll::row_y(parent_placement.row);
             let bottom = lane_base_bottom(parent_placement, children) - f64::from(PANE_HEIGHT);
-            min_y = Some(min_y.map_or(top, |current| return current.max(top)));
-            max_y = Some(max_y.map_or(bottom, |current| return current.min(bottom)));
+            min_y = Some(raised_bound(min_y, top));
+            max_y = Some(lowered_bound(max_y, bottom));
         }
         let (top_bound, bottom_bound) = (min_y?, max_y?);
         return Some((top_bound, bottom_bound.max(top_bound)))
@@ -351,17 +368,14 @@ impl StripLayout {
     fn effective_offset_for_pane(&self, id: PaneId) -> f64 {
         let placements = self.placements.borrow();
         let offsets = self.lane_offsets.borrow();
-        let Some(placement) = placements.iter().find(|placement| return placement.id == id) else {
+        let Some(placement) = placement_by_id(&placements, id) else {
             return 0.0;
         };
         let mut total = 0.0;
         let mut current = placement.parent.or(Some(id));
         while let Some(pane_id) = current {
             total += offsets.get(&pane_id).copied().unwrap_or(0.0);
-            current = placements
-                .iter()
-                .find(|candidate| return candidate.id == pane_id)
-                .and_then(|candidate| return candidate.parent);
+            current = parent_of(&placements, pane_id);
         }
         return total
     }
@@ -374,11 +388,7 @@ impl StripLayout {
     ///  but the boxes
     ///      themselves must not receive sticky offsets.
     fn lane_rect(&self, parent: PanePlacement, children: &[PanePlacement]) -> LaneRect {
-        let end_column = children
-            .iter()
-            .map(|child| return child.column)
-            .max()
-            .unwrap_or(parent.column);
+        let end_column = last_column_of(children, parent.column);
         let column_span = end_column - parent.column + 1;
         let x = parent.column as f64 * f64::from(PANE_WIDTH + PANE_GAP);
         let y = scroll::row_y(parent.row);
@@ -400,16 +410,8 @@ impl StripLayout {
     ///  including empty grid cells in that span.
     fn add_child_lane(&self, parent: PanePlacement, children: &[PanePlacement]) {
         let rect = self.lane_rect(parent, children);
-        let max_child_row = children
-            .iter()
-            .map(|child| return child.row)
-            .max()
-            .unwrap_or(parent.row);
-        let end_column = children
-            .iter()
-            .map(|child| return child.column)
-            .max()
-            .unwrap_or(parent.column);
+        let max_child_row = last_row_of(children, parent.row);
+        let end_column = last_column_of(children, parent.column);
         let detail = format!(
             "parent={} columns={}..{} rows={}..{} children={}",
             parent.id.0,
