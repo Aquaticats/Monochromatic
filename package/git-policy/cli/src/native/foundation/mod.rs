@@ -86,6 +86,11 @@ pub mod kept_names_in_the_git_directories;
 /// found with a read lease that is taken and given back at once.
 pub mod file_open_for_write_by_any_process;
 
+/// The journal of a log fold:
+/// a round,
+/// a record's text and the journal file held with its lock.
+pub mod earlier_log_lines_journal_held_and_recorded;
+
 /// The lines of a log an earlier release wrote added to the log under the current name,
 /// restartable after a kill.
 pub mod earlier_log_lines_added_to_current_log;

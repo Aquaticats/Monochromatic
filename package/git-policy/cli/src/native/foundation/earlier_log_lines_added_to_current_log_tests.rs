@@ -2,6 +2,7 @@
 //! each in its own disposable folder.
 
 use super::*;
+use crate::earlier_log_lines_journal_held_and_recorded::{journal_text, parse_journal};
 use crate::wrapper_names_old_and_new::COMMIT_TIMING_LOG;
 use std::path::PathBuf;
 
