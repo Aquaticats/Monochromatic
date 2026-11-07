@@ -119,7 +119,7 @@ libc = { workspace = true }
 # Linux calls the standard library does not expose, as the owner chose over hand-written `libc` calls (2026-11-07, "Linux calls:
 # rustix"): the limits a runtime build reads (`getrlimit`), the pidfd, the directory sync (`fsync`) and, in the steps that follow,
 # the inotify watch and the directory-relative file calls. Already in the lockfile through `tempfile`.
-rustix = { workspace = true, features = ["process", "fs"] }
+rustix = { workspace = true, features = ["process", "fs", "thread"] }
 # The `markdown/autofix` policy's `exclude` patterns are gitignore syntax; the linter it runs and the
 # scanner above match them with this crate's gitignore matcher, already locked through the scanner.
 ignore = { workspace = true }
