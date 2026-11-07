@@ -18,7 +18,7 @@ use crate::wrapper_names_old_and_new::DATA_FOLDER;
 const AWKWARD_STATE: &str = "state with 'quotes' and \"more\"\nand a break";
 
 /// The instance of the world's worktree.
-fn instance_for(world: &World) -> String {
+pub(super) fn instance_for(world: &World) -> String {
     return instance_of(world.repo.join(".git").as_path());
 }
 
@@ -35,7 +35,7 @@ fn new_context(world: &World, state: &Path) -> LandContext {
 }
 
 /// The world with its journal in the place the earlier unit gave it, below `state`.
-fn world_with_earlier_journal(name: &str, state_name: &str) -> (World, PathBuf) {
+pub(super) fn world_with_earlier_journal(name: &str, state_name: &str) -> (World, PathBuf) {
     let mut world: World = world(name);
     let state: PathBuf = world.root.join(state_name);
     let earlier: PathBuf = state.join(DATA_FOLDER.earlier).join("service").join(instance_for(&world));
@@ -45,7 +45,7 @@ fn world_with_earlier_journal(name: &str, state_name: &str) -> (World, PathBuf) 
 }
 
 /// A proc root that lists no process and no socket.
-fn empty_proc(world: &World) -> PathBuf {
+pub(super) fn empty_proc(world: &World) -> PathBuf {
     let proc_root: PathBuf = world.root.join("proc-empty");
     std::fs::create_dir_all(proc_root.as_path()).expect("proc root");
     write_unix_table(proc_root.as_path(), &[]);
@@ -53,7 +53,7 @@ fn empty_proc(world: &World) -> PathBuf {
 }
 
 /// Writes a fake process with the given command line words into `proc_root`.
-fn fake_process(proc_root: &Path, pid: u32, words: &[&str]) {
+pub(super) fn fake_process(proc_root: &Path, pid: u32, words: &[&str]) {
     let directory: PathBuf = proc_root.join(pid.to_string());
     std::fs::create_dir_all(directory.as_path()).expect("process directory");
     let mut bytes: Vec<u8> = Vec::new();
@@ -424,7 +424,7 @@ fn the_adoption_says_what_it_did_with_each_batch() {
 }
 
 /// The flags column of `/proc/net/unix` for a socket that listens (`SO_ACCEPTCON`), as the kernel prints it.
-const LISTENING_FLAGS: &str = "00010000";
+pub(super) const LISTENING_FLAGS: &str = "00010000";
 
 /// The flags column of `/proc/net/unix` for a socket that does not listen.
 const CONNECTED_FLAGS: &str = "00000000";
@@ -433,18 +433,18 @@ const CONNECTED_FLAGS: &str = "00000000";
 const UNIX_TABLE_HEADER: &str = "Num       RefCount Protocol Flags    Type St Inode Path\n";
 
 /// A user's runtime directory, as the sockets of the units name it.
-const RUNTIME_DIRECTORY: &str = "/run/user/1000";
+pub(super) const RUNTIME_DIRECTORY: &str = "/run/user/1000";
 
 /// The name of the socket the single service of the first releases listened on, below the earlier program folder.
 const SHARED_SOCKET_NAME: &str = "service.sock";
 
 /// One line of `/proc/net/unix` for a socket bound at `<runtime>/<folder>/<file>`, in the columns the kernel prints.
-fn unix_table_line(flags: &str, folder: &str, file: &str) -> String {
+pub(super) fn unix_table_line(flags: &str, folder: &str, file: &str) -> String {
     return format!("000000002982a48d: 00000002 00000000 {flags} 0001 01 2269401 {RUNTIME_DIRECTORY}/{folder}/{file}\n");
 }
 
 /// Writes the unix socket table of a fake proc root.
-fn write_unix_table(proc_root: &Path, lines: &[String]) {
+pub(super) fn write_unix_table(proc_root: &Path, lines: &[String]) {
     let table: PathBuf = proc_root.join("net/unix");
     std::fs::create_dir_all(table.parent().expect("net folder")).expect("net folder");
     std::fs::write(table, format!("{UNIX_TABLE_HEADER}{}", lines.concat())).expect("unix table");

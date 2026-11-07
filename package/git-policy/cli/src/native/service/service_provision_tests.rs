@@ -15,6 +15,9 @@ struct Recorder {
     stop_failure: Arc<Mutex<Option<CallError>>>,
     /// What a stop that spares the units requiring the stopped one is answered with, when it fails.
     stop_alone_failure: Arc<Mutex<Option<CallError>>>,
+    /// A socket file that the earlier wrapper's unit makes again after every answer about its socket and after every stop, as an
+    ///  earlier-release wrapper that sets its unit up again would.
+    recreate: Arc<Mutex<Option<PathBuf>>>,
     /// The states a unit reports in turn, the last one repeating; a unit without a script is not held by the manager.
     states: Arc<Mutex<std::collections::HashMap<String, Vec<String>>>>,
     /// What a state question is answered with instead of a state, when it is made to fail.
@@ -53,11 +56,15 @@ impl Manager for Recorder {
 
     fn stop_alone(&mut self, unit: &str) -> Result<(), CallError> {
         self.calls.lock().expect("lock").push(format!("stop-alone {unit}"));
+        self.recreate_socket();
         return self.stop_alone_failure.lock().expect("lock").clone().map_or(Ok(()), Err);
     }
 
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
         self.calls.lock().expect("lock").push(format!("state {unit}"));
+        if unit == earlier_socket_unit_instance(INSTANCE) {
+            self.recreate_socket();
+        }
         if let Some(failure) = self.state_failure.lock().expect("lock").clone() {
             return Err(failure);
         }
@@ -88,6 +95,14 @@ fn instance_service() -> String {
 }
 
 impl Recorder {
+    /// Makes the socket file again when a control asked for that.
+    fn recreate_socket(&self) {
+        if let Some(file) = self.recreate.lock().expect("lock").as_ref() {
+            std::fs::create_dir_all(file.parent().expect("socket directory")).expect("directories");
+            std::fs::write(file, b"live").expect("the socket made again");
+        }
+    }
+
     fn calls(&self) -> Vec<String> {
         return self.calls.lock().expect("lock").clone();
     }
@@ -723,9 +738,9 @@ fn the_same_worktrees_earlier_socket_is_stopped_after_the_new_instance_started()
     script(&recorder, earlier_socket().as_str(), &["active", "inactive"]);
     script(&recorder, earlier_service().as_str(), &["inactive"]);
     provision_with(&machine.host, &mut recorder).expect("provisioned");
-    // The manager leaves the file of a stopped socket behind (measured with a throwaway socket unit), and a file that is left
-    //  would send every later commit to the bus again.
-    assert!(!socket_file.exists(), "the stopped socket's file is removed");
+    // The manager leaves the file of a stopped socket behind (measured with a throwaway socket unit). An earlier-release wrapper
+    //  can make its unit listen again at that path at any moment, so the file is never unlinked here.
+    assert!(socket_file.exists(), "the file is the manager's and an earlier wrapper's, not this program's to unlink");
     let calls: Vec<String> = recorder.calls();
     assert!(
         position(&calls, format!("stop-alone {}", earlier_socket()).as_str()) > position(&calls, format!("start {}", instance_socket()).as_str()),
@@ -850,36 +865,74 @@ fn a_running_earlier_helper_is_not_stopped_and_its_socket_is_kept() {
     }
 }
 
-/// The socket file of the earlier unit keeps the installation from counting as in place, so a commit that follows a stop that
-///  failed or was skipped tries again; the manager removes the file with the socket.
+/// A socket file whose unit the manager no longer holds, with no helper running, is left as it is: an earlier-release wrapper
+///  may be making the unit listen again at that very path, and an unlink would take the live socket from it.
 #[test]
-fn an_earlier_socket_file_of_the_worktree_keeps_the_installation_from_being_in_place() {
-    let machine: Machine = machine("provision-earlier-socket-in-place-lib");
-    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
-    add_socket(&machine);
-    assert!(in_place(&machine.host));
-    let other: PathBuf = earlier_socket_file(&machine, OTHER_INSTANCE);
-    assert!(in_place(&machine.host), "another worktree's earlier socket says nothing about this one");
-    std::fs::remove_file(other).expect("removed");
-    let own: PathBuf = earlier_socket_file(&machine, INSTANCE);
-    assert!(!in_place(&machine.host));
-    std::fs::remove_file(own).expect("removed");
-    assert!(in_place(&machine.host));
-    remove(machine.root.as_path());
-}
-
-/// A socket file whose unit the manager no longer holds, with no helper running, is what a stop leaves behind: it is removed,
-///  and a file of another worktree's socket is not.
-#[test]
-fn a_socket_file_left_by_an_unloaded_earlier_unit_is_removed_and_another_worktrees_is_not() {
+fn a_socket_file_left_by_an_unloaded_earlier_unit_is_not_unlinked() {
     let machine: Machine = machine("provision-earlier-socket-stale-lib");
     let own: PathBuf = earlier_socket_file(&machine, INSTANCE);
     let other: PathBuf = earlier_socket_file(&machine, OTHER_INSTANCE);
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("provisioned");
-    assert!(!own.exists());
-    assert!(other.exists());
+    assert!(own.exists() && other.exists());
     assert!(!recorder.calls().iter().any(|call| { return call.starts_with("stop"); }), "{:?}", recorder.calls());
+    remove(machine.root.as_path());
+}
+
+/// Review finding of 2026-11-07 (cross-vendor, round 6): the socket-state answer and an unlink are separate steps, and an
+///  earlier-release wrapper can make its socket unit listen again in between, so the unlink would take the live socket from
+///  it and its next connect would fail. The earlier wrapper here makes the file again after every answer and every stop;
+///  provisioning finishes with that file as the wrapper made it.
+#[test]
+fn a_socket_the_earlier_wrapper_makes_again_during_provisioning_is_left_whole() {
+    let machine: Machine = machine("provision-earlier-socket-recreated-lib");
+    let file: PathBuf = earlier_socket_path(machine.host.runtime_dir.as_path(), INSTANCE);
+    for states in [&["active", "inactive"][..], &["active"][..], &["inactive"][..]] {
+        let mut recorder: Recorder = Recorder::default();
+        *recorder.recreate.lock().expect("lock") = Some(file.clone());
+        script(&recorder, earlier_socket().as_str(), states);
+        provision_with(&machine.host, &mut recorder).expect("provisioned");
+        assert_eq!(std::fs::read(&file).expect("the earlier wrapper's socket is still there"), b"live", "{states:?}");
+        std::fs::remove_file(&file).expect("reset");
+    }
+    remove(machine.root.as_path());
+}
+
+/// A fake process table whose unix socket table holds `lines`.
+fn proc_with_sockets(machine: &Machine, lines: &[String]) -> PathBuf {
+    let proc_root: PathBuf = machine.root.join("proc");
+    std::fs::create_dir_all(proc_root.join("net")).expect("net folder");
+    std::fs::write(proc_root.join("net/unix"), format!("Num       RefCount Protocol Flags    Type St Inode Path\n{}", lines.concat())).expect("table");
+    return proc_root;
+}
+
+/// One line of the table for a socket bound at `path`.
+fn socket_line(flags: &str, path: &str) -> String {
+    return format!("000000002982a48d: 00000002 00000000 {flags} 0001 01 2269401 {path}\n");
+}
+
+/// The earlier socket of a worktree decides whether the installation is in place, by whether anything listens on it and not by
+///  whether its file is there: a stopped socket leaves the file, and that must not send every later commit to the bus.
+#[test]
+fn an_earlier_socket_that_listens_keeps_the_installation_from_being_in_place_and_a_leftover_file_does_not() {
+    let machine: Machine = machine("provision-earlier-socket-in-place-lib");
+    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
+    add_socket(&machine);
+    let runtime: String = machine.host.runtime_dir.display().to_string();
+    let own_path: String = format!("{runtime}/cli-git/{INSTANCE}.sock");
+    let other_path: String = format!("{runtime}/cli-git/{OTHER_INSTANCE}.sock");
+    let own_file: PathBuf = earlier_socket_file(&machine, INSTANCE);
+    let quiet: PathBuf = proc_with_sockets(&machine, &[]);
+    assert!(in_place_with(&machine.host, quiet.as_path()), "a leftover file of a stopped socket is no reason to ask the manager");
+    let listening: PathBuf = proc_with_sockets(&machine, &[socket_line("00010000", own_path.as_str())]);
+    assert!(!in_place_with(&machine.host, listening.as_path()), "this worktree's earlier socket listens");
+    let connected: PathBuf = proc_with_sockets(&machine, &[socket_line("00000000", own_path.as_str())]);
+    assert!(in_place_with(&machine.host, connected.as_path()), "a socket that does not listen starts no helper");
+    let other: PathBuf = proc_with_sockets(&machine, &[socket_line("00010000", other_path.as_str())]);
+    assert!(in_place_with(&machine.host, other.as_path()), "another worktree's earlier socket says nothing about this one");
+    std::fs::remove_file(machine.root.join("proc/net/unix")).expect("table removed");
+    assert!(!in_place_with(&machine.host, machine.root.join("proc").as_path()), "a table that cannot be read leaves the question open");
+    assert!(own_file.exists());
     remove(machine.root.as_path());
 }
 //endregion

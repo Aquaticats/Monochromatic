@@ -420,6 +420,11 @@ mod tests;
 #[path = "earlier_service_journal_adopted_tests.rs"]
 mod adoption_tests;
 
+/// Controls for settling the batches an earlier release's service left open when the person asks.
+#[cfg(test)]
+#[path = "earlier_batches_settled_on_request_tests.rs"]
+mod settle_request_tests;
+
 /// Controls for a replay over the index the landing saw stay out of the release executable.
 #[cfg(test)]
 #[path = "service_land_witness_tests.rs"]

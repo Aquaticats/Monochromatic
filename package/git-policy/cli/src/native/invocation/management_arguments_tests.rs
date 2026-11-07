@@ -300,9 +300,18 @@ fn doctor_help_states_the_exit_statuses() {
     assert!(!MANAGEMENT_HELP.contains("exit 1 when any are found"), "{MANAGEMENT_HELP}");
 }
 
-/// `service` takes exactly the word `status`, and anything else (the retired `install` and `uninstall` included) is a usage error.
+/// `service` takes exactly the word `status` or the word `settle-earlier-batches`, and anything else (the retired `install` and
+///  `uninstall` included) is a usage error.
 #[test]
-fn the_service_command_takes_only_status() {
+fn the_service_command_takes_only_status_and_settle_earlier_batches() {
+    assert_eq!(parse(&["service", "settle-earlier-batches"]), Ok(ManagementAction::SettleEarlierBatches));
+    for bad in [vec!["service", "settle-earlier-batches", "--now"], vec!["service", "settle-earlier-batches", "status"], vec!["service", "settle"]] {
+        assert_eq!(parse(&bad), Err(ManagementRefusal::Usage), "{bad:?}");
+    }
+    for text in [MANAGEMENT_USAGE, MANAGEMENT_HELP] {
+        assert!(text.contains("settle-earlier-batches"), "{text}");
+    }
+    assert!(MANAGEMENT_HELP.contains("no wrapper of the earlier release"), "the help states the condition: {MANAGEMENT_HELP}");
     assert_eq!(parse_management_arguments(&[OsString::from("service"), OsString::from("status")]), Ok(ManagementAction::ServiceStatus));
     for bad in [vec!["service"], vec!["service", "install"], vec!["service", "uninstall"], vec!["service", "status", "--now"]] {
         let arguments: Vec<OsString> = bad.iter().map(OsString::from).collect();

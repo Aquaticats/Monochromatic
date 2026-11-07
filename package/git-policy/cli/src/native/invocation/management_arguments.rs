@@ -136,6 +136,9 @@ pub enum ManagementAction {
     ConvertWorktree(Result<ConvertArguments, String>),
     /// `service status`: whether the commit service answers (a diagnostic; the wrapper sets the service up itself).
     ServiceStatus,
+    /// `service settle-earlier-batches`: finish the batches an earlier release's commit service left open, when no earlier
+    ///  helper runs or can start.
+    SettleEarlierBatches,
     /// `check` or `fix` over exactly one scope.
     Direct {
         /// `true` for `fix`,

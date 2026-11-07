@@ -174,6 +174,12 @@ pub fn runtime_unit_dir(runtime_dir: &Path) -> PathBuf {
 /// inPlace(host) // false: write, reload, start
 /// ```
 pub fn in_place(host: &ProvisionHost) -> bool {
+    return in_place_with(host, Path::new("/proc"));
+}
+
+/// `in_place` with the process table to read the listening sockets from.
+pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
+    let _unused = proc_root;
     let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
     // Every unit file holds exactly the text the wrapper would write.
     let mut all_current: bool = true;

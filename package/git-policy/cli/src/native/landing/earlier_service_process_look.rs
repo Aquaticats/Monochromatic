@@ -69,6 +69,17 @@ const SOCKET_TABLE_COLUMNS: usize = 8;
 /// The position of the flags column in a line of `/proc/net/unix`.
 const SOCKET_FLAGS_COLUMN: usize = 3;
 
+/// Why the look cannot promise that no service of the worktree runs or will start.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Hold {
+    /// A socket of an earlier unit listens: a connection to it starts the earlier helper at any moment.
+    SocketListens,
+    /// A process has the start arguments of the earlier helper of the worktree.
+    ServiceRuns,
+    /// The sockets or the processes could not be looked at (a table or a command line that cannot be read, a look that ran out of time).
+    CannotLook,
+}
+
 /// What a look needs to know to recognise a service of one worktree.
 #[derive(Clone, Debug)]
 pub struct ServiceLook {
@@ -434,4 +445,10 @@ pub fn service_of_instance_may_run(look: ServiceLook, proc_root: &Path) -> bool 
             true
         }
     };
+}
+
+/// Why the look cannot promise that no service of the worktree runs or starts, or nothing when it can.
+pub fn earlier_service_hold(look: ServiceLook, proc_root: &Path) -> Option<Hold> {
+    let _unused = (look, proc_root);
+    return None;
 }

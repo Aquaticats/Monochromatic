@@ -21,6 +21,7 @@ use crate::child_environment::{child_environment_overlay, environment_value};
 /// The traditional-hook listing of `git monochromatic-git-policy-cli doctor`.
 use crate::doctor::doctor_action_with_section;
 use crate::service_route::service_status;
+use crate::management_service_settle_earlier_batches::plan_settle_earlier_batches;
 use crate::management_arguments::{
     MANAGEMENT_HELP, ManagementAction, RetiredCommand,
     parse_management_arguments,
@@ -408,6 +409,7 @@ pub fn plan_management_with_section(
         }
         ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs, filesystem_section),
         ManagementAction::ServiceStatus => return plan_service(git_global_arguments, environment, inputs),
+        ManagementAction::SettleEarlierBatches => return plan_settle_earlier_batches(git_global_arguments, environment, inputs),
         ManagementAction::MigrateToSubvolume(migrate_parse) => return plan_migrate(migrate_parse),
         ManagementAction::ConvertWorktree(convert_parse) => return plan_convert(convert_parse, git_global_arguments, environment, inputs),
         ManagementAction::Direct {

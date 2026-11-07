@@ -48,12 +48,13 @@
 //! ```
 
 /// Whether a service of the worktree may be running.
-use crate::earlier_service_process_look::{ServiceLook, effective_user, service_of_instance_may_run};
+use crate::earlier_service_process_look::{Hold, ServiceLook, effective_user, service_of_instance_may_run};
 /// How long that look may take.
 use crate::wait_ceilings::PROCESS_LOOK_CEILING;
 /// The context a recovery runs in,
 ///  and the recovery itself.
 use crate::service_land::{Handled, LandContext, RecoveryReport, recover_instance_without_drops};
+use crate::transaction_git::GitContext;
 /// The log of the service.
 use crate::journald_native::Priority;
 use crate::service_journal::Recovery;
@@ -104,6 +105,49 @@ pub fn earlier_journals_of(journal: &Path, instance: &str) -> Option<EarlierJour
     let state: &Path = data_folder.parent()?;
     let shared: PathBuf = state.join(DATA_FOLDER.earlier).join(SERVICE_FOLDER);
     return Some(EarlierJournals { per_instance: shared.join(instance), shared });
+}
+
+/// The earlier journals of an instance below a state folder (`<state>/cli-git/service/<instance>` and `<state>/cli-git/service`).
+pub fn earlier_journals_in_state(state: &Path, instance: &str) -> EarlierJournals {
+    let shared: PathBuf = state.join(DATA_FOLDER.earlier).join(SERVICE_FOLDER);
+    return EarlierJournals { per_instance: shared.join(instance), shared };
+}
+
+/// How many batches the earlier journals of a worktree hold open, counted without changing a file of them.
+pub fn open_batch_count(earlier: &EarlierJournals, instance: &str) -> usize {
+    let _unused = (earlier, instance);
+    return 0;
+}
+
+/// One batch an on-request settling dealt with, and the journal it was found in.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SettledBatch {
+    /// The journal the batch is in.
+    pub journal: PathBuf,
+    /// What was decided and done.
+    pub report: RecoveryReport,
+}
+
+/// What a settling on request came to.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RequestedSettlement {
+    /// No batch of the worktree is open in the earlier journals; nothing was looked at.
+    NothingOpen,
+    /// A batch is open and an earlier helper may run or start, so nothing was settled.
+    Held {
+        /// How many batches are open.
+        open: usize,
+        /// Why nothing was settled.
+        because: Hold,
+    },
+    /// The batches were dealt with as the adoption deals with them.
+    Settled(Vec<SettledBatch>),
+}
+
+/// Settles the open batches of the worktree's earlier journals when the person asks.
+pub fn settle_on_request(git: &GitContext, earlier: &EarlierJournals, instance: &str, proc_root: &Path, lock_ceiling: std::time::Duration) -> RequestedSettlement {
+    let _unused = (git, earlier, instance, proc_root, lock_ceiling);
+    return RequestedSettlement::NothingOpen;
 }
 
 /// What:

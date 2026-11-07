@@ -62,6 +62,9 @@ pub mod management_direct_commands;
 /// Which repository the service commands mean.
 pub mod management_service_repository_selection;
 
+/// `service settle-earlier-batches`, and the note `doctor` adds about the batches it would settle.
+pub mod management_service_settle_earlier_batches;
+
 /// The `git monochromatic-git-policy-cli` argument grammar.
 pub mod management_arguments;
 
