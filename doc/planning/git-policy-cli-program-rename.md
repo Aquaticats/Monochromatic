@@ -275,6 +275,10 @@ and closed the other three fixes (the process command line and the folder identi
     The calls share one exchange's time (`EXCHANGE_WAIT`, 20 s, the budget the reload and the start already have).
     `in_place` is false while the old socket file of the worktree exists, so a skipped or failed stop is tried again by the next
     commit; it costs two state questions on the bus.
+  - Cost, from the shape of the code and not yet timed with `native:perf`: while a helper of the earlier release runs in a
+    worktree (up to the idle exit after its last client), its socket file stays, so `in_place` is false and each commit makes a
+    bus trip (connect, hello, the reset calls, the start, and the state questions) where it made none before; after a stop the
+    file is removed by the same or the next commit, and the cost ends.
 - The review's defect: an old-release wrapper in the same worktree can write its units again and start its socket between the
   adoption's look and the end of the recovery, and the module already said so ("Still open").
   The reviewer asked for exclusion at the launch paths, "Merely stopping the currently listening sockets, or adding another
