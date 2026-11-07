@@ -99,7 +99,10 @@ fn ask(repo: &std::path::Path, scope: DirtyScope) -> bool {
     return dirty_from_output(&output).expect("status answers");
 }
 
-/// A Git directory without an `index` file is absent; one with an `index` file, empty included, is not.
+/// A Git directory without an `index` file is absent;
+/// one with an `index` file,
+/// empty included,
+/// is not.
 #[test]
 fn the_index_file_is_absent_only_where_the_git_directory_has_none() {
     let root = fixture("index-file-absent");
@@ -111,7 +114,9 @@ fn the_index_file_is_absent_only_where_the_git_directory_has_none() {
     remove(root.as_path());
 }
 
-/// A Git directory that does not exist, no Git directory, and a `GIT_INDEX_FILE` that names another index leave the question to the status.
+/// A Git directory that does not exist,
+/// no Git directory,
+/// and a `GIT_INDEX_FILE` that names another index leave the question to the status.
 #[test]
 fn the_index_file_is_not_absent_when_the_question_is_not_the_default_index() {
     let root = fixture("index-file-unknown");

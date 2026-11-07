@@ -145,7 +145,8 @@ mod conflict_side;
 #[path = "binary_discard_tests.rs"]
 mod discard;
 
-/// A clone made with `--no-checkout` has no index file, and the guard of uncommitted work lets its first checkout run.
+/// A clone made with `--no-checkout` has no index file,
+/// and the guard of uncommitted work lets its first checkout run.
 #[path = "binary_no_checkout_clone_tests.rs"]
 mod no_checkout_clone;
 
