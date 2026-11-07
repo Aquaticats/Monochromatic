@@ -72,6 +72,25 @@
   then run the
   `lock:members` task so the release-age and trust policy checks the new versions.
 
+## Where steps T6 onward stand (2026-11-07T15:55:00-05:00)
+
+- Branch `feat/git-policy-cli-tokio-steps-6-onward` in `.claude/worktrees/tokio-steps-6-onward`, created from the frozen tip `9afcac4a26`
+  of `feat/git-policy-cli-on-tokio`; main is not merged into it (the coordinator says when, after the repository-lint branch and the tokio
+  branch are in main; carry edits for `push/child_watch.rs` to its split file).
+- Done: T6 (`start_retry`, `bounded_push`, `bounded_query`, the repair tool's wait and reaper) and T7 (the signal relay on a pidfd, no guard wait,
+  a service's stop not relayed). Details, controls, measurements and gates: the plan, "Steps T6 and T7".
+- Written for the owner: open choice 12 (what a stop of the service does to the Git child of a commit it is preparing), with a ranking.
+- Not started: T10 (the service), T11 (callers), T12 (parallel runner), T13 (removal, lint). T10 follows the owner's answer to choice 4
+  ("Rewrite per-thread state"): the production `thread_local!` items to turn into task-local or context values are in
+  `service/service_busy_step_record_on_this_thread.rs`, `service/service_busy.rs`, `landing/service_durable.rs`, `landing/service_index_*.rs`,
+  `landing/service_built_checks.rs`, `landing/service_land_git_steps_and_import_stream.rs`, `transaction/transaction_git_step_bounds.rs`,
+  `repo_read/repo_read_tree.rs` (an `Rc`), `repo_read/repo_read_odb.rs`, `foundation/private_storage.rs`, `foundation/scoped_start.rs`,
+  `process/pid_namespace.rs`, `worktree/add_timing.rs`, `invocation/panic_notice.rs`; the remaining production `thread::sleep` calls
+  (`landing/service_land_follow.rs`, `landing/service_index_hold.rs`, `landing/service_index_wait.rs`, `landing/service_index_attempts.rs`,
+  `lock/index_holder_wait.rs`, `push/auto_push.rs`, `service/service_client*.rs`, `service/service_server.rs`, `service/service_provision.rs`,
+  `transaction/transaction_git.rs` (`run_git_pausing`), `transaction/transaction_phase.rs`) are T10 and T11 work.
+- The one `thread::sleep` that stays by design is the forwarded command's start pause in `push/start_retry.rs` (`sleep_for`): a forwarded command builds no runtime.
+
 ## Open work, in order
 
 - Done since the previous handover (details and figures: the plan, "The coordinator's three settlements after T5", "The two gate failures
