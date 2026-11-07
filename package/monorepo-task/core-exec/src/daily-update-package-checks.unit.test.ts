@@ -25,6 +25,7 @@ import {
   NO_ERROR_IN_OUTPUT,
   issueMarker,
   MAXIMUM_MOVE_LINES,
+  notifierEnvironment,
   type PackageCheck,
   pnpmImporterMoves,
   publishIssues,
@@ -33,6 +34,7 @@ import {
   runUpdateWithChecks,
   toolchainLockMoves,
   CHECK_PASS_DEADLINE_MS,
+  LISTED_ISSUE_LINES,
   RUST_CHECK_PARALLEL,
   TYPESCRIPT_CHECK_PARALLEL,
 } from '../dist/final/node/testing.mjs';
@@ -191,6 +193,11 @@ function toolchainLock({
 },): string {
   return JSON.stringify({ tools: { rust: { version: rust, }, zig: { version: zig, }, bin: { version: '0.29.4', }, }, },);
 }
+
+/**
+ How many packages break in the scenario that checks the notification stays one.
+ */
+const MANY_BROKEN_PACKAGES = 30;
 
 /**
  Toolchain lock text before the update in the scenarios.
@@ -765,6 +772,20 @@ await describe({
       ],
     },),
     describe({
+      name: notifierEnvironment.name,
+      children: [
+        it({
+          name: 'never invents a session bus address: an unset one stays unset, a set one is passed on unchanged',
+          fn: async () => {
+            expect('DBUS_SESSION_BUS_ADDRESS' in notifierEnvironment({ environment: { PATH: '/bin', }, },),).toBe(false,);
+            expect(
+              notifierEnvironment({ environment: { DBUS_SESSION_BUS_ADDRESS: 'unix:path=/nowhere', }, },).DBUS_SESSION_BUS_ADDRESS,
+            ).toBe('unix:path=/nowhere',);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: runUpdateWithChecks.name,
       children: [
         it({
@@ -981,6 +1002,55 @@ await describe({
             },);
             expect(world.ghCalls.filter((call,) => call.args[1] === 'create',).length,).toBe(1,);
             expect(world.pending,).toEqual([],);
+          },
+        },),
+        it({
+          name: 'sends one notification for a run in which many packages break, with the issue addresses and a bounded list',
+          fn: async () => {
+            const names = Array.from({ length: MANY_BROKEN_PACKAGES, }, (_, index,) => `//package/m/crate${index}:lint:clippy`,);
+            const { effects, checkEffects, world, } = fixture({
+              tracked: { 'toolchain.lock.json': LOCK_BEFORE, },
+              checks: Object.fromEntries(names.map((name,) => [
+                name,
+                { before: PASSES, after: { exitCode: 101, output: ZBUS_BREAK_OUTPUT, }, },
+              ],),),
+              edits: { 'mise run toolchain:update': { 'toolchain.lock.json': LOCK_AFTER, }, },
+            },);
+            await runUpdateWithChecks({
+              effects,
+              checkEffects,
+              groups: dailyUpdateGroups({ globalLockPath: FIXTURE_GLOBAL_LOCK, },),
+            },);
+            expect(world.ghCalls.filter((call,) => call.args[1] === 'create',).length,).toBe(MANY_BROKEN_PACKAGES,);
+            expect(world.notifications.length,).toBe(1,);
+            const [notification,] = world.notifications;
+            expect(notification?.body,).toContain('https://github.com/example/repository/issues/501',);
+            expect(notification?.body,).toContain(`${MANY_BROKEN_PACKAGES} packages`,);
+            expect(notification?.body.split('\n',).filter((line,) => line.includes('crate',),).length,).toBeLessThanOrEqual(
+              LISTED_ISSUE_LINES,
+            );
+          },
+        },),
+        it({
+          name: 'sends one notification, not two, when the update has a problem of its own and a package breaks',
+          fn: async () => {
+            const { effects, checkEffects, world, } = fixture({
+              tracked: {
+                'toolchain.lock.json': LOCK_BEFORE,
+                'package/a/b/Cargo.lock': cargoLock('5.19.0',),
+              },
+              dirty: ['toolchain.lock.json',],
+              checks: { '//package/a/b:lint:clippy': { before: PASSES, after: { exitCode: 101, output: ZBUS_BREAK_OUTPUT, }, }, },
+              edits: { 'mise exec -- cargo-shadow update': { 'package/a/b/Cargo.lock': cargoLock('6.2.1',), }, },
+            },);
+            await runUpdateWithChecks({
+              effects,
+              checkEffects,
+              groups: dailyUpdateGroups({ globalLockPath: FIXTURE_GLOBAL_LOCK, },),
+            },);
+            expect(world.notifications.length,).toBe(1,);
+            expect(world.notifications[0]?.body,).toContain('uncommitted changes',);
+            expect(world.notifications[0]?.body,).toContain('package/a/b',);
           },
         },),
         it({

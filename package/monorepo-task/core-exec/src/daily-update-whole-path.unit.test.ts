@@ -66,6 +66,9 @@ await describe({
         expect(create?.stdin,).toContain('mise run //package/a/broken-crate:lint:clippy',);
         expect(create?.stdin,).toContain('toolchain-daily-update package=package/a/broken-crate task=lint:clippy cause=E0433',);
         expect(result.pendingText,).toBe('',);
+        expect(result.notifications.length,).toBe(1,);
+        expect(result.notifications[0]?.bus.endsWith('no-session-bus',),).toBe(true,);
+        expect(result.notifications[0]?.args.join(' ',),).toContain('issue opened',);
         for (const call of result.ghCalls) {
           expect(call.environment.GIT_ASKPASS,).toBe('',);
           expect(call.environment.GIT_TERMINAL_PROMPT,).toBe('0',);
@@ -82,6 +85,7 @@ await describe({
         expect(callsOf({ calls: result.ghCalls, verb: 'issue create', },).length,).toBe(0,);
         expect(result.pendingText,).toContain('package/a/broken-crate',);
         expect(result.journal,).toContain('error connecting to api.github.com',);
+        expect(result.notifications.length,).toBe(1,);
       },
     },),
   ],

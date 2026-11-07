@@ -190,6 +190,10 @@ export type FixtureOptions = {
    Whether listing the checks throws.
    */
   readonly listingFails?: boolean;
+  /**
+   Repository-relative paths that already have uncommitted changes when the run starts.
+   */
+  readonly dirty?: readonly string[];
 };
 
 /**
@@ -371,7 +375,7 @@ export function updateEffects({
   /**
    Paths that became dirty because a command edited them.
    */
-  const edited = new Set<string>();
+  const edited = new Set<string>(options.dirty ?? [],);
   return {
     repository: FIXTURE_REPOSITORY,
     runCommand: function runScripted(command: UpdateCommand,) {

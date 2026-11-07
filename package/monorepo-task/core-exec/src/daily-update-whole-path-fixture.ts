@@ -59,6 +59,20 @@ export type RecordedGhCall = {
 };
 
 /**
+ A desktop notification the stand-in `notify-send` received.
+ */
+export type RecordedNotification = {
+  /**
+   Arguments after `notify-send`: the options, the title and the text.
+   */
+  readonly args: readonly string[];
+  /**
+   The session bus address the notifier was given.
+   */
+  readonly bus: string;
+};
+
+/**
  What the whole run left behind.
  */
 export type WholePathResult = {
@@ -74,6 +88,10 @@ export type WholePathResult = {
    Calls the stand-in `gh` received, in order.
    */
   readonly ghCalls: readonly RecordedGhCall[];
+  /**
+   Desktop notifications the stand-in `notify-send` received, in order.
+   */
+  readonly notifications: readonly RecordedNotification[];
   /**
    Commit subjects of the repository, newest first.
    */
@@ -108,6 +126,15 @@ if (exitCode !== 0) { process.stderr.write('error connecting to api.github.com\\
 const verb = process.argv[3];
 if (verb === 'list') process.stdout.write('[]');
 if (verb === 'create') process.stdout.write('https://github.com/example/fixture/issues/1\\n');
+`;
+
+/**
+ The fake `notify-send`: records the call and its bus address and shows nothing, so no run of the fixture can reach the
+ owner's desktop.
+ */
+const FAKE_NOTIFY_SEND = `#!/usr/bin/env node
+const { appendFileSync } = require('node:fs');
+appendFileSync(process.env.FIXTURE_NOTIFY_LOG, JSON.stringify({ args: process.argv.slice(2), bus: process.env.DBUS_SESSION_BUS_ADDRESS ?? '(unset)' }) + '\\n');
 `;
 
 /**
@@ -420,6 +447,7 @@ export async function runWholePath({
   const root = join(base, 'repository',);
   const bin = join(base, 'bin',);
   const ghLog = join(base, 'gh-calls.jsonl',);
+  const notifyLog = join(base, 'notifications.jsonl',);
   const globalLock = join(base, 'global', 'toolchain.lock.json',);
   /**
    Environment of every process: the stand-ins first on `PATH`, fixture-owned homes, no ambient credentials.
@@ -445,6 +473,9 @@ export async function runWholePath({
     MISE_TASK_RUN_AUTO_INSTALL: 'false',
     MISE_YES: '1',
     NO_COLOR: '1',
+    // A session bus address that leads nowhere, so even a notifier that was not the stand-in could show nothing.
+    DBUS_SESSION_BUS_ADDRESS: `unix:path=${join(base, 'no-session-bus',)}`,
+    FIXTURE_NOTIFY_LOG: notifyLog,
     FIXTURE_GH_LOG: ghLog,
     FIXTURE_GH_EXIT: String(ghExitCode,),
     FIXTURE_GLOBAL_LOCK: globalLock,
@@ -458,10 +489,12 @@ export async function runWholePath({
   ],);
   await Promise.all([
     putExecutable({ directory: bin, name: 'gh', content: FAKE_GH, },),
+    putExecutable({ directory: bin, name: 'notify-send', content: FAKE_NOTIFY_SEND, },),
     putExecutable({ directory: bin, name: 'cargo-shadow', content: FAKE_CARGO_SHADOW, },),
     putExecutable({ directory: bin, name: 'pnpm', content: FAKE_PNPM, },),
     put({ path: globalLock, content: '{"tools":{"rust":{"version":"nightly-1"}}}\n', },),
     put({ path: ghLog, content: '', },),
+    put({ path: notifyLog, content: '', },),
   ],);
   await layOutRepository({ root, environment, },);
   /**
@@ -508,6 +541,14 @@ export async function runWholePath({
       },)
       .map(function parse(line,): RecordedGhCall {
         return JSON.parse(line,) as RecordedGhCall;
+      },),
+    notifications: (await readFile(notifyLog, 'utf8',))
+      .split('\n',)
+      .filter(function nonEmpty(line,) {
+        return line !== '';
+      },)
+      .map(function parse(line,): RecordedNotification {
+        return JSON.parse(line,) as RecordedNotification;
       },),
     commitSubjects: log.stdout.split('\n',)
       .filter(function nonEmpty(line,) {
