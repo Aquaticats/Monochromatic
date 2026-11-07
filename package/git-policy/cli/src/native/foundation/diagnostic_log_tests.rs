@@ -86,7 +86,7 @@ fn child_stderr(verbose: bool) -> String {
     let module: &str = module_path!();
     let path: String = format!(
         "{}::child_prints_a_debug_and_a_warning_line_naming_a_remote",
-        module.split_once("::").map_or(module, |(_, rest)| rest)
+        module.split_once("::").map_or(module, |(_, rest)| return rest)
     );
     let mut command: std::process::Command = std::process::Command::new(crate::test_support::this_test_binary().expect("the test binary"));
     command
