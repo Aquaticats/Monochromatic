@@ -9,10 +9,11 @@ import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 import { parseArgs, } from 'node:util';
 
+import { realCheckEffects, } from './daily-update-check-effects.ts';
+import { runUpdateWithChecks, } from './daily-update-check-phase.ts';
 import { realEffects, } from './daily-update-effects.ts';
 import { takeRunLock, } from './daily-update-lock.ts';
 import { dailyUpdateGroups, } from './daily-update-plan.ts';
-import { runDailyUpdate, } from './daily-update-run.ts';
 
 /**
  Runs the daily update with the real effects.
@@ -71,13 +72,12 @@ export async function main(argv: readonly string[],): Promise<number> {
     return 1;
   }
   /**
-   What every group did.
+   What the groups did and what the package checks found; only the groups decide the exit code.
    */
-  const reports = await runDailyUpdate({
+  const result = await runUpdateWithChecks({
     effects: realEffects(repository,),
+    checkEffects: realCheckEffects(repository,),
     groups: dailyUpdateGroups({ globalLockPath: globalLock, },),
   },);
-  return reports.some(function failed(report,) {
-    return report.outcome === 'failed';
-  },) ? 1 : 0;
+  return result.exitCode;
 }

@@ -12,7 +12,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function cargoProgram(): Path;
-//! function dylintProbe(cargo: Path): string; // the version line; throws the reason to skip
+//! function dylintProbe(cargo: Path): string; // the version line; throws ProbeFailure
 //! function dependenciesMissing(cargo: Path, manifest: Path): string | undefined;
 //! function runDylint(cargo: Path, library: Path, manifest: Path, setup: PackageSetup): Output; // throws string
 //! ```
@@ -97,35 +97,95 @@ pub fn cargo_program() -> PathBuf {
 }
 
 /// What:
+///  The exit status that shells and launchers report for a program that exists but cannot be started.
+/// Why:
+///  Cargo itself never exits with it,
+///  so a `cargo` that answers 126 or 127 is a broken link or launcher
+///  (its real program was deleted or is not executable),
+///  not a machine that merely lacks `cargo-dylint`,
+///  whose `cargo` answers 101 for the unknown subcommand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const UNSTARTABLE_PROGRAM_STATUSES = [126, 127];
+/// ```
+const UNSTARTABLE_PROGRAM_STATUSES: [i32; 2] = [126, 127];
+
+/// What:
+///  Why the `cargo dylint --version` probe did not pass.
+/// Why:
+///  A machine without the tool is a documented skip with one note,
+///  but a `cargo` that was found and could not start its program is a defect of the machine's links,
+///  so it fails the run with what `cargo` printed:
+///  skipping the rule with exit status zero would hide that nothing was checked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ProbeFailure = { kind: 'absent'; reason: string } | { kind: 'broken'; reason: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProbeFailure {
+    /// `cargo` is not on the machine or `cargo-dylint` is not installed:
+    /// skip the packages with this reason.
+    Absent(String),
+    /// `cargo` started and exited 126 or 127:
+    /// fail the run with this explanation.
+    Broken(String),
+}
+
+/// The methods of `ProbeFailure`.
+impl ProbeFailure {
+    /// The sentence that explains the failure.
+    pub fn reason(&self) -> &str {
+        return match self {
+            ProbeFailure::Absent(reason) | ProbeFailure::Broken(reason) => reason.as_str(),
+        };
+    }
+}
+
+/// What:
 ///  Check that `cargo dylint` runs on this machine and return what `--version` printed.
 /// Why:
 ///  A machine without `cargo-dylint` skips every package with one note instead of failing them one by one,
 ///  and the printed line carries the version that the pinned driver crate needs,
 ///  so one process answers both questions.
+///  A `cargo` that exits 126 or 127 fails instead,
+///  quoting its own standard error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function dylintProbe(cargo: Path): string; // throws string, the reason to skip
+/// function dylintProbe(cargo: Path): string; // the version line; throws ProbeFailure
 /// ```
-pub fn dylint_probe(cargo: &Path) -> Result<String, String> {
+pub fn dylint_probe(cargo: &Path) -> Result<String, ProbeFailure> {
     let output = match Command::new(cargo)
         .args(["dylint", "--version"])
         .stdin(Stdio::null())
-        .stderr(Stdio::null())
         .output()
     {
         Ok(done) => done,
         Err(error) => {
-            return Err(format!(
+            return Err(ProbeFailure::Absent(format!(
                 "cargo does not run ({error}); install the Rust toolchain, cargo-dylint and dylint-link with mise install"
-            ));
+            )));
         }
     };
     if !output.status.success() {
-        return Err(format!(
+        let unstartable: bool = output
+            .status
+            .code()
+            .is_some_and(|code| return UNSTARTABLE_PROGRAM_STATUSES.contains(&code));
+        if unstartable {
+            return Err(ProbeFailure::Broken(format!(
+                "`{} dylint --version` exited with {}, the status of a program that exists and cannot be started, so this is a broken `cargo` link or launcher and not a missing cargo-dylint. Its standard error was:\n{}",
+                cargo.display(),
+                output.status.code().unwrap_or_default(),
+                String::from_utf8_lossy(&output.stderr).trim_end()
+            )));
+        }
+        return Err(ProbeFailure::Absent(format!(
             "`cargo dylint --version` failed ({}); install cargo-dylint and dylint-link with mise install",
             output.status
-        ));
+        )));
     }
     return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
 }

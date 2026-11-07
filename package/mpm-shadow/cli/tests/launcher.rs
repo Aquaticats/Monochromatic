@@ -285,3 +285,129 @@ fn the_verbs_stay_silent_when_the_lock_and_the_install_match() {
         assert!(!String::from_utf8_lossy(&output.stdout).contains("warning"), "{arguments:?}");
     }
 }
+
+/// A tree whose release archive folder carries the version in its name,
+/// as the archives of this repository's tools do (`monochromatic-cargo-shadow-0.1.4-x86_64-unknown-linux-gnu`):
+/// the launcher's record was written while `recorded` was the version behind `current`,
+/// then `current` moved to `now` and the folder of `recorded` was deleted,
+/// which is what installing a newer release in any tree does.
+struct MovedArchive {
+    directory: tempfile::TempDir,
+    tool_dir: PathBuf,
+    launcher: PathBuf,
+    lock_file: PathBuf,
+}
+
+impl MovedArchive {
+    fn new(locked: &str, recorded: &str, now: &str) -> MovedArchive {
+        let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a fixture root");
+        let tool_dir = directory.path().join("root").join("demo-release");
+        let lock_file = directory.path().join("toolchain.lock.json");
+        let launcher = directory.path().join("launchers").join("tool");
+        let moved = MovedArchive { directory, tool_dir, launcher, lock_file };
+        moved.install(recorded);
+        fs::write(
+            &moved.lock_file,
+            format!("{{\"schemaVersion\":1,\"tools\":{{\"demo-release\":{{\"version\":\"{locked}\",\"route\":\"archive\"}}}}}}"),
+        )
+        .expect("write the lock");
+        fs::create_dir_all(moved.launcher.parent().expect("a parent")).expect("make the launcher directory");
+        fs::copy(env!("CARGO_BIN_EXE_mpm-shadow"), &moved.launcher).expect("copy the binary");
+        let record = LaunchRecord {
+            tool_id: "demo-release".to_string(),
+            lock_file: moved.lock_file.clone(),
+            real: moved.program_of(recorded),
+            scope: ScopeKind::Repo,
+        };
+        fs::write(record_path(&moved.launcher), render_record(&record)).expect("write the record");
+        moved.install(now);
+        fs::remove_dir_all(moved.tool_dir.join(recorded)).expect("remove the recorded version");
+        return moved;
+    }
+
+    /// The program of `version` through the `current` link, the way a record names it.
+    fn program_of(&self, version: &str) -> PathBuf {
+        return self.tool_dir.join("current").join(format!("demo-release-{version}-linux")).join("tool");
+    }
+
+    /// Installs `version` and points `current` at it.
+    fn install(&self, version: &str) {
+        let folder = self.tool_dir.join(version).join(format!("demo-release-{version}-linux"));
+        fs::create_dir_all(&folder).expect("make the folder");
+        fs::write(folder.join("tool"), REAL_PROGRAM).expect("write the real program");
+        fs::set_permissions(folder.join("tool"), fs::Permissions::from_mode(0o755)).expect("chmod");
+        let link = self.tool_dir.join("current");
+        let _ = fs::remove_file(&link);
+        symlink(version, &link).expect("link current");
+    }
+}
+
+#[test]
+fn a_launcher_whose_recorded_version_was_deleted_runs_the_version_current_names() {
+    let moved = MovedArchive::new("0.1.4", "0.1.4", "0.1.5");
+    let direct = run(&moved.program_of("0.1.5"), &["a b", "--flag"], &[]);
+    let launched = run(&moved.launcher, &["a b", "--flag"], &[]);
+    assert_eq!(launched.status.code(), Some(0), "{}", String::from_utf8_lossy(&launched.stderr));
+    assert_eq!(launched.stdout, direct.stdout, "standard output is the new version's program, byte for byte");
+    let warning = "mpm-shadow: warning: demo-release is locked at 0.1.4 in this tree but 0.1.5 runs, because older repository tools are never kept \
+                   once a newer one is installed; upgrade this tree's lock with `mpm update demo-release` or merge main\n";
+    assert_eq!(String::from_utf8_lossy(&launched.stderr), format!("{warning}{}", String::from_utf8_lossy(&direct.stderr)));
+}
+
+#[test]
+fn a_launcher_with_a_stale_record_and_a_matching_lock_prints_nothing_extra() {
+    let moved = MovedArchive::new("0.1.5", "0.1.4", "0.1.5");
+    let direct = run(&moved.program_of("0.1.5"), &["x"], &[]);
+    let launched = run(&moved.launcher, &["x"], &[]);
+    assert_eq!(launched.status.code(), Some(0));
+    assert_eq!(launched.stdout, direct.stdout);
+    assert_eq!(launched.stderr, direct.stderr, "following current is not a warning when the lock names the version that runs");
+}
+
+#[test]
+fn a_launcher_that_finds_no_program_under_current_names_both_versions_and_the_one_command() {
+    let moved = MovedArchive::new("0.1.4", "0.1.4", "0.1.5");
+    fs::remove_file(moved.program_of("0.1.5")).expect("remove the program");
+    let launched = run(&moved.launcher, &[], &[]);
+    assert_eq!(launched.status.code(), Some(NOT_FOUND_EXIT_CODE));
+    assert!(launched.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&launched.stderr);
+    let tree = moved.lock_file.parent().expect("the tree").display().to_string();
+    assert!(stderr.contains("could not start"), "{stderr}");
+    assert!(stderr.contains("demo-release"), "the tool is named: {stderr}");
+    assert!(stderr.contains("locked at 0.1.4"), "the locked version is named: {stderr}");
+    assert!(stderr.contains("0.1.5"), "the version current names is named: {stderr}");
+    assert!(stderr.contains(&format!("`mpm install` in {tree}")), "the one command and where to run it: {stderr}");
+    let _ = &moved.directory;
+}
+
+#[test]
+fn a_launcher_rewrites_a_stale_record_to_the_program_it_started_so_a_shadow_behind_it_can_see_where_it_leads() {
+    let moved = MovedArchive::new("0.1.5", "0.1.4", "0.1.5");
+    let launched = run(&moved.launcher, &["x"], &[]);
+    assert_eq!(launched.status.code(), Some(0), "{}", String::from_utf8_lossy(&launched.stderr));
+    let text = fs::read_to_string(record_path(&moved.launcher)).expect("the record");
+    let record = mpm_shadow::toolchain::launcher::parse_record(&text).expect("a record");
+    assert_eq!(record.real, moved.program_of("0.1.5"), "the record names the program that ran");
+    assert!(record.real.exists());
+    assert_eq!(record.lock_file, moved.lock_file, "only the program changes");
+    assert_eq!(record.tool_id, "demo-release");
+    let again = run(&moved.launcher, &["x"], &[]);
+    assert_eq!(again.stdout, launched.stdout);
+    assert_eq!(again.stderr, launched.stderr, "a repeat run changes nothing");
+}
+
+#[test]
+fn a_record_that_cannot_be_rewritten_is_a_warning_and_the_program_still_runs() {
+    let moved = MovedArchive::new("0.1.5", "0.1.4", "0.1.5");
+    let directory = moved.launcher.parent().expect("a parent").to_path_buf();
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o555)).expect("make the launcher directory read-only");
+    let direct = run(&moved.program_of("0.1.5"), &["x"], &[]);
+    let launched = run(&moved.launcher, &["x"], &[]);
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o755)).expect("restore");
+    assert_eq!(launched.status.code(), Some(0));
+    assert_eq!(launched.stdout, direct.stdout);
+    let stderr = String::from_utf8_lossy(&launched.stderr);
+    assert!(stderr.contains("could not update the launcher record"), "{stderr}");
+    assert!(stderr.ends_with(&*String::from_utf8_lossy(&direct.stderr)), "{stderr}");
+}

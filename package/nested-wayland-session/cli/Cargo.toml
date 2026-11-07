@@ -48,6 +48,12 @@ path = "src/lib.rs"
 name = "monochromatic-nested-wayland-session"
 path = "src/main.rs"
 
+# A private session bus with the recording notification service and no compositor: tests of other packages run a
+# real notify-send against it and read back what was sent.
+[[bin]]
+name = "monochromatic-nested-wayland-session-notification-recorder"
+path = "src/bin/notification_recorder.rs"
+
 [dependencies]
 # Application-level error channel for the binary and the control-socket handlers,
 # matching package/file-manager/app. A fixture wants one user-facing

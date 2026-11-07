@@ -1048,6 +1048,26 @@ A hosted Node client calls the service,
 including the ordered log and the refusal of an unoffered action.
 It also requires that a decoy session bus in the compositor's own environment saw only a deliberate sentinel connection.
 
+#### Record notifications without a compositor
+
+Another package's test can run a real `notify-send`, or any client of `org.freedesktop.Notifications`, and read back
+what it sent, with no compositor, no window and no Wayland display:
+
+```sh
+monochromatic-nested-wayland-session-notification-recorder --log PATH [--notifications freedesktop|kde] -- COMMAND [ARG...]
+```
+
+- It starts the same private session bus as the nested session (a `dbus-daemon` with no service directories) and the
+  same recording service, runs `COMMAND` with `DBUS_SESSION_BUS_ADDRESS` set to that bus and `XDG_RUNTIME_DIR` removed,
+  so the command cannot reach the host's session bus by its default path.
+- When `COMMAND` ends, the notification log is written to `PATH` in the format of the `notification-log` control verb,
+  and the recorder exits with the command's own status.
+- `--log` and the command are required; `--notifications` defaults to `freedesktop`, and `none` is refused because it
+  serves nothing to record.
+- `tests/notification_recorder.rs` runs it with `dbus-send` as the client.
+  `package/monorepo-task/core-exec` uses it to run the daily update's real entry point and assert the notifications it
+  sent.
+
 #### Plasma jobs
 
 In `kde` mode the fake owns `org.kde.kuiserver` and `org.kde.JobViewServer`,
