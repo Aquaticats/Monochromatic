@@ -3588,8 +3588,17 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   the fold worktree, 09:08:16 for the masking worktree). Main was reinstalled at 09:19:48 (`mise run toolchain:install`,
   all four links back). Until the fixed `mpm-shadow` is released and installed, every copy-route worktree add empties
   main's links again: make new worktrees with `git worktree add --no-worktree-copy` plus `mise run toolchain:install`,
-  or reinstall main afterwards. A release agent is releasing and installing it (it first checks that the installed 0.2.6
-  can pick up an `-alpha.N` release through `@latest`; if not, it stops for a bootstrap decision).
+  or reinstall main afterwards.
+- Release of the fix, first try (stopped before dispatch, nothing published): the installed 0.2.6 does resolve an
+  unflagged `-alpha.N` GitHub release through `@latest` (fixture test on `test/mpm-shadow-cli-resolver-picks-alpha-release`,
+  `aee8bf86c0`), but nothing enforces "only publish rc and stable releases on crates.io": `cargo-publish.yml` runs
+  `cargo publish` for any version, `release:wait` always checks crates.io, and the rc-with-alpha-dependencies refusal
+  that `crates-io-footprint.md` describes has no code. It also found `compare_versions` orders `alpha.9` above
+  `alpha.10` (prerelease compared as text). Route taken, without an owner question: build the label gate for every
+  crate first (required by the owner's words for any later alpha), fix the ordering, then release `0.2.7-alpha.1`,
+  which keeps crates.io untouched; a plain `0.2.7` was the other compliant route and would add a crates.io version.
+  "Day-to-day releases carry `-alpha.N`" in `crates-io-footprint.md` is the session's plan under the pick
+  "Label decides", not an owner quote. An agent is on it (`fix/crate-release-label-gate`).
 - Also running since about 09:10 (-05:00): the masking of Git output in `diagnostic_log::debug` under
   `MONOCHROMATIC_VERBOSE=true` (`fix/git-policy-cli-mask-verbose-git-output`), and the diagnosis of the emptied link
   folders. Tried and refused at the same time by the five-agent limit, so they start at the next free slot:
