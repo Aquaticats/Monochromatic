@@ -260,18 +260,16 @@ fn slow_flushes_delay_a_commit_and_change_nothing_else() {
     remove_settled(&fixture);
 }
 
-/// A state directory on a filesystem that refuses hard links (a FUSE server such as `s3fs-fuse` answers `ENOTSUP`) must not
-///  stop a commit: every call to `link` and `linkat` fails from the first on, in the service and in each Git it starts, and the
-///  commit still lands. The native control runs the same commit with real Git under the same fault, and must land too ("what
-///  Git completes, we complete").
-#[test]
-fn a_filesystem_that_refuses_hard_links_does_not_stop_a_commit() {
+/// One commit through the service while every call in `calls` fails from the first on with `EOPNOTSUPP`, in the service and in each
+///  Git it starts: the commit still lands. The native control runs the same commit with real Git under the same fault, and must
+///  land too ("what Git completes, we complete").
+fn commit_lands_while_calls_are_refused(label: &str, calls: &'static str) {
     if !strace_available() {
-        eprintln!("skipped: strace is not installed, so no link was refused");
+        eprintln!("skipped: strace is not installed, so no call was refused");
         return;
     }
-    let fault: Injection = Injection { syscall: "link,linkat", effect: Effect::Fail("EOPNOTSUPP"), when: When::FromNth(1), follow_forks: true };
-    let native: Fixture = fixture("links-refused-native");
+    let fault: Injection = Injection { syscall: calls, effect: Effect::Fail("EOPNOTSUPP"), when: When::FromNth(1), follow_forks: true };
+    let native: Fixture = fixture(format!("{label}-native").as_str());
     let native_trace: PathBuf = native.root.join("native-trace.txt");
     let native_repo: PathBuf = staged_repository(&native, "repo");
     let words: Vec<OsString> = tracer(native_trace.as_path(), fault.syscall, Some(&fault), true);
@@ -287,7 +285,7 @@ fn a_filesystem_that_refuses_hard_links_does_not_stop_a_commit() {
         String::from_utf8_lossy(native_output.stderr.as_slice())
     );
     remove_settled(&native);
-    let fixture: Fixture = fixture("links-refused");
+    let fixture: Fixture = fixture(label);
     let trace: PathBuf = fixture.root.join("service-trace.txt");
     *fixture.service_launch.lock().expect("the service launch") =
         ServiceLaunch { prefix: tracer(trace.as_path(), fault.syscall, Some(&fault), true), ..ServiceLaunch::default() };
@@ -298,8 +296,15 @@ fn a_filesystem_that_refuses_hard_links_does_not_stop_a_commit() {
     let traced: String = std::fs::read_to_string(&trace).unwrap_or_default();
     assert!(took_effect(traced.as_str()), "no link was refused, so nothing was tested: {traced}");
     assert_eq!(output.status.code(), Some(0), "the commit lands although links are refused: {said}");
-    assert_eq!(verify_recovery_with(&fixture, repo.as_path(), "links-refused", said.as_str(), run_unsettled), Ok(()));
+    assert_eq!(verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled), Ok(()));
     remove_settled(&fixture);
+}
+
+/// A state directory on a filesystem that refuses hard links (a FUSE server such as `s3fs-fuse` answers `ENOTSUP`) must not stop
+///  a commit: the service's decision file is published without a link where the kernel's exclusive rename works.
+#[test]
+fn a_filesystem_that_refuses_hard_links_does_not_stop_a_commit() {
+    commit_lands_while_calls_are_refused("links-refused", "link,linkat");
 }
 
 /// The wrapper under a tracer that injects `fault`, for the flow in `repo`.
