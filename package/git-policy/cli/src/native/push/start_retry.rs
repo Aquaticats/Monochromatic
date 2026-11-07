@@ -150,8 +150,7 @@ pub async fn retry_refused_start_awaiting_within<T, Start: RefusableStart<T>>(
             Err(error) if error.kind() == ErrorKind::WouldBlock => error,
             Err(error) => return Err(error),
         };
-        // The stub that stands before the timer: this is the blocking pause the awaiting loop must not have.
-        std::thread::sleep(schedule.pause_after(what, budget, error)?);
+        tokio::time::sleep(schedule.pause_after(what, budget, error)?).await;
     }
 }
 

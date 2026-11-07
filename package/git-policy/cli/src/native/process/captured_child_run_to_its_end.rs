@@ -14,7 +14,7 @@
 use crate::child_awaited_through_a_pidfd::adopt;
 use crate::lazy_runtime::run_on_runtime;
 use crate::output_capture::{Capture, STEP_OUTPUT_LIMIT};
-use crate::start_retry::RetryStart as _;
+use crate::start_retry::spawn_retrying_without_blocking;
 use std::process::{Command, Output};
 
 /// What:
@@ -31,7 +31,7 @@ pub async fn output_of(command: &mut Command) -> std::io::Result<Output> {
     let capture: Capture = Capture::new()?;
     let (standard_output, standard_error) = capture.stdio()?;
     command.stdout(standard_output).stderr(standard_error);
-    let child: std::process::Child = command.spawn_retrying()?;
+    let child: std::process::Child = spawn_retrying_without_blocking(command).await?;
     let mut owned = adopt(child);
     let status: std::process::ExitStatus = owned.wait().await?;
     let captured = capture.snapshot(STEP_OUTPUT_LIMIT);
