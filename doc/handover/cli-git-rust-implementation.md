@@ -3572,6 +3572,17 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 - Resume instructions, the six briefs and the common constraints are in
   `~/temp/agent/coordinator-briefs/resume-after-restart.md` (scratch: survives a restart, not a reboot); the waiting
   briefs are beside it in `waiting-for-a-slot.md`. Each branch and its commits are the durable record.
+- Checkpoints reported:
+  - tokio `feat/git-policy-cli-on-tokio` at `783f8d8887` (`decide` race fixed, T5 done, both gated; user unit
+    `tokio-gate-merge2` still running, log `~/temp/agent/tokio-steps/gate-merge2.log`);
+  - label gate and SemVer ordering merged into main `4fd9c70572`; `mpm-shadow` `0.2.7-alpha.1` dispatched (release run
+    42384727529 succeeded, publish run 42384840600 in progress at about 10:10); lock not moved yet;
+  - fold late lines: red test `ead9d7463c` only (design: read-lease probe for open writers);
+  - `core-exec` depends: process-group kill done (`8a19368c49`), lint fixes half done, tip `69ac4ed029` does not
+    compile (WIP);
+  - Zig containers: pending its report.
+- Commit comment posted on `c5b4559b88` (its message overstates removed timeouts):
+  https://github.com/Aquaticats/Monochromatic/commit/c5b4559b88f4582103acc18cd3fe6294aab42734#commitcomment-208645485
 
 ### After the release: agents at work (2026-11-07, resumed after a usage-limit stop)
 
