@@ -134,8 +134,18 @@ description = "Mutate configuration, findings, inline directives, grouped edits 
 depends = ["lint:container"]
 run = "node bin/mutate-container.ts --core"
 
+[tasks."mutation:layout"]
+description = "Mutate every layout module against the layout tests, after full container tests and Clippy"
+depends = ["lint:container"]
+run = "node bin/mutate-container.ts --layout"
+
+[tasks."mutation:workflow-shell"]
+description = "Mutate the workflow walk and the shell dialect scanners against the workflow and shell tests, after full container tests and Clippy"
+depends = ["lint:container"]
+run = "node bin/mutate-container.ts --workflow-shell"
+
 [tasks."mutation:semantic"]
-description = "Mutate the semantic engine and the explicit-type rule against the whole suite, with a per-mutant limit set from this scope's own baseline, after full container tests and Clippy"
+description = "Mutate the semantic engine, the explicit-type rule, the manifest lookup and the syntax-only router against the whole suite, with a per-mutant limit set from this scope's own baseline, after full container tests and Clippy"
 depends = ["lint:container"]
 run = "node bin/mutate-container.ts --semantic"
 
@@ -150,6 +160,14 @@ run = "node bin/mutate-container.ts --list --executable"
 [tasks."mutation:list:core"]
 description = "Inspect the configuration, findings, inline directive, edits and syntax-only Rust rule mutant scope without mutating or building source"
 run = "node bin/mutate-container.ts --list --core"
+
+[tasks."mutation:list:layout"]
+description = "Inspect the layout mutant scope without mutating or building source"
+run = "node bin/mutate-container.ts --list --layout"
+
+[tasks."mutation:list:workflow-shell"]
+description = "Inspect the workflow and shell mutant scope without mutating or building source"
+run = "node bin/mutate-container.ts --list --workflow-shell"
 
 [tasks."mutation:list:semantic"]
 description = "Inspect the semantic engine and explicit-type rule mutant scope without mutating or building source"

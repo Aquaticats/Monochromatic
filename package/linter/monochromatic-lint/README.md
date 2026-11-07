@@ -1227,7 +1227,13 @@ input expansion and the fix loop;
 findings,
 inline directives,
 grouped edits and the syntax-only Rust rules;
-`mutation:semantic` for the semantic engine and the explicit-type rule;
+`mutation:layout` for every layout module,
+against the layout tests;
+`mutation:workflow-shell` for the workflow walk and the shell dialect scanners,
+against the workflow and shell tests;
+`mutation:semantic` for the semantic engine,
+the explicit-type rule,
+the manifest lookup and the router of a build without the `semantic` feature;
 and `mutation:processors:files` for the processor modules.
 The executable and core scopes skip the five tests that load a Cargo workspace,
 which the semantic scope and the full container tests run.
