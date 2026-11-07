@@ -146,13 +146,13 @@ fn panic_with_secret() {
 #[test]
 fn a_panic_inside_an_expected_call_is_caught_and_the_mark_ends_with_the_call() {
     assert!(!panics_are_expected_here());
-    let outer = while_panics_are_expected(|| {
-        let inner = while_panics_are_expected(|| { return panics_are_expected_here(); });
+    let outer = while_panics_are_expected((), |()| {
+        let inner = while_panics_are_expected((), |()| { return panics_are_expected_here(); });
         return (inner.expect("the inner call returns"), panics_are_expected_here());
     });
     assert_eq!(outer.expect("the outer call returns"), (true, true));
     assert!(!panics_are_expected_here());
-    let caught = while_panics_are_expected(|| -> u8 { panic!("expected by the caller") });
+    let caught = while_panics_are_expected((), |()| -> u8 { panic!("expected by the caller") });
     assert!(caught.is_err());
     assert!(!panics_are_expected_here(), "the mark must end when the call panics");
 }

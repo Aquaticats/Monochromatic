@@ -155,6 +155,36 @@ const SHARED_SERVICE_UNIT: &str = "cli-git.service";
 /// the condition it is safe under.
 const CONDITION: &str = "Settling is safe only when no wrapper of the earlier release is in use in this worktree at this moment: such a wrapper sets its commit service up again and can start the earlier helper while this runs, and two services could then settle one batch. No earlier socket listens and no earlier helper runs now, so the command goes on.\n";
 
+/// The exit for a settling that a hold stopped:
+/// how many batches stay open,
+/// the cause and the way on.
+fn held_back(open: usize, instance: &str, because: Hold) -> Action {
+    return Action::Exit {
+        code: 1,
+        stdout: String::new(),
+        stderr: format!("{} the earlier release's commit service left open for this worktree were not settled, because {}. Nothing was changed. {}\n", batches(open), because.words(), way_on(because, instance)),
+    };
+}
+
+/// Say the safety condition on `out` and flush it,
+/// so it reaches the person before anything is changed.
+fn say_condition(out: &mut dyn std::io::Write) -> std::io::Result<()> {
+    out.write_all(CONDITION.as_bytes())?;
+    return out.flush();
+}
+
+/// Whether the settling left a batch open.
+fn is_still_open(batch: &SettledBatch) -> bool {
+    return batch.report.handled == Handled::StillOpen;
+}
+
+/// The Git facts of the real Git the invocation found,
+/// or nothing when none was found.
+fn git_context_of(environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Option<GitContext> {
+    let found: &Path = real_git?;
+    return Some(GitContext { real_git: found.to_path_buf(), overlay: child_environment_overlay(environment, found), global_prefix: Vec::new(), common_dir: None });
+}
+
 /// A line about one batch the settling dealt with.
 fn line_of(batch: &SettledBatch) -> String {
     let seq: u64 = batch.report.seq;
@@ -200,33 +230,26 @@ pub(crate) fn settle_earlier_batches_action(request: &SettleRequest<'_>, conditi
     if open == 0 {
         return Action::Exit { code: 0, stdout: String::from("No batch of the earlier release is left open for this worktree. Nothing to settle.\n"), stderr: String::new() };
     }
-    let held = |because: Hold| -> Action {
-        return Action::Exit {
-            code: 1,
-            stdout: String::new(),
-            stderr: format!("{} the earlier release's commit service left open for this worktree were not settled, because {}. Nothing was changed. {}\n", batches(open), because.words(), way_on(because, instance.as_str())),
-        };
-    };
     if let Some(because) = hold_on_earlier_helper(&earlier, instance.as_str(), request.proc_root) {
-        return held(because);
+        return held_back(open, instance.as_str(), because);
     }
     let Some(git) = request.git.as_ref() else {
         return refused("no real Git was found to finish the batches with, so nothing was settled.");
     };
     // The condition reaches the person before anything is changed; when it cannot be delivered, nothing is.
-    if let Err(error) = condition_out.write_all(CONDITION.as_bytes()).and_then(|()| { return condition_out.flush(); }) {
+    if let Err(error) = say_condition(condition_out) {
         return refused(format!("the safety condition could not be written to standard error ({error}), so nothing was settled.").as_str());
     }
     let (settled, unanswered) = match settle_on_request(git, &earlier, instance.as_str(), request.proc_root, LOCK_CEILING) {
         RequestedSettlement::Settled { batches, unanswered } => (batches, unanswered),
-        RequestedSettlement::Held { because, .. } => return held(because),
+        RequestedSettlement::Held { because, .. } => return held_back(open, instance.as_str(), because),
         RequestedSettlement::NothingOpen => return Action::Exit { code: 0, stdout: String::from("No batch of the earlier release is left open for this worktree. Nothing to settle.\n"), stderr: String::new() },
     };
     let mut lines: String = settled.iter().map(line_of).collect();
     for batch in &unanswered {
         lines.push_str(unanswered_line(batch).as_str());
     }
-    let still_open: bool = settled.iter().any(|batch| { return batch.report.handled == Handled::StillOpen; });
+    let still_open: bool = settled.iter().any(is_still_open);
     let problems: bool = still_open || !unanswered.is_empty();
     return Action::Exit {
         code: i32::from(problems),
@@ -293,9 +316,7 @@ pub(crate) fn earlier_batches_note(selection: &Selection, state_dir: Option<&Pat
 /// ```
 pub(crate) fn plan_settle_earlier_batches(global_arguments: &[OsString], environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Action {
     let state: Option<PathBuf> = state_dir_of(environment);
-    let git: Option<GitContext> = real_git.map(|found| {
-        return GitContext { real_git: found.to_path_buf(), overlay: child_environment_overlay(environment, found), global_prefix: Vec::new(), common_dir: None };
-    });
+    let git: Option<GitContext> = git_context_of(environment, real_git);
     let request: SettleRequest<'_> = SettleRequest {
         selection: status_git_dir(global_arguments, environment, real_git),
         state_dir: state.as_deref(),
