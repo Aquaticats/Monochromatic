@@ -671,10 +671,13 @@ fn the_scan_for_open_holders_stops_at_its_deadline_and_says_so() {
     let holder: Holder = Holder(std::process::Command::new("sh").arg("-c").arg("exec 3<\"$0\"; exec sleep 30").arg(&lock_path).spawn().expect("a holder"));
     let pid: u32 = holder.0.id();
     let began: Instant = Instant::now();
-    while !std::fs::read_dir(format!("/proc/{pid}/fd")).is_ok_and(|entries| {
+    // The holder is ready when it has the lock open and has become `sleep`: the shell opens the lock first and executes `sleep` after,
+    //  so a look in between names the shell (measured in the container gate, 2026-11-07: `open_by=[14748 (sh)]`).
+    while !(std::fs::read_dir(format!("/proc/{pid}/fd")).is_ok_and(|entries| {
         return entries.flatten().any(|entry| { return std::fs::read_link(entry.path()).is_ok_and(|target| { return target == lock_path; }); });
-    }) {
-        assert!(began.elapsed() < Duration::from_secs(10), "the holder never opened the lock");
+    }) && std::fs::read_to_string(format!("/proc/{pid}/comm")).is_ok_and(|name| { return name.trim() == "sleep"; }))
+    {
+        assert!(began.elapsed() < Duration::from_secs(10), "the holder never opened the lock and became sleep");
         std::thread::sleep(Duration::from_millis(5));
     }
     let metadata = std::fs::metadata(&lock_path).expect("lock");
@@ -1330,10 +1333,13 @@ fn a_foreign_lock_is_described_with_the_process_that_has_it_open() {
     );
     let pid: u32 = holder.0.id();
     let began: Instant = Instant::now();
-    while !std::fs::read_dir(format!("/proc/{pid}/fd")).is_ok_and(|entries| {
+    // The holder is ready when it has the lock open and has become `sleep`: the shell opens the lock first and executes `sleep` after,
+    //  so a look in between names the shell (measured in the container gate, 2026-11-07: `open_by=[14748 (sh)]`).
+    while !(std::fs::read_dir(format!("/proc/{pid}/fd")).is_ok_and(|entries| {
         return entries.flatten().any(|entry| { return std::fs::read_link(entry.path()).is_ok_and(|target| { return target == lock_path; }); });
-    }) {
-        assert!(began.elapsed() < Duration::from_secs(10), "the holder never opened the lock");
+    }) && std::fs::read_to_string(format!("/proc/{pid}/comm")).is_ok_and(|name| { return name.trim() == "sleep"; }))
+    {
+        assert!(began.elapsed() < Duration::from_secs(10), "the holder never opened the lock and became sleep");
         std::thread::sleep(Duration::from_millis(5));
     }
     // The foreign holder lets go a while after the wait's first look, however long the marker's flush took before it.

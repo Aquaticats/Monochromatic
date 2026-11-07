@@ -71,43 +71,6 @@ fn the_ceiling_and_the_cap_bound_the_workers() {
     assert_eq!(worker_budget(&BudgetRequest { ceiling: Some(cap), cap: Some(ceiling), ..request(usize::MAX, &large) }), cap);
 }
 
-/// The available memory comes from the `MemAvailable` line of the system's text, in bytes.
-#[test]
-fn the_available_memory_is_read_from_the_system_text() {
-    let text: &str = "MemTotal:       65536000 kB\nMemFree:         1000 kB\nMemAvailable:   2048 kB\nBuffers: 1 kB\n";
-    assert_eq!(memory_available_from(text), Some(2048 * 1024));
-    assert_eq!(memory_available_from("MemTotal: 1 kB\n"), None);
-    assert_eq!(memory_available_from("MemAvailable: lots kB\n"), None);
-}
-
-/// The control group is the version 2 line, and the headroom is the limit minus the use, nothing when there is no limit.
-#[test]
-fn the_control_group_headroom_is_read_from_the_group_files() {
-    assert_eq!(control_group_path("12:cpu:/old\n0::/user.slice/session.scope\n"), Some(String::from("/user.slice/session.scope")));
-    assert_eq!(control_group_path("12:cpu:/old\n"), None);
-    assert_eq!(headroom_from("1000\n", "400\n"), Some(600));
-    assert_eq!(headroom_from("1000\n", "4000\n"), Some(0));
-    assert_eq!(headroom_from("max\n", "400\n"), None);
-}
-
-/// The least headroom of a group and the groups above it wins, and a hierarchy without limits has none.
-#[test]
-fn the_least_headroom_up_the_hierarchy_wins() {
-    let root: PathBuf = crate::test_support::fixture("parallel-budget-groups");
-    let outer: PathBuf = root.join("outer");
-    let inner: PathBuf = outer.join("inner");
-    std::fs::create_dir_all(&inner).expect("directories");
-    std::fs::write(inner.join("memory.max"), "max\n").expect("inner limit");
-    std::fs::write(inner.join("memory.current"), "10\n").expect("inner use");
-    assert_eq!(group_headroom(root.as_path(), "/outer/inner"), None);
-    std::fs::write(outer.join("memory.max"), "100\n").expect("outer limit");
-    std::fs::write(outer.join("memory.current"), "30\n").expect("outer use");
-    assert_eq!(group_headroom(root.as_path(), "/outer/inner"), Some(70));
-    std::fs::write(inner.join("memory.max"), "50\n").expect("inner limit");
-    assert_eq!(group_headroom(root.as_path(), "/outer/inner"), Some(40));
-    crate::test_support::remove(root.as_path());
-}
-
 /// The real host reports at least one thread.
 #[test]
 fn this_host_has_a_thread() {
@@ -125,4 +88,30 @@ fn sliced_jobs_take_the_budget_up_to_their_ceiling() {
     assert_eq!(sliced_workers(usize::MAX, ceiling, &small), ceiling - cpu_margin(ceiling));
     let tight: HostResources = host(large.parallelism, Some(SLICE_MEMORY * MEMORY_SHARE_DIVISOR * 3));
     assert_eq!(sliced_workers(usize::MAX, ceiling, &tight), 3);
+}
+
+/// The owner's ruling of 2026-11-07 ("Memory headroom: sysinfo") moves the reading of the system's available memory and of the
+///  control groups' limits to the published crate, so this file holds neither the `/proc/meminfo` label nor the group files.
+#[test]
+fn the_budget_reads_no_memory_file_itself() {
+    let source: &str = include_str!("parallel_budget.rs");
+    let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
+    // Quoted, so the method call `per_item_memory.max(1)` is not mistaken for the group file `memory.max`.
+    for needle in ["\"MemAvailable", "\"memory.max\"", "\"memory.current\"", "/proc/meminfo"] {
+        assert!(!code.contains(needle), "parallel_budget.rs still holds `{needle}`: the memory figures come from the sysinfo crate");
+    }
+}
+
+/// The available memory the budget reads is a figure no larger than the system's total, and the read gives one on this host.
+#[test]
+fn the_read_memory_is_a_figure_below_the_system_total() {
+    let host: HostResources = HostResources::read();
+    let total: u64 = std::fs::read_to_string("/proc/meminfo")
+        .expect("meminfo")
+        .lines()
+        .find_map(|line| { return line.strip_prefix("MemTotal:")?.split_whitespace().next()?.parse::<u64>().ok(); })
+        .expect("MemTotal")
+        * 1024;
+    let available: u64 = host.memory_available.expect("this host reports its available memory");
+    assert!(available > 0 && available <= total, "{available} of {total}");
 }

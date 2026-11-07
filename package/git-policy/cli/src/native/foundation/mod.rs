@@ -74,3 +74,18 @@ pub mod earlier_name_moved_to_current_in_place;
 /// Every kept name in a repository's Git directories settled to its current spelling,
 ///  and the finder for a reader that moves nothing.
 pub mod kept_names_in_the_git_directories;
+
+/// What is left of the limits a process that starts threads lives under: address space, `RLIMIT_NPROC` and `pids.max`.
+pub mod runtime_limits;
+
+/// How many workers and blocking threads a runtime gets from the budget and the limits.
+pub mod runtime_plan;
+
+/// The process's one tokio runtime: built on the first need, sized from the budget and the limits, bounded by a deadline.
+pub mod lazy_runtime;
+
+/// A blocking call on tokio's blocking pool, with "no thread to start" as an error value instead of a panic.
+pub mod blocking_job;
+
+/// The test-only entry that builds the runtime and runs a blocking job, for the controls that start the executable under limits.
+pub mod runtime_probe;

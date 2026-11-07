@@ -1681,6 +1681,201 @@ verbatim labels:
     the command fails with a plain message in that state,
     which the owner chose over option A.
 
+## Progress on the branch `feat/git-policy-cli-on-tokio`
+
+Written:
+2026-11-07T07:00:00-05:00.
+The branch is not merged into main (the coordinator holds that until the wrapper's release is out).
+The order follows the owner's answers: the conversions run on today's layout (choice 8), so no step waits for the layout moves.
+
+### Step T1, the self-invocation ban: already in force, audited
+
+- The three clauses of the step are covered by `source_guard/no_self_invocation_tests.rs` and its rules file:
+  rule `own-executable` (`current_exe` and `/proc/self/exe` outside the excused `invocation/real_git.rs`),
+  rule `spawn-own-executable` (a `Command::new(` whose argument names the wrapper's own path),
+  and the planted controls (`each_rule_fires_on_its_own_forbidden_text`, and the fixture tests that plant a violation in a
+  nested production file and in a file with a test-support name).
+- `clippy.toml` also denies `std::env::current_exe`.
+- `tokio::process::Command::new(` would match the same rule text, and the child helper of step T4 starts children with the
+  standard library, so no new spelling needs a new rule.
+- No code commit was needed.
+  The broader lint of step T13 (no `std::process::Command` outside the guarded start) stays at T13.
+
+### Step T2, tokio in the manifest and the no-clone guard
+
+- `9d9fc7ec37`:
+  `binary/binary_forwarded_command_makes_no_thread_tests.rs` runs a forwarded `rev-parse HEAD` and `status --short` under
+  `strace` and counts the `clone`-family calls of the wrapper's own program (`wrapper_spawns` in `binary_budget_trace.rs`).
+  It is green before tokio is linked, so it is a guard, not a red test.
+  The planted control is `the_count_sees_threads_and_children_made_by_the_wrapper_and_only_those`, a trace in which the wrapper
+  starts a thread and a child, which the counter must count (and the harness's `timeout` and Git must not be).
+- `tokio` joined the manifest with the features `rt`, `rt-multi-thread`, `net`, `time`, `fs`, `io-util`, `sync` and `macros`.
+  `process` and `signal` stay off by design (choices 6 and 7).
+  `rustix` (feature `process`) joined for `getrlimit` and, in the later steps, the pidfd and the inotify watch.
+  The dependency landed together with its first use in step T3, because an unused dependency is a cargo warning.
+
+### Step T3, the budget, the limits and the lazy runtime
+
+- Files (all under `src/native/foundation/`, each with a sidecar test file):
+  `runtime_limits.rs` (address space left under `RLIMIT_AS`, threads left under `RLIMIT_NPROC` and under the `pids.max` of the
+  control group and every group above it),
+  `runtime_plan.rs` (workers from the budget, bounded by the limits; current-thread when fewer than two fit),
+  `lazy_runtime.rs` (one `OnceLock` owner, malloc arenas capped to one before the first worker, the multi-thread build on a helper
+  thread with a deadline, the current-thread runtime as the stand-in, a nested call refused with an error),
+  `blocking_job.rs` (a blocking call on the pool; "the system refused a thread" is the error `NoThreadToStart`, never an inline run),
+  `runtime_probe.rs` (the test-only entry, `CLI_GIT_TEST_ONLY_RUNTIME_PROBE`, for the controls that start the built executable).
+- `invocation/panic_notice.rs` gained `while_panics_are_expected`:
+  tokio panics, instead of returning an error, when a thread is refused; the callers catch that panic and report their own plain
+  error, so the hook's "report this location" notice (which would tell a person of a defect on a command that went on to succeed)
+  is silenced for the panics of those two calls only.
+- Values chosen under the owner's answers, each open to the owner's veto and each cited beside the value in the code:
+  deadline `BUILD_DEADLINE` one second (a working build is well under a few milliseconds);
+  `ADDRESS_SPACE_RESERVE_BYTES` 64 MiB (three times the 20 MiB the whole process mapped);
+  `THREAD_VIRTUAL_BYTES` the 2 MiB stack plus 64 KiB (measured 2,064 KiB a blocking thread, 2,069 KiB a worker with one arena);
+  `MALLOC_ARENA_LIMIT` 1.
+- Departures from the text of this plan:
+  the limits are a value of their own (`RuntimeLimits`) beside `HostResources`, not new fields of it, so the nine call sites and
+  every test that builds a `HostResources` by hand stay unchanged;
+  the user's threads are bounded by one read of the system's thread total in `/proc/loadavg`, an upper bound that only lowers the
+  worker count, instead of a scan of every process;
+  the arena cap is always applied, as choice 3 says, not only under an address-space limit.
+- Controls (`binary/binary_runtime_build_under_limits_tests.rs`) start the built executable with the probe under a process limit
+  of one and under address-space limits from 48 MiB to 1500 MiB (the measured hang band included), each with real Git started
+  under the same limit as the native control (choice 10).
+  Planted controls, run by hand and reverted:
+  removing the limit inputs from the plan failed both the process-limit control (flavor `current-thread-after-failure`) and the
+  address-space control (a stand-in after a deadline at 48 MiB);
+  the unit control `a_build_that_outlasts_the_deadline_is_replaced_by_the_current_thread_runtime` fails if the wait loses its deadline.
+- Finding, not the runtime's:
+  below 48 MiB of address space the debug build of the wrapper prints nothing, with or without the probe, while real Git
+  completes at 24 and 32 MiB.
+  The sweep starts at 48 MiB for that reason.
+  Whether the release build has the same floor was not measured.
+
+### The published-crate swaps
+
+- Digests (`47219dc182` red, `1aea0ae238` green):
+  `subvolume/subvolume_sha.rs` is two calls into `sha1` 0.11.0 and `sha2` 0.11.1; the hand-written compression functions are gone.
+  The published test vectors, the reference comparison at every length to a few blocks and the 512 MiB comparison still pass.
+- Time stamps (`7474c396d2` red, `c4a834d4da` green):
+  `foundation/iso_time.rs` formats through `jiff` and `conflict/discarded_prune_stamps.rs` parses through `jiff`;
+  the hand-written calendar (`civil_from_days`, `days_from_civil`) is gone.
+  The text shape is unchanged (`YYYY-MM-DDTHH:MM:SS.mmmZ`).
+  An instant past the end of year 9999 is clamped to the crate's last instant (`9999-12-30T22:00:00.999Z`), where the old code
+  printed a meaningless date.
+  `jiff` was first kept at the already locked 0.2.24: the releases from 0.2.32 name `defmt` 1.x as an optional dependency, which
+  locks `defmt-parser` 1.1.0, and the trust policy refused that release (published by account 414585 where 0.4.1 was published
+  by account 84779).
+  The owner, 2026-11-07, verbatim: "I'm approving the publisher change for jiff."
+  `rust-catalog.toml` now lists `defmt-parser@1.1.0` in `trustPolicyExclude` (that one release, not the crate, with the sentence
+  beside it), `jiff` moved to 0.2.39 through `cargo update -p jiff` under the shadow (seven versions newly locked, all checked:
+  `bitflags` 1.3.2, `defmt-macros` 1.2.0, `defmt-parser` 1.1.0, `defmt` 1.2.0, `jiff-core` 0.1.2, `jiff-static` 0.2.39, `jiff` 0.2.39),
+  and the catalog floor is raised to 0.2.39.
+  The guard is `the_lock_no_longer_holds_jiff_at_the_release_kept_while_the_trust_policy_refused_the_newer_ones` in
+  `foundation/iso_time_tests.rs`.
+  With the exclusion in place the daily dependency update has no refusal to trip on at this path; before it, the shadow's update
+  rule would have kept nothing: it sets a refused release aside for an older one in the same caret class and, when that fails,
+  restores every lockfile of the run (`package/cargo-shadow/cli/README.md`, the `cargo update` line of the flag table).
+- Memory headroom (`8955195670` red, `0a59ee9272` green):
+  `HostResources::read` takes the available memory and the control-group headroom from `sysinfo` 0.40.1 (feature `system` only);
+  the readers of `/proc/meminfo`, `memory.max` and `memory.current` and their tests are gone.
+  Locking `sysinfo` needed the crates of its Windows and macOS targets in the local registry cache; the shadow's offline install
+  could not download them, so the lock was first completed with the toolchain's own `cargo fetch`, and then
+  `mise run //package/git-policy/cli:native:lock:members` checked the 17 newly locked versions against the release-age and trust policy (all passed).
+- Linux calls (`rustix`): started with `getrlimit` and the pidfd; the file calls move with the safe-file-saving replacement below.
+
+### Step T4, children without a blocking wait (partly)
+
+- `process/child_awaited_through_a_pidfd.rs`:
+  the helper of choice 7.
+  `adopt` cannot fail; a failed `pidfd_open` or a failed registration only changes the wait to a timer-driven `try_wait`.
+  Injected failures (`InjectedFailure`) prove the invariant: after each, the live child is still owned, reapable, and ended by a drop;
+  `into_std` hands it over.
+- `process/captured_child_run_to_its_end.rs`:
+  `output_of` runs a command to its end like `Command::output`, with the output in anonymous files (no reader, no pipe).
+  Its blocking face `output_of_blocking` refuses with an error, not a panic, from inside the runtime.
+- The two Linux one-shot callers use it (`repo_read/git_system_config.rs`, `invocation/management_service_repository_selection.rs`).
+  The other one-shot waits named in the step (`process/process_start.rs`, `process/process_identity.rs`, `lock/index_lock_holders.rs`)
+  start `ps`, `lsof` and PowerShell only on macOS and Windows, which the owner said to ignore; they were not converted.
+- Not yet done in T4:
+  `AsyncFd` registration is exercised only through `adopt`; the descriptor-limit sweeps of the plan's risk list for the helper are not written.
+
+### Safe file saving
+
+The vet report is `doc/audit/tech-safe-file-saving-published-crates-vet-2026-11-07.md`.
+Summary: `tempfile` (`persist_noclobber`) for the whole publish, `tokio::fs` for create-new, no-follow reads and private folders,
+`rustix::fs::fsync` for the directory sync.
+The one behavior no crate gives is the fallback to a checked rename on a filesystem that supports neither `renameat2`
+with `RENAME_NOREPLACE` nor hard links (evidence: `tempfile-3.27.0/src/file/imp/unix.rs`, function `persist`, lines 94 to 133).
+`openat2` with `RESOLVE_NO_SYMLINKS` was measured and is stricter than the wrapper's `O_NOFOLLOW` (it refused every path on this host because the scratch folder sits behind a link), so it is not adopted for reads.
+The replacement lands with the conversion of the callers (the 38 files that use `foundation/private_storage.rs`), not before.
+The coordinator asked for facts on the one item in conflict with "Commits should never fail" (G1); they are in the vet report,
+section "Facts for the owner's answer on G1".
+In short: no in-kernel filesystem read lacks both `RENAME_NOREPLACE` and hard links (FAT and exFAT have no links but accept the flag;
+NFS rejects the flag but has links); FUSE servers such as `s3fs-fuse` lack both; with `tempfile` only, a plain commit still lands
+(only the post-commit work item is lost), but a commit during or concluding an unfinished merge fails with
+"writing packed-refs failed: Operation not supported (os error 95)" or
+"copying a conclusion entry into the shadow failed: Operation not supported (os error 95)"; the fallback is ten code lines.
+The owner answered G1, 2026-11-07, in the question tool.
+The question said: "Commits keep working on those disks. We own 10 lines plus a 15-line test. On those disks only, two programs
+saving the same file at the same instant could overwrite one another."
+The owner picked, verbatim: "Keep the fallback (Recommended)".
+So the replacement of `private_storage.rs` is built on `tempfile::persist_noclobber`, and the checked rename stays as the fallback
+for that one case only: the publish answered by neither `renameat2` with `RENAME_NOREPLACE` nor a hard link.
+
+### Safe file saving: the publish replaced, 2026-11-07T07:55:00-05:00
+
+- The owner's answer on G1 is recorded above, verbatim: "Keep the fallback (Recommended)".
+- `1cff4935cd` records it; `bcaf8579e4` is the red test of the defect the previous agent found
+  (`binary/binary_fault_trace_tests.rs`, `a_filesystem_that_refuses_hard_links_does_not_stop_a_commit`: every `link` and `linkat`
+  of the service and of each Git it starts answers `EOPNOTSUPP`; real Git lands the same commit under the same fault as the native
+  control, the wrapper fails with "The commit service could not finish this commit, so it was not made.");
+  `3ec166d146` is the guard red for the module; `2a503fc9e1` is the replacement; `baf34e09d3` makes `decide` in
+  `service/service_busy.rs` publish its decision file through the same exclusive publish, which turns the first red green.
+- What changed in `foundation/private_storage.rs`: the staging file is `tempfile::Builder` (prefix `.<name>.`, suffix `.partial`),
+  written, synced when durable, chmod to 0600, then `persist_noclobber`; `publish_by_checked_rename` and
+  `settle_exclusive_publish` keep the owner's fallback for any refusal that is not `AlreadyExists`; the directory sync is
+  `rustix::fs::fsync` (feature `fs` added to the manifest, no new locked package).
+  Gone: the hand-built staging name, the link-then-rename order, `staging_removal_report`, the uuid use.
+  The controls: `a_filesystem_with_neither_no_replace_rename_nor_links_gets_the_checked_rename`,
+  `the_checked_rename_refuses_a_taken_name_and_leaves_no_staging_file` (planted control: the fallback replaced by an error failed
+  both), `a_taken_name_is_refused_with_the_operating_systems_error`, `a_published_record_is_private_and_a_failed_publish_leaves_nothing`.
+- Not done, by design: the public faces of the module stay synchronous (the 38 callers become asynchronous in T11), so the reads
+  (`O_NOFOLLOW`), the exclusive scratch create and the private folders still use the standard library; their move to `tokio::fs`
+  lands with the callers, as the vet report's ledger says. Other `hard_link` users outside this module
+  (`binary/binary_wrapper_store.rs`, `conflict/discard_audit*.rs`, `lock/single_owner_claim.rs`, `lock/stale_ref_lock_retire.rs`,
+  `landing/service_index_placement.rs`) were not part of the step and were not changed.
+- Two facts for the owner, not decided here:
+  1. On a filesystem with neither no-replace rename nor links, `decide` is a check then rename. Its racers are the landing thread and
+     a connection thread of one service, not two programs, so both can see themselves as the winner: a client could be told its
+     request was withdrawn while the commit lands. The owner's question described the race as two programs saving one file; it
+     did not say this case.
+  2. A commit through the service on such a filesystem still fails for another reason: with `link`, `linkat` and `renameat2` all
+     refused (injected under `strace`), the service answers "cannot take the index lock ...: the btrfs filesystem mounted at ... can
+     neither rename a file without replacing another nor make a hard link ... so the lock cannot be created with its marker in one
+     step, and the service takes no lock that a kill could leave empty", and the commit fails; real Git, under the same injection,
+     lands the commit. That refusal is a deliberate earlier design in `landing/service_index_placement.rs`. Whether it should give way
+     to "Commits should never fail" (and what a kill could then leave) needs the owner. The state directory is the subject of the
+     fix above; the repository's Git directory on such a filesystem is this second case.
+
+### Step T4, the rest: descriptor-limit sweeps
+
+- `b028cc43c0`, `0e51e63ae4`: `process/child_awaited_through_a_pidfd_descriptor_limit_tests.rs` lowers `RLIMIT_NOFILE` of the test's
+  own process (nextest gives each test a process) in three sweeps: a limit that leaves no descriptor for `pidfd_open` changes the
+  wait to the timer and nothing else (with one free the pidfd is used, which proves the limit reached the call); a refused start
+  is `EMFILE` and leaves no child; a start that worked is awaited to its status; the captured run is whole or the plain `EMFILE`
+  error; in every case the descriptor count returns to its baseline and `waitpid(-1)` finds no child.
+  Planted control: `pidfd_open` made to `expect` failed the first sweep. The sweep of the captured run cannot reach a failing
+  `pidfd_open` (a start needs more descriptors than the pidfd, so a start that worked leaves room), so it does not fail under that
+  plant; it guards leaks and the error kind.
+- `OwnedChild::waits_on_a_pidfd` was added for these controls.
+
+### What is left
+
+Steps T5 to T13 (the watchers, `bounded_push`, the signal relay on a pidfd with the registry of children, the service client and
+the `zbus` move, the standards-review call on `hyper`, the service, the callers, the parallel runner, the final removal and lint),
+the replacement of `private_storage.rs`, the descriptor-limit sweeps of the child helper, and the mutation campaign.
+
 ## Open choices for the owner
 
 Rankings are the recommendation;
