@@ -58,7 +58,10 @@ Still no Cargo registry as of 2026-11-07.
 ### Where to go
 
 The best-supported route is pnpr as the Cargo registry for the crates (run end to end here)
-with the seven tools staying on archives, selected by the checkout's version instead of `@latest`.
+with the seven tools staying on GitHub archives.
+Whether the lock selects a tool by an exact version taken from the checkout instead of `@latest` is an owner decision:
+it is proposed only because `@latest` skips releases GitHub flags as prerelease
+and `compare_versions` orders `-alpha.10` before `-alpha.9` (both source readings, not run).
 Section "Options and ranking" gives the ranking with a reason for every adjacent pair and marks the owner decisions.
 
 ## What was read, run and left unverified
@@ -75,8 +78,8 @@ Section "Options and ranking" gives the ranking with a reason for every adjacent
 - All pnpm GitHub releases (1225 release records) were downloaded and searched for `cargo`, `crate`, `rust`,
   `rustup`, `Cargo.lock`.
 - Disposable fixtures only, under `~/temp/agent/pnpm-rust-2026-11-07/`.
-  Every command ran in `systemd-run --user --scope` with `CPUQuota=200%`, `MemoryMax=2G` (3G for the browser check),
-  `TasksMax=128` and `IOWeight=10`.
+  Every command ran in `systemd-run --user --scope` with `CPUQuota=200%`, `MemoryMax=2G`, `TasksMax=128`
+  and `IOWeight=10` (the browser check used `MemoryMax=3G` and `TasksMax=256`).
   The two local servers ran as transient units (`MemoryMax=256M` and `1G`, `CPUQuota=100%`, `TasksMax=32` and `128`,
   `IOWeight=10`)
   and are stopped.
@@ -429,7 +432,7 @@ and where the bytes of an installed tool come from (use b).
 "Label decides" is the owner's rule: `-alpha.N` and `-beta.N` to pnpr only,
 `-rc.N` and plain versions also to crates.io.
 
-### Option 1: pnpr as the crate registry, tools stay on GitHub archives chosen by the checkout's version
+### Option 1: pnpr as the crate registry, tools stay on GitHub archives
 
 - Use (a): works, run end to end (path plus version plus registry; alpha publish; anonymous consumer with checksums;
   dependency-first enforced).
@@ -543,7 +546,7 @@ and where the bytes of an installed tool come from (use b).
 
 The two axes rank separately.
 Crate registry: pnpr (Options 1 and 2) > static index (Option 3) > no registry (Option 4).
-Tool bytes: GitHub archives chosen by the checkout's version (Option 1) > npm packages on pnpr (Option 2).
+Tool bytes: GitHub archives (Option 1) > npm packages on pnpr (Option 2).
 Option 3 conflicts with the recorded decision to deploy all releases on pnpr,
 so it competes only if the owner reopens that
 decision; it is ranked as reference material, not as a live choice.
