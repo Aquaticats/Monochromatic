@@ -174,9 +174,15 @@ pub fn mark_unplayable(rows: &mut [ListRow], paths: &[std::path::PathBuf], unpla
     if unplayable.is_empty() {
         return;
     }
-    for row in rows.iter_mut().filter(|row| return row.kind == 0) {
-        let path = usize::try_from(row.index).ok().and_then(|index| return paths.get(index));
-        if path.is_some_and(|known| return unplayable.contains(known)) {
+    for row in rows.iter_mut() {
+        if row.kind != 0 {
+            continue;
+        }
+        let path = match usize::try_from(row.index) {
+            Ok(index) => paths.get(index),
+            Err(_error) => None,
+        };
+        if matches!(path, Some(known) if unplayable.contains(known)) {
             row.supporting = UNPLAYABLE_ROW_TEXT.to_string();
         }
     }
@@ -189,7 +195,7 @@ pub fn mark_unplayable(rows: &mut [ListRow], paths: &[std::path::PathBuf], unpla
 /// a header shows the subfolder path (`Album/Disc 1`),
 /// and only the directory's own name can repeat in a title.
 fn folder_name_of_header(header: &str) -> &str {
-    return header.rsplit_once('/').map_or(header, |(_parent, name)| return name);
+    return music_player::display_path::last_segment(header);
 }
 
 /// What:
@@ -232,7 +238,10 @@ fn strip_run(run: &mut [ListRow], folder: &str) {
     if run.is_empty() {
         return;
     }
-    let titles: Vec<String> = run.iter().map(|row| return row.title.clone()).collect();
+    let mut titles: Vec<String> = Vec::with_capacity(run.len());
+    for row in run.iter() {
+        titles.push(row.title.clone());
+    }
     let borrowed: Vec<&str> = titles.iter().map(String::as_str).collect();
     let prefix: usize = shared_prefix_len(&borrowed);
     for (row, title) in run.iter_mut().zip(titles.iter()) {
@@ -250,6 +259,24 @@ pub fn track_count_text(count: usize) -> String {
 }
 
 /// What:
+/// `names_contain` is true when a cell lists a folder with this name.
+/// Why:
+/// the cell that holds the current folder becomes the current cell of the picker.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesContain = (names: string[], wanted: string): boolean => names.includes(wanted);
+/// ```
+fn names_contain(names: &[String], wanted: &str) -> bool {
+    for name in names {
+        if name == wanted {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 /// `current_row_position` gives the position of the playing row in the flat list,
 /// or -1.
 /// Why:
@@ -261,10 +288,12 @@ pub fn track_count_text(count: usize) -> String {
 /// const currentRowPosition = (rows: ListRow[]) => rows.findIndex((row) => row.current);
 /// ```
 pub fn current_row_position(rows: &[ListRow]) -> i32 {
-    return rows
-        .iter()
-        .position(|row| return row.current)
-        .map_or(-1, |position| return i32::try_from(position).unwrap_or(-1));
+    for (position, row) in rows.iter().enumerate() {
+        if row.current {
+            return i32::try_from(position).unwrap_or(-1);
+        }
+    }
+    return -1;
 }
 
 /// What:
@@ -280,30 +309,31 @@ pub fn picker(sections: &[RailSection], current_folder: &str) -> Picker {
     let mut cells: Vec<PickerCell> = Vec::new();
     let mut names: Vec<PickerName> = Vec::new();
     let mut current_cell: String = String::new();
-    let cells_with_section = sections
-        .iter()
-        .flat_map(|section| return section.cells.iter().enumerate().map(|(position, cell)| return (position == 0, cell)));
-    for (first_of_section, cell) in cells_with_section {
-        cells.push(PickerCell {
-            key: cell.label.clone(),
-            label: cell.label.clone(),
-            // The first cell overall has nothing above it to separate from.
-            section_start: first_of_section && !cells.is_empty(),
-        });
-        names.push(PickerName {
-            name: String::new(),
-            section_start: true,
-            heading: cell.label.clone(),
-        });
-        if current_cell.is_empty() && cell.names.iter().any(|name| return name == current_folder) {
-            current_cell = cell.label.clone();
-        }
-        for name in &cell.names {
+    for section in sections {
+        for (position, cell) in section.cells.iter().enumerate() {
+            let first_of_section: bool = position == 0;
+            cells.push(PickerCell {
+                key: cell.label.clone(),
+                label: cell.label.clone(),
+                // The first cell overall has nothing above it to separate from.
+                section_start: first_of_section && !cells.is_empty(),
+            });
             names.push(PickerName {
-                name: name.clone(),
-                section_start: false,
+                name: String::new(),
+                section_start: true,
                 heading: cell.label.clone(),
             });
+            if current_cell.is_empty() && names_contain(&cell.names, current_folder) {
+                current_cell = cell.label.clone();
+            }
+            for name in &cell.names {
+                names.push(PickerName {
+                    name: name.clone(),
+                    section_start: false,
+                    heading: cell.label.clone(),
+                });
+            }
+    
         }
     }
     return Picker {

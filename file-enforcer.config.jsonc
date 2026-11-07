@@ -65,7 +65,7 @@
       "kind": "toml-keys",
       "id": "cargo-dylint",
       "manifests": ["package/*/*/Cargo.toml"],
-      "onlyDirs": ["package/file-enforcer/cli", "package/forbidden-strings/cli", "package/forbidden-strings/core", "package/git-policy/cli", "package/ide/app", "package/linter/monochromatic-lint"],
+      "onlyDirs": ["package/file-enforcer/cli", "package/forbidden-strings/cli", "package/forbidden-strings/core", "package/git-policy/cli", "package/ide/app", "package/linter/monochromatic-lint", "package/music-player/desktop-app"],
       "edits": [
         {
           "guard": ["lints", "rust", "unexpected_cfgs"],

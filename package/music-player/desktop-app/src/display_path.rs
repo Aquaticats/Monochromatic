@@ -94,6 +94,23 @@ pub fn sanitize_component(name: &str) -> String {
 }
 
 /// What:
+/// `last_segment` gives the part of a `/`-separated display path after its last separator,
+/// or the whole text when it has none.
+/// Why:
+/// a folder's own name and a file's name are the last segment of their display path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lastSegment = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
+/// ```
+pub fn last_segment(path: &str) -> &str {
+    return match path.rsplit_once('/') {
+        Some((_parent, name)) => name,
+        None => path,
+    };
+}
+
+/// What:
 ///      `pub fn join_display_path(prefix: &str, name: &str) -> String`.
 ///  Sanitizes `name` and appends it to `prefix` with one `/`.
 ///  An empty

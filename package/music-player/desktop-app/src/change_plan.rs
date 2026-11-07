@@ -557,7 +557,12 @@ impl Planner<'_> {
         // ```ts
         // const onDiskFiles = new Set(entries.filter(([, kind]) => kind === EntryKind.Track).map(([path]) => path));
         // ```
-        let on_disk_files: HashSet<&Path> = entries.iter().filter(|(_, kind)| return *kind == EntryKind::Track).map(|(path, _)| return path.as_path()).collect();
+        let mut on_disk_files: HashSet<&Path> = HashSet::new();
+        for (path, kind) in entries.iter() {
+            if *kind == EntryKind::Track {
+                on_disk_files.insert(path.as_path());
+            }
+        }
         // What:     `let on_disk_folders: HashSet<&Path> = ...;` is the same chain for the entries that are folders.
         // Why:      Subfolders are compared by their own set.
         //
@@ -565,7 +570,12 @@ impl Planner<'_> {
         // ```ts
         // const onDiskFolders = new Set(entries.filter(([, kind]) => kind === EntryKind.Folder).map(([path]) => path));
         // ```
-        let on_disk_folders: HashSet<&Path> = entries.iter().filter(|(_, kind)| return *kind == EntryKind::Folder).map(|(path, _)| return path.as_path()).collect();
+        let mut on_disk_folders: HashSet<&Path> = HashSet::new();
+        for (path, kind) in entries.iter() {
+            if *kind == EntryKind::Folder {
+                on_disk_folders.insert(path.as_path());
+            }
+        }
         // What:     `let own: Range<usize> = direct_files(self.tracks, folder, run.clone());` finds the part of the run that holds the
         //           folder's own files, before its subfolders. `run.clone()` copies the range, because `run` is used again.
         // Why:      The walk lists a folder's files first, so they form one stretch at the start of the run.
@@ -673,7 +683,11 @@ impl Planner<'_> {
             // const child = firstNameUnder(folder, this.tracks[position]);
             // if (child === null) { position += 1; continue; }
             // ```
-            let Some(child) = self.tracks[position].strip_prefix(folder).ok().and_then(|below| return below.components().next()) else {
+            let first_component = match self.tracks[position].strip_prefix(folder) {
+                Ok(below) => below.components().next(),
+                Err(_error) => None,
+            };
+            let Some(child) = first_component else {
                 position += 1;
                 continue;
             };
@@ -765,7 +779,7 @@ impl Planner<'_> {
         // ```ts
         // if (!path.startsWith(this.root) || (this.walkedUntil !== null && path.startsWith(this.walkedUntil))) return;
         // ```
-        if !path.starts_with(self.root) || self.walked_until.as_deref().is_some_and(|folder| return path.starts_with(folder)) {
+        if !path.starts_with(self.root) || matches!(self.walked_until.as_deref(), Some(folder) if path.starts_with(folder)) {
             return;
         }
         // What:     `match self.disk.kind(path) { ... }` dispatches on what the path is on disk now. `EntryKind::Missing | EntryKind::Other`
@@ -824,6 +838,20 @@ impl Planner<'_> {
 }
 
 /// What:
+/// `run_start` is where an index run begins.
+/// Why:
+/// runs are sorted by their start,
+/// and a sort key is a function of the run alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const runStart = (run: Range): number => run.start;
+/// ```
+fn run_start(run: &Range<usize>) -> usize {
+    return run.start;
+}
+
+/// What:
 /// `fn merge_runs(mut runs: Vec<Range<usize>>) -> Vec<Range<usize>>` sorts index runs and joins the ones that overlap or
 /// touch.
 /// `mut runs` makes the parameter changeable inside the function;
@@ -847,7 +875,7 @@ fn merge_runs(mut runs: Vec<Range<usize>>) -> Vec<Range<usize>> {
     // ```ts
     // runs.sort((a, b) => a.start - b.start);
     // ```
-    runs.sort_by_key(|run| return run.start);
+    runs.sort_by_key(run_start);
     // What:     `let mut merged: Vec<Range<usize>> = Vec::new();` makes an empty list that the loop fills.
     // Why:      The joined runs are built in a new list.
     //
@@ -952,7 +980,7 @@ pub(crate) fn plan_changes(tracks: &[PathBuf], root: &Path, dirty: &DirtyPaths, 
     // ```ts
     // plan.added.sort((left, right) => walkCmp(root, left, right));
     // ```
-    plan.added.sort_by(|left, right| return walk_cmp(root, left, right));
+    crate::walk_order::sort_in_walk_order(root, &mut plan.added);
     // What:     `plan.added.dedup();` drops items equal to the one before them.
     // Why:      After sorting, equal paths are neighbors, and two events can name the same new file.
     //
@@ -978,7 +1006,13 @@ pub(crate) fn plan_changes(tracks: &[PathBuf], root: &Path, dirty: &DirtyPaths, 
     // ```ts
     // plan.touched = plan.touched.filter((path) => { if (seen.has(path)) return false; seen.add(path); return true; });
     // ```
-    plan.touched.retain(|path| return seen.insert(path.clone()));
+    let mut kept_touched: Vec<PathBuf> = Vec::with_capacity(plan.touched.len());
+    for path in plan.touched.drain(..) {
+        if seen.insert(path.clone()) {
+            kept_touched.push(path);
+        }
+    }
+    plan.touched = kept_touched;
     // What:     `tracing::info!(named = ..., "the named paths are planned");` writes one log event. `!` marks a macro (code that is
     //           expanded at compile time), `name = value` pairs become structured fields, and the string is the message.
     // Why:      The sizes of the plan show, in the log, how much work one refresh asked for.
@@ -1031,7 +1065,13 @@ pub(crate) fn apply_plan(old: Vec<PathBuf>, root: &Path, plan: &Plan) -> Vec<Pat
     // ```ts
     // const places: number[] = plan.added.map((path) => insertionPoint(old, root, path));
     // ```
-    let places: Vec<usize> = plan.added.iter().map(|path| return locate(&old, root, path).unwrap_or_else(|place| return place)).collect();
+    let mut places: Vec<usize> = Vec::with_capacity(plan.added.len());
+    for path in &plan.added {
+        places.push(match locate(&old, root, path) {
+            Ok(place) => place,
+            Err(place) => place,
+        });
+    }
     // What:     `let mut rebuilt: Vec<PathBuf> = Vec::with_capacity(old.len() + plan.added.len());` makes an empty list with room for
     //           the most items it can hold. `Vec::with_capacity(n)` reserves memory for `n` items at once.
     // Why:      One reservation avoids growing the list again and again for a queue of a million tracks.
@@ -1088,7 +1128,7 @@ pub(crate) fn apply_plan(old: Vec<PathBuf>, root: &Path, plan: &Plan) -> Vec<Pat
         // ```ts
         // while (runIndex < plan.removed.length && plan.removed[runIndex].end <= index) runIndex++;
         // ```
-        while runs.peek().is_some_and(|run| return run.end <= index) {
+        while matches!(runs.peek(), Some(run) if run.end <= index) {
             runs.next();
         }
         // What:     `if runs.peek().is_some_and(|run| return run.contains(&index)) { continue; }` skips the track when the next run
@@ -1100,7 +1140,7 @@ pub(crate) fn apply_plan(old: Vec<PathBuf>, root: &Path, plan: &Plan) -> Vec<Pat
         // ```ts
         // if (runIndex < plan.removed.length && index >= plan.removed[runIndex].start) continue;
         // ```
-        if runs.peek().is_some_and(|run| return run.contains(&index)) {
+        if matches!(runs.peek(), Some(run) if run.contains(&index)) {
             continue;
         }
         // What:     `rebuilt.push(track);` appends the old track. The path moves in; nothing is copied.

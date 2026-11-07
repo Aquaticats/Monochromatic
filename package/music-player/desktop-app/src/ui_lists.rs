@@ -144,7 +144,12 @@ pub(crate) fn publish_track_layout(window: &AppWindow, rows: &[ListRow]) {
 /// while movement works on list positions.
 fn track_position_of(rows: &[ListRow], ring: Option<i32>) -> Option<usize> {
     let wanted = ring?;
-    return rows.iter().position(|row| return row.kind == 0 && row.index == wanted);
+    for (position, row) in rows.iter().enumerate() {
+        if row.kind == 0 && row.index == wanted {
+            return Some(position);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -154,7 +159,12 @@ fn track_position_of(rows: &[ListRow], ring: Option<i32>) -> Option<usize> {
 /// like the picker's own current folder.
 fn folder_position_of(names: &[PickerName], ring: Option<&str>) -> Option<usize> {
     let wanted = ring?;
-    return names.iter().position(|row| return !row.section_start && row.name == wanted);
+    for (position, row) in names.iter().enumerate() {
+        if !row.section_start && row.name == wanted {
+            return Some(position);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -164,7 +174,11 @@ fn folder_position_of(names: &[PickerName], ring: Option<&str>) -> Option<usize>
 /// Why:
 /// `move_focus` skips the rest.
 fn track_selectable(rows: &[ListRow]) -> Vec<bool> {
-    return rows.iter().map(|row| return row.kind == 0).collect();
+    let mut selectable: Vec<bool> = Vec::with_capacity(rows.len());
+    for row in rows {
+        selectable.push(row.kind == 0);
+    }
+    return selectable;
 }
 
 /// What:
@@ -174,7 +188,11 @@ fn track_selectable(rows: &[ListRow]) -> Vec<bool> {
 /// Why:
 /// `move_focus` skips the rest.
 fn folder_selectable(names: &[PickerName]) -> Vec<bool> {
-    return names.iter().map(|row| return !row.section_start).collect();
+    let mut selectable: Vec<bool> = Vec::with_capacity(names.len());
+    for row in names {
+        selectable.push(!row.section_start);
+    }
+    return selectable;
 }
 
 /// What:
@@ -266,10 +284,10 @@ fn move_folder_ring(window: &AppWindow, movement: ListMove) -> bool {
 /// a letter with no folder changes nothing.
 fn jump_to_letter(window: &AppWindow, letter: char) -> bool {
     let names = read_screen().shown_names.clone();
-    let labels: Vec<Option<&str>> = names
-        .iter()
-        .map(|row| return if row.section_start { None } else { Some(row.name.as_str()) })
-        .collect();
+    let mut labels: Vec<Option<&str>> = Vec::with_capacity(names.len());
+    for row in &names {
+        labels.push(if row.section_start { None } else { Some(row.name.as_str()) });
+    }
     match first_starting_with(&labels, letter) {
         Some(position) => place_folder_ring(window, &names, position),
         None => tracing::debug!(%letter, "no folder starts with the typed letter"),
@@ -287,7 +305,12 @@ fn jump_to_letter(window: &AppWindow, letter: char) -> bool {
 /// select on,
 /// and otherwise the second Enter does.
 fn activate_track(window: &AppWindow, host: &dyn Host) -> bool {
-    let Some(index) = read_screen().ring_track.and_then(|ring| return usize::try_from(ring).ok()) else {
+    let ring_track = read_screen().ring_track;
+    let ring_index: Option<usize> = match ring_track {
+        Some(ring) => usize::try_from(ring).ok(),
+        None => None,
+    };
+    let Some(index) = ring_index else {
         return true;
     };
     crate::ui_wire::mark_user_acted();
@@ -356,9 +379,13 @@ pub(crate) fn list_focused(window: &AppWindow, zone: i32) {
             place_track_ring(window, &rows, position);
             return;
         }
-        let preferred = playing.and_then(|current| return i32::try_from(current).ok()).and_then(|current| {
-            return track_position_of(&rows, Some(current));
-        });
+        let preferred = match playing {
+            Some(current) => match i32::try_from(current) {
+                Ok(ring_value) => track_position_of(&rows, Some(ring_value)),
+                Err(_error) => None,
+            },
+            None => None,
+        };
         if let Some(position) = start_focus(&track_selectable(&rows), preferred) {
             place_track_ring(window, &rows, position);
         }

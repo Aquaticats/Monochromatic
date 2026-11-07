@@ -82,7 +82,7 @@ fn built_index(names: &[String]) -> (SearchIndex, Duration, Vec<Duration>) {
     let mut index: SearchIndex = SearchIndex::new(1);
     index.reserve(names.len(), names.iter().map(String::len).sum(), names.iter().map(String::len).sum::<usize>() / 2);
     let mut pushes: Vec<Duration> = Vec::new();
-    prepare_in_order(names, FEED_BATCH, |_number, prepared| {
+    prepare_in_order(names, FEED_BATCH, &mut |_number, prepared| {
         let pushed: Instant = Instant::now();
         index.append(prepared);
         pushes.push(pushed.elapsed());

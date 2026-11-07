@@ -56,6 +56,130 @@ use crate::search_service::SearchService;
 const MAX_PREPARERS: usize = 4;
 
 /// What:
+/// `BatchSink` receives the prepared batches of a feed,
+/// in library order.
+/// Why:
+/// the feed that fills the index in place and the feed that builds a fresh index take each batch differently,
+/// and a trait with named implementations carries their state without closures.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface BatchSink { accept(number: number, prepared: PreparedBatch): boolean }
+/// ```
+pub(crate) trait BatchSink {
+    /// What:
+    /// `accept` takes one prepared batch and says whether the feed goes on.
+    /// Why:
+    /// a cancelled feed answers `false`,
+    /// which stops the preparation.
+    fn accept(&mut self, number: usize, prepared: PreparedBatch) -> bool;
+}
+
+/// A callable of the same shape is a sink too,
+/// so a test can pass one.
+impl<F: FnMut(usize, PreparedBatch) -> bool> BatchSink for F {
+    /// What:
+    /// `accept` calls the callable.
+    /// Why:
+    /// it lets a plain callable stand in for a sink.
+    fn accept(&mut self, number: usize, prepared: PreparedBatch) -> bool {
+        return self(number, prepared);
+    }
+}
+
+/// What:
+/// `InPlaceFeed` is the sink that appends each batch to the index the service already holds.
+/// Why:
+/// the feed that refills the live index keeps the generation it started under,
+/// and stops when a newer feed starts or the service refuses a batch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class InPlaceFeed implements BatchSink { finished = true; accept(number, prepared) { ... } }
+/// ```
+struct InPlaceFeed<'service> {
+    /// The service whose index is appended to.
+    service: &'service SearchService,
+    /// The number of this feed,
+    /// which a newer feed replaces.
+    epoch: u64,
+    /// The generation of the index when this feed started.
+    generation: u64,
+    /// The pause after each batch.
+    pause: Duration,
+    /// Whether every batch was appended.
+    finished: bool,
+}
+
+/// The in-place feed takes batches into the live index.
+impl BatchSink for InPlaceFeed<'_> {
+    /// What:
+    /// `accept` appends one batch unless the feed was cancelled or refused.
+    /// Why:
+    /// a newer feed must win,
+    /// and a refused batch ends this one.
+    fn accept(&mut self, _number: usize, prepared: PreparedBatch) -> bool {
+        if !self.service.feed_is_current(self.epoch) {
+            tracing::info!(epoch = self.epoch, "library feed cancelled by a newer one");
+            self.finished = false;
+            return false;
+        }
+        if !self.service.append_prepared(self.generation, prepared) {
+            self.finished = false;
+            return false;
+        }
+        if !self.pause.is_zero() {
+            thread::sleep(self.pause);
+        }
+        return true;
+    }
+}
+
+/// What:
+/// `SideFeed` is the sink that appends each batch to a fresh index built beside the live one.
+/// Why:
+/// the live index keeps answering queries while the new one is built,
+/// and replaces it only when the feed finished and is still current.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class SideFeed implements BatchSink { fresh: SearchIndex; finished = true; accept(number, prepared) { ... } }
+/// ```
+struct SideFeed<'service> {
+    /// The service that installs the finished index.
+    service: &'service SearchService,
+    /// The number of this feed,
+    /// which a newer feed replaces.
+    epoch: u64,
+    /// The index under construction.
+    fresh: SearchIndex,
+    /// The pause after each batch.
+    pause: Duration,
+    /// Whether every batch was appended.
+    finished: bool,
+}
+
+/// The side feed takes batches into the fresh index.
+impl BatchSink for SideFeed<'_> {
+    /// What:
+    /// `accept` appends one batch to the fresh index unless the feed was cancelled.
+    /// Why:
+    /// a newer feed must win.
+    fn accept(&mut self, _number: usize, prepared: PreparedBatch) -> bool {
+        if !self.service.feed_is_current(self.epoch) {
+            tracing::info!(epoch = self.epoch, "library feed cancelled by a newer one");
+            self.finished = false;
+            return false;
+        }
+        self.fresh.append(prepared);
+        if !self.pause.is_zero() {
+            thread::sleep(self.pause);
+        }
+        return true;
+    }
+}
+
+/// What:
 ///      `fn prepare_in_order(names: &[String], batch: usize, sink: impl FnMut(usize, PreparedBatch) -> bool)`.
 ///  Prepares batches on several threads and hands them to `sink` in library order.
 /// Why:
@@ -65,12 +189,16 @@ const MAX_PREPARERS: usize = 4;
 ///  them can happen in any order.
 /// `sink` returns false to stop early,
 /// which also stops the preparers.
-pub(crate) fn prepare_in_order(names: &[String], batch: usize, mut sink: impl FnMut(usize, PreparedBatch) -> bool) {
+pub(crate) fn prepare_in_order(names: &[String], batch: usize, sink: &mut impl BatchSink) {
     let chunks: Vec<&[String]> = names.chunks(batch.max(1)).collect();
-    let workers: usize = thread::available_parallelism().map_or(1, |count| return count.get()).min(MAX_PREPARERS);
+    let available: usize = match thread::available_parallelism() {
+        Ok(count) => count.get(),
+        Err(_error) => 1,
+    };
+    let workers: usize = available.min(MAX_PREPARERS);
     if workers <= 1 || chunks.len() <= 1 {
         for (number, chunk) in chunks.iter().enumerate() {
-            if !sink(number, prepare_batch(chunk)) {
+            if !sink.accept(number, prepare_batch(chunk)) {
                 return;
             }
         }
@@ -78,6 +206,13 @@ pub(crate) fn prepare_in_order(names: &[String], batch: usize, mut sink: impl Fn
     }
     let next_chunk: AtomicUsize = AtomicUsize::new(0);
     let halted: AtomicBool = AtomicBool::new(false);
+    #[cfg_attr(
+        dylint_lib = "monochromatic_lint_closure",
+        expect(
+            avoidable_closure,
+            reason = "std::thread::scope takes only a callable bounded by the scope, and the scoped spawn takes only a callable that borrows the counters and the work list; no named function can carry them and no loop can start the threads"
+        )
+    )]
     thread::scope(|scope| {
         let (outbox, receiver) = mpsc::sync_channel::<(usize, PreparedBatch)>(workers * 2);
         for _ in 0..workers {
@@ -101,7 +236,7 @@ pub(crate) fn prepare_in_order(names: &[String], batch: usize, mut sink: impl Fn
         for (number, prepared) in receiver.iter() {
             waiting.insert(number, prepared);
             while let Some(ready) = waiting.remove(&expected) {
-                if !sink(expected, ready) {
+                if !sink.accept(expected, ready) {
                     halted.store(true, Ordering::Release);
                     return;
                 }
@@ -168,23 +303,9 @@ fn path_bytes(names: &[String]) -> usize {
 /// so every track added is a track that was not searchable before.
 fn feed_in_place(service: &SearchService, names: &[String], epoch: u64, batch: usize, pause: Duration) {
     let generation: u64 = service.reset(names.len(), path_bytes(names));
-    let mut finished: bool = true;
-    prepare_in_order(names, batch, |_number, prepared| {
-        if !service.feed_is_current(epoch) {
-            tracing::info!(epoch, "library feed cancelled by a newer one");
-            finished = false;
-            return false;
-        }
-        if !service.append_prepared(generation, prepared) {
-            finished = false;
-            return false;
-        }
-        if !pause.is_zero() {
-            thread::sleep(pause);
-        }
-        return true;
-    });
-    if finished {
+    let mut feed = InPlaceFeed { service, epoch, generation, pause, finished: true };
+    prepare_in_order(names, batch, &mut feed);
+    if feed.finished {
         service.finish(generation);
         tracing::info!(tracks = names.len(), epoch, "library feed finished in place");
     }
@@ -199,21 +320,10 @@ fn feed_in_place(service: &SearchService, names: &[String], epoch: u64, batch: u
 fn feed_on_the_side(service: &SearchService, names: &[String], epoch: u64, batch: usize, pause: Duration) {
     let mut fresh: SearchIndex = SearchIndex::new(0);
     fresh.reserve(names.len(), path_bytes(names), path_bytes(names) / 2);
-    let mut finished: bool = true;
-    prepare_in_order(names, batch, |_number, prepared| {
-        if !service.feed_is_current(epoch) {
-            tracing::info!(epoch, "library feed cancelled by a newer one");
-            finished = false;
-            return false;
-        }
-        fresh.append(prepared);
-        if !pause.is_zero() {
-            thread::sleep(pause);
-        }
-        return true;
-    });
-    if finished && service.feed_is_current(epoch) {
-        service.install(fresh);
+    let mut feed = SideFeed { service, epoch, fresh, pause, finished: true };
+    prepare_in_order(names, batch, &mut feed);
+    if feed.finished && service.feed_is_current(epoch) {
+        service.install(feed.fresh);
         tracing::info!(tracks = names.len(), epoch, "library feed installed from the side");
     }
 }

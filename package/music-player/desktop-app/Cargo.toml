@@ -311,3 +311,8 @@ windows = ">=0.62.2"
 winresource = ">=0.1.34"
 zbus = ">=6.2.1"
 zruntime = { version = ">=0.2.2", default-features = false }
+
+# Declares the cfg name of `#[cfg_attr(dylint_lib = ..)]` suppressions, enforced by file-enforcer.
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(dylint_lib, values(any()))"]

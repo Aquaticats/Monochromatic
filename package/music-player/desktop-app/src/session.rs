@@ -182,20 +182,24 @@ impl Session {
     /// never the other
     /// sizes and never the rest of the session.
     fn text_sizes_from(stored: &[Option<serde_json::Value>; 4]) -> TextSizes {
-        return TextElement::ALL.iter().zip(stored).fold(TextSizes::default(), |sizes, (element, field)| {
-            return sizes.with(*element, size_or_default(*element, field.as_ref()));
-        });
+        let mut sizes = TextSizes::default();
+        for (element, field) in TextElement::ALL.iter().zip(stored) {
+            sizes = sizes.with(*element, size_or_default(*element, field.as_ref()));
+        }
+        return sizes;
     }
 
     /// Parses permissive input while preserving whether the current key was present.
     fn parse_stored(text: &str) -> Result<(StoredSession, bool), serde_json::Error> {
         let value: serde_json::Value = serde_json::from_str(text)?;
-        let has_current_mode = value
-            .as_object()
-            .is_some_and(|object| return object.contains_key("playback_mode"));
-        let text_sizes = TextElement::ALL.map(|element| {
-            return value.as_object().and_then(|object| return object.get(element.session_key())).cloned();
-        });
+        let has_current_mode = matches!(value.as_object(), Some(object) if object.contains_key("playback_mode"));
+        let mut text_sizes: [Option<serde_json::Value>; 4] = Default::default();
+        for (position, element) in TextElement::ALL.iter().enumerate() {
+            text_sizes[position] = match value.as_object() {
+                Some(object) => object.get(element.session_key()).cloned(),
+                None => None,
+            };
+        }
         let mut stored: StoredSession = serde_json::from_value(value)?;
         stored.text_sizes = text_sizes;
         return Ok((stored, has_current_mode));
@@ -413,7 +417,10 @@ fn replace_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     temporary_name.push(".tmp");
     let temporary = path.with_file_name(temporary_name);
     let _guard = SAVE_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    let written = write_synced(&temporary, bytes).and_then(|()| return std::fs::rename(&temporary, path));
+    let written = match write_synced(&temporary, bytes) {
+        Ok(()) => std::fs::rename(&temporary, path),
+        Err(error) => Err(error),
+    };
     if written.is_err()
         && let Err(error) = std::fs::remove_file(&temporary)
         && error.kind() != std::io::ErrorKind::NotFound
@@ -440,7 +447,10 @@ fn write_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 
 /// Resolves the app-private session JSON path.
 fn session_path() -> Option<PathBuf> {
-    return identity::config_dir().map(|directory| return directory.join("session.json"));
+    return match identity::config_dir() {
+        Some(directory) => Some(directory.join("session.json")),
+        None => None,
+    };
 }
 
 /// What:

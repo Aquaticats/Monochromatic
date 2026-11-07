@@ -214,6 +214,81 @@ fn names_below<'a>(root: &Path, path: &'a Path) -> impl Iterator<Item = &'a OsSt
 }
 
 /// What:
+/// `sort_in_walk_order` sorts paths into the order of the folder walk below a root.
+/// Why:
+/// the comparison needs the root,
+/// so the paths travel with it as `WalkKey` values while the standard sort orders them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function sortInWalkOrder(root: string, paths: string[]): void { paths.sort((a, b) => walkCmp(root, a, b)); }
+/// ```
+pub(crate) fn sort_in_walk_order(root: &Path, paths: &mut Vec<PathBuf>) {
+    let mut keys: Vec<WalkKey<'_>> = Vec::with_capacity(paths.len());
+    for path in paths.drain(..) {
+        keys.push(WalkKey { root, path });
+    }
+    keys.sort();
+    for key in keys {
+        paths.push(key.path);
+    }
+}
+
+/// What:
+/// `WalkKey` is a path with the root that its walk order is measured from.
+/// Why:
+/// `sort_in_walk_order` needs an ordering that knows the root,
+/// and a value that carries it can be sorted by the standard sort.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WalkKey = { root: string; path: string };
+/// ```
+struct WalkKey<'root> {
+    /// The root the walk order is measured from.
+    root: &'root Path,
+    /// The path to place in the walk order.
+    path: PathBuf,
+}
+
+/// Equality of two walk keys is equality in the walk order.
+impl PartialEq for WalkKey<'_> {
+    /// What:
+    /// `eq` is true when the walk order puts neither path before the other.
+    /// Why:
+    /// equality must agree with the order for a sort to be sound.
+    fn eq(&self, other: &Self) -> bool {
+        return self.cmp(other) == Ordering::Equal;
+    }
+}
+
+/// A walk key is totally ordered by the walk order.
+impl Eq for WalkKey<'_> {}
+
+/// Ordering of two walk keys follows `walk_cmp`.
+impl PartialOrd for WalkKey<'_> {
+    /// What:
+    /// `partial_cmp` gives the walk order of the two paths.
+    /// Why:
+    /// the order is total,
+    /// so the answer always exists.
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        return Some(self.cmp(other));
+    }
+}
+
+/// The total order of walk keys.
+impl Ord for WalkKey<'_> {
+    /// What:
+    /// `cmp` compares the two paths with `walk_cmp` below the shared root.
+    /// Why:
+    /// this is the order in which the walk lists a folder's entries.
+    fn cmp(&self, other: &Self) -> Ordering {
+        return walk_cmp(self.root, &self.path, &other.path);
+    }
+}
+
+/// What:
 /// `pub(crate) fn walk_cmp(root: &Path, left: &Path, right: &Path) -> Ordering` compares two file paths in the order
 /// the folder walk lists them.
 /// `pub(crate)` makes it visible inside this crate only (siblings:
