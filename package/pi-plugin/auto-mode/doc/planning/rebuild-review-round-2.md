@@ -3,7 +3,8 @@
 ## Settled prerequisites
 
 The [complete current inventory](rebuild-question-inventory.md) adds Q14 and Q15 and records every dependent branch.
-The visual review presents all eight current choices; Q10 is withdrawn.
+The visual review presents all eight current choices;
+Q10 is withdrawn.
 
 Q1 B admits any valid unique leading probability.
 Q4 A retains the genuine human request separately.

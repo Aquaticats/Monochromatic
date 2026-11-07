@@ -8,7 +8,8 @@ and unresolved design.
 The [active plan](ground-up-rebuild.md) and [review round](rebuild-review-round-2.md) depend on these distinctions.
 No replacement implementation is authorized by this record.
 The [complete question inventory](rebuild-question-inventory.md) distinguishes current choices,
-dependent design work, and facts to measure.
+dependent design work,
+and facts to measure.
 
 ## Graceful fallback and degradation
 
