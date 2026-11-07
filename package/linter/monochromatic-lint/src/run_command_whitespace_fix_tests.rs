@@ -24,12 +24,20 @@ use std::path::Path;
 /// The configuration file name every fixture tree uses.
 const CONFIG_FILE: &str = "monochromatic-lint.config.jsonc";
 
-/// Only the rule that breaks lines,
-///  for Markdown files and for the Markdown inside rustdoc comments,
-///  which is the whitespace-shaped fix the commit path and agents rely on.
-const WHITESPACE_RULE: &str = r#"[
+/// Every fixable Markdown rule,
+///  for Markdown files and for the Markdown inside rustdoc comments:
+///  plain `--fix` must still change no token with all of them enabled,
+///  because only the rule that breaks lines may fix without a content flag.
+const EVERY_FIXABLE_RULE: &str = r#"[
   { "files": ["**/*.md", "**/*.mdx", "**/*.rs/*.md", "**/*.md/*.rs/*.md"], "rules": {
-    "markdown/semantic-line-breaks": { "severity": "error" }
+    "markdown/semantic-line-breaks": { "severity": "error" },
+    "markdown/commands-show-output": { "severity": "error" },
+    "markdown/no-trailing-punctuation": { "severity": "error" },
+    "markdown/no-bare-urls": { "severity": "error" },
+    "markdown/fenced-code-language": { "severity": "error" },
+    "markdown/link-image-reference-definitions": { "severity": "error" },
+    "markdown/link-image-style": { "severity": "error" },
+    "markdown/no-pipe-tables": { "severity": "error" }
   } }
 ]"#;
 
@@ -94,7 +102,7 @@ fn comparable_tokens<'text>(filename: &str, text: &'text str) -> Vec<&'text str>
     return tokens(text);
 }
 
-/// Fix one source on standard input under the whitespace rule and return the fixed source.
+/// Fix one source on standard input under a configuration and return the fixed source.
 fn fix_with(root: &Path, filename: &str, source: &str, configuration: &str) -> String {
     write(root, CONFIG_FILE, configuration);
     let output: RunOutput = run(
@@ -150,7 +158,7 @@ fn a_pipe_table_is_left_as_it_is() {
 fn doc_comments_in_a_fenced_listing_in_markdown_are_left_as_written() {
     let source: &str =
         "Quoted source:\n\n```rust\n/// Adds one. Then returns it.\nfn f() {}\n```\n";
-    let (fixed, remaining): (String, Vec<String>) = fix_file("a.md", source, WHITESPACE_RULE);
+    let (fixed, remaining): (String, Vec<String>) = fix_file("a.md", source, EVERY_FIXABLE_RULE);
     assert_eq!(fixed, source);
     assert_eq!(remaining, ["markdown/semantic-line-breaks"]);
 }
@@ -160,7 +168,7 @@ fn doc_comments_in_a_fenced_listing_in_markdown_are_left_as_written() {
 #[test]
 fn a_doc_example_in_a_rust_file_is_left_as_written_beside_its_broken_doc_comment() {
     let source: &str = "/// Adds one. Then returns it.\n///\n/// ```rust\n/// /// Inner doc. More words.\n/// fn g() {}\n/// ```\nfn f() {}\n";
-    let (fixed, _): (String, Vec<String>) = fix_file("a.rs", source, WHITESPACE_RULE);
+    let (fixed, _): (String, Vec<String>) = fix_file("a.rs", source, EVERY_FIXABLE_RULE);
     assert_eq!(
         fixed,
         "/// Adds one.\n/// Then returns it.\n///\n/// ```rust\n/// /// Inner doc. More words.\n/// fn g() {}\n/// ```\nfn f() {}\n"
@@ -175,7 +183,7 @@ fn a_doc_example_in_a_rust_file_is_left_as_written_beside_its_broken_doc_comment
 #[test]
 fn a_blockquote_break_adds_no_marker_and_stays_in_the_quote() {
     let source: &str = "> I think we can make it much better. Because we control the code.\n> Second line, here.\n";
-    let (fixed, remaining): (String, Vec<String>) = fix_file("a.md", source, WHITESPACE_RULE);
+    let (fixed, remaining): (String, Vec<String>) = fix_file("a.md", source, EVERY_FIXABLE_RULE);
     assert_eq!(
         fixed,
         "> I think we can make it much better.\nBecause we control the code.\n> Second line,\nhere.\n"
@@ -195,7 +203,7 @@ fn a_blockquote_break_adds_no_marker_and_stays_in_the_quote() {
     assert_eq!(root_children, [MdastNodeType::Blockquote]);
 }
 
-/// Every fixture keeps its token sequence under the whitespace rule,
+/// Every fixture keeps its token sequence under plain `--fix` with every fixable Markdown rule enabled,
 ///  and a second run changes nothing.
 #[test]
 fn whitespace_fix_keeps_every_token_of_every_fixture() {
@@ -209,7 +217,7 @@ fn whitespace_fix_keeps_every_token_of_every_fixture() {
             &fixture.path,
             case.filename.as_str(),
             case.source.as_str(),
-            WHITESPACE_RULE,
+            EVERY_FIXABLE_RULE,
         );
         assert_eq!(
             comparable_tokens(case.filename.as_str(), fixed.as_str()),
@@ -221,7 +229,7 @@ fn whitespace_fix_keeps_every_token_of_every_fixture() {
             &fixture.path,
             case.filename.as_str(),
             fixed.as_str(),
-            WHITESPACE_RULE,
+            EVERY_FIXABLE_RULE,
         );
         assert_eq!(again, fixed, "{} is not stable", case.name);
     }
@@ -263,7 +271,7 @@ fn real_tree_keeps_every_token_under_the_whitespace_rule() {
             &fixture.path,
             name.as_str(),
             source.as_str(),
-            WHITESPACE_RULE,
+            EVERY_FIXABLE_RULE,
         );
         if fixed != source {
             changed += 1;

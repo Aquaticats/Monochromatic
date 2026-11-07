@@ -275,3 +275,8 @@ mod fix_tests;
 #[cfg(test)]
 #[path = "run_command_whitespace_fix_tests.rs"]
 mod whitespace_fix_tests;
+
+/// Controls for the whitespace and content fix classes stay outside release artifacts.
+#[cfg(test)]
+#[path = "run_command_fix_class_tests.rs"]
+mod fix_class_tests;
