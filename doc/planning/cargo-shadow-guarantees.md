@@ -2420,8 +2420,11 @@ Substantive findings and their state:
   it does not close it.
   Closing it means executing an opened descriptor,
   which breaks scripts and proxies that open their own path,
-  so it is not done and needs an owner decision. Superseded in round 21:
-  the owner's rule ("We should never invoke ourselves recursively.") settles it; see the round 21 block.
+  so it is not done and needs an owner decision.
+  Superseded in round 21:
+  the owner's rule ("We should never invoke ourselves recursively.")
+  settles it;
+  see the round 21 block.
   Owner decision of 2026-11-04 (option A):
   a launcher with no record that leads back no longer gets a bounded fallback;
   the second
@@ -2476,29 +2479,56 @@ Substantive findings and their state:
 
 ### Round 21 additions (sixth certification pass, 2026-11-04T17:40:00-05:00)
 
-- **Check-to-start race, closed for compiled programs.**
-  `real_binary::vet` opens the chosen real cargo once (close-on-exec), runs the running-image and recorded-launcher checks on the
-  open file, and recognises a compiled (ELF) program by its first bytes. `Vetted::command` then starts a compiled program through
-  `/proc/self/fd/<n>` with the chosen path as `argv[0]`, so a path made to name the shadow after the check cannot reach the start
-  and rustup's proxy still picks the tool by name. The two starts that this process makes itself use it (`shim::run_program` and the
-  shim exec site). The cargo of an install step (`RealCargo::run`) runs inside a scope whose launcher (`systemd-run`) takes the program
-  as an argument and starts it from its own process, so no descriptor of this process can name it there, and the launcher would also
-  replace `argv[0]`; that start keeps the path with the check repeated right before (`Vetted::command_by_path`), and its window ends
-  at the arrival stop like the script residual below (`a_compiled_real_cargo_runs_in_the_contained_runner_of_the_install_step`, red
+- **Check-to-start race,
+  closed for compiled programs.**
+  `real_binary::vet` opens the chosen real cargo once (close-on-exec),
+  runs the running-image and recorded-launcher checks on the
+  open file,
+  and recognises a compiled (ELF) program by its first bytes.
+  `Vetted::command` then starts a compiled program through
+  `/proc/self/fd/<n>` with the chosen path as `argv[0]`,
+  so a path made to name the shadow after the check cannot reach the start
+  and rustup's proxy still picks the tool by name.
+  The two starts that this process makes itself use it (`shim::run_program` and the
+  shim exec site).
+  The cargo of an install step (`RealCargo::run`) runs inside a scope whose launcher (`systemd-run`) takes the program
+  as an argument and starts it from its own process,
+  so no descriptor of this process can name it there,
+  and the launcher would also
+  replace `argv[0]`;
+  that start keeps the path with the check repeated right before (`Vetted::command_by_path`),
+  and its window ends
+  at the arrival stop like the script residual below (`a_compiled_real_cargo_runs_in_the_contained_runner_of_the_install_step`,
+  red
   when that start uses the descriptor).
   `a_compiled_real_cargo_swapped_to_the_shadow_after_the_check_still_runs_the_real_one` swaps the checked path to a hard link of the
-  running image between the check and the start (the `after_check_for_test` seam) and requires the real program's output; red with
-  the start by pathname and no second check (the shadow listed its tests instead), planted.
+  running image between the check and the start (the `after_check_for_test` seam) and requires the real program's output;
+  red with
+  the start by pathname and no second check (the shadow listed its tests instead),
+  planted.
 - **Script and contained-start residual.**
-  A script cannot be started through a close-on-exec descriptor (the interpreter opens the path after the descriptor is gone, and
-  the start fails with ENOENT), so a script keeps its pathname and is checked again immediately before the start
-  (`a_script_real_cargo_swapped_to_the_shadow_after_the_check_is_refused_at_the_start`). The instants between that second check and
-  the start remain; a hit there reaches the arrival stop of the second cargo-shadow (exit status 2), so nothing runs twice. The
-  owner has not been asked to accept this residual beyond the rule above; it is stated, not hidden.
+  A script cannot be started through a close-on-exec descriptor (the interpreter opens the path after the descriptor is gone,
+  and
+  the start fails with ENOENT),
+  so a script keeps its pathname and is checked again immediately before the start
+  (`a_script_real_cargo_swapped_to_the_shadow_after_the_check_is_refused_at_the_start`).
+  The instants between that second check and
+  the start remain;
+  a hit there reaches the arrival stop of the second cargo-shadow (exit status 2),
+  so nothing runs twice.
+  The
+  owner has not been asked to accept this residual beyond the rule above;
+  it is stated,
+  not hidden.
 - **Group 2 and group 4 named fixes.**
   `a_wait_that_fails_is_not_a_reap` bounds the wait and requires the elapsed time to match the bound (red with a one-shot extra
-  budget, planted). The quiescence tests wait for the program's ready marker, require the fault to be consumed, and require the
-  program to have run in the recorded scope (`assert_ran_in_recorded_scope`), in both the inspection schedule and the joined
+  budget,
+  planted).
+  The quiescence tests wait for the program's ready marker,
+  require the fault to be consumed,
+  and require the
+  program to have run in the recorded scope (`assert_ran_in_recorded_scope`),
+  in both the inspection schedule and the joined
   install test.
 
 ### What the map does not claim
