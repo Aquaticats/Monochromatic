@@ -35,6 +35,7 @@ use std::os::unix::fs::PermissionsExt;
 /// Imports the borrowed and owned path types.
 use std::path::{Path, PathBuf};
 
+/// Imports the lookup that names the shadow a program is or leads to.
 use crate::shadow_identity::shadow_behind;
 
 /// Imports the launcher record reader.
@@ -102,7 +103,13 @@ fn is_launcher_of(candidate: &Path, shadow: &Path) -> bool {
     let Some(record) = parse_record(&text) else {
         return false;
     };
-    return record.real == shadow || fs::canonicalize(&record.real).is_ok_and(|resolved| return resolved == shadow);
+    if record.real == shadow {
+        return true;
+    }
+    return match fs::canonicalize(&record.real) {
+        Ok(resolved) => resolved == shadow,
+        Err(_) => false,
+    };
 }
 
 /// What:

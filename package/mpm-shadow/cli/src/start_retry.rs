@@ -40,6 +40,24 @@ const FIRST_PAUSE: Duration = Duration::from_millis(10);
 /// the pauses double until they reach it.
 const LONGEST_PAUSE: Duration = Duration::from_millis(500);
 
+/// One attempt to start a program,
+/// which the retry repeats while the system refuses to create a process.
+///
+/// A struct implements it when the attempt needs state,
+/// and any `FnMut() -> Result<T>` implements it as well.
+pub trait StartAttempt<T> {
+    /// Tries to start the program once.
+    fn attempt(&mut self) -> Result<T>;
+}
+
+/// Lets a plain function or closure stand in for a start attempt.
+impl<T, Attempt: FnMut() -> Result<T>> StartAttempt<T> for Attempt {
+    /// Runs the function.
+    fn attempt(&mut self) -> Result<T> {
+        return self();
+    }
+}
+
 /// What:
 /// Runs `start` until it is not refused for lack of processes,
 /// pausing between tries so that the pauses total at most `budget`.
@@ -57,12 +75,12 @@ const LONGEST_PAUSE: Duration = Duration::from_millis(500);
 pub fn retry_refused_start_with<T>(
     budget: Duration,
     pause: &mut dyn FnMut(Duration),
-    start: &mut dyn FnMut() -> Result<T>,
+    start: &mut dyn StartAttempt<T>,
 ) -> (Result<T>, RetryReport) {
     let mut report: RetryReport = RetryReport::default();
     let mut delay: Duration = FIRST_PAUSE;
     loop {
-        let error: Error = match start() {
+        let error: Error = match start.attempt() {
             Ok(started) => return (Ok(started), report),
             Err(error) => error,
         };
@@ -81,8 +99,8 @@ pub fn retry_refused_start_with<T>(
 
 /// The production entry:
 /// pauses for real.
-pub fn retry_refused_start<T>(start: &mut dyn FnMut() -> Result<T>) -> (Result<T>, RetryReport) {
-    return retry_refused_start_with(START_RETRY_BUDGET, &mut |delay: Duration| std::thread::sleep(delay), start);
+pub fn retry_refused_start<T>(start: &mut dyn StartAttempt<T>) -> (Result<T>, RetryReport) {
+    return retry_refused_start_with(START_RETRY_BUDGET, &mut std::thread::sleep, start);
 }
 
 /// Whether an error is the system's refusal to create another process.

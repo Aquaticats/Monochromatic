@@ -19,9 +19,12 @@
 //! export function chainProblem(own: string, program: string): string | undefined
 //! ```
 
+/// Imports the file-system module that canonicalizes paths and reads launcher records.
 use std::fs;
+/// Imports the borrowed and owned path types of the programs and records that are followed.
 use std::path::{Path, PathBuf};
 
+/// Imports the reader of a launcher record and the path where a record stands beside a launcher.
 use super::launcher::{parse_record, record_path};
 
 /// How many launchers in a row are followed before the chain counts as one that never reaches a program.
@@ -42,7 +45,10 @@ pub const MAX_LAUNCHER_CHAIN: usize = 8;
 /// ends the walk with no problem:
 /// the start itself reports a missing program.
 pub fn chain_problem(own: &Path, program: &Path) -> Option<String> {
-    let own_resolved: PathBuf = fs::canonicalize(own).unwrap_or_else(|_| { return own.to_path_buf(); });
+    let own_resolved: PathBuf = match fs::canonicalize(own) {
+        Ok(resolved) => resolved,
+        Err(_) => own.to_path_buf(),
+    };
     let mut followed: Vec<PathBuf> = vec![own_resolved.clone()];
     let mut current: PathBuf = program.to_path_buf();
     for _hop in 0..=MAX_LAUNCHER_CHAIN {
@@ -79,6 +85,7 @@ pub fn chain_problem(own: &Path, program: &Path) -> Option<String> {
     ));
 }
 
+/// The unit tests of the launcher chain walk.
 #[cfg(test)]
 #[path = "launcher_chain_tests.rs"]
 mod tests;
