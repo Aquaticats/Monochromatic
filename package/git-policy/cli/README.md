@@ -32,7 +32,16 @@ Every earlier name keeps working in this release:
    the merge records and the ignored-state copy records).
   The first command that needs one after the rename finds only the earlier name, and renames it in place with one atomic
    rename that never replaces; nothing is copied, nothing is left behind, and a process that loses a race finds the result.
-  When both names exist, the new one is used, the earlier one is left as it is, and one line says so.
+  When both names exist (a development build of the renamed wrapper and an earlier release ran side by side), the new one is used
+   and the earlier one is folded into it, losslessly, by the first command that finds no earlier program running:
+   a log gets the earlier log's bytes added after its own lines, in the earlier log's order, and the earlier log is removed;
+   a folder gets every entry of the earlier folder (folders that exist in both are merged one level at a time), and an entry
+   whose name exists in both is kept twice, the earlier one as `<name>.from-earlier-release`.
+  Nothing prints after a fold.
+  The fold waits while a process has the start arguments of the earlier commit service of the Git directory's worktree
+   (a socket that only listens does not hold it), says one line per process what to do in plain words, and folds on a later command.
+  A kill at any instruction leaves each byte under one of the two names, and the next command finishes the fold.
+  Logs are not interleaved by time stamp: the current log is never rewritten, because other programs append to it without a lock.
   If a rename fails (a read-only Git directory), the earlier name is used for that run and the next command tries again.
 - The commit service units.
   The units this release writes are `monochromatic-git-policy-cli@.socket` and `monochromatic-git-policy-cli@.service`,
@@ -1197,6 +1206,10 @@ Real Git keeps the normal standard streams.
 - When real Git runs,
    its exit status is preserved.
   A landed commit that a post-commit policy then blocks exits `2` and stays local.
+
+The wrapper's own diagnostic lines on standard error (`[debug]` lines under `MONOCHROMATIC_VERBOSE=true`,
+ and `[warn]` lines unless `MONOCHROMATIC_WARN=false`) often carry Git's words, which can name a remote.
+ The userinfo of any URL in such a line is replaced by `<credentials>`, and every control character by a space.
 
 ## Configuration
 

@@ -8,7 +8,8 @@
 //!  The owner renamed the folders and files the wrapper keeps inside the Git directory and said "never discard user data"
 //!  (`doc/planning/git-policy-cli-program-rename.md`). One rename that refuses to replace copies nothing and leaves no
 //!  second name; a process that loses the race finds the winner's result; a failure is a notice and never an error,
-//!  because "commits should never fail". When both names exist the earlier one is left exactly as it is and reported.
+//!  because "commits should never fail". When both names exist the current one is used and the fold of the earlier one into it
+//!  (`earlier_names_folded_into_current.rs`) takes over.
 //!  No lock is taken: the kernel serializes the rename, and a crash between the check and the rename leaves the earlier
 //!  name, which the next run moves.
 //!
@@ -104,23 +105,6 @@ pub fn look(parent: &Path, name: RenamedName) -> Look {
     return Look::Settled;
 }
 
-/// The line that reports an earlier name left beside the current one.
-fn both_notice(parent: &Path, name: RenamedName) -> String {
-    return format!(
-        "{}: {} and {} both exist in {}; {} is used and {} was left as it is. Move what you still need from {} into {}, \
-         then remove {}.\n",
-        MESSAGE_PREFIX.current,
-        name.earlier,
-        name.current,
-        parent.display(),
-        name.current,
-        name.earlier,
-        name.earlier,
-        name.current,
-        name.earlier
-    );
-}
-
 /// The line that reports an earlier name that could not be moved,
 ///  and is used as it is for this run.
 fn unmovable_notice(parent: &Path, name: RenamedName, error: &std::io::Error) -> String {
@@ -157,9 +141,8 @@ pub fn carry_out(looked: Look, parent: &Path, name: RenamedName, rename: fn(&Pat
     let earlier: PathBuf = parent.join(name.earlier);
     match looked {
         Look::Settled => return Placement { path: current, notice: None },
-        Look::Both => {
-            return Placement { path: current, notice: Some(both_notice(parent, name)) };
-        }
+        // The fold of the earlier name into the current one (`earlier_names_folded_into_current.rs`) speaks when it waits or fails.
+        Look::Both => return Placement { path: current, notice: None },
         Look::OnlyEarlier => {}
     }
     // `match` on the rename's `Result`: success, a lost race, or a failure to report.
@@ -170,9 +153,9 @@ pub fn carry_out(looked: Look, parent: &Path, name: RenamedName, rename: fn(&Pat
             if error.kind() == std::io::ErrorKind::NotFound && exists(current.as_path()) {
                 return Placement { path: current, notice: None };
             }
-            // The current name appeared: another process was ahead and the earlier name came back or never left.
+            // The current name appeared: another process was ahead and the earlier name came back or never left; the fold takes it from here.
             if error.kind() == std::io::ErrorKind::AlreadyExists {
-                return Placement { path: current, notice: Some(both_notice(parent, name)) };
+                return Placement { path: current, notice: None };
             }
             // A filesystem without the call, a read-only folder or anything else: keep working with what is there.
             let reported: std::io::Error = if rename_unsupported(&error) {

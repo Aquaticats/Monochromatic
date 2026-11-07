@@ -9,6 +9,11 @@
 //! so the record is the only memory of what an earlier run made.
 //! A link is removed only when it is still the symlink the record names;
 //! anything else at that path belongs to a person and stays.
+//! A new worktree starts as a snapshot of the checkout it was made from,
+//! `.cache` included,
+//! so its record can name the links of that other checkout;
+//! a repository scope retires only links inside its own checkout,
+//! and drops every other recorded path from its record without touching what is there.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -34,6 +39,8 @@ use super::error::ToolchainError;
 use super::exposure::{MadeLink, link_directory, make_postinstall_links};
 /// Imports `LockedTool` and `Postinstall` from `super::model`.
 use super::model::{LockedTool, Postinstall};
+/// Imports `ScopeKind` from `super::scope`.
+use super::scope::ScopeKind;
 /// Imports `write_atomically` from `super::publish`.
 use super::publish::write_atomically;
 
@@ -109,6 +116,61 @@ fn declared_link_paths(ctx: &Context) -> BTreeSet<PathBuf> {
     return declared;
 }
 
+/// The path with symbolic links resolved when it exists,
+/// otherwise as given.
+fn resolved(path: &Path) -> PathBuf {
+    return match fs::canonicalize(path) {
+        Ok(found) => found,
+        Err(_) => path.to_path_buf(),
+    };
+}
+
+/// The path of a link with its directory resolved and the link itself left as a link
+/// (resolving the link would name its target).
+fn resolved_beside(link: &Path) -> PathBuf {
+    return match (link.parent(), link.file_name()) {
+        (Some(directory), Some(name)) => resolved(directory).join(name),
+        _ => link.to_path_buf(),
+    };
+}
+
+/// What:
+/// Whether the scope made the link at `path` and may retire it:
+/// a repository scope owns the links inside its own checkout and none inside a checkout nested in it;
+/// the global scope owns its recorded paths wherever they are,
+/// because its record is never copied from another place.
+/// Why:
+/// The record stores absolute paths,
+/// and a worktree made as a snapshot of another checkout starts with that checkout's record.
+/// Such a path was never made by this scope,
+/// so its link is not this scope's to remove,
+/// whatever it points at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isOwnLink(ctx: Context, path: string): boolean
+/// ```
+fn is_own_link(ctx: &Context, path: &Path) -> bool {
+    if ctx.scope.kind == ScopeKind::Global {
+        return true;
+    }
+    let root: PathBuf = resolved(&ctx.scope.root);
+    let place: PathBuf = resolved_beside(path);
+    if !place.starts_with(&root) {
+        return false;
+    }
+    for directory in place.ancestors().skip(1) {
+        if directory == root {
+            return true;
+        }
+        // A `.git` entry (a directory, or the file a linked worktree has) marks another checkout between the root and the link.
+        if fs::symlink_metadata(directory.join(".git")).is_ok() {
+            return false;
+        }
+    }
+    return false;
+}
+
 /// What a recorded path holds now.
 enum Held {
     /// Nothing.
@@ -147,6 +209,9 @@ fn inspect(path: &Path, recorded_target: &Path) -> Held {
 /// or a link to somewhere else,
 /// is left untouched and named in a warning,
 /// and leaves the record so the warning appears once.
+/// A recorded path outside this scope's own checkout is neither inspected nor removed,
+/// and leaves the record:
+/// the record was copied from the checkout that made it.
 fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainError> {
     let file: PathBuf = record_file(ctx);
     let (recorded, unreadable) = read_record(&file);
@@ -160,6 +225,9 @@ fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainE
     for (path, target) in &recorded {
         if declared.contains(path) {
             kept.insert(path.clone(), target.clone());
+            continue;
+        }
+        if !is_own_link(ctx, path) {
             continue;
         }
         match inspect(path, target) {
