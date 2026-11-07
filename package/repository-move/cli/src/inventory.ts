@@ -1,8 +1,8 @@
 /**
  The subvolume inventory: the Git registry reconciled with the filesystem's own list, with each subvolume's UUID.
 
- `btrfs subvolume list -u <filesystem>` (root only) prints one row per subvolume ending in
- `uuid <uuid> path <path from the top level>`; the copy keys every record by that UUID and path.
+ `btrfs subvolume list -u -q <filesystem>` (root only) prints one row per subvolume ending in
+ `parent_uuid <uuid or -> received_uuid <uuid or -> uuid <uuid> path <path from the top level>`; the copy keys every record by that UUID and path.
 
  @module
  */
@@ -31,7 +31,18 @@ import {
 export type Subvolume = {
   readonly path: string;
   readonly uuid: string;
+
+  /**
+   The UUID of the subvolume this one was snapshotted from: the dash when it has none (a plain `subvolume create`), and
+   the question mark when the inventory was taken without the parent column.
+   */
+  readonly parentUuid: string;
 };
+
+/**
+ What a subvolume's parent UUID is when the inventory was taken without the parent column.
+ */
+export const PARENT_UNKNOWN = '?';
 
 /**
  The UUID of a subvolume whose inventory is unavailable.
@@ -106,6 +117,7 @@ export type ListedRow = {
   readonly id: string;
   readonly topLevel: string;
   readonly uuid: string;
+  readonly parentUuid: string;
   readonly path: string;
 };
 
@@ -115,9 +127,39 @@ export type ListedRow = {
 const ID_LABEL = 'ID ';
 
 /**
+ Label before the UUID of the subvolume a row was snapshotted from; `btrfs subvolume list -q` prints it.
+ */
+const PARENT_UUID_LABEL = ' parent_uuid ';
+
+/**
  Label before the parent ID in an inventory row.
  */
 const TOP_LEVEL_LABEL = ' top level ';
+
+/**
+ Reads the parent UUID column of an inventory row.
+
+ @param row - a row of `btrfs subvolume list -u -q`
+
+ @returns the UUID, the dash when the subvolume was not snapshotted from another, or the question mark when the row has no such column
+ */
+function parentUuidOf(row: string,): string {
+  /**
+   Where the label starts, or minus one when the row has none.
+   */
+  const at = row.indexOf(PARENT_UUID_LABEL,);
+  if (at === (-1)) {
+    return PARENT_UNKNOWN;
+  }
+  /**
+   The text after the label.
+   */
+  const rest = row.slice(at + PARENT_UUID_LABEL.length,);
+  return rest.slice(
+    0,
+    rest.indexOf(' ',),
+  );
+}
 
 /**
  Parses one inventory row.
@@ -148,7 +190,7 @@ function parseRow(row: string,): ListedRow {
     || (pathAt === (-1))
     || (topAt === (-1))) {
     throw new MoveStopError(
-      `inventory line not understood or without a UUID (list the filesystem with 'btrfs subvolume list -u'): ${row}`,
+      `inventory line not understood or without a UUID (list the filesystem with 'btrfs subvolume list -u -q'): ${row}`,
     );
   }
   return {
@@ -170,6 +212,7 @@ function parseRow(row: string,): ListedRow {
       uuidAt + UUID_LABEL.length,
       pathAt,
     ),
+    parentUuid: parentUuidOf(row,),
     path: row.slice(pathAt + PATH_LABEL.length,),
   };
 }
@@ -245,6 +288,7 @@ export function resolveFullPaths(rows: readonly ListedRow[],): readonly Subvolum
   return rows.map(function toSubvolume(row,) {
     return {
       uuid: row.uuid,
+      parentUuid: row.parentUuid,
       path: fullPath({
         row,
         depth: 0,
@@ -306,12 +350,14 @@ export function parseInventory(
   function mapped({
     path,
     uuid,
+    parentUuid,
   }: Subvolume,): Subvolume {
     if (!path.startsWith(options.inventoryPrefixFrom,)) {
       throw new MoveStopError(`inventory path outside ${options.inventoryPrefixFrom}: ${path}`,);
     }
     return {
       uuid,
+      parentUuid,
       path: `${options.inventoryPrefixTo}${path.slice(options.inventoryPrefixFrom
         .length,)}`,
     };
@@ -327,6 +373,7 @@ export function parseInventory(
     main: main ?? {
       path: '',
       uuid: UNKNOWN_UUID,
+      parentUuid: PARENT_UNKNOWN,
     },
     nested: rows.filter(function isBelowMain(row,) {
       return row.path
@@ -413,18 +460,20 @@ export async function reconcileInventory(
   if (canonical.inventoryFile === '') {
     if (canonical.run) {
       throw new MoveStopError(
-        '--run needs --inventory (root: btrfs subvolume list -u of the whole filesystem), because every record is keyed by UUID',
+        '--run needs --inventory (root: btrfs subvolume list -u -q of the whole filesystem), because every record is keyed by UUID',
       );
     }
     return [
       {
         path: canonical.mainPath,
         uuid: UNKNOWN_UUID,
+        parentUuid: PARENT_UNKNOWN,
       },
       ...limited.map(function unknown(path,) {
         return {
           path,
           uuid: UNKNOWN_UUID,
+          parentUuid: PARENT_UNKNOWN,
         };
       },),
     ];
@@ -492,11 +541,20 @@ export async function reconcileInventory(
   if (main.path === '') {
     throw new MoveStopError(`the inventory has no row for the main checkout at ${canonical.inventoryMain}`,);
   }
+  if (canonical.run && [main, ...nested,].some(function lacksParent(row,) {
+    return row.parentUuid === PARENT_UNKNOWN;
+  },)) {
+    throw new MoveStopError(
+      'the inventory was taken without the parent column, which decides what each send may start from; take it again '
+        + `with 'btrfs subvolume list -u -q' (root) and run again: ${canonical.inventoryFile}`,
+    );
+  }
   log(`inventory agrees: ${String(nested.length,)} nested subvolumes`,);
   return [
     {
       path: canonical.mainPath,
       uuid: main.uuid,
+      parentUuid: main.parentUuid,
     },
     ...nested.filter(function isCovered(row,) {
       return limited.includes(row.path,);

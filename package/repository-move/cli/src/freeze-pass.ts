@@ -19,7 +19,10 @@ import {
 } from './completion-records.ts';
 import { FREEZE_MANIFEST, } from './constants.ts';
 import { MoveStopError, } from './errors.ts';
-import type { Subvolume, } from './inventory.ts';
+import {
+  PARENT_UNKNOWN,
+  type Subvolume,
+} from './inventory.ts';
 
 /**
  What the freeze manifest holds: whether it exists, and the frozen subvolumes.
@@ -85,6 +88,7 @@ export async function readFreezeManifest(stateFolder: string,): Promise<FreezeMa
         return {
           uuid,
           path,
+          parentUuid: PARENT_UNKNOWN,
         };
       },),
   };
