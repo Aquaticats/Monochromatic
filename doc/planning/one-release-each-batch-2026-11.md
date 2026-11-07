@@ -1188,6 +1188,13 @@ proved the Wayland library step.
   crates.io `2026-11-07T12:02:25.921188Z`, `yanked` false.
   Exempt crate: no README notice; note carries the homepage path fix.
 
+- `monochromatic-nested-wayland-session` 0.6.2 to 0.6.3:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370762186`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42370971740`
+  (built from `bc56e10ce7`),
+  crates.io `2026-11-07T12:08:46.831419Z`, `yanked` false.
+  GitHub release `monochromatic-nested-wayland-session-v0.6.3` holds both Linux tarballs and the checksums file. Wave 0 is complete on crates.io.
+
 ## Evidence log
 
 - crates.io API reads:
