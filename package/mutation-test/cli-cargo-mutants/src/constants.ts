@@ -25,6 +25,12 @@ export const defaultUnitCpuQuota = '500%';
  */
 export const unitIoWeight = 50;
 
+/**
+ Highest `IOWeight` a unit this package starts may carry.
+ The owner's rule (`CLAUDE.md`, rule RXS) is that a per-command cgroup never sets `IOWeight` above 10.
+ */
+export const maximumUnitIoWeight = 10;
+
 //endregion Per-unit systemd caps
 
 //region Campaign task

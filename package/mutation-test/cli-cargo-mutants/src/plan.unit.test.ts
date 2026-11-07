@@ -9,6 +9,7 @@ import { shellQuote } from '@monochromatic-dev/shell-argument-core/ts/shell-quot
 import {
   buildTimeoutFlag,
   examineFlag,
+  maximumUnitIoWeight,
 } from './constants.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import {
@@ -84,6 +85,28 @@ await describe({
             expect(plan?.systemdRunArguments).toContain('--property=MemoryMax=8G');
             expect(plan?.systemdRunArguments).toContain('--property=CPUQuota=300%');
             expect(plan?.systemdRunArguments.at(-1)).toContain(`'--file' 'src/native/a.rs'`);
+          },
+        }),
+        it({
+          name: 'starts every unit with a disk weight within the owner limit and a task limit by default',
+          fn: async () => {
+            const plans = planUnits(options({ argv: ['w5', 'a.rs', 'b.rs'] }));
+            expect(plans).toHaveLength(2);
+            for (const plan of plans) {
+              const weights = (plan.systemdRunArguments).flatMap((argument) => /^--property=IOWeight=(\d+)$/u.exec(argument)?.[1] ?? []);
+              expect(weights).toHaveLength(1);
+              expect(Number(weights[0])).toBeLessThanOrEqual(maximumUnitIoWeight);
+              expect(plan.systemdRunArguments.filter((argument) => /^--property=TasksMax=[1-9]\d*$/u.test(argument))).toHaveLength(1);
+            }
+          },
+        }),
+        it({
+          name: 'applies the named task limit to every unit',
+          fn: async () => {
+            const plans = planUnits(options({ argv: ['--unit-tasks-max', '96', 'w5', 'a.rs', 'b.rs'] }));
+            expect(plans).toHaveLength(2);
+            for (const plan of plans)
+              expect(plan.systemdRunArguments).toContain('--property=TasksMax=96');
           },
         }),
         it({

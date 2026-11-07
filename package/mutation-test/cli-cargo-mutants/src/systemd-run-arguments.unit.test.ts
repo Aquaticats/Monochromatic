@@ -4,7 +4,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { unitIoWeight } from './constants.ts';
+import {
+  maximumUnitIoWeight,
+  unitIoWeight,
+} from './constants.ts';
 import { buildSystemdRunArguments } from './systemd-run-arguments.ts';
 
 await describe({
@@ -37,6 +40,23 @@ await describe({
               '-c',
               'echo hi',
             ]);
+          },
+        }),
+        it({
+          name: 'sets a disk weight within the owner limit and a task limit',
+          fn: async () => {
+            const built = buildSystemdRunArguments({
+              unit: 'u',
+              memoryMax: '12G',
+              cpuQuota: '500%',
+              workingDirectory: '/w',
+              environment: [],
+              body: 'true',
+            });
+            const weights = built.flatMap((argument) => /^--property=IOWeight=(\d+)$/u.exec(argument)?.[1] ?? []);
+            expect(weights).toHaveLength(1);
+            expect(Number(weights[0])).toBeLessThanOrEqual(maximumUnitIoWeight);
+            expect(built.filter((argument) => /^--property=TasksMax=[1-9]\d*$/u.test(argument))).toHaveLength(1);
           },
         }),
         it({
