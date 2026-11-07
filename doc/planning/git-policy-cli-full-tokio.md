@@ -1857,6 +1857,22 @@ for that one case only: the publish answered by neither `renameat2` with `RENAME
      lands the commit. That refusal is a deliberate earlier design in `landing/service_index_placement.rs`. Whether it should give way
      to "Commits should never fail" (and what a kill could then leave) needs the owner. The state directory is the subject of the
      fix above; the repository's Git directory on such a filesystem is this second case.
+- Settled by the coordinator, 2026-11-07T09:12:04-05:00, from owner rules already given (no new owner question):
+  1. The `decide` race is inside one process, so it closes with an in-memory atomic claim (compare-and-swap on the decision's
+     state) taken before the check-then-rename; no lock is added ("Use as few locks as possible."; `CLAUDE.md` rule NLK, atomic
+     first). The cross-process case stays the checked rename the owner kept ("Keep the fallback (Recommended)").
+  2. The index lock on a filesystem with neither no-replace rename nor hard links falls back to the way Git itself takes it:
+     Git 2.56.0 creates `index.lock` with `open(..., O_RDWR | O_CREAT | O_EXCL ...)` (`tempfile.c` line 142, called from
+     `lock_file` in `lockfile.c` lines 168 to 190) and needs neither call. Reason: "Commits should never fail." and the owner's
+     G1 pick to support such filesystems; the fallback is never less safe than plain Git on the same filesystem, which commits
+     there today while the wrapper refuses. What a kill can leave: a lock without its marker, as plain Git leaves one
+     (`unable_to_lock_message`, `lockfile.c` lines 254 to 267, tells the user to remove it). The wrapper never removes such a
+     lock unless the holder is proven gone, and its message names the file and the fix. Clearing it by itself needs a proof
+     that holds on that filesystem (for example, that file locks are honored there); that is a measurement for the agent, and
+     only a proven mechanism ships. Sources fetched to `~/temp/agent/git-prompt-src/lockfile-v2.56.0.c` and
+     `tempfile-v2.56.0.c` (tag `v2.56.0`).
+- Merged into main as `5e441f25d3` (2026-11-07, coordinator), with steps T1 to T4 and the publish swap; main's only wrapper
+  changes since the branch's last main merge were rename step 3's README and two TypeScript test files.
 
 ### Step T4, the rest: descriptor-limit sweeps
 
