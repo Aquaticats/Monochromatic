@@ -84,6 +84,13 @@ use crate::child_watch_task_loop_and_notice::watch_loop;
 pub use crate::child_watch_step_bounds_and_errors::{CeilingReached, NotKnown, StepBound, is_ceiling, is_not_known, not_known_text};
 use crate::child_watch_step_bounds_and_errors::{output_of};
 
+/// The running watcher for a task that started,
+/// or nothing when no thread could run a task.
+fn running_watcher_of(spawned: Option<JoinHandle<()>>, finished: std::sync::mpsc::Receiver<()>) -> Option<RunningWatcher> {
+    let handle: JoinHandle<()> = spawned?;
+    return Some(RunningWatcher { handle, finished });
+}
+
 /// What:
 ///  The watcher of one child process.
 /// Why:
@@ -172,7 +179,7 @@ impl ChildWatch {
             let _ends_with_the_task: std::sync::mpsc::Sender<()> = ended;
             watch_loop(incoming, flags, subject, pid, terms, locks).await;
         });
-        let task: Option<RunningWatcher> = spawned.map(|handle| { return RunningWatcher { handle, finished }; });
+        let task: Option<RunningWatcher> = running_watcher_of(spawned, finished);
         return Self { marks: Some(marks), expired, task, limit, stoppable, longest, ledger_step: None, ceiling, ceiling_hit };
     }
 

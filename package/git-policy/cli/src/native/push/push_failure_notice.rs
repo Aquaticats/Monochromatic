@@ -386,6 +386,12 @@ enum RecordKind<'a> {
     Lost,
 }
 
+/// The line of a record in the earlier spelling of the data folder,
+/// from what follows the current spelling.
+fn earlier_spelling(rest: &str) -> String {
+    return format!("{}{rest}", DATA_FOLDER.earlier);
+}
+
 /// What:
 ///  The current first line a record's first line stands for:
 /// the line itself,
@@ -403,7 +409,7 @@ enum RecordKind<'a> {
 /// ```
 fn current_magic_of(line: &str) -> Option<&'static str> {
     for current in [RECORD_MAGIC, SKIPPED_MAGIC, LOST_MAGIC] {
-        let earlier: Option<String> = current.strip_prefix(DATA_FOLDER.current).map(|rest| { return format!("{}{rest}", DATA_FOLDER.earlier); });
+        let earlier: Option<String> = current.strip_prefix(DATA_FOLDER.current).map(earlier_spelling);
         if line == current || earlier.as_deref() == Some(line) {
             return Some(current);
         }
