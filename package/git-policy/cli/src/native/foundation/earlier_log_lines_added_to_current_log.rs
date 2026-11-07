@@ -51,9 +51,9 @@ pub const JOURNAL_SUFFIX: &str = ".earlier-lines-journal";
 ///  Derived from two measurements and the owner's rule "nothing should ever wait forever or indefinitely". The fastest writing of
 ///  the timing logs read on 2026-11-07 (1,112 records of the current commit timing log, 257 of the earlier one, 114 and 19 of the
 ///  two worktree-add timing logs) was 4 records in one second, so a program writes a record at most about every 250 ms. A whole
-///  fold of one log (one round: a record, an append, two syncs, the removal) added a median of 43 ms to `status --short` on this
+///  fold of one log (one round plus the move, the directory syncs, the probe and the removals, so an upper bound on one round) added a median of 43 ms to `status --short` on this
 ///  host (47.8 ms against 4.7 ms with nothing to fold, release build, nine alternating trials in fresh repositories, the
-///  same-binary control spread 44.3 to 53.1 ms). A round is therefore about six times shorter than the gap between records, so one
+///  same-binary control spread 44.3 to 53.1 ms). A round is therefore at least about six times shorter than the gap between records, so one
 ///  extra round already catches every writer seen. Eight rounds cost about 0.35 s at that median, one fourteenth of the 5 s
 ///  by which the owner said a commit must not be slower than native Git, and leave the log to the next command after that.
 pub const ROUNDS_PER_COMMAND: usize = 8;
