@@ -15,6 +15,7 @@ use super::semantic_line_breaks;
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::edits::{Fix, apply_fixes};
 use crate::markdown_source::MarkdownSource;
+use satteri_ast::mdast::MdastNodeType;
 
 /// Run the rule through its actual native source model.
 fn check(source: &str) -> Vec<Diagnostic> {
@@ -74,7 +75,7 @@ fn all_delimiter_families_and_nested_prefixes_are_preserved() {
     }
     assert_eq!(
         fixed("- > first, second here.\n"),
-        "- > first,\n  > second here.\n"
+        "- > first,\n  second here.\n"
     );
 }
 
@@ -99,10 +100,7 @@ fn diagnostics_and_line_endings_use_original_source_positions() {
         fixed("\u{feff}🚀 First. Second here.\n"),
         "\u{feff}🚀 First.\nSecond here.\n"
     );
-    assert_eq!(
-        fixed("> first, second word.\n"),
-        "> first,\n> second word.\n"
-    );
+    assert_eq!(fixed("> first, second word.\n"), "> first,\nsecond word.\n");
     assert_eq!(
         fixed("Sentence.  `code` follows here.\n"),
         "Sentence.\n `code` follows here.\n"
@@ -150,6 +148,63 @@ fn inserted_breaks_cannot_change_block_structure() {
     );
 }
 
+/// Each paragraph with the kinds of the containers around it and its words,
+///  which is everything about where text sits that a line break must not change.
+fn placements(source: &str) -> Vec<(Vec<MdastNodeType>, Vec<String>)> {
+    let context: MarkdownSource =
+        MarkdownSource::new(String::from("prose.md"), String::from(source), false)
+            .expect("fixture");
+    let mut found: Vec<(Vec<MdastNodeType>, Vec<String>)> = Vec::new();
+    for id in context.all_nodes() {
+        if context.kind(*id) != MdastNodeType::Paragraph {
+            continue;
+        }
+        let containers: Vec<MdastNodeType> = context
+            .ancestors(*id)
+            .expect("an acyclic parse")
+            .iter()
+            .map(|ancestor| context.kind(*ancestor))
+            .collect::<Vec<MdastNodeType>>();
+        let words: Vec<String> = context
+            .text_content(*id)
+            .expect("an acyclic parse")
+            .split_whitespace()
+            .map(String::from)
+            .collect::<Vec<String>>();
+        found.push((containers, words));
+    }
+    return found;
+}
+
+/// A break in a quotation adds no `>` and never moves text out of its quote or list item:
+///  CommonMark 0.31.2, section 5.1 "Block quotes", rule 2 "Laziness" and example 251,
+///  keeps a line without `>` in the paragraph it continues,
+///  at any depth and inside list items.
+#[test]
+fn breaks_in_quotations_add_no_marker_and_keep_the_text_where_it_was() {
+    for source in [
+        "> first, second here.\n",
+        "- > first, second here.\n  > third, fourth here.\n",
+        "> - first, second here.\n> - third, fourth here.\n",
+        "> > first, second here. And more\n> > text.\n",
+        ">>> foo, bar. Then rest\n> bar\n>>baz\n",
+        "1. > first, second here.\n",
+    ] {
+        let output: String = fixed(source);
+        assert_ne!(output, source, "{source:?} had nothing to break");
+        assert_eq!(
+            placements(output.as_str()),
+            placements(source),
+            "{output:?}"
+        );
+        assert_eq!(
+            output.split_whitespace().collect::<Vec<&str>>(),
+            source.split_whitespace().collect::<Vec<&str>>(),
+            "{output:?}"
+        );
+    }
+}
+
 /// A break replaces the space it breaks at,
 ///  so a continuation line is the block's prefix and nothing more.
 #[test]
@@ -157,7 +212,7 @@ fn a_break_replaces_the_space_and_leaves_no_stray_indent() {
     assert_eq!(fixed("It naps. It wakes."), "It naps.\nIt wakes.");
     assert_eq!(
         fixed("> She said the cat naps. It wakes.\n"),
-        "> She said the cat naps.\n> It wakes.\n"
+        "> She said the cat naps.\nIt wakes.\n"
     );
     assert_eq!(
         fixed("- The cat naps. It wakes.\n- Another, with a clause."),
