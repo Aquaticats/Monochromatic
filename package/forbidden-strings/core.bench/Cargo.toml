@@ -24,7 +24,7 @@ path = "src/main.rs"
 [dependencies]
 # The engine under test, by path so the comparison never enters its published
 # dependency graph.
-forbidden-regex = { path = "../core", version = "=0.1.1" }
+forbidden-regex = { path = "../core", version = "=0.1.2" }
 
 # The baseline. `regex` cannot do `&`/`~`, but the dialect overlap (literals,
 # classes, bounded repetition, alternation, anchors) is exactly where a fair
