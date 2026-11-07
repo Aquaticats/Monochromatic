@@ -3585,6 +3585,12 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   found empty (folder times 08:42) before step 3 installed anything, so `git` in main fell through to the global
   `~/.local/bin/git` (also wrapper 0.6.0) until 09:00:59. The fold worktree's link folders were filled at 08:42:49,
   which makes an install in one checkout removing links in another the first suspect; not yet shown.
+- Also running since about 09:10 (-05:00): the masking of Git output in `diagnostic_log::debug` under
+  `MONOCHROMATIC_VERBOSE=true` (`fix/git-policy-cli-mask-verbose-git-output`), and the diagnosis of the emptied link
+  folders. Tried and refused at the same time by the five-agent limit, so they start at the next free slot:
+  bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`), and the
+  terminal and music-player Containerfiles taking Zig from the lock row instead of `ZIG_VERSION=0.15.2`
+  (`fix/containers-zig-from-lock`); both briefs are ready in the coordinator's session.
 - Left for later: the old `cli-git@` units of each worktree still run 0.5.34 until their three-hour idle exit (0.6.0 neither
   stops nor removes them, `package/git-policy/cli/README.md` lines 40 to 41); old `cargo/<crate>/<version>` install folders
   stay on disk; `toolchain:install:global` and `toolchain:list:global` disagree on 12 npm-routed tools (not investigated).
