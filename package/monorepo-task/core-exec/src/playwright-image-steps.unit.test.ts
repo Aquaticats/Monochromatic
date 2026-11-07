@@ -270,7 +270,8 @@ await describe({
             const run = await runStepProgram({ fixture, program: 'playwright-image-tag.ts', },);
             expect(run.status,).toBe(1,);
             expect(run.githubOutput,).toBe('',);
-            expect(run.stderr,).toContain('sha256sum: playwright.Dockerfile',);
+            expect(run.stderr,).toContain(`::error::playwright.Dockerfile could not be read from ${fixture.checkout} (`,);
+            expect(run.stderr,).toContain('Run the step after the checkout step, from the repository root',);
           },
         },),
       ],
@@ -375,12 +376,14 @@ await describe({
           },
         },),
         ...[
-          { name: 'has no token field', body: '{}', },
-          { name: 'is not JSON', body: 'not json', },
-          { name: 'is empty', body: '', },
-          { name: 'has an empty token', body: '{"token":""}', },
-          { name: 'has a null token', body: '{"token":null}', },
-        ].map(function noTokenCase({ name, body, }: { readonly name: string; readonly body: string; },) {
+          { name: 'has no token field', body: '{}', reason: 'The token response is JSON but has no token field with a value', },
+          { name: 'is not JSON', body: 'not json', reason: 'The token response was not JSON (', },
+          { name: 'is empty', body: '', reason: 'The token response was empty', },
+          { name: 'has an empty token', body: '{"token":""}', reason: 'The token response is JSON but has no token field with a value', },
+          { name: 'has a null token', body: '{"token":null}', reason: 'The token response is JSON but has no token field with a value', },
+        ].map(function noTokenCase(
+          { name, body, reason, }: { readonly name: string; readonly body: string; readonly reason: string; },
+        ) {
           return it({
             name: `fails the run when the token response ${name}`,
             fn: async function noToken() {
@@ -389,7 +392,7 @@ await describe({
               const run = await runStepProgram({ fixture, program: 'playwright-image-tag-exists.ts', },);
               expect(run.status,).toBe(1,);
               expect(run.githubOutput,).toBe('',);
-              expect(run.stdout,).toContain('::error title=Cannot tell whether the tag exists::The token response had no token. Nothing',);
+              expect(run.stdout,).toContain(`::error title=Cannot tell whether the tag exists::${reason}`,);
               expect(run.stdout,).not.toContain('::add-mask::',);
             },
           },);
@@ -537,6 +540,23 @@ await describe({
               );
             },
           },);
+        },),
+        it({
+          name: 'fails with a message naming the digest file when podman wrote none',
+          fn: async function noDigestFile() {
+            await using fixture = await createStepFixture();
+            const run = await runStepProgram({
+              fixture,
+              program: 'playwright-image-push.ts',
+              extra: { FAKE_PODMAN_SKIP_DIGEST_FILE: '1', },
+            },);
+            expect(run.status,).toBe(1,);
+            expect(run.githubOutput,).toBe('',);
+            expect(run.stderr,).toContain(
+              `::error title=No digest file::podman push ended without writing the digest file ${join(fixture.runnerTemp, 'playwright-image.digest',)} (`,
+            );
+            expect(run.stderr,).toContain('Read the podman output above for why the push did not complete.',);
+          },
         },),
         it({
           name: 'ends with the status of a failing push and publishes nothing',

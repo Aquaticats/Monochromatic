@@ -33,7 +33,7 @@ const DOCKERFILE_PATH = 'playwright.Dockerfile';
 /**
  Computes the tag and publishes it as the step's `value` output.
 
- @throws {@link StepExitError} With status 1 when the Dockerfile cannot be read, as `sha256sum` ended
+ @throws {@link StepExitError} With status 1 when the Dockerfile cannot be read
 
  @example
  ```ts
@@ -57,7 +57,7 @@ async function computeTag(): Promise<void> {
 }
 
 /**
- Reads the Dockerfile, ending the step the way `sha256sum` did when it cannot.
+ Reads the Dockerfile, ending the step with status 1 and a message naming the file when it cannot.
 
  @returns The file's bytes
 
@@ -73,7 +73,9 @@ async function readDockerfile(): Promise<Uint8Array> {
     return await readFile(DOCKERFILE_PATH,);
   }
   catch (error) {
-    sayOnStandardError(`sha256sum: ${DOCKERFILE_PATH}: could not be read (${String(error,)})`,);
+    sayOnStandardError(
+      `::error::${DOCKERFILE_PATH} could not be read from ${process.cwd()} (${String(error,)}). Run the step after the checkout step, from the repository root, which holds the file the tag is computed from.`,
+    );
     throw new StepExitError(1,);
   }
 }

@@ -1,9 +1,12 @@
 name: repository tools setup
 description: >
-  Fetches the prebuilt `file-enforcer` and `mpm-shadow` binaries this repository publishes and puts them on PATH.
-  `mpm-shadow` comes from the archive row of the `mpm-shadow` tool in `toolchain.lock.json` and is checked against the
-  SHA-256 recorded there. `file-enforcer` comes from the release of the version the lock names for
-  `cargo:monochromatic-file-enforcer-cli` and is checked against the checksums file of that release. The work is one Node
+  Fetches the prebuilt `file-enforcer`, `mpm-shadow`, `cargo-shadow` and `git-policy-cli` binaries this repository
+  publishes and puts them on PATH.
+  `mpm-shadow` and `git-policy-cli` come from the archive row of the `mpm-shadow` tool and of the
+  `cargo:monochromatic-git-policy-cli` tool in `toolchain.lock.json` (a GitHub release, never crates.io) and are checked
+  against the SHA-256 recorded there. `file-enforcer` and `cargo-shadow` come from the release of the version the lock
+  names for `cargo:monochromatic-file-enforcer-cli` and `cargo:monochromatic-cargo-shadow` and are checked against the
+  checksums file of that release. The work is one Node
   command, `package/monorepo-task/core-exec/src/repo-tools-setup.ts` (tested by `repo-tools-setup.unit.test.ts` beside it),
   which imports only `node:` modules and so runs from source on the Node already on `PATH` (type stripping needs Node 22.18
   or later), with no dependency installed; running it never adds an external action to the repository's allow-list.
@@ -15,7 +18,7 @@ description: >
 inputs:
   tools:
     description: >
-      Space-separated list of the programs to install: `file-enforcer`, `mpm-shadow`, `cargo-shadow`, or any of them.
+      Space-separated list of the programs to install: `file-enforcer`, `mpm-shadow`, `cargo-shadow`, `git-policy-cli`, or any of them.
     required: false
     default: 'file-enforcer'
 

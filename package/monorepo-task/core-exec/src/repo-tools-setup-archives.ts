@@ -46,7 +46,24 @@ export const KNOWN_TOOLS: ReadonlySet<string> = new Set([
   'mpm-shadow',
   'file-enforcer',
   'cargo-shadow',
+  'git-policy-cli',
 ]);
+
+/**
+ The program a tool's archive holds, for the tools whose program is not named like the tool.
+
+ @param tool - A name from {@link KNOWN_TOOLS}
+
+ @returns The name of the program inside the archive, which is also its name on `PATH`
+
+ @example
+ ```ts
+ const program = programOf('git-policy-cli',); // 'monochromatic-git-policy-cli'
+ ```
+ */
+export function programOf(tool: string,): string {
+  return tool === 'git-policy-cli' ? 'monochromatic-git-policy-cli' : tool;
+}
 
 //endregion The names a runner platform has
 
@@ -273,25 +290,29 @@ async function checksumLinesFor(
 
  @param binDirectory - Folder that receives the program
 
- @param tool - Program name, the last path segment of the archive member to extract
+ @param program - Program name, the last path segment of the archive member to extract
 
- @throws {@link StepExitError} With status 1 when the archive has no such member (the shell step ended there without a
-   message), or with the failing `tar` or program's own status
+ @param archiveLabel - How the archive is named in a message: the tool it was fetched for
+
+ @throws {@link StepExitError} With status 1 and a message when the archive has no such member, or with the failing `tar` or
+   program's own status
 
  @example
  ```ts
- unpack({ archive, binDirectory, tool: 'file-enforcer', },);
+ unpack({ archive, binDirectory, program: 'file-enforcer', archiveLabel: 'file-enforcer', },);
  ```
  */
 export async function unpack(
   {
     archive,
     binDirectory,
-    tool,
+    program,
+    archiveLabel,
   }: {
     readonly archive: string;
     readonly binDirectory: string;
-    readonly tool: string;
+    readonly program: string;
+    readonly archiveLabel: string;
   },
 ): Promise<void> {
   /**
@@ -314,10 +335,14 @@ export async function unpack(
   const member = listing.stdout
     .split('\n',)
     .find(function namesTool(line: string,) {
-      return line.endsWith(`/${tool}`,);
+      return line.endsWith(`/${program}`,);
     },);
-  if (member === undefined)
+  if (member === undefined) {
+    sayOnStandardError(
+      `::error::repo-tools-setup: the archive of ${archiveLabel} holds no file named ${program}, so nothing was installed. Either the archive could not be read (tar says why above) or the release lays its files out differently from what this action expects; open the release named in toolchain.lock.json and check the file names in it.`,
+    );
     throw new StepExitError(1,);
+  }
   if (listing.status !== 0)
     throw new StepExitError(listing.status,);
   await runProgramOrEnd({
@@ -337,7 +362,7 @@ export async function unpack(
   await runProgramOrEnd({
     file: join(
       binDirectory,
-      tool,
+      program,
     ),
     args: ['--version',],
     cwd: process.cwd(),
@@ -345,11 +370,99 @@ export async function unpack(
 }
 
 /**
+ Fetches the archive a lock row names for this platform, and checks it against the SHA-256 recorded beside it.
+
+ @param lock - Parsed `toolchain.lock.json`
+
+ @param rowId - Id of the tool's row in the lock
+
+ @param tool - Name of the tool, for the file the archive is saved as
+
+ @param platform - Names this runner platform has in the lock
+
+ @param work - Empty folder to download into
+
+ @returns Path of the checked archive
+
+ @throws {@link StepExitError} With status 1 and a message when the row has no address or SHA-256 for the platform, or with
+   the status of the failing download or check
+
+ @example
+ ```ts
+ const archive = await fetchLockedArchive({ lock, rowId: 'mpm-shadow', tool: 'mpm-shadow', platform, work, },);
+ ```
+ */
+async function fetchLockedArchive(
+  {
+    lock,
+    rowId,
+    tool,
+    platform,
+    work,
+  }: {
+    readonly lock: unknown;
+    readonly rowId: string;
+    readonly tool: string;
+    readonly platform: PlatformNames;
+    readonly work: string;
+  },
+): Promise<string> {
+  /**
+   Where the lock says to download it.
+   */
+  const url = rawJsonTextOrEmpty(jsonAt({
+    value: lock,
+    keys: [
+      'tools',
+      rowId,
+      'artifacts',
+      platform.lockPlatform,
+      'url',
+    ],
+  },),);
+  /**
+   The SHA-256 the lock records for it.
+   */
+  const sum = rawJsonTextOrEmpty(jsonAt({
+    value: lock,
+    keys: [
+      'tools',
+      rowId,
+      'artifacts',
+      platform.lockPlatform,
+      'sha256',
+    ],
+  },),);
+  if ((url === '') || (sum === '')) {
+    sayOnStandardError(
+      `::error::repo-tools-setup: toolchain.lock.json has no ${rowId} archive row for ${platform.lockPlatform}; run 'mpm-shadow update'`,
+    );
+    throw new StepExitError(1,);
+  }
+  /**
+   Where the archive lands.
+   */
+  const archive = join(
+    work,
+    `${tool}.tar.gz`,
+  );
+  await download({
+    url,
+    output: archive,
+  },);
+  await checkSha256({
+    lines: [`${sum}  ${archive}`,],
+    cwd: process.cwd(),
+  },);
+  return archive;
+}
+
+/**
  Fetches and checks the archive of one tool.
 
  @param lock - Parsed `toolchain.lock.json`
 
- @param tool - One of `mpm-shadow`, `file-enforcer`, `cargo-shadow`
+ @param tool - One of `mpm-shadow`, `file-enforcer`, `cargo-shadow`, `git-policy-cli`
 
  @param platform - Names this runner platform has in the lock and in archives
 
@@ -378,57 +491,22 @@ export async function fetchTool(
     readonly work: string;
   },
 ): Promise<string> {
-  if (tool === 'mpm-shadow') {
-    // The bootstrap archive: its URL and SHA-256 are in the lock.
-    /**
-     Where the lock says to download it.
-     */
-    const url = rawJsonTextOrEmpty(jsonAt({
-      value: lock,
-      keys: [
-        'tools',
-        'mpm-shadow',
-        'artifacts',
-        platform.lockPlatform,
-        'url',
-      ],
-    },),);
-    /**
-     The SHA-256 the lock records for it.
-     */
-    const sum = rawJsonTextOrEmpty(jsonAt({
-      value: lock,
-      keys: [
-        'tools',
-        'mpm-shadow',
-        'artifacts',
-        platform.lockPlatform,
-        'sha256',
-      ],
-    },),);
-    if ((url === '') || (sum === '')) {
-      sayOnStandardError(
-        `::error::repo-tools-setup: toolchain.lock.json has no mpm-shadow archive row for ${platform.lockPlatform}; run 'mpm-shadow update'`,
-      );
-      throw new StepExitError(1,);
-    }
-    /**
-     Where the archive lands.
-     */
-    const archive = join(
+  if (tool === 'mpm-shadow')
+    return await fetchLockedArchive({
+      lock,
+      rowId: 'mpm-shadow',
+      tool,
+      platform,
       work,
-      'mpm-shadow.tar.gz',
-    );
-    await download({
-      url,
-      output: archive,
     },);
-    await checkSha256({
-      lines: [`${sum}  ${archive}`,],
-      cwd: process.cwd(),
+  if (tool === 'git-policy-cli')
+    return await fetchLockedArchive({
+      lock,
+      rowId: 'cargo:monochromatic-git-policy-cli',
+      tool,
+      platform,
+      work,
     },);
-    return archive;
-  }
   if (tool === 'file-enforcer')
     return await fetchReleaseArchive({
       lock,
