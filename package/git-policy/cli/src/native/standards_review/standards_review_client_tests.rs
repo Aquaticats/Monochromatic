@@ -225,3 +225,19 @@ fn a_tls_server_is_reached_only_through_a_trusted_authority() {
     served.join().expect("the server thread");
     crate::test_support::remove(root.as_path());
 }
+
+/// The quiet gap kept in the ledger for a call is the call's own: a reply that keeps arriving every hundred milliseconds for about
+///  two seconds leaves a gap near a hundred milliseconds, though the thread that waits for the call moves no byte itself
+///  (the call runs on the runtime's workers).
+#[test]
+fn the_quiet_gap_kept_for_a_call_is_the_calls_own_and_not_the_idle_waiting_thread() {
+    const PAUSE: Duration = Duration::from_millis(100);
+    const BYTES: usize = 20;
+    let mock: Mock = Mock::start(Answer::Trickle { bytes: BYTES, pause: PAUSE });
+    let url: String = mock.url.clone();
+    post_decision(&gateway(url.as_str(), Duration::from_secs(5)), "{}").expect("the reply arrives");
+    mock.finish();
+    let figures: Vec<(String, Duration)> = crate::quiet_ledger::drain();
+    let kept: Duration = figures.iter().find(|(step, _)| { return step == "standards review gateway call"; }).map(|(_, gap)| { return *gap; }).expect("the call keeps a figure");
+    assert!(kept < PAUSE * 8, "the call kept a quiet gap of {kept:?} though a byte arrived every {PAUSE:?}");
+}
