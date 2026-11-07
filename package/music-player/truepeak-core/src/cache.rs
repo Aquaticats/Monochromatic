@@ -191,7 +191,8 @@ const SELECT_EXACT: &str = "SELECT fingerprint FROM decisions \
 ///           schema version.
 ///  `&str` literal.
 /// Why:
-///       A version bump (a new row layout, or a new fingerprint hash that fills the same
+///       A version bump (a new row layout,
+/// or a new fingerprint hash that fills the same
 ///           column) makes older rows unreachable,
 ///  because every read and write keys on the current
 ///           version.
@@ -593,7 +594,8 @@ impl DecisionCache {
     ///  `&Decision` borrows it read-only.
     /// Why:
     ///       Persist a resolved decision so later plays hit the cache.
-    ///  Each call is its own transaction, so each call pays one durable commit;
+    ///  Each call is its own transaction,
+    /// so each call pays one durable commit;
     ///  a caller storing many rows at once uses `put_batch`.
     ///
     /// In TS you'd write (pseudocode):

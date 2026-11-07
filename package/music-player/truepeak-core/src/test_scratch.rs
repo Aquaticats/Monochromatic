@@ -1,10 +1,15 @@
-//! The directory unit-test fixtures are created in, placed in the build directory so no test writes under `/tmp`.
+//! The directory unit-test fixtures are created in,
+//! placed in the build directory so no test writes under `/tmp`.
 
-/// `Path` to walk up from the test executable to its build directory, and `PathBuf` for the scratch root handed to tests.
+/// `Path` to walk up from the test executable to its build directory,
+/// and `PathBuf` for the scratch root handed to tests.
 use std::path::{Path, PathBuf};
 
-/// The directory fixtures are created in: `test-scratch` in the build directory of the running test executable
-///  (three levels above it, the package's build directory in the current Cargo layout), never the system temporary
+/// The directory fixtures are created in:
+/// `test-scratch` in the build directory of the running test executable
+///  (three levels above it,
+/// the package's build directory in the current Cargo layout),
+/// never the system temporary
 ///  directory.
 /// A shared tmpfs with a per-user quota fills up when tests leave fixtures behind (issue 1809).
 pub(crate) fn scratch_root() -> PathBuf {
