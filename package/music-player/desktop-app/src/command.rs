@@ -463,7 +463,8 @@ pub enum Command {
     ///  if its file left the root while playing,
     ///  playback stops and the
     ///           selection clears).
-    ///  Sent by the file watcher when it lost events (an overflow of the kernel queue, an error)
+    ///  Sent by the file watcher when it lost events (an overflow of the kernel queue,
+    /// an error)
     ///  and once after each registration of the watch;
     ///  a change that names its paths arrives as `SourceChanged` instead (D113).
     ///
@@ -475,8 +476,11 @@ pub enum Command {
     /// What:
     ///      `SourceChanged(Change)` the file watcher names what changed under the Source Root.
     /// Why:
-    ///       D113: a refresh looks only at the named paths (and the folders among them), so one replaced file costs a few
-    ///  lookups at a million tracks. `Rescan` is the case where the watcher lost events.
+    ///       D113:
+    /// a refresh looks only at the named paths (and the folders among them),
+    /// so one replaced file costs a few
+    ///  lookups at a million tracks.
+    /// `Rescan` is the case where the watcher lost events.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -487,10 +491,13 @@ pub enum Command {
         crate::change_set::Change,
     ),
     /// What:
-    ///      `NoLibrary` a fieldless variant: the launch found no folder to open.
+    ///      `NoLibrary` a fieldless variant:
+    /// the launch found no folder to open.
     /// Why:
-    ///       The window shows "No folder is open" only when told so. Before this command the engine said it at start,
-    ///  before it knew whether a saved folder or the music folder was about to open, so a library that was being read
+    ///       The window shows "No folder is open" only when told so.
+    /// Before this command the engine said it at start,
+    ///  before it knew whether a saved folder or the music folder was about to open,
+    /// so a library that was being read
     ///  looked like no library (the polish review finding EM1).
     ///
     /// In TS you'd write (pseudocode):
@@ -511,7 +518,8 @@ pub enum Command {
     /// What:
     ///      `SweepReport(SweepReport)` carries one report from a background sweep or re-analysis.
     /// Why:
-    ///       Sweep threads cannot reach the update callback, so they send their reports through the command channel.
+    ///       Sweep threads cannot reach the update callback,
+    /// so they send their reports through the command channel.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -604,7 +612,8 @@ pub enum Update {
     /// ```
     Library(
         /// What:
-        ///      Unnamed field `.0` of the `Library` variant: the absolute paths in queue order.
+        ///      Unnamed field `.0` of the `Library` variant:
+        /// the absolute paths in queue order.
         Vec<PathBuf>,
     ),
     /// What:
@@ -856,7 +865,8 @@ pub enum Update {
     /// What:
     ///      `Measures(Vec<(PathBuf, TrackMeasure)>)` carries the length and peak of some library paths.
     /// Why:
-    ///       Rows and the deck subtitle show these values, and they arrive as the sweep learns them.
+    ///       Rows and the deck subtitle show these values,
+    /// and they arrive as the sweep learns them.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -867,7 +877,8 @@ pub enum Update {
         Vec<(PathBuf, TrackMeasure)>,
     ),
     /// What:
-    ///      `Analysis { done, total }` is the true-peak sweep's progress; `done >= total` means it has finished.
+    ///      `Analysis { done, total }` is the true-peak sweep's progress;
+    /// `done >= total` means it has finished.
     /// Why:
     ///       The scan bar shows the count while the sweep runs and leaves once it finishes (D26).
     ///
@@ -882,23 +893,28 @@ pub enum Update {
         total: usize,
     },
     /// What:
-    ///      `SourceRoot(Option<String>)` names the opened folder, or `None` when no folder is open.
+    ///      `SourceRoot(Option<String>)` names the opened folder,
+    /// or `None` when no folder is open.
     /// Why:
-    ///       The first-run copy names the folder that has no audio, and says so when no folder is open.
+    ///       The first-run copy names the folder that has no audio,
+    /// and says so when no folder is open.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// { kind: "sourceRoot"; name: string | null }
     /// ```
     SourceRoot(
-        /// The folder's display name, or `None`.
+        /// The folder's display name,
+        /// or `None`.
         Option<String>,
     ),
     /// What:
     ///      `Reading { name }` says the engine has started reading the folder called `name` and has not finished.
     /// Why:
-    ///       The walk of a big library or a slow disk takes seconds, and the window used to say "No folder is open"
-    ///  until it ended (the polish review finding EM1). The window shows a "reading your library" state from this
+    ///       The walk of a big library or a slow disk takes seconds,
+    /// and the window used to say "No folder is open"
+    ///  until it ended (the polish review finding EM1).
+    /// The window shows a "reading your library" state from this
     ///  update until the `Queue` update that ends the walk.
     ///
     /// In TS you'd write (pseudocode):
@@ -912,22 +928,28 @@ pub enum Update {
     /// What:
     ///      `Unplayable(Vec<PathBuf>)` lists files that were skipped because they could not be opened for playback.
     /// Why:
-    ///       A track that cannot be decoded used to be skipped silently (the polish review finding PB1, D83). The window
-    ///  marks its row, and on Linux the desktop gets a notification that names the file (D122).
+    ///       A track that cannot be decoded used to be skipped silently (the polish review finding PB1,
+    /// D83).
+    /// The window
+    ///  marks its row,
+    /// and on Linux the desktop gets a notification that names the file (D122).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// { kind: "unplayable"; paths: string[] }
     /// ```
     Unplayable(
-        /// The files that failed to open, in the order they were tried.
+        /// The files that failed to open,
+        /// in the order they were tried.
         Vec<PathBuf>,
     ),
     /// What:
-    ///      `AudioUnavailable { reason }` says the engine could not open any audio output, so playback runs silently.
+    ///      `AudioUnavailable { reason }` says the engine could not open any audio output,
+    /// so playback runs silently.
     /// Why:
     ///       Without it a person on a machine with no sound server and no usable sound card sees tracks "play" with
-    ///  no explanation; the window words the cause and the way forward in a message (Alpine and other minimal Linux
+    ///  no explanation;
+    /// the window words the cause and the way forward in a message (Alpine and other minimal Linux
     ///  installs have no sound server by default).
     ///
     /// In TS you'd write (pseudocode):
@@ -935,14 +957,18 @@ pub enum Update {
     /// { kind: "audioUnavailable"; reason: string }
     /// ```
     AudioUnavailable {
-        /// The output backend's own description of the failure, kept for the log; the window words its own message.
+        /// The output backend's own description of the failure,
+        /// kept for the log;
+        /// the window words its own message.
         reason: String,
     },
     /// What:
     ///      `FileGone { path, was_playing }` says the rescan found the selected track's file missing from the folder.
     /// Why:
-    ///       The row vanishes and playback stops; without a message the user cannot tell why (the polish review
-    ///  finding PB2, D9 and D83).
+    ///       The row vanishes and playback stops;
+    /// without a message the user cannot tell why (the polish review
+    ///  finding PB2,
+    /// D9 and D83).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -951,15 +977,23 @@ pub enum Update {
     FileGone {
         /// The path of the missing file.
         path: PathBuf,
-        /// Whether audio was playing when the file left, so playback stopped.
+        /// Whether audio was playing when the file left,
+        /// so playback stopped.
         was_playing: bool,
     },
     /// What:
     ///      `ScanBatch { first_index, names }` reports tracks the folder walk has found while it is still walking.
     /// Why:
-    ///       D111: Search must work while the library is still being scanned. A track's position in the walk is its
-    ///  position in the queue, so `first_index` places the batch; `first_index == 0` starts a new library. The final
-    ///  `Queue` update follows when the walk ends. The window does nothing with this update; the Search index
+    ///       D111:
+    /// Search must work while the library is still being scanned.
+    /// A track's position in the walk is its
+    ///  position in the queue,
+    /// so `first_index` places the batch;
+    /// `first_index == 0` starts a new library.
+    /// The final
+    ///  `Queue` update follows when the walk ends.
+    /// The window does nothing with this update;
+    /// the Search index
     ///  takes it on the engine thread.
     ///
     /// In TS you'd write (pseudocode):
@@ -969,14 +1003,18 @@ pub enum Update {
     ScanBatch {
         /// Queue position of the first name in `names`.
         first_index: usize,
-        /// Names of the new tracks, relative to the opened folder.
+        /// Names of the new tracks,
+        /// relative to the opened folder.
         names: Vec<String>,
     },
     /// What:
     ///      `Duration(f64)` says the playing track's file was replaced by one of another length.
     /// Why:
-    ///       D113: a replaced file that plays is loaded again where it was, without announcing the track again (which would
-    ///  move the page and reset the seek bar), so only the seek bar's length changes.
+    ///       D113:
+    /// a replaced file that plays is loaded again where it was,
+    /// without announcing the track again (which would
+    ///  move the page and reset the seek bar),
+    /// so only the seek bar's length changes.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

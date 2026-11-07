@@ -1,21 +1,36 @@
-//! The true-peak analysis indicator (D107): a Plasma job, or else a freedesktop notification, never an in-app banner.
+//! The true-peak analysis indicator (D107):
+//! a Plasma job,
+//! or else a freedesktop notification,
+//! never an in-app banner.
 //!
 //! `AnalysisNotifier` is the handle the app keeps.
-//! `report`, `fail` and `shutdown` only post a message to a dedicated thread, so a slow or wedged bus can never block
+//! `report`,
+//! `fail` and `shutdown` only post a message to a dedicated thread,
+//! so a slow or wedged bus can never block
 //! the UI thread or the analysis workers.
 //! That thread owns the D-Bus connection and the state machine from `analysis_notification_logic`,
 //!  and carries out what the machine returns with the calls in `analysis_notification_wire`.
 //!
 //! - On KDE (`org.kde.kuiserver` present) the analysis is a Plasma job:
-//!   app name and icon in the header, the title, the count as the info line, a determinate bar, and a native Pause
-//!   button because the job is suspendable (never killable: D84 makes analysis non-optional).
-//! - Elsewhere it is one freedesktop notification replaced in place, with the `value` hint as the bar and Pause as an
+//!   app name and icon in the header,
+//!   the title,
+//!   the count as the info line,
+//!   a determinate bar,
+//!   and a native Pause
+//!   button because the job is suspendable (never killable:
+//!   D84 makes analysis non-optional).
+//! - Elsewhere it is one freedesktop notification replaced in place,
+//!   with the `value` hint as the bar and Pause as an
 //!   action button.
-//! - If neither answers, one warning is logged, the analysis runs without an indicator, and the bus is not tried
+//! - If neither answers,
+//!   one warning is logged,
+//!   the analysis runs without an indicator,
+//!   and the bus is not tried
 //!   again for the rest of the run.
 //!
 //! Pause requests from the indicator are passed to `NotifierConfig::on_pause` on the notifier thread;
-//! the callback must return quickly (set a flag and unpark a worker, for example).
+//! the callback must return quickly (set a flag and unpark a worker,
+//! for example).
 //! Off Linux the handle exists and does nothing.
 
 #[cfg(target_os = "linux")]
@@ -42,33 +57,47 @@ use crate::analysis_notification_wire::{
     KUISERVER, has_owner, spawn_listener,
 };
 
-/// What: `METHOD_TIMEOUT` bounds every call that waits for a reply.
-/// Why: a service that accepts a call and never answers must not hold the notifier thread (and a shutdown that joins
+/// What:
+/// `METHOD_TIMEOUT` bounds every call that waits for a reply.
+/// Why:
+/// a service that accepts a call and never answers must not hold the notifier thread (and a shutdown that joins
 /// it) for the bus default of twenty-five seconds.
 #[cfg(target_os = "linux")]
 pub(crate) const METHOD_TIMEOUT: Duration = Duration::from_secs(3);
 
-/// What: `Identity` names the app to the desktop.
-/// Why: the header of a Plasma job and the sender of a notification show the app's name and icon; the desktop entry
-/// is the `.desktop` file name without its suffix, and the name and icon fill in when that file is not installed.
+/// What:
+/// `Identity` names the app to the desktop.
+/// Why:
+/// the header of a Plasma job and the sender of a notification show the app's name and icon;
+/// the desktop entry
+/// is the `.desktop` file name without its suffix,
+/// and the name and icon fill in when that file is not installed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Identity {
-    /// The desktop file name without `.desktop`, for example `monochromatic.music-player`.
+    /// The desktop file name without `.desktop`,
+    /// for example `monochromatic.music-player`.
     pub desktop_entry: String,
-    /// The name shown in the header, for example `Music Player`.
+    /// The name shown in the header,
+    /// for example `Music Player`.
     pub app_name: String,
-    /// The icon name shown in the header, for example `multimedia-player`.
+    /// The icon name shown in the header,
+    /// for example `multimedia-player`.
     pub app_icon: String,
 }
 
-/// What: `NotifierConfig` is everything the notifier thread needs.
-/// Why: the connection is made on that thread, so a test can aim it at a private bus.
+/// What:
+/// `NotifierConfig` is everything the notifier thread needs.
+/// Why:
+/// the connection is made on that thread,
+/// so a test can aim it at a private bus.
 pub struct NotifierConfig {
     /// The app's identity for the desktop.
     pub identity: Identity,
-    /// True when the app can pause the analysis; false offers no Pause button at all.
+    /// True when the app can pause the analysis;
+    /// false offers no Pause button at all.
     pub suspendable: bool,
-    /// Called with `true` to pause and `false` to resume the analysis; runs on the notifier thread.
+    /// Called with `true` to pause and `false` to resume the analysis;
+    /// runs on the notifier thread.
     pub on_pause: Box<dyn Fn(bool) + Send + 'static>,
     /// Opens the session bus connection on the notifier thread.
     #[cfg(target_os = "linux")]
@@ -77,8 +106,11 @@ pub struct NotifierConfig {
 
 /// Methods of `NotifierConfig`.
 impl NotifierConfig {
-    /// What: `session` builds a config that uses the user's session bus.
-    /// Why: this is what the app passes; the bus address comes from the environment as for every D-Bus client.
+    /// What:
+    /// `session` builds a config that uses the user's session bus.
+    /// Why:
+    /// this is what the app passes;
+    /// the bus address comes from the environment as for every D-Bus client.
     pub fn session(identity: Identity, suspendable: bool, on_pause: Box<dyn Fn(bool) + Send + 'static>) -> NotifierConfig {
         return NotifierConfig {
             identity,
@@ -90,16 +122,22 @@ impl NotifierConfig {
     }
 }
 
-/// What: `connect_session` opens a connection to the session bus with a bounded connect and a bounded reply wait.
-/// Why: the default wait is long; a bounded one keeps a stalled service from stalling the notifier thread.
+/// What:
+/// `connect_session` opens a connection to the session bus with a bounded connect and a bounded reply wait.
+/// Why:
+/// the default wait is long;
+/// a bounded one keeps a stalled service from stalling the notifier thread.
 /// The unplayable-file notifier (D122) opens its own connection the same way.
 #[cfg(target_os = "linux")]
 pub(crate) fn connect_session() -> zbus::Result<Connection> {
     return crate::dbus_step_bound::connect(zbus::connection::Builder::session(), METHOD_TIMEOUT);
 }
 
-/// What: `Input` is one message to the notifier thread.
-/// Why: the app side and the signal listeners speak to the thread through one channel, so it has one wait point.
+/// What:
+/// `Input` is one message to the notifier thread.
+/// Why:
+/// the app side and the signal listeners speak to the thread through one channel,
+/// so it has one wait point.
 #[cfg(target_os = "linux")]
 enum Input {
     Progress { done: usize, total: usize },
@@ -108,8 +146,11 @@ enum Input {
     Stop,
 }
 
-/// What: `Shared` is the part of the handle every clone points at.
-/// Why: the last clone to go away stops the thread; `Drop` cannot run per clone.
+/// What:
+/// `Shared` is the part of the handle every clone points at.
+/// Why:
+/// the last clone to go away stops the thread;
+/// `Drop` cannot run per clone.
 #[cfg(target_os = "linux")]
 struct Shared {
     sender: Sender<Input>,
@@ -119,8 +160,12 @@ struct Shared {
 /// Methods of `Shared`.
 #[cfg(target_os = "linux")]
 impl Drop for Shared {
-    /// What: `drop` asks the thread to close the indicator and stop, without waiting for it.
-    /// Why: an app that forgets `shutdown` still leaves no job behind, and a destructor must not block on the bus.
+    /// What:
+    /// `drop` asks the thread to close the indicator and stop,
+    /// without waiting for it.
+    /// Why:
+    /// an app that forgets `shutdown` still leaves no job behind,
+    /// and a destructor must not block on the bus.
     fn drop(&mut self) {
         if self.sender.send(Input::Stop).is_err() {
             tracing::debug!("analysis notifier thread already stopped at drop");
@@ -128,16 +173,23 @@ impl Drop for Shared {
     }
 }
 
-/// What: `AnalysisNotifier` is the cloneable handle to the indicator.
-/// Why: the sweep's progress callback, the pause callback and the shutdown path each need one.
+/// What:
+/// `AnalysisNotifier` is the cloneable handle to the indicator.
+/// Why:
+/// the sweep's progress callback,
+/// the pause callback and the shutdown path each need one.
 #[cfg(target_os = "linux")]
 #[derive(Clone)]
 pub struct AnalysisNotifier {
     shared: Arc<Shared>,
 }
 
-/// What: `Worker` is the notifier thread's state.
-/// Why: the machine, the connection, the open indicator and the one-warning flag live together on that thread.
+/// What:
+/// `Worker` is the notifier thread's state.
+/// Why:
+/// the machine,
+/// the connection,
+/// the open indicator and the one-warning flag live together on that thread.
 #[cfg(target_os = "linux")]
 struct Worker {
     config_identity: Identity,
@@ -156,8 +208,11 @@ struct Worker {
 /// Methods of `AnalysisNotifier`.
 #[cfg(target_os = "linux")]
 impl AnalysisNotifier {
-    /// What: `spawn` starts the notifier thread.
-    /// Why: nothing touches the bus until the first unfinished report, so a fully cached library costs nothing.
+    /// What:
+    /// `spawn` starts the notifier thread.
+    /// Why:
+    /// nothing touches the bus until the first unfinished report,
+    /// so a fully cached library costs nothing.
     pub fn spawn(config: NotifierConfig) -> AnalysisNotifier {
         let (sender, receiver) = mpsc::channel::<Input>();
         let worker = Worker {
@@ -192,28 +247,42 @@ impl AnalysisNotifier {
         };
     }
 
-    /// What: `post` sends one input to the thread.
-    /// Why: a stopped thread is not an error for the caller; the analysis simply has no indicator.
+    /// What:
+    /// `post` sends one input to the thread.
+    /// Why:
+    /// a stopped thread is not an error for the caller;
+    /// the analysis simply has no indicator.
     fn post(&self, input: Input) {
         if self.shared.sender.send(input).is_err() {
             tracing::debug!("analysis notifier input dropped: the thread has stopped");
         }
     }
 
-    /// What: `report` gives the sweep's progress: `done` tracks visited of `total`; `done >= total` means finished.
-    /// Why: this is called from the engine's update path for every report, so it only posts a message.
+    /// What:
+    /// `report` gives the sweep's progress:
+    /// `done` tracks visited of `total`;
+    /// `done >= total` means finished.
+    /// Why:
+    /// this is called from the engine's update path for every report,
+    /// so it only posts a message.
     pub fn report(&self, done: usize, total: usize) {
         self.post(Input::Progress { done, total });
     }
 
-    /// What: `fail` ends the indicator with an engine failure message.
-    /// Why: the user is told why the analysis stopped.
+    /// What:
+    /// `fail` ends the indicator with an engine failure message.
+    /// Why:
+    /// the user is told why the analysis stopped.
     pub fn fail(&self, message: &str) {
         self.post(Input::Fail(message.to_string()));
     }
 
-    /// What: `shutdown` closes the indicator, stops the thread and waits for it.
-    /// Why: a job or notification must not outlive the app; the wait is bounded by `METHOD_TIMEOUT` per call.
+    /// What:
+    /// `shutdown` closes the indicator,
+    /// stops the thread and waits for it.
+    /// Why:
+    /// a job or notification must not outlive the app;
+    /// the wait is bounded by `METHOD_TIMEOUT` per call.
     pub fn shutdown(&self) {
         self.post(Input::Stop);
         let taken = match self.shared.thread.lock() {
@@ -234,8 +303,14 @@ impl AnalysisNotifier {
 /// Methods of `Worker`.
 #[cfg(target_os = "linux")]
 impl Worker {
-    /// What: `run` is the thread body: wait for an input or the held view's deadline, apply it, repeat.
-    /// Why: one wait point serves progress, signals and the rate limit's trailing flush.
+    /// What:
+    /// `run` is the thread body:
+    /// wait for an input or the held view's deadline,
+    /// apply it,
+    /// repeat.
+    /// Why:
+    /// one wait point serves progress,
+    /// signals and the rate limit's trailing flush.
     fn run(mut self, receiver: &Receiver<Input>) {
         tracing::debug!("analysis notifier thread running");
         loop {
@@ -262,8 +337,10 @@ impl Worker {
         tracing::debug!("analysis notifier thread stopped");
     }
 
-    /// What: `on_signal` turns a button press or a dismissal into machine input.
-    /// Why: only the sender and the job path or notification id this thread opened may act on the analysis.
+    /// What:
+    /// `on_signal` turns a button press or a dismissal into machine input.
+    /// Why:
+    /// only the sender and the job path or notification id this thread opened may act on the analysis.
     fn on_signal(&mut self, now: Instant, signal: &BusSignal) -> Vec<Effect> {
         match signal {
             BusSignal::JobSuspend { sender, path } | BusSignal::JobResume { sender, path } => {
@@ -302,8 +379,12 @@ impl Worker {
         }
     }
 
-    /// What: `apply` carries out effects in order; a bus failure drops the rest and disables the indicator.
-    /// Why: once a call fails the remaining ones would fail the same way, and only the pause release still matters.
+    /// What:
+    /// `apply` carries out effects in order;
+    /// a bus failure drops the rest and disables the indicator.
+    /// Why:
+    /// once a call fails the remaining ones would fail the same way,
+    /// and only the pause release still matters.
     fn apply(&mut self, effects: Vec<Effect>) {
         let mut queue: VecDeque<Effect> = VecDeque::from(effects);
         while let Some(effect) = queue.pop_front() {
@@ -334,8 +415,12 @@ impl Worker {
         }
     }
 
-    /// What: `connection` returns the session connection, making it on first use.
-    /// Why: the connection is made once; a failure is final for the run.
+    /// What:
+    /// `connection` returns the session connection,
+    /// making it on first use.
+    /// Why:
+    /// the connection is made once;
+    /// a failure is final for the run.
     fn connection(&mut self) -> zbus::Result<Connection> {
         if let Some(existing) = self.connection.as_ref() {
             return Ok(existing.clone());
@@ -349,8 +434,10 @@ impl Worker {
         return Ok(made);
     }
 
-    /// What: `ensure_listener` starts the signal listener of `backend` once.
-    /// Why: it must be subscribed before the first request so an early button press is not lost.
+    /// What:
+    /// `ensure_listener` starts the signal listener of `backend` once.
+    /// Why:
+    /// it must be subscribed before the first request so an early button press is not lost.
     fn ensure_listener(&mut self, connection: &Connection, backend: Backend) -> zbus::Result<()> {
         let already = match backend {
             Backend::Job => self.listening_job,
@@ -368,8 +455,13 @@ impl Worker {
         return Ok(());
     }
 
-    /// What: `open` creates the indicator: a Plasma job if the job server is on the bus, else a notification.
-    /// Why: Plasma's own notification server ignores the progress hint, so on KDE the job is the only real bar.
+    /// What:
+    /// `open` creates the indicator:
+    /// a Plasma job if the job server is on the bus,
+    /// else a notification.
+    /// Why:
+    /// Plasma's own notification server ignores the progress hint,
+    /// so on KDE the job is the only real bar.
     fn open(&mut self, view: &IndicatorView) -> zbus::Result<()> {
         let connection = self.connection()?;
         if has_owner(&connection, KUISERVER)? {
@@ -392,8 +484,11 @@ impl Worker {
         return Ok(());
     }
 
-    /// What: `update` sends `view` to whichever indicator is open.
-    /// Why: the machine only returns an update while open, so a missing indicator means a dismissal raced it.
+    /// What:
+    /// `update` sends `view` to whichever indicator is open.
+    /// Why:
+    /// the machine only returns an update while open,
+    /// so a missing indicator means a dismissal raced it.
     fn update(&mut self, view: &IndicatorView) -> zbus::Result<()> {
         if let Some(job) = self.job.as_ref() {
             return job.update(view, false);
@@ -405,8 +500,10 @@ impl Worker {
         return Ok(());
     }
 
-    /// What: `close` ends whichever indicator is open and forgets it.
-    /// Why: the next sweep opens a fresh one.
+    /// What:
+    /// `close` ends whichever indicator is open and forgets it.
+    /// Why:
+    /// the next sweep opens a fresh one.
     fn close(&mut self, outcome: &Outcome) -> zbus::Result<()> {
         if let Some(job) = self.job.take() {
             return job.terminate(outcome);
@@ -419,8 +516,11 @@ impl Worker {
     }
 }
 
-/// What: `AnalysisNotifier` off Linux is a handle that does nothing.
-/// Why: macOS and Windows get an indicator through their own notification APIs in a later step (D107), and the app
+/// What:
+/// `AnalysisNotifier` off Linux is a handle that does nothing.
+/// Why:
+/// macOS and Windows get an indicator through their own notification APIs in a later step (D107),
+/// and the app
 /// code that holds the handle stays the same on every platform.
 #[cfg(not(target_os = "linux"))]
 #[derive(Clone)]
@@ -429,21 +529,29 @@ pub struct AnalysisNotifier;
 /// Methods of the off-Linux `AnalysisNotifier`.
 #[cfg(not(target_os = "linux"))]
 impl AnalysisNotifier {
-    /// What: `spawn` builds the empty handle.
-    /// Why: it mirrors the Linux constructor.
+    /// What:
+    /// `spawn` builds the empty handle.
+    /// Why:
+    /// it mirrors the Linux constructor.
     pub fn spawn(_config: NotifierConfig) -> AnalysisNotifier {
         return AnalysisNotifier;
     }
 
-    /// What: `report` does nothing.
-    /// Why: there is no indicator off Linux yet.
+    /// What:
+    /// `report` does nothing.
+    /// Why:
+    /// there is no indicator off Linux yet.
     pub fn report(&self, _done: usize, _total: usize) {}
 
-    /// What: `fail` does nothing.
-    /// Why: there is no indicator off Linux yet.
+    /// What:
+    /// `fail` does nothing.
+    /// Why:
+    /// there is no indicator off Linux yet.
     pub fn fail(&self, _message: &str) {}
 
-    /// What: `shutdown` does nothing.
-    /// Why: there is nothing to close off Linux yet.
+    /// What:
+    /// `shutdown` does nothing.
+    /// Why:
+    /// there is nothing to close off Linux yet.
     pub fn shutdown(&self) {}
 }

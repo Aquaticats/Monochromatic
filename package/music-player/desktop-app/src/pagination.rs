@@ -339,11 +339,16 @@ fn letter_key(name: &str) -> (u8, String) {
 
 /// What:
 ///      `pub fn root_level_folder_label(display_name: &str) -> String`.
-///  The name of the virtual folder that a root-level track sits in: its first letter in upper case for an ASCII
-///  letter, otherwise `#`.
+///  The name of the virtual folder that a root-level track sits in:
+/// its first letter in upper case for an ASCII
+///  letter,
+/// otherwise `#`.
 /// Why:
-///       The picker lists loose files in virtual folders named by their rail letter. Search names the folder of a loose
-///  track result the same way, so opening it selects the page that shows it (the polish review finding LS1: Search
+///       The picker lists loose files in virtual folders named by their rail letter.
+/// Search names the folder of a loose
+///  track result the same way,
+/// so opening it selects the page that shows it (the polish review finding LS1:
+/// Search
 ///  said `Unfiled` while the picker said `A`).
 ///
 /// In TS you'd write (pseudocode):

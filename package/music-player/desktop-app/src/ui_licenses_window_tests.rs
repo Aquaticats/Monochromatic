@@ -1,11 +1,23 @@
 //! Window tests of the Licenses row of Settings and the Licenses page it opens.
 //!
-//! What: each test builds the real window on the testing backend (or the software renderer for the focus ring), sends real
-//! pointer and key events and accessibility actions, and reads what the row says to assistive technology, where its parts
-//! sit, which page is shown, and what the page holds.
-//! Why: the row, the route, Escape and the notice list only exist together in the composed window, and Slint's Royalty-free
+//! What:
+//! each test builds the real window on the testing backend (or the software renderer for the focus ring),
+//! sends real
+//! pointer and key events and accessibility actions,
+//! and reads what the row says to assistive technology,
+//! where its parts
+//! sit,
+//! which page is shown,
+//! and what the page holds.
+//! Why:
+//! the row,
+//! the route,
+//! Escape and the notice list only exist together in the composed window,
+//! and Slint's Royalty-free
 //! license is met only if the page really shows the AboutSlint widget.
-//! Note: element lookup by id needs `SLINT_EMIT_DEBUG_INFO=1` at build time, which the repo test task sets.
+//! Note:
+//! element lookup by id needs `SLINT_EMIT_DEBUG_INFO=1` at build time,
+//! which the repo test task sets.
 
 use i_slint_backend_testing::{AccessibleRole, ElementHandle};
 use music_player::settings_layout::{
@@ -22,10 +34,14 @@ use crate::ui_screen_view::Route;
 use crate::ui_settings::open_settings;
 use crate::ui_test_support::{chord, fresh_window_at, settle, tap};
 
-/// Height of the section heading above a group: 16 above the label, the label, and 8 below.
+/// Height of the section heading above a group:
+/// 16 above the label,
+/// the label,
+/// and 8 below.
 const HEADING_HEIGHT: f32 = 44.0;
 
-/// What: `open_settings_at` builds a window of the given width and opens Settings on it.
+/// What:
+/// `open_settings_at` builds a window of the given width and opens Settings on it.
 fn open_settings_at(width: f32) -> AppWindow {
     // Tall enough for the whole list: the Text size group put the Licenses row below 900 px, and a row outside the window
     // is not listed by the element search.
@@ -35,44 +51,52 @@ fn open_settings_at(width: f32) -> AppWindow {
     return app;
 }
 
-/// What: `elements` lists the elements with a qualified id, in tree order.
+/// What:
+/// `elements` lists the elements with a qualified id,
+/// in tree order.
 fn elements(app: &AppWindow, id: &str) -> Vec<ElementHandle> {
     return ElementHandle::find_by_element_id(app, id).collect();
 }
 
-/// What: `only` gives the single element with a qualified id.
+/// What:
+/// `only` gives the single element with a qualified id.
 fn only(app: &AppWindow, id: &str) -> ElementHandle {
     let mut found = elements(app, id);
     assert_eq!(found.len(), 1, "exactly one {id}, found {}", found.len());
     return found.remove(0);
 }
 
-/// What: `box_of` gives an element's window position and size as `(x, y, width, height)`.
+/// What:
+/// `box_of` gives an element's window position and size as `(x, y, width, height)`.
 fn box_of(element: &ElementHandle) -> (f32, f32, f32, f32) {
     let position = element.absolute_position();
     let size = element.size();
     return (position.x, position.y, size.width, size.height);
 }
 
-/// What: `count_of` counts the elements of one component type under the window.
+/// What:
+/// `count_of` counts the elements of one component type under the window.
 fn count_of(app: &AppWindow, type_name: &str) -> usize {
     return ElementHandle::find_by_element_type_name(app, type_name).count();
 }
 
-/// What: `escape` classifies and runs an Escape key press the way the window's key scope does.
+/// What:
+/// `escape` classifies and runs an Escape key press the way the window's key scope does.
 fn escape(app: &AppWindow) -> bool {
     let key_scope_used = app.invoke_key_pressed("\u{1b}".into(), false, false, false, false, false, false);
     settle();
     return key_scope_used;
 }
 
-/// What: `open_licenses_by_keyboard` moves the keyboard to the Licenses row with End and presses Enter.
+/// What:
+/// `open_licenses_by_keyboard` moves the keyboard to the Licenses row with End and presses Enter.
 fn open_licenses_by_keyboard(app: &AppWindow) {
     tap(app, "End");
     tap(app, "Enter");
 }
 
-/// What: `y_of_first_notice_line` gives the window y of the first line the list has built.
+/// What:
+/// `y_of_first_notice_line` gives the window y of the first line the list has built.
 fn y_of_first_notice_line(app: &AppWindow) -> f32 {
     return elements(app, "LicensesPage::notice-line").iter().map(|line| return box_of(line).1).fold(f32::MAX, f32::min);
 }

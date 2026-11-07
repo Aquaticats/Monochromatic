@@ -1,11 +1,18 @@
 //! Tests for the double tap of Shift detector.
 //!
-//! What: each test feeds a sequence of timed inputs and checks when a double tap completes.
-//! Why: the cases the human named are fast, slow, interrupted, Shift held with another key, and repeat.
+//! What:
+//! each test feeds a sequence of timed inputs and checks when a double tap completes.
+//! Why:
+//! the cases the human named are fast,
+//! slow,
+//! interrupted,
+//! Shift held with another key,
+//! and repeat.
 
 use super::*;
 
-/// What: `run` feeds timed inputs through the detector and returns the times at which a double tap completed.
+/// What:
+/// `run` feeds timed inputs through the detector and returns the times at which a double tap completed.
 fn run(inputs: &[(u64, ShiftInput)]) -> Vec<u64> {
     let mut state = DoubleShift::default();
     let mut completed = Vec::new();
@@ -19,9 +26,11 @@ fn run(inputs: &[(u64, ShiftInput)]) -> Vec<u64> {
     return completed;
 }
 
-/// What: `down` is a first press of Shift.
+/// What:
+/// `down` is a first press of Shift.
 const DOWN: ShiftInput = ShiftInput::ShiftDown { repeat: false };
-/// What: `repeat` is an auto-repeat of a held Shift.
+/// What:
+/// `repeat` is an auto-repeat of a held Shift.
 const REPEAT: ShiftInput = ShiftInput::ShiftDown { repeat: true };
 
 #[test]

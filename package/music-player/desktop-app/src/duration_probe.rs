@@ -1,8 +1,15 @@
-//! Reads one file's length from its container header, without decoding any audio.
+//! Reads one file's length from its container header,
+//! without decoding any audio.
 //!
-//! What: `probe_duration_secs` opens a file, probes its format, and divides the frame count by the sample rate.
-//! Why: the library rows show each track's length before the slow true-peak measurement has run, and the
-//! header holds it for most formats. Formats whose header omits the frame count give `None`.
+//! What:
+//! `probe_duration_secs` opens a file,
+//! probes its format,
+//! and divides the frame count by the sample rate.
+//! Why:
+//! the library rows show each track's length before the slow true-peak measurement has run,
+//! and the
+//! header holds it for most formats.
+//! Formats whose header omits the frame count give `None`.
 
 use std::fs::File;
 use std::path::Path;
@@ -14,9 +21,11 @@ use symphonia::core::meta::MetadataOptions;
 
 /// What:
 ///      `pub fn probe_duration_secs(path: &Path) -> Option<f64>`.
-///  The length in seconds from the container header, or `None` when it cannot be read.
+///  The length in seconds from the container header,
+/// or `None` when it cannot be read.
 /// Why:
-///       A header read is cheap enough to run for every track at queue load, while a full decode is not.
+///       A header read is cheap enough to run for every track at queue load,
+/// while a full decode is not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -57,7 +66,8 @@ pub fn probe_duration_secs(path: &Path) -> Option<f64> {
 ///      `fn duration_of_first_audio_track(format: &dyn FormatReader) -> Option<f64>`.
 ///  The first audio track's frame count divided by its sample rate.
 /// Why:
-///       Each container lists its tracks, and the length belongs to the audio track alone.
+///       Each container lists its tracks,
+/// and the length belongs to the audio track alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -76,9 +86,11 @@ fn duration_of_first_audio_track(format: &dyn FormatReader) -> Option<f64> {
 
 /// What:
 ///      `fn frames_to_secs(frames: u64, rate: u32) -> Option<f64>`.
-///  Converts a frame count at a sample rate into seconds, or `None` for a zero rate.
+///  Converts a frame count at a sample rate into seconds,
+/// or `None` for a zero rate.
 /// Why:
-///       A zero rate would divide by zero, and a header with no rate has no usable length.
+///       A zero rate would divide by zero,
+/// and a header with no rate has no usable length.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

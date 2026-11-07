@@ -3,8 +3,10 @@
 
 use super::*;
 
-/// What: `scratch` makes an empty disposable folder.
-/// Why: the search must never depend on the real PATH of the machine running the tests.
+/// What:
+/// `scratch` makes an empty disposable folder.
+/// Why:
+/// the search must never depend on the real PATH of the machine running the tests.
 fn scratch(tag: &str) -> std::path::PathBuf {
     let nanos: u128 = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

@@ -460,7 +460,8 @@ struct ProcessData {
     ///  the callback then stops counting a short buffer as an underrun.
     /// Why:
     ///       The last callbacks of a track always find the ring empty;
-    ///  that is the end of the music, not a stutter.
+    ///  that is the end of the music,
+    /// not a stutter.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

@@ -11,8 +11,13 @@ use crate::sweep_report::SweepReport;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-/// What: `Rig` is a disposable library folder, a controller over it, and what the controller and its sweeps reported.
-/// Why: every test needs the three together, and the folder and cache file go away when the value drops.
+/// What:
+/// `Rig` is a disposable library folder,
+/// a controller over it,
+/// and what the controller and its sweeps reported.
+/// Why:
+/// every test needs the three together,
+/// and the folder and cache file go away when the value drops.
 struct Rig {
     controller: Controller,
     root: PathBuf,
@@ -24,8 +29,11 @@ struct Rig {
 
 /// Methods of `Rig`.
 impl Rig {
-    /// What: `new` makes the folder with the given `(relative name, fixture)` files and opens it in a new controller.
-    /// Why: tests choose which files exist at the start; a fixture name that is not a file under `fixture/` is written as
+    /// What:
+    /// `new` makes the folder with the given `(relative name, fixture)` files and opens it in a new controller.
+    /// Why:
+    /// tests choose which files exist at the start;
+    /// a fixture name that is not a file under `fixture/` is written as
     /// bytes that cannot be decoded.
     fn new(tag: &str, files: &[(&str, &str)]) -> Rig {
         let nanos: u128 = std::time::SystemTime::now()
@@ -55,8 +63,12 @@ impl Rig {
         return rig;
     }
 
-    /// What: `put` writes one file of the library: a copy of the fixture, or bytes that cannot be decoded.
-    /// Why: replacing a file is how the tests change the disk under a running controller.
+    /// What:
+    /// `put` writes one file of the library:
+    /// a copy of the fixture,
+    /// or bytes that cannot be decoded.
+    /// Why:
+    /// replacing a file is how the tests change the disk under a running controller.
     fn put(&self, name: &str, fixture: &str) {
         let path = self.root.join(name);
         std::fs::create_dir_all(path.parent().expect("a file has a folder")).expect("the folder is created");
@@ -68,14 +80,20 @@ impl Rig {
         }
     }
 
-    /// What: `open` opens the folder as a launch or the folder dialog does, selecting and playing nothing.
-    /// Why: the sweep of the load starts here.
+    /// What:
+    /// `open` opens the folder as a launch or the folder dialog does,
+    /// selecting and playing nothing.
+    /// Why:
+    /// the sweep of the load starts here.
     fn open(&mut self) {
         self.controller.handle_command(Command::OpenRoot { root: self.root.clone(), select: None, play: false });
     }
 
-    /// What: `pump` hands the controller every sweep report that arrived since the last call, as the engine's loop does.
-    /// Why: the controller turns reports into updates and drops stale ones.
+    /// What:
+    /// `pump` hands the controller every sweep report that arrived since the last call,
+    /// as the engine's loop does.
+    /// Why:
+    /// the controller turns reports into updates and drops stale ones.
     fn pump(&mut self) {
         let waiting: Vec<SweepReport> = self.reports.lock().expect("the sink is not poisoned").clone();
         for report in waiting.into_iter().skip(self.pumped) {
@@ -84,8 +102,12 @@ impl Rig {
         }
     }
 
-    /// What: `wait_for` pumps reports until `condition` holds over the recorded updates, or ten seconds pass.
-    /// Why: sweeps run on their own threads, so the tests wait for their effects.
+    /// What:
+    /// `wait_for` pumps reports until `condition` holds over the recorded updates,
+    /// or ten seconds pass.
+    /// Why:
+    /// sweeps run on their own threads,
+    /// so the tests wait for their effects.
     fn wait_for(&mut self, condition: impl Fn(&[Update]) -> bool) -> bool {
         let deadline = Instant::now() + Duration::from_secs(10);
         while Instant::now() < deadline {
@@ -98,8 +120,10 @@ impl Rig {
         return false;
     }
 
-    /// What: `settle` pumps reports for a while with nothing expected.
-    /// Why: a test that asserts that something did not happen must give it the time to happen.
+    /// What:
+    /// `settle` pumps reports for a while with nothing expected.
+    /// Why:
+    /// a test that asserts that something did not happen must give it the time to happen.
     fn settle(&mut self) {
         let deadline = Instant::now() + Duration::from_millis(1_200);
         while Instant::now() < deadline {
@@ -108,8 +132,10 @@ impl Rig {
         }
     }
 
-    /// What: `wait_for_peaks` pumps reports until at least `count` measures with a true peak arrived for the file `name`.
-    /// Why: one such measure is one decode of that file's current content.
+    /// What:
+    /// `wait_for_peaks` pumps reports until at least `count` measures with a true peak arrived for the file `name`.
+    /// Why:
+    /// one such measure is one decode of that file's current content.
     fn wait_for_peaks(&mut self, name: &str, count: usize) -> bool {
         let deadline = Instant::now() + Duration::from_secs(10);
         while Instant::now() < deadline {
@@ -122,8 +148,10 @@ impl Rig {
         return false;
     }
 
-    /// What: `measures_with_peak` counts the measures that carry a true peak for the file called `name`.
-    /// Why: one such measure is one decode of that file's current content.
+    /// What:
+    /// `measures_with_peak` counts the measures that carry a true peak for the file called `name`.
+    /// Why:
+    /// one such measure is one decode of that file's current content.
     fn measures_with_peak(&self, name: &str) -> usize {
         return self
             .updates
@@ -134,8 +162,11 @@ impl Rig {
             .sum();
     }
 
-    /// What: `unplayable_updates` lists the unplayable reports the window received, as the file names in each.
-    /// Why: a failure must be told once.
+    /// What:
+    /// `unplayable_updates` lists the unplayable reports the window received,
+    /// as the file names in each.
+    /// Why:
+    /// a failure must be told once.
     fn unplayable_updates(&self) -> Vec<Vec<String>> {
         return self
             .updates
@@ -147,8 +178,10 @@ impl Rig {
     }
 }
 
-/// What: `peaks_for` counts the measures with a true peak that one update carries for the file called `name`.
-/// Why: one such measure is one decode of that file's current content.
+/// What:
+/// `peaks_for` counts the measures with a true peak that one update carries for the file called `name`.
+/// Why:
+/// one such measure is one decode of that file's current content.
 fn peaks_for(update: &Update, name: &str) -> usize {
     return match update {
         Update::Measures(list) => list
@@ -159,8 +192,12 @@ fn peaks_for(update: &Update, name: &str) -> usize {
     };
 }
 
-/// What: `unplayable_names` gives the file names of an unplayable update, or nothing for any other update.
-/// Why: the tests compare what the window was told, in plain names.
+/// What:
+/// `unplayable_names` gives the file names of an unplayable update,
+/// or nothing for any other update.
+/// Why:
+/// the tests compare what the window was told,
+/// in plain names.
 fn unplayable_names(update: &Update) -> Option<Vec<String>> {
     return match update {
         Update::Unplayable(paths) => Some(
@@ -175,8 +212,10 @@ fn unplayable_names(update: &Update) -> Option<Vec<String>> {
 
 /// Removes the folder and the cache file when the test ends.
 impl Drop for Rig {
-    /// What: `drop` removes the folder and the cache file.
-    /// Why: tests leave no files behind.
+    /// What:
+    /// `drop` removes the folder and the cache file.
+    /// Why:
+    /// tests leave no files behind.
     fn drop(&mut self) {
         std::fs::remove_dir_all(&self.root).ok();
         std::fs::remove_file(&self.cache_file).ok();
@@ -276,6 +315,7 @@ fn a_paused_selected_file_that_is_replaced_is_loaded_again_and_a_playing_one_is_
     assert!(rig.controller.playing, "and keeps playing");
 }
 
-/// Tests of the refresh from the paths the watcher names, with the same rig.
+/// Tests of the refresh from the paths the watcher names,
+/// with the same rig.
 #[path = "controller_refresh_flow_tests.rs"]
 mod flow;

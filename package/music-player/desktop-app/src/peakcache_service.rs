@@ -254,9 +254,11 @@ pub(super) struct Upsert {
 
 /// What:
 ///      `pub(super) enum Write { Put(Upsert) }`.
-///  One request on the write channel: store a decision.
+///  One request on the write channel:
+/// store a decision.
 /// Why:
-///       A replaced or edited file gets a new fingerprint and so a new decision; nothing deletes an old one by hand (D113).
+///       A replaced or edited file gets a new fingerprint and so a new decision;
+/// nothing deletes an old one by hand (D113).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

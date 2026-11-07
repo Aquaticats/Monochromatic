@@ -1,9 +1,19 @@
-//! The D106 binding table: every chord of the desktop player as plain data.
+//! The D106 binding table:
+//! every chord of the desktop player as plain data.
 //!
-//! What: `BINDINGS` lists one row per chord with its modifiers, key names, platform, scope and repeat rule;
-//! `binding_matching` finds the row a key press hits; `shortcut_text` writes a row the way a tooltip or a menu row
+//! What:
+//! `BINDINGS` lists one row per chord with its modifiers,
+//! key names,
+//! platform,
+//! scope and repeat rule;
+//! `binding_matching` finds the row a key press hits;
+//! `shortcut_text` writes a row the way a tooltip or a menu row
 //! shows it.
-//! Why: the classifier, the key hint badges, the tooltips and the menu rows must agree on every chord, so they all
+//! Why:
+//! the classifier,
+//! the key hint badges,
+//! the tooltips and the menu rows must agree on every chord,
+//! so they all
 //! read this one table and nothing else spells a chord out.
 
 use crate::keymap::{KeyboardPlatform, ShortcutAction, ShortcutRequest, scope_allows};
@@ -86,7 +96,8 @@ pub enum Scope {
 /// What:
 ///      `pub struct Binding` is one row of the table.
 /// Why:
-///      Plain data keeps the table auditable: each row can be read against D106 line by line.
+///      Plain data keeps the table auditable:
+/// each row can be read against D106 line by line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -104,7 +115,8 @@ pub struct Binding {
     pub platform: Option<KeyboardPlatform>,
     /// Modifiers the chord requires and no others.
     pub modifiers: &'static [Modifier],
-    /// Key names that trigger it: DOM-style names for named keys,
+    /// Key names that trigger it:
+    /// DOM-style names for named keys,
     ///  single characters for letters and digits (matched ignoring case),
     ///  and the shifted symbol of a digit key as a second name.
     pub keys: &'static [&'static str],

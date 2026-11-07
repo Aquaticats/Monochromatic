@@ -1,10 +1,22 @@
-//! Keyboard shortcuts for the player: each key becomes a `ShortcutRequest`, the `keymap` classifier names the action, and
-//! the action runs against the window and the host (D102, D106).
+//! Keyboard shortcuts for the player:
+//! each key becomes a `ShortcutRequest`,
+//! the `keymap` classifier names the action,
+//! and
+//! the action runs against the window and the host (D102,
+//! D106).
 //!
-//! What: `on_key_pressed` and `on_key_released` take the raw key events of the window's key scope, feed the key hint
-//! badges and the double tap of Shift detector, and hand every other key to `dispatch`, which classifies it and runs its
-//! action; they return true when the key was used.
-//! Why: the shortcut map lives in `keymap` and its table; this module only connects it to the window. Text fields keep
+//! What:
+//! `on_key_pressed` and `on_key_released` take the raw key events of the window's key scope,
+//! feed the key hint
+//! badges and the double tap of Shift detector,
+//! and hand every other key to `dispatch`,
+//! which classifies it and runs its
+//! action;
+//! they return true when the key was used.
+//! Why:
+//! the shortcut map lives in `keymap` and its table;
+//! this module only connects it to the window.
+//! Text fields keep
 //! their own keys because the classifier reads the focus zone the focused element reported.
 
 use std::cell::Cell;
@@ -20,13 +32,19 @@ use crate::ui_screen_view::Route;
 use crate::{AppWindow, Focus};
 
 thread_local! {
-    /// What: the double tap of Shift detector of this window thread.
-    /// Why: Search opens on two quick taps of Shift, which spans several key events.
+    /// What:
+    /// the double tap of Shift detector of this window thread.
+    /// Why:
+    /// Search opens on two quick taps of Shift,
+    /// which spans several key events.
     static DOUBLE_SHIFT: Cell<DoubleShift> = Cell::new(DoubleShift::default());
 }
 
-/// What: `RawKey` is one key event exactly as the window's key scope reports it.
-/// Why: the Slint callback passes seven values, and one struct keeps the handler's signature small and its call sites
+/// What:
+/// `RawKey` is one key event exactly as the window's key scope reports it.
+/// Why:
+/// the Slint callback passes seven values,
+/// and one struct keeps the handler's signature small and its call sites
 /// readable.
 ///
 /// In TS you'd write (pseudocode):
@@ -35,7 +53,9 @@ thread_local! {
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct RawKey {
-    /// The key as Slint reports it: a character, or a private character for a special key.
+    /// The key as Slint reports it:
+    /// a character,
+    /// or a private character for a special key.
     pub text: String,
     /// Control flag as Slint reports it.
     pub ctrl: bool,
@@ -51,8 +71,11 @@ pub(crate) struct RawKey {
     pub in_popup: bool,
 }
 
-/// What: `KeyInput` is one key press with the key already named.
-/// Why: the window passes the key name and modifiers as plain values, so the mapping is testable.
+/// What:
+/// `KeyInput` is one key press with the key already named.
+/// Why:
+/// the window passes the key name and modifiers as plain values,
+/// so the mapping is testable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -60,7 +83,9 @@ pub(crate) struct RawKey {
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KeyInput {
-    /// DOM-style key name, such as `Escape`, `ArrowLeft` or a printable character.
+    /// DOM-style key name,
+    /// such as `Escape`,
+    /// `ArrowLeft` or a printable character.
     pub key: String,
     /// Control modifier.
     pub ctrl: bool,
@@ -76,8 +101,12 @@ pub struct KeyInput {
     pub in_popup: bool,
 }
 
-/// What: `KeyContext` is the page, the focus zone and the picker overlay state a key is read in.
-/// Why: the same key means different things per page and per zone, and the classifier needs them as one value.
+/// What:
+/// `KeyContext` is the page,
+/// the focus zone and the picker overlay state a key is read in.
+/// Why:
+/// the same key means different things per page and per zone,
+/// and the classifier needs them as one value.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -95,8 +124,10 @@ pub struct KeyContext {
     pub popup_open: bool,
 }
 
-/// What: `platform` gives the keyboard convention of the running OS.
-/// Why: the shortcut map differs between Windows and Linux (Ctrl) and macOS (Command).
+/// What:
+/// `platform` gives the keyboard convention of the running OS.
+/// Why:
+/// the shortcut map differs between Windows and Linux (Ctrl) and macOS (Command).
 pub fn platform() -> KeyboardPlatform {
     return if cfg!(target_os = "macos") {
         KeyboardPlatform::Mac
@@ -105,8 +136,10 @@ pub fn platform() -> KeyboardPlatform {
     };
 }
 
-/// What: `key_route` maps the window's route to the route the classifier reads.
-/// Why: the classifier lives in the library crate and does not know the window's route type.
+/// What:
+/// `key_route` maps the window's route to the route the classifier reads.
+/// Why:
+/// the classifier lives in the library crate and does not know the window's route type.
 pub fn key_route(route: Route) -> KeyRoute {
     return match route {
         Route::Player => KeyRoute::Player,
@@ -117,9 +150,15 @@ pub fn key_route(route: Route) -> KeyRoute {
     };
 }
 
-/// What: `held_modifiers` reads the modifier flags of a Slint key event for a map.
-/// Why: on macOS Slint reports the Command key as Control and the Control key as Meta (its winit backend swaps them to
-/// match Qt), while the classifier reads Command as Meta, so the two flags swap there. The swap is not verified here: this
+/// What:
+/// `held_modifiers` reads the modifier flags of a Slint key event for a map.
+/// Why:
+/// on macOS Slint reports the Command key as Control and the Control key as Meta (its winit backend swaps them to
+/// match Qt),
+/// while the classifier reads Command as Meta,
+/// so the two flags swap there.
+/// The swap is not verified here:
+/// this
 /// machine runs neither macOS nor Windows.
 pub fn held_modifiers(ctrl: bool, meta: bool, alt: bool, shift: bool, apple: bool) -> HeldModifiers {
     return if apple {
@@ -129,8 +168,11 @@ pub fn held_modifiers(ctrl: bool, meta: bool, alt: bool, shift: bool, apple: boo
     };
 }
 
-/// What: `key_name_of` maps the text of a Slint key event to the DOM-style name the classifier reads.
-/// Why: Slint reports special keys as private characters, and the classifier and its table speak in names.
+/// What:
+/// `key_name_of` maps the text of a Slint key event to the DOM-style name the classifier reads.
+/// Why:
+/// Slint reports special keys as private characters,
+/// and the classifier and its table speak in names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -158,21 +200,35 @@ pub fn key_name_of(text: &str) -> String {
     };
 }
 
-/// What: `is_shift_key` tells whether a key event is the left or right Shift key.
-/// Why: the double tap counts both Shift keys.
+/// What:
+/// `is_shift_key` tells whether a key event is the left or right Shift key.
+/// Why:
+/// the double tap counts both Shift keys.
 fn is_shift_key(text: &str) -> bool {
     return matches!(text, "\u{10}" | "\u{15}");
 }
 
-/// What: `is_modifier_key` tells whether a key event is a modifier key on its own (Shift, Control, Alt, AltGr, Meta,
+/// What:
+/// `is_modifier_key` tells whether a key event is a modifier key on its own (Shift,
+/// Control,
+/// Alt,
+/// AltGr,
+/// Meta,
 /// Caps Lock).
-/// Why: a modifier alone is never a shortcut; it only feeds the key hint badges and the double tap of Shift.
+/// Why:
+/// a modifier alone is never a shortcut;
+/// it only feeds the key hint badges and the double tap of Shift.
 fn is_modifier_key(text: &str) -> bool {
     return matches!(text, "\u{10}" | "\u{11}" | "\u{12}" | "\u{13}" | "\u{14}" | "\u{15}" | "\u{16}" | "\u{17}" | "\u{18}");
 }
 
-/// What: `request_for` builds the classifier input for one key press in a context.
-/// Why: the classifier needs the platform, the page, the focus zone and the popup state, which come from the window.
+/// What:
+/// `request_for` builds the classifier input for one key press in a context.
+/// Why:
+/// the classifier needs the platform,
+/// the page,
+/// the focus zone and the popup state,
+/// which come from the window.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -195,8 +251,12 @@ pub fn request_for(input: &KeyInput, context: &KeyContext, platform: KeyboardPla
     };
 }
 
-/// What: `context_of` reads the page, the focus zone and the picker overlay state from the screen state and the window.
-/// Why: the page and the picker flag live in the state, and the zone lives in the window's `Focus` global.
+/// What:
+/// `context_of` reads the page,
+/// the focus zone and the picker overlay state from the screen state and the window.
+/// Why:
+/// the page and the picker flag live in the state,
+/// and the zone lives in the window's `Focus` global.
 pub(crate) fn context_of(window: &AppWindow) -> KeyContext {
     let (route, picker_open) = read_state(|state| return (state.route, state.picker_open));
     return KeyContext {
@@ -207,8 +267,11 @@ pub(crate) fn context_of(window: &AppWindow) -> KeyContext {
     };
 }
 
-/// What: `classify` names the action of one key press on the page and zone the window shows now.
-/// Why: dispatching and the tests classify through the same call, so a key means one thing wherever it is read.
+/// What:
+/// `classify` names the action of one key press on the page and zone the window shows now.
+/// Why:
+/// dispatching and the tests classify through the same call,
+/// so a key means one thing wherever it is read.
 pub(crate) fn classify(window: &AppWindow, input: &KeyInput) -> (ShortcutAction, KeyContext) {
     let context = KeyContext { popup_open: input.in_popup, ..context_of(window) };
     let action = shortcut_action(&request_for(input, &context, platform()));
@@ -223,8 +286,12 @@ pub(crate) fn classify(window: &AppWindow, input: &KeyInput) -> (ShortcutAction,
     return (action, context);
 }
 
-/// What: `dispatch` classifies one named key press and runs its action; returns true when the key was used.
-/// Why: a used key stops the window from delivering it to the focused field, and an unused key continues to it.
+/// What:
+/// `dispatch` classifies one named key press and runs its action;
+/// returns true when the key was used.
+/// Why:
+/// a used key stops the window from delivering it to the focused field,
+/// and an unused key continues to it.
 pub(crate) fn dispatch(window: &AppWindow, host: &dyn Host, input: &KeyInput) -> bool {
     let (action, context) = classify(window, input);
     let used = crate::ui_keys_actions::run(window, host, action, &context);
@@ -235,9 +302,14 @@ pub(crate) fn dispatch(window: &AppWindow, host: &dyn Host, input: &KeyInput) ->
     return used;
 }
 
-/// What: `track_double_shift` feeds one input to the double tap detector and opens Search when a double tap completes
+/// What:
+/// `track_double_shift` feeds one input to the double tap detector and opens Search when a double tap completes
 /// on the player page.
-/// Why: D106: double Shift opens Search on the player page only; on Settings, its editor page and Search the detector
+/// Why:
+/// D106:
+/// double Shift opens Search on the player page only;
+/// on Settings,
+/// its editor page and Search the detector
 /// still runs (so its state stays honest) but the tap does nothing.
 fn track_double_shift(window: &AppWindow, input: ShiftInput) {
     let now = crate::ui_hints::now_ms();
@@ -257,9 +329,16 @@ fn track_double_shift(window: &AppWindow, input: ShiftInput) {
     }
 }
 
-/// What: `on_key_pressed` handles one key press from the window's key scope; returns true when the key was used.
-/// Why: it keeps the badge and double tap state in step with every key event, ignores modifier keys as shortcuts, and
-/// sends every other key through the classifier. A key press also turns the focus ring on, because the keyboard is in use.
+/// What:
+/// `on_key_pressed` handles one key press from the window's key scope;
+/// returns true when the key was used.
+/// Why:
+/// it keeps the badge and double tap state in step with every key event,
+/// ignores modifier keys as shortcuts,
+/// and
+/// sends every other key through the classifier.
+/// A key press also turns the focus ring on,
+/// because the keyboard is in use.
 pub(crate) fn on_key_pressed(window: &AppWindow, host: &dyn Host, key: &RawKey) -> bool {
     let held = held_modifiers(key.ctrl, key.meta, key.alt, key.shift, cfg!(target_os = "macos"));
     crate::ui_hints::modifiers_changed(window, held);
@@ -285,8 +364,10 @@ pub(crate) fn on_key_pressed(window: &AppWindow, host: &dyn Host, key: &RawKey) 
     return dispatch(window, host, &input);
 }
 
-/// What: `on_key_released` handles one key release from the window's key scope.
-/// Why: a release updates the held modifiers (so the badges narrow or hide) and ends a Shift tap for the double tap.
+/// What:
+/// `on_key_released` handles one key release from the window's key scope.
+/// Why:
+/// a release updates the held modifiers (so the badges narrow or hide) and ends a Shift tap for the double tap.
 pub(crate) fn on_key_released(window: &AppWindow, key: &RawKey) {
     let held = held_modifiers(key.ctrl, key.meta, key.alt, key.shift, cfg!(target_os = "macos"));
     crate::ui_hints::modifiers_changed(window, held);

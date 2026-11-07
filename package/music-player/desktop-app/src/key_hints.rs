@@ -1,10 +1,18 @@
-//! Key hint badges: when they show and what they say (D106).
+//! Key hint badges:
+//! when they show and what they say (D106).
 //!
-//! What: `KeyHints` tracks which modifiers are held and for how long; `badge_text` gives the badge of one control for
+//! What:
+//! `KeyHints` tracks which modifiers are held and for how long;
+//! `badge_text` gives the badge of one control for
 //! the modifiers that are held.
-//! Why: D106 shows a small badge on every control that has a shortcut once the modifiers of a shortcut have all been
-//! held for 300 ms, narrows the badges as more modifiers are held, and hides them when a required modifier is
-//! released. The timing and narrowing rules are pure logic with injected time, so they are tested without a window.
+//! Why:
+//! D106 shows a small badge on every control that has a shortcut once the modifiers of a shortcut have all been
+//! held for 300 ms,
+//! narrows the badges as more modifiers are held,
+//! and hides them when a required modifier is
+//! released.
+//! The timing and narrowing rules are pure logic with injected time,
+//! so they are tested without a window.
 
 use crate::keymap::{KeyboardPlatform, ShortcutAction};
 use crate::keymap_bindings::{HeldModifiers, binding_for, key_label};
@@ -12,7 +20,8 @@ use crate::keymap_bindings::{HeldModifiers, binding_for, key_label};
 /// What:
 ///      `HINT_HOLD_MS` is how long the modifiers must stay held before the badges appear.
 /// Why:
-///      D106 fixes it at 300 ms, so a quick chord never flashes them.
+///      D106 fixes it at 300 ms,
+/// so a quick chord never flashes them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -21,7 +30,10 @@ use crate::keymap_bindings::{HeldModifiers, binding_for, key_label};
 pub const HINT_HOLD_MS: u64 = 300;
 
 /// What:
-///      `pub struct KeyHints` is the badge state: the modifiers held now, since when, and whether the badges are showing.
+///      `pub struct KeyHints` is the badge state:
+/// the modifiers held now,
+/// since when,
+/// and whether the badges are showing.
 /// Why:
 ///      The badges show after the hold time and then follow the held set until every modifier is released.
 ///
@@ -35,7 +47,8 @@ pub struct KeyHints {
     held: HeldModifiers,
     /// When the held set last changed.
     since_ms: u64,
-    /// Whether the hold time has passed, so badges show.
+    /// Whether the hold time has passed,
+    /// so badges show.
     shown: bool,
 }
 
@@ -44,8 +57,11 @@ impl KeyHints {
     /// What:
     ///      `on_modifiers` records the held set after a key event.
     /// Why:
-    ///      A change of the set restarts the hold time while the badges are hidden, so a quick chord never flashes
-    ///      them; once shown they stay while any modifier is held and follow the set, and releasing everything hides them.
+    ///      A change of the set restarts the hold time while the badges are hidden,
+    /// so a quick chord never flashes
+    ///      them;
+    /// once shown they stay while any modifier is held and follow the set,
+    /// and releasing everything hides them.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -64,7 +80,8 @@ impl KeyHints {
     /// What:
     ///      `on_tick` shows the badges once the held set has been unchanged for the hold time.
     /// Why:
-    ///      A timer calls it; before the hold time it changes nothing.
+    ///      A timer calls it;
+    /// before the hold time it changes nothing.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -78,7 +95,8 @@ impl KeyHints {
     }
 
     /// What:
-    ///      `wait_ms` gives how long until the badges are due, or `None` when no timer is needed.
+    ///      `wait_ms` gives how long until the badges are due,
+    /// or `None` when no timer is needed.
     /// Why:
     ///      The window starts one timer for exactly this long after a modifier goes down.
     ///
@@ -94,7 +112,8 @@ impl KeyHints {
     }
 
     /// What:
-    ///      `visible` gives the held set whose chords the badges show, or `None` while the badges are hidden.
+    ///      `visible` gives the held set whose chords the badges show,
+    /// or `None` while the badges are hidden.
     /// Why:
     ///      Badges narrow to the rows whose modifiers equal the held set.
     ///
@@ -110,7 +129,8 @@ impl KeyHints {
 /// What:
 ///      `pub enum HintTarget` names a control that can carry a badge.
 /// Why:
-///      Each control has its own badge slot in the window, and the table says which actions it shows.
+///      Each control has its own badge slot in the window,
+/// and the table says which actions it shows.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -122,13 +142,17 @@ pub enum HintTarget {
     Search,
     /// The Settings button.
     Settings,
-    /// The Open pill, which opens the system folder dialog.
+    /// The Open pill,
+    /// which opens the system folder dialog.
     OpenFolder,
-    /// The folder title trigger of the folded layout, which opens the picker.
+    /// The folder title trigger of the folded layout,
+    /// which opens the picker.
     FolderTrigger,
-    /// The folder picker list, focused by Alt+1.
+    /// The folder picker list,
+    /// focused by Alt+1.
     FolderList,
-    /// The track list, focused by Alt+2.
+    /// The track list,
+    /// focused by Alt+2.
     TrackList,
     /// The previous track button.
     Previous,
@@ -146,7 +170,8 @@ pub enum HintTarget {
     ModeShuffleFolder,
     /// The Shuffle all segment.
     ModeShuffleAll,
-    /// The whole mode group, which Control+M cycles.
+    /// The whole mode group,
+    /// which Control+M cycles.
     ModeCycle,
     /// The playing track's title on the deck.
     DeckTitle,
@@ -161,7 +186,8 @@ impl HintTarget {
     /// What:
     ///      `ALL` lists every control that can carry a badge.
     /// Why:
-    ///      The window fills one badge slot per target, and tests walk the list.
+    ///      The window fills one badge slot per target,
+    /// and tests walk the list.
     pub const ALL: [HintTarget; 18] = [
         Self::Search,
         Self::Settings,
@@ -187,7 +213,8 @@ impl HintTarget {
     ///      `actions` lists the actions whose chords this control shows,
     ///  most plain first.
     /// Why:
-    ///      A control can have more than one chord, such as the seek ends with their 10 and 60 second variants.
+    ///      A control can have more than one chord,
+    /// such as the seek ends with their 10 and 60 second variants.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

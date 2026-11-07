@@ -1,9 +1,16 @@
 //! Coalesced projection for updates that arrive in bursts.
 //!
-//! What: `project_soon` projects the library screen at once when the last projection was long enough ago, and
-//! otherwise schedules one projection for the end of the interval, however many calls arrive in between.
-//! Why: the analysis sweep reports its measures in chunks of 128 tracks; at one million tracks that is thousands of
-//! reports, and a projection per report would keep the event loop busy for the whole sweep. A few projections per second
+//! What:
+//! `project_soon` projects the library screen at once when the last projection was long enough ago,
+//! and
+//! otherwise schedules one projection for the end of the interval,
+//! however many calls arrive in between.
+//! Why:
+//! the analysis sweep reports its measures in chunks of 128 tracks;
+//! at one million tracks that is thousands of
+//! reports,
+//! and a projection per report would keep the event loop busy for the whole sweep.
+//! A few projections per second
 //! show the same rows.
 //!
 //! In TS you'd write (pseudocode):
@@ -35,15 +42,19 @@ thread_local! {
     static DELAYED: Timer = Timer::default();
 }
 
-/// What: `project_now` projects and records the time.
-/// Why: both the immediate and the delayed path must count as the last projection.
+/// What:
+/// `project_now` projects and records the time.
+/// Why:
+/// both the immediate and the delayed path must count as the last projection.
 fn project_now(app: &AppWindow) {
     LAST_PROJECTION.with(|last| last.set(Some(Instant::now())));
     project(app);
 }
 
-/// What: `project_soon` projects now or at the end of the interval.
-/// Why: see the module description.
+/// What:
+/// `project_soon` projects now or at the end of the interval.
+/// Why:
+/// see the module description.
 pub(crate) fn project_soon(app: &AppWindow) {
     let now: Instant = Instant::now();
     let due: Option<Instant> = LAST_PROJECTION.with(|last| return last.get().map(|at| return at + PROJECT_INTERVAL));

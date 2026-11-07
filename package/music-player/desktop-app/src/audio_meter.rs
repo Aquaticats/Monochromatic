@@ -2,7 +2,9 @@
 //!  The realtime callback bumps these counters with relaxed atomics,
 //!  and the engine thread reads them once a second and logs what changed.
 //! Why:
-//!  The callback must not format strings, lock, or log.
+//!  The callback must not format strings,
+//! lock,
+//! or log.
 //!  Counting there and reporting from the engine thread keeps stutter measurable
 //!  without touching the realtime path.
 //!
@@ -18,7 +20,8 @@ use std::time::{Duration, Instant};
 ///      `pub const REPORT_INTERVAL: Duration = Duration::from_secs(1);`.
 ///  The shortest gap between two log lines about the meter.
 /// Why:
-///       Stutter reports must not flood the log; one line per second is enough to read.
+///       Stutter reports must not flood the log;
+/// one line per second is enough to read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -63,7 +66,8 @@ pub struct AudioMeter {
     ///      `last_requested_frames: AtomicU64`.
     ///  The frame count PipeWire asked for in the most recent callback.
     /// Why:
-    ///       Shows the quantum the graph actually runs at, so latency requests can be checked.
+    ///       Shows the quantum the graph actually runs at,
+    /// so latency requests can be checked.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -144,7 +148,8 @@ pub struct MeterSnapshot {
 impl MeterSnapshot {
     /// What:
     ///      `pub fn since(self, earlier: MeterSnapshot) -> MeterSnapshot`.
-    ///  The counter changes between two snapshots; the latest buffer sizes are kept as-is.
+    ///  The counter changes between two snapshots;
+    /// the latest buffer sizes are kept as-is.
     /// Why:
     ///       The reporter logs only what changed in the last interval.
     ///
@@ -184,9 +189,11 @@ impl AudioMeter {
 
     /// What:
     ///      `pub fn record_short(&self, silent_frames: u64)`.
-    ///  Counts one callback that ran short, and the frames it filled with silence.
+    ///  Counts one callback that ran short,
+    /// and the frames it filled with silence.
     /// Why:
-    ///       Called only while playing, so pause does not count as an underrun.
+    ///       Called only while playing,
+    /// so pause does not count as an underrun.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -216,7 +223,8 @@ impl AudioMeter {
     ///      `pub fn snapshot(&self) -> MeterSnapshot`.
     ///  Reads every counter once.
     /// Why:
-    ///       The reporter takes one snapshot per interval, off the realtime thread.
+    ///       The reporter takes one snapshot per interval,
+    /// off the realtime thread.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -250,9 +258,11 @@ impl Default for AudioMeter {
 
 /// What:
 ///      `pub struct MeterReporter { ... }`.
-///  Decides when the engine thread should log the meter, and what to log.
+///  Decides when the engine thread should log the meter,
+/// and what to log.
 /// Why:
-///       Logs at most once per `REPORT_INTERVAL`, and only when something changed.
+///       Logs at most once per `REPORT_INTERVAL`,
+/// and only when something changed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -261,7 +271,8 @@ impl Default for AudioMeter {
 pub struct MeterReporter {
     /// What:
     ///      `last_report: Option<Instant>`.
-    ///  When the meter was last read, or `None` before the first read.
+    ///  When the meter was last read,
+    /// or `None` before the first read.
     /// Why:
     ///       Enforces the once-per-second cadence.
     ///
@@ -285,7 +296,9 @@ pub struct MeterReporter {
     ///      `announced: bool`.
     ///  Whether the buffer sizes have been logged once already.
     /// Why:
-    ///       The sizes are logged a single time, even when nothing underruns, so the log shows the quantum.
+    ///       The sizes are logged a single time,
+    /// even when nothing underruns,
+    /// so the log shows the quantum.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -299,7 +312,8 @@ impl MeterReporter {
     ///      `pub fn new() -> MeterReporter`.
     ///  A reporter that has not read the meter yet.
     /// Why:
-    ///       The first poll is always due, so the very first change is reported.
+    ///       The first poll is always due,
+    /// so the very first change is reported.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -315,8 +329,10 @@ impl MeterReporter {
 
     /// What:
     ///      `pub fn take_change(&mut self, now: Instant, read: impl FnOnce() -> MeterSnapshot) -> Option<MeterSnapshot>`.
-    ///  When a read is due, reads the meter and returns the change since the last read,
-    ///  but only if the underrun count moved; otherwise returns `None`.
+    ///  When a read is due,
+    /// reads the meter and returns the change since the last read,
+    ///  but only if the underrun count moved;
+    /// otherwise returns `None`.
     /// Why:
     ///       `read` is a closure so the meter is not touched when no report is due.
     ///

@@ -17,7 +17,8 @@ use crate::template_eval::evaluate_parsed_template;
 /// What:
 ///      `use crate::template_parse::parse_template;` imports the parser.
 /// Why:
-///       The template is parsed once when the function is built, not once per row.
+///       The template is parsed once when the function is built,
+/// not once per row.
 use crate::template_parse::parse_template;
 /// What:
 ///      `use crate::template_model::{...};` imports the field list,
