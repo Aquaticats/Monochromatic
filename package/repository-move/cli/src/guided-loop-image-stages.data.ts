@@ -59,11 +59,11 @@ export function fixtureStages(
     {
       id: 'f1a-folder',
       title: 'Fixture: folder',
-      says: `Fixture F1a: a fresh private folder under ${c.fixtureParent}. Only what this run creates is ever touched.`,
-      command: `mkdir --parents ${c.fixtureParent} && mktemp --directory ${c.fixtureParent}/send-fixture.XXXXXX | tee ${c.wiz}/fixture-path`,
+      says: `Fixture F1a: a fresh private folder under ${c.fixtureParent}, recorded with every link in its path resolved. Only what this run creates is ever touched.`,
+      command: `mkdir --parents ${c.fixtureParent} && readlink --canonicalize "$(mktemp --directory ${c.fixtureParent}/send-fixture.XXXXXX)" | tee ${c.wiz}/fixture-path`,
       check: `test -d "$(cat ${c.wiz}/fixture-path)"`,
       checkText: 'the fixture folder exists',
-      rollback: 'the folder is empty; its removal is printed in the last fixture stage',
+      rollback: 'the folder is empty; its removal is printed in the last fixture stage. Running this stage again with --redo makes another fresh folder and records that one.',
       root: 'no',
       unprivileged: 'not needed: the folder is made as the user',
     },
@@ -71,21 +71,23 @@ export function fixtureStages(
       id: 'f1-images',
       title: 'Fixture: loop images',
       says: 'Fixture F1: two 3G sparse images, a btrfs on each, mounted by loop. No real disk is touched.',
-      command: `set -o noclobber
-: > ${fx}/source.img
-: > ${fx}/dest.img
-truncate --no-create --size=3G ${fx}/source.img ${fx}/dest.img
-sudo mkfs.btrfs --quiet ${fx}/source.img
-sudo mkfs.btrfs --quiet ${fx}/dest.img
-sudo mkdir ${fx}/source ${fx}/dest
-sudo mount -o loop ${fx}/source.img ${fx}/source
-sudo mount -o loop ${fx}/dest.img ${fx}/dest
-sudo mkdir ${fx}/dest/recv
-mkdir ${fx}/snap ${fx}/state
-findmnt --noheadings --output SOURCE,TARGET ${fx}/source ${fx}/dest`,
-      check: `test "$(findmnt --noheadings --output SOURCE,TARGET ${fx}/source ${fx}/dest | grep --count '^/dev/loop')" = 2`,
+      command: `for name in source dest; do
+  if [ ! -e ${fx}/$name.img ]; then
+    truncate --size=3G ${fx}/$name.img.partial
+    sudo mkfs.btrfs --quiet --force ${fx}/$name.img.partial
+    mv ${fx}/$name.img.partial ${fx}/$name.img
+  fi
+done
+sudo mkdir --parents ${fx}/source ${fx}/dest
+for name in source dest; do
+  mountpoint --quiet ${fx}/$name || sudo mount -o loop ${fx}/$name.img ${fx}/$name
+done
+sudo mkdir --parents ${fx}/dest/recv
+mkdir --parents ${fx}/snap ${fx}/state
+for name in source dest; do findmnt --noheadings --output SOURCE,TARGET --mountpoint ${fx}/$name; done`,
+      check: `test "$(for name in source dest; do findmnt --noheadings --output SOURCE,TARGET --mountpoint ${fx}/$name; done | grep --count '^/dev/loop')" = 2`,
       checkText: 'both mount lines are loop devices (a missing line stops the test)',
-      rollback: `sudo umount ${fx}/source ${fx}/dest (whichever is mounted); the images are deleted from the list printed in the last fixture stage`,
+      rollback: `sudo umount ${fx}/source ${fx}/dest (whichever is mounted); the images are deleted from the list printed in the last fixture stage. This stage can run again: an image is made only when it does not exist (under a .partial name until its filesystem is made), a folder already mounted is not mounted again, and the folders are made with --parents.`,
       timeoutSeconds: timeout,
       root: 'yes',
       unprivileged: 'mkfs.btrfs on the image file works as the user; the loop mount needs CAP_SYS_ADMIN and btrfs cannot be mounted in a user namespace, so root stays',

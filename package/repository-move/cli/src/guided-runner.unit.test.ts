@@ -621,7 +621,7 @@ await describe({
               const fixture = (await readFile(join(config.wiz, 'fixture-path',), 'utf8',)).trim();
               const sudoLog = await readFile(standIns.log, 'utf8',);
               expect(output,).toContain('f1a-folder',);
-              expect(sudoLog,).toContain(`mkfs.btrfs --quiet ${fixture}/source.img`,);
+              expect(sudoLog,).toContain(`mkfs.btrfs --quiet --force ${fixture}/source.img.partial`,);
               expect(sudoLog,).not.toContain('DRYRUN',);
               const imageExists = await exists(join(fixture, 'source.img',),);
               expect(imageExists,).toBe(true,);
@@ -640,7 +640,7 @@ await describe({
               await markPrepareDone({ config, ids: ['i1-install-link-check', 'i2-record-before', 'f1a-folder',], },);
               await runPrepareWithStandIns({ home, standIns, },);
               const sudoLog = await readFile(standIns.log, 'utf8',);
-              expect(sudoLog,).toContain(`mkfs.btrfs --quiet ${fixture}/source.img`,);
+              expect(sudoLog,).toContain(`mkfs.btrfs --quiet --force ${fixture}/source.img.partial`,);
               expect(sudoLog,).not.toContain('DRYRUN',);
             },);
           },
@@ -692,7 +692,7 @@ await describe({
                 for (const s of stages) {
                   const texts = [await resolvedCommand({ stage: s, config, },), s.check ?? '', s.rollback ?? '',];
                   for (const text of texts) {
-                    for (const line of text.split('\n',).filter((row,) => row.includes('findmnt',))) {
+                    for (const line of ['\n', ';', '|', '&', '(', ')',].reduce((joined, separator,) => joined.replaceAll(separator, '\n',), text,).split('\n',).filter((row,) => row.includes('findmnt',))) {
                       const words = commandWords(line,);
                       const after = words.slice(words.indexOf('findmnt',) + 1,);
                       const operands: string[] = [];
@@ -704,11 +704,8 @@ await describe({
                         else if (['--output', '--target', '--mountpoint', '--source', '--types', '-o', '-T', '-M',].includes(word,)) {
                           skipValue = true;
                         }
-                        else if (!word.startsWith('-',) && !word.startsWith('"',) && !word.startsWith("'",)) {
+                        else if (!word.startsWith('-',)) {
                           operands.push(word,);
-                        }
-                        else if (word.startsWith('"$',) || word.startsWith("'",)) {
-                          break;
                         }
                       }
                       expect([s.id, operands.length <= 1,],).toEqual([s.id, true,],);
