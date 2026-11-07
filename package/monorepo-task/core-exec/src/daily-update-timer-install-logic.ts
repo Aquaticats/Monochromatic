@@ -260,10 +260,11 @@ export async function main(argv: readonly string[],): Promise<number> {
     unitDirectory,
     { recursive: true, },
   );
-  for (const unitName of [
+  // The two units are separate files, so they are rendered side by side.
+  await Promise.all([
     SERVICE_UNIT_NAME,
     TIMER_UNIT_NAME,
-  ]) {
+  ].map(async function writeUnit(unitName,) {
     /**
      Text of the unit source.
      */
@@ -285,7 +286,7 @@ export async function main(argv: readonly string[],): Promise<number> {
         values: placeholders,
       },),
     );
-  }
+  },),);
   await spawn(
     'systemd-analyze',
     [

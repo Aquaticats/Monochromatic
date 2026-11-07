@@ -9,6 +9,7 @@ import {
   type ChildProcess,
   spawn,
 } from 'node:child_process';
+import { once, } from 'node:events';
 
 import type { CommandOutcome, } from './daily-update-run.ts';
 import type { UpdateCommand, } from './daily-update-plan.ts';
@@ -153,24 +154,20 @@ export type ChildEnd = {
  const end = await endOf(spawn('node', ['--version',],),);
  ```
  */
-export function endOf(child: ChildProcess,): Promise<ChildEnd> {
-  // The events fire once each; the promise resolves on the first of them, so this is a callback-API boundary bridge.
-  return new Promise(function settle(resolve,) {
-    child.once(
-      'error',
-      function startFailed(error,) {
-        process.stderr
-          .write(`daily-update: the command could not be started: ${String(error,)}\n`,);
-        resolve({ exitCode: START_FAILURE_EXIT_CODE, },);
-      },
-    );
-    child.once(
+export async function endOf(child: ChildProcess,): Promise<ChildEnd> {
+  try {
+    // `once` rejects when the child emits `error` (it could not be started) before it closes.
+    await once(
+      child,
       'close',
-      function closed(code,) {
-        resolve({ exitCode: code ?? SIGNAL_EXIT_CODE, },);
-      },
     );
-  },);
+  }
+  catch (error) {
+    process.stderr
+      .write(`daily-update: the command could not be started: ${String(error,)}\n`,);
+    return { exitCode: START_FAILURE_EXIT_CODE, };
+  }
+  return { exitCode: child.exitCode ?? SIGNAL_EXIT_CODE, };
 }
 
 /**

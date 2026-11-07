@@ -1302,6 +1302,58 @@ Run 2026-11-07T08:20:23-05:00 to 2026-11-07T08:33:17-05:00 on the main checkout,
   First run, `systemctl --user start --no-block toolchain-daily-update.service`: 08:30:04 to 08:33:17 (3 min 12.6 s wall,
   1 min 15.3 s CPU, 1.4 G memory peak), result `success`; see `doc/planning/toolchain-always-latest.md`, "First run".
 
+### Release record: `monochromatic-mpm-shadow` 0.2.7-alpha.1, the first release held back from crates.io (2026-11-07T10:06:13-05:00)
+
+The owner's rule, verbatim: "My thinking is to deploy all releases on pnpr,
+but only publish rc and stable releases on crates.io";
+"Label decides"; "I'm authorizing you to bump and publish any updates this session."
+This is the first release run under the label gate (merge `4fd9c70572`, 2026-11-07T09:59:47-05:00),
+so its version ends in `-alpha.1` and goes to the GitHub release (and so to the toolchain lock) but not to crates.io.
+
+- Proof runs before it, both on the merged gate:
+  publish dry run for 0.2.6 (`https://github.com/Aquaticats/Monochromatic/actions/runs/42384236171`, `success`;
+  decision `label stable, goes to crates.io: true`, the package build and the dry run ran) and
+  release dry run (`https://github.com/Aquaticats/Monochromatic/actions/runs/42384566055`, `success`;
+  no publish dry run step).
+- Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42384727529`
+  (`workflow_dispatch`, 2026-11-07T10:06:13-05:00 to 10:07:37-05:00, `success`), bump commit `ec2e7dbeb1`
+  (2026-11-07T10:07:26-05:00), version 0.2.6 to 0.2.7-alpha.1.
+- Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42384840600`
+  (built from `ec2e7dbeb1`, 2026-11-07T10:07:34-05:00 to 10:10:13-05:00, `success`).
+  The `ms-detect` job printed `package/mpm-shadow/cli/Cargo.toml holds version '0.2.7-alpha.1': label alpha, goes to crates.io: false`.
+  The crates.io steps of `ms-publish-crate` (package build, provenance attestation, Trusted Publishing login,
+  dry run, publish) were skipped; the job itself ran, so `ms-create-release` was not skipped.
+  Every other crate's `-publish-crate`, `-build-binary` and `-create-release` job was skipped.
+- crates.io does not hold it: the public API
+  `https://crates.io/api/v1/crates/monochromatic-mpm-shadow/0.2.7-alpha.1` answered HTTP 404
+  (`crate ... does not have a version 0.2.7-alpha.1`, user agent `crate-release-plan-check`, no token),
+  and the crate's newest listed version is 0.2.6.
+  Nothing was yanked, because nothing went to crates.io.
+- GitHub release `monochromatic-mpm-shadow-v0.2.7-alpha.1` (published 2026-11-07T10:10:11-05:00):
+  `isPrerelease` false; assets are the aarch64 and x86_64 Linux tarballs and
+  `monochromatic-mpm-shadow-0.2.7-alpha.1-sha256sums.txt`.
+  (The release is not marked a pre-release, so `@latest` resolves to it; that is what moved the lock.)
+- Lock move (commit `fb7e05141c`, 2026-11-07T10:19:16-05:00):
+  `mise run toolchain:update` moved `mpm-shadow` 0.2.6 to 0.2.7-alpha.1 and nothing else (`llama.cpp` stays pinned);
+  the two archive SHA-256 values in the lock equal the release's checksums file.
+  `mise run toolchain:install` fetched and verified the archive, removed the older 0.2.6 copy,
+  and reported no other tool changed; `mpm-shadow --version` prints `mpm-shadow 0.2.7-alpha.1`.
+- Copy check of the fix this release carries (links of the source checkout survive an install in a copy):
+  main's four link folders (`.cache/monochromatic-git-policy-cli-bin`, `mpm-shadow-bin`, `cargo-shadow-bin`,
+  `pnpm-shadow-bin`)
+  were recorded (links, targets, modification times) before a plain `git worktree add --detach <path> main`,
+  after it, after `mise run toolchain:install` inside the copy, and after `git worktree remove --force`;
+  all four records were byte-identical to the first.
+  The copy's own links pointed at the copy's own `.cache/toolchain-launchers`.
+  A first attempt put the worktree under `~/temp/agent`, which is on another filesystem,
+  so the wrapper copied the ignored files
+  instead of making a snapshot (tens of gigabytes staged); it was stopped by PID after about seven minutes
+  and its worktree and staging folder were removed.
+  Main's links were identical after that attempt as well.
+  The second worktree, under `.claude/worktrees` on main's filesystem, was a snapshot (removal took 16.4 s).
+  Evidence files: `~/temp/agent/release-0-2-7-alpha-1/links-before.txt`, `links-after.txt`, `links-after-install.txt`,
+  `links-after-remove.txt`.
+
 ## Evidence log
 
 - crates.io API reads:

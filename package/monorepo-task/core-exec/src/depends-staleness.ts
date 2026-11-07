@@ -21,6 +21,7 @@
    sources: ['src/*.ts'],
    outputs: ['sh:podman image exists img && echo Infinity || echo -Infinity'],
    verbose: false,
+   queryTimeoutMs: 60_000,
    sourceTimeStrategy: 'newest',
    outputTimeStrategy: 'newest',
  });
@@ -77,13 +78,15 @@ function formatTimestamp(t: number,): string {
  
  @param verbose - Whether to log diagnostic messages
  
+ @param queryTimeoutMs - How long each `sh:` command may run before it is ended
+ 
  @param sourceTimeStrategy - Strategy for aggregating source timestamps
  
  @param outputTimeStrategy - Strategy for aggregating output timestamps
  
  @returns `true` when stale (command needs to run)
  
- @throws When a `sh:` command fails or returns unparseable output
+ @throws When a `sh:` command fails, runs past `queryTimeoutMs`, or returns unparseable output
  
  @example
  ```ts
@@ -91,6 +94,7 @@ function formatTimestamp(t: number,): string {
    sources: ['src/*.ts'],
    outputs: ['dist/*.js'],
    verbose: false,
+   queryTimeoutMs: 60_000,
    sourceTimeStrategy: 'newest',
    outputTimeStrategy: 'newest',
  });
@@ -101,12 +105,14 @@ export async function checkStaleness(
     sources,
     outputs,
     verbose,
+    queryTimeoutMs,
     sourceTimeStrategy,
     outputTimeStrategy,
   }: {
     readonly sources: readonly string[];
     readonly outputs: readonly string[];
     readonly verbose: boolean;
+    readonly queryTimeoutMs: number;
     readonly sourceTimeStrategy: TimeStrategy;
     readonly outputTimeStrategy: TimeStrategy;
   },
@@ -118,6 +124,7 @@ export async function checkStaleness(
     items: sources,
     position: 'source',
     verbose,
+    queryTimeoutMs,
   },);
   /**
    Per-output timestamps resolved from globs, files, or shell commands; aggregated below into one output-side time.
@@ -126,6 +133,7 @@ export async function checkStaleness(
     items: outputs,
     position: 'output',
     verbose,
+    queryTimeoutMs,
   },);
 
   /**
@@ -135,6 +143,7 @@ export async function checkStaleness(
     timestamps: sourceTimestamps,
     strategy: sourceTimeStrategy,
     verbose,
+    queryTimeoutMs,
   },);
   /**
    Single output-side timestamp produced by the configured strategy; compared against `sourceTime` to decide staleness.
@@ -143,6 +152,7 @@ export async function checkStaleness(
     timestamps: outputTimestamps,
     strategy: outputTimeStrategy,
     verbose,
+    queryTimeoutMs,
   },);
 
   /**
