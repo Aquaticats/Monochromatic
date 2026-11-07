@@ -1243,6 +1243,13 @@ proved the Wayland library step.
   crates.io `2026-11-07T12:54:08.727833Z`, `yanked` false.
   GitHub release `monochromatic-pnpm-shadow-v0.1.2` holds both Linux tarballs and the checksums file.
 
+- `monochromatic-file-enforcer-cli` 0.1.2 to 0.1.3:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42374580075`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42374713783`
+  (built from `9d94aab55c`),
+  crates.io `2026-11-07T12:58:55.297025Z`, `yanked` false.
+  GitHub release `monochromatic-file-enforcer-cli-v0.1.3` holds both Linux tarballs and the checksums file. Wave 2 (before the wrapper) is complete.
+
 ## Evidence log
 
 - crates.io API reads:
