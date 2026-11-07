@@ -2023,9 +2023,13 @@ The coordinator's gate under a load average of about 70 failed two controls that
   remove an unproven lock). The log says the escalation did happen: the sweep that warned ran 12 s after the lock was born, about 8 s
   after the stop returned, so the killed tree took seconds to be gone, as a process held in a stalled disk call does, or one that the
   scheduler did not run (this host once took 6.03 s of wall time for a check and a rename, section c above; whether disk or scheduler is not measured). A load of 70 on the gate's few CPUs is the trigger; the cause is the escalation
-  at the end of the grace cutting a handler that the host had not let finish. Not reproduced deterministically: the stall cannot be
-  made on demand (an injected delay in `strace` is a ptrace stop, which is not an uninterruptible call, so it would test the
-  injection, not the stall). The control's grace for a responsive holder is now twice the longest delay seen (`RESPONSIVE_GRACE`,
+  at the end of the grace cutting a handler that the host had not let finish. Reproduced deterministically for the cut itself, not for
+  the delay: `a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock` (`lock/git_stop_lock_tests.rs`, `#[ignore]` because it fails
+  today and would hold the gate) starts the holder under `strace -f -e trace=unlink -e inject=unlink:delay_exit=5000000:when=1`, which
+  holds Git's handler for five seconds after the pid file was removed; the stop's grace of two seconds ends inside that hold, the kill
+  follows, and the run ends with `main.lock` of 41 bytes and `pid_file_beside=false`, the failed state of the gate, after 24.6 s (run by
+  hand, `--run-ignored only`). What is not reproduced is why the handler was slow in the gate (a stalled disk or a processor not given to
+  it). The control's grace for a responsive holder is now twice the longest delay seen (`RESPONSIVE_GRACE`,
   `git_stop_lock_tests.rs`); a responsive holder ends at once, so the longer grace costs nothing when it works.
   Exposure that remains in production, for the coordinator and the owner, not fixed here: `STOP_GRACE` is five seconds, below the
   measured 6.03 s stall, so the same cut can leave a ref lock that the next Git command must name, which weighs against "Commits
