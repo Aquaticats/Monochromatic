@@ -97,8 +97,8 @@ export type AuthorizedParams = {
  Whether the request carries the upload token.
 
  Only the password half of the Basic credential is compared against the
- secret, so the username is free-form; git-lfs sends whatever userinfo the
- configured `lfs.url` carries.
+ secret, so the username is free-form; git-lfs sends the user name and password that
+ its Git credential helper returns for the Worker host.
 
  A secret that is absent or blank refuses every write, because comparing
  against a blank value would accept a blank password.

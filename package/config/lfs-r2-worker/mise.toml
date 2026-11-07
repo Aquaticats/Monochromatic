@@ -117,3 +117,37 @@ const failed = results.filter((result) => result.problems.length > 0)
 console.log(`${results.length - failed.length}/${results.length} Worker object URLs verified`)
 if (failed.length > 0) { throw new Error(`${failed.length} Worker object URL(s) failed verification`) }
 '''
+
+[tasks."check:no-credential-in-git-config"]
+description = "Fail when any Git configuration scope, or a tracked tool config, carries a credential in a URL, a key name or an Authorization header. Prints finding locations with credentials masked, then credential-free: yes or no."
+shell = "node --input-type=module-typescript -e"
+run = '''
+import { execFileSync } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
+import { findGitConfigCredentials, findUrlCredentials, parseGitConfigList } from '{{config_root}}/src/git-config-credential-guard.ts'
+/** Repository top level (two levels above the package category folder), where the Git wrapper accepts commands. */
+const top = resolve('{{config_root}}', '../../..')
+/** Every entry of every scope (system, global, local, worktree, command) and every included file. */
+const entries = parseGitConfigList({ output: execFileSync('git', ['config', '--list', '--null', '--show-scope', '--show-origin'], { encoding: 'utf8', cwd: top }) })
+const configFindings = findGitConfigCredentials({ entries })
+for (const finding of configFindings) {
+  console.log(`FAIL git config ${finding.scope} ${finding.origin}: ${finding.reason} in ${finding.redactedKey}`)
+}
+/** Tracked files whose purpose is to configure a tool that talks to a server. */
+const toolConfigs = execFileSync('git', ['ls-files', '-z', '--', '.lfsconfig', '.gitmodules', '**/.npmrc', '.npmrc', '**/.cargo/config.toml', '.cargo/config.toml', '**/.cargo/config', '**/.yarnrc.yml', '.yarnrc.yml', '**/.pnpmrc', '.config/mise/**', 'mise.toml'], { encoding: 'utf8', cwd: top }).split('\0').filter((path) => path !== '')
+let fileFindings = 0
+for (const path of toolConfigs) {
+  const lines = (await readFile(`${top}/${path}`, 'utf8')).split('\n')
+  lines.forEach((line, index) => {
+    for (const found of findUrlCredentials({ text: line })) {
+      fileFindings += 1
+      console.log(`FAIL tool config ${path}:${index + 1}: credential in URL (${found.kind}, value withheld)`)
+    }
+  })
+}
+console.log(`checked ${entries.length} git config entries and ${toolConfigs.length} tracked tool configs`)
+const clean = configFindings.length === 0 && fileFindings === 0
+console.log(`credential-free: ${clean ? 'yes' : 'no'}`)
+if (!clean) { process.exitCode = 1 }
+'''

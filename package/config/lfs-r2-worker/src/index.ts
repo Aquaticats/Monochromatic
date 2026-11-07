@@ -41,6 +41,18 @@ export {
   UNAUTHORIZED as BATCH_UNAUTHORIZED,
 } from './batch.ts';
 export {
+  findGitConfigCredentials,
+  findUrlCredentials,
+  type GitConfigEntry,
+  type GitConfigFinding,
+  type GitConfigFindingReason,
+  parseGitConfigList,
+  redactUrlCredentials,
+  type UrlCredentialFinding,
+  type UrlCredentialKind,
+  USERINFO_MASK,
+} from './git-config-credential-guard.ts';
+export {
   LFS_JSON,
   lfsJson,
   type LfsJsonParams,
