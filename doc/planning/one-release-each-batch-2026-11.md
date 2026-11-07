@@ -1257,6 +1257,10 @@ proved the Wayland library step.
   crates.io `2026-11-07T13:10:36.327011Z`, `yanked` false.
   Released after "go wrapper". GitHub release `monochromatic-git-policy-cli-v0.6.0` holds both Linux tarballs. Nothing was yanked; the batch is complete.
 
+- Lock move (2026-11-07T08:24:40-05:00, commit `c048f3a566`, after the merge `ea2f72c3c1` of `feat/toolchain-always-latest-landing`):
+  the seven locked tools moved from the `cargo-binstall` route to the `archive` route of their GitHub releases,
+  at 0.5.1, 0.6.0, 0.1.4, 0.1.2, 0.2.2, 0.1.3 and 0.6.3 (crate order of "Yank step"); the yank still waits for the live check below.
+
 ## Evidence log
 
 - crates.io API reads:
