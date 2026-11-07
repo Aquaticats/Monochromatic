@@ -10,11 +10,9 @@ use nested_wayland_session::{
     notification_mode::NotificationMode,
     protocol::{JobCommand, Response},
 };
-use super::support::{err_message, field, ok_data, proxy, start, wait_until, Fixture, Signals};
-use zbus::{
-    blocking::Proxy,
-    zvariant::{OwnedObjectPath, Value},
-};
+use super::support::{err_message, error_reply, field, ok_data, proxy, start, wait_until, Fixture, Signals};
+use nested_wayland_session::bus_test_client::Proxy;
+use zbus::{OwnedObjectPath, Variant};
 
 /// Runs a job verb against the fixture's services.
 fn verb(fixture: &Fixture, command: &JobCommand) -> Response {
@@ -32,9 +30,9 @@ fn first_job(fixture: &Fixture) -> String {
 fn request_view(fixture: &Fixture, capabilities: i32) -> anyhow::Result<(OwnedObjectPath, Proxy<'static>)> {
     let server = proxy(&fixture.client, KUISERVER_NAME, JOB_VIEW_SERVER_PATH, "org.kde.JobViewServerV2")?;
     let hints = HashMap::from([
-        ("application-display-name", Value::from("Example Player")),
-        ("application-icon-name", Value::from("multimedia-player")),
-        ("transient", Value::Bool(true)),
+        ("application-display-name", Variant::from("Example Player")),
+        ("application-icon-name", Variant::from("multimedia-player")),
+        ("transient", Variant::Bool(true)),
     ]);
     let path: OwnedObjectPath = server.call("requestView", &("org.example.player", capabilities, hints))?;
     let job = proxy(&fixture.client, KUISERVER_NAME, path.as_str(), JOB_VIEW_INTERFACE)?;
@@ -43,7 +41,7 @@ fn request_view(fixture: &Fixture, capabilities: i32) -> anyhow::Result<(OwnedOb
 
 /// Sends an `update` the way Qt does:
 ///  with the no-reply flag set.
-fn update(job: &Proxy<'static>, properties: &HashMap<&str, Value<'_>>) -> anyhow::Result<()> {
+fn update(job: &Proxy<'static>, properties: &HashMap<&str, Variant<'_>>) -> anyhow::Result<()> {
     job.call_noreply("update", &(properties,))?;
     return Ok(());
 }
@@ -64,11 +62,11 @@ fn job_lifecycle_from_request_to_terminate() -> anyhow::Result<()> {
     assert_eq!(field(&requested, "terminated"), Some("false"));
 
     update(&job, &HashMap::from([
-        ("title", Value::from("Analysing 3 tracks")),
-        ("infoMessage", Value::from("track 1 of 3")),
-        ("percent", Value::U32(10)),
-        ("suspended", Value::Bool(false)),
-        ("descriptionField", Value::from("ignored by Plasma")),
+        ("title", Variant::from("Analysing 3 tracks")),
+        ("infoMessage", Variant::from("track 1 of 3")),
+        ("percent", Variant::U32(10)),
+        ("suspended", Variant::Bool(false)),
+        ("descriptionField", Variant::from("ignored by Plasma")),
     ]))?;
     wait_until("the first update", || return field(&first_job(&fixture), "percent") == Some("10"));
     let updated = first_job(&fixture);
@@ -77,13 +75,13 @@ fn job_lifecycle_from_request_to_terminate() -> anyhow::Result<()> {
     assert_eq!(field(&updated, "suspended"), Some("false"));
 
     // A later update without a title keeps the title; only the Pause flag and the bar move.
-    update(&job, &HashMap::from([("percent", Value::U32(55)), ("suspended", Value::Bool(true))]))?;
+    update(&job, &HashMap::from([("percent", Variant::U32(55)), ("suspended", Variant::Bool(true))]))?;
     wait_until("the suspended flag", || return field(&first_job(&fixture), "suspended") == Some("true"));
     let paused = first_job(&fixture);
     assert_eq!(field(&paused, "title"), Some("Analysing%203%20tracks"));
     assert_eq!(field(&paused, "percent"), Some("55"));
 
-    job.call_noreply("terminate", &(0_u32, "", HashMap::<&str, Value<'_>>::new()))?;
+    job.call_noreply("terminate", &(0_u32, "", HashMap::<&str, Variant<'_>>::new()))?;
     wait_until("the job to end", || return field(&first_job(&fixture), "terminated") == Some("true"));
     let ended = first_job(&fixture);
     assert_eq!(field(&ended, "code"), Some("0"));
@@ -91,7 +89,7 @@ fn job_lifecycle_from_request_to_terminate() -> anyhow::Result<()> {
     assert_eq!(field(&ended, "percent"), Some("55"));
 
     // Plasma unregisters the job object when it ends, so a later call has nowhere to go.
-    let late = job.call::<_, _, ()>("update", &(HashMap::<&str, Value<'_>>::new(),));
+    let late = job.call::<_, _, ()>("update", &(HashMap::<&str, Variant<'_>>::new(),));
     assert!(late.is_err(), "the ended job object must be gone from the bus");
     return Ok(());
 }
@@ -101,7 +99,7 @@ fn job_lifecycle_from_request_to_terminate() -> anyhow::Result<()> {
 fn terminate_records_the_error() -> anyhow::Result<()> {
     let fixture = start(NotificationMode::Kde)?;
     let (_path, job) = request_view(&fixture, 1)?;
-    job.call_noreply("terminate", &(2_u32, "disk full; retry", HashMap::<&str, Value<'_>>::new()))?;
+    job.call_noreply("terminate", &(2_u32, "disk full; retry", HashMap::<&str, Variant<'_>>::new()))?;
     wait_until("the job to end", || return field(&first_job(&fixture), "terminated") == Some("true"));
     let ended = first_job(&fixture);
     assert_eq!(field(&ended, "code"), Some("2"));
@@ -151,7 +149,7 @@ fn job_signals_are_per_job_and_refused_after_the_end() -> anyhow::Result<()> {
     second_cancel.next("cancelRequested");
     assert!(!first_cancel.arrives_soon());
     assert_eq!(err_message(verb(&fixture, &JobCommand::Cancel { id: 9 })), "no job with id 9");
-    second.call_noreply("terminate", &(1_u32, "canceled", HashMap::<&str, Value<'_>>::new()))?;
+    second.call_noreply("terminate", &(1_u32, "canceled", HashMap::<&str, Variant<'_>>::new()))?;
     wait_until("job 2 to end", || return ok_data(verb(&fixture, &JobCommand::List)).contains("terminated=true"));
     assert_eq!(
         err_message(verb(&fixture, &JobCommand::Suspend { id: 2 })),
@@ -166,9 +164,9 @@ fn job_signals_are_per_job_and_refused_after_the_end() -> anyhow::Result<()> {
 fn the_log_shows_whether_the_caller_expected_a_reply() -> anyhow::Result<()> {
     let fixture = start(NotificationMode::Kde)?;
     let (_path, job) = request_view(&fixture, 3)?;
-    update(&job, &HashMap::from([("percent", Value::U32(1))]))?;
+    update(&job, &HashMap::from([("percent", Variant::U32(1))]))?;
     // The positive control: an ordinary call that waits for a reply is logged with the flag clear.
-    job.call::<_, _, ()>("update", &(HashMap::from([("percent", Value::I32(2))]),))?;
+    job.call::<_, _, ()>("update", &(HashMap::from([("percent", Variant::I32(2))]),))?;
     wait_until("both updates", || return ok_data(verb(&fixture, &JobCommand::Log { count: 64 })).matches(" update id=").count() == 2);
     let log = ok_data(verb(&fixture, &JobCommand::Log { count: 64 }));
     assert!(log.contains("update id=1 no-reply=true properties=percent:u:1"), "{log}");
@@ -190,7 +188,7 @@ fn first_interface_version_and_clear() -> anyhow::Result<()> {
     let log = ok_data(verb(&fixture, &JobCommand::Log { count: 64 }));
     assert!(log.contains("request-view id=1 api=1 entry=org.example.old capabilities=3 hints=appIconName:s:folder"), "{log}");
     let (_second, ending) = request_view(&fixture, 0)?;
-    ending.call_noreply("terminate", &(0_u32, "", HashMap::<&str, Value<'_>>::new()))?;
+    ending.call_noreply("terminate", &(0_u32, "", HashMap::<&str, Variant<'_>>::new()))?;
     wait_until("job 2 to end", || return ok_data(verb(&fixture, &JobCommand::List)).contains("terminated=true"));
     assert_eq!(ok_data(verb(&fixture, &JobCommand::Clear)), "");
     let remaining = ok_data(verb(&fixture, &JobCommand::List));
@@ -205,10 +203,11 @@ fn kuiserver_answers_like_plasma() -> anyhow::Result<()> {
     let fixture = start(NotificationMode::Kde)?;
     let server = proxy(&fixture.client, KUISERVER_NAME, JOB_VIEW_SERVER_PATH, "org.kde.kuiserver")?;
     let refusal = server.call::<_, _, ()>("registerService", &("org.example.service", "/Tracker"));
-    let Err(zbus::Error::MethodError(name, message, _)) = refusal else {
-        panic!("expected a method error, got {refusal:?}");
+    let Err(error) = &refusal else {
+        panic!("expected a bus error, got {refusal:?}");
     };
-    assert_eq!(name.as_str(), "org.freedesktop.DBus.Error.NotSupported");
+    let (name, message) = error_reply(error).unwrap_or_else(|| panic!("expected a bus error reply, got {error:?}"));
+    assert_eq!(name, "org.freedesktop.DBus.Error.NotSupported");
     assert_eq!(message.as_deref(), Some("kuiserver proxying capabilities are deprecated and defunct."));
     let contacts: Vec<String> = server.call("registeredJobContacts", &())?;
     assert!(contacts.is_empty());
@@ -231,11 +230,14 @@ fn unsigned_capabilities_find_no_method() -> anyhow::Result<()> {
     let server = proxy(&fixture.client, KUISERVER_NAME, JOB_VIEW_SERVER_PATH, "org.kde.JobViewServerV2")?;
     let attempt = server.call::<_, _, OwnedObjectPath>(
         "requestView",
-        &("org.example.player", 3_u32, HashMap::<&str, Value<'_>>::new()),
+        &("org.example.player", 3_u32, HashMap::<&str, Variant<'_>>::new()),
     );
     // zbus answers a mismatched signature with its own error name, Qt with "no such method";
     // either way the call fails and no job is granted.
-    assert!(matches!(attempt, Err(zbus::Error::MethodError(..))), "{attempt:?}");
+    let Err(error) = &attempt else {
+        panic!("expected the call to fail, got {attempt:?}");
+    };
+    assert!(error_reply(error).is_some(), "{attempt:?}");
     assert_eq!(ok_data(verb(&fixture, &JobCommand::List)), "0");
     return Ok(());
 }

@@ -5,8 +5,10 @@
 > paths and names below this note are historical:
 > `package/rust-module/jsonc-edit` is now `package/jsonc-edit/core-rust`.
 
-Note 2026-10-30: the fuzz sidecar scripts `package/linter/monochromatic-lint.fuzz/bin/container.mjs` and
-`planted-controls.mjs` are TypeScript files now; read those names here as `container.ts` and `planted-controls.ts`.
+Note 2026-10-30:
+the fuzz sidecar scripts `package/linter/monochromatic-lint.fuzz/bin/container.mjs` and
+`planted-controls.mjs` are TypeScript files now;
+read those names here as `container.ts` and `planted-controls.ts`.
 
 ## Purpose and how to respond
 
@@ -539,7 +541,8 @@ the rerun under `Final campaigns` is the proof for each killing test.
 
 - `src/run_check.rs:126:13`,
   `delete field explicit_types from struct RustRuleSettings expression in HostChecker<'run>::check_rust_root`.
-  Equivalent, and the redundant code is removed.
+  Equivalent,
+  and the redundant code is removed.
   `check_syntax_rules` reads only `max_lines`,
   `rustdoc` and `no_anonymous_functions`,
   so clearing `explicit_types` in a copy of the settings changed nothing.
@@ -599,8 +602,10 @@ Under either mutant the test binary aborts with a stack overflow,
 so the per-mutant log shows the overflow line rather than a named failing test.
 The depth comes from a calibration of the debug executable in the bounded container,
 varying the main thread's stack with `ulimit -s`
-(scratch harness, not committed;
-134 is the abort status, 0 a completed run):
+(scratch harness,
+not committed;
+134 is the abort status,
+0 a completed run):
 
 - 1,000 parentheses:
   2,048 KiB aborts,
@@ -641,7 +646,8 @@ which no campaign had mutated:
 The first run mutates test image
 `c184147f62f1ed1afa673cbe53b36cb7c8aeb8fd87e4f537763572551f7b03c8`.
 
-A first start (`mutation-AuPwZ7`, `campaign-markdown-1.log`) was stopped by removing its container
+A first start (`mutation-AuPwZ7`,
+`campaign-markdown-1.log`) was stopped by removing its container
 after the baseline and a few mutants,
 because each mutant took 11 seconds to build for 0.1 seconds of tests.
 Its baseline ran 136 library tests and filtered out all 12 `binary` tests,
@@ -680,7 +686,8 @@ The rerun under `Final campaigns` is the proof for each killing test.
 
 - `src/markdown_lfs_config.rs:56:28: replace || with && in lfs_endpoints`
   and `src/markdown_lfs_config.rs:56:53: replace || with && in lfs_endpoints`.
-  Equivalent, and the redundant code is removed.
+  Equivalent,
+  and the redundant code is removed.
   The mutated line skipped blank lines and `#` or `;` comments before anything else read them.
   Without it,
   a blank line has no `=` and declares nothing;
@@ -702,7 +709,8 @@ The rerun under `Final campaigns` is the proof for each killing test.
   a processing finding built from this error would lose its explanation.
   The only code that renders it is `HostChecker::lfs_context` in `run_check.rs`,
   whose tests are outside the `markdown` filter,
-  so the survivor is a property of the scope's test selection, not of the whole suite.
+  so the survivor is a property of the scope's test selection,
+  not of the whole suite.
   `optional_reads_distinguish_absence_from_failure` now asserts that the rendered text equals the stored message
   and that the message starts with `Cannot read `.
 - `src/markdown_lfs_context.rs:137:72: replace != with == in find_lfs_repo_root`.
@@ -718,7 +726,8 @@ The rerun under `Final campaigns` is the proof for each killing test.
 - `src/markdown_lfs_sha256.rs:136:47: replace ^ with | in compress`,
   `src/markdown_lfs_sha256.rs:144:49: replace ^ with | in compress`
   and `src/markdown_lfs_sha256.rs:144:71: replace ^ with | in compress`.
-  Equivalent, all three.
+  Equivalent,
+  all three.
   Line 136 was the FIPS 180-4 `Ch` spelling `(x & y) ^ (!x & z)`:
   its halves never share a set bit,
   because one needs the `x` bit set and the other needs it clear,
@@ -837,7 +846,8 @@ Its per-mutant logs name the test that failed under each mutant the first run mi
 - `replace debug_progress with ()`:
   `debug_streams_workspace_progress_and_plain_runs_stay_silent`.
 - `replace || with && in run_process`:
-  `a_failing_output_stream_exits_two`, and no other test.
+  `a_failing_output_stream_exits_two`,
+  and no other test.
 - The three mutants of the new `silences_panics`
   (constant `true`,
   constant `false`,
@@ -973,7 +983,8 @@ Round 2 counts.
 The three `manifest.json` files name the same `baseImage`,
 `5b241d8ac5eec41f866c91e433423507a918168bd076ed6c11dae46e1e19da44`,
 the same cargo-mutants executable
-(27.1.0, SHA-256 `f985f265ee3ea3e453aa98b04c52134953911f692f8ce8abf137f3873202a2d0`),
+(27.1.0,
+SHA-256 `f985f265ee3ea3e453aa98b04c52134953911f692f8ce8abf137f3873202a2d0`),
 both exclusion patterns and the 180 second limit,
 and each `exit.json` records status 0.
 `git diff` between the gate 6 head `9e61f66a3` and the commit that records this
@@ -1015,7 +1026,8 @@ Every scope is now one entry of a table in `bin/mutate-container.mjs`:
 the arguments that decide which mutants exist,
 the arguments that decide how each mutant is built and tested,
 and a per-mutant limit where it differs from 180 seconds.
-Any campaign also takes `-- --shard k/n` (zero-based, as in cargo-mutants)
+Any campaign also takes `-- --shard k/n` (zero-based,
+as in cargo-mutants)
 and `-- --re <regex>` to rerun only some of its mutants.
 The campaign,
 `--list <scope>` and `--coverage` all read that table,
@@ -1061,7 +1073,8 @@ they used the shared `development` tags before.
 with `cargo mutants --list --no-config` and both exclusion patterns,
 writes each listing to a `coverage-*` evidence directory,
 and fails unless the union of the scope listings equals the unscoped listing name by name.
-On the committed runner (`ed7c3080d`, linter source tree `ceb495865521beda0f988a536435ffd69cc1d100`)
+On the committed runner (`ed7c3080d`,
+linter source tree `ceb495865521beda0f988a536435ffd69cc1d100`)
 it reports 1,643 unscoped mutants and a union of 1,643,
 with none outside every scope and none unknown (`coverage-WgJPEx`):
 rust-style 3,
@@ -1137,7 +1150,10 @@ the invocation runs on the calling thread as before.
 The platform figure behind the change is from Microsoft's documentation,
 not recalled:
 the MSVC [`/STACK` reference](https://learn.microsoft.com/en-us/cpp/build/reference/stack-stack-allocations)
-says "For ARM64, x86, and x64 machines, the default stack size is 1 MB",
+says "For ARM64,
+x86,
+and x64 machines,
+the default stack size is 1 MB",
 and [Thread Stack Size](https://learn.microsoft.com/en-us/windows/win32/procthread/thread-stack-size)
 says "The default stack reservation size used by the linker is 1 MB"
 and that the main thread's size comes from the executable header.
@@ -1219,7 +1235,8 @@ each written back and checked with `git diff --quiet` (`hand-mutations-stack-hoo
   both passed,
   which is the gap the probe closes.
 - A 16 MiB stack:
-  the equality failed (`left: 16777216`, `right: 8388608`).
+  the equality failed (`left: 16777216`,
+  `right: 8388608`).
   A larger stack is not a defect,
   so only the equality distinguishes it.
 
@@ -1474,7 +1491,8 @@ Logs are in `package/linter/monochromatic-lint.fuzz/target/verification/`.
 
 - `test` (`fuzz-test-gaps.log`):
   9 generator controls passed on the host toolchain.
-- `test:planted` (`fuzz-planted-gaps.log`, evidence `planted-jmjt15`):
+- `test:planted` (`fuzz-planted-gaps.log`,
+  evidence `planted-jmjt15`):
   the 9 unplanted controls passed,
   and each of the six plants failed at least one named control:
   a rejected `warn` severity failed `generated_cases_reach_valid_settings` and four orchestration controls;
@@ -1485,7 +1503,8 @@ Logs are in `package/linter/monochromatic-lint.fuzz/target/verification/`.
   and an unlabeled rustdoc fence no longer a doc test failed `counted_cases_reach_every_processor_layer`
   and `raw_hosts_are_processed_in_every_language`.
   An earlier run on tree `b4f8c609dc6dbc35bdcf99481b1e9cf89529e05d` (`planted-XsM2Y0`) gave the same result.
-- `smoke` (`fuzz-smoke-gaps.log`, evidence `campaign-ljLFuJ`),
+- `smoke` (`fuzz-smoke-gaps.log`,
+  evidence `campaign-ljLFuJ`),
   which runs the unit controls and Clippy in the build container and then the AddressSanitizer build:
   9 controls passed,
   Clippy finished with no finding,

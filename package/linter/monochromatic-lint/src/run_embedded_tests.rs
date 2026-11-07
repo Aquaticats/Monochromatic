@@ -10,7 +10,9 @@
 //! // expect(() => fixSource(request)).toThrow({ exitStatus: 2 });
 //! ```
 
-use super::{EMBEDDED_CONFIGURATION_LABEL, EmbeddedFailure, EmbeddedRequest, EmbeddedRun, fix_source};
+use super::{
+    EMBEDDED_CONFIGURATION_LABEL, EmbeddedFailure, EmbeddedRequest, EmbeddedRun, fix_source,
+};
 use crate::test_fs::Fixture;
 use std::path::Path;
 
@@ -23,7 +25,12 @@ const SELECTING: &str =
 const SETUP_STATUS: u8 = 2;
 
 /// Fix `source` as `name` under `configuration` from `top_level`.
-fn run(top_level: &Path, configuration: &str, name: &str, source: &[u8]) -> Result<EmbeddedRun, EmbeddedFailure> {
+fn run(
+    top_level: &Path,
+    configuration: &str,
+    name: &str,
+    source: &[u8],
+) -> Result<EmbeddedRun, EmbeddedFailure> {
     return fix_source(&EmbeddedRequest {
         top_level,
         configuration,
@@ -37,7 +44,8 @@ fn run(top_level: &Path, configuration: &str, name: &str, source: &[u8]) -> Resu
 fn a_clean_source_comes_back_unchanged() {
     let fixture: Fixture = Fixture::new();
     let source: &[u8] = b"# Title\n\nText.\n";
-    let outcome: EmbeddedRun = run(fixture.path.as_path(), SELECTING, "a.md", source).expect("usable");
+    let outcome: EmbeddedRun =
+        run(fixture.path.as_path(), SELECTING, "a.md", source).expect("usable");
     assert_eq!(outcome.fixed.as_bytes(), source);
     assert!(outcome.findings.is_empty());
 }
@@ -48,7 +56,11 @@ fn a_relative_top_level_is_refused() {
     let failure: EmbeddedFailure =
         run(Path::new("relative/top"), SELECTING, "a.md", b"a\n").expect_err("refused");
     assert_eq!(failure.exit_status, SETUP_STATUS);
-    assert!(failure.explanation.contains("absolute"), "{}", failure.explanation);
+    assert!(
+        failure.explanation.contains("absolute"),
+        "{}",
+        failure.explanation
+    );
 }
 
 /// A configuration that does not parse is a setup failure that names the embedded configuration.
@@ -59,7 +71,9 @@ fn a_configuration_that_does_not_parse_is_refused_by_label() {
         run(fixture.path.as_path(), "[{", "a.md", b"a\n").expect_err("refused");
     assert_eq!(failure.exit_status, SETUP_STATUS);
     assert!(
-        failure.explanation.starts_with(format!("Configuration {EMBEDDED_CONFIGURATION_LABEL}:").as_str()),
+        failure
+            .explanation
+            .starts_with(format!("Configuration {EMBEDDED_CONFIGURATION_LABEL}:").as_str()),
         "{}",
         failure.explanation
     );
@@ -72,7 +86,11 @@ fn a_name_without_a_language_and_a_source_that_is_not_text_are_refused() {
     let unnamed: EmbeddedFailure =
         run(fixture.path.as_path(), SELECTING, "a.txt", b"a\n").expect_err("refused");
     assert_eq!(unnamed.exit_status, SETUP_STATUS);
-    assert!(unnamed.explanation.contains("must end in .rs, .md or .mdx"), "{}", unnamed.explanation);
+    assert!(
+        unnamed.explanation.contains("must end in .rs, .md or .mdx"),
+        "{}",
+        unnamed.explanation
+    );
     let valid_prefix: &[u8] = b"ab";
     let mut bytes: Vec<u8> = valid_prefix.to_vec();
     bytes.push(0xff);
@@ -80,7 +98,9 @@ fn a_name_without_a_language_and_a_source_that_is_not_text_are_refused() {
         run(fixture.path.as_path(), SELECTING, "a.md", bytes.as_slice()).expect_err("refused");
     assert_eq!(binary.exit_status, SETUP_STATUS);
     assert!(
-        binary.explanation.contains(format!("offset {}", valid_prefix.len()).as_str()),
+        binary
+            .explanation
+            .contains(format!("offset {}", valid_prefix.len()).as_str()),
         "{}",
         binary.explanation
     );

@@ -379,7 +379,8 @@ Uncommitted throwaway pipeline fork changes corpus commit and exposes clone loca
 `TRANSLATION_REPAIR_CORPUS_DIR`.
 That variable belonged to the fork alone.
 Production has read `TRANSLATION_REPAIR_CORPUS_CLONE_DIR` and `TRANSLATION_REPAIR_CORPUS_COMMIT`
-since `b0a79eb66` (2026-09-01), so later pull-request runs need no fork.
+since `b0a79eb66` (2026-09-01),
+so later pull-request runs need no fork.
 
 Startup process `proc_80b4` omitted mise;
 stable log is

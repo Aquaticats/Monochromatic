@@ -12,7 +12,8 @@ so the application log shows the warning as an error.
 
 ## Symptom
 
-On rust-analyzer's standard error, two times during every start:
+On rust-analyzer's standard error,
+two times during every start:
 
 ```text
 2026-10-05T14:50:17.468643919-04:00  WARN notify error: No path was found.
@@ -32,13 +33,18 @@ Conditions:
 - `rust-analyzer/rust-analyzer.toml` does not exist below `$XDG_CONFIG_HOME`,
   or below `~/.config` when that variable is unset.
 
-Analysis is not affected: hover, definitions, and diagnostics work.
+Analysis is not affected:
+hover,
+definitions,
+and diagnostics work.
 
 ## Root cause
 
-Source: `src/tools/rust-analyzer` in `rust-lang/rust` at `1303417c416e1595173d9689e7394c31e136ae95`,
+Source:
+`src/tools/rust-analyzer` in `rust-lang/rust` at `1303417c416e1595173d9689e7394c31e136ae95`,
 the commit the installed binary reports,
-and `notify` 8.2.0, the version in that tree's `Cargo.lock`.
+and `notify` 8.2.0,
+the version in that tree's `Cargo.lock`.
 
 The list of folders to load always gets an entry for the user configuration file,
 and that entry is always marked as watched (`crates/load-cargo/src/lib.rs:366`):
@@ -161,7 +167,8 @@ Versions:
 `rust-analyzer 1.100.0-nightly (1303417 2026-09-21)` from the rustup toolchain `nightly-2026-09-22`;
 `helix-lsp` at `ba40e547426b0f9896c8bdc699a4ab11f2b37dbc`.
 
-Harness: the IDE's real start path with a plan file.
+Harness:
+the IDE's real start path with a plan file.
 `extra_languages` adds variables to the server's environment or settings to its configuration.
 
 ```sh
@@ -187,35 +194,56 @@ Measured on 2026-10-05 on a disposable project with a committed `Cargo.lock`.
 
 ### Variants without the warning
 
-- Confined, `XDG_CONFIG_HOME` names a directory that contains an empty `rust-analyzer/rust-analyzer.toml`: none.
-- Unconfined (`"unconfined": true`), same directory: none.
-- Confined, `[language-server.rust-analyzer.config.files]` with `watcher = "client"`: none;
-  rust-analyzer then registers its watch patterns with the client (`client/registerCapability`, two times).
+- Confined,
+  `XDG_CONFIG_HOME` names a directory that contains an empty `rust-analyzer/rust-analyzer.toml`:
+  none.
+- Unconfined (`"unconfined": true`),
+  same directory:
+  none.
+- Confined,
+  `[language-server.rust-analyzer.config.files]` with `watcher = "client"`:
+  none;
+  rust-analyzer then registers its watch patterns with the client (`client/registerCapability`,
+  two times).
 
 ### Variants with the warning
 
-- Confined, default environment: two.
-- Unconfined, default environment: two.
-- Confined, `XDG_CONFIG_HOME` names an empty directory: two.
-- Confined, `RA_LOG = "vfs_notify=debug"`: two, each after a `Message(Config(...))` that lists the file.
+- Confined,
+  default environment:
+  two.
+- Unconfined,
+  default environment:
+  two.
+- Confined,
+  `XDG_CONFIG_HOME` names an empty directory:
+  two.
+- Confined,
+  `RA_LOG = "vfs_notify=debug"`:
+  two,
+  each after a `Message(Config(...))` that lists the file.
 
 ## Verified workarounds
 
-The server is unchanged, and so is its warning.
-Since 2026-10-06 the application logs the two lines at INFO instead of ERROR, with their text kept,
+The server is unchanged,
+and so is its warning.
+Since 2026-10-06 the application logs the two lines at INFO instead of ERROR,
+with their text kept,
 as every line a server writes to standard error
-([`helix-lsp-transport-error-level-records.md`](helix-lsp-transport-error-level-records.md), "Verified workarounds");
+([`helix-lsp-transport-error-level-records.md`](helix-lsp-transport-error-level-records.md),
+"Verified workarounds");
 the repository owner kept server-side file watching.
 No other handling is applied:
 
 - **A configuration directory that contains the file.**
   Pointing the server's `XDG_CONFIG_HOME` at a private directory
   with an empty `rust-analyzer/rust-analyzer.toml` removes the warning.
-  Tradeoff: the server no longer reads the user's real rust-analyzer configuration,
+  Tradeoff:
+  the server no longer reads the user's real rust-analyzer configuration,
   so settings the user keeps there stop applying inside the IDE.
 - **Client-side watching.**
   `files.watcher = "client"` removes rust-analyzer's own watcher and with it the warning.
-  Tradeoff: rust-analyzer then learns about changed files only from the client.
+  Tradeoff:
+  rust-analyzer then learns about changed files only from the client.
   The Language module reports only reloads of the displayed file
   (`reload` in `package/ide/app/src/language/lifecycle.rs`),
   so edits to other project files made outside the IDE would no longer reach rust-analyzer
@@ -232,25 +260,35 @@ No other handling is applied:
 
 ## Upstream filing decision
 
-`.out-of-scope/` was checked: no entry covers rust-analyzer.
+`.out-of-scope/` was checked:
+no entry covers rust-analyzer.
 
 Tracker searches on 2026-10-05 in `rust-lang/rust-analyzer`:
 issues for `"No path was found"` and `notify error`,
 pull requests for `user config rust-analyzer.toml watch`.
-`notify error` returned [#19560][ra-19560], open since 2025-04-10, opened by a maintainer:
+`notify error` returned [#19560][ra-19560],
+open since 2025-04-10,
+opened by a maintainer:
 `WARN notify error: Input watch path is neither a file nor a directory.` in the logs on startup,
-with the remark that something is configured wrong, and no diagnosis in the thread.
+with the remark that something is configured wrong,
+and no diagnosis in the thread.
 That text is `notify`'s message for the same failed watch on Windows (`notify/src/windows.rs:171`),
 so the report describes this behavior on another platform.
 The watched entry and the `watch` function are unchanged on `master`
-(`ce37b245369ade4e2a18063ae4d60a17606c6d26`, compared on 2026-10-05).
+(`ce37b245369ade4e2a18063ae4d60a17606c6d26`,
+compared on 2026-10-05).
 
 1.  Is it really upstream's fault?
-    Yes. The server watches a path it has no reason to expect, and the maintainer's report says so.
+    Yes.
+    The server watches a path it has no reason to expect,
+    and the maintainer's report says so.
 2.  Can upstream fix it?
-    Yes, for example by watching the file only when it exists, or by watching its directory.
+    Yes,
+    for example by watching the file only when it exists,
+    or by watching its directory.
 3.  Are they supporting this use case?
-    Yes. Server-side watching is a documented value of `files.watcher`.
+    Yes.
+    Server-side watching is a documented value of `files.watcher`.
 4.  Would the repo welcome our contribution?
     Not in the form this session can produce.
     `AI_POLICY.md` on `master` allows AI as a tool with disclosure,
@@ -258,11 +296,16 @@ The watched entry and the `watch` function are unchanged on `master`
     and forbids issues and pull requests opened by autonomous agents.
     A drafted comment would break that rule.
 5.  Will they likely fix it?
-    Plausible: a maintainer opened the report; nothing has happened in the thread since.
+    Plausible:
+    a maintainer opened the report;
+    nothing has happened in the thread since.
 6.  Have we prototyped a minimal fix?
-    No. Constraint 4 fails, so no prototype was built.
+    No. Constraint 4 fails,
+    so no prototype was built.
 
-Decision: do not file, and post no comment.
+Decision:
+do not file,
+and post no comment.
 What the existing thread lacks is the cause:
 the user-configuration entry in `ProjectFolders::new` is watched whether or not the file exists.
 A human who wants to add that to [#19560][ra-19560] has to write it in their own words;
@@ -284,8 +327,13 @@ Facts a human comment on #19560 could state, each verified in "Root cause" and "
 
 Measured on 2026-10-05 in the worktree `.claude/worktrees/ide-language-verify`.
 
-- Variant runs with their full logs: `~/temp/agent/ide-language-verify-notify-3TUp6k/`
-  (`results.json`, one `*.log.txt` per variant).
-- Client-side watching: `~/temp/agent/ide-language-verify-watcher-rOVM1n/`.
-- Source files at the cited commit: `~/temp/agent/ide-language-verify-r1/ra-1303417/`;
-  `notify` 8.2.0: `~/temp/agent/notify-20261005/`.
+- Variant runs with their full logs:
+  `~/temp/agent/ide-language-verify-notify-3TUp6k/`
+  (`results.json`,
+  one `*.log.txt` per variant).
+- Client-side watching:
+  `~/temp/agent/ide-language-verify-watcher-rOVM1n/`.
+- Source files at the cited commit:
+  `~/temp/agent/ide-language-verify-r1/ra-1303417/`;
+  `notify` 8.2.0:
+  `~/temp/agent/notify-20261005/`.

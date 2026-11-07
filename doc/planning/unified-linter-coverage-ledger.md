@@ -72,7 +72,10 @@ whose `Handoff 2026-10-05` section carries the full current state.
 
 Implemented and verified:
 configuration merge and discovery,
-Rust rules (max-lines, rustdoc, anonymous functions, explicit types),
+Rust rules (max-lines,
+rustdoc,
+anonymous functions,
+explicit types),
 native Markdown/MDX adapter and rules,
 JSONL/stdin-fix output routing,
 literal/glob discovery,
@@ -85,22 +88,30 @@ Verification evidence:
 processor delegate 203-test suite with Clippy and guard-focused mutation
 (image `62a207e21b353bf4`),
 scanner delegate full suite with ASan fuzzing (256,297 runs) and panic controls,
-and fuzz campaign `campaign-KqhBLf` covering merge, configuration,
-rust-style, explicit-types, and Markdown/MDX including tables and prose.
+and fuzz campaign `campaign-KqhBLf` covering merge,
+configuration,
+rust-style,
+explicit-types,
+and Markdown/MDX including tables and prose.
 
 Open mutation state:
 full-snapshot campaign `proc_3d86` recorded 18 survivors on its older snapshot;
 Markdown-scoped rerun `proc_ea56` recorded 17 survivors
-centered on table cell boundaries, continuation prefixes,
+centered on table cell boundaries,
+continuation prefixes,
 and prose break/block-start guards.
 Both survivor inventories need disposition or new controls before any completion claim.
 
 Remaining implementation:
 linter executable orchestration and consumer migration,
-native cli-git wrapper (configuration, policies, Git operations, transactions),
+native cli-git wrapper (configuration,
+policies,
+Git operations,
+transactions),
 Windows-native scanner mutation verification,
 and native LFS URL normalization vetting
-(planning record: `native-lfs-url-normalization-evaluation.md`).
+(planning record:
+`native-lfs-url-normalization-evaluation.md`).
 
 ## Rust linter
 

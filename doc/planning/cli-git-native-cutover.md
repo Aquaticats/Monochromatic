@@ -1,17 +1,22 @@
 # cli-git native cutover runbook
 
-Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
 the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
-and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
 (the list is in `doc/planning/git-policy-cli-program-rename.md`).
 The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
-Note 2026-10-29: the runner scripts this document names under `package/git-policy` (`cli/bin`,
-`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
-name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.
+Note 2026-10-29:
+the runner scripts this document names under `package/git-policy` (`cli/bin`,
+`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now.
+Read every `.mjs` file name here as the same
+name ending in `.ts`;
+the driver `old-format-fixtures` is `old-format-driver`.
 
 ## Purpose and how to use this document
 
@@ -64,13 +69,18 @@ where they say a file "will be deleted" or "stays",
 Status on 2026-11-01 (note added in place):
 the cutover is finished.
 The retirement landed on `main`
-(`642b6d72cb`, "delete the TypeScript Git policy wrapper, its tasks, bins and trust workflow", is an ancestor of `main`;
+(`642b6d72cb`,
+"delete the TypeScript Git policy wrapper,
+its tasks,
+bins and trust workflow",
+is an ancestor of `main`;
  the merge is `9e633292e7` of 2026-10-13),
 `package/git-policy/cli/src` holds only `native/`,
 and the authoring packages under `package/git-policy/` are gone.
 The wrapper was installed for the user's whole session on 2026-10-25 (`doc/planning/cli-git-global-install.md`).
 `Steps that remain`,
- `User-boundary verification` and `Order of the retirement commits` are a historical record, not open work.
+ `User-boundary verification` and `Order of the retirement commits` are a historical record,
+not open work.
 
 Facts measured on 2026-10-12 carry that date;
  facts measured on 2026-10-13 say so.
@@ -131,7 +141,8 @@ How to use it:
   delete the commit,
    configuration and dependent-version differentials;
   keep `native:interop` and give it an incumbent-provisioning step from the pinned revision
-  (superseded: the matrix ran once against a rebuilt incumbent and the user then had the incumbent tooling deleted,
+  (superseded:
+  the matrix ran once against a rebuilt incumbent and the user then had the incumbent tooling deleted,
   `doc/handover/cli-git-native-interop.md`).
 - Release and CI jobs:
   build the crate from the checkout with `cargo build --release --locked`.
@@ -878,7 +889,8 @@ and `/opt/cli-git` into the image (`bin/interop-native-container.mjs:55-79,146,2
    so they cannot run
 unchanged until an incumbent-provisioning step from the pinned revision exists.
 
-Note (2026-10-13): deleted at the user's request and readable at commit `5d61d7b442`:
+Note (2026-10-13):
+deleted at the user's request and readable at commit `5d61d7b442`:
 The incumbent-provisioning step and the incumbent drivers.
 The results are in `doc/handover/cli-git-native-interop.md`.
 
@@ -1044,7 +1056,8 @@ revision).
    and kept in commit `e10b8186bc`] (`Gates that trail the cutover`) include the
     old-and-new interop matrix,
      which needs a runnable incumbent after the retirement.
-    Note (2026-10-13): deleted at the user's request and readable at commit `5d61d7b442`:
+    Note (2026-10-13):
+    deleted at the user's request and readable at commit `5d61d7b442`:
     The runnable incumbent and its provisioning step.
     The results are in `doc/handover/cli-git-native-interop.md`.
 8.  `package/git-executable/core` treats native executables as real Git (see `Sibling packages`).
@@ -1324,8 +1337,10 @@ Results for 0.1.1,
 
 ### Why the pin is 0.1.1
 
-Update 2026-10-14: the user decided that nothing this repository publishes needs a pin
-("You don't need to pin anything we control"), so `mise.no-env.toml` now says `latest` for the wrapper and the
+Update 2026-10-14:
+the user decided that nothing this repository publishes needs a pin
+("You don't need to pin anything we control"),
+so `mise.no-env.toml` now says `latest` for the wrapper and the
 linter and `mise.lock` records the resolved version (0.1.2).
 The section below stays as the record of why 0.1.0 must never be installed.
 
@@ -1877,17 +1892,27 @@ Each step is its own commit,
 
 - Whether the `version` job of `npm-release.yml` works on GitHub:
   it was checked with `actionlint` 1.7.12 and its commands were run locally against the installed 0.1.0 executable,
-   but it has never run on a hosted runner, because every push so far found no pending changeset and skipped it
-  (runs 38676475783, 38689708686); a run needs a pending changeset and opens or updates the Version Packages pull
+   but it has never run on a hosted runner,
+  because every push so far found no pending changeset and skipped it
+  (runs 38676475783,
+  38689708686);
+  a run needs a pending changeset and opens or updates the Version Packages pull
   request.
-  Measured on 2026-10-15 from the runner image notes (`images/ubuntu/Ubuntu2404-Readme.md`, image 20261012.334.1):
-  hosted Ubuntu 24.04 has Git 2.55.0 (exactly the floor), Git LFS 3.8.0 and glibc 2.39, so the executable's needs are
+  Measured on 2026-10-15 from the runner image notes (`images/ubuntu/Ubuntu2404-Readme.md`,
+  image 20261012.334.1):
+  hosted Ubuntu 24.04 has Git 2.55.0 (exactly the floor),
+  Git LFS 3.8.0 and glibc 2.39,
+  so the executable's needs are
   met there.
   `final-newline.yml` was deleted on 2026-10-15.
 - Hosts older than glibc 2.39:
-   the release archive's x86_64 file needs `GLIBC_2.39` (`pidfd_spawnp` and `pidfd_getpid`, measured on the 0.1.4
-  archive with `objdump -T`); no older host was tried, and the README says the archives do not start there.
-  The `ubuntu-latest` label moves to Ubuntu 26.04 in November 2026, so the wrapper's x86_64 build job names
+   the release archive's x86_64 file needs `GLIBC_2.39` (`pidfd_spawnp` and `pidfd_getpid`,
+  measured on the 0.1.4
+  archive with `objdump -T`);
+  no older host was tried,
+  and the README says the archives do not start there.
+  The `ubuntu-latest` label moves to Ubuntu 26.04 in November 2026,
+  so the wrapper's x86_64 build job names
   `ubuntu-24.04` to keep the floor.
 - Whether `security/forbidden-strings` reports a finding at the post-commit trigger with 0.1.1:
    the throwaway commits had the rules file present and exited 0,

@@ -170,7 +170,8 @@ Each option section below says how its runtime reaches them.
 - Neither Gradle project sets that property
    (`package/linter/kotlin/gradle.properties` and `package/music-player/android-app/gradle.properties`,
    verified).
-- Consequence for every route, not only Kotlin:
+- Consequence for every route,
+  not only Kotlin:
    a Kotlin daemon started inside one task's cgroup can be shared by a concurrent task,
    so `cgroup.kill` or `cgroup.freeze` on the first task can kill or stall the second task's compile
    (inference from the doc quote plus the measured log).
@@ -328,7 +329,8 @@ so X3 does not show that Kotlin fares worse than those stacks.
    (`kotlin-native/platformLibs/src/platform/linux/linux.def:39` at `v2.4.20`,
    verified).
 - Linking a host symbol that the sysroot lacks fails at link time.
-  KT-67046 shows `ld.gold` errors such as "undefined reference to 'dlopen', version 'GLIBC_2.34'".
+  KT-67046 shows `ld.gold` errors such as "undefined reference to 'dlopen',
+  version 'GLIBC_2.34'".
   A JetBrains engineer answered that the toolchain can't change without breaking the library ecosystem,
    that "the proper solution here is to rework the cinterop",
    and "I can't give any timeframe"
@@ -377,7 +379,9 @@ so X3 does not show that Kotlin fares worse than those stacks.
    `irgaly/kfswatch` 1.4.0 (2025-10-17) uses inotify on Linux native,
    "does not support recursive directory watching",
    and exposes an overflow flow
-   (README lines 96, 274-276, 388,
+   (README lines 96,
+  274-276,
+  388,
    verified).
   Contributors:
    `irgaly` 398 commits,
@@ -407,7 +411,8 @@ so X3 does not show that Kotlin fares worse than those stacks.
    and doesn't mention Unix domain sockets.
 - `kotlinx-io` has no sockets.
   Its README marks it Alpha and "experimental"
-   (README lines 3, 38,
+   (README lines 3,
+  38,
    verified).
 - Design choice:
    skip Ktor and write the socket loop on `epoll`,
@@ -1073,7 +1078,8 @@ The first two are disqualifying.
   It added that "The GraalVM team are transitioning to focus on non-Java Graal Languages"
    (fetched page).
   GraalVM Community still ships:
-   "GraalVM Community 25 Innovation 3 (graal 25.3.4.1, jdk 25.0.4.1)",
+   "GraalVM Community 25 Innovation 3 (graal 25.3.4.1,
+  jdk 25.0.4.1)",
    2026-08-25
    (verified).
   Every 2026 release is on a JDK 25 base,
@@ -1242,8 +1248,10 @@ Ranked by severity.
    SHA-256 at a measured 2,062 MiB/s,
    file store type,
    and btrfs cloning through `Files.copy` all use JDK APIs.
-  The JVM testing stack (Jazzer, Pitest) is already verified in the repository.
-  Kotlin/Native has two disqualifying-class items, not one:
+  The JVM testing stack (Jazzer,
+  Pitest) is already verified in the repository.
+  Kotlin/Native has two disqualifying-class items,
+  not one:
    the documentation gate and the frozen glibc 2.19 sysroot with no fix timeframe.
   Its core is mostly hand-written FFI with unresolved signal handling,
    and its debugger can't evaluate expressions.
@@ -1267,7 +1275,8 @@ Ranked by severity.
 
 ## Probe log
 
-Commands run in this session, with the load-bearing output.
+Commands run in this session,
+with the load-bearing output.
 
 - `mise which java --cd /var/home/user/Monochromatic`
    printed `.../java/temurin-21.0.12+8.0.LTS/bin/java`;

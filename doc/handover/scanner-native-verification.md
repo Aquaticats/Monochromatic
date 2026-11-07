@@ -8,11 +8,22 @@
 > `package/rust-module/forbidden-regex` is now `package/forbidden-strings/core`;
 > `package/cli/mvm` is now `package/mvm/cli`.
 
-Note 2026-10-30: the scanner scripts this document names under `package/forbidden-strings/cli/bin`
-(`container-snapshot`, `guard-container`, `observe-guards-container`, `render-docs`, `test-container`,
-`verify-evidence`) are TypeScript files now; read every `.mjs` name here as the same name ending in `.ts`.
-`container-snapshot.d.mts` is deleted, and the helpers moved into sibling modules (`scanner-run.ts`,
-`source-inventory.ts`, `snapshot-*.ts`, `guard-injection.ts`, `guard-control-selection.ts`, `evidence-*.ts`).
+Note 2026-10-30:
+the scanner scripts this document names under `package/forbidden-strings/cli/bin`
+(`container-snapshot`,
+`guard-container`,
+`observe-guards-container`,
+`render-docs`,
+`test-container`,
+`verify-evidence`) are TypeScript files now;
+read every `.mjs` name here as the same name ending in `.ts`.
+`container-snapshot.d.mts` is deleted,
+and the helpers moved into sibling modules (`scanner-run.ts`,
+`source-inventory.ts`,
+`snapshot-*.ts`,
+`guard-injection.ts`,
+`guard-control-selection.ts`,
+`evidence-*.ts`).
 `run` in `container-snapshot.ts` is asynchronous.
 The fuzz sidecar script `package/forbidden-strings/cli.fuzz/bin/smoke-container.mjs` is `smoke-container.ts` now.
 
@@ -224,9 +235,11 @@ The historical full-campaign counts are not rewritten by this follow-up.
 
 ### Retained Windows-native survivors
 
-- `src/path_name_bytes.rs:36`: replacing `prefix_parts` with `0` survives on Linux.
+- `src/path_name_bytes.rs:36`:
+  replacing `prefix_parts` with `0` survives on Linux.
   Native Windows prefix detection is not reached on that target.
-- `src/path_name_bytes.rs:36`: deleting the platform guard's `!` survives on Linux.
+- `src/path_name_bytes.rs:36`:
+  deleting the platform guard's `!` survives on Linux.
   Linux's path parser still produces no Windows prefix and the function returns `0`.
   This is tested-target equivalence,
   not Windows equivalence.
@@ -997,11 +1010,13 @@ adapted in `/home/user/temp/agent/scanner-windows-baseline-20261005/`:
   A following `virsh list --all` through the shim returned at once.
 - `mvm --verbose --backend libvirt create --image windows wbase-20261005` created the overlay disk
   from the cached template and defined the domain,
-  then failed at start with `Unable to find a satisfying virtiofsd`, as before.
+  then failed at start with `Unable to find a satisfying virtiofsd`,
+  as before.
   The domain was undefined and redefined from a copy of the generated XML
   without its `filesystem` and `memoryBacking` elements,
   then started.
-- Bounds: 4 virtual CPUs,
+- Bounds:
+  4 virtual CPUs,
   8192 MiB of memory,
   and a 40 GiB qcow2 overlay over `template-windows.qcow2`,
   user-mode networking only.
@@ -1228,7 +1243,8 @@ and the five inputs of `Confirmed mechanism`.
 For example `\\.\COM1\VAULTTOKEN_LONG\clean.txt` now displays `//./COM1/[REDACTED]/clean.txt`
 with finding `//./COM1/[REDACTED]/clean.txt:name:1 rule=0`,
 and `\\.\\VAULTTOKEN_LONG`,
-whose native prefix is `\\.\` (`DeviceNS("")`, one part),
+whose native prefix is `\\.\` (`DeviceNS("")`,
+one part),
 displays `//.//[REDACTED]`.
 For each probed form that `src/path_scan_prefix_tests.rs` also covers,
 the raw native prefix the probe printed equals the bytes that fixture supplies;
@@ -1336,7 +1352,8 @@ Bridges tried for the tool:
   its SHA-256 `2a2f00e47d4b458262a41501b0820aa26015fd35779903d2c8b30b2993f36791`
   matching the release's published digest,
   does not start in this guest:
-  `cargo mutants --version` exits `-1073741515` (`0xC0000135`, a required DLL was not found),
+  `cargo mutants --version` exits `-1073741515` (`0xC0000135`,
+  a required DLL was not found),
   and `vcruntime140.dll` is absent from `System32`.
 - `cargo install cargo-mutants --version 27.1.0 --locked` with the guest's GNU toolchain built it from source.
   `cargo mutants --version` prints `cargo-mutants 27.1.0`,
@@ -2368,12 +2385,18 @@ Reuse is not inferred solely from `&self`.
 `src/runtime_matcher.rs:163` owns the hit vector per call.
 Engine paths under `package/rust-module/forbidden-regex/src/` show:
 
-- `regex/batch.rs:369` and `regex/batch.rs:370`: per-call candidates and hits.
-- `regex/batch.rs:521` and `regex/batch.rs:522`: fresh hit vector and `CheckedFull` scratch.
-- `dfa/table.rs:236`: local DFA state.
-- `counting/run.rs:50`: fresh current/next `State` buffers.
-- `counting/product.rs:298`: local thread vector.
-- `parallel.rs:160`: separate process-wide `CORE_COUNT: OnceLock<usize>` used for compilation scheduling.
+- `regex/batch.rs:369` and `regex/batch.rs:370`:
+  per-call candidates and hits.
+- `regex/batch.rs:521` and `regex/batch.rs:522`:
+  fresh hit vector and `CheckedFull` scratch.
+- `dfa/table.rs:236`:
+  local DFA state.
+- `counting/run.rs:50`:
+  fresh current/next `State` buffers.
+- `counting/product.rs:298`:
+  local thread vector.
+- `parallel.rs:160`:
+  separate process-wide `CORE_COUNT: OnceLock<usize>` used for compilation scheduling.
 
 The private malformed-offset test provokes a real internal bounds unwind and compares later scans.
 Disposable public-scan controls fault after actual matcher work and compare later scans with pre-fault results.
@@ -2486,40 +2509,66 @@ Failed report retrieval retains its disposable container for recovery.
 
 Major scoped commits:
 
-- `182853529`: nested loads,
+- `182853529`:
+  nested loads,
   prefix edges,
   and caught-panic reuse tests.
-- `d98920b10`: denied shadowing fixes without lint relaxation.
-- `bdca1a82d`: native embedding ASan target and independent byte oracle.
-- `df86d5963`: target-independent Windows policy and public cache-warning controls.
-- `d03f6385a`: actual release consumer verification.
-- `931d9b10d`: public matcher guard fixtures and rendered documentation.
-- `e86fcbe96`: startup survivor controls and frozen consumer assertions.
-- `c2a901e91`: per-operation hook observations and sidecar Clippy.
-- `54a343dda`: verified long-form Clippy flags.
-- `aa3f8ea6a` and `f069f6576`: final interface docs and source comparison refinement.
-- `8fdbbded9`: the device-namespace prefix tests,
+- `d98920b10`:
+  denied shadowing fixes without lint relaxation.
+- `bdca1a82d`:
+  native embedding ASan target and independent byte oracle.
+- `df86d5963`:
+  target-independent Windows policy and public cache-warning controls.
+- `d03f6385a`:
+  actual release consumer verification.
+- `931d9b10d`:
+  public matcher guard fixtures and rendered documentation.
+- `e86fcbe96`:
+  startup survivor controls and frozen consumer assertions.
+- `c2a901e91`:
+  per-operation hook observations and sidecar Clippy.
+- `54a343dda`:
+  verified long-form Clippy flags.
+- `aa3f8ea6a` and `f069f6576`:
+  final interface docs and source comparison refinement.
+- `8fdbbded9`:
+  the device-namespace prefix tests,
   committed inside a concurrent `desktop-app-ide` commit whose message does not mention them.
-- `833483171`: prefix parts consumed before navigation classification.
-- `c2c629313`: README statement that Windows prefix parts are not name segments.
-- `38cb30dff`: one test per navigation-spelled prefix input,
+- `833483171`:
+  prefix parts consumed before navigation classification.
+- `c2c629313`:
+  README statement that Windows prefix parts are not name segments.
+- `38cb30dff`:
+  one test per navigation-spelled prefix input,
   committed after the fix and shown failing against the reverted fix in `test-scZsf6`.
-- `01029d830` through `42312f27a`: this document's device-namespace records.
-- `ea62f2558`: `tests/integration.rs` compiles for Windows,
+- `01029d830` through `42312f27a`:
+  this document's device-namespace records.
+- `ea62f2558`:
+  `tests/integration.rs` compiles for Windows,
   with a sharing-violation read-error test there.
-- `16b52146e`: rustdoc on the eight undocumented imports.
-- `3b85b4269`: the pathname-only mutation scope and its task.
-- `fe805727c`: platform-correct cache-root,
+- `16b52146e`:
+  rustdoc on the eight undocumented imports.
+- `3b85b4269`:
+  the pathname-only mutation scope and its task.
+- `fe805727c`:
+  platform-correct cache-root,
   artifact-layout,
   and repository-relative name tests.
-- `11f20de74`: the `lint:clippy:windows` task.
-- `c5d3d04ea`: README entries for the pathname mutation scope and the `lint:clippy:windows` task.
-- `cd1b9d1db`: the mutation runner's `--list` flag.
-- `aaf4c08e7`: the platform's blocked-cache-root reason in the two tests,
+- `11f20de74`:
+  the `lint:clippy:windows` task.
+- `c5d3d04ea`:
+  README entries for the pathname mutation scope and the `lint:clippy:windows` task.
+- `cd1b9d1db`:
+  the mutation runner's `--list` flag.
+- `aaf4c08e7`:
+  the platform's blocked-cache-root reason in the two tests,
   with `tests/support/blocked_root.rs`.
-- `40fb4cdef`: README statement of that platform difference.
-- `703a1c21d`: the two operator mutations excluded by the human's decision.
-- `047c60c40`: README statement of those exclusions and of the `--list` flag.
+- `40fb4cdef`:
+  README statement of that platform difference.
+- `703a1c21d`:
+  the two operator mutations excluded by the human's decision.
+- `047c60c40`:
+  README statement of those exclusions and of the `--list` flag.
 - `e3cdee512`,
   `f7362e0d7`,
   and later `docs(handover)` commits:

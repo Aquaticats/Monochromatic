@@ -10,10 +10,13 @@ use std::{
 };
 
 use nested_wayland_session::{
-    notification_mode::NotificationMode, plasma_services::PlasmaServices, private_bus::PrivateBus,
+    bus_test_client::{connect, Proxy},
+    notification_mode::NotificationMode,
+    plasma_services::PlasmaServices,
+    private_bus::PrivateBus,
     protocol::Response,
 };
-use zbus::blocking::{connection::Builder, Connection, Proxy};
+use zbus::{Connection, DBusError};
 
 /// Bounds how long a test waits for something that must already be on the bus.
 pub const WAIT: Duration = Duration::from_secs(5);
@@ -39,7 +42,7 @@ pub fn start(mode: NotificationMode) -> anyhow::Result<Fixture> {
     let bus = Arc::new(PrivateBus::start()?);
     let services = PlasmaServices::start(mode, Arc::clone(&bus), Instant::now())?
         .ok_or_else(|| return anyhow::anyhow!("mode {mode:?} serves nothing"))?;
-    let client = Builder::address(bus.address())?.build()?;
+    let client = connect(bus.address())?;
     return Ok(Fixture { services, client, _bus: bus });
 }
 
@@ -47,6 +50,23 @@ pub fn start(mode: NotificationMode) -> anyhow::Result<Fixture> {
 ///  by well-known name.
 pub fn proxy(client: &Connection, name: &'static str, path: &str, interface: &'static str) -> anyhow::Result<Proxy<'static>> {
     return Ok(Proxy::new(client, name, path.to_owned(), interface)?);
+}
+
+/// Returns the D-Bus error name and description a failed call carried.
+///
+/// zbus 6 reports a reply whose name `zbus::fdo::Error` defines (`NotSupported`,
+///  `ServiceUnknown`,
+///  `InvalidArgs`) as `zbus::Error::FDO`,
+///  and any other name as `zbus::Error::MethodError`;
+///  this reads the wire name from either,
+///  so a test asserts the name and not the Rust variant.
+///  `None` for an error that is not a bus reply.
+pub fn error_reply(error: &zbus::Error) -> Option<(String, Option<String>)> {
+    return match error {
+        zbus::Error::MethodError(name, description, _) => Some((name.to_string(), description.clone())),
+        zbus::Error::FDO(reply) => Some((DBusError::name(&**reply).to_string(), DBusError::description(&**reply).map(str::to_owned))),
+        _ => None,
+    };
 }
 
 /// Unwraps an `ok <data>` response and returns the data;

@@ -125,10 +125,12 @@ A previous failure must not be reclassified as a killed or surviving mutant.
   This is the committed fix in
   `package/mutation-test/cli/src/container/worktree.ts` and
   `package/mutation-test/cli/runtime/containerignore`.
-  Tradeoff: packages relying on a checked-in or prepopulated `.cache` artifact inside the mutation
+  Tradeoff:
+  packages relying on a checked-in or prepopulated `.cache` artifact inside the mutation
   container must regenerate it in their build or test task.
 - Run the failed package source file again in a fresh container to get an infrastructure-clean report.
-  Tradeoff: a retry alone leaves the original cache race possible if the exclusion is removed.
+  Tradeoff:
+  a retry alone leaves the original cache race possible if the exclusion is removed.
 
 ## What does not work
 
@@ -146,20 +148,26 @@ Searches of open and closed issues and pull requests in `RsyncProject/rsync`
  a closed unrelated `configure.ac` PR appeared.
 No upstream report is warranted:
 
-- **Upstream fault:** No.
+- **Upstream fault:**
+  No.
   Rsync correctly reports a file that vanished from its input.
   The mutation harness included a disposable cache it did not need.
-- **Upstream fixability:** Rsync could change how it classifies a missing sender file,
+- **Upstream fixability:**
+  Rsync could change how it classifies a missing sender file,
   but that would not solve this harness's input-scope error.
-- **Supported use case:** Yes.
+- **Supported use case:**
+  Yes.
   Rsync supports exclusion patterns and documented vanished-file diagnostics;
   the harness uses the exclusion boundary.
-- **Contribution welcome:** The inspected source snapshot includes `README.md`
+- **Contribution welcome:**
+  The inspected source snapshot includes `README.md`
   but no CONTRIBUTING or issue/PR template was found.
   No contribution policy ban was found,
   and no upstream change is needed.
-- **Likelihood of upstream fix:** There is no upstream defect to fix.
-- **Minimal compatible prototype:** No upstream patch was made because the local exclusion solves the incident.
+- **Likelihood of upstream fix:**
+  There is no upstream defect to fix.
+- **Minimal compatible prototype:**
+  No upstream patch was made because the local exclusion solves the incident.
   The disposable rsync fixture and package tests verified the local correction.
 
 ## Upstream filing artifact

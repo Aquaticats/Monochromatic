@@ -64,11 +64,16 @@ but `lintFile` is not.
 /// Wrap `lintFile` JS callback as a normal Rust function.
 ///
 /// The returned function creates a `Uint8Array` referencing the memory of the given `Allocator`,
-/// and passes it to JS side, unless the `Allocator`'s buffer has already been sent to JS.
+/// and passes it to JS side,
+/// unless the `Allocator`'s buffer has already been sent to JS.
 ///
-/// Unlike `loadPlugin`, `lintFile` JS callback is not async. But `ThreadsafeFunction` executes the callback
-/// on main JS thread, and therefore it may have to wait for a previous `lintFile` call to complete.
-/// Use an `mpsc::channel` to wait for the result from JS side, and block current thread until `lintFile`
+/// Unlike `loadPlugin`,
+/// `lintFile` JS callback is not async.
+/// But `ThreadsafeFunction` executes the callback
+/// on main JS thread,
+/// and therefore it may have to wait for a previous `lintFile` call to complete.
+/// Use an `mpsc::channel` to wait for the result from JS side,
+/// and block current thread until `lintFile`
 /// completes execution.
 ```
 

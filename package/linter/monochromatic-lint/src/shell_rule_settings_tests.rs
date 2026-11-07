@@ -80,7 +80,8 @@ fn explicit_max_is_read() {
 fn every_construct_rule_is_selectable() {
     let mut source: String = String::from("{");
     for construct in CONSTRUCTS {
-        source.push_str(format!("\"{}\":{{\"severity\":\"error\"}},", construct.rule_id()).as_str());
+        source
+            .push_str(format!("\"{}\":{{\"severity\":\"error\"}},", construct.rule_id()).as_str());
     }
     source.push_str("\"rust/max-lines\":{\"severity\":\"error\"}}");
     let found: ShellRuleSettings = settings(source.as_str()).expect("settings");

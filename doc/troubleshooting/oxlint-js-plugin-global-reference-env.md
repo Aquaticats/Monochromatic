@@ -106,7 +106,8 @@ The environment list in the config reference
 generated from `crates/oxc_linter/src/config/env.rs:17`) says:
 
 ```rust
-/// - builtin - Latest ECMAScript globals, equivalent to es2026.
+/// - builtin - Latest ECMAScript globals,
+///   equivalent to es2026.
 ```
 
 Measured on 1.85.0 with the probe in "Verification",

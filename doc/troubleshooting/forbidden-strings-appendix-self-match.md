@@ -221,23 +221,32 @@ Renaming `package/cli/forbidden-strings` to a new directory re-lists every file 
 and the policy scanned each one again.
 Three files match the scanner's own rules by design:
 
-- `data/builtin-rules.txt`, rule `aws-amazon-bedrock-api-key-short-lived` (line 118 at the time),
+- `data/builtin-rules.txt`,
+  rule `aws-amazon-bedrock-api-key-short-lived` (line 118 at the time),
    whose body is a literal that the rule matches;
-- `data/betterleaks-default-config.toml`, whose vendored `gcp-api-key` allowlist holds example key values;
-- `src/port-betterleaks-relaxations.ts`, whose comments hold an example connection string.
+- `data/betterleaks-default-config.toml`,
+  whose vendored `gcp-api-key` allowlist holds example key values;
+- `src/port-betterleaks-relaxations.ts`,
+  whose comments hold an example connection string.
 
 They passed at the old paths only because `SCANNER_SELF_MATCH_PATHS` in `src/native/scanner_selection.rs`
 names those old paths as unscanned.
-At the new paths the exemption no longer applied, and no `--no-enforce-*` flag reaches this policy.
+At the new paths the exemption no longer applied,
+and no `--no-enforce-*` flag reaches this policy.
 
 Fixed in the source of `monochromatic-git-policy-cli` (`src/native/candidate_known_content.rs`):
 the policy no longer reads the bytes of a candidate whose exact blob a parent commit's tree already holds.
-A pure rename, a copy of an existing blob, and a merge that brings a file only one parent has are therefore allowed.
-The rule is by blob object name, not by path or similarity, so a rename with one changed byte is scanned in full.
+A pure rename,
+a copy of an existing blob,
+and a merge that brings a file only one parent has are therefore allowed.
+The rule is by blob object name,
+not by path or similarity,
+so a rename with one changed byte is scanned in full.
 `package/git-policy/cli/SPEC.md` ("Content already in history") has the rule and its security reasoning.
 The controls are in `src/native/policy_forbidden_strings_known_content_tests.rs`
 and `src/native/binary_known_content_tests.rs`;
-the rename, staged-rename and merge controls failed on unchanged code before the rule existed.
+the rename,
+staged-rename and merge controls failed on unchanged code before the rule existed.
 
 What this does not change:
 
@@ -245,8 +254,10 @@ What this does not change:
    Releases of this crate are cut by bumping its version on `main`
    (see `doc/runbook/cli-git-global-install.md` for the install side).
 - An edit that changes the bytes of one of those files is still scanned.
-   After the move, `SCANNER_SELF_MATCH_PATHS` must name the new paths before the first edit to any of the three.
-- A literal rule body in the appendix still matches itself the moment its bytes change, as the sections above describe.
+   After the move,
+  `SCANNER_SELF_MATCH_PATHS` must name the new paths before the first edit to any of the three.
+- A literal rule body in the appendix still matches itself the moment its bytes change,
+  as the sections above describe.
    The workaround there stands.
 
 ## Update 2026-11-01: the CI workflow rescanned the renamed rule sources on every push
@@ -254,7 +265,8 @@ What this does not change:
 ### Symptom
 
 The `forbidden-strings` workflow failed on every push to `main`
-from run 40848310962 (2026-10-29 09:16 UTC) through run 41272422264 (`d2036021e2`, 2026-11-01).
+from run 40848310962 (2026-10-29 09:16 UTC) through run 41272422264 (`d2036021e2`,
+2026-11-01).
 Its "Scan changed files" step printed a notice that is not an error,
 then nineteen findings in the same three files and exit 1:
 
@@ -267,14 +279,16 @@ package/forbidden-strings/cli/data/builtin-rules.txt:118 rule=aws-amazon-bedrock
 package/forbidden-strings/cli/src/port-betterleaks-relaxations.ts:141 rule=mongodb-connection-string
 ```
 
-The cache notice only says the runner has no compiled-rules cache yet, so the scanner compiled the rules from text.
+The cache notice only says the runner has no compiled-rules cache yet,
+so the scanner compiled the rules from text.
 The same notice appeared in green runs.
 
 ### Root cause
 
 The workflow passes the changed files to the scanner positionally.
 The scanner skips the three generated rule sources only during an `--all` walk
-(`build_skip_set` and `is_walker_skipped`, applied under `if all` in `src/lib.rs`);
+(`build_skip_set` and `is_walker_skipped`,
+applied under `if all` in `src/lib.rs`);
 for positional arguments it skipped only the `forbidden-strings.*.txt` files at the working directory
 (`is_config_file_at_cwd`).
 The commit guard avoids the problem on its own side with `SCANNER_SELF_MATCH_PATHS`
@@ -282,46 +296,71 @@ The commit guard avoids the problem on its own side with `SCANNER_SELF_MATCH_PAT
 so the workflow was the one caller with neither.
 
 Why it started on 2026-10-29:
-the last green push run was 40844905727 (head `35424427f1`, 08:49 UTC).
-`113633b259` (08:55 UTC, "move cli packages into product categories") renamed the three files.
-The workflow lists changed files with `--diff-filter=ACMRT`, which includes renames,
+the last green push run was 40844905727 (head `35424427f1`,
+08:49 UTC).
+`113633b259` (08:55 UTC,
+"move cli packages into product categories") renamed the three files.
+The workflow lists changed files with `--diff-filter=ACMRT`,
+which includes renames,
 so the renamed files reached the scanner for the first time since they were added.
-The first failing run, 40848310962, scanned 1052 files and reported exactly these findings.
+The first failing run,
+40848310962,
+scanned 1052 files and reported exactly these findings.
 
 Why it stayed red:
 since `9698f56938` (2026-10-20) a push run scans the delta from the newest commit an earlier successful run validated.
-No run has succeeded since `35424427f1`, so every later push rescans the same growing delta
+No run has succeeded since `35424427f1`,
+so every later push rescans the same growing delta
 (10272 files in run 41272422264) and meets the same files again.
-An earlier edit of the rule sources, `c5e57910f5` (2026-08-26), also failed its run
-(32937714181; its log has expired, so the cause is unverified),
-but the next push passed, because the push scope then was only the event's own range.
+An earlier edit of the rule sources,
+`c5e57910f5` (2026-08-26),
+also failed its run
+(32937714181;
+its log has expired,
+so the cause is unverified),
+but the next push passed,
+because the push scope then was only the event's own range.
 
-Not the cause: `FORBIDDEN_STRINGS_RULES` in `.config/mise/conf.d/20-env.toml`,
+Not the cause:
+`FORBIDDEN_STRINGS_RULES` in `.config/mise/conf.d/20-env.toml`,
 which local runs read and CI does not (the workflow passes `--rules`).
 
 ### Verification
 
-Scanner builds under test: the unmodified `forbidden-strings 0.5.0` binary of the main checkout
+Scanner builds under test:
+the unmodified `forbidden-strings 0.5.0` binary of the main checkout
 and a debug build of the fixed source tree.
 
-- The unmodified binary on the three files, positionally, from the repository root:
-   the same nineteen findings, exit 1.
+- The unmodified binary on the three files,
+  positionally,
+  from the repository root:
+   the same nineteen findings,
+  exit 1.
 - The unmodified binary on the 10276 files
-   `git diff --name-only --diff-filter=ACMRT 35424427f1 HEAD` lists: exit 1 with those findings.
-- The fixed binary on the same 10276 files: exit 0, so nothing else in that delta matches.
-- `tests/self_match_positional.rs`: three tests fail on unmodified code
-   (relative paths, absolute paths, and a positive control that a real hit still fails beside the skipped sources)
+   `git diff --name-only --diff-filter=ACMRT 35424427f1 HEAD` lists:
+  exit 1 with those findings.
+- The fixed binary on the same 10276 files:
+  exit 0,
+  so nothing else in that delta matches.
+- `tests/self_match_positional.rs`:
+  three tests fail on unmodified code
+   (relative paths,
+  absolute paths,
+  and a positive control that a real hit still fails beside the skipped sources)
    and pass after the fix.
    Three guard tests pass both before and after:
    a same-named copy under `vendor/` is still scanned,
-   a rules file named positionally is still scanned, and `--all` still skips the sources.
+   a rules file named positionally is still scanned,
+  and `--all` still skips the sources.
 
 ### Fix
 
-The scanner owns the list, so the skip moved there.
+The scanner owns the list,
+so the skip moved there.
 `build_self_match_set` in `src/lib.rs` returns the canonical paths of the three sources
 and applies to walker output and positional arguments alike.
-`build_skip_set` keeps only the rules files and stays `--all`-only, so a rules file the user names is still scanned.
+`build_skip_set` keeps only the rules files and stays `--all`-only,
+so a rules file the user names is still scanned.
 The match stays path-anchored by canonical path.
 
 Limits:

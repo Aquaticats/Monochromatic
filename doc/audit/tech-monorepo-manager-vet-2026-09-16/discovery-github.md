@@ -1,8 +1,10 @@
 # GitHub discovery: monorepo managers and watch components
 
 Scope:
-frozen repository-host query schedule from `doc/audit/tech-monorepo-manager-vet-2026-09-16.md`, executed 2026-09-16.
-Read-only; nothing under the Monochromatic worktree was modified.
+frozen repository-host query schedule from `doc/audit/tech-monorepo-manager-vet-2026-09-16.md`,
+executed 2026-09-16.
+Read-only;
+nothing under the Monochromatic worktree was modified.
 
 ## Method
 
@@ -11,40 +13,69 @@ Read-only; nothing under the Monochromatic worktree was modified.
   authenticated as the repository owner account.
   Every fetched page reported `incomplete_results: false`.
 - Page order:
-  pages were fetched two at a time (topic:task-runner pages 7 to 10 in one batch, narrowing queries in one batch each),
+  pages were fetched two at a time (topic:task-runner pages 7 to 10 in one batch,
+  narrowing queries in one batch each),
   and screened strictly in page order before deciding whether to continue.
 - Screening input:
-  repository name, description, and topics;
-  README heads were opened for 33 ambiguous repositories (26 during screening, 7 to confirm component or watch claims).
+  repository name,
+  description,
+  and topics;
+  README heads were opened for 33 ambiguous repositories (26 during screening,
+  7 to confirm component or watch claims).
 - New candidates:
   repositories not returned by any earlier page in schedule order
-  (`topic:monorepo` page 1 first, the plain-text query last).
+  (`topic:monorepo` page 1 first,
+  the plain-text query last).
 - New screening survivors:
-  survivors first classified on that page, counted globally in schedule order;
+  survivors first classified on that page,
+  counted globally in schedule order;
   a survivor already found by an earlier query is not new again.
-  "Survivors on page" counts every survivor present, including repeats.
-- Screening rule, set while screening `topic:build-system` page 1 and applied to all pages:
+  "Survivors on page" counts every survivor present,
+  including repeats.
+- Screening rule,
+  set while screening `topic:build-system` page 1 and applied to all pages:
   - survivor:
     workspace-aware monorepo managers;
     general-purpose dependency-aware task or build runners that run arbitrary commands
-    (the vet examples include Task, so general runners are in scope);
+    (the vet examples include Task,
+    so general runners are in scope);
     components with a persistent process plus an inspection or control channel.
   - close exclusion:
     language-locked project builders unable to run arbitrary tasks,
-    ports or thin wrappers of another tool (Make, Ninja, Meson ports; Make wrappers),
-    meta-build generators, remote cache or remote execution servers, affected-detection-only tools,
-    CI services and plugins, process launchers and TUI or IDE front-ends over other runners,
-    libraries and job queues, file watchers without a task model.
+    ports or thin wrappers of another tool (Make,
+    Ninja,
+    Meson ports;
+    Make wrappers),
+    meta-build generators,
+    remote cache or remote execution servers,
+    affected-detection-only tools,
+    CI services and plugins,
+    process launchers and TUI or IDE front-ends over other runners,
+    libraries and job queues,
+    file watchers without a task model.
   - refinement at `topic:build-system` page 4:
     gulp-like JavaScript asset-pipeline build tools are close exclusions;
     this moved `wix-incubator/haste` and `hoppjs/hopp` from survivor to close.
   - refinement at `topic:build-tool` page 1:
-    JVM build tools with multi-project builds, general tasks, and a daemon, server, or watch mode
-    (Gradle, Mill, sbt) are survivors tagged JVM-centric;
-    single-language project builders (bld, cbt, jeka, Amper, PyBuilder, Boot, Phing) are close.
+    JVM build tools with multi-project builds,
+    general tasks,
+    and a daemon,
+    server,
+    or watch mode
+    (Gradle,
+    Mill,
+    sbt) are survivors tagged JVM-centric;
+    single-language project builders (bld,
+    cbt,
+    jeka,
+    Amper,
+    PyBuilder,
+    Boot,
+    Phing) are close.
   - correction:
     `DevTeam/csharp-interactive` was missed on `topic:build-system` page 2 and added as a survivor there.
-- Archived repositories were not disqualified; they carry `archived: true`.
+- Archived repositories were not disqualified;
+  they carry `archived: true`.
 - Tiny or low-evidence repositories were kept when category fit was plausible;
   star count was never a disqualifier.
 
@@ -52,31 +83,114 @@ Read-only; nothing under the Monochromatic worktree was modified.
 
 ### q1: `topic:monorepo`
 
-- Literal query: `topic:monorepo`
-- Filters: none beyond the query string
-- Sort: `sort=stars`, `order=desc`, `per_page=100`
-- Pages fetched: 10
-- `total_count`: 9379
-- Per-page result count: p1 100, p2 100, p3 100, p4 100, p5 100, p6 100, p7 100, p8 100, p9 100, p10 100
-- Per-page new candidates: p1 100, p2 100, p3 100, p4 100, p5 100, p6 100, p7 100, p8 100, p9 100, p10 100
-- Per-page new screening survivors: p1 14, p2 5, p3 4, p4 2, p5 3, p6 1, p7 2, p8 4, p9 3, p10 2
-- Per-page survivors on page, including repeats: p1 14, p2 5, p3 4, p4 2, p5 3, p6 1, p7 2, p8 4, p9 3, p10 2
-- Stop reason: blocked by 1000-result cap: `total_count` 9379,
+- Literal query:
+  `topic:monorepo`
+- Filters:
+  none beyond the query string
+- Sort:
+  `sort=stars`,
+  `order=desc`,
+  `per_page=100`
+- Pages fetched:
+  10
+- `total_count`:
+  9379
+- Per-page result count:
+  p1 100,
+  p2 100,
+  p3 100,
+  p4 100,
+  p5 100,
+  p6 100,
+  p7 100,
+  p8 100,
+  p9 100,
+  p10 100
+- Per-page new candidates:
+  p1 100,
+  p2 100,
+  p3 100,
+  p4 100,
+  p5 100,
+  p6 100,
+  p7 100,
+  p8 100,
+  p9 100,
+  p10 100
+- Per-page new screening survivors:
+  p1 14,
+  p2 5,
+  p3 4,
+  p4 2,
+  p5 3,
+  p6 1,
+  p7 2,
+  p8 4,
+  p9 3,
+  p10 2
+- Per-page survivors on page,
+  including repeats:
+  p1 14,
+  p2 5,
+  p3 4,
+  p4 2,
+  p5 3,
+  p6 1,
+  p7 2,
+  p8 4,
+  p9 3,
+  p10 2
+- Stop reason:
+  blocked by 1000-result cap:
+  `total_count` 9379,
    pages 1 to 10 all added at least one new screening survivor,
    so two consecutive empty pages never occurred before page 10 (the last page the API serves)
 
 #### Independent narrowing for q1: `topic:monorepo stars:>=50`
 
-- Literal query: `topic:monorepo stars:>=50`
-- Sort: `sort=stars`, `order=desc`, `per_page=100`
-- Pages fetched: 5
-- `total_count`: 444
-- Per-page result count: p1 100, p2 100, p3 100, p4 100, p5 44
-- Per-page lowest star count: p1 432, p2 175, p3 89, p4 59, p5 50
-- Per-page new candidates (schedule-global): p1 0, p2 0, p3 0, p4 0, p5 0
-- Per-page survivors on page: p1 14, p2 5, p3 4, p4 2, p5 1
-- Per-page new survivors (query-local): p1 14, p2 5, p3 4, p4 2, p5 1
-- Stop reason: exhausted after 5 pages; every page held query-local new survivors,
+- Literal query:
+  `topic:monorepo stars:>=50`
+- Sort:
+  `sort=stars`,
+  `order=desc`,
+  `per_page=100`
+- Pages fetched:
+  5
+- `total_count`:
+  444
+- Per-page result count:
+  p1 100,
+  p2 100,
+  p3 100,
+  p4 100,
+  p5 44
+- Per-page lowest star count:
+  p1 432,
+  p2 175,
+  p3 89,
+  p4 59,
+  p5 50
+- Per-page new candidates (schedule-global):
+  p1 0,
+  p2 0,
+  p3 0,
+  p4 0,
+  p5 0
+- Per-page survivors on page:
+  p1 14,
+  p2 5,
+  p3 4,
+  p4 2,
+  p5 1
+- Per-page new survivors (query-local):
+  p1 14,
+  p2 5,
+  p3 4,
+  p4 2,
+  p5 1
+- Stop reason:
+  exhausted after 5 pages;
+  every page held query-local new survivors,
    so no saturation inside the narrowed set either;
    0 candidates were new to the schedule
    because the stars-sorted `topic:monorepo` pages 1 to 10 already reached 13 stars
@@ -89,29 +203,98 @@ Read-only; nothing under the Monochromatic worktree was modified.
 
 ### q2: `topic:build-system`
 
-- Literal query: `topic:build-system`
-- Filters: none beyond the query string
-- Sort: `sort=stars`, `order=desc`, `per_page=100`
-- Pages fetched: 10
-- `total_count`: 1125
-- Per-page result count: p1 100, p2 100, p3 100, p4 100, p5 100, p6 100, p7 100, p8 100, p9 100, p10 100
-- Per-page new candidates: p1 92, p2 97, p3 97, p4 100, p5 100, p6 100, p7 100, p8 100, p9 100, p10 100
-- Per-page new screening survivors: p1 14, p2 12, p3 10, p4 7, p5 12, p6 7, p7 8, p8 5, p9 3, p10 5
-- Per-page survivors on page, including repeats: p1 22, p2 15, p3 12, p4 7, p5 12, p6 7, p7 8, p8 5, p9 3, p10 5
-- Stop reason: blocked by 1000-result cap: `total_count` 1125, pages 9 and 10 added 3 and 5 new screening survivors
+- Literal query:
+  `topic:build-system`
+- Filters:
+  none beyond the query string
+- Sort:
+  `sort=stars`,
+  `order=desc`,
+  `per_page=100`
+- Pages fetched:
+  10
+- `total_count`:
+  1125
+- Per-page result count:
+  p1 100,
+  p2 100,
+  p3 100,
+  p4 100,
+  p5 100,
+  p6 100,
+  p7 100,
+  p8 100,
+  p9 100,
+  p10 100
+- Per-page new candidates:
+  p1 92,
+  p2 97,
+  p3 97,
+  p4 100,
+  p5 100,
+  p6 100,
+  p7 100,
+  p8 100,
+  p9 100,
+  p10 100
+- Per-page new screening survivors:
+  p1 14,
+  p2 12,
+  p3 10,
+  p4 7,
+  p5 12,
+  p6 7,
+  p7 8,
+  p8 5,
+  p9 3,
+  p10 5
+- Per-page survivors on page,
+  including repeats:
+  p1 22,
+  p2 15,
+  p3 12,
+  p4 7,
+  p5 12,
+  p6 7,
+  p7 8,
+  p8 5,
+  p9 3,
+  p10 5
+- Stop reason:
+  blocked by 1000-result cap:
+  `total_count` 1125,
+  pages 9 and 10 added 3 and 5 new screening survivors
 
 #### Independent narrowing for q2: `topic:build-system stars:>=50`
 
-- Literal query: `topic:build-system stars:>=50`
-- Sort: `sort=stars`, `order=desc`, `per_page=100`
-- Pages fetched: 2
-- `total_count`: 131
-- Per-page result count: p1 100, p2 31
-- Per-page lowest star count: p1 83, p2 50
-- Per-page new candidates (schedule-global): p1 0, p2 0
-- Per-page survivors on page: p1 22, p2 5
-- Per-page new survivors (query-local): p1 22, p2 5
-- Stop reason: exhausted after 2 pages; both pages held survivors;
+- Literal query:
+  `topic:build-system stars:>=50`
+- Sort:
+  `sort=stars`,
+  `order=desc`,
+  `per_page=100`
+- Pages fetched:
+  2
+- `total_count`:
+  131
+- Per-page result count:
+  p1 100,
+  p2 31
+- Per-page lowest star count:
+  p1 83,
+  p2 50
+- Per-page new candidates (schedule-global):
+  p1 0,
+  p2 0
+- Per-page survivors on page:
+  p1 22,
+  p2 5
+- Per-page new survivors (query-local):
+  p1 22,
+  p2 5
+- Stop reason:
+  exhausted after 2 pages;
+  both pages held survivors;
    0 new candidates because stars-sorted `topic:build-system` pages already reached 0 stars
 - Finding:
   with stars-descending sort this narrowing is a subset of pages already screened,
@@ -121,29 +304,108 @@ Read-only; nothing under the Monochromatic worktree was modified.
 
 ### q3: `topic:build-tool`
 
-- Literal query: `topic:build-tool`
-- Filters: none beyond the query string
-- Sort: `sort=stars`, `order=desc`, `per_page=100`
-- Pages fetched: 10
-- `total_count`: 2466
-- Per-page result count: p1 100, p2 100, p3 100, p4 100, p5 100, p6 100, p7 100, p8 100, p9 100, p10 100
-- Per-page new candidates: p1 76, p2 81, p3 84, p4 85, p5 78, p6 85, p7 92, p8 83, p9 86, p10 92
-- Per-page new screening survivors: p1 9, p2 5, p3 6, p4 6, p5 10, p6 7, p7 7, p8 10, p9 6, p10 5
-- Per-page survivors on page, including repeats: p1 24, p2 11, p3 11, p4 12, p5 16, p6 10, p7 8, p8 13, p9 7, p10 6
-- Stop reason: blocked by 1000-result cap: `total_count` 2466, pages 9 and 10 added 6 and 5 new screening survivors
+- Literal query:
+  `topic:build-tool`
+- Filters:
+  none beyond the query string
+- Sort:
+  `sort=stars`,
+  `order=desc`,
+  `per_page=100`
+- Pages fetched:
+  10
+- `total_count`:
+  2466
+- Per-page result count:
+  p1 100,
+  p2 100,
+  p3 100,
+  p4 100,
+  p5 100,
+  p6 100,
+  p7 100,
+  p8 100,
+  p9 100,
+  p10 100
+- Per-page new candidates:
+  p1 76,
+  p2 81,
+  p3 84,
+  p4 85,
+  p5 78,
+  p6 85,
+  p7 92,
+  p8 83,
+  p9 86,
+  p10 92
+- Per-page new screening survivors:
+  p1 9,
+  p2 5,
+  p3 6,
+  p4 6,
+  p5 10,
+  p6 7,
+  p7 7,
+  p8 10,
+  p9 6,
+  p10 5
+- Per-page survivors on page,
+  including repeats:
+  p1 24,
+  p2 11,
+  p3 11,
+  p4 12,
+  p5 16,
+  p6 10,
+  p7 8,
+  p8 13,
+  p9 7,
+  p10 6
+- Stop reason:
+  blocked by 1000-result cap:
+  `total_count` 2466,
+  pages 9 and 10 added 6 and 5 new screening survivors
 
 #### Independent narrowing for q3: `topic:build-tool stars:>=50`
 
-- Literal query: `topic:build-tool stars:>=50`
-- Sort: `sort=stars`, `order=desc`, `per_page=100`
-- Pages fetched: 4
-- `total_count`: 307
-- Per-page result count: p1 100, p2 100, p3 100, p4 7
-- Per-page lowest star count: p1 493, p2 120, p3 52, p4 50
-- Per-page new candidates (schedule-global): p1 0, p2 0, p3 0, p4 0
-- Per-page survivors on page: p1 24, p2 11, p3 11, p4 1
-- Per-page new survivors (query-local): p1 24, p2 11, p3 11, p4 1
-- Stop reason: exhausted after 4 pages; every page held survivors;
+- Literal query:
+  `topic:build-tool stars:>=50`
+- Sort:
+  `sort=stars`,
+  `order=desc`,
+  `per_page=100`
+- Pages fetched:
+  4
+- `total_count`:
+  307
+- Per-page result count:
+  p1 100,
+  p2 100,
+  p3 100,
+  p4 7
+- Per-page lowest star count:
+  p1 493,
+  p2 120,
+  p3 52,
+  p4 50
+- Per-page new candidates (schedule-global):
+  p1 0,
+  p2 0,
+  p3 0,
+  p4 0
+- Per-page survivors on page:
+  p1 24,
+  p2 11,
+  p3 11,
+  p4 1
+- Per-page new survivors (query-local):
+  p1 24,
+  p2 11,
+  p3 11,
+  p4 1
+- Stop reason:
+  exhausted after 4 pages;
+  every page held survivors;
    0 new candidates because stars-sorted `topic:build-tool` pages already reached 3 stars
 - Finding:
   with stars-descending sort this narrowing is a subset of pages already screened,
@@ -153,35 +415,106 @@ Read-only; nothing under the Monochromatic worktree was modified.
 
 ### q4: `topic:task-runner`
 
-- Literal query: `topic:task-runner`
-- Filters: none beyond the query string
-- Sort: `sort=stars`, `order=desc`, `per_page=100`
-- Pages fetched: 10
-- `total_count`: 972
-- Per-page result count: p1 100, p2 100, p3 100, p4 100, p5 100, p6 100, p7 100, p8 100, p9 100, p10 72
-- Per-page new candidates: p1 83, p2 82, p3 82, p4 94, p5 96, p6 97, p7 99, p8 100, p9 98, p10 72
-- Per-page new screening survivors: p1 26, p2 24, p3 25, p4 14, p5 20, p6 33, p7 17, p8 18, p9 18, p10 11
-- Per-page survivors on page, including repeats: p1 39, p2 38, p3 35, p4 19, p5 23, p6 35, p7 17, p8 18, p9 20, p10 11
-- Stop reason: exhausted: `total_count` 972 fits under the cap, page 10 returned the final 72 results; not saturated,
+- Literal query:
+  `topic:task-runner`
+- Filters:
+  none beyond the query string
+- Sort:
+  `sort=stars`,
+  `order=desc`,
+  `per_page=100`
+- Pages fetched:
+  10
+- `total_count`:
+  972
+- Per-page result count:
+  p1 100,
+  p2 100,
+  p3 100,
+  p4 100,
+  p5 100,
+  p6 100,
+  p7 100,
+  p8 100,
+  p9 100,
+  p10 72
+- Per-page new candidates:
+  p1 83,
+  p2 82,
+  p3 82,
+  p4 94,
+  p5 96,
+  p6 97,
+  p7 99,
+  p8 100,
+  p9 98,
+  p10 72
+- Per-page new screening survivors:
+  p1 26,
+  p2 24,
+  p3 25,
+  p4 14,
+  p5 20,
+  p6 33,
+  p7 17,
+  p8 18,
+  p9 18,
+  p10 11
+- Per-page survivors on page,
+  including repeats:
+  p1 39,
+  p2 38,
+  p3 35,
+  p4 19,
+  p5 23,
+  p6 35,
+  p7 17,
+  p8 18,
+  p9 20,
+  p10 11
+- Stop reason:
+  exhausted:
+  `total_count` 972 fits under the cap,
+  page 10 returned the final 72 results;
+  not saturated,
    pages 9 and 10 added 18 and 11 new screening survivors
 
 ### q5: `"watch mode" daemon build`
 
-- Literal query: `"watch mode" daemon build`
-- Filters: none beyond the query string
-- Sort: `sort=stars`, `order=desc`, `per_page=100`
-- Pages fetched: 1
-- `total_count`: 1
-- Per-page result count: p1 1
-- Per-page new candidates: p1 1
-- Per-page new screening survivors: p1 0
-- Per-page survivors on page, including repeats: p1 0
-- Stop reason: exhausted: `total_count` 1, one page; the single result was screened out
+- Literal query:
+  `"watch mode" daemon build`
+- Filters:
+  none beyond the query string
+- Sort:
+  `sort=stars`,
+  `order=desc`,
+  `per_page=100`
+- Pages fetched:
+  1
+- `total_count`:
+  1
+- Per-page result count:
+  p1 1
+- Per-page new candidates:
+  p1 1
+- Per-page new screening survivors:
+  p1 0
+- Per-page survivors on page,
+  including repeats:
+  p1 0
+- Stop reason:
+  exhausted:
+  `total_count` 1,
+  one page;
+  the single result was screened out
 
 ## Candidates
 
-Distinct screening survivors: 400
-(2 component guesses, 76 workspace-aware monorepo manager guesses, 322 general task or build runners;
+Distinct screening survivors:
+400
+(2 component guesses,
+76 workspace-aware monorepo manager guesses,
+322 general task or build runners;
 40 archived).
 Sorted by stars within each group.
 
@@ -189,1781 +522,5849 @@ Field notes:
 
 - "Discovered by" lists every schedule query whose fetched pages contained the repository.
 - "Workspace-aware" is a heuristic:
-  description, topics, or screening note mention monorepo, workspace, multi-project, multi-module, multi-repo, Lerna,
+  description,
+  topics,
+  or screening note mention monorepo,
+  workspace,
+  multi-project,
+  multi-module,
+  multi-repo,
+  Lerna,
   or Yarn,
-  plus manual tags for Bazel, Buck, Gradle, Mill, sbt, cargo-make, and colcon.
+  plus manual tags for Bazel,
+  Buck,
+  Gradle,
+  Mill,
+  sbt,
+  cargo-make,
+  and colcon.
   A general runner may still support workspaces without saying so.
-- Taxonomy terms are keyword hits in description, topics, and screening note, not verified features.
+- Taxonomy terms are keyword hits in description,
+  topics,
+  and screening note,
+  not verified features.
 
 ### Component guesses
 
 - sgaunet/runq
-  - https://github.com/sgaunet/runq; stars 0; archived: false; pushed_at 2026-09-03
-  - discovered by: q4 (first screened q4 p7); category guess:
+  - <https://github.com/sgaunet/runq>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-09-03
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
      component (persistent process with a control or inspection channel)
-  - taxonomy terms: socket
-  - screening note: README: `runq serve` keeps a per-user Unix socket listener alive;
-     later invocations forward commands; `runq stop` graceful shutdown
+  - taxonomy terms:
+    socket
+  - screening note:
+    README:
+    `runq serve` keeps a per-user Unix socket listener alive;
+     later invocations forward commands;
+    `runq stop` graceful shutdown
 - standardbeagle/brummer
-  - https://github.com/standardbeagle/brummer; stars 0; archived: true; pushed_at 2026-08-01
-  - discovered by: q4 (first screened q4 p9); category guess:
+  - <https://github.com/standardbeagle/brummer>;
+    stars 0;
+    archived:
+    true;
+    pushed_at 2026-08-01
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
      component (persistent process with a control or inspection channel)
-  - taxonomy terms: server, mcp, tui, monorepo, workspace
-  - screening note: README: TUI script and process manager with MCP server exposing logs, async command execution,
-     process status; monorepo workspace detection
+  - taxonomy terms:
+    server,
+    mcp,
+    tui,
+    monorepo,
+    workspace
+  - screening note:
+    README:
+    TUI script and process manager with MCP server exposing logs,
+    async command execution,
+     process status;
+    monorepo workspace detection
 
 ### Workspace-aware monorepo manager guesses
 
 - lerna/lerna
-  - https://github.com/lerna/lerna; stars 36053; archived: false; pushed_at 2026-09-13
-  - discovered by: q1 (first screened q1 p1); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/lerna/lerna>;
+    stars 36053;
+    archived:
+    false;
+    pushed_at 2026-09-13
+  - discovered by:
+    q1 (first screened q1 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - vercel/turborepo
-  - https://github.com/vercel/turborepo; stars 31093; archived: false; pushed_at 2026-09-16
-  - discovered by: q1, q2, q3 (first screened q1 p1); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/vercel/turborepo>;
+    stars 31093;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q1,
+    q2,
+    q3 (first screened q1 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - nrwl/nx
-  - https://github.com/nrwl/nx; stars 29342; archived: false; pushed_at 2026-09-16
-  - discovered by: q1, q2, q3 (first screened q1 p1); category guess: monorepo manager
-  - taxonomy terms: monorepo, workspace
+  - <https://github.com/nrwl/nx>;
+    stars 29342;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q1,
+    q2,
+    q3 (first screened q1 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo,
+    workspace
 - bazelbuild/bazel
-  - https://github.com/bazelbuild/bazel; stars 25857; archived: false; pushed_at 2026-09-16
-  - discovered by: q2 (first screened q2 p1); category guess: monorepo manager
+  - <https://github.com/bazelbuild/bazel>;
+    stars 25857;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q2 (first screened q2 p1);
+    category guess:
+    monorepo manager
 - gradle/gradle
-  - https://github.com/gradle/gradle; stars 18843; archived: false; pushed_at 2026-09-16
-  - discovered by: q3 (first screened q3 p1); category guess: monorepo manager
+  - <https://github.com/gradle/gradle>;
+    stars 18843;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q3 (first screened q3 p1);
+    category guess:
+    monorepo manager
 - teambit/bit
-  - https://github.com/teambit/bit; stars 18483; archived: false; pushed_at 2026-09-16
-  - discovered by: q1 (first screened q1 p1); category guess: monorepo manager
-  - taxonomy terms: distributed, monorepo, workspace
+  - <https://github.com/teambit/bit>;
+    stars 18483;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q1 (first screened q1 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    distributed,
+    monorepo,
+    workspace
 - facebook/buck
-  - https://github.com/facebook/buck; stars 8542; archived: true; pushed_at 2023-10-25
-  - discovered by: q3 (first screened q3 p1); category guess: monorepo manager
+  - <https://github.com/facebook/buck>;
+    stars 8542;
+    archived:
+    true;
+    pushed_at 2023-10-25
+  - discovered by:
+    q3 (first screened q3 p1);
+    category guess:
+    monorepo manager
 - microsoft/rushstack
-  - https://github.com/microsoft/rushstack; stars 6495; archived: false; pushed_at 2026-09-16
-  - discovered by: q1 (first screened q1 p1); category guess: monorepo manager
-  - taxonomy terms: monorepo, orchestrator, api
+  - <https://github.com/microsoft/rushstack>;
+    stars 6495;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q1 (first screened q1 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo,
+    orchestrator,
+    api
 - sbt/sbt
-  - https://github.com/sbt/sbt; stars 4952; archived: false; pushed_at 2026-09-16
-  - discovered by: q3 (first screened q3 p1); category guess: monorepo manager
+  - <https://github.com/sbt/sbt>;
+    stars 4952;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q3 (first screened q3 p1);
+    category guess:
+    monorepo manager
 - moonrepo/moon
-  - https://github.com/moonrepo/moon; stars 4103; archived: false; pushed_at 2026-09-15
-  - discovered by: q1, q2, q3, q4 (first screened q1 p1); category guess: monorepo manager
-  - taxonomy terms: monorepo, workspace
+  - <https://github.com/moonrepo/moon>;
+    stars 4103;
+    archived:
+    false;
+    pushed_at 2026-09-15
+  - discovered by:
+    q1,
+    q2,
+    q3,
+    q4 (first screened q1 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo,
+    workspace
 - pantsbuild/pants
-  - https://github.com/pantsbuild/pants; stars 3828; archived: false; pushed_at 2026-09-16
-  - discovered by: q1, q2, q3 (first screened q1 p1); category guess: monorepo manager
-  - taxonomy terms: docker, monorepo
+  - <https://github.com/pantsbuild/pants>;
+    stars 3828;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q1,
+    q2,
+    q3 (first screened q1 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    docker,
+    monorepo
 - sagiegurari/cargo-make
-  - https://github.com/sagiegurari/cargo-make; stars 2951; archived: false; pushed_at 2026-02-05
-  - discovered by: q3, q4 (first screened q3 p1); category guess: monorepo manager
-  - taxonomy terms: pipeline, plugin
+  - <https://github.com/sagiegurari/cargo-make>;
+    stars 2951;
+    archived:
+    false;
+    pushed_at 2026-02-05
+  - discovered by:
+    q3,
+    q4 (first screened q3 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    pipeline,
+    plugin
 - com-lihaoyi/mill
-  - https://github.com/com-lihaoyi/mill; stars 2792; archived: false; pushed_at 2026-09-16
-  - discovered by: q2, q3 (first screened q2 p1); category guess: monorepo manager
-  - taxonomy terms: plugin
-  - screening note: JVM-centric
+  - <https://github.com/com-lihaoyi/mill>;
+    stars 2792;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q2,
+    q3 (first screened q2 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    plugin
+  - screening note:
+    JVM-centric
 - thought-machine/please
-  - https://github.com/thought-machine/please; stars 2612; archived: false; pushed_at 2026-09-16
-  - discovered by: q1, q2, q3 (first screened q1 p1); category guess: monorepo manager
-  - taxonomy terms: reproducible, monorepo
+  - <https://github.com/thought-machine/please>;
+    stars 2612;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q1,
+    q2,
+    q3 (first screened q1 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    reproducible,
+    monorepo
 - blade-build/blade-build
-  - https://github.com/blade-build/blade-build; stars 2106; archived: false; pushed_at 2026-08-13
-  - discovered by: q1, q2, q3 (first screened q1 p1); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/blade-build/blade-build>;
+    stars 2106;
+    archived:
+    false;
+    pushed_at 2026-08-13
+  - discovered by:
+    q1,
+    q2,
+    q3 (first screened q1 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - invertase/melos
-  - https://github.com/invertase/melos; stars 1488; archived: false; pushed_at 2026-09-10
-  - discovered by: q1 (first screened q1 p1); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/invertase/melos>;
+    stars 1488;
+    archived:
+    false;
+    pushed_at 2026-09-10
+  - discovered by:
+    q1 (first screened q1 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - folke/ultra-runner
-  - https://github.com/folke/ultra-runner; stars 1247; archived: false; pushed_at 2026-09-16
-  - discovered by: q1, q3 (first screened q1 p1); category guess: monorepo manager
-  - taxonomy terms: monorepo, workspace
+  - <https://github.com/folke/ultra-runner>;
+    stars 1247;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q1,
+    q3 (first screened q1 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo,
+    workspace
 - guigrpa/oao
-  - https://github.com/guigrpa/oao; stars 850; archived: false; pushed_at 2023-01-03
-  - discovered by: q1 (first screened q1 p1); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/guigrpa/oao>;
+    stars 850;
+    archived:
+    false;
+    pushed_at 2023-01-03
+  - discovered by:
+    q1 (first screened q1 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - lerna-lite/lerna-lite
-  - https://github.com/lerna-lite/lerna-lite; stars 567; archived: false; pushed_at 2026-09-16
-  - discovered by: q1 (first screened q1 p1); category guess: monorepo manager
-  - taxonomy terms: monorepo, workspace
+  - <https://github.com/lerna-lite/lerna-lite>;
+    stars 567;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q1 (first screened q1 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo,
+    workspace
 - benchkram/bob
-  - https://github.com/benchkram/bob; stars 494; archived: false; pushed_at 2024-05-01
-  - discovered by: q1, q2, q3 (first screened q1 p1); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/benchkram/bob>;
+    stars 494;
+    archived:
+    false;
+    pushed_at 2024-05-01
+  - discovered by:
+    q1,
+    q2,
+    q3 (first screened q1 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - simplesurance/baur
-  - https://github.com/simplesurance/baur; stars 379; archived: false; pushed_at 2026-09-01
-  - discovered by: q1 (first screened q1 p2); category guess: monorepo manager
-  - taxonomy terms: incremental, monorepo
+  - <https://github.com/simplesurance/baur>;
+    stars 379;
+    archived:
+    false;
+    pushed_at 2026-09-01
+  - discovered by:
+    q1 (first screened q1 p2);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    incremental,
+    monorepo
 - ojkelly/yarn.build
-  - https://github.com/ojkelly/yarn.build; stars 331; archived: false; pushed_at 2026-05-26
-  - discovered by: q1, q2, q3 (first screened q1 p2); category guess: monorepo manager
-  - taxonomy terms: docker, polyglot, monorepo, workspace, plugin
+  - <https://github.com/ojkelly/yarn.build>;
+    stars 331;
+    archived:
+    false;
+    pushed_at 2026-05-26
+  - discovered by:
+    q1,
+    q2,
+    q3 (first screened q1 p2);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    docker,
+    polyglot,
+    monorepo,
+    workspace,
+    plugin
 - mbtproject/mbt
-  - https://github.com/mbtproject/mbt; stars 219; archived: false; pushed_at 2023-10-13
-  - discovered by: q1, q3 (first screened q1 p2); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/mbtproject/mbt>;
+    stars 219;
+    archived:
+    false;
+    pushed_at 2023-10-13
+  - discovered by:
+    q1,
+    q3 (first screened q1 p2);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - toss/yarn-plugin-workspace-since
-  - https://github.com/toss/yarn-plugin-workspace-since; stars 189; archived: false; pushed_at 2024-12-02
-  - discovered by: q1 (first screened q1 p2); category guess: monorepo manager
-  - taxonomy terms: monorepo, workspace, plugin
-  - screening note: README: runs a command in changed workspaces plus dependents, parallel jobs; Yarn plugin
+  - <https://github.com/toss/yarn-plugin-workspace-since>;
+    stars 189;
+    archived:
+    false;
+    pushed_at 2024-12-02
+  - discovered by:
+    q1 (first screened q1 p2);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo,
+    workspace,
+    plugin
+  - screening note:
+    README:
+    runs a command in changed workspaces plus dependents,
+    parallel jobs;
+    Yarn plugin
 - Akryum/monorepo-run
-  - https://github.com/Akryum/monorepo-run; stars 184; archived: true; pushed_at 2021-08-11
-  - discovered by: q1 (first screened q1 p2); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/Akryum/monorepo-run>;
+    stars 184;
+    archived:
+    true;
+    pushed_at 2021-08-11
+  - discovered by:
+    q1 (first screened q1 p2);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - seansfkelley/yerna
-  - https://github.com/seansfkelley/yerna; stars 143; archived: false; pushed_at 2018-05-04
-  - discovered by: q1 (first screened q1 p3); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/seansfkelley/yerna>;
+    stars 143;
+    archived:
+    false;
+    pushed_at 2018-05-04
+  - discovered by:
+    q1 (first screened q1 p3);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - giltayar/bilt
-  - https://github.com/giltayar/bilt; stars 137; archived: false; pushed_at 2022-12-27
-  - discovered by: q1 (first screened q1 p3); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/giltayar/bilt>;
+    stars 137;
+    archived:
+    false;
+    pushed_at 2022-12-27
+  - discovered by:
+    q1 (first screened q1 p3);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - colcon/colcon-core
-  - https://github.com/colcon/colcon-core; stars 133; archived: false; pushed_at 2026-09-16
-  - discovered by: q3 (first screened q3 p2); category guess: monorepo manager
-  - taxonomy terms: workspace
-  - screening note: ROS workspace
+  - <https://github.com/colcon/colcon-core>;
+    stars 133;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q3 (first screened q3 p2);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    workspace
+  - screening note:
+    ROS workspace
 - paularmstrong/onerepo
-  - https://github.com/paularmstrong/onerepo; stars 132; archived: false; pushed_at 2026-04-16
-  - discovered by: q1 (first screened q1 p3); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/paularmstrong/onerepo>;
+    stars 132;
+    archived:
+    false;
+    pushed_at 2026-04-16
+  - discovered by:
+    q1 (first screened q1 p3);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - sportradar/elixir-workspace
-  - https://github.com/sportradar/elixir-workspace; stars 108; archived: false; pushed_at 2026-08-05
-  - discovered by: q1 (first screened q1 p3); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/sportradar/elixir-workspace>;
+    stars 108;
+    archived:
+    false;
+    pushed_at 2026-08-05
+  - discovered by:
+    q1 (first screened q1 p3);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - chrismatix/grog
-  - https://github.com/chrismatix/grog; stars 73; archived: false; pushed_at 2026-09-16
-  - discovered by: q1, q3 (first screened q1 p4); category guess: monorepo manager
-  - taxonomy terms: caching, monorepo
+  - <https://github.com/chrismatix/grog>;
+    stars 73;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q1,
+    q3 (first screened q1 p4);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    caching,
+    monorepo
 - smorsic/pacwich
-  - https://github.com/smorsic/pacwich; stars 67; archived: false; pushed_at 2026-09-15
-  - discovered by: q1 (first screened q1 p4); category guess: monorepo manager
-  - taxonomy terms: monorepo, workspace, api
+  - <https://github.com/smorsic/pacwich>;
+    stars 67;
+    archived:
+    false;
+    pushed_at 2026-09-15
+  - discovered by:
+    q1 (first screened q1 p4);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo,
+    workspace,
+    api
 - nickolaj-jepsen/fnug
-  - https://github.com/nickolaj-jepsen/fnug; stars 60; archived: false; pushed_at 2026-03-14
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager
-  - taxonomy terms: watch, tui, workspace
-  - screening note: README: TUI command runner selecting commands by git changes or file watching, depends_on,
+  - <https://github.com/nickolaj-jepsen/fnug>;
+    stars 60;
+    archived:
+    false;
+    pushed_at 2026-03-14
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    watch,
+    tui,
+    workspace
+  - screening note:
+    README:
+    TUI command runner selecting commands by git changes or file watching,
+    depends_on,
      workspace .fnug.yaml discovery
 - run-z/run-z
-  - https://github.com/run-z/run-z; stars 59; archived: true; pushed_at 2024-11-26
-  - discovered by: q3 (first screened q3 p3); category guess: monorepo manager
-  - taxonomy terms: workspace
+  - <https://github.com/run-z/run-z>;
+    stars 59;
+    archived:
+    true;
+    pushed_at 2024-11-26
+  - discovered by:
+    q3 (first screened q3 p3);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    workspace
 - electrode-io/fynpo
-  - https://github.com/electrode-io/fynpo; stars 56; archived: false; pushed_at 2022-04-16
-  - discovered by: q1 (first screened q1 p5); category guess: monorepo manager
-  - taxonomy terms: monorepo, workspace
+  - <https://github.com/electrode-io/fynpo>;
+    stars 56;
+    archived:
+    false;
+    pushed_at 2022-04-16
+  - discovered by:
+    q1 (first screened q1 p5);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo,
+    workspace
 - Farfetch/garment
-  - https://github.com/Farfetch/garment; stars 46; archived: true; pushed_at 2024-01-03
-  - discovered by: q1, q2 (first screened q1 p5); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/Farfetch/garment>;
+    stars 46;
+    archived:
+    true;
+    pushed_at 2024-01-03
+  - discovered by:
+    q1,
+    q2 (first screened q1 p5);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - AmbitionEng/qik
-  - https://github.com/AmbitionEng/qik; stars 42; archived: false; pushed_at 2026-09-04
-  - discovered by: q1 (first screened q1 p5); category guess: monorepo manager
-  - taxonomy terms: continuous, monorepo
+  - <https://github.com/AmbitionEng/qik>;
+    stars 42;
+    archived:
+    false;
+    pushed_at 2026-09-04
+  - discovered by:
+    q1 (first screened q1 p5);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    continuous,
+    monorepo
 - bazurbat/jagen
-  - https://github.com/bazurbat/jagen; stars 38; archived: false; pushed_at 2022-01-13
-  - discovered by: q2, q3 (first screened q2 p2); category guess: monorepo manager
-  - taxonomy terms: workspace
+  - <https://github.com/bazurbat/jagen>;
+    stars 38;
+    archived:
+    false;
+    pushed_at 2022-01-13
+  - discovered by:
+    q2,
+    q3 (first screened q2 p2);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    workspace
 - rawnly/hawk
-  - https://github.com/rawnly/hawk; stars 37; archived: false; pushed_at 2023-03-13
-  - discovered by: q3 (first screened q3 p4); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/rawnly/hawk>;
+    stars 37;
+    archived:
+    false;
+    pushed_at 2023-03-13
+  - discovered by:
+    q3 (first screened q3 p4);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - simplebuild/please.make
-  - https://github.com/simplebuild/please.make; stars 30; archived: false; pushed_at 2023-01-06
-  - discovered by: q1, q2, q3 (first screened q1 p6); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/simplebuild/please.make>;
+    stars 30;
+    archived:
+    false;
+    pushed_at 2023-01-06
+  - discovered by:
+    q1,
+    q2,
+    q3 (first screened q1 p6);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - charypar/monobuild
-  - https://github.com/charypar/monobuild; stars 29; archived: false; pushed_at 2022-06-17
-  - discovered by: q1, q3 (first screened q1 p7); category guess: monorepo manager
-  - taxonomy terms: dependency-graph, continuous, monorepo, orchestration
+  - <https://github.com/charypar/monobuild>;
+    stars 29;
+    archived:
+    false;
+    pushed_at 2022-06-17
+  - discovered by:
+    q1,
+    q3 (first screened q1 p7);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    dependency-graph,
+    continuous,
+    monorepo,
+    orchestration
 - MagnusOpera/terrabuild
-  - https://github.com/MagnusOpera/terrabuild; stars 25; archived: false; pushed_at 2026-09-15
-  - discovered by: q1, q3 (first screened q1 p7); category guess: monorepo manager
-  - taxonomy terms: caching, container, monorepo
+  - <https://github.com/MagnusOpera/terrabuild>;
+    stars 25;
+    archived:
+    false;
+    pushed_at 2026-09-15
+  - discovered by:
+    q1,
+    q3 (first screened q1 p7);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    caching,
+    container,
+    monorepo
 - leostera/warp
-  - https://github.com/leostera/warp; stars 23; archived: false; pushed_at 2023-05-28
-  - discovered by: q1, q2 (first screened q1 p8); category guess: monorepo manager
-  - taxonomy terms: incremental, polyglot, monorepo
+  - <https://github.com/leostera/warp>;
+    stars 23;
+    archived:
+    false;
+    pushed_at 2023-05-28
+  - discovered by:
+    q1,
+    q2 (first screened q1 p8);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    incremental,
+    polyglot,
+    monorepo
 - zifeo/whiz
-  - https://github.com/zifeo/whiz; stars 21; archived: false; pushed_at 2026-02-01
-  - discovered by: q1, q3, q4 (first screened q1 p8); category guess: monorepo manager
-  - taxonomy terms: dag, watch, watcher, live reload, monorepo
+  - <https://github.com/zifeo/whiz>;
+    stars 21;
+    archived:
+    false;
+    pushed_at 2026-02-01
+  - discovered by:
+    q1,
+    q3,
+    q4 (first screened q1 p8);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    dag,
+    watch,
+    watcher,
+    live reload,
+    monorepo
 - rnza0u/blaze
-  - https://github.com/rnza0u/blaze; stars 20; archived: false; pushed_at 2025-06-01
-  - discovered by: q1, q2, q3 (first screened q1 p8); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/rnza0u/blaze>;
+    stars 20;
+    archived:
+    false;
+    pushed_at 2025-06-01
+  - discovered by:
+    q1,
+    q2,
+    q3 (first screened q1 p8);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - Financial-Times/athloi
-  - https://github.com/Financial-Times/athloi; stars 20; archived: true; pushed_at 2023-04-20
-  - discovered by: q1 (first screened q1 p8); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/Financial-Times/athloi>;
+    stars 20;
+    archived:
+    true;
+    pushed_at 2023-04-20
+  - discovered by:
+    q1 (first screened q1 p8);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - electricitymaps/brick
-  - https://github.com/electricitymaps/brick; stars 20; archived: true; pushed_at 2023-02-01
-  - discovered by: q2 (first screened q2 p3); category guess: monorepo manager
-  - taxonomy terms: docker, monorepo
+  - <https://github.com/electricitymaps/brick>;
+    stars 20;
+    archived:
+    true;
+    pushed_at 2023-02-01
+  - discovered by:
+    q2 (first screened q2 p3);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    docker,
+    monorepo
 - abuob/yanice
-  - https://github.com/abuob/yanice; stars 17; archived: false; pushed_at 2026-01-11
-  - discovered by: q1 (first screened q1 p9); category guess: monorepo manager
-  - taxonomy terms: dependency graph, incremental, change detection, change-detection, monorepo
-  - screening note: README: incremental command executor with per-scope dependency graphs and change detection
+  - <https://github.com/abuob/yanice>;
+    stars 17;
+    archived:
+    false;
+    pushed_at 2026-01-11
+  - discovered by:
+    q1 (first screened q1 p9);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    dependency graph,
+    incremental,
+    change detection,
+    change-detection,
+    monorepo
+  - screening note:
+    README:
+    incremental command executor with per-scope dependency graphs and change detection
 - tylerbutler/trellis
-  - https://github.com/tylerbutler/trellis; stars 17; archived: false; pushed_at 2026-09-14
-  - discovered by: q1 (first screened q1 p9); category guess: monorepo manager
-  - taxonomy terms: monorepo, workspace
-  - screening note: README: Gleam workspace CLI with computed graph, run and exec across members
+  - <https://github.com/tylerbutler/trellis>;
+    stars 17;
+    archived:
+    false;
+    pushed_at 2026-09-14
+  - discovered by:
+    q1 (first screened q1 p9);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo,
+    workspace
+  - screening note:
+    README:
+    Gleam workspace CLI with computed graph,
+    run and exec across members
 - jotform/zenith
-  - https://github.com/jotform/zenith; stars 16; archived: false; pushed_at 2026-09-03
-  - discovered by: q1 (first screened q1 p9); category guess: monorepo manager
-  - taxonomy terms: caching, monorepo
+  - <https://github.com/jotform/zenith>;
+    stars 16;
+    archived:
+    false;
+    pushed_at 2026-09-03
+  - discovered by:
+    q1 (first screened q1 p9);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    caching,
+    monorepo
 - alpha-build/alpha-build
-  - https://github.com/alpha-build/alpha-build; stars 15; archived: false; pushed_at 2026-03-25
-  - discovered by: q1, q2, q3 (first screened q1 p10); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/alpha-build/alpha-build>;
+    stars 15;
+    archived:
+    false;
+    pushed_at 2026-03-25
+  - discovered by:
+    q1,
+    q2,
+    q3 (first screened q1 p10);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - chgibb/mono-surveyor
-  - https://github.com/chgibb/mono-surveyor; stars 13; archived: false; pushed_at 2021-11-02
-  - discovered by: q1 (first screened q1 p10); category guess: monorepo manager
-  - taxonomy terms: affected, monorepo
-  - screening note: README: per-package command surveys on affected Dart/Flutter packages
+  - <https://github.com/chgibb/mono-surveyor>;
+    stars 13;
+    archived:
+    false;
+    pushed_at 2021-11-02
+  - discovered by:
+    q1 (first screened q1 p10);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    affected,
+    monorepo
+  - screening note:
+    README:
+    per-package command surveys on affected Dart/Flutter packages
 - Comcast/tsb
-  - https://github.com/Comcast/tsb; stars 13; archived: false; pushed_at 2026-05-04
-  - discovered by: q3 (first screened q3 p6); category guess: monorepo manager
-  - screening note: multi-repo
+  - <https://github.com/Comcast/tsb>;
+    stars 13;
+    archived:
+    false;
+    pushed_at 2026-05-04
+  - discovered by:
+    q3 (first screened q3 p6);
+    category guess:
+    monorepo manager
+  - screening note:
+    multi-repo
 - 8bitAlex/raid
-  - https://github.com/8bitAlex/raid; stars 13; archived: false; pushed_at 2026-09-11
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager
-  - taxonomy terms: distributed, orchestrator
-  - screening note: multi-repo
+  - <https://github.com/8bitAlex/raid>;
+    stars 13;
+    archived:
+    false;
+    pushed_at 2026-09-11
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    distributed,
+    orchestrator
+  - screening note:
+    multi-repo
 - pnordahl/monorail
-  - https://github.com/pnordahl/monorail; stars 9; archived: false; pushed_at 2024-12-08
-  - discovered by: q3 (first screened q3 p7); category guess: monorepo manager
-  - taxonomy terms: polyglot, monorepo, orchestrator
+  - <https://github.com/pnordahl/monorail>;
+    stars 9;
+    archived:
+    false;
+    pushed_at 2024-12-08
+  - discovered by:
+    q3 (first screened q3 p7);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    polyglot,
+    monorepo,
+    orchestrator
 - aklitzke/dors
-  - https://github.com/aklitzke/dors; stars 9; archived: false; pushed_at 2020-06-05
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager
-  - taxonomy terms: workspace, plugin
-  - screening note: Cargo workspace
+  - <https://github.com/aklitzke/dors>;
+    stars 9;
+    archived:
+    false;
+    pushed_at 2020-06-05
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    workspace,
+    plugin
+  - screening note:
+    Cargo workspace
 - nosebit/act
-  - https://github.com/nosebit/act; stars 7; archived: false; pushed_at 2022-05-01
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager
-  - taxonomy terms: workspace
+  - <https://github.com/nosebit/act>;
+    stars 7;
+    archived:
+    false;
+    pushed_at 2022-05-01
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    workspace
 - IKatsuba/runx
-  - https://github.com/IKatsuba/runx; stars 5; archived: false; pushed_at 2025-03-11
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager
-  - taxonomy terms: monorepo
-  - screening note: monorepo
+  - <https://github.com/IKatsuba/runx>;
+    stars 5;
+    archived:
+    false;
+    pushed_at 2025-03-11
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
+  - screening note:
+    monorepo
 - kristofferlind/knega
-  - https://github.com/kristofferlind/knega; stars 4; archived: false; pushed_at 2022-11-27
-  - discovered by: q3 (first screened q3 p9); category guess: monorepo manager
-  - taxonomy terms: docker, monorepo
-  - screening note: monorepo
+  - <https://github.com/kristofferlind/knega>;
+    stars 4;
+    archived:
+    false;
+    pushed_at 2022-11-27
+  - discovered by:
+    q3 (first screened q3 p9);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    docker,
+    monorepo
+  - screening note:
+    monorepo
 - chaliy/mrt
-  - https://github.com/chaliy/mrt; stars 4; archived: false; pushed_at 2026-09-11
-  - discovered by: q4 (first screened q4 p4); category guess: monorepo manager
-  - taxonomy terms: polyglot, monorepo
-  - screening note: monorepo
+  - <https://github.com/chaliy/mrt>;
+    stars 4;
+    archived:
+    false;
+    pushed_at 2026-09-11
+  - discovered by:
+    q4 (first screened q4 p4);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    polyglot,
+    monorepo
+  - screening note:
+    monorepo
 - egladman/magus
-  - https://github.com/egladman/magus; stars 3; archived: false; pushed_at 2026-09-16
-  - discovered by: q2, q4 (first screened q2 p5); category guess: monorepo manager
-  - taxonomy terms: server, mcp, polyglot, monorepo, orchestration, orchestrator
+  - <https://github.com/egladman/magus>;
+    stars 3;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q2,
+    q4 (first screened q2 p5);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    server,
+    mcp,
+    polyglot,
+    monorepo,
+    orchestration,
+    orchestrator
 - Grevix/Rivox
-  - https://github.com/Grevix/Rivox; stars 3; archived: false; pushed_at 2026-08-10
-  - discovered by: q2 (first screened q2 p5); category guess: monorepo manager
-  - taxonomy terms: reproducible, content-addressed, polyglot, monorepo
+  - <https://github.com/Grevix/Rivox>;
+    stars 3;
+    archived:
+    false;
+    pushed_at 2026-08-10
+  - discovered by:
+    q2 (first screened q2 p5);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    reproducible,
+    content-addressed,
+    polyglot,
+    monorepo
 - aaryanrwt/Rivox
-  - https://github.com/aaryanrwt/Rivox; stars 3; archived: false; pushed_at 2026-08-10
-  - discovered by: q2 (first screened q2 p5); category guess: monorepo manager
-  - taxonomy terms: sandbox, polyglot, monorepo
-  - screening note: dup of Grevix/Rivox?
+  - <https://github.com/aaryanrwt/Rivox>;
+    stars 3;
+    archived:
+    false;
+    pushed_at 2026-08-10
+  - discovered by:
+    q2 (first screened q2 p5);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    sandbox,
+    polyglot,
+    monorepo
+  - screening note:
+    dup of Grevix/Rivox?
 - hjosugi/frost-build
-  - https://github.com/hjosugi/frost-build; stars 1; archived: false; pushed_at 2026-09-12
-  - discovered by: q2 (first screened q2 p8); category guess: monorepo manager
-  - taxonomy terms: dependency-graph, build-cache, incremental, cache, monorepo
+  - <https://github.com/hjosugi/frost-build>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-09-12
+  - discovered by:
+    q2 (first screened q2 p8);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    dependency-graph,
+    build-cache,
+    incremental,
+    cache,
+    monorepo
 - pomagrenate/gox
-  - https://github.com/pomagrenate/gox; stars 1; archived: false; pushed_at 2026-08-12
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager
-  - taxonomy terms: monorepo, workspace, orchestration
-  - screening note: monorepo
+  - <https://github.com/pomagrenate/gox>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-08-12
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo,
+    workspace,
+    orchestration
+  - screening note:
+    monorepo
 - nshkrdotcom/blitz
-  - https://github.com/nshkrdotcom/blitz; stars 1; archived: false; pushed_at 2026-09-03
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager
-  - taxonomy terms: monorepo, workspace, orchestration
-  - screening note: Mix workspaces
+  - <https://github.com/nshkrdotcom/blitz>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-09-03
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo,
+    workspace,
+    orchestration
+  - screening note:
+    Mix workspaces
 - Ashutosh0x/hyperblaze
-  - https://github.com/Ashutosh0x/hyperblaze; stars 0; archived: false; pushed_at 2026-08-24
-  - discovered by: q2 (first screened q2 p8); category guess: monorepo manager
-  - taxonomy terms: incremental, monorepo
+  - <https://github.com/Ashutosh0x/hyperblaze>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-08-24
+  - discovered by:
+    q2 (first screened q2 p8);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    incremental,
+    monorepo
 - pojntfx/dibs
-  - https://github.com/pojntfx/dibs; stars 0; archived: true; pushed_at 2023-02-26
-  - discovered by: q2 (first screened q2 p9); category guess: monorepo manager
-  - taxonomy terms: distributed, polyglot
+  - <https://github.com/pojntfx/dibs>;
+    stars 0;
+    archived:
+    true;
+    pushed_at 2023-02-26
+  - discovered by:
+    q2 (first screened q2 p9);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    distributed,
+    polyglot
 - chaitanya-archive/obelisk.build
-  - https://github.com/chaitanya-archive/obelisk.build; stars 0; archived: true; pushed_at 2026-01-03
-  - discovered by: q2 (first screened q2 p10); category guess: monorepo manager
-  - taxonomy terms: remote execution, remote-execution, build-cache, distributed, continuous, hermetic, reproducible,
-     content-addressable, cache, caching, sandbox, monorepo
+  - <https://github.com/chaitanya-archive/obelisk.build>;
+    stars 0;
+    archived:
+    true;
+    pushed_at 2026-01-03
+  - discovered by:
+    q2 (first screened q2 p10);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    remote execution,
+    remote-execution,
+    build-cache,
+    distributed,
+    continuous,
+    hermetic,
+    reproducible,
+     content-addressable,
+    cache,
+    caching,
+    sandbox,
+    monorepo
 - gmullerb/jko
-  - https://github.com/gmullerb/jko; stars 0; archived: false; pushed_at 2025-05-10
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager
+  - <https://github.com/gmullerb/jko>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2025-05-10
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager
 - alpercitak/fasttrack
-  - https://github.com/alpercitak/fasttrack; stars 0; archived: false; pushed_at 2026-05-08
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager
-  - taxonomy terms: affected, monorepo
-  - screening note: monorepo
+  - <https://github.com/alpercitak/fasttrack>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-05-08
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    affected,
+    monorepo
+  - screening note:
+    monorepo
 - meslzy/outdo
-  - https://github.com/meslzy/outdo; stars 0; archived: false; pushed_at 2026-08-26
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager
-  - taxonomy terms: monorepo
+  - <https://github.com/meslzy/outdo>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-08-26
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
 - lukahartwig/mono
-  - https://github.com/lukahartwig/mono; stars 0; archived: false; pushed_at 2023-02-25
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager
-  - taxonomy terms: monorepo
-  - screening note: monorepo
+  - <https://github.com/lukahartwig/mono>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2023-02-25
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
+  - screening note:
+    monorepo
 - serrnovik/jax
-  - https://github.com/serrnovik/jax; stars 0; archived: false; pushed_at 2026-08-21
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager
-  - taxonomy terms: monorepo, orchestration
-  - screening note: monorepo
+  - <https://github.com/serrnovik/jax>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-08-21
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo,
+    orchestration
+  - screening note:
+    monorepo
 - albahq/alba
-  - https://github.com/albahq/alba; stars 0; archived: false; pushed_at 2026-09-10
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager
-  - taxonomy terms: watch, affected, caching, tui, monorepo
-  - screening note: README: Beamfile task runner with beam dependencies; description lists caching, affected runs,
-     watch mode, TUI
+  - <https://github.com/albahq/alba>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-09-10
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    watch,
+    affected,
+    caching,
+    tui,
+    monorepo
+  - screening note:
+    README:
+    Beamfile task runner with beam dependencies;
+    description lists caching,
+    affected runs,
+     watch mode,
+    TUI
 - jdarais/cobble
-  - https://github.com/jdarais/cobble; stars 0; archived: false; pushed_at 2026-05-16
-  - discovered by: q4 (first screened q4 p10); category guess: monorepo manager
-  - taxonomy terms: monorepo
-  - screening note: monorepo
+  - <https://github.com/jdarais/cobble>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-05-16
+  - discovered by:
+    q4 (first screened q4 p10);
+    category guess:
+    monorepo manager
+  - taxonomy terms:
+    monorepo
+  - screening note:
+    monorepo
 
 ### General task or build runners (monorepo manager candidates, not evidently workspace-aware)
 
 - go-task/task
-  - https://github.com/go-task/task; stars 16153; archived: false; pushed_at 2026-09-16
-  - discovered by: q3, q4 (first screened q3 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/go-task/task>;
+    stars 16153;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q3,
+    q4 (first screened q3 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - earthly/earthly
-  - https://github.com/earthly/earthly; stars 12048; archived: false; pushed_at 2025-10-23
-  - discovered by: q2, q3 (first screened q2 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: reproducible, container, docker
+  - <https://github.com/earthly/earthly>;
+    stars 12048;
+    archived:
+    false;
+    pushed_at 2025-10-23
+  - discovered by:
+    q2,
+    q3 (first screened q2 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    reproducible,
+    container,
+    docker
 - oxequa/realize
-  - https://github.com/oxequa/realize; stars 4434; archived: false; pushed_at 2021-05-14
-  - discovered by: q2, q3, q4 (first screened q2 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: watch, watcher, live reload
-  - screening note: README: Go live reload and task runner, multiple projects, custom commands on change,
-     panel showing build output; Go-centric
+  - <https://github.com/oxequa/realize>;
+    stars 4434;
+    archived:
+    false;
+    pushed_at 2021-05-14
+  - discovered by:
+    q2,
+    q3,
+    q4 (first screened q2 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    watch,
+    watcher,
+    live reload
+  - screening note:
+    README:
+    Go live reload and task runner,
+    multiple projects,
+    custom commands on change,
+     panel showing build output;
+    Go-centric
 - cake-build/cake
-  - https://github.com/cake-build/cake; stars 4192; archived: false; pushed_at 2026-09-16
-  - discovered by: q3 (first screened q3 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: continuous, orchestration
+  - <https://github.com/cake-build/cake>;
+    stars 4192;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q3 (first screened q3 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    continuous,
+    orchestration
 - SCons/scons
-  - https://github.com/SCons/scons; stars 2419; archived: false; pushed_at 2026-09-16
-  - discovered by: q3 (first screened q3 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/SCons/scons>;
+    stars 2419;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q3 (first screened q3 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - pydoit/doit
-  - https://github.com/pydoit/doit; stars 2084; archived: false; pushed_at 2026-02-12
-  - discovered by: q2, q3, q4 (first screened q2 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: pipeline
+  - <https://github.com/pydoit/doit>;
+    stars 2084;
+    archived:
+    false;
+    pushed_at 2026-02-12
+  - discovered by:
+    q2,
+    q3,
+    q4 (first screened q2 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    pipeline
 - nat-n/poethepoet
-  - https://github.com/nat-n/poethepoet; stars 2076; archived: false; pushed_at 2026-07-12
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: plugin
+  - <https://github.com/nat-n/poethepoet>;
+    stars 2076;
+    archived:
+    false;
+    pushed_at 2026-07-12
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    plugin
 - apenwarr/redo
-  - https://github.com/apenwarr/redo; stars 1848; archived: false; pushed_at 2023-11-07
-  - discovered by: q2 (first screened q2 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/apenwarr/redo>;
+    stars 1848;
+    archived:
+    false;
+    pushed_at 2023-11-07
+  - discovered by:
+    q2 (first screened q2 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - stepchowfun/toast
-  - https://github.com/stepchowfun/toast; stars 1630; archived: false; pushed_at 2026-09-16
-  - discovered by: q2, q3 (first screened q2 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: continuous, container, docker
+  - <https://github.com/stepchowfun/toast>;
+    stars 1630;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q2,
+    q3 (first screened q2 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    continuous,
+    container,
+    docker
 - jacobdeichert/mask
-  - https://github.com/jacobdeichert/mask; stars 1617; archived: false; pushed_at 2026-01-10
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/jacobdeichert/mask>;
+    stars 1617;
+    archived:
+    false;
+    pushed_at 2026-01-10
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - joerdav/xc
-  - https://github.com/joerdav/xc; stars 1401; archived: false; pushed_at 2026-07-17
-  - discovered by: q3, q4 (first screened q3 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/joerdav/xc>;
+    stars 1401;
+    archived:
+    false;
+    pushed_at 2026-07-17
+  - discovered by:
+    q3,
+    q4 (first screened q3 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - sigoden/argc
-  - https://github.com/sigoden/argc; stars 1165; archived: false; pushed_at 2026-06-29
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: generator
+  - <https://github.com/sigoden/argc>;
+    stars 1165;
+    archived:
+    false;
+    pushed_at 2026-06-29
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    generator
 - wagoodman/bashful
-  - https://github.com/wagoodman/bashful; stars 1163; archived: false; pushed_at 2022-03-20
-  - discovered by: q3 (first screened q3 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/wagoodman/bashful>;
+    stars 1163;
+    archived:
+    false;
+    pushed_at 2022-03-20
+  - discovered by:
+    q3 (first screened q3 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - dotnetcore/FlubuCore
-  - https://github.com/dotnetcore/FlubuCore; stars 937; archived: false; pushed_at 2026-03-25
-  - discovered by: q2, q3 (first screened q2 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: continuous, orchestration
+  - <https://github.com/dotnetcore/FlubuCore>;
+    stars 937;
+    archived:
+    false;
+    pushed_at 2026-03-25
+  - discovered by:
+    q2,
+    q3 (first screened q2 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    continuous,
+    orchestration
 - cirocosta/cr
-  - https://github.com/cirocosta/cr; stars 688; archived: false; pushed_at 2018-12-30
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/cirocosta/cr>;
+    stars 688;
+    archived:
+    false;
+    pushed_at 2018-12-30
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - pypyr/pypyr
-  - https://github.com/pypyr/pypyr; stars 645; archived: false; pushed_at 2023-12-19
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: continuous, pipeline, api
+  - <https://github.com/pypyr/pypyr>;
+    stars 645;
+    archived:
+    false;
+    pushed_at 2023-12-19
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    continuous,
+    pipeline,
+    api
 - jolicode/castor
-  - https://github.com/jolicode/castor; stars 554; archived: false; pushed_at 2026-09-16
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/jolicode/castor>;
+    stars 554;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - thomhurst/ModularPipelines
-  - https://github.com/thomhurst/ModularPipelines; stars 550; archived: false; pushed_at 2026-09-16
-  - discovered by: q2, q3 (first screened q2 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: pipeline
+  - <https://github.com/thomhurst/ModularPipelines>;
+    stars 550;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q2,
+    q3 (first screened q2 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    pipeline
 - go-godo/godo
-  - https://github.com/go-godo/godo; stars 531; archived: false; pushed_at 2018-04-25
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: watch, watcher
-  - screening note: watcher
+  - <https://github.com/go-godo/godo>;
+    stars 531;
+    archived:
+    false;
+    pushed_at 2018-04-25
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    watch,
+    watcher
+  - screening note:
+    watcher
 - TekWizely/run
-  - https://github.com/TekWizely/run; stars 498; archived: false; pushed_at 2026-09-13
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/TekWizely/run>;
+    stars 498;
+    archived:
+    false;
+    pushed_at 2026-09-13
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - xonixx/makesure
-  - https://github.com/xonixx/makesure; stars 370; archived: false; pushed_at 2026-09-14
-  - discovered by: q2, q3, q4 (first screened q2 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/xonixx/makesure>;
+    stars 370;
+    archived:
+    false;
+    pushed_at 2026-09-14
+  - discovered by:
+    q2,
+    q3,
+    q4 (first screened q2 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - aappleby/hancho
-  - https://github.com/aappleby/hancho; stars 366; archived: false; pushed_at 2026-09-14
-  - discovered by: q3 (first screened q3 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/aappleby/hancho>;
+    stars 366;
+    archived:
+    false;
+    pushed_at 2026-09-14
+  - discovered by:
+    q3 (first screened q3 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - taskctl/taskctl
-  - https://github.com/taskctl/taskctl; stars 326; archived: false; pushed_at 2026-07-20
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: watch, watcher
-  - screening note: watcher
+  - <https://github.com/taskctl/taskctl>;
+    stars 326;
+    archived:
+    false;
+    pushed_at 2026-07-20
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    watch,
+    watcher
+  - screening note:
+    watcher
 - dnephin/dobi
-  - https://github.com/dnephin/dobi; stars 313; archived: false; pushed_at 2023-11-10
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: docker, pipeline
+  - <https://github.com/dnephin/dobi>;
+    stars 313;
+    archived:
+    false;
+    pushed_at 2023-11-10
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    docker,
+    pipeline
 - zaaack/foy
-  - https://github.com/zaaack/foy; stars 290; archived: false; pushed_at 2026-07-12
-  - discovered by: q2, q3, q4 (first screened q2 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/zaaack/foy>;
+    stars 290;
+    archived:
+    false;
+    pushed_at 2026-07-12
+  - discovered by:
+    q2,
+    q3,
+    q4 (first screened q2 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - rliebz/tusk
-  - https://github.com/rliebz/tusk; stars 249; archived: false; pushed_at 2026-01-05
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/rliebz/tusk>;
+    stars 249;
+    archived:
+    false;
+    pushed_at 2026-01-05
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - opsxcq/tasker
-  - https://github.com/opsxcq/tasker; stars 204; archived: false; pushed_at 2019-01-05
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: docker
+  - <https://github.com/opsxcq/tasker>;
+    stars 204;
+    archived:
+    false;
+    pushed_at 2019-01-05
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    docker
 - dreadl0ck/zeus
-  - https://github.com/dreadl0ck/zeus; stars 199; archived: false; pushed_at 2025-10-24
-  - discovered by: q3 (first screened q3 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/dreadl0ck/zeus>;
+    stars 199;
+    archived:
+    false;
+    pushed_at 2025-10-24
+  - discovered by:
+    q3 (first screened q3 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - zyedidia/knit
-  - https://github.com/zyedidia/knit; stars 195; archived: false; pushed_at 2023-09-01
-  - discovered by: q2, q3 (first screened q2 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/zyedidia/knit>;
+    stars 195;
+    archived:
+    false;
+    pushed_at 2023-09-01
+  - discovered by:
+    q2,
+    q3 (first screened q2 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - gulien/orbit
-  - https://github.com/gulien/orbit; stars 187; archived: false; pushed_at 2021-01-18
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/gulien/orbit>;
+    stars 187;
+    archived:
+    false;
+    pushed_at 2021-01-18
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - ali77gh/bake-rs
-  - https://github.com/ali77gh/bake-rs; stars 150; archived: false; pushed_at 2026-08-26
-  - discovered by: q3, q4 (first screened q3 p2); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: tui
+  - <https://github.com/ali77gh/bake-rs>;
+    stars 150;
+    archived:
+    false;
+    pushed_at 2026-08-26
+  - discovered by:
+    q3,
+    q4 (first screened q3 p2);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    tui
 - ejholmes/walk
-  - https://github.com/ejholmes/walk; stars 138; archived: false; pushed_at 2026-03-09
-  - discovered by: q2, q3 (first screened q2 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/ejholmes/walk>;
+    stars 138;
+    archived:
+    false;
+    pushed_at 2026-03-09
+  - discovered by:
+    q2,
+    q3 (first screened q2 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - go-gilbert/gilbert
-  - https://github.com/go-gilbert/gilbert; stars 129; archived: false; pushed_at 2026-05-30
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/go-gilbert/gilbert>;
+    stars 129;
+    archived:
+    false;
+    pushed_at 2026-05-30
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - pawamoy/duty
-  - https://github.com/pawamoy/duty; stars 129; archived: false; pushed_at 2026-09-12
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/pawamoy/duty>;
+    stars 129;
+    archived:
+    false;
+    pushed_at 2026-09-12
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - dazuma/toys
-  - https://github.com/dazuma/toys; stars 128; archived: false; pushed_at 2026-09-11
-  - discovered by: q3 (first screened q3 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/dazuma/toys>;
+    stars 128;
+    archived:
+    false;
+    pushed_at 2026-09-11
+  - discovered by:
+    q3 (first screened q3 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - sakejs/sake-cli
-  - https://github.com/sakejs/sake-cli; stars 95; archived: false; pushed_at 2026-09-10
-  - discovered by: q3 (first screened q3 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/sakejs/sake-cli>;
+    stars 95;
+    archived:
+    false;
+    pushed_at 2026-09-10
+  - discovered by:
+    q3 (first screened q3 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - nur-taskrunner/nur
-  - https://github.com/nur-taskrunner/nur; stars 93; archived: false; pushed_at 2026-08-23
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/nur-taskrunner/nur>;
+    stars 93;
+    archived:
+    false;
+    pushed_at 2026-08-23
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - lets-cli/lets
-  - https://github.com/lets-cli/lets; stars 90; archived: false; pushed_at 2026-09-03
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/lets-cli/lets>;
+    stars 90;
+    archived:
+    false;
+    pushed_at 2026-09-03
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - BobBuildTool/bob
-  - https://github.com/BobBuildTool/bob; stars 87; archived: false; pushed_at 2026-09-14
-  - discovered by: q2, q3 (first screened q2 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: reproducible
+  - <https://github.com/BobBuildTool/bob>;
+    stars 87;
+    archived:
+    false;
+    pushed_at 2026-09-14
+  - discovered by:
+    q2,
+    q3 (first screened q2 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    reproducible
 - dogtools/dog
-  - https://github.com/dogtools/dog; stars 83; archived: false; pushed_at 2018-08-25
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/dogtools/dog>;
+    stars 83;
+    archived:
+    false;
+    pushed_at 2018-08-25
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - sschmid/bee
-  - https://github.com/sschmid/bee; stars 78; archived: false; pushed_at 2025-06-25
-  - discovered by: q3 (first screened q3 p3); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: continuous, docker, plugin
+  - <https://github.com/sschmid/bee>;
+    stars 78;
+    archived:
+    false;
+    pushed_at 2025-06-25
+  - discovered by:
+    q3 (first screened q3 p3);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    continuous,
+    docker,
+    plugin
 - droundy/fac
-  - https://github.com/droundy/fac; stars 77; archived: false; pushed_at 2022-02-17
-  - discovered by: q2, q3 (first screened q2 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/droundy/fac>;
+    stars 77;
+    archived:
+    false;
+    pushed_at 2022-02-17
+  - discovered by:
+    q2,
+    q3 (first screened q2 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - kt3k/saku
-  - https://github.com/kt3k/saku; stars 75; archived: true; pushed_at 2025-08-19
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/kt3k/saku>;
+    stars 75;
+    archived:
+    true;
+    pushed_at 2025-08-19
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - faqtor/faqtor
-  - https://github.com/faqtor/faqtor; stars 75; archived: false; pushed_at 2023-01-03
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/faqtor/faqtor>;
+    stars 75;
+    archived:
+    false;
+    pushed_at 2023-01-03
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - omio-labs/myke
-  - https://github.com/omio-labs/myke; stars 74; archived: false; pushed_at 2026-09-06
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/omio-labs/myke>;
+    stars 74;
+    archived:
+    false;
+    pushed_at 2026-09-06
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - leopardslab/dunner
-  - https://github.com/leopardslab/dunner; stars 72; archived: false; pushed_at 2020-01-22
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: docker
+  - <https://github.com/leopardslab/dunner>;
+    stars 72;
+    archived:
+    false;
+    pushed_at 2020-01-22
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    docker
 - kt3k/node-saku
-  - https://github.com/kt3k/node-saku; stars 71; archived: true; pushed_at 2022-02-14
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/kt3k/node-saku>;
+    stars 71;
+    archived:
+    true;
+    pushed_at 2022-02-14
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - scriptype/salinger
-  - https://github.com/scriptype/salinger; stars 69; archived: false; pushed_at 2019-03-23
-  - discovered by: q3, q4 (first screened q3 p3); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: pipeline
+  - <https://github.com/scriptype/salinger>;
+    stars 69;
+    archived:
+    false;
+    pushed_at 2019-03-23
+  - discovered by:
+    q3,
+    q4 (first screened q3 p3);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    pipeline
 - sagebind/rote
-  - https://github.com/sagebind/rote; stars 67; archived: true; pushed_at 2019-02-01
-  - discovered by: q2, q3, q4 (first screened q2 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/sagebind/rote>;
+    stars 67;
+    archived:
+    true;
+    pushed_at 2019-02-01
+  - discovered by:
+    q2,
+    q3,
+    q4 (first screened q2 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - kcmerrill/alfred
-  - https://github.com/kcmerrill/alfred; stars 66; archived: false; pushed_at 2019-05-11
-  - discovered by: q2, q3, q4 (first screened q2 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/kcmerrill/alfred>;
+    stars 66;
+    archived:
+    false;
+    pushed_at 2019-05-11
+  - discovered by:
+    q2,
+    q3,
+    q4 (first screened q2 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - devrc-hub/devrc
-  - https://github.com/devrc-hub/devrc; stars 66; archived: false; pushed_at 2024-01-19
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/devrc-hub/devrc>;
+    stars 66;
+    archived:
+    false;
+    pushed_at 2024-01-19
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - shannonmoeller/ygor
-  - https://github.com/shannonmoeller/ygor; stars 65; archived: false; pushed_at 2018-04-12
-  - discovered by: q3, q4 (first screened q3 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/shannonmoeller/ygor>;
+    stars 65;
+    archived:
+    false;
+    pushed_at 2018-04-12
+  - discovered by:
+    q3,
+    q4 (first screened q3 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - suzuki-shunsuke/cmdx
-  - https://github.com/suzuki-shunsuke/cmdx; stars 61; archived: false; pushed_at 2026-09-16
-  - discovered by: q4 (first screened q4 p1); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/suzuki-shunsuke/cmdx>;
+    stars 61;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q4 (first screened q4 p1);
+    category guess:
+    monorepo manager candidate (general runner)
 - jez/bask
-  - https://github.com/jez/bask; stars 60; archived: false; pushed_at 2018-03-07
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/jez/bask>;
+    stars 60;
+    archived:
+    false;
+    pushed_at 2018-03-07
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - sakerbuild/saker.build
-  - https://github.com/sakerbuild/saker.build; stars 58; archived: false; pushed_at 2025-01-01
-  - discovered by: q2 (first screened q2 p2); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: distributed, incremental
+  - <https://github.com/sakerbuild/saker.build>;
+    stars 58;
+    archived:
+    false;
+    pushed_at 2025-01-01
+  - discovered by:
+    q2 (first screened q2 p2);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    distributed,
+    incremental
 - no0dles/hammerkit
-  - https://github.com/no0dles/hammerkit; stars 56; archived: false; pushed_at 2026-09-16
-  - discovered by: q3 (first screened q3 p3); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: caching, container, docker
+  - <https://github.com/no0dles/hammerkit>;
+    stars 56;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q3 (first screened q3 p3);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    caching,
+    container,
+    docker
 - upcmd/up
-  - https://github.com/upcmd/up; stars 51; archived: false; pushed_at 2024-08-04
-  - discovered by: q3 (first screened q3 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/upcmd/up>;
+    stars 51;
+    archived:
+    false;
+    pushed_at 2024-08-04
+  - discovered by:
+    q3 (first screened q3 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - tuist/once
-  - https://github.com/tuist/once; stars 50; archived: false; pushed_at 2026-09-16
-  - discovered by: q2 (first screened q2 p2); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: server, content-addressed, cache, mcp, sandbox
-  - screening note: README: typed cacheable actions, content-addressed outputs, remote sandbox, built-in MCP server
+  - <https://github.com/tuist/once>;
+    stars 50;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q2 (first screened q2 p2);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    server,
+    content-addressed,
+    cache,
+    mcp,
+    sandbox
+  - screening note:
+    README:
+    typed cacheable actions,
+    content-addressed outputs,
+    remote sandbox,
+    built-in MCP server
 - cesar-douady/open-lmake
-  - https://github.com/cesar-douady/open-lmake; stars 46; archived: false; pushed_at 2026-09-16
-  - discovered by: q2, q3 (first screened q2 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/cesar-douady/open-lmake>;
+    stars 46;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q2,
+    q3 (first screened q2 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - jjzcru/elk
-  - https://github.com/jjzcru/elk; stars 45; archived: false; pushed_at 2020-06-18
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/jjzcru/elk>;
+    stars 45;
+    archived:
+    false;
+    pushed_at 2020-06-18
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - jasonwhite/button
-  - https://github.com/jasonwhite/button; stars 42; archived: true; pushed_at 2018-11-15
-  - discovered by: q2, q3 (first screened q2 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/jasonwhite/button>;
+    stars 42;
+    archived:
+    true;
+    pushed_at 2018-11-15
+  - discovered by:
+    q2,
+    q3 (first screened q2 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - yourbase/yb
-  - https://github.com/yourbase/yb; stars 41; archived: false; pushed_at 2021-11-09
-  - discovered by: q3 (first screened q3 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/yourbase/yb>;
+    stars 41;
+    archived:
+    false;
+    pushed_at 2021-11-09
+  - discovered by:
+    q3 (first screened q3 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - zuke-build/zuke
-  - https://github.com/zuke-build/zuke; stars 39; archived: false; pushed_at 2026-09-16
-  - discovered by: q2, q3 (first screened q2 p2); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: api
+  - <https://github.com/zuke-build/zuke>;
+    stars 39;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q2,
+    q3 (first screened q2 p2);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    api
 - DannyBen/runfile
-  - https://github.com/DannyBen/runfile; stars 39; archived: false; pushed_at 2026-02-08
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: generator
+  - <https://github.com/DannyBen/runfile>;
+    stars 39;
+    archived:
+    false;
+    pushed_at 2026-02-08
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    generator
 - nadlejs/nadle
-  - https://github.com/nadlejs/nadle; stars 37; archived: false; pushed_at 2026-09-16
-  - discovered by: q3, q4 (first screened q3 p4); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: orchestration
+  - <https://github.com/nadlejs/nadle>;
+    stars 37;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q3,
+    q4 (first screened q3 p4);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    orchestration
 - doowb/composer
-  - https://github.com/doowb/composer; stars 37; archived: false; pushed_at 2018-11-11
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: watch, api
-  - screening note: watch
+  - <https://github.com/doowb/composer>;
+    stars 37;
+    archived:
+    false;
+    pushed_at 2018-11-11
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    watch,
+    api
+  - screening note:
+    watch
 - omnilib/thx
-  - https://github.com/omnilib/thx; stars 35; archived: false; pushed_at 2026-03-01
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/omnilib/thx>;
+    stars 35;
+    archived:
+    false;
+    pushed_at 2026-03-01
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - stylemistake/juke-build
-  - https://github.com/stylemistake/juke-build; stars 34; archived: false; pushed_at 2022-01-28
-  - discovered by: q3, q4 (first screened q3 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/stylemistake/juke-build>;
+    stars 34;
+    archived:
+    false;
+    pushed_at 2022-01-28
+  - discovered by:
+    q3,
+    q4 (first screened q3 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - JetBrains/teamcity-csharp-interactive
-  - https://github.com/JetBrains/teamcity-csharp-interactive; stars 33; archived: false; pushed_at 2025-03-18
-  - discovered by: q3 (first screened q3 p4); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: docker, api
+  - <https://github.com/JetBrains/teamcity-csharp-interactive>;
+    stars 33;
+    archived:
+    false;
+    pushed_at 2025-03-18
+  - discovered by:
+    q3 (first screened q3 p4);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    docker,
+    api
 - jiro4989/monit
-  - https://github.com/jiro4989/monit; stars 33; archived: false; pushed_at 2026-04-21
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: watch
-  - screening note: watch
+  - <https://github.com/jiro4989/monit>;
+    stars 33;
+    archived:
+    false;
+    pushed_at 2026-04-21
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    watch
+  - screening note:
+    watch
 - ras0q/cute
-  - https://github.com/ras0q/cute; stars 33; archived: false; pushed_at 2026-07-28
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: plugin
+  - <https://github.com/ras0q/cute>;
+    stars 33;
+    archived:
+    false;
+    pushed_at 2026-07-28
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    plugin
 - marghidanu/werk
-  - https://github.com/marghidanu/werk; stars 32; archived: false; pushed_at 2026-03-03
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: container, docker, pipeline
+  - <https://github.com/marghidanu/werk>;
+    stars 32;
+    archived:
+    false;
+    pushed_at 2026-03-03
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    container,
+    docker,
+    pipeline
 - DevTeam/csharp-interactive
-  - https://github.com/DevTeam/csharp-interactive; stars 32; archived: false; pushed_at 2026-05-09
-  - discovered by: q2, q3 (first screened q2 p2); category guess: monorepo manager candidate (general runner)
-  - screening note: .NET build automation with C# scripts (correction: missed at first screening)
+  - <https://github.com/DevTeam/csharp-interactive>;
+    stars 32;
+    archived:
+    false;
+    pushed_at 2026-05-09
+  - discovered by:
+    q2,
+    q3 (first screened q2 p2);
+    category guess:
+    monorepo manager candidate (general runner)
+  - screening note:
+    .NET build automation with C# scripts (correction:
+    missed at first screening)
 - kraken-build/kraken
-  - https://github.com/kraken-build/kraken; stars 31; archived: false; pushed_at 2026-09-15
-  - discovered by: q2 (first screened q2 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/kraken-build/kraken>;
+    stars 31;
+    archived:
+    false;
+    pushed_at 2026-09-15
+  - discovered by:
+    q2 (first screened q2 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - lupincr/lupin
-  - https://github.com/lupincr/lupin; stars 30; archived: false; pushed_at 2018-09-15
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/lupincr/lupin>;
+    stars 30;
+    archived:
+    false;
+    pushed_at 2018-09-15
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - daelvn/alfons
-  - https://github.com/daelvn/alfons; stars 29; archived: false; pushed_at 2024-10-19
-  - discovered by: q3, q4 (first screened q3 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/daelvn/alfons>;
+    stars 29;
+    archived:
+    false;
+    pushed_at 2024-10-19
+  - discovered by:
+    q3,
+    q4 (first screened q3 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - theMackabu/maid
-  - https://github.com/theMackabu/maid; stars 29; archived: false; pushed_at 2026-07-11
-  - discovered by: q3, q4 (first screened q3 p5); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: cache
+  - <https://github.com/theMackabu/maid>;
+    stars 29;
+    archived:
+    false;
+    pushed_at 2026-07-11
+  - discovered by:
+    q3,
+    q4 (first screened q3 p5);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    cache
 - ludicroushq/frunk
-  - https://github.com/ludicroushq/frunk; stars 29; archived: false; pushed_at 2025-12-20
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/ludicroushq/frunk>;
+    stars 29;
+    archived:
+    false;
+    pushed_at 2025-12-20
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - fbecart/zinoma
-  - https://github.com/fbecart/zinoma; stars 28; archived: false; pushed_at 2025-02-20
-  - discovered by: q3, q4 (first screened q3 p5); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: watch, incremental
-  - screening note: watch mode
+  - <https://github.com/fbecart/zinoma>;
+    stars 28;
+    archived:
+    false;
+    pushed_at 2025-02-20
+  - discovered by:
+    q3,
+    q4 (first screened q3 p5);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    watch,
+    incremental
+  - screening note:
+    watch mode
 - EmmaTheMartian/clockwork
-  - https://github.com/EmmaTheMartian/clockwork; stars 26; archived: false; pushed_at 2025-09-19
-  - discovered by: q2, q3 (first screened q2 p2); category guess: monorepo manager candidate (general runner)
-  - screening note: README: language-agnostic task build tool (beta)
+  - <https://github.com/EmmaTheMartian/clockwork>;
+    stars 26;
+    archived:
+    false;
+    pushed_at 2025-09-19
+  - discovered by:
+    q2,
+    q3 (first screened q2 p2);
+    category guess:
+    monorepo manager candidate (general runner)
+  - screening note:
+    README:
+    language-agnostic task build tool (beta)
 - cdaringe/rad
-  - https://github.com/cdaringe/rad; stars 26; archived: false; pushed_at 2025-01-23
-  - discovered by: q3 (first screened q3 p5); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: polyglot
+  - <https://github.com/cdaringe/rad>;
+    stars 26;
+    archived:
+    false;
+    pushed_at 2025-01-23
+  - discovered by:
+    q3 (first screened q3 p5);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    polyglot
 - rumkin/bake
-  - https://github.com/rumkin/bake; stars 26; archived: false; pushed_at 2017-03-25
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/rumkin/bake>;
+    stars 26;
+    archived:
+    false;
+    pushed_at 2017-03-25
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - FakeBuild/Xake
-  - https://github.com/FakeBuild/Xake; stars 24; archived: false; pushed_at 2024-02-23
-  - discovered by: q3 (first screened q3 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/FakeBuild/Xake>;
+    stars 24;
+    archived:
+    false;
+    pushed_at 2024-02-23
+  - discovered by:
+    q3 (first screened q3 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - NathanVaughn/vscode-task-runner
-  - https://github.com/NathanVaughn/vscode-task-runner; stars 24; archived: false; pushed_at 2026-09-01
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/NathanVaughn/vscode-task-runner>;
+    stars 24;
+    archived:
+    false;
+    pushed_at 2026-09-01
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - adhamsalama/yasta
-  - https://github.com/adhamsalama/yasta; stars 23; archived: false; pushed_at 2022-11-18
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/adhamsalama/yasta>;
+    stars 23;
+    archived:
+    false;
+    pushed_at 2022-11-18
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - makim-org/makim
-  - https://github.com/makim-org/makim; stars 22; archived: false; pushed_at 2026-03-08
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/makim-org/makim>;
+    stars 22;
+    archived:
+    false;
+    pushed_at 2026-03-08
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - metaist/ds
-  - https://github.com/metaist/ds; stars 21; archived: false; pushed_at 2026-01-13
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: polyglot
+  - <https://github.com/metaist/ds>;
+    stars 21;
+    archived:
+    false;
+    pushed_at 2026-01-13
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    polyglot
 - eobrain/bajel
-  - https://github.com/eobrain/bajel; stars 20; archived: false; pushed_at 2023-03-04
-  - discovered by: q2, q3 (first screened q2 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/eobrain/bajel>;
+    stars 20;
+    archived:
+    false;
+    pushed_at 2023-03-04
+  - discovered by:
+    q2,
+    q3 (first screened q2 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - Junker/faber
-  - https://github.com/Junker/faber; stars 20; archived: false; pushed_at 2026-07-16
-  - discovered by: q3, q4 (first screened q3 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Junker/faber>;
+    stars 20;
+    archived:
+    false;
+    pushed_at 2026-07-16
+  - discovered by:
+    q3,
+    q4 (first screened q3 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - frissyn/pyke
-  - https://github.com/frissyn/pyke; stars 20; archived: false; pushed_at 2022-05-09
-  - discovered by: q3, q4 (first screened q3 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/frissyn/pyke>;
+    stars 20;
+    archived:
+    false;
+    pushed_at 2022-05-09
+  - discovered by:
+    q3,
+    q4 (first screened q3 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - team23/b5
-  - https://github.com/team23/b5; stars 20; archived: false; pushed_at 2026-09-14
-  - discovered by: q3, q4 (first screened q3 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/team23/b5>;
+    stars 20;
+    archived:
+    false;
+    pushed_at 2026-09-14
+  - discovered by:
+    q3,
+    q4 (first screened q3 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - bab-sh/bab
-  - https://github.com/bab-sh/bab; stars 20; archived: false; pushed_at 2026-08-27
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/bab-sh/bab>;
+    stars 20;
+    archived:
+    false;
+    pushed_at 2026-08-27
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - s4m-mo/sandcastle
-  - https://github.com/s4m-mo/sandcastle; stars 19; archived: false; pushed_at 2026-05-18
-  - discovered by: q3 (first screened q3 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/s4m-mo/sandcastle>;
+    stars 19;
+    archived:
+    false;
+    pushed_at 2026-05-18
+  - discovered by:
+    q3 (first screened q3 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - state-alchemists/zrb
-  - https://github.com/state-alchemists/zrb; stars 18; archived: false; pushed_at 2026-09-16
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: generator
+  - <https://github.com/state-alchemists/zrb>;
+    stars 18;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    generator
 - adamralph/simple-targets-csx
-  - https://github.com/adamralph/simple-targets-csx; stars 18; archived: true; pushed_at 2021-02-28
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/adamralph/simple-targets-csx>;
+    stars 18;
+    archived:
+    true;
+    pushed_at 2021-02-28
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - alecthomas/bit
-  - https://github.com/alecthomas/bit; stars 17; archived: false; pushed_at 2026-09-16
-  - discovered by: q3 (first screened q3 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/alecthomas/bit>;
+    stars 17;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q3 (first screened q3 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - pyrustic/backstage
-  - https://github.com/pyrustic/backstage; stars 17; archived: false; pushed_at 2023-06-09
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/pyrustic/backstage>;
+    stars 17;
+    archived:
+    false;
+    pushed_at 2023-06-09
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - harehare/mq-task
-  - https://github.com/harehare/mq-task; stars 17; archived: false; pushed_at 2026-09-10
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/harehare/mq-task>;
+    stars 17;
+    archived:
+    false;
+    pushed_at 2026-09-10
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - cwbaker/forge
-  - https://github.com/cwbaker/forge; stars 16; archived: false; pushed_at 2026-07-12
-  - discovered by: q2, q3 (first screened q2 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/cwbaker/forge>;
+    stars 16;
+    archived:
+    false;
+    pushed_at 2026-07-12
+  - discovered by:
+    q2,
+    q3 (first screened q2 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - shrayasr/Iko
-  - https://github.com/shrayasr/Iko; stars 16; archived: false; pushed_at 2018-04-23
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/shrayasr/Iko>;
+    stars 16;
+    archived:
+    false;
+    pushed_at 2018-04-23
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - FollowTheProcess/spok
-  - https://github.com/FollowTheProcess/spok; stars 15; archived: true; pushed_at 2026-06-13
-  - discovered by: q2, q4 (first screened q2 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/FollowTheProcess/spok>;
+    stars 15;
+    archived:
+    true;
+    pushed_at 2026-06-13
+  - discovered by:
+    q2,
+    q4 (first screened q2 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - mufancom/biu
-  - https://github.com/mufancom/biu; stars 15; archived: false; pushed_at 2022-12-08
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/mufancom/biu>;
+    stars 15;
+    archived:
+    false;
+    pushed_at 2022-12-08
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - diskuv/dk
-  - https://github.com/diskuv/dk; stars 14; archived: false; pushed_at 2026-09-14
-  - discovered by: q2 (first screened q2 p3); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: incremental, cache
-  - screening note: README: incremental, remote-cacheable build system with rules and remote run
+  - <https://github.com/diskuv/dk>;
+    stars 14;
+    archived:
+    false;
+    pushed_at 2026-09-14
+  - discovered by:
+    q2 (first screened q2 p3);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    incremental,
+    cache
+  - screening note:
+    README:
+    incremental,
+    remote-cacheable build system with rules and remote run
 - pinefile/pine
-  - https://github.com/pinefile/pine; stars 14; archived: false; pushed_at 2026-09-16
-  - discovered by: q3, q4 (first screened q3 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/pinefile/pine>;
+    stars 14;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q3,
+    q4 (first screened q3 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - renatoathaydes/dartle
-  - https://github.com/renatoathaydes/dartle; stars 14; archived: false; pushed_at 2026-05-22
-  - discovered by: q3 (first screened q3 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/renatoathaydes/dartle>;
+    stars 14;
+    archived:
+    false;
+    pushed_at 2026-05-22
+  - discovered by:
+    q3 (first screened q3 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - sigoden/runme
-  - https://github.com/sigoden/runme; stars 14; archived: false; pushed_at 2023-06-02
-  - discovered by: q3, q4 (first screened q3 p6); category guess: monorepo manager candidate (general runner)
-  - screening note: deprecated
+  - <https://github.com/sigoden/runme>;
+    stars 14;
+    archived:
+    false;
+    pushed_at 2023-06-02
+  - discovered by:
+    q3,
+    q4 (first screened q3 p6);
+    category guess:
+    monorepo manager candidate (general runner)
+  - screening note:
+    deprecated
 - fkrauthan/nss-run
-  - https://github.com/fkrauthan/nss-run; stars 13; archived: false; pushed_at 2023-02-04
-  - discovered by: q3, q4 (first screened q3 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/fkrauthan/nss-run>;
+    stars 13;
+    archived:
+    false;
+    pushed_at 2023-02-04
+  - discovered by:
+    q3,
+    q4 (first screened q3 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - zakuro9715/z
-  - https://github.com/zakuro9715/z; stars 13; archived: false; pushed_at 2026-01-10
-  - discovered by: q4 (first screened q4 p2); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/zakuro9715/z>;
+    stars 13;
+    archived:
+    false;
+    pushed_at 2026-01-10
+  - discovered by:
+    q4 (first screened q4 p2);
+    category guess:
+    monorepo manager candidate (general runner)
 - mikosik/smooth-build
-  - https://github.com/mikosik/smooth-build; stars 12; archived: false; pushed_at 2026-06-21
-  - discovered by: q2, q3 (first screened q2 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/mikosik/smooth-build>;
+    stars 12;
+    archived:
+    false;
+    pushed_at 2026-06-21
+  - discovered by:
+    q2,
+    q3 (first screened q2 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - wrapl/rabs
-  - https://github.com/wrapl/rabs; stars 12; archived: false; pushed_at 2026-08-10
-  - discovered by: q2 (first screened q2 p3); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: incremental
+  - <https://github.com/wrapl/rabs>;
+    stars 12;
+    archived:
+    false;
+    pushed_at 2026-08-10
+  - discovered by:
+    q2 (first screened q2 p3);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    incremental
 - metaory/mxflow-cli
-  - https://github.com/metaory/mxflow-cli; stars 12; archived: false; pushed_at 2025-11-10
-  - discovered by: q3, q4 (first screened q3 p6); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: pipeline
+  - <https://github.com/metaory/mxflow-cli>;
+    stars 12;
+    archived:
+    false;
+    pushed_at 2025-11-10
+  - discovered by:
+    q3,
+    q4 (first screened q3 p6);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    pipeline
 - FabienArcellier/alfred-cli
-  - https://github.com/FabienArcellier/alfred-cli; stars 11; archived: false; pushed_at 2026-03-03
-  - discovered by: q3 (first screened q3 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/FabienArcellier/alfred-cli>;
+    stars 11;
+    archived:
+    false;
+    pushed_at 2026-03-03
+  - discovered by:
+    q3 (first screened q3 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - giann/fourmi
-  - https://github.com/giann/fourmi; stars 11; archived: true; pushed_at 2019-03-16
-  - discovered by: q3, q4 (first screened q3 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/giann/fourmi>;
+    stars 11;
+    archived:
+    true;
+    pushed_at 2019-03-16
+  - discovered by:
+    q3,
+    q4 (first screened q3 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - gobuffalo/grift
-  - https://github.com/gobuffalo/grift; stars 11; archived: false; pushed_at 2022-09-26
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/gobuffalo/grift>;
+    stars 11;
+    archived:
+    false;
+    pushed_at 2022-09-26
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - riotkit-org/riotkit-do
-  - https://github.com/riotkit-org/riotkit-do; stars 10; archived: true; pushed_at 2022-05-06
-  - discovered by: q2 (first screened q2 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/riotkit-org/riotkit-do>;
+    stars 10;
+    archived:
+    true;
+    pushed_at 2022-05-06
+  - discovered by:
+    q2 (first screened q2 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - darkobits/nr
-  - https://github.com/darkobits/nr; stars 10; archived: false; pushed_at 2026-03-18
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/darkobits/nr>;
+    stars 10;
+    archived:
+    false;
+    pushed_at 2026-03-18
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - koddr/yatr
-  - https://github.com/koddr/yatr; stars 10; archived: false; pushed_at 2025-08-27
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/koddr/yatr>;
+    stars 10;
+    archived:
+    false;
+    pushed_at 2025-08-27
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - egordm/nauman
-  - https://github.com/egordm/nauman; stars 10; archived: false; pushed_at 2022-09-06
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/egordm/nauman>;
+    stars 10;
+    archived:
+    false;
+    pushed_at 2022-09-06
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - melbahja/ron
-  - https://github.com/melbahja/ron; stars 10; archived: false; pushed_at 2020-08-28
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/melbahja/ron>;
+    stars 10;
+    archived:
+    false;
+    pushed_at 2020-08-28
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - quake-build/quake-old
-  - https://github.com/quake-build/quake-old; stars 9; archived: true; pushed_at 2024-05-01
-  - discovered by: q2 (first screened q2 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/quake-build/quake-old>;
+    stars 9;
+    archived:
+    true;
+    pushed_at 2024-05-01
+  - discovered by:
+    q2 (first screened q2 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - TheOnlyMrCat/runscript
-  - https://github.com/TheOnlyMrCat/runscript; stars 9; archived: false; pushed_at 2023-03-18
-  - discovered by: q3 (first screened q3 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/TheOnlyMrCat/runscript>;
+    stars 9;
+    archived:
+    false;
+    pushed_at 2023-03-18
+  - discovered by:
+    q3 (first screened q3 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - Zemerik/Task-Runner
-  - https://github.com/Zemerik/Task-Runner; stars 9; archived: false; pushed_at 2026-03-30
-  - discovered by: q3, q4 (first screened q3 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Zemerik/Task-Runner>;
+    stars 9;
+    archived:
+    false;
+    pushed_at 2026-03-30
+  - discovered by:
+    q3,
+    q4 (first screened q3 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - areller/denogent
-  - https://github.com/areller/denogent; stars 9; archived: false; pushed_at 2021-09-13
-  - discovered by: q3 (first screened q3 p7); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: pipeline
+  - <https://github.com/areller/denogent>;
+    stars 9;
+    archived:
+    false;
+    pushed_at 2021-09-13
+  - discovered by:
+    q3 (first screened q3 p7);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    pipeline
 - tamp-build/tamp
-  - https://github.com/tamp-build/tamp; stars 9; archived: false; pushed_at 2026-08-22
-  - discovered by: q3, q4 (first screened q3 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/tamp-build/tamp>;
+    stars 9;
+    archived:
+    false;
+    pushed_at 2026-08-22
+  - discovered by:
+    q3,
+    q4 (first screened q3 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - erikgiovani/denosk
-  - https://github.com/erikgiovani/denosk; stars 9; archived: false; pushed_at 2023-08-22
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/erikgiovani/denosk>;
+    stars 9;
+    archived:
+    false;
+    pushed_at 2023-08-22
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - adrianmrit/yamis
-  - https://github.com/adrianmrit/yamis; stars 9; archived: true; pushed_at 2023-05-23
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/adrianmrit/yamis>;
+    stars 9;
+    archived:
+    true;
+    pushed_at 2023-05-23
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - joarhal/piperig
-  - https://github.com/joarhal/piperig; stars 9; archived: false; pushed_at 2026-07-26
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: pipeline
+  - <https://github.com/joarhal/piperig>;
+    stars 9;
+    archived:
+    false;
+    pushed_at 2026-07-26
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    pipeline
 - thomasleese/mo
-  - https://github.com/thomasleese/mo; stars 9; archived: true; pushed_at 2022-12-08
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/thomasleese/mo>;
+    stars 9;
+    archived:
+    true;
+    pushed_at 2022-12-08
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - barraq/spinr
-  - https://github.com/barraq/spinr; stars 9; archived: false; pushed_at 2025-07-12
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/barraq/spinr>;
+    stars 9;
+    archived:
+    false;
+    pushed_at 2025-07-12
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - MartinHelmut/litr
-  - https://github.com/MartinHelmut/litr; stars 9; archived: false; pushed_at 2022-12-18
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/MartinHelmut/litr>;
+    stars 9;
+    archived:
+    false;
+    pushed_at 2022-12-18
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - 3846masa-archived/memi
-  - https://github.com/3846masa-archived/memi; stars 9; archived: true; pushed_at 2020-10-24
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/3846masa-archived/memi>;
+    stars 9;
+    archived:
+    true;
+    pushed_at 2020-10-24
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - function61/turbobob
-  - https://github.com/function61/turbobob; stars 8; archived: false; pushed_at 2026-05-30
-  - discovered by: q2, q3 (first screened q2 p3); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: continuous, container
+  - <https://github.com/function61/turbobob>;
+    stars 8;
+    archived:
+    false;
+    pushed_at 2026-05-30
+  - discovered by:
+    q2,
+    q3 (first screened q2 p3);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    continuous,
+    container
 - rv178/baker
-  - https://github.com/rv178/baker; stars 8; archived: false; pushed_at 2026-08-31
-  - discovered by: q3 (first screened q3 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/rv178/baker>;
+    stars 8;
+    archived:
+    false;
+    pushed_at 2026-08-31
+  - discovered by:
+    q3 (first screened q3 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - PaulThompson/dnit
-  - https://github.com/PaulThompson/dnit; stars 8; archived: false; pushed_at 2025-08-19
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/PaulThompson/dnit>;
+    stars 8;
+    archived:
+    false;
+    pushed_at 2025-08-19
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - fn-go/fn
-  - https://github.com/fn-go/fn; stars 8; archived: false; pushed_at 2022-06-17
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/fn-go/fn>;
+    stars 8;
+    archived:
+    false;
+    pushed_at 2022-06-17
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - GriffinCanCode/bldr
-  - https://github.com/GriffinCanCode/bldr; stars 7; archived: false; pushed_at 2026-03-03
-  - discovered by: q2 (first screened q2 p4); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: polyglot
+  - <https://github.com/GriffinCanCode/bldr>;
+    stars 7;
+    archived:
+    false;
+    pushed_at 2026-03-03
+  - discovered by:
+    q2 (first screened q2 p4);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    polyglot
 - habilyildirim/Enmafile
-  - https://github.com/habilyildirim/Enmafile; stars 7; archived: false; pushed_at 2026-03-05
-  - discovered by: q2, q3, q4 (first screened q2 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/habilyildirim/Enmafile>;
+    stars 7;
+    archived:
+    false;
+    pushed_at 2026-03-05
+  - discovered by:
+    q2,
+    q3,
+    q4 (first screened q2 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - xpybuild/xpybuild
-  - https://github.com/xpybuild/xpybuild; stars 7; archived: false; pushed_at 2026-03-30
-  - discovered by: q2, q3 (first screened q2 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/xpybuild/xpybuild>;
+    stars 7;
+    archived:
+    false;
+    pushed_at 2026-03-30
+  - discovered by:
+    q2,
+    q3 (first screened q2 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - iPeluwa/rush
-  - https://github.com/iPeluwa/rush; stars 7; archived: false; pushed_at 2025-10-29
-  - discovered by: q3, q4 (first screened q3 p8); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: watch, cache, caching
-  - screening note: watch, cache
+  - <https://github.com/iPeluwa/rush>;
+    stars 7;
+    archived:
+    false;
+    pushed_at 2025-10-29
+  - discovered by:
+    q3,
+    q4 (first screened q3 p8);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    watch,
+    cache,
+    caching
+  - screening note:
+    watch,
+    cache
 - frozzare/max
-  - https://github.com/frozzare/max; stars 7; archived: false; pushed_at 2024-09-02
-  - discovered by: q3, q4 (first screened q3 p8); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: docker
+  - <https://github.com/frozzare/max>;
+    stars 7;
+    archived:
+    false;
+    pushed_at 2024-09-02
+  - discovered by:
+    q3,
+    q4 (first screened q3 p8);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    docker
 - gouline/molot
-  - https://github.com/gouline/molot; stars 7; archived: false; pushed_at 2026-01-08
-  - discovered by: q3 (first screened q3 p8); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: orchestrator
+  - <https://github.com/gouline/molot>;
+    stars 7;
+    archived:
+    false;
+    pushed_at 2026-01-08
+  - discovered by:
+    q3 (first screened q3 p8);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    orchestrator
 - Fuzzlix/omm
-  - https://github.com/Fuzzlix/omm; stars 7; archived: false; pushed_at 2019-08-04
-  - discovered by: q3 (first screened q3 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Fuzzlix/omm>;
+    stars 7;
+    archived:
+    false;
+    pushed_at 2019-08-04
+  - discovered by:
+    q3 (first screened q3 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - buildcharts/buildcharts
-  - https://github.com/buildcharts/buildcharts; stars 7; archived: false; pushed_at 2026-09-14
-  - discovered by: q3 (first screened q3 p8); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: continuous, pipeline
+  - <https://github.com/buildcharts/buildcharts>;
+    stars 7;
+    archived:
+    false;
+    pushed_at 2026-09-14
+  - discovered by:
+    q3 (first screened q3 p8);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    continuous,
+    pipeline
 - defenseunicorns/maru2
-  - https://github.com/defenseunicorns/maru2; stars 7; archived: false; pushed_at 2026-01-13
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/defenseunicorns/maru2>;
+    stars 7;
+    archived:
+    false;
+    pushed_at 2026-01-13
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - lyova24/wrkit
-  - https://github.com/lyova24/wrkit; stars 7; archived: false; pushed_at 2026-04-18
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/lyova24/wrkit>;
+    stars 7;
+    archived:
+    false;
+    pushed_at 2026-04-18
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - gird-dev/gird
-  - https://github.com/gird-dev/gird; stars 6; archived: false; pushed_at 2024-01-02
-  - discovered by: q2, q3, q4 (first screened q2 p4); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: continuous, pipeline
+  - <https://github.com/gird-dev/gird>;
+    stars 6;
+    archived:
+    false;
+    pushed_at 2024-01-02
+  - discovered by:
+    q2,
+    q3,
+    q4 (first screened q2 p4);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    continuous,
+    pipeline
 - Serpent-Tools/serpentine
-  - https://github.com/Serpent-Tools/serpentine; stars 6; archived: false; pushed_at 2026-09-16
-  - discovered by: q2 (first screened q2 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Serpent-Tools/serpentine>;
+    stars 6;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q2 (first screened q2 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - fasibio/gomake
-  - https://github.com/fasibio/gomake; stars 6; archived: false; pushed_at 2024-01-01
-  - discovered by: q3 (first screened q3 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/fasibio/gomake>;
+    stars 6;
+    archived:
+    false;
+    pushed_at 2024-01-01
+  - discovered by:
+    q3 (first screened q3 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - runok-cli/runok
-  - https://github.com/runok-cli/runok; stars 6; archived: false; pushed_at 2020-12-18
-  - discovered by: q3, q4 (first screened q3 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/runok-cli/runok>;
+    stars 6;
+    archived:
+    false;
+    pushed_at 2020-12-18
+  - discovered by:
+    q3,
+    q4 (first screened q3 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - palfrey/tuvix
-  - https://github.com/palfrey/tuvix; stars 6; archived: true; pushed_at 2025-03-21
-  - discovered by: q3 (first screened q3 p8); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: hermetic
+  - <https://github.com/palfrey/tuvix>;
+    stars 6;
+    archived:
+    true;
+    pushed_at 2025-03-21
+  - discovered by:
+    q3 (first screened q3 p8);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    hermetic
 - lesiw/ops
-  - https://github.com/lesiw/ops; stars 6; archived: false; pushed_at 2026-02-09
-  - discovered by: q3 (first screened q3 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/lesiw/ops>;
+    stars 6;
+    archived:
+    false;
+    pushed_at 2026-02-09
+  - discovered by:
+    q3 (first screened q3 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - thomas3577/tano
-  - https://github.com/thomas3577/tano; stars 6; archived: false; pushed_at 2026-09-12
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/thomas3577/tano>;
+    stars 6;
+    archived:
+    false;
+    pushed_at 2026-09-12
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - azutoolkit/topia
-  - https://github.com/azutoolkit/topia; stars 6; archived: false; pushed_at 2025-06-30
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: watch, watcher
-  - screening note: watcher
+  - <https://github.com/azutoolkit/topia>;
+    stars 6;
+    archived:
+    false;
+    pushed_at 2025-06-30
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    watch,
+    watcher
+  - screening note:
+    watcher
 - ProPuke/boop
-  - https://github.com/ProPuke/boop; stars 6; archived: false; pushed_at 2024-04-23
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/ProPuke/boop>;
+    stars 6;
+    archived:
+    false;
+    pushed_at 2024-04-23
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - madjam002/nix-task
-  - https://github.com/madjam002/nix-task; stars 6; archived: false; pushed_at 2026-07-03
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: pipeline
+  - <https://github.com/madjam002/nix-task>;
+    stars 6;
+    archived:
+    false;
+    pushed_at 2026-07-03
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    pipeline
 - natnat-mc/moonbuild
-  - https://github.com/natnat-mc/moonbuild; stars 5; archived: false; pushed_at 2022-05-20
-  - discovered by: q2 (first screened q2 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/natnat-mc/moonbuild>;
+    stars 5;
+    archived:
+    false;
+    pushed_at 2022-05-20
+  - discovered by:
+    q2 (first screened q2 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - Baldomo/makesh
-  - https://github.com/Baldomo/makesh; stars 5; archived: false; pushed_at 2026-01-21
-  - discovered by: q3, q4 (first screened q3 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Baldomo/makesh>;
+    stars 5;
+    archived:
+    false;
+    pushed_at 2026-01-21
+  - discovered by:
+    q3,
+    q4 (first screened q3 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - reproducible-reporting/stepup-core
-  - https://github.com/reproducible-reporting/stepup-core; stars 5; archived: false; pushed_at 2026-09-11
-  - discovered by: q3 (first screened q3 p9); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: incremental, reproducible
-  - screening note: README: dynamic build tool, steps add steps and dependencies during execution
+  - <https://github.com/reproducible-reporting/stepup-core>;
+    stars 5;
+    archived:
+    false;
+    pushed_at 2026-09-11
+  - discovered by:
+    q3 (first screened q3 p9);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    incremental,
+    reproducible
+  - screening note:
+    README:
+    dynamic build tool,
+    steps add steps and dependencies during execution
 - nuvrel/errand
-  - https://github.com/nuvrel/errand; stars 5; archived: true; pushed_at 2026-07-10
-  - discovered by: q3, q4 (first screened q3 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/nuvrel/errand>;
+    stars 5;
+    archived:
+    true;
+    pushed_at 2026-07-10
+  - discovered by:
+    q3,
+    q4 (first screened q3 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - wislertt/bakefile
-  - https://github.com/wislertt/bakefile; stars 5; archived: false; pushed_at 2026-09-16
-  - discovered by: q3, q4 (first screened q3 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/wislertt/bakefile>;
+    stars 5;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q3,
+    q4 (first screened q3 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - verifyica-team/pipeliner
-  - https://github.com/verifyica-team/pipeliner; stars 5; archived: true; pushed_at 2026-03-20
-  - discovered by: q3 (first screened q3 p9); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: pipeline
+  - <https://github.com/verifyica-team/pipeliner>;
+    stars 5;
+    archived:
+    true;
+    pushed_at 2026-03-20
+  - discovered by:
+    q3 (first screened q3 p9);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    pipeline
 - mikeleppane/uvtx
-  - https://github.com/mikeleppane/uvtx; stars 5; archived: false; pushed_at 2025-12-16
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: orchestration
+  - <https://github.com/mikeleppane/uvtx>;
+    stars 5;
+    archived:
+    false;
+    pushed_at 2025-12-16
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    orchestration
 - iAmNathanJ/devo
-  - https://github.com/iAmNathanJ/devo; stars 5; archived: false; pushed_at 2020-03-12
-  - discovered by: q4 (first screened q4 p3); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/iAmNathanJ/devo>;
+    stars 5;
+    archived:
+    false;
+    pushed_at 2020-03-12
+  - discovered by:
+    q4 (first screened q4 p3);
+    category guess:
+    monorepo manager candidate (general runner)
 - schmich/runx
-  - https://github.com/schmich/runx; stars 5; archived: false; pushed_at 2020-09-04
-  - discovered by: q4 (first screened q4 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/schmich/runx>;
+    stars 5;
+    archived:
+    false;
+    pushed_at 2020-09-04
+  - discovered by:
+    q4 (first screened q4 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - Azuyamat/pace
-  - https://github.com/Azuyamat/pace; stars 5; archived: false; pushed_at 2026-06-19
-  - discovered by: q4 (first screened q4 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Azuyamat/pace>;
+    stars 5;
+    archived:
+    false;
+    pushed_at 2026-06-19
+  - discovered by:
+    q4 (first screened q4 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - skarfacegc/Gue
-  - https://github.com/skarfacegc/Gue; stars 5; archived: false; pushed_at 2026-02-17
-  - discovered by: q4 (first screened q4 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/skarfacegc/Gue>;
+    stars 5;
+    archived:
+    false;
+    pushed_at 2026-02-17
+  - discovered by:
+    q4 (first screened q4 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - upsight/ron
-  - https://github.com/upsight/ron; stars 5; archived: false; pushed_at 2018-11-14
-  - discovered by: q4 (first screened q4 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/upsight/ron>;
+    stars 5;
+    archived:
+    false;
+    pushed_at 2018-11-14
+  - discovered by:
+    q4 (first screened q4 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - CorvidLabs/fledge
-  - https://github.com/CorvidLabs/fledge; stars 5; archived: false; pushed_at 2026-09-11
-  - discovered by: q4 (first screened q4 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/CorvidLabs/fledge>;
+    stars 5;
+    archived:
+    false;
+    pushed_at 2026-09-11
+  - discovered by:
+    q4 (first screened q4 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - Joxit/runtasktic
-  - https://github.com/Joxit/runtasktic; stars 5; archived: false; pushed_at 2026-09-09
-  - discovered by: q4 (first screened q4 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Joxit/runtasktic>;
+    stars 5;
+    archived:
+    false;
+    pushed_at 2026-09-09
+  - discovered by:
+    q4 (first screened q4 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - jjangga0214/haetae
-  - https://github.com/jjangga0214/haetae; stars 5; archived: false; pushed_at 2023-12-05
-  - discovered by: q4 (first screened q4 p4); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: incremental
-  - screening note: incremental
+  - <https://github.com/jjangga0214/haetae>;
+    stars 5;
+    archived:
+    false;
+    pushed_at 2023-12-05
+  - discovered by:
+    q4 (first screened q4 p4);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    incremental
+  - screening note:
+    incremental
 - SujalChoudhari/Forge
-  - https://github.com/SujalChoudhari/Forge; stars 4; archived: false; pushed_at 2024-03-20
-  - discovered by: q2, q3 (first screened q2 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/SujalChoudhari/Forge>;
+    stars 4;
+    archived:
+    false;
+    pushed_at 2024-03-20
+  - discovered by:
+    q2,
+    q3 (first screened q2 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - getpipe-dev/pipe
-  - https://github.com/getpipe-dev/pipe; stars 4; archived: false; pushed_at 2026-05-24
-  - discovered by: q3, q4 (first screened q3 p9); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: pipeline
+  - <https://github.com/getpipe-dev/pipe>;
+    stars 4;
+    archived:
+    false;
+    pushed_at 2026-05-24
+  - discovered by:
+    q3,
+    q4 (first screened q3 p9);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    pipeline
 - mdops-org/mdops-cli
-  - https://github.com/mdops-org/mdops-cli; stars 4; archived: false; pushed_at 2025-03-15
-  - discovered by: q3, q4 (first screened q3 p10); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/mdops-org/mdops-cli>;
+    stars 4;
+    archived:
+    false;
+    pushed_at 2025-03-15
+  - discovered by:
+    q3,
+    q4 (first screened q3 p10);
+    category guess:
+    monorepo manager candidate (general runner)
 - grablyhq/grably
-  - https://github.com/grablyhq/grably; stars 4; archived: false; pushed_at 2026-04-08
-  - discovered by: q3 (first screened q3 p10); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: pipeline
+  - <https://github.com/grablyhq/grably>;
+    stars 4;
+    archived:
+    false;
+    pushed_at 2026-04-08
+  - discovered by:
+    q3 (first screened q3 p10);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    pipeline
 - nullbadger/neomake
-  - https://github.com/nullbadger/neomake; stars 4; archived: false; pushed_at 2026-04-20
-  - discovered by: q4 (first screened q4 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/nullbadger/neomake>;
+    stars 4;
+    archived:
+    false;
+    pushed_at 2026-04-20
+  - discovered by:
+    q4 (first screened q4 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - MaxChip101/Makeup
-  - https://github.com/MaxChip101/Makeup; stars 3; archived: false; pushed_at 2025-09-23
-  - discovered by: q2 (first screened q2 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/MaxChip101/Makeup>;
+    stars 3;
+    archived:
+    false;
+    pushed_at 2025-09-23
+  - discovered by:
+    q2 (first screened q2 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - AcrylicShrimp/piped
-  - https://github.com/AcrylicShrimp/piped; stars 3; archived: false; pushed_at 2024-04-25
-  - discovered by: q2 (first screened q2 p5); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: orchestrator, pipeline
-  - screening note: README: pipeline-file build system for arbitrary tools (early stage)
+  - <https://github.com/AcrylicShrimp/piped>;
+    stars 3;
+    archived:
+    false;
+    pushed_at 2024-04-25
+  - discovered by:
+    q2 (first screened q2 p5);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    orchestrator,
+    pipeline
+  - screening note:
+    README:
+    pipeline-file build system for arbitrary tools (early stage)
 - quake-build/quake
-  - https://github.com/quake-build/quake; stars 3; archived: false; pushed_at 2024-09-01
-  - discovered by: q2 (first screened q2 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/quake-build/quake>;
+    stars 3;
+    archived:
+    false;
+    pushed_at 2024-09-01
+  - discovered by:
+    q2 (first screened q2 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - ForNeVeR/Meganob
-  - https://github.com/ForNeVeR/Meganob; stars 3; archived: false; pushed_at 2026-09-16
-  - discovered by: q2 (first screened q2 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/ForNeVeR/Meganob>;
+    stars 3;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q2 (first screened q2 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - jakegut/yabs
-  - https://github.com/jakegut/yabs; stars 3; archived: false; pushed_at 2023-09-02
-  - discovered by: q2, q3 (first screened q2 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/jakegut/yabs>;
+    stars 3;
+    archived:
+    false;
+    pushed_at 2023-09-02
+  - discovered by:
+    q2,
+    q3 (first screened q2 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - OctaHive/octa
-  - https://github.com/OctaHive/octa; stars 3; archived: false; pushed_at 2026-09-15
-  - discovered by: q3 (first screened q3 p10); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: plugin
+  - <https://github.com/OctaHive/octa>;
+    stars 3;
+    archived:
+    false;
+    pushed_at 2026-09-15
+  - discovered by:
+    q3 (first screened q3 p10);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    plugin
 - ChrisMcKenzie/achieve
-  - https://github.com/ChrisMcKenzie/achieve; stars 3; archived: false; pushed_at 2017-10-01
-  - discovered by: q3 (first screened q3 p10); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/ChrisMcKenzie/achieve>;
+    stars 3;
+    archived:
+    false;
+    pushed_at 2017-10-01
+  - discovered by:
+    q3 (first screened q3 p10);
+    category guess:
+    monorepo manager candidate (general runner)
 - willemkokke/footman
-  - https://github.com/willemkokke/footman; stars 3; archived: true; pushed_at 2026-09-06
-  - discovered by: q3, q4 (first screened q3 p10); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/willemkokke/footman>;
+    stars 3;
+    archived:
+    true;
+    pushed_at 2026-09-06
+  - discovered by:
+    q3,
+    q4 (first screened q3 p10);
+    category guess:
+    monorepo manager candidate (general runner)
 - mistweaverco/kimbia
-  - https://github.com/mistweaverco/kimbia; stars 3; archived: false; pushed_at 2025-12-14
-  - discovered by: q4 (first screened q4 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/mistweaverco/kimbia>;
+    stars 3;
+    archived:
+    false;
+    pushed_at 2025-12-14
+  - discovered by:
+    q4 (first screened q4 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - Noxsios/vai
-  - https://github.com/Noxsios/vai; stars 3; archived: true; pushed_at 2025-10-28
-  - discovered by: q4 (first screened q4 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Noxsios/vai>;
+    stars 3;
+    archived:
+    true;
+    pushed_at 2025-10-28
+  - discovered by:
+    q4 (first screened q4 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - moseschmiedel/jarvis
-  - https://github.com/moseschmiedel/jarvis; stars 3; archived: false; pushed_at 2021-01-24
-  - discovered by: q4 (first screened q4 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/moseschmiedel/jarvis>;
+    stars 3;
+    archived:
+    false;
+    pushed_at 2021-01-24
+  - discovered by:
+    q4 (first screened q4 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - YuKitsune/plz
-  - https://github.com/YuKitsune/plz; stars 3; archived: false; pushed_at 2026-07-26
-  - discovered by: q4 (first screened q4 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/YuKitsune/plz>;
+    stars 3;
+    archived:
+    false;
+    pushed_at 2026-07-26
+  - discovered by:
+    q4 (first screened q4 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - battila7/jockey
-  - https://github.com/battila7/jockey; stars 3; archived: false; pushed_at 2017-12-19
-  - discovered by: q4 (first screened q4 p4); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/battila7/jockey>;
+    stars 3;
+    archived:
+    false;
+    pushed_at 2017-12-19
+  - discovered by:
+    q4 (first screened q4 p4);
+    category guess:
+    monorepo manager candidate (general runner)
 - UglyEgg/podCI
-  - https://github.com/UglyEgg/podCI; stars 2; archived: false; pushed_at 2026-03-26
-  - discovered by: q2 (first screened q2 p5); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: reproducible, container
+  - <https://github.com/UglyEgg/podCI>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2026-03-26
+  - discovered by:
+    q2 (first screened q2 p5);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    reproducible,
+    container
 - kcmerrill/mario
-  - https://github.com/kcmerrill/mario; stars 2; archived: false; pushed_at 2017-06-11
-  - discovered by: q2, q4 (first screened q2 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/kcmerrill/mario>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2017-06-11
+  - discovered by:
+    q2,
+    q4 (first screened q2 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - Jomy10/beaver
-  - https://github.com/Jomy10/beaver; stars 2; archived: false; pushed_at 2026-07-07
-  - discovered by: q2 (first screened q2 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Jomy10/beaver>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2026-07-07
+  - discovered by:
+    q2 (first screened q2 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - paip-web/pwbs
-  - https://github.com/paip-web/pwbs; stars 2; archived: false; pushed_at 2021-06-28
-  - discovered by: q2 (first screened q2 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/paip-web/pwbs>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2021-06-28
+  - discovered by:
+    q2 (first screened q2 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - meta-company/makex
-  - https://github.com/meta-company/makex; stars 2; archived: false; pushed_at 2025-05-27
-  - discovered by: q2 (first screened q2 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/meta-company/makex>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2025-05-27
+  - discovered by:
+    q2 (first screened q2 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - HelgeSverre/jake
-  - https://github.com/HelgeSverre/jake; stars 2; archived: false; pushed_at 2026-09-12
-  - discovered by: q2, q4 (first screened q2 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/HelgeSverre/jake>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2026-09-12
+  - discovered by:
+    q2,
+    q4 (first screened q2 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - CoolOppo/make-ultra
-  - https://github.com/CoolOppo/make-ultra; stars 2; archived: false; pushed_at 2026-08-05
-  - discovered by: q2, q4 (first screened q2 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/CoolOppo/make-ultra>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2026-08-05
+  - discovered by:
+    q2,
+    q4 (first screened q2 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - kevgo/atalanta
-  - https://github.com/kevgo/atalanta; stars 2; archived: false; pushed_at 2026-08-06
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: polyglot
+  - <https://github.com/kevgo/atalanta>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2026-08-06
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    polyglot
 - jamielsharief/task-runner
-  - https://github.com/jamielsharief/task-runner; stars 2; archived: false; pushed_at 2021-09-17
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/jamielsharief/task-runner>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2021-09-17
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - SierraSoftworks/Executor
-  - https://github.com/SierraSoftworks/Executor; stars 2; archived: false; pushed_at 2020-06-14
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/SierraSoftworks/Executor>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2020-06-14
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - Jakkoble/HexaTask
-  - https://github.com/Jakkoble/HexaTask; stars 2; archived: false; pushed_at 2026-05-06
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: container, docker
+  - <https://github.com/Jakkoble/HexaTask>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2026-05-06
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    container,
+    docker
 - Ayehavgunne/mog
-  - https://github.com/Ayehavgunne/mog; stars 2; archived: false; pushed_at 2026-08-19
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Ayehavgunne/mog>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2026-08-19
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - jharrilim/runt
-  - https://github.com/jharrilim/runt; stars 2; archived: false; pushed_at 2024-01-31
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: polyglot
+  - <https://github.com/jharrilim/runt>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2024-01-31
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    polyglot
 - neural-chilli/fkn
-  - https://github.com/neural-chilli/fkn; stars 2; archived: false; pushed_at 2026-03-23
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/neural-chilli/fkn>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2026-03-23
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - Unviray/pun
-  - https://github.com/Unviray/pun; stars 2; archived: false; pushed_at 2021-11-15
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Unviray/pun>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2021-11-15
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - kanarus/cargo-metask
-  - https://github.com/kanarus/cargo-metask; stars 2; archived: false; pushed_at 2025-05-12
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: plugin
+  - <https://github.com/kanarus/cargo-metask>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2025-05-12
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    plugin
 - fezcode/gobake
-  - https://github.com/fezcode/gobake; stars 2; archived: false; pushed_at 2026-08-15
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: orchestrator
+  - <https://github.com/fezcode/gobake>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2026-08-15
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    orchestrator
 - nsrosenqvist/croft
-  - https://github.com/nsrosenqvist/croft; stars 2; archived: false; pushed_at 2026-05-21
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: watch, tui, docker
-  - screening note: watch, TUI
+  - <https://github.com/nsrosenqvist/croft>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2026-05-21
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    watch,
+    tui,
+    docker
+  - screening note:
+    watch,
+    TUI
 - alloc/picorun
-  - https://github.com/alloc/picorun; stars 2; archived: false; pushed_at 2025-04-06
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: api
+  - <https://github.com/alloc/picorun>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2025-04-06
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    api
 - trinhminhtriet/tash
-  - https://github.com/trinhminhtriet/tash; stars 2; archived: false; pushed_at 2025-04-01
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: remote-execution, docker, orchestration
+  - <https://github.com/trinhminhtriet/tash>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2025-04-01
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    remote-execution,
+    docker,
+    orchestration
 - RealOrangeOne/pike
-  - https://github.com/RealOrangeOne/pike; stars 2; archived: false; pushed_at 2021-05-15
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/RealOrangeOne/pike>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2021-05-15
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - alexreg/factotum
-  - https://github.com/alexreg/factotum; stars 2; archived: false; pushed_at 2023-03-13
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/alexreg/factotum>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2023-03-13
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - lleyton/fae
-  - https://github.com/lleyton/fae; stars 2; archived: false; pushed_at 2022-01-01
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/lleyton/fae>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2022-01-01
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - aiopy/python-uvtask
-  - https://github.com/aiopy/python-uvtask; stars 2; archived: false; pushed_at 2026-08-03
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/aiopy/python-uvtask>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2026-08-03
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - MrMaxie/bunbun
-  - https://github.com/MrMaxie/bunbun; stars 2; archived: false; pushed_at 2020-11-16
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/MrMaxie/bunbun>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2020-11-16
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - brad-jones/drun
-  - https://github.com/brad-jones/drun; stars 2; archived: false; pushed_at 2023-05-08
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/brad-jones/drun>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2023-05-08
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - ricardobeat/taks
-  - https://github.com/ricardobeat/taks; stars 2; archived: false; pushed_at 2022-12-07
-  - discovered by: q4 (first screened q4 p5); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/ricardobeat/taks>;
+    stars 2;
+    archived:
+    false;
+    pushed_at 2022-12-07
+  - discovered by:
+    q4 (first screened q4 p5);
+    category guess:
+    monorepo manager candidate (general runner)
 - NWelde/better-ci
-  - https://github.com/NWelde/better-ci; stars 1; archived: false; pushed_at 2026-05-12
-  - discovered by: q2 (first screened q2 p6); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: dag, caching, pipeline
+  - <https://github.com/NWelde/better-ci>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-05-12
+  - discovered by:
+    q2 (first screened q2 p6);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    dag,
+    caching,
+    pipeline
 - vincbro/godo
-  - https://github.com/vincbro/godo; stars 1; archived: false; pushed_at 2025-06-01
-  - discovered by: q2 (first screened q2 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/vincbro/godo>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2025-06-01
+  - discovered by:
+    q2 (first screened q2 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - 0918nobita/lets
-  - https://github.com/0918nobita/lets; stars 1; archived: true; pushed_at 2020-07-20
-  - discovered by: q2 (first screened q2 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/0918nobita/lets>;
+    stars 1;
+    archived:
+    true;
+    pushed_at 2020-07-20
+  - discovered by:
+    q2 (first screened q2 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - jeanlauliac/upd
-  - https://github.com/jeanlauliac/upd; stars 1; archived: false; pushed_at 2018-07-30
-  - discovered by: q2 (first screened q2 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/jeanlauliac/upd>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2018-07-30
+  - discovered by:
+    q2 (first screened q2 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - sn/ntask
-  - https://github.com/sn/ntask; stars 1; archived: false; pushed_at 2026-05-22
-  - discovered by: q2, q4 (first screened q2 p7); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: dag, caching
+  - <https://github.com/sn/ntask>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-05-22
+  - discovered by:
+    q2,
+    q4 (first screened q2 p7);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    dag,
+    caching
 - SebTardif/MiniBuildRust
-  - https://github.com/SebTardif/MiniBuildRust; stars 1; archived: false; pushed_at 2026-09-16
-  - discovered by: q2 (first screened q2 p7); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: dag, incremental
+  - <https://github.com/SebTardif/MiniBuildRust>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q2 (first screened q2 p7);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    dag,
+    incremental
 - ankurdubey521/Build-Automation-System
-  - https://github.com/ankurdubey521/Build-Automation-System; stars 1; archived: false; pushed_at 2019-11-03
-  - discovered by: q2 (first screened q2 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/ankurdubey521/Build-Automation-System>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2019-11-03
+  - discovered by:
+    q2 (first screened q2 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - ysufender/Efile
-  - https://github.com/ysufender/Efile; stars 1; archived: false; pushed_at 2026-09-15
-  - discovered by: q2 (first screened q2 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/ysufender/Efile>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-09-15
+  - discovered by:
+    q2 (first screened q2 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - daedalus-os/erebrus
-  - https://github.com/daedalus-os/erebrus; stars 1; archived: false; pushed_at 2025-11-05
-  - discovered by: q2 (first screened q2 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/daedalus-os/erebrus>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2025-11-05
+  - discovered by:
+    q2 (first screened q2 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - lfknudsen/Forge
-  - https://github.com/lfknudsen/Forge; stars 1; archived: false; pushed_at 2025-10-11
-  - discovered by: q2 (first screened q2 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/lfknudsen/Forge>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2025-10-11
+  - discovered by:
+    q2 (first screened q2 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - Hexcell/HXMK
-  - https://github.com/Hexcell/HXMK; stars 1; archived: false; pushed_at 2019-04-06
-  - discovered by: q2 (first screened q2 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Hexcell/HXMK>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2019-04-06
+  - discovered by:
+    q2 (first screened q2 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - redthing1/wox
-  - https://github.com/redthing1/wox; stars 1; archived: false; pushed_at 2023-05-18
-  - discovered by: q2 (first screened q2 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/redthing1/wox>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2023-05-18
+  - discovered by:
+    q2 (first screened q2 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - kaiserthe13th/makeup
-  - https://github.com/kaiserthe13th/makeup; stars 1; archived: false; pushed_at 2026-01-13
-  - discovered by: q2, q4 (first screened q2 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/kaiserthe13th/makeup>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-01-13
+  - discovered by:
+    q2,
+    q4 (first screened q2 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - GandelXIV/dhall-build-system
-  - https://github.com/GandelXIV/dhall-build-system; stars 1; archived: false; pushed_at 2023-05-26
-  - discovered by: q2 (first screened q2 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/GandelXIV/dhall-build-system>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2023-05-26
+  - discovered by:
+    q2 (first screened q2 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - SquareRoundCurly/Pragmatic_build_system
-  - https://github.com/SquareRoundCurly/Pragmatic_build_system; stars 1; archived: false; pushed_at 2024-04-23
-  - discovered by: q2 (first screened q2 p8); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: dependency-graph
+  - <https://github.com/SquareRoundCurly/Pragmatic_build_system>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2024-04-23
+  - discovered by:
+    q2 (first screened q2 p8);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    dependency-graph
 - love-your-parens/task-runner
-  - https://github.com/love-your-parens/task-runner; stars 1; archived: false; pushed_at 2023-03-24
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/love-your-parens/task-runner>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2023-03-24
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - ParadoxicalSerenity/TypeTasker
-  - https://github.com/ParadoxicalSerenity/TypeTasker; stars 1; archived: false; pushed_at 2024-11-18
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/ParadoxicalSerenity/TypeTasker>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2024-11-18
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - lumenghz/ti
-  - https://github.com/lumenghz/ti; stars 1; archived: false; pushed_at 2026-09-15
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/lumenghz/ti>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-09-15
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - soren-n/tickle
-  - https://github.com/soren-n/tickle; stars 1; archived: false; pushed_at 2022-02-21
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: task graph
+  - <https://github.com/soren-n/tickle>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2022-02-21
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    task graph
 - nakkiy/rhask
-  - https://github.com/nakkiy/rhask; stars 1; archived: false; pushed_at 2025-11-23
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/nakkiy/rhask>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2025-11-23
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - twocaretcat/NoBS
-  - https://github.com/twocaretcat/NoBS; stars 1; archived: false; pushed_at 2026-09-04
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/twocaretcat/NoBS>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-09-04
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - mrfootoyou/PSTaskFramework
-  - https://github.com/mrfootoyou/PSTaskFramework; stars 1; archived: false; pushed_at 2026-09-14
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/mrfootoyou/PSTaskFramework>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-09-14
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - manuel2258/instruct
-  - https://github.com/manuel2258/instruct; stars 1; archived: false; pushed_at 2022-06-16
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/manuel2258/instruct>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2022-06-16
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - swarmnyc/Swarm.TaskRunner
-  - https://github.com/swarmnyc/Swarm.TaskRunner; stars 1; archived: false; pushed_at 2022-12-08
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/swarmnyc/Swarm.TaskRunner>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2022-12-08
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - JakesMD/hobnob
-  - https://github.com/JakesMD/hobnob; stars 1; archived: false; pushed_at 2026-08-26
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/JakesMD/hobnob>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-08-26
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - suzulabo/ttscripts
-  - https://github.com/suzulabo/ttscripts; stars 1; archived: false; pushed_at 2022-08-26
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/suzulabo/ttscripts>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2022-08-26
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - mgutz/task
-  - https://github.com/mgutz/task; stars 1; archived: false; pushed_at 2019-05-09
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/mgutz/task>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2019-05-09
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - btvoidx/L
-  - https://github.com/btvoidx/L; stars 1; archived: false; pushed_at 2022-07-02
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/btvoidx/L>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2022-07-02
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - green-threads/ndo
-  - https://github.com/green-threads/ndo; stars 1; archived: false; pushed_at 2026-09-15
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/green-threads/ndo>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-09-15
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - mitranim/gtg
-  - https://github.com/mitranim/gtg; stars 1; archived: false; pushed_at 2021-05-07
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: task graph, orchestration
+  - <https://github.com/mitranim/gtg>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2021-05-07
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    task graph,
+    orchestration
 - ckotzbauer/node-task-runner
-  - https://github.com/ckotzbauer/node-task-runner; stars 1; archived: true; pushed_at 2025-12-08
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/ckotzbauer/node-task-runner>;
+    stars 1;
+    archived:
+    true;
+    pushed_at 2025-12-08
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - abrunner94/task-rs
-  - https://github.com/abrunner94/task-rs; stars 1; archived: false; pushed_at 2022-10-21
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/abrunner94/task-rs>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2022-10-21
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - lask-task-runner/lask
-  - https://github.com/lask-task-runner/lask; stars 1; archived: false; pushed_at 2026-09-16
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: reproducible, container, docker
+  - <https://github.com/lask-task-runner/lask>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    reproducible,
+    container,
+    docker
 - withinboredom/tyche
-  - https://github.com/withinboredom/tyche; stars 1; archived: false; pushed_at 2017-02-02
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/withinboredom/tyche>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2017-02-02
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - sirikon/ebro
-  - https://github.com/sirikon/ebro; stars 1; archived: true; pushed_at 2025-08-07
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/sirikon/ebro>;
+    stars 1;
+    archived:
+    true;
+    pushed_at 2025-08-07
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - or1can/ratect
-  - https://github.com/or1can/ratect; stars 1; archived: false; pushed_at 2026-09-16
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: container, docker
+  - <https://github.com/or1can/ratect>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    container,
+    docker
 - iamBijoyKar/zap
-  - https://github.com/iamBijoyKar/zap; stars 1; archived: false; pushed_at 2025-09-29
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/iamBijoyKar/zap>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2025-09-29
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - lepisma/orgo
-  - https://github.com/lepisma/orgo; stars 1; archived: true; pushed_at 2025-10-05
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/lepisma/orgo>;
+    stars 1;
+    archived:
+    true;
+    pushed_at 2025-10-05
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - jassielof/weld
-  - https://github.com/jassielof/weld; stars 1; archived: true; pushed_at 2026-06-19
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/jassielof/weld>;
+    stars 1;
+    archived:
+    true;
+    pushed_at 2026-06-19
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - urban233/pymake
-  - https://github.com/urban233/pymake; stars 1; archived: false; pushed_at 2026-05-09
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/urban233/pymake>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-05-09
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - eight04/pyXcute
-  - https://github.com/eight04/pyXcute; stars 1; archived: false; pushed_at 2024-02-03
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/eight04/pyXcute>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2024-02-03
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - akluth/do
-  - https://github.com/akluth/do; stars 1; archived: false; pushed_at 2026-05-30
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/akluth/do>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-05-30
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - lukecarr/brec
-  - https://github.com/lukecarr/brec; stars 1; archived: false; pushed_at 2026-03-01
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/lukecarr/brec>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-03-01
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - mitranim/jtg
-  - https://github.com/mitranim/jtg; stars 1; archived: false; pushed_at 2021-06-02
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/mitranim/jtg>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2021-06-02
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - tsk-monster/tsk
-  - https://github.com/tsk-monster/tsk; stars 1; archived: false; pushed_at 2024-04-30
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/tsk-monster/tsk>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2024-04-30
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - leso-kn/buildtool.js
-  - https://github.com/leso-kn/buildtool.js; stars 1; archived: false; pushed_at 2022-07-19
-  - discovered by: q4 (first screened q4 p6); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/leso-kn/buildtool.js>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2022-07-19
+  - discovered by:
+    q4 (first screened q4 p6);
+    category guess:
+    monorepo manager candidate (general runner)
 - ecma-make/ecmake
-  - https://github.com/ecma-make/ecmake; stars 1; archived: false; pushed_at 2022-01-08
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/ecma-make/ecmake>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2022-01-08
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - jgrey4296/doot
-  - https://github.com/jgrey4296/doot; stars 1; archived: false; pushed_at 2025-10-23
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/jgrey4296/doot>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2025-10-23
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - Hand-of-Doom/budgie
-  - https://github.com/Hand-of-Doom/budgie; stars 1; archived: false; pushed_at 2024-02-24
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Hand-of-Doom/budgie>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2024-02-24
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - neural-chilli/qp
-  - https://github.com/neural-chilli/qp; stars 1; archived: false; pushed_at 2026-03-26
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: dag, mcp
-  - screening note: README: local-first task runner and workflow runtime for humans and agents;
+  - <https://github.com/neural-chilli/qp>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-03-26
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    dag,
+    mcp
+  - screening note:
+    README:
+    local-first task runner and workflow runtime for humans and agents;
      description lists DAG execution and MCP
 - hopenbuild/App-hopen
-  - https://github.com/hopenbuild/App-hopen; stars 1; archived: false; pushed_at 2026-05-07
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/hopenbuild/App-hopen>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-05-07
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - nksaraf/elf
-  - https://github.com/nksaraf/elf; stars 1; archived: false; pushed_at 2022-12-04
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/nksaraf/elf>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2022-12-04
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - matanlurey/chore.dart
-  - https://github.com/matanlurey/chore.dart; stars 1; archived: true; pushed_at 2024-10-06
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/matanlurey/chore.dart>;
+    stars 1;
+    archived:
+    true;
+    pushed_at 2024-10-06
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - kaliv0/koi_fish
-  - https://github.com/kaliv0/koi_fish; stars 1; archived: false; pushed_at 2026-09-04
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/kaliv0/koi_fish>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-09-04
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - hashmap-kz/smallci
-  - https://github.com/hashmap-kz/smallci; stars 1; archived: false; pushed_at 2026-08-21
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: tui
+  - <https://github.com/hashmap-kz/smallci>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-08-21
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    tui
 - quonaro/Lota
-  - https://github.com/quonaro/Lota; stars 1; archived: false; pushed_at 2026-09-16
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/quonaro/Lota>;
+    stars 1;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - Aldlevine/scripteasy
-  - https://github.com/Aldlevine/scripteasy; stars 0; archived: true; pushed_at 2017-11-18
-  - discovered by: q2, q4 (first screened q2 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Aldlevine/scripteasy>;
+    stars 0;
+    archived:
+    true;
+    pushed_at 2017-11-18
+  - discovered by:
+    q2,
+    q4 (first screened q2 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - anantix-network/carpenter-cli
-  - https://github.com/anantix-network/carpenter-cli; stars 0; archived: false; pushed_at 2025-10-25
-  - discovered by: q2 (first screened q2 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/anantix-network/carpenter-cli>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2025-10-25
+  - discovered by:
+    q2 (first screened q2 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - MRThugh/SAZA
-  - https://github.com/MRThugh/SAZA; stars 0; archived: false; pushed_at 2026-04-25
-  - discovered by: q2 (first screened q2 p10); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: api
+  - <https://github.com/MRThugh/SAZA>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-04-25
+  - discovered by:
+    q2 (first screened q2 p10);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    api
 - Qix-/tag
-  - https://github.com/Qix-/tag; stars 0; archived: true; pushed_at 2018-09-24
-  - discovered by: q2, q4 (first screened q2 p10); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Qix-/tag>;
+    stars 0;
+    archived:
+    true;
+    pushed_at 2018-09-24
+  - discovered by:
+    q2,
+    q4 (first screened q2 p10);
+    category guess:
+    monorepo manager candidate (general runner)
 - tillahoffmann/cook-build-archive
-  - https://github.com/tillahoffmann/cook-build-archive; stars 0; archived: true; pushed_at 2026-02-26
-  - discovered by: q2 (first screened q2 p10); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/tillahoffmann/cook-build-archive>;
+    stars 0;
+    archived:
+    true;
+    pushed_at 2026-02-26
+  - discovered by:
+    q2 (first screened q2 p10);
+    category guess:
+    monorepo manager candidate (general runner)
 - antonsynd/chiri
-  - https://github.com/antonsynd/chiri; stars 0; archived: false; pushed_at 2025-07-13
-  - discovered by: q2 (first screened q2 p10); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/antonsynd/chiri>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2025-07-13
+  - discovered by:
+    q2 (first screened q2 p10);
+    category guess:
+    monorepo manager candidate (general runner)
 - aszecsei/please
-  - https://github.com/aszecsei/please; stars 0; archived: false; pushed_at 2019-07-18
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/aszecsei/please>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2019-07-18
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - mattritterspach-personal/flowrunner
-  - https://github.com/mattritterspach-personal/flowrunner; stars 0; archived: false; pushed_at 2026-07-19
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: dag, orchestration, pipeline
+  - <https://github.com/mattritterspach-personal/flowrunner>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-07-19
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    dag,
+    orchestration,
+    pipeline
 - trashify/ok-runner
-  - https://github.com/trashify/ok-runner; stars 0; archived: false; pushed_at 2017-08-10
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/trashify/ok-runner>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2017-08-10
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - AmaseCocoa/libretto
-  - https://github.com/AmaseCocoa/libretto; stars 0; archived: false; pushed_at 2025-12-10
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/AmaseCocoa/libretto>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2025-12-10
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - tmus/gake
-  - https://github.com/tmus/gake; stars 0; archived: false; pushed_at 2022-01-13
-  - discovered by: q4 (first screened q4 p7); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/tmus/gake>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2022-01-13
+  - discovered by:
+    q4 (first screened q4 p7);
+    category guess:
+    monorepo manager candidate (general runner)
 - mhio/mash
-  - https://github.com/mhio/mash; stars 0; archived: false; pushed_at 2024-12-30
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/mhio/mash>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2024-12-30
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - heinthanth/xuerun
-  - https://github.com/heinthanth/xuerun; stars 0; archived: false; pushed_at 2022-05-16
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/heinthanth/xuerun>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2022-05-16
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - tidjee-dev/doit
-  - https://github.com/tidjee-dev/doit; stars 0; archived: false; pushed_at 2026-02-08
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/tidjee-dev/doit>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-02-08
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - troykinsella/friggen
-  - https://github.com/troykinsella/friggen; stars 0; archived: false; pushed_at 2024-05-05
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/troykinsella/friggen>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2024-05-05
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - gregnazario/must
-  - https://github.com/gregnazario/must; stars 0; archived: false; pushed_at 2026-08-31
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: caching, polyglot, orchestrator, plugin
-  - screening note: polyglot orchestrator
+  - <https://github.com/gregnazario/must>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-08-31
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    caching,
+    polyglot,
+    orchestrator,
+    plugin
+  - screening note:
+    polyglot orchestrator
 - fboender/sla
-  - https://github.com/fboender/sla; stars 0; archived: false; pushed_at 2026-09-12
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/fboender/sla>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-09-12
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - freddiefujiwara/yoboo
-  - https://github.com/freddiefujiwara/yoboo; stars 0; archived: false; pushed_at 2017-08-13
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/freddiefujiwara/yoboo>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2017-08-13
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - kinematic-ci/machinery
-  - https://github.com/kinematic-ci/machinery; stars 0; archived: false; pushed_at 2020-10-05
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: container
+  - <https://github.com/kinematic-ci/machinery>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2020-10-05
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    container
 - CodeTease/p
-  - https://github.com/CodeTease/p; stars 0; archived: false; pushed_at 2026-03-21
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/CodeTease/p>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-03-21
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - cognis-digital/taskforge
-  - https://github.com/cognis-digital/taskforge; stars 0; archived: false; pushed_at 2026-06-30
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/cognis-digital/taskforge>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-06-30
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - lepton9/ztask
-  - https://github.com/lepton9/ztask; stars 0; archived: false; pushed_at 2026-09-10
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/lepton9/ztask>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-09-10
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - NathanFirmo/tsk
-  - https://github.com/NathanFirmo/tsk; stars 0; archived: true; pushed_at 2023-05-16
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/NathanFirmo/tsk>;
+    stars 0;
+    archived:
+    true;
+    pushed_at 2023-05-16
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager candidate (general runner)
 - HelperVia/hv-cli
-  - https://github.com/HelperVia/hv-cli; stars 0; archived: false; pushed_at 2026-03-15
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: hot-reload
+  - <https://github.com/HelperVia/hv-cli>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-03-15
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    hot-reload
 - pirakansa/Vorbere
-  - https://github.com/pirakansa/Vorbere; stars 0; archived: false; pushed_at 2026-09-05
-  - discovered by: q4 (first screened q4 p8); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: reproducible, sync
-  - screening note: file sync + tasks
+  - <https://github.com/pirakansa/Vorbere>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-09-05
+  - discovered by:
+    q4 (first screened q4 p8);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    reproducible,
+    sync
+  - screening note:
+    file sync + tasks
 - jrop/pkgbuild
-  - https://github.com/jrop/pkgbuild; stars 0; archived: false; pushed_at 2017-09-01
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/jrop/pkgbuild>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2017-09-01
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - kijimad/gorun
-  - https://github.com/kijimad/gorun; stars 0; archived: false; pushed_at 2023-02-26
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/kijimad/gorun>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2023-02-26
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - nadvotsky/sharpbuilder
-  - https://github.com/nadvotsky/sharpbuilder; stars 0; archived: true; pushed_at 2026-01-28
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/nadvotsky/sharpbuilder>;
+    stars 0;
+    archived:
+    true;
+    pushed_at 2026-01-28
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - quike/keepup
-  - https://github.com/quike/keepup; stars 0; archived: false; pushed_at 2026-09-16
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/quike/keepup>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - andersnormal/picasso
-  - https://github.com/andersnormal/picasso; stars 0; archived: true; pushed_at 2022-07-19
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/andersnormal/picasso>;
+    stars 0;
+    archived:
+    true;
+    pushed_at 2022-07-19
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - aprilahijriyan/vonzy
-  - https://github.com/aprilahijriyan/vonzy; stars 0; archived: false; pushed_at 2023-08-29
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/aprilahijriyan/vonzy>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2023-08-29
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - mikey-t/swig
-  - https://github.com/mikey-t/swig; stars 0; archived: false; pushed_at 2026-07-29
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/mikey-t/swig>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-07-29
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - githuib/powerchord
-  - https://github.com/githuib/powerchord; stars 0; archived: false; pushed_at 2025-12-27
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/githuib/powerchord>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2025-12-27
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - hxii/boku
-  - https://github.com/hxii/boku; stars 0; archived: false; pushed_at 2026-05-25
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/hxii/boku>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-05-25
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - korchasa/taskman
-  - https://github.com/korchasa/taskman; stars 0; archived: true; pushed_at 2019-08-16
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/korchasa/taskman>;
+    stars 0;
+    archived:
+    true;
+    pushed_at 2019-08-16
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - Nikoro/spellbook
-  - https://github.com/Nikoro/spellbook; stars 0; archived: false; pushed_at 2026-07-20
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Nikoro/spellbook>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-07-20
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - khalyomede/fang
-  - https://github.com/khalyomede/fang; stars 0; archived: true; pushed_at 2020-01-17
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/khalyomede/fang>;
+    stars 0;
+    archived:
+    true;
+    pushed_at 2020-01-17
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - aca/qwer
-  - https://github.com/aca/qwer; stars 0; archived: false; pushed_at 2026-01-11
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/aca/qwer>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-01-11
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - rosshhun/wandler
-  - https://github.com/rosshhun/wandler; stars 0; archived: false; pushed_at 2025-11-07
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/rosshhun/wandler>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2025-11-07
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - AdametherzLab/ts-task
-  - https://github.com/AdametherzLab/ts-task; stars 0; archived: false; pushed_at 2026-03-08
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/AdametherzLab/ts-task>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-03-08
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
 - importt-ant/pi-line
-  - https://github.com/importt-ant/pi-line; stars 0; archived: false; pushed_at 2026-04-18
-  - discovered by: q4 (first screened q4 p9); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: pipeline
+  - <https://github.com/importt-ant/pi-line>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-04-18
+  - discovered by:
+    q4 (first screened q4 p9);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    pipeline
 - triole/coda
-  - https://github.com/triole/coda; stars 0; archived: false; pushed_at 2026-09-01
-  - discovered by: q4 (first screened q4 p10); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/triole/coda>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-09-01
+  - discovered by:
+    q4 (first screened q4 p10);
+    category guess:
+    monorepo manager candidate (general runner)
 - doxuta/twap
-  - https://github.com/doxuta/twap; stars 0; archived: false; pushed_at 2026-09-16
-  - discovered by: q4 (first screened q4 p10); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/doxuta/twap>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-09-16
+  - discovered by:
+    q4 (first screened q4 p10);
+    category guess:
+    monorepo manager candidate (general runner)
 - chriso345/jot
-  - https://github.com/chriso345/jot; stars 0; archived: false; pushed_at 2025-07-14
-  - discovered by: q4 (first screened q4 p10); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/chriso345/jot>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2025-07-14
+  - discovered by:
+    q4 (first screened q4 p10);
+    category guess:
+    monorepo manager candidate (general runner)
 - ubgo/lath
-  - https://github.com/ubgo/lath; stars 0; archived: false; pushed_at 2026-09-06
-  - discovered by: q4 (first screened q4 p10); category guess: monorepo manager candidate (general runner)
-  - taxonomy terms: tui, docker, pipeline
+  - <https://github.com/ubgo/lath>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-09-06
+  - discovered by:
+    q4 (first screened q4 p10);
+    category guess:
+    monorepo manager candidate (general runner)
+  - taxonomy terms:
+    tui,
+    docker,
+    pipeline
 - DarkWiiPlayer/spooder
-  - https://github.com/DarkWiiPlayer/spooder; stars 0; archived: false; pushed_at 2025-10-20
-  - discovered by: q4 (first screened q4 p10); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/DarkWiiPlayer/spooder>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2025-10-20
+  - discovered by:
+    q4 (first screened q4 p10);
+    category guess:
+    monorepo manager candidate (general runner)
 - JeffDess/lets
-  - https://github.com/JeffDess/lets; stars 0; archived: false; pushed_at 2026-08-15
-  - discovered by: q4 (first screened q4 p10); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/JeffDess/lets>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-08-15
+  - discovered by:
+    q4 (first screened q4 p10);
+    category guess:
+    monorepo manager candidate (general runner)
 - maate/task-friend
-  - https://github.com/maate/task-friend; stars 0; archived: false; pushed_at 2016-02-13
-  - discovered by: q4 (first screened q4 p10); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/maate/task-friend>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2016-02-13
+  - discovered by:
+    q4 (first screened q4 p10);
+    category guess:
+    monorepo manager candidate (general runner)
 - MohammedAl-Mahdawi/wooz
-  - https://github.com/MohammedAl-Mahdawi/wooz; stars 0; archived: false; pushed_at 2020-05-22
-  - discovered by: q4 (first screened q4 p10); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/MohammedAl-Mahdawi/wooz>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2020-05-22
+  - discovered by:
+    q4 (first screened q4 p10);
+    category guess:
+    monorepo manager candidate (general runner)
 - Pekhov14/tony
-  - https://github.com/Pekhov14/tony; stars 0; archived: false; pushed_at 2026-06-19
-  - discovered by: q4 (first screened q4 p10); category guess: monorepo manager candidate (general runner)
+  - <https://github.com/Pekhov14/tony>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2026-06-19
+  - discovered by:
+    q4 (first screened q4 p10);
+    category guess:
+    monorepo manager candidate (general runner)
 - lupincr/lupin-cli
-  - https://github.com/lupincr/lupin-cli; stars 0; archived: false; pushed_at 2018-09-13
-  - discovered by: q4 (first screened q4 p10); category guess: monorepo manager candidate (general runner)
-  - screening note: CLI of lupin
+  - <https://github.com/lupincr/lupin-cli>;
+    stars 0;
+    archived:
+    false;
+    pushed_at 2018-09-13
+  - discovered by:
+    q4 (first screened q4 p10);
+    category guess:
+    monorepo manager candidate (general runner)
+  - screening note:
+    CLI of lupin
 
 ### Excluded but close
 
-- air-verse/air (23986 stars; q4 p1): watcher
-- jetify-com/devbox (12359 stars; q2 p1): dev env
-- xmake-io/xmake (12221 stars; q3 p1): C/C++
-- korfuri/awesome-monorepo (5864 stars; q1 p1): awesome list
-- zouhir/jarvis (5474 stars; q3 p1): webpack dashboard
-- tach-org/tach (2820 stars; q1 p1): Python dependency boundary enforcement, not a task runner
-- lukeed/taskr (2539 stars; q4 p1): gulp-like
-- pybuilder/pybuilder (2045 stars; q3 p1): Python-only project build automation
-- josh-project/josh (1937 stars; q1 p1): Git monorepo proxy, VCS layer
-- boot-clj/boot (1749 stars; q3 p1): Clojure-only build tooling
-- JetBrains/amper (1745 stars, archived; q3 p1): Kotlin and Java-only build tool
-- tj/mmake (1735 stars; q2 p1): make wrapper
-- TraceMachina/nativelink (1593 stars; q2 p1): remote exec server
-- ducktors/turborepo-remote-cache (1485 stars; q1 p1): Turborepo remote cache server
-- swiftlang/swift-llbuild (1278 stars; q2 p1): low-level engine lib
-- jin/awesome-bazel (1241 stars; q2 p1): list
-- bazel-contrib/buildtools (1191 stars; q3 p1): formatter
-- phingofficial/phing (1168 stars; q3 p1): PHP-ecosystem Ant-style build tool
-- alibaba/dawn (1130 stars; q3 p1): frontend pipeline
-- tarpas/pytest-testmon (1015 stars; q3 p1): affected tests
-- scalacenter/bloop (943 stars; q2 p1): Scala build server
-- mitranim/gow (906 stars; q3 p1): watcher
-- silenceper/gowatch (869 stars; q3 p1): watcher
-- harbur/captain (777 stars; q3 p1): Git workflow to Docker image builder
-- buchgr/bazel-remote (775 stars; q3 p1): remote cache
-- buildout/buildout (618 stars; q3 p1): Python deployment automation
-- nx-go/nx-go (571 stars; q1 p1): Nx plugin
-- vltpkg/vltpkg (552 stars; q1 p1): package manager
-- DavidVujic/python-polylith (552 stars; q1 p1): Polylith architecture packaging tooling for Python
-- build-server-protocol/build-server-protocol (547 stars; q3 p1): protocol
-- symplify/monorepo-builder (527 stars; q1 p1): Composer monorepo merge, split, and release tools
-- gitmono-dev/mega (516 stars; q1 p1): Git-compatible monorepo engine, VCS layer
-- cvogt/cbt (489 stars; q2 p1): Scala
-- evmar/n2 (464 stars; q2 p1): ninja port
-- aws/aws-pdk (451 stars; q1 p1): project development kit on projen and Nx, framework rather than orchestrator
-- propensive/fury-old (430 stars; q3 p2): JVM
-- 256lights/zb (406 stars; q3 p2): nix-like hermetic
-- leonardochaia/dotnet-affected (405 stars; q1 p2): .NET affected-project detection
-- saisandeepvaddi/ten-hands (380 stars; q4 p1): GUI launcher
-- muon-build/muon (375 stars; q2 p1): meson impl
-- zephyrproject-rtos/west (366 stars; q3 p2): Zephyr meta-tool
-- nrwl/monorepo.tools (354 stars; q1 p2): documentation site
-- helapkg/hela (333 stars; q4 p1): JS development-experience presets, unclear task model
-- rife2/bld (318 stars; q2 p1): Java
-- reisraff/phulp (293 stars; q4 p1): gulp-like PHP
-- liudng/dogo (274 stars; q3 p2): watcher
-- MansaGroup/nrwl-nx-action (228 stars; q1 p2): GitHub Action wrapper for Nx
-- loadingalias/cargo-rail (228 stars; q1 p2): README: Cargo-only affected-work planner; Cargo, nextest,
+- air-verse/air (23986 stars;
+  q4 p1):
+  watcher
+- jetify-com/devbox (12359 stars;
+  q2 p1):
+  dev env
+- xmake-io/xmake (12221 stars;
+  q3 p1):
+  C/C++
+- korfuri/awesome-monorepo (5864 stars;
+  q1 p1):
+  awesome list
+- zouhir/jarvis (5474 stars;
+  q3 p1):
+  webpack dashboard
+- tach-org/tach (2820 stars;
+  q1 p1):
+  Python dependency boundary enforcement,
+  not a task runner
+- lukeed/taskr (2539 stars;
+  q4 p1):
+  gulp-like
+- pybuilder/pybuilder (2045 stars;
+  q3 p1):
+  Python-only project build automation
+- josh-project/josh (1937 stars;
+  q1 p1):
+  Git monorepo proxy,
+  VCS layer
+- boot-clj/boot (1749 stars;
+  q3 p1):
+  Clojure-only build tooling
+- JetBrains/amper (1745 stars,
+  archived;
+  q3 p1):
+  Kotlin and Java-only build tool
+- tj/mmake (1735 stars;
+  q2 p1):
+  make wrapper
+- TraceMachina/nativelink (1593 stars;
+  q2 p1):
+  remote exec server
+- ducktors/turborepo-remote-cache (1485 stars;
+  q1 p1):
+  Turborepo remote cache server
+- swiftlang/swift-llbuild (1278 stars;
+  q2 p1):
+  low-level engine lib
+- jin/awesome-bazel (1241 stars;
+  q2 p1):
+  list
+- bazel-contrib/buildtools (1191 stars;
+  q3 p1):
+  formatter
+- phingofficial/phing (1168 stars;
+  q3 p1):
+  PHP-ecosystem Ant-style build tool
+- alibaba/dawn (1130 stars;
+  q3 p1):
+  frontend pipeline
+- tarpas/pytest-testmon (1015 stars;
+  q3 p1):
+  affected tests
+- scalacenter/bloop (943 stars;
+  q2 p1):
+  Scala build server
+- mitranim/gow (906 stars;
+  q3 p1):
+  watcher
+- silenceper/gowatch (869 stars;
+  q3 p1):
+  watcher
+- harbur/captain (777 stars;
+  q3 p1):
+  Git workflow to Docker image builder
+- buchgr/bazel-remote (775 stars;
+  q3 p1):
+  remote cache
+- buildout/buildout (618 stars;
+  q3 p1):
+  Python deployment automation
+- nx-go/nx-go (571 stars;
+  q1 p1):
+  Nx plugin
+- vltpkg/vltpkg (552 stars;
+  q1 p1):
+  package manager
+- DavidVujic/python-polylith (552 stars;
+  q1 p1):
+  Polylith architecture packaging tooling for Python
+- build-server-protocol/build-server-protocol (547 stars;
+  q3 p1):
+  protocol
+- symplify/monorepo-builder (527 stars;
+  q1 p1):
+  Composer monorepo merge,
+  split,
+  and release tools
+- gitmono-dev/mega (516 stars;
+  q1 p1):
+  Git-compatible monorepo engine,
+  VCS layer
+- cvogt/cbt (489 stars;
+  q2 p1):
+  Scala
+- evmar/n2 (464 stars;
+  q2 p1):
+  ninja port
+- aws/aws-pdk (451 stars;
+  q1 p1):
+  project development kit on projen and Nx,
+  framework rather than orchestrator
+- propensive/fury-old (430 stars;
+  q3 p2):
+  JVM
+- 256lights/zb (406 stars;
+  q3 p2):
+  nix-like hermetic
+- leonardochaia/dotnet-affected (405 stars;
+  q1 p2):
+  .NET affected-project detection
+- saisandeepvaddi/ten-hands (380 stars;
+  q4 p1):
+  GUI launcher
+- muon-build/muon (375 stars;
+  q2 p1):
+  meson impl
+- zephyrproject-rtos/west (366 stars;
+  q3 p2):
+  Zephyr meta-tool
+- nrwl/monorepo.tools (354 stars;
+  q1 p2):
+  documentation site
+- helapkg/hela (333 stars;
+  q4 p1):
+  JS development-experience presets,
+  unclear task model
+- rife2/bld (318 stars;
+  q2 p1):
+  Java
+- reisraff/phulp (293 stars;
+  q4 p1):
+  gulp-like PHP
+- liudng/dogo (274 stars;
+  q3 p2):
+  watcher
+- MansaGroup/nrwl-nx-action (228 stars;
+  q1 p2):
+  GitHub Action wrapper for Nx
+- loadingalias/cargo-rail (228 stars;
+  q1 p2):
+  README:
+  Cargo-only affected-work planner;
+  Cargo,
+  nextest,
    Just remain the executors
-- brunojppb/turbo-cache-server (220 stars; q1 p2): Turborepo remote cache server
-- AlexB52/retest (220 stars; q4 p1): test watcher
-- rharkor/caching-for-turbo (211 stars; q1 p2): GitHub Action Turborepo cache
-- wandercn/hotbuild (200 stars; q3 p2): watcher
-- maxmcd/bramble (195 stars; q2 p1): nix-like pkg builder
-- atilaneves/reggae (190 stars; q2 p1): meta-build
-- azu/monorepo-utils (180 stars; q1 p2): utility collection
-- jeka-dev/jeka (178 stars; q3 p2): Java
-- catkin/catkin_tools (169 stars; q3 p2): ROS catkin CMake workspace builder
-- spotify/bazel-tools (169 stars, archived; q3 p2): Bazel helper tools
-- google/mono_repo.dart (169 stars; q1 p3): README: fans out dart/pub commands and generates CI; no arbitrary task graph
-- Tapico/tapico-turborepo-remote-cache (161 stars; q1 p3): Turborepo remote cache server
-- lemonade-hq/traf (156 stars; q1 p3): affected-package detection
-- Illumina/pyflow (148 stars; q4 p1): library
-- commonalityco/commonality (141 stars; q1 p3): codebase conformance and structure checks
-- timniederhausen/gn (134 stars; q2 p1): meta-build
-- xt0rted/dotnet-run-script (134 stars; q3 p2): single-project scripts runner for dotnet
-- coderaiser/redrun (127 stars; q4 p1): npm script expander
-- jsnjack/wakeci (116 stars; q4 p1): CI
-- skroutz/mistry (106 stars, archived; q2 p1): build server
-- Escape-Technologies/mookme (105 stars, archived; q1 p3): pre-commit hook runner for monorepos
-- JonathonReinhart/scuba (99 stars; q3 p3): container exec wrapper
-- jwplayer/buildpipe-buildkite-plugin (96 stars; q1 p3): Buildkite CI plugin
-- jbolda/covector (89 stars; q1 p3): change management and publishing
-- kaspar030/laze (86 stars; q3 p3): C/C++/Rust ninja meta-build
-- melezhik/Sparrow6 (85 stars; q4 p1): Raku automation framework
-- carderne/una (84 stars; q1 p4): Python uv monorepo packaging helper
-- scala-garden/dbuild (84 stars; q3 p3): Scala
-- frostming/monas (77 stars; q1 p4): README: Lerna-like Python package management, no task running described
-- IKatsuba/nx-cloud (75 stars, archived; q1 p4): Nx Cloud community edition, remote cache and distribution service
-- javanile/mush (73 stars; q3 p3): shell
-- alvis/presetter (69 stars; q3 p3): build script and config preset manager
-- ioquatix/teapot (68 stars; q3 p3): C++
-- michaelyali/mrepo (67 stars; q1 p4): monorepo scaffolding CLI
-- cometkim/turbocache (67 stars; q1 p4): Turborepo remote cache on Cloudflare Workers
-- managarm/xbstrap (66 stars; q2 p2): OS distro
-- unvalley/rt (64 stars; q4 p1): front-end over other runners
-- mathpaquette/tskmgr (62 stars; q1 p4): distributed task system for Nx CI
-- prodmodel/prodmodel (60 stars; q2 p2): data pipelines
-- kynrai/tainted (60 stars; q3 p3): affected detection
-- zzarcon/run-when (59 stars; q4 p2): git-diff trigger
-- wix-incubator/haste (59 stars; q2 p2): JS asset-pipeline build toolkit (rule refinement at q2 p4)
-- evocateur/pectin (56 stars; q1 p5): Rollup incremental transpilation for Lerna packages
-- flegall/monopack (55 stars; q1 p5): bundler
-- robinpellegrims/nx-remotecache-s3 (52 stars, archived; q1 p5): Nx remote cache plugin
-- typical-go/typical-go (52 stars, archived; q3 p3): Go-only
-- xwmx/bask (52 stars; q4 p2): Bash command-centric script framework
-- brainhivenl/steiger (49 stars; q3 p4): container image builds
-- AnharHussainMiah/grind (49 stars; q3 p4): Java
-- sonofmagic/repoctl (48 stars; q1 p5): scaffolds, maintains, and releases pnpm and Turborepo monorepos
-- invenia/Dispatcher.jl (45 stars, archived; q4 p2): library
-- linux-china/task-keeper (43 stars; q4 p2): meta front-end
-- kvz/fakefile (42 stars; q3 p4): universal Makefile convention for JS projects
-- samrith-s/concurrent-tasks (42 stars; q4 p2): library
-- 8gears/do.sh (41 stars; q2 p2): shell convention
-- oblador/sovra (40 stars; q1 p6): test decider, affected tests
-- pkg-tools/pkg-tools (38 stars; q1 p6): package build toolchain, not a task orchestrator
-- buildkite-plugins/monorepo-diff-buildkite-plugin (38 stars; q1 p6): Buildkite CI plugin
-- opnlabs/dot (36 stars; q2 p2): CI
-- jsenv/core (36 stars; q3 p4): JS develop, test, and build toolkit
-- 616b2f/bsp.nvim (35 stars; q3 p4): BSP client
-- rafael-santiago/hefesto (35 stars; q2 p2): README: C-oriented build scripting language
-- brunojppb/turbo-racer (34 stars, archived; q1 p6): Turborepo remote cache
-- monorepolint/monorepolint (34 stars; q1 p6): monorepo linter
-- ARM-software/bob-build (33 stars; q2 p2): meta-build
-- vincentdchan/yesbuild (33 stars, archived; q3 p4): archived, web
-- jpm-hub/jpm (33 stars; q3 p4): JVM
-- project-talan/tln-cli (33 stars; q1 p6): README: component and environment manager, not a task orchestrator
-- ibara/make (32 stars; q2 p2): port
-- swissquote/crafty (31 stars; q3 p4): frontend presets
-- davestewart/spaceman (31 stars; q1 p6): README: prompt front-end over npm/yarn workspace commands
-- zombiezen/redo-rs (30 stars; q2 p2): port
-- JetBrains/intellij-bsp (29 stars, archived; q3 p4): BSP client
-- Aldlevine/comptroller (28 stars, archived; q1 p7): monorepo dependency manager
-- sjc5/kiruna (28 stars, archived; q3 p5): archived Go app orchestrator
-- ferhatgec/elite (28 stars; q2 p2): README: tiny build DSL without a task dependency model
-- numtide/bld (27 stars, archived; q1 p7): builds Nix targets per directory
-- fairy-pitta/portree (27 stars; q1 p7): Git worktree dev server manager
-- ml-tooling/universal-build (27 stars; q3 p5): build utilities for containerized pipelines
-- smollweide/lerna-terminal (27 stars; q1 p7): README: terminal UI over lerna run
-- wclr/yall (27 stars; q1 p7): README: yarn/npm command fan-out across folders (has manifest watch)
-- knit-cli/knit (26 stars; q1 p7): multi-repo agent context tool
-- mew-build/mew (26 stars; q3 p5): insufficient category evidence
-- r-kells/scream (26 stars; q1 p7): README: Python monorepo packaging/testing conventions via tox
-- arichardson/bmake (25 stars; q2 p2): port
-- floooh/fibs (25 stars; q2 p2): cmake wrapper
-- lstephen/construi (25 stars; q3 p5): Docker env
-- GreyElaina/Mina (24 stars; q1 p8): Python monorepo packaging helper
-- hoppjs/hopp (24 stars, archived; q2 p2): archived JS asset-pipeline build tool (rule refinement at q2 p4)
-- leonardochaia/dotnet-affected-action (23 stars; q1 p8): .NET affected detection action
-- polymonster/pmbuild (23 stars; q2 p2): gamedev
-- alisw/alibuild (23 stars; q3 p5): HEP
-- rap2hpoutre/taskz (23 stars; q4 p2): library
-- automotiveMastermind/condo (22 stars; q3 p5): .NET
-- gnat/doit.sh (22 stars; q3 p5): shell convention
-- AuditDeploy/Builder (22 stars; q2 p2): README: repo-to-artifact builder with metadata, not a task orchestrator
-- leanix/nx-affected-dependencies-action (21 stars, archived; q1 p8): Nx affected filter action
-- acacode/flamebird (21 stars; q4 p2): process manager web GUI
-- harmont-dev/harmont-cli (21 stars; q4 p2): CI client
-- microsoft/boll (20 stars; q1 p8): monorepo linter
-- sake92/deder (20 stars; q3 p5): JVM client-server
-- alexisvisco/gwd (19 stars; q1 p8): Go module change tracking
-- janbiasi/monopacker (19 stars; q1 p9): packs a monorepo app into standalone build output
-- chriseaton/cloud-build-local (19 stars; q3 p5): local CI
-- permafrost-dev/stackup (19 stars; q4 p2): dev stack process runner
-- fuzdev/gro (19 stars; q4 p2): SvelteKit
-- biojppm/cmany (18 stars; q2 p3): cmake batch
-- alloc/indo (18 stars; q1 p9): README: repo cloning and package linking
-- microsoft/monodex (17 stars; q1 p9): code search for agents
-- full-build/full-build (17 stars; q2 p3): .NET
-- aruniverse/cospace (16 stars; q1 p9): links multiple monorepos in one workspace
-- the-monorepo/nexus (16 stars; q1 p9): library collection
-- dendotai/muxa (16 stars; q1 p10): dev stack terminal multiplexer
-- stefanseefeld/faber (16 stars; q3 p6): C++
-- bubkoo/run-shared-scripts (15 stars; q1 p10): README: shares npm script definitions across packages
-- Kikobeats/eachdir (14 stars; q1 p10): runs shell commands across directories without a task model
-- vital-software/monofo-buildkite-plugin (14 stars, archived; q1 p10): Buildkite pipeline generator plugin
-- jackthepunished/brokkr (14 stars; q2 p3): REAPI grid
-- pavi2410/jot (14 stars; q3 p6): Java
-- Enrise/Taskfile (14 stars; q4 p2): bash convention
-- jaz303/spinup (14 stars; q4 p2): process runner
-- alexander-schranz/mono (14 stars; q1 p10): README: PHP subtree split plus composer command fan-out
-- aspix2k/affected (13 stars; q1 p10): JetBrains IDE affected-tests plugin
-- MansaGroup/nx-gcs-remote-cache (13 stars; q1 p10): Nx remote cache plugin
-- jamescherti/pathaction (13 stars; q3 p6): per-file rule-driven command dispatcher
-- joegasewicz/code-spy (13 stars; q4 p2): watcher
-- releng-tool/releng-tool (12 stars; q3 p6): release engineering packaging of components
-- NAnt2/NAnt2 (12 stars; q3 p6): .NET Ant
-- bazeltools/bsp4bazel (12 stars; q3 p6): BSP server
-- levinion/fzfmenu (12 stars; q4 p3): launcher
-- taco-xyz/dependency-cascade (11 stars; q3 p6): change detection
-- ThatXliner/idae (11 stars; q4 p3): PEP 723 runner
-- lynzrand/n2o5 (10 stars; q2 p3): library
-- CDSoft/bang (10 stars, archived; q2 p3): ninja gen
-- 0vidiu/frontvue (10 stars; q2 p3): asset pipeline
-- manifoldco/sowhatsnew (10 stars, archived; q3 p7): affected detection
-- yowainwright/monorepo-utilities (10 stars; q3 p7): unreleased utilities
-- benchkram/bobc (9 stars; q2 p3): remote cache
-- m10k/foundry (9 stars; q2 p3): pkg build
-- jstty/beelzebub (9 stars; q3 p7): gulp-like
-- thiagozs/go-reload (9 stars; q3 p7): watcher
-- seeduvax/AcrobatomaticBuildSystem (9 stars; q3 p7): gmake C
-- aleksandersh/task-tui (9 stars; q4 p3): Task front-end
-- svengreb/wand (8 stars; q3 p7): Mage toolkit
-- jigarius/phpake (8 stars; q3 p7): PHP
-- ansurfen/yock (8 stars; q3 p7): distributed build stream composition, insufficient evidence
-- pylp/pylp (8 stars; q3 p7): gulp-like
-- toaweme/blink (8 stars; q4 p3): process manager TUI
-- jgabaut/amboso (7 stars; q2 p4): make wrapper
-- crc442/nmake (7 stars; q3 p8): make wrapper
-- pepedinho/fleet (7 stars; q3 p8): CD
-- virtru-dev/cork (7 stars, archived; q3 p8): archived docker build
-- rexrun-dev/rex (7 stars; q4 p3): auto-detect runner
-- TangoMan75/shoe (7 stars; q4 p3): shell framework
-- ImBIOS/monorepo-benchmarks (6 stars; q2 p4): benchmark repository
-- SoftDryzz/ProjectManager (6 stars; q3 p8): build-tool detector
-- nnunley/objfs (6 stars; q3 p8): REAPI cache
-- turtlemonvh/blanket (6 stars; q4 p3): REST job wrapper
-- sandstorm/dev-script-runner (6 stars; q4 p3): shell convention
-- atsuoishimoto/uv-matrix (6 stars; q4 p3): Python version matrix test runner
-- intrynzic/raptor (5 stars; q2 p4): C++
-- jgabaut/invil (5 stars; q2 p4): make wrapper
-- PierceLBrooks/Buildster (5 stars; q2 p4): C/C++ project construction automation
-- loreanvictor/rxline (5 stars; q3 p8): library
-- Strrationalism/Bake (5 stars, archived; q3 p8): build system repository without description
-- smallhelm/scriptsp (5 stars, archived; q3 p9): parallel script launcher
-- terotests/robowatch (5 stars; q3 p9): watcher
-- nordlow/strace-memoize (5 stars; q3 p9): process memoization via strace
-- letaron/rumake (5 stars; q4 p3): make port
-- webuni/shell-task-runner (5 stars; q4 p4): shell convention
-- neul-labs/rninja (4 stars; q2 p4): ninja drop-in
-- jagerjs/jager (4 stars; q2 p4): asset pipeline
-- skarfacegc/Gluey (4 stars; q3 p9): deprecated
-- toxygene/pants (4 stars; q3 p9): PHP
-- KaiserWerk/Tiny-Build-Server (4 stars; q3 p9): build server and CI
-- Laserskold/matmake2 (4 stars; q3 p10): C++
-- coderaiser/node-longrun (4 stars; q4 p4): dir loop
-- cntunglam/coop (4 stars; q4 p4): script TUI
-- ya7on/tutti (4 stars; q4 p4): process orchestration
-- revazi/tasklight (4 stars; q4 p4): terminal notifications for long commands
-- zuccadev-labs/Barrits (4 stars; q2 p4): README: TypeScript AST trait wiring, not a task runner
-- hossbeast/bam (4 stars; q3 p9): README gives no category evidence beyond "build optimally"
-- TheBuildBox/buildbox (3 stars; q2 p5): container image based builder
-- tensilestream/buildanchor (3 stars; q2 p5): AI agent verification layer
-- rwxdash/mici (3 stars; q3 p10): CLI framework discovering commands from the filesystem
-- wolfware-labs/moonlit (3 stars; q3 p10): release automation
-- XevoInc/ws (3 stars; q3 p10): repo workspace
-- jetm/bakar (3 stars; q3 p10): Yocto
-- cl-jabs/cl-jabs (3 stars; q3 p10): Common Lisp build system
-- romnn/taski (3 stars; q4 p4): library
-- tasked-dev/tasked (3 stars; q4 p4): DAG workflow engine with client SDKs
-- sourabh-kumar2/lyra (3 stars; q4 p4): library
-- andy2046/rund (3 stars; q4 p4): library
-- amidaleet/Xfile (3 stars; q4 p4): bash convention
-- datapartyjs/tasker (3 stars; q4 p4): job lib
-- alifanov/runyaml (3 stars; q4 p4): agent glue
-- AlexisPuga/precise-watcher (3 stars; q4 p4): watcher
-- yukimemi/spyrun (3 stars; q4 p4): watcher
-- samuell/ey (3 stars; q4 p5): library
-- pustotnik/zenmake (2 stars; q2 p5): C/C++ waf
-- ZenFlux/zenflux (2 stars; q2 p5): bundler
-- x213212/minibuildsystem (2 stars; q2 p5): personal Docker build script
-- milasudril/maike (2 stars; q2 p5): C++
-- Gohla/pie (2 stars; q2 p6): library
-- hybrid-grid/hybridgrid (2 stars; q2 p6): distributed compile
-- wess/goose (2 stars; q2 p6): C pkg mgr
-- seneferu/seneferu (2 stars; q2 p6): k8s build server
-- wowu/run (2 stars; q4 p5): script
-- orbit-online/task-runner (2 stars; q4 p5): front-end
-- kjanat/runner (2 stars; q4 p5): front-end
-- Jebel-Quant/rhiza-task (2 stars; q4 p5): fixed task set
-- hxii/TaskRunner (2 stars; q4 p5): simple sequential Python script
-- msiebeneicher/snab (2 stars; q4 p5): bundles shell scripts into a CLI
-- iammm0/execgo-runtime (2 stars; q4 p5): execution runtime for ExecGo agents
-- writes-the-spec/flowlite (2 stars; q4 p5): job scheduler
-- izo0x90/pipeline-factory (2 stars; q4 p5): Python pipeline server framework
-- AdityaIndoori/graph-engineering (2 stars; q4 p5): agent DAG
-- AxlLind/pymk (1 stars; q2 p6): library
-- godofecht/azazel (1 stars; q2 p6): CUE and Zig deterministic build model, C and Zig focused
-- tripolskypetr/pwabuildserver (1 stars; q2 p6): CI
-- wipu/iwant (1 stars; q2 p7): Java
-- SpectreVert/doze (1 stars; q2 p7): toy
-- komodoresoft/KMAK (1 stars; q2 p7): C
-- rachittshah/artificer (1 stars; q2 p7): LLM corpus
-- Ohjurot/XppBuild (1 stars, archived; q2 p7): C++/Java
-- funklord/fmake (1 stars; q2 p7): C/C++
-- minirop/nubuild (1 stars; q2 p8): abstraction over build systems
-- metayeti/YABS.js (1 stars; q2 p8): JS web build, insufficient evidence
-- 1j01/BuildGraph (1 stars; q2 p8): deprecated idea
-- JSLEEKR/dagrun (1 stars; q4 p6): workflow scheduler
-- sndrs/ok (1 stars; q4 p6): proof of concept
-- invenia/Arbiter.jl (1 stars, archived; q4 p6): Julia task dependency library
-- alexmx/xc (1 stars; q4 p6): Xcode
-- russellane/pdm-make (1 stars; q4 p6): pdm scripts helper
-- jlefonde/taskmaster (1 stars; q4 p6): process supervisor
-- nadavsinai/npm-multi-task-runner (1 stars; q4 p6): npm script parallel launcher
-- digitalfun/Taskfile-bat (1 stars; q4 p6): partial Taskfile reimpl
-- pt-main/run (1 stars; q4 p6): script manager
-- imunhatep/systemgo (1 stars; q4 p6): insufficient category evidence
-- bguiz/erun (1 stars; q4 p7): environment-aware npm script launcher
-- magnickolas/inf (1 stars; q4 p7): watcher
-- sam701/rtask (1 stars; q4 p7): HTTP command gateway
-- palchukovsky/just-mcp-work (1 stars; q4 p7): MCP bridge over just/make
-- ratson/runa (1 stars; q4 p7): process manager web UI
-- EloB/task-runner-detector (1 stars; q4 p7): front-end
-- mcky/run-it (1 stars; q4 p7): front-end
-- tbrumbaugh5396/meta (1 stars; q2 p7): README: meta-repository management CLI
-- holtrop/rscons (0 stars; q2 p8): C-centric SCons-like
-- ValentinDebon/bconf (0 stars; q2 p8): make generator
-- oglimmer/simple-build-server (0 stars; q2 p8): build server
-- mcejp/goeieDAG (0 stars; q2 p9): ninja gen
-- MicroRJ/Bob (0 stars; q2 p9): C
-- schanur/tedder (0 stars; q2 p9): C/C++ rake
-- hurryabit/dodice (0 stars; q2 p9): library
-- vinodhalaharvi/silt (0 stars; q2 p9): Linux image
-- ayzg/cmake-ssgmono-prototype (0 stars; q2 p9): CMake monorepo module
-- holo-q/rk (0 stars; q2 p9): dotnet wrapper daemon
-- JumpKickOSS/jk (0 stars; q2 p10): JVM-only, web UI
-- ItzzStudio/austra-build (0 stars; q2 p10): Java/Lua daemon
-- GraphicalPlayground/gp-build-tool (0 stars; q2 p10): CMake
-- playfairs/nox (0 stars; q2 p10): insufficient category evidence
-- api-evangelist/nx (0 stars; q2 p10): API profile
-- dispersia-io/ddx (0 stars; q4 p7): bash framework
-- tanusuke11/xocs (0 stars; q4 p7): frontend
-- impossiblecode/overseer-nvim-mcp (0 stars; q4 p7): MCP over editor tasks
-- avezz1234/xrun (0 stars; q4 p7): front-end
-- ledocorp/fxrun (0 stars; q4 p8): product-specific runner
-- Vandesm14/procon (0 stars; q4 p8): process orchestration without task graph evidence
-- omardirar/taskpad (0 stars; q4 p8): TUI front-end
-- isgj/taskpad (0 stars; q4 p8): web script launcher
-- lesiw/gorc (0 stars; q4 p8): Go-only Makefile replacement
-- Scripts-Manager/sm (0 stars; q4 p8): script manager
-- jiejie-dev/hottings (0 stars; q4 p8): hot reload task manager
-- sahilium/do (0 stars; q4 p8): scheduler
-- osteele/grunt-update (0 stars, archived; q4 p8): Grunt plugin
-- ardimedia-com/visualstudio-task-runner-extended (0 stars; q4 p8): Visual Studio extension
-- homTsai/devdeck (0 stars; q4 p8): local script launcher panel
-- Xevion/tempo (0 stars; q4 p9): primitives
-- exbotanical/surveil (0 stars; q4 p9): CI
-- smikhalevski/jointly (0 stars; q4 p9): process mux
-- hopenbuild/Data-Hopen (0 stars; q4 p9): library
-- aquilax/rundo (0 stars; q4 p9): workspace scripts launcher
-- jay-tank/chorewright (0 stars; q4 p9): static analysis of task graphs
-- thesm-os/ergon (0 stars; q4 p9): fixed Go checks
-- daylinmorgan/task.mk (0 stars; q4 p9): make enhancement
-- ydah/dockpit (0 stars; q4 p9): task front-end TUI
-- ella-to/task (0 stars; q4 p9): library
-- beixiyo/vv-task-panel.nvim (0 stars; q4 p9): Neovim task panel
-- soda480/thread-order (0 stars; q4 p9): library
-- maranix/monitor (0 stars; q4 p10): watcher
-- alehatsman/provision (0 stars; q4 p10): provisioning
-- karmaniverous/jeeves-runner (0 stars; q4 p10): job engine
-- gkxvall/commiter (0 stars; q4 p10): Git command workflow helper
-- stark9000/arduino-fastbuild (0 stars; q5 p1): Arduino-only build wrapper; persistent build daemon and file-watch mode
-- polywrap/monowrap (0 stars; q2 p9): README: Polywrap-specific, one-line README
+- brunojppb/turbo-cache-server (220 stars;
+  q1 p2):
+  Turborepo remote cache server
+- AlexB52/retest (220 stars;
+  q4 p1):
+  test watcher
+- rharkor/caching-for-turbo (211 stars;
+  q1 p2):
+  GitHub Action Turborepo cache
+- wandercn/hotbuild (200 stars;
+  q3 p2):
+  watcher
+- maxmcd/bramble (195 stars;
+  q2 p1):
+  nix-like pkg builder
+- atilaneves/reggae (190 stars;
+  q2 p1):
+  meta-build
+- azu/monorepo-utils (180 stars;
+  q1 p2):
+  utility collection
+- jeka-dev/jeka (178 stars;
+  q3 p2):
+  Java
+- catkin/catkin_tools (169 stars;
+  q3 p2):
+  ROS catkin CMake workspace builder
+- spotify/bazel-tools (169 stars,
+  archived;
+  q3 p2):
+  Bazel helper tools
+- google/mono_repo.dart (169 stars;
+  q1 p3):
+  README:
+  fans out dart/pub commands and generates CI;
+  no arbitrary task graph
+- Tapico/tapico-turborepo-remote-cache (161 stars;
+  q1 p3):
+  Turborepo remote cache server
+- lemonade-hq/traf (156 stars;
+  q1 p3):
+  affected-package detection
+- Illumina/pyflow (148 stars;
+  q4 p1):
+  library
+- commonalityco/commonality (141 stars;
+  q1 p3):
+  codebase conformance and structure checks
+- timniederhausen/gn (134 stars;
+  q2 p1):
+  meta-build
+- xt0rted/dotnet-run-script (134 stars;
+  q3 p2):
+  single-project scripts runner for dotnet
+- coderaiser/redrun (127 stars;
+  q4 p1):
+  npm script expander
+- jsnjack/wakeci (116 stars;
+  q4 p1):
+  CI
+- skroutz/mistry (106 stars,
+  archived;
+  q2 p1):
+  build server
+- Escape-Technologies/mookme (105 stars,
+  archived;
+  q1 p3):
+  pre-commit hook runner for monorepos
+- JonathonReinhart/scuba (99 stars;
+  q3 p3):
+  container exec wrapper
+- jwplayer/buildpipe-buildkite-plugin (96 stars;
+  q1 p3):
+  Buildkite CI plugin
+- jbolda/covector (89 stars;
+  q1 p3):
+  change management and publishing
+- kaspar030/laze (86 stars;
+  q3 p3):
+  C/C++/Rust ninja meta-build
+- melezhik/Sparrow6 (85 stars;
+  q4 p1):
+  Raku automation framework
+- carderne/una (84 stars;
+  q1 p4):
+  Python uv monorepo packaging helper
+- scala-garden/dbuild (84 stars;
+  q3 p3):
+  Scala
+- frostming/monas (77 stars;
+  q1 p4):
+  README:
+  Lerna-like Python package management,
+  no task running described
+- IKatsuba/nx-cloud (75 stars,
+  archived;
+  q1 p4):
+  Nx Cloud community edition,
+  remote cache and distribution service
+- javanile/mush (73 stars;
+  q3 p3):
+  shell
+- alvis/presetter (69 stars;
+  q3 p3):
+  build script and config preset manager
+- ioquatix/teapot (68 stars;
+  q3 p3):
+  C++
+- michaelyali/mrepo (67 stars;
+  q1 p4):
+  monorepo scaffolding CLI
+- cometkim/turbocache (67 stars;
+  q1 p4):
+  Turborepo remote cache on Cloudflare Workers
+- managarm/xbstrap (66 stars;
+  q2 p2):
+  OS distro
+- unvalley/rt (64 stars;
+  q4 p1):
+  front-end over other runners
+- mathpaquette/tskmgr (62 stars;
+  q1 p4):
+  distributed task system for Nx CI
+- prodmodel/prodmodel (60 stars;
+  q2 p2):
+  data pipelines
+- kynrai/tainted (60 stars;
+  q3 p3):
+  affected detection
+- zzarcon/run-when (59 stars;
+  q4 p2):
+  git-diff trigger
+- wix-incubator/haste (59 stars;
+  q2 p2):
+  JS asset-pipeline build toolkit (rule refinement at q2 p4)
+- evocateur/pectin (56 stars;
+  q1 p5):
+  Rollup incremental transpilation for Lerna packages
+- flegall/monopack (55 stars;
+  q1 p5):
+  bundler
+- robinpellegrims/nx-remotecache-s3 (52 stars,
+  archived;
+  q1 p5):
+  Nx remote cache plugin
+- typical-go/typical-go (52 stars,
+  archived;
+  q3 p3):
+  Go-only
+- xwmx/bask (52 stars;
+  q4 p2):
+  Bash command-centric script framework
+- brainhivenl/steiger (49 stars;
+  q3 p4):
+  container image builds
+- AnharHussainMiah/grind (49 stars;
+  q3 p4):
+  Java
+- sonofmagic/repoctl (48 stars;
+  q1 p5):
+  scaffolds,
+  maintains,
+  and releases pnpm and Turborepo monorepos
+- invenia/Dispatcher.jl (45 stars,
+  archived;
+  q4 p2):
+  library
+- linux-china/task-keeper (43 stars;
+  q4 p2):
+  meta front-end
+- kvz/fakefile (42 stars;
+  q3 p4):
+  universal Makefile convention for JS projects
+- samrith-s/concurrent-tasks (42 stars;
+  q4 p2):
+  library
+- 8gears/do.sh (41 stars;
+  q2 p2):
+  shell convention
+- oblador/sovra (40 stars;
+  q1 p6):
+  test decider,
+  affected tests
+- pkg-tools/pkg-tools (38 stars;
+  q1 p6):
+  package build toolchain,
+  not a task orchestrator
+- buildkite-plugins/monorepo-diff-buildkite-plugin (38 stars;
+  q1 p6):
+  Buildkite CI plugin
+- opnlabs/dot (36 stars;
+  q2 p2):
+  CI
+- jsenv/core (36 stars;
+  q3 p4):
+  JS develop,
+  test,
+  and build toolkit
+- 616b2f/bsp.nvim (35 stars;
+  q3 p4):
+  BSP client
+- rafael-santiago/hefesto (35 stars;
+  q2 p2):
+  README:
+  C-oriented build scripting language
+- brunojppb/turbo-racer (34 stars,
+  archived;
+  q1 p6):
+  Turborepo remote cache
+- monorepolint/monorepolint (34 stars;
+  q1 p6):
+  monorepo linter
+- ARM-software/bob-build (33 stars;
+  q2 p2):
+  meta-build
+- vincentdchan/yesbuild (33 stars,
+  archived;
+  q3 p4):
+  archived,
+  web
+- jpm-hub/jpm (33 stars;
+  q3 p4):
+  JVM
+- project-talan/tln-cli (33 stars;
+  q1 p6):
+  README:
+  component and environment manager,
+  not a task orchestrator
+- ibara/make (32 stars;
+  q2 p2):
+  port
+- swissquote/crafty (31 stars;
+  q3 p4):
+  frontend presets
+- davestewart/spaceman (31 stars;
+  q1 p6):
+  README:
+  prompt front-end over npm/yarn workspace commands
+- zombiezen/redo-rs (30 stars;
+  q2 p2):
+  port
+- JetBrains/intellij-bsp (29 stars,
+  archived;
+  q3 p4):
+  BSP client
+- Aldlevine/comptroller (28 stars,
+  archived;
+  q1 p7):
+  monorepo dependency manager
+- sjc5/kiruna (28 stars,
+  archived;
+  q3 p5):
+  archived Go app orchestrator
+- ferhatgec/elite (28 stars;
+  q2 p2):
+  README:
+  tiny build DSL without a task dependency model
+- numtide/bld (27 stars,
+  archived;
+  q1 p7):
+  builds Nix targets per directory
+- fairy-pitta/portree (27 stars;
+  q1 p7):
+  Git worktree dev server manager
+- ml-tooling/universal-build (27 stars;
+  q3 p5):
+  build utilities for containerized pipelines
+- smollweide/lerna-terminal (27 stars;
+  q1 p7):
+  README:
+  terminal UI over lerna run
+- wclr/yall (27 stars;
+  q1 p7):
+  README:
+  yarn/npm command fan-out across folders (has manifest watch)
+- knit-cli/knit (26 stars;
+  q1 p7):
+  multi-repo agent context tool
+- mew-build/mew (26 stars;
+  q3 p5):
+  insufficient category evidence
+- r-kells/scream (26 stars;
+  q1 p7):
+  README:
+  Python monorepo packaging/testing conventions via tox
+- arichardson/bmake (25 stars;
+  q2 p2):
+  port
+- floooh/fibs (25 stars;
+  q2 p2):
+  cmake wrapper
+- lstephen/construi (25 stars;
+  q3 p5):
+  Docker env
+- GreyElaina/Mina (24 stars;
+  q1 p8):
+  Python monorepo packaging helper
+- hoppjs/hopp (24 stars,
+  archived;
+  q2 p2):
+  archived JS asset-pipeline build tool (rule refinement at q2 p4)
+- leonardochaia/dotnet-affected-action (23 stars;
+  q1 p8):
+  .NET affected detection action
+- polymonster/pmbuild (23 stars;
+  q2 p2):
+  gamedev
+- alisw/alibuild (23 stars;
+  q3 p5):
+  HEP
+- rap2hpoutre/taskz (23 stars;
+  q4 p2):
+  library
+- automotiveMastermind/condo (22 stars;
+  q3 p5):
+  .NET
+- gnat/doit.sh (22 stars;
+  q3 p5):
+  shell convention
+- AuditDeploy/Builder (22 stars;
+  q2 p2):
+  README:
+  repo-to-artifact builder with metadata,
+  not a task orchestrator
+- leanix/nx-affected-dependencies-action (21 stars,
+  archived;
+  q1 p8):
+  Nx affected filter action
+- acacode/flamebird (21 stars;
+  q4 p2):
+  process manager web GUI
+- harmont-dev/harmont-cli (21 stars;
+  q4 p2):
+  CI client
+- microsoft/boll (20 stars;
+  q1 p8):
+  monorepo linter
+- sake92/deder (20 stars;
+  q3 p5):
+  JVM client-server
+- alexisvisco/gwd (19 stars;
+  q1 p8):
+  Go module change tracking
+- janbiasi/monopacker (19 stars;
+  q1 p9):
+  packs a monorepo app into standalone build output
+- chriseaton/cloud-build-local (19 stars;
+  q3 p5):
+  local CI
+- permafrost-dev/stackup (19 stars;
+  q4 p2):
+  dev stack process runner
+- fuzdev/gro (19 stars;
+  q4 p2):
+  SvelteKit
+- biojppm/cmany (18 stars;
+  q2 p3):
+  cmake batch
+- alloc/indo (18 stars;
+  q1 p9):
+  README:
+  repo cloning and package linking
+- microsoft/monodex (17 stars;
+  q1 p9):
+  code search for agents
+- full-build/full-build (17 stars;
+  q2 p3):
+  .NET
+- aruniverse/cospace (16 stars;
+  q1 p9):
+  links multiple monorepos in one workspace
+- the-monorepo/nexus (16 stars;
+  q1 p9):
+  library collection
+- dendotai/muxa (16 stars;
+  q1 p10):
+  dev stack terminal multiplexer
+- stefanseefeld/faber (16 stars;
+  q3 p6):
+  C++
+- bubkoo/run-shared-scripts (15 stars;
+  q1 p10):
+  README:
+  shares npm script definitions across packages
+- Kikobeats/eachdir (14 stars;
+  q1 p10):
+  runs shell commands across directories without a task model
+- vital-software/monofo-buildkite-plugin (14 stars,
+  archived;
+  q1 p10):
+  Buildkite pipeline generator plugin
+- jackthepunished/brokkr (14 stars;
+  q2 p3):
+  REAPI grid
+- pavi2410/jot (14 stars;
+  q3 p6):
+  Java
+- Enrise/Taskfile (14 stars;
+  q4 p2):
+  bash convention
+- jaz303/spinup (14 stars;
+  q4 p2):
+  process runner
+- alexander-schranz/mono (14 stars;
+  q1 p10):
+  README:
+  PHP subtree split plus composer command fan-out
+- aspix2k/affected (13 stars;
+  q1 p10):
+  JetBrains IDE affected-tests plugin
+- MansaGroup/nx-gcs-remote-cache (13 stars;
+  q1 p10):
+  Nx remote cache plugin
+- jamescherti/pathaction (13 stars;
+  q3 p6):
+  per-file rule-driven command dispatcher
+- joegasewicz/code-spy (13 stars;
+  q4 p2):
+  watcher
+- releng-tool/releng-tool (12 stars;
+  q3 p6):
+  release engineering packaging of components
+- NAnt2/NAnt2 (12 stars;
+  q3 p6):
+  .NET Ant
+- bazeltools/bsp4bazel (12 stars;
+  q3 p6):
+  BSP server
+- levinion/fzfmenu (12 stars;
+  q4 p3):
+  launcher
+- taco-xyz/dependency-cascade (11 stars;
+  q3 p6):
+  change detection
+- ThatXliner/idae (11 stars;
+  q4 p3):
+  PEP 723 runner
+- lynzrand/n2o5 (10 stars;
+  q2 p3):
+  library
+- CDSoft/bang (10 stars,
+  archived;
+  q2 p3):
+  ninja gen
+- 0vidiu/frontvue (10 stars;
+  q2 p3):
+  asset pipeline
+- manifoldco/sowhatsnew (10 stars,
+  archived;
+  q3 p7):
+  affected detection
+- yowainwright/monorepo-utilities (10 stars;
+  q3 p7):
+  unreleased utilities
+- benchkram/bobc (9 stars;
+  q2 p3):
+  remote cache
+- m10k/foundry (9 stars;
+  q2 p3):
+  pkg build
+- jstty/beelzebub (9 stars;
+  q3 p7):
+  gulp-like
+- thiagozs/go-reload (9 stars;
+  q3 p7):
+  watcher
+- seeduvax/AcrobatomaticBuildSystem (9 stars;
+  q3 p7):
+  gmake C
+- aleksandersh/task-tui (9 stars;
+  q4 p3):
+  Task front-end
+- svengreb/wand (8 stars;
+  q3 p7):
+  Mage toolkit
+- jigarius/phpake (8 stars;
+  q3 p7):
+  PHP
+- ansurfen/yock (8 stars;
+  q3 p7):
+  distributed build stream composition,
+  insufficient evidence
+- pylp/pylp (8 stars;
+  q3 p7):
+  gulp-like
+- toaweme/blink (8 stars;
+  q4 p3):
+  process manager TUI
+- jgabaut/amboso (7 stars;
+  q2 p4):
+  make wrapper
+- crc442/nmake (7 stars;
+  q3 p8):
+  make wrapper
+- pepedinho/fleet (7 stars;
+  q3 p8):
+  CD
+- virtru-dev/cork (7 stars,
+  archived;
+  q3 p8):
+  archived docker build
+- rexrun-dev/rex (7 stars;
+  q4 p3):
+  auto-detect runner
+- TangoMan75/shoe (7 stars;
+  q4 p3):
+  shell framework
+- ImBIOS/monorepo-benchmarks (6 stars;
+  q2 p4):
+  benchmark repository
+- SoftDryzz/ProjectManager (6 stars;
+  q3 p8):
+  build-tool detector
+- nnunley/objfs (6 stars;
+  q3 p8):
+  REAPI cache
+- turtlemonvh/blanket (6 stars;
+  q4 p3):
+  REST job wrapper
+- sandstorm/dev-script-runner (6 stars;
+  q4 p3):
+  shell convention
+- atsuoishimoto/uv-matrix (6 stars;
+  q4 p3):
+  Python version matrix test runner
+- intrynzic/raptor (5 stars;
+  q2 p4):
+  C++
+- jgabaut/invil (5 stars;
+  q2 p4):
+  make wrapper
+- PierceLBrooks/Buildster (5 stars;
+  q2 p4):
+  C/C++ project construction automation
+- loreanvictor/rxline (5 stars;
+  q3 p8):
+  library
+- Strrationalism/Bake (5 stars,
+  archived;
+  q3 p8):
+  build system repository without description
+- smallhelm/scriptsp (5 stars,
+  archived;
+  q3 p9):
+  parallel script launcher
+- terotests/robowatch (5 stars;
+  q3 p9):
+  watcher
+- nordlow/strace-memoize (5 stars;
+  q3 p9):
+  process memoization via strace
+- letaron/rumake (5 stars;
+  q4 p3):
+  make port
+- webuni/shell-task-runner (5 stars;
+  q4 p4):
+  shell convention
+- neul-labs/rninja (4 stars;
+  q2 p4):
+  ninja drop-in
+- jagerjs/jager (4 stars;
+  q2 p4):
+  asset pipeline
+- skarfacegc/Gluey (4 stars;
+  q3 p9):
+  deprecated
+- toxygene/pants (4 stars;
+  q3 p9):
+  PHP
+- KaiserWerk/Tiny-Build-Server (4 stars;
+  q3 p9):
+  build server and CI
+- Laserskold/matmake2 (4 stars;
+  q3 p10):
+  C++
+- coderaiser/node-longrun (4 stars;
+  q4 p4):
+  dir loop
+- cntunglam/coop (4 stars;
+  q4 p4):
+  script TUI
+- ya7on/tutti (4 stars;
+  q4 p4):
+  process orchestration
+- revazi/tasklight (4 stars;
+  q4 p4):
+  terminal notifications for long commands
+- zuccadev-labs/Barrits (4 stars;
+  q2 p4):
+  README:
+  TypeScript AST trait wiring,
+  not a task runner
+- hossbeast/bam (4 stars;
+  q3 p9):
+  README gives no category evidence beyond "build optimally"
+- TheBuildBox/buildbox (3 stars;
+  q2 p5):
+  container image based builder
+- tensilestream/buildanchor (3 stars;
+  q2 p5):
+  AI agent verification layer
+- rwxdash/mici (3 stars;
+  q3 p10):
+  CLI framework discovering commands from the filesystem
+- wolfware-labs/moonlit (3 stars;
+  q3 p10):
+  release automation
+- XevoInc/ws (3 stars;
+  q3 p10):
+  repo workspace
+- jetm/bakar (3 stars;
+  q3 p10):
+  Yocto
+- cl-jabs/cl-jabs (3 stars;
+  q3 p10):
+  Common Lisp build system
+- romnn/taski (3 stars;
+  q4 p4):
+  library
+- tasked-dev/tasked (3 stars;
+  q4 p4):
+  DAG workflow engine with client SDKs
+- sourabh-kumar2/lyra (3 stars;
+  q4 p4):
+  library
+- andy2046/rund (3 stars;
+  q4 p4):
+  library
+- amidaleet/Xfile (3 stars;
+  q4 p4):
+  bash convention
+- datapartyjs/tasker (3 stars;
+  q4 p4):
+  job lib
+- alifanov/runyaml (3 stars;
+  q4 p4):
+  agent glue
+- AlexisPuga/precise-watcher (3 stars;
+  q4 p4):
+  watcher
+- yukimemi/spyrun (3 stars;
+  q4 p4):
+  watcher
+- samuell/ey (3 stars;
+  q4 p5):
+  library
+- pustotnik/zenmake (2 stars;
+  q2 p5):
+  C/C++ waf
+- ZenFlux/zenflux (2 stars;
+  q2 p5):
+  bundler
+- x213212/minibuildsystem (2 stars;
+  q2 p5):
+  personal Docker build script
+- milasudril/maike (2 stars;
+  q2 p5):
+  C++
+- Gohla/pie (2 stars;
+  q2 p6):
+  library
+- hybrid-grid/hybridgrid (2 stars;
+  q2 p6):
+  distributed compile
+- wess/goose (2 stars;
+  q2 p6):
+  C pkg mgr
+- seneferu/seneferu (2 stars;
+  q2 p6):
+  k8s build server
+- wowu/run (2 stars;
+  q4 p5):
+  script
+- orbit-online/task-runner (2 stars;
+  q4 p5):
+  front-end
+- kjanat/runner (2 stars;
+  q4 p5):
+  front-end
+- Jebel-Quant/rhiza-task (2 stars;
+  q4 p5):
+  fixed task set
+- hxii/TaskRunner (2 stars;
+  q4 p5):
+  simple sequential Python script
+- msiebeneicher/snab (2 stars;
+  q4 p5):
+  bundles shell scripts into a CLI
+- iammm0/execgo-runtime (2 stars;
+  q4 p5):
+  execution runtime for ExecGo agents
+- writes-the-spec/flowlite (2 stars;
+  q4 p5):
+  job scheduler
+- izo0x90/pipeline-factory (2 stars;
+  q4 p5):
+  Python pipeline server framework
+- AdityaIndoori/graph-engineering (2 stars;
+  q4 p5):
+  agent DAG
+- AxlLind/pymk (1 stars;
+  q2 p6):
+  library
+- godofecht/azazel (1 stars;
+  q2 p6):
+  CUE and Zig deterministic build model,
+  C and Zig focused
+- tripolskypetr/pwabuildserver (1 stars;
+  q2 p6):
+  CI
+- wipu/iwant (1 stars;
+  q2 p7):
+  Java
+- SpectreVert/doze (1 stars;
+  q2 p7):
+  toy
+- komodoresoft/KMAK (1 stars;
+  q2 p7):
+  C
+- rachittshah/artificer (1 stars;
+  q2 p7):
+  LLM corpus
+- Ohjurot/XppBuild (1 stars,
+  archived;
+  q2 p7):
+  C++/Java
+- funklord/fmake (1 stars;
+  q2 p7):
+  C/C++
+- minirop/nubuild (1 stars;
+  q2 p8):
+  abstraction over build systems
+- metayeti/YABS.js (1 stars;
+  q2 p8):
+  JS web build,
+  insufficient evidence
+- 1j01/BuildGraph (1 stars;
+  q2 p8):
+  deprecated idea
+- JSLEEKR/dagrun (1 stars;
+  q4 p6):
+  workflow scheduler
+- sndrs/ok (1 stars;
+  q4 p6):
+  proof of concept
+- invenia/Arbiter.jl (1 stars,
+  archived;
+  q4 p6):
+  Julia task dependency library
+- alexmx/xc (1 stars;
+  q4 p6):
+  Xcode
+- russellane/pdm-make (1 stars;
+  q4 p6):
+  pdm scripts helper
+- jlefonde/taskmaster (1 stars;
+  q4 p6):
+  process supervisor
+- nadavsinai/npm-multi-task-runner (1 stars;
+  q4 p6):
+  npm script parallel launcher
+- digitalfun/Taskfile-bat (1 stars;
+  q4 p6):
+  partial Taskfile reimpl
+- pt-main/run (1 stars;
+  q4 p6):
+  script manager
+- imunhatep/systemgo (1 stars;
+  q4 p6):
+  insufficient category evidence
+- bguiz/erun (1 stars;
+  q4 p7):
+  environment-aware npm script launcher
+- magnickolas/inf (1 stars;
+  q4 p7):
+  watcher
+- sam701/rtask (1 stars;
+  q4 p7):
+  HTTP command gateway
+- palchukovsky/just-mcp-work (1 stars;
+  q4 p7):
+  MCP bridge over just/make
+- ratson/runa (1 stars;
+  q4 p7):
+  process manager web UI
+- EloB/task-runner-detector (1 stars;
+  q4 p7):
+  front-end
+- mcky/run-it (1 stars;
+  q4 p7):
+  front-end
+- tbrumbaugh5396/meta (1 stars;
+  q2 p7):
+  README:
+  meta-repository management CLI
+- holtrop/rscons (0 stars;
+  q2 p8):
+  C-centric SCons-like
+- ValentinDebon/bconf (0 stars;
+  q2 p8):
+  make generator
+- oglimmer/simple-build-server (0 stars;
+  q2 p8):
+  build server
+- mcejp/goeieDAG (0 stars;
+  q2 p9):
+  ninja gen
+- MicroRJ/Bob (0 stars;
+  q2 p9):
+  C
+- schanur/tedder (0 stars;
+  q2 p9):
+  C/C++ rake
+- hurryabit/dodice (0 stars;
+  q2 p9):
+  library
+- vinodhalaharvi/silt (0 stars;
+  q2 p9):
+  Linux image
+- ayzg/cmake-ssgmono-prototype (0 stars;
+  q2 p9):
+  CMake monorepo module
+- holo-q/rk (0 stars;
+  q2 p9):
+  dotnet wrapper daemon
+- JumpKickOSS/jk (0 stars;
+  q2 p10):
+  JVM-only,
+  web UI
+- ItzzStudio/austra-build (0 stars;
+  q2 p10):
+  Java/Lua daemon
+- GraphicalPlayground/gp-build-tool (0 stars;
+  q2 p10):
+  CMake
+- playfairs/nox (0 stars;
+  q2 p10):
+  insufficient category evidence
+- api-evangelist/nx (0 stars;
+  q2 p10):
+  API profile
+- dispersia-io/ddx (0 stars;
+  q4 p7):
+  bash framework
+- tanusuke11/xocs (0 stars;
+  q4 p7):
+  frontend
+- impossiblecode/overseer-nvim-mcp (0 stars;
+  q4 p7):
+  MCP over editor tasks
+- avezz1234/xrun (0 stars;
+  q4 p7):
+  front-end
+- ledocorp/fxrun (0 stars;
+  q4 p8):
+  product-specific runner
+- Vandesm14/procon (0 stars;
+  q4 p8):
+  process orchestration without task graph evidence
+- omardirar/taskpad (0 stars;
+  q4 p8):
+  TUI front-end
+- isgj/taskpad (0 stars;
+  q4 p8):
+  web script launcher
+- lesiw/gorc (0 stars;
+  q4 p8):
+  Go-only Makefile replacement
+- Scripts-Manager/sm (0 stars;
+  q4 p8):
+  script manager
+- jiejie-dev/hottings (0 stars;
+  q4 p8):
+  hot reload task manager
+- sahilium/do (0 stars;
+  q4 p8):
+  scheduler
+- osteele/grunt-update (0 stars,
+  archived;
+  q4 p8):
+  Grunt plugin
+- ardimedia-com/visualstudio-task-runner-extended (0 stars;
+  q4 p8):
+  Visual Studio extension
+- homTsai/devdeck (0 stars;
+  q4 p8):
+  local script launcher panel
+- Xevion/tempo (0 stars;
+  q4 p9):
+  primitives
+- exbotanical/surveil (0 stars;
+  q4 p9):
+  CI
+- smikhalevski/jointly (0 stars;
+  q4 p9):
+  process mux
+- hopenbuild/Data-Hopen (0 stars;
+  q4 p9):
+  library
+- aquilax/rundo (0 stars;
+  q4 p9):
+  workspace scripts launcher
+- jay-tank/chorewright (0 stars;
+  q4 p9):
+  static analysis of task graphs
+- thesm-os/ergon (0 stars;
+  q4 p9):
+  fixed Go checks
+- daylinmorgan/task.mk (0 stars;
+  q4 p9):
+  make enhancement
+- ydah/dockpit (0 stars;
+  q4 p9):
+  task front-end TUI
+- ella-to/task (0 stars;
+  q4 p9):
+  library
+- beixiyo/vv-task-panel.nvim (0 stars;
+  q4 p9):
+  Neovim task panel
+- soda480/thread-order (0 stars;
+  q4 p9):
+  library
+- maranix/monitor (0 stars;
+  q4 p10):
+  watcher
+- alehatsman/provision (0 stars;
+  q4 p10):
+  provisioning
+- karmaniverous/jeeves-runner (0 stars;
+  q4 p10):
+  job engine
+- gkxvall/commiter (0 stars;
+  q4 p10):
+  Git command workflow helper
+- stark9000/arduino-fastbuild (0 stars;
+  q5 p1):
+  Arduino-only build wrapper;
+  persistent build daemon and file-watch mode
+- polywrap/monowrap (0 stars;
+  q2 p9):
+  README:
+  Polywrap-specific,
+  one-line README
 
 ## New taxonomy terms
 
-Terms observed in candidate names, descriptions, topics, or README heads during screening:
+Terms observed in candidate names,
+descriptions,
+topics,
+or README heads during screening:
 
 - build orchestrator
 - task orchestration
@@ -2020,94 +6421,211 @@ Terms observed in candidate names, descriptions, topics, or README heads during 
 - containerized tasks
 - file sync
 
-Frequent topics among survivors (topic: survivor count), useful as further `topic:` queries:
+Frequent topics among survivors (topic:
+survivor count),
+useful as further `topic:` queries:
 
-- `task-runner`: 255
-- `build-tool`: 157
-- `cli`: 101
-- `build-system`: 97
-- `monorepo`: 57
-- `automation`: 54
-- `make`: 53
-- `build`: 48
-- `golang`: 48
-- `python`: 48
-- `build-automation`: 45
-- `rust`: 44
-- `go`: 41
-- `developer-tools`: 40
-- `task`: 37
-- `devops`: 33
-- `makefile`: 28
-- `yaml`: 22
-- `tasks`: 22
-- `javascript`: 19
-- `typescript`: 19
-- `nodejs`: 19
-- `ci`: 18
-- `workflow`: 17
-- `npm`: 16
-- `docker`: 16
-- `shell`: 16
-- `bash`: 16
-- `command-line`: 16
-- `hacktoberfest`: 14
-- `runner`: 14
-- `command-line-tool`: 14
-- `build-tools`: 13
-- `ci-cd`: 12
-- `parallel`: 11
-- `deno`: 10
-- `continuous-integration`: 10
-- `dotnet`: 9
-- `pipeline`: 9
-- `command-runner`: 9
-- `tool`: 9
-- `pnpm`: 8
-- `cross-platform`: 8
-- `devtools`: 8
-- `bun`: 7
-- `npm-scripts`: 7
-- `yarn`: 7
-- `cicd`: 7
-- `polyglot`: 7
-- `builder`: 7
-- `lua`: 7
-- `python3`: 7
-- `task-manager`: 7
-- `lerna`: 6
-- `ruby`: 6
-- `bazel`: 6
-- `script`: 6
-- `node`: 6
-- `productivity`: 6
-- `dag`: 6
+- `task-runner`:
+  255
+- `build-tool`:
+  157
+- `cli`:
+  101
+- `build-system`:
+  97
+- `monorepo`:
+  57
+- `automation`:
+  54
+- `make`:
+  53
+- `build`:
+  48
+- `golang`:
+  48
+- `python`:
+  48
+- `build-automation`:
+  45
+- `rust`:
+  44
+- `go`:
+  41
+- `developer-tools`:
+  40
+- `task`:
+  37
+- `devops`:
+  33
+- `makefile`:
+  28
+- `yaml`:
+  22
+- `tasks`:
+  22
+- `javascript`:
+  19
+- `typescript`:
+  19
+- `nodejs`:
+  19
+- `ci`:
+  18
+- `workflow`:
+  17
+- `npm`:
+  16
+- `docker`:
+  16
+- `shell`:
+  16
+- `bash`:
+  16
+- `command-line`:
+  16
+- `hacktoberfest`:
+  14
+- `runner`:
+  14
+- `command-line-tool`:
+  14
+- `build-tools`:
+  13
+- `ci-cd`:
+  12
+- `parallel`:
+  11
+- `deno`:
+  10
+- `continuous-integration`:
+  10
+- `dotnet`:
+  9
+- `pipeline`:
+  9
+- `command-runner`:
+  9
+- `tool`:
+  9
+- `pnpm`:
+  8
+- `cross-platform`:
+  8
+- `devtools`:
+  8
+- `bun`:
+  7
+- `npm-scripts`:
+  7
+- `yarn`:
+  7
+- `cicd`:
+  7
+- `polyglot`:
+  7
+- `builder`:
+  7
+- `lua`:
+  7
+- `python3`:
+  7
+- `task-manager`:
+  7
+- `lerna`:
+  6
+- `ruby`:
+  6
+- `bazel`:
+  6
+- `script`:
+  6
+- `node`:
+  6
+- `productivity`:
+  6
+- `dag`:
+  6
 
-Well-known tools absent from every fetched page, checked with `rg` over the saved JSON
-(positive control: `nrwl/nx` and `vercel/turborepo` matched),
+Well-known tools absent from every fetched page,
+checked with `rg` over the saved JSON
+(positive control:
+`nrwl/nx` and `vercel/turborepo` matched),
 with their current topics from `gh api repos/<owner>/<repo>`:
 
-- `facebook/buck2` (4427 stars): topics none
-- `google/wireit` (6425 stars): topics none
-- `microsoft/lage` (817 stars): topics none
-- `facebook/watchman` (13703 stars): topics none
-- `tilt-dev/tilt` (10056 stars): topics `development-environment`, `kubernetes`
-- `casey/just` (35819 stars): topics none
-- `jdx/mise` (33993 stars): topics none
-- `magefile/mage` (4690 stars): topics `buildscript`, `go`, `golang`, `mage`, `magefile`, `make`
-- `batect/batect` (671 stars, archived): topics `batect`, `developer-experience`, `docker`
-- `dagger/dagger` (16256 stars): topics `agents`, `caching`, `ci-cd`, `containers`, `continuous-deployment`,
-   `continuous-integration`, `devops`, `docker`, `graphql`, `workflows`
-- `watchexec/watchexec` (7187 stars): topics `command-line`, `developer-tools`, `file-watchers`, `linux`, `macos`,
-   `rust`, `windows`
+- `facebook/buck2` (4427 stars):
+  topics none
+- `google/wireit` (6425 stars):
+  topics none
+- `microsoft/lage` (817 stars):
+  topics none
+- `facebook/watchman` (13703 stars):
+  topics none
+- `tilt-dev/tilt` (10056 stars):
+  topics `development-environment`,
+  `kubernetes`
+- `casey/just` (35819 stars):
+  topics none
+- `jdx/mise` (33993 stars):
+  topics none
+- `magefile/mage` (4690 stars):
+  topics `buildscript`,
+  `go`,
+  `golang`,
+  `mage`,
+  `magefile`,
+  `make`
+- `batect/batect` (671 stars,
+  archived):
+  topics `batect`,
+  `developer-experience`,
+  `docker`
+- `dagger/dagger` (16256 stars):
+  topics `agents`,
+  `caching`,
+  `ci-cd`,
+  `containers`,
+  `continuous-deployment`,
+   `continuous-integration`,
+  `devops`,
+  `docker`,
+  `graphql`,
+  `workflows`
+- `watchexec/watchexec` (7187 stars):
+  topics `command-line`,
+  `developer-tools`,
+  `file-watchers`,
+  `linux`,
+  `macos`,
+   `rust`,
+  `windows`
 
-Six of these (Buck2, Wireit, Lage, Watchman, just, Mise) carry no topics at all,
+Six of these (Buck2,
+Wireit,
+Lage,
+Watchman,
+just,
+Mise) carry no topics at all,
 so no `topic:` query can return them.
 Expansion seeds this suggests:
 
-- text queries restricted to name and description, for example `"build system" in:name,description`,
-  `"task runner" in:description`, `"command runner" in:description`, `monorepo in:description`
-- topics seen on absent tools: `file-watchers`, `buildscript`, `magefile`, `make`, `caching`, `workflows`,
-  `development-environment`, `developer-experience`
-- component-side topics not in the schedule: `watcher`, `file-watcher`, `live-reload`, `process-manager`, `mcp-server`,
+- text queries restricted to name and description,
+  for example `"build system" in:name,description`,
+  `"task runner" in:description`,
+  `"command runner" in:description`,
+  `monorepo in:description`
+- topics seen on absent tools:
+  `file-watchers`,
+  `buildscript`,
+  `magefile`,
+  `make`,
+  `caching`,
+  `workflows`,
+  `development-environment`,
+  `developer-experience`
+- component-side topics not in the schedule:
+  `watcher`,
+  `file-watcher`,
+  `live-reload`,
+  `process-manager`,
+  `mcp-server`,
    `build-server`

@@ -72,7 +72,8 @@ The environment variable is a Boolean command-line option.
 `crates/meilisearch/src/option.rs:444-453` binds it directly:
 
 ```rust
-/// When set, Meilisearch will upgrade its database on startup if it was created by a
+/// When set,
+/// Meilisearch will upgrade its database on startup if it was created by a
 /// previous version.
 #[clap(long, env = MEILI_UPGRADE_DB, default_value_t)]
 #[serde(default)]

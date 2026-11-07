@@ -3,7 +3,8 @@
 ## Symptom
 
 `oxlint --format=default <file>` (the format `mise run //package/git-policy/cli:lint:oxlint:paths` uses) aborts with
-status `134` and prints, instead of the diagnostics:
+status `134` and prints,
+instead of the diagnostics:
 
 ```text
 thread 'tokio-rt-worker' panicked at apps/oxlint/src/output_formatter/default.rs:181:14:
@@ -13,7 +14,9 @@ called `Result::unwrap()` on an `Err` value: Error
 The task then fails with `[task-oxlint] failed to execute oxlint: Command was terminated with SIGABRT`.
 The same file with `--format=unix` prints every diagnostic and exits normally,
 so the lint run itself succeeds and only the rendering fails.
-Files without diagnostics, and most files with diagnostics, are unaffected.
+Files without diagnostics,
+and most files with diagnostics,
+are unaffected.
 
 ## Reproduction
 
@@ -49,7 +52,8 @@ export async function observe(command) {
 ```
 
 Removing either function leaves a file that renders normally (twelve warnings for `readText` alone,
-five for the `once` call alone), so the trigger needs both together.
+five for the `once` call alone),
+so the trigger needs both together.
 The diagnostics are type-aware warnings about values typed `error` or `any`:
 `Array.fromAsync` is unknown to the TypeScript library the linter loads here.
 
@@ -57,10 +61,12 @@ The diagnostics are type-aware warnings about values typed `error` or `any`:
 
 The unwrap at the reported line is in the formatter's rendering of the collected diagnostics.
 On the upstream `main` branch the same function calls `self.handler.render_reports(...)` and unwraps its `Result`
-(`apps/oxlint/src/output_formatter/default.rs`, `render_errors`),
+(`apps/oxlint/src/output_formatter/default.rs`,
+`render_errors`),
 so a rendering error from the report handler becomes an abort.
 Which diagnostic makes the handler fail was not isolated;
-the minimal files above render normally, and the failure appears only for the combination.
+the minimal files above render normally,
+and the failure appears only for the combination.
 
 ## Verified workaround
 
@@ -72,5 +78,6 @@ mise exec -- oxlint --format=unix package/git-policy/cli/bin/scratch.mjs
 ```
 
 A file whose rendering aborts is also a file with warnings the task would have shown,
-so fix the warnings in the unix output and rerun the task; once the warnings are gone the default format has nothing
+so fix the warnings in the unix output and rerun the task;
+once the warnings are gone the default format has nothing
 to render and the task passes.

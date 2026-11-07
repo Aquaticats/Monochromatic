@@ -1,9 +1,11 @@
 # cli-git implementation handover
 
-Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
 the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
-and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
 (the list is in `doc/planning/git-policy-cli-program-rename.md`).
 The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
@@ -71,20 +73,39 @@ the branch and agent lists below them are older and carry their own times.
 
 ### Release in flight
 
-Owner, 2026-11-04T17:50-05:00 (approximate time of reading), verbatim:
-"Don't discard work, but aside from layout + linting fixes, pause everything else - but let work already in flight run to their natural conclusions. Layout + linting fixes are the biggest priority."
-So only the source layout (issue 6261, principles in AGENTS.md MKY, LYD, LYF) and lint fixes go forward.
-In-flight steps finish, commit and stop:
-branch-write round 5 (re-gate with main, `-v2` bundle; its review not started),
-the commit-protocol models round (main merge and the fix in progress; reviews A and B of step3c left for later),
-cargo-shadow round 21 (the fix in progress; the rest written to its resume point),
-the lean build directories proposal (finished as a proposal, nothing built),
+Owner,
+2026-11-04T17:50-05:00 (approximate time of reading),
+verbatim:
+"Don't discard work,
+but aside from layout + linting fixes,
+pause everything else - but let work already in flight run to their natural conclusions.
+Layout + linting fixes are the biggest priority."
+So only the source layout (issue 6261,
+principles in AGENTS.md MKY,
+LYD,
+LYF) and lint fixes go forward.
+In-flight steps finish,
+commit and stop:
+branch-write round 5 (re-gate with main,
+`-v2` bundle;
+its review not started),
+the commit-protocol models round (main merge and the fix in progress;
+reviews A and B of step3c left for later),
+cargo-shadow round 21 (the fix in progress;
+the rest written to its resume point),
+the lean build directories proposal (finished as a proposal,
+nothing built),
 and the claim-watch fix review already running.
-Paused, not started: release 0.5.35 (one executable, claim-watch fixes and the startup wake are on main; round 5 not yet),
+Paused,
+not started:
+release 0.5.35 (one executable,
+claim-watch fixes and the startup wake are on main;
+round 5 not yet),
 the mpm-shadow release,
 the TypeScript port,
 new review rounds,
-and the `semantic-line-breaks` findings (owner: "Put the semantic line break findings on hold.").
+and the `semantic-line-breaks` findings (owner:
+"Put the semantic line break findings on hold.").
 
 Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
 
@@ -162,12 +183,14 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   handover).
   Its `--lane` options in `service_main.rs` will conflict with the one-executable change;
   that agent was told to keep the service options a pass-through.
-  The `-a2.txt` review (component tests) returned "Sufficient after named additions, not sufficient as is"
+  The `-a2.txt` review (component tests) returned "Sufficient after named additions,
+  not sufficient as is"
   with one product risk (blocking doorbell sends can wait without a bound);
   sent to the models agent at once,
   which resumed even with five other agents running
   (resuming a finished agent was not refused by the five-agent limit).
-  `-a1.txt` ("not correct as is": a disposal revalidation hole and the doorbell blocking clients) and `-b.txt`
+  `-a1.txt` ("not correct as is":
+  a disposal revalidation hole and the doorbell blocking clients) and `-b.txt`
   ("correct after named fixes") were sent the moment each landed.
   The fix round is done (models tip `f98a499e8d`;
   `native:test:model` 625 passed,
@@ -223,7 +246,9 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   round 4 and round 5 merge together once that gate passes.
   Owner decision on the earlier single service,
   2026-11-04 (question tool):
-  "A: fail, retry (Recommended)",
+  "A:
+  fail,
+  retry (Recommended)",
   which round 4 built;
   record it in `doc/planning/cli-git-no-unbounded-waits.md` and `SPEC.md` when the branch merges.
 - Service startup wake (`aca6e78c5ffbd5680` done;
@@ -251,13 +276,17 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   `c71ad82ba1`) reached origin/main.
   Both upstreams were removed at 2026-11-04T16:20-05:00.
   Owner (question tool):
-  "A: keep, gate first (Recommended)":
+  "A:
+  keep,
+  gate first (Recommended)":
   the one-executable branch is gated before merge and before 0.5.35.
   Future briefs start branches from a commit hash or local `main`,
   or pass `--no-track`.
 - Owner on cargo-binstall's quick-install (question tool,
   after a clarification):
-  "A: one flag, our crates (Recommended)":
+  "A:
+  one flag,
+  our crates (Recommended)":
   crates this repository publishes get `--disable-strategies compile,quick-install`,
   third-party crates keep the defaults;
   owner's note:
@@ -285,10 +314,12 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   `cargo --version` and `cargo metadata` exited 0,
   the link and the shadow each ran once per command,
   and the real cargo ran only through `.cache/toolchain-bin/cargo`
-  (three times for `metadata`: the shadow's own lockfile checks plus the command).
+  (three times for `metadata`:
+  the shadow's own lockfile checks plus the command).
   The `cargo` link is back (`c5e3d0d268`);
   in the repo environment `cargo --version` prints `cargo-shadow 0.1.2, shadowing cargo at .../.cache/toolchain-bin/cargo`.
-  Not yet seen: a wrapper gate's `cargo vendor` step through the link (the next gate an agent launches shows it).
+  Not yet seen:
+  a wrapper gate's `cargo vendor` step through the link (the next gate an agent launches shows it).
 - Fifth cargo-shadow certification pass:
   all 15 groups "not certified" (`~/temp/agent/reviews/cargo-shadow-cert5-sol-<n>.txt`).
   Groups 1,
@@ -307,7 +338,8 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   Owner decisions,
   2026-11-04 (question tool):
   re-entry through an unrecorded launcher,
-  option A with the note "A, but make the help message descriptive enough that even a monkey can understand and execute it."
+  option A with the note "A,
+  but make the help message descriptive enough that even a monkey can understand and execute it."
   (the second cargo-shadow exits 2 before any work,
   like the Git wrapper's arrival stop in `package/git-policy/cli/SPEC.md`,
   and the bounded fallback goes away);
@@ -343,7 +375,11 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   and a hit there ends at the arrival stop.
   Coordinator's reading,
   not an owner question:
-  the owner's rule "We should never invoke ourselves recursively. That's bad design. Audit, remove, and ban that design aggressively."
+  the owner's rule "We should never invoke ourselves recursively.
+  That's bad design.
+  Audit,
+  remove,
+  and ban that design aggressively."
   determines it.
   Then the open list of the fifth pass and every sixth-pass group's named fixes,
   groups 2 and 4 first.
@@ -363,7 +399,8 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   and `/proc/pressure/io` full avg300 was 22%.
   The same add under `.claude/worktrees/` was a snapshot in seconds (trace worktree `cgs-trace-892d1fa0`).
   The trace script and new briefs now put worktrees under `.claude/worktrees/`.
-  Measured with `du` (`~/temp/agent/worktree-copy-sizes.txt`, 1 KiB blocks):
+  Measured with `du` (`~/temp/agent/worktree-copy-sizes.txt`,
+  1 KiB blocks):
   `package/ide/app/target` 40,582,652,
   `package/nested-wayland-session/cli/target` 14,144,844,
   `package/git-policy/cli.fuzz/target` 3,991,544,
@@ -373,13 +410,19 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   2026-11-04 (question tool,
   after asking what "wrapper fix" meant):
   on the copy,
-  "No lefting out build outputs. The real fix is to make sure every build dir is always lean. That's not the wrapper's responsibility, but I'm assigning this to you to.";
+  "No lefting out build outputs.
+  The real fix is to make sure every build dir is always lean.
+  That's not the wrapper's responsibility,
+  but I'm assigning this to you to.";
   on an AGENTS.md rule for worktree placement,
   "No exposing underlying machinary to always-loaded context.";
   then,
-  "(debuginfo level, incremental off for dependencies - no messing with these."
+  "(debuginfo level,
+  incremental off for dependencies - no messing with these."
   and
-  "other profile settings (split-debuginfo, strip, codegen-units) should be off-limits too".
+  "other profile settings (split-debuginfo,
+  strip,
+  codegen-units) should be off-limits too".
   So the wrapper's copy stays,
   no AGENTS.md rule is added,
   and no build profile setting changes (debuginfo level,
@@ -401,149 +444,295 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   `lint:clippy` on main after the merge exits 0.
   Both agents were told to merge main and re-gate;
   round 5 restores `service_executable` and regenerates its review bundle (`-v2`).
-- Owner, 2026-11-04,
+- Owner,
+  2026-11-04,
   on the source layout (after stopping the issue 6261 child session:
-  "I told the layout subagent to stop because it couldn't ever produce something good enough. Lets do this ourselves."):
-  "Principle 1: Lint issues need to be taken care of asap.
-  Principle 2: every name of a dirent must be understandable to a monkey. If jargon is unavoidable, the file's top doc must explain everything, in a way that would make any monkey understand.
-  Principle 3: Who depends on who must be immediately visible from looking at the file structure."
+  "I told the layout subagent to stop because it couldn't ever produce something good enough.
+  Lets do this ourselves."):
+  "Principle 1:
+  Lint issues need to be taken care of asap.
+  Principle 2:
+  every name of a dirent must be understandable to a monkey.
+  If jargon is unavoidable,
+  the file's top doc must explain everything,
+  in a way that would make any monkey understand.
+  Principle 3:
+  Who depends on who must be immediately visible from looking at the file structure."
   and "Consider monkey someone who only knows what git commit and git push are."
-  Then "Put the semantic line break findings on hold. They aren't the most serious issues right now."
+  Then "Put the semantic line break findings on hold.
+  They aren't the most serious issues right now."
   Question tool answers:
-  TypeScript in the Rust package "A: port all to Rust (Recommended)";
-  structure "B: numbered layers (Recommended)" with the note "Don't be afraid of using extremely long names. B, but make sure a monkey even just looking at one thing know what it means.";
-  granularity "Files too, checked (Recommended)";
+  TypeScript in the Rust package "A:
+  port all to Rust (Recommended)";
+  structure "B:
+  numbered layers (Recommended)" with the note "Don't be afraid of using extremely long names.
+  B,
+  but make sure a monkey even just looking at one thing know what it means.";
+  granularity "Files too,
+  checked (Recommended)";
   scope "Repo-wide rules (Recommended)",
   written as AGENTS.md MKY,
   LYD and LYF (`b1955e0b49`,
   CLAUDE.md regenerated).
-  Measured on main (`~/temp/agent/issue-6261/scc/`, comments and strings excluded):
+  Measured on main (`~/temp/agent/issue-6261/scc/`,
+  comments and strings excluded):
   554 production modules,
   2,296 references between them,
   266 in one dependency loop (plus loops of 4 and 2);
-  the best order found leaves 82 references pointing backwards (a heuristic upper bound, mostly inside one folder:
+  the best order found leaves 82 references pointing backwards (a heuristic upper bound,
+  mostly inside one folder:
   15 in `landing/`,
   7 in `push/`,
   6 in `worktree/`).
   The flat glob re-exports in `lib.rs` (`pub use <folder>::*;`) have to go so every `use` names its folder.
-  Lint counts on main before the fixes (`~/temp/agent/issue-6261/lint-now.log`, `mlint-now.log`):
+  Lint counts on main before the fixes (`~/temp/agent/issue-6261/lint-now.log`,
+  `mlint-now.log`):
   package `lint` had 1 clippy error and 6 oxlint errors with 14 warnings (now 0 errors and 1 pre-existing warning,
   `8f475bf9e9`);
   the repo linter reports 31,009 `markdown/semantic-line-breaks` (on hold),
   2,528 `rust/avoidable-closure` warnings,
   37 `rust/max-lines` and 3 `rust/tests-in-sidecars` errors.
-  The package holds 142 TypeScript files (34,270 lines: 79 in `e2e/` from 2026-09-25,
+  The package holds 142 TypeScript files (34,270 lines:
+  79 in `e2e/` from 2026-09-25,
   63 in `bin/`),
   29 of them TypeScript tests,
   all to be ported to Rust.
   Update 2026-11-04T18:40-05:00 (main `7663284896`):
   a group order with no upward reference is found and committed with its group map (`bb9d8f3505`,
-  `doc/planning/cli-git-source-layout.md`, section "Group order found, from the bottom");
+  `doc/planning/cli-git-source-layout.md`,
+  section "Group order found,
+  from the bottom");
   a rescan of main after the branch-write merge gives the same result;
   27 loops between files inside groups remain (79 files).
-  Branch-write round 5 is merged (`de36a92311`, gate 4927/4927 at `258e0a2e14`).
+  Branch-write round 5 is merged (`de36a92311`,
+  gate 4927/4927 at `258e0a2e14`).
   The three `rust/tests-in-sidecars` errors are fixed on main (`7663284896`):
   the inline test-only helper modules moved to `*_test_support.rs` files under the same module names.
-  Four lint agents work from `7663284896`, one disjoint folder set each, on `rust/avoidable-closure` and
+  Four lint agents work from `7663284896`,
+  one disjoint folder set each,
+  on `rust/avoidable-closure` and
   `rust/max-lines` (brief `~/temp/agent/issue-6261/lint-brief.md`):
-  `refactor/git-policy-cli-lint-worktree-folders` (worktree, worktree_copying),
-  `refactor/git-policy-cli-lint-service-landing-and-runner-folders` (landing, service, transaction, invocation,
-  process, foundation),
-  `refactor/git-policy-cli-lint-reader-push-and-lock-folders` (repo_read, subvolume, push, index, lock),
+  `refactor/git-policy-cli-lint-worktree-folders` (worktree,
+  worktree_copying),
+  `refactor/git-policy-cli-lint-service-landing-and-runner-folders` (landing,
+  service,
+  transaction,
+  invocation,
+  process,
+  foundation),
+  `refactor/git-policy-cli-lint-reader-push-and-lock-folders` (repo_read,
+  subvolume,
+  push,
+  index,
+  lock),
   `refactor/git-policy-cli-lint-command-and-policy-folders` (every other folder).
-  Oversized files are split by these agents, with each folder's file-loop list so a split breaks a loop rather than
-  adding one; the layout pass renames and moves files afterwards.
+  Oversized files are split by these agents,
+  with each folder's file-loop list so a split breaks a loop rather than
+  adding one;
+  the layout pass renames and moves files afterwards.
   The coordinator merges the four branches and gates the result once.
-  The owner then added AGENTS.md VGW (no vague word such as `native` alone in a name; "helper_<specific> is fine")
-  and answered the layout questions: plain-sentence folder names (the draft in
-  `doc/planning/cli-git-source-layout.md`, `src/native/` gone), "hand back 'run this next'" in place of the two
-  in-process recursions, and all four smaller call changes.
-  A fifth agent builds the LYD and LYF checks into `monochromatic-lint`, off by default
-  (branch `feat/monochromatic-lint-folder-uses-and-file-loops`, brief `~/temp/agent/issue-6261/layout-lint-brief.md`).
-  Update 2026-11-05 (main `1942f0de53`): the fifth agent's rules `rust/folder-uses-links` and
-  `rust/file-order-in-folder` are merged to main (78 layout tests in the container, 810 native),
-  off unless a config block selects them; measured on the wrapper at `8c9eb6e035`: 364 findings
-  (288 missing `uses/` links, 27 glob re-exports, 1 folder loop, 21 file loops, 27 top docs without a file list).
-  Open to veto from that agent: `mod.rs` and other crate roots are left out of the in-folder loop check.
-  Asked the owner async on 2026-11-05 (owner: ask "async", not with the question tool), pick adopted at once:
-  index files (`mod.rs`, `lib.rs` as index) hold only the top doc, `mod` lines and re-exports, anything else is a
-  finding; a name reached through a re-export counts as a use of the file that defines it.
+  The owner then added AGENTS.md VGW (no vague word such as `native` alone in a name;
+  "helper_<specific> is fine")
+  and answered the layout questions:
+  plain-sentence folder names (the draft in
+  `doc/planning/cli-git-source-layout.md`,
+  `src/native/` gone),
+  "hand back 'run this next'" in place of the two
+  in-process recursions,
+  and all four smaller call changes.
+  A fifth agent builds the LYD and LYF checks into `monochromatic-lint`,
+  off by default
+  (branch `feat/monochromatic-lint-folder-uses-and-file-loops`,
+  brief `~/temp/agent/issue-6261/layout-lint-brief.md`).
+  Update 2026-11-05 (main `1942f0de53`):
+  the fifth agent's rules `rust/folder-uses-links` and
+  `rust/file-order-in-folder` are merged to main (78 layout tests in the container,
+  810 native),
+  off unless a config block selects them;
+  measured on the wrapper at `8c9eb6e035`:
+  364 findings
+  (288 missing `uses/` links,
+  27 glob re-exports,
+  1 folder loop,
+  21 file loops,
+  27 top docs without a file list).
+  Open to veto from that agent:
+  `mod.rs` and other crate roots are left out of the in-folder loop check.
+  Asked the owner async on 2026-11-05 (owner:
+  ask "async",
+  not with the question tool),
+  pick adopted at once:
+  index files (`mod.rs`,
+  `lib.rs` as index) hold only the top doc,
+  `mod` lines and re-exports,
+  anything else is a
+  finding;
+  a name reached through a re-export counts as a use of the file that defines it.
   An agent builds it on `feat/monochromatic-lint-index-files-hold-only-declarations`
-  (worktree `.claude/worktrees/lint-index-files-only-declarations`, from `bec267799f`); the owner's veto stays open.
-  Merged to main 2026-11-05 (840 tests, 108 in the container). A use through a re-export counts for both the
+  (worktree `.claude/worktrees/lint-index-files-only-declarations`,
+  from `bec267799f`);
+  the owner's veto stays open.
+  Merged to main 2026-11-05 (840 tests,
+  108 in the container).
+  A use through a re-export counts for both the
   re-exporting file and the defining one (replacing the edge lost a real 15-file loop in `landing/`).
   The entry-point check for `main.rs` beside `lib.rs` and `src/bin/*.rs` is merged to main too (842 tests,
-  110 in the container); repo-wide survey: 74 entry-point and 107 index-file findings outside the wrapper, none in it.
+  110 in the container);
+  repo-wide survey:
+  74 entry-point and 107 index-file findings outside the wrapper,
+  none in it.
   The `exclude = ["**/uses"]` for the wrapper's `Cargo.toml` is still to add through file-enforcer.
   The worktree lint branch is done (`refactor/git-policy-cli-lint-worktree-folders` at `8d19c13a28`):
   `worktree/` and `worktree_copying/` have zero `rust/avoidable-closure` and `rust/max-lines` findings,
   11 closure statements carry an `expect` documented in
-  `src/native/worktree/worktree_closure_lint_suppressions.md`, host tests 582 passed, clippy clean,
-  no container gate run; it waits for the other three branches, then one merge and one container gate.
-  The reader, push and lock branch is done too (`refactor/git-policy-cli-lint-reader-push-and-lock-folders` at
-  `0b422a9115`): zero `rust/avoidable-closure` and `rust/max-lines` in repo_read, subvolume, push, index and lock;
-  19 `expect`s in 11 files, documented in `package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`;
-  host tests 1178 passed, clippy clean, no container gate.
-  Open from that branch: one run of `lock::` and `push::` failed three
+  `src/native/worktree/worktree_closure_lint_suppressions.md`,
+  host tests 582 passed,
+  clippy clean,
+  no container gate run;
+  it waits for the other three branches,
+  then one merge and one container gate.
+  The reader,
+  push and lock branch is done too (`refactor/git-policy-cli-lint-reader-push-and-lock-folders` at
+  `0b422a9115`):
+  zero `rust/avoidable-closure` and `rust/max-lines` in repo_read,
+  subvolume,
+  push,
+  index and lock;
+  19 `expect`s in 11 files,
+  documented in `package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`;
+  host tests 1178 passed,
+  clippy clean,
+  no container gate.
+  Open from that branch:
+  one run of `lock::` and `push::` failed three
   `landing::service_index_lock::claim_tests::*` tests ("took the whole ceiling") that passed on rerun;
-  the agent called it host load without measuring, which the repository treats as a contention or ordering defect
-  until measured; the merged gate must check these three, and a failure there is a defect to find.
-  Its seam closures (`dyn Fn` parameters in subvolume, push and `start_retry`) stay suppressed;
+  the agent called it host load without measuring,
+  which the repository treats as a contention or ordering defect
+  until measured;
+  the merged gate must check these three,
+  and a failure there is a defect to find.
+  Its seam closures (`dyn Fn` parameters in subvolume,
+  push and `start_retry`) stay suppressed;
   turning them into traits changes signatures used by `worktree/worktree_clone.rs` and test sidecars.
   The command and policy branch is done too (`refactor/git-policy-cli-lint-command-and-policy-folders` at
-  `0595efcd4b`): zero findings of both rules in its 17 folders, 10 `expect`s documented in
-  `doc/planning/cli-git-closure-lint-suppressions.md`, 1507 host tests passed with the same test names as before,
-  clippy clean, no container gate.
+  `0595efcd4b`):
+  zero findings of both rules in its 17 folders,
+  10 `expect`s documented in
+  `doc/planning/cli-git-closure-lint-suppressions.md`,
+  1507 host tests passed with the same test names as before,
+  clippy clean,
+  no container gate.
   All three finished branches are merged into `refactor/git-policy-cli-lint-all-folders`
-  (worktree `.claude/worktrees/lint-all-folders`, from main `bec267799f`) without conflicts;
+  (worktree `.claude/worktrees/lint-all-folders`,
+  from main `bec267799f`) without conflicts;
   clippy passed after the first two.
-  Next, after the service, landing and runner branch lands: merge it, one container gate, merge to main.
-  Update 2026-11-05: that branch is done too (`refactor/git-policy-cli-lint-service-landing-and-runner-folders` at
-  `c97766b11a`; 662 closure and 12 max-lines findings to 0; 17 `expect`s; lib 4248 passed, binary 678 passed,
-  no container gate). All four branches and `main` are merged into the integration branch, plus the probe-test move
+  Next,
+  after the service,
+  landing and runner branch lands:
+  merge it,
+  one container gate,
+  merge to main.
+  Update 2026-11-05:
+  that branch is done too (`refactor/git-policy-cli-lint-service-landing-and-runner-folders` at
+  `c97766b11a`;
+  662 closure and 12 max-lines findings to 0;
+  17 `expect`s;
+  lib 4248 passed,
+  binary 678 passed,
+  no container gate).
+  All four branches and `main` are merged into the integration branch,
+  plus the probe-test move
   (`5983d1603d`) and the `repo_read_hook` import that breaks its loop with `git_metadata` and `transaction_git`
-  (`a8b41b0d62`); clippy is clean there.
+  (`a8b41b0d62`);
+  clippy is clean there.
   The container gate runs on `a8b41b0d62` as unit `git-policy-cli-lint-all-folders-gate`
   (log `~/temp/agent/issue-6261/lint-all-folders-gate.log`).
   The suppression pass runs in parallel from the same commit on `refactor/git-policy-cli-fewer-closure-suppressions`
-  (worktree `.claude/worktrees/fewer-closure-suppressions`), gated on its own after it lands.
-  Gate result on `a8b41b0d62`: `4930 tests run: 4930 passed (1 slow), 8 skipped` in the container
-  (the slow one is `push_slow_server_tests::a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands`, which
-  waits past a 60 s cutoff by design); all 27 `landing::service_index_lock::claim_tests` passed.
-  The earlier one-time host failure of three of them stays unexplained; it is still open,
+  (worktree `.claude/worktrees/fewer-closure-suppressions`),
+  gated on its own after it lands.
+  Gate result on `a8b41b0d62`:
+  `4930 tests run: 4930 passed (1 slow), 8 skipped` in the container
+  (the slow one is `push_slow_server_tests::a_push_over_http_waits_past_the_old_low_speed_cutoff_and_lands`,
+  which
+  waits past a 60 s cutoff by design);
+  all 27 `landing::service_index_lock::claim_tests` passed.
+  The earlier one-time host failure of three of them stays unexplained;
+  it is still open,
   to be measured if it recurs.
-  Merged to main 2026-11-05 (483 files). The five lint worktrees are removed; their branches stay.
-  Layout next: an agent drafts the whole target tree on main `977e697ad5` (rescan, crate split, every folder and
-  file old to new with `uses/` lists, every change the moves need, move order, cross-vendor review) into
-  `doc/planning/cli-git-source-layout-target-tree.md`; nothing moves until the owner has seen it.
-  Suppression pass done on `refactor/git-policy-cli-fewer-closure-suppressions` (`cbaa95e9b9`, main merged in at
-  `9829d05863`): `expect(avoidable_closure)` sites 56 to 3, the three in `src/native/foundation/`
-  (`side_by_side_threads.rs` for `std::thread::scope`, `scoped_start.rs` for `spawn_scoped`,
-  `call_catching_panics.rs` for `catch_unwind`); callees take traits on named structs, guards, or an enum instead;
-  blanket closure impls only in test sidecars; lib 4259 and binary 678 passed on the host; 8 new tests, none renamed.
-  The four suppression notes become one, `package/git-policy/cli/doc/closure-lint-suppressions.md`
+  Merged to main 2026-11-05 (483 files).
+  The five lint worktrees are removed;
+  their branches stay.
+  Layout next:
+  an agent drafts the whole target tree on main `977e697ad5` (rescan,
+  crate split,
+  every folder and
+  file old to new with `uses/` lists,
+  every change the moves need,
+  move order,
+  cross-vendor review) into
+  `doc/planning/cli-git-source-layout-target-tree.md`;
+  nothing moves until the owner has seen it.
+  Suppression pass done on `refactor/git-policy-cli-fewer-closure-suppressions` (`cbaa95e9b9`,
+  main merged in at
+  `9829d05863`):
+  `expect(avoidable_closure)` sites 56 to 3,
+  the three in `src/native/foundation/`
+  (`side_by_side_threads.rs` for `std::thread::scope`,
+  `scoped_start.rs` for `spawn_scoped`,
+  `call_catching_panics.rs` for `catch_unwind`);
+  callees take traits on named structs,
+  guards,
+  or an enum instead;
+  blanket closure impls only in test sidecars;
+  lib 4259 and binary 678 passed on the host;
+  8 new tests,
+  none renamed.
+  The four suppression notes become one,
+  `package/git-policy/cli/doc/closure-lint-suppressions.md`
   (moved 2026-11-05 from `src/native/worktree/worktree_closure_lint_suppressions.md`,
   `doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`,
   `doc/closure-lint-suppressions-service-landing-and-runner-folders.md`
-  and `doc/planning/cli-git-closure-lint-suppressions.md`, which are deleted on that branch).
-  Planted controls: of the 46 in `bin/native-planted-controls-{commit,entry,landing}.ts`, 3 had a `from` line
-  that matched nothing before the lint merge (checked at `7663284896`) and 7 after it, on main and on the branch
-  (checker `~/temp/agent/issue-6261/planted-from-lines.ts`); an agent repoints the seven on the suppression branch,
-  proving each fails its test when planted. Then: container gate on that branch, `native:mutation:planted` over
-  its image, merge to main.
-  Correction: two of the seven were checker artifacts (it could not read a `from` written as an array `.join` or
-  `String.raw`); the real breaks were one before the lint merge and four through it, and two controls named
+  and `doc/planning/cli-git-closure-lint-suppressions.md`,
+  which are deleted on that branch).
+  Planted controls:
+  of the 46 in `bin/native-planted-controls-{commit,entry,landing}.ts`,
+  3 had a `from` line
+  that matched nothing before the lint merge (checked at `7663284896`) and 7 after it,
+  on main and on the branch
+  (checker `~/temp/agent/issue-6261/planted-from-lines.ts`);
+  an agent repoints the seven on the suppression branch,
+  proving each fails its test when planted.
+  Then:
+  container gate on that branch,
+  `native:mutation:planted` over
+  its image,
+  merge to main.
+  Correction:
+  two of the seven were checker artifacts (it could not read a `from` written as an array `.join` or
+  `String.raw`);
+  the real breaks were one before the lint merge and four through it,
+  and two controls named
   binary tests with a wrong folder prefix (from `9533c30e80`) so they could never count as noticed.
-  All fixed at `a7e32e118e` (48 controls, 0 problems; each planted and seen failing on the host).
+  All fixed at `a7e32e118e` (48 controls,
+  0 problems;
+  each planted and seen failing on the host).
   Container gate running on `a7e32e118e` as unit `git-policy-cli-fewer-closure-suppressions-gate`.
   Target tree drafted and reviewed cross-vendor (`doc/planning/cli-git-source-layout-target-tree.md` and
-  `-files.md`, last `0912bd4661`); its owner questions are in `doc/handover/questions-for-the-owner.md`.
+  `-files.md`,
+  last `0912bd4661`);
+  its owner questions are in `doc/handover/questions-for-the-owner.md`.
   The layout rule's file-list marker now reads across a line break (branch
-  `fix/monochromatic-lint-file-list-marker-may-wrap` at `dd600cb33b`, merged to main; 854 tests, 122 in the
-  container), because `markdown/semantic-line-breaks` demands a break after its comma.
-  Suppression branch gate on `a7e32e118e`: `4938 tests run: 4938 passed (1 slow), 8 skipped`;
+  `fix/monochromatic-lint-file-list-marker-may-wrap` at `dd600cb33b`,
+  merged to main;
+  854 tests,
+  122 in the
+  container),
+  because `markdown/semantic-line-breaks` demands a break after its comma.
+  Suppression branch gate on `a7e32e118e`:
+  `4938 tests run: 4938 passed (1 slow), 8 skipped`;
   planted controls over its image run as unit `git-policy-cli-planted-controls-after-suppressions`
-  (log `~/temp/agent/issue-6261/planted-controls-after-suppressions.log`); merge after they pass.
+  (log `~/temp/agent/issue-6261/planted-controls-after-suppressions.log`);
+  merge after they pass.
   Next for the layout:
   break the file loops with named changes,
   split the large groups into folders,
@@ -551,126 +740,268 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   rescan after the lint branches land,
   and put the whole tree before the owner before anything moves.
   The fuzz crate `package/git-policy/cli.fuzz` does not compile on main:
-  `src/owners.rs` imports `git_policy_cli::owner_lock_record`, deleted in `ee30d244f6`
-  ("worktree add takes no settlement lock", 2026-11-03T02:36:31-05:00); no gate compiles that crate, so nothing
-  noticed. The crate split changes every `git_policy_cli::` import it uses, so it is fixed as part of the split:
-  each move keeps it compiling, and its compile joins the container gate at the first move.
-- Program rename (task #165; plan `doc/planning/git-policy-cli-program-rename.md`):
+  `src/owners.rs` imports `git_policy_cli::owner_lock_record`,
+  deleted in `ee30d244f6`
+  ("worktree add takes no settlement lock",
+  2026-11-03T02:36:31-05:00);
+  no gate compiles that crate,
+  so nothing
+  noticed.
+  The crate split changes every `git_policy_cli::` import it uses,
+  so it is fixed as part of the split:
+  each move keeps it compiling,
+  and its compile joins the container gate at the first move.
+- Program rename (task #165;
+  plan `doc/planning/git-policy-cli-program-rename.md`):
   step 1 built on `feat/git-policy-cli-program-rename` (worktree `.claude/worktrees/git-policy-cli-program-rename`,
-  tip `9dbcb5ce92` with 22 commits on `a7e32e118e`; host lib 4305 and binary 690 passed, clippy clean,
-  planted checker 48/0; container gate not yet run).
+  tip `9dbcb5ce92` with 22 commits on `a7e32e118e`;
+  host lib 4305 and binary 690 passed,
+  clippy clean,
+  planted checker 48/0;
+  container gate not yet run).
   Two follow-ups sent back to its agent at 2026-11-05T03:58:47Z:
-  (A) the root settings file keeps the name `cli-git.config.jsonc` until step 3, because the installed old program
-  reads only that name (the branch's `f781971973` renamed it, and four later commits on the branch ran with no
+  (A) the root settings file keeps the name `cli-git.config.jsonc` until step 3,
+  because the installed old program
+  reads only that name (the branch's `f781971973` renamed it,
+  and four later commits on the branch ran with no
   policies);
   (B) an open batch an old helper left in the old service state folder must still land after the switch.
-  A done at `0c840d0e17` (root file restored in `d513d1cadd`; host lib 4306 and binary 690 passed, clippy clean,
-  planted checker 48/0; the installed wrapper's `check` over the paths changed since `f781971973` found nothing).
-  Container gate on `0c840d0e17` passed: `4997 tests run: 4997 passed (1 slow), 8 skipped`
-  (unit `git-policy-cli-program-rename-gate`, worktree `.claude/worktrees/git-policy-cli-program-rename-gate`,
+  A done at `0c840d0e17` (root file restored in `d513d1cadd`;
+  host lib 4306 and binary 690 passed,
+  clippy clean,
+  planted checker 48/0;
+  the installed wrapper's `check` over the paths changed since `f781971973` found nothing).
+  Container gate on `0c840d0e17` passed:
+  `4997 tests run: 4997 passed (1 slow), 8 skipped`
+  (unit `git-policy-cli-program-rename-gate`,
+  worktree `.claude/worktrees/git-policy-cli-program-rename-gate`,
   log `~/temp/agent/issue-6261/program-rename-gate.log`).
-  Final tip `cbb5b463e8` (main merged in as `dfa6798f1f`; 13 oxlint findings fixed by restructuring) passed the
-  container gate: `5005 tests run: 5005 passed (1 slow), 8 skipped`.
-  Merged to main as `ca6cd899b3` (2026-11-05T04:41:34Z), with the suppression branch it contains; per the owner
-  ("Mutation runs don't block publish and release", "Treat reviews as async") the planted run and the cross-vendor
-  review of B did not hold the merge; a miss or a finding is fixed forward.
-  Review of B: two cross-vendor runs (10 files, then 4 files with the diff) each timed out after 3600 s with no
-  output; a one-line control prompt answered `ok`, so the reviewer works and the input was too heavy.
+  Final tip `cbb5b463e8` (main merged in as `dfa6798f1f`;
+  13 oxlint findings fixed by restructuring) passed the
+  container gate:
+  `5005 tests run: 5005 passed (1 slow), 8 skipped`.
+  Merged to main as `ca6cd899b3` (2026-11-05T04:41:34Z),
+  with the suppression branch it contains;
+  per the owner
+  ("Mutation runs don't block publish and release",
+  "Treat reviews as async") the planted run and the cross-vendor
+  review of B did not hold the merge;
+  a miss or a finding is fixed forward.
+  Review of B:
+  two cross-vendor runs (10 files,
+  then 4 files with the diff) each timed out after 3600 s with no
+  output;
+  a one-line control prompt answered `ok`,
+  so the reviewer works and the input was too heavy.
   A third run over only the three fixed source files on main (846 lines) also timed out after 3600 s with no output
-  (`~/temp/agent/issue-6261/sol-review-after-fixes/`). The fourth run answered (see the release blockers below) and
-  its findings are fixed on `fix/git-policy-cli-earlier-helper-review-fixes`; no cross-vendor review of that fix has
-  run. A same-vendor second pass
-  (`claude-second-pass.md` beside it) found three P1s, no P0:
+  (`~/temp/agent/issue-6261/sol-review-after-fixes/`).
+  The fourth run answered (see the release blockers below) and
+  its findings are fixed on `fix/git-policy-cli-earlier-helper-review-fixes`;
+  no cross-vendor review of that fix has
+  run.
+  A same-vendor second pass
+  (`claude-second-pass.md` beside it) found three P1s,
+  no P0:
   the `/proc` look misses helpers started by units older than `9b360150c0` and the shared service;
-  the adoption's `Drop` can remove the intent of a landing in flight, leaving a landed commit with no record;
-  `current_value` reads a failed Git run as "branch not moved", which also leads to `Drop`.
+  the adoption's `Drop` can remove the intent of a landing in flight,
+  leaving a landed commit with no record;
+  `current_value` reads a failed Git run as "branch not moved",
+  which also leads to `Drop`.
   Fixed with red tests on `fix/git-policy-cli-earlier-helper-adoption`
-  (worktree `.claude/worktrees/earlier-helper-adoption-fixes`, from main `35310097267f`, tip `c4b6812564`):
-  all three P1s and the five P2s (unreadable process counts as "may be running", the `/proc` scan bounded by
-  `PROCESS_LOOK_CEILING` 10 s after a measured 0.64 s for 899 processes, same-user filter, each adopted batch logged,
-  earlier journals read-only); `current_value` now answers "no answer" on a Git failure for both the adoption and
-  the service's own recovery. Host lib 4327, binary 691, clippy and oxlint clean.
-  Container gate on `c4b6812564` passed: `5019 tests run: 5019 passed (1 slow), 8 skipped`; merged to main.
-  The rename, hand-over-fix and gate worktrees are removed; the suppression worktree stays until its planted run ends.
-  Still uncovered (plan doc, "Open batches of the old helper"): a helper in another PID namespace; an intent left on
-  disk is never settled if the old units are removed; the Windows build of the new module was not compiled (owner:
+  (worktree `.claude/worktrees/earlier-helper-adoption-fixes`,
+  from main `35310097267f`,
+  tip `c4b6812564`):
+  all three P1s and the five P2s (unreadable process counts as "may be running",
+  the `/proc` scan bounded by
+  `PROCESS_LOOK_CEILING` 10 s after a measured 0.64 s for 899 processes,
+  same-user filter,
+  each adopted batch logged,
+  earlier journals read-only);
+  `current_value` now answers "no answer" on a Git failure for both the adoption and
+  the service's own recovery.
+  Host lib 4327,
+  binary 691,
+  clippy and oxlint clean.
+  Container gate on `c4b6812564` passed:
+  `5019 tests run: 5019 passed (1 slow), 8 skipped`;
+  merged to main.
+  The rename,
+  hand-over-fix and gate worktrees are removed;
+  the suppression worktree stays until its planted run ends.
+  Still uncovered (plan doc,
+  "Open batches of the old helper"):
+  a helper in another PID namespace;
+  an intent left on
+  disk is never settled if the old units are removed;
+  the Windows build of the new module was not compiled (owner:
   Windows paused).
-  The rename note added to 117 old records said "is now" and sat in 6 `doc/decision/` records; on the owner's
+  The rename note added to 117 old records said "is now" and sat in 6 `doc/decision/` records;
+  on the owner's
   "Run the fix as described" (2026-11-07T02:03:01-05:00) `31f3223d25` removed it from the decision records and
   reworded it in the other 111.
-  Release blockers at 2026-11-07T02:03:01-05:00 (owner: the one release goes out "After the test gap is fixed"),
+  Release blockers at 2026-11-07T02:03:01-05:00 (owner:
+  the one release goes out "After the test gap is fixed"),
   all four fixed on `fix/git-policy-cli-earlier-helper-review-fixes` (worktree
-  `.claude/worktrees/earlier-helper-review-fixes`; each with a red test committed first), recorded 2026-11-07T03:01:27-05:00:
+  `.claude/worktrees/earlier-helper-review-fixes`;
+  each with a red test committed first),
+  recorded 2026-11-07T03:01:27-05:00:
   - The fourth cross-vendor run (`~/temp/agent/issue-6261/sol-review-retry-4/review.txt`) found three defects:
     (1) an old helper can start between the `/proc` scan and the adoption.
     The helper installed here (tag `monochromatic-git-policy-cli-v0.5.34`) holds no lock on its journal
-    (`service_main.rs`), so no exclusion both sides honour exists; the adoption now defers while a socket of the earlier
-    units listens (`/proc/net/unix`, read before the processes), and deferred batches stay on disk until the earlier helper or
-    the next start of this service settles them (plan doc, "Changes after the fourth review");
-    (2) journal arguments are compared by device and inode, relative ones in the process's working directory, and an
+    (`service_main.rs`),
+    so no exclusion both sides honour exists;
+    the adoption now defers while a socket of the earlier
+    units listens (`/proc/net/unix`,
+    read before the processes),
+    and deferred batches stay on disk until the earlier helper or
+    the next start of this service settles them (plan doc,
+    "Changes after the fourth review");
+    (2) journal arguments are compared by device and inode,
+    relative ones in the process's working directory,
+    and an
     unresolvable one means "may be running";
     (3) a command line longer than the bytes read means "may be running".
   - The planted control "worktree copy installation batches" went unnoticed because the batch size grew from 512 to 4096
-    in `f538c41379` (2026-11-02) while the test kept 1,100 files, so one batch held the whole tree; the closure-lint
-    refactor did not touch the split. The test now installs two full batches plus one file, derived from the constant.
-    Rerun over the fixed image: that control and the six the shutdown never reached (the log reached 42 of 48 with 41 noticed, not the 38 and 37 first recorded)
-    were all noticed. The `fewer-closure-suppressions` worktree can be removed.
-  Fifth cross-vendor run (`~/temp/agent/issue-6261/sol-review-fix-5/review.txt`, recorded 2026-11-07): the command line and
-  folder identity fixes hold; one P1 left, the old-release wrapper that starts the old helper between the look and the
-  adoption. Owner pick "Stop the old socket" built on `fix/git-policy-cli-stop-earlier-helper-socket` (worktree
-  `.claude/worktrees/stop-earlier-helper-socket`): the commit that sets up the service also stops the same worktree's
-  `cli-git@<instance>.socket` (same instance text; job mode `ignore-dependencies`; a running old helper is not stopped; the
-  socket file is never unlinked; failures are logged and never fail a commit). Masking that unit would make an old-release
-  wrapper exit 1 on its commit (tag `service_commit.rs` 386 to 388), so it was not built. Owner pick "Off, settle on request"
-  (2026-11-07): the service has no adoption path or option; `git monochromatic-git-policy-cli service settle-earlier-batches`
-  finishes the worktree's leftover batches when asked, after the look passes, saying first that it is safe only when no
-  old-release wrapper is in use in that worktree; `doctor` reports the count. Sixth review (`sol-review-socket-6/review.txt`):
-  both findings fixed (option removed; no unlink, retry read from `/proc/net/unix`). Cost while an old helper runs: about one
-  millisecond per commit. Plan doc, "Changes after the fifth review" and "Changes after the sixth review".
-  Seventh cross-vendor run (`sol-review-settle-7/review.txt`, 2026-11-07): three defects in the settle command, fixed on
-  `fix/git-policy-cli-settle-command-review-fixes` (condition write failure refuses; unexamined batches are named and exit 1;
-  the hold keeps which socket or helper caused it and the remedy fits; plan doc, "Changes after the seventh review").
-  The rename audit (plan doc, "Earlier names after the rename audit") fixed three names that had been renamed along with the
-  program but name the earlier program's artifacts: `LEGACY_SOCKET_RELATIVE` (the single service's socket), the first lines of
-  the earlier push records, and the first line of the earlier claim files. Open for the owner: the earlier `cli-git-scratch`
+    in `f538c41379` (2026-11-02) while the test kept 1,100 files,
+    so one batch held the whole tree;
+    the closure-lint
+    refactor did not touch the split.
+    The test now installs two full batches plus one file,
+    derived from the constant.
+    Rerun over the fixed image:
+    that control and the six the shutdown never reached (the log reached 42 of 48 with 41 noticed,
+    not the 38 and 37 first recorded)
+    were all noticed.
+    The `fewer-closure-suppressions` worktree can be removed.
+  Fifth cross-vendor run (`~/temp/agent/issue-6261/sol-review-fix-5/review.txt`,
+    recorded 2026-11-07):
+    the command line and
+  folder identity fixes hold;
+    one P1 left,
+    the old-release wrapper that starts the old helper between the look and the
+  adoption.
+    Owner pick "Stop the old socket" built on `fix/git-policy-cli-stop-earlier-helper-socket` (worktree
+  `.claude/worktrees/stop-earlier-helper-socket`):
+    the commit that sets up the service also stops the same worktree's
+  `cli-git@<instance>.socket` (same instance text;
+    job mode `ignore-dependencies`;
+    a running old helper is not stopped;
+    the
+  socket file is never unlinked;
+    failures are logged and never fail a commit).
+    Masking that unit would make an old-release
+  wrapper exit 1 on its commit (tag `service_commit.rs` 386 to 388),
+    so it was not built.
+    Owner pick "Off,
+    settle on request"
+  (2026-11-07):
+    the service has no adoption path or option;
+    `git monochromatic-git-policy-cli service settle-earlier-batches`
+  finishes the worktree's leftover batches when asked,
+    after the look passes,
+    saying first that it is safe only when no
+  old-release wrapper is in use in that worktree;
+    `doctor` reports the count.
+    Sixth review (`sol-review-socket-6/review.txt`):
+  both findings fixed (option removed;
+    no unlink,
+    retry read from `/proc/net/unix`).
+    Cost while an old helper runs:
+    about one
+  millisecond per commit.
+    Plan doc,
+    "Changes after the fifth review" and "Changes after the sixth review".
+  Seventh cross-vendor run (`sol-review-settle-7/review.txt`,
+    2026-11-07):
+    three defects in the settle command,
+    fixed on
+  `fix/git-policy-cli-settle-command-review-fixes` (condition write failure refuses;
+    unexamined batches are named and exit 1;
+  the hold keeps which socket or helper caused it and the remedy fits;
+    plan doc,
+    "Changes after the seventh review").
+  The rename audit (plan doc,
+    "Earlier names after the rename audit") fixed three names that had been renamed along with the
+  program but name the earlier program's artifacts:
+    `LEGACY_SOCKET_RELATIVE` (the single service's socket),
+    the first lines of
+  the earlier push records,
+    and the first line of the earlier claim files.
+    Open for the owner:
+    the earlier `cli-git-scratch`
   folders in Git directories are not moved or swept.
-  After the one release, every later release carries `-alpha.N` and skips crates.io, but this machine installs our
-  seven tools through crates.io (`cargo-binstall`); until they install from GitHub releases (the `archive` route
-  `mpm-shadow` uses, task #167), no later fix can be installed here. The owner has not yet said whether that route
+  After the one release,
+    every later release carries `-alpha.N` and skips crates.io,
+    but this machine installs our
+  seven tools through crates.io (`cargo-binstall`);
+    until they install from GitHub releases (the `archive` route
+  `mpm-shadow` uses,
+    task #167),
+    no later fix can be installed here.
+    The owner has not yet said whether that route
   change comes right after the release or after layout and lint.
-  B done at `7fe6ac14ff`: `landing/earlier_service_journal_adopted.rs` finishes, at service start, batches left open
+  B done at `7fe6ac14ff`:
+    `landing/earlier_service_journal_adopted.rs` finishes,
+    at service start,
+    batches left open
   in the old journal (`<state>/cli-git/service/<instance>` and the shared `<state>/cli-git/service`) when no service
-  of that instance shows in `/proc`, and counts their finished identities as landed (host lib 4313, binary 691).
-  Not covered: a helper in another PID namespace; the old helper restarted by its unit during the adoption.
+  of that instance shows in `/proc`,
+    and counts their finished identities as landed (host lib 4313,
+    binary 691).
+  Not covered:
+    a helper in another PID namespace;
+    the old helper restarted by its unit during the adoption.
   Cross-vendor review of B running (`~/temp/agent/issue-6261/sol-review-part-b/review.txt`).
-  oxlint on the branch: 10 warnings and 3 errors in `bin/` files A touched (main is at 0 since `995cab8d1c`);
-  sent back to the agent with a main merge; then the container gate reruns on the final tip.
+  oxlint on the branch:
+    10 warnings and 3 errors in `bin/` files A touched (main is at 0 since `995cab8d1c`);
+  sent back to the agent with a main merge;
+    then the container gate reruns on the final tip.
   Release and lock (steps 2 and 3) wait for the owner's release-timing answer.
   Step 3 also renames the root settings file and the link folder (to `.cache/monochromatic-git-policy-cli-bin`).
-- crates.io footprint (owner 2026-11-05: "Can we avoid polluting crates.io too much?"):
-  measured and ranked in `doc/planning/crates-io-footprint.md` (`dd61b20559`), owner answers recorded there.
-  Decided by the owner: "One release each. And we publish less to crates.io".
-  Research done: `doc/research/cargo-crates-and-tools-without-crates-io.md` (option 1 works; floating git and
-  GitHub Packages do not; a static index on GitHub Pages would) and `doc/research/tests-inside-published-rust-crates.md`
-  (distributions and crater run `cargo test` from a published crate); summary in the planning doc,
+- crates.io footprint (owner 2026-11-05:
+  "Can we avoid polluting crates.io too much?"):
+  measured and ranked in `doc/planning/crates-io-footprint.md` (`dd61b20559`),
+  owner answers recorded there.
+  Decided by the owner:
+  "One release each.
+  And we publish less to crates.io".
+  Research done:
+  `doc/research/cargo-crates-and-tools-without-crates-io.md` (option 1 works;
+  floating git and
+  GitHub Packages do not;
+  a static index on GitHub Pages would) and `doc/research/tests-inside-published-rust-crates.md`
+  (distributions and crater run `cargo test` from a published crate);
+  summary in the planning doc,
   section "Research results (2026-11-05)".
-  Owner questions open in `doc/handover/questions-for-the-owner.md` (kept open in Zed): where the libraries go,
+  Owner questions open in `doc/handover/questions-for-the-owner.md` (kept open in Zed):
+  where the libraries go,
   and when the one release of each crate happens.
-  Chosen by the session (non-destructive, owner's likely pick): tools move to the `archive` route and
-  `publish = false` after their one release, not started until layout and lint land; test files stay in.
+  Chosen by the session (non-destructive,
+  owner's likely pick):
+  tools move to the `archive` route and
+  `publish = false` after their one release,
+  not started until layout and lint land;
+  test files stay in.
   The wrapper's crate with test files left out packs and verifies (1.6 MiB compressed against 3.1 MiB for the
-  published 0.5.34; details in the planning doc); the throwaway worktree is removed.
+  published 0.5.34;
+  details in the planning doc);
+  the throwaway worktree is removed.
   The one release of each crate is held until the route research is answered by the owner and,
-  for the wrapper and the crates it pins, until the four lint branches are merged and gated,
-  so all of them ship in one batch; the automatic yank step (task #166) is on hold for the same answer.
+  for the wrapper and the crates it pins,
+  until the four lint branches are merged and gated,
+  so all of them ship in one batch;
+  the automatic yank step (task #166) is on hold for the same answer.
 - Issue 6261 reopened by the owner at 2026-11-04T21:30:23Z
-  (https://github.com/Aquaticats/Monochromatic/issues/6261#issuecomment-6642606105):
+  (<https://github.com/Aquaticats/Monochromatic/issues/6261#issuecomment-6642606105>):
   "The current layout is still completely unacceptable and far from enough to consider this issue complete."
   The five agent slots were full,
   so a child session (`spawn-claude`,
   spawn id `7ee83419-2ce0-4ac8-a4f7-36f0731b095c`,
   brief `~/temp/agent/issue-6261/brief.md`) writes the target layout proposal
-  (`doc/planning/cli-git-source-layout.md`, a file-by-file mapping, the crate-root map, the placement guide,
+  (`doc/planning/cli-git-source-layout.md`,
+  a file-by-file mapping,
+  the crate-root map,
+  the placement guide,
   the `native` layer decision) and a cross-vendor review,
   reports in `~/temp/agent/issue-6261/report.md`,
   and waits:
@@ -765,7 +1096,9 @@ its release gate on main failed:
 and `a_descendant_is_stopped_with_its_parent_at_the_bound` (`pid never held a process id`),
 both passing alone in 0.1 s and 0.5 s;
 not attributed to load (owner:
-"I don't see any load, and once again, load is not an excuse.");
+"I don't see any load,
+and once again,
+load is not an excuse.");
 the cargo-shadow agent is diagnosing the block;
 0.1.2 waits for a green gate on main.
 Fourth certification pass (eleven groups) running.
@@ -818,7 +1151,7 @@ History of the 0.5.28 release:
 base gate `gpc-gate-base-0-5-28-final-20261103T214518-0500` passed 4706 of 4706 (7 skipped) on `d9e8907ae8`;
 the base was merged into main as `920fdce60d` (2026-11-03T21:57:04-05:00,
 body `Closes #6260`);
-dispatched as run https://github.com/Aquaticats/Monochromatic/actions/runs/41764055048;
+dispatched as run <https://github.com/Aquaticats/Monochromatic/actions/runs/41764055048>;
 `native:release:wait` is following it;
 next:
 `upgrade-wrapper.ts 0.5.28`,
@@ -826,7 +1159,7 @@ then time commits on main against native Git.
 Before 0.5.28:
 0.5.27 was dispatched 2026-11-03T10:28-05:00 from main after its gate passed (4264 of 4264,
 6 skipped),
-run https://github.com/Aquaticats/Monochromatic/actions/runs/41663034226,
+run <https://github.com/Aquaticats/Monochromatic/actions/runs/41663034226>,
 published to crates.io at 2026-11-03T15:44:38Z,
 and installed by `upgrade-wrapper.ts 0.5.27`.
 Its lock commit on main took 1625 ms in all,
@@ -1330,7 +1663,8 @@ State at 2026-11-04T08:25:42-05:00 (after the Claude Code restart the owner aske
   helpers bounded only at the lock,
   a receipt joining after the error snapshot,
   an unforced directory entry counted as forced)
-  and `commit-models-sol-9b.txt` "no, as submitted" (the receipt error handoff still atomic;
+  and `commit-models-sol-9b.txt` "no,
+  as submitted" (the receipt error handoff still atomic;
   two false-green decision 19 schedules:
   a notice left Scheduled after positive authority survives,
   and reclamation on an earlier attempt's delivery;
@@ -1389,7 +1723,9 @@ State at 2026-11-04T08:25:42-05:00 (after the Claude Code restart the owner aske
   so deleting it may beat testing it;
   resume point in `package/git-policy/cli/doc/planted-control-and-durable-survivors-resume.md` on that branch.
 - Mutation campaigns paused (2026-11-04 at about 07:40-05:00),
-  after the owner asked "We're not close to doing mutation runs though, right? Don't we still have a lot of things to fix before doing them?":
+  after the owner asked "We're not close to doing mutation runs though,
+  right?
+  Don't we still have a lot of things to fix before doing them?":
   the commit design is still at step 1 (models only;
   "Nothing past the red controls and the conflicted-file changes is built",
   `doc/planning/cli-git-commits-never-fail.md`,
@@ -1422,7 +1758,8 @@ State at 2026-11-04T08:25:42-05:00 (after the Claude Code restart the owner aske
   measured with Git 2.56.0),
   protected by the scratch ref `refs/worktree/cli-git-service/<seq>` until the compare-and-swap.
 
-Veto batch to ask the owner after the restart (the owner said "I'm fully back now, ask me."),
+Veto batch to ask the owner after the restart (the owner said "I'm fully back now,
+ask me."),
 through the question tool in groups of four,
 each with context,
 the pick,
@@ -2285,7 +2622,8 @@ are history to prune into canonical docs:
   with the index round 4);
   the stop-lock test now passes;
   and six `budget::` binary tests:
-  "starts of git check-attr: observed 1,
+  "starts of git check-attr:
+  observed 1,
   budget 0" on every ordinary commit,
   a regression from the conflict-warning fix (`conflict_markers.rs` asks for `conflict-marker-size` even when no path was conflicted).
   Its agent is fixing it on `fix/git-policy-cli-conflict-check-only-for-conflicted-paths`
@@ -2736,7 +3074,8 @@ hold (`lock_hold_ms=59122`,
 `sync_ms=59118`);
 the next `git merge` waited 21 s for that commit and then over 40 s in the wrapper's
 `git diff-index --cached --quiet HEAD`.
-Owner: "Can't we skip the git reset?"
+Owner:
+"Can't we skip the git reset?"
 Answer:
 the index entries must be updated (or the next commit reverts the committed paths),
 but no Git needs to run for it.
@@ -2772,7 +3111,8 @@ with no new cap hit and one new major fault in the service cgroup,
 so the slow case is conditional;
 the 66.8 s commit was the first after the service started,
 at host load 18 to 57.
-Found 2026-11-03T08:38:42-05:00 to 08:40:51-05:00 (open, being observed):
+Found 2026-11-03T08:38:42-05:00 to 08:40:51-05:00 (open,
+being observed):
 plain `/usr/bin/git` on main runs `diff-index --cached --quiet HEAD --` in 12 ms and
 `--no-optional-locks status --porcelain=v1 -z --untracked-files=no` in 10 ms,
 both inside and outside the shared Bash cgroup
@@ -2795,7 +3135,8 @@ Git's `builtin/reset.c` lines 500-504 refresh the whole index unless `--no-refre
 and its "It took N seconds to refresh the index" advice (line 507) is suppressed by `-q`.
 The main service's `memory.peak` read 1,073,766,400 bytes,
 at the cap.
-Owner, 2026-11-03:
+Owner,
+2026-11-03:
 "Why did you cap the commit service to the magic number of 1GB of memory w/o evidence?"
 Answer:
 an agent wrote `MemoryMax=1G`,
@@ -2974,7 +3315,8 @@ re-sign a replayed signed commit in the background with the configured signer,
 as the service already signs its reconcile merges;
 saved copies of carried edits are kept until explicit disposal ("never discard user data").
 Owner answers 2026-11-03 (question tool):
-stuck step "End Git, hold hooks (Recommended)" (a Git child with no progress for a measured interval is ended and its
+stuck step "End Git,
+hold hooks (Recommended)" (a Git child with no progress for a measured interval is ended and its
 step redone;
 the person's hook is never ended,
 its commit is set aside as pending with a notice and the others keep landing on top);
@@ -3394,12 +3736,14 @@ unbounded parser memory,
 the global cutoff defeating exemptions,
 set-aside range) and a P3 README contradiction.
 Owner answers of 2026-11-03 (question tool):
-"Try asking better. pnpm nowadays just warn and runs when a dep could be updated to something published within a day."
+"Try asking better.
+pnpm nowadays just warn and runs when a dep could be updated to something published within a day."
 Adopted from that and pnpm 12.16.1 (`pickRespectingMinReleaseAge`;
 no message found in its source):
 the install step sets a newly needed release under the age limit aside for the newest older passing release and runs.
 For a committed Cargo.lock holding a release under a day old (case 1) and one holding a trust downgrade (case 2),
-both answered "Set it back, build (Recommended)":
+both answered "Set it back,
+build (Recommended)":
 the shadow changes that entry to the newest older release that passes,
 prints one line,
 and builds;
@@ -3428,7 +3772,8 @@ a killed `--breaking` run's manifests;
 whether the trust line must name the publisher account.
 Remaining,
 in the order the agent's report adopted:
-1. the review fixes and the two answers (agent running), then a second cross-vendor review;
+1. the review fixes and the two answers (agent running),
+   then a second cross-vendor review;
 2. publish `monochromatic-dependency-catalog` 0.2.0 (publishes itself on merge through `cargo-publish.yml`);
 3. rebuild file-enforcer-cli with it and run `toolchain:update`,
    then land `912e82a0c7` (`trustLockfile = true` in `rust-catalog.toml`;
@@ -3565,339 +3910,1027 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 
 ### After the restart (2026-11-07T10:15:54-05:00, eight agents)
 
-- Survived the restart: publish run 42384840600 succeeded (`monochromatic-mpm-shadow-v0.2.7-alpha.1`, not a prerelease,
-  two Linux tarballs plus checksums); `tokio-gate-merge2` passed 5165 of 5165. Tokio checkpoint merged into main as
-  `48611f7e09` (T5 plus the `decide` race fix; not released).
-- Owner, verbatim: "Please track latest zig and edit the decision records." Both records amended in main
-  (`8bfa833de3`): `doc/decision/ide-releases.md` and `doc/decision/desktop-app-podman-build.md`, each with the old
+- Survived the restart:
+  publish run 42384840600 succeeded (`monochromatic-mpm-shadow-v0.2.7-alpha.1`,
+  not a prerelease,
+  two Linux tarballs plus checksums);
+  `tokio-gate-merge2` passed 5165 of 5165.
+  Tokio checkpoint merged into main as
+  `48611f7e09` (T5 plus the `decide` race fix;
+  not released).
+- Owner,
+  verbatim:
+  "Please track latest zig and edit the decision records."
+  Both records amended in main
+  (`8bfa833de3`):
+  `doc/decision/ide-releases.md` and `doc/decision/desktop-app-podman-build.md`,
+  each with the old
   statement kept in an amended note.
 - Running (briefs and resume notes in `~/temp/agent/coordinator-briefs/`):
-  - Zig: merged into main `c3198db0d0` (2026-11-07). Containers take Zig from the lock row; images carry the label
-    `dev.monochromatic.image-build-inputs-sha256` and rebuild only when it differs; five images on Zig 0.17.1; the
+  - Zig:
+    merged into main `c3198db0d0` (2026-11-07).
+    Containers take Zig from the lock row;
+    images carry the label
+    `dev.monochromatic.image-build-inputs-sha256` and rebuild only when it differs;
+    five images on Zig 0.17.1;
+    the
     `branches` 0.4.6 break fixed through named catalog `branches-0-4` (removal condition in
-    `doc/troubleshooting/branches-0-4-calls-removed-core-intrinsics-abort.md`); commit `8b4ae3025f` is mis-scoped,
-    corrected by commit comment 208703294. Left from it: the music player is held on zbus 5 (named catalog `zbus-5`,
-    a pin back against "Move anyway, fix forward"), which the zbus 6 port agent removes
-    (`fix/nested-wayland-session-cli-zbus-6-async`); one music-player test fails,
+    `doc/troubleshooting/branches-0-4-calls-removed-core-intrinsics-abort.md`);
+    commit `8b4ae3025f` is mis-scoped,
+    corrected by commit comment 208703294.
+    Left from it:
+    the music player is held on zbus 5 (named catalog `zbus-5`,
+    a pin back against "Move anyway,
+    fix forward"),
+    which the zbus 6 port agent removes
+    (`fix/nested-wayland-session-cli-zbus-6-async`);
+    one music-player test fails,
     `ui_lists_render_tests::a_search_result_title_wider_than_the_page_ends_in_an_ellipsis`
-    (`src/ui_lists_render_tests.rs:227`), cause not measured, queued; `image:windows-gnu` and
+    (`src/ui_lists_render_tests.rs:227`),
+    cause not measured,
+    queued;
+    `image:windows-gnu` and
     `nested-wayland-session` image tasks still use the old exists check;
-  - the `mpm-shadow` alpha: crates.io absence check, lock update, install, worktree check, records;
-  - `core-exec`: finish the lint cleanup and gate (`fix/monorepo-task-core-exec-depends-test-time`);
-  - fold late lines: merged into main `baf4c039f2` (gate 5179 of 5179 on its second run; the first run failed only
-    `a_push_stop_of_a_responsive_holder_leaves_no_lock`, the same incident the tokio agent is measuring). A read lease
-    probes for an open writer; a writer still open leaves the moved log and an append-only journal for a later command;
-    eight rounds per command at most. Facts in `doc/planning/git-policy-cli-program-rename.md`. Limit: a file system
+  - the `mpm-shadow` alpha:
+    crates.io absence check,
+    lock update,
+    install,
+    worktree check,
+    records;
+  - `core-exec`:
+    finish the lint cleanup and gate (`fix/monorepo-task-core-exec-depends-test-time`);
+  - fold late lines:
+    merged into main `baf4c039f2` (gate 5179 of 5179 on its second run;
+    the first run failed only
+    `a_push_stop_of_a_responsive_holder_leaves_no_lock`,
+    the same incident the tokio agent is measuring).
+    A read lease
+    probes for an open writer;
+    a writer still open leaves the moved log and an append-only journal for a later command;
+    eight rounds per command at most.
+    Facts in `doc/planning/git-policy-cli-program-rename.md`.
+    Limit:
+    a file system
     without leases makes the fold fail with its one-line message and keep every byte;
-  - tokio: the three coordinator settlements, then T8 and T9 (`feat/git-policy-cli-on-tokio`);
-  - index lock without links or no-replace rename (`fix/git-policy-cli-index-lock-without-links`);
-  - mutation campaign over the merged tokio files (`test/git-policy-cli-tokio-mutants`, worktree
-    `.claude/worktrees/tokio-mutants`): its agent stopped correctly, because `package/git-policy/cli/README.md`
-    ("Who runs a mutation campaign") reserves campaigns for the main session. The coordinator runs it: the gate proof
-    runs as unit `tokio-mutants-gate` (log `~/temp/agent/tokio-mutants-gate.log`), then
+  - tokio (`feat/git-policy-cli-on-tokio`,
+    tip `1dc503d259`,
+    not merged):
+    the three settlements (one-shot pipe reader,
+    futex name-claim wait,
+    measured bounds),
+    the fixture-group helper (`end_with_its_group`),
+    T8 (`zbus` 6.2.1 on the process runtime)
+    and T9 (`hyper` with `rustls`;
+    `ureq` gone),
+    gate 5179 of 5179,
+    lint clean.
+    The leftover ref lock is not a T5 regression:
+    Git 2.56's SIGTERM handler removes the lock's pid file,
+    then the lock,
+    and a disk step of up to 6.03 s (seen once,
+    load about 70) lets the 5 s `STOP_GRACE` kill land between them;
+    reproduced deterministically with an injected `unlink` delay.
+    Owner answer 2026-11-07T11:52:20-05:00,
+    "3× worst case":
+    `HELD_NAME_WAIT` and the stop ceiling become about 18 s,
+    and a stop waits past the grace only while a member is in uninterruptible sleep.
+    The agent is merging main (`rust-catalog.toml` conflict:
+    keep both sides),
+    building that stop change test-first,
+    then one container gate;
+    the coordinator merges and then runs the mutation campaign over its files.
+    Slip recorded:
+    the agent ran `pkill --newest --exact git` once during an experiment,
+    a kill by name on a host where other sessions run Git;
+    told never to kill by name.
+  - index lock without links or no-replace rename:
+    merged `136a40fe69`;
+  - mutation campaign over the merged tokio files (`test/git-policy-cli-tokio-mutants`,
+    worktree
+    `.claude/worktrees/tokio-mutants`):
+    its agent stopped correctly,
+    because `package/git-policy/cli/README.md`
+    ("Who runs a mutation campaign") reserves campaigns for the main session.
+    The coordinator runs it:
+    the gate proof
+    runs as unit `tokio-mutants-gate` (log `~/temp/agent/tokio-mutants-gate.log`),
+    then
     `native:mutation:parallel -- --passes 2 --timeout 900` over the eleven files plus the non-test siblings
-    `service/service_busy_answers_and_name_checks.rs`, `service/service_busy_step_record_on_this_thread.rs`,
-    `push/child_watch_step_bounds_and_errors.rs`. Before it starts, an agent fixes the launcher
-    (`fix/mutation-test-units-obey-disk-weight-and-task-limits`): its file units set `IOWeight=50` and no `TasksMax`,
-    against `CLAUDE.md` rule RXS; survivors then go to an agent for kill tests.
-    Launcher fixed (`0c1c5a7d87`); branch merged with main (`85e6d2ab99`, `node_modules` installed). Its gate failed
-    2 of 5165 under load about 70 on 28 CPUs, on Rust code identical to the 5165-of-5165 `tokio-gate-merge2` run:
+    `service/service_busy_answers_and_name_checks.rs`,
+    `service/service_busy_step_record_on_this_thread.rs`,
+    `push/child_watch_step_bounds_and_errors.rs`.
+    Before it starts,
+    an agent fixes the launcher
+    (`fix/mutation-test-units-obey-disk-weight-and-task-limits`):
+    its file units set `IOWeight=50` and no `TasksMax`,
+    against `CLAUDE.md` rule RXS;
+    survivors then go to an agent for kill tests.
+    Launcher fixed (`0c1c5a7d87`);
+    branch merged with main (`85e6d2ab99`,
+    `node_modules` installed).
+    Its gate failed
+    2 of 5165 under load about 70 on 28 CPUs,
+    on Rust code identical to the 5165-of-5165 `tokio-gate-merge2` run:
     `lock::git_stop_lock_tests::a_push_stop_of_a_responsive_holder_leaves_no_lock` (a stopped push left
     `refs/remotes/origin/main.lock`) and `push::push_progress::tests::a_write_of_a_process_the_root_started_is_progress`
-    (fixture removal hit `DirectoryNotEmpty`). Sent to the tokio agent as priority before T8. The second is shown from
-    the code to be a test-helper defect older than T5: `end()` kills only the `sh` leader, the group from
-    `spawn_owned` dies only when the test thread ends (after `remove()`), and the meter counts `rchar` plus `wchar`, so
-    a read can end the wait before the subshell's `echo a >> log` creates a file during `remove_dir_all`. The first (a
-    ref lock left by a stopped push) still needs its measured cause. The campaign waits for a clean gate. Note: `systemd-run` expands `$VAR` in its command line,
+    (fixture removal hit `DirectoryNotEmpty`).
+    Sent to the tokio agent as priority before T8.
+    The second is shown from
+    the code to be a test-helper defect older than T5:
+    `end()` kills only the `sh` leader,
+    the group from
+    `spawn_owned` dies only when the test thread ends (after `remove()`),
+    and the meter counts `rchar` plus `wchar`,
+    so
+    a read can end the wait before the subshell's `echo a >> log` creates a file during `remove_dir_all`.
+    The first (a
+    ref lock left by a stopped push) still needs its measured cause.
+    The campaign waits for a clean gate.
+    Note:
+    `systemd-run` expands `$VAR` in its command line,
     so a literal `$?` must be written `$$?`;
   - the settle-command test that fails only in its suite (`fix/git-policy-cli-settle-test-in-suite`).
-- `core-exec` depends branch merged as `adadb1d03b` (`buildAndTest` 52 suites pass, `lint:types` clean, `lint` 0
-  warnings 0 errors; process-group kill and the daily-update lint cleanup included). Its lint run still logs
-  "semantic evidence unavailable for .../core-exec/task.ts: project-not-found" (a preference log line, not a finding;
+- `core-exec` depends branch merged as `adadb1d03b` (`buildAndTest` 52 suites pass,
+  `lint:types` clean,
+  `lint` 0
+  warnings 0 errors;
+  process-group kill and the daily-update lint cleanup included).
+  Its lint run still logs
+  "semantic evidence unavailable for .../core-exec/task.ts:
+  project-not-found" (a preference log line,
+  not a finding;
   not investigated).
-- systemd-run limits audit: merged `aab8488b0b` (2026-11-07). `crate-release` publish dry run, music-player e2e units,
-  `nested-wayland-session` app scope and the guardrail refusal text now carry `MemoryMax`, `CPUQuota`, `TasksMax` and
-  `IOWeight=10`, each cited to a measurement. Queued, all eight agent slots full at 2026-11-07T11:40-05:00 (start
-  each when a slot frees):
-  - Daily update has no post-update build check: `d61dc1934a` raised the zbus floor to `>=6.2.1` and
-    `nested-wayland-session` stopped compiling (no `zbus::blocking` in 6); no fix-forward issue was opened (`gh issue
-    list` empty). The owner's pick, `doc/planning/rust-nightly-always-latest.md:228`: "the lock goes to the newest
-    nightly regardless, and the failing package gets a fix-forward issue." Build: after the update, check each package
-    and open one issue per failing package; the move itself never waits. The crate port runs now
+- Index lock where neither a no-replace rename nor a hard link is allowed:
+  merged `136a40fe69` (branch gate 5172 of
+  5172 on main `d7d0813b92`;
+  Clippy on main after the merge running as unit `main-wrapper-clippy-136a40fe69`).
+  Only
+  when both calls are refused,
+  `index.lock` is created with `O_EXCL`,
+  marked and flushed;
+  an existing lock is never
+  removed;
+  facts in `SPEC.md` ("Placement and its refusals").
+  Not shipped,
+  reasoning only (no such file system was
+  available to measure):
+  self-clearing a lock a killed service left empty,
+  because it is identical to a live Git's
+  mid-write lock;
+  the wrapper never removes it,
+  and the ceiling message names the file and how to remove it.
+  Open:
+  `a_foreign_index_lock_at_the_ceiling_withdraws_the_commit_and_keeps_it_on_a_side_ref` failed once in a host run of
+  178 tests (13 s;
+  passes alone in 8.6 s and in three container gates),
+  cause not measured (rule SUF).
+  Repo-wide
+  `monochromatic-lint` found 27 `markdown/semantic-line-breaks` errors in `service_fault.rs` that the package lint
+  does not run.
+  Whole package on main `136a40fe69` (log `~/temp/agent/main-wrapper-repo-lint-136a40fe69.log`):
+  34,817 `markdown/semantic-line-breaks` errors in 1,087 files (`SPEC.md` 2,896,
+  `README.md` 1,478,
+  the rest mostly
+  Rust doc comments through the `**/*.rs/*.md` rustdoc section),
+  3 `rust/max-lines` errors,
+  45
+  `rust/avoidable-closure` warnings (an earlier pass had reached zero).
+  The rule has been `error` since at least
+  `0b49ae109e` (2026-10-06);
+  the package `lint` task never ran `monochromatic-lint`.
+  Agent running on
+  `fix/git-policy-cli-passes-the-repository-linter` (start recorded by `9ccef551a8`):
+  wire it into the package lint,
+  the
+  repository fixer for line breaks (whitespace-only proof),
+  hand fixes for the rest,
+  and a conflict recipe for the
+  tokio and held-settle branches.
+  Repo-wide baseline on main `136a40fe69`
+  (log `~/temp/agent/repo-wide-monochromatic-lint-136a40fe69.log`,
+  `mise` exit 2):
+  171,262 `markdown/semantic-line-breaks` errors,
+  1,961 `markdown/no-bare-urls`,
+  731 `rust/require-rustdoc` errors and 268 warnings,
+  508 `rust/avoidable-closure` warnings and 8 errors,
+  about a hundred `shell/*` errors,
+  18 `rust/max-lines`,
+  10 `rust/tests-in-sidecars`,
+  1 `core/processing-failure`,
+  and a few other Markdown rules.
+  Largest:
+  `doc/audit` 43,797,
+  `doc/planning` 37,335,
+  the wrapper 34,865,
+  `doc/handover` 25,452,
+  `doc/troubleshooting` 8,162,
+  `package/music-player/desktop-app` 8,152,
+  `doc/research` 7,603.
+  The coordinator's own handover and layout-plan edits were among them
+  (prose wrapped at 120 characters instead of semantic breaks,
+  rule MD1);
+  both files pass since the fixer commit after `35182c890e`,
+  rendered text unchanged.
+  Queued for the next free slot:
+  the rest of the repository through the fixer first (line breaks,
+  bare URLs),
+  one family or package per commit with a whitespace-and-rendered-text proof,
+  then the hand-fixed rules package by package,
+  then why nothing enforced the rule at commit time and a proposal to enforce it.
+- systemd-run limits audit:
+  merged `aab8488b0b` (2026-11-07).
+  `crate-release` publish dry run,
+  music-player e2e units,
+  `nested-wayland-session` app scope and the guardrail refusal text now carry `MemoryMax`,
+  `CPUQuota`,
+  `TasksMax` and
+  `IOWeight=10`,
+  each cited to a measurement.
+  Queued while all eight agent slots were full (recorded by
+  `1f7726b7d8`;
+  start each when a slot frees):
+  - Daily update has no post-update build check:
+    `d61dc1934a` raised the zbus floor to `>=6.2.1` and
+    `nested-wayland-session` stopped compiling (no `zbus::blocking` in 6);
+    no fix-forward issue was opened (`gh issue
+    list` empty).
+    The owner's pick,
+    `doc/planning/rust-nightly-always-latest.md:228`:
+    "the lock goes to the newest
+    nightly regardless,
+    and the failing package gets a fix-forward issue."
+    Build:
+    after the update,
+    check each package
+    and open one issue per failing package;
+    the move itself never waits.
+    The crate port runs now
     (`fix/nested-wayland-session-cli-zbus-6-async`).
-  - `cargo-shadow` launcher scope (`control_group.rs`) is created under its own slice with no limits, so a capped
-    caller's `cargo` build escapes the caller's caps. Adopted by the coordinator from repo precedent
-    (`package/wg/cli-quicker-exempt/src/inherited_limits.rs`): the scope copies the launcher's own `memory.max`,
-    `pids.max`, `cpu.max` and `io.weight`. Contract doc `doc/planning/cargo-shadow-guarantees.md` gains the clause.
-  - Guardrail bundle `package/claude-code-plugin/guardrail/bundle/node/index.mjs` still has the old refusal text; a
+  - `cargo-shadow` launcher scope (`control_group.rs`) is created under its own slice with no limits,
+    so a capped
+    caller's `cargo` build escapes the caller's caps.
+    Adopted by the coordinator from repo precedent
+    (`package/wg/cli-quicker-exempt/src/inherited_limits.rs`):
+    the scope copies the launcher's own `memory.max`,
+    `pids.max`,
+    `cpu.max` and `io.weight`.
+    Contract doc `doc/planning/cargo-shadow-guarantees.md` gains the clause.
+    Running (`fix/cargo-shadow-cli-scope-keeps-caller-limits`;
+    start recorded by `f191d45681`),
+    with an alpha release
+    and lock move.
+    Separately unmerged since 2026-11-04:
+    round 21 `feat/cargo-shadow-check-to-start-race`
+    (16 commits,
+    worktree `.claude/worktrees/cargo-shadow-r21`,
+    no agent on it).
+  - Guardrail bundle `package/claude-code-plugin/guardrail/bundle/node/index.mjs` still has the old refusal text;
+    a
     rebuild also pulls about 300 KB of unrelated source drift (patch at `~/temp/agent/guardrail-bundle-rebuild.patch`).
-    Rebuild deliberately through its task, attribute the drift to source commits, run the plugin's tests, commit.
-  - `package/music-player/desktop-e2e` lint: 11 errors and 89 warnings, older than the audit (not counted on an
-    unmodified main yet). Owner: "Principle 1: Lint issues need to be taken care of asap." Running since
-    2026-11-07T11:55-05:00 (`fix/music-player-desktop-e2e-lint-clean`).
-  - Daily-update fix-forward issues: running since 2026-11-07T11:55-05:00
-    (`feat/monorepo-task-daily-update-opens-fix-forward-issues`).
-- Settle test in suite: merged `58d910f99e` (gate 5166 of 5166, lint clean; test-only). Cause shown by sharing state:
+    Rebuild deliberately through its task,
+    attribute the drift to source commits,
+    run the plugin's tests,
+    commit.
+  - `package/music-player/desktop-e2e` lint:
+    merged `d248a15f60`,
+    0 errors and 0 warnings (baseline 11 and 89),
+    no
+    suppression added,
+    unit tests pass.
+    Queued from it:
+    `settings/licenses-row` and `settings/escape-ladder` fail on
+    unmodified main too;
+    `click-through/unreadable-row` passed 2 of 3 on main and on the branch alike (timed out
+    waiting for a highlighted result);
+    about twenty older `no-await-in-loop` disables in the package have no `.md`
+    doc (rule LN3).
+  - Guardrail bundle rebuild:
+    running (`fix/claude-code-plugin-guardrail-bundle-matches-sources`):
+    attribute the
+    drift to source commits,
+    test and smoke-run the bundle before committing,
+    find why it drifted.
+  - Daily-update fix-forward issues:
+    running (`feat/monorepo-task-daily-update-opens-fix-forward-issues`;
+    start
+    recorded by `1a47d9353f`).
+    Incident:
+    the owner got many desktop notifications with the app name `toolchain-daily-update`
+    while the timer had never fired;
+    the coordinator stopped the agent's measurement unit `daily-measure-pass.service`
+    (started 11:54:15) on a wrong inference:
+    its check effects (`daily-update-check-effects.ts`) do not import `daily-update-effects.ts`,
+    so it had no path to `notifyOwner`.
+    Read from the code:
+    on main the only code that sends with the app name `toolchain-daily-update` is `notifyOwner`,
+    reached only through `realEffects` from `daily-update-process.ts:77`,
+    which only `daily-update.ts` runs (`main()` at load),
+    and nothing imports that file;
+    so the notifications came from runs of `toolchain:update:daily` or `node daily-update.ts`
+    outside the timer and outside a journaled unit.
+    Which agent ran them is not yet known;
+    the daily-update agent is asked to name it.
+    Owner,
+    verbatim:
+    "You can send real desktop notifications.
+    But you can also make sure I don't see them.
+    We already have the nested wayland compositor.
+    And we might not need it in full."
+    So tests and runs may send real notifications into a private session bus the owner never sees,
+    reusing what `package/nested-wayland-session/cli` has (its stand-in notification service);
+    the agent proposes the smallest shared piece,
+    keeps a red-first guard against reaching the owner's bus,
+    and limits a real run to one summary notification.
+- Held settle message:
+  merged into main `66dbb1ca27` (gate 5194 of 5194,
+  lint clean).
+  It names the process ID,
+  the program (first word of the command line)
+  and the unresolved `--journal` folder,
+  says other arguments are not shown because any can be a secret,
+  and agrees in number ("1 batch ... was").
+  The service log line carries the same and no other argument.
+  Not merged into the fold of earlier names,
+  which still reports only the reason.
+- Worktree tools:
+  a shell started in the main checkout resolves `cargo` in a linked worktree to main's
+  `.cache/toolchain-launchers/cargo-shadow`,
+  so after main locked `cargo-shadow` `0.1.5-alpha.1` (`c6177b875b`) a worktree whose lock still says 0.1.4 failed its host tests,
+  and `toolchain:install` in the worktree did not clear it.
+  Agent running on `fix/worktrees-use-their-own-locked-tools`
+  (reproduce with the exact error,
+  fix in the owning tool,
+  release if needed).
+- Future task,
+  not now (owner,
+  verbatim:
+  "That means we missed porting notifications on changes of managed files in watch mode when we rewrote it to rust from ts.
+  Add this as a future task and persist it,
+  but do not do it now as it's not immediately fatal."):
+  issue #6264.
+  The TypeScript `file-enforcer` sent a desktop notification after watch mode changed managed files
+  (`package/file-enforcer/core/src/watch/notify.ts` at `e7b5130459^`,
+  the commit that deleted it);
+  the Rust watch loop (`core-rust/src/watch.rs`) has none.
+  Linux only;
+  tests on a private session bus with the stand-in server from `nested-wayland-session`.
+- Plugin bundles now match their sources:
+  guardrail `b8e5bf3b0c`,
+  `bash-output-filter` and `terminal-title` `6873d8e020`
+  (unbash 6.0.1 to 6.0.3;
+  the only visible change is a terminal title that now ends at a NUL escape,
+  as bash does).
+  The drift-check proposal (A:
+  a task that rebuilds every plugin bundle in scratch and compares,
+  run in CI;
+  B:
+  a new `file-enforcer` rule kind;
+  C:
+  a commit-time guard) is in `package/claude-code-plugin/guardrail/README.md` "Maintenance";
+  not built,
+  for the owner.
+  A leftover:
+  `.claude/worktrees/guardrail-bundle-matches-sources` holds two uncommitted,
+  regenerable sibling builds.
+- `monochromatic-lint` group folders merged into main `62874c227d` (869 of 869 tests;
+  every new check red first).
+  A group is any folder holding child folders (`mod.rs` plus at least one source folder);
+  settled by the coordinator
+  in the layout plan.
+  Running:
+  the linter package's own gates (`lint:rustfmt` fails on 25 older files;
+  README line
+  breaks;
+  no `layout_*` module in any mutation scope since 2026-11-04),
+  then an alpha release and lock move
+  (`fix/monochromatic-lint-package-gates-clean`).
+  Mutation campaign over the `layout_*` scopes waits for the main
+  session.
+- Settle test in suite:
+  merged `58d910f99e` (gate 5166 of 5166,
+  lint clean;
+  test-only).
+  Cause shown by sharing state:
   another test's fixture service shows the earlier `--journal` word before it creates that folder (measured median
-  1.7 ms, max 485 ms alone), and the settle command's process look counts it as `Hold::HelperUnsure`, settles nothing
-  and exits 1 (the conservative design, unchanged). The settle controls now ask again while that exact answer comes
-  back, up to the existing 60 s. Kept for later, not changed: treating ENOENT on an absolute word as "not this
+  1.7 ms,
+  max 485 ms alone),
+  and the settle command's process look counts it as `Hold::HelperUnsure`,
+  settles nothing
+  and exits 1 (the conservative design,
+  unchanged).
+  The settle controls now ask again while that exact answer comes
+  back,
+  up to the existing 60 s.
+  Kept for later,
+  not changed:
+  treating ENOENT on an absolute word as "not this
   worktree's journal" (an earlier helper on another spelling of a not-yet-created journal could still adopt batches).
-  Running: the held message names the program, its command line (masked), the unresolved folder and what to do
-  (rule DGT; `fix/git-policy-cli-held-settle-names-the-program`).
-- Layout, 2026-11-07T11:05:21-05:00: rescan and library verdicts merged (`docs/git-policy-cli-layout-after-adopted-crates`);
-  owner answered "Shelf + summaries (Recommended)", "Four libraries (Recommended)" (starting-and-watching-programs,
-  parallel-work-within-a-budget, fix-packages-after-copying-a-folder, dependent-version-bump-check) and
-  "tracing (Recommended)" for library logs; recorded in the layout plan. Still "Not yet." from the owner: test helpers,
-  where the libraries live. Running: `monochromatic-lint` group-summary checks
-  (`feat/monochromatic-lint-group-folder-summaries`). Next: after the remaining tokio steps, rescan, then move steps 2
-  to 6 on branches. Also from that pass: `mpm-shadow` fixed for global pnpm installs (merge `dea47ef164`; physical
-  `PNPM_HOME`); an agent releases it as `0.2.7-alpha.2` after checking a `tagPrefix` field the main build rejected in
-  the global plan and making install re-observe what pnpm added, then repairs the 11 global tools.
-- Layout (owner: "Layout + linting fixes are the biggest priority."): the redone split waits on the owner, who
-  answered "Not yet." for the test helpers and for where libraries live, "One level of groups" for the program, and
-  asked "Why are we not using already established crates for some functions?" An agent now rescans main, checks each
-  of the eight planned libraries against the adopted crates (tokio, `tempfile`, rustix, jiff, `sha1`/`sha2`, sysinfo,
-  hyper, zbus), drafts the program's groups and options for the group and child rule, with a cross-vendor review
-  (`docs/git-policy-cli-layout-after-adopted-crates`); the owner gets the smaller question set after it.
+  Running:
+  the held message names the program,
+  its command line (masked),
+  the unresolved folder and what to do
+  (rule DGT;
+  `fix/git-policy-cli-held-settle-names-the-program`).
+- Layout,
+  2026-11-07T11:05:21-05:00:
+  rescan and library verdicts merged (`docs/git-policy-cli-layout-after-adopted-crates`);
+  owner answered "Shelf + summaries (Recommended)",
+  "Four libraries (Recommended)" (starting-and-watching-programs,
+  parallel-work-within-a-budget,
+  fix-packages-after-copying-a-folder,
+  dependent-version-bump-check) and
+  "tracing (Recommended)" for library logs;
+  recorded in the layout plan.
+  Still "Not yet."
+  from the owner:
+  test helpers,
+  where the libraries live.
+  Running:
+  `monochromatic-lint` group-summary checks
+  (`feat/monochromatic-lint-group-folder-summaries`).
+  Next:
+  after the remaining tokio steps,
+  rescan,
+  then move steps 2
+  to 6 on branches.
+  Also from that pass:
+  `mpm-shadow` `0.2.7-alpha.2` released,
+  locked (`d48fb5cc36`) and installed:
+  global pnpm installs use a physical `PNPM_HOME` and are read back after `pnpm add`;
+  `toolchain:list:global` 62 of 62
+  in sync after one `toolchain:install:global`;
+  the `tagPrefix` rejection came from a binary older than `eb202865fc`,
+  not main.
+  Left:
+  `install_mpm_uvx` still trusts `uv`'s exit status (recorded in
+  `doc/troubleshooting/pnpm-symlinked-store-path.md`).
+- Layout (owner:
+  "Layout + linting fixes are the biggest priority."):
+  the redone split waits on the owner,
+  who
+  answered "Not yet."
+  for the test helpers and for where libraries live,
+  "One level of groups" for the program,
+  and
+  asked "Why are we not using already established crates for some functions?"
+  An agent now rescans main,
+  checks each
+  of the eight planned libraries against the adopted crates (tokio,
+  `tempfile`,
+  rustix,
+  jiff,
+  `sha1`/`sha2`,
+  sysinfo,
+  hyper,
+  zbus),
+  drafts the program's groups and options for the group and child rule,
+  with a cross-vendor review
+  (`docs/git-policy-cli-layout-after-adopted-crates`);
+  the owner gets the smaller question set after it.
 
 ### Claude Code restart (2026-11-07, about 10:00 -05:00; owner raising the subagent limit to 8)
 
-- Owner: "Do whatever you need to do, but don't abandon any work."
-- Five agents were told to commit their work in progress, write a resume note and stop their units: tokio T5 onward,
-  the crate-release label gate plus the `mpm-shadow` `0.2.7-alpha.1` release, Zig from the lock in two Containerfiles,
-  the `core-exec` depends follow-ups, and the fold's late-line fix.
-- Resume instructions, the six briefs and the common constraints are in
-  `~/temp/agent/coordinator-briefs/resume-after-restart.md` (scratch: survives a restart, not a reboot); the waiting
-  briefs are beside it in `waiting-for-a-slot.md`. Each branch and its commits are the durable record.
+- Owner:
+  "Do whatever you need to do,
+  but don't abandon any work."
+- Five agents were told to commit their work in progress,
+  write a resume note and stop their units:
+  tokio T5 onward,
+  the crate-release label gate plus the `mpm-shadow` `0.2.7-alpha.1` release,
+  Zig from the lock in two Containerfiles,
+  the `core-exec` depends follow-ups,
+  and the fold's late-line fix.
+- Resume instructions,
+  the six briefs and the common constraints are in
+  `~/temp/agent/coordinator-briefs/resume-after-restart.md` (scratch:
+  survives a restart,
+  not a reboot);
+  the waiting
+  briefs are beside it in `waiting-for-a-slot.md`.
+  Each branch and its commits are the durable record.
 - Checkpoints reported:
-  - tokio `feat/git-policy-cli-on-tokio` at `783f8d8887` (`decide` race fixed, T5 done, both gated; user unit
-    `tokio-gate-merge2` still running, log `~/temp/agent/tokio-steps/gate-merge2.log`);
-  - label gate and SemVer ordering merged into main `4fd9c70572`; `mpm-shadow` `0.2.7-alpha.1` dispatched (release run
-    42384727529 succeeded, publish run 42384840600 in progress at about 10:10); lock not moved yet;
-  - fold late lines: red test `ead9d7463c` only (design: read-lease probe for open writers);
-  - `core-exec` depends: process-group kill done (`8a19368c49`), lint fixes half done, tip `69ac4ed029` does not
+  - tokio `feat/git-policy-cli-on-tokio` at `783f8d8887` (`decide` race fixed,
+    T5 done,
+    both gated;
+    user unit
+    `tokio-gate-merge2` still running,
+    log `~/temp/agent/tokio-steps/gate-merge2.log`);
+  - label gate and SemVer ordering merged into main `4fd9c70572`;
+    `mpm-shadow` `0.2.7-alpha.1` dispatched (release run
+    42384727529 succeeded,
+    publish run 42384840600 in progress at about 10:10);
+    lock not moved yet;
+  - fold late lines:
+    red test `ead9d7463c` only (design:
+    read-lease probe for open writers);
+  - `core-exec` depends:
+    process-group kill done (`8a19368c49`),
+    lint fixes half done,
+    tip `69ac4ed029` does not
     compile (WIP);
-  - Zig containers `fix/containers-zig-from-lock`: lock-driven Zig and cargo-about (`92d5749e4b`), 0.17.1 shown in
-    every proof image; Zig 0.17.1 broke `libghostty-vt-sys` 0.2.2, fixed forward to a pinned `libghostty-rs` revision
-    (WIP `a92fae96d3`); lint, terminal Clippy and nextest, main merge still open. Found separately: the music-player
-    release build fails on nightly-2026-11-07 in crate `branches` 0.4.6 (`core::intrinsics::abort` gone), and two
-    decision records pin Zig against "always latest" (`ide-releases.md:948`, `desktop-app-podman-build.md:67`; owner
+  - Zig containers `fix/containers-zig-from-lock`:
+    lock-driven Zig and cargo-about (`92d5749e4b`),
+    0.17.1 shown in
+    every proof image;
+    Zig 0.17.1 broke `libghostty-vt-sys` 0.2.2,
+    fixed forward to a pinned `libghostty-rs` revision
+    (WIP `a92fae96d3`);
+    lint,
+    terminal Clippy and nextest,
+    main merge still open.
+    Found separately:
+    the music-player
+    release build fails on nightly-2026-11-07 in crate `branches` 0.4.6 (`core::intrinsics::abort` gone),
+    and two
+    decision records pin Zig against "always latest" (`ide-releases.md:948`,
+    `desktop-app-podman-build.md:67`;
+    owner
     approval needed to amend).
 - Commit comment posted on `c5b4559b88` (its message overstates removed timeouts):
-  https://github.com/Aquaticats/Monochromatic/commit/c5b4559b88f4582103acc18cd3fe6294aab42734#commitcomment-208645485
+  <https://github.com/Aquaticats/Monochromatic/commit/c5b4559b88f4582103acc18cd3fe6294aab42734#commitcomment-208645485>
 
 ### After the release: agents at work (2026-11-07, resumed after a usage-limit stop)
 
-- Post-release steps are done (lock on the archive route `c048f3a566`, live commit through 0.6.0, 14 yanks, daily timer on,
-  first run `d61dc1934a`); records in the batch plan, `crates-io-footprint.md` and `toolchain-always-latest.md`.
-- Decision record `doc/decision/mpm-toolchain-adoption.md`, section "Our seven tools install from GitHub release archives"
-  (`0c7b081fbd`), holds the owner's answer: "GitHub, but I'm still not seeing the research I asked you to do on some sort of
-  workspace protocol. ... I'm also wondering if pnpm's new rust management capabilities can help."
+- Post-release steps are done (lock on the archive route `c048f3a566`,
+  live commit through 0.6.0,
+  14 yanks,
+  daily timer on,
+  first run `d61dc1934a`);
+  records in the batch plan,
+  `crates-io-footprint.md` and `toolchain-always-latest.md`.
+- Decision record `doc/decision/mpm-toolchain-adoption.md`,
+  section "Our seven tools install from GitHub release archives"
+  (`0c7b081fbd`),
+  holds the owner's answer:
+  "GitHub,
+  but I'm still not seeing the research I asked you to do on some sort of
+  workspace protocol.
+  ... I'm also wondering if pnpm's new rust management capabilities can help."
 - Research on a `workspace:`-like protocol and pnpm's Rust support is done
-  (`doc/research/rust-workspace-protocol-and-pnpm-rust.md`, cross-vendor reviewed); the owner answered at
-  2026-11-07T09:32:48-05:00: tools stay on GitHub release archives, the lock keeps `@latest`
-  (`doc/decision/mpm-toolchain-adoption.md`, `4386795db8`). Its probe ran a real `cargo publish` of two fixture crates to
-  a throwaway pnpr on `127.0.0.1` (nothing left the machine), against a brief that said publish nothing; disclosed in
-  the doc. The `registry` key and pnpr `packages:` entries wait for the pnpr Cargo workload (task "pnpr serves crates").
-- Running, each told to report back:
-  - the wrapper folds the old `cli-git` data names into the new ones losslessly, so the six "both exist" notices stop
-    (`fix/git-policy-cli-fold-earlier-names`; no release yet, and an `-alpha` would not reach this machine through `@latest`);
-  - the tokio continuation on `feat/git-policy-cli-on-tokio` (main merge allowed; coordinator merges after its final gate).
-- Rename step 3 landed (merge `71498b658f`, record `3af147fcfb`, 2026-11-07T09:01:50-05:00): the settings file is
-  `monochromatic-git-policy-cli.config.jsonc`, the link folder `.cache/monochromatic-git-policy-cli-bin`,
-  `changeset:version` starts the program by its own name, `earlierExecutables` is gone; details and the names kept on
-  purpose are in the rename plan's "Step 3 as built". In main, `command -v git` gives the new link and the
-  settings-file notice no longer prints; the six "both exist" notices wait on the fold branch.
-- Emptied link folders in main: cause shown and fixed in `mpm-shadow` (merge `4d8fb908ac`; root cause in
-  `doc/troubleshooting/mpm-shadow-record-copied-into-a-new-worktree-retires-the-source-links.md`). A `git worktree add`
-  from main copies `.cache/toolchain-launchers/.postinstall-links.json` into the new worktree; the add's repair runs
-  `mpm-shadow install` there, which treated main's recorded links as its own undeclared ones and removed them (08:42 for
-  the fold worktree, 09:08:16 for the masking worktree). Main was reinstalled at 09:19:48 (`mise run toolchain:install`,
-  all four links back). Until the fixed `mpm-shadow` is released and installed, every copy-route worktree add empties
-  main's links again: make new worktrees with `git worktree add --no-worktree-copy` plus `mise run toolchain:install`
-  and `mise run prepare:pnpm:install -- --frozen-lockfile` (a no-copy worktree has no `node_modules`; the wrapper's
+  (`doc/research/rust-workspace-protocol-and-pnpm-rust.md`,
+  cross-vendor reviewed);
+  the owner answered at
+  2026-11-07T09:32:48-05:00:
+  tools stay on GitHub release archives,
+  the lock keeps `@latest`
+  (`doc/decision/mpm-toolchain-adoption.md`,
+  `4386795db8`).
+  Its probe ran a real `cargo publish` of two fixture crates to
+  a throwaway pnpr on `127.0.0.1` (nothing left the machine),
+  against a brief that said publish nothing;
+  disclosed in
+  the doc.
+  The `registry` key and pnpr `packages:` entries wait for the pnpr Cargo workload (task "pnpr serves crates").
+- Running,
+  each told to report back:
+  - the wrapper folds the old `cli-git` data names into the new ones losslessly,
+    so the six "both exist" notices stop
+    (`fix/git-policy-cli-fold-earlier-names`;
+    no release yet,
+    and an `-alpha` would not reach this machine through `@latest`);
+  - the tokio continuation on `feat/git-policy-cli-on-tokio` (main merge allowed;
+    coordinator merges after its final gate).
+- Rename step 3 landed (merge `71498b658f`,
+  record `3af147fcfb`,
+  2026-11-07T09:01:50-05:00):
+  the settings file is
+  `monochromatic-git-policy-cli.config.jsonc`,
+  the link folder `.cache/monochromatic-git-policy-cli-bin`,
+  `changeset:version` starts the program by its own name,
+  `earlierExecutables` is gone;
+  details and the names kept on
+  purpose are in the rename plan's "Step 3 as built".
+  In main,
+  `command -v git` gives the new link and the
+  settings-file notice no longer prints;
+  the six "both exist" notices wait on the fold branch.
+- Emptied link folders in main:
+  cause shown and fixed in `mpm-shadow` (merge `4d8fb908ac`;
+  root cause in
+  `doc/troubleshooting/mpm-shadow-record-copied-into-a-new-worktree-retires-the-source-links.md`).
+  A `git worktree add`
+  from main copies `.cache/toolchain-launchers/.postinstall-links.json` into the new worktree;
+  the add's repair runs
+  `mpm-shadow install` there,
+  which treated main's recorded links as its own undeclared ones and removed them (08:42 for
+  the fold worktree,
+  09:08:16 for the masking worktree).
+  Main was reinstalled at 09:19:48 (`mise run toolchain:install`,
+  all four links back).
+  Until the fixed `mpm-shadow` is released and installed,
+  every copy-route worktree add empties
+  main's links again:
+  make new worktrees with `git worktree add --no-worktree-copy` plus `mise run toolchain:install`
+  and `mise run prepare:pnpm:install -- --frozen-lockfile` (a no-copy worktree has no `node_modules`;
+  the wrapper's
   container gate then fails with `ERR_MODULE_NOT_FOUND` for `@monochromatic-dev/mutation-test-cli-cargo-mutants`),
-  or reinstall main afterwards. A failed gate in a user unit once read `Result=success`, `ExecMainStatus=0` although
-  the task printed "ERROR task failed": not a mise defect (a probe shows `mise run` exits 1 for a failing `false` task
-  and for a failing Node import), but the reading of a unit started with `--collect`, which systemd unloads when it
-  ends, after which `systemctl show` prints default values. Read a collected unit's outcome from its log, where the
-  gate command now appends "mise exit status: N".
-- Mutation launcher limits merged `0c1c5a7d87` (file units `IOWeight=10`, `TasksMax=256` from a measured peak of
-  about 40 to 60, `--unit-tasks-max`; planted-controls unit too). Gate-slot wake test fixed in the test (merged
-  `6e599398d9`): it measured 262 ms at load about 70 on 28 CPUs, nearly all in the test's own release; the case now
-  asserts a wake by directory event, shown red against a 50 ms polling plant. Running after them: every repository
-  `systemd-run` builder gets all four limits (`fix/systemd-run-units-carry-all-four-limits`; `crate-release` sets only
-  `MemoryMax`), and the global install and list disagreement on 12 npm tools
+  or reinstall main afterwards.
+  A failed gate in a user unit once read `Result=success`,
+  `ExecMainStatus=0` although
+  the task printed "ERROR task failed":
+  not a mise defect (a probe shows `mise run` exits 1 for a failing `false` task
+  and for a failing Node import),
+  but the reading of a unit started with `--collect`,
+  which systemd unloads when it
+  ends,
+  after which `systemctl show` prints default values.
+  Read a collected unit's outcome from its log,
+  where the
+  gate command now appends "mise exit status:
+  N".
+- Mutation launcher limits merged `0c1c5a7d87` (file units `IOWeight=10`,
+  `TasksMax=256` from a measured peak of
+  about 40 to 60,
+  `--unit-tasks-max`;
+  planted-controls unit too).
+  Gate-slot wake test fixed in the test (merged
+  `6e599398d9`):
+  it measured 262 ms at load about 70 on 28 CPUs,
+  nearly all in the test's own release;
+  the case now
+  asserts a wake by directory event,
+  shown red against a 50 ms polling plant.
+  Running after them:
+  every repository
+  `systemd-run` builder gets all four limits (`fix/systemd-run-units-carry-all-four-limits`;
+  `crate-release` sets only
+  `MemoryMax`),
+  and the global install and list disagreement on 12 npm tools
   (`fix/mpm-shadow-cli-global-list-sees-npm-installs`).
-- `mpm-shadow` `0.2.7-alpha.1` is installed (lock `fb7e05141c`, records `724c6a14fd`); a plain copy-route
-  `git worktree add` from main left main's four link folders byte-identical, so `--no-worktree-copy` is no longer
-  needed. The label gate kept it off crates.io (crates.io 404 for that version; publish log "label alpha, goes to
-  crates.io: false"; five crates.io steps skipped).
-- Release of the fix, first try (stopped before dispatch, nothing published): the installed 0.2.6 does resolve an
+- `mpm-shadow` `0.2.7-alpha.1` is installed (lock `fb7e05141c`,
+  records `724c6a14fd`);
+  a plain copy-route
+  `git worktree add` from main left main's four link folders byte-identical,
+  so `--no-worktree-copy` is no longer
+  needed.
+  The label gate kept it off crates.io (crates.io 404 for that version;
+  publish log "label alpha,
+  goes to
+  crates.io:
+  false";
+  five crates.io steps skipped).
+- Release of the fix,
+  first try (stopped before dispatch,
+  nothing published):
+  the installed 0.2.6 does resolve an
   unflagged `-alpha.N` GitHub release through `@latest` (fixture test on `test/mpm-shadow-cli-resolver-picks-alpha-release`,
-  `aee8bf86c0`), but nothing enforces "only publish rc and stable releases on crates.io": `cargo-publish.yml` runs
-  `cargo publish` for any version, `release:wait` always checks crates.io, and the rc-with-alpha-dependencies refusal
-  that `crates-io-footprint.md` describes has no code. It also found `compare_versions` orders `alpha.9` above
-  `alpha.10` (prerelease compared as text). Route taken, without an owner question: build the label gate for every
-  crate first (required by the owner's words for any later alpha), fix the ordering, then release `0.2.7-alpha.1`,
-  which keeps crates.io untouched; a plain `0.2.7` was the other compliant route and would add a crates.io version.
+  `aee8bf86c0`),
+  but nothing enforces "only publish rc and stable releases on crates.io":
+  `cargo-publish.yml` runs
+  `cargo publish` for any version,
+  `release:wait` always checks crates.io,
+  and the rc-with-alpha-dependencies refusal
+  that `crates-io-footprint.md` describes has no code.
+  It also found `compare_versions` orders `alpha.9` above
+  `alpha.10` (prerelease compared as text).
+  Route taken,
+  without an owner question:
+  build the label gate for every
+  crate first (required by the owner's words for any later alpha),
+  fix the ordering,
+  then release `0.2.7-alpha.1`,
+  which keeps crates.io untouched;
+  a plain `0.2.7` was the other compliant route and would add a crates.io version.
   "Day-to-day releases carry `-alpha.N`" in `crates-io-footprint.md` is the session's plan under the pick
-  "Label decides", not an owner quote. An agent is on it (`fix/crate-release-label-gate`).
-- Masking of Git output in `diagnostic_log` debug and warning lines merged as `870962b7f2` (gate 5131 of 5131, lint and
-  Clippy clean; red test first; every caller goes through `diagnostic_line`, which now applies the shared
-  `mask_userinfo_text`). Plain pass-through of Git's own stderr is unchanged. Its first gate run had one failure,
-  `program_rename_guard::both_names_of_a_kept_kind_use_the_new_and_report_the_earlier` (empty stderr), which passed on rerun
-  and alone; handed to the fold agent, whose change owns that notice and test.
+  "Label decides",
+  not an owner quote.
+  An agent is on it (`fix/crate-release-label-gate`).
+- Masking of Git output in `diagnostic_log` debug and warning lines merged as `870962b7f2` (gate 5131 of 5131,
+  lint and
+  Clippy clean;
+  red test first;
+  every caller goes through `diagnostic_line`,
+  which now applies the shared
+  `mask_userinfo_text`).
+  Plain pass-through of Git's own stderr is unchanged.
+  Its first gate run had one failure,
+  `program_rename_guard::both_names_of_a_kept_kind_use_the_new_and_report_the_earlier` (empty stderr),
+  which passed on rerun
+  and alone;
+  handed to the fold agent,
+  whose change owns that notice and test.
 - The diagnosis of the emptied link folders ran at the same time.
-- Fold of the six earlier `.git` data names merged as `38d54f9b2b` (gate 5158 of 5158, lint clean). Not released;
-  it reaches this machine only with the next wrapper release. Logs are appended to the current log (earlier lines at the
-  end, every byte kept), folders merged entry by entry with `rename_noreplace`, a clash keeps both
-  (`<name>.from-earlier-release`); a journal plus `flock` makes every step restartable; it waits while this
-  worktree's earlier commit service runs (main's `cli-git@fc85fdf7a58f866b7f7a84b44fe0b69a` is running now), with about
-  10 ms per command while waiting. The old notice and its flaky test are gone. The late-line gap is closed in main
-  (`baf4c039f2`). The next wrapper release waits only for the tokio agent's measured cause of the leftover ref lock.
+- Fold of the six earlier `.git` data names merged as `38d54f9b2b` (gate 5158 of 5158,
+  lint clean).
+  Not released;
+  it reaches this machine only with the next wrapper release.
+  Logs are appended to the current log (earlier lines at the
+  end,
+  every byte kept),
+  folders merged entry by entry with `rename_noreplace`,
+  a clash keeps both
+  (`<name>.from-earlier-release`);
+  a journal plus `flock` makes every step restartable;
+  it waits while this
+  worktree's earlier commit service runs (main's `cli-git@fc85fdf7a58f866b7f7a84b44fe0b69a` is running now),
+  with about
+  10 ms per command while waiting.
+  The old notice and its flaky test are gone.
+  The late-line gap is closed in main
+  (`baf4c039f2`).
+  The next wrapper release waits only for the tokio agent's measured cause of the leftover ref lock.
   Another suite-only failure seen once in its gates:
   `service::the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero` (passed alone and in three later
-  gates; cause not measured; queued). Its agent wrote a planning section into main's checkout by mistake and removed
-  exactly its own lines with `git apply --reverse`; main was clean after.
-- `core-exec` `depends.unit.test.ts`: no hang on an idle host (5.1 s); a hang was reproduced under a full process-count
-  ceiling (`TasksMax=150`; children stuck when their threads were refused) and every child wait in `task-depends` is
-  now bounded (60 s per query, 3600 s per command, measurements cited); branch
-  `fix/monorepo-task-core-exec-depends-test-time` (`b9bbbb4268`), not merged. Back with its agent for a process-group
-  kill (a timed-out pipeline survives today) and for the package lint, which fails on main with 16 warnings in
-  `daily-update-*.ts`, `mpm-shadow.unit.test.ts` and `playwright-image.unit.test.ts`. Bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`)
+  gates;
+  cause not measured;
+  queued).
+  Its agent wrote a planning section into main's checkout by mistake and removed
+  exactly its own lines with `git apply --reverse`;
+  main was clean after.
+- `core-exec` `depends.unit.test.ts`:
+  no hang on an idle host (5.1 s);
+  a hang was reproduced under a full process-count
+  ceiling (`TasksMax=150`;
+  children stuck when their threads were refused) and every child wait in `task-depends` is
+  now bounded (60 s per query,
+  3600 s per command,
+  measurements cited);
+  branch
+  `fix/monorepo-task-core-exec-depends-test-time` (`b9bbbb4268`),
+  not merged.
+  Back with its agent for a process-group
+  kill (a timed-out pipeline survives today) and for the package lint,
+  which fails on main with 16 warnings in
+  `daily-update-*.ts`,
+  `mpm-shadow.unit.test.ts` and `playwright-image.unit.test.ts`.
+  Bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`)
   started about 09:34.
-- Tokio T1 to T4 merged into main as `5e441f25d3` (branch gate 5127 of 5127, Clippy and lint clean; main's only wrapper
-  changes since the branch's last main merge were rename step 3's README and two TypeScript files). It brings the fix for the
-  service decision file that needed hard links. The agent's two owner questions were settled from owner rules, recorded in
-  `doc/planning/git-policy-cli-full-tokio.md` ("Settled by the coordinator"). A new tokio agent continues on the same branch:
-  the in-process `decide` race first, then T5 to T13. Waiting for a slot, with brief points in the same scratch file: the
+- Tokio T1 to T4 merged into main as `5e441f25d3` (branch gate 5127 of 5127,
+  Clippy and lint clean;
+  main's only wrapper
+  changes since the branch's last main merge were rename step 3's README and two TypeScript files).
+  It brings the fix for the
+  service decision file that needed hard links.
+  The agent's two owner questions were settled from owner rules,
+  recorded in
+  `doc/planning/git-policy-cli-full-tokio.md` ("Settled by the coordinator").
+  A new tokio agent continues on the same branch:
+  the in-process `decide` race first,
+  then T5 to T13.
+  Waiting for a slot,
+  with brief points in the same scratch file:
+  the
   index-lock fallback (`fix/git-policy-cli-index-lock-without-links`) and the mutation campaign over the merged tokio files.
-- Left for later: the old `cli-git@` units of each worktree still run 0.5.34 until their three-hour idle exit (0.6.0 neither
-  stops nor removes them, `package/git-policy/cli/README.md` lines 40 to 41); old `cargo/<crate>/<version>` install folders
-  stay on disk; `toolchain:install:global` and `toolchain:list:global` disagreed on npm-routed tools (eleven measured at
-  2026-11-07T10:46-05:00): cause and fix in `doc/troubleshooting/pnpm-symlinked-store-path.md`, section "Global installs";
-  the fix ships with the next `mpm-shadow` release, and the first `install --global` after it rewrites those eleven.
+- Left for later:
+  the old `cli-git@` units of each worktree still run 0.5.34 until their three-hour idle exit (0.6.0 neither
+  stops nor removes them,
+  `package/git-policy/cli/README.md` lines 40 to 41);
+  old `cargo/<crate>/<version>` install folders
+  stay on disk;
+  `toolchain:install:global` and `toolchain:list:global` disagreed on npm-routed tools (eleven measured at
+  2026-11-07T10:46-05:00):
+  cause and fix in `doc/troubleshooting/pnpm-symlinked-store-path.md`,
+  section "Global installs";
+  the fix ships with the next `mpm-shadow` release,
+  and the first `install --global` after it rewrites those eleven.
 
 ### Release batch finished (2026-11-07T13:10:36Z, wrapper 0.6.0 last)
 
-- All 16 crates published in wave order; per-crate runs and times in `doc/planning/one-release-each-batch-2026-11.md`,
-  "Release record". One dispatch was refused by the origin-holds-main check and re-dispatched; no other failure.
-- Nothing yanked yet (owner: "All after the lock moves"). A post-release agent now does, in order: merge
-  `feat/toolchain-always-latest-landing`, switch the seven tools to the archive route, regenerate and install the lock,
-  verify wrapper 0.6.0 live with a real commit, yank the 14 older versions (not `forbidden-strings`, `forbidden-regex`),
+- All 16 crates published in wave order;
+  per-crate runs and times in `doc/planning/one-release-each-batch-2026-11.md`,
+  "Release record".
+  One dispatch was refused by the origin-holds-main check and re-dispatched;
+  no other failure.
+- Nothing yanked yet (owner:
+  "All after the lock moves").
+  A post-release agent now does,
+  in order:
+  merge
+  `feat/toolchain-always-latest-landing`,
+  switch the seven tools to the archive route,
+  regenerate and install the lock,
+  verify wrapper 0.6.0 live with a real commit,
+  yank the 14 older versions (not `forbidden-strings`,
+  `forbidden-regex`),
   enable the daily timer and follow its first run.
-- The tokio agent was told the hold on main is lifted; it merges main into its branch, and the coordinator merges the
+- The tokio agent was told the hold on main is lifted;
+  it merges main into its branch,
+  and the coordinator merges the
   branch into main after its final gate.
-- Still queued after this: rename step 3 (settings file, link folder `.cache/monochromatic-git-policy-cli-bin`).
+- Still queued after this:
+  rename step 3 (settings file,
+  link folder `.cache/monochromatic-git-policy-cli-bin`).
 
 ### Release batch waiting for a free agent slot (2026-11-07)
 
 - The one-release-each batch (`doc/planning/one-release-each-batch-2026-11.md`) is ready to run:
-  registration merged (`a6104c0f64`), the `jsonc-edit` dry run passed (run 42363884326),
-  the settle fixes, rename audit and never-at-login guards are merged (`2fa2df5d68`, gate 5069/5069).
-- Its agent could not start: five subagents were already running (the limit).
-  It starts when one finishes, with the 15 crates other than the wrapper in wave order.
+  registration merged (`a6104c0f64`),
+  the `jsonc-edit` dry run passed (run 42363884326),
+  the settle fixes,
+  rename audit and never-at-login guards are merged (`2fa2df5d68`,
+  gate 5069/5069).
+- Its agent could not start:
+  five subagents were already running (the limit).
+  It starts when one finishes,
+  with the 15 crates other than the wrapper in wave order.
 - The wrapper's two preconditions are met as of merge `73173e0f41` (2026-11-07T06:30:33-05:00):
   the cross-vendor review of `2fa2df5d68` (`~/temp/agent/issue-6261/sol-review-audit-8/review.txt`)
-  found one test race (closed-stderr settle test), fixed by closing the pipe's read end before the wrapper starts;
+  found one test race (closed-stderr settle test),
+  fixed by closing the pipe's read end before the wrapper starts;
   that fix and the owner's "Pair the names" scratch sweep merged to main from
-  `fix/git-policy-cli-pair-earlier-scratch-name` (tip `7e2284d7d9`, container gate 5071/5071).
+  `fix/git-policy-cli-pair-earlier-scratch-name` (tip `7e2284d7d9`,
+  container gate 5071/5071).
   The wrapper (0.5.34 to 0.6.0) can go after the other 15 crates.
-- The earlier per-user scratch (`<state>/cli-git/scratch`) is still not swept; the owner's pick covered the repository scratch only.
+- The earlier per-user scratch (`<state>/cli-git/scratch`) is still not swept;
+  the owner's pick covered the repository scratch only.
 - The daily toolchain timer must not run for real until the batch ends (its agent was told).
-  Its agent finished: code merged as `c6daf6161e` (plus doc commits `baac0829e2`, `798360d773`);
-  units `toolchain-daily-update.service` and `.timer` installed but disabled; rehearsal 20 min 51 s in a throwaway worktree.
-  After the batch, in this order: merge `feat/toolchain-always-latest-landing` (plan and lock to latest, plus the
-  `bincode-1` catalog that keeps the placeholder bincode 3.0.0 out), run `mise run toolchain:timer:install`,
-  start `toolchain-daily-update.service` once and read its journal. Main's lock stays on bun 1.3.14 until then
+  Its agent finished:
+  code merged as `c6daf6161e` (plus doc commits `baac0829e2`,
+  `798360d773`);
+  units `toolchain-daily-update.service` and `.timer` installed but disabled;
+  rehearsal 20 min 51 s in a throwaway worktree.
+  After the batch,
+  in this order:
+  merge `feat/toolchain-always-latest-landing` (plan and lock to latest,
+  plus the
+  `bincode-1` catalog that keeps the placeholder bincode 3.0.0 out),
+  run `mise run toolchain:timer:install`,
+  start `toolchain-daily-update.service` once and read its journal.
+  Main's lock stays on bun 1.3.14 until then
   (installed bun matched it when checked shortly before 2026-11-07T07:14:14-05:00).
-  Deviation: it updated the real global plan and lock (outside the repo) during the rehearsal, so the global toolchain
-  already moved. A guard refused `git restore` of two formatter side effects; it saved the diff to
+  Deviation:
+  it updated the real global plan and lock (outside the repo) during the rehearsal,
+  so the global toolchain
+  already moved.
+  A guard refused `git restore` of two formatter side effects;
+  it saved the diff to
   `~/temp/agent/tal/format-side-effects.patch` and force-removed the worktree.
-  Follow-ups it found: terminal and music-player Containerfiles still hard-code `ZIG_VERSION=0.15.2`
-  while the lock moves to 0.17.1; `llama.cpp` stays pinned until `mpm-shadow` can pick prereleases;
-  `core-exec`'s `depends.unit.test.ts` ran over half an hour (stopped, not investigated);
+  Follow-ups it found:
+  terminal and music-player Containerfiles still hard-code `ZIG_VERSION=0.15.2`
+  while the lock moves to 0.17.1;
+  `llama.cpp` stays pinned until `mpm-shadow` can pick prereleases;
+  `core-exec`'s `depends.unit.test.ts` ran over half an hour (stopped,
+  not investigated);
   scratch branches `feat/toolchain-always-latest` and `feat/toolchain-always-latest-code` remain.
-- The batch agent started after merge `73173e0f41` with the 15 crates; "go wrapper" waits for the background-prompt fix below.
+- The batch agent started after merge `73173e0f41` with the 15 crates;
+  "go wrapper" waits for the background-prompt fix below.
   It runs on the default subagent model because an `opus` override was refused by a permission rule;
-  the owner, asked, answered "Keep it running (Recommended)".
-- While tracing the dialog, a pattern read of another process's environment (`CLAUDE[A-Z_]*`) printed an API key and a
-  messaging token into the session log; the owner answered "I'll rotate it" and, asked whether to add an `AGENTS.md`
-  rule for exact-name environment reads, "Don't add it".
+  the owner,
+  asked,
+  answered "Keep it running (Recommended)".
+- While tracing the dialog,
+  a pattern read of another process's environment (`CLAUDE[A-Z_]*`) printed an API key and a
+  messaging token into the session log;
+  the owner answered "I'll rotate it" and,
+  asked whether to add an `AGENTS.md`
+  rule for exact-name environment reads,
+  "Don't add it".
 
 ### Tokio branch: owner answers (2026-11-07)
 
 - jiff newer than the locked 0.2.24 was refused by the trust policy through optional `defmt-parser` 1.1.0
-  (publisher change). Owner, verbatim: "I'm approving the publisher change for jiff."
-  The tokio agent records it in `doc/planning/git-policy-cli-full-tokio.md`, adds a narrowly scoped trust entry
-  with that sentence as its reason, and moves jiff to the newest allowed version on `feat/git-policy-cli-on-tokio`.
+  (publisher change).
+  Owner,
+  verbatim:
+  "I'm approving the publisher change for jiff."
+  The tokio agent records it in `doc/planning/git-policy-cli-full-tokio.md`,
+  adds a narrowly scoped trust entry
+  with that sentence as its reason,
+  and moves jiff to the newest allowed version on `feat/git-policy-cli-on-tokio`.
 - G1 of `doc/audit/tech-safe-file-saving-published-crates-vet-2026-11-07.md` (checked-rename fallback where a filesystem
-  has neither `RENAME_NOREPLACE` nor hard links): facts gathered first (no in-kernel filesystem read lacks both;
-  s3fs-fuse does; with the library only, merge-concluding commits fail with "Operation not supported").
-  Asked, the owner picked "Keep the fallback (Recommended)" (10 lines plus a 15-line test).
-- The first tokio agent ran out of context with T1 to T3, the crate swaps and part of T4 done (head `8383a12bf7`,
-  gate 5094/5094). A second agent continues on the same branch from T4's remainder through T13 and the
-  `private_storage` replacement on `tempfile::persist_noclobber` with that fallback, and fixes the defect it found:
-  the service journal publishes by hard link with no fallback (`service/service_busy.rs:149`), so a state directory
-  that refuses links fails service commits today. It was told not to repeat the rules the first agent bent
-  (tests and fixes in one commit, a direct `cargo fetch`, one `pkill -f`, hand-reverting edits after a guard refused
+  has neither `RENAME_NOREPLACE` nor hard links):
+  facts gathered first (no in-kernel filesystem read lacks both;
+  s3fs-fuse does;
+  with the library only,
+  merge-concluding commits fail with "Operation not supported").
+  Asked,
+  the owner picked "Keep the fallback (Recommended)" (10 lines plus a 15-line test).
+- The first tokio agent ran out of context with T1 to T3,
+  the crate swaps and part of T4 done (head `8383a12bf7`,
+  gate 5094/5094).
+  A second agent continues on the same branch from T4's remainder through T13 and the
+  `private_storage` replacement on `tempfile::persist_noclobber` with that fallback,
+  and fixes the defect it found:
+  the service journal publishes by hard link with no fallback (`service/service_busy.rs:149`),
+  so a state directory
+  that refuses links fails service commits today.
+  It was told not to repeat the rules the first agent bent
+  (tests and fixes in one commit,
+  a direct `cargo fetch`,
+  one `pkill -f`,
+  hand-reverting edits after a guard refused
   `git checkout --`).
 
 ### Background Git never prompts (owner pick 2026-11-07)
 
-- Cause and probe: `doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`.
-  The dialogs the owner saw came from the LFS agent's test with `/usr/bin/git`, not from the wrapper.
-- Owner: "Never prompt (Recommended)" for the wrapper's background Git, and "Neither, rule pkg-local." for agents.
-- Built on `fix/git-policy-cli-background-git-never-prompts` (tip `6b01de5bf0`, gate 5078/5078, Clippy clean):
-  `never_prompt_overlay()` in `child_environment.rs` covers the service's Git and git-lfs runs; forwarded commands
-  are unchanged; package rule `NDG` in `package/git-policy/cli/README.md`. Merged to main; "go wrapper" sent, so
-  0.6.0 carries it. The push-record leak needed no fix: its writer was deleted in `69d275d92b` (2026-11-01), the
-  3 records holding a credential predate that, and a guard test now checks no wrapper file keeps one.
+- Cause and probe:
+  `doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`.
+  The dialogs the owner saw came from the LFS agent's test with `/usr/bin/git`,
+  not from the wrapper.
+- Owner:
+  "Never prompt (Recommended)" for the wrapper's background Git,
+  and "Neither,
+  rule pkg-local."
+  for agents.
+- Built on `fix/git-policy-cli-background-git-never-prompts` (tip `6b01de5bf0`,
+  gate 5078/5078,
+  Clippy clean):
+  `never_prompt_overlay()` in `child_environment.rs` covers the service's Git and git-lfs runs;
+  forwarded commands
+  are unchanged;
+  package rule `NDG` in `package/git-policy/cli/README.md`.
+  Merged to main;
+  "go wrapper" sent,
+  so
+  0.6.0 carries it.
+  The push-record leak needed no fix:
+  its writer was deleted in `69d275d92b` (2026-11-01),
+  the
+  3 records holding a credential predate that,
+  and a guard test now checks no wrapper file keeps one.
 - `package/config/lfs-r2-worker` gets the same package-local rule after "unpause lfs".
 - Second fix on the same branch (sent by 2026-11-07T07:11:35-05:00 by the coordinator after the LFS report):
   push records (`.git/monochromatic-git-policy-cli/push/*.last-pushed.json`) store failed push output with URL userinfo
-  unmasked while the terminal relay masks it; red test, shared masking, existing records untouched.
+  unmasked while the terminal relay masks it;
+  red test,
+  shared masking,
+  existing records untouched.
 
 ### LFS credential work: finished and paused (owner: "pause the lfs thread until I say unpause lfs")
 
-- The LFS agent's report and full inventory: `doc/troubleshooting/lfs-credential-in-url.md`,
-  merged to main as `05199a8d8e` (credential guard task, `url-userinfo-credential` scanner rule, credential-helper docs).
-- Not done, by the pause: local migration off `lfs.url`, rotation, Worker auth change.
-  Its open owner questions (auth design A to F, anonymous reads, credential helper, copy classes, wiring the guard
-  into the wrapper) wait for "unpause lfs"; ask only the real decisions among them (issue #6262).
-- It printed a config key name that embeds the old token into its own transcript: one more copy for the inventory.
-- It left an unbounded `du` over home folders running for 68 minutes (PIDs 3421138, 3421137); the coordinator stopped it.
+- The LFS agent's report and full inventory:
+  `doc/troubleshooting/lfs-credential-in-url.md`,
+  merged to main as `05199a8d8e` (credential guard task,
+  `url-userinfo-credential` scanner rule,
+  credential-helper docs).
+- Not done,
+  by the pause:
+  local migration off `lfs.url`,
+  rotation,
+  Worker auth change.
+  Its open owner questions (auth design A to F,
+  anonymous reads,
+  credential helper,
+  copy classes,
+  wiring the guard
+  into the wrapper) wait for "unpause lfs";
+  ask only the real decisions among them (issue #6262).
+- It printed a config key name that embeds the old token into its own transcript:
+  one more copy for the inventory.
+- It left an unbounded `du` over home folders running for 68 minutes (PIDs 3421138,
+  3421137);
+  the coordinator stopped it.
   Its worktree `.claude/worktrees/lfs-credential-fix` is still there.
 
 ### Repository on the 860: plan revised, owner questions next
 
-- The symlink plan is committed (`4f430a0683`, `837fc9a6eb`) in `doc/planning/repository-on-the-860-drive.md`; nothing moved.
-- A cross-vendor review of it runs (`~/temp/agent/860-review/sol-review.txt`); fold its findings in.
-  Then ask the owner only the items among Q1 to Q9 that are real decisions: the answer changes what happens,
-  no owner decision or measurement settles it, and it is destructive or a matter of preference.
-  Settled or reversible items with a clear ranking are adopted and recorded in the plan, not asked.
-  Owner, 2026-11-07: "Overloading me with non-question questions will only make things worse."
-  Notices and disclosures go in plain text, never as question-tool options.
+- The symlink plan is committed (`4f430a0683`,
+  `837fc9a6eb`) in `doc/planning/repository-on-the-860-drive.md`;
+  nothing moved.
+- A cross-vendor review of it runs (`~/temp/agent/860-review/sol-review.txt`);
+  fold its findings in.
+  Then ask the owner only the items among Q1 to Q9 that are real decisions:
+  the answer changes what happens,
+  no owner decision or measurement settles it,
+  and it is destructive or a matter of preference.
+  Settled or reversible items with a clear ranking are adopted and recorded in the plan,
+  not asked.
+  Owner,
+  2026-11-07:
+  "Overloading me with non-question questions will only make things worse."
+  Notices and disclosures go in plain text,
+  never as question-tool options.
   Which questions to ask and how to word them is open in issue #6262
-  (owner: "This is about how you ask questions and which questions to ask. Your wording is bad.");
-  the owner settles it in another session, so no rule change until then.
-- The review is folded in (`b89d384cca`, `1a462e1eb5`): 21 findings fixed, narrowed or marked root-only unverified;
-  the former Q1 to Q9 are adopted in the plan with reasons, open to the owner's veto.
+  (owner:
+  "This is about how you ask questions and which questions to ask.
+  Your wording is bad.");
+  the owner settles it in another session,
+  so no rule change until then.
+- The review is folded in (`b89d384cca`,
+  `1a462e1eb5`):
+  21 findings fixed,
+  narrowed or marked root-only unverified;
+  the former Q1 to Q9 are adopted in the plan with reasons,
+  open to the owner's veto.
   One real owner decision remains and is not asked until the move is scheduled:
-  the cut-over needs a bounded window with commits refused, against "Commits should never fail"
-  (plan's ranking: a bounded window at an owner-chosen idle time with a stated maximum, after timing the first pass).
-- Incident: the plan agent ran `btrfs property set -ts /var/home/user/Monochromatic ro true` on the real main checkout
+  the cut-over needs a bounded window with commits refused,
+  against "Commits should never fail"
+  (plan's ranking:
+  a bounded window at an owner-chosen idle time with a stated maximum,
+  after timing the first pass).
+- Incident:
+  the plan agent ran `btrfs property set -ts /var/home/user/Monochromatic ro true` on the real main checkout
   by mistake at about 06:51 and cleared it (`ro=false` confirmed 2026-11-07T06:52:28-05:00).
-  Every worktree's Git dir lives in that subvolume, so commits anywhere would have been refused for about a minute.
-  The coordinator re-checked after the report: `ro=false`, no `*.lock` files under `.git` dated 06:50 to 06:54, no probe
-  processes left, main's `git status` clean. A refused attempt in that minute can be neither confirmed nor excluded.
-- The plan's scratch subvolumes in `/var/home/user/temp/agent/dangling` (`svfix`, `svfix-snap`, `svfix-snap-ro`,
-  `svfix-asm` and two nested ones) are deleted, without sudo: the owner said "I don't think they need sudo.",
-  and emptying then `rmdir` works (kernel feature `rmdir_subvol`). The plan's reason for adding
+  Every worktree's Git dir lives in that subvolume,
+  so commits anywhere would have been refused for about a minute.
+  The coordinator re-checked after the report:
+  `ro=false`,
+  no `*.lock` files under `.git` dated 06:50 to 06:54,
+  no probe
+  processes left,
+  main's `git status` clean.
+  A refused attempt in that minute can be neither confirmed nor excluded.
+- The plan's scratch subvolumes in `/var/home/user/temp/agent/dangling` (`svfix`,
+  `svfix-snap`,
+  `svfix-snap-ro`,
+  `svfix-asm` and two nested ones) are deleted,
+  without sudo:
+  the owner said "I don't think they need sudo.",
+  and emptying then `rmdir` works (kernel feature `rmdir_subvol`).
+  The plan's reason for adding
   `user_subvol_rm_allowed` is corrected to the wrapper's one-step subvolume removal.
-- Its guard fixture mounted a tmpfs at `/dev/shm/dangling-world` inside `podman unshare`, outside the scratch rule;
+- Its guard fixture mounted a tmpfs at `/dev/shm/dangling-world` inside `podman unshare`,
+  outside the scratch rule;
   the mount ended with the namespace and the empty folder was removed.
 
 ### Known flakes and failures not yet fixed
@@ -3908,7 +4941,9 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   with the conflict resolved in the file but not staged,
   landed a one-parent commit of that path (`f1f78f7920`,
   as SPEC designs:
-  "Named paths during a merge: Git refuses; the wrapper lands them and the merge is carried on")
+  "Named paths during a merge:
+  Git refuses;
+  the wrapper lands them and the merge is carried on")
   and printed that the path "still has conflict markers,
   and they were committed",
   though the committed file has none.
@@ -3935,14 +4970,19 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   not looked at).
 - Found 2026-11-07 by the published-crates study (`doc/research/wrapper-git-free-jobs-and-published-crates.md`):
   `the_runner_waits_for_a_slow_job_and_contains_a_panic` fails (`Busy` instead of `Finished(7)`) in a selection run of
-  the `systemd_dbus`, `standards_review` and `source_guard` tests on unchanged code, and passes alone twice;
-  an ordering or contention defect of the suite, not yet looked at (the full container gate passes it).
+  the `systemd_dbus`,
+  `standards_review` and `source_guard` tests on unchanged code,
+  and passes alone twice;
+  an ordering or contention defect of the suite,
+  not yet looked at (the full container gate passes it).
 - Found 2026-11-07 by the same study:
   `zbus` 5.19.0 and 6.x do not compile on the pinned `nightly-2026-11-01`
   (`E0391: cycle detected when computing when ...::signature::child::Child needs async drop`)
   and do compile on `nightly-2026-10-28` and stable 1.99.0 (scratch crate).
-  `package/nested-wayland-session/cli` locks `zbus` 5.19.0, so it may not build on the pinned toolchain;
-  not built yet. The study's agent is bisecting the nightly and checking newer ones.
+  `package/nested-wayland-session/cli` locks `zbus` 5.19.0,
+  so it may not build on the pinned toolchain;
+  not built yet.
+  The study's agent is bisecting the nightly and checking newer ones.
 - Rule for all of these:
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).
@@ -4096,8 +5136,10 @@ merges and pushes that never fail").
 
 ## Picks made under the owner's delegation
 
-Owner, 2026-11-03 (about 09:45-05:00):
-"I have to be away for around 8 hours. Pick options as if I had picked them and invite veto when I say I'm back."
+Owner,
+2026-11-03 (about 09:45-05:00):
+"I have to be away for around 8 hours.
+Pick options as if I had picked them and invite veto when I say I'm back."
 Clarified by the owner:
 "\"As if I had chosen\" means what I would have picked most likely if I'm always here."
 So each pick is the option the owner would most likely have chosen:
@@ -4127,8 +5169,10 @@ each stays open to the owner's veto and is listed for the owner on return.
    a dead owner (a pid file naming a gone process) still ends the wait at once.
    Its cost:
    a lock left by a killed program with no pid file now waits until a person removes it.
-   Built 2026-11-03 on `feat/git-policy-cli-index-lock-and-service-waits`, with three differences the owner may veto:
-   the 1000 ms is cited from a measurement of Git's own commands (at most 100 ms, ten times that),
+   Built 2026-11-03 on `feat/git-policy-cli-index-lock-and-service-waits`,
+   with three differences the owner may veto:
+   the 1000 ms is cited from a measurement of Git's own commands (at most 100 ms,
+   ten times that),
    a dead owner ends the wait at once,
    and the service's own hold keeps a measured 150 seconds (`UNASKABLE_HOLD_AGE`)
    because live holds ran up to 120 seconds.
@@ -4138,7 +5182,8 @@ each stays open to the owner's veto and is listed for the owner on return.
 4. Git child steps:
    B,
    end only on no progress with the push's signs and no wall clock,
-   matching the owner's "End Git, hold hooks".
+   matching the owner's "End Git,
+   hold hooks".
 5. Pushes:
    A,
    "Wait while connected" whole:
@@ -4168,7 +5213,8 @@ each stays open to the owner's veto and is listed for the owner on return.
    heartbeats and no client wall-clock bound;
    the `COMMIT_WAIT` message naming a nonexistent setting goes.
    Built 2026-11-03 on `feat/git-policy-cli-index-lock-and-service-waits`:
-   a heartbeat a second, five seconds of silence asks again with the same request,
+   a heartbeat a second,
+   five seconds of silence asks again with the same request,
    and the start waits on the service manager's `failed` state where the client can ask it
    (the open questions are in the audit doc).
 7. Foreign-owner patience:
@@ -4187,7 +5233,8 @@ each stays open to the owner's veto and is listed for the owner on return.
     no saved copy exists yet in any of the 11 repositories under the home directory,
     so there is no growth to measure;
     the agent's O3 is taken
-    (keep the owner's 2026-11-02 "Prune by both age and size." with 30 days and 1 GiB,
+    (keep the owner's 2026-11-02 "Prune by both age and size."
+    with 30 days and 1 GiB,
     measure,
     then set the numbers),
     because the owner chose pruning knowing a saved copy can be the only copy
@@ -4536,7 +5583,8 @@ not a copy.
 ### Answers after the restart (2026-11-04)
 
 Through the question tool,
-answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
+answered before 08:22:29-05:00 (`b0d9708b17`,
+the next commit):
 - Mutation runs:
   "Pause all (Recommended)":
   no mutation runs until the commit protocol is built and the lint cleanup (task 88) lands,
@@ -4557,7 +5605,8 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   "Keep pruning by age and size",
   against the coordinator's recommendation (keep all and warn past a size);
   the owner was told a copy older than 30 days or past 1 GiB is deleted even if it is the only copy.
-  "Prune by both age and size." therefore stands over "never discard user data" for saved copies;
+  "Prune by both age and size."
+  therefore stands over "never discard user data" for saved copies;
   the numbers stay as cited and are set from measurement once saves exist (option O3).
 - cargo-shadow's six picks (delegated scope with the acknowledged weaker path,
   verified-absent scope as proof,
@@ -4570,7 +5619,8 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   "Keep level 2 off (Recommended)".
 - Index reclamation:
   the owner answered in the question's free text,
-  "Must work perfectly even when flock isn't available. Do better."
+  "Must work perfectly even when flock isn't available.
+  Do better."
   So the shipped behavior on a file system with no `flock` (never remove,
   wait to the lock limit,
   stop naming the file) is rejected:
@@ -4580,7 +5630,8 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   not swept) were not addressed and stand.
   Work started on `fix/git-policy-cli-index-lock-reclaim-without-flock`.
   The owner then clarified:
-  "I'm not banning flock. I'm just saying our wrapper must work perfectly even when flock isn't there."
+  "I'm not banning flock.
+  I'm just saying our wrapper must work perfectly even when flock isn't there."
   So the `flock` on the stale lock's own inode stays where it works,
   and the fallback must not depend on `flock` anywhere (a `flock` in `/run/lock` is at most an intermediate tier).
 - Commit-speed picks (no `fast-import` pack flush unless `core.fsync` names loose objects;
@@ -4590,7 +5641,12 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   "Make as many pkgs as possible come from podman.",
   then,
   asked which was meant:
-  "Sorry, typo. Yes I meant from pacman. And I believe pacman can give a specific Git version. If not possible, bring me the evidence and re-ask."
+  "Sorry,
+  typo.
+  Yes I meant from pacman.
+  And I believe pacman can give a specific Git version.
+  If not possible,
+  bring me the evidence and re-ask."
   So Git,
   Node and strace move to pacman inside the CachyOS image wherever pacman can supply what the tests need,
   Git at the pinned version through pacman if pacman can install it;
@@ -4598,11 +5654,13 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   bring the evidence and ask again.
   Work on `feat/git-policy-cli-test-images-from-pacman`.
   The owner then added:
-  "I just realized something. We don't need to pin git because my current system is already using git latest."
+  "I just realized something.
+  We don't need to pin git because my current system is already using git latest."
   So the test image takes pacman's current `git`,
   with no version pin.
   Then:
-  "We don't need to pin Node too. And what else?"
+  "We don't need to pin Node too.
+  And what else?"
   Asked through the question tool about the tools `toolchain.lock.json` locks (Node,
   cargo-nextest,
   Rust,
@@ -4616,7 +5674,9 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   not yet asked.
   Asked about the end-to-end image's Git 2.55.0 (the oldest Git the wrapper accepts),
   the owner answered:
-  "Raise minimum, drop the test, merely print a warning on older git and not refuse."
+  "Raise minimum,
+  drop the test,
+  merely print a warning on older git and not refuse."
   So the 2.55.0 build and its scenarios go,
   the minimum rises to the tests' Git,
   and an older Git gets a warning and the command runs.
@@ -4769,7 +5829,8 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   (`releasable-crates.json`,
   the crate list in `crate-release.yml`,
   `release` and `release:wait` tasks),
-  and "Done." for the first-publish token (`cargo login` in the owner's own terminal,
+  and "Done."
+  for the first-publish token (`cargo login` in the owner's own terminal,
   per `doc/runbook/publish-crate-first-time.md`);
   the branch (`39b67c8748`,
   main merged,
@@ -4795,11 +5856,13 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   the crate-release cli test now reads the expected crate list from the registry);
   0.1.0 published and Trusted Publishing config 30988 created
   (state in "Release in flight").
-  Branch-write round 2 (agent `aa0fee0c2cf70bb31`, finished):
+  Branch-write round 2 (agent `aa0fee0c2cf70bb31`,
+  finished):
   all twelve follow-up items done except item 10,
   which is analysis only
   (foreign-owner patience options B > C > D > A in `doc/planning/cli-git-no-unbounded-waits.md`,
-  section "Foreign-owner patience: what its expiry authorizes";
+  section "Foreign-owner patience:
+  what its expiry authorizes";
   owner question after the round-2 review checks the analysis);
   gate r6 passed 4827/4827 on `d2f74ce55a`.
   Main (with the index-lock change) merged into the branch as `bbf3317aff`;
@@ -4943,7 +6006,8 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     2 partly;
     the writer-side sync fault and a real interrupted publication now tested).
     Reviews returned:
-    `cargo-shadow-sol-12a.txt` "Does not meet the list for this part" (the pidfd fdinfo check is not bound to the later stat read: a `/proc` replaced or overmounted between them makes a live launcher read as gone;
+    `cargo-shadow-sol-12a.txt` "Does not meet the list for this part" (the pidfd fdinfo check is not bound to the later stat read:
+    a `/proc` replaced or overmounted between them makes a live launcher read as gone;
     a changed positive number after a failed stat read as gone;
     boot-id,
     reap and view-header fixes accepted)
@@ -4955,7 +6019,8 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     one pinned procfs directory descriptor and `openat2` with `RESOLVE_NO_XDEV`).
     Owner,
     asked whether deliberate tampering with `/proc` and mounts by a program running as the user is in scope (rounds 10 to 12 each found a deeper such schedule):
-    "Out of scope, keep cheap guards (Recommended)";
+    "Out of scope,
+    keep cheap guards (Recommended)";
     assumption a is extended to exclude it,
     cheap guards stay,
     and the reviews judge against that premise.
@@ -4986,11 +6051,13 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     clippy clean):
     the launcher line carries the writer's time namespace inode and recovery answers Unknown on a mismatch,
     an unreadable side or an older line without one
-    (measured: `unshare --time --boottime 7200` moves the same process's field 22 by 720000 ticks);
+    (measured:
+    `unshare --time --boottime 7200` moves the same process's field 22 by 720000 ticks);
     the shim test now asserts the delegated scope,
     the consumed `ContainmentStopStuck` fault and the not-quiescent refusal.
     Change review `cargo-shadow-sol-14.txt`:
-    "Does not meet the list for the changes; not ready for the certification pass":
+    "Does not meet the list for the changes;
+    not ready for the certification pass":
     the distinct-time-namespace schedule and the shim evidence are closed;
     namespace inode numbers are recycled,
     and a writer's current time namespace can differ from its children's,
@@ -5019,7 +6086,8 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     from 6.9 to 6.13);
     both assertions tightened.
     Change review `cargo-shadow-sol-15.txt`:
-    "Meets the list for the changes; ready for the separate certification pass";
+    "Meets the list for the changes;
+    ready for the separate certification pass";
     no defect,
     two wording qualifications (namespace recycling after the last reference;
     "blocks" applies to a launcher classified Alive).
@@ -5159,7 +6227,8 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   1197 ms of it provisioning the upgraded service;
   the landing took 29 ms.
 - Models round 15 review part 10b:
-  "no, as submitted":
+  "no,
+  as submitted":
   the fresh-attempt model binds delivery to the current attempt counter,
   so an older stored notice printed after a new attempt starts authorizes reclaiming that attempt;
   bind notice,
@@ -5190,7 +6259,8 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   a round 15 test had been cut by a later round 15 edit and is restored;
   the map check only tests names in its test column.
   Review `commit-models-sol-11.txt`:
-  "no, as submitted":
+  "no,
+  as submitted":
   2B,
   3C and 10b closed;
   2A closure still lets a dependency outside the scanned places (an order file without its needs line) reclaim a predecessor;
@@ -5235,7 +6305,8 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   `commit-models-sol-12.txt` (prompt `commit-models-prompt-12.txt`),
   asked whether those misses are real under the target and whether any bounded protocol avoids them.
   Review `commit-models-sol-12.txt`:
-  "no, as submitted";
+  "no,
+  as submitted";
   2A,
   2E,
   the successful-launch windows,
@@ -5285,7 +6356,8 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   baton no miss but needs the unit route;
   the agent ranks inline-whenever-held first.
   Review `commit-models-sol-13.txt`:
-  "no, as submitted";
+  "no,
+  as submitted";
   C closed;
   A and B reopen through deeper timings (a handover timeout then launcher death;
   the intermediate child's inherited lock copy before its first close with failed cleanup);
@@ -5333,7 +6405,8 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   and the helper takes the lock itself;
   the handover byte and its timeouts are gone.
   Review `commit-models-sol-14.txt`:
-  "no, as submitted":
+  "no,
+  as submitted":
   the probe itself is a false owner
   (a client holding its probe makes another client return `LockHeld`,
   then dies before launching,
@@ -5485,7 +6558,8 @@ Your staged changes stay staged,
 and the commit is also kept on a side ref.
 The error names the blocker and the command to run again.").
 This replaces the coordinator's first reading (return as success and land later),
-and the owner chose it over "Commits should never fail." for a command that hits a bound.
+and the owner chose it over "Commits should never fail."
+for a command that hits a bound.
 Pushes,
 same question tool:
 "Bound it,
@@ -5519,7 +6593,8 @@ section "Owner questions for revision 12"):
   if the disk is still stalled it exits non-zero saying the result is not known,
   naming `git log -1` and the side ref).
 - Merge order:
-  "Branch first, files after (Recommended)"
+  "Branch first,
+  files after (Recommended)"
   (the branch moves first and the files follow;
   at the bound the folder and staging are untouched;
   the owner was told a direct `/usr/bin/git commit -a` in the lag window would commit the merge's reverse).
@@ -5528,9 +6603,11 @@ section "Owner questions for revision 12"):
   hooks,
   signer,
   forwarded `gc`):
-  "No limit; Ctrl-C ends it (Recommended)".
+  "No limit;
+  Ctrl-C ends it (Recommended)".
 - How soon an accepted commit must survive a power cut:
-  "Force at leaving, else background (Recommended)"
+  "Force at leaving,
+  else background (Recommended)"
   (no forced write while the person waits;
   what a command promises when it leaves is forced to disk first;
   a power cut while it still waits loses that attempt,
@@ -5562,7 +6639,8 @@ answered the four questions of revision 15 (`4a6ad9d34a`) as the coordinator wor
 (`commits-never-fail-sol-15.txt` section 3;
 the edited wording was not re-reviewed):
 - Question 5:
-  "Carry the file, save staged (Recommended)".
+  "Carry the file,
+  save staged (Recommended)".
 - Question 7a:
   "Clean up automatically (Recommended)"
   (by value tests within 7b's window under `index.lock`,
@@ -5588,7 +6666,8 @@ after being told the fourteenth review found question 6a omitted fail-closed rec
 Meaning for the commit protocol design:
 the departure barrier (stop receipt and saved set) runs to completion with no time limit;
 questions 6a and 6b are dropped;
-the provisional decision 12 ("Short wait, then say unconfirmed") is superseded;
+the provisional decision 12 ("Short wait,
+then say unconfirmed") is superseded;
 a disk that never finishes the sync falls under the owner's outside-our-control list ("disk I/O errors").
 Sent to the revision 15 agent.
 
@@ -5596,7 +6675,8 @@ Sent to the revision 15 agent.
 
 The owner,
 through the question tool:
-"Warn past a count, never refuse (Recommended)"
+"Warn past a count,
+never refuse (Recommended)"
 (past a threshold every run prints how many kept files there are,
 their total size and the folder to review;
 cargo keeps working;
@@ -5621,16 +6701,19 @@ answered before the commit that records this entry
 `cc5e0822dc`,
 section "Owner questions for revision 13"):
 - Staged content differing from the file at a merge:
-  "Carry the file, save staged (Recommended)"
+  "Carry the file,
+  save staged (Recommended)"
   (the file as seen is carried;
   the staged-only version is saved to `saved/<path>.staged` and named in a line).
 - A slow force at leaving:
-  "Short wait, then say unconfirmed (Recommended)"
+  "Short wait,
+  then say unconfirmed (Recommended)"
   (wait up to a named,
   measured limit,
   then exit saying the saved copy is not yet confirmed on disk while the wrapper keeps forcing it).
 - How long to watch for a late `git switch` after a merge:
-  "A measured span, then stop (Recommended)"
+  "A measured span,
+  then stop (Recommended)"
   (after the span the merge's files stay as changes,
   nothing lost,
   and the merge's message names how to undo them).
@@ -5672,7 +6755,8 @@ At least 2x faster in every way than official `regex` crate.
 And I did it with a much weaker model."
 Then,
 asked through the question tool how AGENTS.md should carry it,
-"Tighten NHR, add SLW (Recommended)",
+"Tighten NHR,
+add SLW (Recommended)",
 followed in the session by
 "Host pressure might sometimes be the cause but it's never an excuse.
 I also told you if you think the 5s standard cannot be always met even if we put in all the work,
@@ -5696,7 +6780,8 @@ making the work itself cheaper (embedded code included),
 batching it,
 or moving it off the path the person waits on.
 Standing permission:
-when the evidence shows the 5 s standard ("commits vs native git should not take 5s longer.") cannot always be met even after all that work,
+when the evidence shows the 5 s standard ("commits vs native git should not take 5s longer.")
+cannot always be met even after all that work,
 ask the owner to raise it,
 with the measurements;
 never accept a miss silently,
@@ -5741,7 +6826,8 @@ with a line saying so);
 ### Design stance
 
 The commit service unit sets no resource limits of its own
-(owner, 2026-11-03,
+(owner,
+2026-11-03,
 "Remove all three (Recommended)" after the 1 GiB memory cap was found unmeasured;
 recorded in `package/git-policy/cli/SPEC.md`).
 Every shipped limit cites a measurement or an owner decision (`AGENTS.md` rule `LQM`).
@@ -5968,7 +7054,8 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   "Didn't I always give you approval to publish?"
   and "By "first" I meant "first in this session of any crate"",
   and "didn't I also say reviews and mutation testings don't block publishing?".
-  Earlier (session transcript): "Mutation runs don't block publish and release."
+  Earlier (session transcript):
+  "Mutation runs don't block publish and release."
   So reviews and mutation campaigns never block a merge or a publish;
   their findings become follow-up fixes and later releases.
 - Release order for the wrapper:

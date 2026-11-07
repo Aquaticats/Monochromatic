@@ -1,18 +1,31 @@
 # Rebuild the m1 Apple browser test rig from nothing
 
-Purpose: if `m1` (Apple M1 Mac, 16 GiB RAM) is wiped, rebuild every piece that lets agents on the Linux
-workstation see web pages in real Apple browsers, top to bottom, from this file alone.
-Why each piece exists, and the pitfalls found while building it:
+Purpose:
+if `m1` (Apple M1 Mac,
+16 GiB RAM) is wiped,
+rebuild every piece that lets agents on the Linux
+workstation see web pages in real Apple browsers,
+top to bottom,
+from this file alone.
+Why each piece exists,
+and the pitfalls found while building it:
 [`macos-safari-capture-while-host-locked.md`](macos-safari-capture-while-host-locked.md).
 Recorded 2026-10-18 from the working rig.
 
-The rig has three capture paths, each usable while `m1`'s screen is locked:
+The rig has three capture paths,
+each usable while `m1`'s screen is locked:
 
-- iPhone 15 Simulator Safari: screenshots through `simctl`, real touch input through `idb`.
-- Real macOS Safari inside a UTM macOS VM, driven through WebDriver.
-- `webkit-capture`, an off-screen `WKWebView` on the host, as a fallback when the VM is down.
+- iPhone 15 Simulator Safari:
+  screenshots through `simctl`,
+  real touch input through `idb`.
+- Real macOS Safari inside a UTM macOS VM,
+  driven through WebDriver.
+- `webkit-capture`,
+  an off-screen `WKWebView` on the host,
+  as a fallback when the VM is down.
 
-The VM also serves a second, concurrent WebDriver endpoint for Safari Technology Preview (Linux port 4450).
+The VM also serves a second,
+concurrent WebDriver endpoint for Safari Technology Preview (Linux port 4450).
 
 Never commit passwords here (this repository is public).
 The VM guest's login password is the one the user chose when creating the guest.
@@ -20,24 +33,39 @@ The VM guest's login password is the one the user chose when creating the guest.
 ## What survives an internal-disk wipe
 
 `MacData` is an external 512 GB USB SSD mounted at `/Volumes/MacData`.
-It holds the VM bundle (`/Volumes/MacData/utm/macOS.utm`, about 35 GB) and the simulator device-set image
-(`/Volumes/MacData/CoreSimulator/xinyanchen-sim-devices.sparsebundle`), so after a wipe of `m1` alone,
+It holds the VM bundle (`/Volumes/MacData/utm/macOS.utm`,
+about 35 GB) and the simulator device-set image
+(`/Volumes/MacData/CoreSimulator/xinyanchen-sim-devices.sparsebundle`),
+so after a wipe of `m1` alone,
 skip "Create the macOS VM" and "Create the simulator device set" and only re-attach them.
-Write-heavy work belongs on `MacData`: `m1`'s internal SSD is fragile.
+Write-heavy work belongs on `MacData`:
+`m1`'s internal SSD is fragile.
 
 ## 1. Host basics on m1
 
-1.  Install macOS 27 (the rig was verified on macOS 27.0, Safari 27.0), create user `user`,
-    and enable System Settings, General, Sharing, Remote Login.
-2.  From the Linux workstation, install its key (the Linux side's `~/.ssh/config` has `Host m1`,
-    `HostName user-m1.local`, `User user`, `IdentityFile ~/.ssh/user-m1`):
+1.  Install macOS 27 (the rig was verified on macOS 27.0,
+    Safari 27.0),
+    create user `user`,
+    and enable System Settings,
+    General,
+    Sharing,
+    Remote Login.
+2.  From the Linux workstation,
+    install its key (the Linux side's `~/.ssh/config` has `Host m1`,
+    `HostName user-m1.local`,
+    `User user`,
+    `IdentityFile ~/.ssh/user-m1`):
 
     ```bash
     # Linux workstation
     ssh-copy-id -i ~/.ssh/user-m1.pub m1
     ```
 
-3.  Install Homebrew, Xcode 27 (verified with 27.0, build 27A266a), select it, and download the iOS runtime:
+3.  Install Homebrew,
+    Xcode 27 (verified with 27.0,
+    build 27A266a),
+    select it,
+    and download the iOS runtime:
 
     ```bash
     # on m1
@@ -47,14 +75,17 @@ Write-heavy work belongs on `MacData`: `m1`'s internal SSD is fragile.
     ```
 
     The working rig had `iOS 27.0 (24A434)`.
-4.  Install UTM (5.0.5 was in use), and Vorssaint plus `caffeinate` if you want the host awake;
+4.  Install UTM (5.0.5 was in use),
+    and Vorssaint plus `caffeinate` if you want the host awake;
     nothing here depends on the host staying unlocked.
-5.  Enable Safari's WebDriver on the host (needed only for the host's own Safari, which goes blank when locked):
+5.  Enable Safari's WebDriver on the host (needed only for the host's own Safari,
+    which goes blank when locked):
     `sudo safaridriver --enable`.
 
 Note that `~/Library/LaunchAgents/cat.aquati.screen-autolock.plist` on `m1` runs
 `~/.local/bin/screen-autolock` every 60 seconds with `IDLE_SECONDS=1800`,
-which locks the host after 30 minutes idle; the capture paths here do not care.
+which locks the host after 30 minutes idle;
+the capture paths here do not care.
 
 ## 2. iPhone 15 Simulator in its own device set on MacData
 
@@ -71,7 +102,8 @@ xcrun simctl --set /Volumes/XinyanSimDevices/devices create "iPhone 15 client" \
   com.apple.CoreSimulator.SimDeviceType.iPhone-15 com.apple.CoreSimulator.SimRuntime.iOS-27-0
 ```
 
-`create` prints the new UDID; the working rig's was `4E2C74A5-7001-4F13-82CD-CD7AA9AA2CA9`.
+`create` prints the new UDID;
+the working rig's was `4E2C74A5-7001-4F13-82CD-CD7AA9AA2CA9`.
 Update the UDID in the scripts in "Linux-side scripts" if it changes.
 
 ### Attach and boot (after every m1 reboot)
@@ -88,9 +120,11 @@ Pages reach the Linux preview server because a Linux-side unit forwards `m1`'s `
 
 ### Real touch input: idb
 
-`safaridriver` cannot drive this simulator: it only searches the default device set
+`safaridriver` cannot drive this simulator:
+it only searches the default device set
 ("Could not find any session hosts that match the requested capabilities").
-Meta's `idb` can, because `idb_companion` takes `--device-set-path`:
+Meta's `idb` can,
+because `idb_companion` takes `--device-set-path`:
 
 ```bash
 # on m1
@@ -103,21 +137,34 @@ nohup /opt/homebrew/bin/idb_companion --udid 4E2C74A5-7001-4F13-82CD-CD7AA9AA2CA
 /Volumes/MacData/idb-venv/bin/idb --companion localhost:10882 ui tap 38 155
 ```
 
-`ui tap` takes screen points (393 by 852 on iPhone 15): page coordinates plus the status bar,
+`ui tap` takes screen points (393 by 852 on iPhone 15):
+page coordinates plus the status bar,
 about 58 points in Safari with the bottom address bar.
-`uv tool install fb-idb` failed on `m1` because `uv` there is a mise shim that errored; the venv avoids it.
-Verified 2026-10-18: a tap at (38, 155) opened the portfolio's phone menu and a second tap closed it.
+`uv tool install fb-idb` failed on `m1` because `uv` there is a mise shim that errored;
+the venv avoids it.
+Verified 2026-10-18:
+a tap at (38, 155) opened the portfolio's phone menu and a second tap closed it.
 
 ## 3. macOS VM with real Safari
 
 ### Create the macOS VM (only if MacData was lost)
 
-In UTM: Create, Virtualize, macOS, let UTM download the current IPSW (the rig ran guest macOS 27.0),
-8192 MB memory, default CPU count, a 64 GB or larger disk, and save it as `macOS` under `/Volumes/MacData/utm/`.
-Display: 1920 by 1200 at 80 PPI (UTM's default "dynamic resolution" stays on).
-In the guest, create user `user` and enable Remote Login.
+In UTM:
+Create,
+Virtualize,
+macOS,
+let UTM download the current IPSW (the rig ran guest macOS 27.0),
+8192 MB memory,
+default CPU count,
+a 64 GB or larger disk,
+and save it as `macOS` under `/Volumes/MacData/utm/`.
+Display:
+1920 by 1200 at 80 PPI (UTM's default "dynamic resolution" stays on).
+In the guest,
+create user `user` and enable Remote Login.
 
-The guest gets `192.168.64.2` on UTM's shared network; the host side is `192.168.64.1`.
+The guest gets `192.168.64.2` on UTM's shared network;
+the host side is `192.168.64.1`.
 
 ### Host key into the guest
 
@@ -129,7 +176,8 @@ ssh-copy-id -i ~/.ssh/id_ed25519_vm.pub user@192.168.64.2
 
 ### Guest settings that keep it rendering
 
-Run in the guest over SSH, entering the guest password for each `sudo`:
+Run in the guest over SSH,
+entering the guest password for each `sudo`:
 
 ```bash
 # in the guest
@@ -147,14 +195,19 @@ sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheck
 sudo defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool false
 ```
 
-Over SSH without a TTY, each `sudo` needs the password again (`sudo -n` does not reuse an earlier one).
+Over SSH without a TTY,
+each `sudo` needs the password again (`sudo -n` does not reuse an earlier one).
 
 ### Guest auto-login
 
 `sudo sysadminctl -autologin set ...` failed with `SACSetAutoLoginPassword error:22` even with FileVault off.
-Write `/etc/kcpassword` instead: the password's bytes, zero-padded to a multiple of 12,
+Write `/etc/kcpassword` instead:
+the password's bytes,
+zero-padded to a multiple of 12,
 XORed with the cycled key `7d 89 52 23 d2 bc dd ea a3 b9 1f`.
-This Node snippet writes the file; it reads the password from the terminal, so it never lands in shell history:
+This Node snippet writes the file;
+it reads the password from the terminal,
+so it never lands in shell history:
 
 ```js
 // kcpassword.mjs: node kcpassword.mjs > kcpassword, then type the guest password and press Enter
@@ -176,7 +229,8 @@ sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser use
 sudo shutdown -r now
 ```
 
-After the reboot, `who` in the guest must show `user console` and `ioreg -n Root -d1 -a | grep -A1 CGSSessionScreenIsLocked`
+After the reboot,
+`who` in the guest must show `user console` and `ioreg -n Root -d1 -a | grep -A1 CGSSessionScreenIsLocked`
 must print nothing.
 
 ### Guest display scale tool
@@ -189,8 +243,11 @@ sudo install -d -m 755 /usr/local/bin && sudo install -m 755 /tmp/displayplacer 
 /usr/local/bin/displayplacer list
 ```
 
-`displayplacer list` prints the display id; the rig's was `35B36D67-6BAC-47B7-98B5-07877849011C`,
-with mode 24 (1920 by 1200 unscaled, 1x) and mode 34 (1920 by 1200 HiDPI, 2x).
+`displayplacer list` prints the display id;
+the rig's was `35B36D67-6BAC-47B7-98B5-07877849011C`,
+with mode 24 (1920 by 1200 unscaled,
+1x) and mode 34 (1920 by 1200 HiDPI,
+2x).
 Update `GUEST_DISPLAY` and `MODE_FOR_SCALE` in the scripts if they differ.
 
 ### Guest LaunchAgent: WebDriver at login
@@ -283,30 +340,45 @@ port 4447 and `m1`'s preview port 4173 into the guest:
 </plist>
 ```
 
-Load each new agent once with `launchctl bootstrap gui/$(id -u) <plist>`; afterwards login loads them.
+Load each new agent once with `launchctl bootstrap gui/$(id -u) <plist>`;
+afterwards login loads them.
 The UTM VM must be registered in UTM (open `macOS.utm` once) for `utmctl start macOS` to find it.
 
 ### Second WebDriver endpoint: Safari Technology Preview in the guest
 
-Safari allows one WebDriver session at a time, so two automation runs on port 4446 queue.
-Apple documents the limit in [About WebDriver for Safari][wd-about]: "Only one Safari browser instance can be active
-at any given time, and only one WebDriver session at a time can be attached to the browser instance."
+Safari allows one WebDriver session at a time,
+so two automation runs on port 4446 queue.
+Apple documents the limit in [About WebDriver for Safari][wd-about]:
+"Only one Safari browser instance can be active
+at any given time,
+and only one WebDriver session at a time can be attached to the browser instance."
 Apple documents the way around it in [Testing with WebDriver in Safari][wd-testing]:
 "Safari and Safari Technology Preview each provide their own `safaridriver` executable",
-"Each `safaridriver` is capable of launching only the Safari version it's associated with, and the two can run
+"Each `safaridriver` is capable of launching only the Safari version it's associated with,
+and the two can run
 simultaneously."
-So Safari Technology Preview (STP) in the guest gets its own driver, port chain and Linux unit.
-It is a different WebKit than Safari 27.0 (the guest's STP was Release 254, driver `22627.1.2.1`),
+So Safari Technology Preview (STP) in the guest gets its own driver,
+port chain and Linux unit.
+It is a different WebKit than Safari 27.0 (the guest's STP was Release 254,
+driver `22627.1.2.1`),
 so its pixels can differ from the Safari endpoint's.
-Port chain: guest 4448, `m1` 4449, Linux 4450.
-Nothing here edits the Safari chain (4445, 4447, 4446).
+Port chain:
+guest 4448,
+`m1` 4449,
+Linux 4450.
+Nothing here edits the Safari chain (4445,
+4447,
+4446).
 
 #### Install STP into the guest
 
 Download the macOS 27 build from the [Safari download page][safari-download]
-(the link labelled "Safari Technology Preview for macOS 27"; this run used `SafariTechPreview254.dmg`)
-to `m1`'s external disk, then unpack the signed installer package and copy only the app.
-The guest's `user` is in the `admin` group and `/Applications` is group-writable, so no `sudo` is needed
+(the link labelled "Safari Technology Preview for macOS 27";
+this run used `SafariTechPreview254.dmg`)
+to `m1`'s external disk,
+then unpack the signed installer package and copy only the app.
+The guest's `user` is in the `admin` group and `/Applications` is group-writable,
+so no `sudo` is needed
 (`installer` would need the guest password):
 
 ```bash
@@ -324,16 +396,23 @@ ssh -o BatchMode=yes -i ~/.ssh/id_ed25519_vm user@192.168.64.2 \
   'codesign --verify --deep --strict "/Applications/Safari Technology Preview.app" && echo codesign-ok'
 ```
 
-The download link changes with each STP release; take the current one from the download page.
-`hdiutil attach -mountpoint` onto `/Volumes/MacData` failed with `Permission denied`, so use the default mount point.
-The package also installs three LaunchAgents under `/Library` (push, sync, authentication services);
-the copy skips them, and whether session creation needs them is unverified until `--enable` is done.
+The download link changes with each STP release;
+take the current one from the download page.
+`hdiutil attach -mountpoint` onto `/Volumes/MacData` failed with `Permission denied`,
+so use the default mount point.
+The package also installs three LaunchAgents under `/Library` (push,
+sync,
+authentication services);
+the copy skips them,
+and whether session creation needs them is unverified until `--enable` is done.
 
 #### Enable STP's driver (needs the guest administrator password, once)
 
-Apple: "Run `safaridriver --enable` once" ([Testing with WebDriver in Safari][wd-testing]),
+Apple:
+"Run `safaridriver --enable` once" ([Testing with WebDriver in Safari][wd-testing]),
 which for STP means its own executable.
-Run it in the guest, from Terminal in the UTM window or over SSH with `-t` (so `sudo` can prompt),
+Run it in the guest,
+from Terminal in the UTM window or over SSH with `-t` (so `sudo` can prompt),
 and type the guest password when `sudo` asks:
 
 ```bash
@@ -344,13 +423,21 @@ ssh -t -i ~/.ssh/id_ed25519_vm user@192.168.64.2
 sudo "/Applications/Safari Technology Preview.app/Contents/MacOS/safaridriver" --enable
 ```
 
-If `POST /session` still fails afterwards, restart the guest driver so it rereads the setting:
+If `POST /session` still fails afterwards,
+restart the guest driver so it rereads the setting:
 `launchctl kickstart -k gui/$(id -u)/dev.monochromatic.safaridriver-stp`.
 
-Without it, `POST /session` on the STP driver fails with
+Without it,
+`POST /session` on the STP driver fails with
 `You must enable 'Allow remote automation' in the Developer section of Safari Settings to control Safari via WebDriver.`
-The same switch is in the app: open STP in the guest, Settings, Developer (older macOS: Develop menu, Allow Remote
-Automation), and tick "Allow remote automation".
+The same switch is in the app:
+open STP in the guest,
+Settings,
+Developer (older macOS:
+Develop menu,
+Allow Remote
+Automation),
+and tick "Allow remote automation".
 Without a password the non-`sudo` run of `--enable` prints `Password is not valid, please try again.` and exits 1.
 
 #### Guest LaunchAgent: STP's WebDriver at login
@@ -382,7 +469,8 @@ Without a password the non-`sudo` run of `--enable` prints `Password is not vali
 
 #### Host LaunchAgent: forward STP's port to m1
 
-A separate agent, so the one serving 4447 stays untouched.
+A separate agent,
+so the one serving 4447 stays untouched.
 `~/Library/LaunchAgents/dev.monochromatic.vm-tunnel-stp.plist` on `m1`:
 
 ```xml
@@ -416,8 +504,10 @@ A separate agent, so the one serving 4447 stays untouched.
 </plist>
 ```
 
-Load each once: `launchctl bootstrap gui/$(id -u) <plist>` in the guest (for the driver) and on `m1` (for the forward).
-This agent carries no `-R 4173` forward; the guest's `localhost:4173` already comes from the Safari chain's agent,
+Load each once:
+`launchctl bootstrap gui/$(id -u) <plist>` in the guest (for the driver) and on `m1` (for the forward).
+This agent carries no `-R 4173` forward;
+the guest's `localhost:4173` already comes from the Safari chain's agent,
 so STP in the guest reaches the same preview origin only while that agent is up.
 
 #### Using the endpoint
@@ -425,10 +515,13 @@ so STP in the guest reaches the same preview origin only while that agent is up.
 The STP capability is `{"alwaysMatch": {"browserName": "Safari Technology Preview"}}`
 ([Selenium's Safari page][selenium-safari] shows the same name as `browser_name` for STP;
 `safari` selects the plain Safari driver).
-Both browsers share the guest's one window server and one display, and the display mode set by `displayplacer`
+Both browsers share the guest's one window server and one display,
+and the display mode set by `displayplacer`
 applies to both.
-Apple's documentation says the two drivers can run simultaneously; the first concurrent run with the Safari endpoint
-(2026-10-18) had not happened when this was written, because the `--enable` step still needed the guest password,
+Apple's documentation says the two drivers can run simultaneously;
+the first concurrent run with the Safari endpoint
+(2026-10-18) had not happened when this was written,
+because the `--enable` step still needed the guest password,
 so treat window-rect and focus-sensitive steps run in both at once as unverified.
 
 ## 4. Host fallback: webkit-capture
@@ -540,8 +633,10 @@ app.run()
 
 ## 5. Linux-side units
 
-The site under test is served on the Linux workstation; these units connect it to `m1`.
-`systemd-run` units vanish at the Linux machine's reboot, so re-run them after one.
+The site under test is served on the Linux workstation;
+these units connect it to `m1`.
+`systemd-run` units vanish at the Linux machine's reboot,
+so re-run them after one.
 
 ```bash
 # Linux workstation: a no-store static server (Simulator Safari caches aggressively), on 4174.
@@ -690,17 +785,27 @@ try {
 
 A script that evaluates JavaScript instead of capturing (`vm-safari-eval.mjs`) is the same file with the shot loop
 replaced by one `POST /session/{id}/url` and one `POST /session/{id}/execute/sync` whose result it prints.
-Keyboard input uses `POST /session/{id}/actions` with key code points (`` Space, `` Tab).
+Keyboard input uses `POST /session/{id}/actions` with key code points (`` Space,
+`` Tab).
 
-If `POST /session` answers "already paired with another WebDriver session", `DELETE /session/<id>` the stale one.
-`GET /status` still answers `ready: true` while paired, so it proves nothing about a free session.
-When no live client knows the id (the script died before its `finally` ran), restart that driver's launch agent in
-the guest (`launchctl kickstart -k gui/$(id -u)/dev.monochromatic.safaridriver-stp`, or
-`dev.monochromatic.safaridriver` for regular Safari) and quit the leftover automation window; this ends whatever
-that driver was running, so check that no other job holds its lock first.
-A common way to kill a script before cleanup is piping it into `head`: `head` exits after its lines and the script
-dies on SIGPIPE at its next write, so redirect WebDriver scripts to a file instead.
-If it times out "connecting to a Safari instance", quit any normal Safari window in the guest
+If `POST /session` answers "already paired with another WebDriver session",
+`DELETE /session/<id>` the stale one.
+`GET /status` still answers `ready: true` while paired,
+so it proves nothing about a free session.
+When no live client knows the id (the script died before its `finally` ran),
+restart that driver's launch agent in
+the guest (`launchctl kickstart -k gui/$(id -u)/dev.monochromatic.safaridriver-stp`,
+or
+`dev.monochromatic.safaridriver` for regular Safari) and quit the leftover automation window;
+this ends whatever
+that driver was running,
+so check that no other job holds its lock first.
+A common way to kill a script before cleanup is piping it into `head`:
+`head` exits after its lines and the script
+dies on SIGPIPE at its next write,
+so redirect WebDriver scripts to a file instead.
+If it times out "connecting to a Safari instance",
+quit any normal Safari window in the guest
 (`osascript -e 'quit app "Safari"'`) and never start Safari's binary directly.
 
 ## Verify the rebuilt rig
@@ -711,13 +816,15 @@ If it times out "connecting to a Safari instance", quit any normal Safari window
 4.  `curl --silent http://127.0.0.1:4446/status` on Linux prints `"ready":true`.
 5.  `node vm-safari-shot.mjs out 1920x1080@1 index.html@0` reports `[1920,1028,1,"visible",...]`,
     and `@2` reports device pixel ratio 2.
-6.  Lock `m1` (`pmset displaysleepnow`) and repeat 2 and 5: both must still produce real pages.
+6.  Lock `m1` (`pmset displaysleepnow`) and repeat 2 and 5:
+    both must still produce real pages.
 7.  `curl --silent http://127.0.0.1:4450/status` on Linux prints `"ready":true` (the STP chain).
     A `POST /session` to port 4450 with
     `{"capabilities": {"alwaysMatch": {"browserName": "Safari Technology Preview"}}}`
     must return a session whose `navigator.userAgent` and `document.title` read from `http://localhost:4173/index.html`;
     delete it afterwards.
-    It needs the one-time `--enable` above, and it works with no session open on 4446.
+    It needs the one-time `--enable` above,
+    and it works with no session open on 4446.
 
 [wd-about]: https://developer.apple.com/documentation/webkit/about-webdriver-for-safari
 [wd-testing]: https://developer.apple.com/documentation/webkit/testing-with-webdriver-in-safari

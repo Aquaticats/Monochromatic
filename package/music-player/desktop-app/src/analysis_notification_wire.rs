@@ -16,17 +16,19 @@
 //! is in `analysis_notification`.
 
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::thread::JoinHandle;
 
-use zbus::blocking::fdo::DBusProxy;
-use zbus::blocking::{Connection, MessageIterator, Proxy};
+use futures_util::StreamExt;
+use zbus::fdo::DBusProxy;
 use zbus::match_rule::MatchRule;
 use zbus::message::Type;
 use zbus::names::BusName;
-use zbus::zvariant::{OwnedObjectPath, Value};
+use zbus::{Connection, MessageStream, OwnedObjectPath, Proxy, Variant};
 
 use crate::analysis_notification::Identity;
 use crate::analysis_notification_logic::{IndicatorView, Outcome};
+use crate::dbus_step_bound::step;
 
 /// What: `TITLE` is the indicator's title.
 /// Why: D107 names it; American spelling is the human's choice for this label.
@@ -138,25 +140,25 @@ pub struct FdoNotification {
 /// What: `job_request_hints` builds the `requestView` hints.
 /// Why: `application-display-name` and `application-icon-name` give the header its name and icon even when the
 /// desktop file is not installed (a dev run), and `transient` makes Plasma remove a finished job without notice.
-pub fn job_request_hints(identity: &Identity) -> HashMap<&'static str, Value<'_>> {
+pub fn job_request_hints(identity: &Identity) -> HashMap<&'static str, Variant<'_>> {
     return HashMap::from([
-        ("application-display-name", Value::from(identity.app_name.as_str())),
-        ("application-icon-name", Value::from(identity.app_icon.as_str())),
-        ("transient", Value::from(true)),
+        ("application-display-name", Variant::from(identity.app_name.as_str())),
+        ("application-icon-name", Variant::from(identity.app_icon.as_str())),
+        ("transient", Variant::from(true)),
     ]);
 }
 
 /// What: `job_update_properties` builds an `update` dictionary for `view`.
 /// Why: `percent` is the bar, `infoMessage` the count, and `suspended` flips Plasma's Pause and Resume button, which
 /// Plasma never does itself. The title is sent only at the open.
-pub fn job_update_properties(view: &IndicatorView, with_title: bool) -> HashMap<&'static str, Value<'_>> {
+pub fn job_update_properties(view: &IndicatorView, with_title: bool) -> HashMap<&'static str, Variant<'_>> {
     let mut properties = HashMap::from([
-        ("infoMessage", Value::from(view.text.as_str())),
-        ("percent", Value::from(view.percent)),
-        ("suspended", Value::from(view.paused)),
+        ("infoMessage", Variant::from(view.text.as_str())),
+        ("percent", Variant::from(view.percent)),
+        ("suspended", Variant::from(view.paused)),
     ]);
     if with_title {
-        properties.insert("title", Value::from(TITLE));
+        properties.insert("title", Variant::from(TITLE));
     }
     return properties;
 }
@@ -175,15 +177,15 @@ pub fn terminate_arguments(outcome: &Outcome) -> (u32, String) {
 /// Why: `value` draws the bar on servers that support it; urgency 0 (a byte) is low; `suppress-sound` keeps it silent;
 /// `category` is the spec's generic `transfer` because it defines no progress category; `desktop-entry` names the app;
 /// `resident` keeps the notification when its action button is pressed, which the spec says removes it otherwise.
-pub fn notification_hints<'a>(identity: &'a Identity, view: &IndicatorView) -> HashMap<&'static str, Value<'a>> {
+pub fn notification_hints<'a>(identity: &'a Identity, view: &IndicatorView) -> HashMap<&'static str, Variant<'a>> {
     let percent = i32::try_from(view.percent).unwrap_or(i32::MAX);
     return HashMap::from([
-        ("value", Value::I32(percent)),
-        ("urgency", Value::U8(0)),
-        ("suppress-sound", Value::Bool(true)),
-        ("category", Value::from("transfer")),
-        ("desktop-entry", Value::from(identity.desktop_entry.as_str())),
-        ("resident", Value::Bool(true)),
+        ("value", Variant::I32(percent)),
+        ("urgency", Variant::U8(0)),
+        ("suppress-sound", Variant::Bool(true)),
+        ("category", Variant::from("transfer")),
+        ("desktop-entry", Variant::from(identity.desktop_entry.as_str())),
+        ("resident", Variant::Bool(true)),
     ]);
 }
 
@@ -202,15 +204,17 @@ pub fn notification_actions(suspendable: bool, view: &IndicatorView) -> Vec<&'st
 /// What: `has_owner` asks the bus whether `name` is owned, without starting its service.
 /// Why: a plain method call to an activatable name could start a stray process; this only reads the bus.
 pub fn has_owner(connection: &Connection, name: &str) -> zbus::Result<bool> {
-    let bus = DBusProxy::new(connection)?;
-    return Ok(bus.name_has_owner(BusName::try_from(name)?)?);
+    let bus = step(DBusProxy::new(connection))?;
+    let bus_name = BusName::try_from(name)?;
+    return Ok(step(async { return Ok(bus.name_has_owner(bus_name).await?) })?);
 }
 
 /// What: `owner_of` returns the unique name that owns `name`.
 /// Why: signals are trusted only from the process that answered the request.
 fn owner_of(connection: &Connection, name: &str) -> zbus::Result<String> {
-    let bus = DBusProxy::new(connection)?;
-    return Ok(bus.get_name_owner(BusName::try_from(name)?)?.to_string());
+    let bus = step(DBusProxy::new(connection))?;
+    let bus_name = BusName::try_from(name)?;
+    return Ok(step(async { return Ok(bus.get_name_owner(bus_name).await?) })?.to_string());
 }
 
 /// Methods of `JobView`.
@@ -224,13 +228,14 @@ impl JobView {
         view: &IndicatorView,
     ) -> zbus::Result<JobView> {
         let owner = owner_of(connection, KUISERVER)?;
-        let server = Proxy::new(connection, KUISERVER, JOB_SERVER_PATH, JOB_SERVER_INTERFACE)?;
+        let server = step(Proxy::new(connection, KUISERVER, JOB_SERVER_PATH, JOB_SERVER_INTERFACE))?;
         let capabilities = if suspendable { CAPABILITY_SUSPENDABLE } else { 0 };
         let hints = job_request_hints(identity);
-        let reply: OwnedObjectPath = server.call("requestView", &(identity.desktop_entry.as_str(), capabilities, hints))?;
+        let reply: OwnedObjectPath =
+            step(server.call("requestView", &(identity.desktop_entry.as_str(), capabilities, hints)))?;
         let path = reply.to_string();
         tracing::info!(path = %path, owner = %owner, suspendable, "analysis job view granted by Plasma");
-        let proxy = Proxy::new(connection, KUISERVER, path.clone(), JOB_VIEW_INTERFACE)?;
+        let proxy = step(Proxy::new(connection, KUISERVER, path.clone(), JOB_VIEW_INTERFACE))?;
         let job = JobView { proxy, path, owner };
         job.update(view, true)?;
         return Ok(job);
@@ -239,16 +244,16 @@ impl JobView {
     /// What: `update` sends the properties of `view`; `NoReply`, so it never waits for Plasma.
     /// Why: updates are fire-and-forget in the protocol, and waiting would stall the thread for no information.
     pub fn update(&self, view: &IndicatorView, with_title: bool) -> zbus::Result<()> {
-        return self.proxy.call_noreply("update", &(job_update_properties(view, with_title),));
+        return step(self.proxy.call_noreply("update", &(job_update_properties(view, with_title),)));
     }
 
     /// What: `terminate` ends the job.
     /// Why: it removes the view; a failure shows its message.
     pub fn terminate(&self, outcome: &Outcome) -> zbus::Result<()> {
         let (code, message) = terminate_arguments(outcome);
-        let hints: HashMap<&str, Value<'_>> = HashMap::new();
+        let hints: HashMap<&str, Variant<'_>> = HashMap::new();
         tracing::info!(path = %self.path, code, "analysis job view terminates");
-        return self.proxy.call_noreply("terminate", &(code, message, hints));
+        return step(self.proxy.call_noreply("terminate", &(code, message, hints)));
     }
 
     /// What: `owns` is true when a signal came from this job's server about this job's path.
@@ -272,7 +277,7 @@ impl FdoNotification {
     ) -> zbus::Result<u32> {
         let actions = notification_actions(suspendable, view);
         let hints = notification_hints(identity, view);
-        return proxy.call(
+        return step(proxy.call(
             "Notify",
             &(
                 identity.app_name.as_str(),
@@ -284,7 +289,7 @@ impl FdoNotification {
                 hints,
                 0_i32,
             ),
-        );
+        ));
     }
 
     /// What: `open` posts the first notification.
@@ -295,7 +300,7 @@ impl FdoNotification {
         suspendable: bool,
         view: &IndicatorView,
     ) -> zbus::Result<FdoNotification> {
-        let proxy = Proxy::new(connection, NOTIFICATIONS_NAME, NOTIFICATIONS_PATH, NOTIFICATIONS_INTERFACE)?;
+        let proxy = step(Proxy::new(connection, NOTIFICATIONS_NAME, NOTIFICATIONS_PATH, NOTIFICATIONS_INTERFACE))?;
         let id = FdoNotification::notify(&proxy, 0, identity, suspendable, view)?;
         let owner = owner_of(connection, NOTIFICATIONS_NAME)?;
         tracing::info!(id, owner = %owner, "analysis notification posted");
@@ -313,7 +318,7 @@ impl FdoNotification {
     /// Why: D107 removes the indicator when analysis ends.
     pub fn close(&self) -> zbus::Result<()> {
         tracing::info!(id = self.id, "analysis notification closes");
-        return self.proxy.call("CloseNotification", &(self.id,));
+        return step(self.proxy.call("CloseNotification", &(self.id,)));
     }
 
     /// What: `owns` is true when a signal came from this service about this notification.
@@ -345,8 +350,36 @@ fn decode_signal(message: &zbus::Message) -> Option<BusSignal> {
     };
 }
 
+/// What: `SIGNAL_QUEUE` is how many signals a listener's subscription holds before it drops the oldest.
+/// Why: the indicator gets a button press or a dismissal now and then, so a short queue is never full.
+const SIGNAL_QUEUE: usize = 64;
+
+/// What: `read_signals` forwards each decoded signal of `stream` to `forward` until the stream ends, an error arrives,
+/// or `forward` returns false.
+/// Why: the listener thread's whole body, run inside one `zbus::block_on` call.
+async fn read_signals<F>(mut stream: MessageStream, interface: &str, forward: F)
+where
+    F: Fn(BusSignal) -> bool,
+{
+    while let Some(received) = stream.next().await {
+        let message = match received {
+            Ok(message) => message,
+            Err(error) => {
+                tracing::info!(error = %error, interface, "analysis signal stream ended with an error");
+                return;
+            }
+        };
+        if let Some(signal) = decode_signal(&message)
+            && !forward(signal)
+        {
+            return;
+        }
+    }
+    tracing::debug!(interface, "analysis signal stream ended");
+}
+
 /// What: `spawn_listener` starts a thread that forwards the signals of `backend`'s interface to `forward`.
-/// Why: a blocking connection cannot be waited on together with a channel, so signals get their own thread. The
+/// Why: a signal stream cannot be waited on together with a channel, so signals get their own thread. The
 /// thread ends when `forward` returns false (the indicator's thread is gone), when the stream ends, or when the
 /// connection closes. It subscribes before the first request, so an early button press is not lost.
 pub fn spawn_listener<F>(connection: &Connection, backend: Backend, forward: F) -> zbus::Result<JoinHandle<()>>
@@ -357,26 +390,14 @@ where
         Backend::Job => JOB_VIEW_INTERFACE,
         Backend::Notification => NOTIFICATIONS_INTERFACE,
     };
-    let rule = MatchRule::builder().msg_type(Type::Signal).interface(interface)?.build();
-    let stream = MessageIterator::for_match_rule(rule, connection, Some(64))?;
+    let rule = MatchRule::builder().msg_type(Type::Signal).interface(interface).build()?;
+    let stream = step(MessageStream::for_match_rule(rule, connection, NonZeroUsize::new(SIGNAL_QUEUE)))?;
     tracing::debug!(interface, "analysis indicator listening for signals");
     let handle = std::thread::Builder::new()
         .name(format!("analysis-signals-{interface}"))
         .spawn(move || {
-            for received in stream {
-                let message = match received {
-                    Ok(message) => message,
-                    Err(error) => {
-                        tracing::info!(error = %error, interface, "analysis signal stream ended with an error");
-                        break;
-                    }
-                };
-                if let Some(signal) = decode_signal(&message)
-                    && !forward(signal)
-                {
-                    break;
-                }
-            }
+            // The read waits for senders and ends with the stream, so it carries no bound of its own.
+            zbus::block_on(read_signals(stream, interface, forward));
             tracing::debug!(interface, "analysis signal listener stopped");
         })?;
     return Ok(handle);

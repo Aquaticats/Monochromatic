@@ -50,19 +50,28 @@ Do not restore that patch as a remedy for this incident.
 Measured tools:
 
 - `agent-browser 0.36.0`.
-- Headless Chromium `149.0.7827.54`, revision `42ce21f112d0b2ba486bbb5cadb225f78b4ddb97`.
-- Native Helium reports Chromium `152.0.7977.82`, revision `d04cdb24d67b081f6cf80200ffc5233f44b61109`.
+- Headless Chromium `149.0.7827.54`,
+  revision `42ce21f112d0b2ba486bbb5cadb225f78b4ddb97`.
+- Native Helium reports Chromium `152.0.7977.82`,
+  revision `d04cdb24d67b081f6cf80200ffc5233f44b61109`.
 
 The browser versions and modes differ.
 These probes do not establish that headless mode alone causes the observed event difference.
 
 Working catalog:
 
-- `mise run probe:print`, from `~/temp/agent/promises-revision/`,
+- `mise run probe:print`,
+  from `~/temp/agent/promises-revision/`,
   generates a PDF and verifies restored disclosures.
   Process `proc_207a` passed with one before/after pair.
 - `mise run test:presentation` checks every inventoried source,
-  workshop task, hint, worked comparison, current draft, preview text, setting, and note
+  workshop task,
+  hint,
+  worked comparison,
+  current draft,
+  preview text,
+  setting,
+  and note
   against extracted text from an actual PDF.
 - `mise run test:native-print` uses the page's Print button in an isolated native Helium profile,
   finds its real `chrome://print/` page,
@@ -97,12 +106,14 @@ No real printer job is submitted.
 
 Tradeoffs:
 this native-dialog driver is Chromium/Helium-specific and depends on the observed WebUI controls.
-It verifies cancellation, not a physical printer.
+It verifies cancellation,
+not a physical printer.
 PDF text verification is separate from visual inspection of rendered PDF pages.
 
 ### Target registration is not control readiness
 
-During the shop-opening revision, `proc_3299` passed PDF-content checks but failed in
+During the shop-opening revision,
+`proc_3299` passed PDF-content checks but failed in
 `~/temp/agent/promises-revision/verify-native-print.mjs`:
 
 ```text
@@ -118,7 +129,8 @@ The failing assertion does not distinguish an absent control from a disabled con
 A later inspection of that same owned print target reported `document.readyState` as `complete`,
 with both Cancel and Print enabled.
 The driver now waits for both conditions within its existing bounded readiness loop.
-The corrected full suite passed as `proc_e6a1`, including real Cancel and disclosure restoration.
+The corrected full suite passed as `proc_e6a1`,
+including real Cancel and disclosure restoration.
 No lesson restoration code or browser implementation was changed for this assertion.
 
 One cleanup invocation clicked Cancel synchronously through `cdp-page.mjs`.
@@ -134,7 +146,8 @@ cancellation had happened despite the cleanup command's nonzero exit.
 Do not repeat Cancel against that ended target.
 The native verifier retains its separate scheduled Cancel action,
 then waits for the completed print cycle rather than treating an evaluation response as completion.
-This is a caller/cleanup boundary observation, not a new agent-browser defect.
+This is a caller/cleanup boundary observation,
+not a new agent-browser defect.
 
 ### Ended-browser cleanup
 
@@ -164,7 +177,8 @@ agent-browser --session promises-print-ui --allow-file-access close
 ```
 
 A subsequent session list contained only `promises-revised-present`.
-The ended print and export profiles were then removed; the user-facing browser was retained.
+The ended print and export profiles were then removed;
+the user-facing browser was retained.
 This cleanup sequence is not advice to omit launch/CDP options during ongoing page verification.
 It is not evidence of a print failure or an upstream defect.
 
@@ -180,12 +194,22 @@ It is not evidence of a print failure or an upstream defect.
 
 No upstream issue or contribution is proposed.
 
-1.  Upstream fault: not established; the demonstrated error was in the verification assertion.
-2.  Upstream fixability: no upstream fix is identified or needed for that assertion.
-3.  Supported use: the CLI exposes PDF generation; `window.print()` separately opens native UI.
-4.  Contribution policy: not assessed because no upstream contribution is proposed.
-5.  Maintainer intent: not assessed; no claim about willingness to change print behavior.
-6.  Upstream prototype: inapplicable; the working change is in our verification driver.
+1.  Upstream fault:
+    not established;
+    the demonstrated error was in the verification assertion.
+2.  Upstream fixability:
+    no upstream fix is identified or needed for that assertion.
+3.  Supported use:
+    the CLI exposes PDF generation;
+    `window.print()` separately opens native UI.
+4.  Contribution policy:
+    not assessed because no upstream contribution is proposed.
+5.  Maintainer intent:
+    not assessed;
+    no claim about willingness to change print behavior.
+6.  Upstream prototype:
+    inapplicable;
+    the working change is in our verification driver.
 
 The skill-relative `.out-of-scope/` directory was absent.
 No duplicate search or filing was performed because no upstream defect or additive report is claimed.

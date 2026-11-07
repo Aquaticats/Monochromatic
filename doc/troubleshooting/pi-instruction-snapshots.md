@@ -41,12 +41,17 @@ dismissal,
 abort,
 generic prerequisite,
 and bare-policy controls with the full copied repository instructions and configured skills.
-Its requests contained 200, 200, 200, and 17 questions across two bundles.
+Its requests contained 200,
+200,
+200,
+and 17 questions across two bundles.
 These are network-isolated fixtures with authored model replies,
 not live-provider latency measurements.
 
 A subsequent real-service replay of those exact request bodies expired at five seconds.
-The first bundle dispatched 2566713, 2690737, and 4538472 bytes;
+The first bundle dispatched 2566713,
+2690737,
+and 4538472 bytes;
 no response headers arrived before cancellation,
 and the remaining request was not sent.
 Every request contains the same 2152170-byte shared state.
@@ -58,7 +63,8 @@ The configured offline successes must not be described as full live functionalit
 
 After the deadline increase,
 the unchanged third request returned HTTP 400 with `context_length_exceeded`,
-`type: invalid_request_error`, and `param: input`.
+`type: invalid_request_error`,
+and `param: input`.
 Its exact response message was
 `Your input exceeds the context window of this model. Please adjust your input and try again.`
 The response supplied no token count or effective serving limit.
@@ -101,7 +107,8 @@ The owned `RunPromptCustodyError` displayed
 `Native run prompt derivation is incomplete or no longer current`.
 The nested deciding error was
 `Original callback option input exceeds the source byte bound`.
-This was an auto-mode integration defect, not a Pi token limit or provider budget.
+This was an auto-mode integration defect,
+not a Pi token limit or provider budget.
 
 At pre-repair commit `5ccee1f7b7`,
 `package/pi-plugin/auto-mode/native/contract/collector/run-prompt-custody-v3/handler-option-inputs.mjs:16`
@@ -119,7 +126,8 @@ then a follow-up run at 5282773 bytes against four MiB.
 With user/project skills,
 the shared receipt check failed with 13 resource receipts occupying 158177 bytes
 and 110 session receipts occupying 4298044 bytes.
-These are repeated serialized evidence bytes, not heap measurements.
+These are repeated serialized evidence bytes,
+not heap measurements.
 
 The first functionality claim was unsupported:
 its CLI smoke test used a minimal policy and only `codemode,read`.
@@ -129,8 +137,12 @@ Raising one threshold at a time moved the failure to another owned threshold.
 ### Repair and verification
 
 The user explicitly accepted removal of arbitrary capture size/count ceilings on 2026-10-15.
-The repaired capture paths retain complete text, metadata, source lists and clause indexes.
-They retain ownership, freshness, cancellation and descriptor validation.
+The repaired capture paths retain complete text,
+metadata,
+source lists and clause indexes.
+They retain ownership,
+freshness,
+cancellation and descriptor validation.
 The generic diagnostic now includes the deciding nested error message.
 
 The metadata copier replaces incidental depth-based cycle rejection with explicit ancestor tracking at
@@ -173,8 +185,12 @@ a 10000-level data tree,
 shared metadata,
 event histories beyond 128 receipts,
 and source indexes beyond 512 clauses.
-Negative controls still reject cycles, message aliases, unsupported values,
-proxy records, accessors, stale sources and duplicate source occurrences.
+Negative controls still reject cycles,
+message aliases,
+unsupported values,
+proxy records,
+accessors,
+stale sources and duplicate source occurrences.
 Type checking passes.
 
 The installed CLI also completed initial and follow-up prompts with bypass off,
@@ -187,7 +203,8 @@ The private `capture-removal-repro` task under
 read-only package mounts,
 network isolation and local provider responses.
 It applies no capacity overrides.
-This establishes offline prompt handling, not live-provider or physical-terminal behavior.
+This establishes offline prompt handling,
+not live-provider or physical-terminal behavior.
 
 ### Tradeoffs and rejected approaches
 
@@ -207,9 +224,12 @@ but was not installed as a rollback or treated as proof of tool-guard correctnes
 No upstream issue or draft is appropriate.
 This incident's deciding checks are owned repository code.
 Upstream fault is disproved by the source trace;
-fixability, supported upstream use, contribution policy and maintainer willingness
+fixability,
+supported upstream use,
+contribution policy and maintainer willingness
 are not gates for this local repair.
-The tested fix is the owned consumer patch, not an upstream prototype.
+The tested fix is the owned consumer patch,
+not an upstream prototype.
 The existing upstream tracker discussion concerns instruction visibility,
 not these repository-added capture ceilings.
 

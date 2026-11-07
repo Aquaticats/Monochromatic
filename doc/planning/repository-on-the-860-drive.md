@@ -348,9 +348,13 @@ None needs an answer for the plan to proceed.
   so without the option every such removal on the 860 takes the slower path.
   Deletion itself does not need the option:
   `btrfs subvolume delete` as the user fails with `EPERM`,
-  but `rmdir` of an empty subvolume works (kernel feature `rmdir_subvol`, present here;
-  `btrfs(5)`: "Since 4.18, the rmdir(2) syscall can delete an empty subvolume just like an ordinary directory").
-  An earlier version of this item said the user cannot delete a subvolume without the option; that was wrong.
+  but `rmdir` of an empty subvolume works (kernel feature `rmdir_subvol`,
+  present here;
+  `btrfs(5)`:
+  "Since 4.18,
+  the rmdir(2) syscall can delete an empty subvolume just like an ordinary directory").
+  An earlier version of this item said the user cannot delete a subvolume without the option;
+  that was wrong.
 - Rule hooks when their script is missing (was Q4):
   non-blocking for the output filter,
   `onFailure: block` for hooks that enforce a rule.
@@ -1485,7 +1489,9 @@ repository directory present
   so `btrfs subvolume delete` as the user printed `deletion failed with EPERM`.
   Emptying a subvolume and then `rmdir` works without the option (kernel feature `rmdir_subvol`):
   the coordinator deleted the plan's six scratch subvolumes in `/var/home/user/temp/agent/dangling`
-  that way as the user, after clearing `ro` on the read-only one, at 2026-11-07T07:22:58-05:00.
+  that way as the user,
+  after clearing `ro` on the read-only one,
+  at 2026-11-07T07:22:58-05:00.
   The option still decides whether the wrapper's one-step subvolume removal works;
   see the adopted decision on `user_subvol_rm_allowed`.
 - Mount-time facts:
@@ -3021,4 +3027,6 @@ so its length depends on what changed since the first pass.
   `svfix-snap`,
   `svfix-snap-ro`,
   `svfix-asm` and the nested subvolumes inside `svfix` and `svfix-asm` in `/var/home/user/temp/agent/dangling`
-  were deleted without root (emptied, then `rmdir`), so none remain.
+  were deleted without root (emptied,
+  then `rmdir`),
+  so none remain.

@@ -104,8 +104,13 @@ builds their project graph,
 and selects affected projects after the frozen install:
 
 ```rust
-/// Run the pipeline. The frozen install has already happened by the time
-/// this is called; this is selection, graph, cache, and report.
+/// Run the pipeline.
+/// The frozen install has already happened by the time
+/// this is called;
+/// this is selection,
+/// graph,
+/// cache,
+/// and report.
 pub fn run_pipeline(/* ... */) -> miette::Result<PipelineOutcome> {
     // ...
     let (projects, _) = discover_workspace_projects(run.workspace_root, config)?;

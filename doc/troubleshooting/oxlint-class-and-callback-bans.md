@@ -121,7 +121,8 @@ Options are plumbed through to external plugins:
 
 ```rust
 // crates/oxc_linter/src/external_plugin_store.rs:45
-    /// The rule ID is also stored, so that can merge options with the rule's default options on JS side.
+    /// The rule ID is also stored,
+    /// so that can merge options with the rule's default options on JS side.
     options: IndexVec<ExternalOptionsId, (ExternalRuleId, SmallVec<[serde_json::Value; 1]>)>,
 ```
 

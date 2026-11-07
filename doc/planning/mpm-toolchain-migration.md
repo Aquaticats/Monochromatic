@@ -286,12 +286,16 @@ The maintainer's "no pinning" wording is recorded as:
  (next to `.env.local.json`).
 No machine-absolute path is committed.
 
-Superseded 2026-11-03T04:54:22-05:00: the env file and its `_.file` reader were never wired,
+Superseded 2026-11-03T04:54:22-05:00:
+the env file and its `_.file` reader were never wired,
 and the TypeScript writer was deleted with the TypeScript file-enforcer,
 so no process received these variables.
-`mpm-shadow install` now writes them as a generated, gitignored mise `conf.d` fragment instead
+`mpm-shadow install` now writes them as a generated,
+gitignored mise `conf.d` fragment instead
 (`.config/mise/conf.d/30-toolchain-env.local.toml` per worktree;
-the machine-global scope writes none, by owner decision, so tool variables stay inside the repository);
+the machine-global scope writes none,
+by owner decision,
+so tool variables stay inside the repository);
 see "Tool environment" in `package/mpm-shadow/cli/README.md`.
 Mise templates TOML values but reads `_.file` JSON values literally,
 so the fragment's values are refused when they hold braces or `$`.

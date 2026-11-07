@@ -63,8 +63,11 @@ Oxlint `1.74.0` instead routes Rust worker requests through one N-API `Threadsaf
 `2d4e8d20644e0e7446f0a381894b45ea339a0625` says:
 
 ```rust
-/// Unlike `loadPlugin`, `lintFile` JS callback is not async. But `ThreadsafeFunction` executes the callback
-/// on main JS thread, and therefore it may have to wait for a previous `lintFile` call to complete.
+/// Unlike `loadPlugin`,
+/// `lintFile` JS callback is not async.
+/// But `ThreadsafeFunction` executes the callback
+/// on main JS thread,
+/// and therefore it may have to wait for a previous `lintFile` call to complete.
 ```
 
 The plugin's process-local TypeScript bridge therefore does not require Oxlint's Rust worker count to be one.
@@ -289,10 +292,14 @@ already defaults to 10,000 retained lines.
 `src/settings.rs:1413-1418` says:
 
 ```rust
-/// Scrollback retention cap in logical lines (SCROLLBACK-CAP). Default
-/// `10000.0`. Bounds steady-state memory so unbounded output cannot OOM the
+/// Scrollback retention cap in logical lines (SCROLLBACK-CAP).
+/// Default
+/// `10000.0`.
+/// Bounds steady-state memory so unbounded output cannot OOM the
 /// process.
-/// `0` means unbounded. Live-reloadable; lowering it trims history immediately.
+/// `0` means unbounded.
+/// Live-reloadable;
+/// lowering it trims history immediately.
 pub scrollback_lines: f32,
 ```
 

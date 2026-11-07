@@ -94,6 +94,12 @@ Read-only commands,
    on every file system: reclaimers take their place in a chain of numbered claim files (`cli-reclaim-*`) beside the lock and check that
    the name still refers to the file they judged before they unlink, so no `flock` is involved. A killed reclaimer can leave inert
    claim files, which `SPEC.md` ("The claim chain") says how to remove.
+  On a file system that supports neither a rename that does not replace nor a hard link (a FUSE server such as `s3fs-fuse`), the service
+   takes `index.lock` the way Git does, by exclusive creation, and writes its marker into the file afterwards, so a commit lands there as
+   it does with plain Git. A kill between the two steps leaves a lock without its marker, as plain Git leaves one: the wrapper never removes
+   it (it may be a Git that is still writing), a wrapped `git add` meets it as Git does, and a commit waits for it until the lock ceiling and
+   then says which file it is and the command that removes it (`SPEC.md`, "Placement and its refusals"). A killed service's lock with its whole
+   marker is removed by the next landing only where a claim file can be placed; on such a file system the notice names the file to remove.
   A marker carries the machine ID of its host: a reboot of the same machine ends the holder, and a lock or claim of a service on another
    machine (a repository on a shared file system) is never taken for stale. Neither is a marker of an earlier release, which names no
    machine and is reclaimed by that release's own exclusion: such a lock, or a claim that cannot be judged, stays, the commit waits as for
@@ -493,6 +499,13 @@ Before it acts, the command checks that no socket of the earlier units listens a
  when one does, it settles nothing, says which one it is, and says what to stop for that one:
  this worktree's earlier units, or the single service of the first releases (`cli-git.socket` and `cli-git.service`),
  which serves every worktree.
+A running program whose command line carries `--journal` with a folder the check cannot look up
+ (an unrelated tool can carry the option too) also holds the command back,
+ because it cannot be ruled out as an earlier helper;
+ the message then names that program by process ID and executable path, gives the folder and the system's answer,
+ and says how to go on:
+ wait for it, stop it, or run the command again after it ends.
+Its other arguments are never printed or logged, because any of them can be a secret.
 It offers to wait for a helper's idle exit (three hours after its last client) only when no socket is left listening,
  because a listening socket starts the helper again and does not stop by waiting.
 When the checks pass it says the condition above on standard error,

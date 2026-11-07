@@ -1,9 +1,11 @@
 # Rust file-enforcer rewrite handover
 
-Note 2026-11-04T22:23:58-05:00: the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
+Note 2026-11-04T22:23:58-05:00:
+the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
 the settings file `cli-git.config.jsonc` becomes `monochromatic-git-policy-cli.config.jsonc`,
-and the folders, logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
+and the folders,
+logs and service units that carry `cli-git` carry `monochromatic-git-policy-cli`
 (the list is in `doc/planning/git-policy-cli-program-rename.md`).
 The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
@@ -91,7 +93,8 @@ each finished branch is reviewed and merged into `main`):
   and `jetbrains-harper` rule kinds in the cli crate and moves the browserslist lock to the root.
   `git merge` had refused because the main checkout held an uncommitted `pnpm-lock.yaml` of unknown authorship
   (13 catalog specifiers raised to their resolved versions);
-  the owner chose "Commit it, then merge",
+  the owner chose "Commit it,
+  then merge",
   so it is `add4429c97` on its own.
   monochromatic-c0 answered afterwards that the change was not theirs
   (it was already modified when that session started).
@@ -167,7 +170,8 @@ each finished branch is reviewed and merged into `main`):
   which has no project-only mode) chose "Wait for the cutover";
   the shared agent brief now forbids agents to run it.
 - Publishing,
-  as the user chose ("Merge now, then token"):
+  as the user chose ("Merge now,
+  then token"):
   the publish-prep merge lets CI release jsonc-edit 0.1.2,
   with one expected red run for the five new crates;
   then the owner creates one token (publish-new,
@@ -210,10 +214,12 @@ each finished branch is reviewed and merged into `main`):
   the user's OpenSnitch auto-rejects unanswered prompts and saves `reject-always-simple-<path>` rules,
   which is how agent worktree builds and old toolchain paths got blocked.
   At the user's request the rustup rule is now `allow-always-simple-var-home-user-cargo-bin-rustup.json`
-  (its action was already `allow`; only the name said reject).
+  (its action was already `allow`;
+  only the name said reject).
 - Running:
   a `package/wg` agent adds OpenSnitch allow rules for toolchain update paths and routes update traffic outside the tunnel
-  ("We control the package/wg/* category. Make our wg auto make update traffics go through clearnet.");
+  ("We control the package/wg/* category.
+  Make our wg auto make update traffics go through clearnet.");
   it stops before any live change and hands the apply commands to this session.
 - Running:
   an mpm-shadow agent for the next item and for the registry prune that still reads `$CARGO_HOME/.crates.toml`.
@@ -235,7 +241,8 @@ each finished branch is reviewed and merged into `main`):
   pre-update copies of the plan and lock are in `${HOME}/temp/agent/vibe-install/`.
 - Global plan conversion:
   the user delegated it on 2026-10-31
-  ("Use your own judgement. I trust you'll do this step good enough autonomously."),
+  ("Use your own judgement.
+  I trust you'll do this step good enough autonomously."),
   so this session converts the real plan under `~/.config/monochromatic-dev/toolchain/` at cutover without asking,
   keeping the decision record's 0600 backup beside the original until the converted global sync is verified.
   A rehearsal on a copy (`${HOME}/temp/agent/fe-rust/global-rehearsal/input/`) runs first,
@@ -269,16 +276,20 @@ each finished branch is reviewed and merged into `main`):
   and `file-enforcer check|write --outputs committed|local|all` derived from `.gitignore` files.
   `yt-dlp` moves to `pipx:yt-dlp` in the global conversion (decided under the owner's delegation).
 - Running:
-  mpm-shadow pnpm-style `sync` (resolves new or changed entries, frozen in CI) on its update-by-tool branch,
+  mpm-shadow pnpm-style `sync` (resolves new or changed entries,
+  frozen in CI) on its update-by-tool branch,
   which also adds the README rule "pnpm answers first"
-  (the owner wants that rule in package docs, not AGENTS.md);
+  (the owner wants that rule in package docs,
+  not AGENTS.md);
   the wg agent.
 - mpm-shadow pnpm-style `sync` built on branch `worktree-agent-a32535bbf12b77b95` (328 tests):
   resolves new or re-edited entries alone,
-  frozen under `--frozen-lock` or a CI environment detected the way pnpm does (a port of ci-info's `isCI`, `CI=false` turns it off),
+  frozen under `--frozen-lock` or a CI environment detected the way pnpm does (a port of ci-info's `isCI`,
+  `CI=false` turns it off),
   `--no-frozen-lock` kept (pnpm's `--no-frozen-lockfile`).
   Settled by "pnpm answers first" without asking:
-  `sync` with no lock creates it, frozen refuses;
+  `sync` with no lock creates it,
+  frozen refuses;
   the same agent fixes the two line-break lint errors from `7c7ca78478`.
   Merge,
   then bump and release mpm-shadow,
@@ -319,7 +330,8 @@ each finished branch is reviewed and merged into `main`):
   mpm-shadow's slice re-exec (for `install`,
   `update`,
   `outdated`) is on `main` but not in the released 0.2.0.
-  (Note 2026-10-31: both re-execs were removed from `main` by the merge `bc49bb812f`;
+  (Note 2026-10-31:
+  both re-execs were removed from `main` by the merge `bc49bb812f`;
   the toolchain no longer knows about the slice.)
   Not done:
   the two auto-saved rejects for the removed worktree `agent-a23c3740c67ba36d9`'s `target/debug` binaries stay
@@ -329,7 +341,8 @@ each finished branch is reviewed and merged into `main`):
   checkout build outputs) were not asked for.
 - Corrected 2026-10-31,
   user:
-  "mpm-shadow should never determine itself goes through clearnet. Our wg set of pkgs should determine that!"
+  "mpm-shadow should never determine itself goes through clearnet.
+  Our wg set of pkgs should determine that!"
   The self-placement above (TypeScript sync/update and mpm-shadow re-executing into the slice) is wrong and is being removed;
   the wg packages detect update traffic alone,
   by the union of all three methods the user chose:
@@ -343,13 +356,15 @@ each finished branch is reviewed and merged into `main`):
   Policy for the wg tools,
   user:
   "Anyone using our wg set of tools should be warned on start and the behavior shouldn't have a toggle.
-  It should always enforce our policies, even clearnet."
+  It should always enforce our policies,
+  even clearnet."
   So no switch disables any bypass,
   every start warns exactly what leaves the tunnel,
   and a policy that cannot be enforced is reported loudly rather than degraded silently.
   This replaces an opt-in,
   fail-closed instruction this session had given the wg agent on its own.
-- wg rework reported 2026-10-31 (branch `worktree-agent-a6f97f5da6f22de4d`, tip `66c06d6dcc`):
+- wg rework reported 2026-10-31 (branch `worktree-agent-a6f97f5da6f22de4d`,
+  tip `66c06d6dcc`):
   the removal `8423cf1922` was merged alone into `main` as `bc49bb812f`,
   so the TypeScript sync/update and mpm-shadow no longer re-execute into the slice
   (`rg` over `package/file-enforcer` and `package/mpm-shadow` finds no slice,
@@ -417,9 +432,16 @@ each finished branch is reviewed and merged into `main`):
   3.  `WG_QUICKER_EXEMPT_COMMAND` and `WG_QUICKER_EXEMPT_UID` cross sudo and act as a toggle
       (`/bin/true` as the companion leaves `up` succeeding with no process watch).
   4.  The process watch trusts names and paths any same-uid process controls
-      (`exec -a mpm curl`, a binary copied under the toolchain root);
+      (`exec -a mpm curl`,
+      a binary copied under the toolchain root);
       a Flatpak or bwrap process without user-bus access might reach the slice this way (not exercised).
-  5.  The toolchain-root rule covers every installed tool (node, bun, pnpm, java, android-sdk, llama.cpp, and more),
+  5.  The toolchain-root rule covers every installed tool (node,
+      bun,
+      pnpm,
+      java,
+      android-sdk,
+      llama.cpp,
+      and more),
       which the notice does not say.
   6.  Failures after startup reach no person:
       the Rust watcher's log is swallowed by `up`,
@@ -680,7 +702,8 @@ each finished branch is reviewed and merged into `main`):
 - Owner's answers 2026-10-31 on two config cases the reviewer raised:
   no `ExemptMark` "Keep as is",
   owner's note:
-  "Warn if ExemptMark is unset but continue to up, because sometimes for some configs we want no exemptions.";
+  "Warn if ExemptMark is unset but continue to up,
+  because sometimes for some configs we want no exemptions.";
   `Table = off` "Keep loud not-in-force".
   Sent to the wg agent to record in the README so later reviews don't flag it.
 - Playwright image (switch agent,
@@ -842,7 +865,8 @@ each finished branch is reviewed and merged into `main`):
   and afterwards no `wg-quicker*` unit or sentinel process exists,
   so a watcher's death would go unreported.
   System journal:
-  both units failed at exec with "Unable to locate executable '<path under /var/home/user>': Permission denied",
+  both units failed at exec with "Unable to locate executable '<path under /var/home/user>':
+  Permission denied",
   `status=203/EXEC`,
   started by PID 1 in `init_t`;
   SELinux refusing system services the execution of these files:
@@ -870,7 +894,8 @@ each finished branch is reviewed and merged into `main`):
   a root-owned copy in `/usr/local/libexec` runs but needs an installer);
   an unconfirmed unit is stopped and the sentinel starts beside the watcher with a loud line;
   the repeat-limit cause is now the whole line up to 1024 characters,
-  with digits, absolute paths and unit names normalized;
+  with digits,
+  absolute paths and unit names normalized;
   a system stop (`/run/nologin` or an active `shutdown.target`) is not reported as a death,
   a logout is;
   bounded `systemd-run` calls;
@@ -951,13 +976,15 @@ each finished branch is reviewed and merged into `main`):
   then runs that copy,
   never the one on PATH;
   sent to the switch agent);
-  old copies "Re-point, then remove"
+  old copies "Re-point,
+  then remove"
   (after the managed newest copy is installed,
   links in `~/.local/bin`,
   every checkout's `.cache/*-bin` and the global farm that target an old copy are re-pointed to it,
   then the old copy and its cargo record are removed,
   each action printed);
-  timing "Ship 0.2.1, add in 0.2.2"
+  timing "Ship 0.2.1,
+  add in 0.2.2"
   (0.2.1 releases after its re-check;
   a new agent builds 0.2.2 on branch `mpm-shadow-0-2-2` from `8e017174ea`;
   the switch merges only after its lock names 0.2.2).
@@ -1038,7 +1065,8 @@ each finished branch is reviewed and merged into `main`):
   Second run `41267052681`,
   dispatched on `main`,
   succeeded and printed
-  "ghcr.io/aquaticats/monochromatic-playwright:e802ff364dc61464 exists (HTTP 200); nothing to build".
+  "ghcr.io/aquaticats/monochromatic-playwright:e802ff364dc61464 exists (HTTP 200);
+  nothing to build".
   Still to verify after the cutover merge:
   a real `prepare:playwright` pull from GHCR on this machine.
 - Switch delta review (2026-11-01,
@@ -1224,8 +1252,10 @@ each finished branch is reviewed and merged into `main`):
   measured:
   the owner's toolchain folders contain no links).
 - Cutover merged 2026-11-01:
-  `d2036021e2` (switch tip `48b76b1ae7`), pushed (`3408ce45fe..d2036021e2`).
-  The owner said "We've been at this for 3 days. SWITCHOVER NOW NO MATTER WHAT!"
+  `d2036021e2` (switch tip `48b76b1ae7`),
+  pushed (`3408ce45fe..d2036021e2`).
+  The owner said "We've been at this for 3 days.
+  SWITCHOVER NOW NO MATTER WHAT!"
   The final separate review (`a4e98fb9427d700e5`) had already returned no blocker:
   the merge resolution lost nothing,
   no tool moved backwards against `main`'s lock,
@@ -1258,8 +1288,11 @@ each finished branch is reviewed and merged into `main`):
     `admission-gate.yml`,
     the decision withdrawn,
     the Depot docs marked not adopted;
-    the unused `repository` input of `repo-tools-setup` removed (owner: "Remove");
-    25 Depot issues closed as not planned (owner: "Close as not planned"; 995 to 2133);
+    the unused `repository` input of `repo-tools-setup` removed (owner:
+    "Remove");
+    25 Depot issues closed as not planned (owner:
+    "Close as not planned";
+    995 to 2133);
     the four `depot/skills` agent skills removed;
     the global `depot` CLI dropped,
     and mise's own `depot` 2.102.23 installs uninstalled.
@@ -1272,30 +1305,43 @@ each finished branch is reviewed and merged into `main`):
     Correction (owner 2026-11-01):
     "Didn't I say every one should be sized to fit each time with the agent's discretion?"
     This session had added `RXD` with its own fallback numbers
-    (2g, 2 CPUs, 512 processes, weight 50)
+    (2g,
+    2 CPUs,
+    512 processes,
+    weight 50)
     as a rule before asking,
-    against `BRQ`'s "inferred requirements or policy: ask first".
+    against `BRQ`'s "inferred requirements or policy:
+    ask first".
     Removed:
     `RXD`,
     `RXI`'s old "2g and 2 are the defaults",
     and `NLG`'s "default 2";
     `RXI` now sizes every limit to that command each time.
     The per-agent instruction text (#39) carries no fixed numbers either.
-  - `QRY` names `--limit` caps beside `head` caps (owner: "Add list limits").
+  - `QRY` names `--limit` caps beside `head` caps (owner:
+    "Add list limits").
   - Troubleshooting doc `doc/troubleshooting/gh-list-json-stops-at-limit-without-notice.md`
-    (owner: "You're second guessing jq's behavior, so /troubleshooting-doc").
-- Per-command limits, final form (owner 2026-11-01, in order):
-  "Excluding Claude and Codex, make file-enforcer generate all the instruction files for all agents found on this machine."
+    (owner:
+    "You're second guessing jq's behavior,
+    so /troubleshooting-doc").
+- Per-command limits,
+  final form (owner 2026-11-01,
+  in order):
+  "Excluding Claude and Codex,
+  make file-enforcer generate all the instruction files for all agents found on this machine."
   then,
   after the evidence below,
-  "Changed my mind. Change the original heavy command rule to apply to every command for every agent.
+  "Changed my mind.
+  Change the original heavy command rule to apply to every command for every agent.
   It would be useful for Claude too even if Claude instances already share one overall limit.
   File a gh issue so we would get something more token efficient up asap."
   then
-  "Exempt trival commands for that rule, whatever agents consider trival."
+  "Exempt trival commands for that rule,
+  whatever agents consider trival."
   and,
   of a scope escaping the shared `claude-code-bash` cap,
-  "that is fine. Add something just for CLAUDE.md saying that is fine too."
+  "that is fine.
+  Add something just for CLAUDE.md saying that is fine too."
   Result:
   `RXI` covers every command the agent does not consider trivial,
   in every agent,
@@ -1317,7 +1363,8 @@ each finished branch is reviewed and merged into `main`):
   only crush (`CRUSH.md`),
   zed (`.rules`),
   Copilot (`.github/copilot-instructions.md`)
-  and Junie (`.junie/guidelines.md`, in `~/.junie`)
+  and Junie (`.junie/guidelines.md`,
+  in `~/.junie`)
   have branded project files;
   opencode,
   kilocode,
@@ -1334,15 +1381,20 @@ each finished branch is reviewed and merged into `main`):
   The research agent also asked the coordinator to write the file its classifier refused;
   declined.
 - `claude-cpu-watch` IO weight (#41) merged as `168c1f6496`:
-  the daemon writes `io.bfq.weight` (BFQ, 1 to 1000) and `io.weight` (iocost, 1 to 10000, off here).
+  the daemon writes `io.bfq.weight` (BFQ,
+  1 to 1000) and `io.weight` (iocost,
+  1 to 10000,
+  off here).
   Applying it went wrong first:
   this session restarted the service right after the merge,
   before the main checkout linked the new workspace dependency,
   and the daemon crash-looped about 02:00 to 02:02:44 EST
-  (`Cannot find package '@monochromatic-dev/caught-value-core'`, 70 restarts);
+  (`Cannot find package '@monochromatic-dev/caught-value-core'`,
+  70 restarts);
   `cpu.max` kept `2800000 100000` throughout.
   Fixed by `mise run prepare:pnpm` in a sized scope
-  (it also ran `file-enforcer write` for all outputs, which wrote nothing).
+  (it also ran `file-enforcer write` for all outputs,
+  which wrote nothing).
   Positive control:
   the live `io.bfq.weight` was set to `default 100`,
   and the daemon logged `IO-WEIGHT-APPLIED claude-code-bash io.bfq.weight default 100 -> 10`;
@@ -1351,7 +1403,9 @@ each finished branch is reviewed and merged into `main`):
   (smoke-test isolation fixed in `fa0dba7b28`).
   Owner 2026-11-01,
   declining a new AGENTS.md rule for this:
-  "No, it was merely the poor design of claude-cpu-watch. Open a gh issue to rebuild it."
+  "No,
+  it was merely the poor design of claude-cpu-watch.
+  Open a gh issue to rebuild it."
   Filed as #3467
   (run from an installed build instead of the working tree,
   node from the toolchain lock,
@@ -1362,7 +1416,8 @@ each finished branch is reviewed and merged into `main`):
   `mise run prepare:playwright` printed "pulled ghcr.io/aquaticats/monochromatic-playwright:e802ff364dc61464",
   and the local digest is the published `sha256:3e7042a80905629a59c4c48a72b0666af4f64bb2934245371df56208976427df`.
 - wg round 7 and performance (branch `worktree-agent-a6f97f5da6f22de4d`,
-  `fad3cdc216..15db705ec1`, 10 commits),
+  `fad3cdc216..15db705ec1`,
+  10 commits),
   under separate review before the live apply:
   the restart incident was an exit race,
   not a state-format difference
@@ -1382,12 +1437,15 @@ each finished branch is reviewed and merged into `main`):
   and one delegated scope per origin following its limits.
   Not verified:
   whether the socket-mark BPF programs on the updates slice reach a delegated scope below it.
-  Review (`a5f4948148b5e695a`, 2026-11-01):
+  Review (`a5f4948148b5e695a`,
+  2026-11-01):
   no code blocker;
   the slice's flag-0 socket-mark programs reach delegated scopes (`compute_effective_progs`).
   Sent back to the wg agent:
   a built-in one-time sweep of the 4666 old units
-  (2489 running, 2467 empty cgroups, 2177 failed),
+  (2489 running,
+  2467 empty cgroups,
+  2177 failed),
   the block installed before routing removal,
   a missing `wg-quicker-exempt` stopping `down`,
   a time budget for `follow_origins`,
@@ -1400,8 +1458,10 @@ each finished branch is reviewed and merged into `main`):
 - systemd stuck-scope doc merged:
   `doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`
   (reproduced with systemd 262.1 as PID 1 on kernel 7.2.11 in a rootless container;
-  prototype fix `unit_cgroup_catchup(u)` in `scope_enter_running`, 28 of 256 stuck before and 0 of 192 after;
-  not filed, because systemd's `CONTRIBUTING.md` requires issues written by the reporter).
+  prototype fix `unit_cgroup_catchup(u)` in `scope_enter_running`,
+  28 of 256 stuck before and 0 of 192 after;
+  not filed,
+  because systemd's `CONTRIBUTING.md` requires issues written by the reporter).
   Corrections it made:
   a pid gone at call time fails the call ("No such process") and creates no unit;
   "No PIDs left" comes from a gated start;
@@ -1415,8 +1475,10 @@ each finished branch is reviewed and merged into `main`):
   not acted on:
   a rebuild with hashed lazy chunks can break any long-running server started from `dist`.
 - CI crate releases landed as `bae8ccba5b`
-  ("merge: land the crate-release CLI redesign from worktree-agent-ae9152410c9c52921").
-  The merge conflicted with `3f0bff8248` (#3371, test expectations from named constants)
+  ("merge:
+  land the crate-release CLI redesign from worktree-agent-ae9152410c9c52921").
+  The merge conflicted with `3f0bff8248` (#3371,
+  test expectations from named constants)
   in `cli.unit.test.ts` and `release-steps.unit.test.ts`:
   kept the branch's lock step (`cargo update --workspace` in the lock directory) written with main's constants,
   and dropped the `taskRunnerProgram` import the branch removed.
@@ -1438,9 +1500,11 @@ each finished branch is reviewed and merged into `main`):
   `mise run a b c` runs only `a` and passes `b c` to it as arguments;
   run each task separately.
 - forbidden-strings 0.6.1 from CI:
-  dry run `41287463221` succeeded (release success, publish skipped);
+  dry run `41287463221` succeeded (release success,
+  publish skipped);
   real run `41303293802` failed at "Push the bump to main as a signed commit":
-  "PUSH REFUSED: Expected branch to point to "badf75b1e556b13256f6c8dd25017f2ce9e1ad7f" but it did not."
+  "PUSH REFUSED:
+  Expected branch to point to "badf75b1e556b13256f6c8dd25017f2ce9e1ad7f" but it did not."
   The guard worked (nothing pushed or published),
   but `main` moves every few minutes and a release takes about half an hour,
   so a plain re-dispatch usually loses the race.
@@ -1459,14 +1523,18 @@ each finished branch is reviewed and merged into `main`):
   `package/git-policy/cli`
   and `package/jsonc-edit/core-rust`;
   up to 6 sends;
-  a dry run skips the push step, so only a real run tests it).
+  a dry run skips the push step,
+  so only a real run tests it).
   Real run 2:
   `41306407444` succeeded.
   The push step lost the race once
   ("main moved after the checkout"),
-  compared `7aaa29a740...09717e1413` (1 changed file, no watched path),
+  compared `7aaa29a740...09717e1413` (1 changed file,
+  no watched path),
   resent,
-  and pushed `55f3a1634e` (GitHub: verified, valid).
+  and pushed `55f3a1634e` (GitHub:
+  verified,
+  valid).
   Publish run `41306795688` succeeded;
   0.6.1 on crates.io at 2026-11-01T12:33:50Z with every platform's release assets.
   The git-wrapper session was told.
@@ -1483,12 +1551,14 @@ each finished branch is reviewed and merged into `main`):
   The git-wrapper session (`monochromatic-8c`) was told the fix is on `main`;
   queued:
   send it the result of run `41306407444`.
-  Earlier queue item, done:
+  Earlier queue item,
+  done:
   when the retry-onto-new-head fix is on `main`,
   message the git-wrapper session (`monochromatic-8c`).
   It will release the wrapper through `crate-release.yml` then,
   with no local release
-  ("it can wait for the fix ... dispatch through the workflow, no local release").
+  ("it can wait for the fix ... dispatch through the workflow,
+  no local release").
   Its `hook.standards-review-shadow` dependence is known and handled on its side.
 - wg re-review (`15db705ec1..f7217a7b5b`):
   no blockers;
@@ -1498,11 +1568,13 @@ each finished branch is reviewed and merged into `main`):
   and a block that fails to lift must be reported
   (`removeTrafficBlock` never throws).
   Owner 2026-11-01:
-  "`down` doesn't have to block all traffic during `down`. It can avoid blocking already-clearnet ones."
+  "`down` doesn't have to block all traffic during `down`.
+  It can avoid blocking already-clearnet ones."
   Done in `dd293b2f82` (with `4337ec78ba` atomic replace,
   `73502c7fff` loud lift failure,
   `26377527b9`,
-  `c324bc2cfc`; under re-review):
+  `c324bc2cfc`;
+  under re-review):
   the block accepts `meta mark 0x64` and the update-host destinations from `ip rule show`
   ahead of the drop in the output chain;
   forward stays a pure drop.
@@ -1515,7 +1587,9 @@ each finished branch is reviewed and merged into `main`):
   `down` refuses with the tunnel fully up.
   Final re-review (`f7217a7b5b..c324bc2cfc`):
   no blockers and no should-fix items.
-  Owner answers, 2026-11-01, in the question tool:
+  Owner answers,
+  2026-11-01,
+  in the question tool:
   restart "I run it" (this session runs `down` then `up`);
   "Accept the gap (Recommended)";
   "Pass forwarded update hosts" (update-host accepts in the forward chain too);
@@ -1534,7 +1608,8 @@ each finished branch is reviewed and merged into `main`):
   application watcher pid 2286473 runs `target/release/wg-quicker-exempt __watch fr-par-fr1 100 1000`,
   both in `/user.slice/user-0.slice/session-c368.scope`;
   sentinels 2286003 and 2286679;
-  `down` checks the exact watcher script path, so it must run the main checkout's rebuilt bundle.
+  `down` checks the exact watcher script path,
+  so it must run the main checkout's rebuilt bundle.
   Final review of that range:
   the forward accepts do not work
   (replies to the guest are dropped;
@@ -1544,7 +1619,8 @@ each finished branch is reviewed and merged into `main`):
   and interface names and paths go unquoted into root commands
   (`parseCliArgs` does not validate the interface name).
   All sent back to the wg agent
-  (reply accepts `ip saddr`/`ip6 saddr` for the hosts, not `ct state established`).
+  (reply accepts `ip saddr`/`ip6 saddr` for the hosts,
+  not `ct state established`).
   On the restart plan:
   `/etc/pam.d/sudo` includes `system-auth` with `-session optional pam_systemd.so`,
   and session `c368` is Service sudo,
@@ -1558,7 +1634,8 @@ each finished branch is reviewed and merged into `main`):
   the branch push hit `GH006: Protected branch update failed`,
   then the 0.5.1 LFS 503s):
   `c9438a645b` forward replies as `ct direction reply ip saddr { hosts }`
-  (a forged source is dropped, shown with real nft),
+  (a forged source is dropped,
+  shown with real nft),
   `d728f5a4fe` the state-file name gets `isValidInterfaceName`,
   `898c39ffc2` `=` and `+` refused (nft rejects them as table names).
   Tip to merge locally:
@@ -1591,7 +1668,8 @@ each finished branch is reviewed and merged into `main`):
   an earlier claim here that `toolchain:install` was unmatched was wrong.
   The panic messages show the tests' detection reads deleted TypeScript sources
   (`[]` fetching tasks,
-  "mpm-shadow has no verb install: []",
+  "mpm-shadow has no verb install:
+  []",
   `package/file-enforcer/core/src/toolchain/sync.ts`),
   so no policy gap is shown;
   an agent is fixing the tests and dropping the stale entries,
@@ -1600,7 +1678,8 @@ each finished branch is reviewed and merged into `main`):
   editing nothing;
   its findings:
   `MISE_TASKS` and `MPM_SHADOW_VERBS` miss no fetcher,
-  the detection moved (`verb_grammar.rs`, `runMpmShadow([...])`),
+  the detection moved (`verb_grammar.rs`,
+  `runMpmShadow([...])`),
   all 17 `PLAN_UPDATE_HOSTS` are still named,
   and `node package/monorepo-task/core-exec/src/mpm-shadow.ts <verb>` run outside mise would be unmatched.
   Queued:
@@ -1611,13 +1690,15 @@ each finished branch is reviewed and merged into `main`):
   cause not established.
   Then the owner rebooted (2026-11-01 about 10:08 local).
   After the reboot:
-  git intact (`fsck --connectivity-only`: dangling objects only),
+  git intact (`fsck --connectivity-only`:
+  dangling objects only),
   `main` 69 commits ahead of `origin/main` (0.5.1 push regression),
   0 `wg-quicker-update-*` units,
   no `fr-par-fr1`,
   no watchers,
   no policy rules (traffic direct via `wlp9s0`),
-  user manager `degraded` by `kopia-snapshot-all.service` (owner's backup, not touched),
+  user manager `degraded` by `kopia-snapshot-all.service` (owner's backup,
+  not touched),
   and the merge's builds (14:55 to 14:56 UTC) present.
   The restart became `up` only:
   unit `wg-restart-fr-par-fr1`,
@@ -1644,7 +1725,8 @@ each finished branch is reviewed and merged into `main`):
   `toolchain:outdated` exits 1 for "2 tools would move" (`npm:pagefind` 1.5.2 to 1.6.0 among them).
   Noise to fix:
   a process that exits between match and move is reported loudly
-  ("move failed ... busctl ... Call failed: No such process");
+  ("move failed ... busctl ... Call failed:
+  No such process");
   it should count as a vanish.
   Name quirk:
   scopes for a terminal origin end in `.scope.scope`.
@@ -1659,7 +1741,8 @@ each finished branch is reviewed and merged into `main`):
   and `--help` exit 0 and the real pnpm is the next one on PATH.
   `monochromatic-60` (the catalog-specifier session) was told.
 - WR4 tightened (commit `2c44873a70`;
-  owner: "Why are you even using magic numbers in prose?",
+  owner:
+  "Why are you even using magic numbers in prose?",
   then "Tighten WR4 (Recommended)").
   Lint finds semantic-line-break errors in another session's IRW rule (`AGENTS.md` lines 231 and 233),
   left alone.
@@ -1733,7 +1816,8 @@ each finished branch is reviewed and merged into `main`):
   added in `39d8643583`,
   `65b9132c91`
   and `43fcf7ed9b`.
-  The cross-vendor re-review timed out with no output (`sol-review2.txt`, exit 124);
+  The cross-vendor re-review timed out with no output (`sol-review2.txt`,
+  exit 124);
   retried on the narrower security diff `~/temp/agent/wg-cleanup/review3.diff`
   (output `sol-review3.txt`),
   with a same-vendor second pass alongside.
@@ -1755,7 +1839,8 @@ each finished branch is reviewed and merged into `main`):
   done in `a255741468`.
   The cross-vendor retry on the narrower diff also timed out empty (`sol-review3.txt`).
   Owner 2026-11-01:
-  "Deploy, keep reviewing (Recommended)".
+  "Deploy,
+  keep reviewing (Recommended)".
   Merged as `63eed6d1c3`;
   build and tests of both packages on it running,
   then `down` and `up` through `~/temp/agent/wg-restart/restart.ts`,
@@ -1766,7 +1851,8 @@ each finished branch is reviewed and merged into `main`):
   Both packages' `buildAndTest` passed on `63eed6d1c3`
   (the formerly failing `update_entry_points_tests::source_tests` and `UPDATE_HOSTS` show passed;
   the Rust run shows no failures).
-  Restart (`down` then `up`, 2026-11-01 19:30 UTC):
+  Restart (`down` then `up`,
+  2026-11-01 19:30 UTC):
   both exited 0,
   new watchers in `/user.slice/user-0.slice/session-c204.scope`,
   ordinary traffic `dev fr-par-fr1 table 51820`,
@@ -1781,9 +1867,11 @@ each finished branch is reviewed and merged into `main`):
   every sampled socket of the processes moved into update scopes carried `fwmark 0x64`,
   none unmarked.
   The wg work is live and verified.
-- Kopia backups (`~/.config/systemd/user/kopia-snapshot-all.service`, hourly timer)
+- Kopia backups (`~/.config/systemd/user/kopia-snapshot-all.service`,
+  hourly timer)
   have failed every run since at least 2026-10-25
-  (earliest failure in a week of journal; no success in that week):
+  (earliest failure in a week of journal;
+  no success in that week):
   its ExecStart names `~/.local/share/mise/installs/kopia/latest/kopia-0.23.0-linux-x64/kopia`,
   but `latest` points to 0.23.1.
   Not caused by the toolchain cutover (it predates it).
@@ -1837,7 +1925,8 @@ each finished branch is reviewed and merged into `main`):
   Then merge,
   build,
   and one restart (`down` then `up`).
-- Earlier, the wg cleanup agent resumed:
+- Earlier,
+  the wg cleanup agent resumed:
   the test fixes,
   the vanish-noise fix,
   and the queued hardening (forward `iifname`,
@@ -1852,7 +1941,8 @@ each finished branch is reviewed and merged into `main`):
   the forward reply rules also need `iifname` of the physical interfaces,
   since two forged packets can make a "reply";
   `BypassOwnedRoute.tokens` must be pinned to `table <state.table> proto 201` and a known route shape
-  (a leading `-` is harmless after `route delete`; any attribute is the exposure);
+  (a leading `-` is harmless after `route delete`;
+  any attribute is the exposure);
   drop the `WG_QUICKER_RUNTIME_DIRECTORY` pass-through for root runs.
   Planned restart:
   merge,
@@ -1877,11 +1967,20 @@ each finished branch is reviewed and merged into `main`):
   the first `up` sweeps about 6500 old units
   (3169 active and 3291 failed at the review),
   so the user manager stays busy for a while.
-- command-code installed globally (owner 2026-11-01: "Install command-code (npm) globally for me."):
-  global plan entry `npm:command-code` (`mpm-pnpm`, bins `cmd`, `cmdc`, `command-code`, `commandcode`,
+- command-code installed globally (owner 2026-11-01:
+  "Install command-code (npm) globally for me."):
+  global plan entry `npm:command-code` (`mpm-pnpm`,
+  bins `cmd`,
+  `cmdc`,
+  `command-code`,
+  `commandcode`,
   all free before),
-  `toolchain:update:global -- npm:command-code` moved 1 tool (lock diff: that row and the digest only),
-  `toolchain:install:global`: 1 installed, 60 unchanged, 0 failed;
+  `toolchain:update:global -- npm:command-code` moved 1 tool (lock diff:
+  that row and the digest only),
+  `toolchain:install:global`:
+  1 installed,
+  60 unchanged,
+  0 failed;
   `command-code --version` prints `1.88.2`.
   Backups of the plan and lock:
   `~/temp/agent/command-code/`.
@@ -1895,7 +1994,10 @@ each finished branch is reviewed and merged into `main`):
   (`timeout 5 echo --version` prints `timeout 0.1.0`;
   other flags such as `--model x --print` pass through).
   Traced in `doc/troubleshooting/timeout-cli-consumes-flags-right-after-command.md` (merge `d54be4f9de`):
-  all four of its flags (`-V`, `-h`, `-v`, `-k`) are consumed right after the command
+  all four of its flags (`-V`,
+  `-h`,
+  `-v`,
+  `-k`) are consumed right after the command
   (`timeout 5 grep -v x` ran grep without `-v`).
   Owner 2026-11-01:
   "uutils timeout (Recommended)" and "Don't file (Recommended)".
@@ -1905,16 +2007,25 @@ each finished branch is reviewed and merged into `main`):
   `df -h /`,
   `grep -v`
   and `du -k` now match `/usr/bin/timeout`.
-- pnpm shadow link (owner 2026-11-01, relayed by the catalog-specifier session `monochromatic-c0`:
-  "Yes, ask the toolchain session to link it"):
+- pnpm shadow link (owner 2026-11-01,
+  relayed by the catalog-specifier session `monochromatic-c0`:
+  "Yes,
+  ask the toolchain session to link it"):
   uncommitted in the main checkout:
-  plan row `cargo:monochromatic-pnpm-shadow` (`cargo-binstall`, bin `pnpm-shadow`, Linux only,
+  plan row `cargo:monochromatic-pnpm-shadow` (`cargo-binstall`,
+  bin `pnpm-shadow`,
+  Linux only,
   postinstall link `pnpm` in `.cache/pnpm-shadow-bin`),
   `.config/mise/conf.d/20-env.toml` puts `.cache/pnpm-shadow-bin` before `.cache/toolchain-bin`,
   and the lock row `0.1.0` from `toolchain:update -- cargo:monochromatic-pnpm-shadow`.
-  The git-wrapper session chose to commit both rows together (one generated lock, one digest);
-  the owner answered "Yes, bump to 0.5.1 now" (relayed by `monochromatic-c0`).
-  `toolchain:install`: 2 installed, 63 unchanged, 0 failed;
+  The git-wrapper session chose to commit both rows together (one generated lock,
+  one digest);
+  the owner answered "Yes,
+  bump to 0.5.1 now" (relayed by `monochromatic-c0`).
+  `toolchain:install`:
+  2 installed,
+  63 unchanged,
+  0 failed;
   `git --version` prints `monochromatic-git-policy-cli 0.5.1`.
   Incident:
   with `.cache/pnpm-shadow-bin` first on PATH,
@@ -1922,22 +2033,29 @@ each finished branch is reviewed and merged into `main`):
   because the link resolves to the ELF launcher `.cache/toolchain-launchers/pnpm-shadow`,
   not to its own executable,
   and re-ran itself:
-  `pnpm --version` exited 126 ("pnpm-shadow: could not start .../.cache/pnpm-shadow-bin/pnpm"),
+  `pnpm --version` exited 126 ("pnpm-shadow:
+  could not start .../.cache/pnpm-shadow-bin/pnpm"),
   `pnpm root` and `--help` hung past 60 s.
   `pnpm` in the main checkout's mise environment was broken from 09:28 to about 09:33 local.
   Fixed by moving the link to `pnpm.disabled-loop` and reverting the `20-env.toml` PATH entry;
-  `pnpm --version` (12.16.1), `root` and `--help` work again.
-  Committed as `e1a27b7da5` (plan row off PATH with the reason, and both lock rows).
-  The crate fix (recognize itself through the launcher, plus an exec guard) was sent to `monochromatic-c0`.
+  `pnpm --version` (12.16.1),
+  `root` and `--help` work again.
+  Committed as `e1a27b7da5` (plan row off PATH with the reason,
+  and both lock rows).
+  The crate fix (recognize itself through the launcher,
+  plus an exec guard) was sent to `monochromatic-c0`.
   Queued:
   when it releases a fixed version,
   put `.cache/pnpm-shadow-bin` back before `.cache/toolchain-bin`,
   and re-run `~/temp/agent/command-code/pnpm-shadow-check.ts`.
   Lesson:
-  test a PATH shadow through the real postinstall link and launcher, with a timeout,
+  test a PATH shadow through the real postinstall link and launcher,
+  with a timeout,
   before it reaches the shared PATH.
 - git wrapper 0.5.1 regression (reported by `monochromatic-8c`):
-  most pushes fail before `git push` with "batch response: Fatal error: Server error ... from HTTP 503" from `git-lfs`,
+  most pushes fail before `git push` with "batch response:
+  Fatal error:
+  Server error ... from HTTP 503" from `git-lfs`,
   because 0.5.1 runs `git-lfs push --all` (about 22 batch requests per push).
   Its rule for everyone:
   no `--no-verify` and no `GIT_LFS_SKIP_PUSH=1` for pushes that add LFS files
@@ -1955,13 +2073,15 @@ each finished branch is reviewed and merged into `main`):
   commit the lock crediting that session,
   and tell it.
 - Dependabot alerts #82 (`glob`) and #83 (`minimatch`):
-  owner chose "Keep open, recheck later (Recommended)";
+  owner chose "Keep open,
+  recheck later (Recommended)";
   tracked in #3473
   (both parents,
   `@electron/asar` 4.3.1 and `@earendil-works/pi-coding-agent` 1.4.0,
   are at their latest and require the old majors).
 - #2576 done and closed (merge `f580aac77b`):
-  global plan entry `llama.cpp-cpu` (`b9829`, exposed as `llama-cpu-cli`;
+  global plan entry `llama.cpp-cpu` (`b9829`,
+  exposed as `llama-cpu-cli`;
   backups of the plan and lock in `~/temp/agent/issue-2576-llama/`),
   weights `prithivMLmods/Xiaomi-OCR-0-GGUF` at `7bbfa072e0f3d70ac722e26fbccef5b9f64b7121` in `~/models/Xiaomi-OCR-0-GGUF`,
   same text as the Transformers run on the one sample image,
@@ -1979,8 +2099,10 @@ each finished branch is reviewed and merged into `main`):
   then adding the global plan entry (`llama-cpu-cli`),
   pinning the weights and documenting the command line.
   The owner's request:
-  "gh issue #2576. But prioritize cutover first."
-- wg review fixes returned (`15db705ec1..f7217a7b5b`, six commits),
+  "gh issue #2576.
+  But prioritize cutover first."
+- wg review fixes returned (`15db705ec1..f7217a7b5b`,
+  six commits),
   under re-review.
   The live apply order changed:
   the old-scope sweep is built into the watcher's start,
@@ -1990,12 +2112,18 @@ each finished branch is reviewed and merged into `main`):
   then read the watcher's "swept the scopes of the earlier design" line.
   Old-style scope count rising about 30 a minute (5289 at the agent's last read).
 - #2576 earlier:
-  the owner asked "What is going on? Why are we writing any Python?"
+  the owner asked "What is going on?
+  Why are we writing any Python?"
   after the dependency questions;
-  their answers so far (torchvision kept, `uv_build`, `argparse`) assume the wrapper,
+  their answers so far (torchvision kept,
+  `uv_build`,
+  `argparse`) assume the wrapper,
   so they wait on a no-Python research pass
-  (`doc/research/xiaomi-ocr-without-python.md`, an agent running).
-- goose removed (owner: "Cull and uninstall and remove goose entirely. It's too much work."):
+  (`doc/research/xiaomi-ocr-without-python.md`,
+  an agent running).
+- goose removed (owner:
+  "Cull and uninstall and remove goose entirely.
+  It's too much work."):
   mise's `github:aaif-goose/goose` 1.47.0,
   its alias links and shim,
   `~/.config/goose`,
@@ -2004,15 +2132,18 @@ each finished branch is reviewed and merged into `main`):
 - Owner 2026-11-01:
   "I approve all the releases this sesion."
   and
-  "main is not sacred, so as the private registry."
-- CI root-cause fixes merged (owner: "Fix even pre-existing issues."):
+  "main is not sacred,
+  so as the private registry."
+- CI root-cause fixes merged (owner:
+  "Fix even pre-existing issues."):
   `pnpr-publish` built through `mise`,
   which mise-free CI never installs
   (`eeda95fd02` builds through the task CLI and refuses a build only `mise.toml` declares);
   the forbidden-strings scanner skipped its generated rule sources only in `--all` mode (`ce78566fb7`;
   CI needs forbidden-strings 0.6.1 released);
   `env-local-json` ran a cwd-relative `node` path and installed `sops` and `age` through `mise` in a container
-  (`572cb660c3`, `23fa2910a8`).
+  (`572cb660c3`,
+  `23fa2910a8`).
   Settled without asking (`QGR`),
   open to the owner's veto:
   the 143 packages that declare `build` only in `mise.toml` wait for the task-system migration,
@@ -2027,14 +2158,18 @@ each finished branch is reviewed and merged into `main`):
   - #39,
     per-agent instruction files,
     waiting on the research agent's `doc/research/agent-instruction-files.md`.
-- wg-quicker update scopes and whole-system performance (2026-11-01, owner:
-  "And wg-quicker-update might have been causing some whole-system perf issues. Fix it.").
+- wg-quicker update scopes and whole-system performance (2026-11-01,
+  owner:
+  "And wg-quicker-update might have been causing some whole-system perf issues.
+  Fix it.").
   Measured about 01:20 EDT,
   user manager:
   1293 `wg-quicker-update-*` scopes active/running with `cgroup.events` `populated 0`,
   18 running and populated,
   982 failed with no cgroup
-  (user journal: 980 times "No PIDs left to attach to the scope's control group, refusing.");
+  (user journal:
+  980 times "No PIDs left to attach to the scope's control group,
+  refusing.");
   scopes are created without `CollectMode`.
   The `__watch` process averaged 17.3% of one CPU over 73 minutes.
   Copied limits:
@@ -2044,8 +2179,10 @@ each finished branch is reviewed and merged into `main`):
   (`package/claude-cpu-cap/daemon/src/paths.ts:156`),
   so each moved process leaves that shared cap and its `io.weight`.
   IO pressure at the time was mostly not wg
-  (10 s sample: a podman `conmon` wrote 392 MiB and one `claude` process read 393 MiB).
-  Mechanism, read in source:
+  (10 s sample:
+  a podman `conmon` wrote 392 MiB and one `claude` process read 393 MiB).
+  Mechanism,
+  read in source:
   systemd v259.10 `src/core/scope.c:391` `scope_enter_running` enters running when any attach counts
   and "rel[ies] on empty notifications";
   `src/core/cgroup.c:2181` `unit_attach_pids_to_cgroup` counts a successful `cgroup.procs` write as attached
@@ -2062,7 +2199,9 @@ each finished branch is reviewed and merged into `main`):
     backups of `cli-git-native`,
     `mpm-shadow`,
     `.crates.toml` and `.crates2.json` beside it):
-    "18 installed, 46 unchanged, 0 failed".
+    "18 installed,
+    46 unchanged,
+    0 failed".
     The bootstrap found only 0.2.1 and fetched and checked the lock's 0.2.2.
     146 links re-pointed across every checkout,
     then five old copies removed from `~/.cargo/bin`
@@ -2089,7 +2228,8 @@ each finished branch is reviewed and merged into `main`):
     Sent to a CI-fix agent (#37) under the owner's "Fix even pre-existing issues."
   - Global plan conversion sent to an agent under the owner's 2026-10-31 delegation.
     Owner 2026-11-01 on the global `depot` CLI:
-    "Drop it, and drop the depot skills for agents too."
+    "Drop it,
+    and drop the depot skills for agents too."
     The four skills (`depot-ci`,
     `depot-container-builds`,
     `depot-general`,
@@ -2106,22 +2246,28 @@ each finished branch is reviewed and merged into `main`):
     `toolchain.plan.jsonc` (59 tools,
     `depot` dropped) is installed at mode 0600.
     mpm-shadow 0.2.2 refuses the old-format lock
-    ("tools.bin.request must be a string, found an object"),
+    ("tools.bin.request must be a string,
+    found an object"),
     so the old lock had to be moved aside;
     the permission check refused the agent's `rm` and `mv` as destructive,
     and the owner ran the move
-    (`toolchain.lock.json.old-format`, identical to `.pre-cutover`, sha256 `9fe9b96f...`).
+    (`toolchain.lock.json.old-format`,
+    identical to `.pre-cutover`,
+    sha256 `9fe9b96f...`).
     Owner 2026-11-01 on the yt-dlp reroute:
     "Keep PyPI" (`pipx:yt-dlp@latest`).
     The agent resumes the install with `GH_CONFIG_DIR` set to an empty folder,
     so no token reaches its environment.
   - Owner 2026-11-01 on the two Depot-only workflows:
-    "Delete both" (`current-baseline.yml`, `admission-gate.yml` and their lint-config entries);
+    "Delete both" (`current-baseline.yml`,
+    `admission-gate.yml` and their lint-config entries);
     sent to the Docker and Depot removal agent.
 - Owner 2026-11-01:
-  "If nothing can be proven to depend on anything docker, remove it."
+  "If nothing can be proven to depend on anything docker,
+  remove it."
   Measured keeps:
-  `playwright.Dockerfile` (built by `.github/workflows/playwright-image.yml`, pulled by `prepare:playwright`);
+  `playwright.Dockerfile` (built by `.github/workflows/playwright-image.yml`,
+  pulled by `prepare:playwright`);
   `.dockerignore` (podman reads it from the build folder of that build,
   whose folder is the repo root;
   `playwright.Dockerfile` has no `COPY` or `ADD`);
@@ -2130,7 +2276,8 @@ each finished branch is reviewed and merged into `main`):
   the Docker language servers (the IDE uses them for Containerfiles);
   `docker` in the bash-output-filter container-runtime list
   (`/usr/bin/docker` is `podman-docker` 5.8.9);
-  `docker.io/...` image names (Docker Hub registry, pulled by podman);
+  `docker.io/...` image names (Docker Hub registry,
+  pulled by podman);
   the paused packages' Docker files (their paused package uses them).
   Removable:
   root `Dockerfile`,
@@ -2139,13 +2286,16 @@ each finished branch is reviewed and merged into `main`):
   the root `testDockerImage` mise task,
   and the references that point at them.
 - Owner 2026-11-01:
-  "Delete .depot as a whole and update relevant docs. We've decided to not adopt depot after all."
+  "Delete .depot as a whole and update relevant docs.
+  We've decided to not adopt depot after all."
   `.depot/workflows/current-baseline.yml` and `.depot/workflows/weekly-native.yml`;
   `.github/workflows/current-baseline.yml` runs on `depot-ubuntu-24.04-8`;
   `.github/workflows/admission-gate.yml` reads `doc/planning/depot-admission-ledger.json`;
   `doc/decision/depot-ci-adoption.md` says "accepted on 2026-10-18" and "in force".
 - Docker build no longer gates the cutover (2026-11-01).
-  The owner asked "We shouldn't need docker to switchover?" and "CI or coolify doesn't need that image, though?"
+  The owner asked "We shouldn't need docker to switchover?"
+  and "CI or coolify doesn't need that image,
+  though?"
   Measured:
   no workflow in `.github/workflows` builds the root `Dockerfile`
   (`playwright-image.yml` builds `playwright.Dockerfile`;
@@ -2163,7 +2313,8 @@ each finished branch is reviewed and merged into `main`):
   Closed 2026-11-01:
   the root `Dockerfile` and `docker-compose.yml` were removed in `764030330e`,
   and the owner answered "No app points at it" when asked whether a Coolify application uses the root compose.
-  The final build was this session's own check, not the owner's requirement.
+  The final build was this session's own check,
+  not the owner's requirement.
   The same check already passed once at 0.2.1
   (exit 0 after 2120 s).
   The rerun (`fe-switch-docker-final3`) keeps running but does not block the merge;
@@ -2173,7 +2324,8 @@ each finished branch is reviewed and merged into `main`):
   built 23:55;
   the owner chose "Full restart".
   `wg-quicker down fr-par-fr1` with the new build failed at 23:57:43
-  ("Application-bypass cleanup failed for fr-par-fr1; ownership state retained.",
+  ("Application-bypass cleanup failed for fr-par-fr1;
+  ownership state retained.",
   thrown in `watcherIsRunning` while stopping the route watcher the `557ea24e24` build had started at 22:24),
   after the policy rules were removed and before the interface was deleted,
   so all traffic left outside the tunnel (`ip route get 1.1.1.1` via `wlp9s0`).
@@ -2224,7 +2376,8 @@ each finished branch is reviewed and merged into `main`):
   7a was told what changes for the wrapper at the cutover and that this session messages it when the merge lands.
 - Queued 2026-11-01,
   owner:
-  "gh issue #2576. But prioritize cutover first."
+  "gh issue #2576.
+  But prioritize cutover first."
   Issue #2576 asks for a global CPU-only `xiaomi-ocr` command through mpm:
   Python selection,
   torch backend and extra requirements on `mpm-uvx`,
@@ -2313,7 +2466,8 @@ each finished branch is reviewed and merged into `main`):
   `monochromatic-search-shadow` 0.2.1 (run `41174514524`)
   after two CI fixes to its exact `--version` checks (`6a2d944949`,
   `44bf57cc84`).
-- Shadows identify themselves (owner chose "All three shadows", 2026-10-31):
+- Shadows identify themselves (owner chose "All three shadows",
+  2026-10-31):
   invoked under the shadowed name,
   a top-level `--version` prints the real tool's output then `<shadow crate> <version>, shadowing <tool> at <real path>`
   (the `hub` precedent),
@@ -2321,9 +2475,12 @@ each finished branch is reviewed and merged into `main`):
   subcommand help passes through.
   The owner noticed `mpm --version`/`--help` never mention the shadow,
   and reports the git wrapper's silence as a regression introduced some time ago.
-  mpm-shadow: the update-by-tool agent's branch;
-  search-shadow: its own agent;
-  git wrapper: reported to monochromatic-7a with the convention.
+  mpm-shadow:
+  the update-by-tool agent's branch;
+  search-shadow:
+  its own agent;
+  git wrapper:
+  reported to monochromatic-7a with the convention.
   7a's finding:
   no earlier banner existed to restore
   (the Rust wrapper has printed byte-identical Git output for `--version` since its first commit `414ab5ff76`,
@@ -2348,7 +2505,8 @@ each finished branch is reviewed and merged into `main`):
   clean-container check passed.
   Before merge it is fixing two things:
   this session's note made it pin `github:Aquaticats/Monochromatic@monochromatic-mpm-shadow-v0.2.0`,
-  which AGENTS.md `PIN` forbids (now: float `@latest` with a tag-prefix option in the `github:` resolver,
+  which AGENTS.md `PIN` forbids (now:
+  float `@latest` with a tag-prefix option in the `github:` resolver,
   lock still recording the archive SHA-256),
   and the Dockerfile lacks `cargo` for cargo-binstall tools.
   Issue #1819 records the pin as a third instance of a session-made requirement.
@@ -2361,7 +2519,8 @@ each finished branch is reviewed and merged into `main`):
   a clean-container check of the published cli).
 - Session preference 2026-10-31,
   user:
-  "For this session: Tell me your estimation of time until cutover whenever your estimation or confidence changes."
+  "For this session:
+  Tell me your estimation of time until cutover whenever your estimation or confidence changes."
   Last estimate given:
   3.5 to 5.5 hours after the old-copy answers (about 35% confidence;
   mpm-shadow 0.2.2 joined the critical path);
@@ -2379,11 +2538,13 @@ each finished branch is reviewed and merged into `main`):
   `fec-create-release` was skipped in run `41171845290`
   because its implicit `success()` sees the skipped library publish jobs upstream of `fec-publish-crate`;
   it now uses `!cancelled()` with explicit results.
-- Lesson 2026-10-31 (this session, owner annoyed):
+- Lesson 2026-10-31 (this session,
+  owner annoyed):
   the clearnet self-placement came from this session's own brief,
   which suggested the toolchain re-execute itself into the slice,
   though the request ("Make our wg auto make update traffics go through clearnet") named wg as the owner;
-  the merge review checked that it worked, not which component owned the decision.
+  the merge review checked that it worked,
+  not which component owned the decision.
   Before briefing or merging a design,
   check which component the request names as the owner,
   and reject any design that makes another component aware of that concern.
@@ -2413,21 +2574,34 @@ count 1 only).
 
 Cutover reminders from finished agents:
 
-- `package/config/pnpr/config.yaml` still starts with "Generated by file-enforcer (generatePnprConfig in file-enforcer.config.ts); edit that source."
+- `package/config/pnpr/config.yaml` still starts with "Generated by file-enforcer (generatePnprConfig in file-enforcer.config.ts);
+  edit that source."
   for byte identity;
   reword it at cutover through the constant `PNPR_CONFIG_HEADER_LINE` in `package/config/pnpr/src/generated-config-settings.ts`,
   knowing a content change redeploys pnpr on Coolify and starts a publish run.
 - `file-enforcer.config.ts` renders pnpr's config through pnpr's `renderPnprConfigForWorkspace` but writes through its own `overwrite`,
   so `--check` reports drift instead of writing;
   the Rust engine needs the same split.
-- Delegated 2026-10-30: the user wrote "I'm handing the forbidden-strings and git-policy work to another session. If you have more delegate them to it too."
-  The forbidden-strings release, the cli-git publish, and their cutover config switch belong to that session;
+- Delegated 2026-10-30:
+  the user wrote "I'm handing the forbidden-strings and git-policy work to another session.
+  If you have more delegate them to it too."
+  The forbidden-strings release,
+  the cli-git publish,
+  and their cutover config switch belong to that session;
   monochromatic-7a (the cli-git Rust wrapper session) confirmed it holds them and received the items on 2026-10-31
-  (release order, the merged rules-list feature, the config switch);
-  this session only drops the rules-file generator, and only after 7a reports the config switch done.
-  Gate from 7a (2026-10-31): `cli-git.config.jsonc` cannot change until a wrapper that reads a `rulesFile` array
-  (0.4.4, after forbidden-strings 0.6.0) is published, the toolchain lock names it, and it is installed as the production git;
-  an older wrapper cannot parse the array. So the cutover keeps the generator until 7a says the switch landed.
+  (release order,
+  the merged rules-list feature,
+  the config switch);
+  this session only drops the rules-file generator,
+  and only after 7a reports the config switch done.
+  Gate from 7a (2026-10-31):
+  `cli-git.config.jsonc` cannot change until a wrapper that reads a `rulesFile` array
+  (0.4.4,
+  after forbidden-strings 0.6.0) is published,
+  the toolchain lock names it,
+  and it is installed as the production git;
+  an older wrapper cannot parse the array.
+  So the cutover keeps the generator until 7a says the switch landed.
   Progress seen on `main` 2026-10-31:
   forbidden-strings 0.6.0 (`5ec9a377e2`) and git-policy/cli 0.4.4 (`7ce408f679`) are released;
   the lock entry,
@@ -2477,7 +2651,9 @@ Cutover reminders from finished agents:
   so `bin`'s macOS and Windows rows and `bun`'s baseline rows go away.
   Show that lock diff to the user as the review surface.
 - forbidden-strings must be released before cli-git is published:
-  cli-git now uses the rules-list API (task 23; see the planning doc, "Cutover dependency").
+  cli-git now uses the rules-list API (task 23;
+  see the planning doc,
+  "Cutover dependency").
 
 ## Superseded next action
 look at oxc-browserslist

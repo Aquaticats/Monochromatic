@@ -26,7 +26,8 @@ Problems with test execution and test suite organization:
 
 ### [LFS R2 Worker](lfs-r2-worker-error-1102.md)
 
-- Cloudflare Error 1102 on git-lfs batches: one R2 `head` per object exhausts the 10 ms CPU limit
+- Cloudflare Error 1102 on git-lfs batches:
+  one R2 `head` per object exhausts the 10 ms CPU limit
 
 ### [Editor Setup](editors.md)
 

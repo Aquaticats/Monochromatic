@@ -11,7 +11,6 @@ use nested_wayland_session::{
     protocol::{JobCommand, NotificationCommand},
 };
 use super::support::{err_message, proxy};
-use zbus::blocking::connection::Builder;
 
 /// Starting with mode `none` serves nothing,
 ///  and a client's call gets `ServiceUnknown`.
@@ -20,7 +19,7 @@ fn none_mode_leaves_both_services_unknown() -> anyhow::Result<()> {
     let bus = Arc::new(PrivateBus::start()?);
     let services = PlasmaServices::start(NotificationMode::None, Arc::clone(&bus), Instant::now())?;
     assert!(services.is_none());
-    let client = Builder::address(bus.address())?.build()?;
+    let client = nested_wayland_session::bus_test_client::connect(bus.address())?;
     for (name, path, interface, method) in [
         ("org.freedesktop.Notifications", "/org/freedesktop/Notifications", "org.freedesktop.Notifications", "GetCapabilities"),
         ("org.kde.kuiserver", "/JobViewServer", "org.kde.kuiserver", "requiresJobTracker"),

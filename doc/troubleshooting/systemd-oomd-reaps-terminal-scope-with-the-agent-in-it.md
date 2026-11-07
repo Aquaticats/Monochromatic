@@ -280,7 +280,8 @@ outside the shared cgroup.
 
 ## What does not work
 
-- Detaching a run from the shell with a new session (`setsid`, Node's `spawn` with `detached: true`).
+- Detaching a run from the shell with a new session (`setsid`,
+  Node's `spawn` with `detached: true`).
   A new session leaves the process in its parent's cgroup,
   so the daemon's kill of `claude-code-bash` takes it as well.
   On 2026-10-06 an IDE gate started that way at 17:12 died in the 17:14:48 kill

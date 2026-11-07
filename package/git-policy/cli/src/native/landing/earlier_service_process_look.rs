@@ -28,6 +28,9 @@
 //! const mayRun: boolean = await withDeadline(ceiling, () => earlierSocketListens(procRoot, look) || scan(procRoot, look)) ?? true
 //! ```
 
+use crate::earlier_service_unsure_program::UnsureProgram;
+#[cfg(unix)]
+use crate::earlier_service_unsure_program::{printable, program_of};
 use crate::earlier_unix_sockets_that_listen::{ListeningSockets, earlier_socket_ending, listening_sockets_ending_with};
 use crate::wrapper_names_old_and_new::{COMMAND_WORD, DATA_FOLDER};
 use std::path::{Path, PathBuf};
@@ -85,6 +88,31 @@ impl Hold {
             Hold::CannotLook => "the sockets and processes of the earlier helper could not be looked at in time, so it is not known whether one runs",
         };
     }
+}
+
+/// What a look found: why the worktree's earlier service may be running or may start, and, when a program that cannot be ruled
+///  out caused it, which program that is.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Holding {
+    /// The reason, which tells the person what to stop.
+    pub because: Hold,
+    /// The program behind [`Hold::HelperUnsure`]; nothing for every other reason.
+    pub program: Option<UnsureProgram>,
+}
+
+impl From<Hold> for Holding {
+    fn from(because: Hold) -> Self {
+        return Holding { because, program: None };
+    }
+}
+
+/// What the start arguments of one process say about it.
+#[cfg(unix)]
+enum ServiceFound {
+    /// It is a service of the worktree, of the kind the reason names.
+    Hold(Hold),
+    /// A journal word could not be resolved, so it may be one: the word, whether it is relative, and the system's answer.
+    Unsure { word: Vec<u8>, relative: bool, reason: String },
 }
 
 /// What a look needs to know to recognise a service of one worktree.
@@ -167,26 +195,27 @@ struct JournalNames<'a> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const journalNamed = (word: string, names: JournalNames) => spelled(word) ?? sameFolderAs(resolve(word, names.process + '/cwd')) ?? (resolvable(word) ? undefined : 'unsure')
+/// const journalNamed = (word: string, names: JournalNames) => spelled(word) ?? sameFolderAs(resolve(word, names.process + '/cwd')) ?? (resolvable(word) ? undefined : unsure(word, whyNot(word)))
 /// ```
 #[cfg(unix)]
-fn journal_word_names(names: &JournalNames, word: &[u8]) -> Option<Hold> {
+fn journal_word_names(names: &JournalNames, word: &[u8]) -> Option<ServiceFound> {
     use std::os::unix::ffi::OsStrExt;
     use std::os::unix::fs::MetadataExt;
     let hold_of = |index: usize| -> Hold { return if index == 1 { Hold::SharedHelperRuns } else { Hold::InstanceHelperRuns }; };
     for (index, journal) in names.spellings.iter().enumerate() {
         if path_word(journal.as_path()).as_slice() == word {
-            return Some(hold_of(index));
+            return Some(ServiceFound::Hold(hold_of(index)));
         }
     }
     let spelled: &Path = Path::new(std::ffi::OsStr::from_bytes(word));
     let resolved: PathBuf = if spelled.is_absolute() { spelled.to_path_buf() } else { names.process.join("cwd").join(spelled) };
-    let Ok(found) = std::fs::metadata(resolved.as_path()) else {
-        return Some(Hold::HelperUnsure);
+    let found = match std::fs::metadata(resolved.as_path()) {
+        Ok(found) => found,
+        Err(error) => return Some(ServiceFound::Unsure { word: word.to_vec(), relative: !spelled.is_absolute(), reason: error.to_string() }),
     };
     for (index, journal) in names.spellings.iter().enumerate() {
         if matches!(std::fs::metadata(journal), Ok(known) if (known.dev(), known.ino()) == (found.dev(), found.ino())) {
-            return Some(hold_of(index));
+            return Some(ServiceFound::Hold(hold_of(index)));
         }
     }
     return None;
@@ -209,10 +238,10 @@ fn journal_word_names(names: &JournalNames, word: &[u8]) -> Option<Hold> {
 ///   || (hasPair(words, 'service', 'run') && hasPair(words, '--instance', look.instance))
 /// ```
 #[cfg(unix)]
-fn is_service_of(words: &[&[u8]], look: &ServiceLook, names: &JournalNames) -> Option<Hold> {
+fn is_service_of(words: &[&[u8]], look: &ServiceLook, names: &JournalNames) -> Option<ServiceFound> {
     let mode_in_a_row: bool = words.iter().enumerate().any(|(at, _)| { return is_earlier_mode_at(words, at); });
     let mut instance_named: bool = false;
-    let mut journal_named: Option<Hold> = None;
+    let mut journal_named: Option<ServiceFound> = None;
     for pair in words.windows(2) {
         if pair[0] == INSTANCE_OPTION.as_bytes() && pair[1] == look.instance.as_bytes() {
             instance_named = true;
@@ -227,7 +256,7 @@ fn is_service_of(words: &[&[u8]], look: &ServiceLook, names: &JournalNames) -> O
     if journal_named.is_some() {
         return journal_named;
     }
-    return if mode_in_a_row && instance_named { Some(Hold::InstanceHelperRuns) } else { None };
+    return if mode_in_a_row && instance_named { Some(ServiceFound::Hold(Hold::InstanceHelperRuns)) } else { None };
 }
 
 /// Whether an error says the process ended while it was looked at: its entry is gone (`ENOENT`) or `read` found no process
@@ -345,9 +374,9 @@ fn journal_identities(journals: &[PathBuf]) -> Option<Vec<FileIdentity>> {
 /// for (const pid of readdir(procRoot)) { try { if (isServiceOf(read(`${pid}/cmdline`))) return true } catch (e) { if (!gone(e)) return true } }
 /// ```
 #[cfg(unix)]
-fn scan(look: &ServiceLook, proc_root: &Path) -> Option<Hold> {
+fn scan(look: &ServiceLook, proc_root: &Path) -> Option<Holding> {
     if let Some(hold) = earlier_socket_that_listens(look, proc_root) {
-        return Some(hold);
+        return Some(Holding::from(hold));
     }
     return scan_processes(look, proc_root);
 }
@@ -363,17 +392,17 @@ fn scan(look: &ServiceLook, proc_root: &Path) -> Option<Hold> {
 /// for (const pid of readdir(procRoot)) { if (isServiceOf(read(`${pid}/cmdline`))) return true }
 /// ```
 #[cfg(unix)]
-fn scan_processes(look: &ServiceLook, proc_root: &Path) -> Option<Hold> {
+fn scan_processes(look: &ServiceLook, proc_root: &Path) -> Option<Holding> {
     // A journal folder that cannot be looked at for a reason other than its absence leaves the question open.
     if journal_identities(look.journals.as_slice()).is_none() {
-        return Some(Hold::CannotLook);
+        return Some(Holding::from(Hold::CannotLook));
     }
     let Ok(listing) = std::fs::read_dir(proc_root) else {
-        return Some(Hold::CannotLook);
+        return Some(Holding::from(Hold::CannotLook));
     };
     for listed in listing {
         let Ok(entry) = listed else {
-            return Some(Hold::CannotLook);
+            return Some(Holding::from(Hold::CannotLook));
         };
         let name: String = entry.file_name().to_string_lossy().into_owned();
         let Ok(pid) = name.parse::<u32>() else {
@@ -385,14 +414,25 @@ fn scan_processes(look: &ServiceLook, proc_root: &Path) -> Option<Hold> {
         let bytes: Vec<u8> = match command_line_of(&entry, look.own_user) {
             CommandLine::Words(bytes) => bytes,
             CommandLine::Skipped => continue,
-            CommandLine::Unproven => return Some(Hold::CannotLook),
+            CommandLine::Unproven => return Some(Holding::from(Hold::CannotLook)),
         };
         let process: PathBuf = entry.path();
         let names: JournalNames = JournalNames { spellings: look.journals.as_slice(), process: process.as_path() };
         // Every word ends with a NUL byte, the last one too: that last NUL ends a word, it does not start an empty one.
         let words: Vec<&[u8]> = bytes.strip_suffix(&[0]).unwrap_or(bytes.as_slice()).split(is_word_end).collect();
-        if let Some(hold) = is_service_of(words.as_slice(), look, &names) {
-            return Some(hold);
+        match is_service_of(words.as_slice(), look, &names) {
+            Some(ServiceFound::Hold(hold)) => return Some(Holding::from(hold)),
+            Some(ServiceFound::Unsure { word, relative, reason }) => {
+                let program: UnsureProgram = UnsureProgram {
+                    pid,
+                    program: program_of(words.first().copied()),
+                    journal_word: printable(word.as_slice()),
+                    journal_word_is_relative: relative,
+                    reason,
+                };
+                return Some(Holding { because: Hold::HelperUnsure, program: Some(program) });
+            }
+            None => {}
         }
     }
     return None;
@@ -400,14 +440,14 @@ fn scan_processes(look: &ServiceLook, proc_root: &Path) -> Option<Hold> {
 
 /// Without `/proc` and Unix users there is no look to make, so a service may be running.
 #[cfg(not(unix))]
-fn scan(_look: &ServiceLook, _proc_root: &Path) -> Option<Hold> {
-    return Some(Hold::CannotLook);
+fn scan(_look: &ServiceLook, _proc_root: &Path) -> Option<Holding> {
+    return Some(Holding::from(Hold::CannotLook));
 }
 
 /// Without `/proc` and Unix users there is no look to make, so a service may be running.
 #[cfg(not(unix))]
-fn scan_processes(_look: &ServiceLook, _proc_root: &Path) -> Option<Hold> {
-    return Some(Hold::CannotLook);
+fn scan_processes(_look: &ServiceLook, _proc_root: &Path) -> Option<Holding> {
+    return Some(Holding::from(Hold::CannotLook));
 }
 
 /// The user this process runs as, whose processes are looked at.
@@ -436,7 +476,7 @@ pub fn effective_user() -> u32 {
 /// ```ts
 /// async function earlierServiceHold(look: ServiceLook, procRoot: string): Promise<Hold | undefined>;
 /// ```
-pub fn earlier_service_hold(look: ServiceLook, proc_root: &Path) -> Option<Hold> {
+pub fn earlier_service_hold(look: ServiceLook, proc_root: &Path) -> Option<Holding> {
     return hold_within_ceiling(look, proc_root, scan);
 }
 
@@ -452,27 +492,27 @@ pub fn earlier_service_hold(look: ServiceLook, proc_root: &Path) -> Option<Hold>
 /// ```ts
 /// async function earlierServiceProcessHold(look: ServiceLook, procRoot: string): Promise<Hold | undefined>;
 /// ```
-pub fn earlier_service_process_hold(look: ServiceLook, proc_root: &Path) -> Option<Hold> {
+pub fn earlier_service_process_hold(look: ServiceLook, proc_root: &Path) -> Option<Holding> {
     return hold_within_ceiling(look, proc_root, scan_processes);
 }
 
 /// `earlier_service_hold` and `earlier_service_process_hold` with the scan they run on the thread of their own.
-fn hold_within_ceiling(look: ServiceLook, proc_root: &Path, scanner: fn(&ServiceLook, &Path) -> Option<Hold>) -> Option<Hold> {
+fn hold_within_ceiling(look: ServiceLook, proc_root: &Path, scanner: fn(&ServiceLook, &Path) -> Option<Holding>) -> Option<Holding> {
     let ceiling: Duration = look.ceiling;
     let root: PathBuf = proc_root.to_path_buf();
-    let (sender, receiver) = std::sync::mpsc::channel::<Option<Hold>>();
+    let (sender, receiver) = std::sync::mpsc::channel::<Option<Holding>>();
     let started = std::thread::Builder::new().name(String::from("earlier-service-process-look")).spawn(move || {
         let _sent = sender.send(scanner(&look, root.as_path()));
     });
     if let Err(error) = started {
         crate::service_error!("cannot start the look at the processes ({error}), so a service of the worktree may be running");
-        return Some(Hold::CannotLook);
+        return Some(Holding::from(Hold::CannotLook));
     }
     return match receiver.recv_timeout(ceiling) {
         Ok(hold) => hold,
         Err(error) => {
             crate::service_error!("the look at the processes gave no answer ({error}), so a service of the worktree may be running");
-            Some(Hold::CannotLook)
+            Some(Holding::from(Hold::CannotLook))
         }
     };
 }

@@ -92,6 +92,22 @@ function isSettingsPage(state: UiState,): boolean {
 }
 
 /**
+ Condition: the Settings page shows and its list of rows has the keyboard.
+ 
+ @param state - a state of the app
+ 
+ @returns whether the page is Settings with the list focused
+ 
+ @example
+ ```ts
+ settingsListHasTheKeyboard(state,);
+ ```
+ */
+function settingsListHasTheKeyboard(state: UiState,): boolean {
+  return isSettingsPage(state,) && (state.zone === 'settings-list');
+}
+
+/**
  Records the Settings checks of the wide session.
  
  @param context - the run's context
@@ -188,9 +204,7 @@ export async function checkSettings(
       const returned = await press({
         session,
         act: tapKey('escape',),
-        until: function settingsListHasTheKeyboard(state: UiState,): boolean {
-          return isSettingsPage(state,) && (state.zone === 'settings-list');
-        },
+        until: settingsListHasTheKeyboard,
         what: 'Settings with the list focused after Escape on the Licenses page',
       },);
       return `focus ${opened.focus} (${opened.zone}) on the page, then ${returned.focus} on ${returned.route}`;
