@@ -35,7 +35,7 @@ use crate::ui_menu_model::{copied_text, details_text, human_size, menu_items, sh
 /// Imports the overlays that report the outcome of an action.
 use crate::ui_overlays::{show_error, show_file_error, show_long_notice, show_notice, show_trash_notice, show_undo};
 /// Imports the model builder and the state accessors of the screen.
-use crate::ui_screen::{model_of, read_state, update_state};
+use crate::ui_screen::{model_of, read_screen, read_state, write_screen};
 /// Imports the page scope lookup.
 use crate::ui_screen_view::selected_page_scope;
 /// Imports the window and the generated menu row type.
@@ -79,9 +79,10 @@ pub(crate) fn wire_request(app: &AppWindow) {
     });
     app.on_menu_dismiss(|| {
         tracing::debug!("track menu dismissed without an action");
-        update_state(|state| {
+        {
+            let mut state = write_screen();
             state.menu_ring = None;
-        });
+        }
     });
 }
 
@@ -91,15 +92,16 @@ pub(crate) fn wire_request(app: &AppWindow) {
 /// the details row shows the file size,
 /// which is read from disk when the menu opens.
 fn fill_menu(window: &AppWindow, index: Option<usize>) {
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.menu_index = index;
         // A menu the keyboard asked for opens with its first row highlighted; a pointer menu has no highlight until a
         // key moves it.
         state.menu_ring = if state.menu_by_key { Some(0) } else { None };
         state.menu_by_key = false;
-    });
-    window.set_menu_ring(read_state(|state| return state.menu_ring).and_then(|row| return i32::try_from(row).ok()).unwrap_or(-1));
-    let target = read_state(|state| return state.menu_target());
+    }
+    window.set_menu_ring(read_screen().menu_ring.and_then(|row| return i32::try_from(row).ok()).unwrap_or(-1));
+    let target = read_screen().menu_target();
     let Some((_index, name, path)) = target else {
         return;
     };
@@ -187,7 +189,7 @@ pub(crate) fn run_action(window: &AppWindow, host: &dyn Host, action: TrackMenuA
 /// error for the ones that failed,
 /// and a test checks that with effects that answer at once.
 pub(crate) fn run_action_with(window: &AppWindow, host: &dyn Host, effects: &dyn FileEffects, action: TrackMenuAction) {
-    let target = read_state(|state| return state.menu_target());
+    let target = read_screen().menu_target();
     let Some((index, name, path)) = target else {
         show_error(window, "The track is no longer in the library.");
         return;

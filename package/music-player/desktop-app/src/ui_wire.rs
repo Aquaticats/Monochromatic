@@ -30,7 +30,7 @@ use crate::AppWindow;
 /// Imports the conversion of the window's integer to a playback mode.
 use crate::ui_playback::int_to_playback_mode;
 /// Imports the projection and the state accessors of the screen.
-use crate::ui_screen::{project, read_state, update_state};
+use crate::ui_screen::{project, read_screen, read_state, write_screen};
 /// Imports the folder selection and the page scope lookup.
 use crate::ui_screen_view::{select_folder_label, selected_page_scope};
 
@@ -56,9 +56,7 @@ thread_local! {
 /// function wire(app: AppWindow, engine: Engine): void { ... }
 /// ```
 pub(crate) fn wire(app: &AppWindow, engine: &Rc<Engine>) {
-    MAIN_WINDOW.with(|cell| {
-        *cell.borrow_mut() = Some(app.as_weak());
-    });
+    MAIN_WINDOW.set(Some(app.as_weak()));
     let host: Rc<dyn Host> = Rc::clone(engine) as Rc<dyn Host>;
     wire_host_callbacks(app, &host);
     let open_sender = engine.sender();
@@ -78,9 +76,10 @@ pub(crate) fn wire(app: &AppWindow, engine: &Rc<Engine>) {
 /// which
 /// would scroll the list under them.
 pub(crate) fn mark_user_acted() {
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.startup_reveal_done = true;
-    });
+    }
 }
 
 /// What:
@@ -165,10 +164,11 @@ fn wire_library(app: &AppWindow, host: &Rc<dyn Host>) {
     let picker_weak = app.as_weak();
     app.on_toggle_picker(move || {
         if let Some(window) = picker_weak.upgrade() {
-            update_state(|state| {
+            {
+                let mut state = write_screen();
                 // An empty library has nothing to list, so the folder button does not open an empty picker (EM5).
                 state.picker_open = !state.picker_open && !state.names.is_empty();
-            });
+            }
             project(&window);
         }
     });
@@ -240,6 +240,23 @@ fn wire_keys(app: &AppWindow, host: &Rc<dyn Host>) {
 }
 
 /// What:
+/// `show_missing_chooser_message` tells the user in the main window that no folder chooser is installed.
+/// Why:
+/// the chooser check runs on a worker thread,
+/// and only the event-loop thread may touch the window.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function showMissingChooserMessage(): void { mainWindow?.showError(NO_DIALOG_MESSAGE); }
+/// ```
+fn show_missing_chooser_message() {
+    let window = MAIN_WINDOW.with(std::cell::RefCell::clone).into_inner().as_ref().and_then(slint::Weak::upgrade);
+    if let Some(window) = window {
+        crate::ui_overlays::show_error(&window, music_player::dialog_backend::NO_DIALOG_MESSAGE);
+    }
+}
+
+/// What:
 /// `open_folder_dialog` asks for a folder on a worker thread and opens it without autoplay.
 /// Why:
 /// the native dialog blocks,
@@ -252,13 +269,7 @@ pub(crate) fn open_folder_dialog(sender: music_player::engine::CommandSender) {
         //           missing chooser needs a message, and only the check can tell the two apart.
         if music_player::dialog_backend::dialog_backend_missing() {
             tracing::warn!("no folder chooser is available; the user is told how to proceed");
-            let _ = slint::invoke_from_event_loop(|| {
-                MAIN_WINDOW.with(|cell| {
-                    if let Some(window) = cell.borrow().as_ref().and_then(slint::Weak::upgrade) {
-                        crate::ui_overlays::show_error(&window, music_player::dialog_backend::NO_DIALOG_MESSAGE);
-                    }
-                });
-            });
+            let _ = slint::invoke_from_event_loop(show_missing_chooser_message);
             return;
         }
         if let Some(dir) = rfd::FileDialog::new().pick_folder() {
@@ -300,7 +311,7 @@ pub(crate) fn open_folder_dialog(sender: music_player::engine::CommandSender) {
 /// const playRow = (index: number) => send(rowActivationFor(autoPlayOnSelect, current === index), index);
 /// ```
 pub(crate) fn play_row(engine: &dyn Host, index: usize) {
-    let (current, auto_play_on_select) = read_state(|state| return (state.current_index, state.auto_play_on_select));
+    let (current, auto_play_on_select) = { let state = read_screen(); (state.current_index, state.auto_play_on_select) };
     send_row_activation(engine, index, row_activation_for(auto_play_on_select, current == Some(index)));
 }
 
@@ -323,7 +334,7 @@ pub(crate) fn play_row(engine: &dyn Host, index: usize) {
 /// const playRowNow = (index: number) => send(rowActivationFor(true, current === index), index);
 /// ```
 pub(crate) fn play_row_now(engine: &dyn Host, index: usize) {
-    let current = read_state(|state| return state.current_index);
+    let current = read_screen().current_index;
     send_row_activation(engine, index, row_activation_for(true, current == Some(index)));
 }
 
@@ -355,10 +366,7 @@ fn send_row_activation(engine: &dyn Host, index: usize, activation: RowActivatio
 /// Why:
 /// the selection and the engine scope come from the same state write.
 pub(crate) fn select_folder(engine: &dyn Host, label: &str) {
-    let mut chosen_scope: Option<Vec<usize>> = None;
-    update_state(|state| {
-        chosen_scope = select_folder_label(state, label);
-    });
+    let chosen_scope: Option<Vec<usize>> = select_folder_label(&mut write_screen(), label);
     if let Some(scope) = chosen_scope {
         engine.send(Command::SetPageScope(scope));
     }
@@ -374,7 +382,7 @@ pub(crate) fn select_folder(engine: &dyn Host, label: &str) {
 /// and Play with nothing selected must start the first row of
 /// the page the user is looking at (EM2).
 pub(crate) fn toggle_play(engine: &dyn Host) {
-    let nothing_selected: bool = read_state(|state| return state.current_index.is_none() && !state.names.is_empty());
+    let nothing_selected: bool = { let state = read_screen(); state.current_index.is_none() && !state.names.is_empty() };
     if nothing_selected {
         let scope: Vec<usize> = read_state(selected_page_scope);
         engine.send(Command::SetPageScope(scope));

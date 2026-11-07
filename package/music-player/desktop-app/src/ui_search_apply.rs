@@ -34,7 +34,7 @@ use music_player::search_service::SearchAnswer;
 use slint::{Model, ModelRc, VecModel};
 
 /// Imports the model builder and the state accessors of the screen.
-use crate::ui_screen::{model_of, read_state, update_state};
+use crate::ui_screen::{model_of, read_screen, write_screen};
 /// Imports the row height,
 /// the anchor calculation and the result key.
 use crate::ui_search_anchor::{SEARCH_ROW_HEIGHT_PX, anchored_offset, result_key};
@@ -79,7 +79,7 @@ thread_local! {
 pub(crate) fn install_rows_model(window: &AppWindow) {
     let model: Rc<VecModel<SearchRow>> = Rc::new(VecModel::default());
     window.set_search_rows(ModelRc::from(Rc::clone(&model)));
-    ROWS.with(|slot| *slot.borrow_mut() = Some(model));
+    ROWS.set(Some(model));
 }
 
 /// What:
@@ -117,24 +117,22 @@ fn search_row(row: &SearchRowView) -> SearchRow {
 /// an untouched row keeps its widgets,
 /// so the list does not flicker or jump on a refresh.
 fn sync_rows(old_rows: &[SearchRowView], new_rows: &[SearchRowView]) {
-    ROWS.with(|slot| {
-        let Some(model) = slot.borrow().clone() else {
-            tracing::warn!("the Search rows model was not installed");
-            return;
-        };
-        for (position, row) in new_rows.iter().enumerate() {
-            if position < model.row_count() {
-                if old_rows.get(position) != Some(row) {
-                    model.set_row_data(position, search_row(row));
-                }
-            } else {
-                model.push(search_row(row));
+    let Some(model) = ROWS.with(std::cell::RefCell::clone).into_inner() else {
+        tracing::warn!("the Search rows model was not installed");
+        return;
+    };
+    for (position, row) in new_rows.iter().enumerate() {
+        if position < model.row_count() {
+            if old_rows.get(position) != Some(row) {
+                model.set_row_data(position, search_row(row));
             }
+        } else {
+            model.push(search_row(row));
         }
-        while model.row_count() > new_rows.len() {
-            model.remove(model.row_count() - 1);
-        }
-    });
+    }
+    while model.row_count() > new_rows.len() {
+        model.remove(model.row_count() - 1);
+    }
 }
 
 /// What:
@@ -142,8 +140,8 @@ fn sync_rows(old_rows: &[SearchRowView], new_rows: &[SearchRowView]) {
 /// Why:
 /// both the immediate empty-query state and service answers end here.
 pub(crate) fn show_view(window: &AppWindow, view: SearchView, query: &str, anchor: bool) {
-    let old_rows: Vec<SearchRowView> = read_state(|state| return state.search_ui.rows.clone());
-    let old_keys: Vec<String> = read_state(|state| return state.search_ui.results.iter().map(result_key).collect());
+    let old_rows: Vec<SearchRowView> = read_screen().search_ui.rows.clone();
+    let old_keys: Vec<String> = { let state = read_screen(); state.search_ui.results.iter().map(result_key).collect() };
     let new_keys: Vec<String> = view.results.iter().map(result_key).collect();
     let offset_px: f32 = -window.get_search_scroll_y();
     sync_rows(&old_rows, &view.rows);
@@ -158,7 +156,8 @@ pub(crate) fn show_view(window: &AppWindow, view: SearchView, query: &str, ancho
         window.set_search_anchor_offset(target);
         window.set_search_anchor_tick(window.get_search_anchor_tick() + 1);
     }
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.search_ui.results = view.results;
         state.search_ui.rows = view.rows;
         state.search_ui.shown_query = Some(query.to_string());
@@ -170,8 +169,8 @@ pub(crate) fn show_view(window: &AppWindow, view: SearchView, query: &str, ancho
             (_, Some(ring)) if anchor => Some(ring.min(count - 1)),
             _ => Some(0),
         };
-    });
-    window.set_search_ring(read_state(|state| return state.search_ring).and_then(|row| return i32::try_from(row).ok()).unwrap_or(-1));
+    }
+    window.set_search_ring(read_screen().search_ring.and_then(|row| return i32::try_from(row).ok()).unwrap_or(-1));
     // The state line says that this answer is on screen: the end-to-end run waits for it instead of pausing for a guessed time.
     crate::ui_state_log::emit(window, "search-answer");
 }
@@ -183,14 +182,14 @@ pub(crate) fn show_view(window: &AppWindow, view: SearchView, query: &str, ancho
 /// An answer to an older query is dropped,
 /// so a slow ranking never overwrites a newer one.
 pub(crate) fn apply_answer(window: &AppWindow, answer: SearchAnswer) {
-    let (sequence, current_index, playing) = read_state(|state| return (state.search_ui.sequence, state.current_index, state.playing));
+    let (sequence, current_index, playing) = { let state = read_screen(); (state.search_ui.sequence, state.current_index, state.playing) };
     if answer.sequence != sequence {
         tracing::debug!(answer = answer.sequence, newest = sequence, "dropped an answer to an older query");
         return;
     }
     let apply_started: std::time::Instant = std::time::Instant::now();
     let view: SearchView = search_view_of(&answer.state, current_index, playing, answer.complete);
-    let same_query: bool = read_state(|state| return state.search_ui.shown_query.as_deref() == Some(answer.query.as_str()));
+    let same_query: bool = { let state = read_screen(); state.search_ui.shown_query.as_deref() == Some(answer.query.as_str()) };
     let in_place: bool = answer.refresh && same_query;
     tracing::debug!(
         sequence = answer.sequence,

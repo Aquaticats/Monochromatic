@@ -20,6 +20,26 @@
 use super::*;
 
 /// What:
+/// `pending_commit` gives the two applied texts and the kind that is open,
+/// or nothing when no editor is open.
+/// Why:
+/// the commit saves what applies,
+/// and the open kind decides which template the editor shows again afterwards.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pendingCommit(state: ScreenState): [string | null, string | null, TemplateKind] | null { ... }
+/// ```
+fn pending_commit(state: &ScreenState) -> Option<(Option<String>, Option<String>, TemplateKind)> {
+    let editor = state.editor.as_ref()?;
+    return Some((
+        applied_text(editor, TemplateKind::TrackRows, state.track_rows_template.as_deref()),
+        applied_text(editor, TemplateKind::PlayingTrack, state.playing_template.as_deref()),
+        editor.kind(),
+    ));
+}
+
+/// What:
 /// `commit_templates` applies the editor's valid drafts to the track rows and the deck,
 /// saves them when they
 /// changed,
@@ -32,26 +52,20 @@ use super::*;
 /// Settings.
 /// Rebuilding keeps the open template unchanged except that its draft equals what is applied.
 pub(super) fn commit_templates() {
-    let saved = read_state(|state| {
-        let editor = state.editor.as_ref()?;
-        return Some((
-            applied_text(editor, TemplateKind::TrackRows, state.track_rows_template.as_deref()),
-            applied_text(editor, TemplateKind::PlayingTrack, state.playing_template.as_deref()),
-            editor.kind(),
-        ));
-    });
+    let saved = pending_commit(&read_screen());
     let Some((track_rows, playing, open_kind)) = saved else {
         tracing::debug!("no editor value to commit");
         return;
     };
     remember_drafts_that_do_not_apply();
     // A template the user never changed is stored as None and applied as its default text, which is the same template.
-    let changed = read_state(|state| {
-        return effective_text(TemplateKind::TrackRows, state.track_rows_template.as_deref())
+    let changed = {
+        let state = read_screen();
+        effective_text(TemplateKind::TrackRows, state.track_rows_template.as_deref())
             != effective_text(TemplateKind::TrackRows, track_rows.as_deref())
             || effective_text(TemplateKind::PlayingTrack, state.playing_template.as_deref())
-                != effective_text(TemplateKind::PlayingTrack, playing.as_deref());
-    });
+                != effective_text(TemplateKind::PlayingTrack, playing.as_deref())
+    };
     if changed {
         tracing::info!("saving the applied template texts");
         if let Err(error) = SAVER.get()(track_rows.as_deref(), playing.as_deref()) {
@@ -60,11 +74,12 @@ pub(super) fn commit_templates() {
     } else {
         tracing::debug!("the template texts are unchanged; nothing to save");
     }
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.track_rows_template = track_rows;
         state.playing_template = playing;
-        state.editor = Some(build_editor(state).open(open_kind));
-    });
+        state.editor = Some(build_editor(&state).open(open_kind));
+    }
 }
 
 /// What:
@@ -76,18 +91,33 @@ pub(super) fn commit_templates() {
 /// without a word;
 /// a draft that does apply is the applied text and needs no keeping.
 fn remember_drafts_that_do_not_apply() {
-    let kept = read_state(|state| {
-        let editor = state.editor.as_ref()?;
-        let draft_of = |kind: TemplateKind| {
-            let opened = editor.open(kind);
-            return if opened.is_valid() { None } else { Some(opened.text().to_string()) };
-        };
-        return Some((draft_of(TemplateKind::TrackRows), draft_of(TemplateKind::PlayingTrack)));
-    });
+    let kept = {
+        let state = read_screen();
+        match state.editor.as_ref() {
+            Some(editor) => Some((draft_not_applying(editor, TemplateKind::TrackRows), draft_not_applying(editor, TemplateKind::PlayingTrack))),
+            None => None,
+        }
+    };
     if let Some(drafts) = kept {
         tracing::debug!(track_rows = drafts.0.is_some(), playing = drafts.1.is_some(), "drafts that do not apply are kept");
-        KEPT_DRAFTS.with(|cell| *cell.borrow_mut() = drafts);
+        KEPT_DRAFTS.set(drafts);
     }
+}
+
+/// What:
+/// `draft_not_applying` gives the draft text of `kind` when it does not apply,
+/// or nothing when it does.
+/// Why:
+/// only a draft that does not apply needs keeping,
+/// because one that applies is the applied text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const draftNotApplying = (editor: Editor, kind: TemplateKind): string | null => { ... };
+/// ```
+fn draft_not_applying(editor: &TemplateEditorState, kind: TemplateKind) -> Option<String> {
+    let opened = editor.open(kind);
+    return if opened.is_valid() { None } else { Some(opened.text().to_string()) };
 }
 
 /// What:
@@ -98,7 +128,10 @@ fn remember_drafts_that_do_not_apply() {
 /// saved None and saved default text are the same template,
 /// so comparing them must not report a change.
 fn effective_text(kind: TemplateKind, saved: Option<&str>) -> String {
-    return saved.map_or_else(|| return kind.default_template().to_string(), str::to_string);
+    return match saved {
+        Some(text) => text.to_string(),
+        None => kind.default_template().to_string(),
+    };
 }
 
 /// What:
@@ -121,16 +154,34 @@ fn applied_text(editor: &TemplateEditorState, kind: TemplateKind, previous: Opti
 }
 
 /// What:
-/// `update_editor` replaces the editor value in the state with the result of `change`.
+/// `current_editor` gives a copy of the open editor value,
+/// or nothing when no editor is open.
 /// Why:
 /// the editor is an immutable value,
-/// so every change builds the next value from the current one.
-pub(super) fn update_editor(change: impl FnOnce(&TemplateEditorState) -> TemplateEditorState) {
-    update_state(|state| {
-        if let Some(editor) = state.editor.as_ref() {
-            state.editor = Some(change(editor));
-        }
-    });
+/// so every change builds the next value from a copy of the current one and stores it with `store_editor`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const currentEditor = (): Editor | null => state.editor;
+/// ```
+pub(super) fn current_editor() -> Option<TemplateEditorState> {
+    return read_screen().editor.clone();
+}
+
+/// What:
+/// `store_editor` replaces the editor value in the state when an editor is open.
+/// Why:
+/// a change that arrives after the editor was left must not reopen it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function storeEditor(next: Editor): void { if (state.editor) state.editor = next; }
+/// ```
+pub(super) fn store_editor(next: TemplateEditorState) {
+    let mut state = write_screen();
+    if state.editor.is_some() {
+        state.editor = Some(next);
+    }
 }
 
 /// What:
@@ -139,11 +190,18 @@ pub(super) fn update_editor(change: impl FnOnce(&TemplateEditorState) -> Templat
 /// the pages take Slint structs,
 /// and the pure models supply the values in one state read.
 pub(crate) fn project_pages(window: &AppWindow) {
-    let (rows, view) = read_state(|state| {
-        let rows: Vec<SettingsRow> = state.editor.as_ref().map_or_else(Vec::new, settings_rows);
-        let view: Option<EditorView> = state.editor.as_ref().map(editor_view);
-        return (rows, view);
-    });
+    let (rows, view) = {
+        let state = read_screen();
+        let rows: Vec<SettingsRow> = match state.editor.as_ref() {
+            Some(editor) => settings_rows(editor),
+            None => Vec::new(),
+        };
+        let view: Option<EditorView> = match state.editor.as_ref() {
+            Some(editor) => Some(editor_view(editor)),
+            None => None,
+        };
+        (rows, view)
+    };
     window.set_settings_rows(model_of(
         rows.into_iter()
             .map(|row| return SettingsTemplateRow {
@@ -154,10 +212,13 @@ pub(crate) fn project_pages(window: &AppWindow) {
             .collect(),
     ));
     crate::ui_text_size::project_sizes(window);
-    let auto_play_on_select = read_state(|state| return state.auto_play_on_select);
+    let auto_play_on_select = read_screen().auto_play_on_select;
     window.set_auto_play_on_select(auto_play_on_select);
     window.set_auto_play_on_select_text(auto_play_on_select_supporting_text(auto_play_on_select).into());
-    let selected = read_state(|state| return state.editor.as_ref().map_or(0, |editor| return index_of_kind(editor.kind())));
+    let selected = match read_screen().editor.as_ref() {
+        Some(editor) => index_of_kind(editor.kind()),
+        None => 0,
+    };
     window.set_settings_selected(i32::try_from(selected).unwrap_or(0));
     let Some(page) = view else {
         return;

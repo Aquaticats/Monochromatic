@@ -217,10 +217,8 @@ struct StateSnapshot {
 /// see the module description.
 /// The line starts with `ui_state ` so a reader can pick it out of the log.
 pub(crate) fn emit(window: &AppWindow, reason: &str) {
-    let sequence = SEQUENCE.with(|cell| {
-        cell.set(cell.get() + 1);
-        return cell.get();
-    });
+    SEQUENCE.set(SEQUENCE.get() + 1);
+    let sequence = SEQUENCE.get();
     let zone = FocusZone::from_int(window.global::<Focus>().get_zone());
     let badges = badges_shown(window);
     let snapshot = read_state(|state| {

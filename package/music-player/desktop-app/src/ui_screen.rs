@@ -9,8 +9,8 @@
 //! this file only
 //! converts them into Slint values and writes window properties.
 
-/// Imports the cell that holds the screen state on the window thread.
-use std::cell::RefCell;
+/// Imports the cell that holds the screen state on the window thread and the guards that borrow it.
+use std::cell::{Ref, RefCell, RefMut};
 /// Imports the shared ownership type that shares models with the window.
 use std::rc::Rc;
 
@@ -43,7 +43,9 @@ thread_local! {
     /// Why:
     /// `invoke_from_event_loop` runs every update on that thread,
     /// so no lock is needed.
-    static SCREEN: RefCell<ScreenState> = RefCell::new(ScreenState::default());
+    /// The cell is leaked once per thread so that `screen_cell` can hand out a plain reference,
+    /// which lets callers hold a guard instead of passing a closure to `LocalKey::with`.
+    static SCREEN: &'static RefCell<ScreenState> = Box::leak(Box::new(RefCell::new(ScreenState::default())));
 }
 
 /// What:
@@ -60,23 +62,23 @@ thread_local! {
 pub(crate) fn apply_update(app: &AppWindow, update: &Update) {
     match update {
         Update::Library(paths) => {
-            update_state(|state| {
+            {
+                let mut state = write_screen();
                 state.paths = paths.clone();
-            });
+            }
         }
         Update::Queue(names) => {
-            let mut shared = None;
-            update_state(|state| {
-                shared = Some(state.set_names(names));
+            let library = {
+                let mut state = write_screen();
+                let library = state.set_names(names);
                 state.selected_key = String::new();
                 state.loaded = true;
                 state.reading = false;
                 state.unplayable.clear();
-            });
-            if let Some(library) = shared {
-                tracing::info!(names = library.len(), "queue applied; the library rows are projected next");
-                crate::ui_search::feed_library_names(library);
-            }
+                library
+            };
+            tracing::info!(names = library.len(), "queue applied; the library rows are projected next");
+            crate::ui_search::feed_library_names(library);
             project(app);
             tracing::info!("queue projected");
         }
@@ -88,15 +90,14 @@ pub(crate) fn apply_update(app: &AppWindow, update: &Update) {
         }
         Update::Reconciled { names, index, name, duration } => {
             tracing::info!(rows = names.len(), "the library list was reconciled in the window");
-            let mut shared = None;
-            update_state(|state| {
-                shared = Some(state.set_names_keeping_place(names));
+            let library = {
+                let mut state = write_screen();
+                let library = state.set_names_keeping_place(names);
                 state.loaded = true;
                 state.reading = false;
-            });
-            if let Some(library) = shared {
-                crate::ui_search::feed_library_names(library);
-            }
+                library
+            };
+            crate::ui_search::feed_library_names(library);
             set_now_playing(app, *index, name, *duration);
             if index.is_none() {
                 reset_position(app);
@@ -104,26 +105,28 @@ pub(crate) fn apply_update(app: &AppWindow, update: &Update) {
             project(app);
         }
         Update::Position(secs) => {
-            update_state(|state| {
+            {
+                let mut state = write_screen();
                 state.position = *secs;
-            });
+            }
             app.set_position(*secs as f32);
             app.set_position_text(format_time(*secs).into());
             crate::ui_state_log::emit(app, "position");
         }
         Update::Playing(on) => {
-            update_state(|state| {
+            {
+                let mut state = write_screen();
                 state.playing = *on;
-            });
+            }
             app.set_playing(*on);
             crate::ui_state_log::emit(app, "playing");
         }
         Update::Volume(volume) => app.set_volume(*volume),
         Update::Measures(measures) => {
-            let mut shown_changed = false;
-            update_state(|state| {
+            let shown_changed = {
+                let mut state = write_screen();
                 apply_measures(&mut state.measures, measures);
-                shown_changed = state.measures_touch_selected_page(measures);
+                let mut shown_changed = state.measures_touch_selected_page(measures);
                 // A file that was marked unplayable and now has a measured peak was replaced by one that decodes (D113),
                 // so its mark goes.
                 for (path, measure) in measures {
@@ -132,7 +135,8 @@ pub(crate) fn apply_update(app: &AppWindow, update: &Update) {
                         shown_changed = true;
                     }
                 }
-            });
+                shown_changed
+            };
             if shown_changed {
                 crate::ui_screen_throttle::project_soon(app);
             }
@@ -140,28 +144,31 @@ pub(crate) fn apply_update(app: &AppWindow, update: &Update) {
         // The window draws no analysis indicator (D107); the system indicator takes this update in main.rs.
         Update::Analysis { .. } => {}
         Update::SourceRoot(name) => {
-            update_state(|state| {
+            {
+                let mut state = write_screen();
                 state.set_source_root_name(name.clone());
-            });
+            }
             project(app);
         }
         // The Search index takes scan batches on the engine thread (main.rs); the window has nothing to draw for them.
         Update::ScanBatch { .. } => {}
         Update::Reading { name } => {
             tracing::info!(name = %name, "the folder is being read");
-            update_state(|state| {
+            {
+                let mut state = write_screen();
                 state.reading = true;
                 state.set_source_root_name(Some(name.clone()));
-            });
+            }
             project(app);
         }
         // The window marks the rows only (D122): the words about these files go to the desktop as a system notification,
         // which main.rs hands to the unplayable notifier on the engine thread, so no message is drawn here.
         Update::Unplayable(paths) => {
             tracing::warn!(files = paths.len(), "files that cannot be played are marked on their rows");
-            update_state(|state| {
+            {
+                let mut state = write_screen();
                 state.unplayable.extend(paths.iter().cloned());
-            });
+            }
             project(app);
         }
         Update::AudioUnavailable { reason } => {
@@ -177,16 +184,18 @@ pub(crate) fn apply_update(app: &AppWindow, update: &Update) {
             }
         }
         Update::Duration(duration) => {
-            update_state(|state| {
+            {
+                let mut state = write_screen();
                 state.duration = *duration;
-            });
+            }
             app.set_duration(*duration as f32);
             app.set_duration_text(format_time(*duration).into());
         }
         Update::PlaybackMode(mode) => {
-            update_state(|state| {
+            {
+                let mut state = write_screen();
                 state.mode = *mode;
-            });
+            }
             app.set_playback_mode(playback_mode_to_int(*mode));
             crate::ui_state_log::emit(app, "playback-mode");
         }
@@ -207,9 +216,10 @@ pub(crate) fn apply_update(app: &AppWindow, update: &Update) {
 /// dropped,
 /// which left `0:02` next to `0:00` (the polish review finding PB2).
 fn reset_position(app: &AppWindow) {
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.position = 0.0;
-    });
+    }
     app.set_position(0.0);
     app.set_position_text(format_time(0.0).into());
 }
@@ -229,11 +239,12 @@ fn reset_position(app: &AppWindow) {
 /// }
 /// ```
 pub(crate) fn set_now_playing(app: &AppWindow, index: Option<usize>, name: &str, duration: f64) {
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.track_name = name.to_string();
         state.duration = duration;
         state.current_index = index;
-    });
+    }
     app.set_track_name(name.into());
     app.set_duration(duration as f32);
     app.set_duration_text(format_time(duration).into());
@@ -248,12 +259,13 @@ fn follow_playing(index: Option<usize>) {
     let Some(queue_index) = index else {
         return;
     };
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         let page = state.page_key_of_index(queue_index);
         if let Some(page_key) = page {
             state.selected_key = page_key;
         }
-    });
+    }
 }
 
 /// What:
@@ -279,21 +291,24 @@ fn apply_scroll_request(app: &AppWindow, pending: Option<ScrollRequest>, rows: &
 /// so the window never mixes stale models.
 pub(crate) fn project(app: &AppWindow) {
     let started = std::time::Instant::now();
-    let (screen, request): (ScreenView, Option<ScrollRequest>) = SCREEN.with(|cell| {
-        let mut state = cell.borrow_mut();
+    let (screen, request): (ScreenView, Option<ScrollRequest>) = {
+        let mut state = write_screen();
         // The template text is copied so the supporting-line closure does not keep `state` borrowed while the
         // scroll decision below needs it mutably.
-        let template = state.track_rows_template.clone().unwrap_or_else(|| return DEFAULT_TRACK_TEMPLATE.to_string());
+        let template = match state.track_rows_template.clone() {
+            Some(text) => text,
+            None => DEFAULT_TRACK_TEMPLATE.to_string(),
+        };
         let screen = {
             let supporting_line = supporting_line_from_template(template.as_str());
             view(&state, &supporting_line)
         };
         let request = next_scroll_request(&mut state, &screen);
-        return (screen, request);
-    });
+        (screen, request)
+    };
     // With no folder page (reading, empty or without audio) the folded header would show only a caret (EM5): it shows
     // the library's name instead. The two-pane layout keeps its own heading, which names the library already.
-    let header_title: String = if screen.folder_title.is_empty() { read_state(|state| return state.library_heading()) } else { screen.folder_title.clone() };
+    let header_title: String = if screen.folder_title.is_empty() { read_screen().library_heading() } else { screen.folder_title.clone() };
     app.set_folded_title(header_title.as_str().into());
     app.set_folder_title(screen.folder_title.as_str().into());
     let view_ms = started.elapsed().as_millis();
@@ -326,13 +341,14 @@ pub(crate) fn project(app: &AppWindow) {
     ));
     app.set_current_folder(screen.folder_title.as_str().into());
     app.set_current_cell(screen.picker.current_cell.as_str().into());
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.shown_rows = screen.rows.clone();
         state.shown_names = screen.picker.names.clone();
         state.shown_folder = screen.folder_title.clone();
-    });
+    }
     crate::ui_lists::sync_rings(app);
-    app.set_library_name(read_state(|state| return state.library_heading()).into());
+    app.set_library_name(read_screen().library_heading().into());
     app.set_deck_title(screen.deck_title.as_str().into());
     app.set_deck_folder(screen.deck_folder.as_str().into());
     app.set_deck_subtitle(screen.deck_subtitle.as_str().into());
@@ -342,8 +358,8 @@ pub(crate) fn project(app: &AppWindow) {
     app.set_shuffle_folder_head(shuffle_head.as_str().into());
     app.set_shuffle_folder_tail(shuffle_tail.as_str().into());
     app.global::<DeckState>().set_disabled(read_state(ScreenState::deck_disabled));
-    app.set_picker_open(read_state(|state| return state.picker_open));
-    app.set_route(read_state(|state| return state.route.to_int()));
+    app.set_picker_open(read_screen().picker_open);
+    app.set_route(read_screen().route.to_int());
     crate::ui_overlays::project(app);
     crate::ui_settings::project_pages(app);
     tracing::debug!(rows = screen.rows.len(), view_ms, total_ms = started.elapsed().as_millis(), "the library screen was projected");
@@ -374,11 +390,56 @@ pub(crate) fn model_of<T: Clone + 'static>(items: Vec<T>) -> ModelRc<T> {
 }
 
 /// What:
+/// `screen_cell` returns this thread's screen state cell.
+/// Why:
+/// the cell is leaked once per thread,
+/// so it outlives every borrow,
+/// so the guards of `read_screen` and `write_screen` need no closure to stay inside the borrow.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const screenCell = (): Cell<ScreenState> => screen;
+/// ```
+fn screen_cell() -> &'static RefCell<ScreenState> {
+    return SCREEN.with(Clone::clone);
+}
+
+/// What:
+/// `read_screen` borrows the UI-thread state for reading until the guard is dropped.
+/// Why:
+/// callers read a field or two without wrapping the read in a closure;
+/// a guard held across a write would panic,
+/// so each guard lives only as long as the statement or block that needs it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const state = readScreen(); // a read-only view until it goes out of scope
+/// ```
+pub(crate) fn read_screen() -> Ref<'static, ScreenState> {
+    return screen_cell().borrow();
+}
+
+/// What:
+/// `write_screen` borrows the UI-thread state for writing until the guard is dropped.
+/// Why:
+/// all writes go through this one function,
+/// so the borrow stays short:
+/// each guard lives only in the block that changes the state.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const state = writeScreen(); // the one writer until it goes out of scope
+/// ```
+pub(crate) fn write_screen() -> RefMut<'static, ScreenState> {
+    return screen_cell().borrow_mut();
+}
+
+/// What:
 /// `read_state` runs a read-only closure over the UI-thread state.
 /// Why:
 /// callers read the state without taking ownership of it.
 pub(crate) fn read_state<T>(read: impl FnOnce(&ScreenState) -> T) -> T {
-    return SCREEN.with(|cell| return read(&cell.borrow()));
+    return read(&read_screen());
 }
 
 /// What:
@@ -387,7 +448,5 @@ pub(crate) fn read_state<T>(read: impl FnOnce(&ScreenState) -> T) -> T {
 /// all writes go through this one function,
 /// so the borrow stays short.
 pub(crate) fn update_state(update: impl FnOnce(&mut ScreenState)) {
-    SCREEN.with(|cell| {
-        update(&mut cell.borrow_mut());
-    });
+    update(&mut write_screen());
 }

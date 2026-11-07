@@ -29,12 +29,12 @@ use crate::ui_keys::KeyContext;
 /// Imports the focus target and the calls that move keyboard focus.
 use crate::ui_keys_focus::{FocusTarget, request_focus, set_target};
 /// Imports the projection and the state accessors of the screen.
-use crate::ui_screen::{project, read_state, update_state};
+use crate::ui_screen::{project, read_screen, read_state, update_state, write_screen};
 /// Imports the scroll request that revealing the playing row sends.
 use crate::ui_screen_scroll::ScrollRequest;
 /// Imports the route,
 /// the screen state and the page scope lookup.
-use crate::ui_screen_view::{Route, ScreenState, selected_page_scope};
+use crate::ui_screen_view::{Route, selected_page_scope};
 
 /// Seconds a plain seek moves.
 const SEEK_SHORT_SECONDS: f64 = 10.0;
@@ -153,7 +153,7 @@ pub fn next_mode(mode: PlaybackMode) -> PlaybackMode {
 /// Why:
 /// the scope must match the page the user sees before a shuffle or in-order mode starts.
 fn cycle_mode(host: &dyn Host) {
-    let mode = read_state(|state: &ScreenState| return state.mode);
+    let mode = read_screen().mode;
     set_mode(host, next_mode(mode));
 }
 
@@ -185,7 +185,7 @@ pub fn seek_target(position: f64, duration: f64, delta: f64) -> Option<f64> {
 /// Why:
 /// Alt+Left and Alt+Right move 10 seconds and Shift makes it 60 (D106).
 fn seek_by(host: &dyn Host, delta: f64) {
-    let (position, duration) = read_state(|state: &ScreenState| return (state.position, state.duration));
+    let (position, duration) = { let state = read_screen(); (state.position, state.duration) };
     match seek_target(position, duration, delta) {
         Some(target) => host.send(Command::Seek(target)),
         None => tracing::debug!("a seek key was ignored: no track is loaded"),
@@ -229,7 +229,7 @@ fn toggle_picker(window: &AppWindow) {
         focus_folders(window);
         return;
     }
-    let was_open = read_state(|state: &ScreenState| return state.picker_open);
+    let was_open = read_screen().picker_open;
     if was_open {
         close_picker(window);
     } else {
@@ -253,15 +253,16 @@ fn toggle_picker(window: &AppWindow) {
 /// opens a Folders pane with no rail and no
 /// names that the first-run pane does not cover either.
 fn focus_folders(window: &AppWindow) {
-    if !window.get_unfolded() && read_state(|state: &ScreenState| return state.names.is_empty()) {
+    if !window.get_unfolded() && read_screen().names.is_empty() {
         tracing::debug!("the folder picker was not opened: the library has no folders to list yet");
         return;
     }
     set_target(window, FocusTarget::Folders);
     if !window.get_unfolded() {
-        update_state(|state| {
+        {
+            let mut state = write_screen();
             state.picker_open = true;
-        });
+        }
         project(window);
     }
     request_focus(window, FocusTarget::Folders);
@@ -276,9 +277,10 @@ fn focus_folders(window: &AppWindow) {
 fn focus_tracks(window: &AppWindow) {
     set_target(window, FocusTarget::Tracks);
     if !window.get_unfolded() {
-        update_state(|state| {
+        {
+            let mut state = write_screen();
             state.picker_open = false;
-        });
+        }
         project(window);
     }
     request_focus(window, FocusTarget::Tracks);
@@ -363,7 +365,8 @@ pub(crate) fn reveal_playing_folder(window: &AppWindow) {
 /// there is no row to reveal,
 /// so the list keeps its position.
 fn show_playing_page(request: ScrollRequest) {
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.picker_open = false;
         if let Some(index) = state.current_index {
             state.scroll_request = Some(request);
@@ -372,7 +375,7 @@ fn show_playing_page(request: ScrollRequest) {
                 state.selected_key = page_key;
             }
         }
-    });
+    }
 }
 
 /// What:

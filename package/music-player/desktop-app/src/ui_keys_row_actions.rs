@@ -32,13 +32,10 @@ use crate::ui_host::Host;
 use crate::ui_keys::KeyContext;
 
 /// Imports the state accessors of the screen.
-use crate::ui_screen::{read_state, update_state};
+use crate::ui_screen::{read_screen, write_screen};
 
 /// Imports the row offset calculation that places the menu beside its row.
 use crate::ui_screen_scroll::row_offset_px;
-
-/// Imports the screen state that the state closures read.
-use crate::ui_screen_view::ScreenState;
 
 /// What:
 /// `menu_action_of` maps a track row shortcut to the menu action it runs.
@@ -91,13 +88,14 @@ pub(super) fn run_row_action(window: &AppWindow, host: &dyn Host, action: Shortc
 /// and with no ring nothing happens.
 fn run_chord_on_row(window: &AppWindow, host: &dyn Host, action: TrackMenuAction, popup_open: bool) {
     if !popup_open {
-        let Some(index) = read_state(|state: &ScreenState| return state.ring_track).and_then(|ring| return usize::try_from(ring).ok()) else {
+        let Some(index) = read_screen().ring_track.and_then(|ring| return usize::try_from(ring).ok()) else {
             tracing::debug!("a track row chord was ignored: no row has the keyboard ring");
             return;
         };
-        update_state(|state| {
+        {
+            let mut state = write_screen();
             state.menu_index = Some(index);
-        });
+        }
     }
     host.run_row_action(window, action);
     if popup_open {
@@ -113,14 +111,15 @@ fn run_chord_on_row(window: &AppWindow, host: &dyn Host, action: TrackMenuAction
 /// D114);
 /// the list knows where the row is on screen.
 fn request_row_menu(window: &AppWindow) {
-    let (rows, ring) = read_state(|state: &ScreenState| return (state.shown_rows.clone(), state.ring_track));
+    let (rows, ring) = { let state = read_screen(); (state.shown_rows.clone(), state.ring_track) };
     let Some(position) = rows.iter().position(|row| return row.kind == 0 && Some(row.index) == ring) else {
         tracing::debug!("the menu key was ignored: no row has the keyboard ring");
         return;
     };
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.menu_by_key = true;
-    });
+    }
     window.set_track_menu_index(ring.unwrap_or(-1));
     window.set_track_menu_offset(row_offset_px(&rows, position));
     window.set_track_menu_tick(window.get_track_menu_tick() + 1);
@@ -134,20 +133,18 @@ fn request_row_menu(window: &AppWindow) {
 /// the first Down with nothing highlighted lands on the first row.
 fn move_menu_ring(window: &AppWindow, delta: isize) {
     let count = track_menu_actions_for().len();
-    let mut moved: Option<usize> = None;
-    update_state(|state| {
+    let row = {
+        let mut state = write_screen();
         let next = match (state.menu_ring, delta) {
             (None, d) if d < 0 => count.saturating_sub(1),
             (None, _) => 0,
             (Some(at), d) => at.saturating_add_signed(d).min(count.saturating_sub(1)),
         };
         state.menu_ring = Some(next);
-        moved = Some(next);
-    });
-    if let Some(row) = moved {
-        window.set_menu_ring(i32::try_from(row).unwrap_or(-1));
-        tracing::debug!(row, "the track menu highlight moved");
-    }
+        next
+    };
+    window.set_menu_ring(i32::try_from(row).unwrap_or(-1));
+    tracing::debug!(row, "the track menu highlight moved");
 }
 
 /// What:
@@ -157,7 +154,7 @@ fn move_menu_ring(window: &AppWindow, delta: isize) {
 /// with no row highlighted,
 /// Enter does nothing and leaves the menu open.
 fn choose_menu_row(window: &AppWindow, host: &dyn Host) {
-    let Some(row) = read_state(|state: &ScreenState| return state.menu_ring) else {
+    let Some(row) = read_screen().menu_ring else {
         return;
     };
     let Some(action) = track_menu_actions_for().get(row).copied() else {

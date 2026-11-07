@@ -27,7 +27,7 @@ use music_player::text_size::{MAX_TEXT_SIZE_PX, MIN_TEXT_SIZE_PX, TextElement, T
 use slint::ComponentHandle;
 
 /// Imports the projection and the state accessors of the screen.
-use crate::ui_screen::{project, read_state, update_state};
+use crate::ui_screen::{project, read_screen, write_screen};
 /// Imports the window and the generated text size global.
 use crate::{AppWindow, TextSize};
 
@@ -65,9 +65,10 @@ pub(crate) fn replace_saver(saver: SaveTextSizes) {
 pub(crate) fn load_into_state() {
     let text_sizes = Session::load_text_sizes();
     tracing::info!(?text_sizes, "loaded the Text size setting");
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.text_sizes = text_sizes;
-    });
+    }
 }
 
 /// What:
@@ -103,7 +104,7 @@ fn step_text_size(window: &AppWindow, index: i32, step: i32) {
         tracing::warn!(index, step, "ignored a step of a text size stepper that does not exist");
         return;
     };
-    let current = read_state(|state| return state.text_sizes);
+    let current = read_screen().text_sizes;
     let next = current.stepped(element, step);
     if next == current {
         tracing::debug!(?element, step, px = current.get(element), "the text size is at its limit; nothing changes");
@@ -120,7 +121,7 @@ fn step_text_size(window: &AppWindow, index: i32, step: i32) {
 /// one action restores the sizes the app always drew;
 /// at the defaults there is nothing to do and nothing is saved.
 fn reset_text_sizes(window: &AppWindow) {
-    let current = read_state(|state| return state.text_sizes);
+    let current = read_screen().text_sizes;
     if current.is_default() {
         tracing::debug!("the text sizes are at their defaults; nothing to reset");
         return;
@@ -139,9 +140,10 @@ fn reset_text_sizes(window: &AppWindow) {
 /// save is logged and leaves the sizes in force for this run,
 /// and the end-to-end run reads the sizes from the log line.
 fn apply(window: &AppWindow, sizes: TextSizes) {
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.text_sizes = sizes;
-    });
+    }
     project(window);
     if let Err(error) = SAVER.get()(sizes) {
         tracing::warn!(?error, "failed to save the Text size setting");
@@ -156,7 +158,7 @@ fn apply(window: &AppWindow, sizes: TextSizes) {
 /// the five texts and the stepper rows read the global,
 /// so one write changes them all in the live window.
 pub(crate) fn project_sizes(window: &AppWindow) {
-    let sizes = read_state(|state| return state.text_sizes);
+    let sizes = read_screen().text_sizes;
     let global = window.global::<TextSize>();
     global.set_pane_title(f32::from(sizes.get(TextElement::PaneTitle)));
     global.set_group_heading(f32::from(sizes.get(TextElement::GroupHeading)));

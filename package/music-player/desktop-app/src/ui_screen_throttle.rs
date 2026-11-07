@@ -45,7 +45,22 @@ thread_local! {
     /// Whether a delayed projection is already scheduled.
     static PENDING: Cell<bool> = const { Cell::new(false) };
     /// The timer that runs the delayed projection.
-    static DELAYED: Timer = Timer::default();
+    static DELAYED: &'static Timer = Box::leak(Box::new(Timer::default()));
+}
+
+/// What:
+/// `delayed_timer` returns this thread's delayed-projection timer.
+/// Why:
+/// the timer is leaked once per thread,
+/// so it outlives every borrow,
+/// so `project_soon` can start it directly instead of passing a closure to `LocalKey::with`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const delayedTimer = (): Timer => DELAYED;
+/// ```
+fn delayed_timer() -> &'static Timer {
+    return DELAYED.with(Clone::clone);
 }
 
 /// What:
@@ -53,7 +68,7 @@ thread_local! {
 /// Why:
 /// both the immediate and the delayed path must count as the last projection.
 fn project_now(app: &AppWindow) {
-    LAST_PROJECTION.with(|last| last.set(Some(Instant::now())));
+    LAST_PROJECTION.set(Some(Instant::now()));
     project(app);
 }
 
@@ -63,21 +78,22 @@ fn project_now(app: &AppWindow) {
 /// see the module description.
 pub(crate) fn project_soon(app: &AppWindow) {
     let now: Instant = Instant::now();
-    let due: Option<Instant> = LAST_PROJECTION.with(|last| return last.get().map(|at| return at + PROJECT_INTERVAL));
+    let due: Option<Instant> = match LAST_PROJECTION.get() {
+        Some(at) => Some(at + PROJECT_INTERVAL),
+        None => None,
+    };
     match due {
         Some(at) if at > now => {
-            if PENDING.with(|pending| return pending.replace(true)) {
+            if PENDING.replace(true) {
                 return;
             }
             tracing::debug!(wait_ms = (at - now).as_millis(), "projection delayed to the end of the interval");
             let weak = app.as_weak();
-            DELAYED.with(|timer| {
-                timer.start(TimerMode::SingleShot, at - now, move || {
-                    PENDING.with(|pending| pending.set(false));
-                    if let Some(window) = weak.upgrade() {
-                        project_now(&window);
-                    }
-                });
+            delayed_timer().start(TimerMode::SingleShot, at - now, move || {
+                PENDING.set(false);
+                if let Some(window) = weak.upgrade() {
+                    project_now(&window);
+                }
             });
         }
         _ => project_now(app),
