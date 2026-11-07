@@ -29,13 +29,18 @@ import {
   tagged,
 } from '@monochromatic-dev/logger-core/ts';
 
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+
 import { runCommand, } from './command.ts';
 import { compositorVersionProblem, } from './compositor-version.ts';
 import type { RunConfig, } from './config.ts';
 import type { RunContext, } from './context.ts';
 import { runAutoPlaySession, } from './auto-play-session.ts';
 import { runDialogSession, } from './dialog-session.ts';
-import { expect, } from './errors.ts';
+import {
+  expect,
+  SafetyStopError,
+} from './errors.ts';
 import { pathExists, } from './files.ts';
 import { resolveDisplay, } from './gpu-choice.ts';
 import { buildLibrary, } from './library.ts';
@@ -243,8 +248,24 @@ async function runSessions(
   };
   for (const name of sessionsFor({ only: config.only, },)) {
     rl.info(`running the ${name} session`,);
-    // oxlint-disable-next-line eslint/no-await-in-loop -- the sessions must not overlap: one compositor and one app at a time
-    await SESSION_RUNNERS[name](context,);
+    try {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- the sessions must not overlap: one compositor and one app at a time
+      await SESSION_RUNNERS[name](context,);
+    }
+    catch (error: unknown) {
+      // The routing proof must still end the run at once.
+      if (error instanceof SafetyStopError)
+        throw error;
+      rl.error(`the ${name} session stopped before its checks ended: ${caughtValueText(error,)}`,);
+      // A step between two checks failed (a page to return to never came back). The run goes on with the next session
+      // and the failure is recorded with the states the session had read, instead of ending the run without a report.
+      // oxlint-disable-next-line eslint/no-await-in-loop -- recorded in order, after the session that failed
+      await recorder.fail({
+        id: `session/${name}`,
+        title: `the ${name} session ran to its end`,
+        detail: caughtValueText(error,),
+      },);
+    }
   }
 }
 

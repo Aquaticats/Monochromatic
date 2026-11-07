@@ -111,6 +111,15 @@ export type Recorder = {
    */
   readonly attach: (source: EvidenceSource,) => void;
   /**
+   Records a failure that belongs to no check, such as a session that stopped before its checks ended, with its
+   evidence, whatever the filter selects.
+   */
+  readonly fail: (failure: {
+    readonly detail: string;
+    readonly id: string;
+    readonly title: string
+  },) => Promise<void>;
+  /**
    Lists the recorded outcomes in the order they were recorded.
    */
   readonly outcomes: () => readonly Outcome[];
@@ -312,6 +321,50 @@ export function createRecorder(
   }
 
   /**
+   Records a failed outcome, keeps its evidence and prints its line.
+
+   @param id - check id
+
+   @param title - what the check shows
+
+   @param detail - why it failed
+
+   @param ms - how long it ran before it failed
+   */
+  async function recordFailure(
+    {
+      id,
+      title,
+      detail,
+      ms,
+    }: {
+      readonly detail: string;
+      readonly id: string;
+      readonly ms: number;
+      readonly title: string;
+    },
+  ): Promise<void> {
+    /**
+     Where the failure text and the latest states were kept.
+     */
+    const evidence = await keepEvidence({
+      id,
+      title,
+      detail,
+    },);
+    recorded.push({
+      id,
+      title,
+      ok: false,
+      skipped: false,
+      detail,
+      ...evidence === '' ? {} : { evidence, },
+      ms,
+    },);
+    printLine(`FAIL ${id} ${title} :: ${detail}${evidence === '' ? '' : ` (evidence: ${evidence})`}`,);
+  }
+
+  /**
    Runs one check and records its outcome, whichever way it ends.
    
    @param id - check id
@@ -361,29 +414,12 @@ export function createRecorder(
       if (error instanceof SafetyStopError)
         throw error;
 
-      /**
-       Why the check failed.
-       */
-      const detail = caughtValueText(error,);
-
-      /**
-       Where the failure text and the latest states were kept.
-       */
-      const evidence = await keepEvidence({
+      await recordFailure({
         id,
         title,
-        detail,
-      },);
-      recorded.push({
-        id,
-        title,
-        ok: false,
-        skipped: false,
-        detail,
-        ...evidence === '' ? {} : { evidence, },
+        detail: caughtValueText(error,),
         ms: Date.now() - started,
       },);
-      printLine(`FAIL ${id} ${title} :: ${detail}${evidence === '' ? '' : ` (evidence: ${evidence})`}`,);
     }
   }
 
@@ -456,6 +492,12 @@ export function createRecorder(
     skip,
     attach: function attach(source,): void {
       attached.push(source,);
+    },
+    fail: async function fail(failure,): Promise<void> {
+      await recordFailure({
+        ...failure,
+        ms: 0,
+      },);
     },
     outcomes: function outcomes(): readonly Outcome[] {
       return recorded;
