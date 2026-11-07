@@ -119,6 +119,13 @@ export function heldLock(lockPath: string,): RunLock {
 }
 
 /**
+ Releases nothing, for a lock that belongs to another run.
+ */
+async function keepLock(): Promise<void> {
+  // The lock belongs to another run, which releases it.
+}
+
+/**
  A lock another run holds; releasing it does nothing, because it is not this process's.
 
  @returns the refused lock
@@ -131,9 +138,7 @@ export function heldLock(lockPath: string,): RunLock {
 export function refusedLock(): RunLock {
   return {
     acquired: false,
-    [Symbol.asyncDispose]: async function keepLock() {
-      // The lock belongs to another run, which releases it.
-    },
+    [Symbol.asyncDispose]: keepLock,
   };
 }
 
