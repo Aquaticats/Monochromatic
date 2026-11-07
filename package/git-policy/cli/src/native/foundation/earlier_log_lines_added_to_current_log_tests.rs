@@ -248,11 +248,183 @@ fn a_read_only_directory_fails_the_fold_and_keeps_the_earlier_log() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// A journal cut short records nothing, and text that is not a record is not one.
+/// A journal cut short records nothing, text that is not a record is not one, and the last complete record is the one that counts.
 #[test]
 fn only_a_whole_journal_line_records_a_round() {
     assert_eq!(parse_journal(journal_text(Round { offset: 3, from: 0, to: 9 }).as_str()), Some(Round { offset: 3, from: 0, to: 9 }));
     for cut in ["", "3 0", "3 0 9", "3 0 9 1\n", "a b c\n", "3 9 0\n"] {
         assert_eq!(parse_journal(cut), None, "{cut:?}");
     }
+    assert_eq!(parse_journal("1 0 5\n3 0"), Some(Round { offset: 1, from: 0, to: 5 }), "a cut last line leaves the line before it");
+    assert_eq!(parse_journal("1 0 5\nnot a record\n2 5 8\n3 8"), Some(Round { offset: 2, from: 5, to: 8 }), "the last whole record wins");
+}
+
+/// A journal only grows: a record is a new last line, a line a kill cut short is ended and stays unreadable, and the new line is
+///  the one a restart reads.
+#[cfg(unix)]
+#[test]
+fn a_record_is_a_new_last_line_and_ends_a_line_that_a_kill_cut_short() {
+    let root: PathBuf = fixture("journal-cut");
+    let journal: PathBuf = root.join("journal");
+    std::fs::write(journal.as_path(), "1 0 5\n2 5").expect("journal cut short");
+    let mut held = hold_journal(journal.as_path()).expect("lock").expect("held");
+    assert_eq!(held.recorded().expect("read"), Some(Round { offset: 1, from: 0, to: 5 }));
+    held.record(Round { offset: 3, from: 5, to: 8 }).expect("record");
+    assert_eq!(std::fs::read_to_string(journal.as_path()).expect("journal"), "1 0 5\n2 5\n3 5 8\n");
+    assert_eq!(held.recorded().expect("read"), Some(Round { offset: 3, from: 5, to: 8 }));
+    drop(held);
+    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+}
+
+/// The moved log's name.
+fn waiting_path(root: &Path) -> PathBuf {
+    return root.join(format!("{}{WAITING_SUFFIX}", COMMIT_TIMING_LOG.current));
+}
+
+/// The journal's name.
+fn journal_path(root: &Path) -> PathBuf {
+    return root.join(format!("{}{JOURNAL_SUFFIX}", COMMIT_TIMING_LOG.current));
+}
+
+/// A writer that opened the earlier log before the fold and still has it open when the fold ends: the fold leaves the moved log and
+///  the journal, the current log holds the lines it had once, and nothing is reported as folded.
+#[test]
+fn a_writer_still_open_at_the_end_leaves_the_moved_log_and_the_journal_and_adds_the_lines_once() {
+    let root: PathBuf = fixture("writer-stays-open");
+    plant(root.as_path());
+    let writer = std::fs::OpenOptions::new().append(true).open(root.join(COMMIT_TIMING_LOG.earlier)).expect("writer");
+    let left: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("fold with the writer open");
+    assert_eq!(left, LogFold::LeftForALaterCommand);
+    assert_eq!(current_text(root.as_path()), format!("{CURRENT_LINES}{EARLIER_LINES}"));
+    assert_eq!(std::fs::read_to_string(waiting_path(root.as_path())).expect("moved log"), EARLIER_LINES);
+    let journal: String = std::fs::read_to_string(journal_path(root.as_path())).expect("journal");
+    let end: u64 = EARLIER_LINES.len() as u64;
+    assert_eq!(parse_journal(journal.as_str()).map(|round| return (round.from, round.to)), Some((end, end)), "{journal}");
+    let again: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("second fold with the writer open");
+    assert_eq!(again, LogFold::LeftForALaterCommand);
+    assert_eq!(std::fs::read_to_string(journal_path(root.as_path())).expect("journal"), journal, "a second command with no growth adds no journal line");
+    assert_eq!(current_text(root.as_path()), format!("{CURRENT_LINES}{EARLIER_LINES}"));
+    drop(writer);
+    assert_eq!(fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("fold after close"), LogFold::Folded);
+    assert_eq!(current_text(root.as_path()), format!("{CURRENT_LINES}{EARLIER_LINES}"));
+    assert_clean(root.as_path());
+    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+}
+
+/// A writer that keeps the log open across several commands and adds lines between them: each command adds only the growth,
+///  so every line is in the current log once, in the order written, when the writer finally closes.
+#[test]
+fn a_writer_that_adds_lines_between_commands_has_each_line_added_once() {
+    let root: PathBuf = fixture("writer-between-commands");
+    plant(root.as_path());
+    let mut writer = std::fs::OpenOptions::new().append(true).open(root.join(COMMIT_TIMING_LOG.earlier)).expect("writer");
+    let lines: [&str; 3] = ["{\"from\":\"writer\",\"n\":1}\n", "{\"from\":\"writer\",\"n\":2}\n", "{\"from\":\"writer\",\"n\":3}\n"];
+    let mut expected: String = format!("{CURRENT_LINES}{EARLIER_LINES}");
+    for line in lines {
+        let left: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("fold with the writer open");
+        assert_eq!(left, LogFold::LeftForALaterCommand);
+        assert_eq!(current_text(root.as_path()), expected);
+        writer.write_all(line.as_bytes()).expect("writer's line");
+        expected.push_str(line);
+    }
+    drop(writer);
+    assert_eq!(fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("fold after close"), LogFold::Folded);
+    assert_eq!(current_text(root.as_path()), expected);
+    assert_clean(root.as_path());
+    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+}
+
+/// A kill at every step of a fold that a writer keeps open, a late line from the writer, one more fold with the writer still open,
+///  then the writer's close and a last fold: each line is in the current log once.
+#[test]
+fn a_kill_at_any_step_with_a_writer_open_then_later_folds_loses_and_repeats_no_line() {
+    let expected: String = format!("{CURRENT_LINES}{EARLIER_LINES}{}", std::str::from_utf8(LATE_LINE).expect("text"));
+    let mut limit: usize = 0;
+    loop {
+        let root: PathBuf = fixture(format!("kill-writer-{limit}").as_str());
+        plant(root.as_path());
+        let mut writer = std::fs::OpenOptions::new().append(true).open(root.join(COMMIT_TIMING_LOG.earlier)).expect("writer");
+        let first: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut StopAfter { limit, seen: 0 }).expect("first");
+        writer.write_all(LATE_LINE).expect("late line");
+        let second: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("second");
+        assert_eq!(second, LogFold::LeftForALaterCommand, "kill after {limit} steps");
+        drop(writer);
+        let third: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("third");
+        assert_eq!(third, LogFold::Folded, "kill after {limit} steps");
+        assert_eq!(current_text(root.as_path()), expected, "kill after {limit} steps");
+        assert_clean(root.as_path());
+        std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+        if first == LogFold::LeftForALaterCommand {
+            break;
+        }
+        limit += 1;
+    }
+}
+
+/// Programs that only read the earlier log do not keep the fold from removing the moved log.
+#[test]
+fn a_reader_of_the_earlier_log_does_not_keep_the_fold_from_finishing() {
+    let root: PathBuf = fixture("reader-open");
+    plant(root.as_path());
+    let reader = std::fs::File::open(root.join(COMMIT_TIMING_LOG.earlier)).expect("reader");
+    assert_eq!(fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("fold"), LogFold::Folded);
+    drop(reader);
+    assert_clean(root.as_path());
+    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+}
+
+/// A program that adds a line after every round, so the moved log keeps growing: the rounds of one command stop at the bound,
+///  every line added so far is in the current log once, and the next command finishes the fold.
+#[test]
+fn a_moved_log_that_keeps_growing_ends_the_command_at_the_round_bound_and_the_next_command_finishes() {
+    /// Adds a line to the moved log after every append, then closes it again.
+    struct GrowsEveryRound {
+        /// The moved log.
+        waiting: PathBuf,
+        /// How many lines were added.
+        added: usize,
+    }
+    impl FoldSteps for GrowsEveryRound {
+        fn may_continue(&mut self, step: &'static str) -> bool {
+            if step == "after-append" {
+                self.added += 1;
+                let mut log = std::fs::OpenOptions::new().append(true).open(self.waiting.as_path()).expect("moved log");
+                log.write_all(format!("{{\"from\":\"grower\",\"n\":{}}}\n", self.added).as_bytes()).expect("grower line");
+            }
+            return true;
+        }
+    }
+    let root: PathBuf = fixture("keeps-growing");
+    plant(root.as_path());
+    let mut grower: GrowsEveryRound = GrowsEveryRound { waiting: waiting_path(root.as_path()), added: 0 };
+    let left: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut grower).expect("bounded fold");
+    assert_eq!(left, LogFold::LeftForALaterCommand);
+    assert_eq!(grower.added, ROUNDS_PER_COMMAND, "one added line per round, and no round past the bound");
+    let finished: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("next command");
+    assert_eq!(finished, LogFold::Folded);
+    let text: String = current_text(root.as_path());
+    assert!(text.starts_with(format!("{CURRENT_LINES}{EARLIER_LINES}").as_str()), "{text}");
+    for number in 1..=grower.added {
+        assert_eq!(text.matches(format!("\"grower\",\"n\":{number}}}\n").as_str()).count(), 1, "line {number}: {text}");
+    }
+    assert_clean(root.as_path());
+    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+}
+
+/// A journal left by a finished fold, then a new earlier log and a kill right after the move: the next command must not resume
+///  the old record against the new moved log, which would skip the bytes before it.
+#[test]
+fn a_stale_journal_is_not_resumed_against_a_new_moved_log() {
+    let root: PathBuf = fixture("stale-journal");
+    plant(root.as_path());
+    let stale: Round = Round { offset: 1, from: 40, to: 40 };
+    std::fs::write(journal_path(root.as_path()), journal_text(stale)).expect("stale journal");
+    // Steps: the journal lock, the journal's clearing, the move, then the stop at the record that follows the move.
+    let stopped: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut StopAfter { limit: 3, seen: 0 }).expect("first");
+    assert_eq!(stopped, LogFold::Stopped("before-journal-record"));
+    assert!(waiting_path(root.as_path()).exists(), "the kill came after the move");
+    assert_eq!(fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("second"), LogFold::Folded);
+    assert_eq!(current_text(root.as_path()), format!("{CURRENT_LINES}{EARLIER_LINES}"));
+    assert_clean(root.as_path());
+    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
