@@ -16,7 +16,9 @@
 /// ```ts
 /// // Every object is shared by reference and garbage collected; there is nothing to import.
 /// ```
+use std::cell::Cell;
 use std::rc::Rc;
+use std::time::Duration;
 
 /// What: `use i_slint_backend_testing::ElementHandle;` imports the type that points at one element of the window's tree,
 /// from the Slint testing crate (a separate package, named by its crate name instead of `std` or `crate`).
@@ -100,6 +102,14 @@ use crate::ui_screen_view::ScreenState;
 /// ```
 use crate::ui_test_support::{RecordingHost, load_library, settle};
 
+thread_local! {
+    /// What: `CLOCK` is how long the test thread's Slint clock says the program has run.
+    /// Why: Slint animations read the platform's clock, and the default clock is the wall clock, so how far an animation had gone
+    /// when a frame was drawn depended on how fast the build runs. The test clock moves only when a test moves it; here it is
+    /// frozen, which is the limit of a build so fast that no time passes between two draws.
+    static CLOCK: Cell<Duration> = const { Cell::new(Duration::ZERO) };
+}
+
 /// What: `struct SoftwarePlatform { window }` is a record with one field. There is no `pub`, so it is private to this file.
 /// `Rc<MinimalSoftwareWindow>` is a counted pointer: cloning it adds an owner and copies no window.
 /// Why: Slint needs a platform to create a window, and this one draws into memory. It holds the window so every
@@ -151,6 +161,11 @@ impl Platform for SoftwarePlatform {
         // return this.window;
         // ```
         return Ok(self.window.clone());
+    }
+
+    /// What: `duration_since_start` gives the test clock.
+    fn duration_since_start(&self) -> Duration {
+        return CLOCK.get();
     }
 }
 
