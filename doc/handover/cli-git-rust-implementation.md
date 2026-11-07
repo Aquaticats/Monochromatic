@@ -4349,8 +4349,37 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   an injected overflow event with a small fixed count,
   never writes scaled by a host limit,
   and a search for other tests sized from `/proc/sys`.
-  The music-player ellipsis test passed three times for the zbus agent;
-  its cause is still unmeasured.
+- Music player:
+  merged into main `9944c1ffe8` (1601 of 1601 desktop-app tests,
+  Clippy and e2e lint clean;
+  worktree and branch removed).
+  The ellipsis test failed only in release builds,
+  because the Search page's fade-in read the wall clock and a release build drew before the fade ended
+  (red `80e9ead693`,
+  fix `96c1da743a`:
+  the test clock advances by `Theme.motion-enter` per draw pass);
+  `src/ui_render_support.rs` also reads the wall clock.
+  `click-through/unreadable-row` raced a fixed 1500 ms pause;
+  the app now writes a state line on each search answer and the check waits for it
+  (red `25c717f5b9`,
+  fixes `c0d7b7dcf6`,
+  `6f2c48339e`).
+  `settings/licenses-row` and `settings/escape-ladder` did not reproduce headless,
+  and no failure text was kept from the reported runs,
+  which used the visible nested window;
+  `browse/alt-down-up` failed once and is untouched.
+  Docs:
+  `doc/troubleshooting/slint-render-test-fade-in-reads-the-wall-clock.md`,
+  `doc/troubleshooting/music-player-e2e-search-answer-and-headless-start.md`.
+  Queued for the next free agent slot:
+  make the e2e runner headless by default for agents
+  (the working wrapper lives only in scratch,
+  `~/temp/agent/four-tests/headless-compositor.ts`,
+  with `--headless --gpu /dev/dri/renderD129`;
+  `--gpu auto` took about 56 s to open the control socket against the runner's 30 s poll),
+  fix the start stall,
+  keep each failing check's text and last `ui_state` lines,
+  then measure the three open checks and the wall-clock read in `ui_render_support.rs`.
 - Held settle message:
   merged into main `66dbb1ca27` (gate 5194 of 5194,
   lint clean).
