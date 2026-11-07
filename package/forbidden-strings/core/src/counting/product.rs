@@ -391,14 +391,14 @@ fn run_product(prog: &ProductProgram, line: &[u8]) -> bool {
         for thread in &mut threads {
             close_operands(prog, &mut thread.cur, ctx);
         }
-        if threads.iter().any(|thread| return accepts(&thread.cur)) {
+        if any_thread_accepts(&threads) {
             return true;
         }
         if i == line.len() {
             break;
         }
         let b = line[i];
-        threads.retain_mut(|thread| return advance_thread(prog, thread, b));
+        keep_advancing_threads(prog, &mut threads, b);
     }
     return false
 }
@@ -433,6 +433,41 @@ fn new_thread(prog: &ProductProgram) -> Thread {
     }
 }
 
+/// The state of one operand with its start positions seeded.
+fn seeded_state(nfa: &CountingNfa) -> State {
+    let mut state = State::new(&nfa.elements);
+    state.seed(&nfa.start);
+    return state;
+}
+
+/// An empty state sized to one operand's positions.
+fn empty_state(nfa: &CountingNfa) -> State {
+    return State::new(&nfa.elements);
+}
+
+/// Whether any thread is in an accepting configuration.
+fn any_thread_accepts(threads: &[Thread]) -> bool {
+    for thread in threads {
+        if accepts(&thread.cur) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Advances every thread by a byte and drops the ones that died,
+/// keeping the survivors in their order and allocating nothing.
+fn keep_advancing_threads(prog: &ProductProgram, threads: &mut Vec<Thread>, b: u8) {
+    let mut kept: usize = 0;
+    for index in 0..threads.len() {
+        if advance_thread(prog, &mut threads[index], b) {
+            threads.swap(kept, index);
+            kept += 1;
+        }
+    }
+    threads.truncate(kept);
+}
+
 /// Builds a seeded state for each operand.
 ///
 /// What:
@@ -448,14 +483,7 @@ fn new_thread(prog: &ProductProgram) -> Thread {
 /// }
 /// ```
 fn seeded_states(operands: &[CountingNfa]) -> Vec<State> {
-    return operands
-        .iter()
-        .map(|nfa| {
-            let mut state = State::new(&nfa.elements);
-            state.seed(&nfa.start);
-            return state
-        })
-        .collect()
+    return operands.iter().map(seeded_state).collect()
 }
 
 /// Builds an empty state for each operand.
@@ -473,7 +501,7 @@ fn seeded_states(operands: &[CountingNfa]) -> Vec<State> {
 /// }
 /// ```
 fn empty_states(operands: &[CountingNfa]) -> Vec<State> {
-    return operands.iter().map(|nfa| return State::new(&nfa.elements)).collect()
+    return operands.iter().map(empty_state).collect()
 }
 
 /// Takes the zero-width closure of every operand in one side.
@@ -514,7 +542,7 @@ fn close_operands(prog: &ProductProgram, ops: &mut Operands, ctx: Ctx) {
 /// }
 /// ```
 fn accepts(ops: &Operands) -> bool {
-    return ops.positives.iter().all(State::accepts) && ops.negatives.iter().all(|state| return !state.accepts())
+    return ops.positives.iter().all(State::accepts) && !ops.negatives.iter().any(State::accepts)
 }
 
 /// Advances one thread by a byte,

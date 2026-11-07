@@ -36,6 +36,13 @@ import {
  @returns the output file's path
  
  @throws GuidedStopError when the window is over or the command fails
+
+ @example
+ ```ts
+ import { executeCommand, } from './guided-stage-execution.ts';
+ 
+ const result = await executeCommand({ stageRun, command, },);
+ ```
  */
 export async function executeCommand(
   {
@@ -132,6 +139,13 @@ export async function executeCommand(
  @param outputFile - the command's output file
  
  @throws GuidedStopError when the check fails
+
+ @example
+ ```ts
+ import { runCheck, } from './guided-stage-execution.ts';
+ 
+ await runCheck({ stageRun, outputFile, },);
+ ```
  */
 export async function runCheck(
   {

@@ -77,7 +77,8 @@ The measurements are in `doc/planning/agent-search-io-throttle.md`.
   Scripts that relied on plain GNU or ripgrep behavior for a wide walk will stop.
   That is deliberate.
 - Adds one line after a lone `--version` and one section after a lone `--help` (see "Version and help").
-- Never starts a shadow as the real tool, of any version (see "Never starts a shadow").
+- Never starts a shadow as the real tool,
+  of any version (see "Never starts a shadow").
 - Passes arguments through byte for byte,
   including ones that are not valid UTF-8.
 
@@ -90,7 +91,8 @@ so the links reach `rg` there but not those two.
 
 The owner's rule:
 "We should never invoke ourselves recursively."
-Two copies of `search-shadow` at different paths (a worktree's links and the main checkout's, for one)
+Two copies of `search-shadow` at different paths (a worktree's links and the main checkout's,
+for one)
 used to choose each other as the real `grep`
 and replace themselves with each other without end:
 measured 2026-11-07 at about 105 starts per second under `strace`,
@@ -100,35 +102,48 @@ A path or a version says nothing about what a file is,
 so the rule has three parts that do not depend on either:
 
 - Identity.
-  Every shadow program (`cargo-shadow`, `mpm-shadow`, `pnpm-shadow` and this one) carries the same text in an ELF section of its own,
+  Every shadow program (`cargo-shadow`,
+  `mpm-shadow`,
+  `pnpm-shadow` and this one) carries the same text in an ELF section of its own,
   `.monochromatic_shadow_identity`:
   `MONOCHROMATIC-SHADOW-IDENTITY/1 <crate> <version>`.
   The lookup of the real tool skips a candidate that carries it,
   of any version and under any name,
   without starting it.
-  A candidate with a launcher record beside it (`<launcher>.launch`, written by `mpm-shadow`)
+  A candidate with a launcher record beside it (`<launcher>.launch`,
+  written by `mpm-shadow`)
   is judged by the program the record names,
-  through further launchers (at most eight, a longer chain counts as a shadow);
-  a launcher is a copy of `mpm-shadow`, which carries the text, so its own bytes never decide.
-  A candidate that cannot be read, or a record that names a missing file, is no verdict.
+  through further launchers (at most eight,
+  a longer chain counts as a shadow);
+  a launcher is a copy of `mpm-shadow`,
+  which carries the text,
+  so its own bytes never decide.
+  A candidate that cannot be read,
+  or a record that names a missing file,
+  is no verdict.
 - The start.
   The chosen program is opened once and checked while open,
   and a compiled program is started through that open file (`/proc/self/fd/<n>`),
   so a path made to name a shadow after the check cannot reach the start.
-  A script, an unreadable program or a launcher is started by its path.
+  A script,
+  an unreadable program or a launcher is started by its path.
 - Arrival.
   Every start of the real tool that the shim makes sets `MONOCHROMATIC_SHADOW_STARTED_BY` to the starter's mode (`exec` or `spawn`),
-  process number, birth identity (the start time in `/proc/<pid>/stat`) and crate name and version.
+  process number,
+  birth identity (the start time in `/proc/<pid>/stat`) and crate name and version.
   A shadow that finds the marker left for its own process (after `exec`) or for its direct parent (after a child start)
   was started by a shadow:
   it does nothing,
   prints one line naming both shadows and the tool,
   and exits with status 2.
-  This stops what no check of a file sees (a script that runs a shadow, a launcher with no record).
+  This stops what no check of a file sees (a script that runs a shadow,
+  a launcher with no record).
   A script the real tool runs is further down and passes,
   so `grep` called from inside `rg`'s own children still works.
 - Cost.
-  Measured 2026-11-07 with `hyperfine` (500 runs per arm, `rg x` through a link to `true`, run under `env`):
+  Measured 2026-11-07 with `hyperfine` (500 runs per arm,
+  `rg x` through a link to `true`,
+  run under `env`):
   mean 2.2 ms for 0.2.2 against 2.3 ms for this change,
   and 2.1 ms against 2.4 ms in the repeat,
   so the added work is about 0.2 ms.
@@ -244,7 +259,9 @@ which holds the locked ripgrep.
   a shadow started this one as the real tool (the arrival stop above).
 - `126`:
   the real tool was found but could not be started
-  (or, checked while open, turned out to be a shadow).
+  (or,
+  checked while open,
+  turned out to be a shadow).
 - `127`:
   no real tool on PATH.
 - Anything else:

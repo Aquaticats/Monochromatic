@@ -17,12 +17,14 @@ use crate::shadow_identity::{
 };
 use crate::test_scratch::scratch;
 
-/// The running test program, which carries the identity because it links this crate.
+/// The running test program,
+/// which carries the identity because it links this crate.
 fn test_program() -> PathBuf {
     return std::env::current_exe().expect("the test program's own path");
 }
 
-/// A copy of a program in a folder, executable.
+/// A copy of a program in a folder,
+/// executable.
 fn copy_program(source: &Path, target: &Path) -> PathBuf {
     fs::create_dir_all(target.parent().expect("a parent folder")).expect("make the folder");
     fs::copy(source, target).expect("copy the program");
@@ -30,7 +32,8 @@ fn copy_program(source: &Path, target: &Path) -> PathBuf {
     return target.to_path_buf();
 }
 
-/// Writes a launcher record beside a launcher: the shape `mpm-shadow` writes.
+/// Writes a launcher record beside a launcher:
+/// the shape `mpm-shadow` writes.
 fn write_record(launcher: &Path, real: &Path) {
     let mut name: std::ffi::OsString = launcher.as_os_str().to_os_string();
     name.push(".launch");

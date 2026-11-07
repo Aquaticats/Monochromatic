@@ -22,10 +22,15 @@ import {
   STATE_FOLDER_MODE,
 } from './constants.ts';
 import { MoveStopError, } from './errors.ts';
+import { requireSharedFilesystems, } from './filesystem-preflight.ts';
 import { requireFrozen, } from './freeze-pass.ts';
 import type { Subvolume, } from './inventory.ts';
 import type { MoveOptions, } from './move-options.ts';
-import { assignNames, } from './name-assignment.ts';
+import {
+  assignNames,
+  type NamedSubvolume,
+} from './name-assignment.ts';
+import { planSend, } from './send-plan.ts';
 import {
   freeGiB,
   snapshotStep,
@@ -46,6 +51,13 @@ import {
  @param subvolumes - main first, then nested
  
  @throws MoveStopError when any step stops the run
+
+ @example
+ ```ts
+ import { runCopyPass, } from './copy-pass.ts';
+ 
+ await runCopyPass({ options, runner, subvolumes, },);
+ ```
  */
 export async function runCopyPass(
   {
@@ -62,6 +74,10 @@ export async function runCopyPass(
    The is final of this step.
    */
   const isFinal = options.pass === 'final';
+  await requireSharedFilesystems({
+    options,
+    subvolumes,
+  },);
   /**
    The prefix of this step.
    */
@@ -138,7 +154,7 @@ export async function runCopyPass(
   /**
    The sent of this step.
    */
-  const sent: string[] = [];
+  const sent: NamedSubvolume[] = [];
   for (const subvolume of named) {
     /**
      The context of this step.
@@ -196,24 +212,28 @@ export async function runCopyPass(
       );
     }
     /**
-     The earlier copies used as clone sources.
+     What this send starts from.
      */
-    const clones = options.cloneSources === 'main' ? sent.slice(
-      0,
-      1,
-    ) : sent;
+    const plan = planSend({
+      subvolume,
+      everyone: subvolumes,
+      sent,
+      firstPassCopy: parent?.name ?? '',
+      cloneSources: options.cloneSources,
+    },);
+    runner.log(`${subvolume.name}: ${plan.reason}`,);
     /**
      The send options of this step.
      */
     const sendOptions = [
-      ...(parent === undefined ? [] : [
+      ...(plan.parent === '' ? [] : [
         '-p',
         join(
           options.snapshotFolder,
-          parent.name,
+          plan.parent,
         ),
       ]),
-      ...clones.flatMap(function cloneArguments(earlier,) {
+      ...plan.clones.flatMap(function cloneArguments(earlier,) {
         return [
           '-c',
           join(
@@ -235,7 +255,7 @@ export async function runCopyPass(
         received,
       },);
     }
-    sent.push(subvolume.name,);
+    sent.push(subvolume,);
   }
   runner.log(
     options.run

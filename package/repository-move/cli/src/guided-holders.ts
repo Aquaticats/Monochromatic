@@ -18,6 +18,13 @@ import type { GuidedConfig, } from './guided-types.ts';
  @param config - the configuration
  
  @returns the names
+
+ @example
+ ```ts
+ import { externalNames, } from './guided-holders.ts';
+ 
+ const result = await externalNames(config,);
+ ```
  */
 export async function externalNames(config: GuidedConfig,): Promise<readonly string[]> {
   if (!await pathExists(config.externalWorktrees,)) {
@@ -42,6 +49,13 @@ export async function externalNames(config: GuidedConfig,): Promise<readonly str
  @param config - the configuration
  
  @returns one pattern per line, sorted, without duplicates
+
+ @example
+ ```ts
+ import { holderPatterns, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await holderPatterns(config,);
+ ```
  */
 export async function holderPatterns(config: GuidedConfig,): Promise<readonly string[]> {
   /**
@@ -87,6 +101,13 @@ export async function holderPatterns(config: GuidedConfig,): Promise<readonly st
  @param name - output name under the state folder
  
  @returns the shell text
+
+ @example
+ ```ts
+ import { holderScanCommand, } from './guided-holders.ts';
+ 
+ const result = await holderScanCommand({ config, name, },);
+ ```
  */
 export async function holderScanCommand(
   {

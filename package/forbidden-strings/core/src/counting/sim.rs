@@ -170,7 +170,7 @@ impl State {
     /// }
     /// ```
     pub(crate) fn clear(&mut self) {
-        self.active.iter_mut().for_each(|on| *on = false);
+        self.active.fill(false);
         self.counts.iter_mut().for_each(CountSet::clear);
     }
 
@@ -231,7 +231,7 @@ impl State {
     /// }
     /// ```
     pub(crate) fn is_dead(&self) -> bool {
-        return self.active.iter().all(|&on| return !on) && self.counts.iter().all(CountSet::is_empty)
+        return !self.active.contains(&true) && self.counts.iter().all(CountSet::is_empty)
     }
 }
 

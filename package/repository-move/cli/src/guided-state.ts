@@ -29,6 +29,13 @@ import type {
  @param name - the file name
  
  @returns the path
+
+ @example
+ ```ts
+ import { wizFile, } from './guided-state.ts';
+ 
+ const result = wizFile({ config, name, },);
+ ```
  */
 export function wizFile({
   config,
@@ -49,6 +56,13 @@ export function wizFile({
  @param path - the file
  
  @returns the number, or zero when the file is absent or empty
+
+ @example
+ ```ts
+ import { readNumber, } from './guided-state.ts';
+ 
+ const result = await readNumber(path,);
+ ```
  */
 export async function readNumber(path: string,): Promise<number> {
   if (!await pathExists(path,)) {
@@ -68,6 +82,13 @@ export async function readNumber(path: string,): Promise<number> {
  Seconds since the epoch, whole.
 
  @returns the seconds
+
+ @example
+ ```ts
+ import { nowSeconds, } from './guided-state.ts';
+ 
+ const result = nowSeconds();
+ ```
  */
 export function nowSeconds(): number {
   return Math.floor(Date.now() / MILLISECONDS_PER_SECOND,);
@@ -79,6 +100,13 @@ export function nowSeconds(): number {
  @param config - the configuration
  
  @returns true while the window runs
+
+ @example
+ ```ts
+ import { windowRunning, } from './guided-state.ts';
+ 
+ const result = await windowRunning(config,);
+ ```
  */
 export async function windowRunning(config: GuidedConfig,): Promise<boolean> {
   return (await readNumber(wizFile({
@@ -101,6 +129,13 @@ export async function windowRunning(config: GuidedConfig,): Promise<boolean> {
  @param config - the configuration
  
  @returns the seconds
+
+ @example
+ ```ts
+ import { windowRemaining, } from './guided-state.ts';
+ 
+ const result = await windowRemaining(config,);
+ ```
  */
 export async function windowRemaining(config: GuidedConfig,): Promise<number> {
   /**
@@ -128,6 +163,13 @@ export async function windowRemaining(config: GuidedConfig,): Promise<number> {
  @param flags - the flags
  
  @param line - the text
+
+ @example
+ ```ts
+ import { logLine, } from './guided-state.ts';
+ 
+ await logLine({ config, flags, line, },);
+ ```
  */
 export async function logLine(
   {
@@ -166,6 +208,13 @@ export async function logLine(
  @param phase - the phase
  
  @returns one line per completed stage
+
+ @example
+ ```ts
+ import { listProgress, } from './guided-state.ts';
+ 
+ const result = await listProgress({ config, phase, },);
+ ```
  */
 export async function listProgress(
   {
@@ -210,6 +259,13 @@ export async function listProgress(
  @param timer - the timer
  
  @param seconds - the stage's duration
+
+ @example
+ ```ts
+ import { recordTimer, } from './guided-state.ts';
+ 
+ await recordTimer({ config, timer, seconds, },);
+ ```
  */
 export async function recordTimer(
   {
@@ -245,6 +301,13 @@ export async function recordTimer(
  @param config - the configuration
  
  @param suffix - the suffix, a timestamp
+
+ @example
+ ```ts
+ import { renameCutoverStateAside, } from './guided-state.ts';
+ 
+ await renameCutoverStateAside({ config, suffix, },);
+ ```
  */
 export async function renameCutoverStateAside(
   {

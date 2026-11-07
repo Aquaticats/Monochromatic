@@ -287,8 +287,12 @@ pub fn debug_seedless(pattern: &str) -> Option<String> {
 /// ```
 #[doc(hidden)]
 pub fn try_combined_dfa(patterns: &[&str]) -> Result<usize, CompileError> {
-    let roots: Vec<crate::ast::node::Node> =
-        patterns.iter().filter_map(|pattern| return crate::parse::parse(pattern).ok()).collect();
+    let mut roots: Vec<crate::ast::node::Node> = Vec::new();
+    for pattern in patterns {
+        if let Ok(root) = crate::parse::parse(pattern) {
+            roots.push(root);
+        }
+    }
     let union = crate::ast::smart::alt(roots);
     let combined = crate::ast::smart::concat(vec![crate::ast::node::Node::Top, union]);
     return Ok(crate::dfa::build_dfa_within(combined, 65_534)?.num_states as usize)

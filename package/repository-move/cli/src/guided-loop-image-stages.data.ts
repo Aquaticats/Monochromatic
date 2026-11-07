@@ -18,7 +18,7 @@ import type {
  @returns the shared arguments
  */
 function fixtureArguments(fx: string,): string {
-  return `--main=${fx}/source/main --snapshots=${fx}/snap --received=${fx}/dest/recv --final=${fx}/dest/final --state=${fx}/state --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=600 --min-free-gib=1`;
+  return `--main=${fx}/source/main --snapshots=${fx}/source/snap --received=${fx}/dest/recv --final=${fx}/dest/final --state=${fx}/state --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=600 --min-free-gib=1`;
 }
 
 /**
@@ -29,6 +29,13 @@ function fixtureArguments(fx: string,): string {
  @param fx - the fixture folder; a placeholder in a dry run, before the folder exists
  
  @returns the stages in order
+
+ @example
+ ```ts
+ import { fixtureStages, } from './guided-loop-image-stages.data.ts';
+ 
+ const result = fixtureStages({ c, fx, },);
+ ```
  */
 export function fixtureStages(
   {
@@ -83,7 +90,7 @@ for name in source dest; do
   mountpoint --quiet ${fx}/$name || sudo mount -o loop ${fx}/$name.img ${fx}/$name
 done
 sudo mkdir --parents ${fx}/dest/recv
-mkdir --parents ${fx}/snap ${fx}/state
+mkdir --parents ${fx}/state
 for name in source dest; do findmnt --noheadings --output SOURCE,TARGET --mountpoint ${fx}/$name; done`,
       check: `test "$(for name in source dest; do findmnt --noheadings --output SOURCE,TARGET --mountpoint ${fx}/$name; done | grep --count '^/dev/loop')" = 2`,
       checkText: 'both mount lines are loop devices (a missing line stops the test)',
@@ -95,7 +102,7 @@ for name in source dest; do findmnt --noheadings --output SOURCE,TARGET --mountp
     {
       id: 'f2-populate',
       title: 'Fixture: source tree',
-      says: 'Fixture F2: a main checkout that is a subvolume with a Git repository and two worktree subvolumes sharing one 300 MiB extent by reflink; the filesystem list is taken with UUIDs (list -u).',
+      says: 'Fixture F2: a main checkout that is a subvolume with a Git repository and two worktree subvolumes: a is a snapshot of main (its parent UUID is that of the main checkout, so its send is an increment on the copy of the main checkout) and b is made fresh (no parent, a full send); each shares a 300 MiB extent with its own copy by reflink; the filesystem list is taken with UUIDs and parent UUIDs (list -u -q).',
       command: `sudo btrfs subvolume create ${fx}/source/main
 sudo chown ${c.userName}:${c.groupName} ${fx}/source/main
 /usr/bin/git -C ${fx}/source/main init --quiet
@@ -103,15 +110,16 @@ head --bytes=300M /dev/urandom > ${fx}/source/main/big
 /usr/bin/git -C ${fx}/source/main add big
 /usr/bin/git -C ${fx}/source/main -c user.name=t -c user.email=t@t commit --quiet --message base
 mkdir --parents ${fx}/source/main/.claude/worktrees
-sudo btrfs subvolume create ${fx}/source/main/.claude/worktrees/a
+sudo btrfs subvolume snapshot ${fx}/source/main ${fx}/source/main/.claude/worktrees/a
 sudo btrfs subvolume create ${fx}/source/main/.claude/worktrees/b
 sudo chown ${c.userName}:${c.groupName} ${fx}/source/main/.claude/worktrees/a ${fx}/source/main/.claude/worktrees/b
+rm --recursive --force ${fx}/source/main/.claude/worktrees/a/.git ${fx}/source/main/.claude/worktrees/a/big ${fx}/source/main/.claude/worktrees/a/.claude
 /usr/bin/git -C ${fx}/source/main worktree add --force --quiet ${fx}/source/main/.claude/worktrees/a -b a
 /usr/bin/git -C ${fx}/source/main worktree add --force --quiet ${fx}/source/main/.claude/worktrees/b -b b
 cp --reflink=always ${fx}/source/main/big ${fx}/source/main/.claude/worktrees/a/big.copy
 cp --reflink=always ${fx}/source/main/big ${fx}/source/main/.claude/worktrees/b/big.copy
 sudo btrfs filesystem du --summarize ${fx}/source/main | tee ${fx}/source-baseline.txt
-sudo btrfs subvolume list -u ${fx}/source > ${fx}/inventory.txt`,
+sudo btrfs subvolume list -u -q ${fx}/source > ${fx}/inventory.txt`,
       check: `test "$(grep --count -E ' uuid [0-9a-f-]+ path (main|(main/)?\\.claude/worktrees/[ab])$' ${fx}/inventory.txt)" = 3`,
       checkText: 'the filesystem list with UUIDs shows main and its two worktree subvolumes',
       rollback: 'nothing outside the fixture changed',
@@ -120,12 +128,26 @@ sudo btrfs subvolume list -u ${fx}/source > ${fx}/inventory.txt`,
       unprivileged: 'after the first chown the subvolume creates work as the user (btrfs allows unprivileged subvolume create on a folder the user owns); btrfs filesystem du and subvolume list are root-only',
     },
     {
+      id: 'f2b-snapshot-folder',
+      title: 'Fixture: snapshot folder',
+      says: 'Fixture F2b: the folder for the read-only snapshots, made inside the source image, because a btrfs snapshot must be on the same filesystem as its source (a snapshot folder elsewhere fails with Invalid cross-device link). Safe to run again.',
+      command: `sudo mkdir --parents ${fx}/source/snap
+sudo chown ${c.userName}:${c.groupName} ${fx}/source/snap
+findmnt --noheadings --output SOURCE --mountpoint ${fx}/source`,
+      check: `test -d ${fx}/source/snap && test -w ${fx}/source/snap`,
+      checkText: 'the snapshot folder exists inside the source image and you can write to it',
+      rollback: 'the folder is empty; it goes with the image',
+      timeoutSeconds: timeout,
+      root: 'yes',
+      unprivileged: 'none: the root of the mounted image is root-owned, so the first folder in it needs root; every snapshot after that is made by the tool inside it',
+    },
+    {
       id: 'f3a-print',
       title: 'Fixture F3a: print mode',
       says: 'Fixture F3a: the copy tool in print mode against the fixture. It runs nothing; it proves the inventory path rebuild.',
       command: `${copy} --pass=first ${args} > ${fx}/print-first.txt`,
-      check: `test "$(grep --count '^btrfs subvolume snapshot -r' ${fx}/print-first.txt)" = 3 && grep --fixed-strings 'inventory agrees: 2 nested subvolumes' "$OUTPUT_FILE"`,
-      checkText: 'three snapshots printed and the inventory agrees with Git (main, a, b)',
+      check: `test "$(grep --count '^btrfs subvolume snapshot -r' ${fx}/print-first.txt)" = 3 && grep --fixed-strings 'inventory agrees: 2 nested subvolumes' "$OUTPUT_FILE" && grep --fixed-strings 's001: incremental on s000' "$OUTPUT_FILE" && grep --fixed-strings 's002: full send' "$OUTPUT_FILE"`,
+      checkText: 'three snapshots printed, the inventory agrees with Git (main, a, b), a is an increment on the main copy and b is a full send',
       rollback: 'nothing ran',
       root: 'no',
       unprivileged: 'not needed: print mode runs as the user',
@@ -187,7 +209,7 @@ sudo btrfs subvolume list -u ${fx}/source > ${fx}/inventory.txt`,
 done > ${fx}/rsync-compare.txt
 sudo btrfs property get -ts ${fx}/dest/recv/f001 ro
 sudo btrfs subvolume show ${fx}/dest/recv/f001 | awk '$1 == "Received" && $2 == "UUID:" { print "received " $3 }'
-sudo btrfs subvolume show ${fx}/snap/f001 | awk '$1 == "UUID:" { print "sent " $2 }'
+sudo btrfs subvolume show ${fx}/source/snap/f001 | awk '$1 == "UUID:" { print "sent " $2 }'
 sudo btrfs filesystem du --summarize --raw ${fx}/dest/final | tee ${fx}/dest-du.txt
 sudo btrfs filesystem du --summarize --raw ${fx}/source/main | tee ${fx}/source-du.txt
 df --block-size=1M ${fx}/source ${fx}/dest`,
@@ -203,8 +225,10 @@ df --block-size=1M ${fx}/source ${fx}/dest`,
       title: 'Fixture F5a: deadline',
       says: 'Fixture F5a: a first pass with a one-second per-transfer deadline on fresh folders. It is expected to stop; a copy that finishes inside a second is also accepted, because F5b makes the interrupted case deterministically.',
       command: `sudo mkdir ${fx}/dest/recv-f5a
-mkdir ${fx}/snap-f5a ${fx}/state-f5a
-${rootCopy} --run --pass=first --main=${fx}/source/main --snapshots=${fx}/snap-f5a --received=${fx}/dest/recv-f5a --final=${fx}/dest/final-f5a --state=${fx}/state-f5a --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=1 --min-free-gib=1; echo "script exit status: $?"`,
+sudo mkdir --parents ${fx}/source/snap-f5a
+sudo chown ${c.userName}:${c.groupName} ${fx}/source/snap-f5a
+mkdir ${fx}/state-f5a
+${rootCopy} --run --pass=first --main=${fx}/source/main --snapshots=${fx}/source/snap-f5a --received=${fx}/dest/recv-f5a --final=${fx}/dest/final-f5a --state=${fx}/state-f5a --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=1 --min-free-gib=1; echo "script exit status: $?"`,
       check: `grep --extended-regexp 'script exit status: [01]' "$OUTPUT_FILE"`,
       checkText: 'the run ended with status 0 (finished) or 1 (stopped at the deadline)',
       rollback: `a partial copy in ${fx}/dest/recv-f5a, if any, goes with the images`,
@@ -218,8 +242,10 @@ ${rootCopy} --run --pass=first --main=${fx}/source/main --snapshots=${fx}/snap-f
       says: 'Fixture F5b: a leftover partial receive (a subvolume named s000 with no completion record). The tool must refuse and name the exact delete for you to run.',
       command: `sudo mkdir ${fx}/dest/recv-f5b
 sudo btrfs subvolume create ${fx}/dest/recv-f5b/s000
-mkdir ${fx}/snap-f5b ${fx}/state-f5b
-${rootCopy} --run --pass=first --main=${fx}/source/main --snapshots=${fx}/snap-f5b --received=${fx}/dest/recv-f5b --final=${fx}/dest/final-f5b --state=${fx}/state-f5b --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=600 --min-free-gib=1`,
+sudo mkdir --parents ${fx}/source/snap-f5b
+sudo chown ${c.userName}:${c.groupName} ${fx}/source/snap-f5b
+mkdir ${fx}/state-f5b
+${rootCopy} --run --pass=first --main=${fx}/source/main --snapshots=${fx}/source/snap-f5b --received=${fx}/dest/recv-f5b --final=${fx}/dest/final-f5b --state=${fx}/state-f5b --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=600 --min-free-gib=1`,
       okCodes: [1,],
       check: `grep --fixed-strings 'exists without a completion record' "$OUTPUT_FILE" && grep --fixed-strings 'btrfs subvolume delete' "$OUTPUT_FILE"`,
       checkText: "exit status 1 with 'exists without a completion record' and the printed 'btrfs subvolume delete'",
@@ -232,7 +258,7 @@ ${rootCopy} --run --pass=first --main=${fx}/source/main --snapshots=${fx}/snap-f
       id: 'f5c-corrupt',
       title: 'Fixture F5c: corrupted stream',
       says: 'Fixture F5c: a stream with one flipped byte must be refused by btrfs receive (a checksum error).',
-      command: `sudo bash -c 'btrfs send ${fx}/snap/s000 > ${fx}/stream.bin' && sudo chown ${c.userName}:${c.groupName} ${fx}/stream.bin
+      command: `sudo bash -c 'btrfs send ${fx}/source/snap/s000 > ${fx}/stream.bin' && sudo chown ${c.userName}:${c.groupName} ${fx}/stream.bin
 cp ${fx}/stream.bin ${fx}/stream.orig
 python3 -I -c "import sys; p=sys.argv[1]; f=open(p,'r+b'); f.seek(100000); b=f.read(1); f.seek(100000); f.write(bytes([b[0]^255]))" ${fx}/stream.bin
 if cmp --silent ${fx}/stream.orig ${fx}/stream.bin; then echo 'the flip changed nothing'; exit 1; fi

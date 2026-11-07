@@ -164,7 +164,10 @@ and that no earlier shadow instance in the same chain already picked (see "Launc
 
 A shadow never starts a shadow of any version as its real tool,
 whatever the path or the version of the candidate
-(owner, 2026-11-07: "We should never invoke ourselves recursively. That's bad design.").
+(owner,
+2026-11-07:
+"We should never invoke ourselves recursively.
+That's bad design.").
 Every shadow program (`cargo-shadow`,
 `mpm-shadow`,
 `pnpm-shadow` and `search-shadow`) carries the same identity text in the ELF section `.monochromatic_shadow_identity`
