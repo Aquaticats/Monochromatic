@@ -68,7 +68,7 @@ use std::path::Path;
 /// ```ts
 /// import { AudioDecoder, AudioDecoderOptions } from "symphonia/codecs/audio";
 /// ```
-use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};
+use symphonia::core::codecs::audio::{AudioCodecParameters, AudioDecoder, AudioDecoderOptions};
 
 /// What:
 ///      `use symphonia::core::codecs::audio::well_known::CODEC_ID_OPUS;` imports the
@@ -409,6 +409,43 @@ pub trait Source: Send {
 }
 
 /// What:
+/// `audio_params_of` gives the audio codec parameters of a track,
+/// or nothing when the track carries none.
+/// Why:
+/// a track's parameters are an optional enum over audio,
+/// video and subtitles,
+/// and every reader here wants the audio variant or nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const audioParamsOf = (track: Track): AudioCodecParameters | null => track.codecParams?.audio() ?? null;
+/// ```
+pub(crate) fn audio_params_of(track: &Track) -> Option<&AudioCodecParameters> {
+    return match track.codec_params.as_ref() {
+        Some(params) => params.audio(),
+        None => None,
+    };
+}
+
+/// What:
+/// `audio_params_or_unsupported` gives the audio codec parameters of a track,
+/// or the unsupported error with this message.
+/// Why:
+/// a track without audio parameters cannot be decoded,
+/// and each caller names the step that found out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function audioParamsOrUnsupported(track: Track, message: string): AudioCodecParameters { ... throw new PlayerError.Unsupported(message) ... }
+/// ```
+pub(crate) fn audio_params_or_unsupported<'track>(track: &'track Track, message: &str) -> Result<&'track AudioCodecParameters, PlayerError> {
+    return match audio_params_of(track) {
+        Some(params) => Ok(params),
+        None => Err(PlayerError::Unsupported(message.to_string())),
+    };
+}
+
+/// What:
 ///      `pub fn open(path: &Path) -> Result<Box<dyn Source>, PlayerError>`.
 ///  `Box<dyn
 ///           Source>` is an owning pointer to a heap value whose concrete type is erased to
@@ -475,7 +512,7 @@ pub fn open(path: &Path) -> Result<Box<dyn Source>, PlayerError> {
     // const ext = extname(path).replace(/^\./, "");
     // if (ext) hint.withExtension(ext);
     // ```
-    if let Some(ext) = path.extension().and_then(|e| return e.to_str()) {
+    if let Some(ext) = path.extension().and_then(std::ffi::OsStr::to_str) {
         // What:     `hint.with_extension(ext);` records the extension on the hint.
         // Why:      Gives the prober a strong signal of the container format.
         //
@@ -533,19 +570,16 @@ pub fn open(path: &Path) -> Result<Box<dyn Source>, PlayerError> {
         // ```ts
         // const track = format.firstTrackKnownCodec(TrackType.Audio);
         // ```
-        let track = format
-            .first_track_known_codec(TrackType::Audio)
-            // What:     `.ok_or_else(|| PlayerError::Unsupported(...))?`. Converts the
-            //           `Option<&Track>` into a `Result`: `Some(x)` -> `Ok(x)`, `None` ->
-            //           `Err(closure())`. `.to_string()` makes an OWNED `String` from the
-            //           `&str` literal. Trailing `?` unwraps the `&Track` or returns the error.
-            // Why:      A file with no audio track is unsupported; report it.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // if (!track) throw new PlayerError.Unsupported("no audio track");
-            // ```
-            .ok_or_else(|| return PlayerError::Unsupported("no audio track".to_string()))?;
+        // What:     A file whose first known audio track is missing returns the unsupported error.
+        // Why:      A file with no audio track is unsupported; report it.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (!track) throw new PlayerError.Unsupported("no audio track");
+        // ```
+        let Some(track) = format.first_track_known_codec(TrackType::Audio) else {
+            return Err(PlayerError::Unsupported("no audio track".to_string()));
+        };
 
         // What:     `track.codec_params.as_ref().and_then(|cp| cp.audio())`. In 0.6
         //           `Track::codec_params` is `Option<CodecParameters>` (an enum over
@@ -560,13 +594,7 @@ pub fn open(path: &Path) -> Result<Box<dyn Source>, PlayerError> {
         // const audio = track.codecParams?.audio();
         // if (!audio) throw new PlayerError.Unsupported("track has no audio codec parameters");
         // ```
-        let audio_params = track
-            .codec_params
-            .as_ref()
-            .and_then(|cp| return cp.audio())
-            .ok_or_else(|| {
-                return PlayerError::Unsupported("track has no audio codec parameters".to_string())
-            })?;
+        let audio_params = audio_params_or_unsupported(track, "track has no audio codec parameters")?;
 
         // What:     `(track.id, audio_params.codec == CODEC_ID_OPUS, track.clone())`.
         //           `track.id` is a `u32` (Copy). `audio_params.codec == CODEC_ID_OPUS`
@@ -696,11 +724,16 @@ pub(crate) fn seek_format(
     // const track = format.tracks().find((t) => t.id === trackId);
     // if (!track) throw new Error("seek: track not found");
     // ```
-    let track = format
-        .tracks()
-        .iter()
-        .find(|t| return t.id == track_id)
-        .ok_or_else(|| return PlayerError::Unsupported("seek: track not found".to_string()))?;
+    let mut found: Option<&Track> = None;
+    for candidate in format.tracks() {
+        if candidate.id == track_id {
+            found = Some(candidate);
+            break;
+        }
+    }
+    let Some(track) = found else {
+        return Err(PlayerError::Unsupported("seek: track not found".to_string()));
+    };
 
     // What:     `let start_ts: Timestamp = track.start_ts;`. Copy the track's first-frame
     //           timestamp out of the borrowed track. In 0.6 timing lives directly on `Track`
@@ -729,12 +762,13 @@ pub(crate) fn seek_format(
     // const rate = track.codecParams?.audio()?.sampleRate;
     // if (rate == null) throw new Error("seek: unknown sample rate");
     // ```
-    let rate = track
-        .codec_params
-        .as_ref()
-        .and_then(|cp| return cp.audio())
-        .and_then(|a| return a.sample_rate)
-        .ok_or_else(|| return PlayerError::Unsupported("seek: unknown sample rate".to_string()))?;
+    let known_rate: Option<u32> = match audio_params_of(track) {
+        Some(params) => params.sample_rate,
+        None => None,
+    };
+    let Some(rate) = known_rate else {
+        return Err(PlayerError::Unsupported("seek: unknown sample rate".to_string()));
+    };
 
     // What:     `let n_frames = track.num_frames;`. Copy the optional total audible frame
     //           count (`Option<u64>`; `Some(n)` if the container knew the length, `None`
@@ -1002,13 +1036,7 @@ impl SymphoniaSource {
         // const audio = track.codecParams?.audio();
         // if (!audio) throw new PlayerError.Unsupported("track has no audio codec parameters");
         // ```
-        let audio_params = track
-            .codec_params
-            .as_ref()
-            .and_then(|cp| return cp.audio())
-            .ok_or_else(|| {
-                return PlayerError::Unsupported("track has no audio codec parameters".to_string())
-            })?;
+        let audio_params = audio_params_or_unsupported(&track, "track has no audio codec parameters")?;
 
         // What:     `symphonia::default::get_codecs().make_audio_decoder(audio_params, &AudioDecoderOptions::default())?`.
         //           `get_codecs()` returns the global codec registry; `.make_audio_decoder`

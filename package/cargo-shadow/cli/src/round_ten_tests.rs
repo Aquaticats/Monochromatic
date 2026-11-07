@@ -508,7 +508,7 @@ fn bind_substitution_fixture() {
     mount_in_namespace(&["--bind", &substitute.display().to_string(), &slice_dir.display().to_string()]);
     let substituted: Option<String> = crate::journal_recover::survivor_note(&journal);
     // The real recovery too (certification group 1): it must refuse the substituted directory, not only classify it.
-    let recovery: Vec<String> = crate::journal::recover(&root, &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+    let recovery: Vec<String> = crate::journal::recover(&root, &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["dep@1.0.1 refused".to_string()]; });
     fs::write(root.join("fixture-recovery"), recovery.join("\n")).expect("write what the recovery said");
     fs::write(
         root.join("fixture-result"),

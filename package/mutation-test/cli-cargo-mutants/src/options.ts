@@ -27,8 +27,11 @@ import {
   passesOf,
 } from './campaign-options.ts';
 import { CargoMutantsToolingError } from './error.ts';
+import { launcherUsage } from './launcher-usage.ts';
 import {
   environmentEntry,
+  imageRepositoryName,
+  imageTagName,
   nonEmptyText,
   plainName,
   positiveWholeNumber,
@@ -48,6 +51,15 @@ export type LauncherOptions = {
   readonly files: readonly string[];
   readonly task: string;
   readonly tagEnvironmentVariable: string;
+  /**
+   Repository part of the image each unit's tag names (`<repository>:<tag>`).
+   */
+  readonly imageRepository: string;
+  /**
+   Tag, in the same repository, of the image the launcher makes every unit's tag point at; absent when the unit tags must
+   already exist.
+   */
+  readonly fromTag?: string;
   readonly tagTemplate: string;
   readonly extraEnvironment: readonly string[];
   readonly scopePrefix: string;
@@ -73,46 +85,6 @@ export type LauncherOptions = {
   readonly home: string;
   readonly path?: string;
 };
-
-/**
- Usage text printed with every option error.
- */
-export const launcherUsage: string = [
-  'Usage: mutation-parallel.ts --task <mise task> --tag-env <name> [options] <label> <file>...',
-  '',
-  'Starts one capped systemd user unit per file; each runs the campaign task through the gate-slot limiter.',
-  '',
-  'Required:',
-  '  --task <task>             mise task that runs one file campaign, e.g. //package/x/cli:native:mutation:scoped',
-  '  --tag-env <name>          environment variable through which the task reads its image tag',
-  'Campaign:',
-  '  --scope-prefix <text>     prepended to each file to form its scope (default: none)',
-  `  --scope-flag=<flag>       task flag that takes a scope, written with an equals sign (default: ${defaultScopeFlag})`,
-  `  --timeout <seconds>       per-mutant timeout forwarded to the task (default: ${defaultTimeoutSeconds})`,
-  '  --build-timeout <seconds> per-mutant build timeout forwarded to the task when given (default: the task default)',
-  '  --examine <regex>         mutant-name pattern forwarded to the task for every file; repeatable (default: none)',
-  '  --memory <size>           container memory limit forwarded to the task when given',
-  '  --cpus <count>            container CPU count forwarded to the task when given',
-  '  --passes <1|2>            passes forwarded to the task when given; 2 runs the tests that reach the file first',
-  `  --attempts <count>        runs per file while the baseline fails (default: ${defaultAttempts})`,
-  `  --retry-marker <text>     log text that requests a rerun (default: ${JSON.stringify(defaultRetryMarker)})`,
-  `  --tag-template <text>     image tag from {label} and {index} (default: ${defaultTagTemplate})`,
-  '  --setenv <NAME=value>     extra environment of every unit; repeatable',
-  'Unit:',
-  `  --unit-memory-max <value> systemd MemoryMax of each unit (default: ${defaultUnitMemoryMax})`,
-  `  --unit-cpu-quota <value>  systemd CPUQuota of each unit (default: ${defaultUnitCpuQuota})`,
-  `  --unit-tasks-max <count>  systemd TasksMax of each unit, threads and processes (default: ${String(defaultUnitTasksMax)})`,
-  `  --unit-prefix <text>      unit name prefix (default: ${defaultNamePrefix})`,
-  'Locations:',
-  `  --root <dir>              working tree the units start in (default: $${rootEnvironmentVariable}, then this checkout)`,
-  '  --log-dir <dir>           where attempt logs go (default: <home>/temp/agent)',
-  '  --tmp-dir <dir>           TMPDIR of each unit (default: <home>/temp/agent/tmp)',
-  `  --log-prefix <text>       log file name prefix (default: ${defaultNamePrefix})`,
-  'Gate slots:',
-  `  --slot-count <count>      slots, overriding $${slotCountEnvironmentVariable} and the limiter default`,
-  `  --lock-dir <dir>          slot claim directory, overriding $${lockDirectoryEnvironmentVariable}`,
-  '  --gate-slot <path>        limiter script (default: bin/gate-slot.ts of this package)',
-].join('\n');
 
 /**
  Read the launcher's command line, apply defaults and environment fallbacks, and validate every value.
@@ -162,6 +134,8 @@ export function parseLauncherOptions({
     options: {
       'task': { type: 'string' },
       'tag-env': { type: 'string' },
+      'image-repository': { type: 'string' },
+      'from-tag': { type: 'string' },
       'tag-template': { type: 'string' },
       'setenv': {
         type: 'string',
@@ -201,6 +175,8 @@ export function parseLauncherOptions({
     throw new CargoMutantsToolingError(`A label and at least one file are required.\n\n${launcherUsage}`);
   if ((values.task === undefined) || (values['tag-env'] === undefined))
     throw new CargoMutantsToolingError(`--task and --tag-env are required.\n\n${launcherUsage}`);
+  if (values['image-repository'] === undefined)
+    throw new CargoMutantsToolingError(`--image-repository is required: the repository of the image each unit runs, so the launcher can make or check the unit tags before it starts anything.\n\n${launcherUsage}`);
   /**
    Scratch directory under the home directory.
    */
@@ -258,6 +234,16 @@ export function parseLauncherOptions({
     tagEnvironmentVariable: nonEmptyText({
       option: '--tag-env',
       value: values['tag-env'],
+    }),
+    imageRepository: imageRepositoryName({
+      option: '--image-repository',
+      value: values['image-repository'],
+    }),
+    ...(values['from-tag'] === undefined ? {} : {
+      fromTag: imageTagName({
+        option: '--from-tag',
+        value: values['from-tag'],
+      }),
     }),
     tagTemplate: nonEmptyText({
       option: '--tag-template',

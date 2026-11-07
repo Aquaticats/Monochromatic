@@ -18,6 +18,42 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Told, not a question: a wrapper mutation campaign ran against a recorded pause (2026-11-07)
+
+Mutation campaigns over the wrapper were paused on 2026-11-04 after you asked
+"We're not close to doing mutation runs though,
+right?
+Don't we still have a lot of things to fix before doing them?",
+to resume after the commit protocol is built
+(`doc/handover/cli-git-rust-implementation.md` lines 1725 to 1747).
+The coordinator missed that record and ran one over the 21 source files the tokio merges changed
+(label `tokio-062`,
+main at `40ec469247`).
+It was let finish rather than discarded;
+its results are recorded but not acted on,
+and nothing waits on it,
+alpha.2 included.
+No further wrapper campaign starts until you lift the pause.
+
+## Open: two older questions that never reached this file (not asked yet)
+
+Found by an audit of stale open items on 2026-11-07.
+- Container disk weight
+  (`doc/handover/cli-git-rust-implementation.md` lines 5408 to 5413):
+  "about twenty other packages and two workflows start containers at the default weight;
+  the weight constant has several copies;
+  `vm-builder`'s rootful privileged bootc-image-builder run has no CPU,
+  memory or process limits."
+  The six packages in your answer "Both flags in all six" are done.
+  Should the rest get the lowest disk weight and limits too?
+- A pull's queries
+  (`doc/planning/cli-git-merge-auto-resolution.md` line 2492):
+  "Whether the pull's queries are to be answered in process to bring a fast-forwarding pull toward native Git's time."
+  Measured in a debug build:
+  a fast-forwarding pull through the wrapper takes 128 ms against native's 12 ms,
+  86 ms of it in Git queries an in-process reader could answer;
+  far under the 5 s bound.
+
 ## Open: port the wrapper package's TypeScript to Rust now? (not asked yet)
 
 You paused "the TypeScript port" on 2026-11-04 in favour of layout and lint fixes.

@@ -34,7 +34,7 @@ import {
 const DIGEST_PREFIX = 'sha256:';
 
 /**
- Reads the digest file `podman push` wrote, ending the step the way `cat` did when it cannot.
+ Reads the digest file `podman push` wrote, ending the step with status 1 and a message when it cannot.
 
  @param path - The digest file
 
@@ -55,7 +55,9 @@ async function readDigest(path: string,): Promise<string> {
     ),);
   }
   catch (error) {
-    sayOnStandardError(`cat: ${path}: could not be read (${String(error,)})`,);
+    sayOnStandardError(
+      `::error title=No digest file::podman push ended without writing the digest file ${path} (${String(error,)}), so the pushed image has no digest to attest. Read the podman output above for why the push did not complete.`,
+    );
     throw new StepExitError(1,);
   }
 }

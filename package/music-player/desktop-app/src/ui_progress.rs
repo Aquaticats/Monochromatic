@@ -121,7 +121,7 @@ use crate::AppWindow;
 // Why: every engine message reaches this module on the UI thread, in the order the engine sent it, so one machine
 // sees the whole history and the taskbar value never depends on what the window currently shows.
 thread_local! {
-    static TASKBAR_STATE: RefCell<TaskbarProgress> = const { RefCell::new(TaskbarProgress::new()) };
+    static TASKBAR_STATE: &'static RefCell<TaskbarProgress> = Box::leak(Box::new(RefCell::new(TaskbarProgress::new())));
 }
 
 /// What:
@@ -170,12 +170,12 @@ fn send_taskbar_update(app: &AppWindow, launcher: &Launcher, update: TaskbarUpda
 /// the seek flag lets the caller keep the seek bar in step.
 fn drive_taskbar(app: &AppWindow, launcher: &Launcher, update: &Update) -> bool {
     let handled_at = UI_CLOCK_START.elapsed();
-    let (input, decided) = TASKBAR_STATE.with(|cell| {
-        let mut state = cell.borrow_mut();
+    let (input, decided) = {
+        let mut state = TASKBAR_STATE.with(Clone::clone).borrow_mut();
         let input = state.input_for(update);
         let decided = state.apply_update(update, handled_at);
-        return (input, decided);
-    });
+        (input, decided)
+    };
     if let Some(decided_update) = decided {
         send_taskbar_update(app, launcher, decided_update);
     }

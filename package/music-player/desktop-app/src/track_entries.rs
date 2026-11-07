@@ -262,11 +262,15 @@ fn track_fields_for(display_path: &str) -> TrackFields {
 /// const text = supportingLine(fields)?.trim();
 /// return text ? text : null;
 /// ```
-fn supporting_line_for(display_path: &str, measures: &HashMap<String, TrackMeasure>, supporting_line: &dyn Fn(&TrackFields) -> Option<String>) -> Option<String> {
+fn supporting_line_for(display_path: &str, measures: &HashMap<String, TrackMeasure>, supporting_line: &dyn crate::track_supporting_line::SupportingLine) -> Option<String> {
     let fields = fields_with_measure(track_fields_for(display_path), measures.get(display_path));
-    return supporting_line(&fields)
-        .map(|text| return text.trim().to_string())
-        .filter(|text| return !text.is_empty());
+    return match supporting_line.evaluate(&fields) {
+        Some(text) => {
+            let trimmed: String = text.trim().to_string();
+            if trimmed.is_empty() { None } else { Some(trimmed) }
+        }
+        None => None,
+    };
 }
 
 /// What:
@@ -279,7 +283,7 @@ fn supporting_line_for(display_path: &str, measures: &HashMap<String, TrackMeasu
 /// ```ts
 /// const rowFor = (row, current) => ({ indexInLibrary: row.indexInLibrary, title: trackTitleFor(row.track.displayPath), supportingLine, isCurrent: row.indexInLibrary === current });
 /// ```
-fn row_for(row: &FolderTrackRow, current_index: Option<usize>, measures: &HashMap<String, TrackMeasure>, supporting_line: &dyn Fn(&TrackFields) -> Option<String>) -> TrackRowModel {
+fn row_for(row: &FolderTrackRow, current_index: Option<usize>, measures: &HashMap<String, TrackMeasure>, supporting_line: &dyn crate::track_supporting_line::SupportingLine) -> TrackRowModel {
     let display_path = row.track.display_path.as_str();
     return TrackRowModel {
         index_in_library: row.index_in_library,
@@ -301,7 +305,7 @@ fn row_for(row: &FolderTrackRow, current_index: Option<usize>, measures: &HashMa
 /// ```ts
 /// item.kind === "track" ? { kind: "row", row: rowFor(item.row) } : { kind: "header", name: item.name, trackCount: item.trackCount };
 /// ```
-fn entry_for(item: &FolderListItem, current_index: Option<usize>, measures: &HashMap<String, TrackMeasure>, supporting_line: &dyn Fn(&TrackFields) -> Option<String>) -> TrackListEntry {
+fn entry_for(item: &FolderListItem, current_index: Option<usize>, measures: &HashMap<String, TrackMeasure>, supporting_line: &dyn crate::track_supporting_line::SupportingLine) -> TrackListEntry {
     return match item {
         FolderListItem::TrackItem(row) => TrackListEntry::RowEntry(row_for(row, current_index, measures, supporting_line)),
         FolderListItem::SubfolderHeader { name, track_count } => TrackListEntry::HeaderEntry {
@@ -324,12 +328,12 @@ fn entry_for(item: &FolderListItem, current_index: Option<usize>, measures: &Has
 ///   return folder.items.map((item) => entryFor(item, current, supportingLine));
 /// }
 /// ```
-pub fn track_list_entries(folder: &FolderEntry, current_index_in_library: Option<usize>, measures: &HashMap<String, TrackMeasure>, supporting_line: &dyn Fn(&TrackFields) -> Option<String>) -> Vec<TrackListEntry> {
-    return folder
-        .items
-        .iter()
-        .map(|item| return entry_for(item, current_index_in_library, measures, supporting_line))
-        .collect();
+pub fn track_list_entries(folder: &FolderEntry, current_index_in_library: Option<usize>, measures: &HashMap<String, TrackMeasure>, supporting_line: &dyn crate::track_supporting_line::SupportingLine) -> Vec<TrackListEntry> {
+    let mut entries: Vec<TrackListEntry> = Vec::with_capacity(folder.items.len());
+    for item in &folder.items {
+        entries.push(entry_for(item, current_index_in_library, measures, supporting_line));
+    }
+    return entries;
 }
 
 /// What:

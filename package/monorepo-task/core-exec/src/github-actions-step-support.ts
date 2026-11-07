@@ -124,6 +124,33 @@ export function sayOnStandardError(line: string,): void {
 
 //endregion Printing, like `echo`
 
+/**
+ Prints an error line to standard error and ends the step, for the messages that name an input and the fix.
+
+ @param message - The whole line, including its `::error::` command
+
+ @param status - Exit status of the step
+
+ @throws {@link StepExitError} Always, with the given status
+
+ @example
+ ```ts
+ failWith({ message: '::error::Something is wrong; fix it by doing this.', status: 1, },);
+ ```
+ */
+export function failWith(
+  {
+    message,
+    status,
+  }: {
+    readonly message: string;
+    readonly status: number;
+  },
+): never {
+  sayOnStandardError(message,);
+  throw new StepExitError(status,);
+}
+
 //region Environment and the runner's files
 
 /**
@@ -133,7 +160,7 @@ export function sayOnStandardError(line: string,): void {
 
  @returns The value, which may be empty
 
- @throws {@link Error} When the variable is not set, as `bash` stops with `NAME: unbound variable`
+ @throws {@link StepExitError} With status 1 and a message naming the variable when it is not set
 
  @example
  ```ts
@@ -146,7 +173,10 @@ export function requiredEnvironment(name: string,): string {
    */
   const value = process.env[name];
   if (value === undefined)
-    throw new Error(`${name}: unbound variable`,);
+    failWith({
+      message: `::error::The environment variable ${name} is not set, and this step cannot run without it. Set it in the env block of the workflow step (or job) that runs this step; GitHub itself provides only the GITHUB_* and RUNNER_* variables.`,
+      status: 1,
+    },);
   return value;
 }
 
@@ -216,7 +246,7 @@ async function readUnreadableAsExit(path: string,): Promise<string> {
   }
   catch (error) {
     process.stderr
-      .write(`${path} could not be read (${String(error,)})\n`,);
+      .write(`::error::${path} could not be opened from ${process.cwd()} (${String(error,)}). Run the step from the repository root after the checkout step, so that the file exists beside it.\n`,);
     throw new StepExitError(JQ_UNREADABLE_FILE_STATUS,);
   }
 }
@@ -245,7 +275,7 @@ export async function readJsonFile(path: string,): Promise<unknown> {
   }
   catch (error) {
     process.stderr
-      .write(`${path} is not JSON (${String(error,)})\n`,);
+      .write(`::error::${path} is not valid JSON (${String(error,)}). Restore the file from git, or regenerate it with 'mpm-shadow update'; the step reads nothing else from it until it parses.\n`,);
     throw new StepExitError(JQ_INVALID_JSON_STATUS,);
   }
 }
@@ -477,6 +507,34 @@ export async function isExecutable(path: string,): Promise<boolean> {
   }
 }
 
+/**
+ Reads a text file that may not exist.
+
+ @param path - File to read
+
+ @returns Its text, empty when nothing is there
+
+ @throws {@link Error} When the read fails for a reason other than the file being absent
+
+ @example
+ ```ts
+ const text = await readTextIfPresent('response.json',);
+ ```
+ */
+export async function readTextIfPresent(path: string,): Promise<string> {
+  try {
+    return await readFile(
+      path,
+      'utf8',
+    );
+  }
+  catch (error) {
+    if (meansNo(error,))
+      return '';
+    throw error;
+  }
+}
+
 //endregion Looking at paths, like `[ -e ]`, `[ -f ]` and `[ -x ]`
 
 //region Running programs
@@ -525,7 +583,7 @@ export type ProgramRequest = {
  Runs a program and waits for it.
 
  Standard error always passes through to the step's own. Standard output passes through unless `captureStdout` is set,
- which is `$(...)`. A program that cannot be started prints `<file>: command not found` and gives status 127, like `bash`.
+ which is `$(...)`. A program that cannot be started prints a message naming it and gives status 127, like `bash`.
 
  @param file - Program name, found on `PATH`, or a path
 
@@ -610,7 +668,7 @@ export async function runProgram(
   catch (error) {
     // `once` rejects when the program could not be started (a missing file, no permission to run it).
     process.stderr
-      .write(`${file}: command not found (${String(error,)})\n`,);
+      .write(`::error::The program ${file} could not be started (${String(error,)}). Install it on the runner or put it on PATH before this step; the step ends with status ${String(COMMAND_NOT_FOUND_STATUS,)}, as a shell does for a missing command.\n`,);
     return {
       status: COMMAND_NOT_FOUND_STATUS,
       stdout: '',

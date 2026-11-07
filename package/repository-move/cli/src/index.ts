@@ -5,6 +5,14 @@
  */
 
 export { MoveStopError, } from './errors.ts';
+export {
+  FIXTURE_COPY_SETS_KEPT,
+  FIXTURE_GUARD_MIN_GIB,
+  FIXTURE_IMAGE_MARGIN_PERCENT,
+  FIXTURE_MAIN_DATA_MIB,
+  FIXTURE_SUBVOLUME_COUNT,
+  fixtureImageGiB,
+} from './constants.ts';
 export { execFileAsync, } from './exec-file-async.ts';
 export { childFailureOf, } from './json-text-fields.ts';
 export {
@@ -31,7 +39,10 @@ export {
   windowMaximum,
 } from './guided-computations.ts';
 export { holderPatterns, } from './guided-holders.ts';
-export { prepareUnitEdit, } from './guided-unit-edit.ts';
+export {
+  prepareUnitEdit,
+  STOP_PATH_MARKER,
+} from './guided-unit-edit.ts';
 export { selectVerify, } from './guided-verify-set.ts';
 export { parseGuidedFlags, } from './guided-flags.ts';
 export { runGuided, } from './guided-runner.ts';

@@ -43,7 +43,12 @@ pub enum ListMove {
 /// Why:
 ///      Home and the start position need it.
 fn first_selectable(selectable: &[bool]) -> Option<usize> {
-    return selectable.iter().position(|can| return *can);
+    for (index, can) in selectable.iter().enumerate() {
+        if *can {
+            return Some(index);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -51,7 +56,12 @@ fn first_selectable(selectable: &[bool]) -> Option<usize> {
 /// Why:
 ///      End needs it.
 fn last_selectable(selectable: &[bool]) -> Option<usize> {
-    return selectable.iter().rposition(|can| return *can);
+    for index in (0..selectable.len()).rev() {
+        if selectable[index] {
+            return Some(index);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -64,11 +74,22 @@ fn step_from(selectable: &[bool], current: usize, steps: usize, forward: bool) -
     let mut position = current;
     let mut remaining = steps;
     while remaining > 0 {
-        let next = if forward {
-            selectable.iter().enumerate().skip(position + 1).find(|(_, can)| return **can).map(|(at, _)| return at)
+        let mut next: Option<usize> = None;
+        if forward {
+            for (at, can) in selectable.iter().enumerate().skip(position + 1) {
+                if *can {
+                    next = Some(at);
+                    break;
+                }
+            }
         } else {
-            selectable.iter().enumerate().take(position).rev().find(|(_, can)| return **can).map(|(at, _)| return at)
-        };
+            for at in (0..position.min(selectable.len())).rev() {
+                if selectable[at] {
+                    next = Some(at);
+                    break;
+                }
+            }
+        }
         match next {
             Some(at) => position = at,
             None => break,
@@ -94,7 +115,10 @@ fn step_from(selectable: &[bool], current: usize, steps: usize, forward: bool) -
 pub fn move_focus(selectable: &[bool], current: Option<usize>, movement: ListMove, page: usize) -> Option<usize> {
     let first = first_selectable(selectable)?;
     let last = last_selectable(selectable)?;
-    let valid = current.filter(|at| return selectable.get(*at).copied().unwrap_or(false));
+    let valid = match current {
+        Some(at) if selectable.get(at).copied().unwrap_or(false) => Some(at),
+        _ => None,
+    };
     let Some(from) = valid else {
         return Some(if matches!(movement, ListMove::End | ListMove::PageDown) { last } else { first });
     };
@@ -120,8 +144,14 @@ pub fn move_focus(selectable: &[bool], current: Option<usize>, movement: ListMov
 /// const startFocus = (selectable: boolean[], preferred: number | null) => ...;
 /// ```
 pub fn start_focus(selectable: &[bool], preferred: Option<usize>) -> Option<usize> {
-    let usable = preferred.filter(|at| return selectable.get(*at).copied().unwrap_or(false));
-    return usable.or_else(|| return first_selectable(selectable));
+    let usable = match preferred {
+        Some(at) if selectable.get(at).copied().unwrap_or(false) => Some(at),
+        _ => None,
+    };
+    return match usable {
+        Some(at) => Some(at),
+        None => first_selectable(selectable),
+    };
 }
 
 /// What:
@@ -138,9 +168,12 @@ pub fn start_focus(selectable: &[bool], preferred: Option<usize>) -> Option<usiz
 /// ```
 pub fn first_starting_with(labels: &[Option<&str>], letter: char) -> Option<usize> {
     let wanted: String = letter.to_lowercase().collect();
-    return labels.iter().position(|label| {
-        return label.is_some_and(|text| return text.to_lowercase().starts_with(&wanted));
-    });
+    for (index, label) in labels.iter().enumerate() {
+        if matches!(label, Some(text) if text.to_lowercase().starts_with(&wanted)) {
+            return Some(index);
+        }
+    }
+    return None;
 }
 
 /// Unit tests in `list_focus_tests.rs`,

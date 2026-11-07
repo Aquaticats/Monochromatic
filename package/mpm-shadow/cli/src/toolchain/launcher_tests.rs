@@ -232,3 +232,37 @@ fn a_recorded_program_with_nothing_under_current_stays_as_recorded() {
     fs::remove_file(rig._directory.path().join("demo-release").join("0.1.5").join("demo-release-0.1.5-linux").join("tool")).expect("remove");
     assert_eq!(prepare_launch(&record, None).program, record.real);
 }
+
+/// Records an identity naming the rig's worktree as the repository,
+/// and installs a check program that says `answer` and exits `status`.
+fn repository_on_a_drive_that_is_gone(rig: &Rig, answer: &str, status: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    let identity: PathBuf = rig.scope.home.join(".config/monochromatic-dev/repository-link.json");
+    fs::create_dir_all(identity.parent().expect("parent")).expect("config folder");
+    fs::write(&identity, format!("{{\"linkPath\":\"{}\",\"canonicalRoot\":\"/nowhere/Monochromatic\",\"phase\":\"after\"}}", rig.scope.root.display())).expect("identity");
+    let check: PathBuf = rig.scope.home.join(".local/share/monochromatic-dev/repository-link/repository-link-check");
+    fs::create_dir_all(check.parent().expect("parent")).expect("install folder");
+    fs::write(&check, format!("#!/bin/sh\necho '{answer}' >&2\nexit {status}\n")).expect("check program");
+    fs::set_permissions(&check, fs::Permissions::from_mode(0o755)).expect("chmod");
+}
+
+/// Installing a launcher under a repository whose link to the drive does not resolve fails with the check's plain message,
+/// before anything is written.
+#[test]
+fn a_launcher_is_not_made_under_a_repository_that_is_not_there() {
+    let rig = Rig::new();
+    repository_on_a_drive_that_is_gone(&rig, "the 860 drive is not mounted yet", 75);
+    let real = rig.scope.toolchain_root.join("cargo").join("x").join("current").join("bin").join("x");
+    let error = ensure_launcher(&rig.scope, TOOL, "git", &real).expect_err("refused");
+    assert!(error.to_string().contains("the 860 drive is not mounted yet"), "{error}");
+    assert!(!rig.scope.launcher_dir.exists(), "nothing was created");
+}
+
+/// A repository the check says is usable gets its launcher as before.
+#[test]
+fn a_launcher_is_made_under_a_repository_the_check_says_is_ready() {
+    let rig = Rig::new();
+    repository_on_a_drive_that_is_gone(&rig, "ready", 0);
+    let real = rig.scope.toolchain_root.join("cargo").join("x").join("current").join("bin").join("x");
+    assert!(ensure_launcher(&rig.scope, TOOL, "git", &real).is_ok());
+}

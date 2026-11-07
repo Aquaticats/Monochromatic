@@ -96,7 +96,7 @@ pub(crate) fn fast_tier(norm: &str, terms: &[String], joined: &str) -> Option<u8
     if norm == joined {
         return Some(0);
     }
-    if terms.first().is_some_and(|first| return norm.starts_with(first.as_str())) {
+    if matches!(terms.first(), Some(first) if norm.starts_with(first.as_str())) {
         return Some(1);
     }
     return Some(2);
@@ -168,6 +168,22 @@ fn keyed(index: &SearchIndex, ranked: Ranked) -> Keyed<'_> {
 }
 
 /// What:
+/// `tier_and_length` is the coarse rank of a candidate:
+/// its tier,
+/// then its normalized length.
+/// Why:
+/// the best candidates are selected by this key before the full order breaks the ties,
+/// and a selection key is a function of the candidate alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tierAndLength = (candidate: Ranked): [number, number] => [candidate.tier, candidate.nlen];
+/// ```
+fn tier_and_length(candidate: &Ranked) -> (u8, u32) {
+    return (candidate.tier, candidate.nlen);
+}
+
+/// What:
 ///      `fn full_order(left: &Keyed<'_>, right: &Keyed<'_>) -> Ordering`.
 ///  The result order:
 /// tier,
@@ -184,15 +200,27 @@ fn full_order(left: &Keyed<'_>, right: &Keyed<'_>) -> Ordering {
     let right_kind: bool = right.ranked.id & FOLDER_BIT == 0;
     let left_position: Option<u32> = left_kind.then_some(left.ranked.id);
     let right_position: Option<u32> = right_kind.then_some(right.ranked.id);
-    return left
-        .ranked
-        .tier
-        .cmp(&right.ranked.tier)
-        .then_with(|| return left.ranked.nlen.cmp(&right.ranked.nlen))
-        .then_with(|| return left.key.cmp(&right.key))
-        .then_with(|| return left.sort_path.cmp(right.sort_path))
-        .then_with(|| return left_kind.cmp(&right_kind))
-        .then_with(|| return left_position.cmp(&right_position));
+    let by_tier: Ordering = left.ranked.tier.cmp(&right.ranked.tier);
+    if by_tier != Ordering::Equal {
+        return by_tier;
+    }
+    let by_length: Ordering = left.ranked.nlen.cmp(&right.ranked.nlen);
+    if by_length != Ordering::Equal {
+        return by_length;
+    }
+    let by_key: Ordering = left.key.cmp(&right.key);
+    if by_key != Ordering::Equal {
+        return by_key;
+    }
+    let by_path: Ordering = left.sort_path.cmp(right.sort_path);
+    if by_path != Ordering::Equal {
+        return by_path;
+    }
+    let by_kind: Ordering = left_kind.cmp(&right_kind);
+    if by_kind != Ordering::Equal {
+        return by_kind;
+    }
+    return left_position.cmp(&right_position);
 }
 
 /// What:
@@ -216,7 +244,7 @@ pub(crate) fn select_best(index: &SearchIndex, mut matched: Vec<Ranked>, keep: u
         return Vec::new();
     }
     let mut survivors: Vec<Keyed<'_>> = if matched.len() > keep {
-        matched.select_nth_unstable_by_key(keep - 1, |candidate| return (candidate.tier, candidate.nlen));
+        matched.select_nth_unstable_by_key(keep - 1, tier_and_length);
         let cut: (u8, u32) = (matched[keep - 1].tier, matched[keep - 1].nlen);
         let mut better: Vec<Keyed<'_>> = Vec::with_capacity(keep);
         let mut tied: Vec<Keyed<'_>> = Vec::new();
@@ -234,8 +262,16 @@ pub(crate) fn select_best(index: &SearchIndex, mut matched: Vec<Ranked>, keep: u
         better.extend(tied);
         better
     } else {
-        matched.into_iter().map(|candidate| return keyed(index, candidate)).collect()
+        let mut converted: Vec<Keyed<'_>> = Vec::with_capacity(matched.len());
+        for candidate in matched {
+            converted.push(keyed(index, candidate));
+        }
+        converted
     };
     survivors.sort_by(full_order);
-    return survivors.into_iter().map(|entry| return entry.ranked).collect();
+    let mut best: Vec<Ranked> = Vec::with_capacity(survivors.len());
+    for entry in survivors {
+        best.push(entry.ranked);
+    }
+    return best;
 }

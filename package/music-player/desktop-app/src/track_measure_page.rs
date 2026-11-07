@@ -62,11 +62,18 @@ pub fn lookup_for_positions(
     paths: &[PathBuf],
     measures: &HashMap<PathBuf, TrackMeasure>,
 ) -> HashMap<String, TrackMeasure> {
-    return positions
-        .iter()
-        .filter_map(|position| {
-            let measure: &TrackMeasure = measures.get(paths.get(*position)?)?;
-            return Some((names.get(*position)?.clone(), *measure));
-        })
-        .collect();
+    let mut found: HashMap<String, TrackMeasure> = HashMap::new();
+    for position in positions {
+        let Some(path) = paths.get(*position) else {
+            continue;
+        };
+        let Some(measure) = measures.get(path) else {
+            continue;
+        };
+        let Some(name) = names.get(*position) else {
+            continue;
+        };
+        found.insert(name.clone(), *measure);
+    }
+    return found;
 }

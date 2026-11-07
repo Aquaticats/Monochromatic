@@ -131,7 +131,8 @@ impl TopCache {
     /// Why:
     /// the warm-up pass refreshes entries that fall behind.
     pub(crate) fn covered(&self, character: char) -> Option<usize> {
-        return self.get(character).map(|entry| return entry.through);
+        let entry = self.get(character)?;
+        return Some(entry.through);
     }
 }
 
@@ -155,6 +156,45 @@ fn rank_members(index: &SearchIndex, members: &[u32], terms: &[String], joined: 
 }
 
 /// What:
+/// `first_member_from` is the position of the first bucket member whose track number is at least `through`.
+/// Why:
+/// a bucket lists track numbers in increasing order,
+/// and the tracks added since a cached answer are the members from that position on.
+/// A binary search keeps the cost at the logarithm of the bucket.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const firstMemberFrom = (bucket: number[], through: number): number => bucket.findIndex((member) => member >= through) ?? bucket.length;
+/// ```
+fn first_member_from(bucket: &[u32], through: usize) -> usize {
+    let mut low: usize = 0;
+    let mut high: usize = bucket.len();
+    while low < high {
+        let middle: usize = low + (high - low) / 2;
+        if (bucket[middle] as usize) < through {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    return low;
+}
+
+/// What:
+/// `by_bucket_size_then_character` orders `(character, bucket size)` pairs with the largest bucket first,
+/// and the smaller character first among equal sizes.
+/// Why:
+/// the warm-up serves the characters that most queries start with first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const byBucketSizeThenCharacter = (left: [string, number], right: [string, number]): number => right[1] - left[1] || compare(left[0], right[0]);
+/// ```
+fn by_bucket_size_then_character(left: &(char, usize), right: &(char, usize)) -> std::cmp::Ordering {
+    return right.1.cmp(&left.1).then(left.0.cmp(&right.0));
+}
+
+/// What:
 ///      `pub(crate) fn single_character_tracks(index: &SearchIndex, character: char) -> (Vec<Ranked>, usize)`.
 ///  The best tracks for a query that is one character,
 /// with the number of matching tracks.
@@ -175,7 +215,7 @@ pub(crate) fn single_character_tracks(index: &SearchIndex, character: char) -> (
     let now: usize = index.track_count();
     let cached: Option<Arc<TopEntry>> = index.top().get(character);
     if let Some(entry) = &cached {
-        let start: usize = bucket.partition_point(|member| return (*member as usize) < entry.through);
+        let start: usize = first_member_from(bucket, entry.through);
         let delta: &[u32] = &bucket[start..];
         if delta.is_empty() {
             return (entry.best.clone(), entry.matched);
@@ -220,12 +260,20 @@ pub(crate) fn single_character_tracks(index: &SearchIndex, character: char) -> (
 /// so the first keystroke of a common letter is a cache read.
 #[must_use]
 pub fn warm_characters(index: &SearchIndex) -> Vec<char> {
-    let mut behind: Vec<(char, usize)> = index
-        .first_characters()
-        .filter(|(character, bucket_len)| {
-            return *bucket_len > 0 && index.top().covered(*character).is_none_or(|through| return through < index.track_count());
-        })
-        .collect();
-    behind.sort_by(|left, right| return right.1.cmp(&left.1).then(left.0.cmp(&right.0)));
-    return behind.into_iter().map(|(character, _)| return character).collect();
+    let mut behind: Vec<(char, usize)> = Vec::new();
+    for (character, bucket_len) in index.first_characters() {
+        let covered_enough: bool = match index.top().covered(character) {
+            Some(through) => through >= index.track_count(),
+            None => false,
+        };
+        if bucket_len > 0 && !covered_enough {
+            behind.push((character, bucket_len));
+        }
+    }
+    behind.sort_by(by_bucket_size_then_character);
+    let mut characters: Vec<char> = Vec::with_capacity(behind.len());
+    for (character, _bucket_len) in behind {
+        characters.push(character);
+    }
+    return characters;
 }

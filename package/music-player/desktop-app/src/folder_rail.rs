@@ -224,10 +224,13 @@ pub struct RailSection {
 /// ```
 pub fn collation_key(text: &str) -> String {
     let lowered = text.to_lowercase();
-    return lowered
-        .nfd()
-        .filter(|character| return !is_combining_mark(*character))
-        .collect();
+    let mut stripped = String::new();
+    for character in lowered.nfd() {
+        if !is_combining_mark(character) {
+            stripped.push(character);
+        }
+    }
+    return stripped;
 }
 
 /// What:
@@ -293,10 +296,12 @@ fn script_of_char(first: char) -> RailScript {
 /// ```
 fn kana_row_label_for(name: &str) -> Option<&'static str> {
     let first = name.chars().next()?;
-    return KANA_ROWS
-        .iter()
-        .find(|row| return row.1.contains(first))
-        .map(|row| return row.0);
+    for row in &KANA_ROWS {
+        if row.1.contains(first) {
+            return Some(row.0);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -345,6 +350,20 @@ fn cell_label_for(name: &str, script: RailScript) -> String {
 }
 
 /// What:
+/// `group_collation_key` is the collation key of a cell group's label.
+/// Why:
+/// the cells of a section are sorted by this key,
+/// and a sort key is a function of the group alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const groupCollationKey = (group: [string, string[]]): string => collationKey(group[0]);
+/// ```
+fn group_collation_key(group: &(String, Vec<String>)) -> String {
+    return collation_key(&group.0);
+}
+
+/// What:
 ///      `fn rail_section(script: RailScript, names: Vec<String>) -> RailSection`.
 ///  Groups one
 ///  writing system's names into cells,
@@ -374,14 +393,12 @@ fn rail_section(script: RailScript, names: Vec<String>) -> RailSection {
             }
         }
     }
-    groups.sort_by_key(|group| return collation_key(&group.0));
-    let cells: Vec<RailCell> = groups
-        .into_iter()
-        .map(|(label, members)| {
-            let key = format!("{}{label}", script.id());
-            return RailCell { key, label, names: members };
-        })
-        .collect();
+    groups.sort_by_key(group_collation_key);
+    let mut cells: Vec<RailCell> = Vec::with_capacity(groups.len());
+    for (label, members) in groups {
+        let key = format!("{}{label}", script.id());
+        cells.push(RailCell { key, label, names: members });
+    }
     return RailSection {
         script,
         label: script.label().to_string(),
@@ -406,11 +423,13 @@ fn rail_section(script: RailScript, names: Vec<String>) -> RailSection {
 pub fn rail_for<S: AsRef<str>>(names: &[S]) -> Vec<RailSection> {
     let mut sections: Vec<RailSection> = Vec::new();
     for script in ALL_SCRIPTS {
-        let members: Vec<String> = names
-            .iter()
-            .map(|name| return name.as_ref().to_string())
-            .filter(|member| return script_of(member) == script)
-            .collect();
+        let mut members: Vec<String> = Vec::new();
+        for name in names {
+            let member = name.as_ref().to_string();
+            if script_of(&member) == script {
+                members.push(member);
+            }
+        }
         if members.is_empty() {
             continue;
         }

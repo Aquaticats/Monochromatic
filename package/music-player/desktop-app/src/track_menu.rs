@@ -140,11 +140,11 @@ pub fn label(action: TrackMenuAction) -> &'static str {
 /// }
 /// ```
 pub fn track_menu_divider_flags(actions: &[TrackMenuAction]) -> Vec<bool> {
-    return actions
-        .iter()
-        .enumerate()
-        .map(|(index, action)| return index > 0 && action.group() != actions[index - 1].group())
-        .collect();
+    let mut flags: Vec<bool> = Vec::with_capacity(actions.len());
+    for (index, action) in actions.iter().enumerate() {
+        flags.push(index > 0 && action.group() != actions[index - 1].group());
+    }
+    return flags;
 }
 
 /// What:
@@ -180,10 +180,12 @@ const ACCESS_KEYS: [(TrackMenuAction, char); 6] = [
 /// const accessKey = (action: TrackMenuAction): string => ACCESS_KEYS.find(([a]) => a === action)![1];
 /// ```
 pub fn access_key(action: TrackMenuAction) -> char {
-    return ACCESS_KEYS
-        .iter()
-        .find(|(candidate, _letter)| return *candidate == action)
-        .map_or('?', |(_candidate, letter)| return *letter);
+    for (candidate, letter) in ACCESS_KEYS.iter() {
+        if *candidate == action {
+            return *letter;
+        }
+    }
+    return '?';
 }
 
 /// What:
@@ -199,10 +201,12 @@ pub fn access_key(action: TrackMenuAction) -> char {
 /// ```
 pub fn access_action(letter: char) -> Option<TrackMenuAction> {
     let lowered: char = letter.to_lowercase().next()?;
-    return ACCESS_KEYS
-        .iter()
-        .find(|(_action, candidate)| return *candidate == lowered)
-        .map(|(action, _letter)| return *action);
+    for (action, candidate) in ACCESS_KEYS.iter() {
+        if *candidate == lowered {
+            return Some(*action);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -228,7 +232,13 @@ pub fn access_action(letter: char) -> Option<TrackMenuAction> {
 pub fn access_label(action: TrackMenuAction) -> (String, String, String) {
     let text: &str = label(action);
     let letter: char = access_key(action);
-    let found = text.char_indices().find(|(_offset, character)| return character.to_lowercase().next() == Some(letter));
+    let mut found: Option<(usize, char)> = None;
+    for (offset, character) in text.char_indices() {
+        if character.to_lowercase().next() == Some(letter) {
+            found = Some((offset, character));
+            break;
+        }
+    }
     return match found {
         Some((offset, character)) => {
             let end: usize = offset + character.len_utf8();

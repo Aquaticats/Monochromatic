@@ -5,7 +5,7 @@
  stages one literal dependency in a throwaway repository and requires the policy check to exit 1 with the
  `disallowed-specifier` finding, so that an exit 2 configuration failure cannot pass here.
 
- Reads `RUNNER_TEMP`, and `CLI_PROGRAM`, `CLI_WORD` and `CLI_SETTINGS` as the install step announced them in `GITHUB_ENV`.
+ Reads `RUNNER_TEMP`, and `CLI_PROGRAM`, `CLI_WORD` and `CLI_SETTINGS` as the workflow's job `env` sets them.
  Imports only `node:` modules and sibling files that do, because the workflow runs it before any dependency is installed.
 
  @example

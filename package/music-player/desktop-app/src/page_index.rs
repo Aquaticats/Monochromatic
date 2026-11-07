@@ -106,6 +106,42 @@ pub struct PageIndex {
 }
 
 /// What:
+/// `Pages` is the iterator over the pages of a `PageIndex` in display order.
+/// Why:
+/// the order is a list of group slots,
+/// and walking it with a named iterator avoids a closure over the groups.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Pages = Iterator<PageGroup>;
+/// ```
+pub struct Pages<'groups> {
+    /// The groups,
+    /// indexed by slot.
+    groups: &'groups [PageGroup],
+    /// The slots still to visit,
+    /// in display order.
+    slots: std::slice::Iter<'groups, usize>,
+}
+
+/// Iteration of the pages in display order.
+impl<'groups> Iterator for Pages<'groups> {
+    /// Each step yields one page group.
+    type Item = &'groups PageGroup;
+
+    /// What:
+    /// `next` gives the group of the next slot in display order.
+    /// Why:
+    /// callers walk the pages without knowing about slots.
+    fn next(&mut self) -> Option<&'groups PageGroup> {
+        return match self.slots.next() {
+            Some(slot) => Some(&self.groups[*slot]),
+            None => None,
+        };
+    }
+}
+
+/// What:
 ///      `fn page_sort_key(group: &PageGroup) -> (u8, String, &str)`.
 ///  The key `paginate` sorts pages by:
 /// group,
@@ -211,8 +247,15 @@ impl PageIndex {
             self.group_of.push(u32::try_from(slot).expect("a library holds under four billion pages"));
         }
         if self.groups.len() != groups_before || self.order.len() != self.groups.len() {
-            let mut order: Vec<usize> = (0..self.groups.len()).collect();
-            order.sort_by(|left, right| return page_sort_key(&self.groups[*left]).cmp(&page_sort_key(&self.groups[*right])));
+            let mut keyed: Vec<((u8, String, &str), usize)> = Vec::with_capacity(self.groups.len());
+            for (slot, group) in self.groups.iter().enumerate() {
+                keyed.push((page_sort_key(group), slot));
+            }
+            keyed.sort();
+            let mut order: Vec<usize> = Vec::with_capacity(keyed.len());
+            for (_key, slot) in keyed {
+                order.push(slot);
+            }
             let mut rank: Vec<usize> = vec![0; order.len()];
             for (page, slot) in order.iter().enumerate() {
                 rank[*slot] = page;
@@ -237,15 +280,18 @@ impl PageIndex {
     /// the window reads the selected page and the labels in page order.
     #[must_use]
     pub fn page(&self, position: usize) -> Option<&PageGroup> {
-        return self.order.get(position).map(|slot| return &self.groups[*slot]);
+        return match self.order.get(position) {
+            Some(slot) => Some(&self.groups[*slot]),
+            None => None,
+        };
     }
 
     /// What:
     /// `pages` lists the pages in display order.
     /// Why:
     /// the rail is built from all labels.
-    pub fn pages(&self) -> impl Iterator<Item = &PageGroup> + '_ {
-        return self.order.iter().map(|slot| return &self.groups[*slot]);
+    pub fn pages(&self) -> Pages<'_> {
+        return Pages { groups: &self.groups, slots: self.order.iter() };
     }
 
     /// What:
@@ -254,7 +300,12 @@ impl PageIndex {
     /// the selection is stored as an identity so it survives a rebuild.
     #[must_use]
     pub fn position_of_identity(&self, identity: &str) -> Option<usize> {
-        return self.pages().position(|page| return page.identity == identity);
+        for (position, page) in self.pages().enumerate() {
+            if page.identity == identity {
+                return Some(position);
+            }
+        }
+        return None;
     }
 
     /// What:
@@ -264,7 +315,30 @@ impl PageIndex {
     /// not its identity.
     #[must_use]
     pub fn position_of_label(&self, label: &str) -> Option<usize> {
-        return self.pages().position(|page| return page.label == label);
+        for (position, page) in self.pages().enumerate() {
+            if page.label == label {
+                return Some(position);
+            }
+        }
+        return None;
+    }
+
+    /// What:
+    ///      `pub fn identity_at(&self, position: usize) -> Option<String>`.
+    ///  The identity of the page at a display position,
+    /// or nothing when there is no such page.
+    /// Why:
+    ///       A page keeps its identity when the library changes under it,
+    /// so the queue looks it up before an edit and finds the page again after it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// identityAt(position: number): string | null { return this.page(position)?.identity ?? null; }
+    /// ```
+    #[must_use]
+    pub fn identity_at(&self, position: usize) -> Option<String> {
+        let group = self.page(position)?;
+        return Some(group.identity.clone());
     }
 
     /// What:
@@ -273,7 +347,8 @@ impl PageIndex {
     /// following the playing track must not scan the library.
     #[must_use]
     pub fn page_of_index(&self, index: usize) -> Option<usize> {
-        return self.group_of.get(index).map(|slot| return self.rank[*slot as usize]);
+        let slot = self.group_of.get(index)?;
+        return Some(self.rank[*slot as usize]);
     }
 }
 

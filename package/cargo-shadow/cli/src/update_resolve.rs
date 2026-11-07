@@ -72,6 +72,35 @@ use crate::file_owner::Claim;
 use crate::update::{UpdateError, UpdateRequest, excluded_update_specs, other, other_text, run_or_fail};
 
 /// What:
+/// `struct ResolveWork<'a> { request, crate_dir, cutoff }` is the work of re-resolving one crate root under a cutoff.
+/// Why:
+/// `run_recording` takes the work as a value,
+/// and this holds what the closure that stood here captured.
+struct ResolveWork<'a> {
+    /// The update request.
+    request: &'a UpdateRequest<'a>,
+    /// The crate root to resolve.
+    crate_dir: &'a str,
+    /// The cutoff date text,
+    /// empty for none.
+    cutoff: &'a str,
+}
+
+/// What:
+/// The implementation of `RecordedWork` for `ResolveWork`.
+/// Why:
+/// `run_recording` runs it between its before and after observations.
+impl crate::file_owner::RecordedWork<Result<bool, UpdateError>> for ResolveWork<'_> {
+    /// What:
+    /// Re-resolves the crate root.
+    /// Why:
+    /// The result is the one the closure returned.
+    fn run(self) -> Result<bool, UpdateError> {
+        return resolve_crate(self.request, self.crate_dir, self.cutoff);
+    }
+}
+
+/// What:
 /// `fn resolve_crate(request, crate_dir, cutoff) -> Result<bool, UpdateError>` re-resolves one crate root under the cutoff and returns whether it had to fall back to ignoring the cutoff.
 /// Why:
 /// With `minimumReleaseAgeStrict` false a crate that cannot resolve under the cutoff resolves without it and is reported;
@@ -154,7 +183,7 @@ pub(crate) fn resolve_all(request: &UpdateRequest, cutoff: &str, produced: &RefC
         eprintln!("cargo-shadow: resolving {crate_dir}{}", if cutoff.is_empty() { String::new() } else { format!(" with releases published before {cutoff}") });
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Recorded whether the resolution succeeded or failed (see `run_recording`).
-        let (resolved, _claim): (Result<bool, UpdateError>, Claim) = run_recording(request.root, crate_dir, produced, || { return resolve_crate(request, crate_dir, cutoff); }).map_err(other_text)?;
+        let (resolved, _claim): (Result<bool, UpdateError>, Claim) = run_recording(request.root, crate_dir, produced, ResolveWork { request, crate_dir, cutoff }).map_err(other_text)?;
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Typed binding: `moved_to_fallback: bool`.
         let moved_to_fallback: bool = resolved?;
@@ -211,7 +240,7 @@ pub(crate) fn resolve_all(request: &UpdateRequest, cutoff: &str, produced: &RefC
             args.extend(request.forward.iter().cloned());
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Borrow `&args`: lends the value without copying or giving it away.
-            let (updated, _update_claim): (Result<CargoOutcome, UpdateError>, Claim) = run_recording(request.root, crate_dir, produced, || { return run_or_fail(request, crate_dir, &args); }).map_err(other_text)?;
+            let (updated, _update_claim): (Result<CargoOutcome, UpdateError>, Claim) = run_recording(request.root, crate_dir, produced, crate::update::CargoRun { request, crate_dir, args: &args }).map_err(other_text)?;
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             updated?;
         }

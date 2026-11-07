@@ -58,7 +58,14 @@ fn common_prefix_len(titles: &[&str]) -> usize {
     let mut length: usize = 0;
     for (offset, character) in first.char_indices() {
         let end: usize = offset + character.len_utf8();
-        if titles.iter().all(|title| return title.get(offset..end) == Some(&first[offset..end])) {
+        let mut every_title_agrees: bool = true;
+        for title in titles {
+            if title.get(offset..end) != Some(&first[offset..end]) {
+                every_title_agrees = false;
+                break;
+            }
+        }
+        if every_title_agrees {
             length = end;
         } else {
             break;
@@ -103,18 +110,25 @@ pub fn shared_prefix_len(titles: &[&str]) -> usize {
     let Some(first) = titles.first() else {
         return 0;
     };
-    if titles.iter().all(|title| return title == first) {
+    let mut every_title_same: bool = true;
+    for title in titles {
+        if title != first {
+            every_title_same = false;
+            break;
+        }
+    }
+    if every_title_same {
         tracing::trace!("every title is the same; nothing is removed");
         return 0;
     }
     let common: usize = common_prefix_len(titles);
     let shared: &str = &first[..common];
-    let cut: usize = shared
-        .char_indices()
-        .filter(|(_offset, character)| return is_separator(*character))
-        .map(|(offset, character)| return offset + character.len_utf8())
-        .next_back()
-        .unwrap_or(0);
+    let mut cut: usize = 0;
+    for (offset, character) in shared.char_indices() {
+        if is_separator(character) {
+            cut = offset + character.len_utf8();
+        }
+    }
     if cut == 0 {
         tracing::trace!(titles = titles.len(), "no shared filename prefix ends at a separator");
         return 0;
@@ -123,7 +137,14 @@ pub fn shared_prefix_len(titles: &[&str]) -> usize {
         tracing::trace!("the shared start holds no letter or digit; nothing is removed");
         return 0;
     }
-    if titles.iter().any(|title| return title[cut..].trim().is_empty()) {
+    let mut would_blank_a_title: bool = false;
+    for title in titles {
+        if title[cut..].trim().is_empty() {
+            would_blank_a_title = true;
+            break;
+        }
+    }
+    if would_blank_a_title {
         tracing::trace!("removing the shared prefix would leave a blank title; nothing is removed");
         return 0;
     }
@@ -158,7 +179,10 @@ pub fn strip_folder_name<'a>(title: &'a str, folder: &str) -> &'a str {
             _ => return title,
         }
     }
-    let after_name: usize = title_characters.next().map_or(title.len(), |(offset, _character)| return offset);
+    let after_name: usize = match title_characters.next() {
+        Some((offset, _character)) => offset,
+        None => title.len(),
+    };
     let rest: &str = &title[after_name..];
     let remainder: &str = rest.trim_start_matches(is_separator);
     if remainder.len() == rest.len() || remainder.trim().is_empty() {

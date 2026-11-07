@@ -171,20 +171,19 @@ pub(crate) fn settle_finish(
         }
         (kept, _) => kept,
     };
-    return standing.and_then(|mut report| {
-        report.warnings.extend(recovered);
-        report.warnings.extend(restore_warnings);
-        return match finished {
-            Ok(()) => Ok(report),
-            Err(error) if !report.problems.is_empty() && !error.cleanup_only() => {
-                report.problems.push(error.to_string());
-                Ok(report)
-            }
-            Err(error) if !error.cleanup_only() => Err(crate::update::other_text(format!("{error}; run the command again"))),
-            Err(error) => {
-                report.warnings.push(error.to_string());
-                Ok(report)
-            }
-        };
-    });
+    let mut report = standing?;
+    report.warnings.extend(recovered);
+    report.warnings.extend(restore_warnings);
+    return match finished {
+        Ok(()) => Ok(report),
+        Err(error) if !report.problems.is_empty() && !error.cleanup_only() => {
+            report.problems.push(error.to_string());
+            Ok(report)
+        }
+        Err(error) if !error.cleanup_only() => Err(crate::update::other_text(format!("{error}; run the command again"))),
+        Err(error) => {
+            report.warnings.push(error.to_string());
+            Ok(report)
+        }
+    };
 }

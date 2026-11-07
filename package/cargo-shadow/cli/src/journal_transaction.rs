@@ -77,13 +77,22 @@ use crate::bounded_run::RunScope;
 use crate::constants::LOCKFILE_NAME;
 // Imports `crate::journal::{DONE_SUFFIX, GROUPS_FILE, ...`.
 /// Imports `crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, MANIFEST_INDEX_FILE, KEPT_FILES_WARNING_COUNT, QUARANTINE_DIR, OWNER_FILE, READY_FILE, WORKSPACE_LOCK, atomic_write, create_directories_synced, make_durable, sync_directory, write_synced}` for this file.
-use crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, MANIFEST_INDEX_FILE, KEPT_FILES_WARNING_COUNT, QUARANTINE_DIR, OWNER_FILE, READY_FILE, WORKSPACE_LOCK, atomic_write, create_directories_synced, make_durable, sync_directory, write_synced};
+use crate::journal::{GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, MANIFEST_INDEX_FILE, OWNER_FILE, READY_FILE, WORKSPACE_LOCK, atomic_write, create_directories_synced, make_durable, sync_directory, write_synced};
 // Imports `crate::manifest_edit::ManifestEdit`.
 /// Imports `crate::manifest_edit::ManifestEdit` for this file.
 use crate::manifest_edit::ManifestEdit;
 
 /// Imports `crate::journal_finish::FinishError` for this file.
 use crate::journal_finish::FinishError;
+
+/// The notices about files a journal keeps beside the lockfiles (split out of the journal transaction module).
+pub(crate) use crate::journal_kept_notices::{announce_kept_notice, announce_kept_files_for, kept_folder_notice};
+
+/// The completion marker of a journal (split out of the journal transaction module).
+pub(crate) use crate::journal_done_marker::finish_journal;
+/// The completion marker item that only the tests of the transaction use.
+#[cfg(test)]
+pub(crate) use crate::journal_done_marker::publish_done;
 
 /// The most journal names tried when one exists already.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
@@ -541,14 +550,14 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
     let own_barrier: io::Result<()> = sync_directory(&directory);
     own_barrier?;
     #[cfg(test)]
-    crate::bounded_run::trace(|| { return "journal directory synced".to_string(); });
+    crate::bounded_run::trace(format_args!("journal directory synced"));
     #[cfg(test)]
     let parent_barrier: io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::JournalParentSync) { Err(io::Error::other("injected failure to make the journal's name durable")) } else { sync_directory(&journals) };
     #[cfg(not(test))]
     let parent_barrier: io::Result<()> = sync_directory(&journals);
     parent_barrier?;
     #[cfg(test)]
-    crate::bounded_run::trace(|| { return "journal published".to_string(); });
+    crate::bounded_run::trace(format_args!("journal published"));
     // `Some`: the present or the absent value of an `Option`.
     let scope: RunScope = RunScope::open(directory.join(GROUPS_FILE));
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
@@ -587,27 +596,6 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
         kept_notice,
         scope,
     });
-}
-
-/// What:
-/// `pub fn announce_kept_notice(notice: &str)` prints the warning about the kept files,
-/// and a test build traces the text.
-/// Why:
-/// The warning is promised on every run past the count,
-/// so the emission is what a test observes,
-/// not only the text the transaction
-/// holds (certification,
-/// second pass,
-/// K1).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function announceKeptNotice(notice: string): void
-/// ```
-pub fn announce_kept_notice(notice: &str) {
-    #[cfg(test)]
-    crate::bounded_run::trace(|| { return format!("kept notice {notice}"); });
-    eprintln!("{notice}");
 }
 
 /// The methods of the type above.
@@ -707,7 +695,11 @@ impl Transaction {
         // `.collect()`: runs the iterator and gathers the items into the bound collection type.
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         // Adapter `.map(`: transforms or selects items with a closure.
-        *self.manifests.borrow_mut() = edits.iter().map(|edit| { return edit.path.clone(); }).collect();
+        let mut paths: Vec<PathBuf> = Vec::new();
+        for edit in edits {
+            paths.push(edit.path.clone());
+        }
+        *self.manifests.borrow_mut() = paths;
         return sync_directory(&self.directory);
     }
 
@@ -764,266 +756,4 @@ impl Transaction {
         // Phase three (inside the same function the recovery uses): only the removal of a journal that is already marked done is a warning.
         return finish_journal(&self.directory);
     }
-}
-
-/// What:
-/// `pub fn publish_done(directory: &Path) -> io::Result<PathBuf>` renames a journal to its `.done` name and syncs the directory that
-/// lists it,
-/// and returns the `.done` path.
-/// Why:
-/// The rename is the completion marker,
-/// and it counts only once the parent's sync has returned
-/// (round 7,
-/// 6b2 5:
-/// a failure here is not a cleanup problem).
-/// The parent is synced even when the name already ends in `.done` (review finding 4b2 5):
-/// another run's rename may not be durable yet.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function publishDone(directory: string): string
-/// ```
-pub fn publish_done(directory: &Path) -> io::Result<PathBuf> {
-    let parent: PathBuf = match directory.parent() {
-        Some(found) => found.to_path_buf(),
-        None => PathBuf::from("."),
-    };
-    let name: String = directory.file_name().map(|found| { return found.to_string_lossy().to_string(); }).unwrap_or_default();
-    let done: PathBuf = if name.ends_with(DONE_SUFFIX) { directory.to_path_buf() } else { parent.join(format!("{name}{DONE_SUFFIX}")) };
-    // The two real steps of the marker each have a failpoint, so a test fails the rename itself and the sync that follows it.
-    #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::CompletionRename) {
-        return Err(io::Error::other("injected failure of the completion rename"));
-    }
-    if done != directory {
-        fs::rename(directory, &done)?;
-    }
-    #[cfg(test)]
-    crate::bounded_run::trace(|| { return "marker renamed".to_string(); });
-    #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::CompletionSync) {
-        return Err(io::Error::other("injected failure of the completion directory sync"));
-    }
-    sync_marker_parent(&parent)?;
-    return Ok(done);
-}
-
-/// What:
-/// `fn sync_marker_parent(parent: &Path) -> io::Result<()>` makes the entry of the completion marker durable.
-/// Why:
-/// The marker counts only once this has returned;
-/// a test build traces the success,
-/// so the order of finishing is observed at the call.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function syncMarkerParent(parent: string): void
-/// ```
-fn sync_marker_parent(parent: &Path) -> io::Result<()> {
-    sync_directory(parent)?;
-    #[cfg(test)]
-    crate::bounded_run::trace(|| { return "marker parent synced".to_string(); });
-    return Ok(());
-}
-
-/// What:
-/// `pub fn remove_done(done: &Path) -> io::Result<()>` removes the journal directory and syncs its parent.
-/// Why:
-/// Nothing in a `.done` journal is needed any more.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function removeDone(done: string): void
-/// ```
-pub fn remove_done(done: &Path) -> io::Result<()> {
-    fs::remove_dir_all(done)?;
-    return match done.parent() {
-        Some(parent) => sync_directory(parent),
-        None => Ok(()),
-    };
-}
-
-/// What:
-/// `pub fn mark_done_and_remove(directory: &Path) -> io::Result<()>` publishes the completion marker of a journal and removes it.
-/// Why:
-/// A recovery settles a journal in one step;
-/// finishing a transaction uses the two phases separately.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function markDoneAndRemove(directory: string): void
-/// ```
-pub fn mark_done_and_remove(directory: &Path) -> io::Result<()> {
-    return finish_journal(directory).map_err(|error| { return io::Error::other(std::error::Error::source(&error).map_or_else(|| { return error.to_string(); }, ToString::to_string)); });
-}
-
-/// What:
-/// `pub fn finish_journal(directory: &Path) -> Result<(), FinishError>` publishes the completion marker of a journal and removes it,
-/// and tells the phase that failed.
-/// Why:
-/// A recovery that cannot publish the durable marker has not finished the journal and its caller must stop;
-/// the removal of a journal that is already marked done is the cleanup,
-/// which only warns (V5,
-/// certification second pass).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function finishJournal(directory: string): void  // throws a FinishError with its phase
-/// ```
-pub fn finish_journal(directory: &Path) -> Result<(), FinishError> {
-    let done: PathBuf = publish_done(directory).map_err(FinishError::completion)?;
-    // The removal of a journal that is already marked done is the cleanup, which a test can make fail after the marker (V5).
-    #[cfg(test)]
-    crate::bounded_run::trace(|| { return "cleanup attempted".to_string(); });
-    #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::FinishCleanup) {
-        return Err(FinishError::cleanup(io::Error::other("injected cleanup failure")));
-    }
-    return remove_done(&done).map_err(FinishError::cleanup);
-}
-
-/// What:
-/// `fn is_kept_beside_a_lockfile(name: &str) -> bool` says whether a file name in a crate root is a kept copy or a stranded temporary
-/// of this tool.
-/// Why:
-/// The replace protocol keeps a displaced file as `Cargo.lock.displaced*` or `Cargo.lock.refused*` beside its target when the central
-/// folder cannot take it,
-/// and a killed replacement leaves `.Cargo.lock.shadow-*.tmp`;
-/// they are kept files too and count toward the warning (contract K1).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function isKeptBesideALockfile(name: string): boolean
-/// ```
-fn is_kept_beside_a_lockfile(name: &str) -> bool {
-    return name.starts_with("Cargo.lock.displaced") || name.starts_with("Cargo.lock.refused") || (name.starts_with(".Cargo.lock.shadow-") && name.ends_with(".tmp"));
-}
-
-/// What:
-/// `pub fn announce_kept_files_for(root: &Path, crate_roots: &[String])` prints the kept-files warning for a run that starts no
-/// transaction,
-/// when the inventory is past the count.
-/// Why:
-/// The warning is promised on every run past the count,
-/// an ordinary run that finds every lockfile already satisfied included (sixth
-/// pass,
-/// group 7);
-/// a run that begins a transaction announces through the transaction instead.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function announceKeptFilesFor(root: string, crateRoots: string[]): void
-/// ```
-pub fn announce_kept_files_for(root: &Path, crate_roots: &[String]) {
-    if let Some(notice) = kept_folder_notice(root, crate_roots) {
-        announce_kept_notice(&notice);
-    }
-}
-
-/// What:
-/// `fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<String>` is the warning for kept files past
-/// `KEPT_FILES_WARNING_COUNT`:
-/// how many (in the central folder and beside the lockfiles of the crate roots),
-/// how many bytes,
-/// and where to look.
-/// Why:
-/// Owner answer,
-/// round 6,
-/// "Warn past a count,
-/// never refuse":
-/// kept files may be someone's work,
-/// so the tool neither deletes them nor stops working;
-/// it tells the person on every run past the count.
-/// A place that cannot be read is also reported,
-/// never taken as small.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function keptFolderNotice(root: string, crateRoots: string[]): string | undefined
-/// ```
-fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<String> {
-    let directory: PathBuf = root.join(QUARANTINE_DIR);
-    let mut central: usize = 0;
-    let mut beside: usize = 0;
-    // A wide accumulator: kept entries can have huge (sparse) lengths, and a sum that overflows would panic or wrap; the warning is
-    // never refused for the size of what is kept ("Warn past a count, never refuse").
-    let mut bytes: u128 = 0;
-    let mut unreadable: usize = 0;
-    // Whole directories that could not be listed: what is kept there is unknown, which is not "small".
-    let mut unlisted: Vec<PathBuf> = Vec::new();
-    match fs::read_dir(&directory) {
-        Ok(listing) => {
-            for entry in listing {
-                match entry.and_then(|found| { return found.metadata(); }) {
-                    Ok(metadata) => {
-                        central += 1;
-                        bytes += u128::from(metadata.len());
-                    }
-                    Err(_) => unreadable += 1,
-                }
-            }
-        }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => {
-            return Some(format!(
-                "cargo-shadow: {} could not be read ({error}), so the number of files kept there is unknown; look at it",
-                directory.display()
-            ));
-        }
-    }
-    for crate_root in crate_roots {
-        let place: PathBuf = root.join(crate_root);
-        match fs::read_dir(&place) {
-            Ok(listing) => {
-                for entry in listing {
-                    match entry {
-                        Ok(found) => {
-                            if is_kept_beside_a_lockfile(&found.file_name().to_string_lossy()) {
-                                match found.metadata() {
-                                    Ok(metadata) => {
-                                        beside += 1;
-                                        bytes += u128::from(metadata.len());
-                                    }
-                                    Err(_) => unreadable += 1,
-                                }
-                            }
-                        }
-                        Err(_) => unreadable += 1,
-                    }
-                }
-            }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(_) => unlisted.push(place),
-        }
-    }
-    let count: usize = central + beside;
-    let unknown: String = if unlisted.is_empty() {
-        String::new()
-    } else {
-        format!(
-            " {} could not be listed, so the number of files kept there is unknown; look at {}.",
-            unlisted.iter().map(|place| { return place.display().to_string(); }).collect::<Vec<String>>().join(", "),
-            if unlisted.len() == 1 { "it" } else { "them" }
-        )
-    };
-    // An entry that could not be read may be one of any number: an iteration error can end the listing before the files that follow,
-    // so an incomplete inventory is never taken as small (fourth certification pass).
-    if count + unreadable <= KEPT_FILES_WARNING_COUNT && unreadable == 0 {
-        if unlisted.is_empty() {
-            return None;
-        }
-        return Some(format!("cargo-shadow:{unknown} Nothing was deleted and cargo keeps working."));
-    }
-    if count + unreadable <= KEPT_FILES_WARNING_COUNT {
-        return Some(format!(
-            "cargo-shadow: {} holds files that could not all be read ({unreadable} entries could not be read after {count} that could), so how many files are kept there is unknown; look at it.{unknown} Nothing was deleted and cargo keeps working.",
-            directory.display()
-        ));
-    }
-    let unread: String = if unreadable == 0 { String::new() } else { format!(" ({unreadable} more could not be read)") };
-    let besides: String = if beside == 0 { String::new() } else { format!(" and {beside} more are kept beside the lockfiles of the crate roots (Cargo.lock.displaced*, Cargo.lock.refused*, .Cargo.lock.shadow-*.tmp)") };
-    return Some(format!(
-        "cargo-shadow: {} holds {central} files{besides}: {count} files, {bytes} bytes in all{unread}. They were moved aside instead of deleted because they may be someone's work. Nothing was deleted and cargo keeps working; review them when you can. Before you remove any of them, check that no program still has it open.{unknown}",
-        directory.display()
-    ));
 }

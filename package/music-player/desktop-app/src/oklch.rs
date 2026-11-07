@@ -382,6 +382,21 @@ pub fn contrast_ratio(first: Srgb8, second: Srgb8) -> f64 {
 }
 
 /// What:
+/// `blend_channel` mixes one 8-bit channel of a layer over the same channel of a surface at an opacity.
+/// Why:
+/// the three channels of `composite_over` blend the same way,
+/// rounded to the nearest whole value and held to the 8-bit range.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const blendChannel = (layer: number, surface: number, alpha: number): number => Math.min(255, Math.max(0, Math.round(layer * alpha + surface * (1 - alpha))));
+/// ```
+fn blend_channel(layer_channel: u8, surface_channel: u8, alpha: f64) -> u8 {
+    let value: f64 = f64::from(layer_channel) * alpha + f64::from(surface_channel) * (1.0 - alpha);
+    return value.round().clamp(0.0, 255.0) as u8;
+}
+
+/// What:
 ///      `pub fn composite_over(layer: Srgb8, alpha: f64, surface: Srgb8) -> Srgb8`:
 /// the color a layer of `alpha`
 ///  coverage shows over an opaque surface,
@@ -397,14 +412,10 @@ pub fn contrast_ratio(first: Srgb8, second: Srgb8) -> f64 {
 /// const mix = (l, s) => Math.round(l * alpha + s * (1 - alpha));
 /// ```
 pub fn composite_over(layer: Srgb8, alpha: f64, surface: Srgb8) -> Srgb8 {
-    let blend = |layer_channel: u8, surface_channel: u8| -> u8 {
-        let value: f64 = f64::from(layer_channel) * alpha + f64::from(surface_channel) * (1.0 - alpha);
-        return value.round().clamp(0.0, 255.0) as u8;
-    };
     return Srgb8 {
-        red: blend(layer.red, surface.red),
-        green: blend(layer.green, surface.green),
-        blue: blend(layer.blue, surface.blue),
+        red: blend_channel(layer.red, surface.red, alpha),
+        green: blend_channel(layer.green, surface.green, alpha),
+        blue: blend_channel(layer.blue, surface.blue, alpha),
     };
 }
 

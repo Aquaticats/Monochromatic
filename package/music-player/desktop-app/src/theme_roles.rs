@@ -46,11 +46,6 @@
 //! so AA
 //! holds for ANY root color.
 //! The baseline passes without any adjustment.
-// What: `allow(unexpected_cfgs)` covers the Dylint suppression attribute on `derive_scheme`.
-// Why:  the crate does not register `cfg(dylint_lib)` in its manifest, because file-enforcer scopes that key to the
-//       crates that own Dylint suppressions; the attribute is inert under plain rustc and only the closure-check
-//       harness reads it.
-#![allow(unexpected_cfgs)]
 
 /// Import the OKLCH color math the derivation moves colors through.
 use crate::oklch::{

@@ -41,10 +41,14 @@ use crate::template_parse::{TemplatePart, parse_template};
 /// ```
 pub fn plain_lines(text: &str, errors: &[TemplateError]) -> Vec<String> {
     let mut ordered: Vec<&TemplateError> = errors.iter().collect();
-    ordered.sort_by_key(|error| return error.at);
+    ordered.sort_by_key(crate::template_model::error_position);
     let parsed = parse_template(text);
     if parsed.errors.is_empty() {
-        return ordered.iter().map(|error| return plain_sentence(error)).collect();
+        let mut sentences: Vec<String> = Vec::with_capacity(ordered.len());
+        for error in &ordered {
+            sentences.push(plain_sentence(error));
+        }
+        return sentences;
     }
     let mut spans: Vec<(usize, usize)> = Vec::new();
     for part in &parsed.parts {
@@ -55,7 +59,13 @@ pub fn plain_lines(text: &str, errors: &[TemplateError]) -> Vec<String> {
     let mut seen: Vec<usize> = Vec::new();
     let mut lines = Vec::new();
     for error in ordered {
-        let owner = spans.iter().position(|(start, end)| return *start <= error.at && error.at <= *end);
+        let mut owner: Option<usize> = None;
+        for (position, (start, end)) in spans.iter().enumerate() {
+            if *start <= error.at && error.at <= *end {
+                owner = Some(position);
+                break;
+            }
+        }
         if let Some(index) = owner {
             if seen.contains(&index) {
                 continue;

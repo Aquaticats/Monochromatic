@@ -69,6 +69,23 @@
       },
     },
   },
+  // The desktop music player has no finding left (its suppressions are recorded in
+  // package/music-player/desktop-app/doc/closure-lint-suppressions.md), so it holds the line at error severity.
+  {
+    "name": "closure-check-music-player-desktop-app",
+    "files": [
+      "package/music-player/desktop-app/**/*.rs",
+    ],
+    "ignores": [
+      "**/*.md/**",
+      "**/*.mdx/**",
+    ],
+    "rules": {
+      "rust/avoidable-closure": {
+        "severity": "error",
+      },
+    },
+  },
   // Sidecar crates hold their smoke tests in `src`, and the troubleshooting probe is a recorded reproduction,
   // not package source; the other rules stay selected for both.
   {

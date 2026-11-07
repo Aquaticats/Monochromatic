@@ -2,7 +2,7 @@
 
 use super::*;
 use music_player::template_model::DEFAULT_TRACK_TEMPLATE;
-use music_player::track_supporting_line::supporting_line_from_template;
+use music_player::track_supporting_line::{SupportingLine, supporting_line_from_template};
 
 #[test]
 fn track_fields_split_folder_file_stem_and_extension() {
@@ -46,14 +46,14 @@ fn exact_measure_renders_length_and_peak_in_the_default_row_template() {
         peak_exact: true,
     };
     let fields = fields_with_measure(track_fields("a/one.flac"), Some(&measure));
-    let line = supporting_line_from_template(DEFAULT_TRACK_TEMPLATE)(&fields);
+    let line = supporting_line_from_template(DEFAULT_TRACK_TEMPLATE).evaluate(&fields);
     assert_eq!(line, Some("0:20 \u{2212}21.1 dBTP".to_string()));
 }
 
 #[test]
 fn unmeasured_track_renders_no_peak_in_the_default_row_template() {
     let fields = fields_with_measure(track_fields("a/one.flac"), None);
-    let line = supporting_line_from_template(DEFAULT_TRACK_TEMPLATE)(&fields);
+    let line = supporting_line_from_template(DEFAULT_TRACK_TEMPLATE).evaluate(&fields);
     assert_eq!(line.unwrap_or_default().trim(), "");
 }
 

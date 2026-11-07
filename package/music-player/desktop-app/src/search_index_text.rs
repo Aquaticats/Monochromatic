@@ -144,7 +144,9 @@ impl TextArena {
         let shift: u32 = u32::try_from(self.buf.len()).expect("a search arena holds under four gibibytes of text");
         u32::try_from(total).expect("a search arena holds under four gibibytes of text");
         self.buf.push_str(&other.buf);
-        self.ends.extend(other.ends.iter().map(|end| return end + shift));
+        for end in &other.ends {
+            self.ends.push(end + shift);
+        }
     }
 }
 
@@ -177,11 +179,11 @@ pub(crate) fn normalize_title_into(buffer: &mut String, title: &str) -> usize {
         }
         let mut single: [u8; 4] = [0; 4];
         let text: &str = character.encode_utf8(&mut single);
-        buffer.extend(
-            text.nfkd()
-                .filter(|part| return !is_non_spacing_mark(*part))
-                .flat_map(|part| return part.to_lowercase()),
-        );
+        for part in text.nfkd() {
+            if !is_non_spacing_mark(part) {
+                buffer.extend(part.to_lowercase());
+            }
+        }
     }
     let written: &str = &buffer[start..];
     let leading: usize = written.len() - written.trim_start_matches(is_kotlin_whitespace).len();

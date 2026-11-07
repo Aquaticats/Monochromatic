@@ -67,7 +67,11 @@ fn formula_tree_at(part: &TemplatePart, caret: usize) -> Option<&FormulaNode> {
 /// const inside = caret >= node.open && (node.close === undefined || caret <= node.close);
 /// ```
 fn call_contains(call: &CallNode, caret: usize) -> bool {
-    return caret >= call.open && call.close.is_none_or(|close| return caret <= close);
+    let before_close: bool = match call.close {
+        Some(close) => caret <= close,
+        None => true,
+    };
+    return caret >= call.open && before_close;
 }
 
 /// What:
@@ -81,14 +85,23 @@ fn call_contains(call: &CallNode, caret: usize) -> bool {
 /// function innermostCall(parts: TemplatePart[], caret: number): CallNode | undefined { ... }
 /// ```
 fn innermost_call(parts: &[TemplatePart], caret: usize) -> Option<&CallNode> {
-    let mut pending: Vec<&FormulaNode> = parts.iter().filter_map(|part| return formula_tree_at(part, caret)).collect();
+    let mut pending: Vec<&FormulaNode> = Vec::new();
+    for part in parts {
+        if let Some(tree) = formula_tree_at(part, caret) {
+            pending.push(tree);
+        }
+    }
     let mut found: Option<&CallNode> = None;
     while let Some(node) = pending.pop() {
         match node {
             FormulaNode::Join(operands) => pending.extend(operands.iter()),
             FormulaNode::Call(call) => {
                 pending.extend(call.parameters.iter());
-                if call_contains(call, caret) && found.is_none_or(|current| return call.open > current.open) {
+                let innermost_so_far: bool = match found {
+                    Some(current) => call.open > current.open,
+                    None => true,
+                };
+                if call_contains(call, caret) && innermost_so_far {
                     found = Some(call);
                 }
             }
@@ -111,7 +124,12 @@ fn innermost_call(parts: &[TemplatePart], caret: usize) -> Option<&CallNode> {
 /// ```
 fn help_for_call(call: &CallNode, caret: usize, fields: &[TemplateField]) -> Option<TemplateHelp> {
     let definition = template_function(&call.name)?;
-    let commas_before = call.separators.iter().filter(|separator| return **separator < caret).count();
+    let mut commas_before: usize = 0;
+    for separator in &call.separators {
+        if *separator < caret {
+            commas_before += 1;
+        }
+    }
     let index = commas_before.min(definition.parameters.len().saturating_sub(1));
     let parameter = definition.parameters.get(index)?;
     let description = if definition.name == FunctionName::Mi {
