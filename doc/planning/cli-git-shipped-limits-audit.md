@@ -3354,11 +3354,16 @@ each audit line names the saved copies by path (`doc/handover/cli-git-logging.md
     or whose line cannot be parsed
     or shows a place as unreadable text,
     is outside that total and is never removed.
-    A file left at a private name by a killed rotation is counted and never removed;
+    A file left at a private name by a killed rotation is given the next generation number by that pass
+    (readers go by number),
+    and counts like any generation from then on;
     its second name,
     when a kill came
     between the link and the removal,
-    is removed.
+    is removed,
+    and so is the higher of two numbers that name one file
+    (fixed 2026-11-07 on `fix/git-policy-cli-flakes-and-open-findings`;
+    before it such a file was counted and never read).
   - The timing logs and the push trigger log keep one generation,
     `.1`,
     as before.

@@ -285,6 +285,50 @@ fn a_scratch_file_has_no_name_and_needs_a_home() {
     remove(root.as_path());
 }
 
+/// Every write to a scratch file lands at its end,
+/// whatever offset the writers think they have:
+/// the child that gets a clone of the
+/// file and a helper it starts share one offset,
+/// and a write at a stale position overwrites a line the other wrote (measured with
+/// a leader and a helper writing to one shared file:
+/// the leader's line was lost in 5 of 150 runs at a 20% CPU quota,
+/// in none of 300
+/// once the file was in append mode).
+/// The control makes the stale position certain:
+/// a child writes,
+/// the file is emptied,
+/// the
+/// child writes again,
+/// and the second write is the whole of what is there,
+/// not a line after a hole of zero bytes.
+#[test]
+fn a_write_to_a_scratch_file_after_it_was_emptied_lands_at_the_start_and_leaves_no_hole() {
+    use std::io::{Read, Seek, SeekFrom};
+    let root: PathBuf = fixture("scratch-file-append");
+    let home: PathBuf = root.join("home");
+    std::fs::create_dir(&home).expect("home");
+    let go: PathBuf = root.join("go");
+    let env: Vec<(OsString, OsString)> = environment(&[("HOME", home.as_path())]);
+    let mut file: std::fs::File = scratch_file(env.as_slice()).expect("scratch file");
+    let for_child: std::fs::File = file.try_clone().expect("a clone for the child");
+    let script: String = format!("echo first >&2; while [ ! -e '{}' ]; do sleep 0.01; done; echo second >&2", go.display());
+    let mut child = std::process::Command::new("sh").args(["-c", script.as_str()]).stderr(for_child).spawn().expect("the child");
+    // The child writes to its standard error, which is the file; wait until its first line is there.
+    let began: std::time::Instant = std::time::Instant::now();
+    while file.metadata().expect("metadata").len() == 0 {
+        assert!(began.elapsed() < Duration::from_secs(60), "the child never wrote its first line");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    file.set_len(0).expect("empty the file");
+    std::fs::write(&go, b"").expect("the signal to go on");
+    assert!(child.wait().expect("the child ends").success());
+    file.seek(SeekFrom::Start(0)).expect("seek");
+    let mut read: Vec<u8> = Vec::new();
+    file.read_to_end(&mut read).expect("read");
+    assert_eq!(read, b"second\n", "the second write is the whole file");
+    remove(root.as_path());
+}
+
 /// The staleness bound outlasts every Git child step the wrapper runs:
 /// a live process must never lose its file.
 #[test]

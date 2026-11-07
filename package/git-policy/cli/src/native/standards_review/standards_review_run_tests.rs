@@ -190,19 +190,39 @@ fn options_follow_the_script_environment() {
     assert!(!full_review_requested(&none));
 }
 
+/// The controls of the contained runner each use a runner of their own,
+/// so none of them can find the production runner busy with
+/// another control's job when the tests of one process run on threads (measured:
+/// with `the_runner_` as the filter the slow-job
+/// control got `Busy` instead of `Finished(7)`,
+/// because the ceiling control had left the production runner outstanding).
+/// The cases of the service review tests that take the production runner hold it only for the length of one review.
+#[test]
+fn the_controls_share_no_production_runner() {
+    let own_text: &str = include_str!("standards_review_run_tests.rs");
+    // The call is built from two pieces, so this control does not count itself.
+    let production_call: String = ["run_contained", "("].concat();
+    assert_eq!(
+        own_text.matches(production_call.as_str()).count(),
+        0,
+        "a control that needs a runner makes its own with `static OWN: Containment` and calls `run_contained_in(&OWN, ..)`"
+    );
+}
+
 /// The contained runner returns a job's value however long the job takes up to the ceiling,
 /// and survives a panic.
 #[test]
 fn the_runner_waits_for_a_slow_job_and_contains_a_panic() {
+    static OWN: Containment = Containment::new();
     let roomy: Duration = Duration::from_secs(3600);
-    assert_eq!(run_contained(|| return 7_u8, roomy), Contained::Finished(7));
+    assert_eq!(run_contained_in(&OWN, || return 7_u8, roomy), Contained::Finished(7));
     let pause: Duration = Duration::from_millis(1500);
-    let slow: Contained<u8> = run_contained(move || {
+    let slow: Contained<u8> = run_contained_in(&OWN, move || {
         std::thread::sleep(pause);
         return 2_u8;
     }, roomy);
     assert_eq!(slow, Contained::Finished(2), "a slow job is waited for");
-    assert_eq!(run_contained(|| -> u8 { panic!("job failure") }, roomy), Contained::Panicked);
+    assert_eq!(run_contained_in(&OWN, || -> u8 { panic!("job failure") }, roomy), Contained::Panicked);
 }
 
 /// Owner,
@@ -214,10 +234,11 @@ fn the_runner_waits_for_a_slow_job_and_contains_a_panic() {
 /// the runner answers while the job still runs.
 #[test]
 fn the_runner_stops_waiting_for_a_job_at_its_ceiling() {
+    static OWN: Containment = Containment::new();
     let ceiling: Duration = Duration::from_millis(600);
     let (release, blocked) = mpsc::channel::<()>();
     let began: std::time::Instant = std::time::Instant::now();
-    let outcome: Contained<u8> = run_contained(move || {
+    let outcome: Contained<u8> = run_contained_in(&OWN, move || {
         let _ = blocked.recv();
         return 1_u8;
     }, ceiling);

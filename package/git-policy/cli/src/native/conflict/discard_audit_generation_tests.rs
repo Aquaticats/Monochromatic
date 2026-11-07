@@ -256,11 +256,15 @@ fn lines_that_name_nothing_on_disk_do_not_pin_a_generation() {
     remove(root.as_path());
 }
 
-/// A writer killed after it took the file off its name leaves the file at a private name with every line;
-/// later rotations
-/// count its bytes against the bound and never remove it.
+/// A writer killed after it took the file off its name leaves the file at a private name with every line,
+/// and readers go by
+/// number:
+/// the next retention pass gives the file a generation number,
+/// so its lines are read,
+/// and its bytes count against the
+/// bound like any generation's.
 #[test]
-fn a_file_left_by_a_killed_rotation_is_counted_and_never_removed() {
+fn a_file_left_by_a_killed_rotation_becomes_a_generation_that_readers_find() {
     let root: PathBuf = fixture("generations-killed");
     let target: PathBuf = root.join(AUDIT_FILE);
     let extra: u64 = 2;
@@ -280,14 +284,60 @@ fn a_file_left_by_a_killed_rotation_is_counted_and_never_removed() {
         write_generation(target.as_path(), number, &[marker(&format!("g{number}"))]);
     }
     rotate_once(target.as_path(), "newest");
-    let stranded: Vec<String> = private_names(root.as_path());
-    assert_eq!(stranded.len(), 1, "the file taken by the killed writer is still there");
-    let text: String = String::from_utf8_lossy(&std::fs::read(root.join(&stranded[0])).expect("kept file")).into_owned();
-    assert_eq!(text.lines().next(), Some(marker("killed").as_str()), "with its lines");
+    assert_eq!(private_names(root.as_path()), Vec::<String>::new(), "no file stays at a name that no reader looks at");
     let numbered: Vec<u64> = generations(target.as_path());
-    let newest: u64 = kept_generations() + extra;
-    assert_eq!(numbered.last(), Some(&newest));
-    assert!(numbered.len() < usize::try_from(newest).expect("small"), "its bytes took part of the bound, so older generations went: {numbered:?}");
+    let adopted: u64 = *numbered.last().expect("a generation");
+    assert_eq!(first_line_of(target.as_path(), adopted), marker("killed"), "the killed writer's lines are in a numbered generation");
+    assert_eq!(first_line_of(target.as_path(), adopted - 1), marker("newest"), "the rotation that found it kept its own file first");
+    assert!(numbered.len() < usize::try_from(adopted).expect("small"), "its bytes took part of the bound, so older generations went: {numbered:?}");
+    remove(root.as_path());
+}
+
+/// The lines of every generation of `target`,
+/// each file's first line,
+/// in number order.
+fn first_lines(target: &Path) -> Vec<String> {
+    return generations(target).into_iter().map(|number| { return first_line_of(target, number); }).collect();
+}
+
+/// Another writer's retention pass runs while this writer holds a file at its private name,
+/// between its take and its install:
+/// the pass gives the file a number,
+/// this writer's install finds the name gone,
+/// and the file is in one generation,
+/// once;
+/// no
+/// record is lost and none is doubled.
+#[test]
+fn a_pass_that_finds_a_live_rotation_between_its_take_and_its_install_neither_loses_nor_doubles_the_file() {
+    let root: PathBuf = fixture("generations-live");
+    let target: PathBuf = root.join(AUDIT_FILE);
+    std::fs::write(&target, full_file(&[marker("mid-flight")])).expect("a full live file");
+    let seen_full: std::fs::File = std::fs::OpenOptions::new().read(true).append(true).open(&target).expect("open");
+    // Whether the install then succeeds or reports that its private name is gone, the file is whole in one generation.
+    let _moved = move_aside_between(target.as_path(), &seen_full, &mut |step| {
+        if step == RotationStep::AfterMove {
+            super::trim_generations(target.as_path(), AUDIT_HISTORY_BYTES).expect("the other writer's pass");
+        }
+    });
+    assert_eq!(private_names(root.as_path()), Vec::<String>::new());
+    assert_eq!(first_lines(target.as_path()), vec![marker("mid-flight")], "one generation holds the file");
+    remove(root.as_path());
+}
+
+/// Two numbers for one file (two passes each gave a private name its number) hold every line twice:
+/// the pass keeps the lowest
+/// number and removes the other name,
+/// which loses nothing.
+#[test]
+fn two_generation_numbers_for_one_file_are_reduced_to_the_lowest() {
+    let root: PathBuf = fixture("generations-twice");
+    let target: PathBuf = root.join(AUDIT_FILE);
+    write_generation(target.as_path(), 1, &[marker("once")]);
+    std::fs::hard_link(root.join(format!("{AUDIT_FILE}.1")), root.join(format!("{AUDIT_FILE}.2"))).expect("a second number");
+    rotate_once(target.as_path(), "newest");
+    assert_eq!(generations(target.as_path()), vec![1, 3]);
+    assert_eq!(first_line_of(target.as_path(), 1), marker("once"));
     remove(root.as_path());
 }
 

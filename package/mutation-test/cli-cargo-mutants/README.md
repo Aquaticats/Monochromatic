@@ -220,6 +220,11 @@ The lock files are never removed:
 a probe that removes a file races with a gate of the earlier release that has just created
 and locked a new one at the same path,
 and would delete the file that gate holds.
+A directory or a pipe where a slot file belongs is no lock file of the earlier release,
+which makes only plain files:
+the gate gives its claim back and stops with an error naming the path (`src/legacy-hold-or-give-back.ts`),
+and the person moves the path away,
+instead of the slot counting as held by an earlier release for good.
 A gate that reads the interim source (claims without the lock) holds only a claim,
 and an earlier-release gate can still take
 its slot;

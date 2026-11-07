@@ -46,6 +46,9 @@ fn helper_entry() {
     let directory: PathBuf = PathBuf::from(
         std::env::var_os(DIR_VAR).expect("helper directory is set with the mode"),
     );
+    if mode == "service" {
+        leave_signals_to_the_service();
+    }
     let guard: SignalGuard = SignalGuard::install().expect("guard installs");
     std::fs::write(directory.join("installed"), b"").expect("installed marker");
     let mut command: Command = helper_command(mode.to_string_lossy().as_ref(), directory.as_path());
@@ -73,6 +76,15 @@ fn helper_command(mode: &str, directory: &Path) -> Command {
             built.arg("-c").arg(format!(
                 "touch '{}/started'; exec sleep 30",
                 directory.display()
+            ));
+            built
+        }
+        // The child of a commit prepared inside a service: records its pid and its start, then waits.
+        "service" => {
+            let mut built: Command = Command::new("/bin/sh");
+            built.arg("-c").arg(format!(
+                "echo $$ > '{dir}/child-pid'; touch '{dir}/started'; exec sleep 30",
+                dir = directory.display()
             ));
             built
         }
@@ -267,7 +279,7 @@ fn a_signal_pending_before_spawn_is_relayed_when_the_pid_is_published() {
     PENDING[1].store(libc::SIGTERM, std::sync::atomic::Ordering::SeqCst);
     let mut command: Command = Command::new("sleep");
     command.arg("30");
-    let outcome: ChildOutcome = run_relayed(&mut command).expect("child runs");
+    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, true)).expect("the runtime runs the child").expect("child runs");
     assert_eq!(
         outcome,
         ChildOutcome::Signaled(libc::SIGTERM),
@@ -276,14 +288,100 @@ fn a_signal_pending_before_spawn_is_relayed_when_the_pid_is_published() {
     PENDING[1].store(0, std::sync::atomic::Ordering::SeqCst);
 }
 
-/// One guard may be active at a time in a process.
+/// The first guard of a process owns the handlers;
+/// a guard made meanwhile is made all the same and relays nothing,
+/// and the handlers
+///  are free for the next owner once the first is dropped.
 #[test]
-fn a_second_guard_is_refused_until_the_first_is_dropped() {
+fn a_second_guard_is_made_and_relays_nothing_while_the_first_owns_the_handlers() {
+    let _statics: std::sync::MutexGuard<'_, ()> = RELAY_STATICS.lock().expect("relay statics lock");
     let first: SignalGuard = SignalGuard::install().expect("first guard");
-    assert!(SignalGuard::install().is_err());
+    assert!(first.relaying, "the first guard owns the handlers");
+    let second: SignalGuard = SignalGuard::install().expect("a second guard is not refused");
+    assert!(!second.relaying, "the second guard relays nothing while the first owns the handlers");
+    drop(second);
+    assert!(RELAYING.load(std::sync::atomic::Ordering::SeqCst), "dropping the second guard leaves the first one's handlers");
     drop(first);
     let again: SignalGuard = SignalGuard::install().expect("guard after drop");
+    assert!(again.relaying, "the handlers are free for the next owner");
     drop(again);
+}
+
+/// The child of a guard that owns no handlers is never published to the handler,
+/// so a signal of the process cannot reach it.
+#[cfg(unix)]
+#[test]
+fn the_child_of_a_guard_without_handlers_is_never_published() {
+    let _statics: std::sync::MutexGuard<'_, ()> = RELAY_STATICS.lock().expect("relay statics lock");
+    let owner: SignalGuard = SignalGuard::install().expect("first guard");
+    let other: SignalGuard = SignalGuard::install().expect("second guard");
+    let watching: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+    let published_once: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            while watching.load(std::sync::atomic::Ordering::SeqCst) {
+                if CHILD_PUBLISHED.load(std::sync::atomic::Ordering::SeqCst) {
+                    published_once.store(true, std::sync::atomic::Ordering::SeqCst);
+                }
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        });
+        let mut command: Command = Command::new("sleep");
+        command.arg("0.3");
+        let outcome: ChildOutcome = other.run_child(&mut command).expect("the second guard's child runs");
+        watching.store(false, std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(outcome, ChildOutcome::Exited(0));
+    });
+    assert!(!published_once.load(std::sync::atomic::Ordering::SeqCst), "the second guard's child was published to the handler");
+    drop(other);
+    drop(owner);
+}
+
+/// While a child runs the relay descriptor is its pidfd,
+/// and once it is retired the descriptor is `/dev/null` again,
+/// so a signal after
+///  the child's end reaches nothing and the number is never another process's.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_relay_descriptor_names_the_child_while_it_runs_and_nothing_after() {
+    let _statics: std::sync::MutexGuard<'_, ()> = RELAY_STATICS.lock().expect("relay statics lock");
+    ensure_relay_descriptor().expect("the relay descriptor is made");
+    let number: std::os::fd::RawFd = *RELAY_FD.get().expect("the relay descriptor exists");
+    let target = || { return std::fs::read_link(format!("/proc/self/fd/{number}")).expect("the descriptor is open").display().to_string(); };
+    let mut command: Command = Command::new("sleep");
+    command.arg("30");
+    let mut child: Child = command.spawn().expect("sleep starts");
+    let published: bool = publish(child.id());
+    assert!(published, "the child is published");
+    assert!(target().contains("pidfd"), "the descriptor names the child's pidfd while it runs: {}", target());
+    retire(published);
+    assert_eq!(target(), "/dev/null", "the descriptor names nothing once the child is retired");
+    child.kill().expect("the control ends its child");
+    child.wait().expect("the child is reaped");
+}
+
+/// A process that is a service leaves its stop signals to the service:
+/// no guard takes the handlers there,
+/// so a stop reaches the service's
+///  own handling (here the default,
+/// which ends the helper) and the child of the commit is not signalled.
+#[cfg(unix)]
+#[test]
+fn a_stop_of_a_service_is_not_relayed_to_the_child_of_a_commit() {
+    let root: PathBuf = fixture("signal-service-owned");
+    let helper: Child = spawn_helper("service", root.as_path());
+    let pid: u32 = helper.id();
+    wait_for(root.join("started").as_path());
+    let child_pid: libc::pid_t = std::fs::read_to_string(root.join("child-pid")).expect("the child's pid").trim().parse().expect("a pid");
+    send(pid, libc::SIGTERM);
+    let status: ExitStatus = finish(helper);
+    assert_eq!(std::os::unix::process::ExitStatusExt::signal(&status), Some(libc::SIGTERM), "the stop reached the service's own handling: {status:?}");
+    // SAFETY: signal 0 only asks whether the process exists.
+    let alive: bool = unsafe { libc::kill(child_pid, 0) } == 0;
+    // SAFETY: the control ends the child it started.
+    unsafe { libc::kill(child_pid, libc::SIGKILL) };
+    assert!(alive, "the stop was not relayed to the commit's child");
+    remove(root.as_path());
 }
 
 /// A process signal reaching the waiting wrapper ends the child with that signal,
@@ -469,40 +567,25 @@ fn dropping_the_guard_restores_the_previous_dispositions() {
     unsafe { libc::signal(libc::SIGHUP, libc::SIG_DFL) };
 }
 
-/// The wait returns when the child has exited and leaves the child unreaped,
-/// so its PID still names it.
+/// The wait ends when the child has exited,
+/// reports its status and leaves it reaped.
 #[cfg(target_os = "linux")]
 #[test]
-fn waiting_ends_at_the_childs_exit_and_leaves_it_unreaped() {
+fn waiting_ends_at_the_childs_exit_and_reports_it() {
     let mut command: Command = Command::new("sleep");
     command.arg("1");
-    let mut child: Child = command.spawn().expect("sleep starts");
-    let pid: libc::pid_t = libc::pid_t::try_from(child.id()).expect("pid fits");
+    // The clock starts before the child does, so a host that starts the waiting late cannot shorten what is measured.
     let started: Instant = Instant::now();
-    wait_without_reaping(pid).expect("the wait succeeds");
-    assert!(
-        started.elapsed() >= Duration::from_millis(800),
-        "the wait lasted until the child exited"
-    );
-    let state: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).expect("the child is still listed");
-    assert!(state.contains(") Z"), "the child is a zombie, not reaped: {state}");
-    assert!(child.wait().expect("the child is still waitable").success());
+    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false)).expect("the runtime runs the child").expect("the child runs");
+    assert!(started.elapsed() >= Duration::from_millis(800), "the wait lasted until the child exited");
+    assert_eq!(outcome, ChildOutcome::Exited(0));
 }
 
-/// A PID that is not this process's child has nothing to wait for,
-/// which is success,
-/// not an error.
-#[cfg(target_os = "linux")]
-#[test]
-fn waiting_for_a_process_that_is_not_a_child_ends_without_error() {
-    wait_without_reaping(libc::pid_t::MAX).expect("no such child means nothing to wait for");
-}
-
-/// A signal that interrupts the wait does not end it;
+/// A signal that interrupts the waiting thread does not end the wait;
 /// the wait goes on until the child exits.
 ///
 /// The test handler is installed without `SA_RESTART`,
-/// so the interrupted `waitid` reports `EINTR`.
+/// so a blocking system call of the waiting thread would report `EINTR`.
 #[cfg(target_os = "linux")]
 #[test]
 fn an_interrupted_wait_continues_until_the_child_exits() {
@@ -518,8 +601,6 @@ fn an_interrupted_wait_continues_until_the_child_exits() {
     command.arg("1");
     // The clock starts before the child does, so a host that starts the waiting late cannot shorten what is measured.
     let started: Instant = Instant::now();
-    let mut child: Child = command.spawn().expect("sleep starts");
-    let pid: libc::pid_t = libc::pid_t::try_from(child.id()).expect("pid fits");
     // SAFETY: `pthread_self` has no preconditions.
     let waiting_thread: libc::pthread_t = unsafe { libc::pthread_self() };
     let interrupter = std::thread::spawn(move || {
@@ -529,25 +610,8 @@ fn an_interrupted_wait_continues_until_the_child_exits() {
             unsafe { libc::pthread_kill(waiting_thread, libc::SIGUSR1) };
         }
     });
-    wait_without_reaping(pid).expect("interrupts do not end the wait");
-    assert!(
-        started.elapsed() >= Duration::from_millis(800),
-        "the wait lasted until the child exited"
-    );
+    let outcome: ChildOutcome = run_on_runtime(run_relayed(&mut command, false)).expect("the runtime runs the child").expect("interrupts do not end the wait");
+    assert!(started.elapsed() >= Duration::from_millis(800), "the wait lasted until the child exited");
     interrupter.join().expect("interrupter finishes");
-    assert!(child.wait().expect("the child is still waitable").success());
-}
-
-/// The refusal of a second guard carries its type,
-/// and nothing else is taken for it.
-#[cfg(unix)]
-#[test]
-fn only_the_refusal_of_a_second_guard_is_recognized_as_such() {
-    let first: SignalGuard = SignalGuard::install().expect("first guard");
-    let refusal: io::Error = SignalGuard::install().err().expect("a second guard is refused");
-    assert!(is_guard_active_refusal(&refusal));
-    assert_eq!(refusal.to_string(), "a signal guard is already active in this process");
-    drop(first);
-    assert!(!is_guard_active_refusal(&io::Error::other("a signal guard is already active in this process")));
-    assert!(!is_guard_active_refusal(&io::Error::from_raw_os_error(libc::EAGAIN)));
+    assert_eq!(outcome, ChildOutcome::Exited(0));
 }

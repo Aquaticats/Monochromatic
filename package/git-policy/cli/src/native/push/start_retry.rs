@@ -62,6 +62,62 @@ pub trait RefusableStart<T> {
     fn start(&mut self) -> Result<T>;
 }
 
+/// The pauses of one run of refusals:
+/// how often the start was refused,
+/// how long the run has paused,
+/// and the next pause.
+struct RefusalSchedule {
+    /// How many times the start was refused so far.
+    refusals: u32,
+    /// The sum of the pauses taken so far.
+    paused: Duration,
+    /// The pause that follows the next refusal.
+    delay: Duration,
+}
+
+impl RefusalSchedule {
+    /// A run that has seen no refusal.
+    const fn new() -> Self {
+        return Self { refusals: 0, paused: Duration::ZERO, delay: FIRST_PAUSE };
+    }
+
+    /// What:
+    ///  Counts one refusal and returns the pause that follows it,
+    /// or the final error when the budget cannot hold that pause.
+    /// Why:
+    ///   The sleeping loop and the awaiting loop share one schedule,
+    /// so the two cannot drift apart:
+    /// the budget counts the pauses,
+    ///  which dominate the time a refused start takes,
+    /// and the final error keeps its kind and says how often the start was refused.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// schedule.pauseAfter(what, budgetMs, error) // the pause to take, or throws the final error
+    /// ```
+    fn pause_after(&mut self, what: &str, budget: Duration, error: Error) -> Result<Duration> {
+        self.refusals += 1;
+        if self.paused + self.delay > budget {
+            return Err(Error::new(
+                ErrorKind::WouldBlock,
+                format!("{error}; the start was refused {} times over {} ms", self.refusals, self.paused.as_millis()),
+            ));
+        }
+        warn(
+            TAG,
+            format!(
+                "starting {what} was refused for lack of processes ({error}); trying again in {} ms",
+                self.delay.as_millis()
+            )
+            .as_str(),
+        );
+        let pause: Duration = self.delay;
+        self.paused += pause;
+        self.delay = (self.delay * 2).min(LONGEST_PAUSE);
+        return Ok(pause);
+    }
+}
+
 /// What:
 ///  Run `start` until it is not refused for lack of processes,
 /// pausing between tries.
@@ -69,10 +125,7 @@ pub trait RefusableStart<T> {
 ///   Only `WouldBlock` is retried;
 /// every other error is the caller's,
 /// at once.
-///  The budget counts the pauses,
-/// which dominate the time a refused start takes,
-///  so a test can drive it with a recording pause and no real waiting.
-///  The final error keeps its kind and says how often the start was refused.
+///  A test can drive it with a recording pause and no real waiting.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -85,33 +138,44 @@ pub fn retry_refused_start_with<T>(
     start: &mut dyn RefusableStart<T>,
 ) -> Result<T> {
     // `mut` lets the loop count its refusals and the time it has paused.
-    let mut refusals: u32 = 0;
-    let mut paused: Duration = Duration::ZERO;
-    let mut delay: Duration = FIRST_PAUSE;
+    let mut schedule: RefusalSchedule = RefusalSchedule::new();
     loop {
         let error: Error = match start.start() {
             Ok(started) => return Ok(started),
             Err(error) if error.kind() == ErrorKind::WouldBlock => error,
             Err(error) => return Err(error),
         };
-        refusals += 1;
-        if paused + delay > budget {
-            return Err(Error::new(
-                ErrorKind::WouldBlock,
-                format!("{error}; the start was refused {refusals} times over {} ms", paused.as_millis()),
-            ));
-        }
-        warn(
-            TAG,
-            format!(
-                "starting {what} was refused for lack of processes ({error}); trying again in {} ms",
-                delay.as_millis()
-            )
-            .as_str(),
-        );
-        pause(delay);
-        paused += delay;
-        delay = (delay * 2).min(LONGEST_PAUSE);
+        pause(schedule.pause_after(what, budget, error)?);
+    }
+}
+
+/// What:
+///  Run `start` until it is not refused for lack of processes,
+/// waiting between tries on the runtime's timer.
+/// Why:
+///   The caller is a task of the runtime,
+/// so the pause must not hold the worker it runs on:
+/// a worker that sleeps for the
+///  whole budget is a worker no other task can use.
+/// The schedule and the budget are those of `retry_refused_start_with`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await retryRefusedStartAwaiting({ what, budgetMs, start });
+/// ```
+pub async fn retry_refused_start_awaiting_within<T, Start: RefusableStart<T>>(
+    what: &str,
+    budget: Duration,
+    start: &mut Start,
+) -> Result<T> {
+    let mut schedule: RefusalSchedule = RefusalSchedule::new();
+    loop {
+        let error: Error = match start.start() {
+            Ok(started) => return Ok(started),
+            Err(error) if error.kind() == ErrorKind::WouldBlock => error,
+            Err(error) => return Err(error),
+        };
+        tokio::time::sleep(schedule.pause_after(what, budget, error)?).await;
     }
 }
 
@@ -156,6 +220,22 @@ impl RefusableStart<Child> for SpawnStart<'_> {
     fn start(&mut self) -> Result<Child> {
         return self.command.spawn();
     }
+}
+
+/// What:
+///  Start a command without waiting for it,
+/// pausing on the runtime's timer between refused tries within the standard budget.
+/// Why:
+///   The start of a child by a task of the runtime;
+/// synchronous callers use `RetryStart::spawn_retrying`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = await spawnRetryingWithoutBlocking(command);
+/// ```
+pub async fn spawn_retrying_without_blocking(command: &mut Command) -> Result<Child> {
+    let what: String = command.get_program().to_string_lossy().into_owned();
+    return retry_refused_start_awaiting_within(what.as_str(), START_RETRY_BUDGET, &mut SpawnStart { command }).await;
 }
 
 /// `Command::output` as a start the retry can run again.
