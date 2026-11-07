@@ -33,7 +33,11 @@ fn instance(view: &ShapedView) -> (u64, Vec<i16>) {
             if let PositionedLayoutItem::GlyphRun(run) = item {
                 return (
                     run.run().font().data.id(),
-                    run.run().normalized_coords().to_vec(),
+                    run.run()
+                        .normalized_coords()
+                        .iter()
+                        .map(|coord| return coord.to_bits())
+                        .collect(),
                 );
             }
         }
@@ -67,11 +71,11 @@ fn code_weights_and_italics_use_real_faces_without_synthesis() {
                         // Empty normalized coordinates are the upstream representation of default axes.
                         if weight == 400.0 {
                             for value in run.normalized_coords().iter() {
-                                assert_eq!(*value, 0);
+                                assert_eq!(value.to_bits(), 0);
                             }
                         } else {
                             assert_eq!(run.normalized_coords().len(), 1);
-                            assert_ne!(run.normalized_coords()[0], 0);
+                            assert_ne!(run.normalized_coords()[0].to_bits(), 0);
                         }
                         runs += 1;
                     }

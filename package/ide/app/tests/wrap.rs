@@ -94,7 +94,7 @@ fn rows_tile_the_text(row: &ShapedRow) -> bool {
 fn rows_fit_width(row: &ShapedRow, width: f32, scale: f32) -> bool {
     for line in row.layout.lines() {
         let metrics = line.metrics();
-        let visible = (metrics.advance - metrics.trailing_whitespace) / scale;
+        let visible = (metrics.advance - metrics.hanging_advance) / scale;
         if visible > width + 0.01 && line.text_range().len() > 1 {
             return false;
         }
