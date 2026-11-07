@@ -13,12 +13,15 @@ use std::fs;
 use std::path::Path;
 
 /// The file that the overflow events below name:
-///  an overflow says the queue lost events, so whatever path an event carries cannot be trusted to be the only change.
+///  an overflow says the queue lost events,
+/// so whatever path an event carries cannot be trusted to be the only change.
 const UNSEEN_FILE: &str = "unseen.txt";
 
-/// What notify's inotify backend reports for `IN_Q_OVERFLOW` (notify 8.2.1, `inotify.rs`):
+/// What notify's inotify backend reports for `IN_Q_OVERFLOW` (notify 8.2.1,
+/// `inotify.rs`):
 ///  an event of kind `Other` flagged `Rescan`.
-/// The path is added here so that only the overflow branch of the recorder, never its path-less fallback,
+/// The path is added here so that only the overflow branch of the recorder,
+/// never its path-less fallback,
 ///  can ask for the full reread.
 fn overflow_event(path: &Path, flagged: bool) -> notify::Event {
     let event = notify::Event::new(notify::EventKind::Other).add_path(path.to_path_buf());
@@ -28,9 +31,13 @@ fn overflow_event(path: &Path, flagged: bool) -> notify::Event {
     return event;
 }
 
-/// A queue-overflow event, delivered the way notify's handler delivers it, requests a full reread.
+/// A queue-overflow event,
+/// delivered the way notify's handler delivers it,
+/// requests a full reread.
 /// The kernel's own queue limit is a host-wide setting that a test cannot lower,
-///  so the event, not a burst of files sized from that setting, drives the recovery.
+///  so the event,
+/// not a burst of files sized from that setting,
+/// drives the recovery.
 #[test]
 fn a_queue_overflow_event_requests_a_full_reread() {
     let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");

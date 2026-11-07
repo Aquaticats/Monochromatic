@@ -63,6 +63,9 @@ use crate::launch::replace_process;
 /// Imports the record every policy reads and the function that asks the policies for a refusal.
 use crate::policy::{Invocation, refusal_for};
 
+/// Imports the arrival stop: the marker a shadow leaves for the program it starts, the line printed on arrival and the exit code.
+use crate::shadow_identity::{ARRIVAL_EXIT_CODE, arrival_at_this_process, arrival_line};
+
 /// Imports the function that lowers the disk priority.
 use crate::priority::lower_disk_priority;
 
@@ -144,6 +147,13 @@ fn stdin_has_data() -> bool {
 /// export function runShim(name: string, args: Buffer[]): number { ... }
 /// ```
 pub fn run_shim(name: &str, arguments: Vec<OsString>) -> i32 {
+    // The arrival stop comes before anything else: a shadow that a shadow started as its real tool does nothing and says so in one line
+    // (`shadow_identity.rs`), whatever the policies or the arguments would have said.
+    if let Some(arrival) = arrival_at_this_process() {
+        eprintln!("{}", arrival_line(name, &arrival));
+        return ARRIVAL_EXIT_CODE;
+    }
+
     // What:     `env::var("PATH").unwrap_or_default()` reads the PATH variable. `env::var` returns a `Result`;
     // `.unwrap_or_default()` takes the success value or, on error, the empty text (the default for `String`).
     // Why:      A missing PATH simply means nothing will be found.

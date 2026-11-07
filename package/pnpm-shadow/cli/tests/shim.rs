@@ -286,6 +286,13 @@ fn put_a_launcher_in_front(world: &World) {
     let launcher: PathBuf = launcher_directory.join("pnpm-shadow-launcher");
     std::fs::write(&launcher, format!("#!/bin/bash\nexec -a pnpm \"{SHADOW_BINARY}\" \"$@\"\n")).expect("write the launcher");
     std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(0o755)).expect("make it executable");
+    // The toolchain writes a record beside every launcher it makes; the shadow reads it to see that the launcher leads back to a shadow and
+    // skips it without starting it. A launcher with no record is covered by `never_start_another_shadow.rs`.
+    std::fs::write(
+        launcher_directory.join("pnpm-shadow-launcher.launch"),
+        format!("{{\"toolId\":\"cargo:monochromatic-pnpm-shadow\",\"lockFile\":\"/dev/null\",\"real\":\"{SHADOW_BINARY}\",\"scope\":\"repo\"}}"),
+    )
+    .expect("write the launcher record");
     let link: PathBuf = world.shadow_directory.join("pnpm");
     std::fs::remove_file(&link).expect("remove the direct link");
     symlink(&launcher, &link).expect("link pnpm to the launcher");

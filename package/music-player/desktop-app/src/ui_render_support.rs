@@ -23,6 +23,20 @@
 //! so a test builds one `Rendered`.
 
 /// What:
+/// `use std::cell::Cell;` imports the single-value mutable cell from the standard library (`std`).
+/// Siblings:
+/// `RefCell<T>` checks borrows while the program runs,
+/// and `Mutex<T>` is the thread-safe version.
+/// Why:
+/// the test clock is one `Duration` that a draw pass and `wait` change through a shared reference,
+/// and a `Cell` of a `Copy` value does that without borrow checks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // A plain `let clock = 0;` variable that any function may assign; there is nothing to import.
+/// ```
+use std::cell::Cell;
+/// What:
 /// `use std::rc::Rc;` imports the single-thread reference-counted pointer from the standard library (`std`).
 /// Siblings:
 /// `Arc<T>` is the thread-safe version,
@@ -39,6 +53,19 @@
 /// // Every object is shared by reference and garbage collected; there is nothing to import.
 /// ```
 use std::rc::Rc;
+/// What:
+/// `use std::time::Duration;` imports the type for a span of time from the standard library.
+/// Siblings:
+/// `Instant` is a point in time and `SystemTime` is a point on the wall clock.
+/// Why:
+/// Slint's platform clock answers with a `Duration` since the program started,
+/// and the test clock is one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // Spans of time are plain numbers of milliseconds; there is nothing to import.
+/// ```
+use std::time::Duration;
 
 /// What:
 /// `use i_slint_backend_testing::ElementHandle;` imports the type that points at one element of the window's tree,
@@ -157,6 +184,37 @@ use crate::ui_screen_view::ScreenState;
 use crate::ui_test_support::{RecordingHost, load_library, settle};
 
 /// What:
+/// `PASS_STEP` is how far the test clock moves before each draw pass:
+/// 150 ms.
+/// Why:
+/// an animation that starts during one pass must have ended by the next,
+/// whatever the speed of the build.
+/// 150 ms is the longest animation time in `ui/*.slint` (the Settings pane cross-fade and the deck move);
+/// the test `the_pass_step_covers_the_longest_animation_time_of_the_markup` fails when a longer one is written.
+pub(crate) const PASS_STEP: Duration = Duration::from_millis(150);
+
+/// What:
+/// `FRAME_STEP_MS` is the length of one frame that `Rendered::wait` moves the clock by:
+/// 16 ms.
+/// Why:
+/// a timer fires once per update however far the clock jumped,
+/// so a long wait is cut into frames like a window's
+/// (the same step as `advance` in `ui_test_support.rs`).
+const FRAME_STEP_MS: u64 = 16;
+
+thread_local! {
+    /// What:
+    /// `CLOCK` is how long the test thread's Slint clock says the program has run.
+    /// Why:
+    /// Slint animations read the platform's clock,
+    /// and the default clock is the wall clock,
+    /// so how far an animation had gone when a frame was drawn depended on how fast the build runs.
+    /// The test clock moves only when a test moves it:
+    /// `draw_frame` moves it by `PASS_STEP` before each pass.
+    static CLOCK: Cell<Duration> = const { Cell::new(Duration::ZERO) };
+}
+
+/// What:
 /// `struct SoftwarePlatform { window }` is a record with one field.
 /// There is no `pub`,
 /// so it is private to this file.
@@ -229,6 +287,12 @@ impl Platform for SoftwarePlatform {
         // return this.window;
         // ```
         return Ok(self.window.clone());
+    }
+
+    /// What:
+    /// `duration_since_start` gives the test clock.
+    fn duration_since_start(&self) -> Duration {
+        return CLOCK.get();
     }
 }
 
@@ -325,6 +389,15 @@ pub(crate) fn draw_frame(window: &MinimalSoftwareWindow, width: usize, height: u
     // for (let i = 0; i < 3; i++) {
     // ```
     for _ in 0..3 {
+        // What:     `CLOCK.set(CLOCK.get() + PASS_STEP);` moves the test clock forward by one step.
+        // Why:      Slint animations read the platform clock, and this clock moves only here, so an animation that started during
+        //           the previous pass has ended, and the picture is the same on a build of any speed.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // clock += PASS_STEP;
+        // ```
+        CLOCK.set(CLOCK.get() + PASS_STEP);
         // What:     `slint::platform::update_timers_and_animations();` runs the timers and animations that are due.
         // Why:      Slint advances them only when asked, and a draw must see their latest state.
         //
@@ -851,42 +924,68 @@ impl Rendered {
     }
 
     /// What:
-    /// `pub(crate) fn wait(&self, milliseconds: u64)` lets real time pass so a 100 ms or 120 ms fade has finished,
-    /// then runs the
-    /// timers.
+    /// `pub(crate) fn wait(&self, milliseconds: u64)` moves the test clock forward by that many milliseconds,
+    /// in frames of `FRAME_STEP_MS`,
+    /// and runs the timers and animations after each frame.
     /// `u64` is an unsigned 64-bit integer (siblings:
     /// `u32` is smaller,
     /// `i64` can be negative).
     /// Why:
-    /// the software platform uses the real clock,
-    /// and a state layer or the menu fade is mid-way until it has run.
-    /// `Duration::from_millis`
-    /// takes a `u64`,
-    /// which is why the parameter is one.
+    /// a state layer or the menu fade is mid-way until its time has passed.
+    /// The platform clock is the test clock,
+    /// so the time must be moved there;
+    /// sleeping would let the wall clock run while the animation clock stood still,
+    /// and the result of the next draw would depend on how fast the build runs.
+    /// A timer fires once per update however far the clock jumped,
+    /// so the clock moves in frames.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// wait(milliseconds: number): void { sleep(milliseconds); updateTimersAndAnimations(); }
+    /// wait(milliseconds: number): void { for (let left = milliseconds; left > 0; left -= FRAME_STEP_MS) { clock += min(left, FRAME_STEP_MS); updateTimersAndAnimations(); } }
     /// ```
     pub(crate) fn wait(&self, milliseconds: u64) {
-        // What:     `std::thread::sleep(std::time::Duration::from_millis(milliseconds));` blocks the thread for a span of time.
-        //           `Duration::from_millis(n)` builds a span of `n` milliseconds (siblings: `Instant` is a point in time, not a span).
-        // Why:      Animations run on the real clock, so the test must really wait.
-        // Gotcha:   Unlike `await sleep(...)` in TypeScript, this blocks the whole thread; nothing else runs meanwhile.
+        // What:     `let mut remaining = milliseconds;` counts the time still to pass; `mut` lets the loop lower it.
+        // Why:      The loop moves the clock one frame at a time.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // await sleep(milliseconds);
+        // let remaining = milliseconds;
         // ```
-        std::thread::sleep(std::time::Duration::from_millis(milliseconds));
-        // What:     `slint::platform::update_timers_and_animations();` runs the timers and animations that are now due.
-        // Why:      The elapsed time must be applied before the next draw.
+        let mut remaining = milliseconds;
+        // What:     `while remaining > 0 { ... }` repeats until no time is left to pass.
+        // Why:      Each round is one frame of the window.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // slint.updateTimersAndAnimations();
+        // while (remaining > 0) {
         // ```
-        slint::platform::update_timers_and_animations();
+        while remaining > 0 {
+            // What:     `let step = remaining.min(FRAME_STEP_MS);` takes a whole frame, or what is left when that is less.
+            // Why:      The last frame must not move the clock past the asked time.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const step = Math.min(remaining, FRAME_STEP_MS);
+            // ```
+            let step = remaining.min(FRAME_STEP_MS);
+            // What:     `CLOCK.set(CLOCK.get() + Duration::from_millis(step));` moves the test clock by the frame.
+            // Why:      Animations and timers read this clock, not the wall clock.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // clock += step;
+            // ```
+            CLOCK.set(CLOCK.get() + Duration::from_millis(step));
+            // What:     `slint::platform::update_timers_and_animations();` runs the timers and animations that are now due.
+            // Why:      The elapsed time must be applied before the next draw.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // slint.updateTimersAndAnimations();
+            // ```
+            slint::platform::update_timers_and_animations();
+            remaining -= step;
+        }
     }
 
     /// What:

@@ -377,6 +377,19 @@ The new linter is `monochromatic-lint .` with the worktree configuration.
    and `monochromatic-lint --rules` lists no options for
   `markdown/semantic-line-breaks`,
    so no configuration key expresses the exception and they stay open.
+  Update,
+  2026-11-07:
+  `--fix` no longer rewrites them.
+  A finding in a rustdoc block inside a fenced listing keeps its report and loses its edit
+  (`VirtualSource::is_inside_fence` in `package/linter/monochromatic-lint/src/processors.rs`,
+  used by `run_check.rs`),
+  so the findings stay open for a hand fix or an exemption the owner chooses,
+  and the fixer adds no comment marker to quoted source.
+  The same change stops `--fix` from rewriting pipe tables,
+  from wrapping a URL whose link text holds a backtick,
+  and from adding `>` to a broken blockquote line;
+  the open split of whitespace fixes from content fixes is in
+  `doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md`.
 - Every other per-file,
    per-rule Markdown count is identical between the two linters.
 

@@ -51,7 +51,9 @@ use super::scope::{EnvMap, Scope, resolve_scope};
 /// Imports `run_status` from `super::status_cmd`.
 use super::status_cmd::run_status;
 /// Imports what this module uses from `super::sync`.
-use super::sync::{FrozenReason, LockPolicy, format_sync_report, locked_line, rewritten_line, run_lockfile_only, run_sync_with};
+use super::sync::{FrozenReason, LockPolicy, run_lockfile_only, run_sync_with};
+/// Imports the lines `install` prints for a sync.
+use super::sync_report_text::{format_sync_report, locked_line, rewritten_line};
 /// Imports `is_ci` from `super::ci_detect`.
 use super::ci_detect::is_ci;
 /// Imports what this module uses from `super::verify_archive`.

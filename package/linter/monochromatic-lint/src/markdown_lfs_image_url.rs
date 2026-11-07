@@ -29,7 +29,7 @@ use crate::{
         ObjectUrlParts, apply_segments, object_url_parts, relative_link, relative_target_path,
     },
     markdown_source::MarkdownSource,
-    markdown_table_text::trim_space,
+    markdown_trim_space::trim_space,
 };
 /// Import typed payload decoders;
 ///  identifiers are already normalized by the parser.

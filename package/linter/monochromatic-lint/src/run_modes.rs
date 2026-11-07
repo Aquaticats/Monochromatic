@@ -235,7 +235,7 @@ pub const RULES: &[RuleInfo] = &[
     },
     RuleInfo {
         id: "markdown/no-pipe-tables",
-        fixable: true,
+        fixable: false,
         options: &[],
         suppressible: true,
     },

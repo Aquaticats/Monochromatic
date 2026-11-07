@@ -66,6 +66,12 @@ pub mod report;
 /// The workspace root lookup and the manifest walk.
 pub mod scan;
 
+/// The rule that a shadow never starts a shadow:
+/// the identity every shadow carries,
+/// the check of a candidate,
+/// and the arrival marker.
+pub mod shadow_identity;
+
 /// The line and the section the shadow adds after pnpm's `--version` and `--help`,
 /// the only places it names itself.
 pub mod shadow_notice;
@@ -85,6 +91,11 @@ pub mod verb;
 /// placed beside the build output.
 #[cfg(test)]
 mod test_scratch;
+
+/// The unit tests of the identity,
+/// the launcher-record follow and the arrival marker.
+#[cfg(test)]
+mod shadow_identity_tests;
 
 /// The unit tests of the loop guard.
 #[cfg(test)]
