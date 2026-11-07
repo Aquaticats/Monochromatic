@@ -5,7 +5,8 @@ use super::*;
 /// More entries than any bitmap below names.
 const ENTRIES: usize = 1000;
 
-/// Version 2 round trips; version 1 reads its timestamp as the decimal token Git builds.
+/// Version 2 round trips;
+/// version 1 reads its timestamp as the decimal token Git builds.
 #[test]
 fn both_versions_read_and_version_two_is_written() {
     let bytes: Vec<u8> = write_fsmonitor(b"builtin:abc:1", &[0, 5, 70]);
@@ -20,7 +21,9 @@ fn both_versions_read_and_version_two_is_written() {
     assert_eq!(read_fsmonitor(old.as_slice(), ENTRIES), Some(Fsmonitor { token: b"1700000000000000000".to_vec(), dirty: vec![2] }));
 }
 
-/// A bad version, a bitmap size that is not the bytes' size, and trailing bytes are not read.
+/// A bad version,
+/// a bitmap size that is not the bytes' size,
+/// and trailing bytes are not read.
 #[test]
 fn irregular_forms_are_not_read() {
     let good: Vec<u8> = write_fsmonitor(b"t", &[1]);
@@ -33,7 +36,9 @@ fn irregular_forms_are_not_read() {
     assert_eq!(read_fsmonitor(&good[..good.len() - 1], ENTRIES), None);
 }
 
-/// A bitmap that names more entries than the index has is not read, and the review's tiny bitmap does not expand: both are
+/// A bitmap that names more entries than the index has is not read,
+/// and the review's tiny bitmap does not expand:
+/// both are
 /// refused before the positions are listed.
 #[test]
 fn a_bitmap_longer_than_the_index_is_refused() {

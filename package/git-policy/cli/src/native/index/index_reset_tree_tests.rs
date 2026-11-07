@@ -1,4 +1,5 @@
-//! Controls for the tree questions of the path reset, against real Git's listings.
+//! Controls for the tree questions of the path reset,
+//! against real Git's listings.
 
 use super::*;
 use crate::repo_read_layout::ObjectFormat;
@@ -6,7 +7,10 @@ use crate::repo_read_object::{from_hex, to_hex};
 use crate::test_support::{fixture, git, git_text, remove, repository};
 use std::path::PathBuf;
 
-/// A repository with two commits: the second changes `a`, adds `d/n/m`, removes `d/y` and turns `l` into a file.
+/// A repository with two commits:
+/// the second changes `a`,
+/// adds `d/n/m`,
+/// removes `d/y` and turns `l` into a file.
 fn history(name: &str) -> (PathBuf, PathBuf, String, String) {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
@@ -30,7 +34,9 @@ fn history(name: &str) -> (PathBuf, PathBuf, String, String) {
     return (root, repo, first, second);
 }
 
-/// The entries at named paths equal `git ls-tree -r` for those paths, whether a name is a file, a directory or absent.
+/// The entries at named paths equal `git ls-tree -r` for those paths,
+/// whether a name is a file,
+/// a directory or absent.
 #[test]
 fn entries_at_names_equal_ls_tree() {
     let (root, repo, _first, second) = history("index-reset-tree-entries");
@@ -45,7 +51,9 @@ fn entries_at_names_equal_ls_tree() {
     remove(root.as_path());
 }
 
-/// The changed paths equal `git diff-tree -r --name-only`, including a directory that became a file, and an absent old tree
+/// The changed paths equal `git diff-tree -r --name-only`,
+/// including a directory that became a file,
+/// and an absent old tree
 /// lists everything.
 #[test]
 fn changed_paths_equal_diff_tree() {
@@ -63,7 +71,8 @@ fn changed_paths_equal_diff_tree() {
     remove(root.as_path());
 }
 
-/// A commit name and a tree name both give the root tree; a blob does not.
+/// A commit name and a tree name both give the root tree;
+/// a blob does not.
 #[test]
 fn a_commit_or_a_tree_names_a_root_tree() {
     let (root, repo, _first, second) = history("index-reset-tree-root");

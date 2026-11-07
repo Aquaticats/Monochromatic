@@ -1,10 +1,22 @@
 //! What:
-//!  Writes a `FullIndex` as Git's `do_write_index` does for the plain case: the version Git picks, the entries, the kept
-//!  extensions in Git's order, and the trailing checksum (`read-cache.c`: `do_write_index`, `ce_write_entry`).
+//!  Writes a `FullIndex` as Git's `do_write_index` does for the plain case:
+//! the version Git picks,
+//! the entries,
+//! the kept
+//!  extensions in Git's order,
+//! and the trailing checksum (`read-cache.c`:
+//! `do_write_index`,
+//! `ce_write_entry`).
 //! Why:
-//!  The in-process index update must produce the bytes Git's own write produces. A version 3 file with no extended flag is
-//!  written as version 2; a version 4 file prefix-compresses names; the cache-tree, resolve-undo, untracked-cache and
-//!  fsmonitor extensions follow in that order; the offset-table extensions are not written because the configuration that
+//!  The in-process index update must produce the bytes Git's own write produces.
+//! A version 3 file with no extended flag is
+//!  written as version 2;
+//! a version 4 file prefix-compresses names;
+//! the cache-tree,
+//! resolve-undo,
+//! untracked-cache and
+//!  fsmonitor extensions follow in that order;
+//! the offset-table extensions are not written because the configuration that
 //!  asks for them is declined before this runs.
 //!
 //! In TS you'd write (pseudocode):
@@ -18,7 +30,8 @@ use crate::index_full::{EXTENDED, FullEntry, FullIndex, INTENT_TO_ADD, SKIP_WORK
 use crate::index_stat::encode_varint;
 use crate::index_untracked_io::write_untracked;
 
-/// The largest name length the flags hold; a longer name stores this value.
+/// The largest name length the flags hold;
+/// a longer name stores this value.
 const NAME_MASK: usize = 0x0fff;
 
 /// Whether the entry has an extended flag Git keeps.
@@ -26,7 +39,8 @@ fn has_extended(entry: &FullEntry) -> bool {
     return entry.extended & (INTENT_TO_ADD | SKIP_WORKTREE) != 0;
 }
 
-/// Append one entry (`ce_write_entry`); `previous` is the path before it when the file is version 4.
+/// Append one entry (`ce_write_entry`);
+/// `previous` is the path before it when the file is version 4.
 fn write_entry(out: &mut Vec<u8>, entry: &FullEntry, earlier: Option<&mut Vec<u8>>) {
     let extended: bool = has_extended(entry);
     for value in [entry.stat.ctime_sec, entry.stat.ctime_nsec, entry.stat.mtime_sec, entry.stat.mtime_nsec, entry.stat.dev, entry.stat.ino, entry.mode, entry.stat.uid, entry.stat.gid, entry.stat.size] {
@@ -54,14 +68,18 @@ fn write_entry(out: &mut Vec<u8>, entry: &FullEntry, earlier: Option<&mut Vec<u8
     previous.extend_from_slice(entry.path.as_slice());
 }
 
-/// Append one extension: its signature, size and content.
+/// Append one extension:
+/// its signature,
+/// size and content.
 fn write_extension(out: &mut Vec<u8>, signature: &[u8; 4], content: &[u8]) {
     out.extend_from_slice(signature);
     out.extend_from_slice(&(content.len() as u32).to_be_bytes());
     out.extend_from_slice(content);
 }
 
-/// The file's bytes, with the checksum `hash` makes of everything before it; `None` for more entries than the format counts.
+/// The file's bytes,
+/// with the checksum `hash` makes of everything before it;
+/// `None` for more entries than the format counts.
 pub fn write_full_index(index: &FullIndex, hash: &dyn Fn(&[u8]) -> Vec<u8>) -> Option<Vec<u8>> {
     let extended: bool = index.entries.iter().any(has_extended);
     // Git demotes a version 3 file to version 2 when no entry needs the extended flags, and promotes a version 2 file with one.
