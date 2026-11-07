@@ -77,6 +77,13 @@ async function finalMap(config: GuidedConfig,): Promise<readonly (readonly [
  @param config - the configuration
  
  @returns the line to show
+
+ @example
+ ```ts
+ import { selectVerify, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await selectVerify(config,);
+ ```
  */
 export async function selectVerify(config: GuidedConfig,): Promise<string> {
   /**

@@ -29,6 +29,13 @@ export type DeadlineClock = {
  @param now - milliseconds clock, injectable for tests
  
  @returns the clock
+
+ @example
+ ```ts
+ import { startDeadlineClock, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = startDeadlineClock({ totalSeconds, now, },);
+ ```
  */
 export function startDeadlineClock(
   {
@@ -68,6 +75,13 @@ export function startDeadlineClock(
  @param clock - the run's clock
  
  @returns whole seconds, at least one
+
+ @example
+ ```ts
+ import { boundedSeconds, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = boundedSeconds({ stepSeconds, clock, },);
+ ```
  */
 export function boundedSeconds(
   {

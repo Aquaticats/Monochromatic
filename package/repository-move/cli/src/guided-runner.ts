@@ -97,6 +97,13 @@ function valuesOf(
  @returns the flags
  
  @throws GuidedStopError with the precondition status when the command is unknown
+
+ @example
+ ```ts
+ import { parseGuidedFlags, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = parseGuidedFlags(argv,);
+ ```
  */
 export function parseGuidedFlags(argv: readonly string[],): GuidedFlags {
   /**
@@ -349,6 +356,13 @@ async function reportStop(
  @param out - the output
  
  @returns the exit status
+
+ @example
+ ```ts
+ import { runGuided, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await runGuided({ config, flags, out, },);
+ ```
  */
 export async function runGuided(
   {

@@ -168,6 +168,13 @@ function requirePlainPath(
  @returns the configuration
  
  @throws Error when a path holds a character the shown commands would not quote
+
+ @example
+ ```ts
+ import { createGuidedConfig, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await createGuidedConfig({ env, nodePath, },);
+ ```
  */
 export async function createGuidedConfig(
   {

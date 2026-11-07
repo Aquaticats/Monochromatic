@@ -28,6 +28,13 @@ import {
  @param sendOptions - the `-p` and `-c` arguments of the send
  
  @throws MoveStopError when a received folder has no record, or the copy is not complete and read-only
+
+ @example
+ ```ts
+ import { receiveStep, } from './copy-transfer-steps.ts';
+ 
+ await receiveStep({ context, snapshot, received, sendOptions, },);
+ ```
  */
 export async function receiveStep(
   {
@@ -139,6 +146,13 @@ export async function receiveStep(
  @param received - the received copy
  
  @throws MoveStopError when the receive has no record, or the placed subvolume is not writable
+
+ @example
+ ```ts
+ import { placeStep, } from './copy-transfer-steps.ts';
+ 
+ await placeStep({ context, received, },);
+ ```
  */
 export async function placeStep(
   {

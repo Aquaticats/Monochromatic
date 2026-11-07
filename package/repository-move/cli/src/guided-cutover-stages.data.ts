@@ -27,6 +27,13 @@ import { externalNames, } from './guided-holders.ts';
  @param stamp - the timestamp that names the aside folders of the swap
  
  @returns the stages in order
+
+ @example
+ ```ts
+ import { cutoverStages, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await cutoverStages({ c, stamp, },);
+ ```
  */
 export async function cutoverStages(
   {

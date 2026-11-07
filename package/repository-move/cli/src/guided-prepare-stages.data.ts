@@ -26,6 +26,13 @@ import { SUBVOLUME_REMOVAL_OPTION, } from './guided-unit-edit.ts';
  @param inventory - the inventory file
  
  @returns the arguments shared by every pass
+
+ @example
+ ```ts
+ import { realArguments, } from './guided-prepare-stages.data.ts';
+ 
+ const result = realArguments({ c, inventory, },);
+ ```
  */
 export function realArguments(
   {
@@ -47,6 +54,13 @@ export function realArguments(
  @param fixtureFolder - the fixture folder, or a placeholder when it does not exist yet
  
  @returns the stages in order
+
+ @example
+ ```ts
+ import { prepareStages, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await prepareStages({ c, fixtureFolder, },);
+ ```
  */
 export async function prepareStages(
   {

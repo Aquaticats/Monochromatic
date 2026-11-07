@@ -105,6 +105,13 @@ async function git(
  @param name - worktree name under `main/wt`
  
  @param uuid - the subvolume UUID the marker records
+
+ @example
+ ```ts
+ import { addWorktree, } from './move-fixture.ts';
+ 
+ await addWorktree({ fixture, name, uuid, },);
+ ```
  */
 export async function addWorktree(
   {
@@ -149,6 +156,13 @@ export async function addWorktree(
  @param fixture - the fixture
  
  @param name - worktree name under `main/wt`
+
+ @example
+ ```ts
+ import { removeWorktree, } from './move-fixture.ts';
+ 
+ await removeWorktree({ fixture, name, },);
+ ```
  */
 export async function removeWorktree(
   {
@@ -180,6 +194,13 @@ export async function removeWorktree(
  @param fixture - the fixture
  
  @param rows - names under `main/wt` with their UUIDs; the main checkout is always `u-main`
+
+ @example
+ ```ts
+ import { writeInventory, } from './move-fixture.ts';
+ 
+ await writeInventory({ fixture, rows, },);
+ ```
  */
 export async function writeInventory(
   {
@@ -218,6 +239,13 @@ export async function writeInventory(
  @param names - worktree names
  
  @returns the fixture; declare it with `await using` so its folder is removed at the end of the scope
+
+ @example
+ ```ts
+ import { makeFixture, } from './move-fixture.ts';
+ 
+ const result = await makeFixture({ names, },);
+ ```
  */
 export async function makeFixture(
   { names, }: {

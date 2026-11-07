@@ -90,6 +90,13 @@ function quote(word: string,): string {
  @param clock - the total-deadline clock
  
  @returns the runner
+
+ @example
+ ```ts
+ import { createRunner, } from './command-runner.ts';
+ 
+ const result = createRunner({ options, clock, },);
+ ```
  */
 export function createRunner(
   {
