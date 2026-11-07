@@ -123,3 +123,16 @@ fn the_exclusive_publish_is_the_tempfile_crates_and_the_module_links_nothing() {
         assert!(!code.contains(needle), "private_storage.rs still holds `{needle}`: the publish belongs to the tempfile crate");
     }
 }
+
+/// A staging file that cannot be made reports the system's own error, with its code and without the staging path the
+///  `tempfile` crate adds, so the callers' texts say exactly what they said when the standard library made the file.
+#[cfg(unix)]
+#[test]
+fn a_staging_file_that_cannot_be_made_reports_the_plain_system_error() {
+    let root: PathBuf = fixture("publish-no-directory");
+    let path: PathBuf = root.join("absent-directory").join("record");
+    let error: std::io::Error = write_private_file(path.as_path(), b"x").expect_err("the directory is missing");
+    assert_eq!(error.raw_os_error(), Some(libc::ENOENT));
+    assert_eq!(error.to_string(), "No such file or directory (os error 2)");
+    remove(root.as_path());
+}

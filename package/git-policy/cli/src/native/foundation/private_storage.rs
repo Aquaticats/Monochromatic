@@ -150,8 +150,9 @@ pub fn protect_path(path: &Path, mode: u32) -> std::io::Result<()> {
 /// What:
 ///  A new staging file beside `path`: hidden, unique, private (mode `0600`), named `.<name>.<random>.partial`.
 /// Why:
-///   Recovery finds records by their exact names, so a staging file never looks like one; the `tempfile` crate makes the
-///  file with `O_EXCL`, so a second writer never shares it, and removes it when the value is dropped before it was published.
+///   Recovery finds records by their exact names, so a staging file never looks like one; the file is made with
+///  `O_EXCL` and `O_NOFOLLOW`, so a second writer never shares it and a planted link is never written through, and the
+///  `tempfile` crate removes it when the value is dropped before it was published.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -172,7 +173,12 @@ fn staging_beside(path: &Path) -> std::io::Result<tempfile::NamedTempFile> {
         Some(parent) if !parent.as_os_str().is_empty() => parent,
         _ => Path::new("."),
     };
-    return tempfile::Builder::new().prefix(prefix.as_os_str()).suffix(".partial").tempfile_in(directory);
+    // The file is made by `exclusive_options` (exclusive, no-follow, mode 0600) and handed to the crate, which names it and removes
+    //  it when dropped; the crate's own file-making call wraps the system error with the staging path, which hides the error code.
+    return tempfile::Builder::new()
+        .prefix(prefix.as_os_str())
+        .suffix(".partial")
+        .make_in(directory, |staged| { return exclusive_options().open(staged); });
 }
 
 /// What:
