@@ -223,8 +223,10 @@ Each entry holds
 - `lockDirs`,
   the directories whose lockfile records the changed version of a workspace member,
   each refreshed with `cargo update --workspace` and committed with its `Cargo.lock`
-  (a directory that only reaches the crate through another crate, such as `package/file-enforcer/cli` for
-  `monochromatic-jsonc-edit`, belongs here and not in `pinFiles`).
+  (a directory that only reaches the crate through another crate,
+  such as `package/file-enforcer/cli` for
+  `monochromatic-jsonc-edit`,
+  belongs here and not in `pinFiles`).
 
 Only `crateDir` and `scope` are required.
 Unknown fields are refused.
@@ -254,7 +256,9 @@ and its `crates.io` line is the result.
 The release job installs the Wayland build libraries only when the crate is `monochromatic-nested-wayland-session`,
 which links them.
 A pin and a lock directory are found by scanning every tracked `Cargo.toml` and `Cargo.lock` for the crate
-(a dependency line, a `[dependencies.<crate>]` table, a lockfile package without a `source`);
+(a dependency line,
+a `[dependencies.<crate>]` table,
+a lockfile package without a `source`);
 the unit test `release-workflow.unit.test.ts` checks the pin files against the repository,
 but only a scan finds a lock directory that is missing.
 To make another crate releasable,
@@ -338,18 +342,22 @@ Each step is printed as `== <step>` and a `$ ...` line that can be pasted into a
   including a longer one that starts with `<from>` such as `0.4.21` for `0.4.2`,
   is refused with the manifest and both
   values named.
-- A pin is the `version = "=<version>"` of a dependency on the crate, written either as the inline table
+- A pin is the `version = "=<version>"` of a dependency on the crate,
+  written either as the inline table
   `<crate> = { ..., version = "=<version>" }` or as a table of its own,
   `[dependencies.<crate>]` (also `[dev-dependencies.<crate>]` and `[build-dependencies.<crate>]`) with the
   `version` key on a line of its own before the next table header
-  (the fuzz crates of `jsonc-edit`, `xml-edit` and `forbidden-strings/core` use the second form).
+  (the fuzz crates of `jsonc-edit`,
+  `xml-edit` and `forbidden-strings/core` use the second form).
   Every dependency of either form in a manifest is edited together,
   and a refusal in one leaves the other unedited.
   A loose requirement such as `"0.4.2"` is refused,
   a crate whose name only starts with this crate's name is not
   matched,
-  and so are an array of tables, a `[workspace.dependencies.<crate>]` table and a nested table of the crate.
-  Measured 2026-11-07T05:17:51-05:00: this edit applied to every registered crate at once (each one patch version up)
+  and so are an array of tables,
+  a `[workspace.dependencies.<crate>]` table and a nested table of the crate.
+  Measured 2026-11-07T05:17:51-05:00:
+  this edit applied to every registered crate at once (each one patch version up)
   left `file-enforcer check` with no drift beyond the local `.config/mise/conf.d/10-bin.local.toml`,
   so a release leaves nothing for `file-enforcer write` to correct.
 - Notes are one line without control characters,
@@ -433,15 +441,20 @@ the command therefore
 3.  runs `git merge-base --is-ancestor refs/heads/<branch> refs/remotes/origin/<branch>`:
     status zero means origin holds the local branch.
 
-It refuses, exits with status 1 and never calls `gh` when
+It refuses,
+exits with status 1 and never calls `gh` when
 
 - origin lacks commits.
   The message gives how many local commits origin lacks,
   the short hash and subject of the newest,
   and the two ways out:
-  wait for auto-push, or run `git push origin <branch>`;
+  wait for auto-push,
+  or run `git push origin <branch>`;
   then run the same release command again.
-- a step gave no answer (offline, no credentials, no `origin`, no local branch of that name).
+- a step gave no answer (offline,
+  no credentials,
+  no `origin`,
+  no local branch of that name).
   The message names the `git` call that failed and shows Git's own message,
   because publishing unchecked is irreversible.
   Fix the cause and run the same release command again.
@@ -482,14 +495,18 @@ The command
     and finds the publish run:
     the earliest manually started run of `cargo-publish.yml` created at or after it
     and built from a commit whose `Cargo.toml` of the crate holds `<version>`,
-    read with `gh api` at each candidate commit, oldest first.
+    read with `gh api` at each candidate commit,
+    oldest first.
     A publish run that someone else dispatched in the same window on a commit before the bump
-    holds the previous version, so it is never taken for this release's run.
-    Before the bump lands no commit holds `<version>`, and the release dispatches the publish on `main` after it,
+    holds the previous version,
+    so it is never taken for this release's run.
+    Before the bump lands no commit holds `<version>`,
+    and the release dispatches the publish on `main` after it,
     so the commit is the bump or a later one.
     The run listing does not say which crate a run publishes,
     so a dispatch for another crate made on `main` after the bump and before the release's own dispatch cannot be told apart.
-    When no run matches, the last result lists every run seen and why it was passed over;
+    When no run matches,
+    the last result lists every run seen and why it was passed over;
 3.  watches the publish run,
     then checks crates.io (unless the version never goes there) and the GitHub release for the expected assets,
     as the wait command does.
@@ -676,9 +693,12 @@ the hash is never placed in a `gh --jq` program.
   `crates-io-dependency-check.ts` refuses a crates.io release whose dependencies do not,
   and `crates-io-label-gate-workflow.unit.test.ts` checks the decision action,
   that each of the sixteen crates of `cargo-publish.yml` decides and gates its crates.io steps,
-  and runs the real `detect` script of every crate for alpha, beta, rc and plain versions
+  and runs the real `detect` script of every crate for alpha,
+  beta,
+  rc and plain versions
   (`workflow-text.ts` holds the readers of workflow files that the workflow tests share).
-- `origin-containment.ts` builds the `git` calls of the origin check, parses origin's default branch and writes the refusals.
+- `origin-containment.ts` builds the `git` calls of the origin check,
+  parses origin's default branch and writes the refusals.
 - `release-run.ts`,
   `dispatch-run.ts`,
   `push-run.ts`,
