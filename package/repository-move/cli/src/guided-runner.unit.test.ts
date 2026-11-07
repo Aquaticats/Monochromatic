@@ -33,6 +33,7 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   childFailureOf,
   createGuidedConfig,
+  STOP_PATH_MARKER,
   FIXTURE_COPY_SETS_KEPT,
   FIXTURE_GUARD_MIN_GIB,
   FIXTURE_MAIN_DATA_MIB,
@@ -228,6 +229,19 @@ async function runStages(
   catch (error) {
     return { error, output: lines.join('',), };
   }
+}
+
+/** The stop block of the 860 mount unit as it is today (`systemctl cat mount-860.service`, 2026-11-07). */
+const OLD_STOP_BLOCK = `ExecStop=/bin/bash -c '\\
+  umount /var/mnt/encrypted 2>/dev/null; \\
+  cryptsetup luksClose crypt_sda 2>/dev/null'
+`;
+
+/** The script inside the new unit's `ExecStop=/bin/bash -c '...'` line, its continuation lines joined the way systemd joins them. */
+function stopScriptOf(unit: string,): string {
+  const start = unit.indexOf("ExecStop=/bin/bash -c '",) + "ExecStop=/bin/bash -c '".length;
+  const end = unit.indexOf("'\n", start,);
+  return unit.slice(start, end,).replaceAll('\\\n', ' ',);
 }
 
 /** The whole number at the start of a text, or NaN when it starts with no digit. */
@@ -503,11 +517,11 @@ await describe({
             await withConfig(async ({ config, home, },) => {
               const unit = join(home, 'mount-860.service',);
               const configured = await createGuidedConfig({ env: { HOME: home, MOVE_MOUNT_UNIT: unit, }, nodePath: process.execPath, },);
-              await writeFile(unit, 'ExecStart=/bin/bash -c \'mount -o compress=zstd:3,noatime /dev/x /y\'\n',);
+              await writeFile(unit, `ExecStart=/bin/bash -c 'mount -o compress=zstd:3,noatime /dev/x /y'\n${OLD_STOP_BLOCK}`,);
               expect(await prepareUnitEdit(configured,),).toContain('compress=zstd:3,noatime,user_subvol_rm_allowed',);
               expect(await readFile(join(configured.wiz, 'mount-860.service.new',), 'utf8',),).toContain('noatime,user_subvol_rm_allowed /dev/x',);
               expect(await readFile(join(configured.wiz, 'mount-860.service.before',), 'utf8',),).not.toContain('user_subvol_rm_allowed',);
-              await writeFile(unit, 'mount -o compress=zstd:3,noatime a\nmount -o compress=zstd:3,noatime b\n',);
+              await writeFile(unit, `mount -o compress=zstd:3,noatime a\nmount -o compress=zstd:3,noatime b\n${OLD_STOP_BLOCK}`,);
               let caught: unknown;
               try {
                 await prepareUnitEdit(configured,);
@@ -516,9 +530,70 @@ await describe({
                 caught = error;
               }
               expect((caught as Error).message,).toContain('exactly one',);
-              await writeFile(unit, 'mount -o compress=zstd:3,noatime,user_subvol_rm_allowed a\n',);
+              await writeFile(unit, `mount -o compress=zstd:3,noatime,user_subvol_rm_allowed a\nExecStop=/bin/bash -c 'echo ${STOP_PATH_MARKER}'\n`,);
               expect(await prepareUnitEdit(configured,),).toContain('already holds',);
               expect(config.unitPath,).toBe('/etc/systemd/system/mount-860.service',);
+            },);
+          },
+        },),
+        it({
+          name: 'the edited unit stops the drive only when nothing holds it: it lists the holders, never closes the drive after a failed unmount, and never forces one',
+          fn: async () => {
+            await withConfig(async ({ home, },) => {
+              const unit = join(home, 'mount-860.service',);
+              const configured = await createGuidedConfig({ env: { HOME: home, MOVE_MOUNT_UNIT: unit, }, nodePath: process.execPath, },);
+              await writeFile(unit, `ExecStart=/bin/bash -c 'mount -o compress=zstd:3,noatime /dev/x /y'\n${OLD_STOP_BLOCK}`,);
+              await prepareUnitEdit(configured,);
+              const edited = await readFile(join(configured.wiz, 'mount-860.service.new',), 'utf8',);
+              expect(edited,).toContain(STOP_PATH_MARKER,);
+              expect(edited,).not.toContain('2>/dev/null',);
+              // The script runs on stand-ins and on a scratch mount point and mapper name, never on the real drive: `bash -c` started
+              // over a socket (the way Node starts it) reads ~/.bashrc and gets the real PATH back, so it runs with --norc too.
+              const mountPoint = join(home, 'mount-point',);
+              const mapper = 'crypt_stand_in';
+              const script = stopScriptOf(edited,).replaceAll('/var/mnt/encrypted', mountPoint,)
+                .replaceAll('crypt_sda', mapper,);
+              for (const afterUmount of script.split('umount ',).slice(1,)) {
+                expect(afterUmount.startsWith('-',),).toBe(false,);
+              }
+              expect(script,).not.toContain('--lazy',);
+              expect(script,).not.toContain('--force',);
+              const fakes = join(home, 'fakes',);
+              await mkdir(fakes, { recursive: true, },);
+              const log = join(home, 'calls.log',);
+              const fake = async ({ name, body, }: { name: string; body: string; },) => {
+                await writeFile(join(fakes, name,), `#!/bin/sh\necho "${name} $*" >> ${log}\n${body}\n`,);
+                await chmod(join(fakes, name,), EXECUTABLE_MODE,);
+              };
+              await fake({ name: 'mountpoint', body: 'test "$MOUNTED" = yes', },);
+              await fake({ name: 'umount', body: 'test "$HELD" != yes', },);
+              await fake({ name: 'cryptsetup', body: 'true', },);
+              await fake({ name: 'fuser', body: 'echo "USER PID ACCESS COMMAND: shell 1234 c"', },);
+              const stop = async (state: { MOUNTED: string; HELD: string; },) => {
+                await writeFile(log, '',);
+                try {
+                  const done = await execFileAsync('bash', ['--noprofile', '--norc', '-c', script,], { env: { PATH: `${fakes}:/usr/bin:/bin`, ...state, }, encoding: 'utf8', },);
+                  return { code: 0, out: `${done.stdout}${done.stderr}`, calls: await readFile(log, 'utf8',), };
+                }
+                catch (error) {
+                  const failure = childFailureOf(error,);
+                  return { code: failure.code, out: `${failure.stdout}${failure.stderr}`, calls: await readFile(log, 'utf8',), };
+                }
+              };
+              const held = await stop({ MOUNTED: 'yes', HELD: 'yes', },);
+              expect(held.code,).toBe(1,);
+              expect(held.out,).toContain('held open',);
+              expect(held.out,).not.toContain('pcloudcc',);
+              expect(held.out,).toContain('shell 1234',);
+              expect(held.calls,).toContain(`umount ${mountPoint}`,);
+              expect(held.calls,).not.toContain('cryptsetup',);
+              const free = await stop({ MOUNTED: 'yes', HELD: 'no', },);
+              expect(free.code,).toBe(0,);
+              expect(free.calls,).toContain(`cryptsetup luksClose ${mapper}`,);
+              const unmounted = await stop({ MOUNTED: 'no', HELD: 'no', },);
+              expect(unmounted.code,).toBe(0,);
+              expect(unmounted.calls,).not.toContain('umount',);
+              expect(unmounted.calls,).toContain(`cryptsetup luksClose ${mapper}`,);
             },);
           },
         },),
