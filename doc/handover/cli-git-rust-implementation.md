@@ -4148,17 +4148,16 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   The rule has been `error` since at least
   `0b49ae109e` (2026-10-06);
   the package `lint` task never ran `monochromatic-lint`.
-  Fixed on `fix/git-policy-cli-passes-the-repository-linter`:
-  the package `lint` runs `lint:monochromatic-lint` with `--max-warnings 0` and the package has 0 findings,
-  the line breaks came from the repository fixer (the non-doc lines are byte-identical and the doc text has the same
-  tokens;
-  no hand fix was needed for any `markdown/semantic-line-breaks` finding),
-  the three `rust/max-lines` files are split into sibling files,
-  and the 45 closure warnings are named functions,
-  loops or matches.
-  The tokio branch (`feat/git-policy-cli-on-tokio`) still meets doc-comment conflicts:
-  the recipe is in the wrapper README,
+  The wrapper package passes the repository linter since merge `4365ac97bc` (gate 5199 of 5199):
+  the package `lint` runs `lint:monochromatic-lint` at `--max-warnings 0`.
+  Open:
+  the tokio branch (`feat/git-policy-cli-on-tokio`) still meets doc-comment conflicts on its next merge of main,
+  and its recipe is in the wrapper README,
   section "Merging main into a branch that edited doc comments".
+  Open:
+  `fault_limits::a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_is_raised` failed once in a
+  gate and passed on the rerun of the same tree and in two other gates,
+  cause not measured (rule SUF).
   Repo-wide baseline on main `136a40fe69`
   (log `~/temp/agent/repo-wide-monochromatic-lint-136a40fe69.log`,
   `mise` exit 2):
