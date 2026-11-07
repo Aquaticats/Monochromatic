@@ -136,47 +136,46 @@ pub fn window_frame_starts(total_frames: u64, window_count: usize, window_frames
     // const divisor = windowCount - 1;
     // ```
     let divisor = (window_count - 1) as f64;
-    // What:     `(0..window_count).map(|index| { ... }).collect()`. Build one start per
-    //           window with a functional map over the index range, collected into a
-    //           `Vec<u64>`. Tail -> return.
+    // What:     A `for index in 0..window_count` loop that pushes one start per window
+    //           onto a `Vec<u64>`, which the function then returns.
     // Why:      Each window's start is its fraction of the way to `last_start`.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // return Array.from({ length: windowCount }, (_, index) => { ... });
     // ```
-    return (0..window_count)
-        .map(|index| {
-            // What:     `let fraction = index as f64 / divisor;`. The 0..1 position of
-            //           this window: 0 at the first, 1 at the last.
-            // Why:      Linear spacing across the legal range.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // const fraction = index / divisor;
-            // ```
-            let fraction = index as f64 / divisor;
-            // What:     `let start = (fraction * last_start as f64).round() as u64;`.
-            //           Scale the fraction by `last_start`, round to the nearest whole
-            //           frame, then `as u64` truncates the rounded value.
-            // Why:      Land on an integer frame; rounding keeps placement symmetric.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // const start = Math.round(fraction * lastStart);
-            // ```
-            let start = (fraction * last_start as f64).round() as u64;
-            // What:     `start.min(last_start)`. Clamp against float rounding nudging
-            //           the last start one frame past `last_start`. Tail of the closure.
-            // Why:      Never seek beyond the final legal start.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // return Math.min(start, lastStart);
-            // ```
-            return start.min(last_start)
-        })
-        .collect()
+    let mut starts: Vec<u64> = Vec::with_capacity(window_count);
+    for index in 0..window_count {
+        // What:     `let fraction = index as f64 / divisor;`. The 0..1 position of
+        //           this window: 0 at the first, 1 at the last.
+        // Why:      Linear spacing across the legal range.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const fraction = index / divisor;
+        // ```
+        let fraction = index as f64 / divisor;
+        // What:     `let start = (fraction * last_start as f64).round() as u64;`.
+        //           Scale the fraction by `last_start`, round to the nearest whole
+        //           frame, then `as u64` truncates the rounded value.
+        // Why:      Land on an integer frame; rounding keeps placement symmetric.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const start = Math.round(fraction * lastStart);
+        // ```
+        let start = (fraction * last_start as f64).round() as u64;
+        // What:     `start.min(last_start)`. Clamp against float rounding nudging
+        //           the last start one frame past `last_start`. Pushed as this window's start.
+        // Why:      Never seek beyond the final legal start.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return Math.min(start, lastStart);
+        // ```
+        starts.push(start.min(last_start));
+    }
+    return starts;
 }
 
 /// What:

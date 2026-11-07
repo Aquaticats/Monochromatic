@@ -137,7 +137,8 @@ impl CandidateBytes for CandidateStore {
 /// What:
 ///  Scan each eligible candidate and return the scanner's result for every one scanned.
 ///       `&mut dyn CandidateBytes` lends any byte reader for changing (it may read objects);
-///       `&[Vec<u8>]` is "the rules files' candidate pathnames, none when no file is tracked";
+///       `&[Vec<u8>]` is "the rules files' candidate pathnames,
+/// none when no file is tracked";
 ///       `Result<T, E>` is "a value or a failure".
 /// Why:
 ///   Results are returned for clean candidates too,

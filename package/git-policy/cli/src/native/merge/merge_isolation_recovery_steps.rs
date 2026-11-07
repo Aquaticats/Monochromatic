@@ -1,10 +1,17 @@
 //! What:
-//!  The steps both the recovery of an interrupted merge and the settling of a merge whose branch moved take: where
-//!  recovery runs Git, what a recovery decides, how a path of the merge stands in the index and the worktree, and how an
+//!  The steps both the recovery of an interrupted merge and the settling of a merge whose branch moved take:
+//! where
+//!  recovery runs Git,
+//! what a recovery decides,
+//! how a path of the merge stands in the index and the worktree,
+//! and how an
 //!  index entry or a file is put back.
 //! Why:
-//!  `merge_isolation_recovery.rs` recovers records and imports `merge_isolation_moved.rs`, which settles a moved branch with
-//!  these same steps; the shared steps live in a file that imports neither, so the two files no longer use each other.
+//!  `merge_isolation_recovery.rs` recovers records and imports `merge_isolation_moved.rs`,
+//! which settles a moved branch with
+//!  these same steps;
+//! the shared steps live in a file that imports neither,
+//! so the two files no longer use each other.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,10 +26,14 @@ use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
 use std::path::{Path, PathBuf};
 
 /// What:
-///  Where recovery runs Git: the real Git and its environment, the directory every command starts in, and the
+///  Where recovery runs Git:
+/// the real Git and its environment,
+/// the directory every command starts in,
+/// and the
 ///  repository's common Git directory.
 /// Why:
-///   Recovery of a merge runs from the process directory with the invocation's global options, whichever worktree the
+///   Recovery of a merge runs from the process directory with the invocation's global options,
+/// whichever worktree the
 ///  record belongs to.
 ///
 /// In TS you'd write (pseudocode):
@@ -47,22 +58,31 @@ pub struct RecoveryPlace {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MergeRecoveryAction {
-    /// The owner still runs; nothing was touched.
+    /// The owner still runs;
+    /// nothing was touched.
     OwnerActive,
-    /// The merge never touched the worktree or the index; the record was removed.
+    /// The merge never touched the worktree or the index;
+    /// the record was removed.
     Discarded,
-    /// Git had started updating the worktree; the merge was completed and the branch moved.
+    /// Git had started updating the worktree;
+    /// the merge was completed and the branch moved.
     Completed,
-    /// The branch already names the merge commit; only the record was removed.
+    /// The branch already names the merge commit;
+    /// only the record was removed.
     AlreadyLanded,
-    /// The branch names a commit that is neither the merge's parent nor the merge: it moved while the merge was prepared.
-    /// What the merge had begun to install was put back to the moved head's content, so the checkout holds what it held
-    ///  before the merge, and the record was removed; the merge can be computed again on the moved head.
+    /// The branch names a commit that is neither the merge's parent nor the merge:
+    /// it moved while the merge was prepared.
+    /// What the merge had begun to install was put back to the moved head's content,
+    /// so the checkout holds what it held
+    ///  before the merge,
+    /// and the record was removed;
+    /// the merge can be computed again on the moved head.
     BranchMoved,
 }
 
 /// What:
-///  The paths the merge changes, with both sides of each.
+///  The paths the merge changes,
+/// with both sides of each.
 /// Why:
 ///   They are exactly the paths Git updates for the merge and the only ones recovery may touch.
 ///
@@ -85,8 +105,12 @@ pub fn merge_changes(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -
 /// What:
 ///  Whether any index entry of a changed path already holds the merge's entry.
 /// Why:
-///   Only an entry equal to the merged one (or, for a deleted path, an absent one) shows that Git had begun to
-///  install the merge's index; another session's staged change to the same path is not that evidence, and must
+///   Only an entry equal to the merged one (or,
+/// for a deleted path,
+/// an absent one) shows that Git had begun to
+///  install the merge's index;
+/// another session's staged change to the same path is not that evidence,
+/// and must
 ///  not make a merge that never began look like one that did.
 ///
 /// In TS you'd write (pseudocode):
@@ -127,7 +151,8 @@ pub fn index_holds_the_merge(
     return Ok(false);
 }
 
-/// What the worktree holds at a changed path, against the two sides of the merge.
+/// What the worktree holds at a changed path,
+/// against the two sides of the merge.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -135,9 +160,11 @@ pub fn index_holds_the_merge(
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Standing {
-    /// The old content, or no file where the old side has none.
+    /// The old content,
+    /// or no file where the old side has none.
     Old,
-    /// The new content, or no file where the new side has none.
+    /// The new content,
+    /// or no file where the new side has none.
     New,
     /// Anything else.
     Foreign,
@@ -146,7 +173,8 @@ pub enum Standing {
 /// What:
 ///  Compare a worktree state with the two sides of a change.
 /// Why:
-///   The old side wins a tie: a change that does not alter the content is not evidence of a started merge.
+///   The old side wins a tie:
+/// a change that does not alter the content is not evidence of a started merge.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -173,7 +201,8 @@ pub fn standing(change: &Change, state: &WorktreeState) -> Standing {
 }
 
 /// What:
-///  Remove a record, naming it when that fails.
+///  Remove a record,
+/// naming it when that fails.
 /// Why:
 ///   A record that cannot be removed would be recovered again.
 ///
@@ -192,9 +221,12 @@ pub fn remove_record(record: &Path) -> Result<(), RecoveryError> {
 ///  Put the index entries and the worktree files of the changed paths to the state each change ends in.
 /// Why:
 ///   The index entries are set first so a file written by `checkout-index` is recorded with the object it holds;
-///  deletions go before writes so a file replaced by a directory of the same name can be created; a path whose
-///  worktree already holds the end state is not written again. The merge's completion and the roll back to a moved
-///  branch both end here, with a different end state.
+///  deletions go before writes so a file replaced by a directory of the same name can be created;
+/// a path whose
+///  worktree already holds the end state is not written again.
+/// The merge's completion and the roll back to a moved
+///  branch both end here,
+/// with a different end state.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -245,9 +277,11 @@ pub fn install_entries(
 }
 
 /// What:
-///  Delete a file the merge deletes, and the directories that it leaves empty up to the worktree top.
+///  Delete a file the merge deletes,
+/// and the directories that it leaves empty up to the worktree top.
 /// Why:
-///   Git removes a deleted file's emptied directories too; a directory that still holds anything stays.
+///   Git removes a deleted file's emptied directories too;
+/// a directory that still holds anything stays.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

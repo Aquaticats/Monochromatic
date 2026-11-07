@@ -4,9 +4,9 @@
  @module
  */
 
-import { execFile, } from 'node:child_process';
-import { promisify, } from 'node:util';
 import {
+  FAILURE_MESSAGE_LIMIT,
+  FAILURE_STDERR_LIMIT,
   KILL_GRACE_SECONDS,
   MAX_OUTPUT_BYTES,
   MILLISECONDS_PER_SECOND,
@@ -20,6 +20,8 @@ import {
 import { MoveStopError, } from './errors.ts';
 import type { MoveOptions, } from './move-options.ts';
 import { isSafeWord, } from './text-checks.ts';
+import { childFailureOf, } from './json-text-fields.ts';
+import { execFileAsync, } from './exec-file-async.ts';
 
 /**
  One command to show and, in run mode, run.
@@ -55,20 +57,6 @@ export type Runner = {
 };
 
 /**
- What a failed child process carries.
- */
-type ChildFailure = {
-  readonly code?: number | string;
-  readonly stderr?: string;
-  readonly message: string;
-};
-
-/**
- Runs a program and waits for it to end.
- */
-const execFileAsync = promisify(execFile,);
-
-/**
  Quotes a word for display so a shown command can be pasted into a shell.
 
  @param word - the word
@@ -83,6 +71,15 @@ function quote(word: string,): string {
 }
 
 /**
+ Writes one status line to standard error.
+
+ @param message - the line
+ */
+function log(message: string,): void {
+  console.error(`${new Date().toISOString()} ${message}`,);
+}
+
+/**
  Makes the runner of one invocation.
 
  @param options - the options; `run` decides between printing and running
@@ -90,6 +87,13 @@ function quote(word: string,): string {
  @param clock - the total-deadline clock
  
  @returns the runner
+
+ @example
+ ```ts
+ import { createRunner, } from './command-runner.ts';
+ 
+ const result = createRunner({ options, clock, },);
+ ```
  */
 export function createRunner(
   {
@@ -100,15 +104,6 @@ export function createRunner(
     readonly clock: DeadlineClock;
   },
 ): Runner {
-  /**
-   Writes one status line to standard error.
-
-   @param message - the line
-   */
-  function log(message: string,): void {
-    console.error(`${new Date().toISOString()} ${message}`,);
-  }
-
   /**
    Runs one command through the program, argument list and bounds the request implies.
 
@@ -189,7 +184,7 @@ export function createRunner(
       /**
        The caught failure, in the shape the caller reads.
        */
-      const failure = error as ChildFailure;
+      const failure = childFailureOf(error,);
       /**
        The limited by total of this step.
        */
@@ -208,11 +203,12 @@ export function createRunner(
           + `(${failure.message
             .slice(
               0,
-              120,
-            )}): ${(failure.stderr ?? '').trim()
+              FAILURE_MESSAGE_LIMIT,
+            )}): ${failure.stderr
+              .trim()
               .slice(
                 0,
-                300,
+                FAILURE_STDERR_LIMIT,
               )}`,
         { cause: error, },
       );

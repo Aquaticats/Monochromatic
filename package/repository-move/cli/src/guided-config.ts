@@ -6,18 +6,12 @@
  @module
  */
 
-import { execFile, } from 'node:child_process';
 import { userInfo, } from 'node:os';
-import { promisify, } from 'node:util';
 import { join, } from 'node:path';
 import { realpath, } from 'node:fs/promises';
 import type { GuidedConfig, } from './guided-types.ts';
 import { isPlainPath, } from './text-checks.ts';
-
-/**
- Runs a program and waits for it to end.
- */
-const execFileAsync = promisify(execFile,);
+import { execFileAsync, } from './exec-file-async.ts';
 
 /**
  Transfer deadline in seconds: the plan's value, section "Deadlines".
@@ -168,6 +162,13 @@ function requirePlainPath(
  @returns the configuration
  
  @throws Error when a path holds a character the shown commands would not quote
+
+ @example
+ ```ts
+ import { createGuidedConfig, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await createGuidedConfig({ env, nodePath, },);
+ ```
  */
 export async function createGuidedConfig(
   {

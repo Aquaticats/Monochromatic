@@ -22,10 +22,14 @@
 //! const prepareBatch = (paths: string[]): PreparedBatch => ({ norm: paths.map(normalizeTitle), keys: wordStartKeys(...) });
 //! ```
 
+/// Imports the map type that collects the folders a batch mentions.
 use std::collections::HashMap;
 
+/// Imports the text arena and the title normalization that fill it.
 use crate::search_index_text::{TextArena, normalize_title_into};
+/// Imports the characters that separate words in a name.
 use crate::search_matcher::WORD_SEPARATORS;
+/// Imports the title that a track shows.
 use crate::track_entries::track_title_for;
 
 /// What:

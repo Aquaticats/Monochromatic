@@ -151,7 +151,10 @@ pub(crate) enum Work {
     /// ```ts
     /// { kind: "files"; files: Files }
     /// ```
-    Files(Files),
+    Files(
+        /// The files that changed.
+        Files,
+    ),
     /// What:
     /// `Everything,` is the case that carries no data.
     /// Why:

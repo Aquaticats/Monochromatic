@@ -1,11 +1,18 @@
 //! What:
 //!  The text of an isolated merge's commit message and the name Git gives the merged commit in it.
 //! Why:
-//!  The merge commit must read exactly as native Git would write it: the default subject comes from `git
-//!  fmt-merge-msg`, which `git merge` itself uses, fed the description line `git merge` builds for the commit-ish
-//!  (`branch 'x'`, `tag 'x'`, `remote-tracking branch 'x'` or `commit 'x'`), and any message is cleaned the way a
+//!  The merge commit must read exactly as native Git would write it:
+//! the default subject comes from `git
+//!  fmt-merge-msg`,
+//! which `git merge` itself uses,
+//! fed the description line `git merge` builds for the commit-ish
+//!  (`branch 'x'`,
+//! `tag 'x'`,
+//! `remote-tracking branch 'x'` or `commit 'x'`),
+//! and any message is cleaned the way a
 //!  commit that opens no editor cleans it.
-//!  A commit-ish whose description cannot be built the same way is not guessed: the caller forwards the command.
+//!  A commit-ish whose description cannot be built the same way is not guessed:
+//! the caller forwards the command.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,12 +24,20 @@
 use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
 
 /// What:
-///  The line `git merge` hands to `git fmt-merge-msg` for one merged commit, or nothing when the name needs a form
+///  The line `git merge` hands to `git fmt-merge-msg` for one merged commit,
+/// or nothing when the name needs a form
 ///  this reader does not build.
 /// Why:
-///   `merge_name` in Git's `builtin/merge.c` resolves the name as a reference first: a branch, a tag or a
-///  remote-tracking branch is named by its short name and `of .`, and a name that is no reference is a bare commit.
-///  The `<name>^` and `<name>~<n>` forms have their own wording, so a name containing `^`, `~`, `@`, `:` or a space
+///   `merge_name` in Git's `builtin/merge.c` resolves the name as a reference first:
+/// a branch,
+/// a tag or a
+///  remote-tracking branch is named by its short name and `of .`,
+/// and a name that is no reference is a bare commit.
+///  The `<name>^` and `<name>~<n>` forms have their own wording,
+/// so a name containing `^`,
+/// `~`,
+/// `@`,
+/// `:` or a space
 ///  and no full reference is left to native Git.
 ///
 /// In TS you'd write (pseudocode):
@@ -49,10 +64,13 @@ pub fn describe_merge_source(reference: &str, full_name: &str, oid: &str) -> Opt
 }
 
 /// What:
-///  The object names that `.git/FETCH_HEAD` lists for merging: its lines whose name is followed by two tabs.
+///  The object names that `.git/FETCH_HEAD` lists for merging:
+/// its lines whose name is followed by two tabs.
 /// Why:
 ///   `handle_fetch_head` in Git's `builtin/merge.c` takes every line that starts with a full hexadecimal name and two tabs
-///  as a head to merge and skips the lines marked `not-for-merge`; a pull merges `FETCH_HEAD`, and this wrapper completes
+///  as a head to merge and skips the lines marked `not-for-merge`;
+/// a pull merges `FETCH_HEAD`,
+/// and this wrapper completes
 ///  that merge only when exactly one head is listed.
 ///
 /// In TS you'd write (pseudocode):
@@ -76,10 +94,14 @@ pub fn fetch_head_merge_heads(text: &str) -> Vec<String> {
 }
 
 /// What:
-///  The default merge message for a described commit: Git's own `fmt-merge-msg`, with the shortlog choice given.
+///  The default merge message for a described commit:
+/// Git's own `fmt-merge-msg`,
+/// with the shortlog choice given.
 /// Why:
-///   The subject depends on the checked-out branch and on the `merge.log`, `merge.suppressDest` and
-///  `merge.branchdesc` settings, which only Git applies.
+///   The subject depends on the checked-out branch and on the `merge.log`,
+/// `merge.suppressDest` and
+///  `merge.branchdesc` settings,
+/// which only Git applies.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -106,11 +128,14 @@ pub fn default_merge_message(
 }
 
 /// What:
-///  A message cleaned as a commit that opens no editor cleans it: trailing space stripped, blank lines collapsed,
+///  A message cleaned as a commit that opens no editor cleans it:
+/// trailing space stripped,
+/// blank lines collapsed,
 ///  one final line feed.
 /// Why:
 ///   `git merge` runs the message through the same cleanup `git commit --cleanup=whitespace` does when it opens no
-///  editor; `git stripspace` is that cleanup.
+///  editor;
+/// `git stripspace` is that cleanup.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

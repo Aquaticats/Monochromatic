@@ -1,4 +1,6 @@
-//! Controls for the removal of a stale lock: it takes away only the file it found stale, and a lock another program placed in
+//! Controls for the removal of a stale lock:
+//! it takes away only the file it found stale,
+//! and a lock another program placed in
 //!  its place is never removed.
 
 use super::*;
@@ -6,7 +8,8 @@ use crate::service_fault::hooks;
 use crate::service_index_marker::LOCK_MARKER;
 use crate::test_support::{fixture, remove};
 
-/// A killed service's lock for batch `seq`: a marker whose holder is not any running process.
+/// A killed service's lock for batch `seq`:
+/// a marker whose holder is not any running process.
 fn stale_lock_text(seq: u64) -> String {
     let mut child = std::process::Command::new("true").spawn().expect("a short process");
     let pid: i64 = i64::from(child.id());
@@ -22,7 +25,8 @@ fn index_in(name: &str) -> (PathBuf, PathBuf) {
     return (root, index);
 }
 
-/// A stale lock is removed, and nothing is left beside the index.
+/// A stale lock is removed,
+/// and nothing is left beside the index.
 #[test]
 fn a_stale_lock_is_removed_and_leaves_no_file() {
     let (root, index) = index_in("reclaim-plain");
@@ -34,8 +38,12 @@ fn a_stale_lock_is_removed_and_leaves_no_file() {
     remove(root.as_path());
 }
 
-/// Another program that places its own lock after the stale one was found, and before it was removed, keeps its lock: the file
-///  the removal takes is looked at again, and a file that is not the stale one is put back where it was.
+/// Another program that places its own lock after the stale one was found,
+/// and before it was removed,
+/// keeps its lock:
+/// the file
+///  the removal takes is looked at again,
+/// and a file that is not the stale one is put back where it was.
 #[test]
 fn a_lock_placed_after_the_stale_one_was_found_is_not_removed() {
     let (root, index) = index_in("reclaim-replaced");
@@ -55,7 +63,9 @@ fn a_lock_placed_after_the_stale_one_was_found_is_not_removed() {
     remove(root.as_path());
 }
 
-/// A lock that is not the service's, or whose holder runs, is never taken aside.
+/// A lock that is not the service's,
+/// or whose holder runs,
+/// is never taken aside.
 #[test]
 fn a_foreign_lock_and_a_running_holders_lock_stay() {
     let (root, index) = index_in("reclaim-foreign");
@@ -67,13 +77,19 @@ fn a_foreign_lock_and_a_running_holders_lock_stay() {
 }
 
 /// What:
-///  A reclaimer that is working on a live lock another instance placed (it judged the stale lock that stood there before, then the
-///  name was reclaimed and taken) leaves that lock under its name for the whole time, so a third program (Git) cannot create the
+///  A reclaimer that is working on a live lock another instance placed (it judged the stale lock that stood there before,
+/// then the
+///  name was reclaimed and taken) leaves that lock under its name for the whole time,
+/// so a third program (Git) cannot create the
 ///  lock.
 /// Why:
-///   This is the race two services reclaiming one physical index (an alternate index shared by two worktrees) could run: the
-///  earlier reclaim took the live lock aside by a rename, and Git created `index.lock` while it was off its name, which left the
-///  live holder's lock stranded and the batch open. The first version of this control failed on that code (`dd37f0c462`).
+///   This is the race two services reclaiming one physical index (an alternate index shared by two worktrees) could run:
+/// the
+///  earlier reclaim took the live lock aside by a rename,
+/// and Git created `index.lock` while it was off its name,
+/// which left the
+///  live holder's lock stranded and the batch open.
+/// The first version of this control failed on that code (`dd37f0c462`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,8 +121,14 @@ fn a_live_lock_found_by_a_late_reclaimer_is_never_open_to_a_third_program() {
     remove(root.as_path());
 }
 
-/// Refused: a reclaimer that judged a stale lock, and finds at its check that the name now refers to another file (the stale
-///  lock was reclaimed and a live landing placed its own), removes nothing, moves nothing, and says the name changed. Allowed:
+/// Refused:
+/// a reclaimer that judged a stale lock,
+/// and finds at its check that the name now refers to another file (the stale
+///  lock was reclaimed and a live landing placed its own),
+/// removes nothing,
+/// moves nothing,
+/// and says the name changed.
+/// Allowed:
 ///  the same reclaimer on a name that still refers to the file it judged removes it (`a_stale_lock_is_removed_and_leaves_no_file`).
 #[test]
 fn a_reclaimer_whose_judged_file_was_replaced_removes_nothing() {
@@ -129,8 +151,12 @@ fn a_reclaimer_whose_judged_file_was_replaced_removes_nothing() {
     remove(root.as_path());
 }
 
-/// Refused: while one reclaimer holds a stale lock to remove it, a second reclaimer of the same lock backs off and removes
-///  nothing, so it cannot remove what a landing placed after the first; the first still removes the stale lock.
+/// Refused:
+/// while one reclaimer holds a stale lock to remove it,
+/// a second reclaimer of the same lock backs off and removes
+///  nothing,
+/// so it cannot remove what a landing placed after the first;
+/// the first still removes the stale lock.
 #[test]
 fn a_second_reclaimer_of_one_stale_lock_backs_off_while_the_first_holds_it() {
     let (root, index) = index_in("reclaim-two-reclaimers");
@@ -149,9 +175,15 @@ fn a_second_reclaimer_of_one_stale_lock_backs_off_while_the_first_holds_it() {
     remove(root.as_path());
 }
 
-/// A landing on a file system that takes no claim file treats the stale lock as a held lock: it waits to its ceiling, withdraws
-///  the commit with the index in use, leaves the lock where it is, and tells the person which lock it is, whose batch and
-///  process left it, and how to remove it.
+/// A landing on a file system that takes no claim file treats the stale lock as a held lock:
+/// it waits to its ceiling,
+/// withdraws
+///  the commit with the index in use,
+/// leaves the lock where it is,
+/// and tells the person which lock it is,
+/// whose batch and
+///  process left it,
+/// and how to remove it.
 #[test]
 fn a_landing_that_can_place_no_claim_waits_to_its_ceiling_and_names_the_stale_lock() {
     let (root, index) = index_in("reclaim-landing-no-flock");
@@ -178,9 +210,17 @@ fn a_landing_that_can_place_no_claim_waits_to_its_ceiling_and_names_the_stale_lo
     remove(root.as_path());
 }
 
-/// The old sequence took a live lock aside by a rename, so the lock's name was empty for a while and Git could take it. The
-///  directory is watched while a reclaimer works on a live lock, and no event may name the lock: no rename, no removal, no
-///  creation. The scheduling is the kernel's own, so the control needs no hook inside the reclaimer and fails against the old
+/// The old sequence took a live lock aside by a rename,
+/// so the lock's name was empty for a while and Git could take it.
+/// The
+///  directory is watched while a reclaimer works on a live lock,
+/// and no event may name the lock:
+/// no rename,
+/// no removal,
+/// no
+///  creation.
+/// The scheduling is the kernel's own,
+/// so the control needs no hook inside the reclaimer and fails against the old
 ///  sequence behind the same call.
 #[test]
 fn a_reclaimer_that_finds_a_live_lock_leaves_no_event_on_the_lock_name() {
@@ -210,9 +250,13 @@ fn a_reclaimer_that_finds_a_live_lock_leaves_no_event_on_the_lock_name() {
     remove(root.as_path());
 }
 
-/// The notice for a stale lock that is not removed describes the file the reclaimer judged, not whatever stands at the name when the
-///  notice is written: when the stale lock is replaced by a live landing's lock in between, the notice names the stale lock's
-///  process, and never calls the live lock's process gone.
+/// The notice for a stale lock that is not removed describes the file the reclaimer judged,
+/// not whatever stands at the name when the
+///  notice is written:
+/// when the stale lock is replaced by a live landing's lock in between,
+/// the notice names the stale lock's
+///  process,
+/// and never calls the live lock's process gone.
 #[test]
 fn the_notice_names_the_judged_stale_lock_and_not_a_live_replacement() {
     let (root, index) = index_in("reclaim-notice-replaced");

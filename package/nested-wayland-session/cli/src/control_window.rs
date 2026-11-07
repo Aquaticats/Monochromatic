@@ -10,7 +10,7 @@ use std::sync::PoisonError;
 use smithay::{
     desktop::Window,
     wayland::{
-        compositor::with_states,
+        compositor::{with_states, SurfaceData},
         shell::xdg::{ToplevelSurface, XdgToplevelSurfaceData},
     },
 };
@@ -77,11 +77,25 @@ pub fn escape_text(text: &str) -> String {
 ///  so reading it here always reflects the latest request.
 pub fn title(state: &Compositor) -> Option<String> {
     let toplevel = hosted_toplevel(state)?;
-    return with_states(toplevel.wl_surface(), |states| {
-        let data = states.data_map.get::<XdgToplevelSurfaceData>()?;
-        let attributes = data.lock().unwrap_or_else(PoisonError::into_inner);
-        return attributes.title.clone()
-    })
+    return with_states(toplevel.wl_surface(), read_title)
+}
+
+/// Reads the title from one surface's stored toplevel attributes.
+///
+/// What:
+///      `fn read_title(states: &SurfaceData) -> Option<String>`.
+///  `None` when the surface carries no toplevel data or the client set no title.
+/// Why:
+///       `with_states` takes it by path instead of a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readTitle = (states: SurfaceData): string | null => states.get(XdgToplevelSurfaceData)?.title ?? null;
+/// ```
+fn read_title(states: &SurfaceData) -> Option<String> {
+    let data = states.data_map.get::<XdgToplevelSurfaceData>()?;
+    let attributes = data.lock().unwrap_or_else(PoisonError::into_inner);
+    return attributes.title.clone()
 }
 
 /// Reads the app ID the hosted client set,
@@ -94,11 +108,25 @@ pub fn title(state: &Compositor) -> Option<String> {
 /// the attribute reflects the client's latest request.
 pub fn app_id(state: &Compositor) -> Option<String> {
     let toplevel = hosted_toplevel(state)?;
-    return with_states(toplevel.wl_surface(), |states| {
-        let data = states.data_map.get::<XdgToplevelSurfaceData>()?;
-        let attributes = data.lock().unwrap_or_else(PoisonError::into_inner);
-        return attributes.app_id.clone()
-    })
+    return with_states(toplevel.wl_surface(), read_app_id)
+}
+
+/// Reads the app ID from one surface's stored toplevel attributes.
+///
+/// What:
+///      `fn read_app_id(states: &SurfaceData) -> Option<String>`.
+///  `None` when the surface carries no toplevel data or the client set no app ID.
+/// Why:
+///       `with_states` takes it by path instead of a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readAppId = (states: SurfaceData): string | null => states.get(XdgToplevelSurfaceData)?.appId ?? null;
+/// ```
+fn read_app_id(states: &SurfaceData) -> Option<String> {
+    let data = states.data_map.get::<XdgToplevelSurfaceData>()?;
+    let attributes = data.lock().unwrap_or_else(PoisonError::into_inner);
+    return attributes.app_id.clone()
 }
 
 /// Builds the `title` answer:

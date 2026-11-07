@@ -21,6 +21,7 @@ import type {
   GuidedConfig,
   GuidedFlags,
 } from './guided-types.ts';
+import { errorCodeOf, } from './error-code-of.ts';
 
 /**
  Mode of the runner's log folder: the owner only.
@@ -34,6 +35,7 @@ const REQUIRED_PREPARE_STAGES: readonly string[] = [
   'p4c-first',
   'p4d-external-first',
   'p4e-sizes',
+  'p4f-verify-first',
   'm1b-mount-option',
 ];
 
@@ -63,7 +65,7 @@ async function isSymbolicLink(path: string,): Promise<boolean> {
     return (await lstat(path,)).isSymbolicLink();
   }
   catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (errorCodeOf(error,) === 'ENOENT') {
       return false;
     }
     throw error;
@@ -74,6 +76,13 @@ async function isSymbolicLink(path: string,): Promise<boolean> {
  A compact UTC timestamp for folder names, such as `20261107T183000Z`.
 
  @returns the stamp
+
+ @example
+ ```ts
+ import { compactTimestamp, } from './guided-preconditions.ts';
+ 
+ const result = compactTimestamp();
+ ```
  */
 export function compactTimestamp(): string {
   return `${new Date().toISOString()
@@ -97,6 +106,13 @@ export function compactTimestamp(): string {
  @param create - whether to make and keep one when none exists
  
  @returns the stamp
+
+ @example
+ ```ts
+ import { swapStamp, } from './guided-preconditions.ts';
+ 
+ const result = await swapStamp({ config, create, },);
+ ```
  */
 export async function swapStamp(
   {
@@ -145,6 +161,13 @@ export async function swapStamp(
  @param flags - the flags
  
  @throws GuidedStopError with the precondition status when a condition is not met
+
+ @example
+ ```ts
+ import { requirePreconditions, } from './guided-preconditions.ts';
+ 
+ await requirePreconditions({ config, flags, },);
+ ```
  */
 export async function requirePreconditions(
   {
@@ -165,25 +188,45 @@ export async function requirePreconditions(
   if ((here === config.repo) || here.startsWith(`${config.repo}/`,)) {
     refuse('The current folder is inside the repository; the holder scans would report this shell. cd out of it first.',);
   }
-  for (const tool of [
+  /**
+   The tools the run needs, in the order a missing one is named.
+   */
+  const tools = [
     config.copyTool,
     config.scanTool,
     config.nodePath,
-  ]) {
-    if (!await pathExists(tool,)) {
-      refuse(`Missing: ${tool}`,);
-    }
+  ];
+  /**
+   Whether each tool exists.
+   */
+  const toolsPresent = await Promise.all(tools.map(async function check(tool,) {
+    return await pathExists(tool,);
+  },),);
+  /**
+   The first tool that is missing.
+   */
+  const missingTool = tools[toolsPresent.indexOf(false,)];
+  if (toolsPresent.includes(false,) && (missingTool !== undefined)) {
+    refuse(`Missing: ${missingTool}`,);
   }
   if (flags.command === 'cutover') {
-    for (const item of REQUIRED_PREPARE_STAGES) {
-      if (!await pathExists(join(
+    /**
+     Whether each required prepare stage is recorded done.
+     */
+    const stagesDone = await Promise.all(REQUIRED_PREPARE_STAGES.map(async function check(item,) {
+      return await pathExists(join(
         config.wiz,
         'done',
         'prepare',
         item,
-      ),)) {
-        refuse(`Prepare stage ${item} is not recorded as done. Run prepare first.`,);
-      }
+      ),);
+    },),);
+    /**
+     The first required stage that is not recorded.
+     */
+    const missingStage = REQUIRED_PREPARE_STAGES[stagesDone.indexOf(false,)];
+    if (stagesDone.includes(false,) && (missingStage !== undefined)) {
+      refuse(`Prepare stage ${missingStage} is not recorded as done. Run prepare first.`,);
     }
   }
   if ((flags.command === 'thaw') && await isSymbolicLink(config.repo,)) {

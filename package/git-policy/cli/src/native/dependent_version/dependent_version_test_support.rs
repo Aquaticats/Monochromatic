@@ -1,7 +1,12 @@
-//! What: An in-memory workspace for the dependent-version planner's tests, which records
+//! What:
+//! An in-memory workspace for the dependent-version planner's tests,
+//! which records
 //!       every read.
-//! Why: The planner reads through the content seam only, so tests answer from memory and
-//!      can prove which files were read and in what order, and what happens when a read
+//! Why:
+//! The planner reads through the content seam only,
+//! so tests answer from memory and
+//!      can prove which files were read and in what order,
+//! and what happens when a read
 //!      fails.
 //!
 //! In TS you'd write (pseudocode):
@@ -23,7 +28,8 @@ pub struct MemoryFile {
     pub mode: TrackedMode,
     /// Candidate bytes.
     pub current: Vec<u8>,
-    /// Base bytes, when the base has the path.
+    /// Base bytes,
+    /// when the base has the path.
     pub base: Option<Vec<u8>>,
 }
 
@@ -53,7 +59,8 @@ pub struct MemoryWorkspace {
     pub unreadable: Vec<Vec<u8>>,
     /// Whether the listing fails.
     pub listing_unavailable: bool,
-    /// Every read, in order.
+    /// Every read,
+    /// in order.
     pub reads: Vec<Read>,
 }
 
@@ -65,9 +72,11 @@ fn unavailable(path: &[u8], reason: &str) -> ContentUnavailable {
     };
 }
 
-/// Answers from memory, recording each read.
+/// Answers from memory,
+/// recording each read.
 impl WorkspaceContent for MemoryWorkspace {
-    /// Every file, unless the listing is set to fail.
+    /// Every file,
+    /// unless the listing is set to fail.
     fn tracked_paths(&mut self) -> Result<Vec<TrackedPath>, ContentUnavailable> {
         self.reads.push(Read::Listing);
         if self.listing_unavailable {
@@ -88,7 +97,8 @@ impl WorkspaceContent for MemoryWorkspace {
             .collect());
     }
 
-    /// The candidate bytes, unless reads of the path fail.
+    /// The candidate bytes,
+    /// unless reads of the path fail.
     fn candidate_bytes(&mut self, path: &[u8]) -> Result<Vec<u8>, ContentUnavailable> {
         self.reads.push(Read::Candidate(path.to_vec()));
         return self
@@ -96,7 +106,8 @@ impl WorkspaceContent for MemoryWorkspace {
             .map(|file: &MemoryFile| return file.current.clone());
     }
 
-    /// The base bytes, unless reads of the path fail.
+    /// The base bytes,
+    /// unless reads of the path fail.
     fn base_bytes(&mut self, path: &[u8]) -> Result<Option<Vec<u8>>, ContentUnavailable> {
         self.reads.push(Read::Base(path.to_vec()));
         return self
@@ -107,7 +118,8 @@ impl WorkspaceContent for MemoryWorkspace {
 
 /// Lookup shared by both byte reads.
 impl MemoryWorkspace {
-    /// The tracked file at a path, unless reads of it fail.
+    /// The tracked file at a path,
+    /// unless reads of it fail.
     fn file(&self, path: &[u8]) -> Result<&MemoryFile, ContentUnavailable> {
         if self
             .unreadable
@@ -142,7 +154,8 @@ pub fn unchanged(path: &str, text: &str) -> MemoryFile {
     };
 }
 
-/// A regular file with separate candidate and base text; `None` for a new file.
+/// A regular file with separate candidate and base text;
+/// `None` for a new file.
 pub fn changed(path: &str, text: &str, base: Option<&str>) -> MemoryFile {
     return MemoryFile {
         path: path.as_bytes().to_vec(),
@@ -152,7 +165,8 @@ pub fn changed(path: &str, text: &str, base: Option<&str>) -> MemoryFile {
     };
 }
 
-/// A manifest as the incumbent's fixtures write one: two-space JSON and a final newline.
+/// A manifest as the incumbent's fixtures write one:
+/// two-space JSON and a final newline.
 pub fn manifest_text(fields: &str) -> String {
     return format!("{{\n{fields}\n}}\n");
 }

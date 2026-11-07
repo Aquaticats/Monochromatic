@@ -22,6 +22,7 @@
 //! class PageIndex { groups: { label: string; identity: string; indices: number[] }[]; pageOf: number[]; extend(names) {} }
 //! ```
 
+/// Imports the map type that finds a group's slot by its identity.
 use std::collections::HashMap;
 
 /// What:

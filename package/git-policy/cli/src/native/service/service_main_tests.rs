@@ -9,7 +9,8 @@ fn words(texts: &[&str]) -> Vec<OsString> {
     return texts.iter().map(OsString::from).collect();
 }
 
-/// Exactly the three words first select the service mode, with any options after them.
+/// Exactly the three words first select the service mode,
+/// with any options after them.
 #[test]
 fn the_three_leading_words_select_the_service_mode() {
     assert!(is_service_start(words(&SERVICE_WORDS).as_slice()));
@@ -39,8 +40,13 @@ fn the_current_service_words_start_with_the_new_command_word() {
     assert_eq!(SERVICE_WORDS, [COMMAND_WORD.current, "service", "run"]);
 }
 
-/// Anything else is the wrapper: another word, a word out of place, the words behind a global option of Git (which the
-///  management grammar refuses without starting anything), a shorter list, or different case.
+/// Anything else is the wrapper:
+/// another word,
+/// a word out of place,
+/// the words behind a global option of Git (which the
+///  management grammar refuses without starting anything),
+/// a shorter list,
+/// or different case.
 #[test]
 fn nothing_else_selects_the_service_mode() {
     for other in [
@@ -62,7 +68,8 @@ fn nothing_else_selects_the_service_mode() {
     }
 }
 
-/// A word that is not text cannot be an option of the service, and the refusal names it.
+/// A word that is not text cannot be an option of the service,
+/// and the refusal names it.
 #[test]
 fn an_option_that_is_not_text_is_refused() {
     use std::os::unix::ffi::OsStringExt;
@@ -71,7 +78,8 @@ fn an_option_that_is_not_text_is_refused() {
     assert_eq!(service_options(arguments.as_slice()), Err(OsString::from_vec(vec![b'/', 0xff, b'x'])));
 }
 
-/// The unit's `ExecStart` starts the program with the very words that select the mode, so the unit and the dispatch cannot drift.
+/// The unit's `ExecStart` starts the program with the very words that select the mode,
+/// so the unit and the dispatch cannot drift.
 #[test]
 fn the_unit_starts_the_program_with_the_service_mode_words() {
     let exec: &str = SERVICE_UNIT.lines().find(|line| { return line.starts_with("ExecStart="); }).expect("an ExecStart line");
@@ -82,7 +90,8 @@ fn the_unit_starts_the_program_with_the_service_mode_words() {
     assert!(SERVICE_UNIT.lines().any(|line| { return line == "SyslogIdentifier=monochromatic-git-policy-cli-service"; }), "the journal identifier stays");
 }
 
-/// The source files of this crate that are not controls, as `(path under src/native, text)`.
+/// The source files of this crate that are not controls,
+/// as `(path under src/native, text)`.
 fn release_sources() -> Vec<(String, String)> {
     fn walk(directory: &Path, root: &Path, found: &mut Vec<(String, String)>) {
         for entry in std::fs::read_dir(directory).expect("source directory").flatten() {
@@ -103,8 +112,11 @@ fn release_sources() -> Vec<(String, String)> {
     return found;
 }
 
-/// The process setup of the service is taken in its mode and nowhere else: the wrapper's own start never installs the
-///  service's signal lines, never marks itself the service, and the words that select the mode are used by the dispatch alone.
+/// The process setup of the service is taken in its mode and nowhere else:
+/// the wrapper's own start never installs the
+///  service's signal lines,
+/// never marks itself the service,
+/// and the words that select the mode are used by the dispatch alone.
 #[test]
 fn the_service_setup_and_its_words_are_used_only_by_the_service_mode() {
     let sources = release_sources();
@@ -125,7 +137,9 @@ fn the_service_setup_and_its_words_are_used_only_by_the_service_mode() {
     }
 }
 
-/// The three process-wide steps come first in the service's start, in this order, before it reads an option or creates a file.
+/// The three process-wide steps come first in the service's start,
+/// in this order,
+/// before it reads an option or creates a file.
 #[test]
 fn the_service_start_takes_its_process_setup_first() {
     let text: String = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/service/service_main.rs")).expect("service_main.rs");

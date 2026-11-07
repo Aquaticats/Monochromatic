@@ -15,7 +15,8 @@ fn identity(root: &Path) -> WorktreeIdentity {
     };
 }
 
-/// A repository with nothing left by an earlier release goes on, and so does a command outside a worktree.
+/// A repository with nothing left by an earlier release goes on,
+/// and so does a command outside a worktree.
 #[test]
 fn a_clean_repository_and_a_place_outside_a_worktree_go_on() {
     let root: PathBuf = fixture("startup-gate-clean");
@@ -25,7 +26,8 @@ fn a_clean_repository_and_a_place_outside_a_worktree_go_on() {
     remove(root.as_path());
 }
 
-/// The single-journal directory of the previous executable stops the command with the way to recover it, and nothing is touched.
+/// The single-journal directory of the previous executable stops the command with the way to recover it,
+/// and nothing is touched.
 #[test]
 fn the_previous_executables_journal_directory_stops_the_command() {
     let root: PathBuf = fixture("startup-gate-legacy");
@@ -40,7 +42,8 @@ fn the_previous_executables_journal_directory_stops_the_command() {
     remove(root.as_path());
 }
 
-/// A registry that holds only locks and staging names has nothing to look at; a transaction directory in it is named.
+/// A registry that holds only locks and staging names has nothing to look at;
+/// a transaction directory in it is named.
 #[test]
 fn a_registry_note_appears_only_for_a_transaction_directory() {
     let root: PathBuf = fixture("startup-gate-registry");
@@ -58,13 +61,16 @@ fn a_registry_note_appears_only_for_a_transaction_directory() {
     remove(root.as_path());
 }
 
-/// The command the note ends with, which is everything after its last colon-and-space marker, without the line break.
+/// The command the note ends with,
+/// which is everything after its last colon-and-space marker,
+/// without the line break.
 fn removal_command(note: &str) -> String {
     let (_, command) = note.rsplit_once("directory with: ").expect("the note ends with the removal command");
     return command.trim_end_matches('\n').to_string();
 }
 
-/// Running a note's removal command in a shell removes the registry it names and nothing beside it, whatever the name holds.
+/// Running a note's removal command in a shell removes the registry it names and nothing beside it,
+/// whatever the name holds.
 #[test]
 fn the_removal_command_in_the_note_removes_exactly_the_registry() {
     let root: PathBuf = fixture("startup-gate-removal");
@@ -84,7 +90,8 @@ fn the_removal_command_in_the_note_removes_exactly_the_registry() {
     remove(root.as_path());
 }
 
-/// A registry whose name is not UTF-8 gets a command in the `$'...'` form, which bash reads back as the exact bytes.
+/// A registry whose name is not UTF-8 gets a command in the `$'...'` form,
+/// which bash reads back as the exact bytes.
 #[cfg(unix)]
 #[test]
 fn the_removal_command_names_a_registry_that_is_not_utf8_by_its_bytes() {
@@ -105,7 +112,8 @@ fn the_removal_command_names_a_registry_that_is_not_utf8_by_its_bytes() {
     remove(root.as_path());
 }
 
-/// A word quotes text with the quote spelling a shell reads back, and leaves nothing for the shell to expand.
+/// A word quotes text with the quote spelling a shell reads back,
+/// and leaves nothing for the shell to expand.
 #[test]
 fn a_shell_word_quotes_a_single_quote_and_leaves_nothing_to_expand() {
     assert_eq!(shell_word(Path::new("/a b/c")), "'/a b/c'");
@@ -113,7 +121,8 @@ fn a_shell_word_quotes_a_single_quote_and_leaves_nothing_to_expand() {
     assert_eq!(shell_word(Path::new("$HOME")), "'$HOME'");
 }
 
-/// A transaction directory an earlier release left does not stop the command: the note goes to standard error and the command goes on.
+/// A transaction directory an earlier release left does not stop the command:
+/// the note goes to standard error and the command goes on.
 #[test]
 fn a_registry_of_an_earlier_release_does_not_stop_the_command() {
     let root: PathBuf = fixture("startup-gate-registry-goes-on");

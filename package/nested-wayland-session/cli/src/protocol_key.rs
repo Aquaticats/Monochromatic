@@ -5,6 +5,8 @@
 //!  tap,
 //!  or hold for a duration.
 
+/// Error text that is built only on failure.
+use crate::lazy_error_text::{option_or_text, result_or_text};
 /// Sibling modules of this crate.
 use super::{Command, KeyAction};
 
@@ -43,7 +45,7 @@ pub const MAX_HOLD_MS: u64 = 600_000;
 /// function parseKey(tokens: string[]): Command { ... }
 /// ```
 pub(super) fn parse(tokens: &mut std::str::SplitWhitespace) -> Result<Command, String> {
-    let name = tokens.next().ok_or_else(|| return "key requires a name".to_string())?.to_string();
+    let name = option_or_text(tokens.next(), format_args!("key requires a name"))?.to_string();
     let action = match tokens.next() {
         Some("press") => KeyAction::Press,
         Some("release") => KeyAction::Release,
@@ -71,10 +73,11 @@ pub(super) fn parse(tokens: &mut std::str::SplitWhitespace) -> Result<Command, S
 /// function parseHold(token?: string): number { ... }
 /// ```
 fn parse_hold(token: Option<&str>) -> Result<u64, String> {
-    let text = token.ok_or_else(|| return "key hold requires a duration in milliseconds".to_string())?;
-    let millis = text
-        .parse::<u64>()
-        .map_err(|_| return format!("key hold duration is not a whole number of milliseconds: {text}"))?;
+    let text = option_or_text(token, format_args!("key hold requires a duration in milliseconds"))?;
+    let millis = result_or_text(
+        text.parse::<u64>(),
+        format_args!("key hold duration is not a whole number of milliseconds: {text}"),
+    )?;
     if millis == 0 || millis > MAX_HOLD_MS {
         return Err(format!("key hold duration must be from 1 to {MAX_HOLD_MS} milliseconds, got: {millis}"))
     }

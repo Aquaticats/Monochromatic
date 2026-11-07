@@ -1,11 +1,17 @@
 //! What:
-//!  A Git step of a commit that runs past its bound is stopped, the commit says which step, its class and the bound,
+//!  A Git step of a commit that runs past its bound is stopped,
+//! the commit says which step,
+//! its class and the bound,
 //!  and the repository recovers.
 //! Why:
-//!  The bound used to be 30 minutes for every step, so a stalled step held a commit for as long as a stalled repack.
+//!  The bound used to be 30 minutes for every step,
+//! so a stalled step held a commit for as long as a stalled repack.
 //!  Each control starts a real wrapped commit under `strace` with a delay on the return of every `execve`
-//!  (the start of the wrapper's own Git children), and a bound shorter than that delay, so the first step the wrapper
-//!  watches outlasts it; the invariants are those of the fault tables (`binary_fault_support.rs`).
+//!  (the start of the wrapper's own Git children),
+//! and a bound shorter than that delay,
+//! so the first step the wrapper
+//!  watches outlasts it;
+//! the invariants are those of the fault tables (`binary_fault_support.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,13 +26,17 @@ use git_policy_cli::child_class::{CHILD_WAIT_VARIABLE, ChildClass, class_of};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-/// The bound the control sets, in seconds: the smallest the variable accepts.
+/// The bound the control sets,
+/// in seconds:
+/// the smallest the variable accepts.
 const BOUND_SECONDS: u64 = 1;
 
-/// How long the start of each Git child is delayed beyond the bound, in seconds.
+/// How long the start of each Git child is delayed beyond the bound,
+/// in seconds.
 const MARGIN_SECONDS: u64 = 1;
 
-/// The commit with the bound set and the notice interval at its smallest, so a notice precedes the stop.
+/// The commit with the bound set and the notice interval at its smallest,
+/// so a notice precedes the stop.
 fn bounded_commit(fixture: &Fixture, repo: &std::path::Path, label: &str) -> Ran {
     let fault: Injection = Injection {
         syscall: "execve",
@@ -45,7 +55,9 @@ fn bounded_commit(fixture: &Fixture, repo: &std::path::Path, label: &str) -> Ran
     );
 }
 
-/// A watched step that outlasts the bound is stopped; the commit fails naming the bound, the class and the variable,
+/// A watched step that outlasts the bound is stopped;
+/// the commit fails naming the bound,
+/// the class and the variable,
 ///  and the next command recovers.
 #[test]
 fn a_git_step_past_its_bound_fails_the_commit_and_names_the_class() {

@@ -1,8 +1,13 @@
 //! What:
-//!  How long a push may show nothing before it is stopped: the environment variable that sets the deadline, its default,
-//!  the reading of a positive whole number of seconds, and the patience a push runs under.
+//!  How long a push may show nothing before it is stopped:
+//! the environment variable that sets the deadline,
+//! its default,
+//!  the reading of a positive whole number of seconds,
+//! and the patience a push runs under.
 //! Why:
-//!  `bounded_push.rs` runs and stops the push; the settings it reads do not use it, so they sit in a file of their own and
+//!  `bounded_push.rs` runs and stops the push;
+//! the settings it reads do not use it,
+//! so they sit in a file of their own and
 //!  `bounded_push.rs` re-exports them for the callers that import them from there.
 //!
 //! In TS you'd write (pseudocode):
@@ -21,18 +26,37 @@ const TAG: &str = "monochromatic-git-policy-cli";
 pub const PUSH_DEADLINE_VARIABLE: &str = "CLI_GIT_PUSH_DEADLINE_SECONDS";
 
 /// How long a push with no connection to a remote open may go without any sign of work (the stall window) when the variable is
-///  absent or unusable. Where no progress can be measured, it is how long the push may run in all.
-///  Citation: no measurement or owner decision determines 30 seconds. The owner decided the rule, "Stop only on no progress
-///  (Recommended)", and not the number. The journal of the commit service (read-only, 794 pushes that landed since 2026-10-20) holds
-///  whole-push times, p50 3.5 s, p99 26.4 s, maximum 72.4 s, which include connected time and so are not a measure of silence
-///  without a connection; no silence of a disconnected push is logged anywhere. The number is an open question for the owner
-///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Push stall window, 30 seconds").
+///  absent or unusable.
+/// Where no progress can be measured,
+/// it is how long the push may run in all.
+///  Citation:
+/// no measurement or owner decision determines 30 seconds.
+/// The owner decided the rule,
+/// "Stop only on no progress
+///  (Recommended)",
+/// and not the number.
+/// The journal of the commit service (read-only,
+/// 794 pushes that landed since 2026-10-20) holds
+///  whole-push times,
+/// p50 3.5 s,
+/// p99 26.4 s,
+/// maximum 72.4 s,
+/// which include connected time and so are not a measure of silence
+///  without a connection;
+/// no silence of a disconnected push is logged anywhere.
+/// The number is an open question for the owner
+///  (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Push stall window,
+/// 30 seconds").
 pub const DEFAULT_PUSH_DEADLINE: Duration = Duration::from_secs(30);
 
 /// What:
 ///  Read a positive whole number of seconds from one environment value.
 /// Why:
-///   A zero, negative, fractional, empty or non-text value is no setting at all,
+///   A zero,
+/// negative,
+/// fractional,
+/// empty or non-text value is no setting at all,
 ///  never "no limit",
 ///  so a typo cannot remove a bound.
 ///
@@ -79,7 +103,9 @@ pub(crate) fn seconds_variable(environment: &[(OsString, OsString)], name: &str)
 }
 
 /// What:
-///  The push deadline: the environment's value, or the default.
+///  The push deadline:
+/// the environment's value,
+/// or the default.
 /// Why:
 ///   A person may need a longer deadline on a slow link or a shorter one on a flaky one.
 ///
@@ -92,10 +118,15 @@ pub fn push_deadline(environment: &[(OsString, OsString)]) -> Duration {
 }
 
 /// What:
-///  How long a bounded child may take: a fixed time, or a time without any sign of work and without an open connection.
+///  How long a bounded child may take:
+/// a fixed time,
+/// or a time without any sign of work and without an open connection.
 /// Why:
-///   A slow push that keeps moving data is working and should finish, and one whose connection to a remote is open is waiting
-///  for the remote and should wait too; one that shows nothing and holds no connection is stuck and should stop fast. A query has
+///   A slow push that keeps moving data is working and should finish,
+/// and one whose connection to a remote is open is waiting
+///  for the remote and should wait too;
+/// one that shows nothing and holds no connection is stuck and should stop fast.
+/// A query has
 ///  no transfer to measure and keeps a fixed bound.
 ///
 /// In TS you'd write (pseudocode):
@@ -104,17 +135,24 @@ pub fn push_deadline(environment: &[(OsString, OsString)]) -> Duration {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Patience {
-    /// Stop after this long, whatever the child does.
+    /// Stop after this long,
+    /// whatever the child does.
     Fixed(Duration),
-    /// Stop after `stall` without data moved, processor time used, or a task at work, by the child and everything it started,
-    ///  unless a process of them holds an open connection to a remote: that is waited for, however long it takes.
+    /// Stop after `stall` without data moved,
+    /// processor time used,
+    /// or a task at work,
+    /// by the child and everything it started,
+    ///  unless a process of them holds an open connection to a remote:
+    /// that is waited for,
+    /// however long it takes.
     Progress {
         /// How long the child may show nothing while no connection is open.
         stall: Duration,
     },
 }
 
-/// The patience of a push from the environment: the stall window.
+/// The patience of a push from the environment:
+/// the stall window.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -124,7 +162,8 @@ pub fn push_patience(environment: &[(OsString, OsString)]) -> Patience {
     return Patience::Progress { stall: push_deadline(environment) };
 }
 
-/// Remove exactly one trailing `\n` or `\r\n`, as the captured output of the incumbent does.
+/// Remove exactly one trailing `\n` or `\r\n`,
+/// as the captured output of the incumbent does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

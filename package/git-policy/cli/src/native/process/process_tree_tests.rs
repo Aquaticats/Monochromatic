@@ -7,10 +7,15 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
 /// How long a test waits for a process to end before it reports that the process was not stopped.
-///  Generous, since only a function that signals nothing ever uses all of it.
+///  Generous,
+/// since only a function that signals nothing ever uses all of it.
 const ENDING_BOUND: Duration = Duration::from_secs(10);
 
-/// A shell, in a process group of its own, that starts a sleeping child, prints its number, and waits for it.
+/// A shell,
+/// in a process group of its own,
+/// that starts a sleeping child,
+/// prints its number,
+/// and waits for it.
 fn shell_with_a_sleeper() -> (Child, i32) {
     let mut shell: Child = Command::new("sh")
         .args(["-c", "sleep 600 & echo $!; wait"])
@@ -27,8 +32,11 @@ fn shell_with_a_sleeper() -> (Child, i32) {
     return (shell, sleeper);
 }
 
-/// End the shell and the sleeper under it through the shell's process group, and collect the shell.
-///  The tests below check `signal_members`, so their cleanup must not depend on it: a version of it that signals
+/// End the shell and the sleeper under it through the shell's process group,
+/// and collect the shell.
+///  The tests below check `signal_members`,
+/// so their cleanup must not depend on it:
+/// a version of it that signals
 ///  nothing would otherwise leave the sleeper running for its whole life and the shell's wait blocked on it.
 fn reap(shell: &mut Child) {
     let group: i32 = i32::try_from(shell.id()).expect("a process number");
@@ -42,8 +50,10 @@ fn reap(shell: &mut Child) {
     shell.wait().expect("the shell is collected");
 }
 
-/// The shell's status once it ends, or nothing when it is still running after the bound.
-///  Its `wait` ends with the sleeper under it, so a sleeper that was not stopped shows as a shell that does not end.
+/// The shell's status once it ends,
+/// or nothing when it is still running after the bound.
+///  Its `wait` ends with the sleeper under it,
+/// so a sleeper that was not stopped shows as a shell that does not end.
 fn status_within_bound(shell: &mut Child) -> Option<ExitStatus> {
     let deadline: Instant = Instant::now() + ENDING_BOUND;
     loop {
@@ -57,7 +67,8 @@ fn status_within_bound(shell: &mut Child) -> Option<ExitStatus> {
     }
 }
 
-/// The command name sits in parentheses and may hold spaces and parentheses; the fields are read after the last one.
+/// The command name sits in parentheses and may hold spaces and parentheses;
+/// the fields are read after the last one.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_stat_line_is_read_after_the_last_parenthesis() {
@@ -69,7 +80,8 @@ fn a_stat_line_is_read_after_the_last_parenthesis() {
     assert_eq!(parse_stat("no parenthesis"), None);
 }
 
-/// A grandchild is found below its grandparent, and signalling the found members ends it.
+/// A grandchild is found below its grandparent,
+/// and signalling the found members ends it.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_descendant_is_found_and_signalled() {
@@ -87,7 +99,9 @@ fn a_descendant_is_found_and_signalled() {
     assert!(sleeper_ended, "the sleeper ended");
 }
 
-/// Ending the found members with the named wrapper reaches the process: `SIGTERM` for `terminate_members`, `SIGKILL`
+/// Ending the found members with the named wrapper reaches the process:
+/// `SIGTERM` for `terminate_members`,
+/// `SIGKILL`
 /// for `kill_members`.
 #[cfg(target_os = "linux")]
 #[test]
@@ -110,7 +124,8 @@ fn the_named_wrappers_end_the_found_members() {
     }
 }
 
-/// A number whose start time differs is another process: it is not signalled.
+/// A number whose start time differs is another process:
+/// it is not signalled.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_reused_number_is_not_signalled() {

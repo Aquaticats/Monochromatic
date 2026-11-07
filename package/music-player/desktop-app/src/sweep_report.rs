@@ -10,12 +10,18 @@
 //! so the controller needs the generation to drop reports from a
 //! queue that a newer load has replaced.
 
+/// Imports the set type that holds the paths already claimed.
 use std::collections::HashSet;
+/// Imports the path type that names a track.
 use std::path::PathBuf;
+/// Imports the shared ownership and lock types that share the sink and the claims.
 use std::sync::{Arc, Mutex};
 
+/// Imports the cache handle that a sweep job carries.
 use crate::peakcache::CacheHandle;
+/// Imports the pause gate that a sweep job waits on.
 use crate::sweep_gate::SweepGate;
+/// Imports the measure that a report carries.
 use crate::track_measure::TrackMeasure;
 
 /// What:

@@ -7,7 +7,8 @@ fn valid(count: i64, subtrees: Vec<(Vec<u8>, CacheTree)>) -> CacheTree {
     return CacheTree { entry_count: count, id: vec![7; 20], subtrees };
 }
 
-/// Git's form reads and writes back unchanged, with an invalid directory carrying no object name.
+/// Git's form reads and writes back unchanged,
+/// with an invalid directory carrying no object name.
 #[test]
 fn the_extension_round_trips() {
     let invalid: CacheTree = CacheTree { entry_count: -1, id: Vec::new(), subtrees: vec![(b"x".to_vec(), valid(1, Vec::new()))] };
@@ -17,7 +18,9 @@ fn the_extension_round_trips() {
     assert_eq!(CacheTree::read(bytes.as_slice(), 20), Some(tree));
 }
 
-/// Invalidating `a/b/c` marks the root, `a` and `b` invalid; invalidating a name removes the subtree of that name.
+/// Invalidating `a/b/c` marks the root,
+/// `a` and `b` invalid;
+/// invalidating a name removes the subtree of that name.
 #[test]
 fn invalidation_follows_the_path_and_removes_a_named_subtree() {
     let deep: CacheTree = valid(1, vec![(b"c".to_vec(), valid(1, Vec::new()))]);
@@ -35,7 +38,8 @@ fn invalidation_follows_the_path_and_removes_a_named_subtree() {
     assert_eq!(tree.subtrees.len(), 1);
 }
 
-/// Unsorted subtrees, trailing bytes and a cut name are left to Git.
+/// Unsorted subtrees,
+/// trailing bytes and a cut name are left to Git.
 #[test]
 fn irregular_forms_are_not_read() {
     let tree: CacheTree = valid(2, vec![(b"a".to_vec(), valid(1, Vec::new())), (b"b".to_vec(), valid(1, Vec::new()))]);
@@ -47,7 +51,10 @@ fn irregular_forms_are_not_read() {
     assert_eq!(CacheTree::read(b"no terminator", 20), None);
 }
 
-/// Subtrees are kept shorter name first, then by bytes, as `subtree_name_cmp` orders them; byte order alone is not Git's.
+/// Subtrees are kept shorter name first,
+/// then by bytes,
+/// as `subtree_name_cmp` orders them;
+/// byte order alone is not Git's.
 #[test]
 fn subtrees_are_ordered_by_length_first() {
     let in_git_order: CacheTree = valid(3, vec![(b"b".to_vec(), valid(1, Vec::new())), (b"aa".to_vec(), valid(1, Vec::new())), (b"ab".to_vec(), valid(1, Vec::new()))]);

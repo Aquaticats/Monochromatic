@@ -16,6 +16,8 @@
 //! so they all
 //! read this one table and nothing else spells a chord out.
 
+/// Imports the platform,
+/// action and request types and the scope test that the table rows use.
 use crate::keymap::{KeyboardPlatform, ShortcutAction, ShortcutRequest, scope_allows};
 
 /// What:

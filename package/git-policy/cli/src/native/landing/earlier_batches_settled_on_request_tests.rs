@@ -1,5 +1,10 @@
-//! Controls for settling, when the person asks, the batches an earlier release's service left open: which batches count as
-//!  the worktree's, that nothing is changed while an earlier helper may run or start, and that what is settled is the
+//! Controls for settling,
+//! when the person asks,
+//! the batches an earlier release's service left open:
+//! which batches count as
+//!  the worktree's,
+//! that nothing is changed while an earlier helper may run or start,
+//! and that what is settled is the
 //!  finish-only recovery of the adoption.
 
 use super::adoption_tests::{LISTENING_FLAGS, empty_proc, fake_process, instance_for, unix_table_line, world_with_earlier_journal, write_unix_table};
@@ -15,7 +20,8 @@ use std::time::Duration;
 /// The time the recovery of a control may wait for an index lock.
 const LOCK_WAIT: Duration = Duration::from_secs(5);
 
-/// The journals the earlier release kept for the world's worktree, below `state`.
+/// The journals the earlier release kept for the world's worktree,
+/// below `state`.
 fn journals_of(world: &World, state: &Path) -> crate::earlier_service_journal_adopted::EarlierJournals {
     return earlier_journals_in_state(state, instance_for(world).as_str());
 }
@@ -33,8 +39,11 @@ fn the_earlier_journals_are_named_from_the_state_folder() {
     assert_eq!(found.shared, PathBuf::from("/home/u/.local/state/cli-git/service"));
 }
 
-/// The count is the open batches of this worktree in the per-instance journal and in the shared one; a batch of another
-///  worktree in the shared journal, a finished batch and an unreadable file are not counted, and counting changes no file.
+/// The count is the open batches of this worktree in the per-instance journal and in the shared one;
+/// a batch of another
+///  worktree in the shared journal,
+/// a finished batch and an unreadable file are not counted,
+/// and counting changes no file.
 #[test]
 fn the_count_is_the_open_batches_of_this_worktree_and_changes_nothing() {
     let (world, state) = world_with_earlier_journal("settle-count", "state");
@@ -57,7 +66,8 @@ fn the_count_is_the_open_batches_of_this_worktree_and_changes_nothing() {
     remove(world.root.as_path());
 }
 
-/// The names of the files in some folders, sorted.
+/// The names of the files in some folders,
+/// sorted.
 fn names_in(folders: &[&Path]) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
     for folder in folders {
@@ -69,7 +79,9 @@ fn names_in(folders: &[&Path]) -> Vec<String> {
     return names;
 }
 
-/// With no batch open nothing is looked at: not the sockets, not the processes.
+/// With no batch open nothing is looked at:
+/// not the sockets,
+/// not the processes.
 #[test]
 fn nothing_open_means_nothing_to_look_at() {
     let (world, state) = world_with_earlier_journal("settle-nothing", "state");
@@ -78,8 +90,11 @@ fn nothing_open_means_nothing_to_look_at() {
     remove(world.root.as_path());
 }
 
-/// With an open batch and nothing that runs or listens, the batch is finished as the adoption finishes it, each batch is
-///  logged with its number, and a second request finds nothing.
+/// With an open batch and nothing that runs or listens,
+/// the batch is finished as the adoption finishes it,
+/// each batch is
+///  logged with its number,
+/// and a second request finds nothing.
 #[test]
 fn an_open_batch_is_finished_when_asked_and_each_batch_is_logged() {
     let (world, state) = world_with_earlier_journal("settle-finish", "state");
@@ -97,7 +112,9 @@ fn an_open_batch_is_finished_when_asked_and_each_batch_is_logged() {
     remove(world.root.as_path());
 }
 
-/// Each reason the look gives for holding back is passed on, and nothing is settled while it stands: the batch stays open.
+/// Each reason the look gives for holding back is passed on,
+/// and nothing is settled while it stands:
+/// the batch stays open.
 #[test]
 fn nothing_is_settled_while_an_earlier_helper_may_run_or_start_and_the_reason_is_given() {
     let (world, state) = world_with_earlier_journal("settle-held", "state");
@@ -118,7 +135,9 @@ fn nothing_is_settled_while_an_earlier_helper_may_run_or_start_and_the_reason_is
     remove(world.root.as_path());
 }
 
-/// A batch of another worktree in the shared journal is that worktree's: it is not counted, looked at or settled.
+/// A batch of another worktree in the shared journal is that worktree's:
+/// it is not counted,
+/// looked at or settled.
 #[test]
 fn the_batch_of_another_worktree_in_the_shared_journal_is_not_settled() {
     let (world, state) = world_with_earlier_journal("settle-other", "state");
@@ -135,8 +154,11 @@ fn the_batch_of_another_worktree_in_the_shared_journal_is_not_settled() {
     remove(world.root.as_path());
 }
 
-/// The recovery is finish-only: a batch that looks as if it never landed keeps its intent on disk, because a landing in
-///  progress writes its intent first, and the request says so.
+/// The recovery is finish-only:
+/// a batch that looks as if it never landed keeps its intent on disk,
+/// because a landing in
+///  progress writes its intent first,
+/// and the request says so.
 #[test]
 fn a_batch_that_looks_unlanded_is_left_on_disk() {
     let (world, state) = world_with_earlier_journal("settle-left", "state");
@@ -154,9 +176,13 @@ fn a_batch_that_looks_unlanded_is_left_on_disk() {
     remove(world.root.as_path());
 }
 
-/// Found when the settle command first ran against a real wrapper: the service of this release runs the same words
-///  (`service run --instance <instance>`) behind the current command word, and it is no earlier helper, so it does not hold the
-///  command back; the same words behind the earlier command word do.
+/// Found when the settle command first ran against a real wrapper:
+/// the service of this release runs the same words
+///  (`service run --instance <instance>`) behind the current command word,
+/// and it is no earlier helper,
+/// so it does not hold the
+///  command back;
+/// the same words behind the earlier command word do.
 #[test]
 fn the_service_of_this_release_is_no_earlier_helper() {
     let (world, state) = world_with_earlier_journal("settle-own-service", "state");
@@ -172,8 +198,12 @@ fn the_service_of_this_release_is_no_earlier_helper() {
     remove(world.root.as_path());
 }
 
-/// The listener of the single service of the first releases, and a process started with the shared journal, serve every
-///  worktree, so the hold names them as such and not as this worktree's; a process whose journal folder cannot be resolved may be
+/// The listener of the single service of the first releases,
+/// and a process started with the shared journal,
+/// serve every
+///  worktree,
+/// so the hold names them as such and not as this worktree's;
+/// a process whose journal folder cannot be resolved may be
 ///  either and is told apart too.
 #[test]
 fn the_hold_keeps_which_socket_or_helper_caused_it() {
@@ -213,8 +243,10 @@ fn the_hold_keeps_which_socket_or_helper_caused_it() {
     remove(world.root.as_path());
 }
 
-/// The service log says which program held a settling back (its process ID, the program and the folder that did not resolve)
-///  and shows no other word of its command line, because any of them can be a secret that no masker knows.
+/// The service log says which program held a settling back (its process ID,
+/// the program and the folder that did not resolve)
+///  and shows no other word of its command line,
+/// because any of them can be a secret that no masker knows.
 #[test]
 fn the_log_line_of_a_held_settling_names_the_program_and_folder_and_no_other_argument() {
     let (world, state) = world_with_earlier_journal("settle-log-program", "state");
@@ -235,8 +267,12 @@ fn the_log_line_of_a_held_settling_names_the_program_and_folder_and_no_other_arg
     remove(world.root.as_path());
 }
 
-/// A batch Git cannot answer for is named, not left out: here one ordinary landed batch and another valid intent of the same
-///  worktree whose repository is unavailable. The first is finished, the second is reported as unanswered with its journal,
+/// A batch Git cannot answer for is named,
+/// not left out:
+/// here one ordinary landed batch and another valid intent of the same
+///  worktree whose repository is unavailable.
+/// The first is finished,
+/// the second is reported as unanswered with its journal,
 ///  and its intent stays on disk (nothing is discarded).
 #[test]
 fn a_batch_git_cannot_answer_for_is_named_and_stays_on_disk() {

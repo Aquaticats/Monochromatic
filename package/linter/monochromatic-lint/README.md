@@ -72,7 +72,13 @@ Options:
 
 - `--config <FILE>` uses exactly that configuration for every file,
   with patterns relative to the working directory.
-- `--fix` applies fixes in at most ten passes per file and rechecks the result.
+- `--fix` applies the fixes that change only whitespace,
+  in at most ten passes per file,
+  and rechecks the result.
+  A fix that rewrites content waits for `--fix-content`;
+  see "Fix classes".
+- `--fix-content` also applies the fixes that rewrite content,
+  and fixes without `--fix`.
   A file is replaced atomically and keeps its mode.
 - `--stdin` with `--stdin-filename <FILE>` lints standard input as that file.
   With `--fix` the fixed source goes to standard output and findings go to standard error.
@@ -139,16 +145,57 @@ and the finding stays reported:
   `markdown/no-pipe-tables` has no fix.
 - A bare URL whose link text contains a backtick is reported without a fix,
   because the parser read a code span delimiter into the URL.
-- A line break inside a blockquote adds no `>`,
+- A line break inside a blockquote carries no `>`,
   also when the quote sits in a list item or holds a list.
-  The new line is a lazy continuation,
-  which CommonMark 0.31.2 (section 5.1 "Block quotes",
-  rule 2 "Laziness") keeps in the paragraph it continues,
-  and the rule never breaks where the next line would start another block.
+  A `>` is a token,
+  and a fix that only changes whitespace never adds one.
+  The new line is a lazy continuation:
+  CommonMark 0.31.2,
+  section 5.1 "Block quotes",
+  rule 2 "Laziness",
+  keeps a line without `>` in the paragraph of the
+  quote it continues,
+  at any depth,
+  and the rule never breaks where the next line would start another block,
+  the one case laziness excludes.
+  A quote whose lines all carry `>` therefore gets a line without it where a break is added;
+  it renders the same,
+  and an author who wants `>` on every line adds it by hand.
 
-`markdown/semantic-line-breaks` is the one fix that changes only whitespace.
-The other fixable Markdown rules rewrite content;
-the proposal to separate the two is `doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md`.
+## Fix classes
+
+Every fix carries a class,
+and `--rules` prints each rule's class in `fixClass`:
+`whitespace`,
+`content`,
+or `null` for a rule that has no fix.
+
+- A `whitespace` fix changes line breaks and the spaces around them,
+  and no token of the text.
+  `markdown/semantic-line-breaks` is the only rule of this class.
+  In a Rust file the continuation line of a broken doc comment also gains the comment marker,
+  which is comment syntax and not part of the text.
+- A `content` fix adds,
+  removes or rewrites a token.
+  These are `markdown/commands-show-output`,
+  `markdown/no-trailing-punctuation`,
+  `markdown/no-bare-urls`,
+  `markdown/fenced-code-language`,
+  `markdown/link-image-reference-definitions`,
+  `markdown/link-image-style`
+  and `markdown/lfs-image-url`.
+
+Plain `--fix` applies only `whitespace` fixes:
+it is the command of the repository's `format:monochromatic-lint` task and of agents before a commit,
+and it changes no token.
+A `content` fix is withheld without `--fix-content`,
+and its finding stays reported.
+The in-process entry `monochromatic_lint::run_embedded::fix_source` applies both classes,
+because its caller names the rules it wants in its own configuration:
+the commit path's `markdown/autofix` runs only `markdown/lfs-image-url`,
+which is a content fix.
+The reasons and the options that were ranked are in
+`doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md`.
 
 ## Inline directives
 
@@ -396,7 +443,14 @@ The check needs the shared nightly toolchain with `rustc-dev`,
 `cargo-dylint` and `dylint-link`.
 Without them,
 or without `cargo` itself,
-every package is skipped with one message:
+every package is skipped with one message.
+The only evidence of a missing `cargo-dylint` is cargo's own `no such command` for `dylint`.
+Any other failure of `cargo dylint --version`,
+including the statuses 126 and 127 of a launcher that cannot start its program,
+is a `cargo` that is broken or older than `toolchain.lock.json`,
+and it fails the run with status `2`,
+with what cargo printed and the command `mise run toolchain:install`,
+because a skip that exits `0` would hide the stale install:
 
 ```text
 monochromatic-lint: rust/avoidable-closure skipped all 24 package(s): ...

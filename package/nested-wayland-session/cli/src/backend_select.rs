@@ -59,6 +59,22 @@ pub struct ParentEnvironment {
     pub x11_display: bool,
 }
 
+/// Whether a parent display variable is set to a non-empty value.
+///
+/// What:
+///      `fn is_present(value: Option<&OsStr>) -> bool`.
+///  `true` for `Some` text that is not empty.
+/// Why:
+///       A set but empty variable names no parent display.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isPresent = (value?: string): boolean => value !== undefined && value !== "";
+/// ```
+fn is_present(value: Option<&OsStr>) -> bool {
+    return matches!(value, Some(text) if !text.is_empty())
+}
+
 /// Reading and querying the parent display variables.
 impl ParentEnvironment {
     /// Read the three variables from this process's environment.
@@ -90,11 +106,10 @@ impl ParentEnvironment {
         wayland_socket: Option<&OsStr>,
         x11_display: Option<&OsStr>,
     ) -> Self {
-        let present = |value: Option<&OsStr>| return value.is_some_and(|text| return !text.is_empty());
         return Self {
-            wayland_display: present(wayland_display),
-            wayland_socket: present(wayland_socket),
-            x11_display: present(x11_display),
+            wayland_display: is_present(wayland_display),
+            wayland_socket: is_present(wayland_socket),
+            x11_display: is_present(x11_display),
         }
     }
 

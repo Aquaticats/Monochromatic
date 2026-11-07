@@ -849,6 +849,32 @@ run = "dprint check --list-different"
 # the Node Markdown linter. No-arg walks the whole tree, honouring .gitignore;
 # file/dir paths restrict the walk. Exits 1 on error findings and 2 when the run
 # could not be completed; warnings alone exit 0.
+# Fills the Cargo registry cache with every crate each package's `Cargo.lock` names, for all targets, so offline
+# readers of the lock find them: the closure check of `lint:monochromatic-lint` runs `cargo metadata --offline --locked`
+# per package and skips a package whose crates are not cached (for example the Windows-only crates the music player's
+# lock names). Post-`--` arguments are package directories (default: every directory with a tracked `Cargo.lock`).
+# Needs the network; `cargo fetch --locked` never changes a lock file, and a package that fails is named at the end.
+[tasks."fetch:rust-dependencies"]
+description = "Download every locked Cargo dependency of each package (default: all with a Cargo.lock) so the offline closure check can read them"
+usage = """
+arg "[directories]" var=#true help="Package directories to fetch (default: every directory with a tracked Cargo.lock)"
+"""
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.parse_usage_args}}
+const { execFileSync, spawnSync } = await import('node:child_process')
+const { dirname } = await import('node:path')
+const requested = parseUsageArgs(process.env.usage_directories ?? '')
+const lockFiles = execFileSync('git', ['ls-files', '*Cargo.lock'], { encoding: 'utf8' }).split('\\n').filter((line) => line !== '')
+const directories = requested.length > 0 ? requested : lockFiles.map((lockFile) => dirname(lockFile))
+const failed: string[] = []
+for (const directory of directories) {
+  const result = spawnSync('cargo', ['fetch', '--locked', '--manifest-path', directory + '/Cargo.toml'], { stdio: 'inherit' })
+  if (result.status !== 0) { failed.push(directory) }
+}
+if (failed.length > 0) { throw new Error('cargo fetch --locked failed in: ' + failed.join(', ')) }
+"""
+
 [tasks."lint:monochromatic-lint"]
 description = "Lint Rust, Markdown and MDX with monochromatic-lint, optionally restricted to specific paths"
 # No usage spec: mise appends post-`--` args to the command as a real argv vector
@@ -987,9 +1013,12 @@ description = "Auto-fix each package with Oxlint using package-local tsconfig"
 shell = "node --input-type=module-typescript -e"
 run = "{{vars.fanout_packages}}"
 
-# Applies monochromatic-lint fixes (e.g. no-pipe-tables converting pipe tables to
-# HTML, semantic-line-breaks inserting breaks in Markdown and in rustdoc) over the
-# whole tree or the given paths. This is the only markdown gate: dprint's markdown
+# Applies the whitespace fixes of monochromatic-lint (plain `--fix`: semantic-line-breaks inserting
+# breaks in Markdown and in rustdoc, which changes no token) over the whole tree or the given paths.
+# Fixes that rewrite content (fence languages, `$ ` prompts, link styles, trailing heading punctuation,
+# bare URLs, reference definitions) wait for `monochromatic-lint --fix-content <paths>`, which this task never
+# runs; their findings stay reported. Rationale: doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md.
+# This is the only markdown gate: dprint's markdown
 # plugin is disabled in package/config/dprint/index.json ("Formats ordered list
 # markers wrongly"), so `dprint fmt` leaves .md files untouched and no separate
 # markdown formatting pass exists. In the root `format` task it still runs after
@@ -997,7 +1026,7 @@ run = "{{vars.fanout_packages}}"
 # format.
 [tasks."format:monochromatic-lint"]
 hide = true
-description = "Apply monochromatic-lint fixes to Rust, Markdown and MDX, optionally restricted to specific paths"
+description = "Apply monochromatic-lint whitespace fixes (plain --fix, no token changes) to Rust, Markdown and MDX, optionally restricted to specific paths"
 # No usage spec: mise appends post-`--` args after `--fix` as a real argv vector.
 # The linter walks `.` when no paths are given.
 run = "monochromatic-lint --fix"

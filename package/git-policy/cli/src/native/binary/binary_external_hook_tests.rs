@@ -1,8 +1,13 @@
-//! External hooks through the built executable: none runs, the configuration that defines them is reported loudly, and
+//! External hooks through the built executable:
+//! none runs,
+//! the configuration that defines them is reported loudly,
+//! and
 //!  the declared post-commit action does what a `post-commit` hook did.
 //! Why:
 //!  The wrapper supports no external hook program at all.
-//!  Git never starts the wrapper for a hook, the wrapper starts no hook program, and the one behavior this repository
+//!  Git never starts the wrapper for a hook,
+//! the wrapper starts no hook program,
+//! and the one behavior this repository
 //!  used a hook for is a native action declared in `monochromatic-git-policy-cli.config.jsonc`.
 //!
 //! In TS you'd write (pseudocode):
@@ -34,7 +39,9 @@ fn configure_marker_hook(fixture: &Fixture, repo: &Path, name: &str, event: &str
     git(fixture, repo, &["config", format!("hook.{name}.command").as_str(), script.to_str().expect("UTF-8")]);
 }
 
-/// A hook for every commit event never runs, the commit lands with the message it was given, and standard error
+/// A hook for every commit event never runs,
+/// the commit lands with the message it was given,
+/// and standard error
 /// carries one `configuration-warning` naming the hooks and the ways forward.
 #[test]
 fn configured_hooks_for_the_commit_events_never_run_and_are_reported() {
@@ -61,7 +68,8 @@ fn configured_hooks_for_the_commit_events_never_run_and_are_reported() {
     remove_settled(&fixture);
 }
 
-/// A hook configured in the global file is switched off as well, and a repository with no hook gets no warning.
+/// A hook configured in the global file is switched off as well,
+/// and a repository with no hook gets no warning.
 #[test]
 fn a_global_hook_never_runs_and_a_clean_repository_is_not_warned() {
     let fixture: Fixture = fixture("external-global");
@@ -92,7 +100,8 @@ fn a_global_hook_never_runs_and_a_clean_repository_is_not_warned() {
     remove_settled(&fixture);
 }
 
-/// A forwarded command runs no configured hook either: a `post-checkout` hook stays silent on `checkout`.
+/// A forwarded command runs no configured hook either:
+/// a `post-checkout` hook stays silent on `checkout`.
 #[test]
 fn a_forwarded_command_runs_no_configured_hook() {
     let fixture: Fixture = fixture("external-forwarded");
@@ -107,7 +116,8 @@ fn a_forwarded_command_runs_no_configured_hook() {
     remove_settled(&fixture);
 }
 
-/// The retired `hooks.concurrentCommits` key still loads: the commit lands and nothing complains.
+/// The retired `hooks.concurrentCommits` key still loads:
+/// the commit lands and nothing complains.
 #[test]
 fn the_retired_hooks_key_still_loads_in_a_commit() {
     let fixture: Fixture = fixture("external-retired-key");
@@ -118,7 +128,10 @@ fn the_retired_hooks_key_still_loads_in_a_commit() {
     remove_settled(&fixture);
 }
 
-/// `git monochromatic-git-policy-cli doctor` lists the configured hooks, exits 1, and names the ways forward; the retired key is noted.
+/// `git monochromatic-git-policy-cli doctor` lists the configured hooks,
+/// exits 1,
+/// and names the ways forward;
+/// the retired key is noted.
 #[test]
 fn doctor_lists_configured_hooks_and_notes_the_retired_key() {
     let fixture: Fixture = fixture("external-doctor");
@@ -135,7 +148,8 @@ fn doctor_lists_configured_hooks_and_notes_the_retired_key() {
     remove_settled(&fixture);
 }
 
-/// `git monochromatic-git-policy-cli doctor` names the inert `indexLock` and `landing` keys and the remedy, and still exits 0 for them alone.
+/// `git monochromatic-git-policy-cli doctor` names the inert `indexLock` and `landing` keys and the remedy,
+/// and still exits 0 for them alone.
 #[test]
 fn doctor_names_the_inert_index_lock_and_landing_keys() {
     let fixture: Fixture = fixture("external-doctor-inert");
@@ -153,7 +167,8 @@ fn doctor_names_the_inert_index_lock_and_landing_keys() {
     remove_settled(&fixture);
 }
 
-/// A start name that used to be a hook entry's name behaves as `git`: nothing dispatches on the name the wrapper was
+/// A start name that used to be a hook entry's name behaves as `git`:
+/// nothing dispatches on the name the wrapper was
 /// started under.
 #[test]
 fn a_start_name_that_used_to_be_an_entry_behaves_as_git() {
@@ -211,7 +226,8 @@ fn a_post_commit_key_is_a_configuration_error() {
 }
 
 /// A caller's `-c core.worktree` and `-c hook.<event>.enabled=true` cannot redirect the shadow commit or bring a hook
-/// back: the commit lands as it would without them.
+/// back:
+/// the commit lands as it would without them.
 #[test]
 fn a_callers_own_config_options_cannot_redirect_the_commit_or_bring_a_hook_back() {
     let fixture: Fixture = fixture("external-caller-options");
@@ -238,10 +254,15 @@ fn a_callers_own_config_options_cannot_redirect_the_commit_or_bring_a_hook_back(
     remove_settled(&fixture);
 }
 
-/// A configured `pre-push` hook never runs on a push, a dry-run push or a push whose caller tries to re-enable it, and
-/// each of them reports the hook: `pre-push` is the one event not switched off as a whole, so the hook is switched off
+/// A configured `pre-push` hook never runs on a push,
+/// a dry-run push or a push whose caller tries to re-enable it,
+/// and
+/// each of them reports the hook:
+/// `pre-push` is the one event not switched off as a whole,
+/// so the hook is switched off
 /// by its name.
-/// The positive control is the same hook run through real Git, which writes the marker.
+/// The positive control is the same hook run through real Git,
+/// which writes the marker.
 #[test]
 fn a_configured_pre_push_hook_never_runs_on_a_push() {
     let fixture: Fixture = fixture("external-pre-push");

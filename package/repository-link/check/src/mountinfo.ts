@@ -15,6 +15,7 @@ import {
   MOUNTINFO_MOUNT_POINT_FIELD,
   MOUNTINFO_PATH,
 } from './constants.ts';
+import { errorCodeOf, } from './error-code-of.ts';
 
 /**
  One mount of the process's namespace.
@@ -86,6 +87,13 @@ const OCTAL_BASE = 8;
  @param text - the content of `/proc/self/mountinfo`
  
  @returns the mounts in file order
+
+ @example
+ ```ts
+ import { parseMountInfo, } from '\@monochromatic-dev/repository-link-check';
+ 
+ const result = parseMountInfo(text,);
+ ```
  */
 export function parseMountInfo(text: string,): readonly Mount[] {
   return text.split('\n',)
@@ -116,6 +124,13 @@ export function parseMountInfo(text: string,): readonly Mount[] {
  @param path - an absolute path with every link resolved
  
  @returns the mount, or an empty mount when none matches
+
+ @example
+ ```ts
+ import { mountHolding, } from '\@monochromatic-dev/repository-link-check';
+ 
+ const result = mountHolding({ mounts, path, },);
+ ```
  */
 export function mountHolding(
   {
@@ -152,6 +167,13 @@ export function mountHolding(
  Reads the mounts of this process.
 
  @returns the mounts; empty when mountinfo cannot be read
+
+ @example
+ ```ts
+ import { readMounts, } from './mountinfo.ts';
+ 
+ const result = await readMounts();
+ ```
  */
 export async function readMounts(): Promise<readonly Mount[]> {
   try {
@@ -161,7 +183,7 @@ export async function readMounts(): Promise<readonly Mount[]> {
     ),);
   }
   catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (errorCodeOf(error,) === 'ENOENT') {
       return [];
     }
     throw error;
@@ -174,6 +196,13 @@ export async function readMounts(): Promise<readonly Mount[]> {
  @param source - the mount source, for example `/dev/mapper/crypt_sda`
  
  @returns the UUID, or an empty string when the source is not a device or has no udev link
+
+ @example
+ ```ts
+ import { uuidOfSource, } from './mountinfo.ts';
+ 
+ const result = await uuidOfSource(source,);
+ ```
  */
 export async function uuidOfSource(source: string,): Promise<string> {
   if (!source.startsWith('/dev/',)) {
@@ -207,7 +236,7 @@ export async function uuidOfSource(source: string,): Promise<string> {
       ?? '';
   }
   catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (errorCodeOf(error,) === 'ENOENT') {
       return '';
     }
     throw error;

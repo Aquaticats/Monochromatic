@@ -1,6 +1,9 @@
-//! Controls for the manual-push candidate scope of one push, against real repositories.
+//! Controls for the manual-push candidate scope of one push,
+//! against real repositories.
 //! The TypeScript corpus is `src/policy-engine/manual-push-lifecycle` behavior in
-//! `src/policy-engine/manual-push.integration.unit.test.ts` (blocked on new branch, prior destination, probe failure).
+//! `src/policy-engine/manual-push.integration.unit.test.ts` (blocked on new branch,
+//! prior destination,
+//! probe failure).
 
 use super::*;
 use crate::test_support::{fixture, git, remove};
@@ -71,7 +74,8 @@ fn repository_with_unpublished_commit(name: &str) -> (PathBuf, String) {
     return (repo, tip);
 }
 
-/// Duplicate commits are listed once, and a deletion contributes nothing.
+/// Duplicate commits are listed once,
+/// and a deletion contributes nothing.
 #[test]
 fn the_pushed_scope_lists_each_commit_once() {
     let first = parse_object_id("a".repeat(40).as_bytes()).expect("object name");
@@ -113,7 +117,8 @@ fn a_push_of_an_unpublished_commit_scans_that_commit() {
     remove(repo.parent().expect("root"));
 }
 
-/// A destination Git cannot reach fails the scope, so the push is refused rather than scanned empty.
+/// A destination Git cannot reach fails the scope,
+/// so the push is refused rather than scanned empty.
 #[test]
 fn an_unreachable_destination_fails_the_scope() {
     let (repo, _tip) = repository_with_unpublished_commit("mp-lifecycle-unreachable");
@@ -130,14 +135,16 @@ fn an_unreachable_destination_fails_the_scope() {
     remove(repo.parent().expect("root"));
 }
 
-/// The lifecycle failure prints as its diagnostic, so a refused push names the failed step.
+/// The lifecycle failure prints as its diagnostic,
+/// so a refused push names the failed step.
 #[test]
 fn the_failure_displays_its_message() {
     let failure = ManualPushFailure::step(ManualPushCause::SelfExplained, String::from("the step failed"));
     assert_eq!(failure.to_string(), "the step failed");
 }
 
-/// A commit that another branch of the destination already holds is published, so the push does not scan it again.
+/// A commit that another branch of the destination already holds is published,
+/// so the push does not scan it again.
 #[test]
 fn a_commit_another_branch_of_the_destination_holds_is_not_scanned_again() {
     let (repo, _tip) = repository_with_unpublished_commit("mp-lifecycle-held-elsewhere");

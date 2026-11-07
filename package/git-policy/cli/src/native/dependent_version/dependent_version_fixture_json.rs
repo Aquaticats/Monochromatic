@@ -1,8 +1,16 @@
-//! What: Read differential fixtures and write canonical results, for the tests that
+//! What:
+//! Read differential fixtures and write canonical results,
+//! for the tests that
 //!       compare the native planner with the incumbent.
-//! Why: Both implementations read the same case files and write one canonical JSON text
-//!      per case: keys in a fixed order, no spaces, strings quoted as `JSON.stringify`
-//!      quotes them, bytes as lower-case hexadecimal. Equal texts are equal results.
+//! Why:
+//! Both implementations read the same case files and write one canonical JSON text
+//!      per case:
+//! keys in a fixed order,
+//! no spaces,
+//! strings quoted as `JSON.stringify`
+//!      quotes them,
+//! bytes as lower-case hexadecimal.
+//! Equal texts are equal results.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,12 +22,14 @@ use crate::dependent_version_release::json_quote_units;
 /// The crate's JSONC parser reads fixtures.
 use monochromatic_jsonc_edit::{JsoncKind, JsoncValue};
 
-/// The member of a fixture object; a missing member is a broken fixture.
+/// The member of a fixture object;
+/// a missing member is a broken fixture.
 pub fn field<'value>(value: &'value JsoncValue, key: &str) -> &'value JsoncValue {
     return optional_field(value, key).unwrap_or_else(|| panic!("fixture lacks {key:?}"));
 }
 
-/// The member of a fixture object, if present.
+/// The member of a fixture object,
+/// if present.
 pub fn optional_field<'value>(value: &'value JsoncValue, key: &str) -> Option<&'value JsoncValue> {
     return value.entries().and_then(|entries| {
         return entries
@@ -45,7 +55,8 @@ pub fn units(value: &JsoncValue) -> Vec<u16> {
         .to_vec();
 }
 
-/// A fixture string as Rust text; fixtures carry no unpaired surrogates where text is read.
+/// A fixture string as Rust text;
+/// fixtures carry no unpaired surrogates where text is read.
 pub fn text(value: &JsoncValue) -> String {
     return String::from_utf16(&units(value)).unwrap_or_else(|error| panic!("{error}"));
 }
@@ -101,7 +112,8 @@ pub fn array(items: &[String]) -> String {
     return format!("[{}]", items.join(","));
 }
 
-/// A canonical JSON object of keys and already canonical values, in the given order.
+/// A canonical JSON object of keys and already canonical values,
+/// in the given order.
 pub fn object(members: &[(&str, String)]) -> String {
     let rendered: Vec<String> = members
         .iter()
@@ -110,7 +122,8 @@ pub fn object(members: &[(&str, String)]) -> String {
     return format!("{{{}}}", rendered.join(","));
 }
 
-/// The canonical text of a parsed fixture value, as compact `JSON.stringify` writes it.
+/// The canonical text of a parsed fixture value,
+/// as compact `JSON.stringify` writes it.
 pub fn canonical(value: &JsoncValue) -> String {
     match &value.kind {
         JsoncKind::Null => return String::from("null"),

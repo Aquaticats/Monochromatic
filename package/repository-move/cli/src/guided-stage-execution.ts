@@ -27,15 +27,23 @@ import {
 } from './guided-stage-steps.ts';
 
 /**
- Runs the command of a stage and its internal step, checks the exit status, and returns the output file.
+ Runs the command of a stage and its internal step, checks the exit status against the statuses the stage declares, and
+ returns the output file and the status that happened.
 
  @param stageRun - the stage in its phase
  
  @param command - the command text
  
- @returns the output file's path
+ @returns the output file's path and the exit status
  
  @throws GuidedStopError when the window is over or the command fails
+
+ @example
+ ```ts
+ import { executeCommand, } from './guided-stage-execution.ts';
+ 
+ const result = await executeCommand({ stageRun, command, },);
+ ```
  */
 export async function executeCommand(
   {
@@ -45,7 +53,10 @@ export async function executeCommand(
     readonly stageRun: StageRun;
     readonly command: string;
   },
-): Promise<string> {
+): Promise<{
+  readonly outputFile: string;
+  readonly status: number
+}> {
   /**
    The parts of the value this function uses, taken out of it.
    */
@@ -121,7 +132,10 @@ export async function executeCommand(
       rollback: stage.rollback ?? '',
     },);
   }
-  return outputFile;
+  return {
+    outputFile,
+    status,
+  };
 }
 
 /**
@@ -132,6 +146,13 @@ export async function executeCommand(
  @param outputFile - the command's output file
  
  @throws GuidedStopError when the check fails
+
+ @example
+ ```ts
+ import { runCheck, } from './guided-stage-execution.ts';
+ 
+ await runCheck({ stageRun, outputFile, },);
+ ```
  */
 export async function runCheck(
   {

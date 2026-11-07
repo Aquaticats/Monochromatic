@@ -12,16 +12,20 @@
 //! // process/index.ts: one `export * from './file'` per module below.
 //! ```
 
-/// The longest quiet gap of every Git step and tool this process ran, kept until a timing record takes it.
+/// The longest quiet gap of every Git step and tool this process ran,
+/// kept until a timing record takes it.
 pub mod quiet_ledger;
 
-/// Whether a thread of this process is at work, and the clock that says when it has been quiet for a window.
+/// Whether a thread of this process is at work,
+/// and the clock that says when it has been quiet for a window.
 pub mod thread_quiet;
 
-/// Output of a child captured into anonymous files, so that the child outlives the command that started it.
+/// Output of a child captured into anonymous files,
+/// so that the child outlives the command that started it.
 pub mod output_capture;
 
-/// The PID namespace an owner record names, and the rule for owners of another one.
+/// The PID namespace an owner record names,
+/// and the rule for owners of another one.
 pub mod pid_namespace;
 
 /// Process-birth identities in the incumbent's exact spelling.
@@ -32,17 +36,33 @@ pub mod process_identity;
 ///  `ps` or the Windows process table.
 pub mod process_start;
 
-/// Catching SIGINT, SIGTERM, SIGHUP and SIGQUIT while a Git child runs, and relaying only process-sent signals.
+/// Catching SIGINT,
+/// SIGTERM,
+/// SIGHUP and SIGQUIT while a Git child runs,
+/// and relaying only process-sent signals.
 pub mod signal_relay;
 
 /// The processes of this host that use a directory or a file.
 pub mod process_use;
 
-/// The processes below one process, read before it is stopped and signalled only while they are still the ones found.
+/// The processes below one process,
+/// read before it is stopped and signalled only while they are still the ones found.
 pub mod process_tree;
 
-/// A child started with the standard library and awaited on the runtime through a pidfd, owned through every failure after its start.
+/// A child started with the standard library and awaited on the runtime through a pidfd,
+/// owned through every failure after its start.
 pub mod child_awaited_through_a_pidfd;
 
-/// A command run to its end like `Command::output`, awaited on the runtime through a pidfd, with its output read from anonymous files.
+/// A command run to its end like `Command::output`,
+/// awaited on the runtime through a pidfd,
+/// with its output read from anonymous files.
 pub mod captured_child_run_to_its_end;
+
+/// The output of a child the caller started,
+/// read whole through pipes on the runtime while the child's exit is awaited through its pidfd.
+pub mod step_output_read_whole_through_pipes;
+
+/// When a stop that asked its tree to end may force the end:
+/// at the end of its grace,
+/// and not before the ceiling while a member is in uninterruptible sleep.
+pub mod stop_waits_while_a_member_cannot_be_interrupted;

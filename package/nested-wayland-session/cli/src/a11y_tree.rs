@@ -12,6 +12,7 @@ use zbus::{Connection, OwnedObjectPath, Proxy};
 
 /// Sibling modules of this crate.
 use crate::{
+    lazy_error_text::with_message,
     a11y_service::{A11yService, Application},
     bus_step_bound::block_on_within,
     protocol::Response,
@@ -164,7 +165,10 @@ const ROLE_NAMES: &[&str] = &[
 /// ```
 #[must_use]
 pub fn role_name(role: u32) -> String {
-    return ROLE_NAMES.get(role as usize).map_or_else(|| return format!("role-{role}"), |name| return (*name).to_string())
+    match ROLE_NAMES.get(role as usize) {
+        Some(name) => return (*name).to_string(),
+        None => return format!("role-{role}"),
+    }
 }
 
 /// Name the set bits of an AT-SPI state vector.
@@ -205,7 +209,10 @@ pub fn state_names(words: &[u32]) -> Vec<&'static str> {
 /// const formatNode = (node: Node) => `depth=${node.depth} role=${enc(node.role)} ...`;
 /// ```
 fn format_node(node: &Node) -> String {
-    let bounds = node.bounds.map_or(String::new(), |(x, y, width, height)| return format!("{x},{y},{width},{height}"));
+    let bounds = match node.bounds {
+        Some((x, y, width, height)) => format!("{x},{y},{width},{height}"),
+        None => String::new(),
+    };
     return format!(
         "depth={} role={} name={} states={} bounds={bounds}",
         node.depth,
@@ -244,9 +251,10 @@ pub fn format_tree(nodes: &[Node]) -> String {
 /// function proxy(connection: Connection, busName: string, path: string, iface: string): Proxy { ... }
 /// ```
 async fn proxy<'a>(connection: &Connection, bus_name: &'a str, path: &'a str, interface: &'a str) -> Result<Proxy<'a>> {
-    return Proxy::new(connection, bus_name, path, interface)
-        .await
-        .with_context(|| format!("opening {interface} of {path} on {bus_name}"))
+    return with_message(
+        Proxy::new(connection, bus_name, path, interface).await,
+        format_args!("opening {interface} of {path} on {bus_name}"),
+    )
 }
 
 /// Read one node and queue its children.
@@ -275,7 +283,10 @@ async fn read_node(connection: &Connection, bus_name: &str, path: &str, depth: u
         }
     };
     let node = Node { depth, role, name, states: state_names(&states), bounds };
-    let queued = children.into_iter().map(|(child_bus, child_path)| return (child_bus, child_path.as_str().to_string())).collect();
+    let mut queued: Vec<(String, String)> = Vec::new();
+    for (child_bus, child_path) in children {
+        queued.push((child_bus, child_path.as_str().to_string()));
+    }
     return Ok((node, queued))
 }
 

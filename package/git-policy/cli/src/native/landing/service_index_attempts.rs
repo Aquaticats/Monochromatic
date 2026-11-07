@@ -9,7 +9,8 @@
 //! Why:
 //!  The wait blocks on an inotify watch set before the first attempt,
 //! so a release between an attempt and the wait is not missed;
-//! the only timer is the repetition of the holder's line, and a poll where no watch can be set.
+//! the only timer is the repetition of the holder's line,
+//! and a poll where no watch can be set.
 //! The module is split from `service_index_lock.rs`,
 //! which holds the acquisition's entry points and the lock itself.
 //!
@@ -49,20 +50,30 @@ const COMMIT_NOT_MADE: &str = "this commit was not made";
 /// What one look at a held lock proved.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Proved {
-    /// A holder is proven alive; it is waited for with no bound.
+    /// A holder is proven alive;
+    /// it is waited for with no bound.
     Alive,
-    /// The PID file names a process that is gone; nothing will release the lock.
+    /// The PID file names a process that is gone;
+    /// nothing will release the lock.
     Dead,
-    /// Nothing proves a holder alive or dead; it is waited for like a proven one.
+    /// Nothing proves a holder alive or dead;
+    /// it is waited for like a proven one.
     Nothing,
-    /// The lock was gone when the evidence was read; the next attempt will find out.
+    /// The lock was gone when the evidence was read;
+    /// the next attempt will find out.
     Gone,
 }
 
-/// What a look at the held lock found: what it proved, the line for the person, the holder's words, the processes that
-///  have the lock open, and the diagnostic to give if the look ends the wait.
+/// What a look at the held lock found:
+/// what it proved,
+/// the line for the person,
+/// the holder's words,
+/// the processes that
+///  have the lock open,
+/// and the diagnostic to give if the look ends the wait.
 struct Looked {
-    /// The words for the blocker, for the line at the ceiling.
+    /// The words for the blocker,
+    /// for the line at the ceiling.
     blocker: String,
     proved: Proved,
     line: Option<String>,
@@ -130,7 +141,8 @@ fn until_next_wake(to_notice: Duration, to_ceiling: Duration, watched: bool) -> 
 pub(crate) struct Placing<'a> {
     pub(crate) staged: &'a Path,
     pub(crate) held: &'a std::fs::File,
-    /// The text of the marker, which the lock is given when it must be created before it can be written.
+    /// The text of the marker,
+    /// which the lock is given when it must be created before it can be written.
     pub(crate) marker: &'a str,
     pub(crate) lock: &'a Path,
     pub(crate) lock_name: &'a std::ffi::OsStr,

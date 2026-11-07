@@ -1,7 +1,17 @@
-//! Controls for the migration: the happy path with a linked worktree, the preview, every refusal that reaches the
-//!  command, the resume after a simulated kill at every journal step, the tolerance of unreadable files and the
-//!  refusal of unreadable directories, the catch-up, and the index stat rewrite. They run on the stand-in platform, so
-//!  they run on any filesystem, including the container gate's overlay.
+//! Controls for the migration:
+//! the happy path with a linked worktree,
+//! the preview,
+//! every refusal that reaches the
+//!  command,
+//! the resume after a simulated kill at every journal step,
+//! the tolerance of unreadable files and the
+//!  refusal of unreadable directories,
+//! the catch-up,
+//! and the index stat rewrite.
+//! They run on the stand-in platform,
+//! so
+//!  they run on any filesystem,
+//! including the container gate's overlay.
 
 use super::*;
 use crate::fs_kind::FilesystemKind;
@@ -13,7 +23,8 @@ use crate::subvolume_test_support::{Hooked, PlainPlatform, checkout_with_worktre
 use crate::test_support::{git_text, remove};
 use std::os::unix::fs::MetadataExt;
 
-/// The exit status the command gives a finished, previewed or already finished migration.
+/// The exit status the command gives a finished,
+/// previewed or already finished migration.
 const DONE: i32 = 0;
 
 /// The exit status of a refusal.
@@ -22,13 +33,16 @@ const REFUSED: i32 = 1;
 /// The exit status of a failure after the journal began.
 const FAILED: i32 = 2;
 
-/// Whether the tests run as root, which can read every file and so cannot make an unreadable one.
+/// Whether the tests run as root,
+/// which can read every file and so cannot make an unreadable one.
 fn running_as_root() -> bool {
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     return unsafe { libc::geteuid() } == 0;
 }
 
-/// The files whose bytes, modes and links the migrated tree must carry, compared with the old tree.
+/// The files whose bytes,
+/// modes and links the migrated tree must carry,
+/// compared with the old tree.
 fn assert_same_tree(original: &Path, copy: &Path) {
     for path in ["README.md", "src/main.rs", "src/deep/er/leaf.txt", "empty", "script.sh", ".gitignore", "ignored/node_modules/pkg/index.js"] {
         assert_eq!(std::fs::read(original.join(path)).expect("original"), std::fs::read(copy.join(path)).expect("copy"), "{path}");
@@ -40,7 +54,11 @@ fn assert_same_tree(original: &Path, copy: &Path) {
     assert_eq!(std::fs::metadata(copy.join("src/main.rs")).expect("main").ino(), std::fs::metadata(copy.join("ignored/main-link.rs")).expect("link").ino(), "hard links stay one file");
 }
 
-/// A migrated tree: a subvolume, Git-clean, with its index stat fields refreshed, and no lock left.
+/// A migrated tree:
+/// a subvolume,
+/// Git-clean,
+/// with its index stat fields refreshed,
+/// and no lock left.
 fn assert_migrated(platform: &PlainPlatform, root: &Path, old: &Path) {
     assert_eq!(platform.is_subvolume_root(root), Ok(true));
     assert_same_tree(old, root);
@@ -53,7 +71,10 @@ fn assert_migrated(platform: &PlainPlatform, root: &Path, old: &Path) {
     assert!(!old.join(".git/index.lock").exists());
 }
 
-/// The happy path: the checkout becomes a subvolume with its worktree nested, the old tree is kept, Git is clean.
+/// The happy path:
+/// the checkout becomes a subvolume with its worktree nested,
+/// the old tree is kept,
+/// Git is clean.
 #[test]
 fn a_checkout_with_a_linked_worktree_is_migrated_and_stays_clean() {
     let (parent, root) = checkout_with_worktree("migrate-happy");
@@ -74,7 +95,9 @@ fn a_checkout_with_a_linked_worktree_is_migrated_and_stays_clean() {
     remove(parent.as_path());
 }
 
-/// The preview creates nothing, not even a journal, and says how to run it for real.
+/// The preview creates nothing,
+/// not even a journal,
+/// and says how to run it for real.
 #[test]
 fn the_dry_run_changes_nothing() {
     let (parent, root) = checkout_with_worktree("migrate-dry");
@@ -90,7 +113,8 @@ fn the_dry_run_changes_nothing() {
     remove(parent.as_path());
 }
 
-/// A filesystem that is not btrfs is refused with the cause and the remedies, before anything is created.
+/// A filesystem that is not btrfs is refused with the cause and the remedies,
+/// before anything is created.
 #[test]
 fn a_filesystem_other_than_btrfs_is_refused_with_its_name() {
     let (parent, root) = checkout_with_worktree("migrate-not-btrfs");
@@ -107,7 +131,9 @@ fn a_filesystem_other_than_btrfs_is_refused_with_its_name() {
     remove(parent.as_path());
 }
 
-/// A rerun after a finished migration, and a plain subvolume with no journal, both report "nothing to do" with status 0.
+/// A rerun after a finished migration,
+/// and a plain subvolume with no journal,
+/// both report "nothing to do" with status 0.
 #[test]
 fn an_already_migrated_checkout_is_reported_and_left_alone() {
     let (parent, root) = checkout_with_worktree("migrate-again");
@@ -125,8 +151,12 @@ fn an_already_migrated_checkout_is_reported_and_left_alone() {
     remove(parent.as_path());
 }
 
-/// A kill at any step is survived: the rerun resumes and ends in the same migrated state. Each point is a place a
-///  real kill can land; the hook stops the run exactly there, and nothing but the disk and the journal survives.
+/// A kill at any step is survived:
+/// the rerun resumes and ends in the same migrated state.
+/// Each point is a place a
+///  real kill can land;
+/// the hook stops the run exactly there,
+/// and nothing but the disk and the journal survives.
 #[test]
 fn a_rerun_after_a_simulated_kill_at_every_step_completes() {
     let points: [(&str, u64); 12] = [
@@ -159,7 +189,8 @@ fn a_rerun_after_a_simulated_kill_at_every_step_completes() {
     }
 }
 
-/// Files this user may not read are left in the old tree and listed; the run still succeeds.
+/// Files this user may not read are left in the old tree and listed;
+/// the run still succeeds.
 #[test]
 fn unreadable_files_stay_in_the_old_tree_and_are_listed() {
     if running_as_root() {
@@ -183,7 +214,9 @@ fn unreadable_files_stay_in_the_old_tree_and_are_listed() {
     remove(parent.as_path());
 }
 
-/// A directory this user cannot list stops the run before the exchange, naming it, and nothing is lost.
+/// A directory this user cannot list stops the run before the exchange,
+/// naming it,
+/// and nothing is lost.
 #[test]
 fn an_unreadable_directory_stops_the_run_before_the_exchange() {
     if running_as_root() {
@@ -219,7 +252,9 @@ fn a_write_to_the_old_tree_after_the_exchange_is_carried_over() {
     remove(parent.as_path());
 }
 
-/// Without the index rewrite the copied index keeps the old inodes; with it they match. The first proves that the
+/// Without the index rewrite the copied index keeps the old inodes;
+/// with it they match.
+/// The first proves that the
 ///  second control can fail.
 #[test]
 fn the_index_rewrite_can_be_switched_off_and_then_the_inodes_differ() {
@@ -263,7 +298,8 @@ fn a_process_inside_the_checkout_is_named_in_the_warning() {
     remove(parent.as_path());
 }
 
-/// A platform that makes a foreign Git command's lock file appear at `lock` during the first copy, after the preflight.
+/// A platform that makes a foreign Git command's lock file appear at `lock` during the first copy,
+/// after the preflight.
 fn lock_taker(lock: PathBuf) -> Hooked {
     return Hooked::new(Box::new(move |call: u32| {
         if call == 0 {
@@ -272,8 +308,11 @@ fn lock_taker(lock: PathBuf) -> Hooked {
     }));
 }
 
-/// A lock taken by another Git command after the preflight is never taken for the migration's own: the migration stops
-///  before the exchange, leaves that lock alone, and finishes once the other command is done.
+/// A lock taken by another Git command after the preflight is never taken for the migration's own:
+/// the migration stops
+///  before the exchange,
+/// leaves that lock alone,
+/// and finishes once the other command is done.
 #[test]
 fn an_index_lock_taken_by_another_git_command_after_the_preflight_stops_the_migration() {
     for relative in [".git/index.lock", ".git/worktrees/wt/index.lock"] {
@@ -298,7 +337,9 @@ fn an_index_lock_taken_by_another_git_command_after_the_preflight_stops_the_migr
 }
 
 /// The migration's locks stand in the new checkout (the main index and the linked worktree's) from the exchange until
-///  the indexes are rewritten, so no Git command reads or writes a tree that is being completed; none is left after.
+///  the indexes are rewritten,
+/// so no Git command reads or writes a tree that is being completed;
+/// none is left after.
 #[test]
 fn the_new_checkout_holds_the_index_locks_until_the_indexes_are_rewritten() {
     let main: &str = ".git/index.lock";
@@ -324,7 +365,8 @@ fn the_new_checkout_holds_the_index_locks_until_the_indexes_are_rewritten() {
     }
 }
 
-/// The migration holds the linked worktrees' index locks too, in the old tree before its last copy and in the new tree
+/// The migration holds the linked worktrees' index locks too,
+/// in the old tree before its last copy and in the new tree
 ///  before the exchange.
 #[test]
 fn the_linked_worktrees_index_locks_are_held_in_both_trees_before_the_exchange() {

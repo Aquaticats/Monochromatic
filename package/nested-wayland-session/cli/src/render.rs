@@ -7,6 +7,8 @@
 //! frame,
 //!  and sends frame-callbacks so the client draws its next frame.
 
+/// Error text that is built only on failure.
+use crate::lazy_error_text::failed_error;
 /// What:
 ///      `use std::time::{Duration, Instant};`.
 ///  `Duration` is a span of time;
@@ -170,7 +172,7 @@ pub fn redraw(state: &mut Compositor) -> Result<()> {
         // ```ts
         // renderOutput(output, renderer, framebuffer, 1.0, 0, [space], [], damageTracker, CLEAR_COLOR);
         // ```
-        render_output::<_, WaylandSurfaceRenderElement<GlesRenderer>, _, _>(
+        let rendered = render_output::<_, WaylandSurfaceRenderElement<GlesRenderer>, _, _>(
             &state.output,
             renderer,
             &mut framebuffer,
@@ -180,8 +182,8 @@ pub fn redraw(state: &mut Compositor) -> Result<()> {
             &[],
             &mut state.damage_tracker,
             CLEAR_COLOR,
-        )
-        .map_err(|error| return anyhow::anyhow!("rendering the hosted window into the nested framebuffer failed: {error}"))?;
+        );
+        failed_error(rendered, "rendering the hosted window into the nested framebuffer failed")?;
     }
 
     // What:     `winit.submit(Some(&[damage])).unwrap();`. Presents the frame,
@@ -259,11 +261,18 @@ pub fn send_frame_callbacks(state: &mut Compositor) {
     //           hint (draw as fast as possible); the inner closure tells Smithay which
     //           output each surface is on.
     // Why:      Tell the client "your last frame was shown; draw the next one".
-    state.space.elements().for_each(|window| {
+    for window in state.space.elements() {
+        #[cfg_attr(
+            dylint_lib = "monochromatic_lint_closure",
+            expect(
+                avoidable_closure,
+                reason = "smithay's Window::send_frame takes a callable that must carry the output the surface is on; see doc/closure-lint-suppressions.md"
+            )
+        )]
         window.send_frame(&output, elapsed, Some(Duration::ZERO), |_, _| {
             return Some(output.clone())
         });
-    });
+    }
 
     // What:     `state.space.refresh();`. Recomputes window/output bookkeeping.
     // Why:      Keep the space's internal state consistent after a frame.

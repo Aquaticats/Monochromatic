@@ -1,9 +1,13 @@
 //! Controls for what a user is told when the commit service cannot land a commit:
-//!  no implementation term, an action to take, and text that derives from the named constants.
+//!  no implementation term,
+//! an action to take,
+//! and text that derives from the named constants.
 
 use super::*;
 
-/// One sample of every failure, and every platform, so a new variant cannot go unrendered.
+/// One sample of every failure,
+/// and every platform,
+/// so a new variant cannot go unrendered.
 fn samples() -> Vec<ClientFailure> {
     let mut all: Vec<ClientFailure> = vec![
         ClientFailure::DidNotStart,
@@ -40,7 +44,8 @@ fn samples() -> Vec<ClientFailure> {
     return all;
 }
 
-/// Compile-time proof that `samples` covers every variant: adding one breaks this match until a sample exists.
+/// Compile-time proof that `samples` covers every variant:
+/// adding one breaks this match until a sample exists.
 fn variant_index(failure: &ClientFailure) -> usize {
     return match failure {
         ClientFailure::DidNotStart => 0,
@@ -70,7 +75,8 @@ fn variant_index(failure: &ClientFailure) -> usize {
     };
 }
 
-/// The text without the parts between backticks, which quote commands the user types.
+/// The text without the parts between backticks,
+/// which quote commands the user types.
 fn without_commands(text: &str) -> String {
     let mut plain: String = String::new();
     let mut quoted: bool = false;
@@ -84,7 +90,8 @@ fn without_commands(text: &str) -> String {
     return plain;
 }
 
-/// Whether `word` (one or more words) occurs in `text` as whole words, ignoring case.
+/// Whether `word` (one or more words) occurs in `text` as whole words,
+/// ignoring case.
 fn contains_whole(text: &str, word: &str) -> bool {
     let haystack: String = text.to_lowercase();
     let needle: String = word.to_lowercase();
@@ -110,7 +117,8 @@ fn every_failure_variant_is_rendered() {
     assert_eq!(covered.len(), expected);
 }
 
-/// No failure text contains a term from the denylist, outside quoted commands.
+/// No failure text contains a term from the denylist,
+/// outside quoted commands.
 #[test]
 fn no_message_leaks_an_implementation_term() {
     for failure in samples() {
@@ -132,7 +140,9 @@ fn no_message_leaks_an_implementation_term() {
     }
 }
 
-/// The denylist check can fail: a text that leaks is caught, and a word inside another word is not.
+/// The denylist check can fail:
+/// a text that leaks is caught,
+/// and a word inside another word is not.
 #[test]
 fn the_denylist_catches_a_leak_and_ignores_inner_words() {
     assert!(contains_whole("The daemon refused the request id.", "request id"));
@@ -142,7 +152,8 @@ fn the_denylist_catches_a_leak_and_ignores_inner_words() {
     assert!(contains_whole("process pid 42", "pid"));
 }
 
-/// Every failure tells the user something to do: a quoted command or one of the plain verbs that start a remedy.
+/// Every failure tells the user something to do:
+/// a quoted command or one of the plain verbs that start a remedy.
 #[test]
 fn every_message_gives_an_action() {
     let verbs = ["run", "use", "install", "free", "make", "wait", "update", "raise", "ask", "turn", "check", "commit"];
@@ -155,7 +166,8 @@ fn every_message_gives_an_action() {
     }
 }
 
-/// The text derives from the named constants and the facts it names, so it cannot drift from them.
+/// The text derives from the named constants and the facts it names,
+/// so it cannot drift from them.
 #[test]
 fn messages_quote_their_constants_and_facts() {
     assert!(render(&ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket"))).contains("/home/a/.config/systemd/user/cli-git.socket"));
@@ -187,7 +199,8 @@ fn messages_quote_their_constants_and_facts() {
     assert!(render(&ClientFailure::IndexInUse(String::from("the editor"))).contains("the editor"));
 }
 
-/// Failures that changed nothing say so; the one that may have changed something does not claim otherwise.
+/// Failures that changed nothing say so;
+/// the one that may have changed something does not claim otherwise.
 #[test]
 fn only_the_unsure_failure_does_not_claim_nothing_changed() {
     for failure in samples() {

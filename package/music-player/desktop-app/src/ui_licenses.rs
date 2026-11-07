@@ -12,13 +12,19 @@
 //! text on demand,
 //! built when the page opens and released when it closes.
 
+/// Imports the instant type that times how long splitting the notices into lines takes.
 use std::time::Instant;
 
+/// Imports the embedded license notices.
 use music_player::licenses::NOTICES;
+/// Imports the model traits and the shared string that expose the notice text to the window.
 use slint::{ComponentHandle, Model, ModelRc, ModelTracker, SharedString};
 
+/// Imports the projection and the state accessors of the screen.
 use crate::ui_screen::{project, read_state, update_state};
+/// Imports the route that tells which page is open.
 use crate::ui_screen_view::Route;
+/// Imports the window that shows the notices.
 use crate::AppWindow;
 
 /// What:
@@ -53,18 +59,38 @@ impl NoticeLines {
 
 /// Model view of `NoticeLines`.
 impl Model for NoticeLines {
+    /// The model yields one notice line as a shared string per row.
     type Data = SharedString;
 
+    /// What:
+    /// The number of lines in the notice text.
+    /// Why:
+    /// The window sizes the list from it before it asks for any row.
     fn row_count(&self) -> usize {
         return self.starts.len();
     }
 
+    /// What:
+    /// One line of the notice text,
+    /// without a trailing carriage return,
+    /// or nothing past the last line.
+    /// Why:
+    /// The window asks for rows as it scrolls;
+    /// the line starts were found once in `new`,
+    /// so a row is only sliced out.
     fn row_data(&self, row: usize) -> Option<SharedString> {
         let start = *self.starts.get(row)?;
         let end = self.starts.get(row + 1).map_or(self.text.len(), |next| return next - 1);
         return Some(SharedString::from(self.text[start..end].trim_end_matches('\r')));
     }
 
+    /// What:
+    /// The tracker that tells the window when rows change.
+    /// Why:
+    /// The notice text never changes after it is built,
+    /// so the unit tracker,
+    /// which never notifies,
+    /// is enough.
     fn model_tracker(&self) -> &dyn ModelTracker {
         return &();
     }

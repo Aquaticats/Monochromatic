@@ -1,11 +1,22 @@
 //! What:
-//!  The service's serialized step: land a batch of prepared commits on a branch, and finish the batches a killed
+//!  The service's serialized step:
+//! land a batch of prepared commits on a branch,
+//! and finish the batches a killed
 //!  service left open.
 //! Why:
-//!  Everything that must happen one commit at a time happens here, in a fixed order, with one durable write: the objects
-//!  of the whole batch are written by one `fast-import`, the intent is journaled, the branch moves by one compare-and-swap,
-//!  the index entries of the named paths are updated, and the intent is marked done
-//!  (`doc/planning/cli-git-resident-service.md`, "The serialized step, group commit, FIFO and backpressure").
+//!  Everything that must happen one commit at a time happens here,
+//! in a fixed order,
+//! with one durable write:
+//! the objects
+//!  of the whole batch are written by one `fast-import`,
+//! the intent is journaled,
+//! the branch moves by one compare-and-swap,
+//!  the index entries of the named paths are updated,
+//! and the intent is marked done
+//!  (`doc/planning/cli-git-resident-service.md`,
+//! "The serialized step,
+//! group commit,
+//! FIFO and backpressure").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -46,9 +57,11 @@ pub const LANDING_ATTEMPTS: usize = 3;
 
 /// What the landing reads once before it starts and hands to its body.
 struct Settings<'a> {
-    /// The `core.fsync` value for the one import, when the repository's own would flush a pack that is thrown away or leave a kept one unflushed.
+    /// The `core.fsync` value for the one import,
+    /// when the repository's own would flush a pack that is thrown away or leave a kept one unflushed.
     import_fsync: Option<&'a str>,
-    /// Whether Git shows the history the commit objects say, so the object store may answer the checks of a commit Git built.
+    /// Whether Git shows the history the commit objects say,
+    /// so the object store may answer the checks of a commit Git built.
     plain_history: bool,
 }
 
@@ -59,15 +72,22 @@ pub enum Outcome {
     Landed { commit: String },
     /// A named path changed on the branch since the request's base.
     RetryPrepare { base: String },
-    /// An amend, whose parents are the base's parents, found the branch somewhere else than at its base.
+    /// An amend,
+    /// whose parents are the base's parents,
+    /// found the branch somewhere else than at its base.
     BranchMoved,
 }
 
 /// What:
-///  Lands a batch of requests that share a repository, a common git directory and a branch.
+///  Lands a batch of requests that share a repository,
+/// a common git directory and a branch.
 /// Why:
-///   Requests whose paths changed on the branch since their base are sent back to be prepared again; the others become
-///  one commit each, in order, on the branch, with one journal write and one branch update for all of them.
+///   Requests whose paths changed on the branch since their base are sent back to be prepared again;
+/// the others become
+///  one commit each,
+/// in order,
+/// on the branch,
+/// with one journal write and one branch update for all of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,7 +97,8 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
     return land_batch_announcing(context, seq, requests, &IgnoreAnnouncements);
 }
 
-/// `land_batch`, telling the clients of the batch what it waits for when another program holds the index.
+/// `land_batch`,
+/// telling the clients of the batch what it waits for when another program holds the index.
 pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[CommitRequest], announce: &dyn Announcer) -> Result<Vec<Outcome>, FailureCode> {
     return land_batch_timed(context, seq, requests, announce, &mut LandTiming::default());
 }
@@ -172,7 +193,8 @@ impl Announcer for IgnoreAnnouncements {
 /// What:
 ///  Whether any outcome of a batch is a landed commit.
 /// Why:
-///  A batch that landed something hands its syncs to the background; one that landed nothing syncs them before it returns.
+///  A batch that landed something hands its syncs to the background;
+/// one that landed nothing syncs them before it returns.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -187,7 +209,8 @@ fn any_landed(outcomes: &[Outcome]) -> bool {
     return false;
 }
 
-/// The landing itself; `land_batch_timed` adds what is told when a step is ended at its ceiling.
+/// The landing itself;
+/// `land_batch_timed` adds what is told when a step is ended at its ceiling.
 ///
 /// # Errors
 ///
@@ -415,7 +438,8 @@ fn land_batch_body(
 #[path = "service_land_tests.rs"]
 mod tests;
 
-/// Controls for the adoption of the batches an earlier release's service left open, which land real batches with the fixtures above.
+/// Controls for the adoption of the batches an earlier release's service left open,
+/// which land real batches with the fixtures above.
 #[cfg(test)]
 #[path = "earlier_service_journal_adopted_tests.rs"]
 mod adoption_tests;

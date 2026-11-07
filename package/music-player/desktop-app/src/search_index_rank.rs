@@ -21,11 +21,17 @@
 //! const best = (matches: Ranked[]) => matches.sort(byTierLengthKeyPathKindIndex).slice(0, 501);
 //! ```
 
+/// Imports the ordering type that ranked candidates compare with.
 use std::cmp::Ordering;
 
+/// Imports the collation key that breaks ties between equal candidates.
 use crate::folder_rail::collation_key;
+/// Imports the index type and the bit,
+/// slot and marker constants that classify a candidate.
 use crate::search_index::{FOLDER_BIT, ROOT_FOLDER_SLOT, SearchIndex, UNFILED};
+/// Imports the characters that separate words in a name.
 use crate::search_matcher::WORD_SEPARATORS;
+/// Imports the title that a candidate shows.
 use crate::track_entries::track_title_for;
 
 /// What:

@@ -191,6 +191,11 @@ pub fn display_title<'a>(title: &'a str, prefix_len: usize, folder: &str) -> &'a
     return strip_folder_name(title, folder);
 }
 
+/// Unit tests of `title_prefix`,
+/// in the sidecar file `title_prefix_tests.rs`.
+/// Role of the module:
+/// shared filename prefixes:
+/// `かめりあ(Camellia) - Aegis` shows as `Aegis` when the whole folder starts the same way.
 #[cfg(test)]
 #[path = "title_prefix_tests.rs"]
 mod tests;

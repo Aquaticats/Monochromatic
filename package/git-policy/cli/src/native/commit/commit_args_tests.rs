@@ -1,4 +1,5 @@
-//! Controls for the commit argument transforms, including the incumbent's quirks.
+//! Controls for the commit argument transforms,
+//! including the incumbent's quirks.
 
 use super::*;
 
@@ -7,7 +8,8 @@ fn args(items: &[&str]) -> Vec<String> {
     return items.iter().map(|item| { return String::from(*item); }).collect();
 }
 
-/// A cluster carrying a value is split into flags and the value token; a pathspec tail is kept verbatim.
+/// A cluster carrying a value is split into flags and the value token;
+/// a pathspec tail is kept verbatim.
 #[test]
 fn normalise_splits_inline_values_and_keeps_the_tail() {
     assert_eq!(normalise_commit_args(&args(&["-amhello"])), args(&["-a", "-m", "hello"]));
@@ -20,7 +22,8 @@ fn normalise_splits_inline_values_and_keeps_the_tail() {
     assert_eq!(normalise_commit_args(&args(&["-mé"])), args(&["-m", "é"]));
 }
 
-/// Global options that redirect Git are dropped with their values; other globals stay in order.
+/// Global options that redirect Git are dropped with their values;
+/// other globals stay in order.
 #[test]
 fn split_drops_redirecting_globals_and_keeps_the_rest() {
     let input: Vec<String> = args(&[
@@ -31,7 +34,9 @@ fn split_drops_redirecting_globals_and_keeps_the_rest() {
     assert_eq!(commit, args(&["-m", "x"]));
 }
 
-/// `-a` leaves the region, a cluster keeps its other letters, and a value-taking letter stays with its value.
+/// `-a` leaves the region,
+/// a cluster keeps its other letters,
+/// and a value-taking letter stays with its value.
 #[test]
 fn without_all_flag_removes_only_the_all_letter() {
     assert_eq!(without_all_flag(&args(&["-am", "x"])), args(&["-m", "x"]));
@@ -41,13 +46,16 @@ fn without_all_flag_removes_only_the_all_letter() {
     assert_eq!(without_all_flag(&args(&["-a"])), Vec::<String>::new());
 }
 
-/// A value-taking option's value is kept even when it spells `--all`, as the incumbent keeps it.
+/// A value-taking option's value is kept even when it spells `--all`,
+/// as the incumbent keeps it.
 #[test]
 fn without_all_flag_keeps_an_all_spelled_as_a_message() {
     assert_eq!(without_all_flag(&args(&["-m", "--all"])), args(&["-m", "--all"]));
 }
 
-/// After the pathspec separator, every token stays, even `-a`.
+/// After the pathspec separator,
+/// every token stays,
+/// even `-a`.
 #[test]
 fn without_all_flag_keeps_everything_after_the_separator() {
     assert_eq!(
@@ -56,7 +64,8 @@ fn without_all_flag_keeps_everything_after_the_separator() {
     );
 }
 
-/// The explicit-path removal drops the last occurrence of each pathspec, so a message equal to a
+/// The explicit-path removal drops the last occurrence of each pathspec,
+/// so a message equal to a
 ///  pathspec is lost when it is the later token (the incumbent's `lastIndexOf` behavior).
 #[test]
 fn explicit_removal_takes_the_last_occurrence_of_each_pathspec() {
@@ -70,7 +79,8 @@ fn explicit_removal_takes_the_last_occurrence_of_each_pathspec() {
     );
 }
 
-/// The pathspec-file controls, the separator and `--only` never reach the real commit.
+/// The pathspec-file controls,
+/// the separator and `--only` never reach the real commit.
 #[test]
 fn explicit_removal_drops_pathspec_file_controls_and_only() {
     assert_eq!(
@@ -121,8 +131,11 @@ fn resolve_chooses_the_arguments_by_mode() {
     );
 }
 
-/// Only a `--` in option position ends the options: as the value of `-m`, `--message` or a cluster ending in `m` it is a
-///  message, and a value attached to its option or a letter that takes it attached leaves the next token in option position.
+/// Only a `--` in option position ends the options:
+/// as the value of `-m`,
+/// `--message` or a cluster ending in `m` it is a
+///  message,
+/// and a value attached to its option or a letter that takes it attached leaves the next token in option position.
 #[test]
 fn the_separator_is_read_in_option_position_only() {
     assert_eq!(separator_index(&args(&["-m", "--", "--", "a.txt"])), Some(2));
@@ -137,7 +150,8 @@ fn the_separator_is_read_in_option_position_only() {
     assert_eq!(separator_index(&args(&[])), None);
 }
 
-/// The value of an option is never read as a cluster of options, and never ends the options.
+/// The value of an option is never read as a cluster of options,
+/// and never ends the options.
 #[test]
 fn a_value_that_looks_like_a_cluster_or_a_separator_is_kept_whole() {
     assert_eq!(normalise_commit_args(&args(&["-m", "-cut", "--", "-mfoo"])), args(&["-m", "-cut", "--", "-mfoo"]));
@@ -145,7 +159,10 @@ fn a_value_that_looks_like_a_cluster_or_a_separator_is_kept_whole() {
     assert_eq!(normalise_commit_args(&args(&["-m", "--", "-amx", "--", "-amx"])), args(&["-m", "--", "-a", "-m", "x", "--", "-amx"]));
 }
 
-/// A message that is `--` stays, while the separator, `-o` and the pathspec the index already holds go; text equal to `-o` after
+/// A message that is `--` stays,
+/// while the separator,
+/// `-o` and the pathspec the index already holds go;
+/// text equal to `-o` after
 ///  the separator or as a value is not the option.
 #[test]
 fn the_private_commit_arguments_drop_the_typed_separator_and_nothing_else() {

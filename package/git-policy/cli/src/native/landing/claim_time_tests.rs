@@ -1,4 +1,6 @@
-//! Controls for the claim clock: which clock judges which pair of readings, and that a reading survives a file name.
+//! Controls for the claim clock:
+//! which clock judges which pair of readings,
+//! and that a reading survives a file name.
 
 use super::*;
 use crate::test_support::{fixture, remove};
@@ -14,7 +16,8 @@ fn reading() -> ClaimTime {
     return ClaimTime::from_parts(BOOT, Duration::from_secs(5000), Duration::from_secs(1_700_000_000)).on_machine(MACHINE);
 }
 
-/// Within one boot the monotonic clock decides, so a wall-clock step in either direction changes nothing.
+/// Within one boot the monotonic clock decides,
+/// so a wall-clock step in either direction changes nothing.
 #[test]
 fn within_one_boot_a_wall_clock_step_changes_no_elapsed_time() {
     let then: ClaimTime = reading();
@@ -24,7 +27,8 @@ fn within_one_boot_a_wall_clock_step_changes_no_elapsed_time() {
     assert_eq!(later.wall_stepped_back(Duration::from_secs(7200)).elapsed_since(&then), Duration::from_secs(90), "a step back");
 }
 
-/// A rewound reading is as old as it was rewound, on both clocks.
+/// A rewound reading is as old as it was rewound,
+/// on both clocks.
 #[test]
 fn a_rewound_reading_is_that_much_older() {
     let now: ClaimTime = reading();
@@ -34,7 +38,8 @@ fn a_rewound_reading_is_that_much_older() {
     assert_eq!(now.in_boot("").elapsed_since(&then), Duration::from_secs(45), "and by the wall clock without a boot ID");
 }
 
-/// Across two different boots of one machine the earlier boot's holder is dead, whatever either wall clock shows.
+/// Across two different boots of one machine the earlier boot's holder is dead,
+/// whatever either wall clock shows.
 #[test]
 fn a_reading_of_an_earlier_boot_is_past() {
     let then: ClaimTime = reading();
@@ -45,7 +50,9 @@ fn a_reading_of_an_earlier_boot_is_past() {
     assert!(!then.advanced(Duration::from_secs(90)).is_past_the_boot_of(&then));
 }
 
-/// Different boot IDs of two machines are no restart: the holder may be running on the other machine, so the lease decides.
+/// Different boot IDs of two machines are no restart:
+/// the holder may be running on the other machine,
+/// so the lease decides.
 #[test]
 fn a_reading_of_another_machine_is_never_past_a_boot() {
     let then: ClaimTime = reading();
@@ -55,7 +62,8 @@ fn a_reading_of_another_machine_is_never_past_a_boot() {
     assert_eq!(elsewhere.elapsed_since(&then), Duration::from_secs(90), "the wall clock is the one they share");
 }
 
-/// A machine ID missing on either side is not an equal machine ID: two unknown machines are not one machine.
+/// A machine ID missing on either side is not an equal machine ID:
+/// two unknown machines are not one machine.
 #[test]
 fn a_reading_without_a_machine_is_never_past_a_boot() {
     let then: ClaimTime = reading();
@@ -66,7 +74,8 @@ fn a_reading_without_a_machine_is_never_past_a_boot() {
     assert!(!later.on_machine("").is_past_the_boot_of(&then.on_machine("")), "neither knows");
 }
 
-/// An empty boot ID on either side leaves nothing to compare boots by, so no reading is past another's boot.
+/// An empty boot ID on either side leaves nothing to compare boots by,
+/// so no reading is past another's boot.
 #[test]
 fn a_reading_without_a_boot_is_never_past_a_boot() {
     let booted: ClaimTime = reading();
@@ -76,7 +85,8 @@ fn a_reading_without_a_boot_is_never_past_a_boot() {
     assert!(!unbooted.is_past_the_boot_of(&unbooted));
 }
 
-/// A reading with no boot ID has only its wall clock, even beside an identical reading.
+/// A reading with no boot ID has only its wall clock,
+/// even beside an identical reading.
 #[test]
 fn a_reading_without_a_boot_falls_back_to_the_wall_clock() {
     let then: ClaimTime = ClaimTime::from_parts("", Duration::from_secs(10), Duration::from_secs(1000));
@@ -85,7 +95,8 @@ fn a_reading_without_a_boot_falls_back_to_the_wall_clock() {
     assert_eq!(ClaimTime::from_wall(UNIX_EPOCH + Duration::from_secs(1000)).elapsed_since(&then), Duration::ZERO);
 }
 
-/// A reading written into a file name reads back whole, and text that is not one is refused.
+/// A reading written into a file name reads back whole,
+/// and text that is not one is refused.
 #[test]
 fn a_reading_round_trips_through_its_text() {
     let original: ClaimTime = reading();
@@ -114,7 +125,8 @@ fn a_reading_round_trips_through_its_text() {
     }
 }
 
-/// The reading of this host now is in one boot with itself, so elapsed time between two of them is the monotonic clock's and
+/// The reading of this host now is in one boot with itself,
+/// so elapsed time between two of them is the monotonic clock's and
 /// never negative.
 #[test]
 fn two_readings_of_this_host_agree_on_the_boot() {
@@ -127,8 +139,11 @@ fn two_readings_of_this_host_agree_on_the_boot() {
     assert_eq!(first.boot_id.len(), BOOT_ID_LENGTH, "Linux gives every boot an ID");
 }
 
-/// A reading written by a release before machine IDs (three parts) still decodes, as a reading with no machine, and is
-/// judged by its lease: a different boot of the judge's does not end it.
+/// A reading written by a release before machine IDs (three parts) still decodes,
+/// as a reading with no machine,
+/// and is
+/// judged by its lease:
+/// a different boot of the judge's does not end it.
 #[test]
 fn a_reading_in_the_old_three_part_form_decodes_and_is_judged_by_its_lease() {
     let old_text: String = format!("{BOOT}~5000000~1700000000");
@@ -140,7 +155,8 @@ fn a_reading_in_the_old_three_part_form_decodes_and_is_judged_by_its_lease() {
     assert_eq!(judge.elapsed_since(&old), Duration::from_secs(90), "so the wall clock measures it");
 }
 
-/// The machine ID is the first of the given files that holds 32 hexadecimal digits; anything else counts as unknown.
+/// The machine ID is the first of the given files that holds 32 hexadecimal digits;
+/// anything else counts as unknown.
 #[test]
 fn the_machine_id_is_the_first_file_that_holds_one() {
     let directory: PathBuf = fixture("claim-time-machine-id");
@@ -170,7 +186,9 @@ fn the_machine_id_is_the_first_file_that_holds_one() {
     remove(directory.as_path());
 }
 
-/// A machine ID is 32 lowercase hexadecimal digits that are not all zero: anything else is no evidence of a machine, and taking it
+/// A machine ID is 32 lowercase hexadecimal digits that are not all zero:
+/// anything else is no evidence of a machine,
+/// and taking it
 ///  as one would make every such host look like the same machine.
 #[test]
 fn only_lowercase_hexadecimal_that_is_not_all_zero_is_a_machine_id() {
@@ -184,8 +202,11 @@ fn only_lowercase_hexadecimal_that_is_not_all_zero_is_a_machine_id() {
 }
 
 /// A stamp an earlier release wrote with an uppercase or an all-zero machine ID (it accepted any 32 hexadecimal digits) still
-///  decodes, through the code that reads a claim's file name, and is judged by the wall clock beside this host's own reading
-///  (which is stricter and so may have none), never read as another host's restart and never dropped.
+///  decodes,
+/// through the code that reads a claim's file name,
+/// and is judged by the wall clock beside this host's own reading
+///  (which is stricter and so may have none),
+/// never read as another host's restart and never dropped.
 #[test]
 fn a_stamp_an_earlier_release_wrote_with_a_machine_id_of_any_case_still_decodes_and_is_judged_by_the_wall_clock() {
     for stored in ["0123456789ABCDEF0123456789ABCDEF", "00000000000000000000000000000000"] {

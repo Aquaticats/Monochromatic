@@ -1,11 +1,20 @@
 //! What:
-//!  Answers, without a Git process, to the exact read-only Git command lines the wrapper itself issues:
-//!  `ls-files --stage`, `ls-files --unmerged`, `diff-index --cached`, `diff --cached --name-only`, `diff-tree --root -r -m`
+//!  Answers,
+//! without a Git process,
+//! to the exact read-only Git command lines the wrapper itself issues:
+//!  `ls-files --stage`,
+//! `ls-files --unmerged`,
+//! `diff-index --cached`,
+//! `diff --cached --name-only`,
+//! `diff-tree --root -r -m`
 //!  and `show --no-patch --format=%s`.
 //! Why:
-//!  Each is a start of Git for a fact two in-process readers (the index, the object database) can produce byte for byte.
+//!  Each is a start of Git for a fact two in-process readers (the index,
+//! the object database) can produce byte for byte.
 //!  The reader takes the same argument list the caller would give Git and returns Git's standard output and exit code,
-//!  or `None` for any command line, repository or configuration it does not fully understand, so a caller tries it first
+//!  or `None` for any command line,
+//! repository or configuration it does not fully understand,
+//! so a caller tries it first
 //!  and starts Git on `None`.
 //!
 //! In TS you'd write (pseudocode):
@@ -37,12 +46,15 @@ fn is_newline(byte: &u8) -> bool {
     return *byte == b'\n';
 }
 
-/// Whether a configuration key, in any letter case, is one that could change the output of a content command.
+/// Whether a configuration key,
+/// in any letter case,
+/// is one that could change the output of a content command.
 fn content_key_of_any_case(key: &str) -> bool {
     return content_key(key.to_ascii_lowercase().as_str());
 }
 
-/// The environment Git would see, without the two variables this reader handles itself.
+/// The environment Git would see,
+/// without the two variables this reader handles itself.
 fn environment(
     base: Vec<(OsString, OsString)>,
     variables: &[(OsString, OsString)],
@@ -205,8 +217,10 @@ fn diff_tree(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     return Some(Answer { stdout: raw_lines(changes.as_slice(), context.zero().as_str()), stderr: Vec::new(), code: 0 });
 }
 
-/// `diff-tree -r --name-only -z [--no-renames] <old> <new>` and `diff-tree --no-commit-id --name-only -r -z <commit>`: the paths
-///  that differ between two trees or commits, or between a commit with exactly one parent and that parent.
+/// `diff-tree -r --name-only -z [--no-renames] <old> <new>` and `diff-tree --no-commit-id --name-only -r -z <commit>`:
+/// the paths
+///  that differ between two trees or commits,
+/// or between a commit with exactly one parent and that parent.
 fn diff_tree_names(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     if !parsed.specs.is_empty() {
         return None;
@@ -261,7 +275,11 @@ fn show_subject(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     return Some(Answer { stdout, stderr: Vec::new(), code: 0 });
 }
 
-/// `cat-file --batch` fed full object names, one per line: for each, `<name> <kind> <size>`, the content and a line feed.
+/// `cat-file --batch` fed full object names,
+/// one per line:
+/// for each,
+/// `<name> <kind> <size>`,
+/// the content and a line feed.
 fn batch_objects(context: &Context, parsed: &Parsed<'_>, input: Option<&[u8]>) -> Option<Answer> {
     if !flags_are(&parsed.flags, &["--batch"], &[]) || !parsed.operands.is_empty() || !parsed.specs.is_empty() {
         return None;
@@ -281,10 +299,14 @@ fn batch_objects(context: &Context, parsed: &Parsed<'_>, input: Option<&[u8]>) -
 }
 
 /// What:
-///  The answer to `query`, or `None` when Git must be started.
+///  The answer to `query`,
+/// or `None` when Git must be started.
 /// Why:
-///   This is the one entry point; every reason to decline (an unknown command line, a repository or configuration
-///  the readers do not fully understand, a missing object) is the same `None`.
+///   This is the one entry point;
+/// every reason to decline (an unknown command line,
+/// a repository or configuration
+///  the readers do not fully understand,
+/// a missing object) is the same `None`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -297,7 +319,8 @@ pub fn answer(query: &Query<'_>) -> Option<Answer> {
     return answer_with(query, std::env::vars_os().collect(), &scope);
 }
 
-/// The same with the process environment and the configuration scope facts given, so a control does not depend on its host.
+/// The same with the process environment and the configuration scope facts given,
+/// so a control does not depend on its host.
 pub fn answer_with(query: &Query<'_>, base: Vec<(OsString, OsString)>, scope: &ScopeEnvironment) -> Option<Answer> {
     let mut start: PathBuf = match query.directory {
         Some(directory) => directory.to_path_buf(),

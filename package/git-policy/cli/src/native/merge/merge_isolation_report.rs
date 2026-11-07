@@ -1,8 +1,11 @@
 //! What:
-//!  The refusals of an isolated merge, as the finding events a caller reads, each naming the paths involved and
+//!  The refusals of an isolated merge,
+//! as the finding events a caller reads,
+//! each naming the paths involved and
 //!  every valid way forward.
 //! Why:
-//!  A merge that cannot proceed changes nothing, and the person (or the agent) who ran it must learn which files
+//!  A merge that cannot proceed changes nothing,
+//! and the person (or the agent) who ran it must learn which files
 //!  stand in the way and what to do next without reading the wrapper's source.
 //!
 //! In TS you'd write (pseudocode):
@@ -10,7 +13,9 @@
 //! renderPolicyEvents(1, [{ kind: 'core-finding', coreId: 'merge-isolation', code: 'staged-overlap', message }]);
 //! ```
 
-/// The path list of an overlap report: a few names, then a count.
+/// The path list of an overlap report:
+/// a few names,
+/// then a count.
 use crate::auto_push_dirty_paths::listed;
 /// The finding event and its rendering.
 use crate::policy_events::{PolicyEvent, render_policy_events};
@@ -30,7 +35,8 @@ pub const APPLY_REFUSED_CODE: &str = "not-applied";
 /// What:
 ///  Render one finding as a JSONL line.
 /// Why:
-///   Every refusal is a core finding of the merge-isolation family; the message carries the ways forward.
+///   Every refusal is a core finding of the merge-isolation family;
+/// the message carries the ways forward.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,9 +56,13 @@ fn render(code: &'static str, message: String) -> String {
 /// What:
 ///  The refusal for a merge that changes paths which the checkout holds staged or modified.
 /// Why:
-///   Those paths belong to another session's work; writing the merge over them would lose it, and Git itself refuses
+///   Those paths belong to another session's work;
+/// writing the merge over them would lose it,
+/// and Git itself refuses
 ///  the same overlap.
-///  Every way out is named, including the one that needs no cooperation: a clean linked worktree.
+///  Every way out is named,
+/// including the one that needs no cooperation:
+/// a clean linked worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -78,9 +88,12 @@ pub fn overlap_finding(reference: &str, paths: &[Vec<u8>]) -> String {
 /// What:
 ///  The refusal for a merge that conflicts textually.
 /// Why:
-///   A conflict needs a worktree to resolve in, and this checkout's worktree and index hold other work; resolving
+///   A conflict needs a worktree to resolve in,
+/// and this checkout's worktree and index hold other work;
+/// resolving
 ///  there would mix the two.
-///  The merge was computed from objects alone, so nothing was changed.
+///  The merge was computed from objects alone,
+/// so nothing was changed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -104,8 +117,13 @@ pub fn conflict_finding(reference: &str, paths: &[String]) -> String {
 /// What:
 ///  The refusal for a merge commit that was made but that Git refused to apply to the worktree.
 /// Why:
-///   The last step is Git's own, and it can still refuse (an untracked file in the way, a path changed after the
-///  check); the branch, the index and the worktree are then as they were, and the commit stays unreachable.
+///   The last step is Git's own,
+/// and it can still refuse (an untracked file in the way,
+/// a path changed after the
+///  check);
+/// the branch,
+/// the index and the worktree are then as they were,
+/// and the commit stays unreachable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

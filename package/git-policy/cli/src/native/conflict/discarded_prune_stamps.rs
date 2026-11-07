@@ -1,7 +1,11 @@
 //! What:
-//!  The time stamps in the names of saved-copy directories, and the entry that carries one.
+//!  The time stamps in the names of saved-copy directories,
+//! and the entry that carries one.
 //! Why:
-//!  `discarded_prune.rs` lists, plans and removes; reading a directory name as a time needs only the calendar, so it lives in a file of its own that `discarded_prune.rs` imports.
+//!  `discarded_prune.rs` lists,
+//! plans and removes;
+//! reading a directory name as a time needs only the calendar,
+//! so it lives in a file of its own that `discarded_prune.rs` imports.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,28 +14,42 @@
 
 use crate::discarded_store::Identity;
 
-/// A copy younger than this is never removed, by either limit. No measurement sets this yet; see `DEFAULT_MAX_AGE_DAYS`.
+/// A copy younger than this is never removed,
+/// by either limit.
+/// No measurement sets this yet;
+/// see `DEFAULT_MAX_AGE_DAYS`.
 pub const YOUNG_FLOOR_MILLISECONDS: i64 = 24 * 60 * 60 * 1000;
 
 /// Milliseconds in a day.
 pub const DAY_MILLISECONDS: i64 = 24 * 60 * 60 * 1000;
 
-/// The resolution of a directory name: it says the second of the save, and the save may have been made at any millisecond
-/// of that second, so an age is counted from the end of it.
+/// The resolution of a directory name:
+/// it says the second of the save,
+/// and the save may have been made at any millisecond
+/// of that second,
+/// so an age is counted from the end of it.
 pub const STAMP_RESOLUTION_MILLISECONDS: i64 = 1000;
 
-/// The whole number written in the characters `from` to `to` of a name; zero when they are not a number.
+/// The whole number written in the characters `from` to `to` of a name;
+/// zero when they are not a number.
 fn number_at(name: &str, from: usize, to: usize) -> i64 {
     return name[from..to].parse::<i64>().unwrap_or(0);
 }
 
 /// What:
-///  The time a copy directory's name stands for, in milliseconds since the epoch, or nothing when the name is not one the
+///  The time a copy directory's name stands for,
+/// in milliseconds since the epoch,
+/// or nothing when the name is not one the
 ///  wrapper makes.
 /// Why:
-///   The name (`2026-11-02T14-01-07`, or the same with `-<number>` for a second save in that second) is the time of the
-///  save in UTC; reading it, not the directory's modification time, keeps a copy that someone later edited or touched from
-///  looking young, and leaves every directory with another name alone.
+///   The name (`2026-11-02T14-01-07`,
+/// or the same with `-<number>` for a second save in that second) is the time of the
+///  save in UTC;
+/// reading it,
+/// not the directory's modification time,
+/// keeps a copy that someone later edited or touched from
+///  looking young,
+/// and leaves every directory with another name alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -70,14 +88,17 @@ pub fn parse_stamp(name: &str) -> Option<i64> {
     return Some(instant.timestamp().as_millisecond());
 }
 
-/// One copy directory, as listed.
+/// One copy directory,
+/// as listed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Stamped {
     /// The directory's name.
     pub name: String,
     /// The time its name stands for.
     pub millis: i64,
-    /// The bytes of the files it holds; wide, so that no sum of file lengths can wrap.
+    /// The bytes of the files it holds;
+    /// wide,
+    /// so that no sum of file lengths can wrap.
     pub bytes: u128,
     /// The directory the listing saw under that name.
     pub identity: Identity,

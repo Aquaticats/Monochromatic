@@ -110,9 +110,12 @@ pub struct ResolutionInputs {
 
 /// What:
 ///  One PATH candidate the search examined and what it found.
-///       `CandidateKind` is the verdict (real Git, wrapper, unusable).
+///       `CandidateKind` is the verdict (real Git,
+/// wrapper,
+/// unusable).
 /// Why:
-///   The failure message lists every candidate with its verdict, so the person can see which entries led back to monochromatic-git-policy-cli
+///   The failure message lists every candidate with its verdict,
+/// so the person can see which entries led back to monochromatic-git-policy-cli
 ///  and which were not executable files at all.
 ///
 /// In TS you'd write (pseudocode):
@@ -131,11 +134,15 @@ pub struct SearchedCandidate {
 ///  The failure when no PATH candidate can act as real Git.
 ///       `usize` counts items;
 ///  it is the length type of every Rust list.
-///       `Vec<SearchedCandidate>` is an owned list of owned records (siblings: `&[T]`, a borrowed view).
+///       `Vec<SearchedCandidate>` is an owned list of owned records (siblings:
+/// `&[T]`,
+/// a borrowed view).
 /// Why:
-///   The counts tell the user whether Git is missing or only wrappers were found, and the list and the `PATH` value
+///   The counts tell the user whether Git is missing or only wrappers were found,
+/// and the list and the `PATH` value
 ///  name what was searched.
-///  The record owns text, so it is not `Copy`.
+///  The record owns text,
+/// so it is not `Copy`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -147,9 +154,12 @@ pub struct RealGitNotFound {
     pub candidate_count: usize,
     /// Candidates rejected because they are monochromatic-git-policy-cli wrappers.
     pub skipped_wrapper_count: usize,
-    /// Every candidate examined, in the order the search took them, with its verdict.
+    /// Every candidate examined,
+    /// in the order the search took them,
+    /// with its verdict.
     pub searched: Vec<SearchedCandidate>,
-    /// The `PATH` value the search read; empty when unset.
+    /// The `PATH` value the search read;
+    /// empty when unset.
     pub path: OsString,
     /// The Git the commit service's unit records and the verdict on it,
     ///  when the unit names one that was refused;
@@ -160,7 +170,8 @@ pub struct RealGitNotFound {
 /// What:
 ///  The words for one candidate's verdict.
 /// Why:
-///   The message says why a candidate was passed over in terms a person can act on, with no internal names.
+///   The message says why a candidate was passed over in terms a person can act on,
+/// with no internal names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -179,7 +190,10 @@ fn verdict_words(kind: CandidateKind) -> &'static str {
 /// What:
 ///  `impl std::fmt::Display for ...` supplies Rust's "print me" interface.
 /// Why:
-///   The executable prints what was searched, why nothing qualified, and every way to fix it, naming the `PATH` value as
+///   The executable prints what was searched,
+/// why nothing qualified,
+/// and every way to fix it,
+/// naming the `PATH` value as
 ///  the input.
 ///
 /// In TS you'd write (pseudocode):

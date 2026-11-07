@@ -1,17 +1,26 @@
-//! What: Plan patch bumps for publishable dependents of packages whose version differs from
-//!       the base, with the exact manifest bytes before and after each bump.
-//! Why: This is the one planner behind both entry points: the commit-time policy and the
-//!      release workflow's ripple, which will call the native wrapper's direct fix. It is
+//! What:
+//! Plan patch bumps for publishable dependents of packages whose version differs from
+//!       the base,
+//! with the exact manifest bytes before and after each bump.
+//! Why:
+//! This is the one planner behind both entry points:
+//! the commit-time policy and the
+//!      release workflow's ripple,
+//! which will call the native wrapper's direct fix.
+//! It is
 //!      the incumbent's `planWorkspaceBumps` (`dependent-bump-workflow.ts:280-388`) over the
-//!      content seam: it starts no Git process and reads no file.
+//!      content seam:
+//! it starts no Git process and reads no file.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // const plan = await planWorkspaceBumps(reader);
 //! ```
 
-/// What: `use` brings names from sibling files into this file.
-/// Why:  Each step of the plan has its own module.
+/// What:
+/// `use` brings names from sibling files into this file.
+/// Why:
+///  Each step of the plan has its own module.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -30,16 +39,21 @@ use crate::dependent_version_paths::PNPR_CONFIG_PATH;
 use crate::dependent_version_publishable::read_publishable_names;
 /// A dependent whose version cannot be bumped automatically.
 use crate::dependent_version_release::UnsupportedVersion;
-/// Manifest states, raised names and duplicate names.
+/// Manifest states,
+/// raised names and duplicate names.
 use crate::dependent_version_states::{
     ManifestState, bumped_names, duplicate_name, read_manifest_states,
 };
 /// The byte-preserving version rewrite.
 use crate::dependent_version_text::replace_manifest_version;
 
-/// What: One dependent bump with the manifest change that performs it. `Vec<u8>` holds
+/// What:
+/// One dependent bump with the manifest change that performs it.
+/// `Vec<u8>` holds
 ///       exact file bytes.
-/// Why:  The policy turns it into a full-content patch of a tracked file; the release path
+/// Why:
+///  The policy turns it into a full-content patch of a tracked file;
+/// the release path
 ///       writes `replacement` after checking the file still holds `original`.
 ///
 /// In TS you'd write (pseudocode):
@@ -48,7 +62,8 @@ use crate::dependent_version_text::replace_manifest_version;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ManifestBump {
-    /// The dependent, its directory and the version change.
+    /// The dependent,
+    /// its directory and the version change.
     pub planned: PlannedBump,
     /// The manifest path.
     pub path: Vec<u8>,
@@ -56,13 +71,17 @@ pub struct ManifestBump {
     pub mode: TrackedMode,
     /// Its exact current bytes.
     pub original: Vec<u8>,
-    /// The same bytes with only the version value changed; a leading byte-order mark is
+    /// The same bytes with only the version value changed;
+    /// a leading byte-order mark is
     /// kept.
     pub replacement: Vec<u8>,
 }
 
-/// What: A completed plan.
-/// Why:  The finding message names the raised packages; the bumps are sorted by name.
+/// What:
+/// A completed plan.
+/// Why:
+///  The finding message names the raised packages;
+/// the bumps are sorted by name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -70,15 +89,21 @@ pub struct ManifestBump {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorkspaceBumpPlan {
-    /// Packages whose version differs from the base, in manifest order.
+    /// Packages whose version differs from the base,
+    /// in manifest order.
     pub bumped_names: Vec<String>,
-    /// Dependent bumps, sorted by name.
+    /// Dependent bumps,
+    /// sorted by name.
     pub bumps: Vec<ManifestBump>,
 }
 
-/// What: How planning ended when nothing failed.
-/// Why:  A dependent that needs a bump but holds no plain release stops the plan; the
-///       policy reports it for a bump by hand, the release path fails.
+/// What:
+/// How planning ended when nothing failed.
+/// Why:
+///  A dependent that needs a bump but holds no plain release stops the plan;
+/// the
+///       policy reports it for a bump by hand,
+/// the release path fails.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,21 +111,28 @@ pub struct WorkspaceBumpPlan {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PlanOutcome {
-    /// Every needed bump was planned; the list may be empty.
+    /// Every needed bump was planned;
+    /// the list may be empty.
     Planned(
         /// The plan.
         WorkspaceBumpPlan,
     ),
-    /// The first dependent, in manifest order, whose version cannot be bumped.
+    /// The first dependent,
+    /// in manifest order,
+    /// whose version cannot be bumped.
     Unsupported(
         /// The dependent and its version.
         UnsupportedVersion,
     ),
 }
 
-/// What: The publishable names from the registry configuration, or nothing when it is not
+/// What:
+/// The publishable names from the registry configuration,
+/// or nothing when it is not
 ///       tracked.
-/// Why:  Without the configuration nothing is publishable, so nothing is bumped.
+/// Why:
+///  Without the configuration nothing is publishable,
+/// so nothing is bumped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -127,8 +159,11 @@ fn publishable_names(
     )?)));
 }
 
-/// What: The manifest change for one planned bump.
-/// Why:  The edit rewrites the parsed text; the original bytes before it (a byte-order
+/// What:
+/// The manifest change for one planned bump.
+/// Why:
+///  The edit rewrites the parsed text;
+/// the original bytes before it (a byte-order
 ///       mark) are kept.
 ///
 /// In TS you'd write (pseudocode):
@@ -152,8 +187,12 @@ fn manifest_bump(planned: PlannedBump, state: &ManifestState) -> Result<Manifest
     });
 }
 
-/// What: The outcome of a plan that bumps nothing, for the named raised packages.
-/// Why:  Two early exits of `plan_workspace_bumps` end with the same empty plan, and a named function takes the
+/// What:
+/// The outcome of a plan that bumps nothing,
+/// for the named raised packages.
+/// Why:
+///  Two early exits of `plan_workspace_bumps` end with the same empty plan,
+/// and a named function takes the
 ///       place of the closure that built it.
 ///
 /// In TS you'd write (pseudocode):
@@ -167,9 +206,13 @@ fn planned_without_bumps(bumped_names: Vec<String>) -> PlanOutcome {
     });
 }
 
-/// What: Plan patch bumps for publishable dependents of raised packages.
-/// Why:  Reads every manifest at both states; the registry configuration only when a
-///       version was raised; source files only of dependents whose development edges could
+/// What:
+/// Plan patch bumps for publishable dependents of raised packages.
+/// Why:
+///  Reads every manifest at both states;
+/// the registry configuration only when a
+///       version was raised;
+/// source files only of dependents whose development edges could
 ///       carry a raised version.
 ///
 /// In TS you'd write (pseudocode):
@@ -225,7 +268,8 @@ pub fn plan_workspace_bumps(content: &mut dyn WorkspaceContent) -> Result<PlanOu
     }));
 }
 
-/// The plan over scripted workspaces, including the incumbent's worktree ripple cases.
+/// The plan over scripted workspaces,
+/// including the incumbent's worktree ripple cases.
 #[cfg(test)]
 #[path = "dependent_version_plan_tests.rs"]
 mod tests;

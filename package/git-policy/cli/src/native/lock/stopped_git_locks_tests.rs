@@ -1,8 +1,14 @@
-//! Controls for the sweep after a stopped Git child: it removes a lock only on a proof about the holder, and keeps every other file.
+//! Controls for the sweep after a stopped Git child:
+//! it removes a lock only on a proof about the holder,
+//! and keeps every other file.
 //! Why:
-//!  The sweep deletes files in a repository, and a stopped child's lifetime, a lock born in it and an empty file all fit a live
-//!  writer of another Git as well (finding S-1 of the cross-vendor review of 2026-11-03T11:33:50-05:00). Each schedule that
-//!  deleted such a lock is pinned, on disposable repositories and real short-lived processes.
+//!  The sweep deletes files in a repository,
+//! and a stopped child's lifetime,
+//! a lock born in it and an empty file all fit a live
+//!  writer of another Git as well (finding S-1 of the cross-vendor review of 2026-11-03T11:33:50-05:00).
+//! Each schedule that
+//!  deleted such a lock is pinned,
+//! on disposable repositories and real short-lived processes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,7 +24,8 @@ use std::time::Duration;
 
 /// A repository directory with the ref directory the incident's locks sat in.
 struct Repo {
-    /// The fixture directory, removed at the end.
+    /// The fixture directory,
+    /// removed at the end.
     root: PathBuf,
     /// Its `.git` directory.
     git_dir: PathBuf,
@@ -42,14 +49,17 @@ fn pid_file_of(repo: &Repo, reference: &str) -> PathBuf {
     return repo.git_dir.join("refs").join("remotes").join("origin").join(format!("{reference}{PID_LOCK_SUFFIX}"));
 }
 
-/// A ledger for a command that runs in the repository, judging as the real judge does but taking every lock as old enough.
+/// A ledger for a command that runs in the repository,
+/// judging as the real judge does but taking every lock as old enough.
 fn ledger_of(repo: &Repo) -> LockLedger {
     let mut command: Command = Command::new("git");
     command.current_dir(repo.root.as_path());
     return LockLedger::before_start(&command).with_judge(crate::stale_ref_lock_killed_git::judge());
 }
 
-/// A tree member that has ended: a short-lived process, recorded while it ran and reaped.
+/// A tree member that has ended:
+/// a short-lived process,
+/// recorded while it ran and reaped.
 fn ended_member() -> TreeMember {
     let mut child: Child = Command::new("sleep").arg("0.3").spawn().expect("start sleep");
     let member: TreeMember = crate::process_tree::member_of(i32::try_from(child.id()).expect("pid")).expect("a running process");
@@ -57,7 +67,8 @@ fn ended_member() -> TreeMember {
     return member;
 }
 
-/// A tree member that still runs, and its child to end afterwards.
+/// A tree member that still runs,
+/// and its child to end afterwards.
 fn running_member() -> (TreeMember, Child) {
     let child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("30")).expect("start sleep");
     let member: TreeMember = crate::process_tree::member_of(i32::try_from(child.id()).expect("pid")).expect("a running process");
@@ -83,7 +94,8 @@ fn a_lock_named_by_an_ended_member_goes_with_its_pid_file() {
     remove(repo.root.as_path());
 }
 
-/// A lock whose pid file names a process that runs is that process's and stays, whether or not it belongs to the tree.
+/// A lock whose pid file names a process that runs is that process's and stays,
+/// whether or not it belongs to the tree.
 #[test]
 fn a_lock_named_by_a_running_process_stays() {
     let repo: Repo = repo("stopped-locks-running");
@@ -121,7 +133,9 @@ fn an_empty_lock_with_a_pid_file_is_decided_by_the_pid_file() {
     remove(repo.root.as_path());
 }
 
-/// Files that are not locks, and a lock-named directory, are left alone.
+/// Files that are not locks,
+/// and a lock-named directory,
+/// are left alone.
 #[test]
 fn only_regular_lock_files_are_candidates() {
     let repo: Repo = repo("stopped-locks-other-files");
@@ -148,7 +162,9 @@ fn the_empty_ledger_removes_nothing() {
     remove(repo.root.as_path());
 }
 
-/// The repository of a command comes from a `gitdir:` file, from `GIT_DIR`, and from the directory above the working one.
+/// The repository of a command comes from a `gitdir:` file,
+/// from `GIT_DIR`,
+/// and from the directory above the working one.
 #[test]
 fn the_repository_is_found_from_the_working_directory_or_the_environment() {
     let repo: Repo = repo("stopped-locks-roots");
@@ -177,8 +193,11 @@ fn the_repository_is_found_from_the_working_directory_or_the_environment() {
 //region Locks of a live foreign writer, which the sweep must never remove
 // Cross-vendor review of 2026-11-03T11:33:50-05:00, finding S-1: every schedule below ended with a live writer's lock deleted.
 
-/// The reviewer's schedule: a foreign writer without `core.lockfilePid` creates the lock while the child lives, its lock
-///  descriptor is closed, and it keeps the lock empty for as long as it likes while the child's tree has ended.
+/// The reviewer's schedule:
+/// a foreign writer without `core.lockfilePid` creates the lock while the child lives,
+/// its lock
+///  descriptor is closed,
+/// and it keeps the lock empty for as long as it likes while the child's tree has ended.
 #[test]
 fn a_live_foreign_writers_empty_lock_stays() {
     let repo: Repo = repo("stopped-locks-foreign-writer");
@@ -192,7 +211,9 @@ fn a_live_foreign_writers_empty_lock_stays() {
     remove(repo.root.as_path());
 }
 
-/// A pid file that is older than the lock names an earlier holder; the lock beside it is another writer's, whose own pid
+/// A pid file that is older than the lock names an earlier holder;
+/// the lock beside it is another writer's,
+/// whose own pid
 ///  file Git could not create because this one was in the way.
 #[test]
 fn a_lock_made_after_a_pid_file_that_names_an_ended_member_stays() {
@@ -208,7 +229,8 @@ fn a_lock_made_after_a_pid_file_that_names_an_ended_member_stays() {
     remove(repo.root.as_path());
 }
 
-/// Locks of other protocols are never the sweep's to remove, whatever the child did.
+/// Locks of other protocols are never the sweep's to remove,
+/// whatever the child did.
 #[test]
 fn locks_that_are_not_reference_locks_stay() {
     let repo: Repo = repo("stopped-locks-not-references");
@@ -235,13 +257,17 @@ fn locks_that_are_not_reference_locks_stay() {
 // The container gate showed `git_stop_lock_tests::a_stop_without_grace_sweeps_the_locks_on_a_thread_of_its_own` failing
 // there: a container has a PID namespace of its own, so the judge cannot tell a gone number from one of another namespace.
 
-/// A judge with the view a container has: the process numbers it reads are not known to be the machine's.
+/// A judge with the view a container has:
+/// the process numbers it reads are not known to be the machine's.
 fn container_judge() -> crate::stale_ref_lock_judge::Judge {
     return crate::stale_ref_lock_judge::Judge { pid_view_complete: false, ..crate::stale_ref_lock_killed_git::judge() };
 }
 
-/// The wrapper started the child, stopped it and saw it end, so the number in the pid file the child wrote is a number of
-///  the wrapper's own namespace and names a process that is gone, whatever view the judge has of the machine.
+/// The wrapper started the child,
+/// stopped it and saw it end,
+/// so the number in the pid file the child wrote is a number of
+///  the wrapper's own namespace and names a process that is gone,
+/// whatever view the judge has of the machine.
 #[test]
 fn a_lock_named_by_an_ended_child_of_the_wrapper_goes_in_a_container_view() {
     let repo: Repo = repo("stopped-locks-container-view");
@@ -263,7 +289,9 @@ fn container_ledger_of(repo: &Repo) -> LockLedger {
     return LockLedger::before_start(&command).with_judge(container_judge());
 }
 
-/// An old pid file in front of a newer lock names an earlier holder: the newer lock is another writer's, in any view.
+/// An old pid file in front of a newer lock names an earlier holder:
+/// the newer lock is another writer's,
+/// in any view.
 #[test]
 fn in_a_container_view_a_pid_file_older_than_the_lock_vouches_for_nothing() {
     let repo: Repo = repo("stopped-locks-container-older-pid");
@@ -277,7 +305,8 @@ fn in_a_container_view_a_pid_file_older_than_the_lock_vouches_for_nothing() {
     remove(repo.root.as_path());
 }
 
-/// A lock that was there before the child started is not the child's, whatever its pid file says.
+/// A lock that was there before the child started is not the child's,
+/// whatever its pid file says.
 #[test]
 fn in_a_container_view_a_lock_older_than_the_child_stays() {
     let repo: Repo = repo("stopped-locks-container-older-lock");
@@ -292,7 +321,8 @@ fn in_a_container_view_a_lock_older_than_the_child_stays() {
     remove(repo.root.as_path());
 }
 
-/// A number that is not a process of the stopped tree is not the wrapper's to vouch for, though nothing runs under it.
+/// A number that is not a process of the stopped tree is not the wrapper's to vouch for,
+/// though nothing runs under it.
 #[test]
 fn in_a_container_view_a_number_outside_the_tree_proves_nothing() {
     let repo: Repo = repo("stopped-locks-container-outside");
@@ -333,7 +363,9 @@ fn in_a_container_view_a_lock_without_a_pid_file_stays() {
     remove(repo.root.as_path());
 }
 
-/// A lock the stopped child just made goes without waiting out the margin, because the wrapper knows its holder ended; a lock
+/// A lock the stopped child just made goes without waiting out the margin,
+/// because the wrapper knows its holder ended;
+/// a lock
 ///  that young with any other pid file is left to the margin.
 #[test]
 fn a_young_lock_of_an_ended_child_does_not_wait_out_the_margin() {

@@ -23,15 +23,26 @@
 //! feedLibrary(service, names, 10_000, 0); // returns at once; batches arrive on a worker
 //! ```
 
+/// Imports the ordered map that keeps prepared batches in order until they can be handed on.
 use std::collections::BTreeMap;
+/// Imports the atomic flag,
+/// the counter and their ordering that coordinate the preparer threads.
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+/// Imports the channel module that carries prepared batches back to the feeding thread.
 use std::sync::mpsc;
+/// Imports the shared ownership type that shares the names with the preparer threads.
 use std::sync::Arc;
+/// Imports the thread module that runs the preparers.
 use std::thread;
+/// Imports the duration type of the pause between batches,
+/// which tests lengthen to imitate a slow scan.
 use std::time::Duration;
 
+/// Imports the index that receives the batches.
 use crate::search_index::SearchIndex;
+/// Imports the prepared batch and the function that prepares it.
 use crate::search_index_batch::{PreparedBatch, prepare_batch};
+/// Imports the service that owns the index and the stream thread.
 use crate::search_service::SearchService;
 
 /// What:

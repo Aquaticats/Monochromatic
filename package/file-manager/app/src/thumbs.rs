@@ -220,7 +220,7 @@ impl Thumbnails {
 pub fn is_image(path: &Path) -> bool {
     return matches!(
         path.extension()
-            .and_then(|ext| return ext.to_str())
+            .and_then(std::ffi::OsStr::to_str)
             .map(str::to_ascii_lowercase)
             .as_deref(),
         Some(
@@ -353,18 +353,34 @@ fn insert_evicting(inner: &Rc<ThumbInner>, path: &Path, texture: Texture, bytes:
 }
 
 /// What:
+///  the path of the cached thumbnail with the smallest use tick,
+///  or nothing when the cache is empty.
+/// Why:
+///  eviction removes the least-recently-used entry;
+///  a loop with a strict comparison keeps the first of equal ticks,
+///  as `min_by_key` did.
+fn least_recently_used_path(cache: &HashMap<PathBuf, Cached>) -> Option<PathBuf> {
+    let mut victim: Option<(&PathBuf, u64)> = None;
+    for (path, cached) in cache {
+        match victim {
+            Some((_, oldest)) if oldest <= cached.used => {}
+            _ => victim = Some((path, cached.used)),
+        }
+    }
+    match victim {
+        Some((path, _)) => return Some(path.clone()),
+        None => return None,
+    }
+}
+
+/// What:
 ///  evict the least-recently-used cached thumbnail until the total is within budget.
 /// Why:
 ///  one victim per pass keeps the accounting exact;
 ///  a bounded small cache makes the scan cheap.
 fn evict_to_budget(inner: &Rc<ThumbInner>) {
     while inner.total_bytes.get() > THUMB_CACHE_BYTES {
-        let victim = inner
-            .cache
-            .borrow()
-            .iter()
-            .min_by_key(|(_, cached)| return cached.used)
-            .map(|(victim_path, _)| return victim_path.clone());
+        let victim = least_recently_used_path(&inner.cache.borrow());
         let Some(victim_path) = victim else {
             break;
         };

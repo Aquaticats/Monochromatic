@@ -15,6 +15,7 @@
 //! defaults and element order,
 //! so the rules live here and the glue only maps them to controls.
 
+/// Imports the serialization trait that stores the sizes in the session file.
 use serde::Serialize;
 
 /// What:

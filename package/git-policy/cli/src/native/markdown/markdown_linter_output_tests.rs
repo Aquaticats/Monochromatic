@@ -1,6 +1,8 @@
 //! What:
 //!  Controls for reading an in-process linter run:
-//!  the usable run, every refusal by cause, and the explanation's bound.
+//!  the usable run,
+//! every refusal by cause,
+//! and the explanation's bound.
 //! Why:
 //!  The policy trusts only a status 0 run whose findings are warnings of a selected rule with a position;
 //!  each other shape must end the policy with its own reason instead of passing an unchecked file.
@@ -180,7 +182,8 @@ fn the_explanation_stays_short() {
     assert_eq!(explanation(long.as_str()), format!("{}...", "b".repeat(EXPLANATION_LIMIT)));
 }
 
-/// A fixed source at the bound is accepted and one byte over it is refused, as the child's output cap was.
+/// A fixed source at the bound is accepted and one byte over it is refused,
+/// as the child's output cap was.
 #[test]
 fn the_fixed_source_is_bounded() {
     let at_bound: String = "a".repeat(MAX_FIXED_BYTES);
@@ -191,7 +194,8 @@ fn the_fixed_source_is_bounded() {
     assert!(refusal.contains(MAX_FIXED_BYTES.to_string().as_str()), "{refusal}");
 }
 
-/// Findings whose text passes the bound are refused, as the child's standard error cap refused them.
+/// Findings whose text passes the bound are refused,
+/// as the child's standard error cap refused them.
 #[test]
 fn the_findings_are_bounded() {
     let code: String = selected_code();

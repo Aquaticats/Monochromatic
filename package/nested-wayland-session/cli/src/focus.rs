@@ -15,6 +15,7 @@ use smithay::{
         wayland_server::{protocol::wl_surface::WlSurface, Resource},
     },
     utils::SERIAL_COUNTER,
+    wayland::shell::xdg::ToplevelState,
 };
 /// Structured logging.
 use tracing::{debug, info};
@@ -37,8 +38,60 @@ use crate::state::Compositor;
 /// function promote(order: Surface[], surface: Surface): void { order.splice(order.indexOf(surface), 1); order.unshift(surface); }
 /// ```
 pub fn promote<T: PartialEq>(order: &mut Vec<T>, item: T) {
-    order.retain(|entry| return *entry != item);
+    let mut index = 0;
+    while index < order.len() {
+        if order[index] == item {
+            order.remove(index);
+        } else {
+            index += 1;
+        }
+    }
     order.insert(0, item);
+}
+
+/// Whether a toplevel's pending state has the activated flag.
+///
+/// What:
+///      `fn is_activated(pending: &mut ToplevelState) -> bool`.
+/// Why:
+///       `with_pending_state` takes it by path instead of a closure that captured nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isActivated = (pending: ToplevelState): boolean => pending.states.has("activated");
+/// ```
+fn is_activated(pending: &mut ToplevelState) -> bool {
+    return pending.states.contains(xdg_toplevel::State::Activated)
+}
+
+/// Sets the activated flag on a toplevel's pending state.
+///
+/// What:
+///      `fn mark_activated(pending: &mut ToplevelState)`.
+/// Why:
+///       `with_pending_state` takes it by path instead of a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const markActivated = (pending: ToplevelState): void => { pending.states.add("activated"); };
+/// ```
+fn mark_activated(pending: &mut ToplevelState) {
+    pending.states.set(xdg_toplevel::State::Activated);
+}
+
+/// Clears the activated flag on a toplevel's pending state.
+///
+/// What:
+///      `fn mark_deactivated(pending: &mut ToplevelState)`.
+/// Why:
+///       `with_pending_state` takes it by path instead of a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const markDeactivated = (pending: ToplevelState): void => { pending.states.delete("activated"); };
+/// ```
+fn mark_deactivated(pending: &mut ToplevelState) {
+    pending.states.unset(xdg_toplevel::State::Activated);
 }
 
 /// Mark exactly one toplevel as activated,
@@ -59,15 +112,13 @@ fn apply_activation(state: &mut Compositor, active: Option<&WlSurface>) {
             continue;
         };
         let wanted = active == Some(toplevel.wl_surface());
-        let changed = toplevel.with_pending_state(|pending| {
-            let current = pending.states.contains(xdg_toplevel::State::Activated);
-            if wanted {
-                pending.states.set(xdg_toplevel::State::Activated);
-            } else {
-                pending.states.unset(xdg_toplevel::State::Activated);
-            }
-            return current != wanted
-        });
+        let current = toplevel.with_pending_state(is_activated);
+        if wanted {
+            toplevel.with_pending_state(mark_activated);
+        } else {
+            toplevel.with_pending_state(mark_deactivated);
+        }
+        let changed = current != wanted;
         if changed && toplevel.is_initial_configure_sent() {
             toplevel.send_pending_configure();
         }
@@ -110,19 +161,34 @@ pub fn focus_surface(state: &mut Compositor, surface: WlSurface) {
 /// function toplevelGone(state: Compositor, gone: Surface): void { ... }
 /// ```
 pub fn toplevel_gone(state: &mut Compositor, gone: &WlSurface) {
-    state.focus_order.retain(|entry| return entry != gone && entry.is_alive());
-    let doomed = state
-        .space
-        .elements()
-        .find(|window| return window.toplevel().is_some_and(|toplevel| return toplevel.wl_surface() == gone))
-        .cloned();
+    let mut index = 0;
+    while index < state.focus_order.len() {
+        let entry = &state.focus_order[index];
+        if entry != gone && entry.is_alive() {
+            index += 1;
+        } else {
+            state.focus_order.remove(index);
+        }
+    }
+    let mut doomed = None;
+    for window in state.space.elements() {
+        if let Some(toplevel) = window.toplevel()
+            && toplevel.wl_surface() == gone
+        {
+            doomed = Some(window.clone());
+            break;
+        }
+    }
     if let Some(window) = doomed {
         state.space.unmap_elem(&window);
     }
     let Some(keyboard) = state.seat.get_keyboard() else {
         return;
     };
-    let had_focus = keyboard.current_focus().is_none_or(|focused| return focused == *gone);
+    let had_focus = match keyboard.current_focus() {
+        Some(focused) => focused == *gone,
+        None => true,
+    };
     if !had_focus {
         debug!("a toplevel went away without keyboard focus; focus stays");
         return;

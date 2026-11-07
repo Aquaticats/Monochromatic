@@ -1,14 +1,28 @@
 //! What:
-//!  The abbreviated name Git prints for an object (`git commit`'s `[main 30b2211]`, `git log --oneline`), computed in
-//!  process: the length from `core.abbrev` or from the number of packed objects, then lengthened until no other object
+//!  The abbreviated name Git prints for an object (`git commit`'s `[main 30b2211]`,
+//! `git log --oneline`),
+//! computed in
+//!  process:
+//! the length from `core.abbrev` or from the number of packed objects,
+//! then lengthened until no other object
 //!  shares the name.
 //! Why:
 //!  A fixed seven characters turns ambiguous as a repository grows (Git itself prints ten in a repository of some hundred
-//!  thousand objects), and a person may copy the name. Git's rules are `odb_find_abbrev_len` (`odb.c`) for the length and
+//!  thousand objects),
+//! and a person may copy the name.
+//! Git's rules are `odb_find_abbrev_len` (`odb.c`) for the length and
 //!  `find_abbrev_len_for_pack` (`odb/source-packed.c`) and `odb_source_loose_find_abbrev_len` (`odb/source-loose.c`) for
-//!  the uniqueness, all read from the Git 2.56.0 sources. The count is the approximate one: the objects of the pack
-//!  indexes (a multi-pack-index counts for the packs it covers), loose objects not counted, alternates included. Reading
-//!  the indexes needs no Git process; a shape this reader does not model (an incremental multi-pack-index chain, a
+//!  the uniqueness,
+//! all read from the Git 2.56.0 sources.
+//! The count is the approximate one:
+//! the objects of the pack
+//!  indexes (a multi-pack-index counts for the packs it covers),
+//! loose objects not counted,
+//! alternates included.
+//! Reading
+//!  the indexes needs no Git process;
+//! a shape this reader does not model (an incremental multi-pack-index chain,
+//! a
 //!  version 1 pack index with a name it cannot read) answers nothing and the caller asks Git.
 //!
 //! In TS you'd write (pseudocode):
@@ -24,35 +38,48 @@ use std::os::unix::fs::FileExt;
 use std::path::{Path, PathBuf};
 use crate::object_abbreviation_byte_and_prefix_checks::{is_hex_digit, is_nul, shared_prefix_length};
 
-/// Git's `FALLBACK_DEFAULT_ABBREV`: the shortest automatic length.
+/// Git's `FALLBACK_DEFAULT_ABBREV`:
+/// the shortest automatic length.
 pub const FALLBACK_ABBREVIATION: usize = 7;
 
-/// Git's `minimum_abbrev`: the shortest length `core.abbrev` may name.
+/// Git's `minimum_abbrev`:
+/// the shortest length `core.abbrev` may name.
 pub const MINIMUM_ABBREVIATION: i64 = 4;
 
-/// Git's `GIT_MAX_HEXSZ`: what a false word in `core.abbrev` asks for, which means the whole name.
+/// Git's `GIT_MAX_HEXSZ`:
+/// what a false word in `core.abbrev` asks for,
+/// which means the whole name.
 const LONGEST_NAME: usize = 64;
 
-/// The bytes of a version 2 pack index before the names: magic, version and the fanout table.
+/// The bytes of a version 2 pack index before the names:
+/// magic,
+/// version and the fanout table.
 const FANOUT_END: u64 = 8 + 256 * 4;
 
-/// The bytes of a version 1 pack index before its entries: the fanout table.
+/// The bytes of a version 1 pack index before its entries:
+/// the fanout table.
 const FANOUT_END_V1: u64 = 256 * 4;
 
 /// How a repository asks for the length of an abbreviation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Setting {
-    /// `core.abbrev` is unset, `auto`, or unusable: the length follows the size of the repository.
+    /// `core.abbrev` is unset,
+    /// `auto`,
+    /// or unusable:
+    /// the length follows the size of the repository.
     Auto,
-    /// The shortest length `core.abbrev` asks for; the name is still lengthened until it is unique.
+    /// The shortest length `core.abbrev` asks for;
+    /// the name is still lengthened until it is unique.
     Length(usize),
 }
 
 /// What:
 ///  The setting the value of `core.abbrev` stands for.
 /// Why:
-///   Git reads `auto` as the automatic length, a false word (or an empty value) as the whole name and a number from four up
-///  as that many characters; anything else makes Git report the key and keep the automatic length.
+///   Git reads `auto` as the automatic length,
+/// a false word (or an empty value) as the whole name and a number from four up
+///  as that many characters;
+/// anything else makes Git report the key and keep the automatic length.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,7 +101,9 @@ pub fn setting_of(value: Option<&[u8]>) -> Setting {
     };
 }
 
-/// The most significant bit of a count, as Git's `msb`: the index of the highest set bit.
+/// The most significant bit of a count,
+/// as Git's `msb`:
+/// the index of the highest set bit.
 fn highest_bit(count: u64) -> usize {
     return if count == 0 { 0 } else { 63 - count.leading_zeros() as usize };
 }
@@ -82,7 +111,9 @@ fn highest_bit(count: u64) -> usize {
 /// What:
 ///  The length Git starts from for a repository of `count` packed objects.
 /// Why:
-///   About `2^bits` objects expect a collision at `2^(bits/2)`; four bits make a character, and small repositories keep the
+///   About `2^bits` objects expect a collision at `2^(bits/2)`;
+/// four bits make a character,
+/// and small repositories keep the
 ///  fallback.
 ///
 /// In TS you'd write (pseudocode):
@@ -93,7 +124,8 @@ pub fn automatic_length(count: u64) -> usize {
     return (highest_bit(count) + 1).div_ceil(2).max(FALLBACK_ABBREVIATION);
 }
 
-/// The hexadecimal characters two names share from the start; equal names share all.
+/// The hexadecimal characters two names share from the start;
+/// equal names share all.
 fn shared_prefix(first: &[u8], second: &[u8]) -> usize {
     let mut shared: usize = 0;
     for (left, right) in first.iter().zip(second) {
@@ -143,7 +175,9 @@ impl SortedNames {
     /// What:
     ///  The longest shared prefix between `target` and any other name of the file.
     /// Why:
-    ///   The names are sorted, so the closest ones are the two next to where `target` sits (or sat); a name equal to
+    ///   The names are sorted,
+    /// so the closest ones are the two next to where `target` sits (or sat);
+    /// a name equal to
     ///  `target` is the object itself and is skipped.
     ///
     /// In TS you'd write (pseudocode):
@@ -178,7 +212,8 @@ impl SortedNames {
     }
 }
 
-/// One pack index opened for its count and its names; `None` when it is not a plain index.
+/// One pack index opened for its count and its names;
+/// `None` when it is not a plain index.
 fn open_index(path: &Path, length: usize) -> Option<SortedNames> {
     let file: File = File::open(path).ok()?;
     let mut magic: [u8; 8] = [0; 8];
@@ -197,16 +232,21 @@ const CHUNK_FANOUT: u32 = 0x4f49_4446;
 const CHUNK_NAMES: u32 = 0x4f49_444c;
 const CHUNK_PACKS: u32 = 0x504e_414d;
 
-/// The covering multi-pack-index of one object directory: its names and the pack indexes it covers.
+/// The covering multi-pack-index of one object directory:
+/// its names and the pack indexes it covers.
 struct Midx {
     names: SortedNames,
     covered: Vec<String>,
 }
 
 /// What:
-///  The multi-pack-index file of a pack directory, when there is one this reader models.
+///  The multi-pack-index file of a pack directory,
+/// when there is one this reader models.
 /// Why:
-///   A pack the index covers is counted and searched through it, not on its own, as Git does. A chain of incremental
+///   A pack the index covers is counted and searched through it,
+/// not on its own,
+/// as Git does.
+/// A chain of incremental
 ///  layers is not modelled.
 ///
 /// In TS you'd write (pseudocode):
@@ -277,7 +317,8 @@ struct Packed {
     indexes: Vec<SortedNames>,
 }
 
-/// Opens what a root's pack directory holds; `Err` when a shape is not modelled.
+/// Opens what a root's pack directory holds;
+/// `Err` when a shape is not modelled.
 fn open_packed(root: &Path, length: usize) -> Result<Packed, ()> {
     let directory: PathBuf = root.join("pack");
     let listing = match std::fs::read_dir(&directory) {
@@ -334,7 +375,9 @@ fn bytes_of(hex: &str) -> Option<Vec<u8>> {
     return Some(bytes);
 }
 
-/// Whether the multi-pack-index, when there is one, already lists the pack index `name`.
+/// Whether the multi-pack-index,
+/// when there is one,
+/// already lists the pack index `name`.
 fn midx_covers(midx: &Option<Midx>, name: &String) -> bool {
     return match midx {
         Some(covering) => covering.covered.contains(name),
@@ -343,11 +386,16 @@ fn midx_covers(midx: &Option<Midx>, name: &String) -> bool {
 }
 
 /// What:
-///  The abbreviation of `hex` that Git prints: at least the length the setting asks for, and longer until no other object
+///  The abbreviation of `hex` that Git prints:
+/// at least the length the setting asks for,
+/// and longer until no other object
 ///  of the repository or its alternates starts with the same characters.
 /// Why:
-///   The answer is Git's own without starting Git. Nothing is answered when the object directory, an alternate or a pack
-///  index has a shape this reader does not model, so the caller can ask Git.
+///   The answer is Git's own without starting Git.
+/// Nothing is answered when the object directory,
+/// an alternate or a pack
+///  index has a shape this reader does not model,
+/// so the caller can ask Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

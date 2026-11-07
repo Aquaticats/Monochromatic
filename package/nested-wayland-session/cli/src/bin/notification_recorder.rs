@@ -28,6 +28,7 @@ use anyhow::{Context, Result};
 /// Imports the library pieces the nested session already uses.
 use nested_wayland_session::{
     control_notification,
+    lazy_error_text::with_message,
     notification_mode::NotificationMode,
     plasma_services::PlasmaServices,
     private_bus::PrivateBus,
@@ -96,18 +97,19 @@ fn record(invocation: Invocation) -> Result<i32> {
     let services = PlasmaServices::start(invocation.mode, Arc::clone(&bus), Instant::now())
         .context("starting the recording notification service")?;
     let (program, arguments) = invocation.command.split_first().context("the command is missing")?;
-    let status = Command::new(program)
+    let ran = Command::new(program)
         .args(arguments)
         .env("DBUS_SESSION_BUS_ADDRESS", bus.address())
         .env_remove("XDG_RUNTIME_DIR")
-        .status()
-        .with_context(|| return format!("running {program}"))?;
+        .status();
+    let status = with_message(ran, format_args!("running {program}"))?;
     let text = match control_notification::run(services.as_ref(), &NotificationCommand::Log { count: usize::MAX }) {
         Response::OkWith(records) => records,
         Response::Ok => String::new(),
         Response::Err(message) => anyhow::bail!("reading the notification log: {message}"),
     };
-    std::fs::write(&invocation.log, text).with_context(|| return format!("writing {}", invocation.log.display()))?;
+    let written = std::fs::write(&invocation.log, text);
+    with_message(written, format_args!("writing {}", invocation.log.display()))?;
     return Ok(status.code().unwrap_or(1));
 }
 

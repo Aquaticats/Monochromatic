@@ -1,7 +1,10 @@
 //! What:
-//!  Gets the listening socket of the commit service: the one the service manager passed in, or a socket bound at a path.
+//!  Gets the listening socket of the commit service:
+//! the one the service manager passed in,
+//! or a socket bound at a path.
 //! Why:
-//!  `serve` needs a listener before it can accept; where it comes from depends on how the service was started.
+//!  `serve` needs a listener before it can accept;
+//! where it comes from depends on how the service was started.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,9 +18,13 @@ pub const INHERITED_DESCRIPTOR: i32 = 3;
 /// Where the listening socket comes from.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Bind {
-    /// A Linux abstract name: one binder at a time, gone with the process, no file to go stale.
+    /// A Linux abstract name:
+    /// one binder at a time,
+    /// gone with the process,
+    /// no file to go stale.
     Abstract(String),
-    /// A path in a private directory, for platforms without abstract names.
+    /// A path in a private directory,
+    /// for platforms without abstract names.
     Path(std::path::PathBuf),
     /// The socket the service manager opened and passed in.
     Inherited,
@@ -26,7 +33,9 @@ pub enum Bind {
 /// What:
 ///  Opens the listening socket.
 /// Why:
-///   Socket activation hands over a bound socket, which is the normal way; the others serve tests and development runs.
+///   Socket activation hands over a bound socket,
+/// which is the normal way;
+/// the others serve tests and development runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -52,7 +61,8 @@ pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
     };
 }
 
-/// Whether the service manager passed this process a listening socket: the variables `LISTEN_PID` and `LISTEN_FDS` of this
+/// Whether the service manager passed this process a listening socket:
+/// the variables `LISTEN_PID` and `LISTEN_FDS` of this
 ///  process's environment name this process and at least one descriptor.
 pub fn socket_passed_in() -> bool {
     return ensure_socket_passed_in(std::env::var("LISTEN_PID").ok().as_deref(), std::env::var("LISTEN_FDS").ok().as_deref(), std::process::id()).is_ok();
@@ -87,12 +97,20 @@ pub(crate) fn ensure_socket_passed_in(listen_pid: Option<&str>, listen_fds: Opti
 }
 
 /// What:
-///  Binds a socket file, taking over one that no service listens on.
+///  Binds a socket file,
+/// taking over one that no service listens on.
 /// Why:
-///   A service that was killed leaves its socket file behind, and the next bind of the same path then fails with
-///  "Address already in use" although nothing answers there. Only a socket that refuses a connection is replaced: one that
-///  answers belongs to a running service, and any other file is the person's. Two services started on one path at the same
-///  moment are the caller's to avoid (the service manager's socket, which production uses, never comes here).
+///   A service that was killed leaves its socket file behind,
+/// and the next bind of the same path then fails with
+///  "Address already in use" although nothing answers there.
+/// Only a socket that refuses a connection is replaced:
+/// one that
+///  answers belongs to a running service,
+/// and any other file is the person's.
+/// Two services started on one path at the same
+///  moment are the caller's to avoid (the service manager's socket,
+/// which production uses,
+/// never comes here).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

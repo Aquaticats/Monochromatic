@@ -1,9 +1,17 @@
 //! What:
-//!  The pieces every step of a tree sync shares: the options and the statistics, the work stack's entries, the open destination
-//!  directory, the state of one pass, and the small checks and removals that compare or clear one entry.
+//!  The pieces every step of a tree sync shares:
+//! the options and the statistics,
+//! the work stack's entries,
+//! the open destination
+//!  directory,
+//! the state of one pass,
+//! and the small checks and removals that compare or clear one entry.
 //! Why:
-//!  `subvolume_sync.rs` holds the walk and `subvolume_sync_copy_one_entry.rs` holds the copying of one entry; both need these
-//!  types and checks, and neither may depend on the other's file, so they live in a file that depends on neither.
+//!  `subvolume_sync.rs` holds the walk and `subvolume_sync_copy_one_entry.rs` holds the copying of one entry;
+//! both need these
+//!  types and checks,
+//! and neither may depend on the other's file,
+//! so they live in a file that depends on neither.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,7 +29,8 @@ use std::fs::Metadata;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
-/// The name an entry is written under before it is renamed to its own, unless the source has an entry of that name.
+/// The name an entry is written under before it is renamed to its own,
+/// unless the source has an entry of that name.
 pub(crate) const PARTIAL_NAME: &str = ".cli-git-migrate-partial";
 
 /// How many times a file that keeps changing under the copy is copied before the pass gives up.
@@ -31,7 +40,8 @@ pub(crate) const COPY_ATTEMPTS: u32 = 3;
 ///  What one pass may do.
 ///  `&'a [PathBuf]` borrows the list of excluded paths for the pass.
 /// Why:
-///   The excluded paths (relative to the tree roots) are neither copied nor deleted: the lock files the migration
+///   The excluded paths (relative to the tree roots) are neither copied nor deleted:
+/// the lock files the migration
 ///  itself holds are the use.
 ///
 /// In TS you'd write (pseudocode):
@@ -42,19 +52,24 @@ pub(crate) const COPY_ATTEMPTS: u32 = 3;
 pub struct SyncOptions<'a> {
     /// Remove destination entries the source does not have.
     pub delete: bool,
-    /// Copy a file only when the destination lacks it or has an older one; never delete.
+    /// Copy a file only when the destination lacks it or has an older one;
+    /// never delete.
     pub update_only: bool,
     /// Paths relative to the roots that the pass leaves alone.
     pub excluded: &'a [PathBuf],
-    /// Update-only pass: a source entry the destination lacks is created only when it was modified at or after this
-    ///  second (since the epoch); an older one was deleted from the destination on purpose. `None` creates them all.
+    /// Update-only pass:
+    /// a source entry the destination lacks is created only when it was modified at or after this
+    ///  second (since the epoch);
+    /// an older one was deleted from the destination on purpose.
+    /// `None` creates them all.
     pub created_since: Option<i64>,
 }
 
 /// What:
 ///  What one pass did.
 /// Why:
-///   The report prints the counts, and the unreadable and skipped lists are the loud part of it.
+///   The report prints the counts,
+/// and the unreadable and skipped lists are the loud part of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -68,7 +83,8 @@ pub struct SyncStats {
     pub directories: u64,
     /// Files whose content was copied or cloned.
     pub files_copied: u64,
-    /// Of those, files whose data blocks are shared with the original.
+    /// Of those,
+    /// files whose data blocks are shared with the original.
     pub cloned: u64,
     /// Files created as hard links of an earlier copy in the same pass.
     pub hard_linked: u64,
@@ -82,27 +98,44 @@ pub struct SyncStats {
     pub deleted: u64,
     /// Entries that disappeared from the source during the pass.
     pub vanished: u64,
-    /// Files this user may not read, left in the source tree; relative paths.
+    /// Files this user may not read,
+    /// left in the source tree;
+    /// relative paths.
     pub unreadable: Vec<PathBuf>,
-    /// Sockets and device nodes, which are not recreated; relative paths.
+    /// Sockets and device nodes,
+    /// which are not recreated;
+    /// relative paths.
     pub special_skipped: Vec<PathBuf>,
     /// Attributes that could not be set.
     pub losses: AttributeLosses,
-    /// Update-only pass: destination entries kept because they may hold newer work and the source has an entry of
-    ///  another type there, or the destination directory was replaced; relative paths.
+    /// Update-only pass:
+    /// destination entries kept because they may hold newer work and the source has an entry of
+    ///  another type there,
+    /// or the destination directory was replaced;
+    /// relative paths.
     pub conflicts: Vec<PathBuf>,
     /// Files that changed while they were copied and had to be copied again.
     pub recopied: u64,
     /// Source entries the destination lacks that were left out because they are older than `created_since`.
     pub left_out: u64,
-    /// The first few files whose content was copied, relative paths, for the report.
+    /// The first few files whose content was copied,
+    /// relative paths,
+    /// for the report.
     pub copied_sample: Vec<PathBuf>,
 }
 
 /// How many copied paths a pass keeps for its report.
-///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
-///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
+///  Exempt from a citation under `LQM` (class:
+/// display cap):
+/// it limits how much text a message,
+/// log field or record
+///  names,
+/// and no command result or duration depends on it.
+/// Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 pub(crate) const SAMPLE_SIZE: usize = 20;
 
 /// One unit of the work stack.
@@ -115,7 +148,8 @@ pub(crate) enum Work {
 
 /// The destination directory being filled and the temporary name used inside it.
 pub(crate) struct Directory {
-    /// The destination directory, held open.
+    /// The destination directory,
+    /// held open.
     pub(crate) anchor: Anchor,
     /// The temporary name for the entry being written.
     pub(crate) temporary: OsString,
@@ -141,13 +175,19 @@ pub(crate) struct Pass<'a> {
     pub(crate) options: SyncOptions<'a>,
     pub(crate) interrupt: &'a Interrupt,
     pub(crate) stats: SyncStats,
-    /// Relative paths of the copies made of each source file that has several names, by (device, inode). Several copies
+    /// Relative paths of the copies made of each source file that has several names,
+    /// by (device,
+    /// inode).
+    /// Several copies
     ///  exist when the destination cannot link across a boundary (two subvolumes).
     pub(crate) links: HashMap<(u64, u64), Vec<PathBuf>>,
 }
 
-/// Whether the destination entry already equals the source file: a regular file with the same size, modification
-///  time and permission bits (owner is not compared, because an unprivileged copy cannot set a foreign owner).
+/// Whether the destination entry already equals the source file:
+/// a regular file with the same size,
+/// modification
+///  time and permission bits (owner is not compared,
+/// because an unprivileged copy cannot set a foreign owner).
 pub(crate) fn file_is_equal(copy: &Metadata, original: &Metadata) -> bool {
     return copy.is_file()
         && copy.len() == original.len()
@@ -161,7 +201,9 @@ pub(crate) fn is_newer(left: &Metadata, right: &Metadata) -> bool {
     return (left.mtime(), left.mtime_nsec()) > (right.mtime(), right.mtime_nsec());
 }
 
-/// Whether a file looks the same before and after it was copied: size, modification time and change time.
+/// Whether a file looks the same before and after it was copied:
+/// size,
+/// modification time and change time.
 pub(crate) fn is_settled(before: &Metadata, after: &Metadata) -> bool {
     return before.len() == after.len()
         && (before.mtime(), before.mtime_nsec()) == (after.mtime(), after.mtime_nsec())
@@ -182,7 +224,8 @@ pub(crate) fn remove_if_present(path: &Path, shown: &Path) -> Result<(), Migrate
     };
 }
 
-/// The success of an attribute step as it is, its failure as the migration's error for `shown`.
+/// The success of an attribute step as it is,
+/// its failure as the migration's error for `shown`.
 pub(crate) fn attribute_result<T>(result: Result<T, AttributeFailure>, shown: &Path) -> Result<T, MigrateError> {
     return match result {
         Ok(value) => Ok(value),
@@ -201,11 +244,17 @@ pub(crate) fn is_replaced(error: &std::io::Error) -> bool {
 }
 
 /// What:
-///  Settle a read of the source that may find the entry gone: a vanished entry is counted and skipped, any other failure
+///  Settle a read of the source that may find the entry gone:
+/// a vanished entry is counted and skipped,
+/// any other failure
 ///  is returned.
 /// Why:
-///   A source that is in use changes while it is copied. An entry removed between the listing and the read is not an
-///  error of the copy, but every other failure (a permission, a read error) is, and the report counts the first kind.
+///   A source that is in use changes while it is copied.
+/// An entry removed between the listing and the read is not an
+///  error of the copy,
+/// but every other failure (a permission,
+/// a read error) is,
+/// and the report counts the first kind.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -223,13 +272,16 @@ pub(crate) fn vanished_is_counted<T>(outcome: std::io::Result<T>, vanished: &mut
 }
 
 impl Pass<'_> {
-    /// The destination path of a relative path, for messages.
+    /// The destination path of a relative path,
+    /// for messages.
     pub(crate) fn shown(&self, relative: &Path) -> PathBuf {
         return self.destination.join(relative);
     }
 
-    /// Whether a destination entry that is not a match for the source entry may be replaced. An update-only pass keeps a
-    ///  directory and any entry not older than the source, and lists it.
+    /// Whether a destination entry that is not a match for the source entry may be replaced.
+    /// An update-only pass keeps a
+    ///  directory and any entry not older than the source,
+    /// and lists it.
     pub(crate) fn replace_allowed(&mut self, relative: &Path, found: &Metadata, original: &Metadata) -> bool {
         if !self.options.update_only {
             return true;
@@ -252,7 +304,8 @@ impl Pass<'_> {
     }
 }
 
-/// Make an existing destination directory writable for the pass; its final attributes come with `Finish`.
+/// Make an existing destination directory writable for the pass;
+/// its final attributes come with `Finish`.
 pub(crate) fn make_writable(anchor: &Anchor, shown: &Path) -> Result<(), MigrateError> {
     let metadata: Metadata = MigrateError::from_io_result(anchor.file().metadata(), "examine", shown)?;
     if metadata.mode() & 0o700 != 0o700 {

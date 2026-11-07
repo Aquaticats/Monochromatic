@@ -4,11 +4,15 @@
 //!       in hand,
 //!  and the repository scratch directory (`<common-dir>/monochromatic-git-policy-cli-scratch`) for work inside one;
 //!  the folder an earlier release made under its own name (`cli-git-scratch`) is swept by the same rules.
-//!  Both are checked as private (a real directory of this user, mode `0700`) and swept of entries
+//!  Both are checked as private (a real directory of this user,
+//! mode `0700`) and swept of entries
 //!       older than a day each time they are prepared.
 //! Why:
-//!  The system temporary directory is never used (issue 1809, repo rule XTD):
-//!  which device backs it is unknowable (a small tmpfs, a per-user quota, a slow disk),
+//!  The system temporary directory is never used (issue 1809,
+//! repo rule XTD):
+//!  which device backs it is unknowable (a small tmpfs,
+//! a per-user quota,
+//! a slow disk),
 //!       and a full one broke every session.
 //!  A file left by a killed process must not accumulate without bound,
 //!       so every preparation of a directory also collects what is stale in it.
@@ -27,10 +31,13 @@ use crate::child_environment::environment_value;
 use crate::diagnostic_log::debug;
 /// The private creation primitives shared by every durable record.
 use crate::private_storage::{create_private_directory, create_private_directory_all};
-/// The mode a private directory ends with, and the call that sets it, which only Unix has.
+/// The mode a private directory ends with,
+/// and the call that sets it,
+/// which only Unix has.
 #[cfg(unix)]
 use crate::private_storage::{PRIVATE_DIRECTORY_MODE, protect_path};
-/// OS strings, paths and time.
+/// OS strings,
+/// paths and time.
 use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -43,28 +50,45 @@ const TAG: &str = "monochromatic-git-policy-cli";
 pub const REPOSITORY_SCRATCH_NAME: &str = REPOSITORY_SCRATCH.current;
 
 /// How old an entry must be before a preparation removes it:
-///  far longer than any command of the wrapper runs, so a live process never loses a file. Measured: the longest command in the
-///  commit timing log (1,051 commits, 2026-11-02T09:01:37Z to 2026-11-03T15:10:12Z) took 750.6 s and the longest worktree add in the
-///  add timing log (48 adds) 539.7 s; a day is about a hundred times the longest. The patience for an owner of another namespace
-///  (3,600 s) is far under a day. A wait for a live program's lock has no bound of its own, so a command that waits on one for
+///  far longer than any command of the wrapper runs,
+/// so a live process never loses a file.
+/// Measured:
+/// the longest command in the
+///  commit timing log (1,051 commits,
+/// 2026-11-02T09:01:37Z to 2026-11-03T15:10:12Z) took 750.6 s and the longest worktree add in the
+///  add timing log (48 adds) 539.7 s;
+/// a day is about a hundred times the longest.
+/// The patience for an owner of another namespace
+///  (3,600 s) is far under a day.
+/// A wait for a live program's lock has no bound of its own,
+/// so a command that waits on one for
 ///  more than a day is the case this age does not cover (none in the logs came near).
-///  Kept as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
+///  Kept as the coordinator's pick under the owner's delegation,
+/// open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Sizes and ages of the service's own housekeeping").
 pub const SCRATCH_STALE_AFTER: Duration = Duration::from_secs(24 * 60 * 60);
 
 /// How many times in the stale age a command that waits renews the modification time of its scratch directory.
 const REFRESHES_PER_STALE_AGE: u64 = 24;
 
-/// How often a command that waits renews its scratch directory: a twenty-fourth of `SCRATCH_STALE_AFTER`, so a sweep that
-///  runs at any moment finds a waiter's directory at most an hour old, and a directory whose waiter died stops being renewed
-///  and ages out as before. The renewal is one `utimensat` call an hour.
+/// How often a command that waits renews its scratch directory:
+/// a twenty-fourth of `SCRATCH_STALE_AFTER`,
+/// so a sweep that
+///  runs at any moment finds a waiter's directory at most an hour old,
+/// and a directory whose waiter died stops being renewed
+///  and ages out as before.
+/// The renewal is one `utimensat` call an hour.
 pub const SCRATCH_REFRESH_EVERY: Duration = Duration::from_secs(SCRATCH_STALE_AFTER.as_secs() / REFRESHES_PER_STALE_AGE);
 
 /// What:
 ///  Sets the modification time of `path` to now.
 /// Why:
-///   A command that waits for a lock holder or for the commit service with no bound can outlast `SCRATCH_STALE_AFTER`, and the
-///  sweep removes entries by modification time; renewing the time while the command lives ties the entry's age to the
-///  command's liveness, with no lock and no record of the process.
+///   A command that waits for a lock holder or for the commit service with no bound can outlast `SCRATCH_STALE_AFTER`,
+/// and the
+///  sweep removes entries by modification time;
+/// renewing the time while the command lives ties the entry's age to the
+///  command's liveness,
+/// with no lock and no record of the process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -185,7 +209,44 @@ pub fn prepare_user_scratch(environment: &[(OsString, OsString)]) -> Result<Path
 /// ```
 pub fn scratch_file(environment: &[(OsString, OsString)]) -> std::io::Result<std::fs::File> {
     let directory: PathBuf = prepare_user_scratch(environment).map_err(std::io::Error::other)?;
-    return tempfile::tempfile_in(directory);
+    let file: std::fs::File = tempfile::tempfile_in(directory)?;
+    append_only(&file)?;
+    return Ok(file);
+}
+
+/// What:
+///  Puts the file in append mode:
+/// every write goes to the end of the file,
+/// whatever offset the writer last left.
+/// Why:
+///   The callers give clones of the file to a child as its standard error,
+/// and the child and any helper it starts share one
+///  offset:
+/// a write at a position another process has moved past overwrites that process's line (measured:
+/// a leader's line
+///  was lost in 5 of 150 runs of a leader and a helper writing to one shared file at a 20% CPU quota,
+/// and in none of 300 runs in
+///  append mode,
+/// `process/output_capture.rs`).
+/// The mode belongs to the open file,
+/// so every clone has it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_APPEND);
+/// ```
+fn append_only(file: &std::fs::File) -> std::io::Result<()> {
+    use std::os::unix::io::AsRawFd;
+    // SAFETY: the descriptor belongs to `file`, which outlives both calls; `F_GETFL` and `F_SETFL` take no pointers.
+    let flags: libc::c_int = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETFL) };
+    if flags < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    // SAFETY: as above.
+    if unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETFL, flags | libc::O_APPEND) } < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    return Ok(());
 }
 
 /// What:
@@ -217,14 +278,26 @@ pub fn prepare_repository_scratch(common_dir: &Path) -> std::io::Result<PathBuf>
 }
 
 /// What:
-///  Sweep the repository scratch folder an earlier release made (`cli-git-scratch`) by the rules of this release's own: it must be a
-///  real directory of this user (a looser mode is tightened), entries older than `SCRATCH_STALE_AFTER` go, and everything else
-///  stays, including entries dated in the future and the folder itself. Nothing is made under the earlier name, and a folder
-///  that fails the check is left alone and logged, because the command that asked for scratch must not fail over a folder it
+///  Sweep the repository scratch folder an earlier release made (`cli-git-scratch`) by the rules of this release's own:
+/// it must be a
+///  real directory of this user (a looser mode is tightened),
+/// entries older than `SCRATCH_STALE_AFTER` go,
+/// and everything else
+///  stays,
+/// including entries dated in the future and the folder itself.
+/// Nothing is made under the earlier name,
+/// and a folder
+///  that fails the check is left alone and logged,
+/// because the command that asked for scratch must not fail over a folder it
 ///  does not use.
 /// Why:
-///   The folder is in the Git directory the repository scratch is in, the earlier release's commands wrote there and
-///  nothing else would ever collect what a killed one left (owner, 2026-11-07, "Pair the names": one set of rules, and nothing
+///   The folder is in the Git directory the repository scratch is in,
+/// the earlier release's commands wrote there and
+///  nothing else would ever collect what a killed one left (owner,
+/// 2026-11-07,
+/// "Pair the names":
+/// one set of rules,
+/// and nothing
 ///  deleted that those rules would keep).
 ///
 /// In TS you'd write (pseudocode):
@@ -364,7 +437,9 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration) -> usiz
     return removed;
 }
 
-/// Environment resolution, preparation, privacy checks and the sweep are controlled in the test module.
+/// Environment resolution,
+/// preparation,
+/// privacy checks and the sweep are controlled in the test module.
 #[cfg(test)]
 #[path = "scratch_location_tests.rs"]
 mod tests;

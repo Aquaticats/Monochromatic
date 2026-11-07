@@ -1,5 +1,8 @@
-//! Controls for the second pass over a merge from objects: the attribute source follows the caller's own, and a tree comes
-//!  back only when every conflicted file resolved, with the other files of the tree untouched and no scratch index left.
+//! Controls for the second pass over a merge from objects:
+//! the attribute source follows the caller's own,
+//! and a tree comes
+//!  back only when every conflicted file resolved,
+//! with the other files of the tree untouched and no scratch index left.
 
 use super::*;
 use crate::merge_second_pass::ContextRunner;
@@ -8,7 +11,10 @@ use crate::test_support::{git, git_context, git_text, remove};
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};
 
-/// Every conflicted file resolves: the tree holds the merged bytes, every other path is as merge-tree wrote it, and the
+/// Every conflicted file resolves:
+/// the tree holds the merged bytes,
+/// every other path is as merge-tree wrote it,
+/// and the
 /// scratch index is gone.
 #[test]
 fn a_tree_comes_back_with_the_merged_files_and_nothing_else_changed() {
@@ -33,7 +39,8 @@ fn a_tree_comes_back_with_the_merged_files_and_nothing_else_changed() {
     remove(world.root.as_path());
 }
 
-/// One file that does not resolve keeps the whole merge conflicted, although the other resolves.
+/// One file that does not resolve keeps the whole merge conflicted,
+/// although the other resolves.
 #[test]
 fn one_file_left_over_returns_nothing() {
     let world: World = world(
@@ -50,7 +57,8 @@ fn one_file_left_over_returns_nothing() {
     remove(world.root.as_path());
 }
 
-/// A runner that cannot start Git ends in nothing, not in a panic.
+/// A runner that cannot start Git ends in nothing,
+/// not in a panic.
 #[test]
 fn a_git_that_cannot_start_returns_nothing() {
     let world: World = world(
@@ -68,14 +76,16 @@ fn a_git_that_cannot_start_returns_nothing() {
     remove(world.root.as_path());
 }
 
-/// A repository with one commit, for the attribute-tree precedence controls.
+/// A repository with one commit,
+/// for the attribute-tree precedence controls.
 fn probed_repository(name: &str) -> (PathBuf, PathBuf) {
     let root: PathBuf = crate::test_support::fixture(name);
     let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
     return (root, repo);
 }
 
-/// The variables Git's own precedence leaves to the tip for a repository, with `variables` as the environment and `prefix` as the
+/// The variables Git's own precedence leaves to the tip for a repository,
+/// with `variables` as the environment and `prefix` as the
 ///  global options.
 fn tip_variables(repo: &Path, prefix: &[OsString], variables: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
     let context: GitContext = git_context();
@@ -84,8 +94,13 @@ fn tip_variables(repo: &Path, prefix: &[OsString], variables: &[(OsString, OsStr
     return attribute_tree_variables("tip123", &probe);
 }
 
-/// The tip is named where Git would read no attribute tree; `--attr-source`, `GIT_ATTR_SOURCE` and a configured `attr.tree` that
-///  resolves each keep the person's choice, and an `attr.tree` that is no tree, which Git ignores, does not.
+/// The tip is named where Git would read no attribute tree;
+/// `--attr-source`,
+/// `GIT_ATTR_SOURCE` and a configured `attr.tree` that
+///  resolves each keep the person's choice,
+/// and an `attr.tree` that is no tree,
+/// which Git ignores,
+/// does not.
 #[test]
 fn the_tip_is_named_only_where_git_would_read_no_attribute_tree() {
     let (root, repo) = probed_repository("second-pass-attr-precedence");
@@ -104,7 +119,8 @@ fn the_tip_is_named_only_where_git_would_read_no_attribute_tree() {
     remove(root.as_path());
 }
 
-/// A runner that must not be used: every start is counted and refused.
+/// A runner that must not be used:
+/// every start is counted and refused.
 struct Refusing {
     /// How many starts were asked for.
     starts: std::cell::Cell<usize>,
@@ -118,8 +134,12 @@ impl GitRunner for Refusing {
     }
 }
 
-/// The variables of a person who sets an editor, tracing and a merge verbosity do not make the in-process readers decline, so the
-///  attribute tree is chosen without a Git start; a variable that can move an answer does, and Git is then asked once.
+/// The variables of a person who sets an editor,
+/// tracing and a merge verbosity do not make the in-process readers decline,
+/// so the
+///  attribute tree is chosen without a Git start;
+/// a variable that can move an answer does,
+/// and Git is then asked once.
 #[test]
 fn common_variables_cost_no_git_start_and_a_variable_that_moves_an_answer_costs_one() {
     let (root, repo) = probed_repository("second-pass-attr-no-start");

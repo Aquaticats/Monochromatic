@@ -1,7 +1,11 @@
 //! What:
-//!  Controls of the push trigger's record: who and where it names, its level, and the masking of its detail.
+//!  Controls of the push trigger's record:
+//! who and where it names,
+//! its level,
+//! and the masking of its detail.
 //! Why:
-//!  The file is shared by every worktree of a repository, so a line that names no worktree cannot say whose merge failed.
+//!  The file is shared by every worktree of a repository,
+//! so a line that names no worktree cannot say whose merge failed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,7 +28,9 @@ fn parsed(line: &str) -> serde_json::Value {
     return serde_json::from_str(line.trim_end()).expect("JSON");
 }
 
-/// A line names the worktree, its Git directory and the service instance that Git directory names, so two worktrees' lines
+/// A line names the worktree,
+/// its Git directory and the service instance that Git directory names,
+/// so two worktrees' lines
 /// in the one shared file tell apart.
 #[test]
 fn a_line_names_the_worktree_that_made_the_decision() {
@@ -40,7 +46,10 @@ fn a_line_names_the_worktree_that_made_the_decision() {
     assert!(parsed(trigger_line(&decision(None, Outcome::Declined, "x", "")).as_str()).get("worktree").is_none());
 }
 
-/// A decision the wrapper could not make, or a hand-over that failed, is `warn`; a decision working as intended is `info`.
+/// A decision the wrapper could not make,
+/// or a hand-over that failed,
+/// is `warn`;
+/// a decision working as intended is `info`.
 #[test]
 fn a_decision_the_wrapper_could_not_make_stands_out_by_level() {
     assert_eq!(level_of(Outcome::Declined, "handover-failed"), "warn");
@@ -59,7 +68,8 @@ fn a_url_in_the_detail_is_stored_without_its_credentials() {
     assert!(line.contains("https://<credentials>@example.invalid/r.git"), "{line}");
 }
 
-/// The record lands in the common Git directory's shared file, one line per decision.
+/// The record lands in the common Git directory's shared file,
+/// one line per decision.
 #[test]
 fn a_recorded_decision_is_one_line_in_the_shared_file() {
     let root: PathBuf = fixture("trigger-record-file");

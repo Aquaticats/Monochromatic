@@ -1,15 +1,30 @@
 //! What:
-//!  One read of the whole Git configuration (`git config --list -z --show-scope`), parsed here,
+//!  One read of the whole Git configuration (`git config --list -z --show-scope`),
+//! parsed here,
 //!  and the lookups the commit path makes against it instead of starting `git config` for each key.
 //! Why:
-//!  Every `git config` start costs a process, and a wrapped commit asked Git the same configuration
-//!  several times (`core.hooksPath`, the hook switches, the maintenance keys, the ref storage).
-//!  Git lists entries in precedence order (system, global, local, worktree, then `GIT_CONFIG_COUNT`,
-//!  `GIT_CONFIG_PARAMETERS` and `-c` values, all in the `command` scope), so the last entry of a key is the
+//!  Every `git config` start costs a process,
+//! and a wrapped commit asked Git the same configuration
+//!  several times (`core.hooksPath`,
+//! the hook switches,
+//! the maintenance keys,
+//! the ref storage).
+//!  Git lists entries in precedence order (system,
+//! global,
+//! local,
+//! worktree,
+//! then `GIT_CONFIG_COUNT`,
+//!  `GIT_CONFIG_PARAMETERS` and `-c` values,
+//! all in the `command` scope),
+//! so the last entry of a key is the
 //!  value `git config --get` prints.
 //!  A lookup answers only when it can reproduce Git's own answer exactly;
-//!  any value it does not model (`~` and `%(prefix)` paths, unit suffixes, hexadecimal, a bad boolean) is
-//!  [`Lookup::Unhandled`], and the caller starts Git for that key as before.
+//!  any value it does not model (`~` and `%(prefix)` paths,
+//! unit suffixes,
+//! hexadecimal,
+//! a bad boolean) is
+//!  [`Lookup::Unhandled`],
+//! and the caller starts Git for that key as before.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,16 +43,19 @@ use std::collections::BTreeMap;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
-/// Largest decimal integer text a lookup models; longer digit strings fall back to Git.
+/// Largest decimal integer text a lookup models;
+/// longer digit strings fall back to Git.
 const DECIMAL_DIGITS_LIMIT: usize = 9;
 
-/// Keys the maintenance decision reads, spelled as `git config --list` prints them.
+/// Keys the maintenance decision reads,
+/// spelled as `git config --list` prints them.
 pub const MAINTENANCE_KEYS: [&str; 4] = ["maintenance.auto", "maintenance.autodetach", "gc.auto", "gc.autodetach"];
 
 /// What:
 ///  One configuration entry in listing order.
 /// Why:
-///   The scope is kept so a consumer can tell `-c` values from file values, and `None` is a valueless key,
+///   The scope is kept so a consumer can tell `-c` values from file values,
+/// and `None` is a valueless key,
 ///  which Git reads as `true` for booleans and refuses for paths.
 ///
 /// In TS you'd write (pseudocode):
@@ -46,19 +64,27 @@ pub const MAINTENANCE_KEYS: [&str; 4] = ["maintenance.auto", "maintenance.autode
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfigEntry {
-    /// `system`, `global`, `local`, `worktree` or `command`.
+    /// `system`,
+    /// `global`,
+    /// `local`,
+    /// `worktree` or `command`.
     pub scope: String,
-    /// Canonical key: lowercase section and variable, subsection kept as written.
+    /// Canonical key:
+    /// lowercase section and variable,
+    /// subsection kept as written.
     pub key: String,
-    /// Value bytes, or `None` for a key written without `=`.
+    /// Value bytes,
+    /// or `None` for a key written without `=`.
     pub value: Option<Vec<u8>>,
 }
 
 /// What:
 ///  The answer of one lookup.
 /// Why:
-///   "Not set" and "set to this" are Git's answers; "unhandled" is this module declining to guess,
-///  so the caller falls back to starting Git, which is never a failure.
+///   "Not set" and "set to this" are Git's answers;
+/// "unhandled" is this module declining to guess,
+///  so the caller falls back to starting Git,
+/// which is never a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -66,18 +92,22 @@ pub struct ConfigEntry {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Lookup<Value> {
-    /// No entry has the key, so `git config --get` exits 1.
+    /// No entry has the key,
+    /// so `git config --get` exits 1.
     Unset,
-    /// The last entry of the key, converted exactly as Git converts it.
+    /// The last entry of the key,
+    /// converted exactly as Git converts it.
     Found(Value),
-    /// Some entry of the key has a shape this module does not reproduce; ask Git.
+    /// Some entry of the key has a shape this module does not reproduce;
+    /// ask Git.
     Unhandled,
 }
 
 /// What:
 ///  The parsed listing of one Git configuration read.
 /// Why:
-///   It is read once per commit with the caller's global options, and reused by the consumers that would
+///   It is read once per commit with the caller's global options,
+/// and reused by the consumers that would
 ///  otherwise each start `git config`.
 ///
 /// In TS you'd write (pseudocode):
@@ -86,17 +116,25 @@ pub enum Lookup<Value> {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfigSnapshot {
-    /// Entries in the order Git listed them, which is precedence order.
+    /// Entries in the order Git listed them,
+    /// which is precedence order.
     entries: Vec<ConfigEntry>,
-    /// Whether the read carried no global options, so it equals a read made without them.
+    /// Whether the read carried no global options,
+    /// so it equals a read made without them.
     without_global_options: bool,
 }
 
 /// What:
-///  Whether the bytes of one value are a plain decimal integer the lookups model, and its numeric value.
+///  Whether the bytes of one value are a plain decimal integer the lookups model,
+/// and its numeric value.
 /// Why:
-///   Git parses integers with `strtoimax` base 0 and unit suffixes, so only `0` and digit strings that start with
-///  `1` to `9` are decided here; leading zeros (octal), signs, `0x`, spaces and suffixes fall back to Git.
+///   Git parses integers with `strtoimax` base 0 and unit suffixes,
+/// so only `0` and digit strings that start with
+///  `1` to `9` are decided here;
+/// leading zeros (octal),
+/// signs,
+/// `0x`,
+/// spaces and suffixes fall back to Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -117,10 +155,17 @@ fn plain_decimal(text: &str) -> Option<u32> {
 }
 
 /// What:
-///  Git's boolean word list, case-insensitively: `Some(true)` for true, yes and on, `Some(false)` for false, no
-///  and off, `None` for any other text.
+///  Git's boolean word list,
+/// case-insensitively:
+/// `Some(true)` for true,
+/// yes and on,
+/// `Some(false)` for false,
+/// no
+///  and off,
+/// `None` for any other text.
 /// Why:
-///   `git_parse_maybe_bool_text` compares with `strcasecmp`, which is ASCII case folding.
+///   `git_parse_maybe_bool_text` compares with `strcasecmp`,
+/// which is ASCII case folding.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -141,10 +186,16 @@ fn boolean_word(text: &str) -> Option<bool> {
 }
 
 /// What:
-///  `--type=bool` of one value: a valueless key is true, empty text is false, a word from the list is itself,
+///  `--type=bool` of one value:
+/// a valueless key is true,
+/// empty text is false,
+/// a word from the list is itself,
 ///  and a plain decimal integer is whether it is not zero.
 /// Why:
-///   Anything else (a bad boolean that Git refuses, a unit suffix, hexadecimal, octal) is not modelled.
+///   Anything else (a bad boolean that Git refuses,
+/// a unit suffix,
+/// hexadecimal,
+/// octal) is not modelled.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -166,10 +217,15 @@ pub fn canonical_bool(value: Option<&[u8]>) -> Option<bool> {
 }
 
 /// What:
-///  `--type=bool-or-int` of one value, as the text Git prints.
+///  `--type=bool-or-int` of one value,
+/// as the text Git prints.
 /// Why:
-///   Git prints `true` or `false` for a boolean word, valueless key or empty text, and the decimal number for an
-///  integer; the plain decimal subset prints unchanged, and anything else is not modelled.
+///   Git prints `true` or `false` for a boolean word,
+/// valueless key or empty text,
+/// and the decimal number for an
+///  integer;
+/// the plain decimal subset prints unchanged,
+/// and anything else is not modelled.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -191,10 +247,16 @@ pub fn canonical_bool_or_int(value: Option<&[u8]>) -> Option<String> {
 }
 
 /// What:
-///  `--type=path` of one value, when Git returns the text unchanged.
+///  `--type=path` of one value,
+/// when Git returns the text unchanged.
 /// Why:
-///   Git expands a leading `~`, `~user/` and `%(prefix)/`, treats `:(optional)` specially, and refuses a valueless
-///  key; those, an empty value and non-UTF-8 bytes are not modelled.
+///   Git expands a leading `~`,
+/// `~user/` and `%(prefix)/`,
+/// treats `:(optional)` specially,
+/// and refuses a valueless
+///  key;
+/// those,
+/// an empty value and non-UTF-8 bytes are not modelled.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -211,8 +273,11 @@ pub fn plain_path(value: Option<&[u8]>) -> Option<String> {
 /// What:
 ///  Split one listing record into its key and value.
 /// Why:
-///   With `-z` a record is `key\nvalue`, or just `key` when the key has no value; the value itself may hold
-///  newlines, so only the first one separates the two.
+///   With `-z` a record is `key\nvalue`,
+/// or just `key` when the key has no value;
+/// the value itself may hold
+///  newlines,
+/// so only the first one separates the two.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -227,7 +292,8 @@ fn split_record(record: &[u8]) -> (&[u8], Option<&[u8]>) {
 
 /// What:
 ///  Whether one byte is the line feed that separates a key from its value in one record.
-///  `&u8` borrows the byte, as `position` hands it over.
+///  `&u8` borrows the byte,
+/// as `position` hands it over.
 /// Why:
 ///   `position` takes this function by path where a closure would otherwise stand.
 ///
@@ -241,7 +307,8 @@ fn is_line_feed_byte(byte: &u8) -> bool {
 
 /// What:
 ///  Whether one byte is the NUL byte that ends each field of the listing.
-///  `&u8` borrows the byte, as `split` hands it over.
+///  `&u8` borrows the byte,
+/// as `split` hands it over.
 /// Why:
 ///   `split` takes this function by path where a closure would otherwise stand.
 ///
@@ -255,10 +322,14 @@ fn is_nul_byte(byte: &u8) -> bool {
 
 impl ConfigSnapshot {
     /// What:
-    ///  The last entry whose key is exactly `key`, or `None` when no entry has it.
-    ///  `Option<&ConfigEntry>` is "a borrowed entry, or no answer".
+    ///  The last entry whose key is exactly `key`,
+    /// or `None` when no entry has it.
+    ///  `Option<&ConfigEntry>` is "a borrowed entry,
+    /// or no answer".
     /// Why:
-    ///   Git uses the last value of a key, and four readers ask for it, so one loop from the end answers them all
+    ///   Git uses the last value of a key,
+    /// and four readers ask for it,
+    /// so one loop from the end answers them all
     ///  where closures given to `rfind` and `any` stood.
     ///
     /// In TS you'd write (pseudocode):
@@ -277,7 +348,8 @@ impl ConfigSnapshot {
     /// What:
     ///  Parse the bytes of `git config --list -z --show-scope`.
     /// Why:
-    ///   The listing is `scope NUL key [LF value] NUL` repeated; a listing in any other shape is refused whole,
+    ///   The listing is `scope NUL key [LF value] NUL` repeated;
+    /// a listing in any other shape is refused whole,
     ///  so a half-understood configuration is never used.
     ///
     /// In TS you'd write (pseudocode):
@@ -308,11 +380,15 @@ impl ConfigSnapshot {
     }
 
     /// What:
-    ///  The components `core.fsync` makes Git flush in this repository; `None` when the value is one this does not model.
+    ///  The components `core.fsync` makes Git flush in this repository;
+    /// `None` when the value is one this does not model.
     /// Why:
-    ///   Git's own writes follow `core.fsync` and the service's in-process writes follow the same setting. The last entry
-    ///  decides alone and starts from the default (`FsyncComponents::default_set`); the reading is `FsyncComponents::parse`.
-    ///  A key written without a value is refused by Git, so it is not modelled.
+    ///   Git's own writes follow `core.fsync` and the service's in-process writes follow the same setting.
+    /// The last entry
+    ///  decides alone and starts from the default (`FsyncComponents::default_set`);
+    /// the reading is `FsyncComponents::parse`.
+    ///  A key written without a value is refused by Git,
+    /// so it is not modelled.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -325,11 +401,16 @@ impl ConfigSnapshot {
     }
 
     /// What:
-    ///  Whether `core.fsync` names the index, so native Git flushes its index writes in this repository; `None` when the value is
+    ///  Whether `core.fsync` names the index,
+    /// so native Git flushes its index writes in this repository;
+    /// `None` when the value is
     ///  one this does not model.
     /// Why:
-    ///   The service writes the index in process, so it follows the setting Git's own index write follows. The components that
-    ///  include the index are `index`, `added` and `all`.
+    ///   The service writes the index in process,
+    /// so it follows the setting Git's own index write follows.
+    /// The components that
+    ///  include the index are `index`,
+    /// `added` and `all`.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -340,14 +421,21 @@ impl ConfigSnapshot {
     }
 
     /// What:
-    ///  The `core.fsync` value to give the one `git fast-import` that imports a landing's commits, or `None` when it is to be
+    ///  The `core.fsync` value to give the one `git fast-import` that imports a landing's commits,
+    /// or `None` when it is to be
     ///  left as it is.
     /// Why:
-    ///   Native Git writes the objects of a commit as loose objects, which its default `core.fsync` does not flush, while
-    ///  `fast-import` flushes the temporary pack it writes (and deletes again when the batch is small). A repository that
+    ///   Native Git writes the objects of a commit as loose objects,
+    /// which its default `core.fsync` does not flush,
+    /// while
+    ///  `fast-import` flushes the temporary pack it writes (and deletes again when the batch is small).
+    /// A repository that
     ///  names `loose-object` (or sets the deprecated `core.fsyncObjectFiles`) gets its set with the pack and its metadata
-    ///  added when it lacks them, so a pack the import keeps is flushed as the loose objects would be; any other gets the set
-    ///  it has without the packs; a value this does not model is left alone.
+    ///  added when it lacks them,
+    /// so a pack the import keeps is flushed as the loose objects would be;
+    /// any other gets the set
+    ///  it has without the packs;
+    /// a value this does not model is left alone.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -386,9 +474,12 @@ impl ConfigSnapshot {
     }
 
     /// What:
-    ///  Whether the read carried no global options, so a consumer that runs Git without them may reuse it.
+    ///  Whether the read carried no global options,
+    /// so a consumer that runs Git without them may reuse it.
     /// Why:
-    ///   A `-c`, `-C` or `--git-dir` in front of the read changes what Git lists, and a consumer that ignores the
+    ///   A `-c`,
+    /// `-C` or `--git-dir` in front of the read changes what Git lists,
+    /// and a consumer that ignores the
     ///  caller's options must not see their effect.
     ///
     /// In TS you'd write (pseudocode):
@@ -400,9 +491,11 @@ impl ConfigSnapshot {
     }
 
     /// What:
-    ///  The last entry of a key converted by `convert`, or why no answer is given.
+    ///  The last entry of a key converted by `convert`,
+    /// or why no answer is given.
     /// Why:
-    ///   `git config --get` formats every entry of the key and fails when any is bad, so one unconvertible entry
+    ///   `git config --get` formats every entry of the key and fails when any is bad,
+    /// so one unconvertible entry
     ///  makes the whole lookup unhandled even when it is not the last.
     ///
     /// In TS you'd write (pseudocode):
@@ -454,10 +547,12 @@ impl ConfigSnapshot {
     }
 
     /// What:
-    ///  The maintenance keys as `git config --type=bool-or-int --null --get-regexp` prints them: each set key
+    ///  The maintenance keys as `git config --type=bool-or-int --null --get-regexp` prints them:
+    /// each set key
     ///  with the text of its last value.
     /// Why:
-    ///   The maintenance decision parses that listing; `None` when any maintenance entry is not modelled.
+    ///   The maintenance decision parses that listing;
+    /// `None` when any maintenance entry is not modelled.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -480,9 +575,15 @@ impl ConfigSnapshot {
     /// What:
     ///  Whether the ref storage is proven to be the files backend.
     /// Why:
-    ///   `git rev-parse --show-ref-format` prints `reftable` only when `extensions.refStorage` is set, so a
-    ///  listing without that key, read without global options, proves `files`; any listing that names the key
-    ///  (in any scope, from any file) is left to Git, which also applies the repository-format rules.
+    ///   `git rev-parse --show-ref-format` prints `reftable` only when `extensions.refStorage` is set,
+    /// so a
+    ///  listing without that key,
+    /// read without global options,
+    /// proves `files`;
+    /// any listing that names the key
+    ///  (in any scope,
+    /// from any file) is left to Git,
+    /// which also applies the repository-format rules.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -496,8 +597,11 @@ impl ConfigSnapshot {
 /// What:
 ///  Read the configuration once with the caller's context.
 /// Why:
-///   A start failure, a non-zero exit (a malformed configuration file) or a listing this module cannot parse
-///  gives `None`, and every consumer then starts Git for its own key, so the result is Git's own answer.
+///   A start failure,
+/// a non-zero exit (a malformed configuration file) or a listing this module cannot parse
+///  gives `None`,
+/// and every consumer then starts Git for its own key,
+/// so the result is Git's own answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -527,7 +631,10 @@ pub fn read_config_snapshot(context: &GitContext, cwd: &Path) -> Option<ConfigSn
     return parsed;
 }
 
-/// Snapshot controls: parsing, each lookup against real Git, and the generated differential cases.
+/// Snapshot controls:
+/// parsing,
+/// each lookup against real Git,
+/// and the generated differential cases.
 #[cfg(test)]
 #[path = "config_snapshot_tests.rs"]
 mod tests;

@@ -1,9 +1,15 @@
 //! What:
-//!  Fixtures shared by the controls of the cheap-worktree ladder: a main checkout that is a btrfs subvolume with two
-//!  commits, aged files and an ignored directory, its identity, and a plan for a destination beside it.
+//!  Fixtures shared by the controls of the cheap-worktree ladder:
+//! a main checkout that is a btrfs subvolume with two
+//!  commits,
+//! aged files and an ignored directory,
+//! its identity,
+//! and a plan for a destination beside it.
 //! Why:
-//!  Every rung starts from a clean subvolume source whose index is provably unchanged, which needs files older than the
-//!  index; building it once keeps the controls about the rung and not about the fixture.
+//!  Every rung starts from a clean subvolume source whose index is provably unchanged,
+//! which needs files older than the
+//!  index;
+//! building it once keeps the controls about the rung and not about the fixture.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -31,8 +37,12 @@ pub(crate) fn commit_all(repo: &Path, message: &str) {
     git(repo, &["update-index", "--refresh"]);
 }
 
-/// A main checkout that is a subvolume with two commits: the first holds `old.txt`, `shared.txt` and `src/deep/leaf.txt`,
-///  the second changes `shared.txt`, adds `new/added.txt` and deletes `old.txt`; `ignored/pkg/index.js` is ignored state.
+/// A main checkout that is a subvolume with two commits:
+/// the first holds `old.txt`,
+/// `shared.txt` and `src/deep/leaf.txt`,
+///  the second changes `shared.txt`,
+/// adds `new/added.txt` and deletes `old.txt`;
+/// `ignored/pkg/index.js` is ignored state.
 pub(crate) fn subvolume_repository(root: &Path) -> PathBuf {
     let repo: PathBuf = root.join("repo");
     subvolume_create_at(repo.as_path()).expect("repository subvolume");
@@ -56,7 +66,8 @@ pub(crate) fn main_identity(repo: &Path) -> WorktreeIdentity {
     return WorktreeIdentity::MainWorktree { common_dir: repo.join(".git"), git_dir: repo.join(".git"), worktree_root: repo.to_path_buf() };
 }
 
-/// A plan for a destination, with the insertion point after `worktree add`.
+/// A plan for a destination,
+/// with the insertion point after `worktree add`.
 pub(crate) fn plan_to(destination: PathBuf) -> AddPlan {
     return AddPlan { destination, insert_at: 2, quiet: false };
 }

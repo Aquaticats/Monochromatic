@@ -1,12 +1,22 @@
 //! What:
-//!  The upgrade from the 0.5.4 release, run with that release's own service program: the single per-user service of protocol
-//!  4 that sends no release in its greeting, still running from a program path the upgrade deleted, meets the wrapper of this
-//!  build, which gives each worktree its own service.
+//!  The upgrade from the 0.5.4 release,
+//! run with that release's own service program:
+//! the single per-user service of protocol
+//!  4 that sends no release in its greeting,
+//! still running from a program path the upgrade deleted,
+//! meets the wrapper of this
+//!  build,
+//! which gives each worktree its own service.
 //! Why:
-//!  Nothing but the real 0.5.4 program shows what its reader accepts. This build speaks a newer protocol, and a request to
-//!  retire that carries only this build's version is refused by a reader that wants its own, which would leave the old
-//!  service in place for good. The service manager is the stand-in bus of
-//!  `binary_service_provision_tests.rs`, so no real unit and no real runtime directory is touched.
+//!  Nothing but the real 0.5.4 program shows what its reader accepts.
+//! This build speaks a newer protocol,
+//! and a request to
+//!  retire that carries only this build's version is refused by a reader that wants its own,
+//! which would leave the old
+//!  service in place for good.
+//! The service manager is the stand-in bus of
+//!  `binary_service_provision_tests.rs`,
+//! so no real unit and no real runtime directory is touched.
 
 use super::commit::git_text;
 use super::service_commit::Running;
@@ -19,11 +29,13 @@ use std::process::{Child, Command, Output, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-/// The variable naming the 0.5.4 `cli-git-service` program, copied out of the toolchain directory before the install that
+/// The variable naming the 0.5.4 `cli-git-service` program,
+/// copied out of the toolchain directory before the install that
 ///  deletes it.
 const OLD_SERVICE_VARIABLE: &str = "CLI_GIT_OLD_SERVICE";
 
-/// Starts the 0.5.4 service program on the socket the wrapper looks for, as the manager's socket activation left it.
+/// Starts the 0.5.4 service program on the socket the wrapper looks for,
+/// as the manager's socket activation left it.
 fn start_old_service(program: &Path, root: &Path, runtime: &Path) -> Child {
     let socket: PathBuf = runtime.join(LEGACY_SOCKET_RELATIVE);
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
@@ -63,10 +75,18 @@ fn exited_within(child: &mut Child, limit: Duration) -> Option<std::process::Exi
     }
 }
 
-/// A 0.5.4 service is running from a program the upgrade deleted, on the one socket every worktree shared, and its two units are
-///  installed. The next signed commit asks the old service to retire (which that service accepts although this build speaks a
-///  newer protocol), has the manager stop its two units and reload, removes them, and lands on the worktree's own service,
-///  signed. The old service exits by itself with success, and the worktree's service is still serving at the end.
+/// A 0.5.4 service is running from a program the upgrade deleted,
+/// on the one socket every worktree shared,
+/// and its two units are
+///  installed.
+/// The next signed commit asks the old service to retire (which that service accepts although this build speaks a
+///  newer protocol),
+/// has the manager stop its two units and reload,
+/// removes them,
+/// and lands on the worktree's own service,
+///  signed.
+/// The old service exits by itself with success,
+/// and the worktree's service is still serving at the end.
 #[test]
 #[ignore = "needs CLI_GIT_OLD_SERVICE, the 0.5.4 cli-git-service program"]
 fn a_signed_commit_replaces_a_running_0_5_4_service_whose_program_was_deleted() {

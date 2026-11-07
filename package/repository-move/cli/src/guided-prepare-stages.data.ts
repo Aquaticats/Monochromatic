@@ -26,6 +26,13 @@ import { SUBVOLUME_REMOVAL_OPTION, } from './guided-unit-edit.ts';
  @param inventory - the inventory file
  
  @returns the arguments shared by every pass
+
+ @example
+ ```ts
+ import { realArguments, } from './guided-prepare-stages.data.ts';
+ 
+ const result = realArguments({ c, inventory, },);
+ ```
  */
 export function realArguments(
   {
@@ -47,6 +54,13 @@ export function realArguments(
  @param fixtureFolder - the fixture folder, or a placeholder when it does not exist yet
  
  @returns the stages in order
+
+ @example
+ ```ts
+ import { prepareStages, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await prepareStages({ c, fixtureFolder, },);
+ ```
  */
 export async function prepareStages(
   {
@@ -127,7 +141,7 @@ export async function prepareStages(
       id: 'r0-inventory',
       title: 'Inventory R0',
       says: "R0: the filesystem's own list of every subvolume of the NVMe filesystem, with UUIDs, and any mount inside the checkout. The copy tool rebuilds each path from the list's parent column and keeps the ones below the checkout.",
-      command: `sudo btrfs subvolume list -u /var/home > ${c.inventory}
+      command: `sudo btrfs subvolume list -u -q /var/home > ${c.inventory}
 sudo findmnt --list --output TARGET,SOURCE,FSTYPE | grep --fixed-strings ${c.repo} || echo 'no mount inside the tree'`,
       check: `test -s ${c.inventory} && grep --fixed-strings --quiet ' uuid ' ${c.inventory} && grep --fixed-strings 'no mount inside the tree' "$OUTPUT_FILE"`,
       checkText: 'the list is not empty, has UUID columns, and no mount sits inside the tree (a mount needs your written disposition first)',
@@ -251,7 +265,7 @@ echo "snapshots printed: $(grep --count '^btrfs subvolume snapshot -r' ${c.wiz}/
       title: 'First pass: run',
       says: `First pass, for real. The repository stays writable; no window, no freeze. Each transfer has the tool's own deadline (${String(c.transferDeadlineSeconds,)} s) and its own systemd scope (CPUQuota 200%, MemoryMax 2G, TasksMax 32, IOWeight 10), and the whole pass has a total deadline (${String(c.firstPassTotalSeconds,)} s, the author's bound; a rerun continues). Records are keyed by subvolume UUID and path, so a rerun after worktrees were added or removed continues each one's own records and states what changed. The inventory is taken again at the start of this stage, because worktrees come and go. The coordinator states the print was read.`,
       assertion: `${c.wiz}/first-pass-print.txt was read and is what you expect.`,
-      command: `sudo btrfs subvolume list -u /var/home > ${c.inventory}
+      command: `sudo btrfs subvolume list -u -q /var/home > ${c.inventory}
 ${rootCopy} --run --pass=first ${args} --deadline-seconds=${String(c.transferDeadlineSeconds,)} --total-deadline-seconds=${String(c.firstPassTotalSeconds,)}`,
       check: `grep --fixed-strings 'pass first finished' "$OUTPUT_FILE" && while IFS=$'\\t' read -r name path uuid; do test -e ${c.moveState}/$name.received.json || { echo "no received record for $name $path"; exit 1; }; done < ${c.moveState}/first-pass-manifest.tsv`,
       checkText: "'pass first finished' and a received record for every row of the manifest",
@@ -288,6 +302,19 @@ ${rootCopy} --run --pass=first ${args} --deadline-seconds=${String(c.transferDea
       rollback: 'read-only',
       root: 'yes',
       unprivileged: 'du of the checkout works as the user except for root-owned files; root is used so every file is counted',
+    },
+    {
+      id: 'p4f-verify-first',
+      title: 'Verify every first-pass copy',
+      says: `Every first-pass copy against the read-only snapshot it was sent from, with rsync --dry-run by path, type, size, time and mode (no data is read), outside any window because both sides are immutable. The nested subvolume folders a snapshot shows empty are the only excused differences. A difference stops the run and names the copy.`,
+      command: `${rootCopy} --run --pass=verify-first ${args} --deadline-seconds=${String(c.transferDeadlineSeconds,)} --total-deadline-seconds=${String(c.firstPassTotalSeconds,)}`,
+      check: `grep --fixed-strings 'verify-first finished' "$OUTPUT_FILE"`,
+      checkText: "'verify-first finished': every copy matches its snapshot",
+      rollback: 'read-only comparison; nothing changed. A copy that differs is deleted by you (the tool names it) and sent again',
+      timeoutSeconds: c.firstPassTotalSeconds + (c.killGraceSeconds
+        * 2),
+      root: 'yes',
+      unprivileged: 'none: the comparison reads files only root can read (root-owned logs inside some worktrees) and the copy tool runs the same root scopes as the transfers',
     },
   ];
 }

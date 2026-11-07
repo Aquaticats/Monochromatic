@@ -1,6 +1,11 @@
-//! What: Disposable-repository controls for the `HEAD` tree listing.
-//! Why: The listing is what a policy compares the candidate state with; it must name every
-//!      file of `HEAD` with its mode, from any directory, and nothing before the first commit.
+//! What:
+//! Disposable-repository controls for the `HEAD` tree listing.
+//! Why:
+//! The listing is what a policy compares the candidate state with;
+//! it must name every
+//!      file of `HEAD` with its mode,
+//! from any directory,
+//! and nothing before the first commit.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,7 +15,10 @@
 
 /// Import the store under test and its sibling fixtures.
 use super::CandidateStore;
-/// The store's fixtures: a store over real Git, an object name, and a worktree writer.
+/// The store's fixtures:
+/// a store over real Git,
+/// an object name,
+/// and a worktree writer.
 use super::tests::{rev_parse, store, write};
 /// The mode a record carries.
 use crate::candidate_object::{CandidateMode, ObjectId};
@@ -20,13 +28,17 @@ use crate::candidate_record::CandidateRecord;
 use crate::candidate_tree::TreeRecord;
 /// Shared fixture directories and real Git.
 use crate::test_support::{fixture, git, remove, repository};
-/// Unix permission bits, for the executable file.
+/// Unix permission bits,
+/// for the executable file.
 use std::os::unix::fs::PermissionsExt;
 /// Owned filesystem paths.
 use std::path::PathBuf;
 
-/// Every file of `HEAD` is listed with its mode and object, sorted as Git sorts, nested
-/// directories included; staged and worktree changes after the commit are not.
+/// Every file of `HEAD` is listed with its mode and object,
+/// sorted as Git sorts,
+/// nested
+/// directories included;
+/// staged and worktree changes after the commit are not.
 #[test]
 fn lists_every_file_of_head_with_its_mode() {
     let root: PathBuf = fixture("store-head-tree");
@@ -66,7 +78,8 @@ fn lists_every_file_of_head_with_its_mode() {
     remove(root.as_path());
 }
 
-/// Before the first commit there is no `HEAD`, so there are no records and no listing runs.
+/// Before the first commit there is no `HEAD`,
+/// so there are no records and no listing runs.
 #[test]
 fn unborn_head_has_no_records() {
     let root: PathBuf = fixture("store-head-tree-unborn");
@@ -103,11 +116,19 @@ fn a_failed_listing_is_reported() {
     remove(root.as_path());
 }
 
-/// A commit's files are listed by Git once in a process, whichever store asks: the commit hook of the wrapper builds a store for
-/// the policies before the commit and another for the gate after it, both over the same base commit, and each listing is a Git
-/// start that reads every tree of a repository with tens of thousands of files (measured: 41 ms warm for 20,740 files). The
-/// second store is answered with the first one's records; removing the tree object between the two asks makes a listing by Git
-/// fail, so an answer proves that Git was not asked again.
+/// A commit's files are listed by Git once in a process,
+/// whichever store asks:
+/// the commit hook of the wrapper builds a store for
+/// the policies before the commit and another for the gate after it,
+/// both over the same base commit,
+/// and each listing is a Git
+/// start that reads every tree of a repository with tens of thousands of files (measured:
+/// 41 ms warm for 20,740 files).
+/// The
+/// second store is answered with the first one's records;
+/// removing the tree object between the two asks makes a listing by Git
+/// fail,
+/// so an answer proves that Git was not asked again.
 #[test]
 fn a_commit_listed_by_one_store_is_not_listed_again_by_another() {
     let root: PathBuf = fixture("store-head-tree-once");

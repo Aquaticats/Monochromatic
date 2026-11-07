@@ -1,13 +1,23 @@
 //! What:
-//!  What follows the branch move of a landing and of a restart: the conclusion state and the index update, and the decision
+//!  What follows the branch move of a landing and of a restart:
+//! the conclusion state and the index update,
+//! and the decision
 //!  whether a batch a killed or failed landing left open may be replayed.
 //! Why:
-//!  A replay runs after the lock the landing held was given up or lost, so another program may have staged into the index since.
-//!  A replay is made only over the very index file the landing saw under its lock (`service_land_start.rs`), under the lock the
-//!  restart takes, and the head is checked again under that lock; every other case leaves the index as its writers left it,
-//!  says so in the service's log, and finishes what does not touch the index. The live landing and the restart share the one
-//!  routine that finishes a batch, so an alternate index and the conclusion state are settled the same way by both
-//!  (`doc/planning/cli-git-main-commit-within-native-plus-five.md`, "A replay only over the index the landing saw").
+//!  A replay runs after the lock the landing held was given up or lost,
+//! so another program may have staged into the index since.
+//!  A replay is made only over the very index file the landing saw under its lock (`service_land_start.rs`),
+//! under the lock the
+//!  restart takes,
+//! and the head is checked again under that lock;
+//! every other case leaves the index as its writers left it,
+//!  says so in the service's log,
+//! and finishes what does not touch the index.
+//! The live landing and the restart share the one
+//!  routine that finishes a batch,
+//! so an alternate index and the conclusion state are settled the same way by both
+//!  (`doc/planning/cli-git-main-commit-within-native-plus-five.md`,
+//! "A replay only over the index the landing saw").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -32,7 +42,9 @@ pub(crate) fn intent_paths(intent: &Intent) -> IndexPaths<'_> {
 }
 
 /// What:
-///  The settlement a finished step stands for: done when it finished, open when it did not.
+///  The settlement a finished step stands for:
+/// done when it finished,
+/// open when it did not.
 /// Why:
 ///  `settle` turns the result of each step into the word the caller records.
 ///
@@ -44,7 +56,9 @@ fn settled_of(finished: bool) -> Settled {
     return if finished { Settled::Done } else { Settled::Open };
 }
 
-/// Removes the conclusion state a landed batch leaves, when it has one. Whether it is gone.
+/// Removes the conclusion state a landed batch leaves,
+/// when it has one.
+/// Whether it is gone.
 pub(crate) fn cleanup_done(git: &GitContext, repository: &Path, intent: &Intent) -> bool {
     return match intent.cleanup.as_ref() {
         Some(cleanup) => remove_conclusion_state(git, repository, cleanup),
@@ -53,7 +67,8 @@ pub(crate) fn cleanup_done(git: &GitContext, repository: &Path, intent: &Intent)
 }
 
 /// What:
-///  The record that the installed index is complete, written to the batch's journal while the lock is still held.
+///  The record that the installed index is complete,
+/// written to the batch's journal while the lock is still held.
 /// Why:
 ///   A restart that finds this record never replays the index update over what another program staged after the lock was given up.
 ///
@@ -74,10 +89,18 @@ impl Record for RecordIndexed<'_> {
     }
 }
 
-/// Finishes what follows the branch move: the conclusion state is removed, then the index entries are updated. Both are
-///  idempotent, and they are recorded apart: the installed index is recorded in the journal while the lock is still held
-///  (`<batch>.indexed`), so a restart never replays the index update over what another program staged after the lock was given
-///  up, whether or not the conclusion state could be removed. Whether both are done.
+/// Finishes what follows the branch move:
+/// the conclusion state is removed,
+/// then the index entries are updated.
+/// Both are
+///  idempotent,
+/// and they are recorded apart:
+/// the installed index is recorded in the journal while the lock is still held
+///  (`<batch>.indexed`),
+/// so a restart never replays the index update over what another program staged after the lock was given
+///  up,
+/// whether or not the conclusion state could be removed.
+/// Whether both are done.
 pub fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLock, journal: &Path) -> bool {
     let cleaned: bool = cleanup_done(git, repository, intent);
     if crate::service_fault::fails("build-index") {
@@ -101,12 +124,21 @@ pub fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: Ind
 }
 
 /// What:
-///  Settles a batch whose branch has moved, while its caller holds the index lock: whether the worktree's head still follows the
-///  move decides if the index is updated, and the conclusion state is removed in every case. Whether the batch is done.
+///  Settles a batch whose branch has moved,
+/// while its caller holds the index lock:
+/// whether the worktree's head still follows the
+///  move decides if the index is updated,
+/// and the conclusion state is removed in every case.
+/// Whether the batch is done.
 /// Why:
-///   A worktree that left the batch's branch has a default index that describes another branch, so that index is not updated;
-///  an index kept in another file (`GIT_INDEX_FILE`) belongs to no branch and is still finished. A head that cannot be read
-///  decides nothing: the lock is given up, the index is not touched, and the batch stays open for a restart to settle.
+///   A worktree that left the batch's branch has a default index that describes another branch,
+/// so that index is not updated;
+///  an index kept in another file (`GIT_INDEX_FILE`) belongs to no branch and is still finished.
+/// A head that cannot be read
+///  decides nothing:
+/// the lock is given up,
+/// the index is not touched,
+/// and the batch stays open for a restart to settle.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -132,22 +164,35 @@ pub fn finish_after_move(git: &GitContext, intent: &Intent, lock: IndexLock, jou
 /// What a restart makes of the evidence for replaying an open batch's index update.
 #[derive(Debug, Eq, PartialEq)]
 enum Gate {
-    /// The index file is the one the landing saw: nothing was staged since.
+    /// The index file is the one the landing saw:
+    /// nothing was staged since.
     Replay,
-    /// The evidence cannot be read now: the batch stays open.
+    /// The evidence cannot be read now:
+    /// the batch stays open.
     Wait,
-    /// The index may hold staging: it is left as it is, for this reason.
+    /// The index may hold staging:
+    /// it is left as it is,
+    /// for this reason.
     Leave(&'static str),
 }
 
 /// What:
-///  Whether the index update of the open batch may be replayed over the index as it is now, judged under the lock the caller
+///  Whether the index update of the open batch may be replayed over the index as it is now,
+/// judged under the lock the caller
 ///  holds.
 /// Why:
-///   The landing recorded the witness of the index file it saw under its lock. A file that is still that file has been written
-///  by nobody since, and a replay over it discards nothing. Any other index, and a batch with no record, may hold what another
-///  session staged, so no path of it is reset: whether a path holds the entry the landing started from does not say whether it
-///  was staged back to that entry, and a reset also rewrites the entries under and above its path.
+///   The landing recorded the witness of the index file it saw under its lock.
+/// A file that is still that file has been written
+///  by nobody since,
+/// and a replay over it discards nothing.
+/// Any other index,
+/// and a batch with no record,
+/// may hold what another
+///  session staged,
+/// so no path of it is reset:
+/// whether a path holds the entry the landing started from does not say whether it
+///  was staged back to that entry,
+/// and a reset also rewrites the entries under and above its path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -171,11 +216,13 @@ fn gate_of(journal: &Path, intent: &Intent) -> Gate {
 pub(crate) enum Settled {
     /// Every obligation of the batch is settled.
     Done,
-    /// Something is left, and the batch stays open.
+    /// Something is left,
+    /// and the batch stays open.
     Open,
 }
 
-/// Settles one batch whose branch has moved, found open.
+/// Settles one batch whose branch has moved,
+/// found open.
 pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settled {
     let repository: &Path = intent.repository.as_path();
     let own_index: bool = intent.index == intent.git_dir.join("index");
@@ -242,17 +289,24 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
 /// What a restart did with a batch it decided on.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Handled {
-    /// The batch landed and every obligation of it is settled; it is marked done.
+    /// The batch landed and every obligation of it is settled;
+    /// it is marked done.
     Finished,
-    /// The batch landed and something is left (the index lock is held, a record cannot be read); it stays open.
+    /// The batch landed and something is left (the index lock is held,
+    /// a record cannot be read);
+    /// it stays open.
     StillOpen,
-    /// The batch never landed; its intent and records are removed.
+    /// The batch never landed;
+    /// its intent and records are removed.
     Dropped,
-    /// The batch looks as if it never landed, and its journal is another service's: the intent and records stay on disk.
+    /// The batch looks as if it never landed,
+    /// and its journal is another service's:
+    /// the intent and records stay on disk.
     Left,
 }
 
-/// One thing a restart did, for the service's log.
+/// One thing a restart did,
+/// for the service's log.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RecoveryReport {
     /// The batch.
@@ -263,20 +317,29 @@ pub struct RecoveryReport {
     pub handled: Handled,
 }
 
-/// Whose journal a recovery works on, which decides whether it may remove the intent of a batch that looks unlanded.
+/// Whose journal a recovery works on,
+/// which decides whether it may remove the intent of a batch that looks unlanded.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum JournalOwner {
-    /// This service's own: no landing of another service is in progress in it, so an unlanded intent is dropped.
+    /// This service's own:
+    /// no landing of another service is in progress in it,
+    /// so an unlanded intent is dropped.
     ThisService,
-    /// An earlier helper's, which may be alive: its landing writes the intent before it moves the branch, so "unlanded" may be
-    ///  "about to land", and the intent stays for that helper's own start-up recovery.
+    /// An earlier helper's,
+    /// which may be alive:
+    /// its landing writes the intent before it moves the branch,
+    /// so "unlanded" may be
+    ///  "about to land",
+    /// and the intent stays for that helper's own start-up recovery.
     EarlierHelper,
 }
 
 /// What:
 ///  Finishes or drops every batch the journal holds open.
 /// Why:
-///   Runs before the service accepts a connection, and again before each batch (`service_server.rs`), so an index update
+///   Runs before the service accepts a connection,
+/// and again before each batch (`service_server.rs`),
+/// so an index update
 ///  that gave up while another program held Git's index lock is finished by the next commit and not only by a restart.
 ///
 /// In TS you'd write (pseudocode):
@@ -288,14 +351,24 @@ pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
 }
 
 /// What:
-///  Finishes or drops the open batches of the worktree one instance serves, found in a journal that other worktrees' batches
+///  Finishes or drops the open batches of the worktree one instance serves,
+/// found in a journal that other worktrees' batches
 ///  may share.
 /// Why:
-///   The single service of the releases before one service per worktree kept one journal for every worktree, in the directory
-///  above each instance's own, and an instance takes over the batches of its worktree there (found by the Git directory the
-///  intent records, which an index outside it, as `GIT_INDEX_FILE` names one, cannot change; an intent that records none is
-///  resolved from its repository). A development run may also give several instances one journal. Whatever belongs to
-///  another worktree is left to its instance, and a record that cannot be read is not any instance's to remove.
+///   The single service of the releases before one service per worktree kept one journal for every worktree,
+/// in the directory
+///  above each instance's own,
+/// and an instance takes over the batches of its worktree there (found by the Git directory the
+///  intent records,
+/// which an index outside it,
+/// as `GIT_INDEX_FILE` names one,
+/// cannot change;
+/// an intent that records none is
+///  resolved from its repository).
+/// A development run may also give several instances one journal.
+/// Whatever belongs to
+///  another worktree is left to its instance,
+/// and a record that cannot be read is not any instance's to remove.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -306,13 +379,25 @@ pub fn recover_instance(context: &LandContext, instance: &str) -> Vec<RecoveryRe
 }
 
 /// What:
-///  `recover_instance` over a journal an earlier helper may still be writing: a batch that landed is finished as before, and a
-///  batch that looks as if it never landed is left on disk, never dropped.
+///  `recover_instance` over a journal an earlier helper may still be writing:
+/// a batch that landed is finished as before,
+/// and a
+///  batch that looks as if it never landed is left on disk,
+/// never dropped.
 /// Why:
-///   A live landing writes its intent, then waits for the index lock, then moves the branch. A drop in that window removes the
-///  record of a commit that lands a moment later, and the person's index shows it reverted if the helper dies before it
-///  installs the index. A finish is safe against a live landing: it never moves the branch, its index replay needs the lock and
-///  the records the landing writes, and two finishes end in one `.done`. The earlier helper drops what is still unlanded when it
+///   A live landing writes its intent,
+/// then waits for the index lock,
+/// then moves the branch.
+/// A drop in that window removes the
+///  record of a commit that lands a moment later,
+/// and the person's index shows it reverted if the helper dies before it
+///  installs the index.
+/// A finish is safe against a live landing:
+/// it never moves the branch,
+/// its index replay needs the lock and
+///  the records the landing writes,
+/// and two finishes end in one `.done`.
+/// The earlier helper drops what is still unlanded when it
 ///  starts again.
 ///
 /// In TS you'd write (pseudocode):
@@ -323,21 +408,34 @@ pub fn recover_instance_without_drops(context: &LandContext, instance: &str) -> 
     return recover_selected(context, Some(instance), false, JournalOwner::EarlierHelper);
 }
 
-/// The exit status `git rev-parse --verify --quiet` gives for a name that is no object: the one answer that means "not there".
+/// The exit status `git rev-parse --verify --quiet` gives for a name that is no object:
+/// the one answer that means "not there".
 const NAME_IS_NO_OBJECT: i32 = 1;
 
 /// The exit status `git merge-base --is-ancestor` gives when the first commit is not below the second.
 const NOT_AN_ANCESTOR: i32 = 1;
 
 /// What:
-///  The value of `reference` in the repository: its commit name, an empty name when Git says for certain that the reference is
-///  not there, and nothing when Git gave no answer.
+///  The value of `reference` in the repository:
+/// its commit name,
+/// an empty name when Git says for certain that the reference is
+///  not there,
+/// and nothing when Git gave no answer.
 ///  `Option<String>` is "an answer or none".
 /// Why:
-///   A restart drops the intent of a batch whose branch never moved. A Git that could not be started, or that failed in any way
-///  other than "no such reference" (a lock, a stuck mount, a repository that cannot be read), has not said the branch is
-///  unmoved, so the caller keeps the batch open. `--quiet` makes a missing reference exit 1 with nothing on the standard error;
-///  every other failure exits 128, and a reference file Git cannot read exits 1 with a warning, which is not "missing" either.
+///   A restart drops the intent of a batch whose branch never moved.
+/// A Git that could not be started,
+/// or that failed in any way
+///  other than "no such reference" (a lock,
+/// a stuck mount,
+/// a repository that cannot be read),
+/// has not said the branch is
+///  unmoved,
+/// so the caller keeps the batch open.
+/// `--quiet` makes a missing reference exit 1 with nothing on the standard error;
+///  every other failure exits 128,
+/// and a reference file Git cannot read exits 1 with a warning,
+/// which is not "missing" either.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -358,9 +456,14 @@ fn current_value(git: &GitContext, intent: &Intent) -> Option<String> {
 }
 
 /// What:
-///  Whether the commit the batch landed is `current` or below it; nothing when Git gave no answer.
+///  Whether the commit the batch landed is `current` or below it;
+/// nothing when Git gave no answer.
 /// Why:
-///   Exit status 1 is Git's "not below"; any other failure (an object Git cannot find, a lock, a stuck mount) is no answer, and
+///   Exit status 1 is Git's "not below";
+/// any other failure (an object Git cannot find,
+/// a lock,
+/// a stuck mount) is no answer,
+/// and
 ///  a batch is not dropped on no answer.
 ///
 /// In TS you'd write (pseudocode):
@@ -379,9 +482,12 @@ fn landed_below(git: &GitContext, intent: &Intent, current: &str) -> Option<bool
 }
 
 /// What:
-///  The decision for an open batch from the branch as Git reports it now, or nothing when Git gave no answer.
+///  The decision for an open batch from the branch as Git reports it now,
+/// or nothing when Git gave no answer.
 /// Why:
-///   The question about the ancestry is asked only when it decides: a branch at the old or the new value, or one that is gone,
+///   The question about the ancestry is asked only when it decides:
+/// a branch at the old or the new value,
+/// or one that is gone,
 ///  settles the batch without it.
 ///
 /// In TS you'd write (pseudocode):

@@ -1,4 +1,6 @@
-//! The toolchain repair: which launcher records are stale, and the order and gating of the two mpm-shadow runs.
+//! The toolchain repair:
+//! which launcher records are stale,
+//! and the order and gating of the two mpm-shadow runs.
 
 use super::*;
 use crate::test_support::executable;
@@ -7,7 +9,8 @@ use crate::package_repair_report::{Outcome, Tool};
 use crate::test_support::{fixture, remove};
 use std::time::Duration;
 
-/// The launcher directory of a worktree, relative to its root.
+/// The launcher directory of a worktree,
+/// relative to its root.
 const LAUNCHERS: &str = ".cache/toolchain-launchers";
 
 /// Write a launcher record that names `lock`.
@@ -18,7 +21,8 @@ fn record(destination: &Path, name: &str, lock: &Path) {
     std::fs::write(directory.join(format!("{name}.launch")), text).expect("record");
 }
 
-/// A destination, a fixture directory for tools and the environment that searches it.
+/// A destination,
+/// a fixture directory for tools and the environment that searches it.
 fn scene(name: &str) -> (PathBuf, PathBuf, PathBuf, RepairEnvironment) {
     let root: PathBuf = fixture(name);
     let destination: PathBuf = root.join("destination");
@@ -29,7 +33,8 @@ fn scene(name: &str) -> (PathBuf, PathBuf, PathBuf, RepairEnvironment) {
     return (root, destination, bin, environment);
 }
 
-/// Only records that name another lock are stale; a record of this worktree and a file that is not a record are not.
+/// Only records that name another lock are stale;
+/// a record of this worktree and a file that is not a record are not.
 #[test]
 fn finds_the_records_that_name_another_lock() {
     let (root, destination, _bin, _environment) = scene("toolchain-stale");
@@ -53,7 +58,10 @@ fn a_worktree_without_launchers_has_nothing_stale() {
 /// The summary line a real `mpm-shadow install` prints on standard output.
 const SUMMARY: &str = "toolchain install: 3 installed, 62 unchanged, 0 failed";
 
-/// A fixture `mpm-shadow` that records every start, prints the summary on standard output, rewrites the stale record, and exits
+/// A fixture `mpm-shadow` that records every start,
+/// prints the summary on standard output,
+/// rewrites the stale record,
+/// and exits
 ///  with `install_status`.
 fn fake_mpm(root: &Path, bin: &Path, destination: &Path, install_status: i32) {
     let script: String = format!(
@@ -64,8 +72,12 @@ fn fake_mpm(root: &Path, bin: &Path, destination: &Path, install_status: i32) {
     executable(bin.join("mpm-shadow").as_path(), script.as_bytes());
 }
 
-/// The install runs once, frozen, in the worktree with the worktree as the toolchain root, whether or not the installed tools
-///  already match the lock (the owner accepted an online install during an add), and the summary is reported.
+/// The install runs once,
+/// frozen,
+/// in the worktree with the worktree as the toolchain root,
+/// whether or not the installed tools
+///  already match the lock (the owner accepted an online install during an add),
+/// and the summary is reported.
 #[test]
 fn installs_frozen_once_in_the_worktree_and_reports_the_summary() {
     let (root, destination, bin, environment) = scene("toolchain-install");
@@ -83,7 +95,8 @@ fn installs_frozen_once_in_the_worktree_and_reports_the_summary() {
     remove(&root);
 }
 
-/// A failing install never fails the add: it is a failure finding with the reason and the person's own command.
+/// A failing install never fails the add:
+/// it is a failure finding with the reason and the person's own command.
 #[test]
 fn a_failing_install_names_its_reason_and_the_command() {
     let (root, destination, bin, environment) = scene("toolchain-install-fails");
@@ -96,7 +109,8 @@ fn a_failing_install_names_its_reason_and_the_command() {
     remove(&root);
 }
 
-/// An install that leaves a stale record is a failure, not a success.
+/// An install that leaves a stale record is a failure,
+/// not a success.
 #[test]
 fn a_record_that_stays_stale_is_a_failure() {
     let (root, destination, bin, environment) = scene("toolchain-stays");
@@ -107,7 +121,10 @@ fn a_record_that_stays_stale_is_a_failure() {
     remove(&root);
 }
 
-/// No stale record, no start; no `mpm-shadow` anywhere, a failure that names the command.
+/// No stale record,
+/// no start;
+/// no `mpm-shadow` anywhere,
+/// a failure that names the command.
 #[test]
 fn applies_only_to_stale_records_and_reports_a_missing_tool() {
     let (root, destination, bin, environment) = scene("toolchain-applies");

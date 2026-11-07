@@ -1,8 +1,14 @@
 //! What:
-//!  Two file steps that the migration's writers share: write bytes and flush them to disk, and flush a directory.
+//!  Two file steps that the migration's writers share:
+//! write bytes and flush them to disk,
+//! and flush a directory.
 //! Why:
-//!  Each writer ran "write, and only if that worked, flush" as a chain of `and_then` closures, which
-//!  `rust/avoidable-closure` reports; one named function per step reads the same everywhere.
+//!  Each writer ran "write,
+//! and only if that worked,
+//! flush" as a chain of `and_then` closures,
+//! which
+//!  `rust/avoidable-closure` reports;
+//! one named function per step reads the same everywhere.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,7 +19,9 @@
 use std::io::Write as _;
 use std::path::Path;
 
-/// Write all of `bytes` into `file`, then flush the file to disk; the flush runs only if the write worked.
+/// Write all of `bytes` into `file`,
+/// then flush the file to disk;
+/// the flush runs only if the write worked.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -24,7 +32,8 @@ pub fn write_all_then_sync(file: &mut std::fs::File, bytes: &[u8]) -> std::io::R
     return file.sync_all();
 }
 
-/// Flush a directory to disk, so a rename or a new name inside it survives a crash.
+/// Flush a directory to disk,
+/// so a rename or a new name inside it survives a crash.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

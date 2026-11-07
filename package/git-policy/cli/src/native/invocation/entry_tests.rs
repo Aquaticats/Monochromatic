@@ -444,7 +444,8 @@ fn policy_commands_outside_a_worktree_use_defaults() {
     remove(root.as_path());
 }
 
-/// A repository whose configuration names the rules file, with a linked worktree `linked`.
+/// A repository whose configuration names the rules file,
+/// with a linked worktree `linked`.
 fn repository_with_rules_file(root: &Path) -> (PathBuf, PathBuf) {
     let repo: PathBuf = repository(root, "repo");
     std::fs::write(
@@ -462,7 +463,8 @@ fn repository_with_rules_file(root: &Path) -> (PathBuf, PathBuf) {
     return (repo, linked);
 }
 
-/// The settled-forward facts of a plan, or a failure naming the action that was planned instead.
+/// The settled-forward facts of a plan,
+/// or a failure naming the action that was planned instead.
 fn settled_facts(action: Action) -> crate::worktree_copy_forward::CopyFacts {
     match action {
         Action::ForwardSettled { copy, .. } => return *copy,
@@ -471,7 +473,8 @@ fn settled_facts(action: Action) -> crate::worktree_copy_forward::CopyFacts {
 }
 
 /// From a linked worktree every forwarded command is settled by the copy:
-///  a worktree creation (also through an alias) creates, anything else only recovers.
+///  a worktree creation (also through an alias) creates,
+/// anything else only recovers.
 #[test]
 fn commands_in_a_linked_worktree_are_settled_by_the_copy() {
     let root: PathBuf = fixture("entry-settled-linked");
@@ -497,7 +500,9 @@ fn commands_in_a_linked_worktree_are_settled_by_the_copy() {
     remove(root.as_path());
 }
 
-/// The opt-out, and Git's help and version forms, keep the plain forward even from a linked worktree.
+/// The opt-out,
+/// and Git's help and version forms,
+/// keep the plain forward even from a linked worktree.
 #[test]
 fn the_opt_out_and_short_circuit_forms_are_not_settled() {
     let root: PathBuf = fixture("entry-settled-opt-out");
@@ -541,7 +546,10 @@ fn the_opt_out_and_short_circuit_forms_are_not_settled() {
     remove(root.as_path());
 }
 
-/// From the main checkout, only a worktree creation is settled, whatever the configuration names; a move is forwarded.
+/// From the main checkout,
+/// only a worktree creation is settled,
+/// whatever the configuration names;
+/// a move is forwarded.
 #[test]
 fn the_main_checkout_is_settled_only_for_a_creation() {
     let root: PathBuf = fixture("entry-settled-main");
@@ -575,8 +583,10 @@ fn the_main_checkout_is_settled_only_for_a_creation() {
     remove(root.as_path());
 }
 
-/// A main checkout whose configuration names no rules file is settled for a creation too, because its ignored state is
-///  copied whole under the main-checkout rule and needs no configuration; the ladder's plan rides along for a form it serves.
+/// A main checkout whose configuration names no rules file is settled for a creation too,
+/// because its ignored state is
+///  copied whole under the main-checkout rule and needs no configuration;
+/// the ladder's plan rides along for a form it serves.
 #[test]
 fn a_main_checkout_without_a_rules_file_is_settled_for_a_creation() {
     let root: PathBuf = fixture("entry-settled-main-unconfigured");

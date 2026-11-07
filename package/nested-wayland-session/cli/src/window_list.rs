@@ -14,7 +14,10 @@ use std::sync::PoisonError;
 use smithay::{
     desktop::Window,
     reexports::wayland_server::protocol::wl_surface::WlSurface,
-    wayland::{compositor::with_states, shell::xdg::XdgToplevelSurfaceData},
+    wayland::{
+        compositor::{with_states, SurfaceData},
+        shell::xdg::XdgToplevelSurfaceData,
+    },
 };
 
 /// Sibling modules of this crate.
@@ -89,7 +92,10 @@ fn format_window(index: usize, info: &WindowInfo) -> String {
 /// ```
 #[must_use]
 pub fn format_windows(infos: &[WindowInfo]) -> String {
-    let records: Vec<String> = infos.iter().enumerate().map(|(index, info)| return format_window(index, info)).collect();
+    let mut records: Vec<String> = Vec::new();
+    for (index, info) in infos.iter().enumerate() {
+        records.push(format_window(index, info));
+    }
     return format_records(&records)
 }
 
@@ -109,10 +115,31 @@ pub fn format_windows(infos: &[WindowInfo]) -> String {
 /// ```
 #[must_use]
 pub fn format_focus(infos: &[WindowInfo]) -> String {
-    match infos.iter().position(|info| return info.focused) {
+    match index_of_focused(infos) {
         Some(index) => return format_window(index, &infos[index]),
         None => return "none".to_string(),
     }
+}
+
+/// The index of the first window that has keyboard focus.
+///
+/// What:
+///      `fn index_of_focused(infos: &[WindowInfo]) -> Option<usize>`.
+/// Why:
+///       Two answers need it;
+///  a loop replaces the `position` closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const indexOfFocused = (infos: WindowInfo[]): number | null => infos.findIndex((i) => i.focused) ?? null;
+/// ```
+fn index_of_focused(infos: &[WindowInfo]) -> Option<usize> {
+    for (index, info) in infos.iter().enumerate() {
+        if info.focused {
+            return Some(index)
+        }
+    }
+    return None
 }
 
 /// Read a window's title and app ID.
@@ -130,13 +157,27 @@ fn read_names(window: &Window) -> (String, String) {
     let Some(toplevel) = window.toplevel() else {
         return (String::new(), String::new())
     };
-    return with_states(toplevel.wl_surface(), |states| {
-        let Some(data) = states.data_map.get::<XdgToplevelSurfaceData>() else {
-            return (String::new(), String::new())
-        };
-        let attributes = data.lock().unwrap_or_else(PoisonError::into_inner);
-        return (attributes.app_id.clone().unwrap_or_default(), attributes.title.clone().unwrap_or_default())
-    })
+    return with_states(toplevel.wl_surface(), read_names_of_surface)
+}
+
+/// Read the app ID and title stored on one surface's xdg toplevel data.
+///
+/// What:
+///      `fn read_names_of_surface(states: &SurfaceData) -> (String, String)`.
+///  Two empty strings when the surface has no toplevel data.
+/// Why:
+///       `with_states` takes it by path instead of a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readNamesOfSurface = (states: SurfaceData): [string, string] => [...];
+/// ```
+fn read_names_of_surface(states: &SurfaceData) -> (String, String) {
+    let Some(data) = states.data_map.get::<XdgToplevelSurfaceData>() else {
+        return (String::new(), String::new())
+    };
+    let attributes = data.lock().unwrap_or_else(PoisonError::into_inner);
+    return (attributes.app_id.clone().unwrap_or_default(), attributes.title.clone().unwrap_or_default())
 }
 
 /// The surface of the window that has keyboard focus,
@@ -152,7 +193,8 @@ fn read_names(window: &Window) -> (String, String) {
 /// const focusedSurface = (state: Compositor) => state.seat.keyboard.focus;
 /// ```
 fn focused_surface(state: &Compositor) -> Option<WlSurface> {
-    return state.seat.get_keyboard().and_then(|keyboard| return keyboard.current_focus())
+    let keyboard = state.seat.get_keyboard()?;
+    return keyboard.current_focus()
 }
 
 /// Whether a toplevel has content the pointer can hit.
@@ -193,7 +235,18 @@ pub fn is_mapped(window: &Window) -> bool {
 /// const mappedWindows = (state: Compositor) => state.space.elements().filter(isMapped);
 /// ```
 fn mapped_windows(state: &Compositor) -> impl Iterator<Item = &Window> {
-    return state.space.elements().filter(|window| return is_mapped(window))
+    return state.space.elements().filter(is_mapped_element)
+}
+
+/// Whether a window reached through an iterator over references is mapped.
+///
+/// What:
+///      `fn is_mapped_element(window: &&Window) -> bool`.
+/// Why:
+///       `Iterator::filter` hands the predicate a reference to the item,
+///  and takes it by path instead of a closure.
+fn is_mapped_element(window: &&Window) -> bool {
+    return is_mapped(window)
 }
 
 /// Describe every mapped toplevel,
@@ -211,16 +264,16 @@ fn mapped_windows(state: &Compositor) -> impl Iterator<Item = &Window> {
 #[must_use]
 pub fn describe_windows(state: &Compositor) -> Vec<WindowInfo> {
     let focused = focused_surface(state);
-    return mapped_windows(state)
-        .map(|window| {
-            let (app_id, title) = read_names(window);
-            let is_focused = match (window.toplevel(), focused.as_ref()) {
-                (Some(toplevel), Some(surface)) => toplevel.wl_surface() == surface,
-                _ => false,
-            };
-            return WindowInfo { app_id, title, focused: is_focused }
-        })
-        .collect()
+    let mut infos: Vec<WindowInfo> = Vec::new();
+    for window in mapped_windows(state) {
+        let (app_id, title) = read_names(window);
+        let is_focused = match (window.toplevel(), focused.as_ref()) {
+            (Some(toplevel), Some(surface)) => toplevel.wl_surface() == surface,
+            _ => false,
+        };
+        infos.push(WindowInfo { app_id, title, focused: is_focused });
+    }
+    return infos
 }
 
 /// Answer `windows`.
@@ -275,7 +328,7 @@ pub fn close_response(state: &Compositor, index: Option<usize>) -> Response {
     let target = match index {
         Some(chosen) if chosen < infos.len() => chosen,
         Some(chosen) => return Response::Err(format!("no window with index {chosen}; there are {}", infos.len())),
-        None => match infos.iter().position(|info| return info.focused) {
+        None => match index_of_focused(&infos) {
             Some(focused) => focused,
             None => return Response::Err("no window has keyboard focus".to_string()),
         },

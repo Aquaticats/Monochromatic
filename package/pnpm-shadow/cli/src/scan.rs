@@ -18,7 +18,7 @@
 /// Imports the walker that honors `.gitignore`,
 /// its entry and error types,
 /// and the answer a visitor gives after each entry.
-use ignore::{DirEntry, Error as WalkError, WalkBuilder, WalkState};
+use ignore::{DirEntry, Error as WalkError, ParallelVisitor, ParallelVisitorBuilder, WalkBuilder, WalkState};
 
 /// Imports the rule:
 /// one function for any manifest name,
@@ -207,6 +207,60 @@ fn check_walk_result(root: &Path, result: Result<DirEntry, WalkError>) -> ScanRe
     return report;
 }
 
+/// Whether the walk may enter this entry:
+/// the opposite of `is_skipped_directory`.
+fn is_not_skipped_directory(entry: &DirEntry) -> bool {
+    return !is_skipped_directory(entry);
+}
+
+/// Orders two findings by the path of the manifest they belong to.
+fn compare_by_path(left: &Finding, right: &Finding) -> std::cmp::Ordering {
+    return left.path.cmp(&right.path);
+}
+
+/// Hands the parallel walker one visitor per walker thread,
+/// each adding what it finds to one shared report.
+struct ManifestCollector<'scan> {
+    /// The workspace root the manifests are named relative to.
+    root: &'scan Path,
+    /// The report every visitor adds to.
+    shared: &'scan Mutex<ScanReport>,
+}
+
+/// Lets the walker ask the collector for a visitor per walker thread.
+impl<'scan> ParallelVisitorBuilder<'scan> for ManifestCollector<'scan> {
+    /// One visitor for one walker thread.
+    fn build(&mut self) -> Box<dyn ParallelVisitor + 'scan> {
+        return Box::new(ManifestVisitor { root: self.root, shared: self.shared });
+    }
+}
+
+/// The visitor of one walker thread.
+struct ManifestVisitor<'scan> {
+    /// The workspace root the manifests are named relative to.
+    root: &'scan Path,
+    /// The report every visitor adds to.
+    shared: &'scan Mutex<ScanReport>,
+}
+
+/// Lets the walker hand each entry its thread walks to this visitor.
+impl ParallelVisitor for ManifestVisitor<'_> {
+    /// Checks one walk result and adds what it found to the shared report.
+    fn visit(&mut self, result: Result<DirEntry, WalkError>) -> WalkState {
+        let partial: ScanReport = check_walk_result(self.root, result);
+        // A poisoned lock means another thread panicked while holding it; the report is still the best
+        // available, so the guard is taken from the error.
+        let mut guard = match self.shared.lock() {
+            Ok(held) => held,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        guard.manifests_checked += partial.manifests_checked;
+        guard.findings.extend(partial.findings);
+        guard.notes.extend(partial.notes);
+        return WalkState::Continue;
+    }
+}
+
 /// What:
 /// `pub fn scan_workspace(root: &Path) -> ScanReport` walks the tree under `root` and checks every manifest.
 /// Why:
@@ -241,25 +295,12 @@ pub fn scan_workspace(root: &Path) -> ScanReport {
     builder.hidden(false);
     builder.require_git(false);
     builder.git_global(false);
-    builder.filter_entry(|entry| { return !is_skipped_directory(entry); });
+    builder.filter_entry(is_not_skipped_directory);
 
-    // `run` calls the outer closure once per walker thread to make that thread's visitor. The visitor borrows
-    // `root` and `shared`, which outlive the call, so no `Arc` is needed.
-    builder.build_parallel().run(|| {
-        return Box::new(|result| {
-            let partial: ScanReport = check_walk_result(root, result);
-            // A poisoned lock means another thread panicked while holding it; the report is still the best
-            // available, so the guard is taken from the error.
-            let mut guard = match shared.lock() {
-                Ok(held) => held,
-                Err(poisoned) => poisoned.into_inner(),
-            };
-            guard.manifests_checked += partial.manifests_checked;
-            guard.findings.extend(partial.findings);
-            guard.notes.extend(partial.notes);
-            return WalkState::Continue;
-        });
-    });
+    // The walker asks the collector for one visitor per walker thread. Each visitor borrows `root` and `shared`,
+    // which outlive the call, so no `Arc` is needed.
+    let mut collector: ManifestCollector<'_> = ManifestCollector { root, shared: &shared };
+    builder.build_parallel().visit(&mut collector);
 
     let mut report: ScanReport = match shared.into_inner() {
         Ok(inner) => inner,
@@ -267,7 +308,7 @@ pub fn scan_workspace(root: &Path) -> ScanReport {
     };
     // Threads finish in any order, so the report is sorted to be the same on every run. The sort is stable, so the
     // findings of one file keep the rule's own order.
-    report.findings.sort_by(|left, right| { return left.path.cmp(&right.path); });
+    report.findings.sort_by(compare_by_path);
     report.notes.sort();
     return report;
 }

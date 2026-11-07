@@ -22,7 +22,8 @@ use std::ffi::OsString;
 ///   A Git path is bytes,
 ///  and only the platform decides how to pass them on:
 ///  Unix takes them as they are,
-///  other platforms have text names, so the text with replacement characters is the closest name.
+///  other platforms have text names,
+/// so the text with replacement characters is the closest name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

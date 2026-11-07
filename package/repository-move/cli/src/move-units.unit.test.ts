@@ -92,7 +92,7 @@ await describe({
               ].join('\n',),
               options,
             },);
-            expect(parsed.main,).toEqual({ uuid: 'u-main', path: 'home/user/repo', },);
+            expect(parsed.main,).toEqual({ uuid: 'u-main', parentUuid: '?', path: 'home/user/repo', },);
             expect(parsed.nested.map((row,) => row.path),).toEqual([
               '/var/home/user/repo/a',
               '/var/home/user/repo/b w',
@@ -151,11 +151,11 @@ await describe({
         it({
           name: 'numbers a first run in order, and reuses names for the same UUID and path',
           fn: async () => {
-            const current = [{ path: '/m', uuid: 'u-m', }, { path: '/m/a', uuid: 'u-a', },];
+            const current = [{ path: '/m', uuid: 'u-m', parentUuid: '-', }, { path: '/m/a', uuid: 'u-a', parentUuid: '-', },];
             const first = await assignNames({ current, ledger: [], prefix: 's', folders: [], },);
             expect(first.named.map((row,) => row.name),).toEqual(['s000', 's001',],);
             const again = await assignNames({
-              current: [...current, { path: '/m/z', uuid: 'u-z', },],
+              current: [...current, { path: '/m/z', uuid: 'u-z', parentUuid: '-', },],
               ledger: [{ name: 's000', uuid: 'u-m', path: '/m', }, { name: 's001', uuid: 'u-a', path: '/m/a', },],
               prefix: 's',
               folders: [],
@@ -168,9 +168,10 @@ await describe({
           name: 'tells moved, replaced and removed apart and never reuses a number',
           fn: async () => {
             const result = await assignNames({
-              current: [{ path: '/m', uuid: 'u-m', }, { path: '/m/new-place', uuid: 'u-a', }, {
+              current: [{ path: '/m', uuid: 'u-m', parentUuid: '-', }, { path: '/m/new-place', uuid: 'u-a', parentUuid: '-', }, {
                 path: '/m/b',
                 uuid: 'u-b2',
+                parentUuid: '-',
               },],
               ledger: [
                 { name: 's000', uuid: 'u-m', path: '/m', },

@@ -91,6 +91,7 @@ use crate::peakcache::{self, CacheHandle};
 /// import { normalizationGain, resolveCurrent } from "./truepeak";
 /// ```
 use crate::truepeak::{normalization_gain, resolve_current};
+/// Imports the cached decision that selects the swap strategy.
 use truepeak_core::Decision;
 
 // What:     `#[derive(Clone, Copy, Debug)]` auto-generates cheap copying and debug

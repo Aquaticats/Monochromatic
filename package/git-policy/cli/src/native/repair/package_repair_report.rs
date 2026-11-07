@@ -1,9 +1,16 @@
 //! What:
-//!  What a worktree repair tells the person: one line when the repairs worked, and one plain line per repair that could not
-//!  finish, each naming the command that finishes it.
+//!  What a worktree repair tells the person:
+//! one line when the repairs worked,
+//! and one plain line per repair that could not
+//!  finish,
+//! each naming the command that finishes it.
 //! Why:
-//!  A repair never fails the add. The person must still learn that a worktree needs one more command, and which, so a
-//!  failure is always printed (even under `--quiet`, which silences only the report of success).
+//!  A repair never fails the add.
+//! The person must still learn that a worktree needs one more command,
+//! and which,
+//! so a
+//!  failure is always printed (even under `--quiet`,
+//! which silences only the report of success).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -35,7 +42,8 @@ pub enum Tool {
 /// What:
 ///  How one repair ended.
 /// Why:
-///   A success carries what was done and how long it took; a failure carries the reason and the command that finishes it.
+///   A success carries what was done and how long it took;
+/// a failure carries the reason and the command that finishes it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -45,14 +53,17 @@ pub enum Tool {
 pub enum Outcome {
     /// The repair finished.
     Repaired {
-        /// What was done, in words that follow the tool name.
+        /// What was done,
+        /// in words that follow the tool name.
         detail: String,
         /// Wall time in milliseconds.
         millis: u128,
     },
-    /// The repair could not finish; the worktree is usable but still holds the source's state for this tool.
+    /// The repair could not finish;
+    /// the worktree is usable but still holds the source's state for this tool.
     Failed {
-        /// Why, in a phrase.
+        /// Why,
+        /// in a phrase.
         reason: String,
         /// The command that finishes it.
         run_instead: String,
@@ -77,9 +88,12 @@ pub struct Finding {
 }
 
 /// What:
-///  The finding for one tool run: a success worded by the caller, or a failure whose reason is the run's own.
+///  The finding for one tool run:
+/// a success worded by the caller,
+/// or a failure whose reason is the run's own.
 /// Why:
-///   Every tool ends the same four ways, so the wording of a timeout lives in one place.
+///   Every tool ends the same four ways,
+/// so the wording of a timeout lives in one place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -96,11 +110,20 @@ pub fn finding_from(tool: Tool, run: &ToolRun, detail: &str, run_instead: &str) 
 }
 
 /// What:
-///  The reason of a tool that was stopped at the ceiling: the tool, what it was doing, how long it ran, and that its whole process
+///  The reason of a tool that was stopped at the ceiling:
+/// the tool,
+/// what it was doing,
+/// how long it ran,
+/// and that its whole process
 ///  group was stopped.
 /// Why:
-///   The owner, 2026-11-04, "Silence plus a ceiling (Recommended)": the tool is "ended with an error naming the tool". The command that
-///  finishes the repair is the finding's `run_instead`, which the line prints after this reason.
+///   The owner,
+/// 2026-11-04,
+/// "Silence plus a ceiling (Recommended)":
+/// the tool is "ended with an error naming the tool".
+/// The command that
+///  finishes the repair is the finding's `run_instead`,
+/// which the line prints after this reason.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -121,7 +144,8 @@ pub fn ceiling_reason(tool: Tool, ceiling: std::time::Duration) -> String {
 /// What:
 ///  The finding for a tool the search path does not provide.
 /// Why:
-///   A missing tool is a verdict with the command to run once it is installed, never an error of the add.
+///   A missing tool is a verdict with the command to run once it is installed,
+/// never an error of the add.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -134,7 +158,8 @@ pub fn missing_tool(tool: Tool, program: &str, run_instead: &str) -> Finding {
 /// What:
 ///  A time in milliseconds as seconds with one decimal.
 /// Why:
-///   The person reads a repair's time in seconds; one decimal is the precision the measurements are made to.
+///   The person reads a repair's time in seconds;
+/// one decimal is the precision the measurements are made to.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -148,7 +173,8 @@ fn seconds(millis: u128) -> String {
 /// What:
 ///  The text on one line.
 /// Why:
-///   A tool's output tail spans lines, and each failure is one line the person can act on.
+///   A tool's output tail spans lines,
+/// and each failure is one line the person can act on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -159,9 +185,12 @@ fn single_line(text: &str) -> String {
 }
 
 /// What:
-///  The lines to print for one worktree: failures always, successes unless quiet.
+///  The lines to print for one worktree:
+/// failures always,
+/// successes unless quiet.
 /// Why:
-///   Under `--quiet` the add prints nothing it can leave out, but a worktree that still needs a command is never silent.
+///   Under `--quiet` the add prints nothing it can leave out,
+/// but a worktree that still needs a command is never silent.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

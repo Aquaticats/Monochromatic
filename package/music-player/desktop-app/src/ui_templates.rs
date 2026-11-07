@@ -10,10 +10,15 @@
 //! the engine evaluates templates over these structs only,
 //! and the editor's offsets come from Slint in bytes.
 
+/// Imports the playing track fields and the template field builders.
 use music_player::template_model::{PlayingTrackFields, TrackFields, playing_template_fields};
+/// Imports the template evaluation.
 use music_player::template_eval::evaluate_template;
+/// Imports the title that a track shows.
 use music_player::track_entries::track_title_for;
+/// Imports the track measure and the field filler.
 use music_player::track_measure::{TrackMeasure, fields_with_measure};
+/// Imports the map type that holds measures by name.
 use std::collections::HashMap;
 
 /// What:
@@ -114,6 +119,13 @@ pub fn utf16_offset(text: &str, byte_offset: usize) -> usize {
     return text[..end].encode_utf16().count();
 }
 
+/// Unit tests of `ui_templates`,
+/// in the sidecar file `ui_templates_tests.rs`.
+/// Role of the module:
+/// pure template helpers for the desktop window:
+/// track fields from display paths,
+/// the playing-track subtitle,
+/// and the offset conversion the template editor needs.
 #[cfg(test)]
 #[path = "ui_templates_tests.rs"]
 mod tests;

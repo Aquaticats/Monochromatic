@@ -1,14 +1,32 @@
 //! What:
-//!  The service's own retry of a push it stopped or that failed: the pause before each new try, the list of branches waiting
-//!  for one, and the test for the one failure no retry can mend.
+//!  The service's own retry of a push it stopped or that failed:
+//! the pause before each new try,
+//! the list of branches waiting
+//!  for one,
+//! and the test for the one failure no retry can mend.
 //! Why:
-//!  The owner's rule is that auto-push must land (`SPEC.md`, "Merges and commits never fail"). A push stopped by the stall
-//!  window, by the network, by an LFS server error or by a reference lock passes by itself, so the service tries again on its own,
-//!  with pauses that grow, until the push lands or a conflict needs the person. Nothing waits for the next commit: the work
-//!  loop is woken when the pause is over. The list is owned by the service's work loop and kept on disk beside the instance's
-//!  journal (`push_retry_store.rs`), so a restarted service rebuilds it; the person's failure record is not the plan, since the
-//!  person's next command shows it and removes it. A conflict, a login the service does not have and a hook on the server that
-//!  declined the push stop the retry until the next commit (owner decision, 2026-11-03).
+//!  The owner's rule is that auto-push must land (`SPEC.md`,
+//! "Merges and commits never fail").
+//! A push stopped by the stall
+//!  window,
+//! by the network,
+//! by an LFS server error or by a reference lock passes by itself,
+//! so the service tries again on its own,
+//!  with pauses that grow,
+//! until the push lands or a conflict needs the person.
+//! Nothing waits for the next commit:
+//! the work
+//!  loop is woken when the pause is over.
+//! The list is owned by the service's work loop and kept on disk beside the instance's
+//!  journal (`push_retry_store.rs`),
+//! so a restarted service rebuilds it;
+//! the person's failure record is not the plan,
+//! since the
+//!  person's next command shows it and removes it.
+//! A conflict,
+//! a login the service does not have and a hook on the server that
+//!  declined the push stop the retry until the next commit (owner decision,
+//! 2026-11-03).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,26 +42,35 @@ use crate::work_item::WorkItem;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-/// Environment variable that sets, in whole seconds, the pause before the first new try of a stopped push.
+/// Environment variable that sets,
+/// in whole seconds,
+/// the pause before the first new try of a stopped push.
 pub const RETRY_VARIABLE: &str = "CLI_GIT_PUSH_RETRY_SECONDS";
 
-/// Directory, under the service instance's journal, that holds the plan of the pushes waiting for a new try, so that a restarted
+/// Directory,
+/// under the service instance's journal,
+/// that holds the plan of the pushes waiting for a new try,
+/// so that a restarted
 /// service keeps trying them.
 pub const PLAN_DIRECTORY: &str = "push-retries";
 
 /// The pause before the first new try when nothing configures it.
 pub const FIRST_PAUSE: Duration = Duration::from_secs(10);
 
-/// The longest pause between two tries: a push that keeps failing is tried about this often for as long as it fails.
+/// The longest pause between two tries:
+/// a push that keeps failing is tried about this often for as long as it fails.
 pub const LONGEST_PAUSE: Duration = Duration::from_secs(10 * 60);
 
-/// The words of the reconcile's report of a conflict, the one failure that retrying cannot mend.
+/// The words of the reconcile's report of a conflict,
+/// the one failure that retrying cannot mend.
 pub const CONFLICT_PHRASE: &str = " conflicts in: ";
 
 /// What:
 ///  The first pause for a value of the variable.
 /// Why:
-///   A missing, zero or malformed value falls back to the default, never to a tight loop.
+///   A missing,
+/// zero or malformed value falls back to the default,
+/// never to a tight loop.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,10 +82,14 @@ pub fn first_pause_from(value: Option<&std::ffi::OsStr>) -> Duration {
 }
 
 /// What:
-///  The pause before try number `attempt` (the first new try is number one): the first pause, doubled each time, never past
+///  The pause before try number `attempt` (the first new try is number one):
+/// the first pause,
+/// doubled each time,
+/// never past
 ///  the longest.
 /// Why:
-///   Short pauses mend a stall quickly; longer ones keep a host that is offline for an hour from being asked every few seconds.
+///   Short pauses mend a stall quickly;
+/// longer ones keep a host that is offline for an hour from being asked every few seconds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -80,21 +111,34 @@ pub enum FinalFailure {
     Declined,
 }
 
-/// The mark of a line in which the server rejected one reference; Git prints it for every refused reference
-/// (`transport.c`, `print_ref_status('!', "[remote rejected]", ...)`, Git 2.56.0).
+/// The mark of a line in which the server rejected one reference;
+/// Git prints it for every refused reference
+/// (`transport.c`,
+/// `print_ref_status('!', "[remote rejected]", ...)`,
+/// Git 2.56.0).
 pub const REMOTE_REJECTED: &str = "[remote rejected]";
 
-/// The words every hook decline of Git's own server side carries in the rejection's reason: `"pre-receive hook declined"` and
-/// `"push-to-checkout hook declined"` and `"hook declined"` (the update hook) in `builtin/receive-pack.c`, Git 2.56.0; a hosting
-/// service's own reason that names a hook, such as `protected branch hook declined`, ends the same way.
+/// The words every hook decline of Git's own server side carries in the rejection's reason:
+/// `"pre-receive hook declined"` and
+/// `"push-to-checkout hook declined"` and `"hook declined"` (the update hook) in `builtin/receive-pack.c`,
+/// Git 2.56.0;
+/// a hosting
+/// service's own reason that names a hook,
+/// such as `protected branch hook declined`,
+/// ends the same way.
 pub const HOOK_DECLINED: &str = "hook declined";
 
-/// The words with which Git and the programs it runs say that the remote wanted a login the push did not have, each from a
+/// The words with which Git and the programs it runs say that the remote wanted a login the push did not have,
+/// each from a
 /// fixture run of `git push` from Git 2.56.0 on 2026-11-03:
-/// - `remote-curl.c` `die(_("Authentication failed for '%s'"))`: a 401 and no usable password;
-/// - `prompt.c` `die("could not read %s%s", prompt, "terminal prompts disabled")`: a 401 with no user name and no prompt allowed;
-/// - `http.c` `"The requested URL returned error: %ld"` with 401 or 403: the server refused the login or the permission;
-/// - OpenSSH's `Permission denied (publickey).`, which Git relays when the key is refused.
+/// - `remote-curl.c` `die(_("Authentication failed for '%s'"))`:
+///   a 401 and no usable password;
+/// - `prompt.c` `die("could not read %s%s", prompt, "terminal prompts disabled")`:
+///   a 401 with no user name and no prompt allowed;
+/// - `http.c` `"The requested URL returned error: %ld"` with 401 or 403:
+///   the server refused the login or the permission;
+/// - OpenSSH's `Permission denied (publickey).`,
+///   which Git relays when the key is refused.
 pub const LOGIN_PHRASES: [&str; 5] = ["Authentication failed for", "terminal prompts disabled", "returned error: 401", "returned error: 403", "Permission denied ("];
 
 /// The lines of an output in which the server rejected a reference.
@@ -109,8 +153,12 @@ fn rejection_lines(output: &str) -> Vec<&str> {
     return rejected;
 }
 
-/// The failure of a push that no retry can mend, from Git's own words; nothing for a failure that can pass (a stall, the
-/// network, a held lock) and for a rejection whose reason this release does not know.
+/// The failure of a push that no retry can mend,
+/// from Git's own words;
+/// nothing for a failure that can pass (a stall,
+/// the
+/// network,
+/// a held lock) and for a rejection whose reason this release does not know.
 pub fn final_failure(output: &str) -> Option<FinalFailure> {
     if output.contains(CONFLICT_PHRASE) {
         return Some(FinalFailure::Conflict);
@@ -128,8 +176,11 @@ pub fn final_failure(output: &str) -> Option<FinalFailure> {
     return None;
 }
 
-/// The first line in which the server rejected the push for a reason this release does not know, or nothing: a push with such a
-/// line stays retried, and the journal names the line so that the reason can be learned.
+/// The first line in which the server rejected the push for a reason this release does not know,
+/// or nothing:
+/// a push with such a
+/// line stays retried,
+/// and the journal names the line so that the reason can be learned.
 pub fn unrecognised_rejection(output: &str) -> Option<String> {
     if final_failure(output).is_some() {
         return None;
@@ -142,12 +193,17 @@ pub fn unrecognised_rejection(output: &str) -> Option<String> {
 }
 
 /// What:
-///  The plain words the person's failure record starts with for a failure that stops the retry, or nothing for a conflict, whose
+///  The plain words the person's failure record starts with for a failure that stops the retry,
+/// or nothing for a conflict,
+/// whose
 ///  report already says what to do.
 /// Why:
 ///   The owner's decision is that a login failure and a server hook's decline stop until the next commit
-///  ("Offline is retried, but auth and server hook declines stop until your next commit."); the person is told which one it was,
-///  in words, above Git's own.
+///  ("Offline is retried,
+/// but auth and server hook declines stop until your next commit.");
+/// the person is told which one it was,
+///  in words,
+/// above Git's own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -178,7 +234,8 @@ pub fn needs_the_person(output: &str) -> bool {
 struct Waiting {
     /// The Git directory of the worktree whose service pushes.
     git_dir: PathBuf,
-    /// The newest push item of the branch; its branch is what is pushed again.
+    /// The newest push item of the branch;
+    /// its branch is what is pushed again.
     item: WorkItem,
     /// The number of the try that is due.
     attempt: u32,
@@ -186,7 +243,8 @@ struct Waiting {
     due: Instant,
 }
 
-/// The waiting plans without the one for `branch_ref` of `git_dir`, in their order.
+/// The waiting plans without the one for `branch_ref` of `git_dir`,
+/// in their order.
 fn without_branch(waiting: Vec<Waiting>, git_dir: &Path, branch_ref: &str) -> Vec<Waiting> {
     let mut kept: Vec<Waiting> = Vec::new();
     for entry in waiting {
@@ -200,7 +258,8 @@ fn without_branch(waiting: Vec<Waiting>, git_dir: &Path, branch_ref: &str) -> Ve
 /// A push that is due again.
 #[derive(Clone, Debug)]
 pub struct Due {
-    /// The Git directory whose service pushes; the plan is keyed by it.
+    /// The Git directory whose service pushes;
+    /// the plan is keyed by it.
     pub git_dir: PathBuf,
     /// The item to push again.
     pub item: WorkItem,
@@ -209,11 +268,15 @@ pub struct Due {
 }
 
 /// What:
-///  What the worker of one directory is handed about retries: the first pause (nothing when its handlers do not retry) and the
+///  What the worker of one directory is handed about retries:
+/// the first pause (nothing when its handlers do not retry) and the
 ///  pushes of that directory that are due again.
 /// Why:
-///   The plan belongs to the service loop alone. A worker never reads it: it gets its own copy of what is due for its directory,
-///  as an owned value inside its request, so no worker shares the plan with another and nothing waits for it.
+///   The plan belongs to the service loop alone.
+/// A worker never reads it:
+/// it gets its own copy of what is due for its directory,
+///  as an owned value inside its request,
+/// so no worker shares the plan with another and nothing waits for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -221,25 +284,34 @@ pub struct Due {
 /// ```
 #[derive(Clone, Debug, Default)]
 pub struct Retrying {
-    /// The pause before the first new try; nothing when a retryable failure is to be reported as a failed push.
+    /// The pause before the first new try;
+    /// nothing when a retryable failure is to be reported as a failed push.
     pub first: Option<Duration>,
-    /// The pushes due again, each naming the directory it belongs to.
+    /// The pushes due again,
+    /// each naming the directory it belongs to.
     pub due: Vec<Due>,
 }
 
 /// Methods over a request.
 impl Retrying {
-    /// A request for a drain that keeps no plan: a push that could pass is reported as failed, as it is for handlers that do not retry.
+    /// A request for a drain that keeps no plan:
+    /// a push that could pass is reported as failed,
+    /// as it is for handlers that do not retry.
     pub fn none() -> Self {
         return Self { first: None, due: Vec::new() };
     }
 }
 
 /// What:
-///  One change a worker asks of the plan: plan a try, or drop the plan of a branch.
+///  One change a worker asks of the plan:
+/// plan a try,
+/// or drop the plan of a branch.
 /// Why:
-///   A worker cannot change the plan (it does not hold it), so it returns what it did and the service loop applies the changes
-///  on its own thread, in the order they were made, which is how the last plan of a branch wins.
+///   A worker cannot change the plan (it does not hold it),
+/// so it returns what it did and the service loop applies the changes
+///  on its own thread,
+/// in the order they were made,
+/// which is how the last plan of a branch wins.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -247,7 +319,9 @@ impl Retrying {
 /// ```
 #[derive(Clone, Debug)]
 pub enum RetryChange {
-    /// Try the branch of `item` again as try number `attempt`, at `due`, replacing any plan of the same branch.
+    /// Try the branch of `item` again as try number `attempt`,
+    /// at `due`,
+    /// replacing any plan of the same branch.
     Plan {
         /// The Git directory whose service pushes.
         git_dir: PathBuf,
@@ -258,7 +332,9 @@ pub enum RetryChange {
         /// When it is due.
         due: Instant,
     },
-    /// The branch needs no new try: its push landed, or the person must act.
+    /// The branch needs no new try:
+    /// its push landed,
+    /// or the person must act.
     Forget {
         /// The Git directory whose service pushes.
         git_dir: PathBuf,
@@ -268,9 +344,12 @@ pub enum RetryChange {
 }
 
 /// What:
-///  The branches whose push is waiting for a new try, with the first pause.
+///  The branches whose push is waiting for a new try,
+/// with the first pause.
 /// Why:
-///   The service loop alone owns it and changes it through `&mut self`, so it needs no cell and no lock; workers get what is due
+///   The service loop alone owns it and changes it through `&mut self`,
+/// so it needs no cell and no lock;
+/// workers get what is due
 ///  as owned values (`Retrying`) and hand their changes back (`RetryChange`).
 ///
 /// In TS you'd write (pseudocode):
@@ -281,9 +360,12 @@ pub enum RetryChange {
 pub struct PushRetries {
     /// The pause before the first new try.
     first: Duration,
-    /// The waiting pushes, one per branch of a Git directory.
+    /// The waiting pushes,
+    /// one per branch of a Git directory.
     waiting: Vec<Waiting>,
-    /// The directory the plan is kept in, so that a restarted service rebuilds it; nothing for a list kept in memory only.
+    /// The directory the plan is kept in,
+    /// so that a restarted service rebuilds it;
+    /// nothing for a list kept in memory only.
     store: Option<PathBuf>,
 }
 
@@ -300,11 +382,17 @@ impl PushRetries {
     }
 
     /// What:
-    ///  A list for a service that starts now, whose plan is kept in `directory`: the plan the service that stopped before this one
-    ///  left there is rebuilt, each branch due after its pause counted from now.
+    ///  A list for a service that starts now,
+    /// whose plan is kept in `directory`:
+    /// the plan the service that stopped before this one
+    ///  left there is rebuilt,
+    /// each branch due after its pause counted from now.
     /// Why:
-    ///   A pause that was running when the service stopped starts again, so a service restarted in a loop does not push every few
-    ///  seconds; the try number is kept, so the pauses go on growing.
+    ///   A pause that was running when the service stopped starts again,
+    /// so a service restarted in a loop does not push every few
+    ///  seconds;
+    /// the try number is kept,
+    /// so the pauses go on growing.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -319,7 +407,8 @@ impl PushRetries {
         return list;
     }
 
-    /// A list for a service that starts now, with the first pause the variable gives or the default.
+    /// A list for a service that starts now,
+    /// with the first pause the variable gives or the default.
     pub fn restored_from_environment(directory: &Path) -> Self {
         return Self::restored(first_pause_from(std::env::var_os(RETRY_VARIABLE).as_deref()), directory);
     }
@@ -329,14 +418,17 @@ impl PushRetries {
         return self.first;
     }
 
-    /// Plan try number `attempt` of the branch of `item`, replacing any plan for the same branch; gives the pause.
+    /// Plan try number `attempt` of the branch of `item`,
+    /// replacing any plan for the same branch;
+    /// gives the pause.
     pub fn schedule(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, now: Instant) -> Duration {
         let pause: Duration = pause_before(attempt, self.first);
         self.plan(git_dir, item, attempt, now + pause);
         return pause;
     }
 
-    /// Plan try number `attempt` of the branch of `item` for `due`, replacing any plan for the same branch.
+    /// Plan try number `attempt` of the branch of `item` for `due`,
+    /// replacing any plan for the same branch.
     fn plan(&mut self, git_dir: &Path, item: &WorkItem, attempt: u32, due: Instant) {
         self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, item.branch_ref.as_str());
         self.waiting.push(Waiting { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due });
@@ -347,7 +439,9 @@ impl PushRetries {
         }
     }
 
-    /// Drop the plan of a branch: its push landed, or the person must act.
+    /// Drop the plan of a branch:
+    /// its push landed,
+    /// or the person must act.
     pub fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
         self.waiting = without_branch(std::mem::take(&mut self.waiting), git_dir, branch_ref);
         if let Some(directory) = self.store.as_deref() {
@@ -355,7 +449,8 @@ impl PushRetries {
         }
     }
 
-    /// Apply what the workers of a round asked, in the order they asked it.
+    /// Apply what the workers of a round asked,
+    /// in the order they asked it.
     pub fn apply(&mut self, changes: Vec<RetryChange>) {
         for change in changes {
             match change {
@@ -380,7 +475,8 @@ impl PushRetries {
         return due;
     }
 
-    /// How long until the first plan of this Git directory is due (zero for one already due), or nothing when none waits.
+    /// How long until the first plan of this Git directory is due (zero for one already due),
+    /// or nothing when none waits.
     pub fn next_wait(&self, git_dir: &Path, now: Instant) -> Option<Duration> {
         let mut soonest: Option<Duration> = None;
         for entry in &self.waiting {
@@ -396,7 +492,8 @@ impl PushRetries {
         return soonest;
     }
 
-    /// The Git directories that have a plan, each once.
+    /// The Git directories that have a plan,
+    /// each once.
     pub fn directories(&self) -> Vec<PathBuf> {
         let mut found: Vec<PathBuf> = Vec::new();
         for entry in &self.waiting {

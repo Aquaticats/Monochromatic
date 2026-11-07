@@ -25,13 +25,17 @@ use crate::repo_read_hook::try_request;
 /// The watched run that announces a step that takes long and stops it at the bound.
 use crate::child_class::class_of;
 use crate::child_watch::{StepBound, WatchTerms, output_watched_within};
-/// The request, reply and failure types and the text of a command line, re-exported so `crate::transaction_git::GitRequest`
+/// The request,
+/// reply and failure types and the text of a command line,
+/// re-exported so `crate::transaction_git::GitRequest`
 ///  and the other paths that name them keep working.
 pub use crate::transaction_git_request_and_reply_types::{GitContext, GitFailure, GitOutput, GitRequest, command_text};
-/// The rules for which steps may be run again or ended, re-exported under the path they had in this file.
+/// The rules for which steps may be run again or ended,
+/// re-exported under the path they had in this file.
 pub(crate) use crate::transaction_git_step_rerun_and_end_rules::{NO_REFLOG_SETTING, subcommand_of};
 use crate::transaction_git_step_rerun_and_end_rules::may_be_rerun;
-/// The bound of a step, and the test-only shortened bounds of the current thread.
+/// The bound of a step,
+/// and the test-only shortened bounds of the current thread.
 use crate::transaction_git_step_bounds::step_bound;
 #[cfg(test)]
 pub(crate) use crate::transaction_git_step_bounds::{EXTRA_WAIT_FOR_THIS_THREAD, STEP_CEILING_FOR_THIS_THREAD};
@@ -51,7 +55,8 @@ use std::path::{Path, PathBuf};
 ///  `Stdio` configures its streams.
 use std::io::Write;
 use std::process::{Command, Stdio};
-/// A span of time, for the bounded rerun.
+/// A span of time,
+/// for the bounded rerun.
 use std::time::Duration;
 
 /// What:
@@ -163,7 +168,9 @@ pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<Gi
 ///  Whether Git failed because the system would not give it a process or a thread.
 /// Why:
 ///   Git words these failures with the system's own text (`unable to create thread: Resource temporarily
-///  unavailable`, `cannot fork() for ...`), and no other failure of a rerunnable command carries it.
+///  unavailable`,
+/// `cannot fork() for ...`),
+/// and no other failure of a rerunnable command carries it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -175,11 +182,14 @@ pub(crate) fn refused_by_the_system(output: &GitOutput) -> bool {
 }
 
 /// What:
-///  Run one request, running it again within the budget when Git reports a refused process or thread
+///  Run one request,
+/// running it again within the budget when Git reports a refused process or thread
 ///  and the command is harmless to run twice.
-///  After the budget the last output is returned as it was, so the caller reports Git's own words.
+///  After the budget the last output is returned as it was,
+/// so the caller reports Git's own words.
 /// Why:
-///   The command is rebuilt for each run, so its input file is fresh.
+///   The command is rebuilt for each run,
+/// so its input file is fresh.
 ///  A start that already waited out its own budget is not waited for again.
 ///
 /// In TS you'd write (pseudocode):
@@ -206,10 +216,14 @@ fn run_git_pausing(
 }
 
 /// What:
-///  One run of a request that the retry may start again: the run, and the output Git gave when the system refused it a process.
+///  One run of a request that the retry may start again:
+/// the run,
+/// and the output Git gave when the system refused it a process.
 /// Why:
-///   The retry takes its start as a value; a refusal is told to the retry as `WouldBlock` and the output that carried it is kept
-///  here, so that after the budget the caller can return Git's own last words.
+///   The retry takes its start as a value;
+/// a refusal is told to the retry as `WouldBlock` and the output that carried it is kept
+///  here,
+/// so that after the budget the caller can return Git's own last words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -240,10 +254,13 @@ impl RefusableStart<GitOutput> for RefusableGitRun<'_> {
 }
 
 /// What:
-///  Where `run_git_once_with` asks for the watch terms of a start, once for each start.
-///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+///  Where `run_git_once_with` asks for the watch terms of a start,
+/// once for each start.
+///  A `trait` is a named set of methods that different types can each supply,
+/// like a TypeScript `interface`.
 /// Why:
-///   The production entry reads the terms of the request's class; tests choose short ones.
+///   The production entry reads the terms of the request's class;
+/// tests choose short ones.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -254,7 +271,8 @@ trait WatchTermsSource {
     fn terms(&self) -> WatchTerms;
 }
 
-/// The watch terms of the class a request belongs to, asked again at each start.
+/// The watch terms of the class a request belongs to,
+/// asked again at each start.
 struct TermsOfRequest<'a> {
     /// The request whose subcommand names the class.
     request: &'a GitRequest,
@@ -267,9 +285,11 @@ impl WatchTermsSource for TermsOfRequest<'_> {
 }
 
 /// What:
-///  Run one request once and capture its output, whatever its exit code.
+///  Run one request once and capture its output,
+/// whatever its exit code.
 /// Why:
-///   The command and its input file are built here, so every run starts from the request alone.
+///   The command and its input file are built here,
+/// so every run starts from the request alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -280,9 +300,11 @@ fn run_git_once(context: &GitContext, request: &GitRequest) -> std::io::Result<G
 }
 
 /// What:
-///  The watch terms of a request: those of the class its subcommand belongs to.
+///  The watch terms of a request:
+/// those of the class its subcommand belongs to.
 /// Why:
-///   A query step and a bulk step are stopped at different bounds, so the choice is one function a test can pin.
+///   A query step and a bulk step are stopped at different bounds,
+/// so the choice is one function a test can pin.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -293,17 +315,30 @@ pub(crate) fn terms_for_request(request: &GitRequest) -> WatchTerms {
 }
 
 /// What:
-///  `run_git_once` with the notice cadence, the quiet window and the notice sink of its wait made by `terms`, which is asked
+///  `run_git_once` with the notice cadence,
+/// the quiet window and the notice sink of its wait made by `terms`,
+/// which is asked
 ///  for again at each start.
-///  A step that shows no sign of work for the window is ended and run once more; a step that may not be run twice is only
+///  A step that shows no sign of work for the window is ended and run once more;
+/// a step that may not be run twice is only
 ///  waited for.
 /// Why:
 ///   The production entry reads the terms from the environment;
 ///  tests choose short ones and read the notices from a buffer.
-///  The owner's rule: "End Git, hold hooks (Recommended)": a Git child with no progress is ended and its step redone, and a
-///  person's hook is never ended (none runs below a step the wrapper starts, `hooks_off.rs`). Redoing is limited to the steps
-///  that are safe to run twice (`may_be_rerun`); a step that is quiet again in its redo is reported with the sentence of
-///  `watched_timeout_text`. That the redo happens once is the coordinator's reading of "redone" (audit, pick 4), open to veto.
+///  The owner's rule:
+/// "End Git,
+/// hold hooks (Recommended)":
+/// a Git child with no progress is ended and its step redone,
+/// and a
+///  person's hook is never ended (none runs below a step the wrapper starts,
+/// `hooks_off.rs`).
+/// Redoing is limited to the steps
+///  that are safe to run twice (`may_be_rerun`);
+/// a step that is quiet again in its redo is reported with the sentence of
+///  `watched_timeout_text`.
+/// That the redo happens once is the coordinator's reading of "redone" (audit,
+/// pick 4),
+/// open to veto.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -329,7 +364,8 @@ fn run_git_once_with(
     };
 }
 
-/// How a request names itself in notices and in the sentence of a step that was ended: the command and the kind of step.
+/// How a request names itself in notices and in the sentence of a step that was ended:
+/// the command and the kind of step.
 fn step_subject(request: &GitRequest) -> String {
     return format!(
         "{}, {}",
@@ -339,9 +375,11 @@ fn step_subject(request: &GitRequest) -> String {
 }
 
 /// What:
-///  Start one request once under a watch and capture its output, whatever its exit code.
+///  Start one request once under a watch and capture its output,
+/// whatever its exit code.
 /// Why:
-///   The command and its input file are built here, so every run starts from the request alone.
+///   The command and its input file are built here,
+/// so every run starts from the request alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -396,9 +434,11 @@ pub fn run_git_checked(
 
 /// What:
 ///  Turn the outcome of a run into the checked result:
-///  success needs a start and a zero exit, and each failure names the command.
+///  success needs a start and a zero exit,
+/// and each failure names the command.
 /// Why:
-///   A step stopped at its bound did start, and its own text already says which command and why;
+///   A step stopped at its bound did start,
+/// and its own text already says which command and why;
 ///  every other start failure and every non-zero exit is named here.
 ///
 /// In TS you'd write (pseudocode):

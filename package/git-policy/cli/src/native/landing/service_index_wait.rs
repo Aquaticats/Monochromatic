@@ -1,12 +1,21 @@
 //! What:
-//!  The wait of a wrapped command that writes the index for the commit service's own hold on the index: event-driven, with a
-//!  notice that names what is waited for, and over as soon as the hold is released.
+//!  The wait of a wrapped command that writes the index for the commit service's own hold on the index:
+//! event-driven,
+//! with a
+//!  notice that names what is waited for,
+//! and over as soon as the hold is released.
 //! Why:
-//!  The service holds Git's `index.lock` while it lands a commit and marks it as its own. A wrapped `git add` run by another
-//!  process in the same worktree during that time must not fail, and must not be told the hold belongs to a program
-//!  nobody can prove alive: the hold is the product's own and ends by itself. A lock without the service's mark is a
-//!  foreign program's and keeps the behavior of native Git. The wait blocks on an inotify watch set before the first look,
-//!  so a release between the look and the wait is not missed. A service the mark proves to run is waited for with no bound.
+//!  The service holds Git's `index.lock` while it lands a commit and marks it as its own.
+//! A wrapped `git add` run by another
+//!  process in the same worktree during that time must not fail,
+//! and must not be told the hold belongs to a program
+//!  nobody can prove alive:
+//! the hold is the product's own and ends by itself.
+//! A lock without the service's mark is a
+//!  foreign program's and keeps the behavior of native Git.
+//! The wait blocks on an inotify watch set before the first look,
+//!  so a release between the look and the wait is not missed.
+//! A service the mark proves to run is waited for with no bound.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -44,22 +53,38 @@ const EMPTY_PAUSE: Duration = Duration::from_millis(2);
 /// one that runs is waited for however old the file is,
 /// and one that is gone is not waited for.
 ///
-/// Measured on 2026-11-03 in the commit service's journal: of 715 landings that logged the time the service held the lock
-///  (`lock_hold_ms`), 13 held it for 58 to 120 seconds, all of it in the sync of the new index to disk
-///  (then logged as `sync_ms`, now `index_update_ms`; longest 119,721 ms, 99th percentile 65,787 ms, median 34 ms). A hold of that age is a live service on a slow
-///  disk, so the age is the longest measured hold with a quarter more, 150 seconds; the earlier 60 seconds took those live
-///  holds for leftovers. A wrong call only lets the forwarded command run into Git's own refusal, which is run again while
+/// Measured on 2026-11-03 in the commit service's journal:
+/// of 715 landings that logged the time the service held the lock
+///  (`lock_hold_ms`),
+/// 13 held it for 58 to 120 seconds,
+/// all of it in the sync of the new index to disk
+///  (then logged as `sync_ms`,
+/// now `index_update_ms`;
+/// longest 119,721 ms,
+/// 99th percentile 65,787 ms,
+/// median 34 ms).
+/// A hold of that age is a live service on a slow
+///  disk,
+/// so the age is the longest measured hold with a quarter more,
+/// 150 seconds;
+/// the earlier 60 seconds took those live
+///  holds for leftovers.
+/// A wrong call only lets the forwarded command run into Git's own refusal,
+/// which is run again while
 ///  the service has the index (`service_hold_retry.rs`).
 pub const UNASKABLE_HOLD_AGE: Duration = Duration::from_secs(150);
 
 /// Who holds the index.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Holder {
-    /// Nobody: there is no lock.
+    /// Nobody:
+    /// there is no lock.
     Nobody,
-    /// The commit service, by its mark.
+    /// The commit service,
+    /// by its mark.
     Service,
-    /// A program that is not the service, or a lock that cannot be read.
+    /// A program that is not the service,
+    /// or a lock that cannot be read.
     Foreign,
 }
 
@@ -70,7 +95,8 @@ pub enum Waited {
     NotHeld,
     /// The service held the index and let it go.
     Released,
-    /// The service still held the index at the ceiling; the line saying that the command runs now was written.
+    /// The service still held the index at the ceiling;
+    /// the line saying that the command runs now was written.
     GaveUp,
     /// The hold is older than any measured landing lasts and nothing shows its holder runs,
     /// or names a holder that no longer runs,
@@ -81,7 +107,8 @@ pub enum Waited {
 /// What:
 ///  Sleeps for the pause between two reads of an empty lock file.
 /// Why:
-///  `holder_of` hands it to `holder_after_pauses`, which takes the pause as a parameter so a control can replace it.
+///  `holder_of` hands it to `holder_after_pauses`,
+/// which takes the pause as a parameter so a control can replace it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -94,7 +121,8 @@ fn pause_while_empty() {
 /// What:
 ///  Writes a line to the person's terminal and flushes it when the write worked.
 /// Why:
-///  A closed terminal is not a reason to stop the command the person asked for, so a failure is dropped.
+///  A closed terminal is not a reason to stop the command the person asked for,
+/// so a failure is dropped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -192,10 +220,14 @@ fn gave_up_line(command: &str, waited: Duration) -> String {
 }
 
 /// What:
-///  Waits while the commit service holds the index of `real_index`, telling `out` what it waits for.
+///  Waits while the commit service holds the index of `real_index`,
+/// telling `out` what it waits for.
 /// Why:
-///   Returns at once when nobody holds the index or a foreign program does, so a command pays one file read when there is
-///  nothing to wait for. The first line comes after the grace every wait notice has, so a landing that ends at once prints
+///   Returns at once when nobody holds the index or a foreign program does,
+/// so a command pays one file read when there is
+///  nothing to wait for.
+/// The first line comes after the grace every wait notice has,
+/// so a landing that ends at once prints
 ///  nothing.
 ///
 /// In TS you'd write (pseudocode):

@@ -1,13 +1,30 @@
 //! What:
-//!  The history of `monochromatic-git-policy-cli-audit.jsonl`: where a rotated file goes, which generations may be removed, and the pass that
+//!  The history of `monochromatic-git-policy-cli-audit.jsonl`:
+//! where a rotated file goes,
+//! which generations may be removed,
+//! and the pass that
 //!  removes them.
 //! Why:
-//!  The audit lines name the saved copies of conflicted files, and with a single `.1` the second rotation dropped the lines
-//!  that named copies still on disk. Each rotation now keeps its file under a new number; a pass after the rotation removes the
-//!  oldest generations that name no copy still on disk until those fit the bound `AUDIT_HISTORY_BYTES`; a generation that
-//!  names a copy on disk is never removed (the delegated pick 11, option C, in
-//!  `doc/planning/cli-git-shipped-limits-audit.md`). No lock is taken: a number is claimed with a hard link, which fails when
-//!  the name exists, so two writers cannot take one number, and a removal that another pass did first is not an error.
+//!  The audit lines name the saved copies of conflicted files,
+//! and with a single `.1` the second rotation dropped the lines
+//!  that named copies still on disk.
+//! Each rotation now keeps its file under a new number;
+//! a pass after the rotation removes the
+//!  oldest generations that name no copy still on disk until those fit the bound `AUDIT_HISTORY_BYTES`;
+//! a generation that
+//!  names a copy on disk is never removed (the delegated pick 11,
+//! option C,
+//! in
+//!  `doc/planning/cli-git-shipped-limits-audit.md`).
+//! No lock is taken:
+//! a number is claimed with a hard link,
+//! which fails when
+//!  the name exists,
+//! so two writers cannot take one number,
+//! and a removal that another pass did first is not an error.
+//! A file a
+//!  killed rotation left at its private name is given the next number by the same pass,
+//! because readers go by number.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,7 +45,8 @@ use std::path::{Path, PathBuf};
 ///  How many rotated files a log keeps.
 ///  An `enum` is a closed set of named alternatives.
 /// Why:
-///   The audit file explains saved copies and keeps a history; the timing logs and the push trigger log are diagnostics that
+///   The audit file explains saved copies and keeps a history;
+/// the timing logs and the push trigger log are diagnostics that
 ///  the next rotation may replace.
 ///
 /// In TS you'd write (pseudocode):
@@ -37,13 +55,17 @@ use std::path::{Path, PathBuf};
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Retention {
-    /// The rotated file is `<name>.1`, and the next rotation replaces it.
+    /// The rotated file is `<name>.1`,
+    /// and the next rotation replaces it.
     OneGeneration,
-    /// The rotated file gets the next free number, and the pass in `trim_generations` decides what may go.
+    /// The rotated file gets the next free number,
+    /// and the pass in `trim_generations` decides what may go.
     Generations,
 }
 
-/// The retention of the log at `target`: the audit file keeps generations, every other file one.
+/// The retention of the log at `target`:
+/// the audit file keeps generations,
+/// every other file one.
 pub(super) fn retention_of(target: &Path) -> Retention {
     if target.file_name() == Some(OsStr::new(AUDIT_FILE)) {
         return Retention::Generations;
@@ -51,7 +73,8 @@ pub(super) fn retention_of(target: &Path) -> Retention {
     return Retention::OneGeneration;
 }
 
-/// The path of generation `number` of the log at `target`: the name with `.` and the number after it.
+/// The path of generation `number` of the log at `target`:
+/// the name with `.` and the number after it.
 fn numbered(target: &Path, number: u64) -> PathBuf {
     let mut name: std::ffi::OsString = target.as_os_str().to_os_string();
     name.push(format!(".{number}"));
@@ -62,7 +85,9 @@ fn numbered(target: &Path, number: u64) -> PathBuf {
 ///  A regular file of the log's directory that belongs to the log at `target`.
 ///  A `struct` is a record with named fields.
 /// Why:
-///   The pass needs each file's number, size and identity together, and a struct keeps the listing and the choice
+///   The pass needs each file's number,
+/// size and identity together,
+/// and a struct keeps the listing and the choice
 ///  of what to remove readable.
 ///
 /// In TS you'd write (pseudocode):
@@ -72,11 +97,13 @@ fn numbered(target: &Path, number: u64) -> PathBuf {
 struct Piece {
     /// The path.
     path: PathBuf,
-    /// The generation number, or nothing for a file at a private name.
+    /// The generation number,
+    /// or nothing for a file at a private name.
     number: Option<u64>,
     /// Bytes.
     length: u64,
-    /// The device and inode, which say that two names are one file.
+    /// The device and inode,
+    /// which say that two names are one file.
     identity: (u64, u64),
 }
 
@@ -84,7 +111,9 @@ struct Piece {
 ///  The regular files of the directory of `target` named `<target>.<digits>` (generations) or `<target>.moving-...` (files a
 ///  rotation took off the name and has not placed).
 /// Why:
-///   One read of the directory serves both the choice of the next number and the pass that trims. A directory, a link or
+///   One read of the directory serves both the choice of the next number and the pass that trims.
+/// A directory,
+/// a link or
 ///  anything else with such a name is not a log file and is left alone.
 ///
 /// In TS you'd write (pseudocode):
@@ -118,11 +147,18 @@ fn list_pieces(target: &Path) -> std::io::Result<Vec<Piece>> {
 }
 
 /// What:
-///  Gives the file a rotation took off `target` (now at `taken`) the next free generation number, and removes the private name.
+///  Gives the file a rotation took off `target` (now at `taken`) the next free generation number,
+/// and removes the private name.
 /// Why:
-///   A hard link fails when the name exists, so each writer claims a number nobody holds and never replaces another's
-///  generation; on a failure each tries the number after. A failure means another writer's success, so the loop ends. A kill
-///  between the link and the removal leaves two names for one file, which the next `trim_generations` pass removes.
+///   A hard link fails when the name exists,
+/// so each writer claims a number nobody holds and never replaces another's
+///  generation;
+/// on a failure each tries the number after.
+/// A failure means another writer's success,
+/// so the loop ends.
+/// A kill
+///  between the link and the removal leaves two names for one file,
+/// which the next `trim_generations` pass removes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -153,13 +189,16 @@ pub(super) fn install_generation(taken: &Path, target: &Path) -> std::io::Result
     return Ok(());
 }
 
-/// The words a saved-conflict line carries, which no other line has.
+/// The words a saved-conflict line carries,
+/// which no other line has.
 const SAVED_CONFLICT_MARK: &[u8] = b"\"outcome\":\"saved-conflict\"";
 
-/// The characters that stand for a byte the line's writer could not show as text: a place that has one cannot be looked up.
+/// The characters that stand for a byte the line's writer could not show as text:
+/// a place that has one cannot be looked up.
 const REPLACEMENT: char = '\u{FFFD}';
 
-/// The generation number of a piece. `sort_by_key` takes this function by path.
+/// The generation number of a piece.
+/// `sort_by_key` takes this function by path.
 fn piece_number(piece: &&Piece) -> Option<u64> {
     return piece.number;
 }
@@ -175,11 +214,18 @@ fn holds_saved_conflict_mark(line: &[u8]) -> bool {
 }
 
 /// What:
-///  Whether a `saved-conflict` line names a saved copy that exists, or might.
+///  Whether a `saved-conflict` line names a saved copy that exists,
+/// or might.
 /// Why:
-///   The line lists `<path> => <place>`; the path is the person's and may hold ` => `, so every text after such a separator is
-///  tried as a place. A line the reader cannot parse, and a place the writer could not show as text, count as naming a copy:
-///  the generation is kept, because a wrong answer in that direction costs disk and the other direction costs the only
+///   The line lists `<path> => <place>`;
+/// the path is the person's and may hold ` => `,
+/// so every text after such a separator is
+///  tried as a place.
+/// A line the reader cannot parse,
+/// and a place the writer could not show as text,
+/// count as naming a copy:
+///  the generation is kept,
+/// because a wrong answer in that direction costs disk and the other direction costs the only
 ///  explanation of a copy.
 ///
 /// In TS you'd write (pseudocode):
@@ -211,10 +257,14 @@ fn line_names_a_copy(line: &[u8]) -> bool {
 }
 
 /// What:
-///  Whether a generation holds a `saved-conflict` line that names a copy still on disk, read in one pass over the file.
+///  Whether a generation holds a `saved-conflict` line that names a copy still on disk,
+/// read in one pass over the file.
 /// Why:
-///   Only that line says where a copy went; a pruned directory's line records a removal and explains nothing that is still
-///  there. One line at a time is held, so the memory is the longest line.
+///   Only that line says where a copy went;
+/// a pruned directory's line records a removal and explains nothing that is still
+///  there.
+/// One line at a time is held,
+/// so the memory is the longest line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -239,51 +289,60 @@ fn names_a_copy_on_disk(path: &Path) -> std::io::Result<bool> {
 }
 
 /// What:
-///  Removes the oldest generations that name no copy on disk until the others fit `budget` bytes, and the second name of any
-///  file that has a number.
+///  Removes the second name of any file that has two,
+/// gives a file left at a private name by a killed rotation the next
+///  generation number,
+/// and removes the oldest generations that name no copy on disk until the others fit `budget` bytes.
 /// Why:
-///   The budget counts what explains nothing on disk: generations without a copy, and files at a private name (a killed
-///  rotation's, which are never removed because their lines are in no other place). A generation that names a copy on disk, or
-///  cannot be read to see, is outside the budget and stays. A removal another pass did first is the same result, and the pass
-///  never waits.
+///   Readers go by number,
+/// so a file that stays at a private name is read by nobody:
+/// its lines are on disk and in no
+///  reader's sight.
+/// The pass gives it a number by the hard link that gives a rotation its own,
+/// so two passes cannot take one
+///  number.
+/// A writer that is not killed but between its take and its install finds its private name gone and reports an error
+///  that costs nothing:
+/// the record it was appending went to the file it held,
+/// which is now the generation.
+/// If two passes did
+///  give one file two numbers,
+/// the higher name goes,
+/// which loses no line.
+/// The budget counts what explains nothing on disk:
+///  generations without a copy.
+/// A generation that names a copy on disk,
+/// or cannot be read to see,
+/// is outside the budget and
+///  stays.
+/// A removal another pass did first is the same result,
+/// and the pass never waits.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
+/// for (const second of secondNames(pieces)) await unlink(second);
+/// for (const orphan of orphans(pieces)) await installGeneration(orphan, target);
 /// for (const g of oldestFirst(generations)) { if (total <= budget) break; if (!(await namesACopyOnDisk(g))) { await unlink(g); total -= g.size; } }
 /// ```
 ///
 /// # Errors
 /// The system's error when the directory cannot be read.
 pub(super) fn trim_generations(target: &Path, budget: u64) -> std::io::Result<()> {
-    let pieces: Vec<Piece> = list_pieces(target)?;
-    let mut generations: Vec<&Piece> = Vec::new();
-    for piece in &pieces {
-        if piece.number.is_some() {
-            generations.push(piece);
-        }
+    let mut pieces: Vec<Piece> = list_pieces(target)?;
+    if settle_names(target, pieces.as_slice()) {
+        pieces = list_pieces(target)?;
     }
-    generations.sort_by_key(piece_number);
+    let mut generations: Vec<&Piece> = Vec::new();
     let mut total: u64 = 0;
     for piece in &pieces {
         if piece.number.is_some() {
-            continue;
-        }
-        let mut numbered_too: bool = false;
-        for generation in &generations {
-            if generation.identity == piece.identity {
-                numbered_too = true;
-                break;
-            }
-        }
-        if numbered_too {
-            // The same file under its generation number: a rotation was killed between its link and its removal.
-            if let Err(error) = std::fs::remove_file(&piece.path) {
-                debug(TAG, &format!("the second name {} of a generation could not be removed: {error}", piece.path.display()));
-            }
+            generations.push(piece);
         } else {
+            // A file that could not be given a number stays where it is, and its bytes count against the bound.
             total = total.saturating_add(piece.length);
         }
     }
+    generations.sort_by_key(piece_number);
     let mut candidates: Vec<&Piece> = Vec::new();
     for generation in generations {
         match names_a_copy_on_disk(generation.path.as_path()) {
@@ -307,4 +366,75 @@ pub(super) fn trim_generations(target: &Path, budget: u64) -> std::io::Result<()
         }
     }
     return Ok(());
+}
+
+/// What:
+///  Whether `pieces` holds a file that `file` is a second name of:
+/// a numbered piece with the same device and inode,
+/// which a
+///  lower number or a numbered name already stands for.
+/// Why:
+///   A second name keeps the file's bytes and says nothing new,
+/// so it may go;
+/// the first name,
+/// the lowest number,
+/// stays.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isSecondName = (file, pieces) => pieces.some((p) => sameFile(p, file) && p.number !== undefined && (file.number === undefined || p.number < file.number));
+/// ```
+fn is_second_name(file: &Piece, pieces: &[Piece]) -> bool {
+    for other in pieces {
+        let Some(other_number) = other.number else { continue };
+        if other.identity != file.identity {
+            continue;
+        }
+        match file.number {
+            None => return true,
+            Some(number) if other_number < number => return true,
+            Some(_) => {}
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Removes the second names of files and gives each file left at a private name its generation number;
+/// whether the listing
+///  changed.
+/// Why:
+///   The two repairs of a killed rotation.
+/// A kill between the link and the removal leaves a private name beside the number;
+/// a
+///  kill after the take leaves a private name alone.
+/// Either way the work is one hard link or one removal,
+/// and a failure is a
+///  debug line,
+/// never an error:
+/// the file stays and the next pass tries again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const p of pieces) if (isSecondName(p)) await unlink(p.path); else if (p.number === undefined) await installGeneration(p.path, target);
+/// ```
+fn settle_names(target: &Path, pieces: &[Piece]) -> bool {
+    let mut changed: bool = false;
+    for piece in pieces {
+        if is_second_name(piece, pieces) {
+            // The same file under its generation number: a rotation was killed between its link and its removal, or two passes
+            // gave one file two numbers.
+            match std::fs::remove_file(&piece.path) {
+                Ok(()) => changed = true,
+                Err(error) => debug(TAG, &format!("the second name {} of a generation could not be removed: {error}", piece.path.display())),
+            }
+        } else if piece.number.is_none() {
+            // A file a rotation took off the name and never placed: its lines are in no reader's sight until it has a number.
+            match install_generation(piece.path.as_path(), target) {
+                Ok(()) => changed = true,
+                Err(error) => debug(TAG, &format!("{} could not be given a generation number: {error}", piece.path.display())),
+            }
+        }
+    }
+    return changed;
 }

@@ -1,7 +1,12 @@
 //! What:
-//!  The conflicted files of a merge tree: the three stages of a path, the conflict they make, and the reading of `git merge-tree` output into conflicts.
+//!  The conflicted files of a merge tree:
+//! the three stages of a path,
+//! the conflict they make,
+//! and the reading of `git merge-tree` output into conflicts.
 //! Why:
-//!  `merge_second_pass.rs` decides which conflicts the word pass may re-merge and stays under the file-size limit; reading the conflicts needs nothing from it, so it lives in a file of its own that the pass imports.
+//!  `merge_second_pass.rs` decides which conflicts the word pass may re-merge and stays under the file-size limit;
+//! reading the conflicts needs nothing from it,
+//! so it lives in a file of its own that the pass imports.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,50 +15,68 @@
 
 use std::collections::BTreeMap;
 
-/// The stage numbers of the common ancestor, the first side and the second side.
+/// The stage numbers of the common ancestor,
+/// the first side and the second side.
 const BASE_STAGE: u8 = 1;
 
 const OURS_STAGE: u8 = 2;
 
 const THEIRS_STAGE: u8 = 3;
 
-/// One side of a conflicted path: its mode and object name.
+/// One side of a conflicted path:
+/// its mode and object name.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Stage {
     /// The file mode with its type bits.
     pub mode: u32,
-    /// The object name, as hexadecimal text.
+    /// The object name,
+    /// as hexadecimal text.
     pub oid: String,
 }
 
 /// A conflicted path with the stages Git recorded for it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Conflict {
-    /// The path, `/` separated, as bytes.
+    /// The path,
+    /// `/` separated,
+    /// as bytes.
     pub path: Vec<u8>,
-    /// The common ancestor, absent for a path both sides added.
+    /// The common ancestor,
+    /// absent for a path both sides added.
     pub base: Option<Stage>,
-    /// The first side, absent for a path it deleted.
+    /// The first side,
+    /// absent for a path it deleted.
     pub ours: Option<Stage>,
-    /// The second side, absent for a path it deleted.
+    /// The second side,
+    /// absent for a path it deleted.
     pub theirs: Option<Stage>,
 }
 
-/// Whether one byte is the NUL byte that ends each field of a `-z` listing. `&u8` borrows the byte, as `split` hands it over.
+/// Whether one byte is the NUL byte that ends each field of a `-z` listing.
+/// `&u8` borrows the byte,
+/// as `split` hands it over.
 pub fn is_nul_byte(byte: &u8) -> bool {
     return *byte == 0;
 }
 
-/// Whether one byte is the space that separates the words of a stage record. `&u8` borrows the byte, as `split` hands it over.
+/// Whether one byte is the space that separates the words of a stage record.
+/// `&u8` borrows the byte,
+/// as `split` hands it over.
 fn is_space_byte(byte: &u8) -> bool {
     return *byte == b' ';
 }
 
 /// What:
-///  The conflicted paths a merge-tree answer lists, with their stages, in the order Git printed them.
+///  The conflicted paths a merge-tree answer lists,
+/// with their stages,
+/// in the order Git printed them.
 /// Why:
-///   `git merge-tree --write-tree -z` prints the tree, then one `<mode> <object> <stage>\t<path>` field per stage of every
-///  conflicted path, then an empty field, then the messages. The name-only form does not carry the object names.
+///   `git merge-tree --write-tree -z` prints the tree,
+/// then one `<mode> <object> <stage>\t<path>` field per stage of every
+///  conflicted path,
+/// then an empty field,
+/// then the messages.
+/// The name-only form does not carry the object names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

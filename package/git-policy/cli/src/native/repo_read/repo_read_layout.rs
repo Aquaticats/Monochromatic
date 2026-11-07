@@ -1,16 +1,38 @@
 //! What:
 //!  The repository location that `git rev-parse --path-format=absolute --is-bare-repository --git-dir --git-common-dir
-//!  --show-toplevel --show-prefix` prints, found from the file system without a Git process.
+//!  --show-toplevel --show-prefix` prints,
+//! found from the file system without a Git process.
 //! Why:
-//!  Every wrapped command asks for it, and it is the only extra Git start of most forwarded commands.
-//!  The reader walks up from the directory looking for `.git`, checks what Git checks for the plain layouts
-//!  (a valid `HEAD`, the objects and refs directories, files ref storage, a known object format, the owner of every
-//!  path, no `core.bare` that is true and no `core.worktree` in any scope), and returns `None` for everything else, which
-//!  sends the caller to Git: a bare repository, `GIT_*` variables, a symbolic link, another file system, reftable, an
-//!  unknown extension, a submodule that sets `core.worktree`.
-//!  With `extensions.worktreeConfig` on, the worktree's own `config.worktree` is read too, as Git reads it
-//!  (`Documentation/config/extensions.adoc`; `read_and_verify_repository_format` in `setup.c` of Git 2.56.0):
-//!  its `core.bare` overrides the common file's, its entries are checked like the common file's, and its includes are
+//!  Every wrapped command asks for it,
+//! and it is the only extra Git start of most forwarded commands.
+//!  The reader walks up from the directory looking for `.git`,
+//! checks what Git checks for the plain layouts
+//!  (a valid `HEAD`,
+//! the objects and refs directories,
+//! files ref storage,
+//! a known object format,
+//! the owner of every
+//!  path,
+//! no `core.bare` that is true and no `core.worktree` in any scope),
+//! and returns `None` for everything else,
+//! which
+//!  sends the caller to Git:
+//! a bare repository,
+//! `GIT_*` variables,
+//! a symbolic link,
+//! another file system,
+//! reftable,
+//! an
+//!  unknown extension,
+//! a submodule that sets `core.worktree`.
+//!  With `extensions.worktreeConfig` on,
+//! the worktree's own `config.worktree` is read too,
+//! as Git reads it
+//!  (`Documentation/config/extensions.adoc`;
+//! `read_and_verify_repository_format` in `setup.c` of Git 2.56.0):
+//!  its `core.bare` overrides the common file's,
+//! its entries are checked like the common file's,
+//! and its includes are
 //!  scanned and never interpreted.
 //!
 //! In TS you'd write (pseudocode):
@@ -36,9 +58,11 @@ const WORKTREE_CONFIG_NAME: &str = "config.worktree";
 /// The hash algorithms of object names.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ObjectFormat {
-    /// 20-byte names, 40 hexadecimal digits.
+    /// 20-byte names,
+    /// 40 hexadecimal digits.
     Sha1,
-    /// 32-byte names, 64 hexadecimal digits.
+    /// 32-byte names,
+    /// 64 hexadecimal digits.
     Sha256,
 }
 
@@ -61,9 +85,11 @@ impl ObjectFormat {
 }
 
 /// What:
-///  Where one worktree and its repository are, as Git reports them with absolute paths.
+///  Where one worktree and its repository are,
+/// as Git reports them with absolute paths.
 /// Why:
-///   One value answers the location, the Git paths and the object format queries of a command.
+///   One value answers the location,
+/// the Git paths and the object format queries of a command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,7 +103,9 @@ pub struct RepoLayout {
     pub common_dir: PathBuf,
     /// The real path of the worktree's top level.
     pub worktree_root: PathBuf,
-    /// The start directory below the top level, with a trailing `/`, or empty at the top level.
+    /// The start directory below the top level,
+    /// with a trailing `/`,
+    /// or empty at the top level.
     pub prefix: Vec<u8>,
     /// The object hash of the repository.
     pub object_format: ObjectFormat,
@@ -94,8 +122,10 @@ fn head_is_valid(text: &str, format: ObjectFormat) -> bool {
     return line.len() == format.hex_length() && line.bytes().all(is_hex_byte);
 }
 
-/// The Git directory a `.git` entry names: the entry itself when it is a directory,
-///  the `gitdir:` line of a plain file, `None` for a link or anything else.
+/// The Git directory a `.git` entry names:
+/// the entry itself when it is a directory,
+///  the `gitdir:` line of a plain file,
+/// `None` for a link or anything else.
 pub fn dot_git_target(worktree: &Path) -> Option<Option<(PathBuf, bool)>> {
     let dot_git: PathBuf = worktree.join(".git");
     let metadata = match std::fs::symlink_metadata(&dot_git) {
@@ -120,12 +150,18 @@ pub fn dot_git_target(worktree: &Path) -> Option<Option<(PathBuf, bool)>> {
 
 /// What:
 ///  The repository format keys the layout needs from the repository's own configuration file:
-///  the object format, and whether `extensions.worktreeConfig` turns the per-worktree file on.
+///  the object format,
+/// and whether `extensions.worktreeConfig` turns the per-worktree file on.
 /// Why:
-///   The object format decides the length of a name; any other extension may change how the repository is read.
+///   The object format decides the length of a name;
+/// any other extension may change how the repository is read.
 ///  Git respects `extensions.worktreeConfig` at every `core.repositoryFormatVersion`
-///  (`Documentation/config/extensions.adoc`, `handle_extension_v0` in `setup.c`); the last entry decides, as a boolean.
-///  A repository whose configuration names no `core.repositoryformatversion` has no format at all to Git, so the
+///  (`Documentation/config/extensions.adoc`,
+/// `handle_extension_v0` in `setup.c`);
+/// the last entry decides,
+/// as a boolean.
+///  A repository whose configuration names no `core.repositoryformatversion` has no format at all to Git,
+/// so the
 ///  extension is off there.
 ///
 /// In TS you'd write (pseudocode):
@@ -172,11 +208,15 @@ fn format_of(entries: &[ConfigEntry]) -> Option<(ObjectFormat, bool)> {
 }
 
 /// What:
-///  The entries of the worktree's own `config.worktree`, or none when the extension is off or the file is absent;
+///  The entries of the worktree's own `config.worktree`,
+/// or none when the extension is off or the file is absent;
 ///  `None` when the file cannot be read or parsed.
 /// Why:
-///   Git reads `<git dir>/config.worktree` (the worktree's own Git directory, not the common one) after the common
-///  file, and only when `extensions.worktreeConfig` is on; a missing file is an empty file.
+///   Git reads `<git dir>/config.worktree` (the worktree's own Git directory,
+/// not the common one) after the common
+///  file,
+/// and only when `extensions.worktreeConfig` is on;
+/// a missing file is an empty file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -197,7 +237,9 @@ fn worktree_entries(git_dir: &Path, enabled: bool) -> Option<Vec<ConfigEntry>> {
 ///  `None` when it makes the repository bare or any of them is not a boolean.
 /// Why:
 ///   Git takes the last `core.bare` of the common file then the per-worktree file (`read_worktree_config` in
-///  `setup.c`); a bare repository, an unreadable boolean and a `core.worktree` are left to Git by the key scan.
+///  `setup.c`);
+/// a bare repository,
+/// an unreadable boolean and a `core.worktree` are left to Git by the key scan.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -219,7 +261,8 @@ fn without_false_bare(files: [&[ConfigEntry]; 2]) -> Option<[Vec<ConfigEntry>; 2
     return Some([without_bare(common), without_bare(per_worktree)]);
 }
 
-/// The entries without `core.bare`, in their order.
+/// The entries without `core.bare`,
+/// in their order.
 fn without_bare(entries: &[ConfigEntry]) -> Vec<ConfigEntry> {
     let mut kept: Vec<ConfigEntry> = Vec::new();
     for entry in entries {
@@ -300,8 +343,11 @@ fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEn
 ///  The layout of the repository a command run with `global_prefix` and `overlay` starts in,
 ///  or `None` when Git must be asked.
 /// Why:
-///   This is the one entry point the callers use; it never errors, because "cannot tell" and "not a repository" both
-///  mean "ask Git", which words the failure itself.
+///   This is the one entry point the callers use;
+/// it never errors,
+/// because "cannot tell" and "not a repository" both
+///  mean "ask Git",
+/// which words the failure itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -320,7 +366,8 @@ pub fn read_layout(global_prefix: &[OsString], overlay: &[(OsString, OsString)])
 }
 
 /// What:
-///  The read with its environment injected: the variables Git would see and the configuration scope facts.
+///  The read with its environment injected:
+/// the variables Git would see and the configuration scope facts.
 /// Why:
 ///   The controls run in a process whose own environment and home they must not depend on.
 ///
@@ -392,8 +439,10 @@ pub fn read_layout_after_success(directory: &Path, overlay: &[(OsString, OsStrin
 /// What:
 ///  The layout for a caller that follows a successful command and holds the environment and the configuration scope itself.
 /// Why:
-///   The merges from objects read `attr.tree` with the variables their Git children get, which the process environment alone does
-///  not say (the service adds an overlay); the controls give a hermetic scope the same way `read_layout_with` takes it.
+///   The merges from objects read `attr.tree` with the variables their Git children get,
+/// which the process environment alone does
+///  not say (the service adds an overlay);
+/// the controls give a hermetic scope the same way `read_layout_with` takes it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -434,7 +483,9 @@ pub fn read_layout_after_success_for(global_prefix: &[OsString], overlay: &[(OsS
     return walk_up(start.as_path(), &ScopeEnvironment::from_variables(variables.as_slice()), false);
 }
 
-/// Walk from `start` to the root looking for the first `.git`, as Git does, and build the layout there.
+/// Walk from `start` to the root looking for the first `.git`,
+/// as Git does,
+/// and build the layout there.
 pub(crate) fn walk_up(start: &Path, scope: &ScopeEnvironment, typed: bool) -> Option<RepoLayout> {
     let mut directory: PathBuf = start.to_path_buf();
     loop {

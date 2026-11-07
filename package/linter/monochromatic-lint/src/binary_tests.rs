@@ -254,6 +254,7 @@ fn help_version_and_usage_errors_use_the_documented_statuses() {
         vec!["--max-warnings", "-1"],
         vec!["--rule", "markdown/single-h1"],
         vec!["--fix", "--rules"],
+        vec!["--fix-content", "--rules"],
         vec!["--init", "--rules"],
     ] {
         let usage: Run = run(&fixture.path, arguments.as_slice(), b"");
@@ -311,7 +312,7 @@ fn exit_statuses_and_streams_follow_the_contract() {
         "broken.mdx"
     );
     fixture.write(CONFIG, "[{ \"files\": 3 }]");
-    let malformed: Run = run(&fixture.path, &["--fix"], b"");
+    let malformed: Run = run(&fixture.path, &["--fix-content"], b"");
     assert_eq!((malformed.status, malformed.stdout.as_str()), (2, ""));
     assert!(
         malformed
@@ -775,7 +776,7 @@ fn fixing_writes_atomically_and_keeps_the_file_mode() {
     let before_fixable: std::fs::Metadata = std::fs::metadata(&fixable).expect("metadata");
     let before_clean: std::fs::Metadata = std::fs::metadata(&clean).expect("metadata");
     let before_unfixable: std::fs::Metadata = std::fs::metadata(&unfixable).expect("metadata");
-    let output: Run = run(&fixture.path, &["--fix"], b"");
+    let output: Run = run(&fixture.path, &["--fix-content"], b"");
     assert_eq!((output.status, output.stderr.as_str()), (1, ""));
     assert_eq!(
         located(output.stdout.as_str()),
@@ -807,7 +808,7 @@ fn fixing_writes_atomically_and_keeps_the_file_mode() {
     );
     // A second run is a fixed point: nothing is rewritten and the same findings remain.
     let settled: std::fs::Metadata = std::fs::metadata(&fixable).expect("metadata");
-    let again: Run = run(&fixture.path, &["--fix"], b"");
+    let again: Run = run(&fixture.path, &["--fix-content"], b"");
     assert_eq!(again.stdout, output.stdout);
     assert_eq!(
         std::fs::metadata(&fixable).expect("metadata").ino(),
@@ -816,7 +817,7 @@ fn fixing_writes_atomically_and_keeps_the_file_mode() {
     // A symbolic link is followed: the link stays a link and its target is fixed.
     let target: PathBuf = fixture.write("real/target.md", "# Linked.\n");
     std::os::unix::fs::symlink(&target, fixture.path.join("link.md")).expect("symlink");
-    let linked: Run = run(&fixture.path, &["--fix", "link.md"], b"");
+    let linked: Run = run(&fixture.path, &["--fix-content", "link.md"], b"");
     assert_eq!((linked.status, linked.stdout.as_str()), (0, ""));
     assert!(
         std::fs::symlink_metadata(fixture.path.join("link.md"))
@@ -830,7 +831,7 @@ fn fixing_writes_atomically_and_keeps_the_file_mode() {
     refusal.write(CONFIG, r#"[{ "files": ["**/*.md"], "rules": { "markdown/link-image-reference-definitions": { "severity": "error" } } }]"#);
     let only_definition: PathBuf = refusal.write("a.md", "[unused]: https://example.com\n");
     let before_refusal: u64 = std::fs::metadata(&only_definition).expect("metadata").ino();
-    let refused: Run = run(&refusal.path, &["--fix"], b"");
+    let refused: Run = run(&refusal.path, &["--fix-content"], b"");
     assert_eq!((refused.status, refused.stderr.as_str()), (2, ""));
     let mut refused_codes: Vec<String> = Vec::<String>::new();
     for record in records(refused.stdout.as_str()) {
@@ -904,7 +905,7 @@ fn processors_report_and_fix_at_host_positions() {
         &rust[heading..]
     );
     // Fixing rewrites only the host comment lines, keeping their indentation and prefix.
-    let fixed: Run = run(&fixture.path, &["--fix"], b"");
+    let fixed: Run = run(&fixture.path, &["--fix-content"], b"");
     assert_eq!(fixed.status, 0);
     assert_eq!(
         fixture.read("src/c.rs"),
@@ -930,7 +931,7 @@ fn standard_input_fixing_separates_source_from_findings() {
     let source: &str = "\u{feff}# Title.\r\n\r\n```\r\ncode 🚀\r\n```\r\n\r\n# Second\r\n";
     let fixed: Run = run(
         &fixture.path,
-        &["--stdin", "--stdin-filename", "doc/new.md", "--fix"],
+        &["--stdin", "--stdin-filename", "doc/new.md", "--fix-content"],
         source.as_bytes(),
     );
     assert_eq!(fixed.status, 1);
@@ -959,7 +960,7 @@ fn standard_input_fixing_separates_source_from_findings() {
     );
     let clean: Run = run(
         &fixture.path,
-        &["--stdin", "--stdin-filename", "a.rs", "--fix"],
+        &["--stdin", "--stdin-filename", "a.rs", "--fix-content"],
         b"//! File.\n",
     );
     assert_eq!(
@@ -968,7 +969,13 @@ fn standard_input_fixing_separates_source_from_findings() {
     );
     let silent: Run = run(
         &fixture.path,
-        &["--stdin", "--stdin-filename", "a.md", "--fix", "--silent"],
+        &[
+            "--stdin",
+            "--stdin-filename",
+            "a.md",
+            "--fix-content",
+            "--silent",
+        ],
         b"# Title.\n\n# Second\n",
     );
     assert_eq!(
@@ -982,7 +989,7 @@ fn standard_input_fixing_separates_source_from_findings() {
     // Setup failures print no source: a consumer must not write standard output on a non-zero status.
     let invalid: Run = run(
         &fixture.path,
-        &["--stdin", "--stdin-filename", "a.md", "--fix"],
+        &["--stdin", "--stdin-filename", "a.md", "--fix-content"],
         &[b'#', b' ', 0xff, b'\n'],
     );
     assert_eq!((invalid.status, invalid.stdout.as_str()), (2, ""));
@@ -995,14 +1002,14 @@ fn standard_input_fixing_separates_source_from_findings() {
     );
     let unsupported: Run = run(
         &fixture.path,
-        &["--stdin", "--stdin-filename", "a.txt", "--fix"],
+        &["--stdin", "--stdin-filename", "a.txt", "--fix-content"],
         b"x",
     );
     assert_eq!((unsupported.status, unsupported.stdout.as_str()), (2, ""));
     // An MDX error under --fix returns the original source with the failure on standard error.
     let broken: Run = run(
         &fixture.path,
-        &["--stdin", "--stdin-filename", "a.mdx", "--fix"],
+        &["--stdin", "--stdin-filename", "a.mdx", "--fix-content"],
         b"# Title.\n\n<A>\ntext\n</B>\n",
     );
     assert_eq!(broken.status, 2);
@@ -1047,7 +1054,7 @@ fn the_commit_adapter_invocation_rewrites_lfs_images() {
         "--stdin",
         "--stdin-filename",
         "pkg/README.md",
-        "--fix",
+        "--fix-content",
     ];
     let fixed: Run = run(
         &repository.path,
@@ -1079,7 +1086,7 @@ fn the_commit_adapter_invocation_rewrites_lfs_images() {
             "--stdin",
             "--stdin-filename",
             "package/ssg/a.md",
-            "--fix",
+            "--fix-content",
         ],
         b"![shot](../../pkg/asset/shot.png)\n",
     );
@@ -1095,7 +1102,7 @@ fn the_commit_adapter_invocation_rewrites_lfs_images() {
     repository.write("pkg/README.md", "![shot](asset/shot.png)\n");
     let files: Run = run(
         &repository.path,
-        &["--config", config_text.as_str(), "--fix"],
+        &["--config", config_text.as_str(), "--fix-content"],
         b"",
     );
     assert_eq!(

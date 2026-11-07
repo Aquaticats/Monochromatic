@@ -1,10 +1,16 @@
 //! What:
-//!  The durable claim on a stage container's name, written before the container exists,
+//!  The durable claim on a stage container's name,
+//! written before the container exists,
 //!  and the cleanup of containers whose copy was interrupted before its journal was written.
 //! Why:
-//!  Staging a worktree's ignored state takes minutes and gigabytes, and the journal is written only after it.
-//!  A process killed in between (a signal, the out-of-memory killer, a power loss) leaves a stage nothing names.
-//!  The claim names it first, so the next recovery pass, which skips every claim whose owner still runs,
+//!  Staging a worktree's ignored state takes minutes and gigabytes,
+//! and the journal is written only after it.
+//!  A process killed in between (a signal,
+//! the out-of-memory killer,
+//! a power loss) leaves a stage nothing names.
+//!  The claim names it first,
+//! so the next recovery pass,
+//! which skips every claim whose owner still runs,
 //!  removes it with a notice instead of leaving it to fill the disk.
 //!
 //! In TS you'd write (pseudocode):
@@ -30,7 +36,8 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  The suffix of a stage claim file.
 /// Why:
-///   Journals end in `.json`; a different suffix keeps a claim from ever being read as a journal.
+///   Journals end in `.json`;
+/// a different suffix keeps a claim from ever being read as a journal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -41,7 +48,8 @@ const CLAIM_SUFFIX: &str = ".stage";
 /// What:
 ///  One recorded claim on a stage container's name.
 /// Why:
-///   Releasing it tells recovery that a journal now names the stage, or that the stage is gone.
+///   Releasing it tells recovery that a journal now names the stage,
+/// or that the stage is gone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -51,9 +59,11 @@ const CLAIM_SUFFIX: &str = ".stage";
 pub struct StageClaim {
     /// The claim file under the journal root.
     path: PathBuf,
-    /// The stage container the claim names; it does not exist until staging creates it.
+    /// The stage container the claim names;
+    /// it does not exist until staging creates it.
     container: PathBuf,
-    /// The record of the worktree an interrupted add left without a checkout, when the claim covers one.
+    /// The record of the worktree an interrupted add left without a checkout,
+    /// when the claim covers one.
     destination_record: Option<PathBuf>,
 }
 
@@ -61,7 +71,8 @@ impl StageClaim {
     /// What:
     ///  The stage container this claim names.
     /// Why:
-    ///   Staging creates exactly this directory, so the claim and the stage cannot disagree.
+    ///   Staging creates exactly this directory,
+    /// so the claim and the stage cannot disagree.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -74,8 +85,11 @@ impl StageClaim {
     /// What:
     ///  Records durably that the worktree add this claim covers is complete.
     /// Why:
-    ///   Recovery removes a registered worktree whose add has no such record, because the add never returned success; the
-    ///  marker is written before the person is told of the result, so a worktree they were told about is never removed.
+    ///   Recovery removes a registered worktree whose add has no such record,
+    /// because the add never returned success;
+    /// the
+    ///  marker is written before the person is told of the result,
+    /// so a worktree they were told about is never removed.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -96,12 +110,20 @@ impl StageClaim {
     }
 
     /// What:
-    ///  Records that the worktree add this claim covers is complete, published whole by a rename and flushed by nobody.
+    ///  Records that the worktree add this claim covers is complete,
+    /// published whole by a rename and flushed by nobody.
     /// Why:
-    ///   Used after a subvolume was swapped into place: the swap makes the next flush in its btrfs transaction a commit of the
-    ///  whole filesystem, which waited eighteen seconds behind other writers' data. The marker only silences the notice a
-    ///  later command gives for an add it finds without one (recovery changes nothing), and the filesystem's own commit makes it
-    ///  durable. It can never be durable before the swap: both belong to one transaction, or the marker to a later one.
+    ///   Used after a subvolume was swapped into place:
+    /// the swap makes the next flush in its btrfs transaction a commit of the
+    ///  whole filesystem,
+    /// which waited eighteen seconds behind other writers' data.
+    /// The marker only silences the notice a
+    ///  later command gives for an add it finds without one (recovery changes nothing),
+    /// and the filesystem's own commit makes it
+    ///  durable.
+    /// It can never be durable before the swap:
+    /// both belong to one transaction,
+    /// or the marker to a later one.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -117,8 +139,11 @@ impl StageClaim {
     /// What:
     ///  Removes the claim and its records without flushing the removals.
     /// Why:
-    ///   The same reason as [`StageClaim::mark_complete_unsynced`]. Records that return after a crash only make the next command
-    ///  settle them: a marker present means no notice, and no record means nothing to say.
+    ///   The same reason as [`StageClaim::mark_complete_unsynced`].
+    /// Records that return after a crash only make the next command
+    ///  settle them:
+    /// a marker present means no notice,
+    /// and no record means nothing to say.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -137,7 +162,9 @@ impl StageClaim {
     /// What:
     ///  Replaces the add's record with the binding to the directories Git made.
     /// Why:
-    ///   Recovery deletes only objects whose identities the record names; until this write, nothing is known to be the add's.
+    ///   Recovery deletes only objects whose identities the record names;
+    /// until this write,
+    /// nothing is known to be the add's.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -155,7 +182,9 @@ impl StageClaim {
     /// What:
     ///  Removes the claim file and makes the removal durable.
     /// Why:
-    ///   Once a journal names the stage, or the stage is removed, the claim must not outlive it.
+    ///   Once a journal names the stage,
+    /// or the stage is removed,
+    /// the claim must not outlive it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -176,9 +205,11 @@ impl StageClaim {
 }
 
 /// What:
-///  Chooses the stage container for one destination and records the choice durably, creating no container.
+///  Chooses the stage container for one destination and records the choice durably,
+/// creating no container.
 /// Why:
-///   The record exists before any staged byte does, so no interruption can leave a stage without a record.
+///   The record exists before any staged byte does,
+/// so no interruption can leave a stage without a record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -191,13 +222,18 @@ pub fn claim_stage(
     return claim_stage_for(common_dir, destination_root, &current_copy_owner()?);
 }
 
-/// The line of a claim's text that names its owner, after the line that names the container.
+/// The line of a claim's text that names its owner,
+/// after the line that names the container.
 pub(crate) const OWNER_LINE_PREFIX: &str = "owner=";
 
 /// What:
-///  Claims a stage name for a named owner: the claim file holds the container path and, on a line of its own, the owner.
+///  Claims a stage name for a named owner:
+/// the claim file holds the container path and,
+/// on a line of its own,
+/// the owner.
 /// Why:
-///   A claim of a live owner is an add or a copy still running; the reaper leaves it alone and removes only a dead owner's.
+///   A claim of a live owner is an add or a copy still running;
+/// the reaper leaves it alone and removes only a dead owner's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -230,8 +266,10 @@ pub(crate) const COMPLETE_SUFFIX: &str = ".done";
 /// What:
 ///  Claims a stage name as `claim_stage` does and also records the destination of the `git worktree add` it serves.
 /// Why:
-///   Real Git registers the worktree before the stage is swapped in, so a process killed in between leaves a registered
-///  worktree with no checkout; the next recovery names it to the person with the commands that finish or discard it.
+///   Real Git registers the worktree before the stage is swapped in,
+/// so a process killed in between leaves a registered
+///  worktree with no checkout;
+/// the next recovery names it to the person with the commands that finish or discard it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -244,7 +282,8 @@ pub fn claim_stage_for_add(common_dir: &Path, destination_root: &Path) -> Result
 /// What:
 ///  Claims a stage name for an add on behalf of a named owner.
 /// Why:
-///   The add's records stay whole while their owner runs and are settled once it is dead; a control names a dead owner to
+///   The add's records stay whole while their owner runs and are settled once it is dead;
+/// a control names a dead owner to
 ///  stand for an add that was killed.
 ///
 /// In TS you'd write (pseudocode):
@@ -260,7 +299,8 @@ pub fn claim_stage_for_add_as(common_dir: &Path, destination_root: &Path, owner:
 }
 
 /// What:
-///  The names of the stage claim files under a journal root, in journal-name order.
+///  The names of the stage claim files under a journal root,
+/// in journal-name order.
 /// Why:
 ///   The pending check and the cleanup read the same set.
 ///

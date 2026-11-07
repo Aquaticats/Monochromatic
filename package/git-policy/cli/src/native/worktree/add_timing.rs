@@ -1,11 +1,24 @@
 //! What:
-//!  The record of where one wrapped `git worktree add` spent its time, step by step, appended to a size-capped file in the
+//!  The record of where one wrapped `git worktree add` spent its time,
+//! step by step,
+//! appended to a size-capped file in the
 //!  common Git directory beside the commit timing record.
 //! Why:
-//!  An add that took thirteen seconds could not be split afterwards without a `strace` that distorted it. Each step is a
-//!  stretch of the command (a walk of the source, a Git run, the snapshot call, a durable write), timed on the monotonic
-//!  clock; a step inside another is taken out of the outer one, so the steps are disjoint and what none covers is reported
-//!  as `otherMs`. The record goes to the file only, in one append when the command ends, with no flush to disk, and it
+//!  An add that took thirteen seconds could not be split afterwards without a `strace` that distorted it.
+//! Each step is a
+//!  stretch of the command (a walk of the source,
+//! a Git run,
+//! the snapshot call,
+//! a durable write),
+//! timed on the monotonic
+//!  clock;
+//! a step inside another is taken out of the outer one,
+//! so the steps are disjoint and what none covers is reported
+//!  as `otherMs`.
+//! The record goes to the file only,
+//! in one append when the command ends,
+//! with no flush to disk,
+//! and it
 //!  never changes what the add does.
 //!
 //! In TS you'd write (pseudocode):
@@ -33,7 +46,9 @@ use std::time::{Duration, Instant};
 /// The file inside the common Git directory that collects the add timing records of every worktree of the repository.
 pub const ADD_TIMING_FILE: &str = WORKTREE_ADD_TIMING_LOG.current;
 
-/// The version of the record's fields; it changes only when a field's meaning changes, never when a field is added.
+/// The version of the record's fields;
+/// it changes only when a field's meaning changes,
+/// never when a field is added.
 pub const ADD_TIMING_SCHEMA_VERSION: u32 = 1;
 
 /// Module tag for diagnostics.
@@ -44,7 +59,8 @@ const TAG: &str = "addTiming";
 struct Frame {
     /// The step's name.
     name: String,
-    /// When the step was entered, since the recorder began.
+    /// When the step was entered,
+    /// since the recorder began.
     entered: Duration,
     /// The time of the steps entered and left inside this one.
     inside: Duration,
@@ -55,16 +71,20 @@ struct Frame {
 struct Spent {
     /// The step's name.
     name: String,
-    /// The time of the step itself, the steps inside it taken out.
+    /// The time of the step itself,
+    /// the steps inside it taken out.
     own: Duration,
     /// How many times the step was entered.
     calls: usize,
 }
 
 /// What:
-///  Add `own` to the time of the step named `name`, as one more call, or start the name's entry at the end of `list`.
+///  Add `own` to the time of the step named `name`,
+/// as one more call,
+/// or start the name's entry at the end of `list`.
 /// Why:
-///   Steps and worker-thread work both sum their time per name, in the order the names first appeared.
+///   Steps and worker-thread work both sum their time per name,
+/// in the order the names first appeared.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -83,7 +103,8 @@ fn add_spent(list: &mut Vec<Spent>, name: &str, own: Duration) {
 }
 
 /// What:
-///  A duration as milliseconds with three decimals, the spelling of the record's `ms` fields.
+///  A duration as milliseconds with three decimals,
+/// the spelling of the record's `ms` fields.
 /// Why:
 ///   Microsecond resolution matters for steps that take less than a millisecond.
 ///
@@ -111,7 +132,8 @@ fn spent_json(each: &Spent) -> String {
 /// What:
 ///  One note as its JSON member `"key":"value"`.
 /// Why:
-///   Notes are words, so both halves are quoted.
+///   Notes are words,
+/// so both halves are quoted.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -122,7 +144,8 @@ fn note_json((key, value): &(String, String)) -> String {
 }
 
 /// What:
-///  The steps of one add, filled as the add runs and written when it ends.
+///  The steps of one add,
+/// filled as the add runs and written when it ends.
 /// Why:
 ///   The accounting is separate from the clock so that the controls can drive it with chosen times.
 ///
@@ -134,17 +157,28 @@ fn note_json((key, value): &(String, String)) -> String {
 pub struct Recorder {
     /// The common Git directory that holds the file.
     common_dir: PathBuf,
-    /// The steps entered and not left, the innermost last.
+    /// The steps entered and not left,
+    /// the innermost last.
     open: Vec<Frame>,
-    /// The time per step name, in the order the names first appeared.
+    /// The time per step name,
+    /// in the order the names first appeared.
     spent: Vec<Spent>,
-    /// Facts about the add that are words, not times (the route taken, why not the snapshot), in the order they were noted.
+    /// Facts about the add that are words,
+    /// not times (the route taken,
+    /// why not the snapshot),
+    /// in the order they were noted.
     notes: Vec<(String, String)>,
-    /// Milliseconds since the Unix epoch at the start, for finding the add among other logs.
+    /// Milliseconds since the Unix epoch at the start,
+    /// for finding the add among other logs.
     start_millis: u128,
-    /// Time spent on worker threads by name, summed over the threads; threads overlap, so it is not part of the sum rule.
+    /// Time spent on worker threads by name,
+    /// summed over the threads;
+    /// threads overlap,
+    /// so it is not part of the sum rule.
     work: Vec<Spent>,
-    /// The longest quiet gap of every Git step and tool the add ran, by name, taken from the ledger when the record is written.
+    /// The longest quiet gap of every Git step and tool the add ran,
+    /// by name,
+    /// taken from the ledger when the record is written.
     quiet: Vec<(String, Duration)>,
 }
 
@@ -159,12 +193,15 @@ impl Recorder {
         return Self { common_dir, open: Vec::new(), spent: Vec::new(), notes: Vec::new(), start_millis, work: Vec::new(), quiet: Vec::new() };
     }
 
-    /// Enter the step `name` at `at`, a time since the recorder began.
+    /// Enter the step `name` at `at`,
+    /// a time since the recorder began.
     pub fn enter(&mut self, name: &str, at: Duration) {
         self.open.push(Frame { name: name.to_string(), entered: at, inside: Duration::ZERO });
     }
 
-    /// Leave the innermost step at `at`; its own time is what the steps inside it left, and the outer step loses the whole.
+    /// Leave the innermost step at `at`;
+    /// its own time is what the steps inside it left,
+    /// and the outer step loses the whole.
     pub fn leave(&mut self, at: Duration) {
         let Some(frame) = self.open.pop() else { return };
         let whole: Duration = at.saturating_sub(frame.entered);
@@ -175,7 +212,8 @@ impl Recorder {
         add_spent(&mut self.spent, frame.name.as_str(), own);
     }
 
-    /// Note a fact about the add; a later note of the same key replaces the earlier one.
+    /// Note a fact about the add;
+    /// a later note of the same key replaces the earlier one.
     pub fn note(&mut self, key: &str, value: &str) {
         // Replace the value of a key that is already noted; the loop stops at the first match, as `find` did.
         for known in &mut self.notes {
@@ -187,15 +225,19 @@ impl Recorder {
         self.notes.push((key.to_string(), value.to_string()));
     }
 
-    /// Add `own` to the work named `name`, as one call.
+    /// Add `own` to the work named `name`,
+    /// as one call.
     pub fn add_work(&mut self, name: &str, own: Duration) {
         add_spent(&mut self.work, name, own);
     }
 
-    /// The record as one line of JSON ending in a newline; `total` is the add's whole time.
+    /// The record as one line of JSON ending in a newline;
+    /// `total` is the add's whole time.
     ///
-    /// One `write` per line keeps the lines of concurrent adds from interleaving; a word with a quote or a newline is escaped
-    /// by `quote`, so the line stays one line.
+    /// One `write` per line keeps the lines of concurrent adds from interleaving;
+    /// a word with a quote or a newline is escaped
+    /// by `quote`,
+    /// so the line stays one line.
     pub fn line(&self, total: Duration, exit_code: i32) -> String {
         let mut covered: Duration = Duration::ZERO;
         for each in &self.spent {
@@ -225,15 +267,20 @@ impl Recorder {
     }
 }
 
-/// The work of worker threads while an add is recorded: none outside a recording, so a stray call keeps nothing.
+/// The work of worker threads while an add is recorded:
+/// none outside a recording,
+/// so a stray call keeps nothing.
 static WORK: Mutex<Option<Vec<(String, Duration)>>> = Mutex::new(None);
 
 thread_local! {
-    /// The recorder of the add this thread is running, and when it began; none outside an add.
+    /// The recorder of the add this thread is running,
+    /// and when it began;
+    /// none outside an add.
     static ACTIVE: RefCell<Option<(Instant, Recorder)>> = const { RefCell::new(None) };
 }
 
-/// Begin recording the add of the repository whose common Git directory is `common_dir`, replacing any earlier recording
+/// Begin recording the add of the repository whose common Git directory is `common_dir`,
+/// replacing any earlier recording
 ///  of this thread.
 pub fn begin(common_dir: PathBuf) {
     ACTIVE.set(Some((Instant::now(), Recorder::new(common_dir))));
@@ -243,10 +290,15 @@ pub fn begin(common_dir: PathBuf) {
 }
 
 /// What:
-///  Enter the step `name` and say whether a recording took it; the first half of a timed step.
+///  Enter the step `name` and say whether a recording took it;
+/// the first half of a timed step.
 /// Why:
-///   The body runs in place between `begin_step` and `end_step`, so it reads the caller's variables without a closure to
-///  carry them. The answer goes to `end_step` unchanged; with no recording begun, nothing is entered and `end_step` does nothing.
+///   The body runs in place between `begin_step` and `end_step`,
+/// so it reads the caller's variables without a closure to
+///  carry them.
+/// The answer goes to `end_step` unchanged;
+/// with no recording begun,
+/// nothing is entered and `end_step` does nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -269,9 +321,12 @@ pub fn begin_step(name: &str) -> bool {
 }
 
 /// What:
-///  Leave the step that `begin_step` entered, when it entered one.
+///  Leave the step that `begin_step` entered,
+/// when it entered one.
 /// Why:
-///   The second half of a timed step: it ends the step's clock at the moment the body is done, whether the body succeeded or not.
+///   The second half of a timed step:
+/// it ends the step's clock at the moment the body is done,
+/// whether the body succeeded or not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -306,10 +361,15 @@ fn option_takes_value(word: &OsStr) -> bool {
 }
 
 /// What:
-///  The step name of one Git run: `git ` and the subcommand, found past the global options that take a value (`-C`, `-c`,
-///  `--git-dir`, `--work-tree`) and the flags that do not.
+///  The step name of one Git run:
+/// `git ` and the subcommand,
+/// found past the global options that take a value (`-C`,
+/// `-c`,
+///  `--git-dir`,
+/// `--work-tree`) and the flags that do not.
 /// Why:
-///   The record says how many Git processes an add started and how long each kind took, which names the avoidable ones.
+///   The record says how many Git processes an add started and how long each kind took,
+/// which names the avoidable ones.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -331,11 +391,17 @@ pub fn git_step_label(arguments: &[OsString]) -> String {
 }
 
 /// What:
-///  The clock reading that starts a stretch of work on any thread, added to the name's sum when `end_work` is called.
+///  The clock reading that starts a stretch of work on any thread,
+/// added to the name's sum when `end_work` is called.
 /// Why:
-///   The repair of package managers runs its tools on worker threads, which the thread's own steps cannot see; the sum over
-///  threads says how much work a step held, and the step that waited for it says how long the add waited. The body runs in
-///  place between `begin_work` and `end_work`, so it reads the caller's variables without a closure to carry them.
+///   The repair of package managers runs its tools on worker threads,
+/// which the thread's own steps cannot see;
+/// the sum over
+///  threads says how much work a step held,
+/// and the step that waited for it says how long the add waited.
+/// The body runs in
+///  place between `begin_work` and `end_work`,
+/// so it reads the caller's variables without a closure to carry them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -350,7 +416,8 @@ pub fn begin_work() -> Instant {
 /// What:
 ///  Add the time since `began` to the work named `name`.
 /// Why:
-///   The second half of a stretch of work: the sum per name says how much work a step held across threads.
+///   The second half of a stretch of work:
+/// the sum per name says how much work a step held across threads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -365,7 +432,8 @@ pub fn end_work(name: &str, began: Instant) {
     }
 }
 
-/// Note a fact about the add being recorded; nothing outside a recording.
+/// Note a fact about the add being recorded;
+/// nothing outside a recording.
 pub fn note(key: &str, value: &str) {
     let mut recording: Option<(Instant, Recorder)> = ACTIVE.take();
     if let Some((_began, recorder)) = recording.as_mut() {
@@ -375,10 +443,14 @@ pub fn note(key: &str, value: &str) {
 }
 
 /// What:
-///  End the recording and append its record to the repository's add timing file, best effort.
+///  End the recording and append its record to the repository's add timing file,
+/// best effort.
 /// Why:
-///   The command's result never depends on the record: a file that cannot be written is only a debug line. The directory is
-///  never created and nothing is flushed to disk, so the record costs one `write`.
+///   The command's result never depends on the record:
+/// a file that cannot be written is only a debug line.
+/// The directory is
+///  never created and nothing is flushed to disk,
+/// so the record costs one `write`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -402,7 +474,8 @@ pub fn finish(exit_code: i32) {
     }
 }
 
-/// The accounting, the line and the writer.
+/// The accounting,
+/// the line and the writer.
 #[cfg(test)]
 #[path = "add_timing_tests.rs"]
 mod tests;

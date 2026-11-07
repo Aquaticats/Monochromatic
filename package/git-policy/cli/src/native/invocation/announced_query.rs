@@ -1,11 +1,16 @@
 //! What:
 //!  Recognize the four top-level spellings after which the wrapper says it is not plain Git
-//!  (`--version`, `-v`, `--help`, `-h`),
+//!  (`--version`,
+//! `-v`,
+//! `--help`,
+//! `-h`),
 //!  and build the text it prints once Git has answered.
 //! Why:
 //!  A caller who types `git --version` should be able to tell that a policy wrapper sits in front of Git,
 //!  without the wrapper changing a single byte of what Git itself printed.
-//!  Every other query (`--exec-path`, `--html-path`, ...) stays an exact process replacement.
+//!  Every other query (`--exec-path`,
+//! `--html-path`,
+//! ...) stays an exact process replacement.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -53,11 +58,13 @@ pub enum AnnouncedQuery {
 
 /// What:
 ///  Say whether the query token of an invocation is one of the four announced spellings.
-///       `Option<AnnouncedQuery>` is "the query, or nothing".
+///       `Option<AnnouncedQuery>` is "the query,
+/// or nothing".
 /// Why:
 ///   The layout already told the caller this is a query and where it sits;
 ///  only the exact token separates `--version` from `--exec-path`.
-///  Nothing else is read, so commands that are not queries pay one comparison.
+///  Nothing else is read,
+/// so commands that are not queries pay one comparison.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -79,12 +86,14 @@ pub fn announced_query(arguments: &[OsString], layout: &GlobalLayout) -> Option<
 ///  Build the text printed after Git's own answer.
 ///       `&str` borrows the version;
 ///  `&Path` borrows the resolved real Git path;
-///  the result is owned, line-terminated text.
+///  the result is owned,
+/// line-terminated text.
 /// Why:
 ///   The banner states which wrapper build and which Git answered;
 ///  the help section also says what the wrapper adds.
 ///  Building it from plain values keeps it testable without a process.
-///  A path that is not UTF-8 prints with replacement characters, because the text is for people.
+///  A path that is not UTF-8 prints with replacement characters,
+/// because the text is for people.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,7 +138,8 @@ pub fn printable_after(outcome: ChildOutcome, text: &str) -> &str {
     return "";
 }
 
-/// Layout, text and status controls stay out of the release executable.
+/// Layout,
+/// text and status controls stay out of the release executable.
 #[cfg(test)]
 #[path = "announced_query_tests.rs"]
 mod tests;

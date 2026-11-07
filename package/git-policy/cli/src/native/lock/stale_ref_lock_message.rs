@@ -1,9 +1,15 @@
 //! What:
-//!  The words the wrapper prints about reference locks: what it removed, what it left and why, and the exact command that
+//!  The words the wrapper prints about reference locks:
+//! what it removed,
+//! what it left and why,
+//! and the exact command that
 //!  clears a lock it will not remove.
 //! Why:
-//!  A lock that is not proven stale must never be removed, so the person is told what was found and given a command that
-//!  is safe to paste. Path names come from the file system, so the command quotes every byte a shell or a terminal could
+//!  A lock that is not proven stale must never be removed,
+//! so the person is told what was found and given a command that
+//!  is safe to paste.
+//! Path names come from the file system,
+//! so the command quotes every byte a shell or a terminal could
 //!  read as something other than part of the name.
 //!
 //! In TS you'd write (pseudocode):
@@ -27,8 +33,12 @@ fn is_plain(byte: &u8) -> bool {
 }
 
 /// A path as a shell word that stands for exactly that path.
-///  Plain names are written as they are; names with other printable characters go in single quotes, with each single
-///  quote written `'\''`; names with a control character or a byte that is not UTF-8 use the `$'...'` form, which shells
+///  Plain names are written as they are;
+/// names with other printable characters go in single quotes,
+/// with each single
+///  quote written `'\''`;
+/// names with a control character or a byte that is not UTF-8 use the `$'...'` form,
+/// which shells
 ///  of the Bash family read byte for byte and which keeps a terminal escape sequence from being printed raw.
 ///
 /// In TS you'd write (pseudocode):
@@ -60,7 +70,8 @@ pub fn shell_quote(path: &Path) -> String {
     return quoted;
 }
 
-/// How long ago, in the largest whole unit.
+/// How long ago,
+/// in the largest whole unit.
 fn age_text(age: Duration) -> String {
     let seconds: u64 = age.as_secs();
     return match seconds {
@@ -71,7 +82,9 @@ fn age_text(age: Duration) -> String {
     };
 }
 
-/// When a lock was made, if known, and how long ago.
+/// When a lock was made,
+/// if known,
+/// and how long ago.
 fn born_text(born: Option<SystemTime>) -> String {
     let Some(at) = born else {
         return String::new();
@@ -93,7 +106,9 @@ fn proof_text(proof: &Proof) -> String {
     };
 }
 
-/// The paths a person clears by hand: the lock and what goes with it, quoted.
+/// The paths a person clears by hand:
+/// the lock and what goes with it,
+/// quoted.
 fn clearing_words(found: &Found) -> String {
     let mut paths: Vec<String> = vec![shell_quote(found.lock.as_path())];
     for path in &found.companions {
@@ -103,7 +118,9 @@ fn clearing_words(found: &Found) -> String {
 }
 
 impl Outcome {
-    /// What the wrapper prints for this pass, as lines that each start with `monochromatic-git-policy-cli: `; empty when there is nothing to say.
+    /// What the wrapper prints for this pass,
+    /// as lines that each start with `monochromatic-git-policy-cli: `;
+    /// empty when there is nothing to say.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -143,7 +160,8 @@ impl Outcome {
     }
 }
 
-/// The paths of a list, for a log line.
+/// The paths of a list,
+/// for a log line.
 pub fn path_list(paths: &[PathBuf]) -> String {
     let mut quoted: Vec<String> = Vec::new();
     for path in paths {

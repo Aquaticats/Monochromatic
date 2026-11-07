@@ -1,15 +1,30 @@
 //! What:
-//!  The reference locks a killed Git left behind: found, judged one by one, removed when their holder is proven gone, and
+//!  The reference locks a killed Git left behind:
+//! found,
+//! judged one by one,
+//! removed when their holder is proven gone,
+//! and
 //!  otherwise described with the command that clears them.
 //! Why:
-//!  A Git killed in the middle of a ref update (a terminal closed mid-fetch, the out-of-memory killer, a reboot) leaves an
-//!  empty `<ref>.lock` or `packed-refs.lock`, and every later fetch or push of the same reference then fails with
-//!  "Unable to create ... File exists". Git writes no process number into a lock and removes none it did not create, and a
-//!  live Git holds its locks with no descriptor open (`refs/packed-backend.c:1254-1261`, `refs/files-backend.c:2888-2897`),
-//!  so a lock is removed only on a proof (`SPEC.md`, "Reference locks left by a Git that was killed"): the process its pid
-//!  file names is gone or was reused, or the lock predates the boot. Everything else is left alone and reported.
+//!  A Git killed in the middle of a ref update (a terminal closed mid-fetch,
+//! the out-of-memory killer,
+//! a reboot) leaves an
+//!  empty `<ref>.lock` or `packed-refs.lock`,
+//! and every later fetch or push of the same reference then fails with
+//!  "Unable to create ... File exists".
+//! Git writes no process number into a lock and removes none it did not create,
+//! and a
+//!  live Git holds its locks with no descriptor open (`refs/packed-backend.c:1254-1261`,
+//! `refs/files-backend.c:2888-2897`),
+//!  so a lock is removed only on a proof (`SPEC.md`,
+//! "Reference locks left by a Git that was killed"):
+//! the process its pid
+//!  file names is gone or was reused,
+//! or the lock predates the boot.
+//! Everything else is left alone and reported.
 //!  This module extends the sweep of a stopped child's locks (`stopped_git_locks.rs`) to locks no wrapper-started child
-//!  explains; it reads files and `/proc` in process and starts no Git.
+//!  explains;
+//! it reads files and `/proc` in process and starts no Git.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,7 +45,9 @@ use crate::stale_ref_lock_retire::judge_and_clear;
 /// The command whose repository is searched.
 use std::process::Command;
 
-/// The candidates of the repository a command will run in, judged, and the provably stale ones removed.
+/// The candidates of the repository a command will run in,
+/// judged,
+/// and the provably stale ones removed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -41,10 +58,14 @@ pub fn clear_stale_ref_locks_for(command: &Command, judge: &Judge) -> Outcome {
 }
 
 /// What:
-///  Judge every reference lock below the given Git directories, remove the ones whose holder is proven gone, and report
+///  Judge every reference lock below the given Git directories,
+/// remove the ones whose holder is proven gone,
+/// and report
 ///  the rest.
 /// Why:
-///   One entry for every caller, so the person's forwarded `git fetch`, the commit service's push and the stacked push all
+///   One entry for every caller,
+/// so the person's forwarded `git fetch`,
+/// the commit service's push and the stacked push all
 ///  decide by the same rule and word their notices the same way.
 ///
 /// In TS you'd write (pseudocode):

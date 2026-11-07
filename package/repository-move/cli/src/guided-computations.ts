@@ -11,7 +11,10 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
-import { BYTES_PER_GIB, } from './constants.ts';
+import {
+  BYTES_PER_GIB,
+  CLONE_LIMIT_ALLOWANCE_BYTES,
+} from './constants.ts';
 import type { GuidedConfig, } from './guided-types.ts';
 import { wordsOf, } from './text-checks.ts';
 
@@ -88,6 +91,13 @@ async function freeBytes(path: string,): Promise<number> {
  @param text - the output; the last line is `Total Exclusive "Set shared" path`
  
  @returns bytes
+
+ @example
+ ```ts
+ import { footprintOf, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = footprintOf(text,);
+ ```
  */
 export function footprintOf(text: string,): number {
   /**
@@ -109,6 +119,13 @@ export function footprintOf(text: string,): number {
  @returns the lines to show, ending in `pre-flight passed`
  
  @throws Error with the REFUSED line when a rule fails
+
+ @example
+ ```ts
+ import { preflight, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await preflight(config,);
+ ```
  */
 export async function preflight(config: GuidedConfig,): Promise<string> {
   /**
@@ -143,7 +160,8 @@ export async function preflight(config: GuidedConfig,): Promise<string> {
   /**
    The estimate in bytes.
    */
-  const total = mainBytes + externalBytes;
+  const total = mainBytes + externalBytes
+    + CLONE_LIMIT_ALLOWANCE_BYTES;
   /**
    The estimate plus the margin in bytes.
    */
@@ -162,6 +180,7 @@ export async function preflight(config: GuidedConfig,): Promise<string> {
   const lines = [
     `nested checkout footprint (exclusive + set shared): ${gibibytes(mainBytes,)} GiB`,
     `external worktrees (du, no sharing): ${gibibytes(externalBytes,)} GiB`,
+    `clone-limit allowance: ${String(CLONE_LIMIT_ALLOWANCE_BYTES,)} bytes (extents the kernel writes in full instead of cloning)`,
     `estimate: ${gibibytes(total,)} GiB; with the plan margin of ${String(config.marginPercent,)} percent: ${gibibytes(need,)} GiB`,
     `860 free now: ${gibibytes(driveFree,)} GiB; free after the estimate and margin: ${gibibytes(driveFree - need,)} GiB; required: at least ${String(config.minFreeGiB,)} GiB`,
     `NVMe free now: ${gibibytes(nvmeFree,)} GiB; required: at least ${String(config.nvmeMinFreeGiB,)} GiB while source snapshots exist`,
@@ -185,6 +204,13 @@ export async function preflight(config: GuidedConfig,): Promise<string> {
  @returns the lines to show
  
  @throws Error when the override is above the derived maximum
+
+ @example
+ ```ts
+ import { windowMaximum, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await windowMaximum(config,);
+ ```
  */
 export async function windowMaximum(config: GuidedConfig,): Promise<string> {
   /**

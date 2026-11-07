@@ -18,6 +18,206 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Coordinator picks made 2026-11-07 with your veto open (not asked yet)
+
+Each is built and in main;
+saying nothing keeps it.
+- How the 860 move copies each subvolume:
+  every first-pass copy is sent against one empty read-only snapshot,
+  with every earlier copy as a clone source,
+  and only the final pass sends a subvolume as an increment on its own first-pass snapshot.
+  The plan it replaced sent a worktree as an increment on a snapshot of `main`,
+  which the kernel's send code can pair with the wrong file
+  (it treats two inodes as one when their number and creating transaction match,
+  `fs/btrfs/send.c` `changed_inode`);
+  on the throwaway fixture that plan failed,
+  and the new one copied every file exactly and kept sharing.
+  Record:
+  `doc/troubleshooting/btrfs-send-clone-sources-need-a-parent.md`
+  and `doc/planning/repository-on-the-860-drive.md`.
+- `monochromatic-lint --fix` now applies only whitespace fixes,
+  and content-changing fixes need `--fix-content`
+  (0.5.2-alpha.5);
+  the repository's `format:monochromatic-lint` task therefore changes no word.
+- When the fixer breaks a line inside a blockquote,
+  the new line carries no `>`
+  (a lazy continuation that renders the same under CommonMark 0.31.2,
+  section 5.1,
+  rule 2),
+  so the fixer never adds a character to your text.
+- The wrapper's own `markdown/autofix` commit policy keeps applying its one content fix
+  (the LFS image link rewrite),
+  since that rewrite is the policy's whole purpose.
+
+## Open: how long may a commit's own signed `git commit` step run? (not asked yet)
+
+Your global config signs every commit,
+so the wrapper builds each commit with a real `git commit` in a scratch repository
+(branch `feat/git-policy-cli-commit-timing-names-every-step`,
+not merged yet).
+That step runs with the terminal attached,
+unwatched and with no ceiling.
+That is why the commit that took 248 s on 2026-11-07 showed no waiting notice.
+Your rule says "nothing should ever wait forever or indefinitely",
+but an editor can legitimately stay open in that step when no message was given.
+The coordinator will add a waiting notice that names the step either way;
+the question is the ceiling.
+- A:
+  when the message came with the command (`-m`,
+  `-F`,
+  `-C`),
+  a ceiling from measured signing times (three times the worst seen);
+  with an editor,
+  no ceiling,
+  only the waiting notice.
+- B:
+  a ceiling in both cases,
+  generous for the editor case.
+- C:
+  no ceiling;
+  the waiting notice only.
+
+## Open: may the repository's own lint run fail when the closure check skips a package? (not asked yet)
+
+Your decision record says
+"A package whose prerequisites are missing on the machine is skipped,
+and the linter says so."
+(`doc/decision/rust-closure-lint-dylint.md:150`).
+In practice,
+on 2026-11-07,
+that skip hid five packages' closure findings (a cold cargo cache),
+and the run still exited 0,
+so a green lint did not mean "no findings".
+`monochromatic-lint` 0.5.2-alpha.5 already fails a run whose cargo is stale or broken;
+the skips for a cold cargo cache,
+missing `rustc-dev`,
+a driver gap,
+or a missing package prerequisite are unchanged.
+The new root task `mise run fetch:rust-dependencies` warms the cache.
+- A:
+  keep the decision as written (skip with a message,
+  exit 0).
+- B:
+  keep skipping on other machines,
+  but the repository's own lint tasks fetch first and then fail on any skip,
+  naming the package and the command that fixes it.
+- C:
+  fail on every skip everywhere.
+
+## Open: must fenced Rust examples inside docs carry rustdoc? (not asked yet)
+
+The linter's `rust/require-rustdoc` also checks Rust in fenced code blocks inside Markdown,
+and 200 such warnings remain
+(per-file list `~/temp/agent/lint2/fenced-rustdoc-warnings.txt`):
+`doc/audit` 133 (mostly fuzz reproductions),
+`doc/planning` 41 (design sketches),
+`.agents/skills/dum-dum-non-ts/SKILL.md` 24 (deliberately undocumented "Bad" examples,
+whose lesson documenting would break),
+`doc/research` 2.
+Exempting any of them loosens a lint rule,
+which needs your approval.
+- A:
+  exempt fenced Rust in Markdown from `rust/require-rustdoc` everywhere
+  (code files keep the rule).
+- B:
+  exempt only the "Bad" examples
+  (a marker on those fences),
+  and document the other 176 by hand.
+- C:
+  no exemption;
+  document all 200,
+  including the "Bad" examples.
+
+## Open: may an agent time a signed commit with your real signing setup? (not asked yet)
+
+A commit on 2026-11-07 (request `72c24f69`) spent 241 s in its build step,
+and 18 landed commits today spent 20 to 406 s there.
+Your global Git config signs every commit (`commit.gpgsign true`,
+`gpg.format ssh`),
+so each build runs one `ssh-keygen -Y sign`,
+exactly as native Git would.
+The commit-stall agent could not name the slow step from the records,
+and when it tried to time a signed commit with your real setup in a throwaway repository
+(with `SSH_ASKPASS` and `DISPLAY` as the commit service has them,
+against a native `git commit` as the control),
+the auto-mode classifier refused it as credential exploration.
+Neither the agent nor the coordinator will run that without your word.
+Meanwhile the wrapper is being taught to record each Git step's duration,
+so the next slow commit names its step without touching the key.
+- A:
+  allow the timing probe (it signs throwaway commits with your key and prints only durations).
+- B:
+  do not;
+  wait for the per-step records.
+
+## Open: may the service remove an index.lock that no process holds? (not asked yet)
+
+Four commits on 2026-11-07 stopped after up to 20 minutes behind one `index.lock`
+(size 0,
+no Git PID file,
+no process found holding it;
+who created it is not known:
+no retained record names it,
+and neither journal shows an out-of-memory or systemd kill between 12:50 and 13:10,
+though a direct kill such as a tool timeout is not journaled).
+An agent finally removed it by hand.
+The fix on branch `fix/git-policy-cli-commits-never-stall-on-an-unproven-lock` (gate 5205 of 5205,
+not merged yet)
+stops such a commit after 1 minute instead of 10,
+names the holder when one is alive,
+refuses at once the commits queued behind the same lock,
+and keeps every withdrawn commit on a side ref.
+Today a lock with no provable holder is never removed
+(the `flock`-on-the-lock rule from the index reclamation work,
+`doc/handover/cli-git-rust-implementation.md` "Index reclamation");
+the person is told within seconds and removes it.
+- A (today):
+  keep it;
+  the person removes it.
+- B:
+  after a complete scan of every readable process finds no holder and there is no PID file,
+  the service removes it and lands the commit.
+  Limit:
+  processes in other user namespaces and a native `git commit --only` in its hook phase cannot be seen,
+  so B can remove a lock that is in fact held.
+
+## Open: what a stop of the commit service does to the Git a commit it is preparing has started (not asked yet)
+
+From the tokio work,
+step T7 (branch `feat/git-policy-cli-tokio-steps-6-onward`,
+gate 5224 of 5224;
+the plan `doc/planning/git-policy-cli-full-tokio.md`,
+open choice 12).
+The owner's earlier pick for choice 6 was "Only that operation's children (Recommended)".
+- A (built):
+  the service's stop has its own handling and signals no commit's Git;
+  that Git runs on after the service stops and holds its index lock until it ends.
+- B:
+  the stop signals every child of every operation
+  (the recipient rule the owner declined;
+  needs a bounded table with a proof).
+- C:
+  the stop handler only records the stop,
+  and the service's own shutdown signals the children it is waiting for,
+  through a registry
+  (not designed yet).
+The agent's ranking:
+C > A > B;
+C ends no stray Git and still treats the stop as an operation of its own,
+A is what the earlier rule says as worded,
+B is the rule the owner declined.
+Choosing C starts its design;
+saying nothing keeps A.
+
+Also open to veto,
+from the same step:
+`std::thread::sleep` stays in exactly one place,
+`sleep_for` in `push/start_retry.rs`,
+the pause before a forwarded command's start is retried,
+because a forwarded command builds no runtime
+(guarded by `binary_forwarded_command_makes_no_thread_tests.rs`);
+the T13 lint against `thread::sleep` allows that one function.
+
 ## Open: may the decision records get the linter's whitespace-only line breaks? (not asked yet)
 
 The repository-wide lint pass left `doc/decision/` alone (rule:

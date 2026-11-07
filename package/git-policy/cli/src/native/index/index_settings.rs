@@ -1,11 +1,22 @@
 //! What:
-//!  The configuration that decides what Git does to the extensions of an index it reads and writes, and whether the
-//!  in-process index update may stand in for Git at all (`repo-settings.c`, `fsmonitor-settings.c`, `read-cache.c`).
+//!  The configuration that decides what Git does to the extensions of an index it reads and writes,
+//! and whether the
+//!  in-process index update may stand in for Git at all (`repo-settings.c`,
+//! `fsmonitor-settings.c`,
+//! `read-cache.c`).
 //! Why:
-//!  `core.untrackedCache` makes Git keep, add or remove the untracked cache; `core.fsmonitor` makes it keep the fsmonitor
-//!  extension and clear the untracked cache of replaced entries, and drop the extension when it is off; split and sparse
-//!  indexes, the offset-table extensions, skipped hashes and a case-insensitive worktree change the file layout or the
-//!  checks. Any key this module cannot reproduce makes the update decline, so Git answers it.
+//!  `core.untrackedCache` makes Git keep,
+//! add or remove the untracked cache;
+//! `core.fsmonitor` makes it keep the fsmonitor
+//!  extension and clear the untracked cache of replaced entries,
+//! and drop the extension when it is off;
+//! split and sparse
+//!  indexes,
+//! the offset-table extensions,
+//! skipped hashes and a case-insensitive worktree change the file layout or the
+//!  checks.
+//! Any key this module cannot reproduce makes the update decline,
+//! so Git answers it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,7 +31,8 @@ use crate::repo_read_config_text::parse_bool;
 pub enum UntrackedMode {
     /// Leave it as the file has it.
     Keep,
-    /// Add one when the file has none; this update declines that case.
+    /// Add one when the file has none;
+    /// this update declines that case.
     Write,
     /// Drop it.
     Remove,
@@ -33,8 +45,11 @@ pub struct IndexSettings {
     pub monitor: bool,
     /// What happens to the untracked cache.
     pub untracked: UntrackedMode,
-    /// `core.sharedRepository` as Git reads it (`git_config_perm`): zero for the umask alone, a positive permission bit set that
-    ///  is added to the file's mode, a negative one whose absolute value replaces the permission bits.
+    /// `core.sharedRepository` as Git reads it (`git_config_perm`):
+    /// zero for the umask alone,
+    /// a positive permission bit set that
+    ///  is added to the file's mode,
+    /// a negative one whose absolute value replaces the permission bits.
     pub shared_repository: i32,
 }
 
@@ -60,10 +75,12 @@ const SHARED_GROUP: i32 = 0o660;
 const SHARED_EVERYBODY: i32 = 0o664;
 
 /// What:
-///  The value Git makes of `core.sharedRepository` (`git_config_perm` in `setup.c`), or `None` for a value Git dies on or this
+///  The value Git makes of `core.sharedRepository` (`git_config_perm` in `setup.c`),
+/// or `None` for a value Git dies on or this
 ///  reader cannot classify.
 /// Why:
-///   The index Git writes goes through a lock file whose mode `adjust_shared_perm` widens by this value; the in-process update
+///   The index Git writes goes through a lock file whose mode `adjust_shared_perm` widens by this value;
+/// the in-process update
 ///  must publish a file with the same mode.
 ///
 /// In TS you'd write (pseudocode):
@@ -99,7 +116,9 @@ pub fn shared_permission(value: Option<&[u8]>) -> Option<i32> {
     };
 }
 
-/// The last entry of `listed` whose key is `key`, or `None`; later lines of a configuration win.
+/// The last entry of `listed` whose key is `key`,
+/// or `None`;
+/// later lines of a configuration win.
 fn last_entry<'a>(listed: &'a [ListedEntry], key: &str) -> Option<&'a crate::repo_read_config_text::ConfigEntry> {
     for item in listed.iter().rev() {
         if item.entry.key == key {
@@ -119,7 +138,8 @@ fn has_declined_key(listed: &[ListedEntry]) -> bool {
     return false;
 }
 
-/// The settings of a configuration, or `None` when a key or value is outside what this update reproduces.
+/// The settings of a configuration,
+/// or `None` when a key or value is outside what this update reproduces.
 pub fn read_settings(listed: &[ListedEntry]) -> Option<IndexSettings> {
     if has_declined_key(listed) {
         return None;

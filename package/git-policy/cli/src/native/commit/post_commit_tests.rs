@@ -1,6 +1,7 @@
 //! Controls for the post-commit gate against real repositories.
 //! The TypeScript corpus is `src/policy-engine/post-commit-lifecycle.unit.test.ts` and `post-commit-facts.unit.test.ts`.
-//! The incumbent's test plugins have no native equivalent, so the same behaviors are driven with the built-in
+//! The incumbent's test plugins have no native equivalent,
+//! so the same behaviors are driven with the built-in
 //! final-newline and forbidden-strings policies at fixed severities.
 
 use super::*;
@@ -13,7 +14,8 @@ use crate::test_support::{fixture, git, remove};
 use crate::wrapper_controls::no_controls;
 use std::path::PathBuf;
 
-/// Final-newline content of the landed file: a complete line.
+/// Final-newline content of the landed file:
+/// a complete line.
 const LANDED_CONTENT: &str = "landed content\n";
 
 /// Environment every query of these fixtures runs with.
@@ -153,7 +155,8 @@ fn a_blocked_landed_commit_ends_with_an_explicit_commit_landed_event() {
     remove(&root);
 }
 
-/// A warning-only result allows the backup, and its finding is still printed.
+/// A warning-only result allows the backup,
+/// and its finding is still printed.
 #[test]
 fn a_warning_only_result_allows_the_backup() {
     let (root, landed) = landed_repository("pc-warning", "no final newline");
@@ -225,7 +228,8 @@ fn an_engine_failure_retains_the_commit_and_reports_the_failure() {
     remove(&root);
 }
 
-/// A landed name that is not an object name is an engine failure, never a clean gate.
+/// A landed name that is not an object name is an engine failure,
+/// never a clean gate.
 #[test]
 fn a_landed_name_that_is_not_an_object_name_is_an_engine_failure() {
     let (root, _landed) = landed_repository("pc-bad-name", LANDED_CONTENT);
@@ -249,7 +253,8 @@ fn a_landed_name_that_is_not_an_object_name_is_an_engine_failure() {
     remove(&root);
 }
 
-/// The landed-delta candidates list only the paths the landed commit changed, classified as added.
+/// The landed-delta candidates list only the paths the landed commit changed,
+/// classified as added.
 #[test]
 fn the_landed_delta_lists_only_the_changed_paths_as_added() {
     let (root, landed) = landed_repository("pc-delta", LANDED_CONTENT);
@@ -293,8 +298,11 @@ fn landed_needle() -> (PathBuf, String) {
     return (root, landed);
 }
 
-/// The configuration's rules file reaches the post-commit scanner: with the built-in rules off, the file is the
-/// only rule, and the landed token is found in it.
+/// The configuration's rules file reaches the post-commit scanner:
+/// with the built-in rules off,
+/// the file is the
+/// only rule,
+/// and the landed token is found in it.
 #[test]
 fn the_configured_rules_file_reaches_the_post_commit_scanner() {
     run_isolated(
@@ -358,13 +366,16 @@ fn variable_rules(_work: &Path) {
     remove(&root);
 }
 
-/// The default configuration with `markdown/autofix` at warn, since the policy is off by default.
+/// The default configuration with `markdown/autofix` at warn,
+/// since the policy is off by default.
 fn with_markdown() -> PolicyConfig {
     return with_severity(PolicyId::MarkdownAutofix, Severity::Warn);
 }
 
-/// A landed Markdown file is checked in-process after landing: nothing is looked up on the invocation's PATH,
-/// and the landed bytes' stale object URL comes back as the policy's finding, which only a run of the linter
+/// A landed Markdown file is checked in-process after landing:
+/// nothing is looked up on the invocation's PATH,
+/// and the landed bytes' stale object URL comes back as the policy's finding,
+/// which only a run of the linter
 /// can produce.
 #[test]
 fn a_landed_markdown_file_is_checked_in_process() {
@@ -393,9 +404,14 @@ fn a_landed_markdown_file_is_checked_in_process() {
     remove(&root);
 }
 
-/// The policy's options reach the post-commit policy: an exclude pattern that does not compile leaves the landed
-/// file unchecked and blocks the backup, naming the post-commit trigger; the same file, once the configuration
-/// excludes it with a valid pattern, is not checked and passes.
+/// The policy's options reach the post-commit policy:
+/// an exclude pattern that does not compile leaves the landed
+/// file unchecked and blocks the backup,
+/// naming the post-commit trigger;
+/// the same file,
+/// once the configuration
+/// excludes it with a valid pattern,
+/// is not checked and passes.
 #[test]
 fn the_markdown_options_reach_the_post_commit_policy() {
     let (root, landed) = landed_file("pc-markdown-options", "landed.md", "# T\n\nplain\n");
@@ -427,5 +443,6 @@ fn the_markdown_options_reach_the_post_commit_policy() {
     remove(&root);
 }
 
-/// A pattern with an unclosed brace group, which the exclude matcher refuses.
+/// A pattern with an unclosed brace group,
+/// which the exclude matcher refuses.
 const UNCOMPILABLE_PATTERN: &str = "a{b";

@@ -1,26 +1,31 @@
 /**
  The subvolume inventory: the Git registry reconciled with the filesystem's own list, with each subvolume's UUID.
 
- `btrfs subvolume list -u <filesystem>` (root only) prints one row per subvolume ending in
- `uuid <uuid> path <path from the top level>`; the copy keys every record by that UUID and path.
+ `btrfs subvolume list -u -q <filesystem>` (root only) prints one row per subvolume ending in
+ `parent_uuid <uuid or -> received_uuid <uuid or -> uuid <uuid> path <path from the top level>`; the copy keys every record by that UUID and path.
 
  @module
  */
 
-import { execFile, } from 'node:child_process';
 import {
   readFile,
   stat,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
-import { promisify, } from 'node:util';
 import {
   MISSING_PATH_CODE,
   pathExists,
 } from './completion-records.ts';
+import { canonicalOptions, } from './canonical-path.ts';
 import { SUBVOLUME_ROOT_INODE, } from './constants.ts';
+import { errorCodeOf, } from './error-code-of.ts';
 import { MoveStopError, } from './errors.ts';
 import type { MoveOptions, } from './move-options.ts';
+import { isSubvolume, } from './subvolume-root-check.ts';
+import {
+  describeDisagreement,
+  listRegisteredWorktreeSpellings,
+} from './registered-worktrees.ts';
 
 /**
  A subvolume with the UUID the inventory gave it; the dash when no inventory was given (print mode only).
@@ -28,22 +33,24 @@ import type { MoveOptions, } from './move-options.ts';
 export type Subvolume = {
   readonly path: string;
   readonly uuid: string;
+
+  /**
+   The UUID of the subvolume this one was snapshotted from: the dash when it has none (a plain `subvolume create`), and
+   the question mark when the inventory was taken without `-q`. Information only: no send starts from a related
+   subvolume (see `send-plan.ts`).
+   */
+  readonly parentUuid: string;
 };
 
 /**
- Runs a program and waits for it to end.
+ What a subvolume's parent UUID is when the inventory was taken without the parent column.
  */
-const execFileAsync = promisify(execFile,);
+export const PARENT_UNKNOWN = '?';
 
 /**
  The UUID of a subvolume whose inventory is unavailable.
  */
 const UNKNOWN_UUID = '-';
-
-/**
- Git's own program, never the repository's wrapper.
- */
-const GIT = '/usr/bin/git';
 
 /**
  Separator before the UUID in an inventory row.
@@ -54,90 +61,6 @@ const UUID_LABEL = ' uuid ';
  Separator before the path in an inventory row.
  */
 const PATH_LABEL = ' path ';
-
-/**
- Lists the worktrees Git registers below the main checkout.
-
- @param mainPath - the main checkout
- 
- @returns absolute paths, in Git's order
- 
- @throws MoveStopError when Git cannot list them
- */
-export async function listRegisteredWorktrees(mainPath: string,): Promise<readonly string[]> {
-  try {
-    /**
-     The output of the listing command.
-     */
-    const listing = await execFileAsync(
-      GIT,
-      [
-        '--no-optional-locks',
-        '-C',
-        mainPath,
-        'worktree',
-        'list',
-        '--porcelain',
-      ],
-      { encoding: 'utf8', },
-    );
-    return listing.stdout
-      .split('\n',)
-      .filter(function isWorktreeLine(line,) {
-        return line.startsWith('worktree ',);
-      },)
-      .map(function stripLabel(line,) {
-        return line.slice('worktree '.length,);
-      },)
-      .filter(function isBelowMain(path,) {
-        return path.startsWith(`${mainPath}/`,);
-      },);
-  }
-  catch (error) {
-    throw new MoveStopError(
-      `cannot list worktrees below ${mainPath}`,
-      { cause: error, },
-    );
-  }
-}
-
-/**
- Tells whether a folder is a subvolume root: inode 256 on btrfs, or the marker file in tests.
-
- @param path - the folder
- 
- @param marker - name of the marker file that stands for a subvolume in tests; empty on a real filesystem
- 
- @returns true for a subvolume root
- */
-export async function isSubvolume(
-  {
-    path,
-    marker,
-  }: {
-    readonly path: string;
-    readonly marker: string;
-  },
-): Promise<boolean> {
-  if (marker !== '') {
-    return await pathExists(join(
-      path,
-      marker,
-    ),);
-  }
-  try {
-    return (await stat(
-      path,
-      { bigint: true, },
-    )).ino === SUBVOLUME_ROOT_INODE;
-  }
-  catch (error) {
-    if ((error as NodeJS.ErrnoException).code === MISSING_PATH_CODE) {
-      return false;
-    }
-    throw error;
-  }
-}
 
 /**
  One row of `btrfs subvolume list -u` as printed: its ID, the ID of its parent subvolume (the `top level` column), its
@@ -152,6 +75,7 @@ export type ListedRow = {
   readonly id: string;
   readonly topLevel: string;
   readonly uuid: string;
+  readonly parentUuid: string;
   readonly path: string;
 };
 
@@ -161,9 +85,39 @@ export type ListedRow = {
 const ID_LABEL = 'ID ';
 
 /**
+ Label before the UUID of the subvolume a row was snapshotted from; `btrfs subvolume list -q` prints it.
+ */
+const PARENT_UUID_LABEL = ' parent_uuid ';
+
+/**
  Label before the parent ID in an inventory row.
  */
 const TOP_LEVEL_LABEL = ' top level ';
+
+/**
+ Reads the parent UUID column of an inventory row.
+
+ @param row - a row of `btrfs subvolume list -u -q`
+
+ @returns the UUID, the dash when the subvolume was not snapshotted from another, or the question mark when the row has no such column
+ */
+function parentUuidOf(row: string,): string {
+  /**
+   Where the label starts, or minus one when the row has none.
+   */
+  const at = row.indexOf(PARENT_UUID_LABEL,);
+  if (at === (-1)) {
+    return PARENT_UNKNOWN;
+  }
+  /**
+   The text after the label.
+   */
+  const rest = row.slice(at + PARENT_UUID_LABEL.length,);
+  return rest.slice(
+    0,
+    rest.indexOf(' ',),
+  );
+}
 
 /**
  Parses one inventory row.
@@ -194,7 +148,7 @@ function parseRow(row: string,): ListedRow {
     || (pathAt === (-1))
     || (topAt === (-1))) {
     throw new MoveStopError(
-      `inventory line not understood or without a UUID (list the filesystem with 'btrfs subvolume list -u'): ${row}`,
+      `inventory line not understood or without a UUID (list the filesystem with 'btrfs subvolume list -u -q'): ${row}`,
     );
   }
   return {
@@ -216,6 +170,7 @@ function parseRow(row: string,): ListedRow {
       uuidAt + UUID_LABEL.length,
       pathAt,
     ),
+    parentUuid: parentUuidOf(row,),
     path: row.slice(pathAt + PATH_LABEL.length,),
   };
 }
@@ -230,6 +185,13 @@ function parseRow(row: string,): ListedRow {
  @param rows - every listed row
  
  @returns the rows with full paths, in the same order
+
+ @example
+ ```ts
+ import { resolveFullPaths, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = resolveFullPaths(rows,);
+ ```
  */
 export function resolveFullPaths(rows: readonly ListedRow[],): readonly Subvolume[] {
   /**
@@ -284,6 +246,7 @@ export function resolveFullPaths(rows: readonly ListedRow[],): readonly Subvolum
   return rows.map(function toSubvolume(row,) {
     return {
       uuid: row.uuid,
+      parentUuid: row.parentUuid,
       path: fullPath({
         row,
         depth: 0,
@@ -302,6 +265,13 @@ export function resolveFullPaths(rows: readonly ListedRow[],): readonly Subvolum
  @returns the main checkout's row as listed, unmapped, because only its UUID is used (empty path when it has no row), and the nested subvolumes mapped to real paths, sorted
  
  @throws MoveStopError when a row cannot be understood or a path is outside the prefix
+
+ @example
+ ```ts
+ import { parseInventory, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = parseInventory({ text, options, },);
+ ```
  */
 export function parseInventory(
   {
@@ -338,12 +308,14 @@ export function parseInventory(
   function mapped({
     path,
     uuid,
+    parentUuid,
   }: Subvolume,): Subvolume {
     if (!path.startsWith(options.inventoryPrefixFrom,)) {
       throw new MoveStopError(`inventory path outside ${options.inventoryPrefixFrom}: ${path}`,);
     }
     return {
       uuid,
+      parentUuid,
       path: `${options.inventoryPrefixTo}${path.slice(options.inventoryPrefixFrom
         .length,)}`,
     };
@@ -359,6 +331,7 @@ export function parseInventory(
     main: main ?? {
       path: '',
       uuid: UNKNOWN_UUID,
+      parentUuid: PARENT_UNKNOWN,
     },
     nested: rows.filter(function isBelowMain(row,) {
       return row.path
@@ -388,10 +361,17 @@ export function parseInventory(
  @returns main first, then nested
  
  @throws MoveStopError when the two lists differ, or run mode has no inventory
+
+ @example
+ ```ts
+ import { reconcileInventory, } from './inventory.ts';
+ 
+ const result = await reconcileInventory({ options, log, },);
+ ```
  */
 export async function reconcileInventory(
   {
-    options,
+    options: givenOptions,
     log,
   }: {
     readonly options: MoveOptions;
@@ -399,54 +379,70 @@ export async function reconcileInventory(
   },
 ): Promise<readonly Subvolume[]> {
   /**
-   The worktrees of this step.
+   The options with the folders the move compares in their canonical spelling.
    */
-  const worktrees = await listRegisteredWorktrees(options.mainPath,);
+  const canonical = await canonicalOptions(givenOptions,);
+  /**
+   The worktrees of this step, each in both spellings.
+   */
+  const worktrees = await listRegisteredWorktreeSpellings(canonical.mainPath,);
   /**
    The subvolume flags of this step.
    */
-  const subvolumeFlags = await Promise.all(worktrees.map(async function check(path,) {
+  const subvolumeFlags = await Promise.all(worktrees.map(async function check(entry,) {
     return await isSubvolume({
-      path,
-      marker: options.subvolumeMarker,
+      path: entry.canonical,
+      marker: canonical.subvolumeMarker,
     },);
   },),);
   /**
-   The registered of this step.
+   The registered of this step, in canonical spelling.
    */
   const registered = worktrees.filter(function keepSubvolume(
-    _path,
+    _entry,
     index,
   ) {
     return subvolumeFlags[index] === true;
   },)
+    .map(function canonicalOf(entry,) {
+      return entry.canonical;
+    },)
     .toSorted();
   /**
    The limited of this step.
    */
   const limited = registered.slice(
     0,
-    options.limit,
+    canonical.limit,
   );
-  if (options.inventoryFile === '') {
-    if (options.run) {
+  if (canonical.inventoryFile === '') {
+    if (canonical.run) {
       throw new MoveStopError(
-        '--run needs --inventory (root: btrfs subvolume list -u of the whole filesystem), because every record is keyed by UUID',
+        '--run needs --inventory (root: btrfs subvolume list -u -q of the whole filesystem), because every record is keyed by UUID',
       );
     }
     return [
       {
-        path: options.mainPath,
+        path: canonical.mainPath,
         uuid: UNKNOWN_UUID,
+        parentUuid: PARENT_UNKNOWN,
       },
       ...limited.map(function unknown(path,) {
         return {
           path,
           uuid: UNKNOWN_UUID,
+          parentUuid: PARENT_UNKNOWN,
         };
       },),
     ];
   }
+  /**
+   The inventory file's text.
+   */
+  const inventoryText = await readFile(
+    canonical.inventoryFile,
+    'utf8',
+  );
   /**
    The parts of the value this function uses, taken out of it.
    */
@@ -454,11 +450,8 @@ export async function reconcileInventory(
     main,
     nested,
   } = parseInventory({
-    text: await readFile(
-      options.inventoryFile,
-      'utf8',
-    ),
-    options,
+    text: inventoryText,
+    options: canonical,
   },);
   /**
    The listed paths of this step.
@@ -479,21 +472,51 @@ export async function reconcileInventory(
     return !listedPaths.includes(path,);
   },);
   if ((unknownToGit.length > 0) || (notSubvolumes.length > 0)) {
-    throw new MoveStopError(
-      `inventory differs from the Git registry; subvolumes Git does not know: ${unknownToGit.join(' ',) || 'none'}; `
-        + `registered but not subvolumes: ${
-          notSubvolumes.join(' ',) || 'none'
-        }. Give each an owner-approved disposition first.`,
-    );
+    /**
+     The inventory rows as the caller's own mapping spells them, in the same order as the canonical rows.
+     */
+    const givenRows = parseInventory({
+      text: inventoryText,
+      options: givenOptions,
+    },)
+      .nested;
+    throw new MoveStopError(describeDisagreement({
+      unknownToGit,
+      notSubvolumes,
+      listedAs: new Map(nested.map(function entryOf(
+        row,
+        index,
+      ): readonly [
+        string,
+        string,
+      ] {
+        return [
+          row.path,
+          givenRows[index]
+            ?.path
+            ?? row.path,
+        ];
+      },),),
+      registeredAs: new Map(worktrees.map(function entryOf(entry,): readonly [
+        string,
+        string,
+      ] {
+        return [
+          entry.canonical,
+          entry.given,
+        ];
+      },),),
+    },),);
   }
   if (main.path === '') {
-    throw new MoveStopError(`the inventory has no row for the main checkout at ${options.inventoryMain}`,);
+    throw new MoveStopError(`the inventory has no row for the main checkout at ${canonical.inventoryMain}`,);
   }
   log(`inventory agrees: ${String(nested.length,)} nested subvolumes`,);
   return [
     {
-      path: options.mainPath,
+      path: canonical.mainPath,
       uuid: main.uuid,
+      parentUuid: main.parentUuid,
     },
     ...nested.filter(function isCovered(row,) {
       return limited.includes(row.path,);

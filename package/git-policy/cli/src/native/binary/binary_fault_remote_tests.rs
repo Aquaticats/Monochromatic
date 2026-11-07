@@ -1,15 +1,35 @@
 //! What:
-//!  Remote trouble: a connection that is refused, a host name that does not resolve, a server that hangs up, a server
-//!  that holds the connection and never answers, and a `git-lfs` that never exits, met by the push after a landed commit and by an explicit
+//!  Remote trouble:
+//! a connection that is refused,
+//! a host name that does not resolve,
+//! a server that hangs up,
+//! a server
+//!  that holds the connection and never answers,
+//! and a `git-lfs` that never exits,
+//! met by the push after a landed commit and by an explicit
 //!  `git push`.
 //! Why:
-//!  The README promises that DNS or mirror trouble does not wedge the wrapper: the commit stays saved, the failure
-//!  is reported in words, no lock stays held and no process the push started stays running.
-//!  The server side is a local socket (refused: nothing listens; hung up: it accepts and closes; silent: it accepts,
-//!  reads, and hangs up after a while), and the unresolvable name is under `.invalid`, which resolvers answer with
-//!  "no such name" without asking anyone; no outside address is ever contacted.
-//!  A pipe whose write end the child hands on to everything it starts proves that no descendant survives: its read
-//!  end reports the hang-up only when the last holder has exited, which needs no sleep and no process listing.
+//!  The README promises that DNS or mirror trouble does not wedge the wrapper:
+//! the commit stays saved,
+//! the failure
+//!  is reported in words,
+//! no lock stays held and no process the push started stays running.
+//!  The server side is a local socket (refused:
+//! nothing listens;
+//! hung up:
+//! it accepts and closes;
+//! silent:
+//! it accepts,
+//!  reads,
+//! and hangs up after a while),
+//! and the unresolvable name is under `.invalid`,
+//! which resolvers answer with
+//!  "no such name" without asking anyone;
+//! no outside address is ever contacted.
+//!  A pipe whose write end the child hands on to everything it starts proves that no descendant survives:
+//! its read
+//!  end reports the hang-up only when the last holder has exited,
+//! which needs no sleep and no process listing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -34,22 +54,29 @@ use std::time::Duration;
 /// The descriptor number the tripwire's write end has in the command and in everything it starts.
 const TRIPWIRE_DESCRIPTOR: RawFd = 9;
 
-/// How long a control waits for a descendant to exit or a server to see its client go, in milliseconds.
-///  It is a deadline for a failure, not a pause: a healthy run returns as soon as the event happens.
-///  It is below the 60 seconds after which Git ends a transfer that has stalled (`GIT_HTTP_LOW_SPEED_TIME`), so a
+/// How long a control waits for a descendant to exit or a server to see its client go,
+/// in milliseconds.
+///  It is a deadline for a failure,
+/// not a pause:
+/// a healthy run returns as soon as the event happens.
+///  It is below the 60 seconds after which Git ends a transfer that has stalled (`GIT_HTTP_LOW_SPEED_TIME`),
+/// so a
 ///  process that survives its push's stop is not mistaken for one that ended by itself.
 const DEADLINE_MILLISECONDS: libc::c_int = 20_000;
 
-/// A pipe that every process started under the command inherits, and the end that reports when all have exited.
+/// A pipe that every process started under the command inherits,
+/// and the end that reports when all have exited.
 struct Tripwire {
     /// The end the control polls.
     read_end: File,
-    /// The end the command's tree holds; closed in this process once the command has started.
+    /// The end the command's tree holds;
+    /// closed in this process once the command has started.
     write_end: Option<OwnedFd>,
 }
 
 impl Tripwire {
-    /// A new pipe, both ends closed on `exec` so that only the copy handed to a command is inherited.
+    /// A new pipe,
+    /// both ends closed on `exec` so that only the copy handed to a command is inherited.
     fn new() -> Tripwire {
         let ends: [libc::c_int; 2] = close_on_exec_pipe();
         // SAFETY: both descriptors were just created here and are owned by nothing else.
@@ -85,16 +112,23 @@ impl Tripwire {
 /// What a local server does with the first connection it gets.
 #[derive(Clone, Copy, Debug)]
 enum Behavior {
-    /// Accept and close at once: the server hangs up.
+    /// Accept and close at once:
+    /// the server hangs up.
     HangUp,
-    /// Accept and read without ever answering, and hang up after `HOLD`: the push is not stopped by the wrapper while the
-    ///  connection is open (pick 5 of the shipped-limits audit, the coordinator's under the owner's delegation), so it is the
+    /// Accept and read without ever answering,
+    /// and hang up after `HOLD`:
+    /// the push is not stopped by the wrapper while the
+    ///  connection is open (pick 5 of the shipped-limits audit,
+    /// the coordinator's under the owner's delegation),
+    /// so it is the
     ///  server that ends it.
     SilentThenHangUp,
 }
 
-/// How long the silent server holds the connection before it hangs up: several stall windows of the one second the controls
-///  set, so a push that the wrapper stopped for a stall would be gone before then.
+/// How long the silent server holds the connection before it hangs up:
+/// several stall windows of the one second the controls
+///  set,
+/// so a push that the wrapper stopped for a stall would be gone before then.
 const HOLD: Duration = Duration::from_secs(4);
 
 /// A local server on an ephemeral port that handles one connection.
@@ -140,7 +174,9 @@ fn serve(behavior: Behavior) -> Server {
     return Server { port, handled };
 }
 
-/// A repository whose `origin` is `url`, with `a.txt` staged, and a `git-lfs` that never exits when `hanging_lfs`.
+/// A repository whose `origin` is `url`,
+/// with `a.txt` staged,
+/// and a `git-lfs` that never exits when `hanging_lfs`.
 fn world(fixture: &Fixture, url: &str, hanging_lfs: bool) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     git(fixture, repo.as_path(), &["remote", "add", "origin", url]);
@@ -155,7 +191,8 @@ fn world(fixture: &Fixture, url: &str, hanging_lfs: bool) -> PathBuf {
     return repo;
 }
 
-/// Every path under the wrapper's state directories whose name ends in `.lock`, or holds a lock directory.
+/// Every path under the wrapper's state directories whose name ends in `.lock`,
+/// or holds a lock directory.
 fn locks_left(repo: &Path) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     let mut pending: Vec<PathBuf> = std::fs::read_dir(repo.join(".git"))
@@ -190,8 +227,11 @@ fn commit_with_tripwire(fixture: &Fixture, repo: &Path, deadline: &str) -> (Obse
 }
 
 /// What every remote failure of the push after a commit must leave:
-///  the commit succeeded and is saved, the failure is reported in words, no process the push started is alive,
-///  no lock is held, and the next commit lands.
+///  the commit succeeded and is saved,
+/// the failure is reported in words,
+/// no process the push started is alive,
+///  no lock is held,
+/// and the next commit lands.
 fn assert_push_failure_is_contained(fixture: &Fixture, repo: &Path, landed: &Observed, tripwire: Tripwire, expected: &[&str]) {
     let stderr: String = super::support::push_report(repo, &stderr_of(landed));
     assert_eq!(landed.code, Some(0), "the commit itself succeeds: {stderr}");
@@ -216,7 +256,8 @@ fn assert_push_failure_is_contained(fixture: &Fixture, repo: &Path, landed: &Obs
     assert!(!stderr_of(&again).contains("giving up after"), "the next commit waited for a lock: {}", stderr_of(&again));
 }
 
-/// A connection that is refused fails the auto-push at once; the commit stays.
+/// A connection that is refused fails the auto-push at once;
+/// the commit stays.
 #[test]
 fn an_auto_push_to_a_refused_connection_keeps_the_commit_and_holds_nothing() {
     let fixture: Fixture = fixture("remote-refused");
@@ -226,7 +267,8 @@ fn an_auto_push_to_a_refused_connection_keeps_the_commit_and_holds_nothing() {
     remove_settled(&fixture);
 }
 
-/// A host name that does not resolve fails the auto-push in words; the commit stays.
+/// A host name that does not resolve fails the auto-push in words;
+/// the commit stays.
 #[test]
 fn an_auto_push_to_an_unresolvable_host_keeps_the_commit_and_holds_nothing() {
     let fixture: Fixture = fixture("remote-dns");
@@ -242,7 +284,8 @@ fn an_auto_push_to_an_unresolvable_host_keeps_the_commit_and_holds_nothing() {
     remove_settled(&fixture);
 }
 
-/// A server that hangs up fails the auto-push; the commit stays.
+/// A server that hangs up fails the auto-push;
+/// the commit stays.
 #[test]
 fn an_auto_push_to_a_server_that_hangs_up_keeps_the_commit_and_holds_nothing() {
     let fixture: Fixture = fixture("remote-hangup");
@@ -259,9 +302,15 @@ fn an_auto_push_to_a_server_that_hangs_up_keeps_the_commit_and_holds_nothing() {
     remove_settled(&fixture);
 }
 
-/// A server that holds the connection and never answers is waited for, not stopped by the wrapper at the one second stall
-///  window: the push ends when the server hangs up, the commit stays, and no descendant survives (pick 5 of the shipped-limits
-///  audit, the coordinator's under the owner's delegation, open to the owner's veto).
+/// A server that holds the connection and never answers is waited for,
+/// not stopped by the wrapper at the one second stall
+///  window:
+/// the push ends when the server hangs up,
+/// the commit stays,
+/// and no descendant survives (pick 5 of the shipped-limits
+///  audit,
+/// the coordinator's under the owner's delegation,
+/// open to the owner's veto).
 #[test]
 fn an_auto_push_to_a_server_that_holds_the_connection_is_waited_for_until_it_hangs_up() {
     let fixture: Fixture = fixture("remote-silent");
@@ -279,7 +328,8 @@ fn an_auto_push_to_a_server_that_holds_the_connection_is_waited_for_until_it_han
     remove_settled(&fixture);
 }
 
-/// A `git-lfs` that never exits is stopped with the push that started it: the hook is a descendant of the push.
+/// A `git-lfs` that never exits is stopped with the push that started it:
+/// the hook is a descendant of the push.
 #[test]
 fn an_auto_push_with_a_git_lfs_that_never_exits_is_stopped_with_everything_it_started() {
     let fixture: Fixture = fixture("remote-lfs-silent");
@@ -291,7 +341,9 @@ fn an_auto_push_with_a_git_lfs_that_never_exits_is_stopped_with_everything_it_st
     remove_settled(&fixture);
 }
 
-/// An explicit `git push` to a remote that fails ends with Git's failure and a message, in time, and holds nothing.
+/// An explicit `git push` to a remote that fails ends with Git's failure and a message,
+/// in time,
+/// and holds nothing.
 fn explicit_push_fails_cleanly(name: &str, url: &str) {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = world(&fixture, url, false);

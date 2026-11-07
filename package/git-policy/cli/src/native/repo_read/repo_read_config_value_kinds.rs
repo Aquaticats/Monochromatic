@@ -1,9 +1,15 @@
 //! What:
-//!  The table of which configuration keys Git reads at startup and what kind of value each takes: the word lists, the key
-//!  lists, the color words, the value kinds and the lookup from a key to its kind.
+//!  The table of which configuration keys Git reads at startup and what kind of value each takes:
+//! the word lists,
+//! the key
+//!  lists,
+//! the color words,
+//! the value kinds and the lookup from a key to its kind.
 //! Why:
-//!  `repo_read_config_typed.rs` checks whether a value is one Git accepts silently; the table it checks against is data and
-//!  lookup that do not use the checking code, so they sit in a file of their own.
+//!  `repo_read_config_typed.rs` checks whether a value is one Git accepts silently;
+//! the table it checks against is data and
+//!  lookup that do not use the checking code,
+//! so they sit in a file of their own.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -71,7 +77,8 @@ pub(crate) const BOOLEAN_KEYS: [&str; 49] = [
     "user.useconfigonly",
 ];
 
-/// Keys whose value is any text, but never a bare name.
+/// Keys whose value is any text,
+/// but never a bare name.
 pub(crate) const TEXT_KEYS: [&str; 21] = [
     "attr.tree",
     "author.email",
@@ -96,7 +103,10 @@ pub(crate) const TEXT_KEYS: [&str; 21] = [
     "user.name",
 ];
 
-/// Keys whose value is a path, which Git expands (`~/x`, and `~user/x`, which fails for an unknown user).
+/// Keys whose value is a path,
+/// which Git expands (`~/x`,
+/// and `~user/x`,
+/// which fails for an unknown user).
 pub(crate) const PATHNAME_KEYS: [&str; 5] = ["core.attributesfile", "core.excludesfile", "core.hookspath", "fsmonitor.socketdir", "mailmap.file"];
 
 /// Per-driver keys (`diff.<driver>.<name>`) whose value is a boolean.
@@ -124,7 +134,8 @@ pub(crate) const REMOTE_TEXT_NAMES: [&str; 12] = [
     "vcs",
 ];
 
-/// The slots `color.grep.<slot>` knows; any other slot is a failure in Git.
+/// The slots `color.grep.<slot>` knows;
+/// any other slot is a failure in Git.
 pub(crate) const GREP_COLOR_SLOTS: [&str; 10] = [
     "column",
     "context",
@@ -150,30 +161,53 @@ pub(crate) const ATTRIBUTE_WORDS: [&str; 7] = ["bold", "dim", "ul", "blink", "re
 /// How Git reads the value of one key.
 #[derive(Clone, Copy)]
 pub(crate) enum Kind {
-    /// `true yes on false no off`, a decimal number, or an empty value; a bare name is true.
+    /// `true yes on false no off`,
+    /// a decimal number,
+    /// or an empty value;
+    /// a bare name is true.
     Boolean,
-    /// A boolean, or one of the listed words.
+    /// A boolean,
+    /// or one of the listed words.
     BooleanOr(&'static [&'static str]),
-    /// A boolean or a decimal number; a bare name is true.
+    /// A boolean or a decimal number;
+    /// a bare name is true.
     IntegerOrBoolean,
-    /// A decimal number inside the range, with an optional `k`, `m` or `g` suffix; never bare, never empty.
+    /// A decimal number inside the range,
+    /// with an optional `k`,
+    /// `m` or `g` suffix;
+    /// never bare,
+    /// never empty.
     Integer { low: i64, high: i64 },
-    /// Any text; never bare.
+    /// Any text;
+    /// never bare.
     Text,
-    /// Any text that is not a `~user` path; never bare.
+    /// Any text that is not a `~user` path;
+    /// never bare.
     Pathname,
-    /// Exactly one of the listed words, or an empty value when `empty` is set; never bare.
+    /// Exactly one of the listed words,
+    /// or an empty value when `empty` is set;
+    /// never bare.
     OneOf { words: &'static [&'static str], empty: bool },
-    /// A comma-separated list of the listed words, each with an optional `-` prefix when `negatable` is set.
+    /// A comma-separated list of the listed words,
+    /// each with an optional `-` prefix when `negatable` is set.
     Words { words: &'static [&'static str], empty: bool, negatable: bool },
     /// A color specification of at most two colors and any attributes.
     Color,
-    /// `core.abbrev`: `auto`, a false word, an empty value, or a number from the shortest abbreviation up.
+    /// `core.abbrev`:
+    /// `auto`,
+    /// a false word,
+    /// an empty value,
+    /// or a number from the shortest abbreviation up.
     Abbreviation,
-    /// `core.commentChar` and `core.commentString`: not empty, no line break, never bare.
+    /// `core.commentChar` and `core.commentString`:
+    /// not empty,
+    /// no line break,
+    /// never bare.
     CommentText,
-    /// A refspec `[+]refs/<name>:refs/<name>` whose names are plain and whose wildcards match; every other form is
-    ///  left to Git, which checks a refspec against its full rules.
+    /// A refspec `[+]refs/<name>:refs/<name>` whose names are plain and whose wildcards match;
+    /// every other form is
+    ///  left to Git,
+    /// which checks a refspec against its full rules.
     Refspec,
     /// `core.fsmonitor`:
     /// a false spelling,
@@ -200,7 +234,10 @@ pub(crate) enum Kind {
     /// and Git then writes trace output the in-process readers do not (`trace2/tr2_dst.c`,
     /// `tr2_dst_get_trace_fd`).
     TraceTarget,
-    /// A key Git warns about, or fails on, in spellings the proof does not model: its presence alone is declined.
+    /// A key Git warns about,
+    /// or fails on,
+    /// in spellings the proof does not model:
+    /// its presence alone is declined.
     Refused,
 }
 
@@ -210,16 +247,21 @@ pub(crate) const MINIMUM_ABBREVIATION: i64 = 4;
 /// The longest `core.abbrev` the proof accepts (the longest object name in hexadecimal digits).
 pub(crate) const MAXIMUM_ABBREVIATION: i64 = 64;
 
-/// The compression levels of zlib, with the default marker `-1`.
+/// The compression levels of zlib,
+/// with the default marker `-1`.
 pub(crate) const COMPRESSION: Kind = Kind::Integer { low: -1, high: 9 };
 
-/// A number Git stores in an `int`, not below zero.
+/// A number Git stores in an `int`,
+/// not below zero.
 pub(crate) const NON_NEGATIVE: Kind = Kind::Integer { low: 0, high: i32::MAX as i64 };
 
-/// A number Git stores in an `unsigned long`; the proof keeps to the range both widths hold.
+/// A number Git stores in an `unsigned long`;
+/// the proof keeps to the range both widths hold.
 pub(crate) const SIZE: Kind = Kind::Integer { low: 0, high: i32::MAX as i64 };
 
-/// Split a canonical key into section, subsection and name; the section and name are lower case.
+/// Split a canonical key into section,
+/// subsection and name;
+/// the section and name are lower case.
 pub(crate) fn split_key(key: &str) -> Option<(&str, Option<&str>, &str)> {
     let (section, rest) = key.split_once('.')?;
     return Some(match rest.rsplit_once('.') {
@@ -228,7 +270,8 @@ pub(crate) fn split_key(key: &str) -> Option<(&str, Option<&str>, &str)> {
     });
 }
 
-/// How the key's value is read, or `None` when Git reads no type for the key at startup.
+/// How the key's value is read,
+/// or `None` when Git reads no type for the key at startup.
 pub(crate) fn kind_of(key: &str) -> Option<Kind> {
     let (section, subsection, name) = split_key(key)?;
     if section == "advice" && subsection.is_none() {
@@ -260,7 +303,11 @@ pub(crate) fn kind_of(key: &str) -> Option<Kind> {
     };
 }
 
-/// The color keys the readers' commands load: `color.diff.<slot>`, `color.decorate.<slot>`, `color.advice.hint`, `color.grep.<slot>`.
+/// The color keys the readers' commands load:
+/// `color.diff.<slot>`,
+/// `color.decorate.<slot>`,
+/// `color.advice.hint`,
+/// `color.grep.<slot>`.
 pub(crate) fn color_kind(subsection: Option<&str>, name: &str) -> Option<Kind> {
     return match subsection {
         Some("diff" | "decorate" | "advice") => Some(Kind::Color),

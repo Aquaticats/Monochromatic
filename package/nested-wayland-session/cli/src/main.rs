@@ -77,7 +77,10 @@ fn main() -> Result<ExitCode> {
     // ```ts
     // const filter = tryReadLogFilter() ?? new EnvFilter('info');
     // ```
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| return EnvFilter::new("info"));
+    let filter = match EnvFilter::try_from_default_env() {
+        Ok(filter) => filter,
+        Err(_) => EnvFilter::new("info"),
+    };
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_writer(std::io::stderr)

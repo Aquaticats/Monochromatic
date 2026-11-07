@@ -277,11 +277,18 @@ fn a_missing_cargo_skips_everything_with_one_message() {
     );
 }
 
-/// A failing `cargo dylint --version` skips everything and runs no package.
+/// A `cargo` that says there is no such subcommand skips everything and runs no package,
+///  the machine without cargo-dylint that the owner's decision of 2026-10-19 skips with a message.
 #[test]
 fn a_missing_dylint_skips_everything() {
     let fixture: Fixture = fixture();
-    let stub = scenario(&[("dylint-version.status", "101")]);
+    let stub = scenario(&[
+        ("dylint-version.status", "101"),
+        (
+            "dylint-version.stderr",
+            "error: no such command: `dylint`\n",
+        ),
+    ]);
     let outcome = run(&fixture, &stub);
     assert!(
         outcome.messages[0].contains("cargo dylint --version"),
@@ -323,6 +330,38 @@ fn a_cargo_that_cannot_start_its_program_fails_the_run_instead_of_skipping() {
             message.contains("`mpm install` in /tree"),
             "the launcher's remedy is kept: {message}"
         );
+        assert!(message.contains("instead of skipping"), "{message}");
+        assert_eq!(kinds(&stub), vec!["dylint-version"], "no package ran");
+    }
+}
+
+/// A tool that lags the lock fails `cargo dylint --version` in ways that are not 126 or 127,
+///  and that failure must fail the run too:
+///  skipping it exits 0 and a green run hides the stale install.
+#[test]
+fn a_stale_installed_cargo_fails_the_run_naming_the_install_command() {
+    for status in ["1", "2", "101"] {
+        let fixture: Fixture = fixture();
+        let stub = scenario(&[
+            ("dylint-version.status", status),
+            (
+                "dylint-version.stderr",
+                "mpm-shadow: this worktree locks cargo-shadow 0.1.5-alpha.3 but runs 0.1.5-alpha.1\n",
+            ),
+        ]);
+        let outcome = run(&fixture, &stub);
+        assert!(
+            outcome.messages.is_empty(),
+            "no skip message hides the failure: {:?}",
+            outcome.messages
+        );
+        assert_eq!(outcome.findings.len(), 1, "{:?}", outcome.findings);
+        let message: &str = outcome.findings[0].message.as_str();
+        assert!(
+            message.contains("mpm-shadow: this worktree locks"),
+            "{message}"
+        );
+        assert!(message.contains("mise run toolchain:install"), "{message}");
         assert!(message.contains("instead of skipping"), "{message}");
         assert_eq!(kinds(&stub), vec!["dylint-version"], "no package ran");
     }

@@ -46,6 +46,13 @@ function isMadeOf(
  @param text - the text
  
  @returns true for a non-empty run of digits
+
+ @example
+ ```ts
+ import { isDigits, } from './text-checks.ts';
+ 
+ const result = isDigits(text,);
+ ```
  */
 export function isDigits(text: string,): boolean {
   return isMadeOf({
@@ -60,6 +67,13 @@ export function isDigits(text: string,): boolean {
  @param word - the word
  
  @returns true when it has only safe characters
+
+ @example
+ ```ts
+ import { isSafeWord, } from './text-checks.ts';
+ 
+ const result = isSafeWord(word,);
+ ```
  */
 export function isSafeWord(word: string,): boolean {
   return isMadeOf({
@@ -74,6 +88,13 @@ export function isSafeWord(word: string,): boolean {
  @param name - the folder name
  
  @returns true for a plain name
+
+ @example
+ ```ts
+ import { isPlainName, } from './text-checks.ts';
+ 
+ const result = isPlainName(name,);
+ ```
  */
 export function isPlainName(name: string,): boolean {
   return isMadeOf({
@@ -88,6 +109,13 @@ export function isPlainName(name: string,): boolean {
  @param path - the path
  
  @returns true for a plain absolute path
+
+ @example
+ ```ts
+ import { isPlainPath, } from './text-checks.ts';
+ 
+ const result = isPlainPath(path,);
+ ```
  */
 export function isPlainPath(path: string,): boolean {
   return path.startsWith('/',) && isMadeOf({
@@ -102,6 +130,13 @@ export function isPlainPath(path: string,): boolean {
  @param line - the line
  
  @returns the words
+
+ @example
+ ```ts
+ import { wordsOf, } from './text-checks.ts';
+ 
+ const result = wordsOf(line,);
+ ```
  */
 export function wordsOf(line: string,): readonly string[] {
   return line.replaceAll(

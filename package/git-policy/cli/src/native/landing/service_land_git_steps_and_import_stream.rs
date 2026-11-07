@@ -1,9 +1,15 @@
 //! What:
-//!  The Git steps of a landing and the text it feeds Git: running one step and telling a step ended at its ceiling from other
-//!  failures, keeping an unlanded commit on a side ref, the `fast-import` stream of a batch and the marks it exports, and the
+//!  The Git steps of a landing and the text it feeds Git:
+//! running one step and telling a step ended at its ceiling from other
+//!  failures,
+//! keeping an unlanded commit on a side ref,
+//! the `fast-import` stream of a batch and the marks it exports,
+//! and the
 //!  tests of which requests of a batch touch the same paths.
 //! Why:
-//!  `service_land.rs` holds the landing itself; these steps depend on nothing in it, so they are a file it uses.
+//!  `service_land.rs` holds the landing itself;
+//! these steps depend on nothing in it,
+//! so they are a file it uses.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,10 +22,13 @@ use crate::transaction_git::{GitContext, GitOutput, GitRequest, NO_REFLOG_SETTIN
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 /// What:
-///  Keeps the commit built for a batch that was withdrawn on a side ref, and returns the line that tells the person where it is.
+///  Keeps the commit built for a batch that was withdrawn on a side ref,
+/// and returns the line that tells the person where it is.
 /// Why:
 ///   The owner's answer for a wait that reaches its bound is that nothing lands later by itself and the commit is kept for a retry;
-///  the person's staged changes are untouched, so running the commit again builds the same commit, and the side ref lets them
+///  the person's staged changes are untouched,
+/// so running the commit again builds the same commit,
+/// and the side ref lets them
 ///  recover this one if the worktree changed meanwhile.
 ///
 /// In TS you'd write (pseudocode):
@@ -54,11 +63,13 @@ pub(crate) fn run(git: &GitContext, repository: &Path, arguments: &[&str], input
 }
 
 thread_local! {
-    /// The sentence of the last Git step this thread ended at its ceiling, for the line the clients are told.
+    /// The sentence of the last Git step this thread ended at its ceiling,
+    /// for the line the clients are told.
     static CEILING_STEP: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
 }
 
-/// The sentence of the step that was ended at its ceiling, once.
+/// The sentence of the step that was ended at its ceiling,
+/// once.
 pub(crate) fn take_ceiling_step() -> Option<String> {
     return CEILING_STEP.take();
 }
@@ -71,7 +82,8 @@ pub(crate) fn checked(git: &GitContext, repository: &Path, arguments: &[&str], i
     return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
 }
 
-/// A path in the quoted form `fast-import` reads, so no byte of a name can end the line or the field.
+/// A path in the quoted form `fast-import` reads,
+/// so no byte of a name can end the line or the field.
 pub(crate) fn quoted(path: &str) -> String {
     let mut text: String = String::from("\"");
     for character in path.chars() {
@@ -90,7 +102,10 @@ pub(crate) fn overlaps(path: &str, changed: &str) -> bool {
     return path == changed || path.starts_with(&format!("{changed}/")) || changed.starts_with(&format!("{path}/"));
 }
 
-/// The stream that makes one commit per request on a scratch branch that starts at `old`, or, for an amend, one commit
+/// The stream that makes one commit per request on a scratch branch that starts at `old`,
+/// or,
+/// for an amend,
+/// one commit
 ///  whose parents are `amended_parents` and whose whole tree is the request's tree.
 pub(crate) fn import_stream(scratch: &str, old: &str, requests: &[&CommitRequest], amended_parents: &[String]) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
@@ -128,7 +143,8 @@ pub(crate) fn import_stream(scratch: &str, old: &str, requests: &[&CommitRequest
     return bytes;
 }
 
-/// The object names `fast-import` recorded for the marks, in request order.
+/// The object names `fast-import` recorded for the marks,
+/// in request order.
 pub(crate) fn commits_from_marks(text: &str, count: usize) -> Option<Vec<String>> {
     let mut commits: Vec<Option<String>> = vec![None; count];
     for line in text.lines() {
@@ -185,7 +201,8 @@ pub(crate) fn changes_overlap_names(request: &CommitRequest, names: Option<&BTre
 /// What:
 ///  Whether a change of the request touches a path that a change of an earlier request of the batch also touches.
 /// Why:
-///  A later request would replace the earlier one's bytes in the import stream, so it lands only when it captured later.
+///  A later request would replace the earlier one's bytes in the import stream,
+/// so it lands only when it captured later.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -203,8 +220,11 @@ pub(crate) fn changes_overlap_members(request: &CommitRequest, earlier: &CommitR
 }
 
 /// What:
-///  The requests of a batch that land against the tip `old`, with their positions: a request whose paths changed on the branch
-///  since its base is left out, and so is one that an earlier request of the batch overlaps unless it captured the worktree later.
+///  The requests of a batch that land against the tip `old`,
+/// with their positions:
+/// a request whose paths changed on the branch
+///  since its base is left out,
+/// and so is one that an earlier request of the batch overlaps unless it captured the worktree later.
 /// Why:
 ///  The requests left out are sent back to be prepared again and merged against what landed.
 ///

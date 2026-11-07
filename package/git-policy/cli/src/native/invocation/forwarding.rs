@@ -26,7 +26,8 @@ use std::ffi::OsString;
 /// `Path` is a borrowed filesystem path of raw OS bytes.
 use std::path::Path;
 /// What:
-///  The marker every real-Git start carries, and the two ways a start can be made.
+///  The marker every real-Git start carries,
+/// and the two ways a start can be made.
 /// Why:
 ///   A monochromatic-git-policy-cli executable that is started as "Git" finds the marker and stops instead of starting one more wrapper.
 use crate::started_as_git::{StartMode, mark_real_git_start};

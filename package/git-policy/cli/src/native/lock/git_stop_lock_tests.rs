@@ -1,9 +1,13 @@
 //! Controls for the lock files a stopped Git child must not leave behind.
 //! Why:
 //!  A Git child stopped at its deadline while it holds a ref lock leaves `<ref>.lock` behind when it cannot clean up
-//!  after itself (it was killed, or never ran its signal handler), and every later Git command that updates the same ref
+//!  after itself (it was killed,
+//! or never ran its signal handler),
+//! and every later Git command that updates the same ref
 //!  then fails with "Unable to create ... File exists".
-//!  Each control holds a real lock with real Git in a disposable repository, stops the holder at its deadline, and
+//!  Each control holds a real lock with real Git in a disposable repository,
+//! stops the holder at its deadline,
+//! and
 //!  then runs the Git command that failed in practice (`git fetch`).
 //!
 //! In TS you'd write (pseudocode):
@@ -15,18 +19,43 @@
 
 use crate::bounded_push::{run_bounded_push, Patience, STOPPED_EXIT_CODE};
 use crate::child_watch::{output_watched, WatchTerms};
+use crate::process_tree::{TreeMember, state_letter_of};
+use crate::stop_waits_while_a_member_cannot_be_interrupted::{ControlRules, STOP_CEILING, rules_for_this_thread};
 use crate::test_support::{fixture, git, git_text, remove, repository, scratch_environment, while_test_lives};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-/// The deadline of the held lock's command: long enough for Git to start and take the lock, short enough to wait for.
+/// The deadline of the held lock's command:
+/// long enough for Git to start and take the lock,
+/// short enough to wait for.
 const HOLD_DEADLINE: Duration = Duration::from_millis(2500);
 
-/// The grace after the polite stop request: the unresponsive holder never answers it, and the responsive one needs the
-///  host to run its handler, which a loaded gate does not do within a few hundred milliseconds.
+/// The grace after the polite stop request:
+/// the unresponsive holder never answers it,
+/// and the responsive one needs the
+///  host to run its handler,
+/// which a loaded gate does not do within a few hundred milliseconds.
 const SHORT_GRACE: Duration = Duration::from_secs(2);
+
+/// The grace of a stop whose holder answers the request:
+/// Git's handler removes the pid file of the lock and then the lock,
+/// 130
+///  microseconds apart on a quiet disk (`strace` of `git update-ref --stdin` told to prepare,
+/// then sent `SIGTERM`,
+/// 2026-11-07),
+/// and
+///  a kill between the two leaves the lock with no pid file,
+/// which the sweep rightly leaves alone as unproven.
+/// A check and a rename
+///  on this host once took 6.03 s of wall time under load (whether the disk or the scheduler held the thread was not measured) (`doc/planning/git-policy-cli-full-tokio.md`,
+/// "The coordinator's three settlements",
+///  item c),
+/// so the handler of a responsive holder is given twice that;
+/// a holder that answers ends at once and never waits it out.
+///  The gate of `85e6d2ab99` left such a lock after the 2 s grace of `SHORT_GRACE` while the host load was about 70.
+const RESPONSIVE_GRACE: Duration = Duration::from_micros(6_031_986).saturating_mul(2);
 
 /// The tracking ref the incident left locked.
 const HELD_REF: &str = "refs/remotes/origin/main";
@@ -36,18 +65,56 @@ const HELD_REF: &str = "refs/remotes/origin/main";
 enum Holder {
     /// Git runs its own signal handler and removes its lock files.
     Responsive,
-    /// `SIGTERM` stays blocked in every process of the command, as for a Git that sits in an uninterruptible call.
+    /// `SIGTERM` stays blocked in every process of the command,
+    /// as for a Git that sits in an uninterruptible call.
     Unresponsive,
+    /// Git answers `SIGTERM`,
+    /// but its handler is held for `CLEANUP_DELAY_MICROSECONDS` after its first `unlink` (the lock's pid file),
+    ///  as a handler is held by a stalled disk or a processor that is not given to it:
+    /// a `SIGKILL` at the end of the grace then
+    ///  falls between the removal of the pid file and the removal of the lock.
+    SlowToFinishCleanup,
 }
 
-/// A repository whose `origin/main` is behind a bare remote's `main`, so a later fetch has a tracking ref to update.
+/// How long the handler of the slow holder is held after its first `unlink`,
+/// in microseconds:
+/// more than twice `SHORT_GRACE`,
+/// so the
+///  kill at the end of the grace always falls inside it.
+const CLEANUP_DELAY_MICROSECONDS: u64 = 5_000_000;
+
+/// A repository whose `origin/main` is behind a bare remote's `main`,
+/// so a later fetch has a tracking ref to update.
 struct Stage {
-    /// The fixture directory, removed at the end.
+    /// The fixture directory,
+    /// removed at the end.
     root: PathBuf,
     /// The working repository.
     repo: PathBuf,
     /// The ready marker the holder writes once the lock exists.
     ready: PathBuf,
+}
+
+/// Whether a member is held where it cannot act on a signal,
+/// as far as a control can make one:
+/// uninterruptible sleep (`D`),
+/// which a
+///  control cannot produce on demand,
+/// or the stop of a traced process (`t`),
+/// which is what `strace` holds the handler in while it
+///  injects the delay.
+/// The production rule looks for `D` only;
+/// this stand-in is the control's,
+/// and it is the reason the reproduction
+///  below is a reproduction of the cut and not of a stalled disk.
+fn held_where_a_signal_cannot_act(member: &TreeMember) -> bool {
+    return matches!(state_letter_of(member), Some('D' | 't'));
+}
+
+/// Every member is held where a signal cannot act,
+/// for ever.
+fn held_for_ever(_member: &TreeMember) -> bool {
+    return true;
 }
 
 /// Build the stage.
@@ -66,17 +133,24 @@ fn stage(name: &str) -> Stage {
     return Stage { root, repo, ready };
 }
 
-/// The command that holds the lock of `HELD_REF`: `git update-ref --stdin` told to prepare, then kept waiting.
+/// The command that holds the lock of `HELD_REF`:
+/// `git update-ref --stdin` told to prepare,
+/// then kept waiting.
 fn holder(stage: &Stage, kind: Holder) -> Command {
     let lock: PathBuf = stage.repo.join(".git").join(format!("{HELD_REF}.lock"));
     let target: String = git_text(stage.repo.as_path(), &["rev-parse", "HEAD"]);
     // The wait for the lock ends with the test; the hold after it is one `sleep`, because the stop under test walks the holder's
     //  processes once, and a loop would start new ones after the walk. The fixture ends the sleeper when its test is over.
     let lives: String = while_test_lives(stage.root.as_path());
+    // `strace` holds the first `unlink` of Git after it ran: the handler removes the pid file first and the lock second.
+    let git: String = match kind {
+        Holder::SlowToFinishCleanup => format!("strace -f -o /dev/null -e trace=unlink -e inject=unlink:delay_exit={CLEANUP_DELAY_MICROSECONDS}:when=1 /usr/bin/git"),
+        Holder::Responsive | Holder::Unresponsive => String::from("/usr/bin/git"),
+    };
     let script: String = format!(
         "( printf 'start\\nupdate %s %s\\nprepare\\n' \"$HELD_REF\" \"$TARGET\"; \
          while [ ! -e \"$LOCK\" ] && {lives}; do sleep 0.05; done; : > \"$READY\"; sleep 600 ) \
-         | /usr/bin/git update-ref --stdin"
+         | {git} update-ref --stdin"
     );
     let mut command: Command = Command::new("sh");
     command
@@ -84,7 +158,7 @@ fn holder(stage: &Stage, kind: Holder) -> Command {
         .arg(script)
         .current_dir(stage.repo.as_path())
         .env_clear()
-        .env("PATH", "/usr/bin:/bin")
+        .env("PATH", "/usr/bin:/bin:/usr/sbin")
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
         .env("GIT_CONFIG_COUNT", "1")
@@ -127,10 +201,13 @@ fn lock_files(directory: &Path) -> Vec<PathBuf> {
     return found;
 }
 
-/// How long a test lets the thread that sweeps for a tree the host was slow to end take, instead of looking once.
+/// How long a test lets the thread that sweeps for a tree the host was slow to end take,
+/// instead of looking once.
 const SWEEP_WAIT: Duration = Duration::from_secs(20);
 
-/// Each leftover file with its size, birth and whether a pid file sits beside it, so a failure on a loaded host says what
+/// Each leftover file with its size,
+/// birth and whether a pid file sits beside it,
+/// so a failure on a loaded host says what
 /// was left.
 fn describe_left(files: &[PathBuf]) -> String {
     let mut lines: Vec<String> = Vec::new();
@@ -145,8 +222,11 @@ fn describe_left(files: &[PathBuf]) -> String {
     return lines.join("; ");
 }
 
-/// The checks that follow a stop: the holder really held the lock, none is left (the sweep for a tree the host was slow to
-/// end runs on a thread and is waited for), and the fetch that failed in practice works.
+/// The checks that follow a stop:
+/// the holder really held the lock,
+/// none is left (the sweep for a tree the host was slow to
+/// end runs on a thread and is waited for),
+/// and the fetch that failed in practice works.
 fn assert_clean_after_stop(stage: &Stage, kind: Holder, how: &str) {
     assert!(stage.ready.exists(), "{how} {kind:?}: the holder took the lock before it was stopped");
     let waited: Instant = Instant::now();
@@ -171,7 +251,13 @@ fn assert_clean_after_stop(stage: &Stage, kind: Holder, how: &str) {
 /// A push-style bounded run stops the holder at its deadline and leaves no lock.
 fn bounded_run_leaves_no_lock(kind: Holder, name: &str) {
     let stage: Stage = stage(name);
-    let attempt = run_bounded_push(holder(&stage, kind), Patience::Fixed(HOLD_DEADLINE), SHORT_GRACE, scratch_environment().as_slice()).expect("runs");
+    let grace: Duration = match kind {
+        Holder::Responsive => RESPONSIVE_GRACE,
+        Holder::Unresponsive | Holder::SlowToFinishCleanup => SHORT_GRACE,
+    };
+    // The slow holder is held in a traced stop, which only the control's rule counts as a wait the stop may extend (see above).
+    let _rules = matches!(kind, Holder::SlowToFinishCleanup).then(|| { return rules_for_this_thread(ControlRules { blocked: held_where_a_signal_cannot_act, ceiling: STOP_CEILING }); });
+    let attempt = run_bounded_push(holder(&stage, kind), Patience::Fixed(HOLD_DEADLINE), grace, scratch_environment().as_slice()).expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its deadline");
     assert_clean_after_stop(&stage, kind, "bounded run");
     remove(stage.root.as_path());
@@ -209,7 +295,47 @@ fn a_push_stop_of_a_responsive_holder_leaves_no_lock() {
     bounded_run_leaves_no_lock(Holder::Responsive, "stop-lock-push-responsive");
 }
 
-/// A holder that cannot answer `SIGTERM` is killed, and the wrapper leaves no lock behind it.
+/// A holder whose handler is slow to finish is not killed between Git's two unlinks:
+/// the stop waits,
+/// up to its ceiling,
+/// while a member
+///  of the tree cannot be interrupted,
+/// so the lock goes with its pid file.
+/// Before the wait the kill at the end of the grace left the
+///  lock without its pid file and the sweep left it alone,
+/// because nothing proves its holder gone (the gate of `85e6d2ab99`;
+/// plan,
+///  "The two gate failures of main at `85e6d2ab99`").
+#[test]
+fn a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock() {
+    bounded_run_leaves_no_lock(Holder::SlowToFinishCleanup, "stop-lock-push-slow-cleanup");
+}
+
+/// A member that never leaves the state where a signal cannot act is still ended at the stop's ceiling:
+/// the stop returns about one
+///  ceiling after the request,
+/// the holder is gone,
+/// and the sweep then clears its lock,
+/// so nothing waits for good.
+#[test]
+fn a_member_held_for_ever_is_ended_at_the_ceiling_and_the_lock_is_swept() {
+    const CEILING: Duration = Duration::from_millis(1500);
+    const GRACE: Duration = Duration::from_millis(300);
+    const GENEROUS_SLACK: Duration = Duration::from_secs(10);
+    let stage: Stage = stage("stop-lock-push-held-for-ever");
+    let _rules = rules_for_this_thread(ControlRules { blocked: held_for_ever, ceiling: CEILING });
+    let began: Instant = Instant::now();
+    let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), Patience::Fixed(HOLD_DEADLINE), GRACE, scratch_environment().as_slice()).expect("runs");
+    let took: Duration = began.elapsed();
+    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its deadline");
+    assert!(took >= HOLD_DEADLINE + CEILING, "the stop forced the end after {took:?}, before the ceiling of {CEILING:?} that followed the request");
+    assert!(took < HOLD_DEADLINE + CEILING + GENEROUS_SLACK, "the stop took {took:?}: it waited past its ceiling");
+    assert_clean_after_stop(&stage, Holder::Unresponsive, "bounded run held for ever");
+    remove(stage.root.as_path());
+}
+
+/// A holder that cannot answer `SIGTERM` is killed,
+/// and the wrapper leaves no lock behind it.
 #[test]
 fn a_push_stop_of_an_unresponsive_holder_leaves_no_lock() {
     bounded_run_leaves_no_lock(Holder::Unresponsive, "stop-lock-push-unresponsive");
@@ -227,9 +353,12 @@ fn a_watched_stop_of_an_unresponsive_holder_leaves_no_lock() {
     watched_step_leaves_no_lock(Holder::Unresponsive, "stop-lock-watched-unresponsive");
 }
 
-/// The watched path asks with a catchable signal before it kills: a shell with a `TERM` trap runs the trap.
+/// The watched path asks with a catchable signal before it kills:
+/// a shell with a `TERM` trap runs the trap.
 ///  The shell sits silent in a bounded `sleep` it waits for (a loop that starts a process every pause would show work at every
-///  look, and a step that works is never stopped), so the quiet window is what stops it.
+///  look,
+/// and a step that works is never stopped),
+/// so the quiet window is what stops it.
 #[test]
 fn a_watched_stop_gives_a_catchable_signal_first() {
     let root: PathBuf = fixture("stop-lock-watched-catchable");
@@ -250,7 +379,8 @@ fn a_watched_stop_gives_a_catchable_signal_first() {
     remove(root.as_path());
 }
 
-/// A stop with no grace kills at once and hands the child to a thread, which sweeps its locks when it has ended.
+/// A stop with no grace kills at once and hands the child to a thread,
+/// which sweeps its locks when it has ended.
 #[test]
 fn a_stop_without_grace_sweeps_the_locks_on_a_thread_of_its_own() {
     let stage: Stage = stage("stop-lock-push-no-grace");

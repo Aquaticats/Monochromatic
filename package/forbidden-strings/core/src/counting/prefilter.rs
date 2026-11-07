@@ -91,6 +91,12 @@ pub(crate) struct Prefilter {
     finders: Vec<Finder<'static>>,
 }
 
+/// A substring finder that owns its needle,
+/// so the prefilter keeps it past the seed list it was built from.
+fn owned_finder(seed: &[u8]) -> Finder<'static> {
+    return Finder::new(seed).into_owned();
+}
+
 /// What:
 ///     Queries over a prepared prefilter.
 /// Why:
@@ -118,7 +124,7 @@ impl Prefilter {
     /// ```
     pub(crate) fn from_seeds(seeds: &[Vec<u8>]) -> Prefilter {
         return Prefilter {
-            finders: seeds.iter().map(|seed| return Finder::new(seed).into_owned()).collect(),
+            finders: seeds.iter().map(Vec::as_slice).map(owned_finder).collect(),
         }
     }
 
@@ -140,7 +146,15 @@ impl Prefilter {
     /// }
     /// ```
     pub(crate) fn allows(&self, line: &[u8]) -> bool {
-        return self.finders.is_empty() || self.finders.iter().any(|finder| return finder.find(line).is_some())
+        if self.finders.is_empty() {
+            return true;
+        }
+        for finder in &self.finders {
+            if finder.find(line).is_some() {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// Returns how many seed searchers are prepared.
@@ -233,6 +247,15 @@ pub(crate) fn seeds_from_node_min(node: &Node, min: usize) -> Vec<Vec<u8>> {
     return filter_min(required_literal(node), min)
 }
 
+/// The one-byte literal a class stands for when it holds a single byte,
+/// and no literal otherwise.
+fn singleton_literal(set: &crate::charset::ByteSet) -> Vec<Vec<u8>> {
+    return match set.as_singleton() {
+        Some(byte) => vec![vec![byte]],
+        None => Vec::new(),
+    };
+}
+
 /// Returns a set of literals such that every match of `node` contains one.
 ///
 /// What:
@@ -255,7 +278,7 @@ pub(crate) fn seeds_from_node_min(node: &Node, min: usize) -> Vec<Vec<u8>> {
 /// ```
 fn required_literal(node: &Node) -> Vec<Vec<u8>> {
     match node {
-        Node::Class(set) => return set.as_singleton().map(|b| vec![vec![b]]).unwrap_or_default(),
+        Node::Class(set) => return singleton_literal(set),
         Node::Concat(parts) => return concat_literal(parts),
         Node::Alt(branches) => return alt_literal(branches),
         Node::Inter(operands) => return inter_literal(operands),
@@ -344,7 +367,7 @@ fn inter_literal(operands: &[Node]) -> Vec<Vec<u8>> {
 /// ```
 pub(crate) fn leading_literals(node: &Node) -> Vec<Vec<u8>> {
     match node {
-        Node::Class(set) => return set.as_singleton().map(|b| vec![vec![b]]).unwrap_or_default(),
+        Node::Class(set) => return singleton_literal(set),
         Node::Concat(parts) => return concat_leading(parts),
         Node::Alt(branches) => return alt_leading(branches),
         Node::Inter(operands) => return inter_leading(operands),

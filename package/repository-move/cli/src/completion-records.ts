@@ -14,6 +14,8 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { isDigits, } from './text-checks.ts';
+import { errorCodeOf, } from './error-code-of.ts';
+import { parseTextFields, } from './json-text-fields.ts';
 
 /**
  Suffix of the snapshot records, which double as the ledger of copy names.
@@ -73,6 +75,13 @@ export type SnapshotEntry = {
  @param path - the path
  
  @returns true when it exists
+
+ @example
+ ```ts
+ import { pathExists, } from './completion-records.ts';
+ 
+ const result = await pathExists(path,);
+ ```
  */
 export async function pathExists(path: string,): Promise<boolean> {
   try {
@@ -80,7 +89,7 @@ export async function pathExists(path: string,): Promise<boolean> {
     return true;
   }
   catch (error) {
-    if ((error as NodeJS.ErrnoException).code === MISSING_PATH_CODE) {
+    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
       return false;
     }
     throw error;
@@ -93,6 +102,13 @@ export async function pathExists(path: string,): Promise<boolean> {
  @param path - the file
  
  @param text - its content
+
+ @example
+ ```ts
+ import { writeTextAtomically, } from './completion-records.ts';
+ 
+ await writeTextAtomically({ path, text, },);
+ ```
  */
 export async function writeTextAtomically(
   {
@@ -121,6 +137,13 @@ export async function writeTextAtomically(
  @param writable - false in print mode, where nothing is written
  
  @returns the store
+
+ @example
+ ```ts
+ import { createRecords, } from './completion-records.ts';
+ 
+ const result = createRecords({ stateFolder, writable, },);
+ ```
  */
 export function createRecords(
   {
@@ -211,6 +234,13 @@ export function createRecords(
  @param prefix - `s` for the first pass, `f` for the final pass
  
  @returns the entries, sorted by name
+
+ @example
+ ```ts
+ import { readSnapshotEntries, } from './completion-records.ts';
+ 
+ const result = await readSnapshotEntries({ stateFolder, prefix, },);
+ ```
  */
 export async function readSnapshotEntries(
   {
@@ -243,16 +273,13 @@ export async function readSnapshotEntries(
     /**
      The parsed content of a record file.
      */
-    const data = JSON.parse(await readFile(
+    const data = parseTextFields(await readFile(
       join(
         stateFolder,
         file,
       ),
       'utf8',
-    ),) as {
-      readonly uuid?: string;
-      readonly path?: string;
-    };
+    ),);
     return {
       name: file.slice(
         0,

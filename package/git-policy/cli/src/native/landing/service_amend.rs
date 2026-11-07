@@ -1,11 +1,20 @@
 //! What:
-//!  The facts of the commit an amend replaces, read once from the repository: its parents, its first parent's tree,
-//!  its author and its message, and the author line an amend makes of them.
+//!  The facts of the commit an amend replaces,
+//! read once from the repository:
+//! its parents,
+//! its first parent's tree,
+//!  its author and its message,
+//! and the author line an amend makes of them.
 //! Why:
-//!  An amend keeps the parents of the commit it replaces, keeps its message when no message option is given and keeps
-//!  its author unless the command line says otherwise. All of that is arithmetic on the replaced commit's own record,
-//!  so the wrapper embeds it; each rule is compared field by field with native `git commit --amend` in
-//!  `binary_service_amend_tests.rs`. A commit with a header the amend would have to carry (another encoding, a merge
+//!  An amend keeps the parents of the commit it replaces,
+//! keeps its message when no message option is given and keeps
+//!  its author unless the command line says otherwise.
+//! All of that is arithmetic on the replaced commit's own record,
+//!  so the wrapper embeds it;
+//! each rule is compared field by field with native `git commit --amend` in
+//!  `binary_service_amend_tests.rs`.
+//! A commit with a header the amend would have to carry (another encoding,
+//! a merge
 //!  tag) returns nothing and native Git handles the line.
 //!
 //! In TS you'd write (pseudocode):
@@ -22,15 +31,20 @@ use std::path::Path;
 /// What an amend reads from the commit it replaces.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AmendSource {
-    /// The commit the amend replaces, which is also the branch tip the amend must find when it lands.
+    /// The commit the amend replaces,
+    /// which is also the branch tip the amend must find when it lands.
     pub base: String,
-    /// Its parents in order; the amended commit has the same ones.
+    /// Its parents in order;
+    /// the amended commit has the same ones.
     pub parents: Vec<String>,
-    /// The tree of its first parent, or nothing for a root commit.
+    /// The tree of its first parent,
+    /// or nothing for a root commit.
     pub parent_tree: Option<String>,
-    /// Its author line, `Name <email> seconds zone`.
+    /// Its author line,
+    /// `Name <email> seconds zone`.
     pub author: String,
-    /// Its message, exactly as stored.
+    /// Its message,
+    /// exactly as stored.
     pub message: String,
 }
 
@@ -46,11 +60,18 @@ pub struct StoredCommit {
 }
 
 /// What:
-///  Reads a stored commit object, or nothing when it has a header an amend would have to carry over.
+///  Reads a stored commit object,
+/// or nothing when it has a header an amend would have to carry over.
 /// Why:
-///   An amend keeps extra headers (a merge tag, for one) and the encoding of the commit it replaces. The signature is
-///  the exception: native Git drops it, because the amended commit is not the one that was signed. Anything else is not
-///  carried here, so the line stays native.
+///   An amend keeps extra headers (a merge tag,
+/// for one) and the encoding of the commit it replaces.
+/// The signature is
+///  the exception:
+/// native Git drops it,
+/// because the amended commit is not the one that was signed.
+/// Anything else is not
+///  carried here,
+/// so the line stays native.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -97,10 +118,14 @@ fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<
 }
 
 /// What:
-///  Reads the commit `HEAD` names, the one an amend replaces.
+///  Reads the commit `HEAD` names,
+/// the one an amend replaces.
 /// Why:
-///   Resolved once, before the message and the author are made, so everything an amend takes from the old commit comes
-///  from the same commit; the preparation then checks that the branch is still there.
+///   Resolved once,
+/// before the message and the author are made,
+/// so everything an amend takes from the old commit comes
+///  from the same commit;
+/// the preparation then checks that the branch is still there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -123,7 +148,8 @@ pub fn read_amend_source(context: &GitContext, cwd: &Path) -> Result<Option<Amen
     return Ok(Some(AmendSource { base, parents: stored.parents, parent_tree, author: stored.author, message: stored.message }));
 }
 
-/// The name, the address and the raw date of an author line.
+/// The name,
+/// the address and the raw date of an author line.
 fn split_author(line: &str) -> Option<(String, String, String)> {
     let (name, rest) = line.rsplit_once(" <")?;
     let (email, date) = rest.split_once("> ")?;
@@ -133,9 +159,15 @@ fn split_author(line: &str) -> Option<(String, String, String)> {
 /// What:
 ///  The author line of an amended commit.
 /// Why:
-///   Native Git keeps the replaced commit's name, address and date; `--author` replaces the name and address, `--date`
-///  the date, and `--reset-author` makes the committer the author with a new date. Git's own `var` makes the line
-///  whenever a part is replaced, so a date or an identity is read as Git reads it.
+///   Native Git keeps the replaced commit's name,
+/// address and date;
+/// `--author` replaces the name and address,
+/// `--date`
+///  the date,
+/// and `--reset-author` makes the committer the author with a new date.
+/// Git's own `var` makes the line
+///  whenever a part is replaced,
+/// so a date or an identity is read as Git reads it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

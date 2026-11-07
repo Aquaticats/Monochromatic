@@ -3,7 +3,8 @@
 
 use super::*;
 
-/// A delta that copies, inserts and copies again gives the bytes the encoding states.
+/// A delta that copies,
+/// inserts and copies again gives the bytes the encoding states.
 #[test]
 fn a_delta_copies_and_inserts() {
     let base: &[u8] = b"hello world";
@@ -18,7 +19,8 @@ fn a_delta_copies_and_inserts() {
     assert_eq!(apply_delta(base, delta.as_slice()), Some(b"hello!!! world".to_vec()));
 }
 
-/// A delta whose sizes, ranges or opcodes disagree with its base is refused.
+/// A delta whose sizes,
+/// ranges or opcodes disagree with its base is refused.
 #[test]
 fn a_bad_delta_is_refused() {
     let base: &[u8] = b"abcdef";
@@ -45,7 +47,9 @@ fn a_bad_index_is_refused() {
     crate::test_support::remove(root.as_path());
 }
 
-/// A repository of several hundred objects packed into one pack, as the pack's index path, and the names of its objects.
+/// A repository of several hundred objects packed into one pack,
+/// as the pack's index path,
+/// and the names of its objects.
 fn packed_repository(root: &std::path::Path) -> (std::path::PathBuf, Vec<Vec<u8>>) {
     use crate::test_support::{git, git_output};
     let repo = root.join("repo");
@@ -73,8 +77,10 @@ fn packed_repository(root: &std::path::Path) -> (std::path::PathBuf, Vec<Vec<u8>
     return (index, names);
 }
 
-/// A lookup reads the index a constant few times however many objects the pack holds: one read narrows the search to the
-///  names that share the first byte and one more fetches the offset, so a name the pack does not hold costs one read.
+/// A lookup reads the index a constant few times however many objects the pack holds:
+/// one read narrows the search to the
+///  names that share the first byte and one more fetches the offset,
+/// so a name the pack does not hold costs one read.
 #[test]
 fn a_lookup_reads_the_index_a_few_times() {
     let root = crate::test_support::fixture("repo-read-pack-reads");
@@ -100,9 +106,14 @@ fn a_lookup_reads_the_index_a_few_times() {
     crate::test_support::remove(root.as_path());
 }
 
-/// Opening a pack reads its index twice at most, however many objects it holds: the header and the table of counts that
-/// follows it are one stretch of the file. The wrapper opens the object store afresh for each question it answers (a dozen for
-/// one commit, over every pack of the repository), and each open used to read the table in 256 pieces of four bytes.
+/// Opening a pack reads its index twice at most,
+/// however many objects it holds:
+/// the header and the table of counts that
+/// follows it are one stretch of the file.
+/// The wrapper opens the object store afresh for each question it answers (a dozen for
+/// one commit,
+/// over every pack of the repository),
+/// and each open used to read the table in 256 pieces of four bytes.
 #[test]
 fn opening_a_pack_reads_its_index_a_few_times() {
     let root = crate::test_support::fixture("repo-read-pack-open");

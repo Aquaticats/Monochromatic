@@ -19,6 +19,10 @@ use ringbuf::{HeapCons, HeapRb};
 // Why:      The update callback appends what the controller emits to a list the test reads.
 use std::sync::{Arc, Mutex};
 
+// What:     `use std::time::Duration;`.
+// Why:      The drain hold and the idle park are spans of time that the tests build and compare.
+use std::time::Duration;
+
 // What:     `use crate::peakcache::CacheHandle;`.
 // Why:      `Controller::new` takes a cache handle; the degraded one touches no disk.
 use crate::peakcache::CacheHandle;

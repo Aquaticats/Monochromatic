@@ -1,4 +1,5 @@
-//! Controls for the unit-test fixtures: where they live and that they go away however their test ends (issue 1809).
+//! Controls for the unit-test fixtures:
+//! where they live and that they go away however their test ends (issue 1809).
 
 use super::*;
 
@@ -17,7 +18,8 @@ fn a_fixture_is_removed_when_its_test_thread_panics() {
     assert!(!root.exists(), "{} was left behind", root.display());
 }
 
-/// A test thread that ends normally leaves nothing behind either, with or without an explicit `remove`.
+/// A test thread that ends normally leaves nothing behind either,
+/// with or without an explicit `remove`.
 #[test]
 fn a_fixture_is_removed_when_its_test_thread_ends() {
     let (sender, receiver) = std::sync::mpsc::channel::<PathBuf>();
@@ -35,7 +37,9 @@ fn a_fixture_is_removed_when_its_test_thread_ends() {
     }
 }
 
-/// Settling keeps a tree on request, removes it otherwise, and accepts a tree that is already gone.
+/// Settling keeps a tree on request,
+/// removes it otherwise,
+/// and accepts a tree that is already gone.
 #[test]
 fn settling_keeps_removes_and_accepts_a_tree_that_is_gone() {
     let root: PathBuf = fixture("settle");
@@ -47,7 +51,9 @@ fn settling_keeps_removes_and_accepts_a_tree_that_is_gone() {
     settle_fixture(root.as_path(), false);
 }
 
-/// Fixtures are created beside the build output, never in the system temporary directory, unless the person moved the
+/// Fixtures are created beside the build output,
+/// never in the system temporary directory,
+/// unless the person moved the
 /// root on purpose.
 #[test]
 fn the_fixture_root_is_not_the_system_temporary_directory() {
@@ -65,9 +71,14 @@ fn the_fixture_root_is_not_the_system_temporary_directory() {
     }
 }
 
-/// A process a test starts cannot write a core dump: tests make services abort or kill them on purpose, and every dump costs
+/// A process a test starts cannot write a core dump:
+/// tests make services abort or kill them on purpose,
+/// and every dump costs
 ///  the system's core-dump handler processor time and disk writes on a disk other sessions share (several hundred dumps of
-///  `cli-git-service` from test runs on 2026-11-03). The limit is the harness's, set where fixtures are made; the product
+///  `cli-git-service` from test runs on 2026-11-03).
+/// The limit is the harness's,
+/// set where fixtures are made;
+/// the product
 ///  sets none.
 #[test]
 fn a_process_a_test_starts_may_not_write_a_core_dump() {

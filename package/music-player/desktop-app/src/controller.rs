@@ -33,6 +33,7 @@
 /// type Path = string;
 /// ```
 use std::collections::HashSet;
+/// Imports the path types that the controller's opened folder and tracks use.
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -111,8 +112,12 @@ use crate::decode::{AudioSpec, Source};
 /// import { spawnQueueMeasurement } from "./measure";
 /// ```
 use crate::measure::spawn_queue_measurement;
+/// Imports the pause gate that the sweep threads wait on.
 use crate::sweep_gate::SweepGate;
+/// Imports the sweep job,
+/// the report sink and the sink that drops reports.
 use crate::sweep_report::{SweepJob, SweepSink, noop_sink};
+/// Imports the shared ownership and lock types that share the cache and the gate with the sweep threads.
 use std::sync::{Arc, Mutex};
 
 /// What:

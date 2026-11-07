@@ -10,13 +10,18 @@
 //! // dependent_version/index.ts: one `export * from './file'` per module below.
 //! ```
 
-/// The repository content the dependent-version planner reads, and its two failure kinds.
+/// The repository content the dependent-version planner reads,
+/// and its two failure kinds.
 pub mod dependent_version_content;
 
-/// Which paths the dependent-version planner reads: manifests, configuration, source.
+/// Which paths the dependent-version planner reads:
+/// manifests,
+/// configuration,
+/// source.
 pub mod dependent_version_paths;
 
-/// Strict JSON reading of a manifest's name, version and dependency names.
+/// Strict JSON reading of a manifest's name,
+/// version and dependency names.
 pub mod dependent_version_manifest;
 
 /// Patch bumps of plain release versions and `JSON.stringify` quoting.
@@ -34,7 +39,8 @@ pub mod dependent_version_imports;
 /// The dependency walk and the plan of dependent bumps.
 pub mod dependent_version_graph;
 
-/// Every workspace manifest at both states, and which versions were raised.
+/// Every workspace manifest at both states,
+/// and which versions were raised.
 pub mod dependent_version_states;
 
 /// Which development dependencies each dependent bundles.
@@ -55,22 +61,27 @@ pub mod policy_added_path;
 /// The `mono/dependent-version-bump` check over a lifecycle's candidate state.
 pub mod policy_dependent_version;
 
-/// An in-memory workspace that records reads; never in the release build.
+/// An in-memory workspace that records reads;
+/// never in the release build.
 #[cfg(test)]
 pub(crate) mod dependent_version_test_support;
 
-/// Differential fixture reading and canonical results; never in the release build.
+/// Differential fixture reading and canonical results;
+/// never in the release build.
 #[cfg(test)]
 pub(crate) mod dependent_version_fixture_json;
 
-/// Canonical renderings of the native planner's results; never in the release build.
+/// Canonical renderings of the native planner's results;
+/// never in the release build.
 #[cfg(test)]
 pub(crate) mod dependent_version_fixture_output;
 
-/// One differential case evaluated by the native planner; never in the release build.
+/// One differential case evaluated by the native planner;
+/// never in the release build.
 #[cfg(test)]
 pub(crate) mod dependent_version_fixture_cases;
 
-/// The native planner against the incumbent's recorded results; never in the release build.
+/// The native planner against the incumbent's recorded results;
+/// never in the release build.
 #[cfg(test)]
 mod dependent_version_differential_tests;

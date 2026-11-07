@@ -19,8 +19,11 @@ use std::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
-/// Context names the failed step and the requested socket path in the error `run` reports.
-use anyhow::{Context, Result};
+/// The error channel the binding steps report through.
+use anyhow::Result;
+
+/// Error text that is built only on failure.
+use crate::lazy_error_text::with_message;
 
 /// The log line that makes the address discoverable.
 use tracing::{info, warn};
@@ -96,21 +99,21 @@ impl Staging {
             let directory = parent.join(format!(".nws-control-{}-{number}", std::process::id()));
             match DirBuilder::new().mode(STAGING_MODE).create(&directory) {
                 Ok(()) => {
-                    std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(STAGING_MODE))
-                        .with_context(|| format!("restricting the staging directory {}", directory.display()))?;
-                    let handle = File::open(&directory)
-                        .with_context(|| format!("opening the staging directory {}", directory.display()))?;
+                    let restricted = std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(STAGING_MODE));
+                    with_message(restricted, format_args!("restricting the staging directory {}", directory.display()))?;
+                    let handle = with_message(
+                        File::open(&directory),
+                        format_args!("opening the staging directory {}", directory.display()),
+                    )?;
                     return Ok(Staging { directory, handle })
                 }
                 Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
                 Err(error) => {
-                    return Err(error).with_context(|| {
-                        return format!(
-                            "creating the private staging directory {}; the directory for the socket must exist \
-                             and be writable by you",
-                            directory.display()
-                        )
-                    })
+                    return Err(anyhow::Error::new(error).context(format!(
+                        "creating the private staging directory {}; the directory for the socket must exist \
+                         and be writable by you",
+                        directory.display()
+                    )))
                 }
             }
         }
@@ -185,8 +188,8 @@ pub fn bind_listener(path: &Path) -> Result<UnixListener> {
     //           Remove a pre-existing socket file.
     // Why:      A leftover socket file from a previous run is replaced by the new one.
     if path.exists() {
-        std::fs::remove_file(path)
-            .with_context(|| format!("removing stale control socket {}", path.display()))?;
+        let removed = std::fs::remove_file(path);
+        with_message(removed, format_args!("removing stale control socket {}", path.display()))?;
     }
 
     // What:     The directory that will hold the socket,
@@ -196,28 +199,27 @@ pub fn bind_listener(path: &Path) -> Result<UnixListener> {
         Some(directory) if !directory.as_os_str().is_empty() => directory,
         _ => Path::new("."),
     };
-    let staging = Staging::create(parent)
-        .with_context(|| format!("binding control socket {}", path.display()))?;
+    let staging = with_message(Staging::create(parent), format_args!("binding control socket {}", path.display()))?;
 
     // What:     Bind at the staged path,
     //           and again through the directory descriptor when the staged path is too long.
     // Why:      The staged path is longer than `path`,
     //           so a path that just fits a socket address needs the descriptor form.
-    let listener = match UnixListener::bind(staging.socket_path()) {
+    let bound = match UnixListener::bind(staging.socket_path()) {
         Err(error) if error.kind() == ErrorKind::InvalidInput => UnixListener::bind(staging.descriptor_socket_path()),
         outcome => outcome,
-    }
-    .with_context(|| format!("binding control socket {}", path.display()))?;
+    };
+    let listener = with_message(bound, format_args!("binding control socket {}", path.display()))?;
 
     // What:     Set the socket file to the owner-only mode.
     // Why:      The directory keeps the socket unreachable until this and the rename are done.
-    std::fs::set_permissions(staging.socket_path(), std::fs::Permissions::from_mode(SOCKET_MODE))
-        .with_context(|| format!("restricting control socket {} to its owner", path.display()))?;
+    let restricted_socket = std::fs::set_permissions(staging.socket_path(), std::fs::Permissions::from_mode(SOCKET_MODE));
+    with_message(restricted_socket, format_args!("restricting control socket {} to its owner", path.display()))?;
 
     // What:     Move the socket to the requested path.
     // Why:      The rename is atomic and keeps the mode and the listening state.
-    std::fs::rename(staging.socket_path(), path)
-        .with_context(|| format!("moving the bound control socket to {}", path.display()))?;
+    let moved = std::fs::rename(staging.socket_path(), path);
+    with_message(moved, format_args!("moving the bound control socket to {}", path.display()))?;
 
     // What:     `info!(...)`. Log where the control socket lives.
     // Why:      Make the address discoverable.

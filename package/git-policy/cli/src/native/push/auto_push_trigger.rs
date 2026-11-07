@@ -1,14 +1,28 @@
 //! What:
-//!  Hands a push to the commit service after a command other than `git commit` added commits to the branch: a merge, a
-//!  pull's merge, a cherry-pick, a revert or an applied patch.
+//!  Hands a push to the commit service after a command other than `git commit` added commits to the branch:
+//! a merge,
+//! a
+//!  pull's merge,
+//! a cherry-pick,
+//! a revert or an applied patch.
 //! Why:
-//!  A clean `git merge` used to stay local until the next commit pushed it. The owner chose (2026-11-02) that any command
-//!  adding commits queues the push as a commit does, when the branch tip moved and the branch is now ahead of its upstream
-//!  and not diverged from it, and that a rebase does not, because a rebased branch would need a forced push.
-//!  The check reads the branch, its upstream tracking ref and the commit parents from the files, with no Git process:
-//!  the tip is read before and after the forwarded command, and the push is handed over only when the old tip and the
-//!  upstream tip are both ancestors of the new tip. The old tip being an ancestor is what leaves a rebase (a rewritten
-//!  branch) out, `pull --rebase` and `pull.rebase` included, without reading the configuration for it.
+//!  A clean `git merge` used to stay local until the next commit pushed it.
+//! The owner chose (2026-11-02) that any command
+//!  adding commits queues the push as a commit does,
+//! when the branch tip moved and the branch is now ahead of its upstream
+//!  and not diverged from it,
+//! and that a rebase does not,
+//! because a rebased branch would need a forced push.
+//!  The check reads the branch,
+//! its upstream tracking ref and the commit parents from the files,
+//! with no Git process:
+//!  the tip is read before and after the forwarded command,
+//! and the push is handed over only when the old tip and the
+//!  upstream tip are both ancestors of the new tip.
+//! The old tip being an ancestor is what leaves a rebase (a rewritten
+//!  branch) out,
+//! `pull --rebase` and `pull.rebase` included,
+//! without reading the configuration for it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -38,13 +52,26 @@ use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-/// The most commits the walk from a tip reads before it gives up and hands nothing over: a branch far ahead, or a history
-/// that never reaches the upstream, is not worth a long walk after every merge. Measured: the 439 most recent merges on `main` of
-///  this repository brought in a median of 8 commits (90th percentile 50, 99th percentile 317, largest 6,542), and only 1 exceeded
-///  this budget, so 438 of 439 are walked in full. Kept as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
+/// The most commits the walk from a tip reads before it gives up and hands nothing over:
+/// a branch far ahead,
+/// or a history
+/// that never reaches the upstream,
+/// is not worth a long walk after every merge.
+/// Measured:
+/// the 439 most recent merges on `main` of
+///  this repository brought in a median of 8 commits (90th percentile 50,
+/// 99th percentile 317,
+/// largest 6,542),
+/// and only 1 exceeded
+///  this budget,
+/// so 438 of 439 are walked in full.
+/// Kept as the coordinator's pick under the owner's delegation,
+/// open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Sizes and ages of the service's own housekeeping").
 pub const WALK_BUDGET: usize = 4096;
 
-/// What the branch looked like before the command: where it pointed and where its repository is.
+/// What the branch looked like before the command:
+/// where it pointed and where its repository is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -54,7 +81,8 @@ pub const WALK_BUDGET: usize = 4096;
 pub struct TipWatch {
     /// Where the worktree and its repository are.
     layout: RepoLayout,
-    /// The environment Git would see, which the configuration reader needs for its scopes.
+    /// The environment Git would see,
+    /// which the configuration reader needs for its scopes.
     variables: Vec<(OsString, OsString)>,
     /// The real Git the service will push with.
     real_git: PathBuf,
@@ -97,7 +125,8 @@ impl TipWatch {
         return self.layout.common_dir.as_path();
     }
 
-    /// The worktree the command runs in, as a record names it.
+    /// The worktree the command runs in,
+    /// as a record names it.
     pub fn origin(&self) -> Origin<'_> {
         return Origin { worktree: self.layout.worktree_root.as_path(), git_dir: self.layout.git_dir.as_path() };
     }
@@ -143,7 +172,9 @@ fn current_branch(layout: &RepoLayout) -> Result<(String, String), Declined> {
 /// What:
 ///  Start watching the branch of a worktree before a command runs.
 /// Why:
-///   The command may be a merge or a pull, which move the tip; what the tip was is what a rebase is told apart by.
+///   The command may be a merge or a pull,
+/// which move the tip;
+/// what the tip was is what a rebase is told apart by.
 ///   The layout is read as for a caller that follows a Git run that succeeds (`read_layout_after_success`):
 /// a configuration value the reader cannot prove is no reason not to push once the command that moved the tip succeeded
 /// (the files are read again,
@@ -182,7 +213,8 @@ pub fn watch_tip(
     return try_watch_tip(worktree_root, real_git, overlay, environment).ok();
 }
 
-/// Every readable value of `branch.<name>.<suffix>` in the configuration listing, in order.
+/// Every readable value of `branch.<name>.<suffix>` in the configuration listing,
+/// in order.
 fn branch_values(listed: &[ListedEntry], name: &str, suffix: &str) -> Vec<String> {
     let key: String = format!("branch.{name}.{suffix}");
     let mut found: Vec<String> = Vec::new();
@@ -199,7 +231,9 @@ fn branch_values(listed: &[ListedEntry], name: &str, suffix: &str) -> Vec<String
     return found;
 }
 
-/// Record how a hand-over ended, with the reason, for the watched branch and the command that ran.
+/// Record how a hand-over ended,
+/// with the reason,
+/// for the watched branch and the command that ran.
 fn record_ending(watch: &TipWatch, command: &str, outcome: Outcome, reason: &str, detail: &str) {
     record_decision(&Decision {
         common_dir: Some(watch.layout.common_dir.as_path()),
@@ -245,10 +279,15 @@ fn upstream_tip(watch: &TipWatch, refs: &Refs) -> Result<String, Declined> {
 }
 
 /// What:
-///  Whether `target` is `from` or one of its ancestors, within the walk budget; nothing when the walk could not tell.
+///  Whether `target` is `from` or one of its ancestors,
+/// within the walk budget;
+/// nothing when the walk could not tell.
 /// Why:
-///   Ahead and not diverged is "the upstream tip is an ancestor of the branch tip"; the walk goes from the branch tip, which
-///  reaches the upstream within the commits the branch is ahead by, and stops at the budget on a history that never does.
+///   Ahead and not diverged is "the upstream tip is an ancestor of the branch tip";
+/// the walk goes from the branch tip,
+/// which
+///  reaches the upstream within the commits the branch is ahead by,
+/// and stops at the budget on a history that never does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -287,8 +326,10 @@ pub fn reaches(database: &ObjectDatabase, layout: &RepoLayout, from: &str, targe
 ///  The tip to hand over after the command,
 /// or the step that found the branch not a case the owner chose.
 /// Why:
-///   The branch must be the same one, its tip must have moved forward from the old tip (a rewritten branch is a rebase),
-///  and the new tip must be ahead of its upstream and not diverged: the upstream tip is an ancestor of it and not it.
+///   The branch must be the same one,
+/// its tip must have moved forward from the old tip (a rewritten branch is a rebase),
+///  and the new tip must be ahead of its upstream and not diverged:
+/// the upstream tip is an ancestor of it and not it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -331,10 +372,13 @@ pub fn tip_to_push(watch: &TipWatch) -> Option<String> {
 }
 
 /// What:
-///  After a command that succeeded: hand the push over when the branch grew and is ahead of its upstream.
+///  After a command that succeeded:
+/// hand the push over when the branch grew and is ahead of its upstream.
 /// Why:
-///   The person's command already finished; a service that cannot be reached is said plainly and changes nothing.
-///   The record is the same push record a commit leaves, so the service pushes the branch by name and coalesces it.
+///   The person's command already finished;
+/// a service that cannot be reached is said plainly and changes nothing.
+///   The record is the same push record a commit leaves,
+/// so the service pushes the branch by name and coalesces it.
 ///   Every ending is recorded with its reason (`push_trigger_log.rs`),
 /// so a push that did not happen can be explained.
 ///

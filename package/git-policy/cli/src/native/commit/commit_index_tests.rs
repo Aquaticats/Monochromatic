@@ -1,4 +1,7 @@
-//! Controls for the private commit index: copies, each selection mode, pathspec files and listings.
+//! Controls for the private commit index:
+//! copies,
+//! each selection mode,
+//! pathspec files and listings.
 
 use super::*;
 use crate::capture_invocation::{capture_invocation_base, capture_invocation_layout};
@@ -10,7 +13,8 @@ use std::path::PathBuf;
 use std::os::unix::ffi::OsStringExt;
 use std::time::{Duration, SystemTime};
 
-/// A repository with `a.txt` and `b.txt` committed, and the private indexes beside the real index.
+/// A repository with `a.txt` and `b.txt` committed,
+/// and the private indexes beside the real index.
 fn committed_repository(root: &Path) -> (PathBuf, CaptureIndexes, String) {
     let repo: PathBuf = repository(root, "repo");
     std::fs::write(repo.join("a.txt"), "a\n").expect("a");
@@ -61,7 +65,8 @@ fn changed(repo: &Path, indexes: &CaptureIndexes, base: &str) -> Vec<Vec<u8>> {
     .expect("changed");
 }
 
-/// A copy keeps the source's modification time, and a missing source is an error.
+/// A copy keeps the source's modification time,
+/// and a missing source is an error.
 #[test]
 fn copy_keeps_the_source_modification_time() {
     let root: PathBuf = fixture("commit-index-copy-time");
@@ -139,7 +144,8 @@ fn index_with_tracked_staging_stages_only_tracked_changes() {
     remove(root.as_path());
 }
 
-/// An include stages the named paths into the copy, and the real index stays as it was.
+/// An include stages the named paths into the copy,
+/// and the real index stays as it was.
 #[test]
 fn include_stages_the_named_path_into_the_copy_only() {
     let root: PathBuf = fixture("commit-index-include");
@@ -194,7 +200,8 @@ fn pathspec_file_with_newline_records_selects_one_path() {
     remove(root.as_path());
 }
 
-/// The written tree is the tree Git reports for the private index, and it is a tree object.
+/// The written tree is the tree Git reports for the private index,
+/// and it is a tree object.
 #[test]
 fn private_tree_is_the_tree_of_the_private_index() {
     let root: PathBuf = fixture("commit-index-tree");
@@ -214,7 +221,8 @@ fn private_tree_is_the_tree_of_the_private_index() {
     remove(root.as_path());
 }
 
-/// A conflicted path is listed once, even though it has several unmerged stages.
+/// A conflicted path is listed once,
+/// even though it has several unmerged stages.
 #[test]
 fn unmerged_paths_are_listed_once() {
     let root: PathBuf = fixture("commit-index-unmerged");
@@ -249,13 +257,18 @@ fn selection_base_is_the_recorded_base() {
 }
 
 
-/// The incumbent's committed tree when one file is selected, recorded by the incumbent driver
-/// `native-interop/capture-differential.mjs` (deleted; readable at commit `5d61d7b442`).
+/// The incumbent's committed tree when one file is selected,
+/// recorded by the incumbent driver
+/// `native-interop/capture-differential.mjs` (deleted;
+/// readable at commit `5d61d7b442`).
 const INCUMBENT_ONE_FILE_TREE: &str = "4f40a1ec2c64780454051d9d363c6870a6ef2f6e";
 /// The incumbent's committed tree when both changed files are selected.
 const INCUMBENT_TWO_FILE_TREE: &str = "efe77971c159b0a29a5d97e7169b8c35fa33a1f1";
 
-/// Builds the state the incumbent differential starts from: two committed files, both changed, one untracked.
+/// Builds the state the incumbent differential starts from:
+/// two committed files,
+/// both changed,
+/// one untracked.
 fn differential_state(root: &Path, stage: &[&str]) -> (PathBuf, CaptureIndexes, String) {
     std::fs::create_dir_all(root).expect("state root");
     let repo: PathBuf = repository(root, "repo");
@@ -295,8 +308,12 @@ fn native_tree(repo: &Path, indexes: &CaptureIndexes, choice: &IndexSelection) -
     .expect("tree");
 }
 
-/// Explicit-path selections, with a pathspec, a newline pathspec file, a NUL pathspec file and stdin,
-///  yield the incumbent's one-file tree, and the two-file selections yield the incumbent's two-file tree.
+/// Explicit-path selections,
+/// with a pathspec,
+/// a newline pathspec file,
+/// a NUL pathspec file and stdin,
+///  yield the incumbent's one-file tree,
+/// and the two-file selections yield the incumbent's two-file tree.
 #[test]
 fn private_index_trees_match_the_incumbent_for_each_selection() {
     let root: PathBuf = fixture("commit-index-incumbent-explicit");
@@ -344,7 +361,9 @@ fn index_mode_trees_match_the_incumbent() {
     remove(root.as_path());
 }
 
-/// Pathspec files in both record forms, and standard input, select the same paths the incumbent did.
+/// Pathspec files in both record forms,
+/// and standard input,
+/// select the same paths the incumbent did.
 #[test]
 fn pathspec_file_trees_match_the_incumbent() {
     let root: PathBuf = fixture("commit-index-incumbent-files");
@@ -372,7 +391,8 @@ fn pathspec_file_trees_match_the_incumbent() {
     remove(root.as_path());
 }
 
-/// A pathspec file that cannot be read makes the interactive run fail, and the failure names the command.
+/// A pathspec file that cannot be read makes the interactive run fail,
+/// and the failure names the command.
 #[test]
 fn interactive_selection_reports_a_failed_git_add() {
     let root: PathBuf = fixture("commit-index-interactive-fails");

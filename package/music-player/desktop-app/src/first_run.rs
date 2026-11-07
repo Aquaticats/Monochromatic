@@ -288,6 +288,20 @@ fn no_folder_open_copy() -> FirstRunCopy {
     };
 }
 
+/// What:
+/// `fn folder_no_audio_copy(folder_name: Option<&str>) -> Result<FirstRunCopy, FirstRunError>` is the copy for an open folder that holds no playable audio:
+/// it names the folder and offers `Open a folder`.
+/// Why:
+/// The folder is open but the queue is empty,
+/// so the pane must say why and how to leave;
+/// a missing or blank name is refused,
+/// because the headline would otherwise be empty.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const folderNoAudioCopy = (folderName: string | null): FirstRunCopy =>
+///  ({ title: `No audio found in\n${nonBlank(folderName)}`, primaryAction: "Open a folder", secondaryActions: ["Settings"] });
+/// ```
 fn folder_no_audio_copy(folder_name: Option<&str>) -> Result<FirstRunCopy, FirstRunError> {
     let name = non_blank_folder_name(folder_name)?;
     return Ok(FirstRunCopy {

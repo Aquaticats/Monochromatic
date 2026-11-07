@@ -6,17 +6,17 @@
  @module
  */
 
-import { execFile, } from 'node:child_process';
 import { createHash, } from 'node:crypto';
 import { readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
-import { promisify, } from 'node:util';
 import { pathExists, } from './completion-records.ts';
 import {
   MILLISECONDS_PER_SECOND,
   SCAN_MAX_OUTPUT_BYTES,
+  STATUS_FAILURE_LIMIT,
 } from './constants.ts';
 import { MoveStopError, } from './errors.ts';
+import { execFileAsync, } from './exec-file-async.ts';
 
 /**
  The table text and how many worktrees have something a move would strand.
@@ -26,11 +26,6 @@ export type UncommittedWorkTable = {
   readonly worktrees: number;
   readonly dirty: number;
 };
-
-/**
- Runs a program and waits for it to end.
- */
-const execFileAsync = promisify(execFile,);
 
 /**
  Git's own program, never the repository's wrapper.
@@ -167,7 +162,7 @@ async function rowOf(
       row: `${path}\tstatus-failed:${status.failure
         .slice(
           0,
-          80,
+          STATUS_FAILURE_LIMIT,
         )}\t\t\t\t\t\t`,
       dirty: false,
     };
@@ -276,6 +271,13 @@ async function rowOf(
  @returns the table text and counts
  
  @throws MoveStopError when Git cannot list the worktrees
+
+ @example
+ ```ts
+ import { buildUncommittedWorkTable, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await buildUncommittedWorkTable({ mainWorktree, perWorktreeSeconds, },);
+ ```
  */
 export async function buildUncommittedWorkTable(
   {
@@ -321,6 +323,7 @@ export async function buildUncommittedWorkTable(
    */
   const rows = [];
   for (const path of paths) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one Git status at a time, so the scan adds a bounded load while agents work; see doc/lint/sequential-awaits.md
     rows.push(await rowOf({
       path,
       timeoutMilliseconds,

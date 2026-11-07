@@ -91,12 +91,14 @@ fn location_only() -> Vec<String> {
     return vec![String::from("location")];
 }
 
-/// The facts asked for, in order.
+/// The facts asked for,
+/// in order.
 fn asked(names: &[&str]) -> Vec<String> {
     return names.iter().map(|name| { return String::from(*name); }).collect();
 }
 
-/// Facts that answer the dirtiness question as given, in the given location.
+/// Facts that answer the dirtiness question as given,
+/// in the given location.
 fn dirty_in(
     location: crate::repository_location::RepositoryLocation,
     dirty: bool,
@@ -480,7 +482,8 @@ fn content_policies_follow_the_lifecycle_content() {
 }
 
 /// linked-worktree-only:
-///  a form that overwrites is rejected in the main worktree without asking for the status, and in a linked worktree
+///  a form that overwrites is rejected in the main worktree without asking for the status,
+/// and in a linked worktree
 ///  only when the status shows uncommitted state.
 #[test]
 fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
@@ -537,7 +540,8 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
 }
 
 /// linked-worktree-only:
-///  a form that only moves `HEAD` is rejected in any worktree only while the status shows uncommitted state, and
+///  a form that only moves `HEAD` is rejected in any worktree only while the status shows uncommitted state,
+/// and
 ///  never outside a worktree.
 #[test]
 fn head_moves_are_rejected_only_while_dirty() {

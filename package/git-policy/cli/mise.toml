@@ -92,6 +92,13 @@ run = "node bin/native-perf.ts --binary target/release/monochromatic-git-policy-
 [tasks.lint]
 extends = "lint"
 
+[tasks."lint:monochromatic-lint"]
+description = "Lint this package's Rust, rustdoc and Markdown with the repository linter, failing on any error or any warning (`--max-warnings 0`); `mise run //:format:monochromatic-lint -- package/git-policy/cli` applies its fixes"
+# The shared `lint` template runs every direct `lint:*` child of this package, so this task is part of `lint`.
+# The root task owns the invocation (the root `monochromatic-lint.config.jsonc`); warnings alone exit 0 there,
+# so the threshold is stated here. Same shape as package/ide/app and package/wg/cli-quicker-exempt.
+run = "mise run //:lint:monochromatic-lint -- --max-warnings 0 package/git-policy/cli"
+
 [tasks."lint:types"]
 extends = "lint:types"
 

@@ -18,10 +18,14 @@
 //! made,
 //! and the end-to-end run checks the real effect.
 
+/// Imports the command that the host sends to the engine.
 use music_player::command::Command;
+/// Imports the engine whose commands the host sends.
 use music_player::engine::Engine;
+/// Imports the menu action that the host runs.
 use music_player::track_menu::TrackMenuAction;
 
+/// Imports the window that the host acts on.
 use crate::AppWindow;
 
 /// What:

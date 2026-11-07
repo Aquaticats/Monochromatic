@@ -116,7 +116,8 @@ pub trait RepositoryFacts {
     /// The location when it was already asked for,
     ///  without asking.
     fn asked_location(&self) -> Option<Result<RepositoryLocation, String>>;
-    /// The repository's common Git directory when it is known without starting Git: from the location already asked,
+    /// The repository's common Git directory when it is known without starting Git:
+    /// from the location already asked,
     ///  or from the file system.
     /// A provider that has neither answers nothing.
     fn known_common_dir(&mut self) -> Option<PathBuf> {
@@ -128,8 +129,12 @@ pub trait RepositoryFacts {
         }
         return None;
     }
-    /// The invocation's own Git directory (the worktree's, which holds its work records and notices) when it is known without
-    ///  starting Git: from the location already asked, or from the file system. A provider that has neither answers nothing.
+    /// The invocation's own Git directory (the worktree's,
+    /// which holds its work records and notices) when it is known without
+    ///  starting Git:
+    /// from the location already asked,
+    /// or from the file system.
+    /// A provider that has neither answers nothing.
     fn known_git_dir(&mut self) -> Option<PathBuf> {
         let asked: Option<Result<RepositoryLocation, String>> = self.asked_location();
         if let Some(Ok(found)) = asked
@@ -175,7 +180,9 @@ pub struct GitFacts {
     /// The remembered location answer,
     ///  once asked.
     location: Option<Result<RepositoryLocation, String>>,
-    /// The in-process layout, read once: `Some(None)` means the reader declined and Git answers.
+    /// The in-process layout,
+    /// read once:
+    /// `Some(None)` means the reader declined and Git answers.
     layout: Option<Option<RepoLayout>>,
     /// How many Git processes this provider started.
     pub queries: usize,
@@ -262,7 +269,8 @@ impl GitFacts {
     }
 
     /// What:
-    ///  The repository layout read from the file system, once per provider;
+    ///  The repository layout read from the file system,
+    /// once per provider;
     ///  `None` when the reader declined and Git must answer.
     /// Why:
     ///   Location and sequencer questions share one read and start no Git process when the layout is plain.

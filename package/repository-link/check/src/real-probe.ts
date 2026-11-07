@@ -19,6 +19,7 @@ import {
   readMounts,
   uuidOfSource,
 } from './mountinfo.ts';
+import { errorCodeOf, } from './error-code-of.ts';
 
 /**
  Error codes that mean a path is absent or cannot be followed, which is an answer and not a failure.
@@ -37,7 +38,7 @@ const ABSENT_CODES: ReadonlySet<string> = new Set([
  @returns true for an absence code
  */
 function isAbsent(error: unknown,): boolean {
-  return ABSENT_CODES.has((error as NodeJS.ErrnoException).code ?? '',);
+  return ABSENT_CODES.has(errorCodeOf(error,),);
 }
 
 /**

@@ -1,0 +1,242 @@
+//! What:
+//!  The stop of a running push (ask,
+//! wait the grace,
+//! kill,
+//! collect) and the sweep of the lock files a stopped push and everything it
+//!  started leave,
+//! all awaited on the runtime.
+//! Why:
+//!  `bounded_push.rs` holds the run of a push and its limits;
+//! the stop and the sweep are the part that outlives the run
+//!  (a killed child in uninterruptible I/O ends late and leaves a lock after the push was reported),
+//! and this file keeps it apart so
+//!  each file stays within the line limit.
+//! The names are re-exported from `bounded_push.rs`.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL'); locks.sweep(tree);
+//! ```
+
+/// The diagnostic log of the wrapper.
+use crate::diagnostic_log::debug;
+/// The blocking pool,
+/// for the sweep that reads directories.
+use crate::blocking_job::run_blocking_job;
+/// A child owned until it is reaped,
+/// awaited through its pidfd.
+use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
+/// The process's runtime,
+/// for the task that sweeps after the child ends.
+use crate::lazy_runtime::spawn_on_runtime;
+/// When a stop that asked its tree to end may force the end.
+use crate::stop_waits_while_a_member_cannot_be_interrupted::escalation_waits;
+/// The processes a push started,
+/// and the calls that look at and end them.
+use crate::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
+/// The lock files a stopped push leaves,
+/// and the ledger that finds them.
+use crate::stopped_git_locks::LockLedger;
+/// `Child` is a push handed to the sweeper.
+use std::process::Child;
+/// Time spans and the monotonic clock.
+use std::time::{Duration, Instant};
+
+/// Tag used for diagnostics from this module.
+const TAG: &str = "monochromatic-git-policy-cli";
+
+/// Pause between two looks at the running push.
+pub(crate) const POLL_PAUSE: Duration = Duration::from_millis(10);
+
+/// Ask a running push to end,
+///  so Git can stop the helper processes it started.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// child.kill('SIGTERM');
+/// ```
+#[cfg(unix)]
+fn ask_to_stop(id: u32) {
+    let Ok(pid) = libc::pid_t::try_from(id) else {
+        return;
+    };
+    // SAFETY: `kill` sends one signal to the PID of a child this module started and has not reaped;
+    // a failure is ignored because the child may have ended.
+    unsafe { libc::kill(pid, libc::SIGTERM) };
+}
+
+/// Platforms without a polite stop signal go straight to the kill.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(not(unix))]
+fn ask_to_stop(_id: u32) {}
+
+/// Whether part of the grace is still left after the stop request.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// asked < grace
+/// ```
+pub(crate) fn grace_remains(asked: Duration, grace: Duration) -> bool {
+    return asked < grace;
+}
+
+/// Wait,
+/// bounded by `grace`,
+/// until every member of a stopped tree has ended.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await Promise.race([allEnded(tree), delay(graceMs)]);
+/// ```
+async fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
+    let waited: Instant = Instant::now();
+    while grace_remains(waited.elapsed(), grace) && tree.iter().any(still_running) {
+        tokio::time::sleep(POLL_PAUSE).await;
+    }
+    return;
+}
+
+/// What:
+///  Collect a killed child that the kernel has not released,
+/// and sweep the locks it leaves,
+/// as a task of the runtime.
+/// Why:
+///   A killed process in an uninterruptible call (a stalled disk or file system) ends only when the kernel lets it go,
+///  and on its way out it can create a lock file that nothing will remove (measured on 2026-11-03:
+/// empty tracking-ref
+///  locks born about 37 seconds after the stop).
+/// The push is reported at its deadline and does not wait for that,
+/// so
+///  the child is collected here,
+/// and its locks are swept when it is gone.
+/// The task holds no lock and ends with the child.
+///  The child is handed over as the standard library's value and adopted inside the task,
+/// so a task that never runs
+///  leaves it as it was and never waits for it.
+/// Returns nothing where the runtime has no worker to run the task.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// void child.exited.then(() => locks.sweep(tree));
+/// ```
+pub fn sweep_after_exit(child: Child, tree: Vec<TreeMember>, locks: LockLedger) -> Option<tokio::task::JoinHandle<()>> {
+    return sweep_task(Some(child), tree, locks);
+}
+
+/// `sweep_after_exit` for a push that may already have been collected:
+/// with no child there is only the tree to wait for.
+fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) -> Option<tokio::task::JoinHandle<()>> {
+    let started = spawn_on_runtime(async move {
+        if let Some(uncollected) = child {
+            let mut owned: OwnedChild = adopt(uncollected);
+            // The exit status is not reported: the push was reported at its deadline.
+            let _status = owned.wait().await;
+        }
+        // Nothing waits for this task, so it waits for the rest of the tree as long as that runs.
+        while tree.iter().any(still_running) {
+            tokio::time::sleep(POLL_PAUSE).await;
+        }
+        // The sweep reads directories, so it runs on the blocking pool and not on the worker that polls tasks.
+        if let Err(error) = run_blocking_job(move || { locks.sweep(tree.as_slice()); }).await {
+            debug(TAG, &format!("the sweep of a stopped push's locks did not run: {error}"));
+        }
+    });
+    if started.is_none() {
+        debug(TAG, "the runtime has no worker to sweep a stopped push's locks");
+    }
+    return started;
+}
+
+/// What:
+///  Stop a running push:
+/// ask politely,
+///  wait the grace,
+///  then kill and collect it,
+///  and judge the reference locks it may have left.
+/// Why:
+///   Git's own signal handling ends the helpers it started and removes its lock files,
+///  and a push that ignores the request cannot outlive the kill.
+///  A killed push leaves its lock files,
+/// which fail every later Git command on the same refs,
+/// so once the push and
+///  what it started are gone the locks they hold are swept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL'); locks.sweep(tree.as_slice());
+/// ```
+pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger) {
+    // Read before the push is signalled: once it has exited, its helpers and hooks no longer point to it.
+    let below: Vec<TreeMember> = i32::try_from(child.id()).map(descendants_of).unwrap_or_default();
+    let mut tree: Vec<TreeMember> = i32::try_from(child.id()).ok().and_then(member_of).into_iter().collect();
+    tree.extend(below.iter().cloned());
+    ask_to_stop(child.id());
+    terminate_members(below.as_slice());
+    let asked: Instant = Instant::now();
+    let mut ended: bool = false;
+    // Past the grace the wait goes on while a member of the tree is in uninterruptible sleep, up to the stop's ceiling, because a kill
+    //  then only cuts the cleanup that follows the call (Git removes a lock's pid file, then the lock).
+    //  The exit is awaited on the pidfd; the pause is the look at the tree's state, made at the interval the loop always used.
+    while !ended && escalation_waits(asked.elapsed(), grace, tree.as_slice()) {
+        ended = tokio::time::timeout(POLL_PAUSE, child.wait()).await.is_ok();
+    }
+    if !ended {
+        // The child is being abandoned; its exit is not reported, only the cause.
+        let _killed = child.kill();
+        // A killed process that sits in uninterruptible I/O (a stalled disk or network file system) cannot be
+        //  collected until the kernel releases it, so the wait is bounded by the grace again and the child is then
+        //  left to be collected by a task of its own, instead of holding the service's push for as long as the stall.
+        if grace_remains(Duration::ZERO, grace) {
+            // Whether it ended in time shows below: a collected child has nothing left to hand over.
+            let _ended_in_time = tokio::time::timeout(grace, child.wait()).await;
+        }
+    }
+    // What the push started outlives it: its transport helper holds the connection and its hook may never exit
+    // (measured: 60 seconds for a helper, for good for a `git-lfs` that never answers). They were asked to end with
+    // the push, so they get what is left of the grace and are then killed.
+    while escalation_waits(asked.elapsed(), grace, below.as_slice()) && below.iter().any(still_running) {
+        tokio::time::sleep(POLL_PAUSE).await;
+    }
+    kill_members(below.as_slice());
+    // A child that was collected is gone; one that was not goes on to the task that waits for it.
+    let remaining: Option<Child> = child.into_std_when_unreaped();
+    let _sweeper = settle_locks(remaining, tree, locks, grace).await;
+}
+
+/// What:
+///  Remove the locks of a stopped tree now when it has ended,
+/// or as a task of the runtime when it has not.
+/// Why:
+///   A killed process ends only when the kernel has run it once more,
+/// which a loaded or stalled host may not do within the
+///  grace;
+/// a sweep before that finds the tree running and removes nothing,
+/// and nothing would try again.
+/// The task waits for
+///  the whole tree and then sweeps.
+/// `child` is the stopped push when it was not collected,
+/// and nothing when it was.
+/// Returns the
+///  task,
+/// if one was started.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (child === undefined && allEnded(tree)) { locks.sweep(tree); return undefined; } return sweepAfterExit(child, tree, locks);
+/// ```
+pub async fn settle_locks(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger, grace: Duration) -> Option<tokio::task::JoinHandle<()>> {
+    let Some(uncollected) = child else {
+        wait_for_tree(tree.as_slice(), grace).await;
+        if !tree.iter().any(still_running) {
+            // The sweep reads directories, so it runs on the blocking pool and not on the worker that polls tasks.
+            let sweeping: Vec<TreeMember> = tree.clone();
+            if let Err(error) = run_blocking_job(move || { locks.sweep(sweeping.as_slice()); }).await {
+                debug(TAG, &format!("the sweep of a stopped push's locks did not run: {error}"));
+            }
+            return None;
+        }
+        // The push was collected and the tree is still running: the task waits for the tree alone.
+        return sweep_task(None, tree, locks);
+    };
+    return sweep_task(Some(uncollected), tree, locks);
+}

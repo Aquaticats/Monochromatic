@@ -1,4 +1,5 @@
-//! Controls for what the Git LFS upload sends, including every way the plan must fail closed.
+//! Controls for what the Git LFS upload sends,
+//! including every way the plan must fail closed.
 
 use super::*;
 use crate::test_support::{fixture, remove};
@@ -19,7 +20,10 @@ fn config(pairs: &[(&str, &str)]) -> Settings {
         .collect();
 }
 
-/// What a stubbed Git answers: a query's key (its first word, or `for-each-ref:<prefix>`) and the answer, and the keys
+/// What a stubbed Git answers:
+/// a query's key (its first word,
+/// or `for-each-ref:<prefix>`) and the answer,
+/// and the keys
 ///  whose queries fail.
 struct Stub<'a> {
     /// Answers by key.
@@ -28,7 +32,9 @@ struct Stub<'a> {
     failing: &'a [&'a str],
 }
 
-/// Plan a push in `directory` with a stubbed Git; the plan or the failure, and how many queries were made.
+/// Plan a push in `directory` with a stubbed Git;
+/// the plan or the failure,
+/// and how many queries were made.
 fn plan_in(
     directory: &Path,
     global_prefix: &[&str],
@@ -62,19 +68,25 @@ fn plan_in(
     return (planned, asked);
 }
 
-/// The same, in a directory that does not matter to the case, expecting a plan.
+/// The same,
+/// in a directory that does not matter to the case,
+/// expecting a plan.
 fn plan_of(region: &[&str], settings: &[(&str, &str)], answers: &[(&str, &str)]) -> UploadPlan {
     let (planned, _) = plan_in(Path::new("/work"), &[], region, &[], &config(settings), &Stub { answers, failing: &[] });
     return planned.expect("the plan is worked out").expect("a plan");
 }
 
-/// The same, expecting no upload.
+/// The same,
+/// expecting no upload.
 fn no_plan(region: &[&str], settings: &[(&str, &str)], answers: &[(&str, &str)]) {
     let (planned, _) = plan_in(Path::new("/work"), &[], region, &[], &config(settings), &Stub { answers, failing: &[] });
     assert_eq!(planned.expect("the plan is worked out"), None, "{region:?}");
 }
 
-/// The first run's arguments for a destination that is not a configured remote: `push --all`, the destination, then the refs.
+/// The first run's arguments for a destination that is not a configured remote:
+/// `push --all`,
+/// the destination,
+/// then the refs.
 #[test]
 fn an_unconfigured_destination_uses_all_with_the_refs_so_no_tracking_ref_hides_an_object() {
     let plan: UploadPlan = plan_of(&["origin", "main", "topic:refs/heads/other"], &[], &[]);
@@ -87,7 +99,9 @@ fn an_unconfigured_destination_uses_all_with_the_refs_so_no_tracking_ref_hides_a
     assert_eq!((planned.expect("planned").is_some(), asked), (true, 0), "named refs need no Git start");
 }
 
-/// A configured remote that is fetched from and pushed to the same place uses git-lfs's bounded form: no `--all`, so the
+/// A configured remote that is fetched from and pushed to the same place uses git-lfs's bounded form:
+/// no `--all`,
+/// so the
 ///  objects that the remote's tracking refs reach are skipped and a push that adds none sends no batch request.
 #[test]
 fn a_configured_remote_with_one_url_uses_the_bounded_form() {
@@ -101,8 +115,13 @@ fn a_configured_remote_with_one_url_uses_the_bounded_form() {
     assert!(!ignored.full_scan, "settings the plan does not read change nothing");
 }
 
-/// Every destination whose tracking refs may not describe it keeps the full scan: a push URL (alone or several), a
-///  `pushInsteadOf` rewrite, a URL or path that is not a configured remote, a mirror, and a remote nobody configured.
+/// Every destination whose tracking refs may not describe it keeps the full scan:
+/// a push URL (alone or several),
+/// a
+///  `pushInsteadOf` rewrite,
+/// a URL or path that is not a configured remote,
+/// a mirror,
+/// and a remote nobody configured.
 #[test]
 fn a_destination_that_tracking_refs_may_not_describe_keeps_the_full_scan() {
     let url: (&str, &str) = ("remote.origin.url", "https://example.invalid/r.git");
@@ -124,7 +143,9 @@ fn a_destination_that_tracking_refs_may_not_describe_keeps_the_full_scan() {
     assert_eq!(full(&["origin"], &[url, ("remote.origin.mirror", "true")]), words(&["push", "--all", "origin"]));
 }
 
-/// A forced refspec uploads its source, a deletion uploads nothing, `tag <name>` is the tag's ref.
+/// A forced refspec uploads its source,
+/// a deletion uploads nothing,
+/// `tag <name>` is the tag's ref.
 #[test]
 fn forced_deleting_and_tag_refspecs_read_as_git_reads_them() {
     assert_eq!(plan_of(&["origin", "+HEAD:refs/heads/x"], &[], &[]).refs, words(&["HEAD"]));
@@ -133,7 +154,8 @@ fn forced_deleting_and_tag_refspecs_read_as_git_reads_them() {
     assert_eq!(plan_of(&["origin", "tag", "v1"], &[], &[]).refs, words(&["refs/tags/v1"]));
 }
 
-/// Git splits a refspec at its last colon, so a source that holds a colon survives.
+/// Git splits a refspec at its last colon,
+/// so a source that holds a colon survives.
 #[test]
 fn a_source_with_a_colon_is_split_at_the_last_colon() {
     let plan: UploadPlan = plan_of(&["origin", ":/unique message:refs/heads/new"], &[], &[]);
@@ -141,7 +163,9 @@ fn a_source_with_a_colon_is_split_at_the_last_colon() {
     assert_eq!(plan_of(&["origin", "HEAD^{/a:b}:refs/heads/x"], &[], &[]).refs, words(&["HEAD^{/a:b}"]));
 }
 
-/// The refspec `:` (and `+:`, and the configured `push = :`) means every matching branch, not a deletion.
+/// The refspec `:` (and `+:`,
+/// and the configured `push = :`) means every matching branch,
+/// not a deletion.
 #[test]
 fn the_matching_refspec_uploads_the_branches_and_is_not_a_deletion() {
     let heads: &[(&str, &str)] = &[("for-each-ref:refs/heads", "refs/heads/main\nrefs/heads/topic")];
@@ -152,7 +176,9 @@ fn the_matching_refspec_uploads_the_branches_and_is_not_a_deletion() {
     assert_eq!(configured.refs, words(&["refs/heads/main", "refs/heads/topic"]));
 }
 
-/// A pattern is matched as a refspec matches it: the star crosses `/`, and the text around it must match.
+/// A pattern is matched as a refspec matches it:
+/// the star crosses `/`,
+/// and the text around it must match.
 #[test]
 fn a_star_crosses_slashes_as_a_refspec_does() {
     let heads: &[(&str, &str)] = &[(
@@ -167,7 +193,9 @@ fn a_star_crosses_slashes_as_a_refspec_does() {
     assert_eq!(suffixed.refs, words(&["refs/heads/a-ok", "refs/heads/c/d-ok"]));
 }
 
-/// `--all` and `--tags` upload the refs they stand for, never everything; `--mirror` uploads everything.
+/// `--all` and `--tags` upload the refs they stand for,
+/// never everything;
+/// `--mirror` uploads everything.
 #[test]
 fn branch_and_tag_options_expand_and_mirror_uploads_everything() {
     let heads: &[(&str, &str)] = &[("for-each-ref:refs/heads", "refs/heads/main\nrefs/heads/other"), ("for-each-ref:refs/tags", "refs/tags/v1")];
@@ -180,7 +208,9 @@ fn branch_and_tag_options_expand_and_mirror_uploads_everything() {
     assert_eq!(mirror.arguments(mirror.remotes[0].as_os_str()), words(&["push", "--all", "origin"]));
 }
 
-/// A bare push takes the remote and branch from Git, and a configured mirror, `remote.<name>.push` or
+/// A bare push takes the remote and branch from Git,
+/// and a configured mirror,
+/// `remote.<name>.push` or
 ///  `push.default=matching` decides what it sends.
 #[test]
 fn a_bare_push_resolves_its_remote_and_refs_the_way_git_does() {
@@ -215,7 +245,9 @@ fn a_bare_push_resolves_its_remote_and_refs_the_way_git_does() {
     assert_eq!(explicit.refs, words(&["main"]), "a refspec typed on the command line wins over the configuration");
 }
 
-/// Every query that fails, and a push whose refs cannot be listed, is an error and never "nothing to upload".
+/// Every query that fails,
+/// and a push whose refs cannot be listed,
+/// is an error and never "nothing to upload".
 #[test]
 fn a_failed_query_fails_closed() {
     let cases: [(&[&str], &str); 5] = [
@@ -236,7 +268,8 @@ fn a_failed_query_fails_closed() {
     assert!(read_settings(&mut refusing).is_err());
 }
 
-/// A remote with several push URLs is uploaded to once per URL; one push URL or none keeps the remote's name.
+/// A remote with several push URLs is uploaded to once per URL;
+/// one push URL or none keeps the remote's name.
 #[test]
 fn a_remote_with_several_push_urls_is_uploaded_to_each() {
     let two: UploadPlan = plan_of(&["origin", "main"], &[("remote.origin.pushurl", "https://a.invalid/r.git"), ("remote.origin.pushurl", "https://b.invalid/r.git")], &[]);
@@ -246,8 +279,10 @@ fn a_remote_with_several_push_urls_is_uploaded_to_each() {
     assert_eq!(plan_of(&["origin", "main"], &[], &[]).remotes, words(&["origin"]));
 }
 
-/// A destination typed as a path becomes a percent-encoded `file://` URL whether or not it starts with a dot; a configured
-///  remote with the same name as a directory, a URL and an scp-style address stay as typed.
+/// A destination typed as a path becomes a percent-encoded `file://` URL whether or not it starts with a dot;
+/// a configured
+///  remote with the same name as a directory,
+/// a URL and an scp-style address stay as typed.
 #[test]
 fn a_path_destination_becomes_an_encoded_file_url() {
     let root = fixture("lfs-plan-paths");
@@ -269,7 +304,8 @@ fn a_path_destination_becomes_an_encoded_file_url() {
     remove(root.as_path());
 }
 
-/// The first positional is the repository whatever `--repo` says, and `--repo` and its abbreviations fill in only when
+/// The first positional is the repository whatever `--repo` says,
+/// and `--repo` and its abbreviations fill in only when
 ///  none is typed.
 #[test]
 fn the_repository_is_read_as_git_reads_it() {
@@ -281,7 +317,8 @@ fn the_repository_is_read_as_git_reads_it() {
     }
 }
 
-/// A push that recurses into submodules is marked; every way of bypassing the upload plans nothing.
+/// A push that recurses into submodules is marked;
+/// every way of bypassing the upload plans nothing.
 #[test]
 fn submodule_pushes_are_marked_and_bypasses_plan_nothing() {
     for (value, marked) in [("on-demand", true), ("only", true), ("check", false), ("no", false)] {
@@ -309,7 +346,8 @@ fn submodule_pushes_are_marked_and_bypasses_plan_nothing() {
     assert_eq!(plan_in(Path::new("/work"), &[], &["--no-such-option"], &[], &config(&[]), &stub).0, Ok(None), "Git refuses it");
 }
 
-/// The snapshot's keys are filtered to the ones the plan reads, with the same rule the query's pattern states.
+/// The snapshot's keys are filtered to the ones the plan reads,
+/// with the same rule the query's pattern states.
 #[test]
 fn only_the_keys_the_plan_reads_are_taken_from_a_snapshot() {
     for key in [

@@ -1,10 +1,14 @@
 //! What:
 //!  The repository facts of a commit transaction:
-//!  every rule fact is read from the real repository, and the candidate files are read from the private index
+//!  every rule fact is read from the real repository,
+//! and the candidate files are read from the private index
 //!  and the shadow object store against the recorded base.
 //! Why:
-//!  The incumbent's rules (`commit-only`, `commit-index`, `commit-sequencer`) ask real Git about the real index and
-//!  the real sequencer state, while the content policies read the private commit index that the transaction corrects.
+//!  The incumbent's rules (`commit-only`,
+//! `commit-index`,
+//! `commit-sequencer`) ask real Git about the real index and
+//!  the real sequencer state,
+//! while the content policies read the private commit index that the transaction corrects.
 //!  Pointing every fact at the private index would answer the rules about a state the user never staged.
 //!
 //! In TS you'd write (pseudocode):
@@ -34,7 +38,8 @@ const OBJECT_DIRECTORY_VARIABLE: &str = "GIT_OBJECT_DIRECTORY";
 /// What:
 ///  Rule facts from the wrapped real repository and candidate reads from a private index.
 /// Why:
-///   The private index changes from one replay to the next, so the facts keep it as a replaceable value.
+///   The private index changes from one replay to the next,
+/// so the facts keep it as a replaceable value.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -51,7 +56,8 @@ impl<F: RepositoryFacts> PrivateIndexFacts<F> {
     /// What:
     ///  Wrap rule facts with the private index and the object store the candidates are read from.
     /// Why:
-    ///   The candidate prediction copies the named index, so reading never changes the transaction's index.
+    ///   The candidate prediction copies the named index,
+    /// so reading never changes the transaction's index.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

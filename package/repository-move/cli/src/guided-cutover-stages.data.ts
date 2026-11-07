@@ -27,6 +27,13 @@ import { externalNames, } from './guided-holders.ts';
  @param stamp - the timestamp that names the aside folders of the swap
  
  @returns the stages in order
+
+ @example
+ ```ts
+ import { cutoverStages, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await cutoverStages({ c, stamp, },);
+ ```
  */
 export async function cutoverStages(
   {
@@ -197,7 +204,7 @@ compgen -G '${c.repo}/.git/cli-git-transactions/*.pending' || echo 'no pending t
       id: 'c05-fresh-inventory',
       title: 'Fresh inventory and freeze list',
       says: "R0 again, because worktrees come and go since the first inventory. The copy tool's print mode then reconciles it with Git and prints the freeze lines it will run.",
-      command: `sudo btrfs subvolume list -u /var/home > ${finalInventory}
+      command: `sudo btrfs subvolume list -u -q /var/home > ${finalInventory}
 ${copy} --pass=freeze ${args} > ${c.wiz}/freeze-print.txt
 ${copy} --pass=final ${args} > ${c.wiz}/final-pass-print.txt
 echo "subvolumes to freeze: $(grep --count '^btrfs property set -ts ' ${c.wiz}/freeze-print.txt)"`,
@@ -279,6 +286,18 @@ done`,
       rollback: `${thawRollback}. The old tree is untouched; the partial 860 copy stays for you to delete (thaw prints the list)`,
       root: 'yes',
       unprivileged: 'none for send and receive',
+    },
+    {
+      id: 'c10b-verify-final',
+      title: 'Verify the final copies that changed',
+      window: true,
+      says: 'Verification of the final pass: each final copy against its read-only snapshot by path, type, size, time and mode (rsync --dry-run, no data read), only for the copies btrfs found changed since the first pass (its own incremental comparison of the two snapshots, recorded by the final pass) and for any copy that has no first-pass copy. The nested subvolume folders a snapshot shows empty are the only excused differences.',
+      command: `${rootCopy} --run --pass=verify-final ${args} --deadline-seconds=@DEADLINE@ --total-deadline-seconds=@REMAINING@`,
+      check: `grep --fixed-strings 'verify-final finished' "$OUTPUT_FILE"`,
+      checkText: "'verify-final finished': every changed final copy matches its snapshot",
+      rollback: thawRollback,
+      root: 'yes',
+      unprivileged: 'none: the comparison reads files only root can read (root-owned logs inside some worktrees)',
     },
     {
       id: 'c11-external-final',
@@ -485,6 +504,19 @@ echo "window length: $(( $(cat ${c.wiz}/window-end) - $(cat ${c.wiz}/window-star
       rollback: 'none after this stage; see the plan, section Rollback, full path',
       root: 'no',
       unprivileged: 'not needed: user units start as the user',
+    },
+    {
+      id: 'c22-verify-final-checksum',
+      title: 'Verify the final copies that changed, by checksum',
+      says: `The same comparison as the window's, reading every byte, for the same final copies, after the cut-over and outside the window. The old tree ${oldRepo} is kept for the rollback: do not delete it until this stage is recorded done (the status command says so).`,
+      command: `${rootCopy} --run --pass=verify-final --checksum ${args} --deadline-seconds=${String(c.transferDeadlineSeconds,)} --total-deadline-seconds=${String(c.firstPassTotalSeconds,)}`,
+      check: `grep --fixed-strings 'verify-final finished' "$OUTPUT_FILE"`,
+      checkText: "'verify-final finished' at checksum depth",
+      rollback: 'read-only comparison; nothing changed. A copy that differs is reported with its name before the old tree is deleted',
+      timeoutSeconds: c.firstPassTotalSeconds + (c.killGraceSeconds
+        * 2),
+      root: 'yes',
+      unprivileged: 'none: the comparison reads files only root can read',
     },
   ];
 }

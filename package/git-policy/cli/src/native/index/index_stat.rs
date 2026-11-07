@@ -1,24 +1,32 @@
 //! What:
-//!  The nine 32-bit stat fields an index entry and the untracked-cache extension store, and the Git varint.
+//!  The nine 32-bit stat fields an index entry and the untracked-cache extension store,
+//! and the Git varint.
 //! Why:
-//!  Both file layouts write the same fields (the entry puts the mode between inode and owner), and both use Git's
-//!  offset varint for lengths; one definition keeps the readers and writers of the in-process index update in step.
+//!  Both file layouts write the same fields (the entry puts the mode between inode and owner),
+//! and both use Git's
+//!  offset varint for lengths;
+//! one definition keeps the readers and writers of the in-process index update in step.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! type StatData = { ctimeSec: number; ctimeNsec: number; mtimeSec: number; mtimeNsec: number; dev: number; ino: number; uid: number; gid: number; size: number };
 //! ```
 
-/// The stat fields of one file as an index stores them (each truncated to 32 bits); all zero is the "never statted" value.
+/// The stat fields of one file as an index stores them (each truncated to 32 bits);
+/// all zero is the "never statted" value.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct StatData {
-    /// Change time, seconds.
+    /// Change time,
+    /// seconds.
     pub ctime_sec: u32,
-    /// Change time, nanoseconds.
+    /// Change time,
+    /// nanoseconds.
     pub ctime_nsec: u32,
-    /// Modification time, seconds.
+    /// Modification time,
+    /// seconds.
     pub mtime_sec: u32,
-    /// Modification time, nanoseconds.
+    /// Modification time,
+    /// nanoseconds.
     pub mtime_nsec: u32,
     /// Device.
     pub dev: u32,
@@ -39,7 +47,8 @@ pub fn be32(bytes: &[u8], at: usize) -> Option<u32> {
 }
 
 impl StatData {
-    /// The fields in the order the untracked cache stores them (36 bytes), as `stat_data_to_disk`.
+    /// The fields in the order the untracked cache stores them (36 bytes),
+    /// as `stat_data_to_disk`.
     pub fn to_cache_bytes(&self, out: &mut Vec<u8>) {
         for value in [self.ctime_sec, self.ctime_nsec, self.mtime_sec, self.mtime_nsec, self.dev, self.ino, self.uid, self.gid, self.size] {
             out.extend_from_slice(&value.to_be_bytes());
@@ -78,7 +87,8 @@ pub fn encode_varint(value: u64, out: &mut Vec<u8>) {
     out.extend_from_slice(reversed.as_slice());
 }
 
-/// The varint at the start of `bytes` and the bytes after it (`decode_varint`), or `None` when it is cut off or overflows.
+/// The varint at the start of `bytes` and the bytes after it (`decode_varint`),
+/// or `None` when it is cut off or overflows.
 pub fn decode_varint(bytes: &[u8]) -> Option<(u64, &[u8])> {
     let mut used: usize = 1;
     let mut byte: u8 = *bytes.first()?;

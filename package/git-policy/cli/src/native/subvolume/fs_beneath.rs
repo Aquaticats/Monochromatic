@@ -1,13 +1,27 @@
 //! What:
-//!  Directory-relative file operations that never follow a symbolic link or cross a mount: open a directory, a file or a
-//!  link below a held directory handle one plain name at a time (`openat2` with `RESOLVE_BENEATH`, `RESOLVE_NO_SYMLINKS`,
-//!  `RESOLVE_NO_XDEV` and `RESOLVE_NO_MAGICLINKS`), create entries there, set times on them, rename them, publish an open
-//!  file under a new name without replacing anything, and remove a lock file whose identity is the one that was recorded.
+//!  Directory-relative file operations that never follow a symbolic link or cross a mount:
+//! open a directory,
+//! a file or a
+//!  link below a held directory handle one plain name at a time (`openat2` with `RESOLVE_BENEATH`,
+//! `RESOLVE_NO_SYMLINKS`,
+//!  `RESOLVE_NO_XDEV` and `RESOLVE_NO_MAGICLINKS`),
+//! create entries there,
+//! set times on them,
+//! rename them,
+//! publish an open
+//!  file under a new name without replacing anything,
+//! and remove a lock file whose identity is the one that was recorded.
 //! Why:
-//!  A path string is resolved again by every call that takes it, so a directory swapped for a link between two calls
-//!  redirects the second one. A name that was checked may also name another object when it is unlinked, and nothing in the
-//!  kernel makes the two one step, so no tree is deleted through this module: what the ladder made is kept and reported.
-//!  The clone rung and the snapshot's stub removal work on trees other processes can rename into; holding the handle of each
+//!  A path string is resolved again by every call that takes it,
+//! so a directory swapped for a link between two calls
+//!  redirects the second one.
+//! A name that was checked may also name another object when it is unlinked,
+//! and nothing in the
+//!  kernel makes the two one step,
+//! so no tree is deleted through this module:
+//! what the ladder made is kept and reported.
+//!  The clone rung and the snapshot's stub removal work on trees other processes can rename into;
+//! holding the handle of each
 //!  directory and naming one component at a time keeps every call on the object that was looked at.
 //!
 //! In TS you'd write (pseudocode):
@@ -23,16 +37,24 @@ use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
 
-/// `RESOLVE_NO_XDEV`: no mount point, bind mounts included, is crossed.
+/// `RESOLVE_NO_XDEV`:
+/// no mount point,
+/// bind mounts included,
+/// is crossed.
 const RESOLVE_NO_XDEV: u64 = 0x01;
-/// `RESOLVE_NO_MAGICLINKS`: no `/proc` style link is followed.
+/// `RESOLVE_NO_MAGICLINKS`:
+/// no `/proc` style link is followed.
 const RESOLVE_NO_MAGICLINKS: u64 = 0x02;
-/// `RESOLVE_NO_SYMLINKS`: no symbolic link is followed, the last component included.
+/// `RESOLVE_NO_SYMLINKS`:
+/// no symbolic link is followed,
+/// the last component included.
 const RESOLVE_NO_SYMLINKS: u64 = 0x04;
-/// `RESOLVE_BENEATH`: the lookup stays below the directory it starts from.
+/// `RESOLVE_BENEATH`:
+/// the lookup stays below the directory it starts from.
 const RESOLVE_BENEATH: u64 = 0x08;
 
-/// The arguments of `openat2`, laid out as the kernel's `struct open_how`.
+/// The arguments of `openat2`,
+/// laid out as the kernel's `struct open_how`.
 #[repr(C)]
 struct OpenHow {
     /// The `open` flags.
@@ -43,9 +65,16 @@ struct OpenHow {
     resolve: u64,
 }
 
-/// The identity of a filesystem object: device, inode and, where the filesystem gives one, the birth time.
+/// The identity of a filesystem object:
+/// device,
+/// inode and,
+/// where the filesystem gives one,
+/// the birth time.
 ///
-/// Why: a path or a name proves nothing about which object it names later; this does, up to the reuse of an inode number
+/// Why:
+/// a path or a name proves nothing about which object it names later;
+/// this does,
+/// up to the reuse of an inode number
 /// within one birth-time tick.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ObjectId {
@@ -53,7 +82,8 @@ pub struct ObjectId {
     pub device: u64,
     /// The inode number.
     pub inode: u64,
-    /// The birth time as seconds and nanoseconds, when the filesystem reports it.
+    /// The birth time as seconds and nanoseconds,
+    /// when the filesystem reports it.
     pub birth: Option<(i64, u32)>,
 }
 
@@ -78,9 +108,13 @@ impl ObjectId {
     }
 }
 
-/// The components of a relative path, each refused unless it is a plain name.
+/// The components of a relative path,
+/// each refused unless it is a plain name.
 ///
-/// Why: `..`, `.`, a root or a prefix would leave the held directory or name it twice.
+/// Why:
+/// `..`,
+/// `.`,
+/// a root or a prefix would leave the held directory or name it twice.
 pub fn plain_components(relative: &Path) -> std::io::Result<Vec<OsString>> {
     let mut names: Vec<OsString> = Vec::new();
     for part in relative.components() {
@@ -92,7 +126,8 @@ pub fn plain_components(relative: &Path) -> std::io::Result<Vec<OsString>> {
     return Ok(names);
 }
 
-/// A NUL-terminated copy of `bytes`, or an invalid-input error saying `what` holds a NUL byte.
+/// A NUL-terminated copy of `bytes`,
+/// or an invalid-input error saying `what` holds a NUL byte.
 fn c_string_of(bytes: &[u8], what: &str) -> std::io::Result<CString> {
     return match CString::new(bytes) {
         Ok(text) => Ok(text),
@@ -100,7 +135,11 @@ fn c_string_of(bytes: &[u8], what: &str) -> std::io::Result<CString> {
     };
 }
 
-/// A NUL-terminated copy of one name, refused when it is empty, `.`, `..`, holds a slash or a NUL byte.
+/// A NUL-terminated copy of one name,
+/// refused when it is empty,
+/// `.`,
+/// `..`,
+/// holds a slash or a NUL byte.
 fn name_of(name: &OsStr) -> std::io::Result<CString> {
     let bytes: &[u8] = name.as_bytes();
     if bytes.is_empty() || bytes == b"." || bytes == b".." || bytes.contains(&b'/') {
@@ -114,7 +153,8 @@ fn checked(result: libc::c_int) -> std::io::Result<libc::c_int> {
     return if result < 0 { Err(std::io::Error::last_os_error()) } else { Ok(result) };
 }
 
-/// `openat2` of one plain name below `dir`, resolving nothing but the name itself.
+/// `openat2` of one plain name below `dir`,
+/// resolving nothing but the name itself.
 fn open_beneath(dir: &File, name: &OsStr, flags: libc::c_int, mode: u32) -> std::io::Result<File> {
     let c_name = name_of(name)?;
     let how: OpenHow = OpenHow {
@@ -134,8 +174,13 @@ fn open_beneath(dir: &File, name: &OsStr, flags: libc::c_int, mode: u32) -> std:
 
 /// Open the directory at the canonical absolute path `path` as the root of a walk.
 ///
-/// Why: the ancestors of a path are resolved by the kernel and may be links, so the open directory's own path, read back
-/// from the descriptor, must equal the path asked for; a path with a link among its ancestors is refused.
+/// Why:
+/// the ancestors of a path are resolved by the kernel and may be links,
+/// so the open directory's own path,
+/// read back
+/// from the descriptor,
+/// must equal the path asked for;
+/// a path with a link among its ancestors is refused.
 pub fn open_root(path: &Path) -> std::io::Result<File> {
     if !path.is_absolute() {
         return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{} is not absolute", path.display())));
@@ -152,12 +197,17 @@ pub fn open_root(path: &Path) -> std::io::Result<File> {
     return Ok(held);
 }
 
-/// Open the subdirectory `name` of `parent`, refusing a link, a mount point and `.` or `..`.
+/// Open the subdirectory `name` of `parent`,
+/// refusing a link,
+/// a mount point and `.` or `..`.
 pub fn open_directory_at(parent: &File, name: &OsStr) -> std::io::Result<File> {
     return open_beneath(parent, name, libc::O_RDONLY | libc::O_DIRECTORY, 0);
 }
 
-/// Open the directory at `names` below `root`, one component at a time, refusing a link, a mount point or a directory on
+/// Open the directory at `names` below `root`,
+/// one component at a time,
+/// refusing a link,
+/// a mount point or a directory on
 ///  another device (a subvolume of a btrfs filesystem has its own).
 pub fn open_directory_beneath(root: &File, names: &[OsString]) -> std::io::Result<File> {
     let device: u64 = device_of(root)?;
@@ -178,17 +228,23 @@ pub fn device_of(file: &File) -> std::io::Result<u64> {
     return Ok(file.metadata()?.dev());
 }
 
-/// Open the regular file `name` of `dir` for reading, refusing a link; a fifo or a device is refused later by its type.
+/// Open the regular file `name` of `dir` for reading,
+/// refusing a link;
+/// a fifo or a device is refused later by its type.
 pub fn open_file_at(dir: &File, name: &OsStr) -> std::io::Result<File> {
     return open_beneath(dir, name, libc::O_RDONLY | libc::O_NONBLOCK, 0);
 }
 
-/// Create the file `name` in `dir` with `mode`, failing when anything is there, a link included.
+/// Create the file `name` in `dir` with `mode`,
+/// failing when anything is there,
+/// a link included.
 pub fn create_file_at(dir: &File, name: &OsStr, mode: u32) -> std::io::Result<File> {
     return open_beneath(dir, name, libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL, mode);
 }
 
-/// Create the directory `name` in `dir` with `mode`; `Ok(true)` when it was made, `Ok(false)` when a directory was
+/// Create the directory `name` in `dir` with `mode`;
+/// `Ok(true)` when it was made,
+/// `Ok(false)` when a directory was
 ///  already there (a link or a file in the way is an error).
 pub fn make_directory_at(dir: &File, name: &OsStr, mode: u32) -> std::io::Result<bool> {
     let c_name = name_of(name)?;
@@ -228,19 +284,22 @@ pub fn read_link_at(dir: &File, name: &OsStr) -> std::io::Result<PathBuf> {
     return Ok(PathBuf::from(OsString::from_vec(buffer)));
 }
 
-/// The path through which a held directory handle names that directory, for tools that take a path.
+/// The path through which a held directory handle names that directory,
+/// for tools that take a path.
 pub fn handle_path(directory: &File) -> PathBuf {
     return Path::new("/proc/self/fd").join(directory.as_raw_fd().to_string());
 }
 
-/// The metadata of the entry `name` in `dir`, without following a link.
+/// The metadata of the entry `name` in `dir`,
+/// without following a link.
 pub fn entry_metadata_at(dir: &File, name: &OsStr) -> std::io::Result<std::fs::Metadata> {
     // The name is one plain component, so the lookup below the descriptor's magic link resolves nothing else.
     name_of(name)?;
     return std::fs::symlink_metadata(handle_path(dir).join(name));
 }
 
-/// Set the access and modification times of the entry `name` in `dir`, without following a link.
+/// Set the access and modification times of the entry `name` in `dir`,
+/// without following a link.
 pub fn set_times_at(dir: &File, name: &OsStr, times: [libc::timespec; 2]) -> std::io::Result<()> {
     let c_name = name_of(name)?;
     // SAFETY: `c_name` outlives the call, `times` holds the two timestamps the call reads, and `dir` is an open descriptor.
@@ -248,9 +307,13 @@ pub fn set_times_at(dir: &File, name: &OsStr, times: [libc::timespec; 2]) -> std
     return Ok(());
 }
 
-/// Remove the entry `name` from `dir`: a directory when `directory` is set (it must be empty), else a file or a link.
+/// Remove the entry `name` from `dir`:
+/// a directory when `directory` is set (it must be empty),
+/// else a file or a link.
 ///
-/// Why: this removes whatever the name holds now; use `remove_owned_at` for an object that was made earlier.
+/// Why:
+/// this removes whatever the name holds now;
+/// use `remove_owned_at` for an object that was made earlier.
 pub fn remove_at(dir: &File, name: &OsStr, directory: bool) -> std::io::Result<()> {
     let c_name = name_of(name)?;
     let flags: libc::c_int = if directory { libc::AT_REMOVEDIR } else { 0 };
@@ -259,7 +322,8 @@ pub fn remove_at(dir: &File, name: &OsStr, directory: bool) -> std::io::Result<(
     return Ok(());
 }
 
-/// Rename `from` of `from_dir` to `to` of `to_dir`; with `replace` false an existing `to` is an error (`RENAME_NOREPLACE`).
+/// Rename `from` of `from_dir` to `to` of `to_dir`;
+/// with `replace` false an existing `to` is an error (`RENAME_NOREPLACE`).
 pub fn rename_at(from_dir: &File, from: &OsStr, to_dir: &File, to: &OsStr, replace: bool) -> std::io::Result<()> {
     let c_from = name_of(from)?;
     let c_to = name_of(to)?;
@@ -284,7 +348,8 @@ fn id_of_statx(found: &libc::statx) -> ObjectId {
     return ObjectId { device: libc::makedev(found.stx_dev_major, found.stx_dev_minor), inode: found.stx_ino, birth };
 }
 
-/// The identity of the entry `name` in `dir`, without following a link (`name` empty means `dir` itself).
+/// The identity of the entry `name` in `dir`,
+/// without following a link (`name` empty means `dir` itself).
 fn identity_statx(dir: &File, name: Option<&OsStr>) -> std::io::Result<ObjectId> {
     let (c_name, flags): (CString, libc::c_int) = match name {
         Some(plain) => (name_of(plain)?, libc::AT_SYMLINK_NOFOLLOW),
@@ -302,7 +367,8 @@ pub fn identity_of(file: &File) -> std::io::Result<ObjectId> {
     return identity_statx(file, None);
 }
 
-/// The identity of the entry `name` in `dir`, a link not followed.
+/// The identity of the entry `name` in `dir`,
+/// a link not followed.
 pub fn identity_at(dir: &File, name: &OsStr) -> std::io::Result<ObjectId> {
     return identity_statx(dir, Some(name));
 }
@@ -314,17 +380,28 @@ pub enum Owned {
     Removed,
     /// Nothing was at the name.
     Absent,
-    /// The name held another object and was left alone, for this reason.
+    /// The name held another object and was left alone,
+    /// for this reason.
     Kept(String),
 }
 
 /// What:
-///  Remove the entry `name` of `dir` if, at the moment of the look, it is the object with identity `expected`.
+///  Remove the entry `name` of `dir` if,
+/// at the moment of the look,
+/// it is the object with identity `expected`.
 /// Why:
-///   This is the one removal by name the ladder keeps, for the lock file it created and still holds open: it is what Git
-///  itself does with its own lock. A name can be taken between the look and the unlink, and nothing in the kernel makes the
-///  two one step, so the function is used only for a lock that no other writer can have replaced without breaking the lock
-///  protocol, and never to remove a tree: a directory is refused. Everything else the ladder made stays and is reported.
+///   This is the one removal by name the ladder keeps,
+/// for the lock file it created and still holds open:
+/// it is what Git
+///  itself does with its own lock.
+/// A name can be taken between the look and the unlink,
+/// and nothing in the kernel makes the
+///  two one step,
+/// so the function is used only for a lock that no other writer can have replaced without breaking the lock
+///  protocol,
+/// and never to remove a tree:
+/// a directory is refused.
+/// Everything else the ladder made stays and is reported.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -350,10 +427,13 @@ pub fn remove_if_identical(dir: &File, name: &OsStr, expected: ObjectId) -> std:
 }
 
 /// What:
-///  Make the open file `source` another name `name` of `dir`, failing if the name exists.
+///  Make the open file `source` another name `name` of `dir`,
+/// failing if the name exists.
 /// Why:
-///   The object published is the one the descriptor holds, not whatever a separately checked name refers to at the moment of a
-///  rename, and an existing entry is never replaced (`linkat` fails with `EEXIST`).
+///   The object published is the one the descriptor holds,
+/// not whatever a separately checked name refers to at the moment of a
+///  rename,
+/// and an existing entry is never replaced (`linkat` fails with `EEXIST`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -368,10 +448,16 @@ pub fn link_open_file_at(source: &File, dir: &File, name: &OsStr) -> std::io::Re
     return Ok(());
 }
 
-/// Give the owner read, write and search permission on the open directory, through its descriptor.
+/// Give the owner read,
+/// write and search permission on the open directory,
+/// through its descriptor.
 ///
-/// Why: a directory of mode 555 or 000 cannot be emptied until its owner can write and search it; the change lands on the
-/// directory that is held, whatever its path becomes. A directory the user does not own keeps its mode and the later
+/// Why:
+/// a directory of mode 555 or 000 cannot be emptied until its owner can write and search it;
+/// the change lands on the
+/// directory that is held,
+/// whatever its path becomes.
+/// A directory the user does not own keeps its mode and the later
 /// removal reports the operating system's refusal.
 pub fn widen_directory(directory: &File) -> std::io::Result<()> {
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -382,10 +468,13 @@ pub fn widen_directory(directory: &File) -> std::io::Result<()> {
     return directory.set_permissions(std::fs::Permissions::from_mode(mode | 0o700));
 }
 
-/// Open the subdirectory `name` of `parent` as `open_directory_at` does, giving the owner access to a directory whose mode
+/// Open the subdirectory `name` of `parent` as `open_directory_at` does,
+/// giving the owner access to a directory whose mode
 ///  forbids opening it.
 ///
-/// Why: the retry names the very directory the first open found (a handle that only names it), so a swapped name cannot
+/// Why:
+/// the retry names the very directory the first open found (a handle that only names it),
+/// so a swapped name cannot
 /// redirect the change of mode.
 pub fn open_directory_widening(parent: &File, name: &OsStr) -> std::io::Result<File> {
     use std::os::unix::fs::{MetadataExt, PermissionsExt};

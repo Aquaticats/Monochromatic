@@ -174,3 +174,8 @@ memchr = ">=2.8.3"
 rayon = ">=1.12.0"
 tracing = ">=0.1.44"
 tracing-subscriber = ">=0.3.23"
+
+# Declares the cfg name of `#[cfg_attr(dylint_lib = ..)]` suppressions, enforced by file-enforcer.
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(dylint_lib, values(any()))"]

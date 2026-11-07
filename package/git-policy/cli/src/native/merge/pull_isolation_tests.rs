@@ -1,4 +1,5 @@
-//! Controls for how a pull is read: which command lines and settings make it a merge the wrapper completes.
+//! Controls for how a pull is read:
+//! which command lines and settings make it a merge the wrapper completes.
 
 use super::*;
 
@@ -12,7 +13,9 @@ fn settings(list: &[(&str, &str)]) -> Vec<(String, String)> {
     return list.iter().map(|(key, value)| { return (String::from(*key), String::from(*value)); }).collect();
 }
 
-/// Each option goes to the half of the pull that takes it, the shared ones to both, and the operands stay in order.
+/// Each option goes to the half of the pull that takes it,
+/// the shared ones to both,
+/// and the operands stay in order.
 #[test]
 fn options_go_to_the_half_that_takes_them() {
     let plan: PullPlan = plan_pull(words(&["--no-rebase", "--no-edit", "--prune", "-q", "origin", "main"]).as_slice()).expect("read exactly");
@@ -24,7 +27,10 @@ fn options_go_to_the_half_that_takes_them() {
     assert!(plan_pull(words(&["--no-ff"]).as_slice()).expect("read exactly").fast_forward_stated);
 }
 
-/// An option this does not read exactly, an abbreviation, `--`, or a refspec with a destination leaves the pull to native Git.
+/// An option this does not read exactly,
+/// an abbreviation,
+/// `--`,
+/// or a refspec with a destination leaves the pull to native Git.
 #[test]
 fn what_is_not_read_exactly_is_native_gits() {
     for rest in [
@@ -43,7 +49,8 @@ fn what_is_not_read_exactly_is_native_gits() {
     assert!(plan_pull(words(&["ssh://host:22/repo"]).as_slice()).is_some(), "a colon in the repository is not a refspec");
 }
 
-/// The command line and the settings decide whether the pull merges, as `cmd_pull` decides it.
+/// The command line and the settings decide whether the pull merges,
+/// as `cmd_pull` decides it.
 #[test]
 fn merging_is_stated_by_the_line_or_the_settings() {
     let typed: PullPlan = plan_pull(words(&["--no-rebase"]).as_slice()).expect("read exactly");

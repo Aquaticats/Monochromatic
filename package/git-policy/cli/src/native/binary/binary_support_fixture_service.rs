@@ -1,7 +1,10 @@
 //! What:
-//!  The fixture of a binary-level control and the resident service process it may start, with the groups of helper processes that die with the test thread.
+//!  The fixture of a binary-level control and the resident service process it may start,
+//! with the groups of helper processes that die with the test thread.
 //! Why:
-//!  The fixture and its service are one lifecycle: the fixture owns the service and stops it when it is dropped, so they live in a file that depends on the limits file only.
+//!  The fixture and its service are one lifecycle:
+//! the fixture owns the service and stops it when it is dropped,
+//! so they live in a file that depends on the limits file only.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,23 +21,29 @@ pub struct Fixture {
     /// Canonical fixture root.
     pub root: PathBuf,
     /// The wrapper path every link and hard link in this fixture points at:
-    ///  a hard link of the built executable, so no control may write to it.
+    ///  a hard link of the built executable,
+    /// so no control may write to it.
     pub wrapper: PathBuf,
-    /// The commit service of this fixture, started by the first wrapped command.
+    /// The commit service of this fixture,
+    /// started by the first wrapped command.
     pub service: std::sync::Mutex<Option<FixtureService>>,
-    /// Variables the fixture's service starts with besides its fixed ones: what the user manager's environment would hold.
+    /// Variables the fixture's service starts with besides its fixed ones:
+    /// what the user manager's environment would hold.
     pub service_environment: std::sync::Mutex<Vec<(OsString, OsString)>>,
     /// How the fixture's services are started when a fault control needs more than the plain program.
     pub service_launch: std::sync::Mutex<ServiceLaunch>,
 }
 
-/// The process groups the helper processes of one test thread lead, killed when the thread ends however its test ended.
+/// The process groups the helper processes of one test thread lead,
+/// killed when the thread ends however its test ended.
 pub struct OwnedGroups {
-    /// The group numbers, which are the numbers of the group leaders.
+    /// The group numbers,
+    /// which are the numbers of the group leaders.
     groups: std::cell::RefCell<Vec<libc::pid_t>>,
 }
 
-/// A panic unwinds the test thread, and a thread that ends runs this.
+/// A panic unwinds the test thread,
+/// and a thread that ends runs this.
 impl Drop for OwnedGroups {
     fn drop(&mut self) {
         for group in self.groups.borrow().iter() {
@@ -50,11 +59,17 @@ thread_local! {
 }
 
 /// What:
-///  Make the process group a child leads die with the test thread that started it, whether the test passes, fails or panics.
+///  Make the process group a child leads die with the test thread that started it,
+/// whether the test passes,
+/// fails or panics.
 /// Why:
-///   `Child` does not kill on drop, so a helper that a failing assertion never reached the end of (a service whose idle exit is
-///  hours away, a shell loop) kept running after its test. The child must lead a group of its own already (`process_group(0)`
-///  before the start), so what it starts is killed with it.
+///   `Child` does not kill on drop,
+/// so a helper that a failing assertion never reached the end of (a service whose idle exit is
+///  hours away,
+/// a shell loop) kept running after its test.
+/// The child must lead a group of its own already (`process_group(0)`
+///  before the start),
+/// so what it starts is killed with it.
 pub fn own_group(child: &Child) {
     let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
     OWNED_GROUPS.with(|owned| { owned.groups.borrow_mut().push(group); });
@@ -63,7 +78,8 @@ pub fn own_group(child: &Child) {
 /// What:
 ///  Start a helper process in a group of its own that dies with the test thread that started it.
 /// Why:
-///   The same reason as `own_group`, for a child started here.
+///   The same reason as `own_group`,
+/// for a child started here.
 pub fn spawn_owned(command: &mut Command) -> std::io::Result<Child> {
     use std::os::unix::process::CommandExt as _;
     command.process_group(0);
@@ -72,9 +88,12 @@ pub fn spawn_owned(command: &mut Command) -> std::io::Result<Child> {
     return Ok(child);
 }
 
-/// The commit services of one fixture, one per worktree as in production, stopped with the fixture.
+/// The commit services of one fixture,
+/// one per worktree as in production,
+/// stopped with the fixture.
 pub struct FixtureService {
-    /// The running service of each worktree, by the worktree's own Git directory.
+    /// The running service of each worktree,
+    /// by the worktree's own Git directory.
     children: std::sync::Mutex<std::collections::HashMap<PathBuf, Child>>,
     /// The runtime directory the wrapper finds the services' sockets in.
     pub runtime: PathBuf,
@@ -91,10 +110,19 @@ impl Drop for FixtureService {
     }
 }
 
-/// Ends a service and the processes of its group: the tracer in front of it, if any, and the Git it started. A tracer that is
-///  killed does not take the traced program with it, so ending only the child would leave a service running. The child is asked
-///  to end first, because a tracer that is killed outright loses the part of its log it has not written yet, and a control reads
-///  that log; what is still there after a short wait is killed.
+/// Ends a service and the processes of its group:
+/// the tracer in front of it,
+/// if any,
+/// and the Git it started.
+/// A tracer that is
+///  killed does not take the traced program with it,
+/// so ending only the child would leave a service running.
+/// The child is asked
+///  to end first,
+/// because a tracer that is killed outright loses the part of its log it has not written yet,
+/// and a control reads
+///  that log;
+/// what is still there after a short wait is killed.
 pub fn kill_with_everything_it_started(child: &mut Child) {
     let group: i32 = -i32::try_from(child.id()).expect("a process ID fits");
     // SAFETY: `kill` takes two integers and touches no memory of this process.
@@ -109,14 +137,19 @@ pub fn kill_with_everything_it_started(child: &mut Child) {
     let _waited = child.wait();
 }
 
-/// The executable Cargo built for this test run, which is the wrapper and, started with the service mode words, the resident
+/// The executable Cargo built for this test run,
+/// which is the wrapper and,
+/// started with the service mode words,
+/// the resident
 ///  service.
 pub const SERVICE_PROGRAM: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
 
 /// What:
-///  The command that starts the resident service of this build: the one executable followed by the words of its service mode.
+///  The command that starts the resident service of this build:
+/// the one executable followed by the words of its service mode.
 /// Why:
-///   The service is a mode of the wrapper's executable (`service_main.rs`), so every control that starts one names these words
+///   The service is a mode of the wrapper's executable (`service_main.rs`),
+/// so every control that starts one names these words
 ///  first and its own options after them.
 pub fn service_command() -> Command {
     let mut command: Command = Command::new(SERVICE_PROGRAM);
@@ -133,10 +166,15 @@ pub const fn service_executable() -> &'static str {
 pub static RUNTIME_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 /// What:
-///  Makes the runtime directory a fixture's services listen in; no service runs until a worktree asks for one.
+///  Makes the runtime directory a fixture's services listen in;
+/// no service runs until a worktree asks for one.
 /// Why:
-///  A socket path holds about a hundred bytes, which the fixture tree's depth does not allow, so the runtime directory is
-///  in the short agent scratch directory under the home. Each service gets the parent-death signal, so a control that panics
+///  A socket path holds about a hundred bytes,
+/// which the fixture tree's depth does not allow,
+/// so the runtime directory is
+///  in the short agent scratch directory under the home.
+/// Each service gets the parent-death signal,
+/// so a control that panics
 ///  or is killed leaves no service behind.
 pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
     let _ = fixture;
@@ -148,12 +186,19 @@ pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
 }
 
 /// What:
-///  Starts `command` from a thread that lives as long as this test process, and returns the child.
+///  Starts `command` from a thread that lives as long as this test process,
+/// and returns the child.
 /// Why:
-///   `PR_SET_PDEATHSIG` is sent when the thread that spawned the child ends, not when the process does. Controls start their
-///  services from whichever of their threads gets there first (two worktrees committing at once), so a child spawned there
-///  died when that thread's closure returned, and the other thread's commit found its work claimed by a dead service. This
-///  thread ends only with the process, which is the moment the signal is meant for.
+///   `PR_SET_PDEATHSIG` is sent when the thread that spawned the child ends,
+/// not when the process does.
+/// Controls start their
+///  services from whichever of their threads gets there first (two worktrees committing at once),
+/// so a child spawned there
+///  died when that thread's closure returned,
+/// and the other thread's commit found its work claimed by a dead service.
+/// This
+///  thread ends only with the process,
+/// which is the moment the signal is meant for.
 pub fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child> {
     type Job = (Command, std::sync::mpsc::Sender<std::io::Result<Child>>);
     static SPAWNER: std::sync::OnceLock<std::sync::Mutex<std::sync::mpsc::Sender<Job>>> = std::sync::OnceLock::new();
@@ -171,18 +216,60 @@ pub fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child
     return answer.recv().expect("the spawner thread answers");
 }
 
+/// What:
+///  Whether the service that listens at `socket` is serving:
+/// it answers a connection with its greeting.
+/// Why:
+///   The kernel accepts a connection as soon as the service listens,
+/// before the service has recovered its journal and started
+///  the threads that answer,
+/// so an accepted connection says nothing about the service's state.
+/// A control that changes the
+///  service right after the fixture started it (a lowered process limit) met a service that had not started its work thread and
+///  ended it at once with status 4.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const serving = (socket: string) => connect(socket).then(readLine).then((line) => line.length > 0).catch(() => false)
+/// ```
+pub fn service_is_serving(socket: &Path) -> bool {
+    use std::io::BufRead;
+    let Ok(stream) = std::os::unix::net::UnixStream::connect(socket) else { return false };
+    // A service greets as soon as it has started its threads; a read that gets nothing within this bound is asked again by the
+    //  caller's loop, which has its own bound.
+    let _timeout = stream.set_read_timeout(Some(GREETING_READ));
+    let mut line: String = String::new();
+    // An empty read is a connection that ended without a greeting: the service went away as it was starting.
+    return std::io::BufReader::new(stream).read_line(&mut line).is_ok_and(|read| { return read > 0; });
+}
+
+/// How long one readiness check waits for the greeting.
+/// A service answers within milliseconds once its threads run,
+/// so a second
+///  is far past it;
+/// a longer start (a loaded host) is covered by the repeated checks of the caller,
+/// not by a longer read.
+const GREETING_READ: std::time::Duration = std::time::Duration::from_secs(1);
+
 /// How long a fixture waits for an ended service's socket to stop answering before it says the service is still there.
 pub const SOCKET_RELEASE_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// What:
-///  Waits until nothing answers at `socket`: the file is absent, or it is a stale socket whose listener is gone.
+///  Waits until nothing answers at `socket`:
+/// the file is absent,
+/// or it is a stale socket whose listener is gone.
 /// Why:
-///   Ending a service that runs under a tracer reaps the tracer, and the traced service dies a moment later, so its socket can
-///  still answer after the fixture counts the service as ended. A new service cannot take such a socket, and a readiness poll
+///   Ending a service that runs under a tracer reaps the tracer,
+/// and the traced service dies a moment later,
+/// so its socket can
+///  still answer after the fixture counts the service as ended.
+/// A new service cannot take such a socket,
+/// and a readiness poll
 ///  that connects to it reports a service that is not the new one.
 ///
 /// # Panics
-/// When something still answers after `SOCKET_RELEASE_PATIENCE`, which is a service the fixture did not end.
+/// When something still answers after `SOCKET_RELEASE_PATIENCE`,
+/// which is a service the fixture did not end.
 pub fn wait_until_nothing_listens(socket: &Path) {
     let began: std::time::Instant = std::time::Instant::now();
     loop {
@@ -197,10 +284,13 @@ pub fn wait_until_nothing_listens(socket: &Path) {
 
 impl FixtureService {
     /// What:
-    ///  Starts the service of the worktree whose own Git directory is `git_dir`, listening at the socket the wrapper looks for,
+    ///  Starts the service of the worktree whose own Git directory is `git_dir`,
+    /// listening at the socket the wrapper looks for,
     ///  unless it already runs.
     /// Why:
-    ///   In production the manager starts one instance per worktree on its first connection; the fixture has no manager, so
+    ///   In production the manager starts one instance per worktree on its first connection;
+    /// the fixture has no manager,
+    /// so
     ///  it starts the instance itself and waits until it listens.
     pub fn serve(&self, fixture: &Fixture, git_dir: &Path) {
         use std::os::unix::process::CommandExt;
@@ -279,7 +369,7 @@ impl FixtureService {
         let child: Child = spawn_for_the_process_lifetime(command).expect("the fixture's commit service starts");
         children.insert(key.clone(), child);
         let began: std::time::Instant = std::time::Instant::now();
-        while std::os::unix::net::UnixStream::connect(&socket).is_err() {
+        while !service_is_serving(&socket) {
             // A service that has ended will never listen, so waiting out the patience for it only hides how it ended. A
             //  control whose fault may keep the service from starting (a disk that is full from its first write) goes on
             //  once the service has ended or a short wait has passed: what the client then says is the control's to check.
@@ -297,13 +387,15 @@ impl FixtureService {
         }
     }
 
-    /// The process IDs of the running services, for a control that changes a limit in place or signals one.
+    /// The process IDs of the running services,
+    /// for a control that changes a limit in place or signals one.
     pub fn process_ids(&self) -> Vec<u32> {
         let children = self.children.lock().expect("the fixture's services");
         return children.values().map(Child::id).collect();
     }
 
-    /// Ends every running service, so the next wrapped command starts one by the launch the fixture holds then:
+    /// Ends every running service,
+    /// so the next wrapped command starts one by the launch the fixture holds then:
     ///  what the user manager does when a service has gone.
     pub fn stop_all(&self) {
         let mut children = self.children.lock().expect("the fixture's services");
@@ -316,9 +408,12 @@ impl FixtureService {
     }
 
     /// What:
-    ///  Forgets the services that ended on their own, so that the next start of their worktree's service runs again.
+    ///  Forgets the services that ended on their own,
+    /// so that the next start of their worktree's service runs again.
     /// Why:
-    ///   The fixture has no manager, and a service that is recorded as running is never started again, ended or not.
+    ///   The fixture has no manager,
+    /// and a service that is recorded as running is never started again,
+    /// ended or not.
     ///
     /// Returns whether any service had ended.
     pub fn forget_ended(&self) -> bool {
@@ -331,8 +426,10 @@ impl FixtureService {
         return !ended.is_empty();
     }
 
-    /// Starts the service of every worktree under the fixture root that has none yet: the repositories and the linked
-    ///  worktrees a control made, found as Git finds them.
+    /// Starts the service of every worktree under the fixture root that has none yet:
+    /// the repositories and the linked
+    ///  worktrees a control made,
+    /// found as Git finds them.
     pub fn serve_worktrees(&self, fixture: &Fixture) {
         for git_dir in worktree_git_dirs(fixture.root.as_path(), 4) {
             self.serve(fixture, git_dir.as_path());
@@ -340,8 +437,12 @@ impl FixtureService {
     }
 }
 
-/// The own Git directories of the worktrees under `directory`, down to `depth` levels: a `.git` directory is its worktree's
-///  Git directory, and a `.git` file names a linked worktree's. Bare repositories have no worktree and are not listed.
+/// The own Git directories of the worktrees under `directory`,
+/// down to `depth` levels:
+/// a `.git` directory is its worktree's
+///  Git directory,
+/// and a `.git` file names a linked worktree's.
+/// Bare repositories have no worktree and are not listed.
 pub fn worktree_git_dirs(directory: &Path, depth: usize) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
     let Ok(entries) = std::fs::read_dir(directory) else { return found };
@@ -364,11 +465,15 @@ pub fn worktree_git_dirs(directory: &Path, depth: usize) -> Vec<PathBuf> {
 }
 
 /// What:
-///  Does what the user manager does when a service has ended: starts the worktree's service again, as production runs it,
+///  Does what the user manager does when a service has ended:
+/// starts the worktree's service again,
+/// as production runs it,
 ///  with no tracer and no fault.
 /// Why:
-///   The manager owns the socket and starts the service at the next connection. A control that kills the service during a
-///  commit relies on that start for the client's resend, so it calls this while the commit runs.
+///   The manager owns the socket and starts the service at the next connection.
+/// A control that kills the service during a
+///  commit relies on that start for the client's resend,
+/// so it calls this while the commit runs.
 pub fn restart_ended_services(fixture: &Fixture) {
     let service = fixture.service.lock().expect("the fixture's service lock");
     let Some(services) = service.as_ref() else { return };
@@ -378,8 +483,11 @@ pub fn restart_ended_services(fixture: &Fixture) {
     }
 }
 
-/// The runtime directory of the fixture's services, with a service running for every worktree of the fixture, so a wrapped
-///  commit takes the route a person's commit takes: the commit path has no other writer.
+/// The runtime directory of the fixture's services,
+/// with a service running for every worktree of the fixture,
+/// so a wrapped
+///  commit takes the route a person's commit takes:
+/// the commit path has no other writer.
 pub fn service_runtime(fixture: &Fixture) -> Option<PathBuf> {
     let mut service = fixture.service.lock().expect("the fixture's service lock");
     if service.is_none() {
@@ -390,14 +498,19 @@ pub fn service_runtime(fixture: &Fixture) -> Option<PathBuf> {
     return Some(started.runtime.clone());
 }
 
-/// Environment variable that keeps every fixture on disk after its test ends, for looking at a failure.
+/// Environment variable that keeps every fixture on disk after its test ends,
+/// for looking at a failure.
 pub const KEEP_FIXTURES_VARIABLE: &str = "CLI_GIT_KEEP_FIXTURES";
 
 /// What:
-///  Remove a fixture tree unless the person asked to keep it, trying again for up to five seconds.
+///  Remove a fixture tree unless the person asked to keep it,
+/// trying again for up to five seconds.
 /// Why:
-///   A landed commit may leave a maintenance child finishing for a moment, and removing a directory that still gains
-///  entries fails; a tree already gone is the explicit `remove` having run first, not a failure.
+///   A landed commit may leave a maintenance child finishing for a moment,
+/// and removing a directory that still gains
+///  entries fails;
+/// a tree already gone is the explicit `remove` having run first,
+/// not a failure.
 pub fn settle_fixture(root: &Path, keep: bool) {
     if keep {
         return;
@@ -411,7 +524,8 @@ pub fn settle_fixture(root: &Path, keep: bool) {
     }
 }
 
-/// A fixture goes away however its test ends: a panic unwinds through this too.
+/// A fixture goes away however its test ends:
+/// a panic unwinds through this too.
 impl Drop for Fixture {
     fn drop(&mut self) {
         // The service goes first: it writes into the fixture.

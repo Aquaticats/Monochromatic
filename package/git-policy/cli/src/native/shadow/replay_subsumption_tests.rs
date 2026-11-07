@@ -1,18 +1,25 @@
 //! Controls for subsumption:
-//!  the synthetic-base record formats, and the per-path outcome of a real repository scenario
-//!  with identical, one-sided, far-apart, delete-against-modify, and capture-ordered paths.
+//!  the synthetic-base record formats,
+//! and the per-path outcome of a real repository scenario
+//!  with identical,
+//! one-sided,
+//! far-apart,
+//! delete-against-modify,
+//! and capture-ordered paths.
 
 use super::*;
 use crate::replay_shared_paths::list_shared_paths;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use std::path::PathBuf;
 
-/// The commit or blob a revision names, trimmed.
+/// The commit or blob a revision names,
+/// trimmed.
 fn rev(repo: &std::path::Path, spec: &str) -> String {
     return git_text(repo, &["rev-parse", spec]).trim().to_string();
 }
 
-/// The shared paths of a repository's scenario, listed once as replay's caller does.
+/// The shared paths of a repository's scenario,
+/// listed once as replay's caller does.
 fn shared_of(repo: &Path, base: &str, current: &str, prepared: &str) -> Vec<SharedPath> {
     return list_shared_paths(&git_context(), repo.join(".git").as_path(), repo, base, current, prepared)
         .expect("shared paths");
@@ -43,7 +50,8 @@ fn a_landed_deletion_removes_the_path() {
     assert_eq!(subsumed_record(&deleted), b"0 0000000\tp.txt\0".to_vec());
 }
 
-/// A regular file keeps the base's mode in the subsumed record; other entries take the landed mode.
+/// A regular file keeps the base's mode in the subsumed record;
+/// other entries take the landed mode.
 #[test]
 fn subsumed_records_keep_the_base_mode_only_for_regular_files() {
     let regular: SharedPath = shared(entry("100644", "aaaa"), entry("100755", "bbbb"), entry("100644", "cccc"));
@@ -54,7 +62,8 @@ fn subsumed_records_keep_the_base_mode_only_for_regular_files() {
     assert_eq!(subsumed_record(&link), b"120000 bbbb\tp.txt\0".to_vec());
 }
 
-/// An exact record names the entry's mode and object; an absent entry writes zeros of the width.
+/// An exact record names the entry's mode and object;
+/// an absent entry writes zeros of the width.
 #[test]
 fn exact_records_name_the_entry_or_zeros() {
     assert_eq!(exact_record("p.txt", &entry("100644", "abcd"), 4), b"100644 abcd\tp.txt\0".to_vec());
@@ -71,7 +80,10 @@ fn ordered_edits_take_the_side_they_keep() {
     assert_eq!(base_record(&landed_rule), b"100755 cccc\tp.txt\0".to_vec());
 }
 
-/// Builds the scenario repository: the base, the landed commit on `main`, and the prepared commit on a branch.
+/// Builds the scenario repository:
+/// the base,
+/// the landed commit on `main`,
+/// and the prepared commit on a branch.
 fn scenario(name: &str) -> (PathBuf, PathBuf, String, String, String) {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
@@ -108,8 +120,13 @@ fn scenario(name: &str) -> (PathBuf, PathBuf, String, String, String) {
     return (root, repo, base, current, prepared);
 }
 
-/// Per path: identity and the text check subsume; far-apart edits, delete against modify, and unlisted paths do not;
-///  capture order settles e (prepared later) and f (landed later), and the synthetic base takes the entries it keeps.
+/// Per path:
+/// identity and the text check subsume;
+/// far-apart edits,
+/// delete against modify,
+/// and unlisted paths do not;
+///  capture order settles e (prepared later) and f (landed later),
+/// and the synthetic base takes the entries it keeps.
 #[test]
 fn the_scenario_settles_each_path_by_its_rule() {
     let (root, repo, base, current, prepared) = scenario("replay-subsumption-scenario");
@@ -143,7 +160,8 @@ fn the_scenario_settles_each_path_by_its_rule() {
     remove(root.as_path());
 }
 
-/// With no path settled, the effective merge base is the preparation base itself and no synthetic commit is written.
+/// With no path settled,
+/// the effective merge base is the preparation base itself and no synthetic commit is written.
 #[test]
 fn no_settled_path_keeps_the_preparation_base() {
     let root: PathBuf = fixture("replay-subsumption-none");
@@ -179,7 +197,8 @@ fn no_settled_path_keeps_the_preparation_base() {
     remove(root.as_path());
 }
 
-/// Identical gitlinks and identical binary blobs are subsumed; a different gitlink and a different binary blob are not.
+/// Identical gitlinks and identical binary blobs are subsumed;
+/// a different gitlink and a different binary blob are not.
 #[test]
 fn identical_gitlinks_and_binary_blobs_are_subsumed_only_when_identical() {
     let root: PathBuf = fixture("replay-subsumption-gitlink-binary");
@@ -229,7 +248,8 @@ fn identical_gitlinks_and_binary_blobs_are_subsumed_only_when_identical() {
     remove(root.as_path());
 }
 
-/// A pair that is not all regular files takes the landed mode, even when the base has another mode.
+/// A pair that is not all regular files takes the landed mode,
+/// even when the base has another mode.
 #[test]
 fn a_non_regular_triple_takes_the_landed_mode() {
     let link: SharedPath = shared(entry("100644", "aa"), entry("120000", "bb"), entry("120000", "cc"));

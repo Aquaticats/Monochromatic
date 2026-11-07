@@ -1,12 +1,21 @@
 //! What:
-//!  The package-manager repair of a new worktree through the built executable: after `git worktree add` the wrapper starts
-//!  pnpm and Cargo in the new worktree (fixture tools, then the real ones), never for `--no-checkout` or the opt-out, and a
+//!  The package-manager repair of a new worktree through the built executable:
+//! after `git worktree add` the wrapper starts
+//!  pnpm and Cargo in the new worktree (fixture tools,
+//! then the real ones),
+//! never for `--no-checkout` or the opt-out,
+//! and a
 //!  tool that fails or is missing leaves the add successful with one line naming the command to run.
 //! Why:
 //!  The owner's rule is that a new worktree works under every configuration of every package manager the repository uses.
-//!  pnpm's links and Cargo's build state are wrong at a new location, so the controls check the effect a person sees: a
-//!  `node_modules` entry that resolves, a build that names the worktree's own paths, and the source left as it was.
-//!  Controls that need a real tool say so and stop with a loud line when it is missing, as the btrfs controls do.
+//!  pnpm's links and Cargo's build state are wrong at a new location,
+//! so the controls check the effect a person sees:
+//! a
+//!  `node_modules` entry that resolves,
+//! a build that names the worktree's own paths,
+//! and the source left as it was.
+//!  Controls that need a real tool say so and stop with a loud line when it is missing,
+//! as the btrfs controls do.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,10 +29,14 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-/// The environment variable that acknowledges a real tool is absent on this machine, so its controls may be skipped.
+/// The environment variable that acknowledges a real tool is absent on this machine,
+/// so its controls may be skipped.
 const ABSENT_ACKNOWLEDGED: &str = "CLI_GIT_REAL_TOOLS_ABSENT_ACKNOWLEDGED";
 
-/// Whether a real tool is available; where it is not, the run must have said so, and one loud line names the control.
+/// Whether a real tool is available;
+/// where it is not,
+/// the run must have said so,
+/// and one loud line names the control.
 fn available_or_acknowledged(found: Option<&Path>, tool: &str, control: &str) -> bool {
     if found.is_some() {
         return true;
@@ -40,7 +53,8 @@ const REPAIRED_WORDS: &str = "work at its new location";
 /// Words of the line that reports a repair that could not finish.
 const PENDING_WORDS: &str = "still needs one step";
 
-/// Where the fixture's tools are linked or written: the first directory of the wrapped PATH.
+/// Where the fixture's tools are linked or written:
+/// the first directory of the wrapped PATH.
 fn bin(fixture: &Fixture) -> PathBuf {
     return fixture.root.join("bin");
 }
@@ -67,7 +81,8 @@ fn repository_with_node_modules(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
-/// The lines of a record file, empty when nothing was recorded.
+/// The lines of a record file,
+/// empty when nothing was recorded.
 fn recorded(record: &Path) -> Vec<String> {
     return std::fs::read_to_string(record).map(|text: String| { return text.lines().map(str::to_owned).collect(); }).unwrap_or_default();
 }
@@ -82,7 +97,10 @@ fn add(fixture: &Fixture, repo: &Path, options: &[&str], branch: &str, destinati
     return created;
 }
 
-/// pnpm is started in the new worktree, and only there, with the offline and frozen-lockfile switches; the source is not a
+/// pnpm is started in the new worktree,
+/// and only there,
+/// with the offline and frozen-lockfile switches;
+/// the source is not a
 ///  directory it runs in.
 #[test]
 fn pnpm_runs_in_the_new_worktree_only() {
@@ -99,7 +117,9 @@ fn pnpm_runs_in_the_new_worktree_only() {
     remove(&fixture);
 }
 
-/// The same add through the snapshot rung, which carries the ignored state itself, still starts pnpm in the new worktree.
+/// The same add through the snapshot rung,
+/// which carries the ignored state itself,
+/// still starts pnpm in the new worktree.
 #[test]
 fn pnpm_runs_after_the_snapshot_rung() {
     let fixture: Fixture = fixture("repair-pnpm-snapshot");
@@ -149,7 +169,8 @@ fn quiet_runs_the_repair_and_says_nothing_about_success() {
     remove(&fixture);
 }
 
-/// A pnpm that fails leaves the add successful and prints one line that names the command, even under `--quiet`.
+/// A pnpm that fails leaves the add successful and prints one line that names the command,
+/// even under `--quiet`.
 #[test]
 fn a_failing_pnpm_never_fails_the_add() {
     let fixture: Fixture = fixture("repair-pnpm-fails");
@@ -164,8 +185,11 @@ fn a_failing_pnpm_never_fails_the_add() {
     remove(&fixture);
 }
 
-/// A missing pnpm is the same: the add succeeds and the line says what to run.
-///  The run's PATH holds the wrapper's directory and a directory with only real Git, never the system directories, because
+/// A missing pnpm is the same:
+/// the add succeeds and the line says what to run.
+///  The run's PATH holds the wrapper's directory and a directory with only real Git,
+/// never the system directories,
+/// because
 ///  an image whose package manager installed a real pnpm into `/usr/bin` would otherwise not lack one.
 #[test]
 fn a_missing_pnpm_never_fails_the_add() {
@@ -185,14 +209,20 @@ fn a_missing_pnpm_never_fails_the_add() {
     remove(&fixture);
 }
 
-/// The most the fixture pnpm waits for its release, in tenths of a second; a bound so that a failing control cannot hang.
+/// The most the fixture pnpm waits for its release,
+/// in tenths of a second;
+/// a bound so that a failing control cannot hang.
 const HOLD_TENTHS: u32 = 150;
 
-/// How long the control waits for the held repair to start, in tenths of a second.
+/// How long the control waits for the held repair to start,
+/// in tenths of a second.
 const START_WAIT_TENTHS: u32 = 300;
 
-/// While one add's repair runs, another add in the same repository is not held by it: the repairs touch only their own new
-///  worktree, so the settlement lock is released before they start.
+/// While one add's repair runs,
+/// another add in the same repository is not held by it:
+/// the repairs touch only their own new
+///  worktree,
+/// so the settlement lock is released before they start.
 #[test]
 fn a_running_repair_does_not_hold_another_add() {
     let fixture: Fixture = fixture("repair-lock-free");
@@ -228,7 +258,8 @@ fn a_running_repair_does_not_hold_another_add() {
     remove(&fixture);
 }
 
-/// A real `pnpm` found by the test process, linked into the fixture's PATH directory.
+/// A real `pnpm` found by the test process,
+/// linked into the fixture's PATH directory.
 fn link_real(fixture: &Fixture, name: &str, target: &Path) {
     std::os::unix::fs::symlink(target, bin(fixture).join(name)).expect("link a real tool");
 }
@@ -239,7 +270,8 @@ fn on_path(name: &str) -> Option<PathBuf> {
     return std::env::split_paths(&search).map(|directory: PathBuf| { return directory.join(name); }).find(|candidate: &PathBuf| { return candidate.is_file(); });
 }
 
-/// The first `pnpm` on the test process's PATH that is pnpm itself and not the repository's shadow of it, which looks for a
+/// The first `pnpm` on the test process's PATH that is pnpm itself and not the repository's shadow of it,
+/// which looks for a
 ///  real pnpm further along the PATH and finds none in the fixture's.
 fn real_pnpm() -> Option<PathBuf> {
     let search: std::ffi::OsString = std::env::var_os("PATH")?;
@@ -252,7 +284,8 @@ fn real_pnpm() -> Option<PathBuf> {
         });
 }
 
-/// Run a linked tool in a directory with the hermetic environment the wrapped runs use, and require success.
+/// Run a linked tool in a directory with the hermetic environment the wrapped runs use,
+/// and require success.
 fn run_tool(fixture: &Fixture, program: &str, directory: &Path, arguments: &[&str]) -> String {
     let output = Command::new(bin(fixture).join(program))
         .env_clear()
@@ -266,7 +299,9 @@ fn run_tool(fixture: &Fixture, program: &str, directory: &Path, arguments: &[&st
     return String::from_utf8_lossy(&output.stdout).into_owned();
 }
 
-/// A workspace whose one dependency is a local tarball, installed with the global virtual store outside the tree: the
+/// A workspace whose one dependency is a local tarball,
+/// installed with the global virtual store outside the tree:
+/// the
 ///  layout whose links climb out of the tree by a fixed number of levels.
 fn pnpm_repository(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
@@ -286,8 +321,12 @@ fn pnpm_repository(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
-/// With real pnpm: a copy of the install at another depth has a dead entry, and after the add the entry resolves, both in a
-///  worktree under the source and in one outside it, with the source left as it was.
+/// With real pnpm:
+/// a copy of the install at another depth has a dead entry,
+/// and after the add the entry resolves,
+/// both in a
+///  worktree under the source and in one outside it,
+/// with the source left as it was.
 #[test]
 fn real_pnpm_relinks_a_global_virtual_store_install() {
     let fixture: Fixture = fixture("repair-real-pnpm");
@@ -321,10 +360,12 @@ fn real_pnpm_relinks_a_global_virtual_store_install() {
     remove(&fixture);
 }
 
-/// The registry crate the Cargo fixture depends on, so a build shows what is reused.
+/// The registry crate the Cargo fixture depends on,
+/// so a build shows what is reused.
 const REGISTRY_CRATE: &str = "itoa-1.0.18";
 
-/// The person's Cargo home when its offline cache holds `REGISTRY_CRATE`, which lets a fixture depend on a registry crate
+/// The person's Cargo home when its offline cache holds `REGISTRY_CRATE`,
+/// which lets a fixture depend on a registry crate
 ///  without the network.
 fn cargo_home_with_registry_crate() -> Option<PathBuf> {
     let home: PathBuf = std::env::var_os("CARGO_HOME").map(PathBuf::from).or_else(|| { return std::env::var_os("HOME").map(|home: std::ffi::OsString| { return PathBuf::from(home).join(".cargo"); }); })?;
@@ -333,8 +374,12 @@ fn cargo_home_with_registry_crate() -> Option<PathBuf> {
     return found.then_some(home);
 }
 
-/// A Cargo workspace of two path-dependent crates, built once in the source. `external` keys the build directory by workspace
-///  path outside the tree, as the person's `~/.cargo/config.toml` does; otherwise Cargo's default layout applies.
+/// A Cargo workspace of two path-dependent crates,
+/// built once in the source.
+/// `external` keys the build directory by workspace
+///  path outside the tree,
+/// as the person's `~/.cargo/config.toml` does;
+/// otherwise Cargo's default layout applies.
 fn cargo_repository(fixture: &Fixture, external: bool) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::create_dir_all(fixture.root.join("home")).expect("home");
@@ -372,7 +417,8 @@ fn compiled(fixture: &Fixture, root: &Path) -> Vec<String> {
     return names;
 }
 
-/// Link the person's Rust toolchain into the fixture's PATH directory and share only the registry of their Cargo home, or say
+/// Link the person's Rust toolchain into the fixture's PATH directory and share only the registry of their Cargo home,
+/// or say
 ///  loudly why the controls cannot run.
 fn prepare_cargo(fixture: &Fixture, name: &str) -> bool {
     let compiler: Option<PathBuf> = on_path("rustc");
@@ -394,8 +440,13 @@ fn prepare_cargo(fixture: &Fixture, name: &str) -> bool {
     return true;
 }
 
-/// With real Cargo, in each layout and in a worktree under the source and one outside it: the worktree's crates rebuild with
-///  the worktree's own paths, a second build compiles nothing, an edit in the worktree rebuilds, and the source is untouched.
+/// With real Cargo,
+/// in each layout and in a worktree under the source and one outside it:
+/// the worktree's crates rebuild with
+///  the worktree's own paths,
+/// a second build compiles nothing,
+/// an edit in the worktree rebuilds,
+/// and the source is untouched.
 fn cargo_control(name: &str, external: bool) {
     let fixture: Fixture = fixture(name);
     if !prepare_cargo(&fixture, name) {
@@ -426,21 +477,27 @@ fn cargo_control(name: &str, external: bool) {
     remove(&fixture);
 }
 
-/// Cargo with the build directory keyed by workspace path outside the tree, as the person's configuration has it.
+/// Cargo with the build directory keyed by workspace path outside the tree,
+/// as the person's configuration has it.
 #[test]
 fn real_cargo_rebuilds_own_crates_with_an_external_build_directory() {
     cargo_control("repair-real-cargo-external", true);
 }
 
-/// Cargo's default layout, where the build state lives in `target/` and arrives with the copy.
+/// Cargo's default layout,
+/// where the build state lives in `target/` and arrives with the copy.
 #[test]
 fn real_cargo_rebuilds_own_crates_with_the_default_layout() {
     cargo_control("repair-real-cargo-default", false);
 }
 
 /// With real Cargo and a committed `Cargo.lock` that no longer matches a manifest (the state of several workspaces of this
-///  repository), the clean needs Cargo to resolve and Cargo would rewrite the lock; the add must leave the tracked file as
-///  checked out, so `git status` of the new worktree stays clean, and must not report a failure.
+///  repository),
+/// the clean needs Cargo to resolve and Cargo would rewrite the lock;
+/// the add must leave the tracked file as
+///  checked out,
+/// so `git status` of the new worktree stays clean,
+/// and must not report a failure.
 #[test]
 fn real_cargo_leaves_a_stale_lockfile_as_checked_out() {
     let fixture: Fixture = fixture("repair-real-cargo-stale-lock");

@@ -1,9 +1,21 @@
 //! What:
-//!  The commit states that used to be declined, landed through the service and compared with native Git: the conclusion of a
-//!  merge, a cherry-pick and a revert (with the state files it removes), a detached head, a branch that does not exist yet,
-//!  an unmerged index, nothing to commit, a policy rewrite, and change lists that the embedded route cannot carry.
+//!  The commit states that used to be declined,
+//! landed through the service and compared with native Git:
+//! the conclusion of a
+//!  merge,
+//! a cherry-pick and a revert (with the state files it removes),
+//! a detached head,
+//! a branch that does not exist yet,
+//!  an unmerged index,
+//! nothing to commit,
+//! a policy rewrite,
+//! and change lists that the embedded route cannot carry.
 //! Why:
-//!  The landing of each is the service's compare-and-swap, and the person must find the commit, the head, the index, the
+//!  The landing of each is the service's compare-and-swap,
+//! and the person must find the commit,
+//! the head,
+//! the index,
+//! the
 //!  state files and Git's own words as native Git leaves them.
 
 use super::commit::remove_settled;
@@ -25,7 +37,8 @@ fn attempt(fixture: &Fixture, repo: &Path, arguments: &[&str]) {
     let _output = command.output().expect("Git starts");
 }
 
-/// A side branch and the main branch both changed `b.txt`; the main branch is checked out.
+/// A side branch and the main branch both changed `b.txt`;
+/// the main branch is checked out.
 fn diverged(fixture: &Fixture, repo: &Path) -> (String, String) {
     git(fixture, repo, &["checkout", "--quiet", "-b", "side"]);
     write(repo, "b.txt", "side\n");
@@ -50,7 +63,8 @@ fn resolve(fixture: &Fixture, repo: &Path) {
     git(fixture, repo, &["add", "b.txt"]);
 }
 
-/// A repository in each state a conclusion can be in, made once and compared case by case.
+/// A repository in each state a conclusion can be in,
+/// made once and compared case by case.
 fn conclusion_repositories(fixture: &Fixture, name: &str) -> Vec<(&'static str, PathBuf)> {
     let mut made: Vec<(&'static str, PathBuf)> = Vec::new();
     let template: PathBuf = base_repository(fixture);
@@ -114,8 +128,11 @@ fn conclusion_repositories(fixture: &Fixture, name: &str) -> Vec<(&'static str, 
     return made;
 }
 
-/// The conclusion of a merge, a cherry-pick and a revert lands through the service, leaves the state files as native Git
-///  leaves them, and has the parents native Git gives (the merged commit after the branch tip).
+/// The conclusion of a merge,
+/// a cherry-pick and a revert lands through the service,
+/// leaves the state files as native Git
+///  leaves them,
+/// and has the parents native Git gives (the merged commit after the branch tip).
 #[test]
 fn a_conclusion_lands_through_the_service_and_removes_the_state_native_git_removes() {
     let fixture: Fixture = fixture("landing-conclusion");
@@ -145,7 +162,10 @@ fn a_conclusion_lands_through_the_service_and_removes_the_state_native_git_remov
     remove_settled(&fixture);
 }
 
-/// A detached head is moved as `HEAD` itself: the commit lands on it, the branches stay, and the head stays detached.
+/// A detached head is moved as `HEAD` itself:
+/// the commit lands on it,
+/// the branches stay,
+/// and the head stays detached.
 #[test]
 fn a_commit_on_a_detached_head_moves_head_and_no_branch() {
     let fixture: Fixture = fixture("landing-detached");
@@ -200,9 +220,16 @@ fn the_first_commit_of_a_branch_lands_through_the_service() {
     remove_settled(&fixture);
 }
 
-/// `-a` stages the working copy of a conflicted file, which is a resolution, so the service commits it as native Git does. A plain
-///  commit with unmerged files is no longer refused as native Git refuses it: it finishes the merge with a warning
-///  (`binary_commit_during_merge_tests.rs`, owner, 2026-11-03: "Warn and finish the merge").
+/// `-a` stages the working copy of a conflicted file,
+/// which is a resolution,
+/// so the service commits it as native Git does.
+/// A plain
+///  commit with unmerged files is no longer refused as native Git refuses it:
+/// it finishes the merge with a warning
+///  (`binary_commit_during_merge_tests.rs`,
+/// owner,
+/// 2026-11-03:
+/// "Warn and finish the merge").
 #[test]
 fn a_commit_with_all_staged_resolves_an_unmerged_file_as_native_git_does() {
     let fixture: Fixture = fixture("landing-unmerged");
@@ -221,7 +248,8 @@ fn a_commit_with_all_staged_resolves_an_unmerged_file_as_native_git_does() {
     remove_settled(&fixture);
 }
 
-/// Nothing to commit is said in Git's own words with Git's own status, and nothing lands.
+/// Nothing to commit is said in Git's own words with Git's own status,
+/// and nothing lands.
 #[test]
 fn nothing_to_commit_is_said_in_the_words_of_native_git() {
     let fixture: Fixture = fixture("landing-nothing");
@@ -245,7 +273,9 @@ fn nothing_to_commit_is_said_in_the_words_of_native_git() {
     remove_settled(&fixture);
 }
 
-/// A policy rewrite is installed into the worktree after the landing; the commit holds the corrected file, as a commit of
+/// A policy rewrite is installed into the worktree after the landing;
+/// the commit holds the corrected file,
+/// as a commit of
 ///  the corrected file by native Git does.
 #[test]
 fn a_policy_rewrite_lands_and_reaches_the_worktree() {
@@ -272,8 +302,14 @@ fn a_policy_rewrite_lands_and_reaches_the_worktree() {
     remove_settled(&fixture);
 }
 
-/// Change lists the embedded route cannot carry are built by Git and landed: more paths than a request may list, names that
-///  are not text, a gitlink, an executable, a symbolic link, and a file replaced by a directory.
+/// Change lists the embedded route cannot carry are built by Git and landed:
+/// more paths than a request may list,
+/// names that
+///  are not text,
+/// a gitlink,
+/// an executable,
+/// a symbolic link,
+/// and a file replaced by a directory.
 #[test]
 fn awkward_change_lists_land_as_native_git_commits_them() {
     use std::os::unix::ffi::OsStrExt;

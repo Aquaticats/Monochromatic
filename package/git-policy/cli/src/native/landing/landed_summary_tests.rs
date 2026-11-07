@@ -1,11 +1,15 @@
-//! Controls for the landed commit's summary line: its shapes, its subject, and the name it carries.
+//! Controls for the landed commit's summary line:
+//! its shapes,
+//! its subject,
+//! and the name it carries.
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 
 const NAME: &str = "30b2211a4c";
 
-/// A branch, a root commit and a detached head are worded as `git commit` words them.
+/// A branch,
+/// a root commit and a detached head are worded as `git commit` words them.
 #[test]
 fn the_line_words_the_branch_the_root_and_the_detached_head_as_git_does() {
     assert_eq!(summary_line("refs/heads/main", "abc", NAME, "subject"), format!("[main {NAME}] subject"));
@@ -16,7 +20,8 @@ fn the_line_words_the_branch_the_root_and_the_detached_head_as_git_does() {
     assert_eq!(summary_line("HEAD", "abc", NAME, "s"), format!("[detached HEAD {NAME}] s"));
 }
 
-/// The subject is the first paragraph on one line, as Git's `%s` makes it.
+/// The subject is the first paragraph on one line,
+/// as Git's `%s` makes it.
 #[test]
 fn the_subject_is_the_first_paragraph_on_one_line() {
     assert_eq!(subject_of("one\n"), "one");
@@ -25,7 +30,9 @@ fn the_subject_is_the_first_paragraph_on_one_line() {
     assert_eq!(subject_of(""), "");
 }
 
-/// The name equals what `git rev-parse --short` prints, with the key unset and with it set, and the snapshot's last value wins.
+/// The name equals what `git rev-parse --short` prints,
+/// with the key unset and with it set,
+/// and the snapshot's last value wins.
 #[test]
 fn the_name_equals_gits_with_the_key_unset_and_set() {
     let root = fixture("landed-summary-name");
@@ -64,7 +71,8 @@ fn without_a_snapshot_git_is_asked() {
     remove(root.as_path());
 }
 
-/// When nothing can say, the name is the first seven characters.
+/// When nothing can say,
+/// the name is the first seven characters.
 #[test]
 fn the_last_resort_is_seven_characters() {
     let root = fixture("landed-summary-last-resort");
@@ -73,7 +81,9 @@ fn the_last_resort_is_seven_characters() {
     remove(root.as_path());
 }
 
-/// The note names every build that did not land, in the order they were built, and the commit that did.
+/// The note names every build that did not land,
+/// in the order they were built,
+/// and the commit that did.
 #[test]
 fn the_rebuilt_note_names_each_build_that_did_not_land_and_the_one_that_did() {
     let names = |words: &[&str]| -> Vec<String> { return words.iter().map(|word| { return (*word).to_string(); }).collect() };

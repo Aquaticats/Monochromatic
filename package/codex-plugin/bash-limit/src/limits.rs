@@ -55,15 +55,15 @@ pub fn verify(parent: &Path) -> io::Result<()> {
     // Advance through the two kernel fields without allocating a list.
     let mut fields = cpu.split_whitespace();
     // Require the quota field before parsing it.
-    let quota = fields.next().ok_or_else(|| {
-        // Return the missing-field error from this zero-argument closure (`||`).
-        return io::Error::other("Worker cpu.max has no quota.");
-    })?;
+    let Some(quota) = fields.next() else {
+        // Return the missing-field error.
+        return Err(io::Error::other("Worker cpu.max has no quota."));
+    };
     // Require the scheduling period independently of the quota.
-    let period = fields.next().ok_or_else(|| {
+    let Some(period) = fields.next() else {
         // Preserve which CPU field is absent.
-        return io::Error::other("Worker cpu.max has no period.");
-    })?;
+        return Err(io::Error::other("Worker cpu.max has no period."));
+    };
     // What: `u64` is an unsigned 64-bit integer; siblings include u32, i32, i64 and usize.
     // Why: Kernel quota values are nonnegative numbers, not memory indexes or signed values.
     // TypeScript equivalent: `const quotaValue = parsePositiveInteger(quota);`
@@ -86,15 +86,15 @@ pub fn verify(parent: &Path) -> io::Result<()> {
 pub fn initialize(parent: &Path) -> io::Result<()> {
     if !parent.exists() {
         // Extract the slice name from the trusted configuration path.
-        let slice = parent.file_name().ok_or_else(|| {
+        let Some(slice) = parent.file_name() else {
             // Refuse a path with no final component.
-            return io::Error::other("The worker slice path has no unit name.");
-        })?;
+            return Err(io::Error::other("The worker slice path has no unit name."));
+        };
         // Borrow the unit name as text; refuse a path systemd cannot name.
-        let slice_text = slice.to_str().ok_or_else(|| {
+        let Some(slice_text) = slice.to_str() else {
             // Report invalid path encoding without silently replacing its bytes.
-            return io::Error::other("The worker slice name must be UTF-8.");
-        })?;
+            return Err(io::Error::other("The worker slice name must be UTF-8."));
+        };
         if !slice_text.ends_with(".slice") {
             // Restrict initialization to slice units, not arbitrary services.
             return Err(io::Error::other("The worker unit name must end in .slice."));

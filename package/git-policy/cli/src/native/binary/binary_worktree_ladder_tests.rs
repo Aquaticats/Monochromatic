@@ -1,10 +1,18 @@
 //! What:
-//!  The cheap-worktree ladder through the built executable: a worktree added or removed through the wrapper on btrfs is
-//!  a subvolume, a forwarded removal destroys it, and every form the ladder does not serve keeps Git's own behavior.
+//!  The cheap-worktree ladder through the built executable:
+//! a worktree added or removed through the wrapper on btrfs is
+//!  a subvolume,
+//! a forwarded removal destroys it,
+//! and every form the ladder does not serve keeps Git's own behavior.
 //! Why:
-//!  The ladder is a promise about the program a caller runs as `git`: the destination, the exit status and the
-//!  caller's streams are what real Git gives, whatever rung served the command. The runs that need btrfs print one loud
-//!  line and stop when the fixture root is elsewhere and the run says that is known; without the variable they fail.
+//!  The ladder is a promise about the program a caller runs as `git`:
+//! the destination,
+//! the exit status and the
+//!  caller's streams are what real Git gives,
+//! whatever rung served the command.
+//! The runs that need btrfs print one loud
+//!  line and stop when the fixture root is elsewhere and the run says that is known;
+//! without the variable they fail.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,7 +28,10 @@ use git_policy_cli::fs_mount_options::read_mount_facts;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-/// Whether the fixture root is on btrfs; where it is not, the run must have said so, and one loud line names the control.
+/// Whether the fixture root is on btrfs;
+/// where it is not,
+/// the run must have said so,
+/// and one loud line names the control.
 fn on_btrfs_or_acknowledged(fixture: &Fixture, control: &str) -> bool {
     let kind = filesystem_kind(fixture.root.as_path());
     if kind == Ok(FilesystemKind::Btrfs) {
@@ -41,7 +52,9 @@ fn removal_allowed(path: &Path) -> bool {
     return read_mount_facts(path).ok().flatten().is_some_and(|facts| { return facts.has_option("user_subvol_rm_allowed"); });
 }
 
-/// A repository with tracked files, an ignored directory and a committed `.gitignore`; the main checkout is a subvolume
+/// A repository with tracked files,
+/// an ignored directory and a committed `.gitignore`;
+/// the main checkout is a subvolume
 ///  when `as_subvolume` is set.
 fn populated_repository(fixture: &Fixture, as_subvolume: bool) -> PathBuf {
     if as_subvolume {
@@ -64,7 +77,9 @@ fn listing(fixture: &Fixture, repo: &Path) -> String {
     return String::from_utf8_lossy(&git(fixture, repo, &["worktree", "list", "--porcelain"]).stdout).into_owned();
 }
 
-/// A worktree added from the main checkout is a subvolume with its files, is registered, and the caller sees only
+/// A worktree added from the main checkout is a subvolume with its files,
+/// is registered,
+/// and the caller sees only
 ///  what real Git prints and the summary line of the copy.
 #[test]
 fn a_worktree_added_from_the_main_checkout_is_a_subvolume() {
@@ -94,7 +109,8 @@ fn a_worktree_added_from_the_main_checkout_is_a_subvolume() {
     remove(&fixture);
 }
 
-/// A worktree added from a linked worktree is a subvolume too, and the ignored state it carries is copied into it.
+/// A worktree added from a linked worktree is a subvolume too,
+/// and the ignored state it carries is copied into it.
 #[test]
 fn a_worktree_added_from_a_linked_worktree_is_a_subvolume_with_the_ignored_state() {
     let fixture: Fixture = fixture("ladder-add-linked");
@@ -117,7 +133,8 @@ fn a_worktree_added_from_a_linked_worktree_is_a_subvolume_with_the_ignored_state
     remove(&fixture);
 }
 
-/// The opt-out and the forms outside the table keep Git's ordinary directory; a failed add leaves no destination.
+/// The opt-out and the forms outside the table keep Git's ordinary directory;
+/// a failed add leaves no destination.
 #[test]
 fn the_opt_out_and_unknown_forms_keep_git_s_ordinary_directory() {
     let fixture: Fixture = fixture("ladder-add-plain");
@@ -145,7 +162,8 @@ fn the_opt_out_and_unknown_forms_keep_git_s_ordinary_directory() {
 }
 
 /// `git worktree remove` of a clean subvolume worktree removes it and its registration whether the mount allows the
-///  one-call destroy or not; a modified one is refused with Git's message and kept.
+///  one-call destroy or not;
+/// a modified one is refused with Git's message and kept.
 #[test]
 fn a_subvolume_worktree_is_removed_and_a_dirty_one_is_refused() {
     let fixture: Fixture = fixture("ladder-remove");
@@ -172,8 +190,11 @@ fn a_subvolume_worktree_is_removed_and_a_dirty_one_is_refused() {
     remove(&fixture);
 }
 
-/// Make a freshly added worktree provably clean: Git trusts the stat fields of a file only when the file is older than the
-///  index, so the tracked files are aged and the index refreshed, as a checkout that has been there a while is.
+/// Make a freshly added worktree provably clean:
+/// Git trusts the stat fields of a file only when the file is older than the
+///  index,
+/// so the tracked files are aged and the index refreshed,
+/// as a checkout that has been there a while is.
 fn age_tracked_files(fixture: &Fixture, worktree: &Path) {
     for name in ["README.md", ".gitignore", "src/deep/leaf.txt"] {
         let Ok(file) = std::fs::OpenOptions::new().write(true).open(worktree.join(name)) else { continue };
@@ -182,7 +203,11 @@ fn age_tracked_files(fixture: &Fixture, worktree: &Path) {
     git(fixture, worktree, &["update-index", "--refresh"]);
 }
 
-/// A worktree that another repository registered, and an empty name, are not removed: the wrapper leaves both to Git, which
+/// A worktree that another repository registered,
+/// and an empty name,
+/// are not removed:
+/// the wrapper leaves both to Git,
+/// which
 ///  answers that the name is not a working tree.
 #[test]
 fn a_worktree_of_another_repository_and_an_empty_name_are_not_removed() {
@@ -214,8 +239,11 @@ fn a_worktree_of_another_repository_and_an_empty_name_are_not_removed() {
     remove(&fixture);
 }
 
-/// Where the destroy runs but the registration cannot be removed, the command fails, says which directory is left and which
-///  command finishes the removal, and that command works.
+/// Where the destroy runs but the registration cannot be removed,
+/// the command fails,
+/// says which directory is left and which
+///  command finishes the removal,
+/// and that command works.
 #[test]
 fn a_registration_left_after_the_destroy_fails_the_command_with_the_repair_steps() {
     use std::os::unix::fs::PermissionsExt;
@@ -249,7 +277,8 @@ fn a_registration_left_after_the_destroy_fails_the_command_with_the_repair_steps
     remove(&fixture);
 }
 
-/// Where the destroy runs, the command says on standard error that it cannot be undone and what the person accepts.
+/// Where the destroy runs,
+/// the command says on standard error that it cannot be undone and what the person accepts.
 #[test]
 fn the_destroy_of_a_subvolume_worktree_says_it_cannot_be_undone() {
     let fixture: Fixture = fixture("ladder-remove-notice");

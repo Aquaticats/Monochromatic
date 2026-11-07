@@ -47,7 +47,8 @@ fn outside_and_main_worktrees_are_not_applicable() {
     remove(root.as_path());
 }
 
-/// A main worktree is observed through `observe_copy_source` only: it has the main root as source and the main-checkout selection.
+/// A main worktree is observed through `observe_copy_source` only:
+/// it has the main root as source and the main-checkout selection.
 #[test]
 fn main_worktree_is_observed_with_the_main_checkout_selection() {
     let root: PathBuf = fixture("registry-observe-main");
@@ -68,7 +69,8 @@ fn main_worktree_is_observed_with_the_main_checkout_selection() {
     remove(root.as_path());
 }
 
-/// Linked and bare repositories keep the standard selection, which leaves nothing out.
+/// Linked and bare repositories keep the standard selection,
+/// which leaves nothing out.
 #[test]
 fn linked_and_bare_observations_keep_the_standard_selection() {
     let root: PathBuf = fixture("registry-observe-standard");
@@ -103,7 +105,8 @@ fn linked_and_bare_observations_keep_the_standard_selection() {
     remove(root.as_path());
 }
 
-/// A bare repository is observed without a source root, and a linked worktree is observed with one.
+/// A bare repository is observed without a source root,
+/// and a linked worktree is observed with one.
 #[test]
 fn bare_and_linked_repositories_are_observed() {
     let root: PathBuf = fixture("registry-observe-kinds");
@@ -160,7 +163,8 @@ fn add_worktree(root: &Path, main: &Path, name: &str) -> PathBuf {
     return std::fs::canonicalize(destination).expect("canonical destination");
 }
 
-/// A destination that Git did not register is not created, and asking reads nothing else.
+/// A destination that Git did not register is not created,
+/// and asking reads nothing else.
 #[test]
 fn an_unregistered_destination_creates_nothing() {
     let root: PathBuf = fixture("registry-find-none");
@@ -194,7 +198,8 @@ fn added_worktree_is_found_with_its_root() {
     remove(root.as_path());
 }
 
-/// A destination that was a registered worktree before Git ran is not this command's creation, whatever Git did with it.
+/// A destination that was a registered worktree before Git ran is not this command's creation,
+/// whatever Git did with it.
 #[test]
 fn a_destination_registered_before_is_not_created() {
     let root: PathBuf = fixture("registry-find-before");
@@ -208,7 +213,9 @@ fn a_destination_registered_before_is_not_created() {
     remove(root.as_path());
 }
 
-/// Two worktrees registered around one command are told apart by their destinations: each find returns only its own, so a
+/// Two worktrees registered around one command are told apart by their destinations:
+/// each find returns only its own,
+/// so a
 /// command never copies into a worktree another add registered while it ran.
 #[test]
 fn concurrent_registrations_are_told_apart_by_destination() {
@@ -225,7 +232,9 @@ fn concurrent_registrations_are_told_apart_by_destination() {
     remove(root.as_path());
 }
 
-/// A directory whose `.git` file points at an administrative directory of another repository, or at nothing, is no
+/// A directory whose `.git` file points at an administrative directory of another repository,
+/// or at nothing,
+/// is no
 /// registration of this one.
 #[test]
 fn a_foreign_or_dangling_pointer_is_not_a_registration() {
@@ -267,7 +276,8 @@ fn worktree_registered_before_failing_hook_is_found() {
     remove(root.as_path());
 }
 
-/// A registration whose directory was deleted is no worktree to copy into: nothing is created and nothing fails.
+/// A registration whose directory was deleted is no worktree to copy into:
+/// nothing is created and nothing fails.
 #[test]
 fn a_registration_whose_directory_is_gone_creates_nothing() {
     let root: PathBuf = fixture("registry-find-missing-root");
@@ -281,7 +291,8 @@ fn a_registration_whose_directory_is_gone_creates_nothing() {
     remove(root.as_path());
 }
 
-/// A destination registered with relative paths is found like any other, so its copy is made.
+/// A destination registered with relative paths is found like any other,
+/// so its copy is made.
 #[test]
 fn a_destination_registered_with_relative_paths_is_found() {
     let root: PathBuf = fixture("registry-relative-paths");

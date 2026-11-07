@@ -1,10 +1,14 @@
 //! What:
-//!  One destination's journaled installation to an end, and the synchronization of every created worktree.
-//!  The journal records the phase, the install log records each batch's claims and creations,
+//!  One destination's journaled installation to an end,
+//! and the synchronization of every created worktree.
+//!  The journal records the phase,
+//! the install log records each batch's claims and creations,
 //!  and a finished or failed installation always removes its journal and stage.
 //! Why:
-//!  A failed installation must not stay pending, because recovery would replay the same failure
-//!  before every later command; an interrupted one must resume from exactly what it recorded.
+//!  A failed installation must not stay pending,
+//! because recovery would replay the same failure
+//!  before every later command;
+//! an interrupted one must resume from exactly what it recorded.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,9 +33,13 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 /// What:
-///  The mutable durable state of one installation: the latest journal, the open log, and every claim and creation so far.
+///  The mutable durable state of one installation:
+/// the latest journal,
+/// the open log,
+/// and every claim and creation so far.
 /// Why:
-///   The installer reports claims and creations through this state, so each one reaches disk before the next step.
+///   The installer reports claims and creations through this state,
+/// so each one reaches disk before the next step.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -49,7 +57,8 @@ pub struct TransactionState {
 }
 
 impl InstallRecorder for TransactionState {
-    /// Records the claims that no earlier record holds, then remembers them.
+    /// Records the claims that no earlier record holds,
+    /// then remembers them.
     fn record_intents(&mut self, relative_paths: &[String]) -> Result<(), WorktreeCopyError> {
         let mut unclaimed: Vec<String> = Vec::new();
         for relative_path in relative_paths {
@@ -62,7 +71,8 @@ impl InstallRecorder for TransactionState {
         return Ok(());
     }
 
-    /// Records the creations no earlier record holds, then remembers them.
+    /// Records the creations no earlier record holds,
+    /// then remembers them.
     fn record_creations(&mut self, entries: &[InstalledPath]) -> Result<(), WorktreeCopyError> {
         let mut unrecorded: Vec<InstalledPath> = Vec::new();
         for entry in entries {
@@ -81,7 +91,8 @@ impl InstallRecorder for TransactionState {
 /// What:
 ///  Persists the installing phase before the destination is touched.
 /// Why:
-///   Recovery must know the installation had started, so it reads the log instead of discarding the stage.
+///   Recovery must know the installation had started,
+/// so it reads the log instead of discarding the stage.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -103,7 +114,8 @@ pub fn begin_installing(state: &mut TransactionState) -> Result<(), WorktreeCopy
 /// What:
 ///  Read the stage's manifest and check that it holds every path the journal says was claimed.
 /// Why:
-///   A claim the stage lacks means the stage is not the one the journal describes, and nothing may be installed from it.
+///   A claim the stage lacks means the stage is not the one the journal describes,
+/// and nothing may be installed from it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -128,9 +140,11 @@ fn stage_entries_holding_intents(pending: &PendingJournal, stage_root: &Path, in
 }
 
 /// What:
-///  The validated staged payload a journal describes, rebuilt from its stage.
+///  The validated staged payload a journal describes,
+/// rebuilt from its stage.
 /// Why:
-///   Recovery installs from the stage that exists now, and refuses a stage that lost a claimed path.
+///   Recovery installs from the stage that exists now,
+/// and refuses a stage that lost a claimed path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -169,7 +183,8 @@ pub fn snapshot_from_journal(
 /// What:
 ///  The result of one installation attempt.
 /// Why:
-///   A failed installation is an outcome the caller reports, while a journal fault is an error that keeps the state.
+///   A failed installation is an outcome the caller reports,
+/// while a journal fault is an error that keeps the state.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -177,16 +192,21 @@ pub fn snapshot_from_journal(
 /// ```
 #[derive(Debug)]
 pub enum Outcome {
-    /// Every selected entry exists; the count is the number this transaction created.
+    /// Every selected entry exists;
+    /// the count is the number this transaction created.
     Installed(usize),
-    /// Installation failed after rollback; the journal and stage are removed.
+    /// Installation failed after rollback;
+    /// the journal and stage are removed.
     Ended(WorktreeCopyError),
 }
 
 /// What:
-///  Where the installation gets the snapshot of the stage it installs from: the one just made, or the one rebuilt from the journal.
+///  Where the installation gets the snapshot of the stage it installs from:
+/// the one just made,
+/// or the one rebuilt from the journal.
 /// Why:
-///   A resumed installation has no snapshot in memory, so it rebuilds one from the stage and checks it holds every path the journal claimed.
+///   A resumed installation has no snapshot in memory,
+/// so it rebuilds one from the stage and checks it holds every path the journal claimed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -200,7 +220,8 @@ pub enum SnapshotSource<'a> {
 }
 
 impl SnapshotSource<'_> {
-    /// The snapshot, given the paths the journal and the install log say were claimed.
+    /// The snapshot,
+    /// given the paths the journal and the install log say were claimed.
     fn staged_snapshot(&self, intended: &BTreeSet<String>) -> Result<StagedSnapshot, WorktreeCopyError> {
         return match self {
             SnapshotSource::Staged(staged) => Ok((*staged).clone()),
@@ -210,9 +231,14 @@ impl SnapshotSource<'_> {
 }
 
 /// What:
-///  Runs one journaled installation: opens the log, seeds the claims, installs, and reports the latest journal.
+///  Runs one journaled installation:
+/// opens the log,
+/// seeds the claims,
+/// installs,
+/// and reports the latest journal.
 /// Why:
-///   Resumption and first attempts share this path, so an interrupted run's records are always honored.
+///   Resumption and first attempts share this path,
+/// so an interrupted run's records are always honored.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -268,9 +294,11 @@ fn install_recorded(
 }
 
 /// What:
-///  Completes one journaled installation and removes its journal and stage, whatever the installation's outcome.
+///  Completes one journaled installation and removes its journal and stage,
+/// whatever the installation's outcome.
 /// Why:
-///   Only a journal that cannot be read or written stays behind, for inspection.
+///   Only a journal that cannot be read or written stays behind,
+/// for inspection.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -297,9 +325,11 @@ pub fn complete_journal(
 }
 
 /// What:
-///  Stages, journals and installs the ignored state of one newly created worktree.
+///  Stages,
+/// journals and installs the ignored state of one newly created worktree.
 /// Why:
-///   The stage is removed if the journal cannot be created, and a process that dies while staging leaves a claim,
+///   The stage is removed if the journal cannot be created,
+/// and a process that dies while staging leaves a claim,
 ///  so no stage survives without a record that recovery can act on.
 ///
 /// In TS you'd write (pseudocode):
@@ -326,15 +356,25 @@ pub fn synchronize_created_worktree(
 }
 
 /// How many unreadable paths the notice names before it says how many more there are.
-///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
-///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
+///  Exempt from a citation under `LQM` (class:
+/// display cap):
+/// it limits how much text a message,
+/// log field or record
+///  names,
+/// and no command result or duration depends on it.
+/// Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 const NOTICE_PATHS: usize = 3;
 
 /// What:
 ///  The one notice line for ignored entries the user could not read and the copy therefore left out.
 /// Why:
-///   The new worktree lacks them, so the person sees how many and which first ones, without a flood for a large set.
+///   The new worktree lacks them,
+/// so the person sees how many and which first ones,
+/// without a flood for a large set.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -354,10 +394,13 @@ fn unreadable_notice(source_root: &Path, unreadable: &[String]) -> String {
 }
 
 /// What:
-///  Stages one source's ignored state, installs it into one created worktree, and writes a notice naming the
+///  Stages one source's ignored state,
+/// installs it into one created worktree,
+/// and writes a notice naming the
 ///  entries the user could not read.
 /// Why:
-///   The notice goes to the writer the lifecycle holds for the person; the count of copied entries is the result.
+///   The notice goes to the writer the lifecycle holds for the person;
+/// the count of copied entries is the result.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

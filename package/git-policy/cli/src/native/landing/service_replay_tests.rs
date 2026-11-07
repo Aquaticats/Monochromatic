@@ -1,5 +1,9 @@
-//! Controls for the retry of a commit the service sent back: the merge of the captured change onto the branch with real
-//!  Git (clean, conflicting, and the captured file that already holds the other commit's edit), and the words a conflict
+//! Controls for the retry of a commit the service sent back:
+//! the merge of the captured change onto the branch with real
+//!  Git (clean,
+//! conflicting,
+//! and the captured file that already holds the other commit's edit),
+//! and the words a conflict
 //!  ends the command with.
 
 use super::*;
@@ -26,7 +30,8 @@ struct World {
     base: String,
 }
 
-/// A repository whose first commit holds the file, with the branch left on it.
+/// A repository whose first commit holds the file,
+/// with the branch left on it.
 fn world(name: &str) -> World {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
@@ -44,7 +49,8 @@ fn land(world: &World, edits: &[(usize, &str)], message: &str) {
     git(world.repo.as_path(), &["commit", "--quiet", "--all", format!("--message={message}").as_str()]);
 }
 
-/// The tree of a commit that applies `edits` to the base, made on a side branch the way a captured change is.
+/// The tree of a commit that applies `edits` to the base,
+/// made on a side branch the way a captured change is.
 fn captured(world: &World, edits: &[(usize, &str)]) -> Captured {
     git(world.repo.as_path(), &["checkout", "--quiet", "-b", "mine", world.base.as_str()]);
     land(world, edits, "mine");
@@ -62,7 +68,8 @@ fn merge(world: &World, captured: &Captured) -> Merged {
     return merge_captured(&site, captured, tip.as_str(), 1).expect("the merge runs");
 }
 
-/// The commit at the tip, as the service would remember it with the stamp of its capture.
+/// The commit at the tip,
+/// as the service would remember it with the stamp of its capture.
 fn tip_captured(world: &World, captured: u64) -> LandedCapture {
     return LandedCapture { commit: git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), captured };
 }
@@ -71,7 +78,8 @@ fn blob_of(world: &World, tree: &str) -> String {
     return git_text(world.repo.as_path(), &["show", format!("{tree}:{FILE}").as_str()]) + "\n";
 }
 
-/// Edits of different lines merge: the tree holds the landed edit and the captured one.
+/// Edits of different lines merge:
+/// the tree holds the landed edit and the captured one.
 #[test]
 fn edits_of_different_lines_merge_into_one_tree() {
     let world: World = world("replay-clean");
@@ -82,7 +90,9 @@ fn edits_of_different_lines_merge_into_one_tree() {
     remove(world.root.as_path());
 }
 
-/// The same line changed differently cannot merge: the path is named, and so is the commit that landed first.
+/// The same line changed differently cannot merge:
+/// the path is named,
+/// and so is the commit that landed first.
 #[test]
 fn edits_of_the_same_line_conflict_and_the_first_commit_is_named() {
     let world: World = world("replay-conflict");
@@ -98,8 +108,10 @@ fn edits_of_the_same_line_conflict_and_the_first_commit_is_named() {
     remove(world.root.as_path());
 }
 
-/// A captured file that already holds the landed edit and one more on the next line lands as captured: Git alone calls the
-///  adjacent hunks a conflict, and the worktree both commands share is why the captured bytes contain the landed edit.
+/// A captured file that already holds the landed edit and one more on the next line lands as captured:
+/// Git alone calls the
+///  adjacent hunks a conflict,
+/// and the worktree both commands share is why the captured bytes contain the landed edit.
 #[test]
 fn a_captured_file_that_holds_the_landed_edit_and_an_adjacent_one_lands_as_captured() {
     let world: World = world("replay-adjacent");
@@ -110,8 +122,10 @@ fn a_captured_file_that_holds_the_landed_edit_and_an_adjacent_one_lands_as_captu
     remove(world.root.as_path());
 }
 
-/// The later capture of one worktree lands its bytes over an overlapping landed edit it already holds: the commit that landed
-///  was captured earlier, so the person's file held its edit when this one was captured.
+/// The later capture of one worktree lands its bytes over an overlapping landed edit it already holds:
+/// the commit that landed
+///  was captured earlier,
+/// so the person's file held its edit when this one was captured.
 #[test]
 fn a_later_capture_lands_its_bytes_over_an_overlapping_earlier_one() {
     let world: World = world("replay-later");
@@ -123,7 +137,8 @@ fn a_later_capture_lands_its_bytes_over_an_overlapping_earlier_one() {
     remove(world.root.as_path());
 }
 
-/// The earlier capture of one worktree keeps the landed bytes of a later capture, which hold its edit.
+/// The earlier capture of one worktree keeps the landed bytes of a later capture,
+/// which hold its edit.
 #[test]
 fn an_earlier_capture_keeps_the_bytes_of_an_overlapping_later_one() {
     let world: World = world("replay-earlier");
@@ -135,7 +150,8 @@ fn an_earlier_capture_keeps_the_bytes_of_an_overlapping_later_one() {
     remove(world.root.as_path());
 }
 
-/// Order decides nothing without a stamp for every commit that changed the path, or without the commit's own stamp.
+/// Order decides nothing without a stamp for every commit that changed the path,
+/// or without the commit's own stamp.
 #[test]
 fn an_unknown_commit_or_an_unknown_stamp_leaves_an_overlap_a_conflict() {
     let world: World = world("replay-unknown");
@@ -149,7 +165,8 @@ fn an_unknown_commit_or_an_unknown_stamp_leaves_an_overlap_a_conflict() {
     remove(world.root.as_path());
 }
 
-/// The stamp is never zero where the platform has a clock, and a later reading is never smaller.
+/// The stamp is never zero where the platform has a clock,
+/// and a later reading is never smaller.
 #[test]
 fn capture_stamps_do_not_go_back() {
     let first: u64 = capture_stamp();
@@ -157,7 +174,9 @@ fn capture_stamps_do_not_go_back() {
     assert!(first > 0 && second >= first);
 }
 
-/// A change that overlaps what landed, with different bytes, stays a conflict even when the file holds the landed edit
+/// A change that overlaps what landed,
+/// with different bytes,
+/// stays a conflict even when the file holds the landed edit
 ///  partly.
 #[test]
 fn a_captured_file_that_rewrote_the_landed_lines_still_conflicts() {
@@ -168,7 +187,10 @@ fn a_captured_file_that_rewrote_the_landed_lines_still_conflicts() {
     remove(world.root.as_path());
 }
 
-/// The conflict finding names every path, the commit, the saved message and the command, in words with no internal term.
+/// The conflict finding names every path,
+/// the commit,
+/// the saved message and the command,
+/// in words with no internal term.
 #[test]
 fn the_conflict_text_names_what_the_person_needs_and_leaks_no_internal_term() {
     let conflict: ReplayConflict = ReplayConflict {
@@ -191,7 +213,9 @@ fn the_conflict_text_names_what_the_person_needs_and_leaks_no_internal_term() {
     }
 }
 
-/// Both findings end the command with status 1, land nothing, and are one core finding of the concurrent-commit transform.
+/// Both findings end the command with status 1,
+/// land nothing,
+/// and are one core finding of the concurrent-commit transform.
 #[test]
 fn both_endings_are_one_core_finding_with_status_one() {
     let conflict: ReplayConflict = ReplayConflict { paths: vec![b"a.txt".to_vec()], landed: None, git_dir: PathBuf::from("/r/.git") };
@@ -213,7 +237,8 @@ fn corpus(name: &str, extension: &str) -> Vec<u8> {
     return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_corpus").join(format!("{name}.{extension}"))).expect("a corpus file");
 }
 
-/// A repository whose first commit holds `path` as the corpus input's base, with the branch left on it.
+/// A repository whose first commit holds `path` as the corpus input's base,
+/// with the branch left on it.
 fn corpus_world(name: &str, input: &str, path: &str) -> World {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
@@ -226,7 +251,8 @@ fn corpus_world(name: &str, input: &str, path: &str) -> World {
     return World { root, repo, context: git_context(), base };
 }
 
-/// The captured tree of a side branch that holds the corpus input's `theirs` text, and the landed commit with its `ours` text.
+/// The captured tree of a side branch that holds the corpus input's `theirs` text,
+/// and the landed commit with its `ours` text.
 fn corpus_sides(world: &World, input: &str, path: &str) -> Captured {
     git(world.repo.as_path(), &["checkout", "--quiet", "-b", "mine", world.base.as_str()]);
     std::fs::write(world.repo.join(path), corpus(input, "theirs")).expect("captured text");
@@ -238,7 +264,9 @@ fn corpus_sides(world: &World, input: &str, path: &str) -> Captured {
     return Captured { base: world.base.clone(), tree, captured: 0, landed: Vec::new() };
 }
 
-/// An edit and an insertion right after it, which Git's line merge reports as a conflict, merge by word into one tree.
+/// An edit and an insertion right after it,
+/// which Git's line merge reports as a conflict,
+/// merge by word into one tree.
 #[test]
 fn an_adjacent_edit_and_insertion_merge_by_word() {
     let world: World = corpus_world("replay-word", "md1b", "notes.md");
@@ -251,7 +279,8 @@ fn an_adjacent_edit_and_insertion_merge_by_word() {
     remove(world.root.as_path());
 }
 
-/// Two sections appended at one point stay a conflict: the word pass never invents an order.
+/// Two sections appended at one point stay a conflict:
+/// the word pass never invents an order.
 #[test]
 fn two_sections_appended_at_one_point_stay_a_conflict() {
     let world: World = corpus_world("replay-word-append", "md2", "notes.md");
@@ -299,7 +328,9 @@ fn the_notice_lists_each_merged_part_and_is_absent_without_one() {
 }
 
 /// A merge-driver attribute of a path below a directory is honoured when the commit was run from a subdirectory of the
-/// worktree: the second pass reads attribute paths from the top, so the driver's refusal stands and nothing is merged by word.
+/// worktree:
+/// the second pass reads attribute paths from the top,
+/// so the driver's refusal stands and nothing is merged by word.
 #[test]
 fn a_driver_attribute_below_a_directory_is_honoured_from_a_subdirectory() {
     let world: World = corpus_world("replay-subdirectory-driver", "md1b", "docs/notes.md");
@@ -320,7 +351,9 @@ fn a_driver_attribute_below_a_directory_is_honoured_from_a_subdirectory() {
     remove(driven.root.as_path());
 }
 
-/// A person's `attr.tree` is respected: a configured tree without the union line is the one Git reads, so the appends conflict
+/// A person's `attr.tree` is respected:
+/// a configured tree without the union line is the one Git reads,
+/// so the appends conflict
 ///  although the landed tip has the line.
 #[test]
 fn a_configured_attribute_tree_is_not_overridden() {

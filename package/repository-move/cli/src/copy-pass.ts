@@ -22,10 +22,18 @@ import {
   STATE_FOLDER_MODE,
 } from './constants.ts';
 import { MoveStopError, } from './errors.ts';
+import { checkDestination, } from './destination-check.ts';
+import { emptyParentStep, } from './empty-parent-step.ts';
+import { diffStep, } from './final-diff-step.ts';
+import { requireSharedFilesystems, } from './filesystem-preflight.ts';
 import { requireFrozen, } from './freeze-pass.ts';
 import type { Subvolume, } from './inventory.ts';
 import type { MoveOptions, } from './move-options.ts';
-import { assignNames, } from './name-assignment.ts';
+import {
+  assignNames,
+  type NamedSubvolume,
+} from './name-assignment.ts';
+import { planSend, } from './send-plan.ts';
 import {
   freeGiB,
   snapshotStep,
@@ -46,6 +54,13 @@ import {
  @param subvolumes - main first, then nested
  
  @throws MoveStopError when any step stops the run
+
+ @example
+ ```ts
+ import { runCopyPass, } from './copy-pass.ts';
+ 
+ await runCopyPass({ options, runner, subvolumes, },);
+ ```
  */
 export async function runCopyPass(
   {
@@ -62,6 +77,10 @@ export async function runCopyPass(
    The is final of this step.
    */
   const isFinal = options.pass === 'final';
+  await requireSharedFilesystems({
+    options,
+    subvolumes,
+  },);
   /**
    The prefix of this step.
    */
@@ -109,15 +128,13 @@ export async function runCopyPass(
         mode: STATE_FOLDER_MODE,
       },
     );
-    if (isFinal) {
-      await requireFrozen({
+    await (isFinal
+      ? requireFrozen({
         current: subvolumes,
         runner,
         stateFolder: options.stateFolder,
-      },);
-    }
-    else {
-      await writeTextAtomically({
+      },)
+      : writeTextAtomically({
         path: join(
           options.stateFolder,
           FIRST_PASS_MANIFEST,
@@ -132,13 +149,22 @@ export async function runCopyPass(
           },)
             .join('\n',)
         }\n`,
-      },);
-    }
+      },));
   }
+  await checkDestination({
+    options,
+    runner,
+    records,
+  },);
+  await emptyParentStep({
+    options,
+    runner,
+    records,
+  },);
   /**
    The sent of this step.
    */
-  const sent: string[] = [];
+  const sent: NamedSubvolume[] = [];
   for (const subvolume of named) {
     /**
      The context of this step.
@@ -164,6 +190,7 @@ export async function runCopyPass(
       subvolume.name,
     );
     runner.log(`${subvolume.name} ${subvolume.path}`,);
+    // oxlint-disable-next-line eslint/no-await-in-loop -- subvolumes are copied one at a time: each copy is recorded before the next, the order names the copies and later sends name earlier ones as clone sources, one total deadline bounds the pass; see doc/lint/sequential-awaits.md
     if (options.run && (await freeGiB(options.receivedFolder,) < options.minFreeGiB)) {
       throw new MoveStopError(
         `the 860 has under ${
@@ -171,6 +198,7 @@ export async function runCopyPass(
         } GiB free before ${subvolume.name}; stopping with every earlier step recorded`,
       );
     }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- subvolumes are copied one at a time: each copy is recorded before the next, the order names the copies and later sends name earlier ones as clone sources, one total deadline bounds the pass; see doc/lint/sequential-awaits.md
     await snapshotStep({
       context,
       snapshot,
@@ -187,6 +215,7 @@ export async function runCopyPass(
       runner.log(`${subvolume.path} has no first-pass copy, so its final send is a full send`,);
     }
     if ((parent !== undefined) && options.run
+      // oxlint-disable-next-line eslint/no-await-in-loop -- subvolumes are copied one at a time: each copy is recorded before the next, the order names the copies and later sends name earlier ones as clone sources, one total deadline bounds the pass; see doc/lint/sequential-awaits.md
       && (!await records.has({
         name: parent.name,
         step: 'received',
@@ -196,33 +225,50 @@ export async function runCopyPass(
       );
     }
     /**
-     The earlier copies used as clone sources.
+     What this send starts from.
      */
-    const clones = options.cloneSources === 'main' ? sent.slice(
-      0,
-      1,
-    ) : sent;
+    const plan = planSend({
+      sent: sent.map(function nameOf(copy,) {
+        return copy.name;
+      },),
+      firstPassCopy: parent?.name ?? '',
+      cloneSources: options.cloneSources,
+    },);
+    runner.log(`${subvolume.name}: ${plan.reason}`,);
+    if (parent !== undefined) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- subvolumes are copied one at a time: each copy is recorded before the next, the order names the copies and later sends name earlier ones as clone sources, one total deadline bounds the pass; see doc/lint/sequential-awaits.md
+      await diffStep({
+        context,
+        firstSnapshot: join(
+          options.snapshotFolder,
+          parent.name,
+        ),
+        snapshot,
+      },);
+    }
     /**
      The send options of this step.
      */
     const sendOptions = [
-      ...(parent === undefined ? [] : [
+      ...(plan.parent === '' ? [] : [
         '-p',
         join(
           options.snapshotFolder,
-          parent.name,
+          plan.parent,
         ),
       ]),
-      ...clones.flatMap(function cloneArguments(earlier,) {
-        return [
-          '-c',
-          join(
-            options.snapshotFolder,
-            earlier,
-          ),
-        ];
-      },),
+      ...plan.clones
+        .flatMap(function cloneArguments(earlier,) {
+          return [
+            '-c',
+            join(
+              options.snapshotFolder,
+              earlier,
+            ),
+          ];
+        },),
     ];
+    // oxlint-disable-next-line eslint/no-await-in-loop -- subvolumes are copied one at a time: each copy is recorded before the next, the order names the copies and later sends name earlier ones as clone sources, one total deadline bounds the pass; see doc/lint/sequential-awaits.md
     await receiveStep({
       context,
       snapshot,
@@ -230,12 +276,13 @@ export async function runCopyPass(
       sendOptions,
     },);
     if (isFinal) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- subvolumes are copied one at a time: each copy is recorded before the next, the order names the copies and later sends name earlier ones as clone sources, one total deadline bounds the pass; see doc/lint/sequential-awaits.md
       await placeStep({
         context,
         received,
       },);
     }
-    sent.push(subvolume.name,);
+    sent.push(subvolume,);
   }
   runner.log(
     options.run

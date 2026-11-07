@@ -1,9 +1,13 @@
-//! Controls for the files ref reader: lookups and the full list equal Git's, loose and packed, and odd spellings are unsure.
+//! Controls for the files ref reader:
+//! lookups and the full list equal Git's,
+//! loose and packed,
+//! and odd spellings are unsure.
 
 use super::*;
 use crate::test_support::{fixture, git, git_output, remove, repository};
 
-/// The refs Git lists, as `(name, object name)`.
+/// The refs Git lists,
+/// as `(name, object name)`.
 fn git_list(repo: &Path) -> Vec<(String, String)> {
     let output = git_output(repo, &["for-each-ref", "--format=%(refname) %(objectname)"]);
     return String::from_utf8(output.stdout).expect("UTF-8").lines().map(|line| {
@@ -12,7 +16,9 @@ fn git_list(repo: &Path) -> Vec<(String, String)> {
     }).collect();
 }
 
-/// The list and every lookup equal Git's with loose refs, then with the same refs packed, then with a loose override.
+/// The list and every lookup equal Git's with loose refs,
+/// then with the same refs packed,
+/// then with a loose override.
 #[test]
 fn lists_and_lookups_equal_git() {
     let root = fixture("repo-read-refs-unit");
@@ -58,7 +64,9 @@ fn a_misplaced_peeled_line_is_unsure() {
     remove(root.as_path());
 }
 
-/// A name outside the plain alphabet, a link, a damaged value and a symbolic loop are unsure or unresolved.
+/// A name outside the plain alphabet,
+/// a link,
+/// a damaged value and a symbolic loop are unsure or unresolved.
 #[test]
 fn odd_spellings_are_unsure() {
     let root = fixture("repo-read-refs-unit-odd");
@@ -83,8 +91,11 @@ fn odd_spellings_are_unsure() {
     remove(root.as_path());
 }
 
-/// A packed ref with a name outside the plain alphabet does not make a lookup of another ref unsure, the list still is, and
-///  the odd name itself is never answered; a damaged line still ends the read.
+/// A packed ref with a name outside the plain alphabet does not make a lookup of another ref unsure,
+/// the list still is,
+/// and
+///  the odd name itself is never answered;
+/// a damaged line still ends the read.
 #[test]
 fn an_unusual_packed_name_does_not_hide_a_plain_branch() {
     let root = fixture("repo-read-refs-scoped-tag");

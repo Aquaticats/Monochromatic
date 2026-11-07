@@ -1,17 +1,25 @@
 //! Controls for the merge and rebuild steps on disposable repositories:
-//!  the merge base, clean and conflicting merges, the conflicting commit, the raw rewrite, and the SSH re-sign.
+//!  the merge base,
+//! clean and conflicting merges,
+//! the conflicting commit,
+//! the raw rewrite,
+//! and the SSH re-sign.
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
-/// Revision text of a commit, blob, or tree, trimmed.
+/// Revision text of a commit,
+/// blob,
+/// or tree,
+/// trimmed.
 fn rev(repo: &Path, spec: &str) -> String {
     return git_text(repo, &["rev-parse", spec]).trim().to_string();
 }
 
-/// A twelve-line file with one edit on line 2 (`landed`) or line 11 (`own`), or none.
+/// A twelve-line file with one edit on line 2 (`landed`) or line 11 (`own`),
+/// or none.
 fn lines(second: &str, eleventh: &str) -> String {
     return (1..=12)
         .map(|number| { return match number {
@@ -22,12 +30,18 @@ fn lines(second: &str, eleventh: &str) -> String {
         .collect();
 }
 
-/// Base, landed (`main`), and prepared (`prepared`) commits: base is line text, landed edits line 2, prepared edits `prepared_second`.
+/// Base,
+/// landed (`main`),
+/// and prepared (`prepared`) commits:
+/// base is line text,
+/// landed edits line 2,
+/// prepared edits `prepared_second`.
 fn scenario(name: &str, prepared_second: &str, prepared_eleventh: &str) -> (PathBuf, String, String, String) {
     return scenario_for_file(name, OsStr::new("c.txt"), prepared_second, prepared_eleventh);
 }
 
-/// The same three commits over the file `file`, whose name may be any bytes.
+/// The same three commits over the file `file`,
+/// whose name may be any bytes.
 fn scenario_for_file(name: &str, file: &OsStr, prepared_second: &str, prepared_eleventh: &str) -> (PathBuf, String, String, String) {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
@@ -68,7 +82,8 @@ fn non_overlapping_hunks_merge_into_one_tree() {
     remove(root.as_path());
 }
 
-/// Overlapping hunks conflict: the conflicted paths are reported.
+/// Overlapping hunks conflict:
+/// the conflicted paths are reported.
 #[test]
 fn overlapping_hunks_conflict_and_name_their_paths() {
     let (root, base, current, prepared) = scenario("replay-merge-conflict", "PREPARED", "line 11");
@@ -92,7 +107,8 @@ fn a_conflict_over_a_name_that_is_not_utf8_reports_its_exact_bytes() {
     remove(root.as_path());
 }
 
-/// Conflicting names come back in byte order, each once.
+/// Conflicting names come back in byte order,
+/// each once.
 #[test]
 fn conflicting_names_are_sorted_by_their_bytes() {
     use std::os::unix::ffi::OsStringExt;

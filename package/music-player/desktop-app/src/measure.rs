@@ -65,6 +65,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 /// Why:
 ///       Progress is reported at most every quarter second so the window is not flooded.
 use std::thread;
+/// Imports the duration and instant types that time the sweep's progress reports.
 use std::time::{Duration, Instant};
 
 /// What:
@@ -74,6 +75,7 @@ use std::time::{Duration, Instant};
 ///       The sweep peeks before it measures,
 /// and its fingerprints come from the peak cache module.
 use crate::measure_peek::peek_measures;
+/// Imports the peak cache module and its handle that the sweep reads and writes.
 use crate::peakcache::{self, CacheHandle};
 
 /// What:
@@ -97,6 +99,7 @@ use crate::sweep_report::{SweepJob, SweepReport, SweepSink};
 ///       A decode yields a decision,
 /// and the window needs its length and peak.
 use crate::duration_probe::probe_duration_secs;
+/// Imports the conversions from a decision or a duration to a track measure.
 use crate::track_measure::{measure_from_decision, measure_from_duration};
 
 /// What:

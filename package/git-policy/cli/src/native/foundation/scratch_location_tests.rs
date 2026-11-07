@@ -26,7 +26,9 @@ fn age(path: &Path, back: Duration) {
         .expect("set modification time");
 }
 
-/// An absolute `XDG_STATE_HOME` wins; a relative one is ignored as the XDG rules say; `HOME` is the fallback.
+/// An absolute `XDG_STATE_HOME` wins;
+/// a relative one is ignored as the XDG rules say;
+/// `HOME` is the fallback.
 #[test]
 fn the_state_directory_follows_the_xdg_rules() {
     assert_eq!(
@@ -43,7 +45,8 @@ fn the_state_directory_follows_the_xdg_rules() {
     );
 }
 
-/// Without an absolute `XDG_STATE_HOME` and without a non-empty `HOME` there is no directory, and the sentence names
+/// Without an absolute `XDG_STATE_HOME` and without a non-empty `HOME` there is no directory,
+/// and the sentence names
 /// both variables and says the system temporary directory is not a fallback.
 #[test]
 fn a_missing_home_is_named_and_never_falls_back_to_the_system_directory() {
@@ -55,7 +58,8 @@ fn a_missing_home_is_named_and_never_falls_back_to_the_system_directory() {
     assert_eq!(prepare_user_scratch(&[]).expect_err("no home"), reason);
 }
 
-/// The per-user scratch directory is made with every missing parent at mode `0700`, and a second preparation accepts it.
+/// The per-user scratch directory is made with every missing parent at mode `0700`,
+/// and a second preparation accepts it.
 #[test]
 fn the_user_scratch_directory_is_created_private_with_its_parents() {
     let root: PathBuf = fixture("scratch-user-create");
@@ -71,7 +75,8 @@ fn the_user_scratch_directory_is_created_private_with_its_parents() {
     remove(root.as_path());
 }
 
-/// A scratch path that is a link is refused and never followed, so no write can be redirected through it.
+/// A scratch path that is a link is refused and never followed,
+/// so no write can be redirected through it.
 #[test]
 fn a_linked_scratch_directory_is_refused() {
     let root: PathBuf = fixture("scratch-user-link");
@@ -118,7 +123,10 @@ fn the_repository_scratch_directory_is_created_private_beside_the_common_directo
     remove(root.as_path());
 }
 
-/// The sweep removes files, directories with contents and links older than the bound, never follows a link, and keeps
+/// The sweep removes files,
+/// directories with contents and links older than the bound,
+/// never follows a link,
+/// and keeps
 /// fresh entries and entries dated in the future.
 #[test]
 fn the_sweep_removes_only_stale_entries_and_never_follows_links() {
@@ -167,7 +175,8 @@ fn sweeping_a_missing_directory_removes_nothing() {
     remove(root.as_path());
 }
 
-/// Both preparations collect what a killed process left, so stale files cannot accumulate without bound.
+/// Both preparations collect what a killed process left,
+/// so stale files cannot accumulate without bound.
 #[test]
 fn preparing_a_directory_collects_what_a_killed_process_left() {
     let root: PathBuf = fixture("scratch-prepare-sweep");
@@ -191,7 +200,10 @@ fn preparing_a_directory_collects_what_a_killed_process_left() {
 }
 
 /// The scratch folder an earlier release made in a Git directory (`cli-git-scratch`) is recognized and swept under the same rules
-///  as this release's own: entries older than the bound go (files and directories with their contents), fresh entries and entries dated in the future stay, and the folder itself stays.
+///  as this release's own:
+/// entries older than the bound go (files and directories with their contents),
+/// fresh entries and entries dated in the future stay,
+/// and the folder itself stays.
 #[test]
 fn an_earlier_releases_repository_scratch_is_swept_by_the_rules_of_its_own() {
     let root: PathBuf = fixture("scratch-earlier-sweep");
@@ -218,8 +230,11 @@ fn an_earlier_releases_repository_scratch_is_swept_by_the_rules_of_its_own() {
     remove(root.as_path());
 }
 
-/// The earlier folder is not made when it is not there, and is kept where this release's own would be refused or kept: a link in
-///  its place is not followed and nothing behind it is touched, and a loose mode of a folder this user owns is tightened.
+/// The earlier folder is not made when it is not there,
+/// and is kept where this release's own would be refused or kept:
+/// a link in
+///  its place is not followed and nothing behind it is touched,
+/// and a loose mode of a folder this user owns is tightened.
 #[test]
 fn an_earlier_releases_repository_scratch_is_never_made_and_is_kept_where_the_rules_keep_their_own() {
     let root: PathBuf = fixture("scratch-earlier-kept");
@@ -246,7 +261,9 @@ fn an_earlier_releases_repository_scratch_is_never_made_and_is_kept_where_the_ru
     remove(root.as_path());
 }
 
-/// An anonymous scratch file is read and written, has no name in the per-user scratch directory, and without a home
+/// An anonymous scratch file is read and written,
+/// has no name in the per-user scratch directory,
+/// and without a home
 /// the failure names the variables instead of falling back to the system temporary directory.
 #[test]
 fn a_scratch_file_has_no_name_and_needs_a_home() {
@@ -268,7 +285,52 @@ fn a_scratch_file_has_no_name_and_needs_a_home() {
     remove(root.as_path());
 }
 
-/// The staleness bound outlasts every Git child step the wrapper runs: a live process must never lose its file.
+/// Every write to a scratch file lands at its end,
+/// whatever offset the writers think they have:
+/// the child that gets a clone of the
+/// file and a helper it starts share one offset,
+/// and a write at a stale position overwrites a line the other wrote (measured with
+/// a leader and a helper writing to one shared file:
+/// the leader's line was lost in 5 of 150 runs at a 20% CPU quota,
+/// in none of 300
+/// once the file was in append mode).
+/// The control makes the stale position certain:
+/// a child writes,
+/// the file is emptied,
+/// the
+/// child writes again,
+/// and the second write is the whole of what is there,
+/// not a line after a hole of zero bytes.
+#[test]
+fn a_write_to_a_scratch_file_after_it_was_emptied_lands_at_the_start_and_leaves_no_hole() {
+    use std::io::{Read, Seek, SeekFrom};
+    let root: PathBuf = fixture("scratch-file-append");
+    let home: PathBuf = root.join("home");
+    std::fs::create_dir(&home).expect("home");
+    let go: PathBuf = root.join("go");
+    let env: Vec<(OsString, OsString)> = environment(&[("HOME", home.as_path())]);
+    let mut file: std::fs::File = scratch_file(env.as_slice()).expect("scratch file");
+    let for_child: std::fs::File = file.try_clone().expect("a clone for the child");
+    let script: String = format!("echo first >&2; while [ ! -e '{}' ]; do sleep 0.01; done; echo second >&2", go.display());
+    let mut child = std::process::Command::new("sh").args(["-c", script.as_str()]).stderr(for_child).spawn().expect("the child");
+    // The child writes to its standard error, which is the file; wait until its first line is there.
+    let began: std::time::Instant = std::time::Instant::now();
+    while file.metadata().expect("metadata").len() == 0 {
+        assert!(began.elapsed() < Duration::from_secs(60), "the child never wrote its first line");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    file.set_len(0).expect("empty the file");
+    std::fs::write(&go, b"").expect("the signal to go on");
+    assert!(child.wait().expect("the child ends").success());
+    file.seek(SeekFrom::Start(0)).expect("seek");
+    let mut read: Vec<u8> = Vec::new();
+    file.read_to_end(&mut read).expect("read");
+    assert_eq!(read, b"second\n", "the second write is the whole file");
+    remove(root.as_path());
+}
+
+/// The staleness bound outlasts every Git child step the wrapper runs:
+/// a live process must never lose its file.
 #[test]
 fn the_staleness_bound_outlasts_the_longest_wait() {
     for class in [crate::child_class::ChildClass::Plumbing, crate::child_class::ChildClass::Object] {
@@ -276,7 +338,8 @@ fn the_staleness_bound_outlasts_the_longest_wait() {
     }
 }
 
-/// An entry exactly as old as the bound is kept; one a second older goes.
+/// An entry exactly as old as the bound is kept;
+/// one a second older goes.
 #[test]
 fn the_sweep_keeps_an_entry_exactly_at_the_bound_and_removes_one_past_it() {
     let root: PathBuf = fixture("scratch-sweep-boundary");
@@ -295,7 +358,8 @@ fn the_sweep_keeps_an_entry_exactly_at_the_bound_and_removes_one_past_it() {
     remove(root.as_path());
 }
 
-/// A creation failure other than "already exists" is returned as it is, not hidden behind the later privacy check.
+/// A creation failure other than "already exists" is returned as it is,
+/// not hidden behind the later privacy check.
 #[test]
 fn a_refused_creation_surfaces_its_own_error() {
     let root: PathBuf = fixture("scratch-repository-refused");
@@ -313,8 +377,11 @@ fn a_refused_creation_surfaces_its_own_error() {
     remove(root.as_path());
 }
 
-/// A directory with no group or other access is accepted as it is: only a looser mode is rewritten, so its sticky bit
-/// stays, which a mode rewrite would clear.
+/// A directory with no group or other access is accepted as it is:
+/// only a looser mode is rewritten,
+/// so its sticky bit
+/// stays,
+/// which a mode rewrite would clear.
 #[test]
 fn a_private_directory_is_left_untouched() {
     let root: PathBuf = fixture("scratch-private-untouched");
@@ -328,7 +395,8 @@ fn a_private_directory_is_left_untouched() {
     remove(root.as_path());
 }
 
-/// A directory whose modification time is renewed is not swept however old it was, and one that is not renewed is.
+/// A directory whose modification time is renewed is not swept however old it was,
+/// and one that is not renewed is.
 #[test]
 fn a_renewed_entry_survives_the_sweep_and_an_unrenewed_one_does_not() {
     let root: std::path::PathBuf = fixture("scratch-renew");
@@ -346,7 +414,8 @@ fn a_renewed_entry_survives_the_sweep_and_an_unrenewed_one_does_not() {
     remove(root.as_path());
 }
 
-/// The renewal comes many times in the stale age, so a sweep at any moment finds a waiter's entry well inside it.
+/// The renewal comes many times in the stale age,
+/// so a sweep at any moment finds a waiter's entry well inside it.
 #[test]
 fn the_renewal_pace_is_far_inside_the_stale_age() {
     assert!(SCRATCH_REFRESH_EVERY * 2 < SCRATCH_STALE_AFTER, "{SCRATCH_REFRESH_EVERY:?}");

@@ -1,13 +1,27 @@
 //! What:
-//!  Git's attribute-file lexer and pattern matcher over raw bytes, as far as a refusal needs them: which lines of an
-//!  attributes file set an attribute that can change a file's bytes on the way into the index, and whether the pattern of
+//!  Git's attribute-file lexer and pattern matcher over raw bytes,
+//! as far as a refusal needs them:
+//! which lines of an
+//!  attributes file set an attribute that can change a file's bytes on the way into the index,
+//! and whether the pattern of
 //!  such a line may apply to a path.
 //! Why:
-//!  Paths and patterns are byte strings to Git, and `attr.c` splits a line on the four blank bytes space, tab, carriage
-//!  return and line feed only, ends a line's text at a NUL, and skips a UTF-8 byte order mark on the first line of a worktree
-//!  file. Any other reading of the same bytes (Unicode whitespace, lossy decoding, Unicode case folding) can miss a line Git
-//!  applies, and a miss accepts a file whose bytes Git would convert. Every spelling the matcher does not model answers that
-//!  the line may apply, so the error is always a refusal.
+//!  Paths and patterns are byte strings to Git,
+//! and `attr.c` splits a line on the four blank bytes space,
+//! tab,
+//! carriage
+//!  return and line feed only,
+//! ends a line's text at a NUL,
+//! and skips a UTF-8 byte order mark on the first line of a worktree
+//!  file.
+//! Any other reading of the same bytes (Unicode whitespace,
+//! lossy decoding,
+//! Unicode case folding) can miss a line Git
+//!  applies,
+//! and a miss accepts a file whose bytes Git would convert.
+//! Every spelling the matcher does not model answers that
+//!  the line may apply,
+//! so the error is always a refusal.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,7 +29,8 @@
 //! mayApply(pattern, base, path); // true unless the pattern provably misses the path
 //! ```
 
-/// The attributes that change a file's bytes on the way into the index, besides the line-ending ones.
+/// The attributes that change a file's bytes on the way into the index,
+/// besides the line-ending ones.
 pub const CONVERTING_ATTRIBUTES: &[&[u8]] = &[b"filter", b"ident", b"working-tree-encoding"];
 
 /// The four bytes `attr.c` treats as blank.
@@ -24,28 +39,38 @@ const BLANK: &[u8] = b" \t\r\n";
 /// The marker of a macro definition.
 const MACRO_PREFIX: &[u8] = b"[attr]";
 
-/// The most cells of the matcher's table that one comparison may fill; a larger comparison answers that the pattern may apply.
+/// The most cells of the matcher's table that one comparison may fill;
+/// a larger comparison answers that the pattern may apply.
 pub const MATCH_WORK_LIMIT: usize = 1 << 22;
 
 /// The UTF-8 byte order mark `read_attr_from_file` removes from the first line of a worktree file.
 const BYTE_ORDER_MARK: &[u8] = &[0xEF, 0xBB, 0xBF];
 
-/// One line of an attributes file: a pattern with its attribute tokens, or a macro definition.
+/// One line of an attributes file:
+/// a pattern with its attribute tokens,
+/// or a macro definition.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AttributeLine {
-    /// The pattern, or the macro name when `is_macro`.
+    /// The pattern,
+    /// or the macro name when `is_macro`.
     pub subject: Vec<u8>,
     /// Whether the line defines a macro (`[attr]name ...`).
     pub is_macro: bool,
-    /// Whether the line starts with a quote; its pattern, its token boundary and its macro marker are not modelled, so a
+    /// Whether the line starts with a quote;
+    /// its pattern,
+    /// its token boundary and its macro marker are not modelled,
+    /// so a
     ///  caller treats the line as applying to every path below its directory.
     pub quoted: bool,
-    /// The attribute tokens as written (`filter=lfs`, `-text`, `ident`).
+    /// The attribute tokens as written (`filter=lfs`,
+    /// `-text`,
+    /// `ident`).
     pub tokens: Vec<Vec<u8>>,
 }
 
 /// What:
-///  Whether a byte separates the pieces of an attribute line: a space or a tab.
+///  Whether a byte separates the pieces of an attribute line:
+/// a space or a tab.
 /// Why:
 ///   Pieces are the words between blanks.
 ///
@@ -125,7 +150,8 @@ fn is_slash(byte: &u8) -> bool {
 /// What:
 ///  Whether a byte is an equals sign.
 /// Why:
-///   An attribute token is its name, then `=` and a value.
+///   An attribute token is its name,
+/// then `=` and a value.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -138,7 +164,8 @@ fn is_equals_sign(byte: &u8) -> bool {
 /// What:
 ///  Whether a byte is neither `-` nor `!`.
 /// Why:
-///   Those two marks in front of an attribute name unset or reset it, and are not part of the name.
+///   Those two marks in front of an attribute name unset or reset it,
+/// and are not part of the name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -151,7 +178,8 @@ fn is_not_negation_mark(byte: &u8) -> bool {
 /// What:
 ///  Whether a byte is a backslash or an opening bracket.
 /// Why:
-///   A pattern with either is not compared by the cheap rules, so the file may apply to any path.
+///   A pattern with either is not compared by the cheap rules,
+/// so the file may apply to any path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -164,7 +192,8 @@ fn is_backslash_or_bracket(byte: &u8) -> bool {
 /// What:
 ///  Whether two bytes are `**`.
 /// Why:
-///   A double star crosses directories, so the cheap rules cannot decide such a pattern.
+///   A double star crosses directories,
+/// so the cheap rules cannot decide such a pattern.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -180,10 +209,19 @@ fn blank_separated(line: &[u8]) -> Vec<Vec<u8>> {
 }
 
 /// What:
-///  The lines of an attributes file's bytes that set something: patterns with tokens, and macro definitions.
+///  The lines of an attributes file's bytes that set something:
+/// patterns with tokens,
+/// and macro definitions.
 /// Why:
-///   A comment or blank line applies nothing. A line ends at its first NUL, as a C string does, and the lines after it are
-///  still read, which can only make more lines count. A quoted line is only flagged, because its true pattern, its token
+///   A comment or blank line applies nothing.
+/// A line ends at its first NUL,
+/// as a C string does,
+/// and the lines after it are
+///  still read,
+/// which can only make more lines count.
+/// A quoted line is only flagged,
+/// because its true pattern,
+/// its token
 ///  boundary and its macro marker depend on C-style unquoting.
 ///
 /// In TS you'd write (pseudocode):
@@ -216,7 +254,9 @@ pub fn parse_attribute_lines(bytes: &[u8]) -> Vec<AttributeLine> {
     return lines;
 }
 
-/// The attribute a token sets, unsets or leaves unspecified, without the sign and the value.
+/// The attribute a token sets,
+/// unsets or leaves unspecified,
+/// without the sign and the value.
 pub fn attribute_name(token: &[u8]) -> &[u8] {
     let start: usize = token.iter().position(is_not_negation_mark).unwrap_or(token.len());
     let rest: &[u8] = &token[start..];
@@ -224,10 +264,13 @@ pub fn attribute_name(token: &[u8]) -> &[u8] {
 }
 
 /// What:
-///  Whether `text` matches the shell pattern `pattern`, byte for byte with ASCII case folded, where `*` and `?` stop at a
+///  Whether `text` matches the shell pattern `pattern`,
+/// byte for byte with ASCII case folded,
+/// where `*` and `?` stop at a
 ///  slash.
 /// Why:
-///   Git's wildmatch compares bytes and folds ASCII only; folding more than Git does can only make a match more likely.
+///   Git's wildmatch compares bytes and folds ASCII only;
+/// folding more than Git does can only make a match more likely.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -260,11 +303,19 @@ pub fn wildcard(pattern: &[u8], text: &[u8]) -> bool {
 }
 
 /// What:
-///  Whether the pattern of an attributes line in the directory `base` may apply to the file `path`; a spelling the matcher
-///  does not model (a quote, an escape, a bracket class, `**`, a trailing slash), or whose comparison would exceed the work
-///  budget, answers yes.
+///  Whether the pattern of an attributes line in the directory `base` may apply to the file `path`;
+/// a spelling the matcher
+///  does not model (a quote,
+/// an escape,
+/// a bracket class,
+/// `**`,
+/// a trailing slash),
+/// or whose comparison would exceed the work
+///  budget,
+/// answers yes.
 /// Why:
-///   Answering yes refuses a file that Git might not have matched; answering no for a file it matches would accept one.
+///   Answering yes refuses a file that Git might not have matched;
+/// answering no for a file it matches would accept one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

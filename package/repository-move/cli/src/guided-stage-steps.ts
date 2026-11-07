@@ -56,6 +56,13 @@ export type StageRun = {
  The stop for a window that ran past its maximum.
 
  @returns the stop
+
+ @example
+ ```ts
+ import { windowStop, } from './guided-stage-steps.ts';
+ 
+ const result = windowStop();
+ ```
  */
 export function windowStop(): GuidedStopError {
   return new GuidedStopError({
@@ -70,6 +77,13 @@ export function windowStop(): GuidedStopError {
  @param stageRun - the stage in its phase
  
  @returns the command and the window's remaining seconds (zero outside the window)
+
+ @example
+ ```ts
+ import { buildCommand, } from './guided-stage-steps.ts';
+ 
+ const result = await buildCommand(stageRun,);
+ ```
  */
 export async function buildCommand(stageRun: StageRun,): Promise<{
   readonly command: string;
@@ -132,6 +146,13 @@ export async function buildCommand(stageRun: StageRun,): Promise<{
  @param stageRun - the stage in its phase
  
  @param command - the command text
+
+ @example
+ ```ts
+ import { showStage, } from './guided-stage-steps.ts';
+ 
+ showStage({ stageRun, command, },);
+ ```
  */
 export function showStage(
   {
@@ -172,6 +193,13 @@ export function showStage(
  @param stageRun - the stage in its phase
  
  @throws GuidedStopError with the answer status when the assertion is missing
+
+ @example
+ ```ts
+ import { requireAssertion, } from './guided-stage-steps.ts';
+ 
+ requireAssertion(stageRun,);
+ ```
  */
 export function requireAssertion(stageRun: StageRun,): void {
   /**
@@ -196,6 +224,13 @@ export function requireAssertion(stageRun: StageRun,): void {
  Starts the window clock when the stage is the one that starts it.
 
  @param stageRun - the stage in its phase
+
+ @example
+ ```ts
+ import { startWindowIfAsked, } from './guided-stage-steps.ts';
+ 
+ await startWindowIfAsked(stageRun,);
+ ```
  */
 export async function startWindowIfAsked(stageRun: StageRun,): Promise<void> {
   /**

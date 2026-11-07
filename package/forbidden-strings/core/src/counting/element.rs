@@ -221,17 +221,14 @@ pub enum Element {
 /// ```
 pub(crate) fn validate_element(element: &Element) -> Result<(), CompileError> {
     if let Element::Counted { set, min, max } = element {
-        let invalid = |message: &str| return CompileError::Invalid {
-            message: message.to_string(),
-        };
         if set.is_empty() {
-            return Err(invalid("counted element has an empty set"));
+            return Err(CompileError::invalid("counted element has an empty set"));
         }
         if min > max {
-            return Err(invalid("counted element has min greater than max"));
+            return Err(CompileError::invalid("counted element has min greater than max"));
         }
         if *max > MAX_DECODED_COUNT {
-            return Err(invalid("counted element bound exceeds the decode cap"));
+            return Err(CompileError::invalid("counted element bound exceeds the decode cap"));
         }
     }
     return Ok(())

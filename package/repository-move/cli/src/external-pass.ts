@@ -180,6 +180,13 @@ async function reportDeletions(
  @param runner - the runner
  
  @throws MoveStopError when a source or destination folder is missing, a name is unsafe, or a command fails
+
+ @example
+ ```ts
+ import { runExternalPass, } from './external-pass.ts';
+ 
+ await runExternalPass({ options, runner, },);
+ ```
  */
 export async function runExternalPass(
   {
@@ -224,12 +231,14 @@ export async function runExternalPass(
     );
   }
   for (const name of await externalNames(source,)) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- external folders are copied one at a time, each recorded before the next, under one total deadline; see doc/lint/sequential-awaits.md
     if (await records.has({
       name: `external-${name}`,
       step,
     },)) {
       continue;
     }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- external folders are copied one at a time, each recorded before the next, under one total deadline; see doc/lint/sequential-awaits.md
     if (!await pathExists(join(
       destination,
       name,
@@ -237,6 +246,7 @@ export async function runExternalPass(
       if (step === 'final') {
         runner.log(`${name} has no first-pass copy: it is created now and copied in full`,);
       }
+      // oxlint-disable-next-line eslint/no-await-in-loop -- external folders are copied one at a time, each recorded before the next, under one total deadline; see doc/lint/sequential-awaits.md
       await runner.exec({
         command: 'btrfs',
         args: [
@@ -250,6 +260,7 @@ export async function runExternalPass(
       },);
     }
     runner.log(`external ${name}`,);
+    // oxlint-disable-next-line eslint/no-await-in-loop -- external folders are copied one at a time, each recorded before the next, under one total deadline; see doc/lint/sequential-awaits.md
     await rsyncCopy({
       options,
       runner,
@@ -257,12 +268,14 @@ export async function runExternalPass(
       extra: [],
     },);
     if (step === 'final') {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- external folders are copied one at a time, each recorded before the next, under one total deadline; see doc/lint/sequential-awaits.md
       await reportDeletions({
         options,
         runner,
         name,
       },);
     }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- external folders are copied one at a time, each recorded before the next, under one total deadline; see doc/lint/sequential-awaits.md
     await records.write({
       name: `external-${name}`,
       step,

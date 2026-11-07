@@ -80,7 +80,11 @@ async function runStage(listedRun: StageRun,): Promise<void> {
     out(`stage ${String(stageRun.index,)}: ${stage.title}: already done at ${(await readFile(
       doneFile,
       'utf8',
-    )).trim()}; skipped\n`,);
+    )).trim()
+      .replaceAll(
+        '\n',
+        ', ',
+      )}; skipped\n`,);
     return;
   }
   if ((stage.window === true) && await windowRunning(config,)
@@ -121,9 +125,13 @@ async function runStage(listedRun: StageRun,): Promise<void> {
    */
   const started = Date.now();
   /**
-   The file that holds the stage's output.
+   The file that holds the stage's output, and the exit status the command ended with (one of the stage's declared
+   statuses, or the call would have stopped).
    */
-  const outputFile = await executeCommand({
+  const {
+    outputFile,
+    status,
+  } = await executeCommand({
     stageRun,
     command,
   },);
@@ -141,7 +149,7 @@ async function runStage(listedRun: StageRun,): Promise<void> {
   if (stage.noMark !== true) {
     await writeFile(
       doneFile,
-      `${new Date().toISOString()}\n`,
+      `${new Date().toISOString()}\nexit status ${String(status,)}\n`,
     );
   }
 }
@@ -194,10 +202,18 @@ async function currentStage(stageRun: StageRun,): Promise<Stage> {
  @param run - the phase
  
  @throws GuidedStopError at the first stage that fails
+
+ @example
+ ```ts
+ import { runPhase, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ await runPhase(run,);
+ ```
  */
 export async function runPhase(run: EngineRun,): Promise<void> {
   for (const [position, stage,] of run.stages
     .entries()) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- stages of a phase run one after another: each depends on what the earlier one did and stops the run at its first failure; see doc/lint/sequential-awaits.md
     await runStage({
       run,
       stage,

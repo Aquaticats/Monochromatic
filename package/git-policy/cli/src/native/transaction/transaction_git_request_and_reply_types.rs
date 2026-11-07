@@ -1,9 +1,17 @@
 //! What:
-//!  The request that starts one real Git, the reply it gets back, and the failure that names the command:
-//!  `GitContext`, `GitRequest`, `GitOutput`, `GitFailure` and the text of a command line.
+//!  The request that starts one real Git,
+//! the reply it gets back,
+//! and the failure that names the command:
+//!  `GitContext`,
+//! `GitRequest`,
+//! `GitOutput`,
+//! `GitFailure` and the text of a command line.
 //! Why:
-//!  The runner (`transaction_git.rs`), the rules that say which steps may run twice or be ended, and the step bounds
-//!  all speak in these types; keeping them in a file that uses none of them lets each of those files use it
+//!  The runner (`transaction_git.rs`),
+//! the rules that say which steps may run twice or be ended,
+//! and the step bounds
+//!  all speak in these types;
+//! keeping them in a file that uses none of them lets each of those files use it
 //!  without any of them using another in a circle.
 //!
 //! In TS you'd write (pseudocode):

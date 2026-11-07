@@ -7,9 +7,13 @@
 //! the decisions stay testable without a window,
 //! and the window only places the values.
 
+/// Imports the feedback kind and queue that the rows come from.
 use music_player::feedback::{FeedbackKind, FeedbackQueue};
+/// Imports the first-run state,
+/// its copy and the analysis explanation.
 use music_player::first_run::{ANALYSIS_EXPLANATION, FirstRunState, first_run_copy};
 
+/// Imports the screen state that decides whether the first-run pane shows.
 use crate::ui_screen_view::ScreenState;
 
 /// What:
@@ -127,6 +131,16 @@ pub fn visible_time_ms(text: &str, hold: Hold) -> i64 {
     return reading.max(floor).min(15_000);
 }
 
+/// What:
+/// `pub struct FeedbackRow { id, text, kind, action_label }` is one feedback message as the window shows it.
+/// Why:
+/// The window's model holds plain fields,
+/// so the queue's own types stay out of the window code and tests compare rows directly.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FeedbackRow = { id: string; text: string; kind: 0 | 1; actionLabel: string };
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FeedbackRow {
     /// Stable key the window reports dismiss and action with.
@@ -162,6 +176,10 @@ pub fn feedback_rows(queue: &FeedbackQueue) -> Vec<FeedbackRow> {
         .collect();
 }
 
+/// Unit tests of `ui_overlays_model`,
+/// in the sidecar file `ui_overlays_model_tests.rs`.
+/// Role of the module:
+/// pure models for the first-run pane and the feedback messages.
 #[cfg(test)]
 #[path = "ui_overlays_model_tests.rs"]
 mod tests;

@@ -1,10 +1,26 @@
 //! What:
-//!  The whole content of an index file the in-process index update changes: every entry with its stat data and flags, and the
-//!  extensions Git keeps (`TREE`, `REUC`, `UNTR`, `FSMN`), read from bytes (`read-cache.c`: `do_read_index`).
+//!  The whole content of an index file the in-process index update changes:
+//! every entry with its stat data and flags,
+//! and the
+//!  extensions Git keeps (`TREE`,
+//! `REUC`,
+//! `UNTR`,
+//! `FSMN`),
+//! read from bytes (`read-cache.c`:
+//! `do_read_index`).
 //! Why:
-//!  `repo_read_index.rs` keeps only path, mode, object name and stage, which is enough to list an index but not to write
-//!  one back. The reader here returns `None` for a split index, a sparse index, a required extension it does not know, a
-//!  reserved flag bit or a size that does not add up, so Git answers those. `index_full_write.rs` writes it.
+//!  `repo_read_index.rs` keeps only path,
+//! mode,
+//! object name and stage,
+//! which is enough to list an index but not to write
+//!  one back.
+//! The reader here returns `None` for a split index,
+//! a sparse index,
+//! a required extension it does not know,
+//! a
+//!  reserved flag bit or a size that does not add up,
+//! so Git answers those.
+//! `index_full_write.rs` writes it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -37,7 +53,8 @@ pub const SKIP_WORKTREE: u16 = 0x4000;
 /// The bytes of the header and of the fixed fields before the object name.
 const HEADER_LENGTH: usize = 12;
 
-/// The bytes of the stat fields and mode in an entry, before the object name.
+/// The bytes of the stat fields and mode in an entry,
+/// before the object name.
 const FIXED_LENGTH: usize = 40;
 
 /// One entry of the index.
@@ -49,18 +66,22 @@ pub struct FullEntry {
     pub mode: u32,
     /// The object name.
     pub id: Vec<u8>,
-    /// The flag bits that are kept: assume-valid and the stage (the name length and the extended bit are worked out on write).
+    /// The flag bits that are kept:
+    /// assume-valid and the stage (the name length and the extended bit are worked out on write).
     pub flags: u16,
-    /// The extended flags (`INTENT_TO_ADD`, `SKIP_WORKTREE`).
+    /// The extended flags (`INTENT_TO_ADD`,
+    /// `SKIP_WORKTREE`).
     pub extended: u16,
     /// The path.
     pub path: Vec<u8>,
-    /// Whether fsmonitor vouches that the file is unchanged; only meaningful when the monitor is on.
+    /// Whether fsmonitor vouches that the file is unchanged;
+    /// only meaningful when the monitor is on.
     pub monitor_valid: bool,
 }
 
 impl FullEntry {
-    /// The merge stage, 0 for a resolved path.
+    /// The merge stage,
+    /// 0 for a resolved path.
     pub fn stage(&self) -> u8 {
         return ((self.flags & STAGE_MASK) >> 12) as u8;
     }
@@ -69,17 +90,22 @@ impl FullEntry {
 /// The index file's content.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FullIndex {
-    /// The file format version as read (2, 3 or 4).
+    /// The file format version as read (2,
+    /// 3 or 4).
     pub version: u32,
     /// The entries by path and stage.
     pub entries: Vec<FullEntry>,
-    /// The cache-tree, if the file has one.
+    /// The cache-tree,
+    /// if the file has one.
     pub cache_tree: Option<CacheTree>,
-    /// The resolve-undo record, if the file has one.
+    /// The resolve-undo record,
+    /// if the file has one.
     pub resolve_undo: Option<ResolveUndo>,
-    /// The untracked cache, if the file has one.
+    /// The untracked cache,
+    /// if the file has one.
     pub untracked: Option<Untracked>,
-    /// The fsmonitor extension, if the file has one.
+    /// The fsmonitor extension,
+    /// if the file has one.
     pub fsmonitor: Option<Fsmonitor>,
 }
 
@@ -89,7 +115,9 @@ fn be16(bytes: &[u8], at: usize) -> Option<u16> {
     return Some(u16::from_be_bytes([pair[0], pair[1]]));
 }
 
-/// One entry at `at`: the entry and the offset after it. `previous` is the path before it (version 4 only).
+/// One entry at `at`:
+/// the entry and the offset after it.
+/// `previous` is the path before it (version 4 only).
 fn read_entry(bytes: &[u8], at: usize, end: usize, version: u32, hash_length: usize, previous: &[u8]) -> Option<(FullEntry, usize)> {
     let stat: StatData = StatData {
         ctime_sec: be32(bytes, at)?,
@@ -139,8 +167,12 @@ fn read_entry(bytes: &[u8], at: usize, end: usize, version: u32, hash_length: us
     return Some((entry, next));
 }
 
-/// The index of `bytes`, or `None` when it is outside the plain layouts listed above. The checksum is not verified; Git
-/// does, and writers install a finished file by rename.
+/// The index of `bytes`,
+/// or `None` when it is outside the plain layouts listed above.
+/// The checksum is not verified;
+/// Git
+/// does,
+/// and writers install a finished file by rename.
 pub fn parse_full_index(bytes: &[u8], hash_length: usize) -> Option<FullIndex> {
     let end: usize = bytes.len().checked_sub(hash_length)?;
     if bytes.get(..4)? != b"DIRC" {

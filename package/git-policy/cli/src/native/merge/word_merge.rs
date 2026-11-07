@@ -1,14 +1,28 @@
 //! What:
-//!  A three-way merge of text by line, and by word for the line regions that both sides changed, in process.
-//!  A file is merged only when every such region resolves; the regions that needed the word pass are reported.
+//!  A three-way merge of text by line,
+//! and by word for the line regions that both sides changed,
+//! in process.
+//!  A file is merged only when every such region resolves;
+//! the regions that needed the word pass are reported.
 //! Why:
-//!  Git's line merge calls two changes that touch (one ends where the other begins) a conflict, so an edit of a line plus
-//!  lines inserted right after it stops a merge that nobody needs to judge. The owner chose, on 2026-11-03, a second pass
-//!  in the way Jujutsu merges with `merge.hunk-level = "word"`: re-merge the conflicted regions word by word, keep the
-//!  result only when every region resolves, and show each region it merged. The diff is the `similar` crate's Myers
-//!  algorithm; the controls keep the results equal to Jujutsu 0.46.0's on the stored corpus
-//!  (`src/native/merge/word_merge_corpus/`, `doc/planning/cli-git-merge-auto-resolution.md`).
-//!  The pass can produce text neither side wrote (two edits of different arguments of one call); it never drops
+//!  Git's line merge calls two changes that touch (one ends where the other begins) a conflict,
+//! so an edit of a line plus
+//!  lines inserted right after it stops a merge that nobody needs to judge.
+//! The owner chose,
+//! on 2026-11-03,
+//! a second pass
+//!  in the way Jujutsu merges with `merge.hunk-level = "word"`:
+//! re-merge the conflicted regions word by word,
+//! keep the
+//!  result only when every region resolves,
+//! and show each region it merged.
+//! The diff is the `similar` crate's Myers
+//!  algorithm;
+//! the controls keep the results equal to Jujutsu 0.46.0's on the stored corpus
+//!  (`src/native/merge/word_merge_corpus/`,
+//! `doc/planning/cli-git-merge-auto-resolution.md`).
+//!  The pass can produce text neither side wrote (two edits of different arguments of one call);
+//! it never drops
 //!  a byte that either side added or kept.
 //!
 //! In TS you'd write (pseudocode):
@@ -21,12 +35,17 @@ use std::ops::Range;
 /// The diff of two token lists.
 use similar::{Algorithm, DiffOp, capture_diff_slices};
 
-/// The diff algorithm. Myers, because the controls found it equal to Jujutsu's results on every corpus input and on
-/// every seeded random edit pair, while the Patience algorithm differed in one verdict.
+/// The diff algorithm.
+/// Myers,
+/// because the controls found it equal to Jujutsu's results on every corpus input and on
+/// every seeded random edit pair,
+/// while the Patience algorithm differed in one verdict.
 const ALGORITHM: Algorithm = Algorithm::Myers;
 
-/// The first byte of the range that UTF-8 uses for every byte of a multi-byte character; each such byte counts as a
-/// letter, so a word is never cut inside a character.
+/// The first byte of the range that UTF-8 uses for every byte of a multi-byte character;
+/// each such byte counts as a
+/// letter,
+/// so a word is never cut inside a character.
 const FIRST_NON_ASCII_BYTE: u8 = 0x80;
 
 /// The byte that ends a line.
@@ -35,11 +54,15 @@ const LINE_END: u8 = b'\n';
 /// How a text is cut into tokens.
 #[derive(Clone, Copy)]
 enum Level {
-    /// Lines, each with its line end.
+    /// Lines,
+    /// each with its line end.
     Line,
-    /// Runs of letters, digits, underscores and non-ASCII bytes.
+    /// Runs of letters,
+    /// digits,
+    /// underscores and non-ASCII bytes.
     Word,
-    /// Every byte that is not part of a word, one token each.
+    /// Every byte that is not part of a word,
+    /// one token each.
     NonWord,
 }
 
@@ -53,12 +76,15 @@ fn is_word_byte(byte: u8) -> bool {
     return byte.is_ascii_alphanumeric() || byte == b'_' || byte >= FIRST_NON_ASCII_BYTE;
 }
 
-/// Whether one byte ends a line. `&u8` borrows the byte, as `split_inclusive` hands it over.
+/// Whether one byte ends a line.
+/// `&u8` borrows the byte,
+/// as `split_inclusive` hands it over.
 fn is_line_end(byte: &u8) -> bool {
     return *byte == LINE_END;
 }
 
-/// The pieces of `text` that the ranges name, in order.
+/// The pieces of `text` that the ranges name,
+/// in order.
 fn slices_of<'a>(text: &'a [u8], ranges: &[Range<usize>]) -> Vec<&'a [u8]> {
     let mut pieces: Vec<&'a [u8]> = Vec::new();
     for range in ranges {
@@ -70,8 +96,10 @@ fn slices_of<'a>(text: &'a [u8], ranges: &[Range<usize>]) -> Vec<&'a [u8]> {
 /// What:
 ///  The byte ranges of the tokens of `text` at `level`.
 /// Why:
-///   Words are the runs that `is_word_byte` accepts and the bytes between them are not tokens of their own, so a
-///  word-level diff sees only the words; the non-word level then sees only the bytes between them.
+///   Words are the runs that `is_word_byte` accepts and the bytes between them are not tokens of their own,
+/// so a
+///  word-level diff sees only the words;
+/// the non-word level then sees only the bytes between them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -119,7 +147,8 @@ fn token_ranges(text: &[u8], level: Level) -> Vec<Range<usize>> {
     }
 }
 
-/// The three texts between two places all three share, and where each of them starts in the text `align` was given.
+/// The three texts between two places all three share,
+/// and where each of them starts in the text `align` was given.
 #[derive(Clone, Copy)]
 struct Gap<'a> {
     /// The common ancestor's text.
@@ -128,11 +157,14 @@ struct Gap<'a> {
     ours: &'a [u8],
     /// The second side's text.
     theirs: &'a [u8],
-    /// Where `base`, `ours` and `theirs` start in the texts `align` was given.
+    /// Where `base`,
+    /// `ours` and `theirs` start in the texts `align` was given.
     starts: [usize; 3],
 }
 
-/// One piece of the three texts: a token all three hold in the same order, or the texts between two such tokens.
+/// One piece of the three texts:
+/// a token all three hold in the same order,
+/// or the texts between two such tokens.
 enum Hunk<'a> {
     /// A token that all three texts hold.
     Same(&'a [u8]),
@@ -141,7 +173,8 @@ enum Hunk<'a> {
 }
 
 /// What:
-///  For each base token, the index of the token of `other` that the diff keeps equal to it.
+///  For each base token,
+/// the index of the token of `other` that the diff keeps equal to it.
 /// Why:
 ///   A base token with no match was changed or removed by that side.
 ///
@@ -162,11 +195,17 @@ fn matched_tokens(base: &[&[u8]], other: &[&[u8]]) -> Vec<Option<usize>> {
 }
 
 /// What:
-///  Split the three texts into the tokens all three share, in order, and the gaps between them.
+///  Split the three texts into the tokens all three share,
+/// in order,
+/// and the gaps between them.
 /// Why:
-///   A gap where one side equals the base, or both sides are equal, resolves by itself; the other gaps are the regions
+///   A gap where one side equals the base,
+/// or both sides are equal,
+/// resolves by itself;
+/// the other gaps are the regions
 ///  that need a finer look.
-///   An empty text has no tokens to share, so the whole of the three is one gap.
+///   An empty text has no tokens to share,
+/// so the whole of the three is one gap.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -213,7 +252,10 @@ fn align<'a>(base: &'a [u8], ours: &'a [u8], theirs: &'a [u8], level: Level) -> 
 }
 
 /// What:
-///  The text of a gap that needs no choice: both sides equal, or one side equal to the base, so the other side wins.
+///  The text of a gap that needs no choice:
+/// both sides equal,
+/// or one side equal to the base,
+/// so the other side wins.
 /// Why:
 ///   Any other gap has two different changes to the same place.
 ///
@@ -232,9 +274,12 @@ fn trivial<'a>(gap: &Gap<'a>) -> Option<&'a [u8]> {
 }
 
 /// What:
-///  Re-merge one line region by word, then by the bytes between the words; `None` unless every part resolves.
+///  Re-merge one line region by word,
+/// then by the bytes between the words;
+/// `None` unless every part resolves.
 /// Why:
-///   A result that merged some parts and left others in conflict would mix contexts and be hard to review, so a region
+///   A result that merged some parts and left others in conflict would mix contexts and be hard to review,
+/// so a region
 ///  is taken whole or not at all.
 ///
 /// In TS you'd write (pseudocode):
@@ -265,7 +310,9 @@ fn merge_gap_by_word(gap: &Gap<'_>) -> Option<Vec<u8>> {
 /// A run of lines of one text.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LineSpan {
-    /// The number of the first line, counting from 1; the line after the last one for a run with no lines.
+    /// The number of the first line,
+    /// counting from 1;
+    /// the line after the last one for a run with no lines.
     pub first: usize,
     /// How many lines the run holds.
     pub count: usize,
@@ -291,7 +338,8 @@ pub enum WordMerge {
     Resolved {
         /// The whole merged text.
         merged: Vec<u8>,
-        /// The regions that needed the word pass, in text order.
+        /// The regions that needed the word pass,
+        /// in text order.
         parts: Vec<MergedPart>,
     },
     /// At least one region has two different changes to the same words.
@@ -302,7 +350,8 @@ pub enum WordMerge {
 }
 
 /// What:
-///  The lines of `text` that start at byte `start` and run for `length` bytes, as a span.
+///  The lines of `text` that start at byte `start` and run for `length` bytes,
+/// as a span.
 /// Why:
 ///   The report names a region by line numbers so a person can open the file at it.
 ///
@@ -322,9 +371,13 @@ fn line_span(text: &[u8], start: usize, length: usize) -> LineSpan {
 }
 
 /// What:
-///  Merge `ours` and `theirs`, both derived from `base`, by line, and by word where both sides changed a line region.
+///  Merge `ours` and `theirs`,
+/// both derived from `base`,
+/// by line,
+/// and by word where both sides changed a line region.
 /// Why:
-///   See the module comment. The result is `Resolved` only when no region keeps two different changes of the same words.
+///   See the module comment.
+/// The result is `Resolved` only when no region keeps two different changes of the same words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -360,7 +413,8 @@ pub fn merge_by_word(base: &[u8], ours: &[u8], theirs: &[u8]) -> WordMerge {
     return WordMerge::Conflict { unresolved };
 }
 
-/// Corpus equality, a random-edit differential and the properties of a merge.
+/// Corpus equality,
+/// a random-edit differential and the properties of a merge.
 #[cfg(test)]
 #[path = "word_merge_tests.rs"]
 mod tests;

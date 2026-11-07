@@ -19,17 +19,28 @@
 //! function search(index: SearchIndex, query: string): SearchState { /* bucket, tier, best 500, rows */ }
 //! ```
 
+/// Imports the thread module whose scope splits a large tier across workers.
 use std::thread;
 
+/// Imports the label of a track's top-level folder.
 use crate::pagination::root_level_folder_label;
+/// Imports the index type and the bit,
+/// slot and marker constants that tell folders from tracks.
 use crate::search_index::{FOLDER_BIT, ROOT_FOLDER_SLOT, SearchIndex, UNFILED};
+/// Imports the function that finds the folder part of a name.
 use crate::search_index_batch::folder_of;
+/// Imports the ranked candidate type,
+/// the cheap tier test and the best-first selection.
 use crate::search_index_rank::{Ranked, fast_tier, select_best};
+/// Imports the single-character shortcut answer.
 use crate::search_index_top::single_character_tracks;
+/// Imports the matcher helpers that split a query and find its highlights.
 use crate::search_matcher::{
     SearchHighlight, WORD_SEPARATORS, highlight_ranges_for_terms, search_terms, trim_kotlin_whitespace,
 };
+/// Imports the result types that a search returns.
 use crate::search_results::{SEARCH_RESULT_LIMIT, SearchResult, SearchResultKind, SearchState};
+/// Imports the title that a result shows.
 use crate::track_entries::track_title_for;
 
 /// What:

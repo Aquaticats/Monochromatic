@@ -2,8 +2,10 @@
 //!  The two places where the wrapper's Git runners try the in-process answers first.
 //! Why:
 //!  `run_metadata_git` (captured queries) and `run_git` (transaction requests) are the choke points every read-only
-//!  Git start goes through, so one call in each gives every caller the saving and keeps the fallback to Git in one place.
-//!  Setting `CLI_GIT_IN_PROCESS_READS=off` in the wrapper's environment turns the answers off, for a measurement that
+//!  Git start goes through,
+//! so one call in each gives every caller the saving and keeps the fallback to Git in one place.
+//!  Setting `CLI_GIT_IN_PROCESS_READS=off` in the wrapper's environment turns the answers off,
+//! for a measurement that
 //!  compares both and for diagnosing a difference.
 //!
 //! In TS you'd write (pseudocode):
@@ -41,8 +43,11 @@ pub fn enabled(variables: &[(OsString, OsString)]) -> bool {
 /// What:
 ///  The overlay entry that makes a runner start Git for every command line.
 /// Why:
-///   Controls that count the starts of a stand-in Git, or that need an unstartable Git to fail, measure the process
-///  path, which stays the fallback for everything the readers decline.
+///   Controls that count the starts of a stand-in Git,
+/// or that need an unstartable Git to fail,
+/// measure the process
+///  path,
+/// which stays the fallback for everything the readers decline.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -56,7 +61,9 @@ pub fn switch_off() -> [(OsString, OsString); 1] {
 /// What:
 ///  Run a reader and turn a panic inside it into "start Git".
 /// Why:
-///   The readers parse bytes of any repository; a defect that panics must cost one Git start, not the wrapper's command.
+///   The readers parse bytes of any repository;
+/// a defect that panics must cost one Git start,
+/// not the wrapper's command.
 ///  The release profile keeps `panic = "unwind"` for this.
 ///
 /// In TS you'd write (pseudocode):
@@ -80,13 +87,16 @@ pub fn guarded<S, T>(state: S, read: fn(S) -> Option<T>) -> Option<T> {
     };
 }
 
-/// The answer of the readers for one query, as the guard calls it with the query, the base environment and the scope.
+/// The answer of the readers for one query,
+/// as the guard calls it with the query,
+/// the base environment and the scope.
 #[cfg(unix)]
 fn answer_for_query((query, base, scope): (Query<'_>, Vec<(OsString, OsString)>, &ScopeEnvironment)) -> Option<Answer> {
     return answer_with(&query, base, scope);
 }
 
-/// The answer for a command line, if the readers have one and the switch allows it.
+/// The answer for a command line,
+/// if the readers have one and the switch allows it.
 #[cfg(unix)]
 fn attempt(
     arguments: &[OsString],
@@ -119,16 +129,19 @@ pub fn try_metadata(arguments: &[OsString], overlay: &[(OsString, OsString)]) ->
     return Some(MetadataOutput { success: found.code == 0, code: Some(found.code), stdout: found.stdout, stderr: found.stderr });
 }
 
-/// Without file system readers for this platform, every query starts Git.
+/// Without file system readers for this platform,
+/// every query starts Git.
 #[cfg(not(unix))]
 pub fn try_metadata(_arguments: &[OsString], _overlay: &[(OsString, OsString)]) -> Option<MetadataOutput> {
     return None;
 }
 
 /// What:
-///  The answer to a query run in `directory` with a complete `environment`, as the auto-push coordination runs them.
+///  The answer to a query run in `directory` with a complete `environment`,
+/// as the auto-push coordination runs them.
 /// Why:
-///   That runner builds the whole child environment itself, so nothing of this process's own is added to it.
+///   That runner builds the whole child environment itself,
+/// so nothing of this process's own is added to it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -140,17 +153,22 @@ pub fn try_complete(arguments: &[OsString], directory: &Path, environment: &[(Os
     return Some((Some(found.code), found.stdout, found.stderr));
 }
 
-/// Without file system readers for this platform, every query starts Git.
+/// Without file system readers for this platform,
+/// every query starts Git.
 #[cfg(not(unix))]
 pub fn try_complete(_arguments: &[OsString], _directory: &std::path::Path, _environment: &[(OsString, OsString)]) -> Option<(Option<i32>, Vec<u8>, Vec<u8>)> {
     return None;
 }
 
 /// What:
-///  The output of a transaction request, if the readers can answer it.
+///  The output of a transaction request,
+/// if the readers can answer it.
 /// Why:
-///   The request names its directory, its private index and object directory, the variables to add and to remove,
-///  and whether the invocation's global options apply; the readers see exactly the command Git would have run.
+///   The request names its directory,
+/// its private index and object directory,
+/// the variables to add and to remove,
+///  and whether the invocation's global options apply;
+/// the readers see exactly the command Git would have run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -183,7 +201,8 @@ pub fn try_request(context: &GitContext, request: &GitRequest) -> Option<GitOutp
     return Some(GitOutput { code: Some(found.code), stdout: found.stdout, stderr: found.stderr });
 }
 
-/// Without file system readers for this platform, every request starts Git.
+/// Without file system readers for this platform,
+/// every request starts Git.
 #[cfg(not(unix))]
 pub fn try_request(_context: &GitContext, _request: &GitRequest) -> Option<GitOutput> {
     return None;

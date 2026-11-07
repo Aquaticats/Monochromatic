@@ -1,11 +1,19 @@
 //! What:
-//!  Whether one thread of this process is at work, judged with the signs the push meter reads for a child process, and the
+//!  Whether one thread of this process is at work,
+//! judged with the signs the push meter reads for a child process,
+//! and the
 //!  clock that says when the thread has shown none of them for a window.
 //! Why:
-//!  The Markdown linter runs on a thread of this process and the gateway call of the standards review blocks one, so neither
-//!  has a child process whose tree `push_progress.rs` could sample. Linux keeps the same counters for each thread under
-//!  `/proc/self/task/<tid>/`: the bytes it read and wrote (`io`), and its processor ticks and state (`stat`). The thread being
-//!  judged is never the thread that reads these files, so the reading does not count as the thread's work.
+//!  The Markdown linter runs on a thread of this process and the gateway call of the standards review blocks one,
+//! so neither
+//!  has a child process whose tree `push_progress.rs` could sample.
+//! Linux keeps the same counters for each thread under
+//!  `/proc/self/task/<tid>/`:
+//! the bytes it read and wrote (`io`),
+//! and its processor ticks and state (`stat`).
+//! The thread being
+//!  judged is never the thread that reads these files,
+//! so the reading does not count as the thread's work.
 //!  Where `/proc/self/task/<tid>/io` or `stat` cannot be read nothing is measured and the thread is never judged quiet.
 //!
 //! In TS you'd write (pseudocode):
@@ -15,7 +23,8 @@
 
 /// The parsing of a `stat` line and the state letters that count as work.
 use crate::push_progress::{SAMPLE_INTERVAL, is_working, parse_activity};
-/// The connected sockets of the machine, and those a process holds.
+/// The connected sockets of the machine,
+/// and those a process holds.
 use crate::tcp_sockets::{ESTABLISHED, established_sockets, socket_inodes_of};
 /// What each socket had carried when it was last seen.
 use std::collections::HashMap;
@@ -26,9 +35,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 /// What:
-///  The kernel's number for the calling thread, which names its files under `/proc/self/task/`.
+///  The kernel's number for the calling thread,
+/// which names its files under `/proc/self/task/`.
 /// Why:
-///   `std` does not expose it; the system call takes no arguments and cannot fail.
+///   `std` does not expose it;
+/// the system call takes no arguments and cannot fail.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -41,14 +52,17 @@ pub fn current_thread_id() -> Option<i32> {
     return i32::try_from(raw).ok();
 }
 
-/// Only Linux names a thread by a number that `/proc` understands; elsewhere nothing is measured.
+/// Only Linux names a thread by a number that `/proc` understands;
+/// elsewhere nothing is measured.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(target_os = "linux"))]
 pub fn current_thread_id() -> Option<i32> {
     return None;
 }
 
-/// The bytes a thread has read and written, from its `io` file, or nothing where the file cannot be read.
+/// The bytes a thread has read and written,
+/// from its `io` file,
+/// or nothing where the file cannot be read.
 #[cfg(target_os = "linux")]
 fn thread_bytes(tid: i32) -> Option<u64> {
     let text: String = std::fs::read_to_string(format!("/proc/self/task/{tid}/io")).ok()?;
@@ -64,14 +78,16 @@ fn thread_bytes(tid: i32) -> Option<u64> {
     return Some(read?.saturating_add(written?));
 }
 
-/// Only Linux counts a thread's bytes; elsewhere nothing is measured.
+/// Only Linux counts a thread's bytes;
+/// elsewhere nothing is measured.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(target_os = "linux"))]
 fn thread_bytes(_tid: i32) -> Option<u64> {
     return None;
 }
 
-/// The processor ticks of a thread and whether it is able to run or waiting for the disk, or nothing where `stat` cannot be read.
+/// The processor ticks of a thread and whether it is able to run or waiting for the disk,
+/// or nothing where `stat` cannot be read.
 #[cfg(target_os = "linux")]
 fn thread_activity(tid: i32) -> Option<(u64, bool)> {
     let text: String = std::fs::read_to_string(format!("/proc/self/task/{tid}/stat")).ok()?;
@@ -79,7 +95,8 @@ fn thread_activity(tid: i32) -> Option<(u64, bool)> {
     return Some((ticks, is_working(state)));
 }
 
-/// Only Linux reads what a thread is doing; elsewhere nothing is.
+/// Only Linux reads what a thread is doing;
+/// elsewhere nothing is.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(target_os = "linux"))]
 fn thread_activity(_tid: i32) -> Option<(u64, bool)> {
@@ -87,11 +104,18 @@ fn thread_activity(_tid: i32) -> Option<(u64, bool)> {
 }
 
 /// What:
-///  What one thread had done when it was last looked at, and the look that says whether it did more since.
+///  What one thread had done when it was last looked at,
+/// and the look that says whether it did more since.
 /// Why:
-///   Bytes and ticks only grow, so a change since the last look is a sign of work; a thread in a state able to run or waiting
-///  for the disk is at work now. The connected sockets of the process count too, when asked: an HTTP client moves its bytes
-///  with `send` and `recv`, which the thread's `rchar` and `wchar` do not see.
+///   Bytes and ticks only grow,
+/// so a change since the last look is a sign of work;
+/// a thread in a state able to run or waiting
+///  for the disk is at work now.
+/// The connected sockets of the process count too,
+/// when asked:
+/// an HTTP client moves its bytes
+///  with `send` and `recv`,
+/// which the thread's `rchar` and `wchar` do not see.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,24 +129,28 @@ pub struct ThreadSigns {
     before: Option<(u64, u64)>,
     /// Whether the process's connected sockets count as the thread's work.
     count_sockets: bool,
-    /// The bytes each connected socket had carried at the last look, by inode.
+    /// The bytes each connected socket had carried at the last look,
+    /// by inode.
     sockets: HashMap<u64, u64>,
     /// Whether anything about the thread could be read at the last look.
     measured: bool,
 }
 
 impl ThreadSigns {
-    /// Signs of the thread `tid`; `count_sockets` adds the process's connected sockets.
+    /// Signs of the thread `tid`;
+    /// `count_sockets` adds the process's connected sockets.
     pub fn new(tid: i32, count_sockets: bool) -> Self {
         return Self { tid, before: None, count_sockets, sockets: HashMap::new(), measured: false };
     }
 
-    /// Whether the last look could read the thread at all, so a quiet thread is quiet and not unreadable.
+    /// Whether the last look could read the thread at all,
+    /// so a quiet thread is quiet and not unreadable.
     pub fn measured(&self) -> bool {
         return self.measured;
     }
 
-    /// The bytes the process's connected sockets carried since the last look, or zero where they cannot be listed.
+    /// The bytes the process's connected sockets carried since the last look,
+    /// or zero where they cannot be listed.
     fn socket_bytes_moved(&mut self) -> u64 {
         let held: Vec<u64> = socket_inodes_of(i32::try_from(std::process::id()).unwrap_or(i32::MAX));
         let Some(connected) = established_sockets() else {
@@ -140,8 +168,11 @@ impl ThreadSigns {
         return moved;
     }
 
-    /// Look at the thread once: true when it moved bytes or used processor time since the last look, or is at work now.
-    ///  The first look is a sign of work, because there is nothing to compare with.
+    /// Look at the thread once:
+    /// true when it moved bytes or used processor time since the last look,
+    /// or is at work now.
+    ///  The first look is a sign of work,
+    /// because there is nothing to compare with.
     pub fn look(&mut self) -> bool {
         let bytes: Option<u64> = thread_bytes(self.tid);
         let activity: Option<(u64, bool)> = thread_activity(self.tid);
@@ -164,9 +195,12 @@ impl ThreadSigns {
 }
 
 /// What:
-///  The clock of one thread: it looks at the thread's signs at the sampling interval and says when none has shown for a window.
+///  The clock of one thread:
+/// it looks at the thread's signs at the sampling interval and says when none has shown for a window.
 /// Why:
-///   The waiting thread asks every few milliseconds; the counters are read only every `SAMPLE_INTERVAL`, as for a child process.
+///   The waiting thread asks every few milliseconds;
+/// the counters are read only every `SAMPLE_INTERVAL`,
+/// as for a child process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -178,7 +212,8 @@ pub struct ThreadClock {
     signs: ThreadSigns,
     /// How long the thread may show no sign of work.
     window: Duration,
-    /// When a sign of work was last seen (the start, before the first).
+    /// When a sign of work was last seen (the start,
+    /// before the first).
     last_progress: Instant,
     /// When the counters are next read.
     next_sample: Instant,
@@ -187,13 +222,15 @@ pub struct ThreadClock {
 }
 
 impl ThreadClock {
-    /// Start the clock of the thread `tid` now; `count_sockets` adds the process's connected sockets to its signs.
+    /// Start the clock of the thread `tid` now;
+    /// `count_sockets` adds the process's connected sockets to its signs.
     pub fn start(tid: i32, window: Duration, count_sockets: bool) -> Self {
         let now: Instant = Instant::now();
         return Self { signs: ThreadSigns::new(tid, count_sockets), window, last_progress: now, next_sample: now, longest_quiet: Duration::ZERO };
     }
 
-    /// Read the signs when a sample is due, and say whether the thread has now been quiet for the whole window.
+    /// Read the signs when a sample is due,
+    /// and say whether the thread has now been quiet for the whole window.
     ///  A thread that cannot be read is never judged quiet.
     pub fn quiet(&mut self) -> bool {
         let now: Instant = Instant::now();
@@ -207,18 +244,24 @@ impl ThreadClock {
         return self.signs.measured() && now.saturating_duration_since(self.last_progress) >= self.window;
     }
 
-    /// The longest stretch with no sign of work so far, the one still running included.
+    /// The longest stretch with no sign of work so far,
+    /// the one still running included.
     pub fn longest_quiet(&self) -> Duration {
         return self.longest_quiet.max(Instant::now().saturating_duration_since(self.last_progress));
     }
 }
 
 /// What:
-///  The measurement of how quiet the calling thread gets while a call runs, begun before the call and finished after it.
+///  The measurement of how quiet the calling thread gets while a call runs,
+/// begun before the call and finished after it.
 /// Why:
 ///   A call that ends itself (the gateway call ends on its transport's own idle timeouts) still needs its quiet gap recorded.
-///  Nothing here ends the call. The call runs in place between `begin` and `finish`, so it reads the caller's variables
-///  without a closure to carry them. A measurement that is never finished leaves its sampling thread running, as a call
+///  Nothing here ends the call.
+/// The call runs in place between `begin` and `finish`,
+/// so it reads the caller's variables
+///  without a closure to carry them.
+/// A measurement that is never finished leaves its sampling thread running,
+/// as a call
 ///  that panicked between the two always did.
 ///
 /// In TS you'd write (pseudocode):
@@ -232,12 +275,14 @@ pub struct QuietMeasurement {
     step: String,
     /// Tells the sampling thread that the call is over.
     done: Arc<AtomicBool>,
-    /// The sampling thread, or nothing where the thread's number cannot be read or the thread could not start.
+    /// The sampling thread,
+    /// or nothing where the thread's number cannot be read or the thread could not start.
     sampler: Option<std::thread::JoinHandle<Duration>>,
 }
 
 impl QuietMeasurement {
-    /// Start sampling the calling thread now, to be noted in the ledger as `step` at `finish`.
+    /// Start sampling the calling thread now,
+    /// to be noted in the ledger as `step` at `finish`.
     pub fn begin(step: &str) -> Self {
         let done: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
         let Some(tid) = current_thread_id() else {

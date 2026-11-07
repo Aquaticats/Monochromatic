@@ -1,13 +1,28 @@
 //! What:
-//!  Whether a blob is a Git LFS pointer, decided the way `git-lfs` 3.8.1 decides it when it scans a push.
+//!  Whether a blob is a Git LFS pointer,
+//! decided the way `git-lfs` 3.8.1 decides it when it scans a push.
 //! Why:
-//!  The upload step finds the LFS objects the pushed commits introduce without starting `git-lfs`. A blob counts when
-//!  the scanner would hand it to the transfer queue: smaller than the cutoff (`lfs/scanner.go`, `BlobSizeCutoff`), a
-//!  header that names `git-media`, `hawser` or `git-lfs` (`lfs/pointer.go`, `matcherRE`), lines in the order `version`,
-//!  `oid`, `size` with a known version, an `sha256:` object name of 64 lower-case hexadecimal digits and a non-negative
-//!  decimal size; a pointer of size zero is skipped by `prepareUpload` (`commands/uploader.go`). The path of the blob and
-//!  `.gitattributes` play no part. A spelling the port is not sure about (extension lines, non-ASCII edges) is a
-//!  decline, so the caller falls back to `git-lfs` itself.
+//!  The upload step finds the LFS objects the pushed commits introduce without starting `git-lfs`.
+//! A blob counts when
+//!  the scanner would hand it to the transfer queue:
+//! smaller than the cutoff (`lfs/scanner.go`,
+//! `BlobSizeCutoff`),
+//! a
+//!  header that names `git-media`,
+//! `hawser` or `git-lfs` (`lfs/pointer.go`,
+//! `matcherRE`),
+//! lines in the order `version`,
+//!  `oid`,
+//! `size` with a known version,
+//! an `sha256:` object name of 64 lower-case hexadecimal digits and a non-negative
+//!  decimal size;
+//! a pointer of size zero is skipped by `prepareUpload` (`commands/uploader.go`).
+//! The path of the blob and
+//!  `.gitattributes` play no part.
+//! A spelling the port is not sure about (extension lines,
+//! non-ASCII edges) is a
+//!  decline,
+//! so the caller falls back to `git-lfs` itself.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -33,16 +48,21 @@ pub enum Verdict {
     NotUploadable,
     /// `git-lfs` would upload the object with this name (lower-case hexadecimal SHA-256).
     Pointer(String),
-    /// The port cannot be sure; ask `git-lfs`.
+    /// The port cannot be sure;
+    /// ask `git-lfs`.
     Decline,
 }
 
-/// Whether one byte is the line feed that ends a line of a pointer. `&u8` borrows the byte, as `split` hands it over.
+/// Whether one byte is the line feed that ends a line of a pointer.
+/// `&u8` borrows the byte,
+/// as `split` hands it over.
 fn is_line_feed_byte(byte: &u8) -> bool {
     return *byte == b'\n';
 }
 
-/// Whether one byte is the space that separates a key of a pointer from its value. `&u8` borrows the byte, as
+/// Whether one byte is the space that separates a key of a pointer from its value.
+/// `&u8` borrows the byte,
+/// as
 ///  `position` hands it over.
 fn is_space_byte(byte: &u8) -> bool {
     return *byte == b' ';
@@ -72,7 +92,9 @@ fn parse_oid(value: &[u8]) -> Option<String> {
     return Some(String::from_utf8_lossy(digits).into_owned());
 }
 
-/// Whether a key starts like an extension key, `ext-` and one digit (`extRE`, which `git-lfs` matches as a prefix).
+/// Whether a key starts like an extension key,
+/// `ext-` and one digit (`extRE`,
+/// which `git-lfs` matches as a prefix).
 fn is_extension_key(key: &[u8]) -> bool {
     return key.len() > 6
         && key.starts_with(b"ext-")

@@ -27,7 +27,9 @@ use crate::track::Track;
 use crate::track_entries::{TrackListEntry, TrackRowModel, track_list_entries, track_title_for};
 /// Template fields that the supporting-line function reads.
 use crate::template_model::TrackFields;
+/// Imports the per-track measure that the rows show.
 use crate::track_measure::TrackMeasure;
+/// Imports the map type that looks measures up by name.
 use std::collections::HashMap;
 
 /// What:

@@ -127,16 +127,22 @@ use crate::error::PlayerError;
 /// ```
 pub const FILL_FRAMES_FLOOR: usize = pipewire_backend::FILL_FRAMES_FLOOR;
 
-// What:     `const _: () = assert!(...);` is a compile-time check. `const _` is a constant with no name, `()` is
-//           the empty value type, and `assert!` is a macro that fails the BUILD (not the run) when the condition is
-//           false.
-// Why:      The controller reads one floor for whichever backend is active. If the two backends ever disagree the
-//           build must stop instead of letting the drain timing drift on one of them.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// // No equivalent: TS cannot fail the build on a value comparison.
-// ```
+/// What:
+///     `const _: () = assert!(...);` is a compile-time check.
+/// `const _` is a constant with no name,
+/// `()` is
+///           the empty value type,
+/// and `assert!` is a macro that fails the BUILD (not the run) when the condition is
+///           false.
+/// Why:
+///      The controller reads one floor for whichever backend is active.
+/// If the two backends ever disagree the
+///           build must stop instead of letting the drain timing drift on one of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // No equivalent: TS cannot fail the build on a value comparison.
+/// ```
 const _: () = assert!(pipewire_backend::FILL_FRAMES_FLOOR == alsa_backend::FILL_FRAMES_FLOOR);
 
 /// What:
@@ -259,12 +265,19 @@ pub(crate) fn both_failed_message(pipewire_error: &PlayerError, alsa_error: &Pla
 pub enum Output {
     /// The PipeWire backend,
     /// chosen when a PipeWire daemon answered.
-    PipeWire(pipewire_backend::Output),
+    PipeWire(
+        /// The open PipeWire output.
+        pipewire_backend::Output,
+    ),
     /// The ALSA backend through cpal,
     /// chosen when PipeWire was unreachable.
-    Alsa(alsa_backend::Output),
+    Alsa(
+        /// The open ALSA output.
+        alsa_backend::Output,
+    ),
 }
 
+/// Methods of `Output` that forward each call to whichever backend is open.
 impl Output {
     /// What:
     ///      `pub fn new(worker: Thread) -> Result<Output, PlayerError>` starts the first backend that works.
@@ -452,6 +465,11 @@ impl Output {
     }
 }
 
+/// Unit tests of `output_linux`,
+/// in the sidecar file `output_linux_tests.rs`.
+/// Role of the module:
+/// linux output with an ALSA fallback (built only with the `alsa-fallback` cargo feature,
+/// which the Alpine build turns on).
 #[cfg(test)]
 #[path = "output_linux_tests.rs"]
 mod tests;

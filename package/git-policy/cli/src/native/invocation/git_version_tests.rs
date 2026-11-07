@@ -36,8 +36,11 @@ fn unreadable_version_output_is_refused() {
     assert_eq!(parse_git_version(&[0xff, 0xfe, 0x00]), None);
 }
 
-/// The minimum is the release the test image's Git has now, and it is inclusive: that release and every later one draw no
-///  warning, every earlier one does.
+/// The minimum is the release the test image's Git has now,
+/// and it is inclusive:
+/// that release and every later one draw no
+///  warning,
+/// every earlier one does.
 #[test]
 fn the_minimum_is_inclusive() {
     assert_eq!(MINIMUM_GIT_VERSION, (2, 56, 0));
@@ -48,7 +51,10 @@ fn the_minimum_is_inclusive() {
     assert!((2, 50, 0) < MINIMUM_GIT_VERSION);
 }
 
-/// The message for a Git whose release cannot be read names the Git that was asked, what it reported, and the remedy; it
+/// The message for a Git whose release cannot be read names the Git that was asked,
+/// what it reported,
+/// and the remedy;
+/// it
 ///  does not claim a release is too old.
 #[test]
 fn the_unreadable_message_names_the_git_and_the_remedy() {
@@ -78,7 +84,8 @@ fn fake_git(name: &str, line: &str) -> (PathBuf, GitContext) {
     return (root, context);
 }
 
-/// A real `git version` run through the production runner reports the release it prints, and the minimum itself is
+/// A real `git version` run through the production runner reports the release it prints,
+/// and the minimum itself is
 ///  accepted.
 #[test]
 #[cfg(unix)]
@@ -88,8 +95,11 @@ fn a_supported_release_is_accepted() {
     remove(root.as_path());
 }
 
-/// A release before the minimum is not refused: the check answers with the release the Git reported, so the command
-///  runs as usual, and the warning names what was found.
+/// A release before the minimum is not refused:
+/// the check answers with the release the Git reported,
+/// so the command
+///  runs as usual,
+/// and the warning names what was found.
 #[test]
 #[cfg(unix)]
 fn an_older_release_is_accepted() {
@@ -98,8 +108,12 @@ fn an_older_release_is_accepted() {
     remove(root.as_path());
 }
 
-/// The warning for an older Git names the Git that was found, the release it reported, the release the wrapper was
-///  tested with, and that the command continues; a Git at or above the minimum draws none.
+/// The warning for an older Git names the Git that was found,
+/// the release it reported,
+/// the release the wrapper was
+///  tested with,
+/// and that the command continues;
+/// a Git at or above the minimum draws none.
 #[test]
 fn an_older_release_draws_a_warning_that_names_both_releases() {
     let context: GitContext = git_context();
@@ -179,7 +193,9 @@ fn a_refusal_is_reused_without_asking_again() {
     assert!(first.expect_err("refused").contains("version 2.55.0"));
 }
 
-/// The process-wide check answers what Git reports, not a constant: it equals a direct query of the same Git.
+/// The process-wide check answers what Git reports,
+/// not a constant:
+/// it equals a direct query of the same Git.
 #[test]
 fn the_process_check_answers_what_git_reports() {
     let context: GitContext = git_context();

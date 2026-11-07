@@ -11,6 +11,7 @@ import {
 } from 'node:path';
 import { pathExists, } from './completion-records.ts';
 import { MoveStopError, } from './errors.ts';
+import { preparePlacementTarget, } from './placement-path.ts';
 import {
   showField,
   type StepContext,
@@ -28,6 +29,13 @@ import {
  @param sendOptions - the `-p` and `-c` arguments of the send
  
  @throws MoveStopError when a received folder has no record, or the copy is not complete and read-only
+
+ @example
+ ```ts
+ import { receiveStep, } from './copy-transfer-steps.ts';
+ 
+ await receiveStep({ context, snapshot, received, sendOptions, },);
+ ```
  */
 export async function receiveStep(
   {
@@ -139,6 +147,13 @@ export async function receiveStep(
  @param received - the received copy
  
  @throws MoveStopError when the receive has no record, or the placed subvolume is not writable
+
+ @example
+ ```ts
+ import { placeStep, } from './copy-transfer-steps.ts';
+ 
+ await placeStep({ context, received, },);
+ ```
  */
 export async function placeStep(
   {
@@ -185,10 +200,10 @@ export async function placeStep(
     ),
   );
   if (!isMain) {
-    // The stub of a nested subvolume in the received parent is an empty directory of inode 2 (measured on the 860).
-    await runner.exec({
-      command: 'rmdir',
-      args: [target,],
+    await preparePlacementTarget({
+      options,
+      runner,
+      target,
     },);
   }
   await runner.exec({

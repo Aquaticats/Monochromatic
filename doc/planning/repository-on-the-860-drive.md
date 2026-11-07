@@ -1,7 +1,8 @@
 # Repository on the 860 drive: measurements, inventory, the symlink design and runbook
 
 Status:
-preparation work for the move landed 2026-11-07 (section "Status and order of the work items": W1 built,
+preparation work for the move landed 2026-11-07 (section "Status and order of the work items":
+W1 built,
 the copy tool fixed and in the repository,
 the guided runner in TypeScript,
 the 860 mount option as a runner stage);
@@ -2085,11 +2086,16 @@ none creates anything.
 
 ### Status and order of the work items, 2026-11-07T14:55:39-05:00
 
-W1 is built: `package/repository-link/check` (library, bins `repository-link-check`,
-`repository-link-run` and `repository-link-record`, and `openRepositoryRoot()`),
-with tests for every answer of the contract (the identity file also records the mount point, so fixtures can vary it).
+W1 is built:
+`package/repository-link/check` (library,
+bins `repository-link-check`,
+`repository-link-run` and `repository-link-record`,
+and `openRepositoryRoot()`),
+with tests for every answer of the contract (the identity file also records the mount point,
+so fixtures can vary it).
 The install outside the repository copies the built bins to `~/.local/share/monochromatic-dev/repository-link/`
-(the plan's `toolchain-global` folder holds launchers that name the repository, so a separate folder keeps the check
+(the plan's `toolchain-global` folder holds launchers that name the repository,
+so a separate folder keeps the check
 free of it).
 The stalled drive on a hung mount and a wrong filesystem mounted at the real mount point need root and are untested.
 The Rust copy of the check in the wrapper (W2) is not built.
@@ -2556,6 +2562,42 @@ and a snapshot that is kept pins old extents while the live tree changes.
 - "Commits should never fail" is not promised against disk pressure:
   no mechanism reserves space for commits,
   and the plan does not claim one.
+
+## The send plan, 2026-11-07 (coordinator's pick, owner's veto open)
+
+Found on the first real fixture runs of the guided runner; the source trace and the measurements are in
+`doc/troubleshooting/btrfs-send-clone-sources-need-a-parent.md`.
+`btrfs send` with clone sources and no parent stops ("parent determination failed"), and a parent that is a snapshot of
+another subvolume can pair two different inodes made in one transaction (the kernel pairs inodes by number and
+generation), which failed loudly on the fixture and could silently misdescribe a file on a real run.
+The copy tool therefore sends every first-pass subvolume as `-p <empty parent> -c <every earlier copy>`, sends the final
+pass `-p` the first-pass snapshot of the same subvolume, refuses a destination that holds two subvolumes with one
+received UUID or an entry of the received folder that no record knows, and verifies every first-pass copy against its
+snapshot (`--pass=verify-first`, stage `p4f-verify-first`, required before the cut-over) before the window.
+Clone reach, measured by the coordinator on 2026-11-07 from 21:48Z to 21:54Z in the extent tree of `/dev/dm-1` (read-only,
+`btrfs inspect-internal dump-tree -t extent`, a script that errors on a zero count), over all of `/home`:
+4,501,595 data extents with one reference (421.46 GiB);
+3,100,463 with 2 to 64 (544.75 GiB physical, 2,520.65 GiB referenced);
+17,974 with 65 to 1024 (9.41 GiB physical, 1,220.92 GiB referenced, these clone);
+9 with more than 1024, the kernel's `SEND_MAX_EXTENT_REFS` (0.14 GiB physical, 238.39 GiB referenced).
+Six of the nine resolve entirely outside the repository (a browser cache database, the baloo index, the pnpm store index);
+three resolve only to a deleted subvolume (6087) waiting for the cleaner, with 13,038,362,624 bytes (12.14 GiB) referenced.
+So the clone limit adds at most 12.14 GiB to the copy, beyond the 263.6 GiB shared estimate, and only if every such
+reference were in the repository.
+Limits: `dump-tree` skips a subtree whose block was rewritten during the read (one block was skipped), so the counts are
+lower bounds, and the count covers all of `/home`, not only the repository.
+The capacity preflight (`p3`) counts the 12.14 GiB as part of the estimate (`CLONE_LIMIT_ALLOWANCE_BYTES`), then adds the
+plan margin, before the first send.
+
+The final pass also asks btrfs what changed: an incremental `btrfs send --no-data` between a subvolume's first-pass and
+final snapshots (one history) holds one command per change, and only the snapshot header when nothing changed.
+That answer is recorded (`<name>.diff.json`), the verification inside the window (`c10b-verify-final`, path, type, size,
+time and mode) compares only the final copies that changed or have no first-pass copy, and a checksum-depth pass over the
+same copies (`c22-verify-final-checksum`) runs after the release while the old tree is kept; the runner's `status` says not
+to delete the old tree until it is done.
+The snapshot generation was not used as the test, because creating a snapshot sets a new generation
+(`create_pending_snapshot` in `fs/btrfs/transaction.c`), so two snapshots of an unchanged subvolume do not agree on it.
+
 
 ## The copy
 

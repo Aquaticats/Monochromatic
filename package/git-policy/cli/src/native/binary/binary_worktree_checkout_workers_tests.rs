@@ -1,10 +1,17 @@
 //! What:
 //!  The checkout of a new worktree runs with Git's parallel checkout switched on only when the person's own configuration says
-//!  nothing about it, through the built executable and a stand-in Git that records the command line it receives.
+//!  nothing about it,
+//! through the built executable and a stand-in Git that records the command line it receives.
 //! Why:
-//!  Git's `checkout.workers` defaults to one worker, and a twenty-thousand-file checkout measured several times faster with
-//!  parallel workers. The owner decided on 2026-11-03 (question tool, against the coordinator's recommendation) "Pass only if
-//!  unset": a value the person set in any scope Git reads, in `GIT_CONFIG_*` or in a `-c` they typed always wins, so the
+//!  Git's `checkout.workers` defaults to one worker,
+//! and a twenty-thousand-file checkout measured several times faster with
+//!  parallel workers.
+//! The owner decided on 2026-11-03 (question tool,
+//! against the coordinator's recommendation) "Pass only if
+//!  unset":
+//! a value the person set in any scope Git reads,
+//! in `GIT_CONFIG_*` or in a `-c` they typed always wins,
+//! so the
 //!  wrapper adds `-c checkout.workers=0` only where nothing sets it.
 //!
 //! In TS you'd write (pseudocode):
@@ -18,13 +25,19 @@ use super::support::{Fixture, Observed, bounded, executable, fixture, git, obser
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
-/// The option the wrapper adds, which opens the recorded command line: the wrapper puts its own hook-switching options after the
+/// The option the wrapper adds,
+/// which opens the recorded command line:
+/// the wrapper puts its own hook-switching options after the
 ///  person's leading global options and before the subcommand.
 const ADDED: &str = "-c checkout.workers=0 ";
 
-/// A repository and a stand-in Git ahead of real Git that appends every command line it receives to a log, then runs real Git.
-///  The repository holds an untracked file and is no subvolume, so neither the clone rung nor the snapshot rung serves an add
-///  from it: Git's own checkout does, which is the run these controls watch.
+/// A repository and a stand-in Git ahead of real Git that appends every command line it receives to a log,
+/// then runs real Git.
+///  The repository holds an untracked file and is no subvolume,
+/// so neither the clone rung nor the snapshot rung serves an add
+///  from it:
+/// Git's own checkout does,
+/// which is the run these controls watch.
 fn recorded_repository(fixture: &Fixture) -> (PathBuf, PathBuf) {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::write(repo.join("untracked.txt"), b"untracked\n").expect("untracked file");
@@ -35,7 +48,8 @@ fn recorded_repository(fixture: &Fixture) -> (PathBuf, PathBuf) {
     return (repo, log);
 }
 
-/// Run `git <arguments>` through the wrapper in `repo` with the stand-in behind it and `extra` variables added; return what the
+/// Run `git <arguments>` through the wrapper in `repo` with the stand-in behind it and `extra` variables added;
+/// return what the
 ///  caller saw and the command lines the stand-in recorded.
 fn run_recorded(fixture: &Fixture, repo: &Path, log: &Path, arguments: &[&str], extra: &[(&str, &str)]) -> (Observed, Vec<String>) {
     let mut path: OsString = fixture.root.join("bin").into_os_string();
@@ -51,14 +65,17 @@ fn run_recorded(fixture: &Fixture, repo: &Path, log: &Path, arguments: &[&str], 
     return (observed, lines);
 }
 
-/// The one recorded line that is the checkout of the new worktree, or the panic that says it was not run.
+/// The one recorded line that is the checkout of the new worktree,
+/// or the panic that says it was not run.
 fn add_line(lines: &[String], observed: &Observed) -> String {
     let found: Vec<&String> = lines.iter().filter(|line: &&String| { return line.contains("worktree add"); }).collect();
     assert_eq!(found.len(), 1, "one worktree add reached Git: {lines:?} {}", stderr_of(observed));
     return found[0].clone();
 }
 
-/// With nothing set, the add that Git's checkout serves gets `-c checkout.workers=0` before the subcommand, and succeeds.
+/// With nothing set,
+/// the add that Git's checkout serves gets `-c checkout.workers=0` before the subcommand,
+/// and succeeds.
 #[test]
 fn an_unset_checkout_workers_gets_parallel_checkout_before_the_subcommand() {
     let fixture: Fixture = fixture("workers-unset");
@@ -71,7 +88,9 @@ fn an_unset_checkout_workers_gets_parallel_checkout_before_the_subcommand() {
     remove(&fixture);
 }
 
-/// A value in the repository's configuration, any value, stops the addition and leaves Git the person's value.
+/// A value in the repository's configuration,
+/// any value,
+/// stops the addition and leaves Git the person's value.
 #[test]
 fn a_checkout_workers_in_the_configuration_is_left_alone() {
     let fixture: Fixture = fixture("workers-config");
@@ -88,7 +107,9 @@ fn a_checkout_workers_in_the_configuration_is_left_alone() {
     remove(&fixture);
 }
 
-/// A `-c checkout.workers=<n>` the person typed, and the `GIT_CONFIG_*` variables, are the person's value too.
+/// A `-c checkout.workers=<n>` the person typed,
+/// and the `GIT_CONFIG_*` variables,
+/// are the person's value too.
 #[test]
 fn a_typed_option_or_an_environment_value_is_left_alone() {
     let fixture: Fixture = fixture("workers-typed");

@@ -361,11 +361,14 @@ fn read_up_to(file: &mut std::fs::File, limit: usize) -> Option<Vec<u8>> {
 }
 
 /// What:
-///  The suffix of the record a toolchain launcher keeps beside it, `<launcher>.launch`.
+///  The suffix of the record a toolchain launcher keeps beside it,
+/// `<launcher>.launch`.
 ///       `&str` is a borrowed text baked into the program.
 /// Why:
 ///   The repository's `mpm-shadow` writes the record when it installs a launcher
-///  (`package/mpm-shadow/cli/src/toolchain/launcher.rs`, `RECORD_SUFFIX`); the wrapper reads the same file to learn what
+///  (`package/mpm-shadow/cli/src/toolchain/launcher.rs`,
+/// `RECORD_SUFFIX`);
+/// the wrapper reads the same file to learn what
 ///  a launcher on PATH leads to.
 ///
 /// In TS you'd write (pseudocode):
@@ -375,13 +378,22 @@ fn read_up_to(file: &mut std::fs::File, limit: usize) -> Option<Vec<u8>> {
 pub const LAUNCH_RECORD_SUFFIX: &str = ".launch";
 
 /// What:
-///  Report whether a launch record's text names this wrapper: its tool is this crate, or the file it replaces itself
+///  Report whether a launch record's text names this wrapper:
+/// its tool is this crate,
+/// or the file it replaces itself
 ///  with is this executable.
-///       `Option<&Path>` is "this executable's path, or nothing when the caller has none".
-///       `serde_json::Value` is a parsed JSON document (siblings: a typed struct, which would need a derive macro).
+///       `Option<&Path>` is "this executable's path,
+/// or nothing when the caller has none".
+///       `serde_json::Value` is a parsed JSON document (siblings:
+/// a typed struct,
+/// which would need a derive macro).
 /// Why:
-///   The launcher of another release of the wrapper has a record naming a different file, so the file the record names
-///  cannot decide alone; the tool id is the same for every release. Both are read from the record; neither starts
+///   The launcher of another release of the wrapper has a record naming a different file,
+/// so the file the record names
+///  cannot decide alone;
+/// the tool id is the same for every release.
+/// Both are read from the record;
+/// neither starts
 ///  anything.
 ///
 /// In TS you'd write (pseudocode):
@@ -411,11 +423,16 @@ pub fn record_names_this_wrapper(record: &[u8], own_executable: Option<&Path>) -
 }
 
 /// What:
-///  Read the launch record at `record` if there is one, bounded.
-///       `Option<Vec<u8>>` is the owned bytes, or nothing when there is no readable record.
+///  Read the launch record at `record` if there is one,
+/// bounded.
+///       `Option<Vec<u8>>` is the owned bytes,
+/// or nothing when there is no readable record.
 /// Why:
-///   Most candidates (the real Git among them) have no record, and the open of a file that is not there is the whole
-///  cost. A record is a few hundred bytes; the same bound as a script's keeps an odd file from controlling the read.
+///   Most candidates (the real Git among them) have no record,
+/// and the open of a file that is not there is the whole
+///  cost.
+/// A record is a few hundred bytes;
+/// the same bound as a script's keeps an odd file from controlling the read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -428,13 +445,19 @@ fn read_launch_record(record: &Path) -> Option<Vec<u8>> {
 }
 
 /// What:
-///  Report whether the candidate is a toolchain launcher of this wrapper: a file with a launch record beside it that
+///  Report whether the candidate is a toolchain launcher of this wrapper:
+/// a file with a launch record beside it that
 ///  names this wrapper.
 ///       The record is looked for beside the candidate's own name and beside the file its links finally lead to.
 /// Why:
-///   A launcher replaces itself with the wrapper's executable, which is another file with other bytes, so the file
-///  checks of the identity test miss it; the record beside it says what it leads to. A symlink named `git` that points
-///  at a launcher has no record of its own, so the file it leads to is checked as well.
+///   A launcher replaces itself with the wrapper's executable,
+/// which is another file with other bytes,
+/// so the file
+///  checks of the identity test miss it;
+/// the record beside it says what it leads to.
+/// A symlink named `git` that points
+///  at a launcher has no record of its own,
+/// so the file it leads to is checked as well.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -472,7 +495,8 @@ pub fn is_wrapper_launcher(candidate: &Path, own_executable: Option<&Path>) -> b
 ///  an identical copy,
 ///  or a TypeScript-wrapper launcher is a wrapper;
 ///       any other executable regular file is Git.
-///  Another release of the wrapper behind no record and no marker string cannot be told here; the marker every
+///  Another release of the wrapper behind no record and no marker string cannot be told here;
+/// the marker every
 ///  real-Git start carries (`started_as_git.rs`) stops it when it arrives.
 ///
 /// In TS you'd write (pseudocode):

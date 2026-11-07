@@ -43,7 +43,10 @@ use tracing_subscriber::EnvFilter;
 ///  RUST_LOG overrides the default `info` filter.
 fn setup_tracing() -> WorkerGuard {
     let (writer, guard) = tracing_appender::non_blocking(std::io::stderr());
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| return EnvFilter::new("info"));
+    let filter = match EnvFilter::try_from_default_env() {
+        Ok(from_environment) => from_environment,
+        Err(_) => EnvFilter::new("info"),
+    };
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_writer(writer)

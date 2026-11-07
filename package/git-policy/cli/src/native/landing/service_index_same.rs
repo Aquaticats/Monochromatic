@@ -1,8 +1,10 @@
 //! What:
 //!  Whether a new index file holds the bytes of the live one.
 //! Why:
-//!  The release of the index lock installs a copy only when it differs from the live index, so an unchanged index keeps its inode
-//!  and its access list and costs no flush or rename. The module is split from `service_index_hold.rs`.
+//!  The release of the index lock installs a copy only when it differs from the live index,
+//! so an unchanged index keeps its inode
+//!  and its access list and costs no flush or rename.
+//! The module is split from `service_index_hold.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,9 +27,11 @@ fn length_of(found: std::fs::Metadata) -> u64 {
 }
 
 /// What:
-///  Reads the last bytes of a file into `tail`, from `start`.
+///  Reads the last bytes of a file into `tail`,
+/// from `start`.
 /// Why:
-///  Two index files are compared by their tails first, where the checksum sits.
+///  Two index files are compared by their tails first,
+/// where the checksum sits.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -42,7 +46,8 @@ fn read_tail(file: &mut std::fs::File, tail: &mut Vec<u8>, start: u64) -> std::i
 /// What:
 ///  Whether a byte is not zero.
 /// Why:
-///  A checksum of all zero bytes means the index was written without one, and then every byte is compared.
+///  A checksum of all zero bytes means the index was written without one,
+/// and then every byte is compared.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,9 +60,15 @@ fn is_nonzero(byte: &u8) -> bool {
 /// What:
 ///  Whether the file `built` holds the same bytes as the live index file `live`.
 /// Why:
-///   An index ends with a checksum of all it holds, so files of one size with the same tail are the same file, and the common
-///  case is settled by reading the tails only. A tail of zeros is what a skipped checksum looks like and proves nothing, so then
-///  the files are compared in full. A file that cannot be read is taken as different, which installs the copy.
+///   An index ends with a checksum of all it holds,
+/// so files of one size with the same tail are the same file,
+/// and the common
+///  case is settled by reading the tails only.
+/// A tail of zeros is what a skipped checksum looks like and proves nothing,
+/// so then
+///  the files are compared in full.
+/// A file that cannot be read is taken as different,
+/// which installs the copy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,9 +1,14 @@
 //! What:
-//!  The reading of a configured push refspec and the judgement of what the refspecs make of one branch: which remote names
-//!  receive it, which pattern or negative refspec applies, and the refusal when two refspecs collide.
+//!  The reading of a configured push refspec and the judgement of what the refspecs make of one branch:
+//! which remote names
+//!  receive it,
+//! which pattern or negative refspec applies,
+//! and the refusal when two refspecs collide.
 //! Why:
-//!  `auto_push_destination.rs` decides where a plain push goes and asks Git for the local refs; the judgement itself only
-//!  reads refspec text and a list of ref names, so it sits in a file of its own that does not use the destination file.
+//!  `auto_push_destination.rs` decides where a plain push goes and asks Git for the local refs;
+//! the judgement itself only
+//!  reads refspec text and a list of ref names,
+//! so it sits in a file of its own that does not use the destination file.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,21 +24,29 @@ use std::collections::BTreeMap;
 /// type Refspec = { negative: boolean; source: string; destination?: string; pattern: boolean };
 /// ```
 pub(crate) struct Refspec {
-    /// A `^` refspec: it removes matching destinations.
+    /// A `^` refspec:
+    /// it removes matching destinations.
     pub(crate) negative: bool,
     /// The local side.
     pub(crate) source: String,
-    /// The remote side; the source when absent.
+    /// The remote side;
+    /// the source when absent.
     pub(crate) destination: Option<String>,
     /// Whether the sides hold one `*`.
     pub(crate) pattern: bool,
 }
 
 /// What:
-///  Read a configured push refspec, or nothing when it is a form this module does not interpret.
+///  Read a configured push refspec,
+/// or nothing when it is a form this module does not interpret.
 /// Why:
-///   Only full ref names and one `*` per side are interpreted; `HEAD`, short names, object names, deletions and the
-///  `:` of matching depend on more than the local ref names, so they are never guessed at.
+///   Only full ref names and one `*` per side are interpreted;
+/// `HEAD`,
+/// short names,
+/// object names,
+/// deletions and the
+///  `:` of matching depend on more than the local ref names,
+/// so they are never guessed at.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,7 +90,8 @@ pub(crate) fn side_outside_refs(destination: Option<&str>) -> bool {
     };
 }
 
-/// The text a `*` pattern captured in `name`, or nothing when `name` does not match.
+/// The text a `*` pattern captured in `name`,
+/// or nothing when `name` does not match.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,21 +119,30 @@ pub(crate) fn excludes(negative: &Refspec, name: &str) -> bool {
 /// What the configured push refspecs make of one branch.
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum Judged {
-    /// The refs on the remote that receive the branch, possibly none.
+    /// The refs on the remote that receive the branch,
+    /// possibly none.
     Targets(Vec<String>),
-    /// Git refuses the whole push; the sentence says why.
+    /// Git refuses the whole push;
+    /// the sentence says why.
     Refused(String),
-    /// A refspec of a form not interpreted; its text.
+    /// A refspec of a form not interpreted;
+    /// its text.
     Unjudged(String),
 }
 
 /// What:
-///  Apply the configured push refspecs to the local refs the way Git's `match_push_refs` does, and report where the branch goes.
+///  Apply the configured push refspecs to the local refs the way Git's `match_push_refs` does,
+/// and report where the branch goes.
 /// Why:
-///   Git matches every explicit refspec first (a source that is not a local ref, or two sources for one destination, fail
-///  the whole push), then lets each local ref take the first matching pattern unless an earlier pairing already took its
-///  destination, then drops the destinations a negative refspec names.
-///  The `%(push:remoteref)` atom of `git for-each-ref` maps one branch alone, so it misses all three and cannot be used.
+///   Git matches every explicit refspec first (a source that is not a local ref,
+/// or two sources for one destination,
+/// fail
+///  the whole push),
+/// then lets each local ref take the first matching pattern unless an earlier pairing already took its
+///  destination,
+/// then drops the destinations a negative refspec names.
+///  The `%(push:remoteref)` atom of `git for-each-ref` maps one branch alone,
+/// so it misses all three and cannot be used.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -185,7 +208,8 @@ pub(crate) fn judge(branch_ref: &str, remote: &str, refspecs: &[String], local_r
     return Judged::Targets(targets);
 }
 
-/// Where the first pattern refspec sends the local ref `name`, or nothing when no pattern matches it.
+/// Where the first pattern refspec sends the local ref `name`,
+/// or nothing when no pattern matches it.
 pub(crate) fn mapped_destination(items: &[Refspec], name: &str) -> Option<String> {
     for item in items {
         if item.negative || !item.pattern {

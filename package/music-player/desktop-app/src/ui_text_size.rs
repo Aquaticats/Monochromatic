@@ -18,11 +18,17 @@
 //! only maps a press to them and the result to the live window,
 //! so the window changes at once and a restart restores it.
 
+/// Imports the session that stores the sizes.
 use music_player::session::Session;
+/// Imports the size limits,
+/// the text element and the sizes type.
 use music_player::text_size::{MAX_TEXT_SIZE_PX, MIN_TEXT_SIZE_PX, TextElement, TextSizes};
+/// Imports the component handle that reaches the window.
 use slint::ComponentHandle;
 
+/// Imports the projection and the state accessors of the screen.
 use crate::ui_screen::{project, read_state, update_state};
+/// Imports the window and the generated text size global.
 use crate::{AppWindow, TextSize};
 
 /// What:

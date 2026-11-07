@@ -46,9 +46,15 @@ pub struct StartFailure<'a> {
     pub depth: u32,
 }
 
+/// Whether a character forces an argument to be quoted:
+/// whitespace splits a word and a quote mark would end the quoting.
+fn forces_quotes(character: char) -> bool {
+    return character.is_whitespace() || character == '\'' || character == '"';
+}
+
 /// Characters after which an argument must be quoted to stay one word in the printed command line.
 fn needs_quotes(argument: &str) -> bool {
-    return argument.is_empty() || argument.chars().any(|character| return character.is_whitespace() || character == '\'' || character == '"');
+    return argument.is_empty() || argument.chars().any(forces_quotes);
 }
 
 /// What:

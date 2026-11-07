@@ -1,14 +1,30 @@
 //! What:
-//!  The word-level second pass after a forwarded merge, rebase, cherry-pick or revert that Git stopped with a conflict:
-//!  each conflict that command created is re-merged from the index stages, and a file whose every part resolves is
-//!  written to the worktree, staged as resolved, and listed on standard error and in the journal.
+//!  The word-level second pass after a forwarded merge,
+//! rebase,
+//! cherry-pick or revert that Git stopped with a conflict:
+//!  each conflict that command created is re-merged from the index stages,
+//! and a file whose every part resolves is
+//!  written to the worktree,
+//! staged as resolved,
+//! and listed on standard error and in the journal.
 //! Why:
 //!  The owner decided on 2026-11-03 (`doc/planning/cli-git-merge-auto-resolution.md`) that a person's merge gets this pass.
-//!  The pass touches only the paths that were not conflicted before the command ran, so a file the person is resolving by
-//!  hand (it is still unmerged when a later command fails on it) is never replaced, and it reads the stage blobs, never the
-//!  marked-up worktree file, so `merge.conflictStyle` does not matter. Git's exit status is kept: the operation is not finished,
-//!  the person finishes it (`git commit`, `git rebase --continue`, ...), and a script that tests the status still stops.
-//!  A file that does not resolve, and a file whose staging fails, stays exactly as Git left it.
+//!  The pass touches only the paths that were not conflicted before the command ran,
+//! so a file the person is resolving by
+//!  hand (it is still unmerged when a later command fails on it) is never replaced,
+//! and it reads the stage blobs,
+//! never the
+//!  marked-up worktree file,
+//! so `merge.conflictStyle` does not matter.
+//! Git's exit status is kept:
+//! the operation is not finished,
+//!  the person finishes it (`git commit`,
+//! `git rebase --continue`,
+//! ...),
+//! and a script that tests the status still stops.
+//!  A file that does not resolve,
+//! and a file whose staging fails,
+//! stays exactly as Git left it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -41,7 +57,8 @@ const INDEX_LIMIT_BYTES: u64 = 1 << 30;
 /// The line prefix of every line this module writes.
 const LINE_PREFIX: &str = "monochromatic-git-policy-cli: ";
 
-/// The commands whose conflicts get the pass; a pull's own merge or rebase stops in the same state the command would.
+/// The commands whose conflicts get the pass;
+/// a pull's own merge or rebase stops in the same state the command would.
 const OPERATIONS: [&[u8]; 5] = [b"merge", b"rebase", b"cherry-pick", b"revert", b"pull"];
 
 /// The stages in the order `update-index --index-info` takes them back.
@@ -54,7 +71,8 @@ pub struct Watch {
     unmerged_before: BTreeSet<Vec<u8>>,
 }
 
-/// The layout of the repository the command runs in, when the in-process readers can describe it.
+/// The layout of the repository the command runs in,
+/// when the in-process readers can describe it.
 fn layout_of(forward: &CoordinatedForward) -> Option<RepoLayout> {
     if environment_value(forward.environment.as_slice(), "GIT_INDEX_FILE").is_some() {
         return None;
@@ -62,16 +80,19 @@ fn layout_of(forward: &CoordinatedForward) -> Option<RepoLayout> {
     return read_layout_after_success_for(&forward.command.arguments[..forward.command.subcommand_index], forward.overlay.as_slice());
 }
 
-/// The index entries of the layout's worktree, or nothing when the in-process reader declines the file.
+/// The index entries of the layout's worktree,
+/// or nothing when the in-process reader declines the file.
 fn index_entries(layout: &RepoLayout) -> Option<Vec<IndexEntry>> {
     let bytes: Vec<u8> = read_regular_file(layout.git_dir.join("index").as_path(), INDEX_LIMIT_BYTES).ok()?;
     return parse_index(bytes.as_slice(), layout.object_format);
 }
 
 /// What:
-///  The conflicts of `entries` for the paths in `only`, with their stages as object names.
+///  The conflicts of `entries` for the paths in `only`,
+/// with their stages as object names.
 /// Why:
-///   The index lists the three stages of a path one after the other; a missing stage stays `None`.
+///   The index lists the three stages of a path one after the other;
+/// a missing stage stays `None`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -103,10 +124,13 @@ pub fn conflicts_of_index(entries: &[IndexEntry], only: &BTreeSet<Vec<u8>>) -> V
 }
 
 /// What:
-///  Note which paths are unmerged before the command runs, when the command is one the pass serves.
+///  Note which paths are unmerged before the command runs,
+/// when the command is one the pass serves.
 /// Why:
-///   Only a conflict this command creates is the pass's to resolve. When the index cannot be read in process the pass is off
-///  for this run: it never guesses.
+///   Only a conflict this command creates is the pass's to resolve.
+/// When the index cannot be read in process the pass is off
+///  for this run:
+/// it never guesses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -121,7 +145,9 @@ pub fn watch_before(forward: &CoordinatedForward) -> Option<Watch> {
     return Some(Watch { unmerged_before: conflicted_paths(entries.as_slice()) });
 }
 
-/// The records that put a conflict's stages back into the index: remove the path, then each stage it had.
+/// The records that put a conflict's stages back into the index:
+/// remove the path,
+/// then each stage it had.
 fn restore_records(conflict: &Conflict) -> Vec<u8> {
     let mut width: usize = 0;
     if let Some(stage) = [&conflict.base, &conflict.ours, &conflict.theirs].into_iter().flatten().next() {
@@ -150,11 +176,15 @@ fn succeeded(started: Result<GitReply, String>, what: &str) -> Result<(), String
 }
 
 /// What:
-///  Stage the merged files as resolved and write them to the worktree; put the conflicts back if the second step fails.
+///  Stage the merged files as resolved and write them to the worktree;
+/// put the conflicts back if the second step fails.
 /// Why:
-///   Staging first means a failed write leaves an index that says resolved over a file with markers, so the stages are
-///  restored then and the person finds the conflict exactly as Git left it. The checkout applies the repository's own
-///  filters (line endings), which a plain file write would skip.
+///   Staging first means a failed write leaves an index that says resolved over a file with markers,
+/// so the stages are
+///  restored then and the person finds the conflict exactly as Git left it.
+/// The checkout applies the repository's own
+///  filters (line endings),
+/// which a plain file write would skip.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -194,9 +224,12 @@ fn closing_words(operation: &str, remaining: usize) -> String {
 }
 
 /// What:
-///  After a forwarded operation that exited with a non-zero status, re-merge the conflicts it created.
+///  After a forwarded operation that exited with a non-zero status,
+/// re-merge the conflicts it created.
 /// Why:
-///   See the module comment. Every outcome that is not a resolution goes to the diagnostic log with its reason, and the
+///   See the module comment.
+/// Every outcome that is not a resolution goes to the diagnostic log with its reason,
+/// and the
 ///  operation's own output and status stand.
 ///
 /// In TS you'd write (pseudocode):
@@ -299,11 +332,15 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
 }
 
 /// What:
-///  The words of `branch.<name>.mergeoptions` for the branch that is checked out, which Git parses before the command line of a
-///  merge (`builtin/merge.c` lines 1387 to 1409), or nothing when the value cannot be read as Git reads it.
+///  The words of `branch.<name>.mergeoptions` for the branch that is checked out,
+/// which Git parses before the command line of a
+///  merge (`builtin/merge.c` lines 1387 to 1409),
+/// or nothing when the value cannot be read as Git reads it.
 /// Why:
-///   A merge or a pull applies the setting to the merge it runs, so the finish reads the same words and applies them to the
-///  options it reads; `--no-commit` there stops the finished merge as a clean one stops.
+///   A merge or a pull applies the setting to the merge it runs,
+/// so the finish reads the same words and applies them to the
+///  options it reads;
+/// `--no-commit` there stops the finished merge as a clean one stops.
 ///   A detached `HEAD` has no branch and so no setting (`merge.c` lines 1388 to 1394).
 ///
 /// In TS you'd write (pseudocode):
@@ -328,7 +365,8 @@ fn branch_merge_options(runner: &ContextRunner<'_>, git_dir: &std::path::Path, c
     };
 }
 
-/// Why a path stayed conflicted, in words for the diagnostic log.
+/// Why a path stayed conflicted,
+/// in words for the diagnostic log.
 fn left_words(why: &Left) -> String {
     return format!("{why:?}");
 }

@@ -62,6 +62,7 @@ use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 /// // JoinHandle ~ a Worker + exit promise; Thread ~ a WorkerRef you can post "wake" to
 /// ```
 use std::thread::{self, JoinHandle, Thread};
+/// Imports the shared ownership type that hands the controller's shared state to the worker thread.
 use std::sync::Arc;
 
 /// What:
@@ -102,7 +103,9 @@ use crate::command::{Command, Update};
 /// import { Controller } from "./controller";
 /// ```
 use crate::audio_meter::MeterReporter;
+/// Imports the call that raises the decode thread's scheduling priority.
 use crate::thread_priority::raise_current_thread_for_decode;
+/// Imports the controller that the worker thread owns.
 use crate::controller::Controller;
 
 /// What:

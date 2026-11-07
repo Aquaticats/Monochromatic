@@ -1,10 +1,12 @@
 //! What:
-//!  The shadow ref store: a snapshot of every real ref,
+//!  The shadow ref store:
+//! a snapshot of every real ref,
 //!       the private target ref,
 //!       symbolic refs,
 //!       and the private `HEAD`.
 //! Why:
-//!  Hooks resolve tags, other branches and remote-tracking refs as they stood at invocation.
+//!  Hooks resolve tags,
+//! other branches and remote-tracking refs as they stood at invocation.
 //!  With the files backend the snapshot is one `packed-refs` file and the private target is a loose ref,
 //!  which takes precedence over a packed entry;
 //!  with reftable the snapshot is one `update-ref --stdin` transaction
@@ -15,18 +17,24 @@
 //! await writeShadowRefs({ gitPath, cwd, shadowPath, capture });
 //! ```
 
-/// One shadow Git start, one real Git start, and their failure text.
+/// One shadow Git start,
+/// one real Git start,
+/// and their failure text.
 use crate::shadow_git::shadow_request;
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
-/// Private file writes for the snapshot, published whole and not synced.
+/// Private file writes for the snapshot,
+/// published whole and not synced.
 use crate::private_storage::write_private_file_unsynced;
-/// Journal enums: the ref backend, the base and the symbolic `HEAD` at invocation.
+/// Journal enums:
+/// the ref backend,
+/// the base and the symbolic `HEAD` at invocation.
 use crate::transaction_journal::{Base, RefFormat, SymbolicHead};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 
 /// Header Git writes for a sorted `packed-refs` file without peeled lines.
-///  The trailing space matches Git's own writer, which older readers require.
+///  The trailing space matches Git's own writer,
+/// which older readers require.
 pub const PACKED_REFS_HEADER: &str = "# pack-refs with: sorted \n";
 
 /// What:
@@ -44,16 +52,20 @@ pub struct RefSnapshotEntry {
     pub name: String,
     /// Object the ref resolves to.
     pub oid: String,
-    /// Symbolic target, or empty for a direct ref.
+    /// Symbolic target,
+    /// or empty for a direct ref.
     pub symref: String,
 }
 
-/// Order two ref entries by the bytes of their names, which is the order Git lists refs in. `sort_by` takes this function by path.
+/// Order two ref entries by the bytes of their names,
+/// which is the order Git lists refs in.
+/// `sort_by` takes this function by path.
 fn compare_by_name_bytes(left: &RefSnapshotEntry, right: &RefSnapshotEntry) -> std::cmp::Ordering {
     return left.name.as_bytes().cmp(right.name.as_bytes());
 }
 
-/// The failure for a `packed-refs` file that could not be written. `map_err` takes this function by path.
+/// The failure for a `packed-refs` file that could not be written.
+/// `map_err` takes this function by path.
 fn packed_refs_failure(error: std::io::Error) -> GitFailure {
     return GitFailure(format!("writing packed-refs failed: {error}"));
 }
@@ -102,7 +114,8 @@ pub fn list_real_refs(context: &GitContext, cwd: &Path) -> Result<Vec<RefSnapsho
 /// What:
 ///  Formats the files-backend snapshot of every direct ref except the private target.
 /// Why:
-///   The target is written loose, so a packed copy would only be shadowed.
+///   The target is written loose,
+/// so a packed copy would only be shadowed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -121,9 +134,11 @@ pub fn format_packed_refs(refs: &[RefSnapshotEntry], target_ref: &str) -> String
 
 /// What:
 ///  Points the shadow `HEAD` at the private target:
-///  symbolic to the branch, or detached at the base.
+///  symbolic to the branch,
+/// or detached at the base.
 /// Why:
-///   A detached `HEAD` needs a base, and an unborn branch has no object to write.
+///   A detached `HEAD` needs a base,
+/// and an unborn branch has no object to write.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -166,10 +181,13 @@ fn write_shadow_head(
 
 /// What:
 ///  Writes the shadow ref store:
-///  the snapshot, the symbolic refs, the private target ref and `HEAD`.
+///  the snapshot,
+/// the symbolic refs,
+/// the private target ref and `HEAD`.
 /// Why:
 ///   The order matches the incumbent's:
-///  symbolic refs come after their targets exist, and `HEAD` comes last.
+///  symbolic refs come after their targets exist,
+/// and `HEAD` comes last.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

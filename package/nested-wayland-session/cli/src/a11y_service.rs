@@ -222,10 +222,13 @@ const _: () = {
                 applications.push(entry);
             }
             drop(applications);
-            let desktop = OwnedObjectPath::try_from(ROOT_PATH).unwrap_or_else(|_| return OwnedObjectPath::default());
+            let desktop: OwnedObjectPath = OwnedObjectPath::try_from(ROOT_PATH).unwrap_or_default();
             // The desktop reference must name a unique bus name,
             //  which is what a real registry daemon answers with.
-            let owner = self.unique_name.get().cloned().unwrap_or_else(|| return REGISTRY_NAME.to_string());
+            let owner = match self.unique_name.get().cloned() {
+                Some(name) => name,
+                None => REGISTRY_NAME.to_string(),
+            };
             return (owner, desktop)
         }
     }
