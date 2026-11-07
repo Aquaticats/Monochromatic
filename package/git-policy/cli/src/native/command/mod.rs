@@ -86,7 +86,8 @@ pub mod command_reset;
 /// `git stash` subcommand dispatch and wrapper-flag positions.
 pub mod command_stash;
 
-/// The commands that can overwrite or delete uncommitted state, read as Git reads them.
+/// The commands that can overwrite or delete uncommitted state,
+/// read as Git reads them.
 pub mod command_discard;
 
 /// The Git 2.56.0 option tables of every `git stash` subcommand.

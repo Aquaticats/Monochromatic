@@ -1,8 +1,13 @@
 //! What:
-//!  The question "does this worktree hold uncommitted state?" as one Git query and its reading.
+//!  The question "does this worktree hold uncommitted state?"
+//! as one Git query and its reading.
 //! Why:
-//!  A command that can discard uncommitted state is judged by whether any exists: a clean linked worktree has
-//!  nothing to lose, a dirty one does. Tracked changes (staged or not) always count; untracked files count only
+//!  A command that can discard uncommitted state is judged by whether any exists:
+//! a clean linked worktree has
+//!  nothing to lose,
+//! a dirty one does.
+//! Tracked changes (staged or not) always count;
+//! untracked files count only
 //!  for the commands that delete them.
 //!
 //! In TS you'd write (pseudocode):
@@ -17,7 +22,9 @@ use std::ffi::OsString;
 ///  Which files count as uncommitted state.
 ///  An `enum` is a closed set of named alternatives.
 /// Why:
-///   A `reset --hard` loses tracked changes only, a `clean` loses untracked files only; asking for the
+///   A `reset --hard` loses tracked changes only,
+/// a `clean` loses untracked files only;
+/// asking for the
 ///  wrong set would reject a harmless command or let a destructive one through.
 ///
 /// In TS you'd write (pseudocode):
@@ -33,10 +40,12 @@ pub enum DirtyScope {
 }
 
 /// What:
-///  The arguments of the status query, after the invocation's global options.
+///  The arguments of the status query,
+/// after the invocation's global options.
 ///  `Vec<OsString>` is an owned list of byte-preserving text.
 /// Why:
-///   `--no-optional-locks` keeps a read from writing the index, and the porcelain form is stable across
+///   `--no-optional-locks` keeps a read from writing the index,
+/// and the porcelain form is stable across
 ///  Git versions.
 ///
 /// In TS you'd write (pseudocode):
@@ -57,10 +66,13 @@ pub fn dirty_query_arguments(global_prefix: &[OsString], scope: DirtyScope) -> V
 }
 
 /// What:
-///  Read the query: any output line means uncommitted state exists.
-///  `Result<bool, String>` is "the answer, or why Git could not give one".
+///  Read the query:
+/// any output line means uncommitted state exists.
+///  `Result<bool, String>` is "the answer,
+/// or why Git could not give one".
 /// Why:
-///   A status that failed says nothing, and a safety check must not read a failure as "clean".
+///   A status that failed says nothing,
+/// and a safety check must not read a failure as "clean".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -79,7 +91,9 @@ pub fn dirty_from_output(output: &MetadataOutput) -> Result<bool, String> {
     return Ok(!output.stdout.is_empty());
 }
 
-/// Arguments of each scope and the reading of a successful, empty, non-empty and failed status.
+/// Arguments of each scope and the reading of a successful,
+/// empty,
+/// non-empty and failed status.
 #[cfg(test)]
 #[path = "rule_worktree_dirty_tests.rs"]
 mod tests;
