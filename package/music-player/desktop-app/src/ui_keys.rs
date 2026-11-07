@@ -19,16 +19,28 @@
 //! Text fields keep
 //! their own keys because the classifier reads the focus zone the focused element reported.
 
+/// Imports the cell that holds the double-Shift state between key events.
 use std::cell::Cell;
 
+/// Imports the double-Shift detector and its input.
 use music_player::double_shift::{DoubleShift, ShiftInput};
+/// Imports the focus zone,
+/// route,
+/// platform,
+/// action and request types and the classifier.
 use music_player::keymap::{FocusZone, KeyRoute, KeyboardPlatform, ShortcutAction, ShortcutRequest, shortcut_action};
+/// Imports the held modifiers that each request carries.
 use music_player::keymap_bindings::HeldModifiers;
+/// Imports the component handle that reaches the window's state.
 use slint::ComponentHandle;
 
+/// Imports the host through which actions leave the window.
 use crate::ui_host::Host;
+/// Imports the reader of the screen state.
 use crate::ui_screen::read_state;
+/// Imports the route that tells which page is open.
 use crate::ui_screen_view::Route;
+/// Imports the window and the focus type that keys act on.
 use crate::{AppWindow, Focus};
 
 thread_local! {
@@ -376,6 +388,14 @@ pub(crate) fn on_key_released(window: &AppWindow, key: &RawKey) {
     }
 }
 
+/// Unit tests of `ui_keys`,
+/// in the sidecar file `ui_keys_tests.rs`.
+/// Role of the module:
+/// keyboard shortcuts for the player:
+/// each key becomes a `ShortcutRequest`,
+/// the `keymap` classifier names the action,
+/// and the action runs against the window and the host (D102,
+/// D106).
 #[cfg(test)]
 #[path = "ui_keys_tests.rs"]
 mod tests;

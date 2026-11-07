@@ -121,6 +121,10 @@ pub fn raise_current_thread_for_decode() -> bool {
     return false;
 }
 
+/// Unit tests of `thread_priority`,
+/// in the sidecar file `thread_priority_tests.rs`.
+/// Role of the module:
+/// scheduling priority for the decode thread.
 #[cfg(test)]
 #[path = "thread_priority_tests.rs"]
 mod tests;

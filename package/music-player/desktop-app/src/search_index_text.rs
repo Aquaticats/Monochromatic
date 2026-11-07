@@ -15,9 +15,12 @@
 //! class TextArena { buf = ""; ends: number[] = []; get(i: number) { return this.buf.slice(this.start(i), this.ends[i]); } }
 //! ```
 
+/// Imports the Unicode normalization that folds names into comparable form.
 use unicode_normalization::UnicodeNormalization;
 
+/// Imports the test that drops non-spacing marks.
 use crate::non_spacing_mark::is_non_spacing_mark;
+/// Imports the whitespace test and trim that match the Kotlin app's rules.
 use crate::search_matcher::{is_kotlin_whitespace, trim_kotlin_whitespace};
 
 /// What:

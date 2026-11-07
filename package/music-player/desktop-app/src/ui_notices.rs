@@ -15,8 +15,10 @@
 //! const fileGoneMessage = (path: string, wasPlaying: boolean) => `${basename(path)} was removed from the folder.`;
 //! ```
 
+/// Imports the path type that names the file a notice is about.
 use std::path::Path;
 
+/// Imports the file name text that notices share with the system notification.
 use music_player::unplayable_notification_logic::file_name_text;
 
 /// What:
@@ -46,6 +48,11 @@ pub(crate) fn audio_unavailable_message() -> &'static str {
     return "No sound output is available, so nothing will be heard. Start a sound server such as PipeWire, or set up an ALSA sound card, then restart the player.";
 }
 
+/// Unit tests of `ui_notices`,
+/// in the sidecar file `ui_notices_tests.rs`.
+/// Role of the module:
+/// plain-language message for an event the user did not ask about:
+/// a file that left the folder.
 #[cfg(test)]
 #[path = "ui_notices_tests.rs"]
 mod tests;

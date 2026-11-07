@@ -23,6 +23,7 @@
 
 /// The index that answers a query and the batch form it is built from.
 use crate::search_index::SearchIndex;
+/// Imports the batch preparation that the test index uses.
 use crate::search_index_batch::prepare_batch;
 /// The highlight type used by each result.
 use crate::search_matcher::SearchHighlight;

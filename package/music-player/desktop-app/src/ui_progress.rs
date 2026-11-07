@@ -112,6 +112,7 @@ use music_player::progress::{ProgressDebouncer, ProgressUpdateKind};
 /// import { applyUpdate, AppWindow } from "./main";
 /// ```
 use crate::ui_screen::apply_update;
+/// Imports the window that shows the progress.
 use crate::AppWindow;
 
 // What: `thread_local! { static TASKBAR_STATE: RefCell<TaskbarProgress> = ... }`. The one state machine behind the

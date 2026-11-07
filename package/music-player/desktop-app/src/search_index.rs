@@ -27,11 +27,16 @@
 //! class SearchIndex { paths: string[]; norm: string[]; byFirst = new Map<string, number[]>(); append(batch) {} search(q) {} }
 //! ```
 
+/// Imports the map type of the first-character and two-character buckets.
 use std::collections::HashMap;
 
+/// Imports the prepared batch that the index appends.
 use crate::search_index_batch::PreparedBatch;
+/// Imports the text arena that stores every normalized name.
 use crate::search_index_text::TextArena;
+/// Imports the cache of the best answer per first character.
 use crate::search_index_top::TopCache;
+/// Imports the normalization that makes a query comparable with the stored names.
 use crate::search_matcher::normalize_for_search;
 
 /// What:

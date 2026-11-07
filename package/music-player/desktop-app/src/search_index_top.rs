@@ -28,10 +28,15 @@
 //! const merge = (cached: Top, delta: Ranked[]) => ({ through: now, matched: cached.matched + delta.length, best: best500([...cached.best, ...delta]) });
 //! ```
 
+/// Imports the map type of the cached answers.
 use std::collections::HashMap;
+/// Imports the shared ownership and lock types that share the cache between searches and the warm-up thread.
 use std::sync::{Arc, Mutex};
 
+/// Imports the index type that the cache answers for.
 use crate::search_index::SearchIndex;
+/// Imports the ranked candidate type,
+/// the cheap tier test and the best-first selection.
 use crate::search_index_rank::{Ranked, fast_tier, select_best};
 
 /// What:

@@ -26,7 +26,9 @@
 /// ```
 use std::path::PathBuf;
 
+/// Imports the report that a background sweep sends to the engine.
 use crate::sweep_report::SweepReport;
+/// Imports the measure that an update carries for one track.
 use crate::track_measure::TrackMeasure;
 
 /// What:
@@ -525,7 +527,10 @@ pub enum Command {
     /// ```ts
     /// { kind: "sweepReport"; report: SweepReport }
     /// ```
-    SweepReport(SweepReport),
+    SweepReport(
+        /// The report from the sweep thread.
+        SweepReport,
+    ),
 }
 
 /// What:

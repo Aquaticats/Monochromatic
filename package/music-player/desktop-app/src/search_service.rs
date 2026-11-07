@@ -27,17 +27,30 @@
 //! search.appendBatch(paths);     // push under a short lock, then re-answer the latest query
 //! ```
 
+/// Imports the atomic flag,
+/// counters and their ordering that signal the worker threads.
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+/// Imports the channel module that carries requests to the workers.
 use std::sync::mpsc;
+/// Imports the shared ownership,
+/// lock and poison types that guard the index.
 use std::sync::{Arc, Mutex, PoisonError, RwLock};
+/// Imports the thread module and handle that run and join the workers.
 use std::thread::{self, JoinHandle};
 
+/// Imports the index that the service guards.
 use crate::search_index::SearchIndex;
+/// Imports the prepared batch and the function that prepares it.
 use crate::search_index_batch::{PreparedBatch, prepare_batch};
+/// Imports the search state that an answer carries.
 use crate::search_results::SearchState;
+/// Imports the stream thread's loop,
+/// request type and helpers.
 use crate::search_stream::{FLUSH_PATIENCE, StreamRequest, append_prepared_batch, reset_index, stream_loop};
+/// Imports the worker request and shared state and the lock helpers.
 use crate::search_worker::{Request, Shared, read_index, warm, work, write_when_free};
 
+/// Re-exports the worker constants and the answer type that callers of the service use.
 pub use crate::search_worker::{REFRESH_INTERVAL, SearchAnswer, WARM_DELAY, WRITE_PATIENCE, WRITE_POLL};
 
 /// What:
@@ -277,6 +290,7 @@ impl SearchService {
     }
 }
 
+/// Method of `SearchService` that stops its threads.
 impl SearchService {
     /// What:
     /// `shutdown` stops the worker,

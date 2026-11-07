@@ -19,8 +19,10 @@
 //! the output callback already advances the ring's read index,
 //!  and the engine thread only reads it.
 
+/// Imports the duration and instant types that the clock extrapolates with.
 use std::time::{Duration, Instant};
 
+/// Imports the conversion from a frame count to seconds.
 use crate::playback::frames_to_secs;
 
 /// What:
@@ -160,6 +162,7 @@ pub(crate) fn frames_of_samples(samples: usize, channels: u16) -> u64 {
     return samples as u64 / u64::from(channels)
 }
 
+/// Methods of `PlaybackClock` that record pushed and drained frames and read the audible position.
 impl PlaybackClock {
     /// What:
     ///      `pub(crate) fn new() -> PlaybackClock`.
@@ -445,6 +448,7 @@ impl PlaybackClock {
     }
 }
 
+/// The default `PlaybackClock` has pushed and drained nothing.
 impl Default for PlaybackClock {
     /// What:
     ///      `fn default() -> PlaybackClock`.
@@ -461,6 +465,11 @@ impl Default for PlaybackClock {
     }
 }
 
+/// Unit tests of `playback_clock`,
+/// in the sidecar file `playback_clock_tests.rs`.
+/// Role of the module:
+/// the audible playback clock:
+/// which second of the track the listener hears now.
 #[cfg(test)]
 #[path = "playback_clock_tests.rs"]
 mod tests;

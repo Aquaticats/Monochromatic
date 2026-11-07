@@ -352,6 +352,18 @@ pub mod controller;
 pub mod controller_audio;
 
 /// What:
+///      `pub mod controller_audio_track_end;` the fourth `impl Controller` block (`src/controller_audio_track_end.rs`).
+/// Why:
+///       The end of a track and the handoff to the next one,
+/// split from `controller_audio` so each file stays within the line budget.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // more methods of the same `controller` class, in another file
+/// ```
+pub mod controller_audio_track_end;
+
+/// What:
 ///      `pub mod controller_flow;` the third `impl Controller` block (`src/controller_flow.rs`).
 /// Why:
 ///       Play with nothing selected,
@@ -936,6 +948,18 @@ pub mod search_page_model;
 pub mod keymap;
 
 /// What:
+///      `pub mod keymap_platform;` the keyboard maps and the error for an unknown map name (`src/keymap_platform.rs`).
+/// Why:
+///       Split from `keymap` so that file keeps to the classifier;
+/// `keymap` re-exports both types.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export type KeyboardPlatform = "windows-linux" | "mac";
+/// ```
+pub mod keymap_platform;
+
+/// What:
 ///      `pub mod keymap_bindings;` the D106 binding table (`src/keymap_bindings.rs`).
 /// Why:
 ///       One table of chords feeds the classifier,
@@ -1201,6 +1225,15 @@ pub mod analysis_notification_logic;
 /// dependency.
 #[cfg(target_os = "linux")]
 pub mod analysis_notification_wire;
+
+/// What:
+/// `pub(crate) mod analysis_notification_worker;` the notifier thread of the analysis indicator,
+/// Linux only.
+/// Why:
+/// the thread body is the only part that talks to the bus,
+/// and it needs a file of its own beside the handle.
+#[cfg(target_os = "linux")]
+pub(crate) mod analysis_notification_worker;
 
 /// What:
 /// `pub mod analysis_notification;` the analysis indicator's handle and its D-Bus thread (D107).

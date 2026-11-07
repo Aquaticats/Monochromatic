@@ -15,11 +15,15 @@
 //!   Alacritty shows its Windows panic message with the same flags
 //!   (`alacritty/src/panic.rs`).
 
+/// Imports the failure steps and the pure text and decisions that this module shows.
 use crate::startup_failure::{
     StartupStep, failure_message, failure_title, message_box_wanted, panic_detail, without_nul,
 };
+/// Imports the standard error handle and its identifier that tell whether a console exists.
 use windows::Win32::System::Console::{GetStdHandle, STD_ERROR_HANDLE};
+/// Imports the message box call and the flags that show the failure window.
 use windows::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MB_SETFOREGROUND, MB_TASKMODAL, MessageBoxW};
+/// Imports the wide string types that the message box call takes.
 use windows::core::{HSTRING, PCWSTR};
 
 /// What:

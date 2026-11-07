@@ -424,7 +424,10 @@ pub enum Change {
     /// ```ts
     /// { kind: "paths"; paths: DirtyPaths }
     /// ```
-    Paths(DirtyPaths),
+    Paths(
+        /// The paths that changed on disk.
+        DirtyPaths,
+    ),
     /// What:
     /// `Everything,` is the case that carries no data.
     /// Why:

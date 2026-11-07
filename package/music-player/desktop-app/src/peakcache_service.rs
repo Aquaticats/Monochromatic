@@ -266,7 +266,10 @@ pub(super) struct Upsert {
 /// ```
 pub(super) enum Write {
     /// Store or replace one track's decision.
-    Put(Upsert),
+    Put(
+        /// The decision to store.
+        Upsert,
+    ),
 }
 
 /// What:
