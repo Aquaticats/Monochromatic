@@ -49,9 +49,20 @@ export const COPY_TOOL: string = new URL(
  
  @param mainPath - the main checkout as the caller spells it; the fixture's own folder when absent
  
+ @param snapshotFolder - the snapshot folder; the fixture's own `snap` folder when absent
+ 
+ @param receivedFolder - the received folder; the fixture's own `recv` folder when absent
+ 
  @param inventoryBase - the folder the inventory's top-level name maps to, as the caller spells it; the fixture's own folder when absent
  
  @returns exit status and both streams
+
+ @example
+ ```ts
+ import { runCopyTool, } from './move-fixture-run.ts';
+ 
+ const result = await runCopyTool({ fixture, pass, extra, env, mainPath, inventoryBase, },);
+ ```
  */
 export async function runCopyTool(
   {
@@ -61,6 +72,8 @@ export async function runCopyTool(
     env = {},
     mainPath = fixture.main,
     inventoryBase = fixture.base,
+    snapshotFolder = join(fixture.base, 'snap',),
+    receivedFolder = join(fixture.base, 'recv',),
   }: {
     readonly fixture: Fixture;
     readonly pass: string;
@@ -68,6 +81,8 @@ export async function runCopyTool(
     readonly env?: Readonly<Record<string, string>>;
     readonly mainPath?: string;
     readonly inventoryBase?: string;
+    readonly snapshotFolder?: string;
+    readonly receivedFolder?: string;
   },
 ): Promise<RunResult> {
   try {
@@ -80,14 +95,8 @@ export async function runCopyTool(
         COPY_TOOL,
         `--pass=${pass}`,
         `--main=${mainPath}`,
-        `--snapshots=${join(
-        fixture.base,
-        'snap',
-      )}`,
-        `--received=${join(
-        fixture.base,
-        'recv',
-      )}`,
+        `--snapshots=${snapshotFolder}`,
+        `--received=${receivedFolder}`,
         `--final=${join(
         fixture.base,
         'final',
