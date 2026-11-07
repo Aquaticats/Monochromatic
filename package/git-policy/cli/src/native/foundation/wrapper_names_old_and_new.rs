@@ -118,6 +118,10 @@ pub const REPOSITORY_SCRATCH: RenamedName = RenamedName {
     earlier: "cli-git-scratch",
 };
 
+/// The end of the name an entry of an earlier folder takes when the current folder holds an entry of the same name,
+///  so that both are kept (`standards-review-shadow.md` and `standards-review-shadow.md.from-earlier-release`).
+pub const KEPT_BESIDE_SUFFIX: &str = ".from-earlier-release";
+
 /// The commit service's units and sockets,
 ///  by the name `systemd` knows them as.
 pub const SERVICE_UNIT: RenamedName = RenamedName {

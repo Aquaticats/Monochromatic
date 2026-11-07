@@ -119,15 +119,15 @@ fn current_names_are_left_alone_and_settling_twice_is_the_same() {
 }
 
 /// Both spellings of a kind exist:
-///  the current one is used and the earlier one keeps every byte.
+///  the current one is used and the earlier one is folded into it with every byte.
 #[test]
-fn both_spellings_leave_the_earlier_one_untouched() {
+fn both_spellings_are_folded_into_the_current_one_with_every_byte() {
     let root: PathBuf = fixture("both");
     plant_earlier(root.as_path(), DATA_FOLDER);
     std::fs::create_dir_all(root.join(DATA_FOLDER.current)).expect("the current folder");
     settle_kept_names(root.as_path(), root.as_path());
-    assert_eq!(std::fs::read_to_string(root.join(DATA_FOLDER.earlier).join("inner").join("record")).expect("untouched"), DATA_FOLDER.earlier);
-    assert!(root.join(DATA_FOLDER.current).is_dir());
+    assert_eq!(std::fs::read_to_string(root.join(DATA_FOLDER.current).join("inner").join("record")).expect("moved"), DATA_FOLDER.earlier);
+    assert!(!root.join(DATA_FOLDER.earlier).exists(), "the earlier name is gone");
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 

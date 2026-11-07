@@ -74,3 +74,12 @@ pub mod earlier_name_moved_to_current_in_place;
 /// Every kept name in a repository's Git directories settled to its current spelling,
 ///  and the finder for a reader that moves nothing.
 pub mod kept_names_in_the_git_directories;
+
+/// The lines of a log an earlier release wrote added to the log under the current name, restartable after a kill.
+pub mod earlier_log_lines_added_to_current_log;
+
+/// The entries of a folder an earlier release wrote moved into the folder under the current name.
+pub mod earlier_folder_entries_moved_into_current_folder;
+
+/// Every kept name that exists under both spellings folded into the current one when no earlier program writes it.
+pub mod earlier_names_folded_into_current;

@@ -19,6 +19,8 @@
 use crate::earlier_name_moved_to_current_in_place::{existing_kept_name, kept_name_for_use};
 /// The rename that never replaces.
 use crate::rename_that_never_replaces::rename_noreplace;
+/// The fold of a name that exists under both spellings.
+use crate::earlier_names_folded_into_current::{KeptKind, KeptName, fold_and_tell};
 /// The pairs of names.
 use crate::wrapper_names_old_and_new::{
     COMMIT_TIMING_LOG, DATA_FOLDER, DISCARD_AUDIT_LOG, MERGE_INTENT_FOLDER, PUSH_TRIGGER_LOG, RenamedName, WORKTREE_ADD_TIMING_LOG,
@@ -35,6 +37,33 @@ const OTHER_NAMES_IN_COMMON_DIRECTORY: [RenamedName; 3] = [DATA_FOLDER, PUSH_TRI
 
 /// The names kept in a worktree's own Git directory.
 const NAMES_IN_WORKTREE_DIRECTORY: [RenamedName; 2] = [DATA_FOLDER, MERGE_INTENT_FOLDER];
+
+/// The names to fold in a worktree's own Git directory when both spellings exist.
+const WORKTREE_DIRECTORY_FOLDS: [KeptName; 2] = [
+    KeptName { name: DATA_FOLDER, kind: KeptKind::Folder },
+    KeptName { name: MERGE_INTENT_FOLDER, kind: KeptKind::Folder },
+];
+
+/// The names to fold in the common Git directory when both spellings exist.
+const COMMON_DIRECTORY_FOLDS: [KeptName; 6] = [
+    KeptName { name: DATA_FOLDER, kind: KeptKind::Folder },
+    KeptName { name: WORKTREE_COPY_RECORD_FOLDER, kind: KeptKind::Folder },
+    KeptName { name: PUSH_TRIGGER_LOG, kind: KeptKind::Log { rotates: false } },
+    KeptName { name: DISCARD_AUDIT_LOG, kind: KeptKind::Log { rotates: true } },
+    KeptName { name: COMMIT_TIMING_LOG, kind: KeptKind::Log { rotates: true } },
+    KeptName { name: WORKTREE_ADD_TIMING_LOG, kind: KeptKind::Log { rotates: true } },
+];
+
+/// The names to fold in a Git directory that is both the worktree's own and the common one (the main worktree).
+const MAIN_DIRECTORY_FOLDS: [KeptName; 7] = [
+    KeptName { name: DATA_FOLDER, kind: KeptKind::Folder },
+    KeptName { name: MERGE_INTENT_FOLDER, kind: KeptKind::Folder },
+    KeptName { name: WORKTREE_COPY_RECORD_FOLDER, kind: KeptKind::Folder },
+    KeptName { name: PUSH_TRIGGER_LOG, kind: KeptKind::Log { rotates: false } },
+    KeptName { name: DISCARD_AUDIT_LOG, kind: KeptKind::Log { rotates: true } },
+    KeptName { name: COMMIT_TIMING_LOG, kind: KeptKind::Log { rotates: true } },
+    KeptName { name: WORKTREE_ADD_TIMING_LOG, kind: KeptKind::Log { rotates: true } },
+];
 
 /// Whether one byte of a name is an ASCII digit;
 ///  a named function so `all` can take it.
@@ -87,22 +116,26 @@ fn move_numbered_copies(parent: &Path, name: RenamedName) {
 /// function settleKeptNames(gitDir: string, commonDir: string): void;
 /// ```
 pub fn settle_kept_names(git_dir: &Path, common_dir: &Path) {
-    settle_worktree_directory_names(git_dir);
-    settle_common_directory_names(common_dir);
+    rename_worktree_directory_names(git_dir);
+    rename_common_directory_names(common_dir);
+    // The main worktree's directory is both, and its looks at the earlier program are made once.
+    if git_dir == common_dir {
+        fold_and_tell(common_dir, &MAIN_DIRECTORY_FOLDS);
+    } else {
+        fold_and_tell(git_dir, &WORKTREE_DIRECTORY_FOLDS);
+        fold_and_tell(common_dir, &COMMON_DIRECTORY_FOLDS);
+    }
 }
 
-/// Settle the names kept in a worktree's own Git directory:
-///  for a command that learned only that directory.
-pub fn settle_worktree_directory_names(git_dir: &Path) {
+/// Move the names kept in a worktree's own Git directory that exist only under the earlier spelling.
+fn rename_worktree_directory_names(git_dir: &Path) {
     for name in NAMES_IN_WORKTREE_DIRECTORY {
         let _placed = kept_name_for_use(git_dir, name);
     }
 }
 
-/// Settle the names kept in the common Git directory:
-///  for a command that learned only that directory,
-///  such as the health report.
-pub fn settle_common_directory_names(common_dir: &Path) {
+/// Move the names kept in the common Git directory that exist only under the earlier spelling.
+fn rename_common_directory_names(common_dir: &Path) {
     for name in OTHER_NAMES_IN_COMMON_DIRECTORY {
         let _placed = kept_name_for_use(common_dir, name);
     }
@@ -110,6 +143,21 @@ pub fn settle_common_directory_names(common_dir: &Path) {
         let _placed = kept_name_for_use(common_dir, name);
         move_numbered_copies(common_dir, name);
     }
+}
+
+/// Settle the names kept in a worktree's own Git directory:
+///  for a command that learned only that directory.
+pub fn settle_worktree_directory_names(git_dir: &Path) {
+    rename_worktree_directory_names(git_dir);
+    fold_and_tell(git_dir, &WORKTREE_DIRECTORY_FOLDS);
+}
+
+/// Settle the names kept in the common Git directory:
+///  for a command that learned only that directory,
+///  such as the health report.
+pub fn settle_common_directory_names(common_dir: &Path) {
+    rename_common_directory_names(common_dir);
+    fold_and_tell(common_dir, &COMMON_DIRECTORY_FOLDS);
 }
 
 /// What:
