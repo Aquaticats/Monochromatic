@@ -10,7 +10,8 @@ That reading was wrong.
 
 ## Measured cause
 
-util-linux 2.42.4, measured 2026-11-07 at user level on two mounted folders:
+util-linux 2.42.4,
+measured 2026-11-07 at user level on two mounted folders:
 
 - `findmnt --noheadings --output SOURCE,TARGET /var/mnt/encrypted` printed its line.
 - The same call through a symbolic link to that folder printed the same line,

@@ -79,7 +79,11 @@ fn read_record(file: &Path) -> (BTreeMap<PathBuf, PathBuf>, Option<String>) {
     };
     let mut links: BTreeMap<PathBuf, PathBuf> = BTreeMap::new();
     let parsed: Option<Value> = serde_json::from_str(&text).ok();
-    let Some(entries) = parsed.as_ref().and_then(|value| return value.get(LINKS_KEY)).and_then(Value::as_object) else {
+    let links_value: Option<&Value> = match &parsed {
+        Some(value) => value.get(LINKS_KEY),
+        None => None,
+    };
+    let Some(entries) = links_value.and_then(Value::as_object) else {
         return (links, Some(format!("{} is not a record of postinstall links, so no stale postinstall link is retired", file.display())));
     };
     for (path, target) in entries {
