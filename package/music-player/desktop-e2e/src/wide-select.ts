@@ -154,7 +154,9 @@ async function openResultFor(
     session,
     act: typeText(query,),
     until: function queryAnswered(state: UiState,): boolean {
-      return (state.reason === 'search-answer') && (state.search_query === query) && (state.search_ring !== NO_INDEX);
+      return (state.reason === 'search-answer')
+        && (state.search_query === query)
+        && (state.search_ring !== NO_INDEX);
     },
     what: `a highlighted result for ${query}`,
     timeoutMs: NEW_FILE_TIMEOUT_MS,
