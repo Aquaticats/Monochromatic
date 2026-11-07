@@ -31,12 +31,28 @@ await describe({
           appDir: '/work/app',
           compositorPath: '/mise/installs/nested/bin/nested',
           generatorPath: '/home/tester/temp/agent/agent-scale/make-scale-library.ts',
+          gpu: '',
           only: '',
           outputRoot: '/work/app/target/e2e',
           releaseBinary: '/work/app/target/release/music-player',
           scratchRoot: '/home/tester/temp/agent/music-player-e2e',
           unitLimits: DEFAULT_UNIT_LIMITS,
+          visible: false,
         },);
+      },
+    },),
+    it({
+      name: 'asks for a visible window only when the override says so, and for a named device only when given one',
+      fn: async ({ expect, }) => {
+        const base = {
+          appDir: '/work/app',
+          home: '/home/tester',
+          defaultCompositorPath: '/c',
+        } as const;
+        expect(loadRunConfig({ ...base, overrides: {}, },).visible,).toBe(false,);
+        expect(loadRunConfig({ ...base, overrides: { visible: false, }, },).visible,).toBe(false,);
+        expect(loadRunConfig({ ...base, overrides: { visible: true, }, },).visible,).toBe(true,);
+        expect(loadRunConfig({ ...base, overrides: { gpu: 'software', }, },).gpu,).toBe('software',);
       },
     },),
     it({
@@ -118,6 +134,46 @@ await describe({
       },
     },),
     it({
+      name: 'asks for a visible window only when E2E_VISIBLE is exactly 1, so 0, empty and words never open one',
+      fn: async ({ expect, }) => {
+        const saved = process.env.E2E_VISIBLE;
+        const readWith = (value: string,): boolean | undefined => {
+          process.env.E2E_VISIBLE = value;
+          return overridesFromEnvironment().visible;
+        };
+        const answers = {
+          one: readWith('1',),
+          zero: readWith('0',),
+          empty: readWith('',),
+          word: readWith('true',),
+          spaced: readWith(' 1',),
+        };
+        Reflect.deleteProperty(process.env, 'E2E_VISIBLE',);
+        const unset = overridesFromEnvironment().visible;
+        if (saved !== undefined)
+          process.env.E2E_VISIBLE = saved;
+        expect(answers.one,).toBe(true,);
+        expect(answers.zero,).not.toBe(true,);
+        expect(answers.empty,).not.toBe(true,);
+        expect(answers.word,).not.toBe(true,);
+        expect(answers.spaced,).not.toBe(true,);
+        expect(unset,).not.toBe(true,);
+      },
+    },),
+    it({
+      name: 'reads the render device a person names from E2E_GPU',
+      fn: async ({ expect, }) => {
+        const saved = process.env.E2E_GPU;
+        process.env.E2E_GPU = '/dev/dri/renderD128';
+        const read = overridesFromEnvironment().gpu;
+        if (saved === undefined)
+          Reflect.deleteProperty(process.env, 'E2E_GPU',);
+        else
+          process.env.E2E_GPU = saved;
+        expect(read,).toBe('/dev/dri/renderD128',);
+      },
+    },),
+    it({
       name: 'reads only the variables that are set',
       fn: async ({ expect, }) => {
         const names = [
@@ -129,6 +185,8 @@ await describe({
           'E2E_UNIT_CPU_QUOTA',
           'E2E_UNIT_MEMORY_MAX',
           'E2E_UNIT_TASKS_MAX',
+          'E2E_VISIBLE',
+          'E2E_GPU',
         ] as const;
         const saved = names.map((name,) => [name, process.env[name],] as const);
         for (const name of names)
