@@ -25,9 +25,11 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import {
-  assertPrivateBus,
-  startPrivateBus,
-} from './daily-update-private-bus-fixture.ts';
+  assertHostedOnPrivateBus,
+  findRecorder,
+  parseNotificationLog,
+  type RecordedNotification,
+} from './daily-update-notification-recorder-fixture.ts';
 import {
   directoryOf,
   layOutRepository,
@@ -45,6 +47,17 @@ import {
  Folder of the daily update's TypeScript source, which the fixture runs directly as the unit does.
  */
 const SOURCE_DIRECTORY = join(import.meta.dirname,);
+
+/**
+ The repository this fixture belongs to, where the recorder's build is looked for.
+ */
+const SOURCE_REPOSITORY = join(
+  import.meta.dirname,
+  '..',
+  '..',
+  '..',
+  '..',
+);
 
 /**
  A call the stand-in `gh` received.
@@ -81,10 +94,10 @@ export type WholePathResult = {
    */
   readonly ghCalls: readonly RecordedGhCall[];
   /**
-   Titles of the notifications the update sent, one per notification, read from its journal where `notifyOwner` writes
-   each title and body before it calls `notify-send`.
+   The notifications the update sent through the real `notify-send`, read back from the recording service on the
+   private bus, in the order they were sent.
    */
-  readonly notificationTitles: readonly string[];
+  readonly notifications: readonly RecordedNotification[];
   /**
    Commit subjects of the repository, newest first.
    */
@@ -104,11 +117,6 @@ export type WholePathOptions = {
    */
   readonly ghExitCode: number;
 };
-
-/**
- Title of the notification the daily update sends, which it also writes to its journal.
- */
-const NOTIFICATION_TITLE = 'Daily update needs a look';
 
 /**
  Reads a text file, answering the empty string when it does not exist.
@@ -242,11 +250,25 @@ export async function runWholePath({
     'toolchain.lock.json',
   );
   /**
-   The private session bus, which no host service can be started through.
+   The recording notification bus: the recorder runs the update on a private session bus and logs what it sent.
    */
-  await using bus = await startPrivateBus(process.env
-    .XDG_RUNTIME_DIR
-    ?? base,);
+  const recorder = await findRecorder(SOURCE_REPOSITORY,);
+  /**
+   The file the recorder writes the notification log to.
+   */
+  const notificationLog = join(
+    base,
+    'notifications.log',
+  );
+  /**
+   What goes before the hosted command: the recorder and its options.
+   */
+  const launcher = [
+    recorder,
+    '--log',
+    notificationLog,
+    '--',
+  ];
   /**
    Environment of every process: the stand-ins first on `PATH`, fixture-owned homes, no ambient credentials.
    */
@@ -289,7 +311,10 @@ export async function runWholePath({
     MISE_TASK_RUN_AUTO_INSTALL: 'false',
     MISE_YES: '1',
     NO_COLOR: '1',
-    DBUS_SESSION_BUS_ADDRESS: bus.address,
+    // The recorder needs the runtime directory for its own bus socket; it takes it away from the hosted command.
+    XDG_RUNTIME_DIR: process.env
+      .XDG_RUNTIME_DIR
+      ?? base,
     FIXTURE_GH_LOG: ghLog,
     FIXTURE_GH_EXIT: String(ghExitCode,),
     FIXTURE_GLOBAL_LOCK: globalLock,
@@ -344,10 +369,10 @@ export async function runWholePath({
       content: '',
     },),
   ],);
-  // The real `notify-send` runs in this fixture, so the guard stands before anything else can start it.
-  assertPrivateBus({
+  // The real `notify-send` runs in this fixture, so the probe stands before anything else can start it.
+  await assertHostedOnPrivateBus({
+    launcher,
     environment,
-    privateDirectory: bus.directory,
   },);
   await layOutRepository({
     root,
@@ -357,8 +382,12 @@ export async function runWholePath({
    The daily update, run the way the task runs it.
    */
   const update = await run({
-    program: process.execPath,
+    program: recorder,
     args: [
+      '--log',
+      notificationLog,
+      '--',
+      process.execPath,
       join(
         SOURCE_DIRECTORY,
         'daily-update.ts',
@@ -403,11 +432,7 @@ export async function runWholePath({
         return line !== '';
       },)
       .map(parseGhCall,),
-    notificationTitles: update.stderr
-      .split('\n',)
-      .filter(function isTitle(line,) {
-        return line === NOTIFICATION_TITLE;
-      },),
+    notifications: parseNotificationLog(await readTextOrEmpty(notificationLog,),),
     commitSubjects: log.stdout
       .split('\n',)
       .filter(function nonEmpty(line,) {

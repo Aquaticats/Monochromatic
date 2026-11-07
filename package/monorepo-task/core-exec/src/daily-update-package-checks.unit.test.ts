@@ -38,6 +38,7 @@ import {
   RUST_CHECK_PARALLEL,
   TYPESCRIPT_CHECK_PARALLEL,
 } from '../dist/final/node/testing.mjs';
+import { parseNotificationLog, } from './daily-update-notification-recorder-fixture.ts';
 import {
   answerLikeAnEmptyTracker,
   fixture,
@@ -767,6 +768,24 @@ await describe({
             expect(results.slice(0, 2,).map((result,) => result.status,),).toEqual(['timed-out', 'failed',],);
             expect(results.slice(-2,).map((result,) => result.status,),).toEqual(['not-run', 'not-run',],);
             expect(results[1]?.firstError?.code,).toBe('TS1005',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: parseNotificationLog.name,
+      children: [
+        it({
+          name: 'reads the recorder log: the count, then notifications whose text is percent-encoded, in the order sent',
+          fn: async () => {
+            const log = '2 t=5 notify id=1 replaces=0 app=toolchain-daily-update icon= summary=Daily%20update body=one%3B%20two%0Athree; '
+              + 't=9 notify id=2 replaces=0 app=other icon= summary=Second body=';
+            expect(parseNotificationLog(log,),).toEqual([
+              { app: 'toolchain-daily-update', summary: 'Daily update', body: 'one; two\nthree', },
+              { app: 'other', summary: 'Second', body: '', },
+            ],);
+            expect(parseNotificationLog('0',),).toEqual([],);
+            expect(parseNotificationLog('',),).toEqual([],);
           },
         },),
       ],
