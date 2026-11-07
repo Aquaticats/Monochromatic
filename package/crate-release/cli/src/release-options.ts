@@ -2,8 +2,10 @@ import { resolve } from 'node:path';
 
 import { buildCommitMessage } from './commit-message.ts';
 import {
+  defaultCpuQuota,
   defaultMemoryMax,
   defaultReleaseHost,
+  defaultTasksMax,
   defaultUnitSuffix,
   releaseHosts,
 } from './constants.ts';
@@ -92,6 +94,14 @@ export type ReleaseOptions = {
    */
   readonly memoryMax: string;
   /**
+   Systemd `CPUQuota` of the publish dry run on a local host.
+   */
+  readonly cpuQuota: string;
+  /**
+   Systemd `TasksMax` of the publish dry run on a local host.
+   */
+  readonly tasksMax: string;
+  /**
    Name of the transient unit of the publish dry run on a local host.
    */
   readonly unitName: string;
@@ -120,6 +130,8 @@ const releaseOptionDefinitions = {
   },
   'host': { type: 'string' },
   'memory-max': { type: 'string' },
+  'cpu-quota': { type: 'string' },
+  'tasks-max': { type: 'string' },
   'unit-name': { type: 'string' },
 } as const;
 
@@ -399,6 +411,22 @@ export function parseReleaseArguments({
         raw,
         name: 'memory-max',
         fallback: defaultMemoryMax
+      })
+    }),
+    cpuQuota: parseSystemdValue({
+      option: '--cpu-quota',
+      value: valueOr({
+        raw,
+        name: 'cpu-quota',
+        fallback: defaultCpuQuota
+      })
+    }),
+    tasksMax: parseSystemdValue({
+      option: '--tasks-max',
+      value: valueOr({
+        raw,
+        name: 'tasks-max',
+        fallback: defaultTasksMax
       })
     }),
     unitName: parseUnitName({

@@ -2,7 +2,9 @@ import {
   defaultAssetTemplates,
   defaultAttempts,
   defaultCurlMaxTimeSeconds,
+  defaultCpuQuota,
   defaultMemoryMax,
+  defaultTasksMax,
   defaultPollIntervalSeconds,
   defaultPushAttempts,
   defaultReleaseHost,
@@ -45,6 +47,8 @@ Options:
                         already holds <to>; runner lets cargo use the network, runs the dry run directly and refuses
                         a crate that already holds <to>
   --memory-max <value>  systemd MemoryMax of the dry run on a local host (default ${defaultMemoryMax})
+  --cpu-quota <value>   systemd CPUQuota of the dry run on a local host (default ${defaultCpuQuota})
+  --tasks-max <value>   systemd TasksMax of the dry run on a local host, threads included (default ${defaultTasksMax})
   --unit-name <name>    systemd unit name of the dry run on a local host (default <crate-name>-publish-dry)
   --root <dir>          repository root (default: the checkout that holds this package)
   --help                print this text

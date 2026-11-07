@@ -168,6 +168,23 @@ pub struct Config {
     ///       Override the default low weight that deprioritises the app under contention.
     pub app_cpu_weight: Option<u32>,
 
+    /// Optional memory cap for the app scope (`--app-memory-max`,
+    ///  a systemd `MemoryMax` value such as `4G`).
+    ///
+    /// What:
+    ///      `pub app_memory_max: Option<String>`.
+    /// Why:
+    ///       Override the measured default cap used when `--isolate` is set.
+    pub app_memory_max: Option<String>,
+
+    /// Optional limit on the threads and processes of the app scope (`--app-tasks-max`).
+    ///
+    /// What:
+    ///      `pub app_tasks_max: Option<u32>`.
+    /// Why:
+    ///       Override the measured default limit used when `--isolate` is set.
+    pub app_tasks_max: Option<u32>,
+
     /// Whether to serve the private accessibility bus.
     pub accessibility: bool,
 
