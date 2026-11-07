@@ -1,17 +1,19 @@
 //! What:
 //!  The description of one running program that the look for the commit service of an earlier release could not rule out: its
-//!  process ID, its command line in a form that is safe to print, the folder its `--journal` option names, and what the system
-//!  said when that folder was looked up.
+//!  process ID, the program it runs (the executable path of the first word of its command line), the folder its `--journal`
+//!  option names, and what the system said when that folder was looked up. No other word of the command line is kept.
 //! Why:
 //!  A program whose command line carries `--journal` with a folder that cannot be resolved holds back the settle command and the
 //!  fold of the earlier names, and it may be a tool that has nothing to do with Git. A person can act on that hold only when the
-//!  message says which program it is. A command line can carry a URL with credentials, so the userinfo of every URL is masked
-//!  with the shared masker (`lfs_output_mask.rs`) before the text exists as a `String`, and control characters are written as
-//!  escapes, so one program's words can neither start a second line of the message nor move the terminal's cursor.
+//!  message says which program it is. Any other word of its command line can be a secret (`--token abc`, `--password x`, a key
+//!  in a form no masker knows), so those words are never kept, shown or logged. The words that are kept are masked with the
+//!  shared masker (`lfs_output_mask.rs`) for URL userinfo before the text exists as a `String`, and control characters are
+//!  written as escapes, so one program's words can neither start a second line of the message nor move the terminal's cursor.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const printable = (bytes: Uint8Array): string => escapeControls(decodeLossily(maskUserinfo(bytes)))
+//! const programOf = (words: Uint8Array[]): string => printable(cutAtFirstSpace(words[0] ?? ''))
 //! ```
 
 use crate::lfs_output_mask::mask_userinfo;
@@ -22,8 +24,10 @@ use crate::lfs_output_mask::mask_userinfo;
 pub struct UnsureProgram {
     /// The process ID.
     pub pid: u32,
-    /// The words of its command line, separated by one space, printable (see [`printable`]).
-    pub command_line: String,
+    /// The program it runs: the first word of its command line, which is the executable path or the bare name it was started
+    ///  by, cut at its first space (a program that rewrites its own title puts more words there), printable (see
+    ///  [`printable`]). Empty when the first word is empty.
+    pub program: String,
     /// The word after its `--journal` option, as the command line spells it, printable.
     pub journal_word: String,
     /// Whether that word is a relative path, which is looked up in the working directory of the program itself.
@@ -54,6 +58,23 @@ pub fn printable(bytes: &[u8]) -> String {
         }
     }
     return shown;
+}
+
+/// What:
+///  The program a command line runs: its first word, cut at the first space, printable.
+/// Why:
+///   The first word is the executable path (or the bare name) the program was started by. A program that rewrites its title
+///  (`nginx: master process --key value`) puts words that were never a path after it, and those are as likely to be secrets as
+///  any other argument, so the cut keeps only what can be a path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function programOf(firstWord: Uint8Array | undefined): string;
+/// ```
+pub fn program_of(first_word: Option<&[u8]>) -> String {
+    let word: &[u8] = first_word.unwrap_or_default();
+    let end: usize = word.iter().position(u8::is_ascii_whitespace).unwrap_or(word.len());
+    return printable(&word[..end]);
 }
 
 /// Controls stay out of the release executable.

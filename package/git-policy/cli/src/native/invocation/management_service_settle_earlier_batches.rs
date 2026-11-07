@@ -66,9 +66,19 @@ pub(crate) fn state_dir_of(environment: &[(OsString, OsString)]) -> Option<PathB
     };
 }
 
-/// "1 batch" or "3 batches".
+/// The noun that agrees with a count: "batch" for one, "batches" for any other number.
+fn batch_noun(count: usize) -> &'static str {
+    return if count == 1 { "batch" } else { "batches" };
+}
+
+/// The count with its noun, as "1 batch" or "3 batches".
 fn batches(count: usize) -> String {
-    return if count == 1 { String::from("1 batch") } else { format!("{count} batches") };
+    return format!("{count} {}", batch_noun(count));
+}
+
+/// The past-tense verb that agrees with a count, as "was" for one and "were" for any other number.
+fn was_or_were(count: usize) -> &'static str {
+    return if count == 1 { "was" } else { "were" };
 }
 
 /// An exit that settled nothing, with the reason on standard error.
@@ -139,8 +149,8 @@ fn unsure_way_on(program: &UnsureProgram, own_units: &str, shared_units: &str, a
 ///  The sentences that name the program behind a hold that rests on a folder this check could not resolve, or nothing for any
 ///  other hold.
 /// Why:
-///   The person must be able to tell what blocks the command: the process ID and the command line (credentials in URLs masked),
-///  the folder that did not resolve and the system's answer, and why that is not enough to rule the program out. The look
+///   The person must be able to tell what blocks the command: the process ID and the program it runs, the folder that did not
+///  resolve and the system's answer, and why that is not enough to rule the program out. The look
 ///  stops at the first such program, so the text says another may be named once this one is gone.
 ///
 /// In TS you'd write (pseudocode):
@@ -155,8 +165,8 @@ fn program_sentences(holding: &Holding) -> String {
     let folder: &str = program.journal_word.as_str();
     let relative: String = if program.journal_word_is_relative { format!(" (a relative path, looked up in the working directory of process {pid})") } else { String::new() };
     return format!(
-        " That program is process {pid}, started as `{}`. This check looked up the folder its `--journal` option names, `{folder}`{relative}, and the system answered: {}. A folder that cannot be looked up cannot be compared with this worktree's earlier journals, so process {pid} cannot be ruled out as the earlier commit service of this worktree, and an unrelated program that takes a `--journal` option looks the same. It is the first such program this check found; another may be named once it is gone.",
-        program.command_line, program.reason
+        " That program is process {pid}, running `{}` (its other arguments are not shown, because any of them can be a secret). This check looked up the folder its `--journal` option names, `{folder}`{relative}, and the system answered: {}. A folder that cannot be looked up cannot be compared with this worktree's earlier journals, so process {pid} cannot be ruled out as the earlier commit service of this worktree, and an unrelated program that takes a `--journal` option looks the same. It is the first such program this check found; another may be named once it is gone.",
+        program.program, program.reason
     );
 }
 
@@ -212,8 +222,9 @@ pub(crate) fn settle_earlier_batches_action(request: &SettleRequest<'_>, conditi
             code: 1,
             stdout: String::new(),
             stderr: format!(
-                "{} the earlier release's commit service left open for this worktree were not settled, because {}.{} Nothing was changed. {}\n",
+                "{} the earlier release's commit service left open for this worktree {} not settled, because {}.{} Nothing was changed. {}\n",
                 batches(open),
+                was_or_were(open),
                 because.because.words(),
                 program_sentences(&because),
                 way_on(&because, instance.as_str())

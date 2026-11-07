@@ -207,7 +207,7 @@ pub fn settle_on_request(git: &GitContext, earlier: &EarlierJournals, instance: 
             earlier.shared.display(),
             because.because.words(),
             because.program.as_ref().map_or_else(String::new, |program| {
-                return format!(" (process {}, command line `{}`, journal folder `{}`: {})", program.pid, program.command_line, program.journal_word, program.reason);
+                return format!(" (process {}, program `{}`, journal folder `{}`: {}; its other arguments are not logged)", program.pid, program.program, program.journal_word, program.reason);
             })
         );
         return RequestedSettlement::Held { open, because };

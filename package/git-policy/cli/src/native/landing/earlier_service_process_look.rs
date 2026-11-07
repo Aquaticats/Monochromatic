@@ -30,7 +30,7 @@
 
 use crate::earlier_service_unsure_program::UnsureProgram;
 #[cfg(unix)]
-use crate::earlier_service_unsure_program::printable;
+use crate::earlier_service_unsure_program::{printable, program_of};
 use crate::earlier_unix_sockets_that_listen::{ListeningSockets, earlier_socket_ending, listening_sockets_ending_with};
 use crate::wrapper_names_old_and_new::{COMMAND_WORD, DATA_FOLDER};
 use std::path::{Path, PathBuf};
@@ -425,7 +425,7 @@ fn scan_processes(look: &ServiceLook, proc_root: &Path) -> Option<Holding> {
             Some(ServiceFound::Unsure { word, relative, reason }) => {
                 let program: UnsureProgram = UnsureProgram {
                     pid,
-                    command_line: printable(words.join(&b' ').as_slice()),
+                    program: program_of(words.first().copied()),
                     journal_word: printable(word.as_slice()),
                     journal_word_is_relative: relative,
                     reason,
