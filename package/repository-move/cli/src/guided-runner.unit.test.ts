@@ -796,6 +796,35 @@ await describe({
           },
         },),
         it({
+          name: 'the checks after the cut-over (W12 to W15) come after the release, each with its own check, and none uses sudo',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const stages = await cutoverStages({ c: config, stamp: 'S', },);
+              const ids = stages.map((s,) => s.id,);
+              const after = ['c23-link-check', 'c24-mise-trust', 'c25-pnpm-links', 'c26-kopia-snapshot', 'c27-container-bind', 'c28-ide-through-link',];
+              for (const id of after) {
+                expect(ids.indexOf(id,),).toBeGreaterThan(ids.indexOf('c21-release',),);
+              }
+              const stage = (id: string,) => stages.find((s,) => s.id === id,) as Stage;
+              const text = async (id: string,) => await resolvedCommand({ stage: stage(id,), config, },);
+              expect(await text('c23-link-check',),).toContain('check.mjs',);
+              expect(stage('c23-link-check',).check,).toContain('ready (on the 860)',);
+              expect(await text('c24-mise-trust',),).toContain('mise trust --all',);
+              expect(await text('c24-mise-trust',),).toContain('mise trust --show',);
+              expect(await text('c25-pnpm-links',),).toContain('find node_modules -xtype l',);
+              expect(stage('c25-pnpm-links',).check,).toContain('test ! -s',);
+              expect(await text('c26-kopia-snapshot',),).toContain('kopia snapshot create',);
+              expect(await text('c27-container-bind',),).toContain('--mount type=bind',);
+              expect(stage('c28-ide-through-link',).assertion,).toBeDefined();
+              for (const id of after) {
+                expect(stage(id,).check,).toBeDefined();
+                expect(stage(id,).root,).toBe('no',);
+                expect(await text(id,),).not.toContain('sudo',);
+              }
+            },);
+          },
+        },),
+        it({
           name: 'the 860 mount option has a stage that prepares the edit, then applies it and checks the unit and the live options',
           fn: async () => {
             await withConfig(async ({ config, },) => {
