@@ -8,7 +8,8 @@ a `tsc` wrapper that filters `node_modules` diagnostics,
 an `oxlint` wrapper that augments diagnostics while preserving every finding and exit status,
 the pull-or-build step for the Playwright container image,
 the runner of the lock's `mpm-shadow`,
-and the daily update of every lock, which checks every package before and after it and opens a fix-forward issue for
+and the daily update of every lock,
+which checks every package before and after it and opens a fix-forward issue for
 each package it breaks.
 
 ## Orchestration regression tests
@@ -95,11 +96,13 @@ Non-zero exit codes are errors,
 
 Nothing waits forever.
 Every `sh:` item and `sh:` time strategy is ended after `--query-timeout-seconds` (default 60),
-and the command after `--` is ended after `--command-timeout-seconds` (default 3600; a provisional value).
+and the command after `--` is ended after `--command-timeout-seconds` (default 3600;
+a provisional value).
 Both accept fractions of a second.
 An ended child is a failure with exit code 1,
  and the message names the bound and the option that changes it.
-The child runs in its own process group and the whole group is killed, so a pipeline leaves no member behind.
+The child runs in its own process group and the whole group is killed,
+so a pipeline leaves no member behind.
 The glob reads of `-s` and `-o` run inside task-depends itself and have no bound of their own.
 
 ```sh
@@ -296,29 +299,47 @@ task-mpm-shadow install --lockfile-only --frozen-lockfile
 
 ### task-daily-update
 
-The daily update of the toolchain locks and the dependency locks, and the report of what it breaks.
+The daily update of the toolchain locks and the dependency locks,
+and the report of what it breaks.
 `mise run toolchain:update:daily` runs it once;
 the systemd user timer installed by `mise run toolchain:timer:install` runs it every day.
-The order of its steps, the failure rules, the measured caps and the check bounds are in
+The order of its steps,
+the failure rules,
+the measured caps and the check bounds are in
 `doc/planning/toolchain-always-latest.md` ("The daily update" and "Checking every package after the update").
 
-After the groups commit, the update tells the owner what the update broke:
+After the groups commit,
+the update tells the owner what the update broke:
 
-- Before anything is updated, every package is checked through its own `mise` task: `lint:clippy` for a Rust crate,
+- Before anything is updated,
+  every package is checked through its own `mise` task:
+  `lint:clippy` for a Rust crate,
   `lint:types` for a TypeScript package.
   A package with neither task is not checked.
-- After the groups commit, every package is checked again, when the update moved anything.
+- After the groups commit,
+  every package is checked again,
+  when the update moved anything.
   The commits are never waited on and never undone by this.
-- A check that passed before and fails after is newly red; one that failed before is already red and is never reported;
-  one that timed out or never ran is unknown, and is named in the notification and never gets an issue.
-- Each newly red package gets one GitHub issue through `gh` in this repository, labeled `needs-triage`
+- A check that passed before and fails after is newly red;
+  one that failed before is already red and is never reported;
+  one that timed out or never ran is unknown,
+  and is named in the notification and never gets an issue.
+- Each newly red package gets one GitHub issue through `gh` in this repository,
+  labeled `needs-triage`
   (`doc/agent/triage-labels.md`).
-  It names the update commits, what moved in the package's lock and in the toolchain locks, the first error with its
-  code, and the command that reproduces it.
-  An open issue with the same package, check and cause gets a comment instead.
+  It names the update commits,
+  what moved in the package's lock and in the toolchain locks,
+  the first error with its
+  code,
+  and the command that reproduces it.
+  An open issue with the same package,
+  check and cause gets a comment instead.
 - A `gh` failure is logged with its reason and the issue is kept in
-  `.cache/toolchain-daily-update-pending-issues.json` for the next run; it never changes the exit status.
-- The owner gets at most one desktop notification per run, with the issue addresses; the journal has the details.
+  `.cache/toolchain-daily-update-pending-issues.json` for the next run;
+  it never changes the exit status.
+- The owner gets at most one desktop notification per run,
+  with the issue addresses;
+  the journal has the details.
 
 Tests never reach a real desktop or a real GitHub:
 `src/daily-update-package-checks.unit.test.ts` scripts every effect,
