@@ -12,8 +12,10 @@
  @module
  */
 
-import { PARENT_UNKNOWN, } from './inventory.ts';
-import type { Subvolume, } from './inventory.ts';
+import {
+  PARENT_UNKNOWN,
+  type Subvolume,
+} from './inventory.ts';
 
 /**
  A subvolume this pass already sent, with the name of its snapshot.
@@ -53,13 +55,13 @@ const NO_PARENT = '-';
 
  @param sent - the copies already sent
 
- @returns the copy and the subvolume it stands for, or undefined when no ancestor was sent
+ @returns the copy as the only element, or an empty list when no ancestor was sent
 
  @example
  ```ts
  import { nearestSentAncestor, } from './send-plan.ts';
 
- const found = nearestSentAncestor({ subvolume, everyone, sent, },);
+ const [found,] = nearestSentAncestor({ subvolume, everyone, sent, },);
  ```
  */
 export function nearestSentAncestor(
@@ -72,11 +74,12 @@ export function nearestSentAncestor(
     readonly everyone: readonly Subvolume[];
     readonly sent: readonly SentCopy[];
   },
-): SentCopy | undefined {
+): readonly SentCopy[] {
   // The chain is at most as long as the list; the bound also stops a malformed inventory whose parents form a loop.
   for (
     let hops = 0, uuid = subvolume.parentUuid;
-    (hops <= everyone.length) && (uuid !== NO_PARENT) && (uuid !== PARENT_UNKNOWN);
+    (hops <= everyone.length) && (uuid !== NO_PARENT)
+      && (uuid !== PARENT_UNKNOWN);
     hops += 1
   ) {
     /**
@@ -86,7 +89,7 @@ export function nearestSentAncestor(
       return candidate.uuid === uuid;
     },);
     if (copy !== undefined) {
-      return copy;
+      return [copy,];
     }
     /**
      The ancestor itself, to read its own parent.
@@ -95,11 +98,11 @@ export function nearestSentAncestor(
       return candidate.uuid === uuid;
     },);
     if (ancestor === undefined) {
-      return undefined;
+      return [];
     }
     uuid = ancestor.parentUuid;
   }
-  return undefined;
+  return [];
 }
 
 /**
@@ -156,9 +159,9 @@ export function planSend(
     };
   }
   /**
-   The nearest ancestor this pass already sent.
+   The nearest ancestor this pass already sent: the only element, or none.
    */
-  const ancestor = nearestSentAncestor({
+  const [ancestor,] = nearestSentAncestor({
     subvolume,
     everyone,
     sent,

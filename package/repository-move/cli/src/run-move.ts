@@ -79,19 +79,16 @@ export async function runMove(argv: readonly string[],): Promise<void> {
     options: givenOptions,
     log: runner.log,
   },);
-  if (options.pass === 'freeze') {
-    await freeze({
+  await (options.pass === 'freeze'
+    ? freeze({
       subvolumes,
       runner,
       stateFolder: options.stateFolder,
       run: options.run,
-    },);
-  }
-  else {
-    await runCopyPass({
+    },)
+    : runCopyPass({
       options,
       runner,
       subvolumes,
-    },);
-  }
+    },));
 }

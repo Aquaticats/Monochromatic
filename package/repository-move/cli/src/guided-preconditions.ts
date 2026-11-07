@@ -21,6 +21,7 @@ import type {
   GuidedConfig,
   GuidedFlags,
 } from './guided-types.ts';
+import { errorCodeOf, } from './error-code-of.ts';
 
 /**
  Mode of the runner's log folder: the owner only.
@@ -63,7 +64,7 @@ async function isSymbolicLink(path: string,): Promise<boolean> {
     return (await lstat(path,)).isSymbolicLink();
   }
   catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if (errorCodeOf(error,) === 'ENOENT') {
       return false;
     }
     throw error;
@@ -186,25 +187,45 @@ export async function requirePreconditions(
   if ((here === config.repo) || here.startsWith(`${config.repo}/`,)) {
     refuse('The current folder is inside the repository; the holder scans would report this shell. cd out of it first.',);
   }
-  for (const tool of [
+  /**
+   The tools the run needs, in the order a missing one is named.
+   */
+  const tools = [
     config.copyTool,
     config.scanTool,
     config.nodePath,
-  ]) {
-    if (!await pathExists(tool,)) {
-      refuse(`Missing: ${tool}`,);
-    }
+  ];
+  /**
+   Whether each tool exists.
+   */
+  const toolsPresent = await Promise.all(tools.map(async function check(tool,) {
+    return await pathExists(tool,);
+  },),);
+  /**
+   The first tool that is missing.
+   */
+  const missingTool = tools[toolsPresent.indexOf(false,)];
+  if (toolsPresent.includes(false,) && (missingTool !== undefined)) {
+    refuse(`Missing: ${missingTool}`,);
   }
   if (flags.command === 'cutover') {
-    for (const item of REQUIRED_PREPARE_STAGES) {
-      if (!await pathExists(join(
+    /**
+     Whether each required prepare stage is recorded done.
+     */
+    const stagesDone = await Promise.all(REQUIRED_PREPARE_STAGES.map(async function check(item,) {
+      return await pathExists(join(
         config.wiz,
         'done',
         'prepare',
         item,
-      ),)) {
-        refuse(`Prepare stage ${item} is not recorded as done. Run prepare first.`,);
-      }
+      ),);
+    },),);
+    /**
+     The first required stage that is not recorded.
+     */
+    const missingStage = REQUIRED_PREPARE_STAGES[stagesDone.indexOf(false,)];
+    if (stagesDone.includes(false,) && (missingStage !== undefined)) {
+      refuse(`Prepare stage ${missingStage} is not recorded as done. Run prepare first.`,);
     }
   }
   if ((flags.command === 'thaw') && await isSymbolicLink(config.repo,)) {

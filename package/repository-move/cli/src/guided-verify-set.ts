@@ -12,6 +12,7 @@ import {
 import { join, } from 'node:path';
 import type { GuidedConfig, } from './guided-types.ts';
 import { isDigits, } from './text-checks.ts';
+import { parseTextFields, } from './json-text-fields.ts';
 
 /**
  How many of the largest and of the smallest subvolumes the content check covers: the plan's "six largest and six
@@ -53,19 +54,19 @@ async function finalMap(config: GuidedConfig,): Promise<readonly (readonly [
     /**
      The parsed content of a record file.
      */
-    const data = JSON.parse(await readFile(
+    const data = parseTextFields(await readFile(
       join(
         config.moveState,
         file,
       ),
       'utf8',
-    ),) as { readonly path: string; };
+    ),);
     return [
       file.slice(
         0,
         -'.snapshot.json'.length,
       ),
-      data.path,
+      data.path ?? '',
     ] as const;
   },),);
 }
@@ -107,7 +108,7 @@ export async function selectVerify(config: GuidedConfig,): Promise<string> {
   /**
    The first entry.
    */
-  const first = map[0];
+  const [first,] = map;
   if (first !== undefined) {
     wanted.add(first[1],);
   }

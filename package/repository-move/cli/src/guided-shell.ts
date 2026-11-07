@@ -129,21 +129,14 @@ export async function runShell(request: ShellRequest,): Promise<number> {
       },
     );
   }
-  /**
-   The closed of this step.
-   */
-  const closed = await once(
+  await once(
     child,
     'close',
   );
-  /**
-   The parts of the value this function uses, taken out of it.
-   */
-  const [code,] = closed;
   sink.end();
   await once(
     sink,
     'close',
   );
-  return (typeof code) === 'number' ? code : EXIT_STAGE_FAILED;
+  return child.exitCode ?? EXIT_STAGE_FAILED;
 }

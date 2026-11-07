@@ -125,15 +125,13 @@ export async function runCopyPass(
         mode: STATE_FOLDER_MODE,
       },
     );
-    if (isFinal) {
-      await requireFrozen({
+    await (isFinal
+      ? requireFrozen({
         current: subvolumes,
         runner,
         stateFolder: options.stateFolder,
-      },);
-    }
-    else {
-      await writeTextAtomically({
+      },)
+      : writeTextAtomically({
         path: join(
           options.stateFolder,
           FIRST_PASS_MANIFEST,
@@ -148,8 +146,7 @@ export async function runCopyPass(
           },)
             .join('\n',)
         }\n`,
-      },);
-    }
+      },));
   }
   /**
    The sent of this step.
@@ -233,15 +230,16 @@ export async function runCopyPass(
           plan.parent,
         ),
       ]),
-      ...plan.clones.flatMap(function cloneArguments(earlier,) {
-        return [
-          '-c',
-          join(
-            options.snapshotFolder,
-            earlier,
-          ),
-        ];
-      },),
+      ...plan.clones
+        .flatMap(function cloneArguments(earlier,) {
+          return [
+            '-c',
+            join(
+              options.snapshotFolder,
+              earlier,
+            ),
+          ];
+        },),
     ];
     await receiveStep({
       context,

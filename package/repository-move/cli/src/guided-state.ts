@@ -318,11 +318,11 @@ export async function renameCutoverStateAside(
     readonly suffix: string;
   },
 ): Promise<void> {
-  for (const name of [
+  await Promise.all([
     'done/cutover',
     'window-start',
     'swap-timestamp',
-  ]) {
+  ].map(async function renameOne(name,) {
     /**
      The path this step works on.
      */
@@ -336,5 +336,5 @@ export async function renameCutoverStateAside(
         `${path}.aborted-${suffix}`,
       );
     }
-  }
+  },),);
 }

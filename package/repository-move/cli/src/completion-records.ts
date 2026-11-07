@@ -14,6 +14,8 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { isDigits, } from './text-checks.ts';
+import { errorCodeOf, } from './error-code-of.ts';
+import { parseTextFields, } from './json-text-fields.ts';
 
 /**
  Suffix of the snapshot records, which double as the ledger of copy names.
@@ -87,7 +89,7 @@ export async function pathExists(path: string,): Promise<boolean> {
     return true;
   }
   catch (error) {
-    if ((error as NodeJS.ErrnoException).code === MISSING_PATH_CODE) {
+    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
       return false;
     }
     throw error;
@@ -271,16 +273,13 @@ export async function readSnapshotEntries(
     /**
      The parsed content of a record file.
      */
-    const data = JSON.parse(await readFile(
+    const data = parseTextFields(await readFile(
       join(
         stateFolder,
         file,
       ),
       'utf8',
-    ),) as {
-      readonly uuid?: string;
-      readonly path?: string;
-    };
+    ),);
     return {
       name: file.slice(
         0,
