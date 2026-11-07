@@ -1,11 +1,16 @@
 //! What:
 //!  The durable journal of one destination's linked-worktree copy:
-//!  private storage under `<common>/monochromatic-git-policy-cli-worktree-copy/v1`, the atomic writes into it, and the reading of what it holds.
-//!  The exact JSON encoding is in `worktree_copy_journal_encoding_and_validation.rs`, and the removal of a finished
+//!  private storage under `<common>/monochromatic-git-policy-cli-worktree-copy/v1`,
+//! the atomic writes into it,
+//! and the reading of what it holds.
+//!  The exact JSON encoding is in `worktree_copy_journal_encoding_and_validation.rs`,
+//! and the removal of a finished
 //!  transaction's stage and journal is in `worktree_copy_journal_removal.rs`.
 //! Why:
-//!  A crash can happen after any step, so the journal must say which phase the copy reached
-//!  and which paths it may have touched, and recovery must never act on a journal it cannot prove
+//!  A crash can happen after any step,
+//! so the journal must say which phase the copy reached
+//!  and which paths it may have touched,
+//! and recovery must never act on a journal it cannot prove
 //!  is its own.
 //!
 //! In TS you'd write (pseudocode):
@@ -36,9 +41,11 @@ use std::path::{Path, PathBuf};
 const NON_PRIVATE_MODE_BITS: u32 = 0o077;
 
 /// What:
-///  The role a private path plays, which selects its expected entry kind.
+///  The role a private path plays,
+/// which selects its expected entry kind.
 /// Why:
-///   A journal file must be a single-link file; a directory must be a directory.
+///   A journal file must be a single-link file;
+/// a directory must be a directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -67,9 +74,14 @@ impl Role {
 }
 
 /// What:
-///  Checks that a path is canonical, owned by this account, private, and of the role's kind.
+///  Checks that a path is canonical,
+/// owned by this account,
+/// private,
+/// and of the role's kind.
 /// Why:
-///   A journal or stage that another account can write, or that a link redirects, is never acted on.
+///   A journal or stage that another account can write,
+/// or that a link redirects,
+/// is never acted on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -108,7 +120,8 @@ pub fn assert_private_path(path: &Path, role: Role) -> Result<(), WorktreeCopyEr
 }
 
 /// What:
-///  The journal root beneath a common Git directory, without creating anything.
+///  The journal root beneath a common Git directory,
+/// without creating anything.
 /// Why:
 ///   Readers check for pending state before they decide whether to create it.
 ///
@@ -123,7 +136,9 @@ pub fn journal_root(common_dir: &Path) -> PathBuf {
 }
 
 /// What:
-///  Creates one private directory, or accepts an existing one, and checks it.
+///  Creates one private directory,
+/// or accepts an existing one,
+/// and checks it.
 /// Why:
 ///   An interrupted creation or a second writer must not fail the other writer.
 ///
@@ -143,7 +158,8 @@ fn ensure_private_directory(path: &Path) -> Result<(), WorktreeCopyError> {
 }
 
 /// What:
-///  Creates and checks the journal parent and root, and returns the root.
+///  Creates and checks the journal parent and root,
+/// and returns the root.
 /// Why:
 ///   Every writer needs the same private location before it writes.
 ///
@@ -159,9 +175,14 @@ pub fn ensure_journal_root(common_dir: &Path) -> Result<PathBuf, WorktreeCopyErr
 }
 
 /// What:
-///  Writes one complete journal atomically: a private exclusive temporary, synced, renamed, and its directory synced.
+///  Writes one complete journal atomically:
+/// a private exclusive temporary,
+/// synced,
+/// renamed,
+/// and its directory synced.
 /// Why:
-///   A reader sees either the previous complete journal or the new complete one, never a fragment.
+///   A reader sees either the previous complete journal or the new complete one,
+/// never a fragment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -172,9 +193,11 @@ pub fn write_journal(path: &Path, journal: &Journal) -> Result<(), WorktreeCopyE
 }
 
 /// What:
-///  The name of the temporary file a write of `path` by `owner` uses: `<path>.<owner>.<unique>.tmp`.
+///  The name of the temporary file a write of `path` by `owner` uses:
+/// `<path>.<owner>.<unique>.tmp`.
 /// Why:
-///   The writer's owner is part of the temporary's name, so a sweep removes only a dead writer's temporaries and can never
+///   The writer's owner is part of the temporary's name,
+/// so a sweep removes only a dead writer's temporaries and can never
 ///  delete one a live writer is about to rename.
 ///
 /// In TS you'd write (pseudocode):
@@ -186,7 +209,8 @@ pub fn temporary_path(path: &Path, owner: &CopyOwner, unique: &str) -> PathBuf {
 }
 
 /// What:
-///  The writer's owner token in a temporary file's name, or nothing for a name of another shape.
+///  The writer's owner token in a temporary file's name,
+/// or nothing for a name of another shape.
 /// Why:
 ///   It is the inverse of [`temporary_path`] that the sweep of dead writers' temporaries reads.
 ///
@@ -202,9 +226,11 @@ pub fn temporary_writer_token(file_name: &str) -> Option<&str> {
 }
 
 /// What:
-///  Writes one private file atomically beside its final name; a failure names `subject` and leaves no temporary.
+///  Writes one private file atomically beside its final name;
+/// a failure names `subject` and leaves no temporary.
 /// Why:
-///   Journals and stage claims share one rule: a reader sees a complete file or none.
+///   Journals and stage claims share one rule:
+/// a reader sees a complete file or none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -217,18 +243,24 @@ pub fn write_atomic(path: &Path, bytes: &[u8], subject: &str) -> Result<(), Work
 /// Whether a record written by [`write_atomic_flushing`] is flushed to disk before the call returns.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Flush {
-    /// The file and its directory are flushed: a crash finds the record.
+    /// The file and its directory are flushed:
+    /// a crash finds the record.
     ToDisk,
-    /// Neither is flushed: the file is published whole by the rename, and the filesystem makes it durable with its next commit.
+    /// Neither is flushed:
+    /// the file is published whole by the rename,
+    /// and the filesystem makes it durable with its next commit.
     Never,
 }
 
 /// What:
-///  Writes one private file atomically beside its final name without flushing the file or its directory to disk; a failure
+///  Writes one private file atomically beside its final name without flushing the file or its directory to disk;
+/// a failure
 ///  names `subject` and leaves no temporary.
 /// Why:
 ///   A flush after a subvolume was swapped into place in the same btrfs transaction is a commit of the whole filesystem (the
-///  kernel sets `btrfs_set_log_full_commit` for the swap), which waits for every other writer's data. A record that only
+///  kernel sets `btrfs_set_log_full_commit` for the swap),
+/// which waits for every other writer's data.
+/// A record that only
 ///  silences a notice is published whole by the rename and made durable by the commit the filesystem makes anyway.
 ///
 /// In TS you'd write (pseudocode):
@@ -239,7 +271,9 @@ pub fn write_atomic_unsynced(path: &Path, bytes: &[u8], subject: &str) -> Result
     return write_atomic_flushing(path, bytes, subject, Flush::Never);
 }
 
-/// `write_atomic` and `write_atomic_unsynced`: one rename publishes the whole file; `flush` says whether the file and its
+/// `write_atomic` and `write_atomic_unsynced`:
+/// one rename publishes the whole file;
+/// `flush` says whether the file and its
 ///  directory are flushed.
 fn write_atomic_flushing(path: &Path, bytes: &[u8], subject: &str, flush: Flush) -> Result<(), WorktreeCopyError> {
     let unique: String = match random_uuid() {
@@ -280,7 +314,8 @@ fn write_atomic_flushing(path: &Path, bytes: &[u8], subject: &str, flush: Flush)
 }
 
 /// What:
-///  Creates the staged journal of one destination, durable before any destination is touched.
+///  Creates the staged journal of one destination,
+/// durable before any destination is touched.
 /// Why:
 ///   Recovery needs the stage and destination named before installation starts.
 ///
@@ -297,9 +332,11 @@ pub fn create_journal(
 }
 
 /// What:
-///  Creates the staged journal of one destination for a named owner, durable before any destination is touched.
+///  Creates the staged journal of one destination for a named owner,
+/// durable before any destination is touched.
 /// Why:
-///   The journal's name carries its owner; a control or a hand-over can name an owner other than the running process.
+///   The journal's name carries its owner;
+/// a control or a hand-over can name an owner other than the running process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -332,11 +369,18 @@ pub fn create_journal_for(
 }
 
 /// What:
-///  Takes over a journal whose owner is dead, by renaming it to a name that carries the new owner.
+///  Takes over a journal whose owner is dead,
+/// by renaming it to a name that carries the new owner.
 /// Why:
-///   One rename is the whole claim: a command that loses the race finds the old name gone and leaves the journal to the
-///  winner, so two commands never install one journal. This is the lock-free single winner for recovery; no file of a lock
-///  exists, none is waited for and none can go stale (if the winner dies, the journal's name shows a dead owner again).
+///   One rename is the whole claim:
+/// a command that loses the race finds the old name gone and leaves the journal to the
+///  winner,
+/// so two commands never install one journal.
+/// This is the lock-free single winner for recovery;
+/// no file of a lock
+///  exists,
+/// none is waited for and none can go stale (if the winner dies,
+/// the journal's name shows a dead owner again).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -360,9 +404,11 @@ pub fn adopt_journal(pending: &PendingJournal, owner: &CopyOwner) -> Result<Opti
 }
 
 /// What:
-///  Whether the journal's owner is dead, so any command may take it over.
+///  Whether the journal's owner is dead,
+/// so any command may take it over.
 /// Why:
-///   A journal with a live owner belongs to a copy that is still running; recovering it would install it twice.
+///   A journal with a live owner belongs to a copy that is still running;
+/// recovering it would install it twice.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -373,7 +419,8 @@ pub fn journal_owner_is_dead(pending: &PendingJournal) -> Result<bool, WorktreeC
 }
 
 /// What:
-///  Check that a listed journal file is private, read it and parse it.
+///  Check that a listed journal file is private,
+/// read it and parse it.
 /// Why:
 ///   Only a journal this user owns and can prove is its own may be acted on.
 ///
@@ -388,9 +435,11 @@ fn load_listed_journal(path: &Path, root: &Path) -> Result<Journal, WorktreeCopy
 }
 
 /// What:
-///  Rename a written temporary file over `path`, and make the directory durable when the flush mode asks.
+///  Rename a written temporary file over `path`,
+/// and make the directory durable when the flush mode asks.
 /// Why:
-///   The rename publishes the journal in one step, and the sync makes the publication survive a crash.
+///   The rename publishes the journal in one step,
+/// and the sync makes the publication survive a crash.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -405,10 +454,14 @@ fn publish_written(temporary: &Path, path: &Path, flush: Flush) -> std::io::Resu
 }
 
 /// What:
-///  Reads one journal a listing named, or nothing when the file is gone by the time it is read.
+///  Reads one journal a listing named,
+/// or nothing when the file is gone by the time it is read.
 /// Why:
-///   Another command finishes or takes over a journal at any moment, which is no fault of this reader; every other failure,
-///  a corrupt or unsafe journal included, is reported.
+///   Another command finishes or takes over a journal at any moment,
+/// which is no fault of this reader;
+/// every other failure,
+///  a corrupt or unsafe journal included,
+/// is reported.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -431,7 +484,9 @@ fn read_listed_journal(root: &Path, name: &str) -> Result<Option<PendingJournal>
 }
 
 /// What:
-///  Lists the journal files of a common directory, validated, in journal-name order.
+///  Lists the journal files of a common directory,
+/// validated,
+/// in journal-name order.
 /// Why:
 ///   Recovery and the pending check read the same validated set.
 ///
@@ -481,9 +536,12 @@ pub fn read_pending_journals(common_dir: &Path) -> Result<Vec<PendingJournal>, W
 }
 
 /// What:
-///  The text of one journal file, read as UTF-8 with replacement, as the incumbent reads it.
+///  The text of one journal file,
+/// read as UTF-8 with replacement,
+/// as the incumbent reads it.
 /// Why:
-///   An unreadable journal is named, not skipped.
+///   An unreadable journal is named,
+/// not skipped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

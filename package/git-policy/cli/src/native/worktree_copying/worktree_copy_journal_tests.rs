@@ -1,4 +1,7 @@
-//! Journal checks: the exact encoding, strict validation, private storage and removal on disk.
+//! Journal checks:
+//! the exact encoding,
+//! strict validation,
+//! private storage and removal on disk.
 
 use super::*;
 use crate::worktree_copy_install_entry::InstalledPath;
@@ -28,7 +31,8 @@ fn sample(root: &Path) -> Journal {
     };
 }
 
-/// The encoding is the incumbent's `JSON.stringify` of the same object, with a final line feed.
+/// The encoding is the incumbent's `JSON.stringify` of the same object,
+/// with a final line feed.
 #[test]
 fn encoding_matches_the_incumbent_exactly() {
     let journal: Journal = sample(Path::new("/w"));
@@ -181,7 +185,8 @@ fn validation_refuses_each_malformed_shape() {
     remove(root.as_path());
 }
 
-/// Only an absolute path with no empty, `.` or `..` component is canonical.
+/// Only an absolute path with no empty,
+/// `.` or `..` component is canonical.
 #[test]
 fn only_canonical_absolute_paths_are_accepted() {
     for accepted in ["/", "/a", "/a/b", "/a/.hidden", "/a/b.c"] {
@@ -194,7 +199,8 @@ fn only_canonical_absolute_paths_are_accepted() {
     }
 }
 
-/// A device or inode is a decimal without a leading zero, and `0` itself is one.
+/// A device or inode is a decimal without a leading zero,
+/// and `0` itself is one.
 #[test]
 fn identities_are_canonical_decimals() {
     let text = |value: &str| return serde_json::Value::String(String::from(value));
@@ -258,7 +264,8 @@ fn each_stage_relation_and_each_repeated_list_is_refused_alone() {
     remove(root.as_path());
 }
 
-/// The journal root and its parent are created private, and a journal written there reads back exactly.
+/// The journal root and its parent are created private,
+/// and a journal written there reads back exactly.
 #[cfg(unix)]
 #[test]
 fn journal_is_written_privately_and_read_back() {
@@ -335,7 +342,8 @@ fn unsafe_journal_mode_fails_closed_and_is_kept() {
     remove(root.as_path());
 }
 
-/// A journal file with a second hard link is unsafe, because its content could be changed elsewhere.
+/// A journal file with a second hard link is unsafe,
+/// because its content could be changed elsewhere.
 #[cfg(unix)]
 #[test]
 fn journal_with_extra_hard_link_is_unsafe() {
@@ -374,7 +382,9 @@ fn unwritable_journal_leaves_no_temporary() {
     remove(root.as_path());
 }
 
-/// Removal writes the complete phase, deletes the stage with its read-only subdirectories, and deletes the journal.
+/// Removal writes the complete phase,
+/// deletes the stage with its read-only subdirectories,
+/// and deletes the journal.
 #[cfg(unix)]
 #[test]
 fn removal_deletes_stage_and_journal() {
@@ -429,7 +439,8 @@ fn the_complete_phase_is_written_before_the_stage_is_removed() {
     remove(root.as_path());
 }
 
-/// A path that cannot be inspected or removed is a failure, never an absent path.
+/// A path that cannot be inspected or removed is a failure,
+/// never an absent path.
 #[cfg(unix)]
 #[test]
 fn removals_report_what_they_cannot_inspect() {
@@ -469,7 +480,9 @@ fn a_refused_creation_names_the_refusal() {
     remove(root.as_path());
 }
 
-/// A private path is refused for the wrong kind, a second link, and a route through a link.
+/// A private path is refused for the wrong kind,
+/// a second link,
+/// and a route through a link.
 #[cfg(unix)]
 #[test]
 fn private_paths_are_refused_for_kind_links_and_route() {
@@ -496,7 +509,9 @@ fn private_paths_are_refused_for_kind_links_and_route() {
     remove(root.as_path());
 }
 
-/// Only the temporaries of the one journal are removed: not the journal, not another journal's temporaries,
+/// Only the temporaries of the one journal are removed:
+/// not the journal,
+/// not another journal's temporaries,
 ///  not files that merely share its prefix or the temporary suffix.
 #[test]
 fn only_a_journals_own_temporaries_are_removed() {
@@ -521,7 +536,8 @@ fn only_a_journals_own_temporaries_are_removed() {
     remove(root.as_path());
 }
 
-/// A stage with several subtrees below the split depth is removed whole, by workers sharing the subtrees.
+/// A stage with several subtrees below the split depth is removed whole,
+/// by workers sharing the subtrees.
 #[test]
 fn a_stage_with_many_subtrees_is_removed_whole() {
     let root: PathBuf = fixture("journal-split-removal");
@@ -540,8 +556,10 @@ fn a_stage_with_many_subtrees_is_removed_whole() {
     remove(root.as_path());
 }
 
-/// A journal named by a listing that is gone by the time it is read is skipped, while a journal that is there and corrupt is
-/// still an error: the skip is for a vanished file only.
+/// A journal named by a listing that is gone by the time it is read is skipped,
+/// while a journal that is there and corrupt is
+/// still an error:
+/// the skip is for a vanished file only.
 #[test]
 fn a_vanished_journal_is_skipped_and_a_corrupt_one_is_not() {
     let root: PathBuf = fixture("journal-vanished");
@@ -554,7 +572,9 @@ fn a_vanished_journal_is_skipped_and_a_corrupt_one_is_not() {
     remove(root.as_path());
 }
 
-/// A journal's name carries its owner, the owner reads back from the name, and a name without one has no owner.
+/// A journal's name carries its owner,
+/// the owner reads back from the name,
+/// and a name without one has no owner.
 #[test]
 fn a_journal_names_its_owner() {
     let owner = crate::worktree_copy_owner::current_copy_owner().expect("owner");
@@ -564,7 +584,9 @@ fn a_journal_names_its_owner() {
     assert_eq!(owner_token_of(Path::new("/journals/abc.def.stage")), None, "a file that is no journal");
 }
 
-/// A temporary file names the process that writes it, the name reads back to the writer, and a name of another shape has none.
+/// A temporary file names the process that writes it,
+/// the name reads back to the writer,
+/// and a name of another shape has none.
 #[test]
 fn a_temporary_names_its_writer() {
     let owner = crate::worktree_copy_owner::current_copy_owner().expect("owner");
@@ -589,7 +611,8 @@ fn a_failed_write_removes_its_temporary() {
     remove(root.as_path());
 }
 
-/// A journal name with its owner and a temporary of that journal fit a file name, whatever the platform's identity is.
+/// A journal name with its owner and a temporary of that journal fit a file name,
+/// whatever the platform's identity is.
 #[test]
 fn the_longest_names_fit_a_file_name() {
     let owner = crate::worktree_copy_owner::CopyOwner { pid: 4_194_304, birth_identity: String::from("linux:123456789012"), pid_namespace: Some(String::from("pid:[4026531836]")) };
@@ -599,7 +622,8 @@ fn the_longest_names_fit_a_file_name() {
     assert!(temporary.len() <= 255, "{} bytes", temporary.len());
 }
 
-/// Where the system starts no thread the removal workers' subtrees are removed in turn. The body runs in a child that is refused
+/// Where the system starts no thread the removal workers' subtrees are removed in turn.
+/// The body runs in a child that is refused
 /// every thread.
 #[test]
 fn a_split_removal_where_no_thread_can_start_removes_the_whole_tree() {

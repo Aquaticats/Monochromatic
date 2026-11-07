@@ -3,7 +3,9 @@
 //!  with the complete user-facing diagnostic in its message.
 //! Why:
 //!  Every copy step fails with a message that names the path it could not handle
-//!  and, when there is one, the operating system's cause.
+//!  and,
+//! when there is one,
+//! the operating system's cause.
 //!  The incumbent renders the cause after the message with a fixed separator,
 //!  so both wrappers print the same words.
 //!
@@ -30,7 +32,8 @@ pub const AUTOMATIC_FAILURE_MESSAGE: &str =
 /// What:
 ///  One copy failure and its complete diagnostic.
 /// Why:
-///   Callers print the message unchanged; the lifecycle decides the exit status.
+///   Callers print the message unchanged;
+/// the lifecycle decides the exit status.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -40,9 +43,12 @@ pub const AUTOMATIC_FAILURE_MESSAGE: &str =
 pub struct WorktreeCopyError(pub String);
 
 /// What:
-///  The diagnostic of one failed step: its message, then the cause when one exists.
+///  The diagnostic of one failed step:
+/// its message,
+/// then the cause when one exists.
 /// Why:
-///   A cause is appended exactly once, after the separator the incumbent uses.
+///   A cause is appended exactly once,
+/// after the separator the incumbent uses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -64,10 +70,12 @@ pub fn failure_with_cause(
 }
 
 /// What:
-///  A failure from the operating system or from a process, carried as its own text with no wrapper sentence.
+///  A failure from the operating system or from a process,
+/// carried as its own text with no wrapper sentence.
 /// Why:
 ///   Every step that does not own a wording of its own leaves the raw text to the nearest enclosing wrapper.
-///   Messages monochromatic-git-policy-cli owns always start with `monochromatic-git-policy-cli:`, so a raw text can be told apart without another flag.
+///   Messages monochromatic-git-policy-cli owns always start with `monochromatic-git-policy-cli:`,
+/// so a raw text can be told apart without another flag.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -78,9 +86,12 @@ pub fn raw_failure(cause: &dyn std::fmt::Display) -> WorktreeCopyError {
 }
 
 /// What:
-///  The same as `raw_failure`, for a cause passed by value, so it can stand where a function path is wanted.
+///  The same as `raw_failure`,
+/// for a cause passed by value,
+/// so it can stand where a function path is wanted.
 /// Why:
-///   `map_err` hands its function the error by value; this lets `.map_err(raw_failure_of)` replace a closure that only
+///   `map_err` hands its function the error by value;
+/// this lets `.map_err(raw_failure_of)` replace a closure that only
 ///  borrowed the error to call `raw_failure`.
 ///
 /// In TS you'd write (pseudocode):
@@ -94,7 +105,8 @@ pub fn raw_failure_of<Cause: std::fmt::Display>(cause: Cause) -> WorktreeCopyErr
 /// What:
 ///  Whether a failure is raw text that an enclosing wrapper still has to word.
 /// Why:
-///   The incumbent wraps only failures that are not already its own `WorktreeCopyError`, and monochromatic-git-policy-cli's own messages always start with its prefix.
+///   The incumbent wraps only failures that are not already its own `WorktreeCopyError`,
+/// and monochromatic-git-policy-cli's own messages always start with its prefix.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,9 +117,11 @@ pub fn is_raw_failure(error: &WorktreeCopyError) -> bool {
 }
 
 /// What:
-///  Words a raw failure with the given message, and leaves an owned failure as it is.
+///  Words a raw failure with the given message,
+/// and leaves an owned failure as it is.
 /// Why:
-///   Each wrapping step names the input it was handling, and never hides a message monochromatic-git-policy-cli already wrote.
+///   Each wrapping step names the input it was handling,
+/// and never hides a message monochromatic-git-policy-cli already wrote.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -124,7 +138,8 @@ pub fn wrap_raw(error: WorktreeCopyError, message: &str) -> WorktreeCopyError {
 /// What:
 ///  The lifecycle's wording for a raw failure that reached the top of a copy.
 /// Why:
-///   The user sees the generic sentence once, with the underlying cause after it.
+///   The user sees the generic sentence once,
+/// with the underlying cause after it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

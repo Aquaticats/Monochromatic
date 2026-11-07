@@ -1,11 +1,15 @@
 //! What:
 //!  Which source paths the linked-worktree copy selects:
 //!  the ignored roots Git reports under the standard exclusion stack,
-//!  the ignored special entries (sockets, FIFOs, devices) Git's listing omits,
+//!  the ignored special entries (sockets,
+//! FIFOs,
+//! devices) Git's listing omits,
 //!  and the validation every repository path passes before it touches the filesystem.
 //! Why:
-//!  Git decides what is ignored; the copy only adds the entries Git's index-oriented listing
-//!  cannot report, and it never trusts a path that could leave the worktree.
+//!  Git decides what is ignored;
+//! the copy only adds the entries Git's index-oriented listing
+//!  cannot report,
+//! and it never trusts a path that could leave the worktree.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,7 +26,8 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  The Git directory marker that `ls-files --directory` appends to ignored directories.
 /// Why:
-///   The copy works on the directory itself, so the marker is removed before validation.
+///   The copy works on the directory itself,
+/// so the marker is removed before validation.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -31,7 +36,8 @@ use std::path::{Path, PathBuf};
 const DIRECTORY_SUFFIX: char = '/';
 
 /// What:
-///  The private stage prefix the copy reserves; no selected path may contain a component that starts with it.
+///  The private stage prefix the copy reserves;
+/// no selected path may contain a component that starts with it.
 /// Why:
 ///   A selected path that is a private stage would copy the copy into itself.
 ///
@@ -44,7 +50,8 @@ pub const STAGE_PREFIX: &str = ".cli-git-worktree-copy-";
 /// What:
 ///  Whether a repository path equals or descends from another repository path.
 /// Why:
-///   Comparison is by whole components, so `cache2` is not inside `cache`.
+///   Comparison is by whole components,
+/// so `cache2` is not inside `cache`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -56,9 +63,11 @@ pub fn repository_path_within(candidate: &str, parent: &str) -> bool {
 }
 
 /// What:
-///  Whether a repository path component is empty, `.` or `..`.
+///  Whether a repository path component is empty,
+/// `.` or `..`.
 /// Why:
-///   Such a component could leave the repository, so a path with one is unsafe.
+///   Such a component could leave the repository,
+/// so a path with one is unsafe.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -89,7 +98,9 @@ fn within_any_root(candidate: &str, roots: &[String]) -> bool {
 /// What:
 ///  Validates one slash-separated path that Git reported before it is joined to a filesystem root.
 /// Why:
-///   An empty, absolute, `.` or `..` component could select a path outside the worktree.
+///   An empty,
+/// absolute,
+/// `.` or `..` component could select a path outside the worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -112,7 +123,8 @@ pub fn assert_safe_repository_path(repository_path: &str) -> Result<(), Worktree
 /// What:
 ///  The native path of one validated repository path under a filesystem root.
 /// Why:
-///   Every filesystem access of the copy goes through this join, so the validation cannot be skipped.
+///   Every filesystem access of the copy goes through this join,
+/// so the validation cannot be skipped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -128,9 +140,11 @@ pub fn filesystem_path(root: &Path, repository_path: &str) -> Result<PathBuf, Wo
 }
 
 /// What:
-///  Sorts strings the way JavaScript's default `toSorted` does: by UTF-16 code units.
+///  Sorts strings the way JavaScript's default `toSorted` does:
+/// by UTF-16 code units.
 /// Why:
-///   Manifest and journal order must match the incumbent's, which differs from byte order
+///   Manifest and journal order must match the incumbent's,
+/// which differs from byte order
 ///  only for supplementary-plane characters.
 ///
 /// In TS you'd write (pseudocode):
@@ -142,9 +156,11 @@ pub fn js_order(left: &str, right: &str) -> Ordering {
 }
 
 /// What:
-///  Order two names the way JavaScript's default sort does, for a sort of owned names.
+///  Order two names the way JavaScript's default sort does,
+/// for a sort of owned names.
 /// Why:
-///   `sort_by` hands its function references to the items, and a generic function over `AsRef<str>` takes them without a closure.
+///   `sort_by` hands its function references to the items,
+/// and a generic function over `AsRef<str>` takes them without a closure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -155,9 +171,11 @@ pub fn by_js_order<Name: AsRef<str>>(left: &Name, right: &Name) -> std::cmp::Ord
 }
 
 /// What:
-///  Keeps the outermost of several ignored roots, dropping every root under another one.
+///  Keeps the outermost of several ignored roots,
+/// dropping every root under another one.
 /// Why:
-///   Copying a parent already copies its descendants, so a second copy would duplicate work and entries.
+///   Copying a parent already copies its descendants,
+/// so a second copy would duplicate work and entries.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -217,9 +235,11 @@ fn is_ignored_special_path(
 }
 
 /// What:
-///  Whether a byte is NUL, the end of each name in Git's `-z` output.
+///  Whether a byte is NUL,
+/// the end of each name in Git's `-z` output.
 /// Why:
-///   Git's listings are split on it, and a path may hold any other byte.
+///   Git's listings are split on it,
+/// and a path may hold any other byte.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -232,7 +252,8 @@ fn is_nul_byte(byte: &u8) -> bool {
 /// What:
 ///  Whether a NUL-separated listing holds `wanted` as one of its names.
 /// Why:
-///   Git lists a directory's files rather than the directory, so only an exact name is a file Git ignores.
+///   Git lists a directory's files rather than the directory,
+/// so only an exact name is a file Git ignores.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -250,7 +271,8 @@ fn lists_exactly(listing: &[u8], wanted: &[u8]) -> bool {
 /// What:
 ///  Whether a native path lies at or under one of the excluded absolute directories.
 /// Why:
-///   Walks skip registered worktrees and the private stage, so they never copy themselves.
+///   Walks skip registered worktrees and the private stage,
+/// so they never copy themselves.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -266,7 +288,8 @@ fn is_excluded(candidate: &Path, excluded_roots: &[PathBuf]) -> bool {
 }
 
 /// What:
-///  One pending directory of the special-entry walk, with its repository path.
+///  One pending directory of the special-entry walk,
+/// with its repository path.
 /// Why:
 ///   The walk is an explicit stack so depth cannot exhaust the call stack.
 ///
@@ -334,7 +357,8 @@ fn special_entries(
 ///  Every existing source path ignored by Git's standard exclusion stack,
 ///  as collapsed repository paths.
 /// Why:
-///   This is the one selection the copy stages, so the same validation and collapse apply everywhere.
+///   This is the one selection the copy stages,
+/// so the same validation and collapse apply everywhere.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -388,10 +412,14 @@ pub fn read_ignored_roots(
 
 /// What:
 ///  Which of a source's ignored paths one copy takes:
-///  every ignored root, every ignored root minus what a main checkout leaves out, or only the named repository paths.
+///  every ignored root,
+/// every ignored root minus what a main checkout leaves out,
+/// or only the named repository paths.
 /// Why:
-///   A linked or bare source hands over all of its ignored state, as the incumbent does;
-///  a main checkout hands over the same minus its caches and every other checkout, so a worktree added from it works at once.
+///   A linked or bare source hands over all of its ignored state,
+/// as the incumbent does;
+///  a main checkout hands over the same minus its caches and every other checkout,
+/// so a worktree added from it works at once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -399,19 +427,26 @@ pub fn read_ignored_roots(
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CopySelection {
-    /// Every path Git's standard exclusion stack ignores, plus the ignored special entries.
+    /// Every path Git's standard exclusion stack ignores,
+    /// plus the ignored special entries.
     Ignored,
-    /// The same listing, walked under the main checkout's leave-out rule (`worktree_copy_prune.rs`).
+    /// The same listing,
+    /// walked under the main checkout's leave-out rule (`worktree_copy_prune.rs`).
     MainCheckout,
-    /// Only these repository paths, and only the ones Git ignores and the source has.
+    /// Only these repository paths,
+    /// and only the ones Git ignores and the source has.
     Paths(Vec<String>),
 }
 
 /// What:
 ///  The named repository paths that exist in the source and that Git's standard exclusion stack ignores.
 /// Why:
-///   A configured file such as the forbidden-strings rules is copied by name, so the source is never enumerated;
-///  a name Git does not list exactly (absent, tracked, not ignored, or a directory) selects nothing,
+///   A configured file such as the forbidden-strings rules is copied by name,
+/// so the source is never enumerated;
+///  a name Git does not list exactly (absent,
+/// tracked,
+/// not ignored,
+/// or a directory) selects nothing,
 ///  which leaves the destination without it instead of inventing it.
 ///
 /// In TS you'd write (pseudocode):
@@ -459,7 +494,8 @@ pub fn read_named_ignored_roots(
 /// What:
 ///  The collapsed repository paths one copy takes from a source under the chosen selection.
 /// Why:
-///   Staging asks one question whichever source it copies from, so the selection mode is decided in one place.
+///   Staging asks one question whichever source it copies from,
+/// so the selection mode is decided in one place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -486,7 +522,8 @@ impl CopySelection {
     /// What:
     ///  The leave-out rule the selection's walk applies.
     /// Why:
-    ///   The stage and the final source check must walk with the same rule, so both ask the selection.
+    ///   The stage and the final source check must walk with the same rule,
+    /// so both ask the selection.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

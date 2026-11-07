@@ -13,7 +13,8 @@ fn entry(kind: EntryKind, mode: u32, relative_path: &str) -> WorktreeCopyEntry {
     };
 }
 
-/// The identity captured after creation names the object that exists at the path, and carries its selection flag.
+/// The identity captured after creation names the object that exists at the path,
+/// and carries its selection flag.
 #[test]
 fn captured_identity_names_the_created_object() {
     let root: PathBuf = fixture("install-entry-identity");
@@ -29,7 +30,8 @@ fn captured_identity_names_the_created_object() {
     remove(root.as_path());
 }
 
-/// Missing parents are created shallow first and recorded as unselected; an existing directory parent is kept unrecorded.
+/// Missing parents are created shallow first and recorded as unselected;
+/// an existing directory parent is kept unrecorded.
 #[test]
 fn missing_parents_are_created_and_recorded() {
     let root: PathBuf = fixture("install-entry-parents");
@@ -73,7 +75,9 @@ fn file_in_parent_position_is_refused() {
     remove(root.as_path());
 }
 
-/// A selected directory is created private, a link keeps its exact target, and a file is a hard link to its stage copy.
+/// A selected directory is created private,
+/// a link keeps its exact target,
+/// and a file is a hard link to its stage copy.
 #[cfg(unix)]
 #[test]
 fn selected_entries_are_created_by_kind() {
@@ -125,7 +129,8 @@ fn selected_entries_are_created_by_kind() {
     remove(root.as_path());
 }
 
-/// Only the link-refusal codes fall back to a copy; any other operating-system error is reported as it is.
+/// Only the link-refusal codes fall back to a copy;
+/// any other operating-system error is reported as it is.
 #[cfg(unix)]
 #[test]
 fn only_link_refusals_fall_back_to_copy() {

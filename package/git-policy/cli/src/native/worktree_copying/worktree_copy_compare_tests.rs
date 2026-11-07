@@ -6,7 +6,8 @@ use crate::test_support::{fixture, remove};
 /// A file length that spans two comparison chunks with a short last chunk.
 const LARGE_LENGTH: usize = 64 * 1_024 + 17;
 
-/// One manifest entry for a path and kind, with the mode the path currently has.
+/// One manifest entry for a path and kind,
+/// with the mode the path currently has.
 fn entry_of(root: &Path, kind: EntryKind, relative_path: &str) -> WorktreeCopyEntry {
     let metadata: std::fs::Metadata =
         std::fs::symlink_metadata(root.join(relative_path)).expect("metadata");
@@ -35,7 +36,8 @@ fn lstat_distinguishes_absence_from_presence() {
     remove(root.as_path());
 }
 
-/// An absent destination never matches, whatever the expected entry.
+/// An absent destination never matches,
+/// whatever the expected entry.
 #[test]
 fn absent_entry_never_matches() {
     let root: PathBuf = fixture("compare-absent");
@@ -49,7 +51,8 @@ fn absent_entry_never_matches() {
     remove(root.as_path());
 }
 
-/// A directory matches a directory with the same mode and nothing else; a file never matches a directory.
+/// A directory matches a directory with the same mode and nothing else;
+/// a file never matches a directory.
 #[test]
 fn directory_entries_compare_kind_and_mode() {
     let root: PathBuf = fixture("compare-directory");
@@ -65,7 +68,10 @@ fn directory_entries_compare_kind_and_mode() {
     remove(root.as_path());
 }
 
-/// A file matches only identical bytes with the same mode; a different size, a different byte, or a different mode does not.
+/// A file matches only identical bytes with the same mode;
+/// a different size,
+/// a different byte,
+/// or a different mode does not.
 #[cfg(unix)]
 #[test]
 fn file_entries_compare_bytes_and_mode() {
@@ -93,7 +99,8 @@ fn file_entries_compare_bytes_and_mode() {
     remove(root.as_path());
 }
 
-/// Files longer than one comparison chunk are compared chunk by chunk, and a difference in the last chunk is found.
+/// Files longer than one comparison chunk are compared chunk by chunk,
+/// and a difference in the last chunk is found.
 #[test]
 fn large_files_are_compared_across_chunks() {
     let root: PathBuf = fixture("compare-large");
@@ -113,7 +120,8 @@ fn large_files_are_compared_across_chunks() {
     remove(root.as_path());
 }
 
-/// Symbolic links match on exact target text, not on what they resolve to.
+/// Symbolic links match on exact target text,
+/// not on what they resolve to.
 #[cfg(unix)]
 #[test]
 fn symbolic_links_compare_target_text() {
@@ -217,7 +225,9 @@ fn added_source_entry_fails_final_check_by_count() {
     remove(root.as_path());
 }
 
-/// The source and stage of one cached file, the manifest of the source, and the stamp of the source file.
+/// The source and stage of one cached file,
+/// the manifest of the source,
+/// and the stamp of the source file.
 #[cfg(unix)]
 fn stamped_pair(name: &str, source_bytes: &[u8], stage_bytes: &[u8]) -> (PathBuf, PathBuf, PathBuf, Vec<WorktreeCopyEntry>, FileStamp) {
     let root: PathBuf = fixture(name);
@@ -233,7 +243,8 @@ fn stamped_pair(name: &str, source_bytes: &[u8], stage_bytes: &[u8]) -> (PathBuf
     return (root, source, stage, entries, stamp);
 }
 
-/// The final check for a cached file, given the stamps recorded around its clone.
+/// The final check for a cached file,
+/// given the stamps recorded around its clone.
 #[cfg(unix)]
 fn final_check(source: &Path, stage: &Path, entries: &[WorktreeCopyEntry], stamps: &[Option<FileStamp>]) -> Result<(), WorktreeCopyError> {
     return assert_final_source_equivalence_pruned(
@@ -246,8 +257,11 @@ fn final_check(source: &Path, stage: &Path, entries: &[WorktreeCopyEntry], stamp
     );
 }
 
-/// A file whose source stamp is unchanged is proved by the stamp: its bytes are not read again, so a stage that differs in
-/// content (which a clone cannot) passes, while the same pair without a stamp fails by bytes.
+/// A file whose source stamp is unchanged is proved by the stamp:
+/// its bytes are not read again,
+/// so a stage that differs in
+/// content (which a clone cannot) passes,
+/// while the same pair without a stamp fails by bytes.
 #[cfg(unix)]
 #[test]
 fn an_unchanged_stamp_stands_in_for_reading_the_bytes() {
@@ -260,7 +274,8 @@ fn an_unchanged_stamp_stands_in_for_reading_the_bytes() {
     remove(root.as_path());
 }
 
-/// A write to the source after the stamp was recorded fails the final check, even when the stage still holds the old bytes.
+/// A write to the source after the stamp was recorded fails the final check,
+/// even when the stage still holds the old bytes.
 #[cfg(unix)]
 #[test]
 fn a_source_written_after_the_stamp_fails_the_final_check() {
@@ -274,7 +289,8 @@ fn a_source_written_after_the_stamp_fails_the_final_check() {
     remove(root.as_path());
 }
 
-/// A source file replaced by a rename carries a different inode, so its old stamp no longer matches.
+/// A source file replaced by a rename carries a different inode,
+/// so its old stamp no longer matches.
 #[cfg(unix)]
 #[test]
 fn a_replaced_source_file_fails_the_final_check() {
@@ -286,7 +302,8 @@ fn a_replaced_source_file_fails_the_final_check() {
     remove(root.as_path());
 }
 
-/// Where the system starts no thread the two manifest walks run one after the other and the final check still passes. The body runs in
+/// Where the system starts no thread the two manifest walks run one after the other and the final check still passes.
+/// The body runs in
 /// a child that is refused every thread.
 #[test]
 fn the_final_check_where_no_thread_can_start_walks_in_turn() {
