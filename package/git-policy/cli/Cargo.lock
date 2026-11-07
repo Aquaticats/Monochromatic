@@ -1186,6 +1186,7 @@ dependencies = [
  "forbidden-strings",
  "getrandom 0.4.2",
  "ignore",
+ "jiff",
  "libc",
  "miniz_oxide",
  "monochromatic-catalog-specifier",

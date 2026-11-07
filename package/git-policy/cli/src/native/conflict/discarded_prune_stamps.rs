@@ -20,27 +20,6 @@ pub const DAY_MILLISECONDS: i64 = 24 * 60 * 60 * 1000;
 /// of that second, so an age is counted from the end of it.
 pub const STAMP_RESOLUTION_MILLISECONDS: i64 = 1000;
 
-/// Days from 1970-01-01 to a civil date, the inverse of `iso_time::civil_from_days` (Howard Hinnant's `days_from_civil`).
-fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
-    let shifted_year: i64 = if month <= 2 { year - 1 } else { year };
-    let era: i64 = shifted_year.div_euclid(400);
-    let year_of_era: i64 = shifted_year.rem_euclid(400);
-    let shifted_month: i64 = if month > 2 { month - 3 } else { month + 9 };
-    let day_of_year: i64 = (153 * shifted_month + 2) / 5 + day - 1;
-    let day_of_era: i64 = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
-    return era * 146_097 + day_of_era - 719_468;
-}
-
-/// The days of a month of the proleptic Gregorian calendar, February's by the leap-year rule.
-fn days_in_month(year: i64, month: i64) -> i64 {
-    return match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        _ if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) => 29,
-        _ => 28,
-    };
-}
-
 /// The whole number written in the characters `from` to `to` of a name; zero when they are not a number.
 fn number_at(name: &str, from: usize, to: usize) -> i64 {
     return name[from..to].parse::<i64>().unwrap_or(0);
@@ -76,10 +55,19 @@ pub fn parse_stamp(name: &str) -> Option<i64> {
     }
     let (year, month, day): (i64, i64, i64) = (number_at(name, 0, 4), number_at(name, 5, 7), number_at(name, 8, 10));
     let (hour, minute, second): (i64, i64, i64) = (number_at(name, 11, 13), number_at(name, 14, 16), number_at(name, 17, 19));
-    if !(1..=12).contains(&month) || day < 1 || day > days_in_month(year, month) || hour > 23 || minute > 59 || second > 59 {
-        return None;
-    }
-    return Some(((days_from_civil(year, month, day) * 24 + hour) * 60 + minute) * 60_000 + second * 1000);
+    // `jiff` refuses a month, day, hour, minute or second the calendar does not have (February 30, hour 24, minute 60).
+    let civil: jiff::civil::DateTime = jiff::civil::DateTime::new(
+        i16::try_from(year).ok()?,
+        i8::try_from(month).ok()?,
+        i8::try_from(day).ok()?,
+        i8::try_from(hour).ok()?,
+        i8::try_from(minute).ok()?,
+        i8::try_from(second).ok()?,
+        0,
+    )
+    .ok()?;
+    let instant: jiff::Zoned = civil.to_zoned(jiff::tz::TimeZone::UTC).ok()?;
+    return Some(instant.timestamp().as_millisecond());
 }
 
 /// One copy directory, as listed.

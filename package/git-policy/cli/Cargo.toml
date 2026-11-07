@@ -102,6 +102,11 @@ tokio = { workspace = true, features = ["rt", "rt-multi-thread", "net", "time", 
 sha1 = { workspace = true }
 sha2 = { workspace = true }
 
+# Time stamps (`foundation/iso_time.rs`, the saved-copy names of `conflict/discarded_prune_stamps.rs`) from the published
+# calendar crate in place of the hand-written one (owner, 2026-11-07: "Time stamps: jiff"). Only UTC and formatting are used,
+# so the time-zone database stays off.
+jiff = { workspace = true, default-features = false, features = ["std"] }
+
 # `sigaction` with signal details, `kill` and process-group facts, which the standard library does not expose.
 # Already in the lockfile through the scanner's dependencies.
 [target.'cfg(unix)'.dependencies]
@@ -155,6 +160,7 @@ opt-level = 3
 [workspace.dependencies]
 getrandom = ">=0.4.2"
 ignore = ">=0.4.34"
+jiff = { version = ">=0.2.24", default-features = false }
 libc = ">=0.2.191"
 miniz_oxide = { version = ">=0.9.1", default-features = false }
 rustix = ">=1.1.6"

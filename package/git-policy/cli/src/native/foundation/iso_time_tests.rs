@@ -32,28 +32,6 @@ fn known_instants_match_to_iso_string() {
     );
 }
 
-/// Every day of four years,
-///  crossing a leap year,
-///  maps to consecutive dates.
-#[test]
-fn consecutive_days_are_consecutive_dates() {
-    let mut previous: (i64, u32, u32) = civil_from_days(10_957);
-    // new Date(10957 * 86400000).toISOString() is 2000-01-01, and day 10956 is 1999-12-31.
-    assert_eq!(previous, (2000, 1, 1));
-    assert_eq!(civil_from_days(10_956), (1999, 12, 31));
-    for days in 10_958..10_958 + 4 * 366 {
-        let current: (i64, u32, u32) = civil_from_days(days);
-        let same_month: bool = current.0 == previous.0 && current.1 == previous.1;
-        if same_month {
-            assert_eq!(current.2, previous.2 + 1, "{days}");
-        } else {
-            assert_eq!(current.2, 1, "{days}");
-            assert!(previous.2 >= 28, "{days}");
-        }
-        previous = current;
-    }
-}
-
 /// The current time has the shape and lies after this test was written.
 #[test]
 fn now_has_the_shape() {
@@ -85,5 +63,8 @@ fn known_instants_format_as_the_wrapper_always_wrote_them() {
     assert_eq!(format_iso_milliseconds(0), "1970-01-01T00:00:00.000Z");
     assert_eq!(format_iso_milliseconds(1_709_210_096_789), "2024-02-29T12:34:56.789Z");
     assert_eq!(format_iso_milliseconds(-1), "1969-12-31T23:59:59.999Z");
-    assert_eq!(format_iso_milliseconds(253_402_300_799_999), "9999-12-31T23:59:59.999Z");
+    assert_eq!(format_iso_milliseconds(4_102_444_800_000), "2100-01-01T00:00:00.000Z");
+    // The crate's range ends a little before the end of year 9999; a later instant is clamped to that end, not misprinted.
+    assert_eq!(format_iso_milliseconds(i64::MAX), "9999-12-30T22:00:00.999Z");
+    assert_eq!(format_iso_milliseconds(i64::MIN), "-9999-01-02T01:59:59.000Z");
 }
