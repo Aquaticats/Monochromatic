@@ -4,9 +4,15 @@
 //! the atomic placement itself,
 //! and the removal of a stale lock.
 //! Why:
-//!  The lock must never exist without its marker,
+//!  The lock must not exist without its marker where the filesystem lets it,
 //! so the marker is written to a file that is new and then made the lock in one step (a rename that does not replace,
 //! else a hard link).
+//! Where it does neither,
+//! the lock is taken as Git takes its own:
+//! created by exclusive creation and then given its marker,
+//! so a kill between the two leaves a lock without its marker,
+//! as plain Git leaves one,
+//! and nothing removes it unless its holder is proven gone.
 //! The calls are one `Platform` value so a control can refuse or count them for one acquisition alone.
 //! The module is split from `service_index_lock.rs`,
 //! which re-exports the public items here under their old names;
@@ -14,7 +20,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await placeMarked(platform, staged, lock) // renameNoReplace ?? link ?? refuse
+//! await placeLock(platform, staged, marker, lock) // renameNoReplace ?? link ?? createExclusive then write
 //! ```
 
 use crate::fs_mount_options::read_mount_facts;
@@ -29,6 +35,7 @@ use std::path::Path;
 /// count or observe:
 /// the rename that does not replace,
 /// the hard link,
+/// the exclusive creation of a lock file,
 /// the removal of a stale lock,
 /// the process's own birth identity,
 /// the setting of a watch on the lock's directory,
@@ -54,6 +61,10 @@ pub struct Platform<'a> {
     pub rename: &'a dyn Fn(&Path, &Path) -> std::io::Result<()>,
     /// A hard link that fails when the target exists.
     pub link: &'a dyn Fn(&Path, &Path) -> std::io::Result<()>,
+    /// The creation of a file that must not exist yet (`open` with `O_CREAT | O_EXCL`),
+    /// which is how Git creates `index.lock`;
+    /// used only where the filesystem refuses both of the calls above.
+    pub create: &'a dyn Fn(&Path) -> std::io::Result<std::fs::File>,
     /// The removal of a lock whose holder is gone.
     pub unlink: &'a dyn Fn(&Path) -> std::io::Result<()>,
     /// The birth identity of this process,
@@ -75,6 +86,7 @@ pub struct Platform<'a> {
 pub const SYSTEM: Platform<'static> = Platform {
     rename: &rename_noreplace,
     link: &link_file,
+    create: &create_exclusive,
     unlink: &unlink_file,
     identity: &own_identity,
     watch: &Watch::on,
@@ -89,6 +101,10 @@ pub fn sync_file(file: &std::fs::File) -> std::io::Result<()> {
 
 fn link_file(from: &Path, to: &Path) -> std::io::Result<()> {
     return std::fs::hard_link(from, to);
+}
+
+fn create_exclusive(path: &Path) -> std::io::Result<std::fs::File> {
+    return std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(path);
 }
 
 fn unlink_file(path: &Path) -> std::io::Result<()> {
@@ -114,37 +130,27 @@ pub fn links_unsupported(error: &std::io::Error) -> bool {
     }
 }
 
+/// What the filesystem answered when the lock was asked to be placed whole.
+enum Atomic {
+    /// Neither a rename that does not replace nor a hard link can be made there; the error names both refusals.
+    Refused(std::io::Error),
+    /// Any other failure: the lock exists, or storage failed.
+    Failed(std::io::Error),
+}
+
 /// What:
-///  Makes the marked `staged` file the lock at `lock`;
-/// `AlreadyExists` when any process holds it,
-/// and `staged` then stays for the next attempt.
+///  Places `staged` as `lock` in one step: a rename that does not replace, else a hard link.
 /// Why:
-///   Git's lock is taken by exclusive creation,
-/// and a restart tells the service's own stale lock from a foreign one only by its marker,
-/// so the lock must never exist without it.
-/// A rename that does not replace is exclusive and atomic and leaves no second name;
-/// where the filesystem has none,
-/// a hard link is exclusive too and its staging name is removed after.
-///  Where it has neither,
-/// nothing is created:
-/// exclusive creation followed by a write would leave an empty lock for as long as a kill between the two lasts,
-/// and an empty lock may be a Git mid-write,
-/// so no restart could take it over.
+///   Both are exclusive and atomic, so the lock carries its marker from the instant it exists.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await renameNoReplace(staged, lock) ?? await link(staged, lock) ?? refuse()
+/// await renameNoReplace(staged, lock) ?? await link(staged, lock) ?? refused()
 /// ```
-///
-/// # Errors
-///
-/// `AlreadyExists` when the lock exists,
-/// `Unsupported` (naming both refusals) when the filesystem can place neither way,
-/// and the storage error otherwise.
-pub fn place_marked(platform: &Platform, staged: &Path, lock: &Path) -> std::io::Result<()> {
+fn place_whole(platform: &Platform, staged: &Path, lock: &Path) -> Result<(), Atomic> {
     let refused_rename: std::io::Error = match (platform.rename)(staged, lock) {
         Ok(()) => return Ok(()),
-        Err(error) if !rename_unsupported(&error) => return Err(error),
+        Err(error) if !rename_unsupported(&error) => return Err(Atomic::Failed(error)),
         Err(error) => error,
     };
     match (platform.link)(staged, lock) {
@@ -152,21 +158,128 @@ pub fn place_marked(platform: &Platform, staged: &Path, lock: &Path) -> std::io:
             let _removed = std::fs::remove_file(staged);
             return Ok(());
         }
-        Err(error) if !links_unsupported(&error) => return Err(error),
+        Err(error) if !links_unsupported(&error) => return Err(Atomic::Failed(error)),
         Err(refused_link) => {
-            return Err(std::io::Error::new(
+            return Err(Atomic::Refused(std::io::Error::new(
                 std::io::ErrorKind::Unsupported,
                 format!("renaming without replacing failed ({refused_rename}) and hard links failed ({refused_link})"),
-            ));
+            )));
         }
     }
+}
+
+/// What:
+///  Makes the marked `staged` file the file at `lock`, whole;
+/// `AlreadyExists` when it exists,
+/// and `staged` then stays for the next attempt.
+/// Why:
+///   A claim file is read by other reclaimers while it is being made,
+/// so it must never exist half written;
+/// a rename that does not replace is exclusive and atomic and leaves no second name,
+/// and where the filesystem has none a hard link is exclusive too and its staging name is removed after.
+/// Where it has neither nothing is created,
+/// because exclusive creation followed by a write would show a reclaimer an empty claim for as long as a kill between the two lasts.
+/// The index lock itself does not stop here (`place_lock`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await renameNoReplace(staged, claim) ?? await link(staged, claim) ?? refuse()
+/// ```
+///
+/// # Errors
+///
+/// `AlreadyExists` when the file exists,
+/// `Unsupported` (naming both refusals) when the filesystem can place neither way,
+/// and the storage error otherwise.
+pub fn place_marked(platform: &Platform, staged: &Path, lock: &Path) -> std::io::Result<()> {
+    return place_whole(platform, staged, lock).map_err(|refusal| {
+        return match refusal {
+            Atomic::Refused(error) | Atomic::Failed(error) => error,
+        };
+    });
+}
+
+/// How a lock came to be placed.
+#[derive(Debug)]
+pub enum Placed {
+    /// The staged file is the lock: the holder keeps its descriptor.
+    Whole,
+    /// The lock was created by exclusive creation and given its marker afterwards;
+    /// this descriptor is the lock's own inode, and the holder keeps it instead of the staged file's.
+    Created(std::fs::File),
+}
+
+impl Placed {
+    /// The descriptor that names the lock's inode:
+    /// the one the lock was created with, else the staged file's.
+    pub fn held_or(self, staged: std::fs::File) -> std::fs::File {
+        return match self {
+            Placed::Whole => staged,
+            Placed::Created(created) => created,
+        };
+    }
+}
+
+/// What:
+///  Takes `index.lock` for the marked `staged` file:
+/// whole where the filesystem has a rename that does not replace or a hard link,
+/// else by exclusive creation with `marker` written afterwards.
+/// Why:
+///   Git's own lock is taken by exclusive creation (`open` with `O_CREAT | O_EXCL`, `lockfile.c` `lock_file`),
+/// which needs neither call,
+/// so a filesystem that refuses both still lets Git commit and must let this service land a commit too ("Commits should never fail.").
+/// The two steps leave a window:
+/// a kill between them leaves a lock without its marker,
+/// as plain Git leaves one when it is killed holding its lock.
+/// Such a lock may be a Git that is mid-write,
+/// so nothing removes it unless its holder is proven gone,
+/// and the wait for it ends at the ceiling with the file named.
+/// The fallback is taken only when both calls were refused,
+/// never as a first choice.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await placeWhole(staged, lock) ?? await createExclusive(lock).then(write(marker))
+/// ```
+///
+/// # Errors
+///
+/// `AlreadyExists` when the lock exists,
+/// and the storage error otherwise;
+/// a lock created here whose marker could not be written or flushed is removed again.
+pub fn place_lock(platform: &Platform, staged: &Path, marker: &str, lock: &Path) -> std::io::Result<Placed> {
+    let refusal: std::io::Error = match place_whole(platform, staged, lock) {
+        Ok(()) => return Ok(Placed::Whole),
+        Err(Atomic::Failed(error)) => return Err(error),
+        Err(Atomic::Refused(error)) => error,
+    };
+    let mut file: std::fs::File = (platform.create)(lock)?;
+    crate::service_log!(
+        "the index lock {} is taken by exclusive creation, as Git takes it, because this filesystem can place a file in neither atomic way ({refusal})",
+        lock.display()
+    );
+    // A kill here leaves a lock without its marker.
+    crate::service_fault::reach(crate::service_fault::LOCK_CREATED_UNMARKED);
+    let marked: std::io::Result<()> = std::io::Write::write_all(&mut file, marker.as_bytes()).and_then(|()| {
+        // A kill here leaves a lock with its marker, not yet flushed.
+        crate::service_fault::reach(crate::service_fault::LOCK_MARKED_UNSYNCED);
+        return (platform.sync)(&file);
+    });
+    if let Err(error) = marked {
+        drop(file);
+        if let Err(removal) = std::fs::remove_file(lock) {
+            crate::service_error!("the index lock {} could not be given its marker ({error}) and could not be removed again ({removal}); it stays", lock.display());
+        }
+        return Err(error);
+    }
+    return Ok(Placed::Created(file));
 }
 
 /// What:
 ///  Says in the service's log why a lock was not placed:
 /// the lock,
 /// the cause,
-/// and for a filesystem that can place a lock in neither atomic way,
+/// and for a filesystem that answers that it cannot place a file at all,
 /// the filesystem and what to do.
 /// Why:
 ///   The clients are answered with a code only;
@@ -188,7 +301,7 @@ pub fn log_placement_failure(lock: &Path, error: &std::io::Error) {
 /// Why:
 ///   A lock that is held is the ordinary case of a wait and is no failure to place;
 /// every other error says what happened,
-/// and one that means the filesystem can place a lock neither way names the filesystem and what to do.
+/// and one that means the filesystem cannot place the file at all names the filesystem and what to do.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -208,9 +321,9 @@ pub fn placement_failure_text(lock: &Path, error: &std::io::Error) -> Option<Str
         Err(reason) => format!("the filesystem of {} ({reason})", directory.display()),
     };
     return Some(format!(
-        "cannot take the index lock {}: {filesystem} can neither rename a file without replacing another nor make a hard link ({error}), \
-         so the lock cannot be created with its marker in one step, and the service takes no lock that a kill could leave empty. \
-         Keep this repository's Git directory on a filesystem that supports one of the two (ext4, xfs, btrfs, tmpfs and overlayfs do), or update the kernel.",
+        "cannot take the index lock {}: {filesystem} answered that it cannot place a file ({error}), and Git creates this file the same way, \
+         so Git cannot lock the repository there either. \
+         Keep this repository's Git directory on a filesystem that supports it (ext4, xfs, btrfs, tmpfs and overlayfs do), or update the kernel.",
         lock.display()
     ));
 }

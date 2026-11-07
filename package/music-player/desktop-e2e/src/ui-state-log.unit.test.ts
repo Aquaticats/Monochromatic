@@ -64,10 +64,10 @@ function stateLine(seq: number, fields: Readonly<Record<string, unknown>> = {},)
     first_run_title: '',
     badges: [],
     auto_play_on_select: false,
-  text_size_pane_title_px: 20,
-  text_size_group_heading_px: 20,
-  text_size_folder_name_px: 14,
-  text_size_track_title_px: 14,
+    text_size_pane_title_px: 20,
+    text_size_group_heading_px: 20,
+    text_size_folder_name_px: 14,
+    text_size_track_title_px: 14,
     ...fields,
   };
   return `\u001B[32m INFO\u001B[0m music_player::ui_state_log: ui_state ${JSON.stringify(state,)}\n`;

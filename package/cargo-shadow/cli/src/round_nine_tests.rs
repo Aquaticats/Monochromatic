@@ -252,6 +252,7 @@ fn some_route() -> Route {
         slice_dir: PathBuf::from("/sys/fs/cgroup/app.slice"),
         namespace: 1,
         slice_view: View { mount: 1, inode: 1 },
+        limits: std::sync::Arc::new(crate::inherited_limits::InheritedLimits::default()),
     };
 }
 
