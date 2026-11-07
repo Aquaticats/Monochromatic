@@ -20,7 +20,7 @@
 
 use crate::index_lock_evidence::{
     Verdict, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
-    ceiling_line, blocker_words,
+    ceiling_line, blocker_words, unproven_removal_advice,
 };
 use crate::index_lock_holders::scan_platform_holders_bounded;
 use crate::process_start::resolve_process_start;
@@ -227,6 +227,9 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         }
         if at_ceiling && proof != Proved::Gone {
             announce.announce(Announce::Waiting(ceiling_line(lock, looked.blocker.as_str(), waited.as_secs(), COMMIT_NOT_MADE)));
+            if proof == Proved::Nothing {
+                announce.announce(Announce::Waiting(unproven_removal_advice(lock)));
+            }
             announce.announce(Announce::Holder(match looked.who {
                 Some(who) => who,
                 None => String::from("Another program"),
