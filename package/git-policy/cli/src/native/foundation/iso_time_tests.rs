@@ -68,3 +68,19 @@ fn known_instants_format_as_the_wrapper_always_wrote_them() {
     assert_eq!(format_iso_milliseconds(i64::MAX), "9999-12-30T22:00:00.999Z");
     assert_eq!(format_iso_milliseconds(i64::MIN), "-9999-01-02T01:59:59.000Z");
 }
+
+/// The version of the package `name` in the crate's lockfile text.
+fn locked_version<'a>(lock: &'a str, name: &str) -> Option<&'a str> {
+    let header: String = format!("name = \"{name}\"\nversion = \"");
+    let start: usize = lock.find(header.as_str())? + header.len();
+    return lock[start..].split('"').next();
+}
+
+/// The owner approved the publisher change behind the newer `jiff` releases (2026-11-07: "I'm approving the publisher change for
+///  jiff."), so the lock no longer holds `jiff` at the 0.2.24 it was kept at while the trust policy refused `defmt-parser` 1.1.0.
+#[test]
+fn the_lock_no_longer_holds_jiff_at_the_release_kept_while_the_trust_policy_refused_the_newer_ones() {
+    let lock: &str = include_str!("../../../Cargo.lock");
+    let version: &str = locked_version(lock, "jiff").expect("jiff is locked");
+    assert_ne!(version, "0.2.24", "jiff is still held at the pin; move it to the newest release the policy allows");
+}
