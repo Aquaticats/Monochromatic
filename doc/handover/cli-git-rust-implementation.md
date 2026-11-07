@@ -3972,10 +3972,39 @@ lines of a retiring older service still share one stream timestamp (nothing to f
     Limit:
     a file system
     without leases makes the fold fail with its one-line message and keep every byte;
-  - tokio:
-    the three coordinator settlements,
-    then T8 and T9 (`feat/git-policy-cli-on-tokio`);
-  - index lock without links or no-replace rename (`fix/git-policy-cli-index-lock-without-links`);
+  - tokio (`feat/git-policy-cli-on-tokio`,
+    tip `1dc503d259`,
+    not merged):
+    the three settlements (one-shot pipe reader,
+    futex name-claim wait,
+    measured bounds),
+    the fixture-group helper (`end_with_its_group`),
+    T8 (`zbus` 6.2.1 on the process runtime)
+    and T9 (`hyper` with `rustls`;
+    `ureq` gone),
+    gate 5179 of 5179,
+    lint clean.
+    The leftover ref lock is not a T5 regression:
+    Git 2.56's SIGTERM handler removes the lock's pid file,
+    then the lock,
+    and a disk step of up to 6.03 s (seen once,
+    load about 70) lets the 5 s `STOP_GRACE` kill land between them;
+    reproduced deterministically with an injected `unlink` delay.
+    Owner answer 2026-11-07T11:52:20-05:00,
+    "3× worst case":
+    `HELD_NAME_WAIT` and the stop ceiling become about 18 s,
+    and a stop waits past the grace only while a member is in uninterruptible sleep.
+    The agent is merging main (`rust-catalog.toml` conflict:
+    keep both sides),
+    building that stop change test-first,
+    then one container gate;
+    the coordinator merges and then runs the mutation campaign over its files.
+    Slip recorded:
+    the agent ran `pkill --newest --exact git` once during an experiment,
+    a kill by name on a host where other sessions run Git;
+    told never to kill by name.
+  - index lock without links or no-replace rename:
+    merged `136a40fe69`;
   - mutation campaign over the merged tokio files (`test/git-policy-cli-tokio-mutants`,
     worktree
     `.claude/worktrees/tokio-mutants`):
