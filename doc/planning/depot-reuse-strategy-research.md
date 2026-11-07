@@ -7,9 +7,12 @@
 > This plan is withdrawn and none of it is in force;
 > it stays as the record of the Depot evaluation.
 
-Note 2026-10-29: the runner scripts this document names under `package/git-policy` (`cli/bin`,
-`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
-name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.
+Note 2026-10-29:
+the runner scripts this document names under `package/git-policy` (`cli/bin`,
+`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now.
+Read every `.mjs` file name here as the same
+name ending in `.ts`;
+the driver `old-format-fixtures` is `old-format-driver`.
 
 ## Active research boundary
 

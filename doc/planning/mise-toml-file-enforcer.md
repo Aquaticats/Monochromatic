@@ -225,13 +225,19 @@ Resolution:
  (`normalizeTableHeaderKeyQuoting`) rewrites only literal-quoted table-header
  key segments to basic strings.
  `file-enforcer` calls it through `manageMiseManifests` for the hand-authored
- manifests, and `mise.no-env.toml` is normalized before `generateMiseToml`
+ manifests,
+and `mise.no-env.toml` is normalized before `generateMiseToml`
  regenerates the root `mise.toml`.
  The `emptyTomlEdit + tomlSet` canonical reparse was rejected because it
- reformats the whole document (comments, spacing, ordering), while the header
+ reformats the whole document (comments,
+spacing,
+ordering),
+while the header
  normalizer touches nothing else.
  The one-time workspace pass landed in `e72b7076`
- (62 manifests, 248 headers), so splice mode now starts from the canonical
+ (62 manifests,
+248 headers),
+so splice mode now starts from the canonical
  form and keeps it stable.
 
 ### 9. Managed-task tracking on kind shrinkage
@@ -306,7 +312,8 @@ Generator must explicitly never touch `*/mise.local.toml`.
    ** Pick before v1 implementation.
 3. **Quoting normalization:**
    resolved by doing the one-time pass on landing.
-   `e72b7076` normalized 62 manifests (248 headers), and `manageMiseManifests`
+   `e72b7076` normalized 62 manifests (248 headers),
+   and `manageMiseManifests`
    keeps them canonical on every `file-enforcer` run.
 4. **First kind to implement?
    ** Smallest blast radius is probably `ts-library`
@@ -362,13 +369,19 @@ Generator must explicitly never touch `*/mise.local.toml`.
    and `manageMiseManifests` in
   `package/file-enforcer/core/src/mise/manage-mise-manifests.ts` is the
   standing enforcer.
-  Measured after the pass: `git grep -n "\[tasks\.'" -- '*.toml'` returns zero
-  matches, and a second `mise run sync:files` writes nothing.
+  Measured after the pass:
+  `git grep -n "\[tasks\.'" -- '*.toml'` returns zero
+  matches,
+  and a second `mise run sync:files` writes nothing.
 - Normalization is byte-preserving by design:
    a dprint TOML rule cannot do it
-  (the TOML plugin's `quote_style` only affects string values, not key
+  (the TOML plugin's `quote_style` only affects string values,
+  not key
   quoting),
    and the canonical reparse reformats unrelated whitespace.
 - This document captures investigation state;
-   open questions 1, 2, 4, and 5
+   open questions 1,
+  2,
+  4,
+  and 5
   still need decisions before the kind system lands.

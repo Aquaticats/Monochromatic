@@ -18,18 +18,24 @@
    (shallow clones under `~/temp/agent/<name>-2026-09-16`):
   - `bazel` at `8e90a0d`
   - `rules_rust` at `dd2b107`
-     (latest release `0.74.0`, 2026-08-28)
+     (latest release `0.74.0`,
+    2026-08-28)
   - `rules_kotlin` at `02f96a1`
-     (latest release `v2.4.10`, 2026-08-20)
+     (latest release `v2.4.10`,
+    2026-08-20)
   - `rules_android` at `7bd7cbb`
-     (latest release `v0.7.3`, 2026-06-08)
+     (latest release `v0.7.3`,
+    2026-06-08)
   - `rules_android_ndk` at HEAD
-     (latest release `v0.1.5`, 2026-03-19)
+     (latest release `v0.1.5`,
+    2026-03-19)
   - `hermetic_android_toolchains` (keith) at `941e3b5`
   - `rules_jvm_external` at `4f38388`
-     (latest release `7.1`, 2026-07-23)
+     (latest release `7.1`,
+    2026-07-23)
   - `rules_zig` at `b6e0d3a`
-     (latest release `v0.16.0`, 2026-05-27)
+     (latest release `v0.16.0`,
+    2026-05-27)
   - `rules_fuzzing` at `ef7f8ad`
   - `rules_lint` (existing clone)
 - Claim labels:
@@ -77,15 +83,22 @@ The no-workspace architecture is deliberate and enforced by file-enforcer:
 `doc/planning/cargo-toml-file-enforcer.md:17-31`
 says collapsing the islands into one workspace is something "the architecture forbids" `[V]`.
 All 19 carry the identical `[lints.clippy]` table
-(`disallowed_methods = "deny"`, `implicit_return = "deny"`, `needless_return = "allow"`) `[V]`.
+(`disallowed_methods = "deny"`,
+`implicit_return = "deny"`,
+`needless_return = "allow"`) `[V]`.
 
-- `package/forbidden-strings/cli` (`forbidden-strings` 0.4.0, published):
+- `package/forbidden-strings/cli` (`forbidden-strings` 0.4.0,
+  published):
    lib plus bin;
    `build.rs` precompiles the rule baseline into a serialized `RegexSet`
    through the `forbidden-regex` build-dependency,
    `#[path]`-including `src/rule/frx/*.rs`;
    feature `fuzzing`;
-   release profile `lto`, `codegen-units = 1`, `panic = "unwind"`, `overflow-checks = true`, `strip`;
+   release profile `lto`,
+  `codegen-units = 1`,
+  `panic = "unwind"`,
+  `overflow-checks = true`,
+  `strip`;
    `build-override opt-level = 3` for dev and release;
    `tests/integration.rs` uses `env!("CARGO_BIN_EXE_forbidden-strings")`.
   The release binary is consumed by path:
@@ -93,9 +106,12 @@ All 19 carry the identical `[lints.clippy]` table
    point at `package/forbidden-strings/cli/target/release/forbidden-strings` `[V]`.
 - `package/nested-wayland-session/cli` (published 0.1.1):
    lib plus bin;
-   `smithay = "=0.7.0"` with winit, DRM, GLES features;
+   `smithay = "=0.7.0"` with winit,
+  DRM,
+  GLES features;
    CI installs `libwayland-dev libxkbcommon-dev libdrm-dev libegl-dev clang libclang-dev`
-   (`.github/workflows/cargo-publish.yml`, nws build job) `[V]`.
+   (`.github/workflows/cargo-publish.yml`,
+  nws build job) `[V]`.
 - `package/wg/cli-quicker-exempt`:
    bin only,
    `libc` raw syscalls;
@@ -113,7 +129,9 @@ All 19 carry the identical `[lints.clippy]` table
    and its own `target/release` binary by Cargo path `[V]`.
 - `package/file-manager/variant-qt`:
    bin;
-   `cxx 1.0.176`, `cxx-qt 0.9.1`, `cxx-qt-lib` feature `full`;
+   `cxx 1.0.176`,
+  `cxx-qt 0.9.1`,
+  `cxx-qt-lib` feature `full`;
    `build.rs` runs `cxx_qt_build::CxxQtBuilder` with a QML module and `src/qt_log.cpp`;
    `mise.toml` sets `QMAKE = "/usr/bin/qmake6"` against system Qt 6.11.1 `[V]`.
 - `package/terminal/app`:
@@ -122,21 +140,29 @@ All 19 carry the identical `[lints.clippy]` table
    `libghostty-vt 0.1.1` whose `-sys` crate builds Ghostty with Zig (section 3);
    `portable-pty` from a `wezterm` git revision;
    `build.rs` emits `cargo:rustc-link-arg-bin=monochromatic-terminal=-Wl,-rpath,$ORIGIN/../lib/monochromatic-terminal`;
-   host builds need `LIBCLANG_PATH`, `BINDGEN_EXTRA_CLANG_ARGS`, `ZIG_GLOBAL_CACHE_DIR`,
+   host builds need `LIBCLANG_PATH`,
+  `BINDGEN_EXTRA_CLANG_ARGS`,
+  `ZIG_GLOBAL_CACHE_DIR`,
    with a podman container fallback (`package/terminal/app/mise.toml`) `[V]`.
 - `package/linter/rust` (`monochromatic-rust-linter`):
    lib plus bin `rust-linter`;
-   path dependencies on `rust-linter-core`, `rust-linter-plugin/builtin`, `rust-linter-pattern`;
+   path dependencies on `rust-linter-core`,
+  `rust-linter-plugin/builtin`,
+  `rust-linter-pattern`;
    `ra_ap_syntax = "=0.0.335"` pinned identically in all four crates
    because `SyntaxNode` values cross crate boundaries (`package/linter/rust/Cargo.toml`) `[V]`.
-- `package/rust-linter-plugin/builtin`, `package/rust-module/rust-linter-core`,
+- `package/rust-linter-plugin/builtin`,
+  `package/rust-module/rust-linter-core`,
    `package/rust-module/rust-linter-pattern`:
    libraries of the linter family (section 2) `[V]`.
 - `package/forbidden-strings/core` (published 0.1.0):
    lib;
-   release `panic = "unwind"`, `overflow-checks = true` `[V]`.
+   release `panic = "unwind"`,
+  `overflow-checks = true` `[V]`.
 - `package/forbidden-strings/core.bench`:
-   bins `forbidden-regex-bench`, `seedless`, `dialectport`;
+   bins `forbidden-regex-bench`,
+  `seedless`,
+  `dialectport`;
    path dependencies on `forbidden-regex` and `forbidden-strings`;
    release profile deliberately leaves overflow checks off "to measure the algorithm" `[V]`.
 - `package/forbidden-strings/core.fuzz` and `package/forbidden-strings/cli.fuzz`:
@@ -156,12 +182,20 @@ All 19 carry the identical `[lints.clippy]` table
    Windows `windows 0.62` and a `winresource` build-dependency;
    `truepeak-core` with `service`;
    `i-slint-backend-testing = "=1.17.0"` dev-dependency;
-   built natively on Linux, macOS, and Windows (`package/music-player/desktop-app/mise.toml`) `[V]`.
+   built natively on Linux,
+  macOS,
+  and Windows (`package/music-player/desktop-app/mise.toml`) `[V]`.
 - `package/music-player/android-app/rust` (`musicplayer-native`):
    `cdylib` loaded by `System.loadLibrary("musicplayer_native")`
    (`app/src/main/kotlin/dev/monochromatic/musicplayer/NativeBridge.kt:69`);
-   `jni`, `gxhash` (`+aes,+neon` from `rust/.cargo/config.toml`), git `opus`, `symphonia`,
-   `ndk 0.9` feature `audio`, `truepeak-core` with `service`, `tokio`, `paranoid-android`;
+   `jni`,
+  `gxhash` (`+aes,+neon` from `rust/.cargo/config.toml`),
+  git `opus`,
+  `symphonia`,
+   `ndk 0.9` feature `audio`,
+  `truepeak-core` with `service`,
+  `tokio`,
+  `paranoid-android`;
    `build.rs` emits `cargo:rustc-link-lib=dylib=log` `[V]`.
 
 Root `.cargo/config.toml` sets `ZIG_GLOBAL_CACHE_DIR` and `SLINT_ENABLE_EXPERIMENTAL_FEATURES`;
@@ -200,9 +234,13 @@ which changes compiled Slint UI output that the ElementHandle tests rely on `[V]
    `.github/workflows/cargo-publish.yml` runs `cargo package`,
    attests the `.crate`,
    then `cargo publish --no-verify` with crates.io Trusted Publishing
-   for `forbidden-strings`, `monochromatic-nested-wayland-session`, and `forbidden-regex`,
+   for `forbidden-strings`,
+  `monochromatic-nested-wayland-session`,
+  and `forbidden-regex`,
    plus a binary matrix
-   (`x86_64`/`aarch64` gnu and musl, two macOS, `x86_64-pc-windows-msvc`)
+   (`x86_64`/`aarch64` gnu and musl,
+  two macOS,
+  `x86_64-pc-windows-msvc`)
    built with plain `cargo build --release --target` `[V]`.
 - Lockfile census
    (`scratchpad/lock-census.ts` over the 19 `Cargo.lock` files):
@@ -211,7 +249,8 @@ which changes compiled Slint UI output that the ElementHandle tests rely on `[V]
    841 unique crate names,
    171 names resolved at more than one version,
    and three git sources
-   (`opus` from `SpaceManiac/opus-rs`, `portable-pty` and `filedescriptor` from `wezterm/wezterm`) `[V]`.
+   (`opus` from `SpaceManiac/opus-rs`,
+  `portable-pty` and `filedescriptor` from `wezterm/wezterm`) `[V]`.
 
 ### Bazel: toolchain
 
@@ -221,13 +260,18 @@ which changes compiled Slint UI output that the ElementHandle tests rely on `[V]
    so the design pins `nightly/<date>` in `rust.toolchain(versions = ...)`
    (`rust/extensions.bzl:236-241` documents the `nightly/2022-11-02` form) `[V]`.
 - Clippy ships inside the rules_rust toolchain repository
-   (`load_clippy`, `repository_utils.bzl:593-610`),
-   and llvm-tools can be included for coverage (`repository_utils.bzl:412`, `438-442`) `[V]`.
+   (`load_clippy`,
+  `repository_utils.bzl:593-610`),
+   and llvm-tools can be included for coverage (`repository_utils.bzl:412`,
+  `438-442`) `[V]`.
   `rust-src` for IDEs maps to the rust-analyzer toolchain and `gen_rust_project`
-   (`tools/rust_analyzer`), not to RustRover `[V]` for the tool, `[U]` for RustRover consumption.
+   (`tools/rust_analyzer`),
+  not to RustRover `[V]` for the tool,
+  `[U]` for RustRover consumption.
 - Android triples are supported std targets:
    `aarch64-linux-android` and `x86_64-linux-android`
-   (`rust/platform/triple_mappings.bzl:48`, `:80`) `[V]`.
+   (`rust/platform/triple_mappings.bzl:48`,
+  `:80`) `[V]`.
   Linking needs an NDK C toolchain from `rules_android_ndk` or `hermetic_android_toolchains` (section 6).
   rules_rust has no maintained Android example today
    (`examples/` lists no android directory;
@@ -247,34 +291,41 @@ The repository's 19 independent workspaces collide with the splicer:
    and bails with "manifests are not allowed to from from different workspaces"
    (`crate_universe/src/splicing/splicer.rs:44-66`) `[V]`.
   Every manifest here is its own root,
-   so a single hub over all 19 is refused `[V]` for the code path, `[I]` for this repository.
+   so a single hub over all 19 is refused `[V]` for the code path,
+  `[I]` for this repository.
 - Hub-per-island is allowed,
    but crate repositories are named per hub:
    `"{repo_name}__{name}-{version}"` (`crate_universe/extensions.bzl:742`) `[V]`.
   Nineteen hubs therefore materialize up to the 3,616 per-lockfile entries as separate repositories
    and compile shared crates such as `serde` once per hub `[I]`.
 - Cross-island path dependencies become generated local crates inside the consuming hub
-   (`SourceAnnotation::Path`, `crate_universe/src/context/crate_context.rs:822-824`) `[V]`.
+   (`SourceAnnotation::Path`,
+  `crate_universe/src/context/crate_context.rs:822-824`) `[V]`.
   A hand-written first-party `rust_library` for `rust-linter-core` would take `ra_ap_syntax`
    from its own hub,
    while `rust-linter` would take it from the linter hub,
    producing two distinct `ra_ap_syntax` crates in one link and a type mismatch
    on `SyntaxNode` `[I]`.
-  The same shape applies to `truepeak-core` shared by desktop, Android, and bench.
+  The same shape applies to `truepeak-core` shared by desktop,
+  Android,
+  and bench.
 - Generated external crates are skipped by the Clippy aspect
-   ("Ignore external targets", `rust/private/clippy.bzl:87-88`) `[V]`,
+   ("Ignore external targets",
+  `rust/private/clippy.bzl:87-88`) `[V]`,
    so path crates rendered inside a hub lose Clippy coverage unless also defined first-party `[I]`.
 
 Three designs survive,
  each with a structural cost:
 
-- Option A, one `from_cargo` hub per island:
+- Option A,
+  one `from_cargo` hub per island:
    preserves the no-workspace architecture and every `Cargo.lock`.
   Cost:
    duplicated repositories and compiles,
    and first-party cross-island libraries must be instantiated once per consuming hub
    (a macro stamping `rust_library` per hub) to keep type identity.
-- Option B, one Bazel-only aggregator manifest
+- Option B,
+  one Bazel-only aggregator manifest
    (for example `third_party/rust/Cargo.toml` with path dependencies on the 19 crates,
    which Cargo allows because path dependencies need no workspace membership):
    one hub,
@@ -284,8 +335,11 @@ Three designs survive,
    Bazel builds resolve versions and unify features across all islands
    (for example `image` with `default-features = false` in `nested-wayland-session`
    versus defaults in `file-manager`),
-   diverging from the 19 `Cargo.lock` files that `cargo publish`, fuzzing, and IDEs keep using `[I]`.
-- Option C, `crate.spec` declarations in `MODULE.bazel`:
+   diverging from the 19 `Cargo.lock` files that `cargo publish`,
+  fuzzing,
+  and IDEs keep using `[I]`.
+- Option C,
+  `crate.spec` declarations in `MODULE.bazel`:
    no Cargo input at all.
   Cost:
    a second dependency list beside `Cargo.toml`,
@@ -318,7 +372,10 @@ Recommendation within this design:
    `cargo_build_script` runs with Bazel's default shell environment unless disabled
    (`cargo/private/cargo_build_script.bzl:449-457`,
    default `True` at `cargo/settings/settings.bzl:38-44`) `[V]`,
-   so `pkg-config`, `qmake6`, `cmake`, and `libclang` on the host remain reachable,
+   so `pkg-config`,
+  `qmake6`,
+  `cmake`,
+  and `libclang` on the host remain reachable,
    and system headers and libraries are not declared inputs `[I]`.
   `rustc-env` values containing `OUT_DIR` are rewritten to `${out_dir}`
    (`cargo/private/cargo_build_script_runner/lib.rs:246-255`),
@@ -327,14 +384,23 @@ Recommendation within this design:
    the mechanism `cxx-qt-build` uses for `DEP_*_CXX_QT_MANIFEST_PATH`
    (`cxx-qt-build-0.9.1/src/dependencies.rs:42-47`) `[V]`.
 - Unsupported directive:
-   `rustc-link-arg-bin`, `rustc-link-arg-bins`, and `rustc-cdylib-link-arg`
+   `rustc-link-arg-bin`,
+  `rustc-link-arg-bins`,
+  and `rustc-cdylib-link-arg`
    print "build script returned unsupported directive" and are dropped
    (`cargo_build_script_runner/lib.rs:101-110`) `[V]`.
   `package/terminal/app/build.rs` depends on `rustc-link-arg-bin` for its rpath,
    so the flag moves to the `rust_binary` target `[I]`.
 - Per-crate knobs come from `crate.annotation`:
-   `crate_features`, `rustc_flags`, `gen_build_script`, `override_target_build_script`,
-   `override_target_lib`, `build_script_env`, `build_script_toolchains`, `patches`, and more
+   `crate_features`,
+  `rustc_flags`,
+  `gen_build_script`,
+  `override_target_build_script`,
+   `override_target_lib`,
+  `build_script_env`,
+  `build_script_toolchains`,
+  `patches`,
+  and more
    (attribute list in `crate_universe/extensions.bzl`) `[V]`.
   Plan per native crate:
   - `gxhash`:
@@ -343,9 +409,18 @@ Recommendation within this design:
   - `opusic-sys`:
      `override_target_build_script` or `gen_build_script = False`
      plus a dependency on BCR `opus` 1.6.0 (repository bundles libopus 1.6.1),
-     replacing the CMake plus `ANDROID_NDK_HOME` path `[V]` for BCR presence, `[I]` for the approach.
-  - `gtk4-sys` family, `pipewire-sys`, `libspa-sys`, `gbm-sys`, `drm-sys`, `input-sys`,
-     `libudev-sys`, `yeslogic-fontconfig-sys`, `alsa-sys`, `wayland-sys`:
+     replacing the CMake plus `ANDROID_NDK_HOME` path `[V]` for BCR presence,
+    `[I]` for the approach.
+  - `gtk4-sys` family,
+    `pipewire-sys`,
+    `libspa-sys`,
+    `gbm-sys`,
+    `drm-sys`,
+    `input-sys`,
+     `libudev-sys`,
+    `yeslogic-fontconfig-sys`,
+    `alsa-sys`,
+    `wayland-sys`:
      keep host `pkg-config` or bindgen through the default shell environment `[I]`.
   - `cxx-qt-build` and `cxx-build`:
      `build_script_env = {"QMAKE": "/usr/bin/qmake6"}`;
@@ -363,7 +438,8 @@ Recommendation within this design:
   Compile-time `CARGO_MANIFEST_DIR` is `${pwd}/<package>` (`rustc.bzl:1135`) `[V]`,
    a sandbox path at compile time,
    so `env!("CARGO_MANIFEST_DIR")` fixture lookups in
-   `linter/rust/tests/integration.rs:57`, `:206`,
+   `linter/rust/tests/integration.rs:57`,
+  `:206`,
    `file-manager-gtk-sticky/tests/wayland_boundary.rs:21`,
    and `music-player/desktop-app/src/engine_tests.rs:98`
    need runfiles lookups `[I]`.
@@ -374,18 +450,22 @@ Recommendation within this design:
    (`settings.bzl:302-310`) and global `clippy_flags` (`settings.bzl:429-439`) `[V]`;
    the root `clippy.toml` fits.
 - `[lints.clippy]` is read with `extract_cargo_lints`
-   (`cargo/private/cargo_lints.bzl`, exported at `cargo/defs.bzl:34`)
-   wired through `lint_config` (`rust/private/rust.bzl:814`, consumed at `rust/private/clippy.bzl:143-149`) `[V]`.
+   (`cargo/private/cargo_lints.bzl`,
+  exported at `cargo/defs.bzl:34`)
+   wired through `lint_config` (`rust/private/rust.bzl:814`,
+  consumed at `rust/private/clippy.bzl:143-149`) `[V]`.
   Because all 19 tables are identical,
    one global `clippy_flag` set is equivalent `[I]`.
 - `--all-targets` maps to running the aspect over `rust_test` targets as well `[I]`.
 - `format:clippy` maps to `rules_lint`'s Clippy aspect with its patch output
-   (`rules_lint/lint/rust/clippy.bzl`, `lint/rust/patcher_run.bzl`) `[V]` for presence.
+   (`rules_lint/lint/rust/clippy.bzl`,
+  `lint/rust/patcher_run.bzl`) `[V]` for presence.
 - The Android crate's Clippy runs under an Android platform,
    so every analysis of it needs the NDK toolchain;
    mark it `target_compatible_with = ["@platforms//os:android"]`
    because `ndk-sys` emits `compile_error!` off Android
-   (`android-app/rust/.cargo/config.toml` header comment) `[V]` for the error, `[I]` for the constraint.
+   (`android-app/rust/.cargo/config.toml` header comment) `[V]` for the error,
+  `[I]` for the constraint.
 
 ### Bazel: tests and cargo-nextest
 
@@ -401,7 +481,8 @@ Recommendation within this design:
 ### Bazel: fuzzing
 
 - rules_rust has no fuzzing rule (`rg --ignore-case fuzz` over `*.bzl` and docs found only a lint group name) `[V]`.
-- rules_fuzzing: "The rule library currently provides support for C++ and Java fuzz tests"
+- rules_fuzzing:
+  "The rule library currently provides support for C++ and Java fuzz tests"
    (`rules_fuzzing/README.md:7`) `[V]`.
 - Design:
    keep `cargo fuzz` outside Bazel,
@@ -429,11 +510,17 @@ Recommendation within this design:
 ### Today
 
 - Rules:
-   `max-lines` (300 code lines, lexer-based) and `require-rustdoc`,
+   `max-lines` (300 code lines,
+  lexer-based) and `require-rustdoc`,
    both non-suppressible,
    with defaults compiled from `package/rust-module/rust-linter-core/default.toml`
-   that exempt `tests/`, `*_tests.rs`, `fuzz/`, `build.rs`, and fixture directories
-   (`package/linter/rust/README.md`, sections "Rules" and "Exemptions") `[V]`.
+   that exempt `tests/`,
+  `*_tests.rs`,
+  `fuzz/`,
+  `build.rs`,
+  and fixture directories
+   (`package/linter/rust/README.md`,
+  sections "Rules" and "Exemptions") `[V]`.
 - Configuration:
    `rust-linter.toml` discovered by walking up from the working directory;
    no `rust-linter.toml` exists in the repository today `[V]`.
@@ -448,9 +535,12 @@ Recommendation within this design:
 
 - Build `//package/linter/rust:rust-linter` as a `rust_binary` from the four linter crates.
   Under Option A this is the first place the per-hub type-identity problem appears
-   (section 1, `ra_ap_syntax`) `[I]`.
+   (section 1,
+  `ra_ap_syntax`) `[I]`.
 - Run it two ways:
-  - A `rules_lint`-style aspect over `rust_library`, `rust_binary`, `rust_test`,
+  - A `rules_lint`-style aspect over `rust_library`,
+    `rust_binary`,
+    `rust_test`,
      and `cargo_build_script` targets,
      passing `ctx.rule.files.srcs` explicitly,
      producing a report output group and a failing `lint_test` `[I]`.
@@ -472,11 +562,14 @@ Recommendation within this design:
 
 ### Today
 
-- No `.zig`, `build.zig`, or `build.zig.zon` file is tracked
+- No `.zig`,
+  `build.zig`,
+  or `build.zig.zon` file is tracked
    (`rg --files --hidden --no-ignore-vcs --glob '**/build.zig*' --glob '**/*.zig'` returned nothing),
    and no `zig cc` use exists `[V]`.
 - The only use:
-   `libghostty-vt-sys 0.1.1`, a dependency of `package/terminal/app`.
+   `libghostty-vt-sys 0.1.1`,
+  a dependency of `package/terminal/app`.
   Its `build.rs`:
   - clones `https://github.com/ghostty-org/ghostty.git`
      at commit `bebca84668947bfc92b9a30ed58712e1c34eee1d` into `OUT_DIR`
@@ -521,7 +614,8 @@ Recommendation within this design:
   4. Put the Zig toolchain on `PATH` for the build script,
      since `build.rs` calls `Command::new("zig")` and `tools` are not added to `PATH` by name
      (`cargo_build_script.bzl:846-850` documents only "Tools required by the build script")
-     `[V]` for the attribute, `[I]` for `PATH`.
+     `[V]` for the attribute,
+     `[I]` for `PATH`.
   5. Wrap the produced shared library in `cc_import` and give `monochromatic-terminal`
      the rpath link option dropped from `build.rs` `[I]`.
 - Alternative:
@@ -538,15 +632,30 @@ Recommendation within this design:
 
 ### Today: build features
 
-From `package/music-player/android-app/settings.gradle.kts`, `build.gradle.kts`,
-`app/build.gradle.kts`, `gradle.properties`, `gradle/wrapper/gradle-wrapper.properties`, and `mise.toml` `[V]`:
+From `package/music-player/android-app/settings.gradle.kts`,
+`build.gradle.kts`,
+`app/build.gradle.kts`,
+`gradle.properties`,
+`gradle/wrapper/gradle-wrapper.properties`,
+and `mise.toml` `[V]`:
 
 - Gradle 9.5.1 wrapper;
    AGP `com.android.application` 9.2.1 with its built-in Kotlin (KGP 2.2.10);
    `org.jetbrains.kotlin.plugin.compose` 2.2.10.
-- No version catalog, no KSP, no kapt, no Room, no Hilt, no product flavors,
-   no baseline profiles, no AAB task, `isMinifyEnabled = false` (no R8).
-- `compileSdk = 37`, `targetSdk = 36`, `minSdk = 26`, `versionCode = 1`, `versionName = "0.1.0"`,
+- No version catalog,
+  no KSP,
+  no kapt,
+  no Room,
+  no Hilt,
+  no product flavors,
+   no baseline profiles,
+  no AAB task,
+  `isMinifyEnabled = false` (no R8).
+- `compileSdk = 37`,
+  `targetSdk = 36`,
+  `minSdk = 26`,
+  `versionCode = 1`,
+  `versionName = "0.1.0"`,
    `namespace`/`applicationId = "dev.monochromatic.musicplayer"`.
 - Java and Kotlin JVM target 17.
 - Dependencies:
@@ -561,17 +670,24 @@ From `package/music-player/android-app/settings.gradle.kts`, `build.gradle.kts`,
    the manifest uses `@android:style/Theme.Material.NoActionBar`,
    declares two foreground services and media permissions.
 - Signing:
-   release uses `signingConfigs.getByName("debug")`, the Gradle debug key.
+   release uses `signingConfigs.getByName("debug")`,
+  the Gradle debug key.
 - Native code:
    prebuilt `.so` files dropped into `app/src/main/jniLibs/<abi>/` by `build:native`.
 - Host tests:
-   `testDebugUnitTest`, JUnit 4, 15 `*Test.kt` files plus `FakeAudioEngine.kt`;
+   `testDebugUnitTest`,
+  JUnit 4,
+  15 `*Test.kt` files plus `FakeAudioEngine.kt`;
    `OklchColorTest.kt` imports `androidx.compose.ui.graphics.Color` from an AAR
-   (note 2026-10-13: that file is deleted; other host tests such as `DeckColorTest.kt` still import Compose types).
+   (note 2026-10-13:
+  that file is deleted;
+  other host tests such as `DeckColorTest.kt` still import Compose types).
 - Device tests:
    `connectedDebugAndroidTest` and a non-destructive `test:instrumented:device`
    using `adb install -r` plus `am instrument` to keep the SAF grant and warm peak cache;
-   runner `androidx.test:runner 1.7.0`, `androidx.test.ext:junit 1.2.1`, `work-testing 2.11.2`;
+   runner `androidx.test:runner 1.7.0`,
+  `androidx.test.ext:junit 1.2.1`,
+  `work-testing 2.11.2`;
    `NativeBridgeTest` verifies the native fingerprint on the physical device.
 - Android Lint:
    `lint` runs `./gradlew :app:lintDebug`.
@@ -588,11 +704,21 @@ From `package/music-player/android-app/settings.gradle.kts`, `build.gradle.kts`,
    rules_android says "This branch is a development preview of the Starlark implementation of Android rules for Bazel.
    This code is incomplete and may not function as-is."
    (`rules_android/README.md:5-6`) `[V]`.
-  Bazel 9 removed the native `android_binary`, `android_library`, and `android_sdk_repository`
-   (`bazel/CHANGELOG.md:2720-2721`, `:2818-2823`) `[V]`.
+  Bazel 9 removed the native `android_binary`,
+  `android_library`,
+  and `android_sdk_repository`
+   (`bazel/CHANGELOG.md:2720-2721`,
+  `:2818-2823`) `[V]`.
 - Public rules:
-   `aar_import`, `android_application`, `android_binary`, `android_library`, `android_local_test`,
-   `android_sdk`, `android_sdk_repository`, `android_tools_defaults_jar`, `instrumented_app_info_aspect`
+   `aar_import`,
+  `android_application`,
+  `android_binary`,
+  `android_library`,
+  `android_local_test`,
+   `android_sdk`,
+  `android_sdk_repository`,
+  `android_tools_defaults_jar`,
+  `instrumented_app_info_aspect`
    (`rules_android/android/rules.bzl:65-75`) `[V]`.
 - AGP 9 and Gradle:
    no equivalent;
@@ -601,12 +727,14 @@ From `package/music-player/android-app/settings.gradle.kts`, `build.gradle.kts`,
    rules_kotlin's current compiler is 2.4.20
    (`src/main/starlark/core/repositories/versions.bzl:29`),
    with capability templates only for 2.3 and 2.4
-   (`src/main/starlark/core/repositories/kotlin/capabilities_2.3.bzl`, `capabilities_2.4.bzl`) `[V]`,
+   (`src/main/starlark/core/repositories/kotlin/capabilities_2.3.bzl`,
+  `capabilities_2.4.bzl`) `[V]`,
    so the app moves from Kotlin 2.2.10 to 2.4.x `[I]`.
 - Compose compiler plugin:
    supported through `kt_compiler_plugin` with `target_embedded_compiler = True`
    and `kotlin-compose-compiler-plugin-embeddable`
-   (`rules_kotlin/examples/jetpack_compose/BUILD:19-33`, `MODULE.bazel:50`) `[V]`.
+   (`rules_kotlin/examples/jetpack_compose/BUILD:19-33`,
+  `MODULE.bazel:50`) `[V]`.
 - KSP:
    not used;
    rules_kotlin pins KSP 2.3.12 and has `examples/ksp` `[V]`.
@@ -619,7 +747,10 @@ From `package/music-player/android-app/settings.gradle.kts`, `build.gradle.kts`,
 - Resource processing and manifest merging:
    `android_binary` has `manifest_merger` and `manifest_values`
    (`rules/android_binary/attrs.bzl:71-72`) `[V]`;
-   `minSdk`, `targetSdk`, `versionCode`, `versionName` move to `manifest_values` `[I]`.
+   `minSdk`,
+  `targetSdk`,
+  `versionCode`,
+  `versionName` move to `manifest_values` `[I]`.
   Merging of AAR manifests that register `androidx.startup` and WorkManager components is `[U]`;
    issues #101 ("Update manifest merger") and #445 are open `[V]`.
 - Debug versus release:
@@ -639,14 +770,16 @@ From `package/music-player/android-app/settings.gradle.kts`, `build.gradle.kts`,
 - Signing:
    `debug_key` defaults to `//tools/android:debug_keystore`,
    rules_android's own `tools/android/bazel_debug.keystore`
-   (`rules/android_binary/attrs.bzl:145-147`, `tools/android/BUILD:427`) `[V]`.
+   (`rules/android_binary/attrs.bzl:145-147`,
+  `tools/android/BUILD:427`) `[V]`.
   An APK signed with a different key than the Gradle-installed app cannot update it in place,
    so the first Bazel install forces an uninstall that deletes the SAF grant and warm peak cache
    unless `debug_key` points at a copy of the existing Gradle debug keystore `[I]`.
 - Native library packaging:
    `native_deps.process` links static `CcInfo` inputs into `lib<target>.so`
    and packages dynamic libraries under their own basenames
-   (`rules/native_deps.bzl:93-160`, `_collect_unique_shared_libs` at `:192-245`) `[V]`.
+   (`rules/native_deps.bzl:93-160`,
+  `_collect_unique_shared_libs` at `:192-245`) `[V]`.
   The Rust library therefore goes in as a `cc_import(shared_library = ...)` of a
    `rust_shared_library(name = "musicplayer_native")` built under the split Android platform,
    preserving `libmusicplayer_native.so` for `System.loadLibrary` `[I]`.
@@ -659,7 +792,8 @@ From `package/music-player/android-app/settings.gradle.kts`, `build.gradle.kts`,
 - Host unit tests:
    pure-logic tests fit `kt_jvm_test` (default runner `BazelTestRunner`,
    `rules_kotlin/kotlin/internal/jvm/jvm.bzl:415`) `[V]`;
-   `OklchColorTest` (deleted 2026-10-13; `DeckColorTest` and `PlayerThemeTest` need the same)
+   `OklchColorTest` (deleted 2026-10-13;
+  `DeckColorTest` and `PlayerThemeTest` need the same)
    needs Compose classes from an AAR,
    so it goes to `android_local_test` with Robolectric or a JVM test with `android.jar` on the classpath `[I]`.
   rules_android issues #169 ("android_local_test tests are very fragile") and #560 are open `[V]`.
@@ -668,10 +802,14 @@ From `package/music-player/android-app/settings.gradle.kts`, `build.gradle.kts`,
    (`rg --files-with-matches instrumentation_test` over `bazel/src/main` returned nothing)
    or in rules_android's public rules `[V]`.
   Bazel's 9.1.0 documentation still describes it
-   (`bazel/docs/versions/9.1.0/docs/android-instrumentation-test.mdx:12`, `:29`) `[V]`.
+   (`bazel/docs/versions/9.1.0/docs/android-instrumentation-test.mdx:12`,
+  `:29`) `[V]`.
   rules_android #102 ("Open source android_instrumentation_test in Starlark") is open;
-   #296 ("Can instrumented tests be run on a connected device?") has no answer;
-   `bazelbuild/rules_utp`, cited there as a working example, is archived `[V]`.
+   #296 ("Can instrumented tests be run on a connected device?")
+  has no answer;
+   `bazelbuild/rules_utp`,
+  cited there as a working example,
+  is archived `[V]`.
   Design:
    build the test APK with `android_binary(instruments = ...)` and run
    `adb install -r` plus `am instrument` from a `bazel run` script,
@@ -679,12 +817,14 @@ From `package/music-player/android-app/settings.gradle.kts`, `build.gradle.kts`,
    without Bazel test result caching `[I]`.
 - Android Lint:
    no rules_android integration;
-   issue #321 ("Feature Request: Android Lint Tool Integration") is open,
+   issue #321 ("Feature Request:
+  Android Lint Tool Integration") is open,
    and its latest comment reports a lint CLI wrapper with project XML descriptors
    averaging "7-10mins" `[V]`.
 - Emulator:
    `hermetic_android_toolchains` can download emulator and system images
-   (`README.md`, "Downloading emulators") `[V]`;
+   (`README.md`,
+  "Downloading emulators") `[V]`;
    whether it offers the `google_apis_playstore_ps16k` Android 37.0 image the current AVD uses is `[U]`.
 - IDE:
    the JetBrains Bazel plugin's Marketplace description says "Supports Java and Kotlin"
@@ -692,24 +832,32 @@ From `package/music-player/android-app/settings.gradle.kts`, `build.gradle.kts`,
   The Android plugin inside IntelliJ IDEA has no Bazel project system `[U]`.
   "Bazel for Android Studio" (plugin 9185) is released from AOSP for Android Studio only,
    each build pinned to one Android Studio build
-   (latest `261.26222.65.2614.16204760`, 2026-09-08, `since` equals `until`) `[V]`;
+   (latest `261.26222.65.2614.16204760`,
+  2026-09-08,
+  `since` equals `until`) `[V]`;
    its Compose preview and Device Manager support is `[U]`.
 
 ## 5. Kotlin linter module
 
 ### Today
 
-`package/linter/kotlin` (`build.gradle.kts`, `gradle.properties`, `mise.toml`) `[V]`:
+`package/linter/kotlin` (`build.gradle.kts`,
+`gradle.properties`,
+`mise.toml`) `[V]`:
 
-- Kotlin JVM plugin 2.4.0, JVM target 17,
+- Kotlin JVM plugin 2.4.0,
+  JVM target 17,
    `compileOnly("dev.detekt:detekt-api:2.0.0-alpha.5")`,
    a `detektCli` configuration for `detekt-cli`,
-   tests on `detekt-test` (excluding `detekt-api`), `junit-jupiter 5.10.2`, `useJUnitPlatform()`.
+   tests on `detekt-test` (excluding `detekt-api`),
+  `junit-jupiter 5.10.2`,
+  `useJUnitPlatform()`.
 - `detektCheck` is a `JavaExec` of `dev.detekt.cli.Main` with the built rule jar as `--plugins`.
 - Publishing:
    `maven-publish` to a `file://` staging repository `build/central-staging`,
    `signing` with in-memory PGP keys,
-   `withSourcesJar()`, `withJavadocJar()` filled from `README.md`,
+   `withSourcesJar()`,
+  `withJavadocJar()` filled from `README.md`,
    then `centralBundle` zips the staging repository excluding `maven-metadata.xml` and signature checksums.
 - `.github/workflows/kotlin-linter-publish.yml` runs `verify:publication`,
    uploads the bundle to `https://central.sonatype.com/api/v1/publisher/upload`,
@@ -724,23 +872,36 @@ From `package/music-player/android-app/settings.gradle.kts`, `build.gradle.kts`,
    `kt_jvm_test` defaults to the JUnit 4 `BazelTestRunner` (`jvm.bzl:415`) `[V]`;
    JUnit 5 uses `contrib_rules_jvm`'s `java_junit5_test`
    ("a drop-in replacement for `java_test` that can run JUnit5 tests",
-   `bazel-contrib/rules_jvm` README) over a test-only `kt_jvm_library` `[V]` for the rule, `[I]` for the combination.
+   `bazel-contrib/rules_jvm` README) over a test-only `kt_jvm_library` `[V]` for the rule,
+  `[I]` for the combination.
 - detekt runner:
    `java_binary(main_class = "dev.detekt.cli.Main")` over `@maven//:dev_detekt_detekt_cli`,
    invoked by a test macro or aspect for `lint:detekt` consumers `[I]`.
 - Publishing:
    `kt_jvm_export` "is the Kotlin JVM version of `java_export`" and generates `.publish`
    (`rules_jvm_external/private/rules/kt_jvm_export.bzl:7-37`) `[V]`.
-  The publisher reads `MAVEN_REPO`, `GPG_SIGN`, `USE_IN_MEMORY_PGP_KEYS`, `PGP_SIGNING_KEY`
+  The publisher reads `MAVEN_REPO`,
+  `GPG_SIGN`,
+  `USE_IN_MEMORY_PGP_KEYS`,
+  `PGP_SIGNING_KEY`
    (`private/tools/java/.../maven/MavenPublisher.java:111-128`),
-   uploads `.md5`, `.sha1`, `.sha256`, `.sha512` sidecars (`:369-384`),
+   uploads `.md5`,
+  `.sha1`,
+  `.sha256`,
+  `.sha512` sidecars (`:369-384`),
    and maintains `maven-metadata.xml` (`:260-302`) `[V]`.
   It does not speak the Central Portal upload API
-   (no `central`, `portal`, or `sonatype` match in `MavenPublisher.java`) `[V]`,
+   (no `central`,
+  `portal`,
+  or `sonatype` match in `MavenPublisher.java`) `[V]`,
    so the design publishes to a `file://` staging repository with `bazel run :detekt_rules.publish`
-   and keeps the workflow's zip, metadata exclusion, upload, and polling steps `[I]`.
+   and keeps the workflow's zip,
+  metadata exclusion,
+  upload,
+  and polling steps `[I]`.
   The README-as-javadoc jar needs `classifier_artifacts` or the `no-javadocs` tag
-   (`kt_jvm_export.bzl:50-54`) `[V]` for the tag, `[U]` for `classifier_artifacts` on `kt_jvm_export`.
+   (`kt_jvm_export.bzl:50-54`) `[V]` for the tag,
+  `[U]` for `classifier_artifacts` on `kt_jvm_export`.
 - `verify:publication` and `verify:central` stay as scripts driving throwaway consumer builds `[I]`.
 
 ## 6. JDK and Android SDK provisioning
@@ -749,7 +910,9 @@ From `package/music-player/android-app/settings.gradle.kts`, `build.gradle.kts`,
 
 - `java = "temurin-21"` (`mise.toml:186`) `[V]`.
 - `"android-sdk" = "latest"` installs only cmdline-tools and exports `ANDROID_HOME` (`mise.toml:188-197`) `[V]`.
-- `prepare:android` installs `platforms;android-37.0`, `build-tools;37.0.0`, `ndk;29.0.13846066`,
+- `prepare:android` installs `platforms;android-37.0`,
+  `build-tools;37.0.0`,
+  `ndk;29.0.13846066`,
    and `platform-tools` with `sdkmanager`,
    accepts licenses by piping `y`,
    and adds the two Android `rustup` targets (`mise.toml:1040-1085`) `[V]`.
@@ -760,26 +923,39 @@ From `package/music-player/android-app/settings.gradle.kts`, `build.gradle.kts`,
 - JDK:
    Bazel's `--java_runtime_version` defaults to `local_jdk`
    and `--tool_java_runtime_version` to `remotejdk_11`
-   (`bazel/src/main/java/com/google/devtools/build/lib/rules/java/JavaOptions.java:377-378`, `:385-386`) `[V]`.
+   (`bazel/src/main/java/com/google/devtools/build/lib/rules/java/JavaOptions.java:377-378`,
+  `:385-386`) `[V]`.
   `.bazelrc` sets both to `remotejdk_21`,
-   which rules_java defines (`java/repositories.bzl:277`, `remotejdk21_linux`) `[V]`,
+   which rules_java defines (`java/repositories.bzl:277`,
+  `remotejdk21_linux`) `[V]`,
    plus `--java_language_version=17` `[I]`.
-- Android SDK, option 1:
+- Android SDK,
+  option 1:
    rules_android's `android_sdk_repository` takes `path` or reads `ANDROID_HOME`
-   (`rules/android_sdk_repository/rule.bzl:114-117`, `environ = ["ANDROID_HOME"]` at `:199`),
+   (`rules/android_sdk_repository/rule.bzl:114-117`,
+  `environ = ["ANDROID_HOME"]` at `:199`),
    creates an empty repository when neither is set,
    and never downloads anything `[V]`.
   mise `android-sdk` and `prepare:android` would stay.
-- Android SDK, option 2 (preferred):
-   `hermetic_android_toolchains` downloads SDK, build-tools, platform-tools, NDK, and emulator images,
+- Android SDK,
+  option 2 (preferred):
+   `hermetic_android_toolchains` downloads SDK,
+  build-tools,
+  platform-tools,
+  NDK,
+  and emulator images,
    with licenses accepted through `--repo_env=ACCEPTED_ANDROID_SDK_LICENSE_VERSION` and
    `ACCEPTED_ANDROID_NDK_LICENSE_VERSION` (`README.md:13-45`) `[V]`.
   Its metadata includes SDK platform `37.0` (`sdk/versions.json:432`),
    build-tools `37.0.0` (`sdk/versions.json:64-65`),
-   and NDK `29.0.13846066`, which it labels `r29-beta3` (`ndk/versions.json:30`) `[V]`.
+   and NDK `29.0.13846066`,
+  which it labels `r29-beta3` (`ndk/versions.json:30`) `[V]`.
   rules_kotlin's Compose example already overrides `@androidsdk` with it
    (`examples/jetpack_compose/MODULE.bazel:21-41`) `[V]`.
-  This removes `android-sdk`, `prepare:android`, `cargo-ndk`, and the `rustup target add` step `[I]`.
+  This removes `android-sdk`,
+  `prepare:android`,
+  `cargo-ndk`,
+  and the `rustup target add` step `[I]`.
 - Observation:
    the repository pins an NDK build that this metadata names a beta,
    while stable `r29` is `29.0.14206865` (`ndk/versions.json:32`) `[V]`.
@@ -812,7 +988,9 @@ Ordered by how directly each one could disqualify the Bazel route or force a red
       `rules_utp` archived `[V]`;
       Bazel 9.1.0 documentation still presents the removed rule `[V]`.
    - Why:
-      the owner's device tests (`NativeBridgeTest`, `RustEngineTest`, `PeakSweepWorkerTest`)
+      the owner's device tests (`NativeBridgeTest`,
+     `RustEngineTest`,
+     `PeakSweepWorkerTest`)
       become `bazel run` scripts outside `bazel test`,
       and the documentation contradiction is itself the kind of confusion trigger that excluded Bazel in the vet `[I]`.
 3. Android Lint has no Bazel integration.
@@ -831,16 +1009,24 @@ Ordered by how directly each one could disqualify the Bazel route or force a red
       "Bazel for Android Studio" targets Android Studio builds only,
       pinned per build `[V]`.
    - Why:
-      Compose previews, Device Manager deploys, and resource-aware editing in IDEA depend on a Gradle model
+      Compose previews,
+     Device Manager deploys,
+     and resource-aware editing in IDEA depend on a Gradle model
       that a Bazel-only Android build does not provide `[U]` for feature-level behavior.
 5. rules_android is a self-declared incomplete preview on the path that matters.
    - Evidence:
       `rules_android/README.md:5-6` `[V]`;
-      open issues on manifest merging (#101, #445), `android_local_test` fragility (#169),
+      open issues on manifest merging (#101,
+     #445),
+     `android_local_test` fragility (#169),
       and `kt_android_library` aspect traversal (#506) `[V]`;
       no maintained rules_rust Android example and open linking issue #1276 `[V]`.
    - Why:
-      the Kotlin, Compose, AAR, manifest-merge, and Rust-JNI combination this app needs
+      the Kotlin,
+     Compose,
+     AAR,
+     manifest-merge,
+     and Rust-JNI combination this app needs
       has no single upstream example that exercises it together `[I]`,
       so a failure surfaces only after the port.
 6. Ghostty's Zig build is a networked foreign build system inside a Cargo build script.
@@ -851,7 +1037,8 @@ Ordered by how directly each one could disqualify the Bazel route or force a red
       a recorded zig 0.15.2 path-space spawn bug (`doc/troubleshooting/desktop-app-host-build.md:141-215`) `[V]`;
       no public Bazel precedent found `[V]`.
    - Why:
-      a sandboxed, cacheable build requires patching the crate,
+      a sandboxed,
+     cacheable build requires patching the crate,
       pre-fetching Zig packages in a repository rule,
       and relocating Zig caches,
       all repository-owned with no upstream reference `[I]`.
@@ -866,8 +1053,15 @@ Ordered by how directly each one could disqualify the Bazel route or force a red
 8. System-library crates make cache hits depend on undeclared host state.
    - Evidence:
       `cargo_build_script` inherits the default shell environment by default
-      (`cargo_build_script.bzl:449-457`, `cargo/settings/settings.bzl:38-44`) `[V]`;
-      GTK, PipeWire, Wayland, DRM, Qt (`cxx-qt-build` via `qmake6`), fontconfig, and libclang
+      (`cargo_build_script.bzl:449-457`,
+     `cargo/settings/settings.bzl:38-44`) `[V]`;
+      GTK,
+     PipeWire,
+     Wayland,
+     DRM,
+     Qt (`cxx-qt-build` via `qmake6`),
+     fontconfig,
+     and libclang
       are host-provided today `[V]`.
    - Why:
       after an `rpm-ostree` upgrade of those libraries,
@@ -893,7 +1087,8 @@ Ordered by how directly each one could disqualify the Bazel route or force a red
     - Evidence:
        rules_android's default `debug_key` is its own keystore (`rules/android_binary/attrs.bzl:145-147`) `[V]`;
        the repository's non-destructive device workflow exists to keep the SAF grant and warm cache
-       (`package/music-player/android-app/mise.toml`, `test:instrumented:device`) `[V]`.
+       (`package/music-player/android-app/mise.toml`,
+      `test:instrumented:device`) `[V]`.
     - Why:
        the first Bazel-built install over the Gradle-built app needs an uninstall `[I]`;
        avoidable by pointing `debug_key` at the existing Gradle debug keystore.
@@ -902,5 +1097,6 @@ Ordered by how directly each one could disqualify the Bazel route or force a red
        dated nightly required (`repository_utils.bzl:842-843`) `[V]`;
        rules_kotlin capability templates cover 2.3 and 2.4 only `[V]`.
     - Why:
-       version policy changes (pinned nightly dates, Kotlin 2.4 for the app);
+       version policy changes (pinned nightly dates,
+      Kotlin 2.4 for the app);
        not disqualifying on its own `[I]`.

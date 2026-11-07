@@ -6,8 +6,10 @@ OCaml,
 and .NET not worth further research.
 This file is kept as evidence.
 
-Date: 2026-09-16.
-Scope: read-only design research for the daemon in
+Date:
+2026-09-16.
+Scope:
+read-only design research for the daemon in
 `doc/planning/monorepo-manager-from-scratch-design.md`.
 Nothing under the repository was modified;
 nothing was installed;
@@ -26,7 +28,8 @@ no cgroup was created.
   Saved documentation HTML is in `SCRATCH/others/docs/`,
    extracted text in `SCRATCH/others/text/`,
    probe scripts in `SCRATCH/others/`.
-- Source clones (shallow, some sparse) under `~/temp/agent/`:
+- Source clones (shallow,
+  some sparse) under `~/temp/agent/`:
   - `dotnet/runtime` at `8970fe8a2fb3` (2026-09-16)
   - `ocaml/ocaml` at `8102ebbfa2a3` (2026-09-15)
   - `ocaml-multicore/eio` at `2ae74d1cceb3` (2026-09-11)
@@ -34,7 +37,8 @@ no cgroup was created.
   - `ocaml/dune` at `215adfd0ee1a` (2026-09-16)
   - `python/cpython` at `d8a107249106` (2026-09-16)
   - glibc GitHub mirror `bminor/glibc` at `04e750e75b73` (2026-01-20)
-- Documentation gate (R9), per `doc/audit/tech-monorepo-manager-vet-2026-09-16.md:289-321`:
+- Documentation gate (R9),
+  per `doc/audit/tech-monorepo-manager-vet-2026-09-16.md:289-321`:
    each relied-on page fetched once with
    `curl --location --silent --show-error --user-agent 'Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0'`;
    status,
@@ -45,9 +49,12 @@ no cgroup was created.
    `probe-p2.tsv`,
    and `probe-p3.tsv` (driver `SCRATCH/others/docprobe.ts`).
   Any confusion or contradiction found while reading is recorded as a trigger with its URL.
-- Library maintenance metadata came from `gh api repos/<owner>/<repo>` (plus `releases/latest`, `tags`, `commits`) on
+- Library maintenance metadata came from `gh api repos/<owner>/<repo>` (plus `releases/latest`,
+  `tags`,
+  `commits`) on
    2026-09-16
-   (`SCRATCH/others/ghmeta-*.tsv`, verified).
+   (`SCRATCH/others/ghmeta-*.tsv`,
+  verified).
 
 ## Cross-cutting findings
 
@@ -62,10 +69,12 @@ and some apply to the options other agents cover.
    (`NEWS:815` "Version 2.39",
    `NEWS:831-840`,
    verified).
-- The host has glibc 2.43 (`ldd --version`, measured);
+- The host has glibc 2.43 (`ldd --version`,
+  measured);
    declarations at `/usr/include/bits/spawn_ext.h:27-63`
    and `POSIX_SPAWN_SETCGROUP 0x100` at `/usr/include/spawn.h:63` (verified).
-  The header comment reads "Sore the cgroupsv2 the attribute structure" (`spawn_ext.h:33`, verified).
+  The header comment reads "Sore the cgroupsv2 the attribute structure" (`spawn_ext.h:33`,
+  verified).
 - Implementation:
    `sysdeps/unix/sysv/linux/spawni.c:397-437` passes `CLONE_INTO_CGROUP | CLONE_PIDFD | CLONE_VM | CLONE_VFORK`
    to `clone3` and has no fallback for `POSIX_SPAWN_SETCGROUP` when `clone3` is unavailable,
@@ -74,7 +83,8 @@ and some apply to the options other agents cover.
    so the caller's runtime never executes managed or OCaml code after the fork.
   This is what makes the call usable from garbage-collected runtimes.
 - Documentation:
-   the glibc manual mentions `pidfd_spawn` once in passing (`manual/process.texi:141`, verified)
+   the glibc manual mentions `pidfd_spawn` once in passing (`manual/process.texi:141`,
+  verified)
    and documents neither function;
    `https://man7.org/linux/man-pages/man3/pidfd_spawn.3.html` returns 404 (measured);
    `man --where posix_spawnattr_setcgroup_np pidfd_spawn` finds no entry (measured).
@@ -82,11 +92,15 @@ and some apply to the options other agents cover.
    `CLONE_INTO_CGROUP` "(since Linux 5.7)",
    fd opened "using either the O_RDONLY or the O_PATH flag",
    `EBUSY` when the target cgroup has a domain controller enabled
-   (<https://man7.org/linux/man-pages/man2/clone.2.html>, verified).
-  Under the vet's rule that "a feature named only in a changelog, issue, blog post,
+   (<https://man7.org/linux/man-pages/man2/clone.2.html>,
+  verified).
+  Under the vet's rule that "a feature named only in a changelog,
+  issue,
+  blog post,
   or source code counts as undocumented",
    any design whose primary cgroup placement is this glibc call carries an R9 trigger.
-- Probe from Python `ctypes` (`SCRATCH/others/spawn_probe.py`, measured):
+- Probe from Python `ctypes` (`SCRATCH/others/spawn_probe.py`,
+  measured):
    `pidfd_spawn` with `POSIX_SPAWN_SETCGROUP | POSIX_SPAWN_SETPGROUP`,
    a 336-byte attribute buffer,
    and an fd for the cgroup this shell already occupies returned 0;
@@ -123,11 +137,13 @@ and some apply to the options other agents cover.
 ### X3: `systemd-run --user --scope` per task
 
 - Documented placement path for any language
-   (`SRC/systemd/systemd-run.xml:76-81`, as cited in `from-scratch-inputs.md:705-707`).
+   (`SRC/systemd/systemd-run.xml:76-81`,
+  as cited in `from-scratch-inputs.md:705-707`).
 - The resulting scope is created by systemd,
    and `CGROUP_DELEGATION.md:386-397` forbids writing attributes of cgroups systemd created,
    so pause and end would go through systemd instead of `cgroup.freeze` and `cgroup.kill`
-   (the `systemctl --user freeze` and `kill` pages were not read in this session; unverified).
+   (the `systemctl --user freeze` and `kill` pages were not read in this session;
+  unverified).
 
 ### X4: Ctrl+C and process groups
 
@@ -136,25 +152,31 @@ and some apply to the options other agents cover.
    (`POSIX_SPAWN_SETPGROUP` with pgid 0 in X1,
    `setpgid` in X2).
 - Background process groups that read the terminal receive `SIGTTIN`
-   (setpgid(2), cited in `from-scratch-inputs.md:660-663`),
+   (setpgid(2),
+  cited in `from-scratch-inputs.md:660-663`),
    so task stdin is `/dev/null`.
 
 ### X5: watcher algorithm shared by every option
 
 - One inotify instance;
    one watch per non-excluded directory;
-   exclusions (`node_modules`, `.git`, `target`, `dist`) checked during the initial walk
+   exclusions (`node_modules`,
+  `.git`,
+  `target`,
+  `dist`) checked during the initial walk
    and on each `IN_CREATE | IN_ISDIR` or `IN_MOVED_TO | IN_ISDIR`.
 - New-directory race:
    after adding a watch for a new directory,
    scan it and treat every entry found as changed,
-   because events before the watch existed are lost (inotify(7), cited in `from-scratch-inputs.md:545-547`).
+   because events before the watch existed are lost (inotify(7),
+  cited in `from-scratch-inputs.md:545-547`).
 - Overflow:
    `IN_Q_OVERFLOW` arrives with wd -1;
    the daemon marks everything dirty,
    rewalks,
    and lets content hashes decide what changed
-   (Watchman fresh-instance precedent, `from-scratch-inputs.md:552-553`).
+   (Watchman fresh-instance precedent,
+  `from-scratch-inputs.md:552-553`).
 - Measured limits:
    `max_queued_events` 16384,
    `max_user_watches` 524288,
@@ -167,7 +189,8 @@ and some apply to the options other agents cover.
 
 - `cgroup.events` carries `populated` and `frozen`;
    "a value change in this file generates a file modified event"
-   (<https://docs.kernel.org/admin-guide/cgroup-v2.html>, sections "cgroup.events" and "[Un]populated Notification",
+   (<https://docs.kernel.org/admin-guide/cgroup-v2.html>,
+  sections "cgroup.events" and "[Un]populated Notification",
 verified).
   Every option can wait for freeze completion and task-tree exit through its inotify path.
 - btrfs UAPI (verified on host headers):
@@ -193,22 +216,26 @@ verified).
    Unix file modes,
    and `System.IO.Hashing`,
    and NativeAOT supports P/Invoke to libc
-   (<https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/interop>, verified).
+   (<https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/interop>,
+  verified).
 - **OCaml 5 with Eio.**
   Evidence:
    Dune,
    an OCaml build system,
-   already implements a Linux inotify watcher with queue-overflow handling (`src/dune_scheduler/inotify.ml:136`, `:150`)
+   already implements a Linux inotify watcher with queue-overflow handling (`src/dune_scheduler/inotify.ml:136`,
+  `:150`)
    and an RPC server over Unix-domain sockets (`src/rpc/csexp_rpc.ml:27`),
    and Eio 1.5 (2026-08-19) provides pidfd-based process management and Unix-socket listening (verified).
-- **Python 3.14 (CPython, standard library first).**
+- **Python 3.14 (CPython,
+  standard library first).**
   Evidence:
    the standard library documents `fcntl.FICLONE` (3.12),
    `os.pidfd_open`,
    `os.waitid` with `P_PIDFD`,
    `loop.add_reader`,
    and `asyncio.start_unix_server`
-   (docs.python.org pages in `probe-p1.tsv`/`probe-p2.tsv`, verified),
+   (docs.python.org pages in `probe-p1.tsv`/`probe-p2.tsv`,
+  verified),
    and `ctypes` reached glibc's cgroup spawn on this host (X1 probe).
 
 ### Excluded
@@ -216,10 +243,13 @@ verified).
 - **Swift on Linux.**
   The relied-on documentation fails the plain-curl gate:
    <https://developer.apple.com/documentation/foundation/process> returns a JavaScript shell
-   ("requires JavaScript", 260 characters of text, keyword absent),
+   ("requires JavaScript",
+  260 characters of text,
+  keyword absent),
    and <https://swiftpackageindex.com/swiftlang/swift-subprocess/documentation/subprocess>
    plus the SwiftNIO `NIOPosix` page return HTTP 403 with a Cloudflare "Just a moment..." challenge
-   (`probe-p1.tsv`, measured).
+   (`probe-p1.tsv`,
+  measured).
 - **Java without Kotlin.**
   It runs on the same JVM with the same `ProcessBuilder`,
    `WatchService`,
@@ -232,37 +262,51 @@ verified).
   It reaches the kernel through the same libc calls as Rust,
    which additionally has `CommandExt::pre_exec` in its standard library,
    while the repository has one C++ file (`package/file-manager/variant-qt/src/qt_log.cpp`)
-   and Rust lint infrastructure (`clippy.toml`, `package/linter/rust`);
+   and Rust lint infrastructure (`clippy.toml`,
+  `package/linter/rust`);
    separately,
    the language's official documentation is a purchased ISO standard
    ("You can purchase the official standard at the ISO Store",
-   <https://isocpp.org/std/the-standard>, verified),
+   <https://isocpp.org/std/the-standard>,
+  verified),
    so consumed behavior would come from non-official references.
 - **Haskell.**
   IO sequencing needs `do`-notation or monadic binds,
-   which the repository's non-TypeScript skill forbids by default ("point-free chains, monad stacks, `do`-notation",
-   `.claude/skills/dum-dum-non-ts/SKILL.md:65-67`, verified),
+   which the repository's non-TypeScript skill forbids by default ("point-free chains,
+  monad stacks,
+  `do`-notation",
+   `.claude/skills/dum-dum-non-ts/SKILL.md:65-67`,
+  verified),
    and the `process` package offers process-group and session flags but no pre-exec hook
-   (<https://hackage.haskell.org/package/process/docs/System-Process.html>, verified).
+   (<https://hackage.haskell.org/package/process/docs/System-Process.html>,
+  verified).
 - **Nim.**
   The maintained JSON-RPC library is badged "Stability:
   experimental" and "is designed to automatically generate marshalling and parameter checking code"
-   (`status-im/nim-json-rpc` README, verified),
+   (`status-im/nim-json-rpc` README,
+  verified),
    which conflicts with the skill's default ban on macros and code generation (`SKILL.md:58-61`),
    and `std/osproc` has no pre-exec hook among its `ProcessOption` values
-   (<https://nim-lang.org/docs/osproc.html>, verified).
+   (<https://nim-lang.org/docs/osproc.html>,
+  verified).
 - **Crystal.**
-  "A Crystal program by default executes a single fiber at a time, thus concurrent only, while parallelism is opt-in"
-   (<https://crystal-lang.org/reference/1.21/guides/concurrency.html>, verified),
+  "A Crystal program by default executes a single fiber at a time,
+  thus concurrent only,
+  while parallelism is opt-in"
+   (<https://crystal-lang.org/reference/1.21/guides/concurrency.html>,
+  verified),
    so content hashing would stall the watcher and RPC fibers unless opt-in parallelism is adopted,
-   and its `Process` API has `exec` but no pre-exec hook (API page, verified).
+   and its `Process` API has `exec` but no pre-exec hook (API page,
+  verified).
 - **Elixir and Gleam (BEAM).**
   The `erlang` module reference contains no `execve`,
    `ioctl`,
    or `inotify`
-   (absence on <https://www.erlang.org/doc/apps/erts/erlang.html>, verified),
+   (absence on <https://www.erlang.org/doc/apps/erts/erlang.html>,
+  verified),
    and Elixir's `file_system` package delegates Linux watching to the external `inotify-tools` program
-   (<https://hexdocs.pm/file_system/readme.html>, verified),
+   (<https://hexdocs.pm/file_system/readme.html>,
+  verified),
    so cgroup placement,
    watching,
    and reflinks would all live in native code or external programs,
@@ -276,12 +320,14 @@ verified).
    `doctor`,
    and client subcommands.
 - Scheduler state owned by one logical actor fed by a `System.Threading.Channels` channel
-   (<https://learn.microsoft.com/en-us/dotnet/core/extensions/channels>, loaded).
+   (<https://learn.microsoft.com/en-us/dotnet/core/extensions/channels>,
+  loaded).
 - Dedicated OS threads for the inotify reader and for a `poll(2)` loop over task pidfds,
    because the runtime has no public API to await readiness of an arbitrary file descriptor.
   The runtime's own `FileSystemWatcher` does the same,
    running "a dedicated thread" over a shared inotify instance
-   (`src/libraries/System.IO.FileSystem.Watcher/src/System/IO/FileSystemWatcher.Linux.cs:39-43`, verified).
+   (`src/libraries/System.IO.FileSystem.Watcher/src/System/IO/FileSystemWatcher.Linux.cs:39-43`,
+  verified).
 - No third-party NuGet packages.
 
 ### R1: cgroup placement, freeze, kill, limits
@@ -291,7 +337,10 @@ verified).
    optionally `setsid` when detached,
    then `execve`,
    with no caller hook
-   (`src/native/libs/System.Native/pal_process.c:815-830`, `:884`, `:936-937`, verified).
+   (`src/native/libs/System.Native/pal_process.c:815-830`,
+  `:884`,
+  `:936-937`,
+  verified).
 - Primary design (X1):
   - Startup:
      read `/proc/self/cgroup`,
@@ -312,7 +361,8 @@ verified).
      `posix_spawn_file_actions_addopen` (stdin `/dev/null`),
      `adddup2` (stdout and stderr pipes),
      `posix_spawn_file_actions_addchdir_np`,
-     `addclosefrom_np` (`/usr/include/spawn.h:206-228`, verified),
+     `addclosefrom_np` (`/usr/include/spawn.h:206-228`,
+    verified),
      and `pidfd_spawnp`.
   - `argv`,
      `envp`,
@@ -323,11 +373,13 @@ verified).
 - Reaping interaction,
    verified in source:
    .NET reaps only children started by `Process`
-   ("By default we only reap managed processes started using the 'Process' class. This allows other code
+   ("By default we only reap managed processes started using the 'Process' class.
+  This allows other code
 to start processes without .NET reaping them",
    `pal_signal.c:376-377`),
    except when the process is pid 1 or `SIGCHLD` was originally ignored,
-   where it calls `waitpid(-1)` (`pal_signal.c:384`; `ProcessWaitState.Unix.cs:688-706`).
+   where it calls `waitpid(-1)` (`pal_signal.c:384`;
+  `ProcessWaitState.Unix.cs:688-706`).
   In a container where the daemon is pid 1,
    the runtime would steal exit statuses from `pidfd` waits.
   A foreign exited child also makes every `SIGCHLD` fall back to checking all `Process` instances
@@ -348,13 +400,18 @@ to start processes without .NET reaping them",
 
 - `FileSystemWatcher` is unusable for this repository:
    with `IncludeSubdirectories` it recurses into every child directory with no exclusion hook
-   (`FileSystemWatcher.Linux.cs:1176-1218`, verified),
+   (`FileSystemWatcher.Linux.cs:1176-1218`,
+  verified),
    so it would add a watch for each of the 99,416 directories that exist when only `.git` is excluded.
   On overflow it stops the shared inotify instance and restarts watchers,
-   rewalking the tree (`:536-548`, `:1147-1154`, verified).
+   rewalking the tree (`:536-548`,
+  `:1147-1154`,
+  verified).
   Its API page says nothing about Linux behavior
-   (<https://learn.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher?view=net-10.0>, no "Linux"
-or "inotify" text, verified).
+   (<https://learn.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher?view=net-10.0>,
+  no "Linux"
+or "inotify" text,
+  verified).
 - Design:
    P/Invoke `inotify_init1`,
    `inotify_add_watch`,
@@ -367,22 +424,30 @@ or "inotify" text, verified).
 ### R3: RPC
 
 - `Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified)` bound to a `UnixDomainSocketEndPoint`
-   (<https://learn.microsoft.com/en-us/dotnet/api/system.net.sockets.unixdomainsocketendpoint?view=net-10.0>, loaded)
+   (<https://learn.microsoft.com/en-us/dotnet/api/system.net.sockets.unixdomainsocketendpoint?view=net-10.0>,
+  loaded)
    inside a directory created with `Directory.CreateDirectory(path, UnixFileMode)`
-   (`src/libraries/System.Private.CoreLib/src/System/IO/Directory.cs:53`, verified).
+   (`src/libraries/System.Private.CoreLib/src/System/IO/Directory.cs:53`,
+  verified).
 - Peer uid check:
-   `Socket.GetRawSocketOption(1, 17, span)` (`Socket.cs:2298`, verified;
-   `SOL_SOCKET 1`, `SO_PEERCRED 17` at `/usr/include/asm-generic/socket.h:9`, `:30`).
+   `Socket.GetRawSocketOption(1, 17, span)` (`Socket.cs:2298`,
+  verified;
+   `SOL_SOCKET 1`,
+  `SO_PEERCRED 17` at `/usr/include/asm-generic/socket.h:9`,
+  `:30`).
 - Framing:
    split on `\n`,
    parse with `JsonDocument`/`JsonNode`
-   (<https://learn.microsoft.com/en-us/dotnet/standard/serialization/system-text-json/use-dom>, loaded),
+   (<https://learn.microsoft.com/en-us/dotnet/standard/serialization/system-text-json/use-dom>,
+  loaded),
    write with `Utf8JsonWriter`.
   `JsonSerializer` and StreamJsonRpc are avoided because the skill forbids reflection
   and code generation by default (`SKILL.md:58-61`),
    and reflection-based serialization is limited under NativeAOT
-   ("No runtime code generation", "Requires trimming",
-   <https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/>, verified).
+   ("No runtime code generation",
+  "Requires trimming",
+   <https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/>,
+  verified).
 - Subscriptions:
    per connection,
    a bounded channel;
@@ -392,12 +457,16 @@ or "inotify" text, verified).
 ### R4: btrfs
 
 - `FICLONE`:
-   P/Invoke `ioctl(int, ulong, int)` with `0x40049409` (`_IOW(0x94, 9, int)`, same definition as `pal_io.c:81-82`).
+   P/Invoke `ioctl(int, ulong, int)` with `0x40049409` (`_IOW(0x94, 9, int)`,
+  same definition as `pal_io.c:81-82`).
   Declaring the variadic `ioctl` with a fixed signature relies on the x86-64 System V convention for integer arguments
-   (inference, unverified on other architectures).
-- `File.Copy` already tries `FICLONE` first (`pal_io.c:1453-1481`, verified),
+   (inference,
+  unverified on other architectures).
+- `File.Copy` already tries `FICLONE` first (`pal_io.c:1453-1481`,
+  verified),
    but the API page does not document it
-   (<https://learn.microsoft.com/en-us/dotnet/api/system.io.file.copy?view=net-10.0>, no "reflink" or "clone",
+   (<https://learn.microsoft.com/en-us/dotnet/api/system.io.file.copy?view=net-10.0>,
+  no "reflink" or "clone",
 verified),
    so the design must not rely on it.
 - `statfs`:
@@ -419,7 +488,8 @@ verified),
 ### R6: supervision and Ctrl+C
 
 - `PosixSignalRegistration.Create(PosixSignal.SIGINT, ...)` with `Cancel = true`
-   ("SIGINT and SIGQUIT can be canceled on both Windows and on Unix platforms; SIGTERM can only be canceled on Unix",
+   ("SIGINT and SIGQUIT can be canceled on both Windows and on Unix platforms;
+  SIGTERM can only be canceled on Unix",
    <https://learn.microsoft.com/en-us/dotnet/api/system.runtime.interopservices.posixsignalregistration.create?view=net-10.0>,
 verified).
 - Shutdown:
@@ -440,20 +510,27 @@ verified).
 - Present today:
    zero `.cs` files,
    no .NET in `mise.toml`,
-   no .NET in `.github/workflows` (`rg`, measured).
+   no .NET in `.github/workflows` (`rg`,
+  measured).
   `mise registry` lists `core:dotnet` (measured),
    and a user-level SDK 10.0.300 exists at `~/.local/share/mise/installs/dotnet/`,
    outside the repository configuration.
 - Would have to be added:
   - SDK pin in `mise.toml`;
      NativeAOT build prerequisites "clang zlib-devel zlib-ng-devel zlib-ng-compat-devel" on Fedora
-     (NativeAOT overview page, verified);
-     `clang`, `/usr/include/zlib.h`, and `/usr/lib64/libz.so` exist on this host (measured) and must also exist in CI.
+     (NativeAOT overview page,
+    verified);
+     `clang`,
+    `/usr/include/zlib.h`,
+    and `/usr/lib64/libz.so` exist on this host (measured) and must also exist in CI.
   - `.csproj`,
-     `Directory.Build.props` (nullable, warnings as errors, `GenerateDocumentationFile` for doc-comment enforcement),
+     `Directory.Build.props` (nullable,
+    warnings as errors,
+    `GenerateDocumentationFile` for doc-comment enforcement),
      NuGet lock file,
      file-enforcer management of `.csproj` metadata in the style of `manageCargoManifests`
-     (`file-enforcer.config.ts:20`, `:115`).
+     (`file-enforcer.config.ts:20`,
+    `:115`).
   - Analyzer equivalents of repository rules with no built-in Roslyn counterpart,
      such as the max-lines budget,
      built like the Kotlin rule set in `package/linter/kotlin`.
@@ -476,7 +553,8 @@ Triggers:
 - **Contradiction on the interop mechanism the design depends on.**
   <https://learn.microsoft.com/en-us/dotnet/standard/native-interop/pinvoke-source-generation>:
    "Using DllImport isn't an option for platforms that require full Native AOT scenarios
-   and therefore using other approaches (for example, source generation) is more appropriate."
+   and therefore using other approaches (for example,
+  source generation) is more appropriate."
   <https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/interop>:
    "native code interop works similarly in Native AOT and non-AOT deployments"
    and "The P/Invoke calls in AOT-compiled binaries are bound lazily at runtime by default".
@@ -490,7 +568,8 @@ Triggers:
    with an empty `<thead>` in the served HTML (verified in raw HTML).
 - **Unversioned URL lands on a release candidate.**
   <https://learn.microsoft.com/en-us/dotnet/api/system.io.hashing.xxhash3> redirects to `?view=net-11.0-pp`
-   and shows "Package: System.IO.Hashing v11.0.0-rc.1.26425.128" (verified).
+   and shows "Package:
+  System.IO.Hashing v11.0.0-rc.1.26425.128" (verified).
 - Consumed behavior only in source:
    `File.Copy` reflinking and `FileSystemWatcher` recursion without exclusions;
    the design avoids both.
@@ -545,7 +624,8 @@ Triggers:
 
 ### Shape
 
-- `Eio_main.run` on the io_uring backend (`kernel.io_uring_disabled` is 0 on this host, measured).
+- `Eio_main.run` on the io_uring backend (`kernel.io_uring_disabled` is 0 on this host,
+  measured).
 - Control plane (scheduler,
    RPC,
    watcher) as fibers in one domain;
@@ -556,8 +636,10 @@ Triggers:
 
 - Eio states the constraint in its own interface:
    "we cannot run any OCaml code in the forked child process ...
-   Therefore, the fork call and all child actions need to be written in C"
-   (`lib_eio/unix/fork_action.mli:4-13`, verified).
+   Therefore,
+  the fork call and all child actions need to be written in C"
+   (`lib_eio/unix/fork_action.mli:4-13`,
+  verified).
   The available actions are `execve`,
    `chdir`,
    `fchdir`,
@@ -565,16 +647,22 @@ Triggers:
    `setpgid`,
    `setuid`,
    `setgid`,
-   and `login_tty` (`fork_action.mli`, verified),
-   and the module is exposed only as `Eio_unix.Private.Fork_action` (`lib_eio/unix/eio_unix.mli:137-148`, verified).
+   and `login_tty` (`fork_action.mli`,
+  verified),
+   and the module is exposed only as `Eio_unix.Private.Fork_action` (`lib_eio/unix/eio_unix.mli:137-148`,
+  verified).
 - Eio's Linux spawn calls `clone3` with `CLONE_PIDFD` only (`lib_eio_linux/eio_stubs.c:227-251`)
    using a local `clone_args` struct that ends at `tls` (`:48-57`),
    so adding `CLONE_INTO_CGROUP` means forking Eio's C stubs (verified).
 - `Unix.fork` "fails if the OCaml process is multi-core (any domain has been spawned)"
-   (`otherlibs/unix/unix.mli:507-511`; `fork.c:39-41`, verified).
+   (`otherlibs/unix/unix.mli:507-511`;
+  `fork.c:39-41`,
+  verified).
 - Paths that remain:
-  - **Chosen: X2 trampoline.**
-     `Eio_unix.Process.spawn_unix ~pgid:0` (`lib_eio_linux/process.ml:43-61`, verified) runs the daemon executable,
+  - **Chosen:
+    X2 trampoline.**
+     `Eio_unix.Process.spawn_unix ~pgid:0` (`lib_eio_linux/process.ml:43-61`,
+    verified) runs the daemon executable,
      which writes its pid with `Unix.openfile`/`Unix.write` into `cgroup.procs`,
      then `Unix.execvpe`.
     Public APIs only;
@@ -589,7 +677,8 @@ Triggers:
 - Freeze and kill:
    write `cgroup.freeze` and `cgroup.kill` through `Eio.Path`;
    `Eio.Process.spawn` only sends `SIGKILL` to the direct child when its switch is released
-   (<https://ocaml.org/p/eio/latest/doc/eio/Eio/Process/index.html>, verified),
+   (<https://ocaml.org/p/eio/latest/doc/eio/Eio/Process/index.html>,
+  verified),
    so descendants rely on `cgroup.kill`.
 
 ### R2: watching
@@ -598,22 +687,28 @@ Triggers:
    `add_watch`,
    `read`,
    and a documented `Q_overflow` "associated with a watch descriptor -1"
-   (<https://ocaml.org/p/inotify/latest/doc/inotify/Inotify/index.html>, verified).
-- `inotify-eio` wraps it by awaiting readability then reading (`lib/eio_inotify.ml:25-31`, verified).
+   (<https://ocaml.org/p/inotify/latest/doc/inotify/Inotify/index.html>,
+  verified).
+- `inotify-eio` wraps it by awaiting readability then reading (`lib/eio_inotify.ml:25-31`,
+  verified).
 - Dune's precedent reads the plain `Inotify` API on a dedicated system thread (`src/dune_scheduler/inotify.ml:150`)
-   and turns `Q_overflow` into a queue-overflow event (`:136`, verified).
+   and turns `Q_overflow` into a queue-overflow event (`:136`,
+  verified).
   To avoid the `inotify-eio` documentation trigger in R9,
    the design follows Dune:
-   plain `Inotify` in `Eio_unix.run_in_systhread` (`lib_eio/unix/eio_unix.mli:70`, verified),
+   plain `Inotify` in `Eio_unix.run_in_systhread` (`lib_eio/unix/eio_unix.mli:70`,
+  verified),
    then X5.
 
 ### R3: RPC
 
 - `Eio.Net.listen` on a `` `Unix path `` address
-   (<https://ocaml.org/p/eio/latest/doc/eio/Eio/Net/index.html>, loaded).
+   (<https://ocaml.org/p/eio/latest/doc/eio/Eio/Net/index.html>,
+  loaded).
 - Line framing with `Eio.Buf_read.of_flow ~max_size`,
    which "will raise an exception if the buffer would need to grow above max_size"
-   (Eio README on ocaml.org, verified).
+   (Eio README on ocaml.org,
+  verified).
 - JSON through `yojson` 3.0.0 (`Yojson.Safe`);
    JSON-RPC envelopes hand-written.
 - `Unix.mkdir dir 0o700` for the socket directory.
@@ -621,24 +716,29 @@ Triggers:
    int,
    optional int,
    float,
-   and error options only (`unix.mli:1612-1645`; no `PEERCRED` anywhere in `unix.mli`, verified),
+   and error options only (`unix.mli:1612-1645`;
+  no `PEERCRED` anywhere in `unix.mli`,
+  verified),
    so peer credentials need FFI or are skipped in favor of directory permissions.
 - Subscriptions:
    a bounded `Eio.Stream` per client with the same overflow-and-resume rule as P1.
 
 ### R4: btrfs
 
-- The `Unix` library has no `ioctl` and no `statfs` (`rg` on `unix.mli`, verified).
+- The `Unix` library has no `ioctl` and no `statfs` (`rg` on `unix.mli`,
+  verified).
 - Chosen to avoid FFI:
    filesystem type from `/proc/self/mountinfo`;
    reflink restores through batched `cp --reflink=always` child processes;
-   snapshots through the `btrfs` CLI (`/usr/bin/btrfs` present, measured).
+   snapshots through the `btrfs` CLI (`/usr/bin/btrfs` present,
+  measured).
 - Alternative:
    `ctypes-foreign` bindings to `ioctl` and `statfs`.
 
 ### R5: hashing
 
-- Standard library `Digest` gained BLAKE2b in OCaml 5.2.0 (`Changes:3312` under `Changes:2990`, verified);
+- Standard library `Digest` gained BLAKE2b in OCaml 5.2.0 (`Changes:3312` under `Changes:2990`,
+  verified);
    `digestif` 1.3.1 offers C-backed BLAKE2 and SHA-2.
 - Parallel hashing across domains.
 - Throughput unmeasured (no OCaml toolchain on host).
@@ -647,7 +747,8 @@ Triggers:
 
 - `Sys.set_signal Sys.sigint (Signal_handle ...)` broadcasting an `Eio.Condition`,
    which the Eio README presents as the one safe operation in a handler
-   ("you can safely call Eio.Condition.broadcast", verified).
+   ("you can safely call Eio.Condition.broadcast",
+  verified).
 - Exit status through `Eio.Process.await` (trampoline path) or pidfd readiness (ctypes path).
 - Shutdown and startup sweep as in P1.
 
@@ -676,7 +777,10 @@ Triggers:
 ### R9: documentation
 
 Pages loaded with text present:
-ocaml.org manual (`Unix`, `Sys`, parallelism, C interface),
+ocaml.org manual (`Unix`,
+`Sys`,
+parallelism,
+C interface),
 Eio package pages,
 `inotify`,
 `inotify-eio`,
@@ -689,12 +793,14 @@ Triggers:
 - **`inotify-eio` describes itself as the wrong library.**
   <https://ocaml.org/p/inotify-eio/latest/doc/inotify-eio/Eio_inotify/index.html>:
    "An Lwt wrapper for Inotify module"
-   (source `lib/eio_inotify.mli:1`, verified).
+   (source `lib/eio_inotify.mli:1`,
+  verified).
 - **`ctypes-foreign` documents parameters a function does not have.**
   <https://ocaml.org/p/ctypes-foreign/latest/doc/ctypes-foreign/Foreign/index.html>:
    `funptr` "raises Dl.DL_error if name is not found in ?from and ?stub is false",
    but its signature has neither `?from` nor `?stub`;
-   `foreign`'s `?check_errno` warns that "a function that succeeds is allowed to change errno. So use this option
+   `foreign`'s `?check_errno` warns that "a function that succeeds is allowed to change errno.
+  So use this option
    with caution",
    leaving reliable `errno` retrieval unexplained.
 - **Probable trigger for a TypeScript-only reader.**
@@ -756,10 +862,13 @@ Triggers:
     The strongest precedent,
      Dune,
      solves the same problems with C stubs
-     (`otherlibs/stdune/src/spawn_stubs.c` via `src/dune_engine/process.ml:1055`; `src/rpc/csexp_rpc.ml:19-21`, `:301`),
+     (`otherlibs/stdune/src/spawn_stubs.c` via `src/dune_engine/process.ml:1055`;
+   `src/rpc/csexp_rpc.ml:19-21`,
+   `:301`),
      so following precedent means writing C.
 3. **R9 triggers in two libraries the natural design would use**
-     (`inotify-eio`, `ctypes-foreign`),
+     (`inotify-eio`,
+   `ctypes-foreign`),
      and a probable trigger in Eio's core type signatures.
 4. **Toolchain is outside mise**:
      no compiler or Dune entry in the registry,
@@ -781,31 +890,39 @@ Triggers:
    so CPU work on the loop thread cannot delay draining the kernel queue (X5).
 - Hashing in a process pool;
    Python 3.14 changed the default start method on POSIX "from fork to forkserver"
-   (<https://docs.python.org/3/library/multiprocessing.html>, verified).
+   (<https://docs.python.org/3/library/multiprocessing.html>,
+  verified).
 - No third-party runtime packages.
 
 ### R1: cgroup placement, freeze, kill, limits
 
 - `subprocess.Popen(preexec_fn=...)` is rejected:
-   "The preexec_fn parameter is NOT SAFE to use in the presence of threads in your application. The child process could
+   "The preexec_fn parameter is NOT SAFE to use in the presence of threads in your application.
+  The child process could
    deadlock before exec is called."
-   (<https://docs.python.org/3/library/subprocess.html>, verified;
+   (<https://docs.python.org/3/library/subprocess.html>,
+  verified;
    `Modules/_posixsubprocess.c:1001`),
    and this design has threads.
-- `os.posix_spawn` has no cgroup parameter (os page, verified).
-- **Chosen: X1 through `ctypes`**,
+- `os.posix_spawn` has no cgroup parameter (os page,
+  verified).
+- **Chosen:
+  X1 through `ctypes`**,
    verified on this host by the X1 probe and its control.
   `ctypes.CDLL` releases the GIL during the call
    ("The Python global interpreter lock is released before calling any function exported by these libraries",
-   <https://docs.python.org/3/library/ctypes.html>, verified),
+   <https://docs.python.org/3/library/ctypes.html>,
+  verified),
    and the buffers are `ctypes` C memory that CPython never moves.
   Pipes come from `os.pipe2(os.O_CLOEXEC)` with `adddup2` file actions.
 - asyncio's own child handling waits only for the pids it started (`os.waitpid(pid, 0)` in `_PidfdChildWatcher`,
-   `Lib/asyncio/unix_events.py:891-924`, verified),
+   `Lib/asyncio/unix_events.py:891-924`,
+  verified),
    so it never reaps `ctypes`-spawned tasks.
 - Fallback (X2):
    trampoline `python3 -I -S -m <daemon> __enter-cgroup ...` then `os.execvpe`.
-  Measured start cost (`SCRATCH/others/startup.ts`, 30 runs each after one warm-up):
+  Measured start cost (`SCRATCH/others/startup.ts`,
+  30 runs each after one warm-up):
    `python3 -I -S -c pass` median 10.2 ms (9.6 to 11.5);
    `python3 -c pass` median 14.4 ms (13.5 to 15.8);
    `/usr/bin/true` median 1.4 ms.
@@ -829,22 +946,26 @@ Triggers:
 
 - `asyncio.start_unix_server(handler, path, limit=...)`;
    the default `limit` "is set to 64 KiB"
-   (<https://docs.python.org/3/library/asyncio-stream.html>, verified),
+   (<https://docs.python.org/3/library/asyncio-stream.html>,
+  verified),
    so larger JSON-RPC lines fail unless the limit is raised.
 - `json.loads`/`json.dumps`;
    JSON-RPC envelopes hand-written (the repository's TypeScript `@monochromatic-dev/mcp-stdio` is the model).
 - `os.mkdir(dir, 0o700)`;
    peer uid via `getsockopt(SOL_SOCKET, SO_PEERCRED, 12)`
-   (`socket.SO_PEERCRED` is 17 on this host, measured).
+   (`socket.SO_PEERCRED` is 17 on this host,
+  measured).
 - Subscriptions:
    bounded `asyncio.Queue` per client with the same overflow-and-resume rule as P1.
 
 ### R4: btrfs
 
 - `fcntl.ioctl(dst_fd, fcntl.FICLONE, src_fd)`:
-   "On Linux >= 4.5, the fcntl module exposes the FICLONE and FICLONERANGE constants"
+   "On Linux >= 4.5,
+  the fcntl module exposes the FICLONE and FICLONERANGE constants"
    (added in 3.12,
-   <https://docs.python.org/3/library/fcntl.html>, verified;
+   <https://docs.python.org/3/library/fcntl.html>,
+  verified;
    `Modules/fcntlmodule.c:675-681`).
 - `os.statvfs` has no filesystem type field,
    so type detection uses `/proc/self/mountinfo` or a `ctypes` `statfs`.
@@ -854,9 +975,12 @@ Triggers:
 
 - `hashlib.file_digest(f, "blake2b")`.
   "the Python GIL is released while computing a hash supplied more than 2047 bytes of data at once"
-   (<https://docs.python.org/3/library/hashlib.html>, verified).
+   (<https://docs.python.org/3/library/hashlib.html>,
+  verified).
 - Measured on this host
-   (`SCRATCH/others/hash_probe.py`, warm page cache, GIL build confirmed by `sys._is_gil_enabled()` returning `True`):
+   (`SCRATCH/others/hash_probe.py`,
+  warm page cache,
+  GIL build confirmed by `sys._is_gil_enabled()` returning `True`):
    all 8,083 tracked files (151,343,931 bytes) hashed serially in 273 to 277 ms over three runs;
    with 16 threads,
    306 to 316 ms.
@@ -866,21 +990,25 @@ Triggers:
 ### R6: supervision and Ctrl+C
 
 - `asyncio.Runner` handles Ctrl+C by cancelling the main task
-   ("Handling Keyboard Interruption", added in 3.11,
-   <https://docs.python.org/3/library/asyncio-runner.html>, verified),
+   ("Handling Keyboard Interruption",
+  added in 3.11,
+   <https://docs.python.org/3/library/asyncio-runner.html>,
+  verified),
    or `loop.add_signal_handler`.
 - Exit detection:
    `loop.add_reader(pidfd, ...)`,
    then `os.waitid(os.P_PIDFD, pidfd, os.WEXITED)`
    ("P_PIDFD - wait for the child identified by the file descriptor",
-   <https://docs.python.org/3/library/os.html>, verified).
+   <https://docs.python.org/3/library/os.html>,
+  verified).
 - Shutdown and startup sweep as in P1.
 
 ### R8: repository fit
 
 - Present today:
    no Python files in the repository,
-   no Python in CI (`rg`, measured).
+   no Python in CI (`rg`,
+  measured).
   `doc/planning/load-bearing-code-languages.md:7-12` names Python among the unapproved languages the proposed rule
   covers.
 - `mise registry` lists `core:python`,
@@ -921,7 +1049,9 @@ Triggers in third-party documentation:
 
 - **`asyncinotify`**
    (<https://asyncinotify.readthedocs.io/en/latest/asyncinotify.html>):
-   "class asyncinotify.RecursiveInotify: A Recursive superclass of Inotify. Adds the add_recursive_watch() method,
+   "class asyncinotify.RecursiveInotify:
+  A Recursive superclass of Inotify.
+  Adds the add_recursive_watch() method,
    but otherwise works the same",
    which describes a subclass as a superclass;
    a second class,
@@ -948,11 +1078,15 @@ Triggers in third-party documentation:
    last commit 2026-09-16.
 - The standard-library-first design needs no third-party runtime package.
 - Optional:
-   `chrisjbillington/inotify_simple` 2.0.1 (2025-08-25, 135 stars);
+   `chrisjbillington/inotify_simple` 2.0.1 (2025-08-25,
+  135 stars);
    `oconnor663/blake3-py` 1.0.9 (2026-06-22);
    `ifduyue/python-xxhash` v4.0.1 (2026-08-17);
-   `ProCern/asyncinotify` v4.4.4 (2026-04-13, 47 stars, excluded by R9);
-   `gorakhargosh/watchdog` v6.0.0 (2024-11-01, commits through 2026-09-06).
+   `ProCern/asyncinotify` v4.4.4 (2026-04-13,
+  47 stars,
+  excluded by R9);
+   `gorakhargosh/watchdog` v6.0.0 (2024-11-01,
+  commits through 2026-09-06).
 - Tooling:
    `astral-sh/uv` 0.12.15 (2026-09-15).
 
@@ -975,7 +1109,10 @@ Triggers in third-party documentation:
 5. **Third-party ecosystem fails the documentation gate** in the libraries a Python developer would reach for first,
      forcing the hand-written `ctypes` layer of yikes 1.
 6. **Deployment of an interpreter plus environment** for a long-running daemon;
-     importing `asyncio`, `json`, `ctypes`, and `hashlib` takes a median 54.8 ms (measured),
+     importing `asyncio`,
+   `json`,
+   `ctypes`,
+   and `hashlib` takes a median 54.8 ms (measured),
      which affects client command latency.
 
 ## Cross-option comparison
@@ -1028,7 +1165,8 @@ Triggers in third-party documentation:
 
 ### Ranking
 
-Ranking under the user's recorded rules (documentation confusion culls; surface pros and cons do not rank):
+Ranking under the user's recorded rules (documentation confusion culls;
+surface pros and cons do not rank):
 Python > OCaml > .NET.
 
 - **Python over OCaml**:

@@ -560,9 +560,13 @@ Those symbols are module-local and never leave the exported insertion functions;
  the `/ts/*` source subpaths do not export them.
 A test now asserts that a synthetic key-value cannot borrow an earlier trailing comment.
 The five surviving `values.ts` mutants consist of four kind checks
- (`e4b52b79592e2b76`, `b992d0d0b8bcf9a8`, `0d8050ba970c0c31`, `c37fdfd7a39e0b8c`)
+ (`e4b52b79592e2b76`,
+`b992d0d0b8bcf9a8`,
+`0d8050ba970c0c31`,
+`c37fdfd7a39e0b8c`)
  redundant with strict value equality on parser-produced string or numeric nodes,
- plus `33ed844fb684807c`, a nonfinite `> 0` boundary.
+ plus `33ed844fb684807c`,
+a nonfinite `> 0` boundary.
 After NaN is handled,
  only positive or negative infinity reaches that boundary.
 The tagged integer branch returned the same `String(value)` as the default branch,

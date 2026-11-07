@@ -9,16 +9,24 @@ not match spans.
 
 - Match each directory name and filename separately with the active ruleset.
   No rule may match across a path separator.
-- For repository files, use repository-relative segments.
+- For repository files,
+  use repository-relative segments.
   For an explicit file outside the repository or an invocation without a repository,
-  inspect every supplied pathname segment, not merely the basename.
-- Preserve the existing file selection, exclusions, content scanning, and exit codes.
+  inspect every supplied pathname segment,
+  not merely the basename.
+- Preserve the existing file selection,
+  exclusions,
+  content scanning,
+  and exit codes.
   Path-name scanning is always on.
 - Name findings distinguish their segment position from content line findings,
   with no column ranges.
-  Emit one finding per matching segment and rule, as content scanning does per line and rule.
+  Emit one finding per matching segment and rule,
+  as content scanning does per line and rule.
 - Replace the entire offending segment in every emitted path,
-  including content findings, errors, and cli-git policy output.
+  including content findings,
+  errors,
+  and cli-git policy output.
   The offending substring must never be printed.
 - The cli-git adapter must match real candidate names while reading the exact candidate bytes,
   even when those bytes belong to an earlier revision or staged state.
@@ -60,16 +68,22 @@ The scanner's paired logical-name option preserves both identities separately.
 ## Verification
 
 - `mise run //package/forbidden-strings/cli:test` exercises the release CLI with
-  name-only findings, content and name redaction, external paths, empty files,
-  multiple operand indexes, and unchanged content behavior.
+  name-only findings,
+  content and name redaction,
+  external paths,
+  empty files,
+  multiple operand indexes,
+  and unchanged content behavior.
 - `mise run //package/forbidden-strings/cli:lint:clippy` and
   `mise run //package/forbidden-strings/cli:lint:rust` check Rust code and item documentation.
 - `mise run //package/git-policy/forbidden-strings:test:unit` exercises real scanner
-  output through the adapter, including exact historical bytes and a clean working-tree file.
+  output through the adapter,
+  including exact historical bytes and a clean working-tree file.
 - `mise run //package/git-policy/forbidden-strings:lint:types` and
   `mise run //package/git-policy/forbidden-strings:lint:oxlint` check the policy source.
 - `mise run //package/git-policy/cli:test:built:trust` checks packed host events in a
-  disposable container; its name-finding fixture asserts that the offending name
+  disposable container;
+  its name-finding fixture asserts that the offending name
   does not appear in host JSON output.
 - `mise run //package/forbidden-strings/cli.fuzz:lint:clippy` checks the expanded fuzz target,
   and `mise run //package/forbidden-strings/cli.fuzz:test` checks its generator library.

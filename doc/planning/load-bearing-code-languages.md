@@ -78,7 +78,8 @@ not shell strings or interpreter arguments.
 
 ### Declarative configuration boundary
 
-Native declarative workflow/task wiring is allowed; custom algorithms belong in approved source.
+Native declarative workflow/task wiring is allowed;
+custom algorithms belong in approved source.
 Keep TypeScript as default for repository automation.
 
 ## Meaning and limits
