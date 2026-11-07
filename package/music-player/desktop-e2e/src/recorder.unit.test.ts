@@ -219,6 +219,27 @@ await describe({
       },
     },),
     it({
+      name: 'records a failure outside any check, whatever the filter selects, with its evidence',
+      fn: async ({ expect, }) => {
+        const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
+        const recorder = createRecorder({ only: 'settings', evidenceDir, },);
+        recorder.attach({ label: 'wide', readStates: async () => statesOf(3,), },);
+        await recorder.fail({
+          id: 'session/wide',
+          title: 'the wide session ran to its end',
+          detail: 'timed out waiting for the player page',
+        },);
+        const [outcome,] = recorder.outcomes();
+        const text = await readFile(outcome?.evidence ?? '', 'utf8',);
+        await rm(evidenceDir, { recursive: true, force: true, },);
+        expect(outcome?.ok,).toBe(false,);
+        expect(outcome?.id,).toBe('session/wide',);
+        expect(outcome?.detail,).toBe('timed out waiting for the player page',);
+        expect(text,).toContain('timed out waiting for the player page',);
+        expect(text,).toContain('seq=3 reason=reason-3',);
+      },
+    },),
+    it({
       name: 'keeps the failure text when no session was attached, and says so',
       fn: async ({ expect, }) => {
         const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
