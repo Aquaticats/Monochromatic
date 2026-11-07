@@ -75,21 +75,22 @@ TODO
     The runner refuses to start as root or from inside the repository.
 3.  The runner runs from the repository's TypeScript source,
     which imports only node's own modules,
-    so nothing needs building and nothing outside the repository is needed:
+    so nothing needs building and nothing outside the repository is needed.
+    Run it with the absolute path of the node that `mise` resolves,
+    because the runner passes that same path to every root step:
 
     ```bash
     # Run from a folder outside the repository.
-    /var/home/user/.local/share/mise/installs/node/<version>/bin/node /var/home/user/Monochromatic/package/repository-move/cli/src/run-repository-move.ts prepare --dry-run
+    NODE="$(readlink -f "$(command -v node)")"
+    "$NODE" /var/home/user/Monochromatic/package/repository-move/cli/src/run-repository-move.ts status
     ```
 
-    Use the absolute path of the node that `mise` resolves (`readlink -f "$(command -v node)"`).
-    The runner passes the same path to every root step.
 4.  Optional dry run,
     which shows every command and runs nothing,
     records nothing and creates no folder:
 
     ```bash
-    node /var/home/user/Monochromatic/package/repository-move/cli/src/run-repository-move.ts prepare --dry-run
+    "$NODE" /var/home/user/Monochromatic/package/repository-move/cli/src/run-repository-move.ts prepare --dry-run
     ```
 
     Expected:
