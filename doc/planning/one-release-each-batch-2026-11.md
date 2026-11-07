@@ -1208,6 +1208,13 @@ proved the Wayland library step.
   crates.io `2026-11-07T12:17:42.698494Z`, `yanked` false.
   One dispatch was refused before any run by the origin-holds-main check (another session's local commit was not yet pushed); dispatched again after it was pushed.
 
+- `monochromatic-lint` 0.5.0 to 0.5.1:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42371874158`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42372124153`
+  (built from `f9a51d4f37`),
+  crates.io `2026-11-07T12:24:28.368166Z`, `yanked` false.
+  GitHub release `monochromatic-lint-v0.5.1` holds all eight target assets.
+
 ## Evidence log
 
 - crates.io API reads:
