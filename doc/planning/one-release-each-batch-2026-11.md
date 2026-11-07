@@ -1032,6 +1032,9 @@ from a directory outside every Cargo workspace (for example a scratch directory)
 never pass `--token`,
 never set a token variable.
 Undo with `cargo yank --undo --version <version> <crate>`.
+Bare `cargo` on this machine is `cargo-shadow`;
+that script called bare `cargo yank` through it,
+and `cargo yank --help` passes through it from a directory with no `Cargo.lock` (checked 2026-11-07).
 The one-time yank of 2026-11-04 (`yank-older-releases.ts` in the agent scratch directory `issue-6261`) ran one at a
 time with retry on 429;
 the same retry applies (a minute per yank after a burst,
