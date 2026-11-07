@@ -274,6 +274,39 @@ impl Rig {
         };
     }
 
+    /// What:
+    /// A rig whose `HOME` is spelled through a symbolic link,
+    /// together with the home's canonical spelling.
+    /// Why:
+    /// A machine whose home is a symbolic link (Fedora Atomic's `/home` to `/var/home`) hands every program
+    ///           a `HOME` that differs from the directory's physical path,
+    /// which is the spelling that decides how pnpm writes its relative links.
+    #[cfg(unix)]
+    pub(crate) fn through_symlinked_home() -> (Rig, std::path::PathBuf) {
+        let directory = crate::test_scratch::scratch();
+        let physical = directory.path().join("physical");
+        let physical_home = physical.join("home");
+        let root = physical.join("work");
+        std::fs::create_dir_all(&physical_home).expect("make the physical home");
+        std::fs::create_dir_all(&root).expect("make the worktree");
+        let link = directory.path().join("link");
+        std::os::unix::fs::symlink(&physical, &link).expect("link the physical directory");
+        let linked_home = link.join("home");
+        let env = super::scope::EnvMap::from_pairs(&[("HOME", linked_home.to_str().expect("utf-8"))]);
+        let scope = super::scope::repo_scope(&root, &env).expect("a scope");
+        let canonical_home = std::fs::canonicalize(&physical_home).expect("the home exists");
+        let rig = Rig {
+            _directory: directory,
+            scope,
+            env,
+            runner: FakeRunner::new(),
+            http: FakeHttp::new(),
+            lock: super::fixtures::sample_lock(),
+            host: super::context::Host { platform: "linux-x64".to_string(), family: Some(super::model::OsFamily::Linux) },
+        };
+        return (rig, canonical_home);
+    }
+
     /// A context borrowing this rig.
     pub(crate) fn context(&self) -> super::context::Context<'_> {
         return super::context::Context {
