@@ -29,7 +29,7 @@ use music_player::keymap::{KeyboardPlatform, ShortcutAction};
 use music_player::keymap_bindings::{HeldModifiers, shortcut_text};
 /// Imports the component handle,
 /// the timer and its mode that run the hold delay.
-use slint::{ComponentHandle, Timer, TimerMode};
+use slint::{ComponentHandle, SharedString, Timer, TimerMode};
 
 /// Imports the window and the generated badge,
 /// key and text globals that hold the hints.
@@ -46,7 +46,7 @@ thread_local! {
     /// Why:
     /// a Slint timer runs on the event loop,
     /// so the badges appear even when no key event arrives.
-    static HOLD_TIMER: Timer = Timer::default();
+    static HOLD_TIMER: &'static Timer = Box::leak(Box::new(Timer::default()));
     /// What:
     /// the moment the hint clock started.
     /// Why:
@@ -86,7 +86,20 @@ pub(crate) fn now_ms() -> u64 {
     if let Some(milliseconds) = TEST_CLOCK_MS.get() {
         return milliseconds;
     }
-    return CLOCK_START.with(|start| return u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX));
+    return u64::try_from(CLOCK_START.with(Instant::elapsed).as_millis()).unwrap_or(u64::MAX);
+}
+
+/// What:
+/// `badge` is the badge text of one target as the window's string type.
+/// Why:
+/// `badges_of` fills eighteen badge fields the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const badge = (target: HintTarget, platform: KeyboardPlatform, visible: HeldModifiers | null): string => badgeText(target, platform, visible);
+/// ```
+fn badge(target: HintTarget, platform: KeyboardPlatform, visible: Option<HeldModifiers>) -> SharedString {
+    return badge_text(target, platform, visible).as_str().into();
 }
 
 /// What:
@@ -95,27 +108,41 @@ pub(crate) fn now_ms() -> u64 {
 /// one value feeds every control's badge,
 /// and an empty text draws none.
 fn badges_of(platform: KeyboardPlatform, visible: Option<HeldModifiers>) -> KeyBadges {
-    let text = |target: HintTarget| return badge_text(target, platform, visible).as_str().into();
     return KeyBadges {
-        search: text(HintTarget::Search),
-        settings: text(HintTarget::Settings),
-        open_folder: text(HintTarget::OpenFolder),
-        folder_trigger: text(HintTarget::FolderTrigger),
-        folder_list: text(HintTarget::FolderList),
-        track_list: text(HintTarget::TrackList),
-        previous: text(HintTarget::Previous),
-        next: text(HintTarget::Next),
-        seek_back: text(HintTarget::SeekBack),
-        seek_forward: text(HintTarget::SeekForward),
-        mode_repeat: text(HintTarget::ModeRepeat),
-        mode_in_order: text(HintTarget::ModeInOrder),
-        mode_shuffle_folder: text(HintTarget::ModeShuffleFolder),
-        mode_shuffle_all: text(HintTarget::ModeShuffleAll),
-        mode_cycle: text(HintTarget::ModeCycle),
-        deck_title: text(HintTarget::DeckTitle),
-        deck_folder: text(HintTarget::DeckFolder),
-        editor_reset: text(HintTarget::EditorReset),
+        search: badge(HintTarget::Search, platform, visible),
+        settings: badge(HintTarget::Settings, platform, visible),
+        open_folder: badge(HintTarget::OpenFolder, platform, visible),
+        folder_trigger: badge(HintTarget::FolderTrigger, platform, visible),
+        folder_list: badge(HintTarget::FolderList, platform, visible),
+        track_list: badge(HintTarget::TrackList, platform, visible),
+        previous: badge(HintTarget::Previous, platform, visible),
+        next: badge(HintTarget::Next, platform, visible),
+        seek_back: badge(HintTarget::SeekBack, platform, visible),
+        seek_forward: badge(HintTarget::SeekForward, platform, visible),
+        mode_repeat: badge(HintTarget::ModeRepeat, platform, visible),
+        mode_in_order: badge(HintTarget::ModeInOrder, platform, visible),
+        mode_shuffle_folder: badge(HintTarget::ModeShuffleFolder, platform, visible),
+        mode_shuffle_all: badge(HintTarget::ModeShuffleAll, platform, visible),
+        mode_cycle: badge(HintTarget::ModeCycle, platform, visible),
+        deck_title: badge(HintTarget::DeckTitle, platform, visible),
+        deck_folder: badge(HintTarget::DeckFolder, platform, visible),
+        editor_reset: badge(HintTarget::EditorReset, platform, visible),
     };
+}
+
+/// What:
+/// `hold_timer` returns this thread's hold timer.
+/// Why:
+/// the timer is leaked once per thread,
+/// so it outlives every borrow,
+/// so the schedule can call its methods directly instead of passing a closure to `LocalKey::with`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holdTimer = (): Timer => HOLD_TIMER;
+/// ```
+fn hold_timer() -> &'static Timer {
+    return HOLD_TIMER.with(Clone::clone);
 }
 
 /// What:
@@ -124,7 +151,7 @@ fn badges_of(platform: KeyboardPlatform, visible: Option<HeldModifiers>) -> KeyB
 /// every change of the state ends here,
 /// so the window never disagrees with the state.
 fn refresh(window: &AppWindow) {
-    let visible = HINTS.with(|cell| return cell.get().visible());
+    let visible = HINTS.get().visible();
     window.global::<Keys>().set_badges(badges_of(crate::ui_keys::platform(), visible));
     tracing::debug!(visible = ?visible, "key hint badges updated");
     crate::ui_state_log::emit(window, "badges");
@@ -136,21 +163,20 @@ fn refresh(window: &AppWindow) {
 /// the badges must appear without another key event,
 /// and a new held set restarts the wait.
 fn schedule(window: &AppWindow) {
-    let wait = HINTS.with(|cell| return cell.get().wait_ms(now_ms()));
-    HOLD_TIMER.with(|timer| {
-        timer.stop();
-        let Some(wait_ms) = wait else {
+    let wait = HINTS.get().wait_ms(now_ms());
+    let timer = hold_timer();
+    timer.stop();
+    let Some(wait_ms) = wait else {
+        return;
+    };
+    let weak = window.as_weak();
+    timer.start(TimerMode::SingleShot, Duration::from_millis(wait_ms.max(1)), move || {
+        let Some(strong) = weak.upgrade() else {
             return;
         };
-        let weak = window.as_weak();
-        timer.start(TimerMode::SingleShot, Duration::from_millis(wait_ms.max(1)), move || {
-            let Some(strong) = weak.upgrade() else {
-                return;
-            };
-            HINTS.with(|cell| cell.set(cell.get().on_tick(now_ms())));
-            refresh(&strong);
-            schedule(&strong);
-        });
+        HINTS.set(HINTS.get().on_tick(now_ms()));
+        refresh(&strong);
+        schedule(&strong);
     });
 }
 
@@ -161,14 +187,27 @@ fn schedule(window: &AppWindow) {
 /// so a stale set (a release missed while the window had no
 /// focus) is corrected by the next key event.
 pub(crate) fn modifiers_changed(window: &AppWindow, held: HeldModifiers) {
-    let before = HINTS.with(|cell| return cell.get());
+    let before = HINTS.get();
     let after = before.on_modifiers(held, now_ms());
     if after == before {
         return;
     }
-    HINTS.with(|cell| cell.set(after));
+    HINTS.set(after);
     refresh(window);
     schedule(window);
+}
+
+/// What:
+/// `shortcut` is the shortcut text of one action as the window's string type.
+/// Why:
+/// `texts_of` fills eighteen text fields the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shortcut = (action: ShortcutAction, platform: KeyboardPlatform): string => shortcutText(action, platform);
+/// ```
+fn shortcut(action: ShortcutAction, platform: KeyboardPlatform) -> SharedString {
+    return shortcut_text(action, platform).as_str().into();
 }
 
 /// What:
@@ -177,26 +216,25 @@ pub(crate) fn modifiers_changed(window: &AppWindow, held: HeldModifiers) {
 /// tooltips show the chord of each button,
 /// written once from the same table the classifier reads.
 fn texts_of(platform: KeyboardPlatform) -> ShortcutTexts {
-    let text = |action: ShortcutAction| return shortcut_text(action, platform).as_str().into();
     return ShortcutTexts {
-        search: text(ShortcutAction::Search),
-        settings: text(ShortcutAction::Settings),
-        open_folder: text(ShortcutAction::OpenFolderDialog),
-        folder_trigger: text(ShortcutAction::Picker),
-        previous: text(ShortcutAction::Previous),
-        play: text(ShortcutAction::Toggle),
-        next: text(ShortcutAction::Next),
-        seek_back: text(ShortcutAction::SeekBack),
-        seek_forward: text(ShortcutAction::SeekForward),
-        mode_repeat: text(ShortcutAction::ModeRepeat),
-        mode_in_order: text(ShortcutAction::ModeInOrder),
-        mode_shuffle_folder: text(ShortcutAction::ModeShuffleFolder),
-        mode_shuffle_all: text(ShortcutAction::ModeShuffleAll),
-        mode_cycle: text(ShortcutAction::Mode),
-        deck_title: text(ShortcutAction::Reveal),
-        deck_folder: text(ShortcutAction::RevealFolder),
-        back: text(ShortcutAction::Back),
-        editor_reset: text(ShortcutAction::EditorReset),
+        search: shortcut(ShortcutAction::Search, platform),
+        settings: shortcut(ShortcutAction::Settings, platform),
+        open_folder: shortcut(ShortcutAction::OpenFolderDialog, platform),
+        folder_trigger: shortcut(ShortcutAction::Picker, platform),
+        previous: shortcut(ShortcutAction::Previous, platform),
+        play: shortcut(ShortcutAction::Toggle, platform),
+        next: shortcut(ShortcutAction::Next, platform),
+        seek_back: shortcut(ShortcutAction::SeekBack, platform),
+        seek_forward: shortcut(ShortcutAction::SeekForward, platform),
+        mode_repeat: shortcut(ShortcutAction::ModeRepeat, platform),
+        mode_in_order: shortcut(ShortcutAction::ModeInOrder, platform),
+        mode_shuffle_folder: shortcut(ShortcutAction::ModeShuffleFolder, platform),
+        mode_shuffle_all: shortcut(ShortcutAction::ModeShuffleAll, platform),
+        mode_cycle: shortcut(ShortcutAction::Mode, platform),
+        deck_title: shortcut(ShortcutAction::Reveal, platform),
+        deck_folder: shortcut(ShortcutAction::RevealFolder, platform),
+        back: shortcut(ShortcutAction::Back, platform),
+        editor_reset: shortcut(ShortcutAction::EditorReset, platform),
     };
 }
 

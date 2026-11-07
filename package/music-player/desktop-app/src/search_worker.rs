@@ -235,7 +235,10 @@ pub(crate) fn work(shared: Arc<Shared>, requests: Receiver<Request>, deliver: Bo
     let mut refresh_due: Option<Instant> = None;
     let mut last_answer: Instant = Instant::now();
     loop {
-        let wait: Duration = refresh_due.map_or(Duration::from_secs(3600), |due| return due.saturating_duration_since(Instant::now()));
+        let wait: Duration = match refresh_due {
+            Some(due) => due.saturating_duration_since(Instant::now()),
+            None => Duration::from_secs(3600),
+        };
         let mut inbox: Vec<Request> = Vec::new();
         match requests.recv_timeout(wait) {
             Ok(first) => {
@@ -264,7 +267,7 @@ pub(crate) fn work(shared: Arc<Shared>, requests: Receiver<Request>, deliver: Bo
             last_answer = Instant::now();
             current = Some((sequence, text));
             refresh_due = None;
-        } else if refresh_due.is_some_and(|due| return Instant::now() >= due) {
+        } else if matches!(refresh_due, Some(due) if Instant::now() >= due) {
             refresh_due = None;
             if let Some((sequence, text)) = &current {
                 tracing::debug!(sequence, "search worker refreshes the current query");

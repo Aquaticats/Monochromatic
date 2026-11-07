@@ -77,8 +77,30 @@ pub(crate) fn pause_from_environment() -> Duration {
 /// Why:
 ///       Kept apart from the environment read so the rule can be tested without touching the process environment.
 fn parse_pause(text: Option<&str>) -> Duration {
-    let milliseconds: u64 = text.and_then(|value| return value.trim().parse::<u64>().ok()).unwrap_or(0);
+    let milliseconds: u64 = match text {
+        Some(value) => value.trim().parse::<u64>().unwrap_or(0),
+        None => 0,
+    };
     return Duration::from_millis(milliseconds);
+}
+
+/// What:
+/// `by_natural_name` orders two `(name, path)` pairs by natural name order,
+/// then by path.
+/// Why:
+/// the entries of a folder are sorted by this comparison,
+/// and a sort comparison is a function of the two pairs alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const byNaturalName = (left: [string, string], right: [string, string]): number => naturalCmp(left[0], right[0]) || compare(left[1], right[1]);
+/// ```
+fn by_natural_name(left: &(String, PathBuf), right: &(String, PathBuf)) -> std::cmp::Ordering {
+    let by_name = natural_cmp(&left.0, &right.0);
+    if by_name != std::cmp::Ordering::Equal {
+        return by_name;
+    }
+    return left.1.cmp(&right.1);
 }
 
 /// What:
@@ -102,15 +124,60 @@ fn parse_pause(text: Option<&str>) -> Duration {
 /// paths.sort((a, b) => naturalCmp(basename(a), basename(b)) || (a < b ? -1 : 1));
 /// ```
 fn sort_naturally(paths: &mut Vec<PathBuf>) {
-    let mut keyed: Vec<(String, PathBuf)> = std::mem::take(paths)
-        .into_iter()
-        .map(|path| {
-            let name: String = path.file_name().map_or_else(String::new, |name| return name.to_string_lossy().into_owned());
-            return (name, path);
-        })
-        .collect();
-    keyed.sort_by(|left, right| return natural_cmp(&left.0, &right.0).then_with(|| return left.1.cmp(&right.1)));
-    paths.extend(keyed.into_iter().map(|(_name, path)| return path));
+    let mut keyed: Vec<(String, PathBuf)> = Vec::new();
+    for path in std::mem::take(paths) {
+        let name: String = match path.file_name() {
+            Some(name) => name.to_string_lossy().into_owned(),
+            None => String::new(),
+        };
+        keyed.push((name, path));
+    }
+    keyed.sort_by(by_natural_name);
+    for (_name, path) in keyed {
+        paths.push(path);
+    }
+}
+
+/// What:
+/// `ignore_batch` is the batch callback of a walk that wants no progress reports.
+/// Why:
+/// `scan_streaming` always takes a callback,
+/// and a named function that does nothing says so without a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ignoreBatch = (_batch: string[]): void => {};
+/// ```
+pub(crate) fn ignore_batch(_batch: &[PathBuf]) {}
+
+/// What:
+/// `BatchListener` receives each batch of tracks that the folder walk reports while it is still walking.
+/// Why:
+/// the controller that announces batches to the window keeps a counter and a pause between them,
+/// and a trait with a named implementation carries that state without a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface BatchListener { onBatch(batch: string[]): void }
+/// ```
+pub(crate) trait BatchListener {
+    /// What:
+    /// `on_batch` takes one batch of newly found tracks.
+    /// Why:
+    /// the walk calls it each time a batch is due.
+    fn on_batch(&mut self, batch: &[PathBuf]);
+}
+
+/// A callable of the same shape is a listener too,
+/// so a test or a caller without state can pass one.
+impl<F: FnMut(&[PathBuf])> BatchListener for F {
+    /// What:
+    /// `on_batch` calls the callable.
+    /// Why:
+    /// it lets a plain callable stand in for a listener.
+    fn on_batch(&mut self, batch: &[PathBuf]) {
+        self(batch);
+    }
 }
 
 /// What:
@@ -125,7 +192,7 @@ fn sort_naturally(paths: &mut Vec<PathBuf>) {
 /// ```ts
 /// function scanStreaming(root: string, batch: number, onBatch: (paths: string[]) => void): string[] { /* DFS */ }
 /// ```
-pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn FnMut(&[PathBuf])) -> Vec<PathBuf> {
+pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn BatchListener) -> Vec<PathBuf> {
     let started: Instant = Instant::now();
     tracing::info!(root = %root.display(), "folder walk started");
     let mut out: Vec<PathBuf> = Vec::new();
@@ -163,12 +230,12 @@ pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn FnMut
         let due: bool = waiting >= batch || (reported == 0 && waiting > 0 && started.elapsed() >= FIRST_BATCH_AFTER);
         if due {
             tracing::debug!(first = reported, found = out.len() - reported, elapsed_ms = started.elapsed().as_millis(), "folder walk reports a batch");
-            on_batch(&out[reported..]);
+            on_batch.on_batch(&out[reported..]);
             reported = out.len();
         }
     }
     if reported < out.len() {
-        on_batch(&out[reported..]);
+        on_batch.on_batch(&out[reported..]);
     }
     tracing::info!(tracks = out.len(), elapsed_ms = started.elapsed().as_millis(), "folder walk finished");
     return out;
@@ -184,17 +251,16 @@ pub(crate) fn scan_streaming(root: &Path, batch: usize, on_batch: &mut dyn FnMut
 ///  these equal the queue's display names;
 /// the final queue replaces them if they differ.
 pub(crate) fn batch_names(root: &Path, paths: &[PathBuf]) -> Vec<String> {
-    return paths
-        .iter()
-        .map(|path| {
-            let relative: &Path = path.strip_prefix(root).unwrap_or(path);
-            return relative
-                .components()
-                .map(|component| return component.as_os_str().to_string_lossy())
-                .collect::<Vec<_>>()
-                .join("/");
-        })
-        .collect();
+    let mut names: Vec<String> = Vec::with_capacity(paths.len());
+    for path in paths {
+        let relative: &Path = path.strip_prefix(root).unwrap_or(path);
+        let mut parts: Vec<std::borrow::Cow<str>> = Vec::new();
+        for component in relative.components() {
+            parts.push(component.as_os_str().to_string_lossy());
+        }
+        names.push(parts.join("/"));
+    }
+    return names;
 }
 
 /// Unit tests in `scan_stream_tests.rs`,

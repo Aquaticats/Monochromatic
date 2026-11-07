@@ -26,7 +26,7 @@ use slint::ComponentHandle;
 
 /// Imports the model builder,
 /// the projection and the state accessors of the screen.
-use crate::ui_screen::{model_of, project, read_state, update_state};
+use crate::ui_screen::{model_of, project, read_screen, write_screen};
 /// Imports the route and the screen state.
 use crate::ui_screen_view::{Route, ScreenState};
 /// Imports the pure rows and editor view and the kind and index conversions.
@@ -110,11 +110,12 @@ pub(crate) fn wire(app: &AppWindow) {
     let auto_play_on_select = Session::load_auto_play_on_select();
     tracing::info!(auto_play_on_select, "loaded the Auto-play on select setting");
     crate::ui_text_size::load_into_state();
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.track_rows_template = track_rows;
         state.playing_template = playing;
         state.auto_play_on_select = auto_play_on_select;
-    });
+    }
     wire_callbacks(app);
 }
 
@@ -182,7 +183,9 @@ fn wire_editor(app: &AppWindow) {
     let focus_weak = app.as_weak();
     app.on_editor_focus_changed(move |focused| {
         if let Some(window) = focus_weak.upgrade() {
-            update_editor(|editor| return editor.with_focus(focused));
+            if let Some(editor) = current_editor() {
+                store_editor(editor.with_focus(focused));
+            }
             project(&window);
         }
     });
@@ -228,7 +231,7 @@ pub(crate) fn build_editor(state: &ScreenState) -> TemplateEditorState {
         }
     }
     // A draft that did not apply when the editor was left comes back as the draft; it does not change what is applied.
-    let (kept_track_rows, kept_playing) = KEPT_DRAFTS.with(|cell| return cell.borrow().clone());
+    let (kept_track_rows, kept_playing) = KEPT_DRAFTS.with(std::cell::RefCell::clone).into_inner();
     for (kind, kept) in [(TemplateKind::TrackRows, kept_track_rows), (TemplateKind::PlayingTrack, kept_playing)] {
         if let Some(text) = kept {
             let length = text.encode_utf16().count();
@@ -250,10 +253,11 @@ pub(crate) fn build_editor(state: &ScreenState) -> TemplateEditorState {
 /// so the editor value is built from the saved texts.
 pub(crate) fn open_settings(window: &AppWindow) {
     window.set_settings_start_on_licenses(false);
-    update_state(|state| {
-        state.editor = Some(build_editor(state));
+    {
+        let mut state = write_screen();
+        state.editor = Some(build_editor(&state));
         state.route = Route::Settings;
-    });
+    }
     project(window);
 }
 
@@ -265,10 +269,13 @@ fn open_template(window: &AppWindow, index: i32) {
     let Some(kind) = usize::try_from(index).ok().and_then(kind_of_index) else {
         return;
     };
-    update_editor(|editor| return editor.open(kind));
-    update_state(|state| {
+    if let Some(editor) = current_editor() {
+        store_editor(editor.open(kind));
+    }
+    {
+        let mut state = write_screen();
         state.route = Route::TemplateEditor;
-    });
+    }
     project(window);
 }
 
@@ -285,14 +292,19 @@ fn select_template(window: &AppWindow, index: i32) {
         tracing::warn!(index, "ignored a selection of a Settings row that does not exist");
         return;
     };
-    let already_selected = read_state(|state| return state.editor.as_ref().is_some_and(|editor| return editor.kind() == kind));
+    let already_selected = match read_screen().editor.as_ref() {
+        Some(editor) => editor.kind() == kind,
+        None => false,
+    };
     if already_selected {
         tracing::debug!(?kind, "the selected Settings row was chosen again; nothing changes");
         return;
     }
     tracing::info!(?kind, "selected a Settings row");
     commit_templates();
-    update_editor(|editor| return editor.open(kind));
+    if let Some(editor) = current_editor() {
+        store_editor(editor.open(kind));
+    }
     project(window);
 }
 
@@ -308,10 +320,11 @@ fn select_template(window: &AppWindow, index: i32) {
 pub(crate) fn close_settings(window: &AppWindow) {
     tracing::info!("closing Settings");
     commit_templates();
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.editor = None;
         state.route = Route::Player;
-    });
+    }
     project(window);
 }
 
@@ -326,10 +339,11 @@ pub(crate) fn close_settings(window: &AppWindow) {
 /// new value governs the next click,
 /// Enter or Search result at once.
 fn toggle_auto_play_on_select(window: &AppWindow) {
-    let enabled = !read_state(|state| return state.auto_play_on_select);
-    update_state(|state| {
+    let enabled = !read_screen().auto_play_on_select;
+    {
+        let mut state = write_screen();
         state.auto_play_on_select = enabled;
-    });
+    }
     tracing::info!(enabled, "toggled Auto-play on select");
     if let Err(error) = AUTO_PLAY_SAVER.get()(enabled) {
         tracing::warn!(?error, "failed to save the Auto-play on select setting");
@@ -348,18 +362,21 @@ fn toggle_auto_play_on_select(window: &AppWindow) {
 /// continues in the right pane of the two-pane Settings,
 /// so the route becomes Settings and the template stays selected.
 fn layout_changed(window: &AppWindow, wide: bool) {
-    let on_editor_page = read_state(|state| return state.route == Route::TemplateEditor);
+    let on_editor_page = { let state = read_screen(); state.route == Route::TemplateEditor };
     tracing::debug!(wide, on_editor_page, "window crossed the Settings width switch");
     if wide && on_editor_page {
-        update_state(|state| {
+        {
+            let mut state = write_screen();
             state.route = Route::Settings;
-        });
+        }
         project(window);
     }
     if !wide {
         // Narrowing destroys the right pane's text field, which may never report that it lost focus, and a focus left
         // set would make Escape on the list page look like typing in a template line.
-        update_editor(|editor| return editor.with_focus(false));
+        if let Some(editor) = current_editor() {
+            store_editor(editor.with_focus(false));
+        }
         // The template line's focus zone went with it.
         let focus = window.global::<crate::Focus>();
         if focus.get_zone() == 7 {
@@ -379,14 +396,34 @@ fn layout_changed(window: &AppWindow, wide: bool) {
 /// the callback also fires for caret moves,
 /// so a repeated report leaves the state unchanged.
 fn edit_text(window: &AppWindow, text: &str, start_bytes: usize, end_bytes: usize) {
-    update_editor(|editor| {
-        return editor.with_edit(TemplateEditorEdit {
+    if let Some(editor) = current_editor() {
+        store_editor(editor.with_edit(TemplateEditorEdit {
             text: text.to_string(),
             selection_start: utf16_offset(text, start_bytes),
             selection_end: utf16_offset(text, end_bytes),
-        });
-    });
+        }));
+    }
     project(window);
+}
+
+/// What:
+/// `field_mode_at` gives the mode of the field row `index` of the open editor,
+/// or nothing when the row does not exist or no editor is open.
+/// Why:
+/// a tap reports a row number from the window,
+/// which may be stale by the time it arrives.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fieldModeAt = (state: ScreenState, index: number): string | null => state.editor?.fields[index]?.mode ?? null;
+/// ```
+fn field_mode_at(state: &ScreenState, index: i32) -> Option<&'static str> {
+    let position = usize::try_from(index).ok()?;
+    let editor = state.editor.as_ref()?;
+    return match editor.fields().get(position) {
+        Some(field) => Some(field.mode),
+        None => None,
+    };
 }
 
 /// What:
@@ -394,12 +431,11 @@ fn edit_text(window: &AppWindow, text: &str, start_bytes: usize, end_bytes: usiz
 /// Why:
 /// a tap on a field row inserts its call (D96).
 fn insert_field(window: &AppWindow, index: i32) {
-    let field_mode = read_state(|state| {
-        let position = usize::try_from(index).ok()?;
-        return state.editor.as_ref()?.fields().get(position).map(|field| return field.mode);
-    });
+    let field_mode = field_mode_at(&read_screen(), index);
     if let Some(mode) = field_mode {
-        update_editor(|editor| return editor.insert_field(mode));
+        if let Some(editor) = current_editor() {
+            store_editor(editor.insert_field(mode));
+        }
         project(window);
     }
 }
@@ -409,7 +445,9 @@ fn insert_field(window: &AppWindow, index: i32) {
 /// Why:
 /// the Reset control and Ctrl+Shift+Backspace (D106) do the same thing.
 pub(crate) fn reset_open_template(window: &AppWindow) {
-    update_editor(|editor| return editor.reset_to_default());
+    if let Some(editor) = current_editor() {
+        store_editor(editor.reset_to_default());
+    }
     project(window);
 }
 
@@ -429,9 +467,10 @@ pub(crate) fn apply_templates(window: &AppWindow) {
 /// so the rows never show a broken template.
 pub(crate) fn editor_back(window: &AppWindow) {
     commit_templates();
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.route = Route::Settings;
-    });
+    }
     project(window);
 }
 
@@ -454,7 +493,7 @@ mod commit_and_projection;
 pub(crate) use commit_and_projection::project_pages;
 
 /// Imports the commit and the editor update that the callbacks call.
-use commit_and_projection::{commit_templates, update_editor};
+use commit_and_projection::{commit_templates, current_editor, store_editor};
 
 /// Unit tests of `ui_settings`,
 /// in the sidecar file `ui_settings_tests.rs`.

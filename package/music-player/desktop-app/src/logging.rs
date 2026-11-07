@@ -65,7 +65,10 @@ pub fn init_with_ansi(ansi: bool) {
 /// so they differ only in the color setting.
 fn install(ansi: Option<bool>) {
     // The level filter from RUST_LOG, or `info` when the variable is unset or malformed.
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| return EnvFilter::new("info"));
+    let filter = match EnvFilter::try_from_default_env() {
+        Ok(filter) => filter,
+        Err(_error) => EnvFilter::new("info"),
+    };
     // A fmt subscriber writing to stderr.
     let builder = tracing_subscriber::fmt().with_env_filter(filter).with_writer(std::io::stderr);
     // `.finish()` returns the subscriber without touching `log`.

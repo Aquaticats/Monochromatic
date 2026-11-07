@@ -48,7 +48,7 @@ use crate::AppWindow;
 /// Imports the host through which actions leave the window.
 use crate::ui_host::Host;
 /// Imports the projection and the state accessors of the screen.
-use crate::ui_screen::{project, read_state, update_state};
+use crate::ui_screen::{project, read_screen, write_screen};
 /// Imports the route,
 /// the screen state and the folder selection.
 use crate::ui_screen_view::{Route, ScreenState, select_folder_label};
@@ -68,7 +68,7 @@ thread_local! {
 /// Why:
 /// callbacks and the library feed reach the service through the window thread's handle.
 pub(crate) fn service() -> Option<Arc<SearchService>> {
-    return SERVICE.with(|slot| return slot.borrow().clone());
+    return SERVICE.with(std::cell::RefCell::clone).into_inner();
 }
 
 /// What:
@@ -103,7 +103,15 @@ impl Drop for ServiceShutdown {
 /// `main` starts it before the engine,
 /// because the engine thread feeds scan batches to the same service.
 pub(crate) fn start_service(app: &AppWindow) -> Arc<SearchService> {
-    install(app, posting_delivery(app.as_weak()));
+    let weak = app.as_weak();
+    install(app, move |answer: SearchAnswer| {
+        let target = weak.clone();
+        let _posted = slint::invoke_from_event_loop(move || {
+            if let Some(window) = target.upgrade() {
+                apply_answer(&window, answer);
+            }
+        });
+    });
     return service().expect("the Search service was just installed");
 }
 
@@ -115,23 +123,7 @@ pub(crate) fn start_service(app: &AppWindow) -> Arc<SearchService> {
 pub(crate) fn install(app: &AppWindow, deliver: impl Fn(SearchAnswer) + Send + 'static) {
     install_rows_model(app);
     let started: Arc<SearchService> = Arc::new(SearchService::start(deliver));
-    SERVICE.with(|slot| *slot.borrow_mut() = Some(started));
-}
-
-/// What:
-/// `posting_delivery` makes a delivery that hands each answer to the window thread.
-/// Why:
-/// the service answers on its worker;
-/// the window may only be touched on the event-loop thread.
-fn posting_delivery(weak: slint::Weak<AppWindow>) -> impl Fn(SearchAnswer) + Send + 'static {
-    return move |answer: SearchAnswer| {
-        let target = weak.clone();
-        let _posted = slint::invoke_from_event_loop(move || {
-            if let Some(window) = target.upgrade() {
-                apply_answer(&window, answer);
-            }
-        });
-    };
+    SERVICE.set(Some(started));
 }
 
 /// What:
@@ -199,18 +191,20 @@ pub(crate) fn wire_route(app: &AppWindow) {
     let edit_weak = app.as_weak();
     app.on_search_query_edited(move |query| {
         if let Some(window) = edit_weak.upgrade() {
-            update_state(|state| {
+            {
+                let mut state = write_screen();
                 state.search_query = query.to_string();
-            });
+            }
             project_search(&window);
         }
     });
     let clear_weak = app.as_weak();
     app.on_search_clear(move || {
         if let Some(window) = clear_weak.upgrade() {
-            update_state(|state| {
+            {
+                let mut state = write_screen();
                 state.search_query = String::new();
-            });
+            }
             project_search(&window);
         }
     });
@@ -222,10 +216,11 @@ pub(crate) fn wire_route(app: &AppWindow) {
 /// D66:
 /// a new Search visit starts empty.
 pub(crate) fn open_search_route(window: &AppWindow) {
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.route = Route::Search;
         state.search_query = String::new();
-    });
+    }
     // The list position is shared with the page through a two-way property, so a new visit starts at the top.
     window.set_search_scroll_y(0.0);
     show_route(window);
@@ -237,9 +232,10 @@ pub(crate) fn open_search_route(window: &AppWindow) {
 /// D64:
 /// Back exits Search directly.
 pub(crate) fn close_search_route(window: &AppWindow) {
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.route = Route::Player;
-    });
+    }
     show_route(window);
 }
 
@@ -259,7 +255,7 @@ fn show_route(window: &AppWindow) {
 /// an empty query needs no index,
 /// so its prompt is shown at once.
 pub(crate) fn project_search(window: &AppWindow) {
-    let (query, route) = read_state(|state| return (state.search_query.clone(), state.route));
+    let (query, route) = { let state = read_screen(); (state.search_query.clone(), state.route) };
     window.set_search_query(query.as_str().into());
     window.set_route(route.to_int());
     if route != Route::Search {
@@ -270,11 +266,12 @@ pub(crate) fn project_search(window: &AppWindow) {
         return;
     };
     let sequence: u64 = running.query(&query);
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.search_ui.sequence = sequence;
-    });
+    }
     if search_terms(&query).is_empty() {
-        let (current_index, playing) = read_state(|state| return (state.current_index, state.playing));
+        let (current_index, playing) = { let state = read_screen(); (state.current_index, state.playing) };
         show_view(window, search_view_of(&SearchState::EmptyQuery, current_index, playing, true), &query, false);
     }
 }
@@ -287,7 +284,7 @@ pub(crate) fn project_search(window: &AppWindow) {
 /// searching again could return a
 /// different row for the same position while the library is still growing.
 pub(crate) fn activate_result(window: &AppWindow, engine: &dyn Host, position: usize) {
-    let result = read_state(|state| return state.search_ui.results.get(position).cloned());
+    let result = { let state = read_screen(); state.search_ui.results.get(position).cloned() };
     let Some(found) = result else {
         return;
     };
@@ -296,15 +293,13 @@ pub(crate) fn activate_result(window: &AppWindow, engine: &dyn Host, position: u
             // D127, D129: a result follows the row click rule (D124): a track that is not current is only selected
             // (and started with Auto-play on select on), the current track toggles play and pause.
             crate::ui_wire::play_row(engine, index);
-            update_state(|state| {
+            {
+                let mut state = write_screen();
                 state.route = Route::Player;
-            });
+            }
         }
         _ => {
-            let mut chosen: Option<Vec<usize>> = None;
-            update_state(|state| {
-                chosen = open_folder_result(state, &found.name);
-            });
+            let chosen: Option<Vec<usize>> = open_folder_result(&mut write_screen(), &found.name);
             let Some(scope) = chosen else {
                 tracing::info!(folder = %found.name, "a folder result was tapped before the library rows exist; Search stays open");
                 return;
@@ -321,16 +316,20 @@ pub(crate) fn activate_result(window: &AppWindow, engine: &dyn Host, position: u
 /// Why:
 /// Up and Down move through the results while the query field keeps the typing focus (D106).
 pub(crate) fn move_ring(window: &AppWindow, delta: isize) {
-    let count = read_state(|state| return state.search_ui.results.len());
+    let count = read_screen().search_ui.results.len();
     if count == 0 {
         return;
     }
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         let here = state.search_ring.unwrap_or(0);
         state.search_ring = Some(here.saturating_add_signed(delta).min(count - 1));
+    }
+    let ring = read_screen().search_ring;
+    window.set_search_ring(match ring {
+        Some(row) => i32::try_from(row).unwrap_or(-1),
+        None => -1,
     });
-    let ring = read_state(|state| return state.search_ring);
-    window.set_search_ring(ring.and_then(|row| return i32::try_from(row).ok()).unwrap_or(-1));
     tracing::debug!(?ring, "the Search highlight moved");
 }
 
@@ -340,7 +339,7 @@ pub(crate) fn move_ring(window: &AppWindow, delta: isize) {
 /// Why:
 /// Enter in the Search page opens the focused result (D106).
 pub(crate) fn open_ringed_result(window: &AppWindow, host: &dyn Host) {
-    let position = read_state(|state| return state.search_ring).unwrap_or(0);
+    let position = read_screen().search_ring.unwrap_or(0);
     activate_result(window, host, position);
 }
 

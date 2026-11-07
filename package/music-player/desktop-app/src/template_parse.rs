@@ -451,7 +451,10 @@ fn append_formula_piece(
     }
     let source_end = close.unwrap_or(units.len());
     let tree = parse_formula(&units[open + 1..source_end], open + 1, errors);
-    let end = close.map_or(units.len(), |found| return found + 1);
+    let end = match close {
+        Some(found) => found + 1,
+        None => units.len(),
+    };
     parts.push(TemplatePart::Formula(FormulaPart {
         tree,
         start: open,

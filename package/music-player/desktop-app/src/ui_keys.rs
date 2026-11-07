@@ -37,7 +37,7 @@ use slint::ComponentHandle;
 /// Imports the host through which actions leave the window.
 use crate::ui_host::Host;
 /// Imports the reader of the screen state.
-use crate::ui_screen::read_state;
+use crate::ui_screen::read_screen;
 /// Imports the route that tells which page is open.
 use crate::ui_screen_view::Route;
 /// Imports the window and the focus type that keys act on.
@@ -270,7 +270,7 @@ pub fn request_for(input: &KeyInput, context: &KeyContext, platform: KeyboardPla
 /// the page and the picker flag live in the state,
 /// and the zone lives in the window's `Focus` global.
 pub(crate) fn context_of(window: &AppWindow) -> KeyContext {
-    let (route, picker_open) = read_state(|state| return (state.route, state.picker_open));
+    let (route, picker_open) = { let state = read_screen(); (state.route, state.picker_open) };
     return KeyContext {
         route,
         zone: FocusZone::from_int(window.global::<Focus>().get_zone()),
@@ -325,9 +325,9 @@ pub(crate) fn dispatch(window: &AppWindow, host: &dyn Host, input: &KeyInput) ->
 /// still runs (so its state stays honest) but the tap does nothing.
 fn track_double_shift(window: &AppWindow, input: ShiftInput) {
     let now = crate::ui_hints::now_ms();
-    let before = DOUBLE_SHIFT.with(Cell::get);
+    let before = DOUBLE_SHIFT.get();
     let (after, completed) = before.step(input, now);
-    DOUBLE_SHIFT.with(|cell| cell.set(after));
+    DOUBLE_SHIFT.set(after);
     if !completed {
         return;
     }

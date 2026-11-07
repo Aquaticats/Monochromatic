@@ -67,11 +67,10 @@ pub fn anchored_offset(old_keys: &[String], new_keys: &[String], offset_px: f32,
         return offset.min(limit);
     }
     let first_visible: usize = ((offset / row_height_px).floor() as usize).min(old_keys.len() - 1);
-    let new_positions: HashMap<&str, usize> = new_keys
-        .iter()
-        .enumerate()
-        .map(|(position, key)| return (key.as_str(), position))
-        .collect();
+    let mut new_positions: HashMap<&str, usize> = HashMap::with_capacity(new_keys.len());
+    for (position, key) in new_keys.iter().enumerate() {
+        new_positions.insert(key.as_str(), position);
+    }
     let visible_rows: usize = 12;
     for (old_position, old_key) in old_keys.iter().enumerate().skip(first_visible).take(visible_rows) {
         if let Some(new_position) = new_positions.get(old_key.as_str()) {

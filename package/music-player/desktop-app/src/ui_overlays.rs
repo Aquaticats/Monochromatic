@@ -54,11 +54,11 @@ thread_local! {
     /// the UI thread's feedback state.
     /// Why:
     /// messages are added and expired only on the event-loop thread.
-    static OVERLAYS: RefCell<OverlayState> = const { RefCell::new(OverlayState {
+    static OVERLAYS: &'static RefCell<OverlayState> = Box::leak(Box::new(RefCell::new(OverlayState {
         queue: FeedbackQueue::EMPTY,
         next_id: 0,
         undo_targets: Vec::new(),
-    }) };
+    })));
     /// What:
     /// the repeating timer that expires feedback messages;
     /// kept alive for the window's lifetime.
@@ -72,12 +72,27 @@ thread_local! {
 }
 
 /// What:
+/// `overlays` returns this thread's overlay state cell.
+/// Why:
+/// the cell is leaked once per thread,
+/// so it outlives every borrow,
+/// so each function borrows it directly instead of passing a closure to `LocalKey::with`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const overlays = (): Cell<OverlayState> => OVERLAYS;
+/// ```
+fn overlays() -> &'static RefCell<OverlayState> {
+    return OVERLAYS.with(Clone::clone);
+}
+
+/// What:
 /// `now_ms` gives the feedback clock in milliseconds since the first feedback call.
 /// Why:
 /// the queue compares timestamps,
 /// so the origin only has to be stable.
 fn now_ms() -> i64 {
-    return CLOCK_START.with(|start| return i64::try_from(start.elapsed().as_millis()).unwrap_or(i64::MAX));
+    return i64::try_from(CLOCK_START.with(Instant::elapsed).as_millis()).unwrap_or(i64::MAX);
 }
 
 /// What:
@@ -89,28 +104,25 @@ fn now_ms() -> i64 {
 /// a long message or one with an action
 /// stays longer than the fixed 4 s the queue would give it.
 fn add_message(kind: FeedbackKind, text: &str, hold: Hold, action_label: Option<&str>, undo_path: Option<PathBuf>) -> Option<String> {
-    let outcome = OVERLAYS.with(|cell| {
-        let mut state = cell.borrow_mut();
-        state.next_id += 1;
-        let prefix = if kind == FeedbackKind::Undo { "undo" } else { "error" };
-        let id = format!("{prefix}-{}", state.next_id);
-        let message = FeedbackMessage::new(&id, text, kind, action_label).ok()?;
-        let duration_ms = visible_time_ms(text, hold);
-        state.queue = match state.queue.show_for(message, now_ms(), duration_ms) {
-            Ok(queue) => queue,
-            Err(error) => {
-                tracing::warn!(%error, duration_ms, "feedback duration rejected");
-                return None;
-            }
-        };
-        if let Some(path) = undo_path {
-            state.undo_targets.push((id.clone(), path));
+    let mut state = overlays().borrow_mut();
+    state.next_id += 1;
+    let prefix = if kind == FeedbackKind::Undo { "undo" } else { "error" };
+    let id = format!("{prefix}-{}", state.next_id);
+    let message = FeedbackMessage::new(&id, text, kind, action_label).ok()?;
+    let duration_ms = visible_time_ms(text, hold);
+    state.queue = match state.queue.show_for(message, now_ms(), duration_ms) {
+        Ok(queue) => queue,
+        Err(error) => {
+            tracing::warn!(%error, duration_ms, "feedback duration rejected");
+            return None;
         }
-        // The text is not logged: it can name a file. The id and kind show that a message appeared.
-        tracing::info!(id = %id, kind = ?kind, duration_ms, "feedback message shown in the window");
-        return Some(id);
-    });
-    return outcome;
+    };
+    if let Some(path) = undo_path {
+        state.undo_targets.push((id.clone(), path));
+    }
+    // The text is not logged: it can name a file. The id and kind show that a message appeared.
+    tracing::info!(id = %id, kind = ?kind, duration_ms, "feedback message shown in the window");
+    return Some(id);
 }
 
 /// What:
@@ -120,7 +132,8 @@ fn add_message(kind: FeedbackKind, text: &str, hold: Hold, action_label: Option<
 /// the window tests check how long each kind of message is meant to stay without waiting for it to expire.
 #[cfg(test)]
 pub(crate) fn first_message_expires_in_ms() -> Option<i64> {
-    return OVERLAYS.with(|cell| return cell.borrow().queue.next_expiry_ms()).map(|expiry| return expiry - now_ms());
+    let expiry = overlays().borrow().queue.next_expiry_ms()?;
+    return Some(expiry - now_ms());
 }
 
 /// What:
@@ -189,11 +202,15 @@ pub(crate) fn show_long_notice(window: &AppWindow, text: &str) {
 /// Why:
 /// a dismissed or acted-on message must not stay visible or restorable.
 fn dismiss(id: &str) {
-    OVERLAYS.with(|cell| {
-        let mut state = cell.borrow_mut();
-        state.queue = state.queue.dismiss(id);
-        state.undo_targets.retain(|(target_id, _)| return target_id != id);
-    });
+    let mut state = overlays().borrow_mut();
+    state.queue = state.queue.dismiss(id);
+    let mut kept_targets: Vec<(String, PathBuf)> = Vec::new();
+    for target in state.undo_targets.drain(..) {
+        if target.0 != id {
+            kept_targets.push(target);
+        }
+    }
+    state.undo_targets = kept_targets;
 }
 
 /// What:
@@ -202,11 +219,16 @@ fn dismiss(id: &str) {
 /// an Undo can run once,
 /// so the target leaves the list when it is taken.
 fn take_undo_target(id: &str) -> Option<PathBuf> {
-    return OVERLAYS.with(|cell| {
-        let mut state = cell.borrow_mut();
-        let position = state.undo_targets.iter().position(|(target_id, _)| return target_id == id)?;
-        return Some(state.undo_targets.remove(position).1);
-    });
+    let mut state = overlays().borrow_mut();
+    let mut found: Option<usize> = None;
+    for (at, target) in state.undo_targets.iter().enumerate() {
+        if target.0 == id {
+            found = Some(at);
+            break;
+        }
+    }
+    let position = found?;
+    return Some(state.undo_targets.remove(position).1);
 }
 
 /// What:
@@ -216,15 +238,24 @@ fn take_undo_target(id: &str) -> Option<PathBuf> {
 /// the timer calls this periodically,
 /// so messages leave without a user action.
 fn expire(window: &AppWindow) {
-    let changed = OVERLAYS.with(|cell| {
-        let mut state = cell.borrow_mut();
+    let changed = {
+        let mut state = overlays().borrow_mut();
         let before = state.queue.visible().len();
         state.queue = state.queue.expire(now_ms());
         let remaining = state.queue.visible();
-        let ids: Vec<String> = remaining.iter().map(|message| return message.id().to_string()).collect();
-        state.undo_targets.retain(|(target_id, _)| return ids.contains(target_id));
-        return before != remaining.len();
-    });
+        let mut ids: Vec<String> = Vec::with_capacity(remaining.len());
+        for message in &remaining {
+            ids.push(message.id().to_string());
+        }
+        let mut kept_targets: Vec<(String, PathBuf)> = Vec::new();
+        for target in state.undo_targets.drain(..) {
+            if ids.contains(&target.0) {
+                kept_targets.push(target);
+            }
+        }
+        state.undo_targets = kept_targets;
+        before != remaining.len()
+    };
     if changed {
         project(window);
     }
@@ -236,26 +267,28 @@ fn expire(window: &AppWindow) {
 /// both sit above the track area,
 /// so they are projected from the same state read.
 pub(crate) fn project(window: &AppWindow) {
-    let rows = OVERLAYS.with(|cell| return feedback_rows(&cell.borrow().queue));
-    window.set_feedback_items(model_of(
-        rows.into_iter()
-            .map(|row| return FeedbackItem {
-                id: row.id.as_str().into(),
-                text: row.text.as_str().into(),
-                kind: row.kind,
-                action_label: row.action_label.as_str().into(),
-            })
-            .collect(),
-    ));
+    let rows = feedback_rows(&overlays().borrow().queue);
+    let mut items: Vec<FeedbackItem> = Vec::with_capacity(rows.len());
+    for row in rows {
+        items.push(FeedbackItem {
+            id: row.id.as_str().into(),
+            text: row.text.as_str().into(),
+            kind: row.kind,
+            action_label: row.action_label.as_str().into(),
+        });
+    }
+    window.set_feedback_items(model_of(items));
     let first_run = read_state(first_run_view);
     window.set_first_run_state(if first_run.is_some() { 1 } else { 0 });
     if let Some(view) = first_run {
         window.set_first_run_title(view.title.as_str().into());
         window.set_first_run_body(view.body.as_str().into());
         window.set_first_run_primary_label(view.primary_label.as_str().into());
-        window.set_first_run_secondary_labels(model_of(
-            view.secondary_labels.iter().map(|label| return label.as_str().into()).collect(),
-        ));
+        let mut secondary_labels: Vec<slint::SharedString> = Vec::with_capacity(view.secondary_labels.len());
+        for label in &view.secondary_labels {
+            secondary_labels.push(label.as_str().into());
+        }
+        window.set_first_run_secondary_labels(model_of(secondary_labels));
         window.set_first_run_explanation(view.explanation.as_str().into());
     }
 }
@@ -327,7 +360,5 @@ fn start_expiry_timer(app: &AppWindow) {
             expire(&window);
         }
     });
-    EXPIRY_TIMER.with(|cell| {
-        *cell.borrow_mut() = Some(timer);
-    });
+    EXPIRY_TIMER.set(Some(timer));
 }

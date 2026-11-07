@@ -337,7 +337,11 @@ pub fn template_function(name: &str) -> Option<TemplateFunction> {
 /// const modes = fields.map(field => field.mode).join(", ");
 /// ```
 pub fn field_modes(fields: &[TemplateField]) -> String {
-    return fields.iter().map(|field| return field.mode).collect::<Vec<&str>>().join(", ");
+    let mut modes: Vec<&str> = Vec::with_capacity(fields.len());
+    for field in fields {
+        modes.push(field.mode);
+    }
+    return modes.join(", ");
 }
 
 /// What:
@@ -455,8 +459,8 @@ impl TemplateTrack for PlayingTrackFields {
     /// ```
     fn field_text(&self, mode: &str) -> Option<String> {
         return match mode {
-            "track" => self.place_in_folder.map(|place| return place.to_string()),
-            "total" => self.tracks_in_folder.map(|total| return total.to_string()),
+            "track" => self.place_in_folder.as_ref().map(ToString::to_string),
+            "total" => self.tracks_in_folder.as_ref().map(ToString::to_string),
             _ => self.track.field_text(mode),
         };
     }
@@ -513,6 +517,20 @@ pub enum TemplateResult {
 }
 
 /// What:
+/// `error_position` is where in the template an error was found.
+/// Why:
+/// errors are listed in template order,
+/// and a sort key is a function of the error alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const errorPosition = (error: TemplateError): number => error.at;
+/// ```
+pub(crate) fn error_position(error: &&TemplateError) -> usize {
+    return error.at;
+}
+
+/// What:
 ///  `pub fn error_lines(errors: &[TemplateError]) -> Vec<String>` formats each mistake as one line.
 /// Why:
 ///  The editor shows one line per mistake,
@@ -524,11 +542,12 @@ pub enum TemplateResult {
 /// ```
 pub fn error_lines(errors: &[TemplateError]) -> Vec<String> {
     let mut ordered: Vec<&TemplateError> = errors.iter().collect();
-    ordered.sort_by_key(|error| return error.at);
-    return ordered
-        .iter()
-        .map(|error| return format!("{}: {}", error.subject, error.message))
-        .collect();
+    ordered.sort_by_key(error_position);
+    let mut lines: Vec<String> = Vec::with_capacity(ordered.len());
+    for error in ordered {
+        lines.push(format!("{}: {}", error.subject, error.message));
+    }
+    return lines;
 }
 
 /// What:

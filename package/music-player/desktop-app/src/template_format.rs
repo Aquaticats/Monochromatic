@@ -68,7 +68,12 @@ pub fn number_text(value: f64) -> String {
     let Ok(exponent) = exponent_text.parse::<i32>() else {
         unreachable!("the exponent of a scientific f64 is always an integer");
     };
-    let joined: String = mantissa.chars().filter(|symbol| return *symbol != '.').collect();
+    let mut joined: String = String::new();
+    for symbol in mantissa.chars() {
+        if symbol != '.' {
+            joined.push(symbol);
+        }
+    }
     let digits = joined.trim_end_matches('0');
     return format!("{sign}{}", layout_digits(digits, exponent + 1));
 }
@@ -218,15 +223,22 @@ fn radix_prefix(text: &str) -> Option<(u32, &str)> {
 /// const n = parseInt(digits, radix);
 /// ```
 fn radix_value(digits: &str, radix: u32) -> Option<f64> {
-    if digits.is_empty() || !digits.chars().all(|symbol| return symbol.is_digit(radix)) {
+    if digits.is_empty() {
         return None;
+    }
+    for symbol in digits.chars() {
+        if !symbol.is_digit(radix) {
+            return None;
+        }
     }
     if let Ok(exact) = u128::from_str_radix(digits, radix) {
         return Some(exact as f64);
     }
-    return Some(digits.chars().fold(0.0, |total, symbol| {
-        return total * f64::from(radix) + f64::from(symbol.to_digit(radix).unwrap_or(0));
-    }));
+    let mut total: f64 = 0.0;
+    for symbol in digits.chars() {
+        total = total * f64::from(radix) + f64::from(symbol.to_digit(radix).unwrap_or(0));
+    }
+    return Some(total);
 }
 
 /// What:
@@ -326,7 +338,12 @@ fn is_signed_digits(text: &str) -> bool {
 /// const allDigits = (part: string) => /^\d*$/.test(part);
 /// ```
 fn all_ascii_digits(part: &str) -> bool {
-    return part.bytes().all(|byte| return byte.is_ascii_digit());
+    for byte in part.bytes() {
+        if !byte.is_ascii_digit() {
+            return false;
+        }
+    }
+    return true;
 }
 
 /// What:
@@ -418,11 +435,15 @@ pub fn format_seconds(seconds: f64, format: &str) -> String {
             index += 1;
             continue;
         }
-        let value = if kept {
-            None
-        } else {
-            clock.iter().find(|entry| return entry.0 == letter).map(|entry| return entry.1)
-        };
+        let mut value = None;
+        if !kept {
+            for entry in clock.iter() {
+                if entry.0 == letter {
+                    value = Some(entry.1);
+                    break;
+                }
+            }
+        }
         let Some(number) = value else {
             output.push(letter);
             index += 1;

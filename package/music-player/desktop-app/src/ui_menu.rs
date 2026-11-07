@@ -35,11 +35,25 @@ use crate::ui_menu_model::{copied_text, details_text, human_size, menu_items, sh
 /// Imports the overlays that report the outcome of an action.
 use crate::ui_overlays::{show_error, show_file_error, show_long_notice, show_notice, show_trash_notice, show_undo};
 /// Imports the model builder and the state accessors of the screen.
-use crate::ui_screen::{model_of, read_state, update_state};
+use crate::ui_screen::{model_of, read_screen, read_state, write_screen};
 /// Imports the page scope lookup.
 use crate::ui_screen_view::selected_page_scope;
 /// Imports the window and the generated menu row type.
 use crate::{AppWindow, TrackMenuItem};
+
+/// What:
+/// `menu_dismissed` clears the menu highlight when the menu closes without an action.
+/// Why:
+/// the next opening of the menu must not start on the row that was highlighted before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function menuDismissed(): void { state.menuRing = null; }
+/// ```
+fn menu_dismissed() {
+    tracing::debug!("track menu dismissed without an action");
+    write_screen().menu_ring = None;
+}
 
 /// What:
 /// `wire` registers the track menu callbacks on the window.
@@ -57,7 +71,10 @@ pub(crate) fn wire(app: &AppWindow, engine: &Rc<Engine>) {
     let select_engine = engine.clone();
     app.on_menu_select(move |position| {
         if let Some(window) = select_weak.upgrade() {
-            let chosen = usize::try_from(position).ok().and_then(|at| return track_menu_actions_for().get(at).copied());
+            let chosen = match usize::try_from(position) {
+                Ok(at) => track_menu_actions_for().get(at).copied(),
+                Err(_error) => None,
+            };
             if let Some(action) = chosen {
                 run_action(&window, select_engine.as_ref(), action);
             }
@@ -77,12 +94,7 @@ pub(crate) fn wire_request(app: &AppWindow) {
             fill_menu(&window, usize::try_from(index).ok());
         }
     });
-    app.on_menu_dismiss(|| {
-        tracing::debug!("track menu dismissed without an action");
-        update_state(|state| {
-            state.menu_ring = None;
-        });
-    });
+    app.on_menu_dismiss(menu_dismissed);
 }
 
 /// What:
@@ -91,22 +103,30 @@ pub(crate) fn wire_request(app: &AppWindow) {
 /// the details row shows the file size,
 /// which is read from disk when the menu opens.
 fn fill_menu(window: &AppWindow, index: Option<usize>) {
-    update_state(|state| {
+    {
+        let mut state = write_screen();
         state.menu_index = index;
         // A menu the keyboard asked for opens with its first row highlighted; a pointer menu has no highlight until a
         // key moves it.
         state.menu_ring = if state.menu_by_key { Some(0) } else { None };
         state.menu_by_key = false;
+    }
+    let menu_ring = read_screen().menu_ring;
+    window.set_menu_ring(match menu_ring {
+        Some(row) => i32::try_from(row).unwrap_or(-1),
+        None => -1,
     });
-    window.set_menu_ring(read_state(|state| return state.menu_ring).and_then(|row| return i32::try_from(row).ok()).unwrap_or(-1));
-    let target = read_state(|state| return state.menu_target());
+    let target = read_screen().menu_target();
     let Some((_index, name, path)) = target else {
         return;
     };
-    let size = std::fs::metadata(&path).ok().map(|meta| return human_size(meta.len()));
-    let rows: Vec<TrackMenuItem> = menu_items(size.as_deref(), crate::ui_keys::platform())
-        .into_iter()
-        .map(|row| return TrackMenuItem {
+    let size = match std::fs::metadata(&path) {
+        Ok(meta) => Some(human_size(meta.len())),
+        Err(_error) => None,
+    };
+    let mut rows: Vec<TrackMenuItem> = Vec::new();
+    for row in menu_items(size.as_deref(), crate::ui_keys::platform()) {
+        rows.push(TrackMenuItem {
             label: row.label.as_str().into(),
             label_before: row.label_before.as_str().into(),
             access: row.access.as_str().into(),
@@ -116,8 +136,8 @@ fn fill_menu(window: &AppWindow, index: Option<usize>) {
             divider_before: row.divider_before,
             value: row.value.as_str().into(),
             shortcut: row.shortcut.as_str().into(),
-        })
-        .collect();
+        });
+    }
     window.set_menu_title(track_title_for(&name).as_str().into());
     window.set_menu_items(model_of(rows));
     tracing::debug!("track menu filled");
@@ -187,7 +207,7 @@ pub(crate) fn run_action(window: &AppWindow, host: &dyn Host, action: TrackMenuA
 /// error for the ones that failed,
 /// and a test checks that with effects that answer at once.
 pub(crate) fn run_action_with(window: &AppWindow, host: &dyn Host, effects: &dyn FileEffects, action: TrackMenuAction) {
-    let target = read_state(|state| return state.menu_target());
+    let target = read_screen().menu_target();
     let Some((index, name, path)) = target else {
         show_error(window, "The track is no longer in the library.");
         return;
@@ -221,8 +241,14 @@ pub(crate) fn run_action_with(window: &AppWindow, host: &dyn Host, effects: &dyn
 /// shows the same facts with the folder as a message,
 /// so the shortcut has a visible effect.
 fn show_details(window: &AppWindow, name: &str, path: &Path) {
-    let size = std::fs::metadata(path).ok().map(|meta| return human_size(meta.len()));
-    let folder = path.parent().map_or_else(String::new, |parent| return parent.display().to_string());
+    let size = match std::fs::metadata(path) {
+        Ok(meta) => Some(human_size(meta.len())),
+        Err(_error) => None,
+    };
+    let folder = match path.parent() {
+        Some(parent) => parent.display().to_string(),
+        None => String::new(),
+    };
     let message = details_text(&file_name_of(name), size.as_deref(), &folder);
     tracing::info!(full_folder = %folder, %message, "file details shown");
     show_long_notice(window, &message);
@@ -269,8 +295,5 @@ fn shuffle_from_here(host: &dyn Host, index: usize) {
 /// Copy filename copies the file name,
 /// not the folder path.
 fn file_name_of(display_path: &str) -> String {
-    return display_path
-        .rsplit_once('/')
-        .map_or(display_path, |(_, file_name)| return file_name)
-        .to_string();
+    return music_player::display_path::last_segment(display_path).to_string();
 }

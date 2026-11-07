@@ -135,7 +135,10 @@ pub struct TrackMeasure {
 /// const validDuration = (secs: number) => (Number.isFinite(secs) && secs > 0 ? secs : null);
 /// ```
 fn valid_duration(secs: f64) -> Option<f64> {
-    return Some(secs).filter(|value| return value.is_finite() && *value > 0.0);
+    if secs.is_finite() && secs > 0.0 {
+        return Some(secs);
+    }
+    return None;
 }
 
 /// What:
@@ -152,9 +155,10 @@ fn valid_duration(secs: f64) -> Option<f64> {
 /// ```
 pub fn measure_from_decision(decision: &Decision) -> TrackMeasure {
     let peak = peak_dbtp(f64::from(decision.measured_peak));
+    let peak_dbtp: Option<f64> = if peak.is_nan() { None } else { Some(peak) };
     return TrackMeasure {
         duration_secs: valid_duration(decision.duration_secs),
-        peak_dbtp: Some(peak).filter(|dbtp| return !dbtp.is_nan()),
+        peak_dbtp,
         peak_exact: decision.peak_kind() == PeakKind::Exact,
     };
 }
@@ -243,8 +247,12 @@ pub fn exact_peak_text(measure: Option<&TrackMeasure>) -> Option<String> {
 /// const fieldsWithMeasure = (f: TrackFields, m: TrackMeasure | null) => ({ ...f, len: m?.durationSecs ?? null, peak: exactPeakText(m) });
 /// ```
 pub fn fields_with_measure(fields: TrackFields, measure: Option<&TrackMeasure>) -> TrackFields {
+    let len: Option<f64> = match measure {
+        Some(found) => found.duration_secs,
+        None => None,
+    };
     return TrackFields {
-        len: measure.and_then(|found| return found.duration_secs),
+        len,
         peak: exact_peak_text(measure),
         ..fields
     };
@@ -266,11 +274,14 @@ pub fn merge_measures(
     current: &HashMap<PathBuf, TrackMeasure>,
     updates: &[(PathBuf, TrackMeasure)],
 ) -> HashMap<PathBuf, TrackMeasure> {
-    return current
-        .iter()
-        .map(|(path, measure)| return (path.clone(), *measure))
-        .chain(updates.iter().cloned())
-        .collect();
+    let mut merged: HashMap<PathBuf, TrackMeasure> = HashMap::with_capacity(current.len() + updates.len());
+    for (path, measure) in current {
+        merged.insert(path.clone(), *measure);
+    }
+    for (path, measure) in updates {
+        merged.insert(path.clone(), *measure);
+    }
+    return merged;
 }
 
 /// What:
@@ -290,11 +301,13 @@ pub fn lookup_by_name(
     paths: &[PathBuf],
     measures: &HashMap<PathBuf, TrackMeasure>,
 ) -> HashMap<String, TrackMeasure> {
-    return names
-        .iter()
-        .zip(paths.iter())
-        .filter_map(|(name, path)| return measures.get(path).map(|measure| return (name.clone(), *measure)))
-        .collect();
+    let mut found: HashMap<String, TrackMeasure> = HashMap::new();
+    for (name, path) in names.iter().zip(paths.iter()) {
+        if let Some(measure) = measures.get(path) {
+            found.insert(name.clone(), *measure);
+        }
+    }
+    return found;
 }
 
 /// Unit tests of `track_measure`,

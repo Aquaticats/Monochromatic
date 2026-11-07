@@ -329,7 +329,10 @@ impl PlaybackClock {
     /// ```
     pub(crate) fn boundary_reached(&self, queued_frames: u64) -> bool {
         let consumed = self.pushed_frames.saturating_sub(queued_frames);
-        return self.boundary_frames.is_some_and(|boundary| return consumed >= boundary)
+        return match self.boundary_frames {
+            Some(boundary) => consumed >= boundary,
+            None => false,
+        }
     }
 
     /// What:

@@ -88,28 +88,25 @@ impl std::error::Error for FileActionError {}
 /// ```
 #[cfg(target_os = "linux")]
 pub fn show_in_file_manager(path: &Path) -> Result<(), FileActionError> {
-    let parent = path.parent().ok_or_else(|| return FileActionError::NoParent(path.to_path_buf()))?;
-    return spawn("xdg-open", |command| {
-        command.arg(parent);
-    });
+    let Some(parent) = path.parent() else {
+        return Err(FileActionError::NoParent(path.to_path_buf()));
+    };
+    return spawn("xdg-open", &[parent.as_os_str()]);
 }
 
 /// What:
 /// `show_in_file_manager` on macOS opens Finder with the file selected (`open -R`).
 #[cfg(target_os = "macos")]
 pub fn show_in_file_manager(path: &Path) -> Result<(), FileActionError> {
-    return spawn("open", |command| {
-        command.arg("-R").arg(path);
-    });
+    return spawn("open", &[std::ffi::OsStr::new("-R"), path.as_os_str()]);
 }
 
 /// What:
 /// `show_in_file_manager` on Windows opens Explorer with the file selected (`explorer /select,`).
 #[cfg(windows)]
 pub fn show_in_file_manager(path: &Path) -> Result<(), FileActionError> {
-    return spawn("explorer", |command| {
-        command.arg(format!("/select,{}", path.display()));
-    });
+    let selection: std::ffi::OsString = std::ffi::OsString::from(format!("/select,{}", path.display()));
+    return spawn("explorer", &[selection.as_os_str()]);
 }
 
 /// What:
@@ -124,13 +121,13 @@ pub fn show_in_file_manager(_path: &Path) -> Result<(), FileActionError> {
 /// Why:
 /// a file manager stays open after the player continues,
 /// so the player must not block on it.
-fn spawn(program: &str, configure: impl FnOnce(&mut std::process::Command)) -> Result<(), FileActionError> {
+fn spawn(program: &str, arguments: &[&std::ffi::OsStr]) -> Result<(), FileActionError> {
     let mut command = std::process::Command::new(program);
-    configure(&mut command);
-    return command
-        .spawn()
-        .map(|_child| ())
-        .map_err(|error| return FileActionError::Spawn(format!("{program}: {error}")));
+    command.args(arguments);
+    return match command.spawn() {
+        Ok(_child) => Ok(()),
+        Err(error) => Err(FileActionError::Spawn(format!("{program}: {error}"))),
+    };
 }
 
 /// What:
@@ -144,10 +141,14 @@ fn spawn(program: &str, configure: impl FnOnce(&mut std::process::Command)) -> R
 /// async function copyText(text: string): Promise<void> { await navigator.clipboard.writeText(text); }
 /// ```
 pub fn copy_text(text: &str) -> Result<(), FileActionError> {
-    let mut clipboard = arboard::Clipboard::new().map_err(|error| return FileActionError::Clipboard(error.to_string()))?;
-    return clipboard
-        .set_text(text)
-        .map_err(|error| return FileActionError::Clipboard(error.to_string()));
+    let mut clipboard = match arboard::Clipboard::new() {
+        Ok(clipboard) => clipboard,
+        Err(error) => return Err(FileActionError::Clipboard(error.to_string())),
+    };
+    return match clipboard.set_text(text) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(FileActionError::Clipboard(error.to_string())),
+    };
 }
 
 /// What:
@@ -161,7 +162,9 @@ pub fn copy_text(text: &str) -> Result<(), FileActionError> {
 /// function moveToTrash(path: string): void { ... };
 /// ```
 pub fn move_to_trash(path: &Path) -> Result<(), FileActionError> {
-    trash::delete(path).map_err(|error| return FileActionError::Trash(error.to_string()))?;
+    if let Err(error) = trash::delete(path) {
+        return Err(FileActionError::Trash(error.to_string()));
+    }
     remember_trashed(path);
     return Ok(());
 }
@@ -233,6 +236,20 @@ const JUST_TRASHED: std::time::Duration = std::time::Duration::from_secs(15);
 static TRASHED: std::sync::Mutex<Vec<(PathBuf, std::time::Instant)>> = std::sync::Mutex::new(Vec::new());
 
 /// What:
+/// `still_remembered` is true while a trashed path was trashed less than `JUST_TRASHED` ago.
+/// Why:
+/// the list forgets a path after that time,
+/// and a retain test is a function of the entry alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stillRemembered = ([_path, when]: [string, number]): boolean => now() - when < JUST_TRASHED;
+/// ```
+fn still_remembered(entry: &(PathBuf, std::time::Instant)) -> bool {
+    return entry.1.elapsed() < JUST_TRASHED;
+}
+
+/// What:
 /// `was_just_trashed` tells whether this player moved `path` to the trash in the last few seconds.
 /// Why:
 /// the rescan then reports the file as gone,
@@ -243,8 +260,13 @@ pub fn was_just_trashed(path: &Path) -> bool {
     let Ok(mut trashed) = TRASHED.lock() else {
         return false;
     };
-    trashed.retain(|(_path, when)| return when.elapsed() < JUST_TRASHED);
-    return trashed.iter().any(|(trashed_path, _when)| return trashed_path == path);
+    trashed.retain(still_remembered);
+    for (trashed_path, _when) in trashed.iter() {
+        if trashed_path == path {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -268,23 +290,38 @@ pub fn can_restore_from_trash() -> bool {
     all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android")))
 ))]
 pub fn restore_from_trash(path: &Path) -> Result<(), FileActionError> {
-    let name: String = path.file_name().map_or_else(|| return path.display().to_string(), |name| return name.to_string_lossy().into_owned());
-    let items = trash::os_limited::list().map_err(|error| {
-        tracing::warn!(path = %path.display(), %error, "the trash could not be listed for Undo");
-        return FileActionError::Restore(format!("{name} could not be put back: the trash could not be read."));
-    })?;
-    let newest = items
-        .into_iter()
-        .filter(|item| return same_original_path(&item.original_path(), path))
-        .max_by_key(|item| return item.time_deleted)
-        .ok_or_else(|| {
-            tracing::warn!(path = %path.display(), "no item in the trash came from this path");
-            return FileActionError::Restore(format!("{name} is not in the trash any more, so it could not be put back."));
-        })?;
-    return trash::os_limited::restore_all([newest]).map_err(|error| {
-        tracing::warn!(path = %path.display(), %error, "the trash could not restore the file");
-        return FileActionError::Restore(format!("{name} could not be put back from the trash."));
-    });
+    let name: String = match path.file_name() {
+        Some(file) => file.to_string_lossy().into_owned(),
+        None => path.display().to_string(),
+    };
+    let items = match trash::os_limited::list() {
+        Ok(items) => items,
+        Err(error) => {
+            tracing::warn!(path = %path.display(), %error, "the trash could not be listed for Undo");
+            return Err(FileActionError::Restore(format!("{name} could not be put back: the trash could not be read.")));
+        }
+    };
+    let mut newest: Option<trash::TrashItem> = None;
+    for item in items {
+        if !same_original_path(&item.original_path(), path) {
+            continue;
+        }
+        let keeps_newest = matches!(&newest, Some(best) if best.time_deleted > item.time_deleted);
+        if !keeps_newest {
+            newest = Some(item);
+        }
+    }
+    let Some(chosen) = newest else {
+        tracing::warn!(path = %path.display(), "no item in the trash came from this path");
+        return Err(FileActionError::Restore(format!("{name} is not in the trash any more, so it could not be put back.")));
+    };
+    return match trash::os_limited::restore_all([chosen]) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            tracing::warn!(path = %path.display(), %error, "the trash could not restore the file");
+            Err(FileActionError::Restore(format!("{name} could not be put back from the trash.")))
+        }
+    };
 }
 
 /// What:

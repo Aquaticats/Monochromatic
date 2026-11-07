@@ -20,8 +20,6 @@ use music_player::page_index::PageIndex;
 use std::sync::Arc;
 /// Imports the player content input and its builder.
 use music_player::player_content::{PlayerContentInput, build_player_content};
-/// Imports the fields that a track template reads.
-use music_player::template_model::TrackFields;
 /// Imports the deck folder label and the track title.
 use music_player::track_entries::{deck_folder_label, track_title_for};
 /// Imports the track measure and the position lookup.
@@ -309,10 +307,18 @@ pub struct ScreenView {
 /// a root-level track has no folder of its own,
 /// so the deck falls back to the label of the page it is listed under.
 fn playing_page_label(pages: &PageIndex, index: Option<usize>) -> String {
-    return index
-        .and_then(|position| return pages.page_of_index(position))
-        .and_then(|page| return pages.page(page))
-        .map_or_else(String::new, |page| return page.label.clone());
+    let position: Option<usize> = match index {
+        Some(position) => pages.page_of_index(position),
+        None => None,
+    };
+    let group = match position {
+        Some(page) => pages.page(page),
+        None => None,
+    };
+    return match group {
+        Some(page) => page.label.clone(),
+        None => String::new(),
+    };
 }
 
 /// What:
@@ -322,7 +328,10 @@ fn playing_page_label(pages: &PageIndex, index: Option<usize>) -> String {
 /// tracks of one directory share it,
 /// and only they can share a filename prefix.
 fn parent_of(name: &str) -> &str {
-    return name.rsplit_once('/').map_or("", |(parent, _file)| return parent);
+    return match name.rsplit_once('/') {
+        Some((parent, _file)) => parent,
+        None => "",
+    };
 }
 
 /// What:
@@ -348,24 +357,29 @@ fn deck_title_of(state: &ScreenState, pages: &PageIndex) -> String {
         return String::new();
     }
     let stem: String = track_title_for(&state.track_name);
-    let Some(page) = state
-        .current_index
-        .and_then(|index| return pages.page_of_index(index))
-        .and_then(|position| return pages.page(position))
-    else {
+    let page_position: Option<usize> = match state.current_index {
+        Some(index) => pages.page_of_index(index),
+        None => None,
+    };
+    let playing_page = match page_position {
+        Some(position) => pages.page(position),
+        None => None,
+    };
+    let Some(page) = playing_page else {
         return stem;
     };
     let parent: &str = parent_of(&state.track_name);
-    let siblings: Vec<String> = page
-        .indices()
-        .iter()
-        .filter_map(|index| return state.names.get(*index as usize))
-        .filter(|name| return parent_of(name) == parent)
-        .map(|name| return track_title_for(name))
-        .collect();
+    let mut siblings: Vec<String> = Vec::new();
+    for index in page.indices() {
+        if let Some(name) = state.names.get(*index as usize)
+            && parent_of(name) == parent
+        {
+            siblings.push(track_title_for(name));
+        }
+    }
     let borrowed: Vec<&str> = siblings.iter().map(String::as_str).collect();
     let prefix: usize = shared_prefix_len(&borrowed);
-    let folder: &str = if parent.is_empty() { "" } else { parent.rsplit_once('/').map_or(parent, |(_up, name)| return name) };
+    let folder: &str = if parent.is_empty() { "" } else { music_player::display_path::last_segment(parent) };
     return display_title(&stem, prefix, folder).to_string();
 }
 
@@ -379,24 +393,44 @@ fn deck_title_of(state: &ScreenState, pages: &PageIndex) -> String {
 /// ```ts
 /// const view = (state: ScreenState, supportingLine: (t: TrackFields) => string | null): ScreenView => { ... };
 /// ```
-pub fn view(state: &ScreenState, supporting_line: &dyn Fn(&TrackFields) -> Option<String>) -> ScreenView {
+pub fn view(state: &ScreenState, supporting_line: &dyn music_player::track_supporting_line::SupportingLine) -> ScreenView {
     let all_pages = state.current_pages();
-    let labels: Vec<String> = all_pages.pages().map(|page| return page.label.clone()).collect();
+    let mut labels: Vec<String> = Vec::new();
+    for page in all_pages.pages() {
+        labels.push(page.label.clone());
+    }
     let selected = state.selected_page_position();
-    let page_items: Vec<PageEntry> = all_pages.page(selected).map_or_else(Vec::new, |page| {
-        return page
-            .indices()
-            .iter()
-            .map(|index| return PageEntry {
-                index: *index as usize,
-                name: state.names.get(*index as usize).cloned().unwrap_or_default(),
-            })
-            .collect();
-    });
-    let playing_position = page_items.iter().position(|item| return Some(item.index) == state.current_index);
+    let page_items: Vec<PageEntry> = match all_pages.page(selected) {
+        Some(page) => {
+            let mut items: Vec<PageEntry> = Vec::with_capacity(page.indices().len());
+            for index in page.indices() {
+                items.push(PageEntry {
+                    index: *index as usize,
+                    name: state.names.get(*index as usize).cloned().unwrap_or_default(),
+                });
+            }
+            items
+        }
+        None => Vec::new(),
+    };
+    let mut playing_position: Option<usize> = None;
+    for (position, item) in page_items.iter().enumerate() {
+        if Some(item.index) == state.current_index {
+            playing_position = Some(position);
+            break;
+        }
+    }
     let playing_count = page_items.len();
-    let playing_name = playing_position.and_then(|position| return page_items.get(position)).map(|item| return item.name.clone());
-    let positions: Vec<usize> = page_items.iter().map(|item| return item.index).collect();
+    let mut playing_name: Option<String> = None;
+    if let Some(position) = playing_position
+        && let Some(item) = page_items.get(position)
+    {
+        playing_name = Some(item.name.clone());
+    }
+    let mut positions: Vec<usize> = Vec::with_capacity(page_items.len());
+    for item in &page_items {
+        positions.push(item.index);
+    }
     let measures = lookup_for_positions(&positions, &state.names, &state.paths, &state.measures);
     let input = PlayerContentInput {
         page_labels: labels,
@@ -411,17 +445,22 @@ pub fn view(state: &ScreenState, supporting_line: &dyn Fn(&TrackFields) -> Optio
     };
     let content = build_player_content(&input, supporting_line);
     // A virtual letter folder (loose files) is not a directory, so its name is never stripped from a title.
-    let strip_folder: &str = if all_pages.page(selected).is_some_and(|page| return page.identity.starts_with("root:")) { "" } else { content.folder_title.as_str() };
+    let strip_folder: &str = if matches!(all_pages.page(selected), Some(page) if page.identity.starts_with("root:")) { "" } else { content.folder_title.as_str() };
     let mut rows = list_rows(&content.entries);
     strip_shared_prefixes(&mut rows, strip_folder);
     mark_unplayable(&mut rows, &state.paths, &state.unplayable);
-    let page_key = all_pages.page(selected).map_or_else(String::new, |page| return page.identity.clone());
+    let page_key = match all_pages.page(selected) {
+        Some(page) => page.identity.clone(),
+        None => String::new(),
+    };
     let picker_model = picker(&content.sections, &content.folder_title);
     let deck_subtitle = match (playing_position, playing_name) {
         (Some(position), Some(name)) => {
             let template = state.playing_template.as_deref().unwrap_or(DEFAULT_PLAYING_TEMPLATE);
-            playing_subtitle(template, &playing_track(&name, position + 1, playing_count, input.measures.get(&name)))
-                .unwrap_or_else(|| return content.deck.subtitle.clone())
+            match playing_subtitle(template, &playing_track(&name, position + 1, playing_count, input.measures.get(&name))) {
+                Some(subtitle) => subtitle,
+                None => content.deck.subtitle.clone(),
+            }
         }
         _ => content.deck.subtitle.clone(),
     };

@@ -194,11 +194,13 @@ fn is_regex_whitespace(character: char) -> bool {
 /// ```
 fn normalize_character(character: char) -> String {
     let single: String = character.to_string();
-    return single
-        .nfkd()
-        .filter(|part| return !is_non_spacing_mark(*part))
-        .flat_map(|part| return part.to_lowercase())
-        .collect();
+    let mut normalized: String = String::new();
+    for part in single.nfkd() {
+        if !is_non_spacing_mark(part) {
+            normalized.extend(part.to_lowercase());
+        }
+    }
+    return normalized;
 }
 
 /// What:
@@ -267,11 +269,14 @@ pub fn normalize_for_search(text: &str) -> String {
 /// const searchTerms = (query: string) => normalizeForSearch(query).split(/\s+/).filter(Boolean);
 /// ```
 pub fn search_terms(query: &str) -> Vec<String> {
-    return normalize_for_search(query)
-        .split(is_regex_whitespace)
-        .filter(|term| return !term.is_empty())
-        .map(|term| return term.to_string())
-        .collect();
+    let normalized: String = normalize_for_search(query);
+    let mut terms: Vec<String> = Vec::new();
+    for term in normalized.split(is_regex_whitespace) {
+        if !term.is_empty() {
+            terms.push(term.to_string());
+        }
+    }
+    return terms;
 }
 
 /// What:
@@ -348,6 +353,21 @@ pub fn to_offset(index: usize) -> i32 {
 }
 
 /// What:
+/// `by_start_then_end` orders two highlight ranges by their start,
+/// then by their end.
+/// Why:
+/// overlapping ranges are merged after this sort,
+/// and a sort comparison is a function of the two ranges alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const byStartThenEnd = (left: Range, right: Range): number => left.start - right.start || left.end - right.end;
+/// ```
+fn by_start_then_end(left: &SearchHighlight, right: &SearchHighlight) -> std::cmp::Ordering {
+    return (left.start, left.end).cmp(&(right.start, right.end));
+}
+
+/// What:
 ///      `fn merge_overlapping(ranges: Vec<SearchHighlight>) -> Vec<SearchHighlight>`.
 ///  Sorts ranges by start and
 ///  merges every pair that overlaps or touches.
@@ -361,12 +381,13 @@ pub fn to_offset(index: usize) -> i32 {
 /// ```
 fn merge_overlapping(ranges: Vec<SearchHighlight>) -> Vec<SearchHighlight> {
     let mut sorted: Vec<SearchHighlight> = ranges;
-    sorted.sort_by(|left, right| return (left.start, left.end).cmp(&(right.start, right.end)));
+    sorted.sort_by(by_start_then_end);
     let mut merged: Vec<SearchHighlight> = Vec::new();
     for range in sorted {
-        let touches_last: bool = merged
-            .last()
-            .is_some_and(|last| return range.start <= last.end);
+        let touches_last: bool = match merged.last() {
+            Some(last) => range.start <= last.end,
+            None => false,
+        };
         if touches_last {
             if let Some(last) = merged.last_mut() {
                 last.end = last.end.max(range.end);
@@ -444,19 +465,20 @@ pub fn match_tier(normalized_name: &str, terms: &[String]) -> Option<i32> {
     }
     let name: &str = trim_kotlin_whitespace(normalized_name);
     let name_chars: Vec<char> = chars_of(name);
-    let every_term_matches: bool = terms
-        .iter()
-        .all(|term| return !word_start_occurrences(&name_chars, &chars_of(term)).is_empty());
+    let mut every_term_matches: bool = true;
+    for term in terms {
+        if word_start_occurrences(&name_chars, &chars_of(term)).is_empty() {
+            every_term_matches = false;
+            break;
+        }
+    }
     if !every_term_matches {
         return None;
     }
     if name == terms.join(" ") {
         return Some(TIER_WHOLE_NAME);
     }
-    if terms
-        .first()
-        .is_some_and(|first_term| return name.starts_with(first_term.as_str()))
-    {
+    if matches!(terms.first(), Some(first_term) if name.starts_with(first_term.as_str())) {
         return Some(TIER_NAME_PREFIX);
     }
     return Some(TIER_WORD_START);
