@@ -254,6 +254,16 @@ pub fn hold_on_earlier_helper(earlier: &EarlierJournals, instance: &str, proc_ro
     return earlier_service_hold(look, proc_root);
 }
 
+/// Whether the recovery's reports include the batch `seq`.
+fn was_reported(reports: &[RecoveryReport], seq: u64) -> bool {
+    for report in reports {
+        if report.seq == seq {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// What:
 ///  Settles the open batches of the worktree's earlier journals when the person asks,
 /// if no earlier helper can be running or
@@ -305,12 +315,14 @@ pub fn settle_on_request(git: &GitContext, earlier: &EarlierJournals, instance: 
         // The recovery leaves out a batch Git gave no answer for. It is named, with its intent still on disk, so the person is
         //  never told that everything was dealt with when a batch was not even examined.
         for seq in selected {
-            let reported: bool = reports.iter().any(|report| { return report.seq == seq; });
+            let reported: bool = was_reported(reports.as_slice(), seq);
             if !reported && batch_path(journal.as_path(), seq, OPEN_EXTENSION).exists() {
                 unanswered.push(UnansweredBatch { journal: journal.clone(), seq });
             }
         }
-        settled.extend(reports.into_iter().map(|report| { return SettledBatch { journal: journal.clone(), report }; }));
+        for report in reports {
+            settled.push(SettledBatch { journal: journal.clone(), report });
+        }
     }
     return RequestedSettlement::Settled { batches: settled, unanswered };
 }

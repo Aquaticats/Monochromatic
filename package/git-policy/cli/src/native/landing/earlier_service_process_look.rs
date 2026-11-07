@@ -229,6 +229,13 @@ struct JournalNames<'a> {
     process: &'a Path,
 }
 
+/// The hold a helper that runs on the journal spelled at `index` makes:
+/// the shared journal is the second spelling.
+#[cfg(unix)]
+fn hold_of_journal_at(index: usize) -> Hold {
+    return if index == 1 { Hold::SharedHelperRuns } else { Hold::InstanceHelperRuns };
+}
+
 /// What:
 ///  Which earlier journal a journal word of a command line names:
 /// the instance's own (the first of the look's journals),
@@ -259,10 +266,9 @@ struct JournalNames<'a> {
 fn journal_word_names(names: &JournalNames, word: &[u8]) -> Option<Hold> {
     use std::os::unix::ffi::OsStrExt;
     use std::os::unix::fs::MetadataExt;
-    let hold_of = |index: usize| -> Hold { return if index == 1 { Hold::SharedHelperRuns } else { Hold::InstanceHelperRuns }; };
     for (index, journal) in names.spellings.iter().enumerate() {
         if path_word(journal.as_path()).as_slice() == word {
-            return Some(hold_of(index));
+            return Some(hold_of_journal_at(index));
         }
     }
     let spelled: &Path = Path::new(std::ffi::OsStr::from_bytes(word));
@@ -272,10 +278,21 @@ fn journal_word_names(names: &JournalNames, word: &[u8]) -> Option<Hold> {
     };
     for (index, journal) in names.spellings.iter().enumerate() {
         if matches!(std::fs::metadata(journal), Ok(known) if (known.dev(), known.ino()) == (found.dev(), found.ino())) {
-            return Some(hold_of(index));
+            return Some(hold_of_journal_at(index));
         }
     }
     return None;
+}
+
+/// Whether the earlier release's mode words start at any place of `words`.
+#[cfg(unix)]
+fn has_earlier_mode(words: &[&[u8]]) -> bool {
+    for at in 0..words.len() {
+        if is_earlier_mode_at(words, at) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -304,7 +321,7 @@ fn journal_word_names(names: &JournalNames, word: &[u8]) -> Option<Hold> {
 /// ```
 #[cfg(unix)]
 fn is_service_of(words: &[&[u8]], look: &ServiceLook, names: &JournalNames) -> Option<Hold> {
-    let mode_in_a_row: bool = words.iter().enumerate().any(|(at, _)| { return is_earlier_mode_at(words, at); });
+    let mode_in_a_row: bool = has_earlier_mode(words);
     let mut instance_named: bool = false;
     let mut journal_named: Option<Hold> = None;
     for pair in words.windows(2) {

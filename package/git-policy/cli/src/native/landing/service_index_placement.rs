@@ -174,6 +174,13 @@ fn place_whole(platform: &Platform, staged: &Path, lock: &Path) -> Result<(), At
     }
 }
 
+/// The storage error a refused or failed placement carries.
+fn error_of(refusal: Atomic) -> std::io::Error {
+    return match refusal {
+        Atomic::Refused(error) | Atomic::Failed(error) => error,
+    };
+}
+
 /// What:
 ///  Makes the marked `staged` file the file at `lock`,
 /// whole;
@@ -199,11 +206,7 @@ fn place_whole(platform: &Platform, staged: &Path, lock: &Path) -> Result<(), At
 /// `Unsupported` (naming both refusals) when the filesystem can place neither way,
 /// and the storage error otherwise.
 pub fn place_marked(platform: &Platform, staged: &Path, lock: &Path) -> std::io::Result<()> {
-    return place_whole(platform, staged, lock).map_err(|refusal| {
-        return match refusal {
-            Atomic::Refused(error) | Atomic::Failed(error) => error,
-        };
-    });
+    return place_whole(platform, staged, lock).map_err(error_of);
 }
 
 /// How a lock came to be placed.
@@ -228,6 +231,15 @@ impl Placed {
             Placed::Created(created) => created,
         };
     }
+}
+
+/// Write `marker` to the lock file just created and flush it,
+/// with the fault points of a kill between the two.
+fn write_marker_and_sync(platform: &Platform, file: &mut std::fs::File, marker: &str) -> std::io::Result<()> {
+    std::io::Write::write_all(file, marker.as_bytes())?;
+    // A kill here leaves a lock with its marker, not yet flushed.
+    crate::service_fault::reach(crate::service_fault::LOCK_MARKED_UNSYNCED);
+    return (platform.sync)(file);
 }
 
 /// What:
@@ -271,11 +283,7 @@ pub fn place_lock(platform: &Platform, staged: &Path, marker: &str, lock: &Path)
     );
     // A kill here leaves a lock without its marker.
     crate::service_fault::reach(crate::service_fault::LOCK_CREATED_UNMARKED);
-    let marked: std::io::Result<()> = std::io::Write::write_all(&mut file, marker.as_bytes()).and_then(|()| {
-        // A kill here leaves a lock with its marker, not yet flushed.
-        crate::service_fault::reach(crate::service_fault::LOCK_MARKED_UNSYNCED);
-        return (platform.sync)(&file);
-    });
+    let marked: std::io::Result<()> = write_marker_and_sync(platform, &mut file, marker);
     if let Err(error) = marked {
         drop(file);
         if let Err(removal) = std::fs::remove_file(lock) {
