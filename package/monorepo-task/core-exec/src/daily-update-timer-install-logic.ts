@@ -36,13 +36,16 @@ export const SERVICE_UNIT_NAME = 'toolchain-daily-update.service';
 export const TIMER_UNIT_NAME = 'toolchain-daily-update.timer';
 
 /**
- Resource caps and time bound of the service, sized from the measured run in `doc/planning/toolchain-always-latest.md`.
+ Resource caps and time bound of the service, sized from the measured runs in `doc/planning/toolchain-always-latest.md`
+ ("Measured run" and "Checking every package after the update").
+ The start timeout covers the update (about 21 minutes in the rehearsal), the baseline pass and the second pass, each
+ bounded at 90 minutes by `CHECK_PASS_DEADLINE_MS`: 3.4 hours at most, so four hours.
  */
 export const SERVICE_LIMITS: Readonly<Record<string, string>> = {
   CPU_QUOTA: '200%',
   MEMORY_MAX: '8G',
   TASKS_MAX: '2048',
-  TIMEOUT_START: '2h',
+  TIMEOUT_START: '4h',
 };
 
 /**
