@@ -525,3 +525,8 @@ pub fn output_watched_within(
 #[cfg(test)]
 #[path = "child_watch_tests.rs"]
 mod tests;
+
+/// One-shot run controls stay out of the release executable.
+#[cfg(test)]
+#[path = "child_watch_one_shot_through_pipes_tests.rs"]
+mod one_shot_through_pipes_tests;
