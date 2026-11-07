@@ -4,7 +4,8 @@
 //!  that changed.
 //!  The listener merges each change into what it last knew for that URI and appends the
 //!  result to the bounded history.
-//!  It listens only on the private bus, never on the host session bus.
+//!  It listens only on the private bus,
+//!  never on the host session bus.
 
 /// Imports the per-URI property memory and the lock-protected history.
 use std::{
@@ -28,7 +29,8 @@ use tracing::{debug, warn};
 ///  `OwnedVariant` holds one dynamically typed property,
 ///  and `Message` is one received message.
 /// Why:
-///       The listener subscribes with a match rule, then decodes each signal body.
+///       The listener subscribes with a match rule,
+///  then decodes each signal body.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,7 +57,8 @@ const LAUNCHER_INTERFACE: &str = "com.canonical.Unity.LauncherEntry";
 /// The signal name that carries one update.
 const LAUNCHER_MEMBER: &str = "Update";
 
-/// The properties one launcher entry holds, as last reported.
+/// The properties one launcher entry holds,
+///  as last reported.
 ///
 /// What:
 ///      `pub struct LauncherProperties { ... }`.
@@ -65,15 +68,20 @@ const LAUNCHER_MEMBER: &str = "Update";
 ///  so the listener needs the earlier values to fill the rest.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LauncherProperties {
-    /// Progress between 0 and 1; `0` until the app reports one.
+    /// Progress between 0 and 1;
+    ///  `0` until the app reports one.
     pub progress: f64,
-    /// Whether the progress bar is shown; `false` until the app shows it.
+    /// Whether the progress bar is shown;
+    ///  `false` until the app shows it.
     pub progress_visible: bool,
-    /// Badge number; `0` until the app reports one.
+    /// Badge number;
+    ///  `0` until the app reports one.
     pub count: i64,
-    /// Whether the badge is shown; `false` until the app shows it.
+    /// Whether the badge is shown;
+    ///  `false` until the app shows it.
     pub count_visible: bool,
-    /// Whether the app asks for attention; `false` until the app asks.
+    /// Whether the app asks for attention;
+    ///  `false` until the app asks.
     pub urgent: bool,
 }
 
@@ -84,7 +92,9 @@ impl Default for LauncherProperties {
     /// What:
     ///      `fn default() -> Self`.
     /// Why:
-    ///       A fresh entry shows no progress, no badge, and no attention request.
+    ///       A fresh entry shows no progress,
+    ///  no badge,
+    ///  and no attention request.
     fn default() -> Self {
         return Self {
             progress: 0.0,
@@ -105,7 +115,8 @@ impl Default for LauncherProperties {
 ///       The control thread reads the history on the compositor thread,
 ///  while the listener appends from its own thread.
 pub struct LauncherLog {
-    /// The bounded history, shared with the listener thread.
+    /// The bounded history,
+    ///  shared with the listener thread.
     history: Arc<Mutex<LauncherHistory>>,
 }
 
@@ -163,11 +174,15 @@ impl LauncherLog {
     }
 }
 
-/// Subscribes on the private bus, reports readiness, and reads signals until the bus closes.
+/// Subscribes on the private bus,
+///  reports readiness,
+///  and reads signals until the bus closes.
 ///
 /// What:
 ///      `fn run_listener(address: &str, history: &Arc<Mutex<LauncherHistory>>, start_time: Instant,
-///           ready: &mpsc::SyncSender<Result<(), String>>)`.
+///           ready:
+///  &mpsc::SyncSender<Result<(),
+///  String>>)`.
 ///  One `zbus::block_on` call covers the connect,
 ///  the registration,
 ///  and the read loop,
@@ -258,11 +273,16 @@ async fn listen(mut messages: MessageStream, history: &Arc<Mutex<LauncherHistory
     debug!("launcher listener ended because the private bus closed");
 }
 
-/// Decodes one update, merges it, and appends the result to the history.
+/// Decodes one update,
+///  merges it,
+///  and appends the result to the history.
 ///
 /// What:
 ///      `fn record_message(message: &Message, entries: &mut HashMap<String, LauncherProperties>,
-///           history: &Mutex<LauncherHistory>, start_time: Instant)`.
+///           history:
+///  &Mutex<LauncherHistory>,
+///  start_time:
+///  Instant)`.
 ///  A body that does not match `(s, a{sv})` is logged and skipped.
 /// Why:
 ///       One malformed signal from one app must not end the listener for every app.
@@ -322,7 +342,8 @@ fn record_message(
 ///      `pub fn merge_properties(previous: LauncherProperties, changes: &HashMap<String, OwnedVariant>)
 ///           -> LauncherProperties`.
 ///  Each known key that holds a value of the expected type replaces the previous value.
-///  An unknown key is ignored, and a key of the wrong type is logged and keeps the previous value.
+///  An unknown key is ignored,
+///  and a key of the wrong type is logged and keeps the previous value.
 /// Why:
 ///       Senders send only what changed,
 ///  and the Unity convention is that absent properties keep their state.
@@ -339,11 +360,13 @@ pub fn merge_properties(
     }
 }
 
-/// Reads one typed property, keeping `previous` when it is absent or the wrong type.
+/// Reads one typed property,
+///  keeping `previous` when it is absent or the wrong type.
 ///
 /// What:
 ///      `fn read_property<'a, T>(changes: &'a HashMap<String, OwnedVariant>, key: &str,
-///           previous: T) -> T`.
+///           previous:
+///  T) -> T`.
 ///  `T` is the Rust type the D-Bus variant must convert to.
 /// Why:
 ///       One helper keeps the absent and wrong-type rules identical for every property.

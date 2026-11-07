@@ -1851,7 +1851,8 @@ in-process features rather than external tools:
   so each synchronous thread drives zbus's async API with `zbus::block_on`,
   which runs zbus's own `zruntime` on that thread,
   and a helper thread of zbus keeps a live service connection answering between calls.
-  The compositor's Smithay loop stays synchronous and no second runtime runs beside it.
+  The compositor's Smithay loop stays synchronous,
+  and no second runtime runs beside it.
   A connect, a signal send and a method call each end with an error after five seconds
   (`BUS_STEP_BOUND` in `src/bus_step_bound.rs`),
   and a whole accessibility tree read ends after five seconds.

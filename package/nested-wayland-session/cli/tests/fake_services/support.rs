@@ -54,9 +54,12 @@ pub fn proxy(client: &Connection, name: &'static str, path: &str, interface: &'s
 
 /// Returns the D-Bus error name and description a failed call carried.
 ///
-/// zbus 6 reports a reply whose name `zbus::fdo::Error` defines (`NotSupported`, `ServiceUnknown`,
-///  `InvalidArgs`) as `zbus::Error::FDO`, and any other name as `zbus::Error::MethodError`;
-///  this reads the wire name from either, so a test asserts the name and not the Rust variant.
+/// zbus 6 reports a reply whose name `zbus::fdo::Error` defines (`NotSupported`,
+///  `ServiceUnknown`,
+///  `InvalidArgs`) as `zbus::Error::FDO`,
+///  and any other name as `zbus::Error::MethodError`;
+///  this reads the wire name from either,
+///  so a test asserts the name and not the Rust variant.
 ///  `None` for an error that is not a bus reply.
 pub fn error_reply(error: &zbus::Error) -> Option<(String, Option<String>)> {
     return match error {
