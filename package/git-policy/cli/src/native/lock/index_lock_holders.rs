@@ -264,6 +264,9 @@ pub fn scan_proc_fd_holders_stopping(proc_root: &Path, device: u64, inode: u64, 
             pids.push(name);
         }
     }
+    // Newest first: the holder of a lock made a moment ago is a recent process, which has the highest number, and a scan that is cut
+    //  short must have reached it. Walking upward reached the old daemons first and the holder last, and never at all when the bound hit.
+    pids.sort_by_key(|name| { return std::cmp::Reverse(name.parse::<u64>().unwrap_or(0)); });
     for (reached, pid) in pids.iter().enumerate() {
         if stop(reached) {
             evidence.partial.push(format!("stopped at the time bound after {reached} of {} processes", pids.len()));
@@ -309,10 +312,13 @@ fn trimmed(text: String) -> String {
 
 /// How long the commit service's scan for the processes that have a lock open may take.
 ///
-/// Measured on 2026-11-03 on this host with 858 processes: listing every process's open descriptors (`ls -l /proc/[0-9]*/fd`,
-///  the same walk) took 0.10 s in each of three runs, so the budget is two and a half times a whole walk. A scan that runs
-///  out returns what it found; the holder then reads as one nothing proves alive, which is waited for the short backoff.
-pub const SERVICE_SCAN_BUDGET: std::time::Duration = std::time::Duration::from_millis(250);
+/// Measured on 2026-11-07 on this host at load average 37 to 52: one walk of every process's open descriptors (list each
+///  `/proc/<pid>/fd` and `stat` each link, as the scan does) over 1,000 processes and 54,500 descriptors took 313, 360 and 398 ms.
+///  The earlier budget, 250 ms, was measured on 2026-11-03 over 858 processes with `ls` (0.10 s) and was shorter than a whole walk
+///  on today's host, so a live holder past the cut read as an owner nothing proves alive. Two seconds is the smallest whole number
+///  of seconds that is at least five times the longest walk (1.99 s); a scan that still runs out returns what it found, newest
+///  process first, and the next look begins again.
+pub const SERVICE_SCAN_BUDGET: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// The scan for open holders that the commit service makes:
 /// the host's,

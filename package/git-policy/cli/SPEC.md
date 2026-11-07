@@ -1633,9 +1633,14 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   landing).
 - `START_CEILING` 60 seconds: a start the service manager reports as under way (58 times the slowest observed start,
   1.04 s).
-- `LOCK_CEILING` 10 minutes, unmeasured (no log holds a foreign holder): the landing,
-  the merge and the index reconciliation
-  wait for a foreign `index.lock` this long. It is below `ANSWER_CEILING` so the service answers first.
+- `LANDING_LOCK_CEILING` 1 minute: the landing waits for a foreign `index.lock` this long.
+  It is five times the longest wait for a foreign lock that ended because the holder let go (`LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT`,
+  8 s of three such waits in the journal since 2026-11-01), in whole minutes. The only longer waits in that journal were
+  five waits of one lock that a live `git commit` held for 62 minutes (2026-11-07). The lock that outlasts one commit's wait is
+  remembered by its file identity, and the commits queued behind it are refused at once instead of each waiting a ceiling
+  (`src/native/landing/service_index_refused_lock.rs`).
+- `LOCK_CEILING` 10 minutes, unmeasured: the merge, the settling of an earlier service's batches and the index reconciliation after a
+  landing wait for a foreign `index.lock` this long. It is below `ANSWER_CEILING` so the service answers first.
 - `SERVICE_HOLD_CEILING` 10 minutes: a forwarded `git add`, `rm` or `mv` waits for the service's hold,
   and its whole series of
   reruns ends, at this (five times the longest of 715 logged holds, 119.7 s).
@@ -1666,7 +1671,7 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
 
 What happens at the bound, on the commit path:
 
-- The landing waits for a foreign `index.lock` until `LOCK_CEILING`.
+- The landing waits for a foreign `index.lock` until `LANDING_LOCK_CEILING`.
   At the bound the batch is withdrawn before the branch
   moved: its intent is removed from the journal, so a restart of the service cannot land it;
   the commit it built is kept on
@@ -1689,7 +1694,7 @@ What happens at the bound, on the commit path:
   A service that does not answer within `WITHDRAW_CEILING` leaves the outcome unknown, and the message says so and gives
   `git log -1` and `git status`.
 - A Git step of the landing that reaches its ceiling is ended, unless it is a step that cannot be run twice, which
-  has none. The batch is withdrawn as at `LOCK_CEILING` (intent removed, commit kept on `refs/cli-git/kept/<batch>`,
+  has none. The batch is withdrawn as at `LANDING_LOCK_CEILING` (intent removed, commit kept on `refs/cli-git/kept/<batch>`,
   lock given up,
   failure `step-too-slow` with the step named), and an open
   intent finishes a batch only when its branch has moved, so nothing lands later. Hooks are never ended by the wrapper.
@@ -3356,7 +3361,7 @@ Each commit passes through three phases:
     and the batch is built again on the new tip (the attempts a branch that moves under a batch already had).
     A foreign holder of `index.lock` is waited for on an event watch of the Git directory,
     with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`.
-    A holder proven alive and an owner nothing proves alive are waited for until `LOCK_CEILING`,
+    A holder proven alive and an owner nothing proves alive are waited for until `LANDING_LOCK_CEILING`,
     and a dead one not at all;
     either ends the commit before the branch moved,
     removing the batch's intent, keeping the built commit on a side ref, and naming the blocker
@@ -3681,7 +3686,7 @@ the lock created and the marker not yet written leaves an empty lock, as plain G
 (`unable_to_lock_message`, `lockfile.c` lines 254 to 267, tells the person to remove it).
 It may be a Git that is mid-write, so nothing here removes it:
 a wrapped `git add` meets it as Git does,
-a landing waits for it until `LOCK_CEILING` and ends with `index_in_use`,
+a landing waits for it until `LANDING_LOCK_CEILING` and ends with `index_in_use`,
 and the words at the ceiling name the file and the command that clears it.
 A kill after the marker is written leaves the whole marker of a gone process,
 which the next landing removes where a claim file can be placed (any filesystem that offers a rename that does not replace or a hard link);

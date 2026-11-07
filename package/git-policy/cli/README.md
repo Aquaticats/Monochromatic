@@ -1204,7 +1204,7 @@ Each of these still ends a commit with a nonzero status, with its cause; none is
 - The branch keeps changing: `LANDING_ATTEMPTS` (3, `service_land.rs`) landings lost to other commits end with
    `BranchKeepsChanging`, and `REBUILD_ATTEMPTS` (`service_commit.rs`) builds by Git on a moved branch end the commit.
 - A commit that concludes a merge, an amend or a revert cannot replay onto a branch that moved (`concurrent-commit/head-moved`).
-- `index.lock` is held by a program that does not let go within `LOCK_CEILING` (10 minutes),
+- `index.lock` is held by a program that does not let go within `LANDING_LOCK_CEILING` (1 minute; commits queued behind the same lock are refused at once),
   or was left by a dead owner (Git's
    lock PID file names a process that is gone; a diagnostic names it at once). The commit is withdrawn,
    kept on a side ref named
@@ -1442,7 +1442,7 @@ See "Discarding commands" for the pass.
    default `1000`.
   Inert:
   it was how long the wrapper backed off for an `index.lock` whose owner is dead or unproven,
-   and nothing reads it now (the commit service waits for a foreign lock until `LOCK_CEILING`, proven alive or not).
+   and nothing reads it now (the commit service waits for a foreign lock until `LANDING_LOCK_CEILING`, proven alive or not).
   Older files that set it still load;
   the value is checked and ignored,
    and `git monochromatic-git-policy-cli doctor` names the key and asks for it to be removed.
@@ -1510,7 +1510,7 @@ and a commit that waits behind it is told what the service is stuck in after a
 minute (`NEVER_ENDED_STEP_SLOW_AFTER`) and is withdrawn at its own `ANSWER_CEILING` with an error that names the write and the way out
 (`journalctl`, and a restart of the service when no program uses the repository). The commit inside the stuck write waits 7 seconds
 past its `ANSWER_CEILING` and then reports that it is not known whether it was made, with `git log -1`, `git status` and the write
-named; the commit lands when the write returns. A lock holder is waited for until `LOCK_CEILING` (10 minutes),
+named; the commit lands when the write returns. A lock holder is waited for until `LANDING_LOCK_CEILING` (1 minute),
 the commit service's answer until `ANSWER_CEILING` (20 minutes),
 a start until `START_CEILING` (60 seconds), the service's hold for a forwarded `git add` until `SERVICE_HOLD_CEILING`
 (10 minutes), and a push whose connection is open and silent until `CONNECTED_PUSH_QUIET_WINDOW` (150 seconds, then the

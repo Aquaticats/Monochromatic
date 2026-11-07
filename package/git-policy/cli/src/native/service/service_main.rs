@@ -199,7 +199,7 @@ pub fn run(arguments: &[String]) -> i32 {
         journal,
         on_objects_written: None,
         // A control gives a short ceiling with `--lock-ceiling-millis`; a service the manager starts never passes it.
-        lock_ceiling: number_option(arguments, "--lock-ceiling-millis").map_or(crate::wait_ceilings::LOCK_CEILING, Duration::from_millis),
+        lock_ceiling: number_option(arguments, "--lock-ceiling-millis").map_or(crate::wait_ceilings::LANDING_LOCK_CEILING, Duration::from_millis),
     };
     let idle: Duration = number_option(arguments, "--idle-seconds").map_or(IDLE_EXIT, Duration::from_secs);
     let mut settings: ServeSettings = ServeSettings::new(idle);

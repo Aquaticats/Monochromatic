@@ -31,7 +31,8 @@ pub const START_CEILING: Duration = Duration::from_secs(60);
 ///  (the look itself starts no process, so it is faster). Ten seconds is 15 times that and well below `START_CEILING`.
 pub const PROCESS_LOOK_CEILING: Duration = Duration::from_secs(10);
 
-/// The longest a landing, a merge or an index reconciliation waits for a foreign program's `index.lock`.
+/// The longest a merge, the settling of an earlier service's batches or an index reconciliation after a landing waits for a foreign
+///  program's `index.lock`; the landing itself waits `LANDING_LOCK_CEILING`.
 ///  Unmeasured: no log holds a wait behind a foreign holder (no `lock_looks` in the service journal, no waiting notice in the
 ///  timing log). Ten minutes is below `ANSWER_CEILING`, so the service ends its own wait and answers before the client gives up;
 ///  a person's `git commit` with its editor open for longer than this makes ours stop with the error.
@@ -44,8 +45,25 @@ pub const LOCK_CEILING: Duration = Duration::from_secs(10 * 60);
 ///  waits on one host.
 pub const LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT: Duration = Duration::from_millis(8_000);
 
-/// The longest a landing waits for a foreign program's `index.lock`, and so the longest a commit waits behind one.
-pub const LANDING_LOCK_CEILING: Duration = LOCK_CEILING;
+/// How many times the longest measured wait a ceiling is, the margin every ceiling of this file uses.
+const CEILING_MARGIN: u32 = 5;
+
+/// The smallest whole number of minutes that is at least `wait`.
+const fn whole_minutes_at_least(wait: Duration) -> Duration {
+    const MINUTE_MILLISECONDS: u128 = 60_000;
+    let minutes: u128 = wait.as_millis().div_ceil(MINUTE_MILLISECONDS);
+    return Duration::from_secs((minutes * MINUTE_MILLISECONDS / 1000) as u64);
+}
+
+/// The longest a landing waits for a foreign program's `index.lock`, and so the longest a commit waits behind one: the longest
+///  self-released wait with a margin of five, in whole minutes (40 s, so one minute). It replaces the ten minutes of `LOCK_CEILING`,
+///  which was unmeasured and let four queued commits wait 678 to 1,229 s each on 2026-11-07. After a wait this long the commit is
+///  withdrawn, kept on a side ref, and the person is told the holder's number, program and start time; the commits queued behind the
+///  same lock are refused at once (`landing/service_index_refused_lock.rs`). Limit: three waits on one host, and a person's own
+///  `git commit` with an editor open longer than this makes the wrapper's commit stop where native Git would have stopped at once.
+pub const LANDING_LOCK_CEILING: Duration = whole_minutes_at_least(Duration::from_millis(
+    LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT.as_millis() as u64 * CEILING_MARGIN as u64,
+));
 
 /// The longest a forwarded `git add`, `rm` or `mv` waits for the commit service's hold on the index, and the longest its whole
 ///  series of reruns lasts. Measured: the longest of 715 logged service holds was 119,721 ms (disk sync of the new index). Ten
