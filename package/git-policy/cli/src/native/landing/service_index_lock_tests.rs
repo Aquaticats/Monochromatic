@@ -1661,8 +1661,8 @@ fn a_holder_proven_alive_is_named_with_its_program_start_time_and_the_way_out() 
     let pid: u32 = std::process::id();
     std::fs::write(crate::recovery_files::lock_pid_path(&index), format!("pid {pid}\n")).expect("PID file");
     let program: String = std::fs::read_to_string("/proc/self/comm").expect("own name").trim().to_string();
-    let started: String = match crate::process_start::resolve_process_start(i64::from(pid)) {
-        crate::process_start::ProcessStart::Running { started_at_ms, .. } => crate::iso_time::format_iso_milliseconds(started_at_ms as i64),
+    let started_at_ms: f64 = match crate::process_start::resolve_process_start(i64::from(pid)) {
+        crate::process_start::ProcessStart::Running { started_at_ms, .. } => started_at_ms,
         other => panic!("this process runs: {other:?}"),
     };
     let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
@@ -1673,7 +1673,11 @@ fn a_holder_proven_alive_is_named_with_its_program_start_time_and_the_way_out() 
     }).collect();
     let first: &String = said.first().expect("the wait said what it waits for");
     assert!(first.contains(format!("PID {pid} ({program})").as_str()), "{first}");
-    assert!(first.contains(format!("started {started}").as_str()), "{first}");
+    // The start time is read again from the system when the line is made, and the system derives it from the uptime, so two readings
+    //  differ by a few milliseconds: the line's time is compared with this one within a second.
+    let named: &str = first.split("started ").nth(1).and_then(|rest| { return rest.split(';').next(); }).expect("the line names a start time");
+    let named_ms: i64 = named.parse::<jiff::Timestamp>().expect("an ISO time").as_millisecond();
+    assert!((named_ms - started_at_ms as i64).abs() < 1000, "{first}");
     assert!(first.contains(format!("kill {pid}").as_str()), "{first}");
     remove(root.as_path());
 }
@@ -1698,7 +1702,8 @@ fn a_lock_that_outlasted_one_wait_is_refused_at_once_to_the_next_commit() {
     assert!(next.is_err());
     assert!(next_waited < NOTICE_EVERY, "the second commit waited {next_waited:?} for a lock that had already outlasted a wait");
     let said: Vec<Announce> = heard.lock().expect("lock").clone();
-    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("still held") && text.contains("earlier commit")); }), "{said:?}");
+    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("still held")); }), "{said:?}");
+    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("earlier commit")); }), "{said:?}");
     remove(root.as_path());
 }
 

@@ -388,3 +388,17 @@ fn the_change_time_rounds_nanoseconds_down_to_milliseconds() {
     assert!(observed, "a change time with a millisecond part was observed");
     remove(root.as_path());
 }
+
+/// A scan that could not look at hundreds of processes is summarized, not listed.
+/// Why:
+///  On 2026-11-07 the notice named every process the account could not read, which buried what a person needs to know.
+#[test]
+fn many_unreadable_processes_are_summarized_in_the_wait_line() {
+    let reasons: Vec<String> = (0..200).map(|number| { return format!("PID {number}: Permission denied (os error 13)"); }).collect();
+    let scan: HolderEvidence = HolderEvidence { method: "proc-fd", holders: Vec::new(), partial: reasons.clone() };
+    let evidence: Evidence = evidence_with(PidFile::Absent, Some(scan));
+    let line: String = unproven_wait_line(Path::new("/repo/index.lock"), Some(&evidence));
+    assert!(line.contains(format!("{} processes could not be looked at", reasons.len()).as_str()), "{line}");
+    assert!(line.contains("PID 0: Permission denied"), "{line}");
+    assert!(!line.contains("PID 100: Permission denied"), "a line that lists every reason is not a summary: {line}");
+}
