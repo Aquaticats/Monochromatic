@@ -216,9 +216,11 @@ impl Drop for ChildWatch {
 ///  a few hundred microseconds. Measured on 2026-11-07 (`push/child_watch_drop_time_measurement_tests.rs`, three runs by hand under
 ///  a load average of 15 to 40): dropping a watch between waits took at most 505 us and in the middle of a wait at most 389 us, the
 ///  lock sweep alone at most 569 us, and a whole stop of a child that answers the request at most 41680 us past the window. A task
-///  can legitimately outlast those only inside a stop whose grace is not cut short, which is `STOP_GRACE` (a descendant that ignores
-///  the request is killed when the grace ends), so the bound is that grace plus `STOP_TAIL_ALLOWANCE`: aborting earlier would cancel the kill of a stubborn descendant that holds no pipe.
-const WATCHER_END_BOUND: Duration = crate::bounded_push::STOP_GRACE.saturating_add(STOP_TAIL_ALLOWANCE);
+///  can legitimately outlast those only inside a stop that waits for a member in uninterruptible sleep, which is at most
+///  `STOP_CEILING` after the request (the owner's "3x worst case" of the longest delay measured; a descendant that ignores the request
+///  is killed when that wait ends), so the bound is that ceiling plus `STOP_TAIL_ALLOWANCE`: aborting earlier would cancel the kill of a
+///  stubborn descendant that holds no pipe.
+const WATCHER_END_BOUND: Duration = crate::stop_waits_while_a_member_cannot_be_interrupted::STOP_CEILING.saturating_add(STOP_TAIL_ALLOWANCE);
 
 /// What a stop needs beyond its grace: the kill, the look at the processes, the lock sweep and the end of the task. One second is
 ///  twenty-four times the longest tail measured (41680 us), see `WATCHER_END_BOUND`.

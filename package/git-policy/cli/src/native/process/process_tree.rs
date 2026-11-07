@@ -136,6 +136,40 @@ pub fn still_running(member: &TreeMember) -> bool {
     return started == member.started && !zombie;
 }
 
+/// What:
+///  Whether the process is still the one that was found and is in uninterruptible sleep (state `D` in `/proc/<pid>/stat`).
+/// Why:
+///   A process in that state, held by a stalled disk call or a processor it is not given, cannot act on a signal until the call
+///  returns, and a `SIGKILL` then only cuts what follows it: Git's handler removes a lock's pid file and then the lock, and a kill
+///  between the two leaves a lock nothing proves stale. A stop therefore waits while a member is in this state, up to its ceiling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// member.stillRunning() && readState(member.pid) === 'D'
+/// ```
+#[cfg(target_os = "linux")]
+pub fn in_uninterruptible_sleep(member: &TreeMember) -> bool {
+    return state_letter_of(member) == Some('D');
+}
+
+/// Only Linux reads a process's state; elsewhere nothing is known to be in uninterruptible sleep.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(not(target_os = "linux"))]
+pub fn in_uninterruptible_sleep(_member: &TreeMember) -> bool {
+    return false;
+}
+
+/// The state letter of the process (`R`, `S`, `D`, `T`, `t`, ...) while it is still the one that was found, and nothing otherwise.
+#[cfg(target_os = "linux")]
+pub fn state_letter_of(member: &TreeMember) -> Option<char> {
+    let text: String = std::fs::read_to_string(format!("/proc/{}/stat", member.pid)).ok()?;
+    let (_parent, started, zombie) = parse_stat(text.as_str())?;
+    if started != member.started || zombie {
+        return None;
+    }
+    return text.get(text.rfind(')')? + 2..)?.chars().next();
+}
+
 /// Nothing is found elsewhere, so nothing is still running.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(target_os = "linux"))]

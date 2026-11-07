@@ -21,6 +21,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use tokio::sync::mpsc::UnboundedReceiver;
 use crate::stopped_git_locks::LockLedger;
 use crate::bounded_push::STOP_GRACE;
+use crate::stop_waits_while_a_member_cannot_be_interrupted::escalation_waits;
 use crate::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
 use std::time::{Duration, Instant};
 
@@ -198,7 +199,7 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
     signal_root(&root, identified, raw, libc::SIGTERM);
     terminate_members(below.as_slice());
     let asked: Instant = Instant::now();
-    while asked.elapsed() < STOP_GRACE && tree.iter().any(still_running) {
+    while escalation_waits(asked.elapsed(), STOP_GRACE, tree.as_slice()) && tree.iter().any(still_running) {
         tokio::time::sleep(STOP_POLL).await;
     }
     signal_root(&root, identified, raw, libc::SIGKILL);

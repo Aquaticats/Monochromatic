@@ -47,21 +47,14 @@ use crate::name_held_while_one_thread_publishes_it::{HeldName, hold_name_while_p
 use std::time::Duration;
 
 /// How long the checked rename waits for another thread of this process that is publishing the same name: the bound of "nothing
-///  should ever wait forever" for a step that takes a check and a rename. Measured on 2026-11-07 on this host's btrfs, under the
-///  load there was (`foundation/private_storage_hold_time_measurement_tests.rs`, run by hand): 20,000 publishes by one thread under a
-///  load average of about 70 took a median of 181 us, a 99.9th percentile of 312143 us and a longest of 6031986 us; three later runs
-///  of 4,000 under a load average of 15 to 22 had a longest of 93 us to 296227 us, and eight threads at once a longest of 497 us to
-///  1126 us. The longest hold ever seen is therefore 6.03 s of wall time (the measurement ran in a scope capped at sixteen processors while the host was loaded; a rerun in a scope capped at twenty-four processors, load average about 20, saw at most 94 us, which neither confirms nor excludes the scheduler as the cause, so whether the disk or the scheduler held the thread is not measured) and it moved by a factor of twenty between runs, so the wait is
-///  `HOLD_MARGIN` times it: a thread whose holder is merely delayed in a slow rename does not give up, because giving up publishes nothing. Only a
-///  filesystem with neither exclusive publish reaches this wait; none was available to measure, so the figure is open to the owner's
-///  veto and to a measurement on such a disk (an S3 bucket through `s3fs-fuse`), which can only raise it.
-const HELD_NAME_WAIT: Duration = LONGEST_HOLD_SEEN.saturating_mul(HOLD_MARGIN);
-
-/// The longest hold of a name seen in the measurements cited at `HELD_NAME_WAIT`.
-const LONGEST_HOLD_SEEN: Duration = Duration::from_micros(6_031_986);
-
-/// How many times the longest hold seen the wait covers, because the tail moved by a factor of twenty between runs on one host.
-const HOLD_MARGIN: u32 = 10;
+///  should ever wait forever" for a step that takes a check and a rename. It is the owner's multiple of the longest delay measured
+///  (`foundation/worst_delay_seen_on_this_host.rs`: 6.03 s of wall time for a check and a rename, once, under a load average of about
+///  70; the owner, 2026-11-07, "3x worst case"), so about 18.1 s. Measurements: `foundation/private_storage_hold_time_measurement_tests.rs`
+///  (20,000 publishes: median 181 us, 99.9th percentile 312143 us; three runs of 4,000: longest 93 to 296227 us; eight threads: longest
+///  453 to 1126 us; a rerun in a scope capped at twenty-four processors: longest 94 us). Whether the disk or the scheduler caused the 6.03 s
+///  is not measured. Only a filesystem with neither exclusive publish reaches this wait, and none was available to measure (an S3
+///  bucket through `s3fs-fuse`).
+const HELD_NAME_WAIT: Duration = crate::worst_delay_seen_on_this_host::WORST_CASE_WITH_MARGIN;
 
 /// Mode of every private directory the wrapper creates:
 ///  owner only.

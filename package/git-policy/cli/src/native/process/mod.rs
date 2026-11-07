@@ -49,3 +49,6 @@ pub mod captured_child_run_to_its_end;
 
 /// The output of a child the caller started, read whole through pipes on the runtime while the child's exit is awaited through its pidfd.
 pub mod step_output_read_whole_through_pipes;
+
+/// When a stop that asked its tree to end may force the end: at the end of its grace, and not before the ceiling while a member is in uninterruptible sleep.
+pub mod stop_waits_while_a_member_cannot_be_interrupted;

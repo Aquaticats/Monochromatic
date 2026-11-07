@@ -15,6 +15,8 @@
 
 use crate::bounded_push::{run_bounded_push, Patience, STOPPED_EXIT_CODE};
 use crate::child_watch::{output_watched, WatchTerms};
+use crate::process_tree::{TreeMember, state_letter_of};
+use crate::stop_waits_while_a_member_cannot_be_interrupted::{ControlRules, STOP_CEILING, rules_for_this_thread};
 use crate::test_support::{fixture, git, git_text, remove, repository, scratch_environment, while_test_lives};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
@@ -64,6 +66,19 @@ struct Stage {
     repo: PathBuf,
     /// The ready marker the holder writes once the lock exists.
     ready: PathBuf,
+}
+
+/// Whether a member is held where it cannot act on a signal, as far as a control can make one: uninterruptible sleep (`D`), which a
+///  control cannot produce on demand, or the stop of a traced process (`t`), which is what `strace` holds the handler in while it
+///  injects the delay. The production rule looks for `D` only; this stand-in is the control's, and it is the reason the reproduction
+///  below is a reproduction of the cut and not of a stalled disk.
+fn held_where_a_signal_cannot_act(member: &TreeMember) -> bool {
+    return matches!(state_letter_of(member), Some('D' | 't'));
+}
+
+/// Every member is held where a signal cannot act, for ever.
+fn held_for_ever(_member: &TreeMember) -> bool {
+    return true;
 }
 
 /// Build the stage.
@@ -196,6 +211,8 @@ fn bounded_run_leaves_no_lock(kind: Holder, name: &str) {
         Holder::Responsive => RESPONSIVE_GRACE,
         Holder::Unresponsive | Holder::SlowToFinishCleanup => SHORT_GRACE,
     };
+    // The slow holder is held in a traced stop, which only the control's rule counts as a wait the stop may extend (see above).
+    let _rules = matches!(kind, Holder::SlowToFinishCleanup).then(|| { return rules_for_this_thread(ControlRules { blocked: held_where_a_signal_cannot_act, ceiling: STOP_CEILING }); });
     let attempt = run_bounded_push(holder(&stage, kind), Patience::Fixed(HOLD_DEADLINE), grace, scratch_environment().as_slice()).expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its deadline");
     assert_clean_after_stop(&stage, kind, "bounded run");
@@ -241,6 +258,25 @@ fn a_push_stop_of_a_responsive_holder_leaves_no_lock() {
 #[test]
 fn a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock() {
     bounded_run_leaves_no_lock(Holder::SlowToFinishCleanup, "stop-lock-push-slow-cleanup");
+}
+
+/// A member that never leaves the state where a signal cannot act is still ended at the stop's ceiling: the stop returns about one
+///  ceiling after the request, the holder is gone, and the sweep then clears its lock, so nothing waits for good.
+#[test]
+fn a_member_held_for_ever_is_ended_at_the_ceiling_and_the_lock_is_swept() {
+    const CEILING: Duration = Duration::from_millis(1500);
+    const GRACE: Duration = Duration::from_millis(300);
+    const GENEROUS_SLACK: Duration = Duration::from_secs(10);
+    let stage: Stage = stage("stop-lock-push-held-for-ever");
+    let _rules = rules_for_this_thread(ControlRules { blocked: held_for_ever, ceiling: CEILING });
+    let began: Instant = Instant::now();
+    let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), Patience::Fixed(HOLD_DEADLINE), GRACE, scratch_environment().as_slice()).expect("runs");
+    let took: Duration = began.elapsed();
+    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its deadline");
+    assert!(took >= HOLD_DEADLINE + CEILING, "the stop forced the end after {took:?}, before the ceiling of {CEILING:?} that followed the request");
+    assert!(took < HOLD_DEADLINE + CEILING + GENEROUS_SLACK, "the stop took {took:?}: it waited past its ceiling");
+    assert_clean_after_stop(&stage, Holder::Unresponsive, "bounded run held for ever");
+    remove(stage.root.as_path());
 }
 
 /// A holder that cannot answer `SIGTERM` is killed, and the wrapper leaves no lock behind it.

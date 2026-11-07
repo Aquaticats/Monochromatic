@@ -25,6 +25,7 @@ use crate::push_deadline_advice::extend_clause;
 /// The clock that stops a push on a stall, and the wait it lets pass instead.
 use crate::push_progress::{Clock, WaitReport};
 /// The helpers and hooks a stopped push leaves running.
+use crate::stop_waits_while_a_member_cannot_be_interrupted::escalation_waits;
 use crate::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
 /// The lock files a stopped push leaves, and the ledger that finds them.
 use crate::stopped_git_locks::LockLedger;
@@ -193,7 +194,9 @@ pub fn stop_push(mut child: Child, grace: Duration, locks: LockLedger) {
     terminate_members(below.as_slice());
     let asked: Instant = Instant::now();
     let mut ended: bool = false;
-    while !ended && grace_remains(asked.elapsed(), grace) {
+    // Past the grace the wait goes on while a member of the tree is in uninterruptible sleep, up to the stop's ceiling, because a kill
+    //  then only cuts the cleanup that follows the call (Git removes a lock's pid file, then the lock).
+    while !ended && escalation_waits(asked.elapsed(), grace, tree.as_slice()) {
         match child.try_wait() {
             Ok(Some(_)) | Err(_) => ended = true,
             Ok(None) => std::thread::sleep(POLL_PAUSE),
@@ -220,7 +223,7 @@ pub fn stop_push(mut child: Child, grace: Duration, locks: LockLedger) {
     // What the push started outlives it: its transport helper holds the connection and its hook may never exit
     // (measured: 60 seconds for a helper, for good for a `git-lfs` that never answers). They were asked to end with
     // the push, so they get what is left of the grace and are then killed.
-    while grace_remains(asked.elapsed(), grace) && below.iter().any(still_running) {
+    while escalation_waits(asked.elapsed(), grace, below.as_slice()) && below.iter().any(still_running) {
         std::thread::sleep(POLL_PAUSE);
     }
     kill_members(below.as_slice());

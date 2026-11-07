@@ -104,3 +104,6 @@ pub mod runtime_probe;
 
 /// The in-memory claim on a file name that one thread of this process is publishing by the checked rename.
 pub mod name_held_while_one_thread_publishes_it;
+
+/// The longest delay measured on this host and the owner's multiple of it, which the held-name wait and the wait before a forced stop use.
+pub mod worst_delay_seen_on_this_host;
