@@ -123,13 +123,13 @@ fn nothing_is_settled_while_an_earlier_helper_may_run_or_start_and_the_reason_is
     let instance: String = instance_for(&world);
     let listening: PathBuf = empty_proc(&world);
     write_unix_table(listening.as_path(), &[unix_table_line(LISTENING_FLAGS, "cli-git", format!("{instance}.sock").as_str())]);
-    assert_eq!(settle(&world, state.as_path(), listening.as_path()), RequestedSettlement::Held { open: 1, because: Hold::InstanceSocketListens });
+    assert_eq!(settle(&world, state.as_path(), listening.as_path()), RequestedSettlement::Held { open: 1, because: Hold::InstanceSocketListens.into() });
     let running: PathBuf = empty_proc(&world);
     fake_process(running.as_path(), 77, &["/p/cli-git-native", "cli-git", "service", "run", "--instance", instance.as_str()]);
-    assert_eq!(settle(&world, state.as_path(), running.as_path()), RequestedSettlement::Held { open: 1, because: Hold::InstanceHelperRuns });
+    assert_eq!(settle(&world, state.as_path(), running.as_path()), RequestedSettlement::Held { open: 1, because: Hold::InstanceHelperRuns.into() });
     let unreadable: PathBuf = empty_proc(&world);
     std::fs::remove_file(unreadable.join("net/unix")).expect("the table is gone");
-    assert_eq!(settle(&world, state.as_path(), unreadable.as_path()), RequestedSettlement::Held { open: 1, because: Hold::CannotLook });
+    assert_eq!(settle(&world, state.as_path(), unreadable.as_path()), RequestedSettlement::Held { open: 1, because: Hold::CannotLook.into() });
     assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 1, "still open");
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]).lines().count(), 2, "the index is as it was");
     remove(world.root.as_path());
@@ -216,10 +216,10 @@ fn the_hold_keeps_which_socket_or_helper_caused_it() {
     let held = |proc_root: &Path| -> RequestedSettlement { return settle(&world, state.as_path(), proc_root); };
     let shared_socket: PathBuf = empty_proc(&world);
     write_unix_table(shared_socket.as_path(), &[unix_table_line(LISTENING_FLAGS, "cli-git", "service.sock")]);
-    assert_eq!(held(shared_socket.as_path()), RequestedSettlement::Held { open: 1, because: Hold::SharedSocketListens });
+    assert_eq!(held(shared_socket.as_path()), RequestedSettlement::Held { open: 1, because: Hold::SharedSocketListens.into() });
     let own_socket: PathBuf = empty_proc(&world);
     write_unix_table(own_socket.as_path(), &[unix_table_line(LISTENING_FLAGS, "cli-git", "service.sock"), unix_table_line(LISTENING_FLAGS, "cli-git", format!("{instance}.sock").as_str())]);
-    assert_eq!(held(own_socket.as_path()), RequestedSettlement::Held { open: 1, because: Hold::InstanceSocketListens }, "this worktree's own socket is named first");
+    assert_eq!(held(own_socket.as_path()), RequestedSettlement::Held { open: 1, because: Hold::InstanceSocketListens.into() }, "this worktree's own socket is named first");
     for (label, words, expected) in [
         ("shared journal", vec!["/p/cli-git-native", "--journal", shared.as_str(), "--git", "/usr/bin/git"], Hold::SharedHelperRuns),
         ("own journal", vec!["/p/cli-git-native", "--journal", own.as_str(), "--git", "/usr/bin/git", "--instance", instance.as_str()], Hold::InstanceHelperRuns),
@@ -228,7 +228,41 @@ fn the_hold_keeps_which_socket_or_helper_caused_it() {
     ] {
         let proc_root: PathBuf = empty_proc(&world);
         fake_process(proc_root.as_path(), 52, &words);
-        assert_eq!(held(proc_root.as_path()), RequestedSettlement::Held { open: 1, because: expected }, "{label}");
+        let RequestedSettlement::Held { open, because } = held(proc_root.as_path()) else { panic!("{label}: held back") };
+        assert_eq!((open, because.because), (1, expected), "{label}");
+        let named: Option<(u32, String, String)> = because.program.map(|program| { return (program.pid, program.journal_word, program.reason); });
+        match expected {
+            Hold::HelperUnsure => {
+                let (pid, word, reason) = named.expect("the program that cannot be ruled out is named");
+                assert_eq!((pid, word.as_str()), (52, "/nowhere/at/all"), "{label}");
+                assert!(reason.contains("No such file or directory"), "{label}: {reason}");
+            }
+            _ => assert_eq!(named, None, "{label}: only a program that cannot be ruled out is named"),
+        }
+    }
+    remove(world.root.as_path());
+}
+
+/// The service log says which program held a settling back (its process ID,
+/// the program and the folder that did not resolve)
+///  and shows no other word of its command line,
+/// because any of them can be a secret that no masker knows.
+#[test]
+fn the_log_line_of_a_held_settling_names_the_program_and_folder_and_no_other_argument() {
+    let (world, state) = world_with_earlier_journal("settle-log-program", "state");
+    let landed: CommitRequest = request(&world, "logged", "logged.txt", "logged\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let proc_root: PathBuf = empty_proc(&world);
+    fake_process(proc_root.as_path(), 52, &["/usr/bin/unrelated-tool", "--journal", "/nowhere/at/all", "--remote", "https://user:s3cret@example.invalid/x", "--token", "s3cret-token"]);
+    let mut settled: Option<RequestedSettlement> = None;
+    let entries = crate::service_timing::capture::entries_of(|| { settled = Some(settle(&world, state.as_path(), proc_root.as_path())); });
+    assert!(matches!(settled, Some(RequestedSettlement::Held { .. })), "{settled:?}");
+    let line: &str = entries.iter().map(|entry| { return entry.message.as_str(); }).find(|message| { return message.contains("were not settled"); }).expect("the held settling is logged");
+    for wanted in ["52", "/usr/bin/unrelated-tool", "/nowhere/at/all"] {
+        assert!(line.contains(wanted), "{wanted}: {line}");
+    }
+    for secret in ["s3cret", "--token", "--remote", "example.invalid"] {
+        assert!(!entries.iter().any(|entry| { return entry.message.contains(secret); }), "{secret} must not be logged: {entries:?}");
     }
     remove(world.root.as_path());
 }

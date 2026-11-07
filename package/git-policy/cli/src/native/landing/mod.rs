@@ -59,6 +59,10 @@ pub mod earlier_service_journal_adopted;
 /// The look at the running processes that tells whether a commit service of an earlier release may still run for a worktree.
 pub mod earlier_service_process_look;
 
+/// The description of one running program that the look for an earlier commit service could not rule out,
+/// for the message that names it.
+pub mod earlier_service_unsure_program;
+
 /// What the commit service needs to land a batch.
 pub mod service_land_context;
 

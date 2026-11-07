@@ -261,29 +261,18 @@ fn the_order_check_follows_renamed_and_chained_reexports() {
     assert_eq!(found.len(), 2, "{text}");
 }
 
-/// A use through a re-export from a child folder is a use of the child folder,
-/// so it is no use between the files of this folder.
+/// A folder that holds child folders is a group,
+/// and the file rule leaves a group to the folder rule:
+/// neither its code in the index nor its missing file list is reported here.
 #[test]
-fn a_reexport_from_a_child_folder_is_no_use_between_sibling_files() {
+fn a_group_folder_is_left_to_the_folder_rule() {
     let fixture = package_with(&[
         ("src/lib.rs", "mod a;\n"),
-        (
-            "src/a/mod.rs",
-            format!(
-                "{}mod child;\npub use child::Thing;\n",
-                index_listing(&["one.rs", "two.rs"], &["one", "two"])
-            )
-            .as_str(),
-        ),
-        ("src/a/one.rs", "use super::Thing;\n"),
-        ("src/a/two.rs", "use super::one::X;\n"),
+        ("src/a/mod.rs", "mod child;\nmod one;\nfn helper() {}\n"),
+        ("src/a/one.rs", "use super::child::Thing;\n"),
         (
             "src/a/child/mod.rs",
-            format!(
-                "{}pub use thing::Thing;\n",
-                index_listing(&["thing.rs"], &["thing"])
-            )
-            .as_str(),
+            index_listing(&["thing.rs"], &["thing"]).as_str(),
         ),
         ("src/a/child/thing.rs", "pub struct Thing;\n"),
     ]);

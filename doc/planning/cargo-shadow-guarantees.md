@@ -515,6 +515,28 @@ the message names a command that the reader accepts.
    (Open for the coordinator to confirm: route 2 is dropped, not queued.)
 3. No route moves the wrapper, or any thread of it, between groups.
    This removes the spawn lock and the shared-process migration of 7a F1 and F2 by construction.
+4. **The scope keeps the caller's resource limits (added 2026-11-07).**
+   The manager makes the scope under its own slice, so the limits of the control group that started the run do not reach it:
+   an audit of every `systemd-run` builder in the repository found that a build inside `systemd-run --user --scope` with
+   `CPUQuota`, `MemoryMax`, `TasksMax` and `IOWeight` caps ran uncapped.
+   Repository rule RXI: every command an agent does not consider trivial runs in its own cgroup with CPU, memory, process-count and
+   disk-weight limits, in every agent.
+   Precedent: `package/wg/cli-quicker-exempt/src/inherited_limits.rs` walks the origin's ancestors and takes the tightest value of each
+   limit.
+   The guarantee: the scope of a run carries, for each of `MemoryMax` (`memory.max`), `CPUQuota` (`cpu.max`), `TasksMax` (`pids.max`)
+   and `IOWeight` (the `default` line of `io.weight`), the tightest finite value on the caller's own group and on each ancestor up to,
+   and not including, the deepest ancestor it shares with the slice (the shared ancestors' limits reach the scope through ancestry).
+   Absent limits stay absent, and no size is invented.
+   An I/O weight at or above the kernel default is not carried: the scope may be throttled more than its caller, never less.
+   The quota is passed as a percent with two decimals, rounded down, never to nothing, never looser than the caller.
+   The limits are read once per process, with the route.
+   A limit file that cannot be read or understood is a missing capability, not "no limit":
+   the run takes the weaker path, which stays in the caller's own group, so the caller's limits still apply.
+   Not carried: `memory.high`, `memory.swap.max`, the per-device `io.max` limits, CPU weight and cpusets.
+   Port, not reuse: `package/cargo-shadow/cli/src/inherited_limits.rs` copies the four limits of the precedent, because the precedent crate
+   is a binary without a library and each crate stands on its own (its own `[workspace]`, published separately).
+   Tests: `package/cargo-shadow/cli/src/inherited_limits_tests.rs` (a fixture cgroup tree, absent limits, the `default` line, the
+   launcher's argument list, and a real scope that reads its own `memory.max`, `cpu.max`, `pids.max` and `io.weight`).
 
 ### Probe of the scope route (2026-11-04, Linux 7.2.15, systemd 262.1)
 

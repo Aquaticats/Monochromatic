@@ -93,7 +93,8 @@ impl Machine {
     }
 
     /// A package of the grouping below the library fixture's directory;
-    /// the library directory exists, because `rustup` runs in it.
+    /// the library directory exists,
+    /// because `rustup` runs in it.
     fn package(&self, directory: &str, library: &str) -> ClosurePackage {
         std::fs::create_dir_all(self.library.path.join(library)).expect("library directory");
         return ClosurePackage {

@@ -231,6 +231,90 @@ fn an_earlier_helper_that_may_run_holds_the_command_back_with_the_reason_and_the
     remove(world.root.as_path());
 }
 
+/// A program that carries `--journal` with a folder the check cannot resolve holds the command back,
+/// and the message names
+///  that program,
+/// so a person with an unrelated tool that happens to take the option can tell what blocks them:
+/// its process
+///  ID,
+/// the program it runs (the executable path of its first word) and the folder that did not resolve with the system's
+///  reason,
+/// why the program cannot be ruled out,
+/// and what to do:
+/// wait for it,
+/// stop it,
+/// or run the command again after it ends.
+///  No other word of its command line is shown,
+/// because any of them can be a secret that no masker knows (`--token`,
+///  `--password`,
+/// a URL's credentials);
+/// the message says that they are not shown.
+/// Which programs hold the command back is
+///  not changed:
+/// a folder that exists holds nothing back.
+#[test]
+fn a_program_with_an_unresolvable_journal_is_named_by_program_and_folder_and_shows_no_other_argument() {
+    let world: Setup = setup("settle-command-names-the-program");
+    world.leave_open_batches(1);
+    let words: Vec<String> = [
+        "/usr/bin/unrelated-tool",
+        "--journal",
+        "/gone/for/good",
+        "--remote",
+        "https://user:s3cret@example.invalid/x",
+        "--token",
+        "s3cret-token",
+        "--password",
+        "hunter2",
+    ]
+    .iter()
+    .map(|word| { return String::from(*word); })
+    .collect();
+    run_process(&world, words.as_slice());
+    let ((code, stdout, stderr), before) = run(&world.request());
+    assert_eq!((code, stdout.as_str(), before.as_str()), (1, "", ""));
+    assert!(stderr.contains(crate::earlier_service_process_look::Hold::HelperUnsure.words()), "the reason's words stay: {stderr}");
+    for wanted in ["process 77", "`/usr/bin/unrelated-tool`", "`/gone/for/good`", "No such file or directory", "cannot be ruled out", "wait for process 77", "stop it", "again", COMMAND, "Nothing was changed", "other arguments are not shown"] {
+        assert!(stderr.contains(wanted), "{wanted}: {stderr}");
+    }
+    for secret in ["s3cret", "s3cret-token", "hunter2", "--token", "--password", "--remote", "example.invalid"] {
+        assert!(!stderr.contains(secret), "{secret} of another argument must not be printed: {stderr}");
+    }
+    assert_eq!(stderr.matches('\n').count(), 1, "one line: {stderr:?}");
+    run_process(&world, &[String::from("tool-by-name"), String::from("--journal"), String::from("two\nlines"), String::from("--token"), String::from("x")]);
+    let ((named_code, _, named_err), _) = run(&world.request());
+    assert_eq!(named_code, 1);
+    assert!(named_err.contains("`tool-by-name`") && named_err.contains("`two\\nlines`"), "a bare program name, a control character escaped: {named_err}");
+    assert_eq!(named_err.matches('\n').count(), 1, "one line: {named_err:?}");
+    run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), String::from("not/yet/there")]);
+    let ((relative_code, _, relative_err), _) = run(&world.request());
+    assert_eq!(relative_code, 1);
+    assert!(relative_err.contains("`not/yet/there`") && relative_err.contains("working directory of process 77"), "a relative folder says what it is relative to: {relative_err}");
+    std::fs::create_dir_all(world.root.join("exists")).expect("a folder that exists");
+    run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), world.root.join("exists").display().to_string()]);
+    let ((resolved_code, _, resolved_err), _) = run(&world.request());
+    assert_eq!(resolved_code, 1, "the command goes on and Git gives no answer for the fixture's batch, which it names: {resolved_err}");
+    assert!(!resolved_err.contains("process 77"), "{resolved_err}");
+    assert_eq!(world.open_files(), 1);
+    remove(world.root.as_path());
+}
+
+/// The count of open batches agrees with the verb in every hold:
+/// one batch "was" not settled,
+/// several "were" not.
+#[test]
+fn the_held_message_agrees_in_number_with_the_count_of_open_batches() {
+    for (count, wanted) in [(1_u64, "1 batch the earlier release's commit service left open for this worktree was not settled"), (2, "2 batches the earlier release's commit service left open for this worktree were not settled"), (3, "3 batches the earlier release's commit service left open for this worktree were not settled")] {
+        let world: Setup = setup(format!("settle-command-number-{count}").as_str());
+        world.leave_open_batches(count);
+        run_process(&world, &[String::from("/usr/bin/unrelated-tool"), String::from("--journal"), String::from("/gone/for/good")]);
+        let ((code, _, stderr), _) = run(&world.request());
+        assert_eq!(code, 1);
+        assert!(stderr.starts_with(wanted), "{wanted}: {stderr}");
+        remove(world.root.as_path());
+    }
+}
+
 /// Before it acts,
 /// the command says the condition it is safe under,
 /// in plain words,

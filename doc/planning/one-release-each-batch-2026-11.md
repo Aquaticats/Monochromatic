@@ -1413,6 +1413,72 @@ The second run under the label gate, again an alpha: it goes to the GitHub relea
   `an_entry_with_a_cargo_id_on_the_archive_route_takes_a_tag_prefix_and_a_postinstall_link` pins it.
   Which checkout produced the old binary was not found.
 
+### Release record: `monochromatic-cargo-shadow` 0.1.5-alpha.1, the scope keeps its caller's limits (2026-11-07T11:55:19-05:00)
+
+The owner's rules, verbatim: "My thinking is to deploy all releases on pnpr,
+but only publish rc and stable releases on crates.io";
+"Label decides"; "I'm authorizing you to bump and publish any updates this session."
+The third run under the label gate, again an alpha: it goes to the GitHub release and the toolchain lock, not to crates.io.
+
+- The change it carries (branch `fix/cargo-shadow-cli-scope-keeps-caller-limits`,
+  test commit `3537a1ae63` 2026-11-07T11:43:56-05:00, fix commit `0033e7c879` 2026-11-07T11:51:26-05:00,
+  docs commit `645c8ae5c7` 2026-11-07T11:51:57-05:00, merge `b1954d75ae` 2026-11-07T11:52:45-05:00):
+  an audit of every `systemd-run` builder found that `control_group.rs` started each bounded run in a scope under the
+  manager's `app.slice` with no limits, so a build inside a capped `systemd-run --user --scope` ran uncapped (rule RXI).
+  The route now reads `memory.max`, `cpu.max`, `pids.max` and the `default` line of `io.weight` on the caller's cgroup and on
+  each ancestor up to, and not including, the deepest ancestor it shares with the slice, and the launcher passes the tightest
+  finite value of each as `--property=MemoryMax=`, `CPUQuota=`, `TasksMax=` and `IOWeight=`.
+  Absent limits stay absent.
+  The code is a port of the four limits of `package/wg/cli-quicker-exempt/src/inherited_limits.rs`
+  (that crate is a binary without a library, and each crate stands on its own), in `src/inherited_limits.rs`.
+  Contract clause: `doc/planning/cargo-shadow-guarantees.md`, "The spawn route", item 4.
+- Red first: at the test commit ten of the twelve new tests failed (the two that passed are the absent-limits controls);
+  after the fix all twelve pass and the release gate ran 664 tests, 664 passed, 0 failed, 18 skipped;
+  `lint` and `lint:clippy` with warnings denied are clean.
+  `systemd-run` refuses `CPUQuotaPerSecUSec=` as a property ("Unknown assignment", probed), so the quota is passed as
+  `CPUQuota=<percent with two decimals>%`, rounded down.
+- Host proof, run inside `systemd-run --user --scope -p MemoryMax=1G -p CPUQuota=100% -p TasksMax=64 -p IOWeight=5`.
+  `cargo --version` and `cargo metadata --no-deps` never start a bounded run (the shadow passes them through),
+  so the probe is `cargo metadata` in a scratch git repository with a `rust-catalog.toml`, whose install step starts
+  `git var GIT_CONFIG_SYSTEM` in a scope of its own;
+  a scratch `git` on `PATH` read its own cgroup's four files and then ran the real git.
+  Before (binary built from the parent of the change): scope `app.slice/cargo-shadow-<token>.scope` read
+  `memory.max=max`, `cpu.max=max 100000`, `pids.max=75462`, `io.weight=default 100`, against the caller's
+  `1073741824`, `100000 100000`, `64`, `default 5`.
+  After (binary built from the fix): the new scope read `memory.max=1073741824`, `cpu.max=100000 100000`, `pids.max=64`,
+  `io.weight=default 5`.
+- Release dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42393543893` (`success`; the push step skipped).
+  Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42393703717`
+  (`workflow_dispatch`, 2026-11-07T11:55:19-05:00 to 11:56:36-05:00, `success`), bump commit `65ff580b45`
+  (2026-11-07T11:56:25-05:00), version 0.1.4 to 0.1.5-alpha.1.
+  The dispatch printed no refusal, so origin held every local commit.
+- Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42393804185`
+  (built from `65ff580b45`, 2026-11-07T11:56:34-05:00 to 11:58:54-05:00, `success`).
+  The `cgs-detect` job printed `package/cargo-shadow/cli/Cargo.toml holds version '0.1.5-alpha.1': label alpha, goes to crates.io: false`.
+  In `cgs-publish-crate` the steps "Build .crate package", "Attest .crate provenance", "Authenticate with crates.io",
+  "Publish (dry run)" and "Publish" were `skipped`, and `cgs-build-binary` (both targets) and `cgs-create-release` succeeded.
+- crates.io does not hold it:
+  `https://crates.io/api/v1/crates/monochromatic-cargo-shadow/0.1.5-alpha.1` answered HTTP 404 (user agent
+  `crate-release-plan-check`, no token), and the crate's newest version is still 0.1.4.
+  The wait task said `crates.io 0.1.5-alpha.1: skipped, the alpha label is not published to crates.io`.
+- GitHub release `monochromatic-cargo-shadow-v0.1.5-alpha.1` (published 2026-11-07T11:58:51-05:00): `isPrerelease` false,
+  `isDraft` false; assets are the aarch64 and x86_64 Linux tarballs and
+  `monochromatic-cargo-shadow-0.1.5-alpha.1-sha256sums.txt`.
+- Lock move (commit `c6177b875b`, 2026-11-07T12:01:43-05:00): `mise run toolchain:update` moved `cargo:monochromatic-cargo-shadow`
+  0.1.4 to 0.1.5-alpha.1 and nothing else (`llama.cpp` stays pinned); the two archive SHA-256 values in the lock equal the release's
+  checksums file.
+  `mise run toolchain:install` reported `1 installed, 65 unchanged, 0 failed`;
+  `.cache/cargo-shadow-bin/cargo --version` prints `cargo-shadow 0.1.5-alpha.1, shadowing cargo`.
+- Installed binary: the same probe through `.cache/cargo-shadow-bin` in a caller scope with the same four limits made the
+  scope `app.slice/cargo-shadow-<token>.scope` read `memory.max=1073741824`, `cpu.max=100000 100000`, `pids.max=64`,
+  `io.weight=default 5`; the control through the pre-change binary, rerun in the same session, read `max`, `max 100000`,
+  `75462`, `default 100`.
+  Evidence files: `~/temp/agent/cargo-shadow-limits/evidence/before-run.log`, `after-run.keep`, `installed-run.log`,
+  `before-run2.log`, `red.log`, `gate.log`, `clippy.log`, `prove.sh` and `git` (the probe).
+- Round 21 (`feat/cargo-shadow-check-to-start-race`, unmerged): `git merge-tree --write-tree` of this branch against it
+  reported no conflict, and its tests build `Route` only as the same struct literals this change already updated or with
+  `..RouteSettings::default()`.
+
 ## Evidence log
 
 - crates.io API reads:

@@ -14,8 +14,8 @@
 /// Import the resolver and the pieces it is checked against.
 use super::{Directive, Targets, resolve_directives};
 use crate::diagnostic::Diagnostic;
-use crate::directive_findings::{MALFORMED, MISSING_JUSTIFICATION, NON_SUPPRESSIBLE};
 use crate::directive_findings::Reporter;
+use crate::directive_findings::{MALFORMED, MISSING_JUSTIFICATION, NON_SUPPRESSIBLE};
 use crate::directive_parse::DirectiveKind;
 use crate::directive_scan::{ScannedComments, scan_comments};
 use crate::run_paths::Language;
@@ -87,12 +87,5 @@ fn void_directives_are_not_returned() {
     let source: &str = "// monochromatic-lint-disable\n// monochromatic-lint-bogus -- r\n// ordinary\n/* monochromatic-lint-disable-line\n -- r */\n";
     let (directives, problems) = resolve(source);
     assert!(directives.is_empty());
-    assert_eq!(
-        problems,
-        [
-            MISSING_JUSTIFICATION,
-            MALFORMED,
-            MALFORMED
-        ]
-    );
+    assert_eq!(problems, [MISSING_JUSTIFICATION, MALFORMED, MALFORMED]);
 }

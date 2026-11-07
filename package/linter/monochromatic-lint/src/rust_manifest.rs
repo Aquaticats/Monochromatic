@@ -17,7 +17,8 @@ use std::io::ErrorKind;
 /// Import the path types used to name the manifest.
 use std::path::{Path, PathBuf};
 
-/// Refuse a path that is not absolute UTF-8, as the backend's path type does,
+/// Refuse a path that is not absolute UTF-8,
+/// as the backend's path type does,
 ///  without panicking.
 fn require_absolute_utf8(path: &Path) -> Result<(), SemanticError> {
     if path.to_str().is_none() {

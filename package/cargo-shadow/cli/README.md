@@ -716,6 +716,23 @@ and an HTTP 429 is retried after its `Retry-After`.
   `systemd-run` reads the command it starts as a unit's command line (it turns two dollar signs into one and replaces a braced
   variable name), so every argument is encoded for that before it is handed over, and a command with a cleared environment runs
   through `env --ignore-environment`.
+  The scope keeps the resource limits of the control group that started the run.
+  The manager makes the scope under its own slice, not under the caller's group,
+  so a build inside a capped `systemd-run --user --scope` would otherwise run uncapped (found by an audit of every `systemd-run`
+  builder in the repository; repository rule: every command that is not trivial runs under CPU, memory, process-count and
+  disk-weight limits, in every agent).
+  Once per process, the discovery reads `MemoryMax`, `CPUQuota`, `TasksMax` and `IOWeight` (from `memory.max`, `cpu.max`, `pids.max`
+  and the `default` line of `io.weight`) on the caller's own group and on each ancestor up to, and not including, the deepest ancestor
+  it shares with the slice, whose limits reach the scope through ancestry anyway.
+  The launcher passes the tightest finite value of each as `--property=` arguments.
+  A limit nobody sets stays absent, and no size is ever invented.
+  An I/O weight at or above the kernel default is not carried, so the scope may be throttled more than its caller and never less.
+  A quota is passed as a percent with two decimals, rounded down, because `systemd-run` refuses `CPUQuotaPerSecUSec=` as a property.
+  A limit file that cannot be read refuses the route: the run takes the weaker path below, which stays in the caller's own group, so
+  its limits still apply, and the one-line notice names the limits.
+  The precedent is `package/wg/cli-quicker-exempt/src/inherited_limits.rs`; `src/inherited_limits.rs` is a port of its four limits,
+  not a dependency (that crate is a binary without a library, and each crate stands on its own), and it leaves out `memory.high`,
+  `memory.swap.max` and the per-device `io.max` limits.
   Assumption a of the contract: the run's processes do not leave the scope and do not arrange workspace writes through a service outside
   it; a same-user process that does is outside what any wrapper can stop.
   Where no scope can be had (no `systemd-run`, no reachable user manager, no cgroup v2 mount, an unknown slice, a kernel before 5.14),
