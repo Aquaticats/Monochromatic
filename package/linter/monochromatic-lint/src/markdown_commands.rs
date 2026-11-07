@@ -12,7 +12,7 @@
 /// Import the diagnostic and severity types that command-example checks report through.
 use crate::diagnostic::{Diagnostic, Severity};
 /// Import the edit and fix types that a command-example repair is expressed as.
-use crate::edits::{Edit, Fix};
+use crate::edits::{Edit, Fix, FixClass};
 /// Import the fence lookup that finds where a command block's closing marker ends.
 use crate::markdown_code::fence_marker_end;
 /// Import the finding constructor that wraps a command-example problem as a diagnostic.
@@ -94,7 +94,10 @@ pub fn commands_show_output(context: &MarkdownSource, severity: Severity) -> Vec
             None,
         );
         if !edits.is_empty() {
-            diagnostic.fix = Some(Fix { edits });
+            diagnostic.fix = Some(Fix {
+                class: FixClass::Content,
+                edits,
+            });
         }
         findings.push(diagnostic);
     }

@@ -13,7 +13,7 @@
 use super::{ProcessorLanguage, VirtualSource, extract};
 use crate::diagnostic::{Diagnostic, Severity};
 /// Fix application is always the production grouped edit implementation.
-use crate::edits::{Edit, Fix, apply_fixes};
+use crate::edits::{Edit, Fix, FixClass, apply_fixes};
 /// Inspect original-host wire findings and apply real atomic groups.
 use crate::run_failure::PROCESSING_FAILURE;
 /// Exercise selected rule behavior,

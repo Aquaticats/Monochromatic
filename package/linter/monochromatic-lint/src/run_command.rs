@@ -156,7 +156,7 @@ fn run_paths(
     let mut semantic: RustFileEngine = engine(options.debug);
     let outcomes: Vec<FileOutcome> = process_plans(
         plans.as_slice(),
-        options.fix,
+        options.fixing(),
         &lfs,
         concurrency,
         &mut semantic,
@@ -175,7 +175,7 @@ fn run_paths(
         semantic.workspace_count()
     ));
     // The compiler-backed closure check runs last, over the packages that the plans select.
-    let closure: ClosureOutcome = run_closure_step(plans.as_slice(), cwd, options.fix);
+    let closure: ClosureOutcome = run_closure_step(plans.as_slice(), cwd, options.fixing());
     findings.extend(closure.findings);
     notes.extend(closure.notes);
     // The layout rules need the whole package, so they run after the per-file rules.
@@ -219,7 +219,9 @@ fn execute(
         return Ok(output);
     }
     let mut store: ConfigStore = match ConfigStore::new(cwd, options.config.as_deref()) {
-        Ok(value) => value.with_directives(options.directive_options()),
+        Ok(value) => value
+            .with_directives(options.directive_options())
+            .with_fix_scope(options.fix_scope()),
         Err(error) => return Err(SetupError::from_display(&error)),
     };
     if let Some(path) = &options.print_config {

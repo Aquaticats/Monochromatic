@@ -10,7 +10,7 @@
 //! ```
 
 /// Import the consumer helpers and atomic fix models shared by every processor test module.
-use super::{Edit, Fix, ProcessorLanguage, VirtualSource, fixed, inputs};
+use super::{Edit, Fix, FixClass, ProcessorLanguage, VirtualSource, fixed, inputs};
 
 /// Extract the only Rustdoc input of a host and return its exact virtual Markdown.
 fn doc_text(host: &str) -> String {
@@ -42,6 +42,7 @@ fn processors_strip_only_the_common_margin_from_line_doc_runs() {
             host,
             &virtuals[0],
             Fix {
+                class: FixClass::Content,
                 edits: vec![Edit {
                     start: split,
                     end: split,
@@ -57,6 +58,7 @@ fn processors_strip_only_the_common_margin_from_line_doc_runs() {
             host,
             &virtuals[0],
             Fix {
+                class: FixClass::Content,
                 edits: vec![Edit {
                     start: word,
                     end: word + "Beta".len(),
@@ -126,6 +128,7 @@ fn processors_strip_only_the_common_margin_from_undecorated_block_docs() {
             host,
             &virtuals[0],
             Fix {
+                class: FixClass::Content,
                 edits: vec![Edit {
                     start: split,
                     end: split,
