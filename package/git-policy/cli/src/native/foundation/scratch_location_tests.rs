@@ -190,6 +190,62 @@ fn preparing_a_directory_collects_what_a_killed_process_left() {
     remove(root.as_path());
 }
 
+/// The scratch folder an earlier release made in a Git directory (`cli-git-scratch`) is recognized and swept under the same rules
+///  as this release's own: entries older than the bound go (files and directories with their contents), fresh entries and entries dated in the future stay, and the folder itself stays.
+#[test]
+fn an_earlier_releases_repository_scratch_is_swept_by_the_rules_of_its_own() {
+    let root: PathBuf = fixture("scratch-earlier-sweep");
+    let common: PathBuf = root.join("common");
+    let earlier: PathBuf = common.join(REPOSITORY_SCRATCH.earlier);
+    std::fs::create_dir_all(&earlier).expect("the earlier scratch");
+    protect_path(earlier.as_path(), PRIVATE_DIRECTORY_MODE).expect("private");
+    std::fs::write(earlier.join("cli-git-input-stale"), b"x").expect("stale file");
+    std::fs::create_dir_all(earlier.join("cli-git-service-stale/inner")).expect("stale directory");
+    std::fs::write(earlier.join("cli-git-service-stale/inner/file"), b"x").expect("inner file");
+    std::fs::write(earlier.join("cli-git-input-fresh"), b"x").expect("fresh file");
+    std::fs::write(earlier.join("cli-git-input-future"), b"x").expect("future file");
+    for stale in ["cli-git-input-stale", "cli-git-service-stale"] {
+        age(earlier.join(stale).as_path(), SCRATCH_STALE_AFTER * 2);
+    }
+    std::fs::File::open(earlier.join("cli-git-input-future")).expect("open").set_modified(SystemTime::now() + SCRATCH_STALE_AFTER * 2).expect("future time");
+    prepare_repository_scratch(common.as_path()).expect("preparation");
+    assert!(!earlier.join("cli-git-input-stale").exists(), "a stale file of the earlier release goes");
+    assert!(!earlier.join("cli-git-service-stale").exists(), "and a stale directory with its contents");
+    assert!(earlier.join("cli-git-input-fresh").exists(), "a fresh entry stays");
+    assert!(earlier.join("cli-git-input-future").exists(), "an entry dated in the future stays");
+    assert!(earlier.is_dir(), "the folder itself stays");
+    assert!(prepare_repository_scratch(common.as_path()).expect("second preparation").ends_with(REPOSITORY_SCRATCH.current));
+    remove(root.as_path());
+}
+
+/// The earlier folder is not made when it is not there, and is kept where this release's own would be refused or kept: a link in
+///  its place is not followed and nothing behind it is touched, and a loose mode of a folder this user owns is tightened.
+#[test]
+fn an_earlier_releases_repository_scratch_is_never_made_and_is_kept_where_the_rules_keep_their_own() {
+    let root: PathBuf = fixture("scratch-earlier-kept");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir_all(&common).expect("common directory");
+    prepare_repository_scratch(common.as_path()).expect("preparation");
+    assert!(!common.join(REPOSITORY_SCRATCH.earlier).exists(), "nothing is made under the earlier name");
+    let elsewhere: PathBuf = root.join("elsewhere");
+    std::fs::create_dir_all(&elsewhere).expect("elsewhere");
+    std::fs::write(elsewhere.join("old-file"), b"keep").expect("file");
+    age(elsewhere.join("old-file").as_path(), SCRATCH_STALE_AFTER * 2);
+    std::os::unix::fs::symlink(&elsewhere, common.join(REPOSITORY_SCRATCH.earlier)).expect("a link in place of the folder");
+    prepare_repository_scratch(common.as_path()).expect("preparation");
+    assert!(elsewhere.join("old-file").exists(), "nothing behind a link is swept");
+    std::fs::remove_file(common.join(REPOSITORY_SCRATCH.earlier)).expect("link removed");
+    let loose: PathBuf = common.join(REPOSITORY_SCRATCH.earlier);
+    std::fs::create_dir_all(&loose).expect("loose folder");
+    std::fs::set_permissions(&loose, std::fs::Permissions::from_mode(0o755)).expect("loose mode");
+    std::fs::write(loose.join("stale"), b"x").expect("stale");
+    age(loose.join("stale").as_path(), SCRATCH_STALE_AFTER * 2);
+    prepare_repository_scratch(common.as_path()).expect("preparation");
+    assert_eq!(mode_of(loose.as_path()), 0o700, "tightened as the own folder is");
+    assert!(!loose.join("stale").exists(), "and swept");
+    remove(root.as_path());
+}
+
 /// An anonymous scratch file is read and written, has no name in the per-user scratch directory, and without a home
 /// the failure names the variables instead of falling back to the system temporary directory.
 #[test]

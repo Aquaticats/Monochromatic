@@ -469,7 +469,7 @@ Correctly renamed (the name is this release's own artifact; the earlier counterp
   folders: pairs, moved in place or read under the earlier name.
 - Folders and files under the data folder (`discarded`, `notices`, `orphaned-notices`, `work`, `removal-snapshots`,
   `standards-review-shadow.md`, `shadow/`): they move with the folder.
-- Scratch and cache names (`REPOSITORY_SCRATCH_NAME`, the state
+- Scratch and cache names (`REPOSITORY_SCRATCH_NAME`, now paired with its earlier name, see below; the state
   and cache folders of `foundation/scratch_location.rs` and
   `invocation/git_version_cache.rs`, the cache header, `SCRATCH_PREFIX`, `cli-git-service-<id>` scratch names,
   the journal
@@ -504,13 +504,17 @@ Gaps found, not rename errors, not changed here:
   they hold
   nothing the wrapper reads, and the state folder also holds the earlier journals, which are read where they are.
 
-For the owner to decide: `REPOSITORY_SCRATCH_NAME`
-(`cli-git-scratch` in a Git directory) was renamed but never paired in
-`wrapper_names_old_and_new.rs`, so an earlier release's scratch folders stay behind,
-while the plan moves the other folders in
-the Git directories in place on first use.
-Scratch is disposable, so leaving it is defensible.
-The two ways: add the pair so the folder is moved like the others, or exempt it and sweep it.
+Decided by the owner, 2026-11-07, verbatim: "Pair the names (Recommended)".
+The option text it was offered: add the old scratch name to the list of old and new names, so the new program cleans it exactly as
+it cleans its own scratch, with one set of rules and nothing deleted that those rules would keep.
+Built: the pair `REPOSITORY_SCRATCH` (`cli-git-scratch` and `monochromatic-git-policy-cli-scratch`) in
+`foundation/wrapper_names_old_and_new.rs`, `REPOSITORY_SCRATCH_NAME` reads its current half, and `prepare_repository_scratch` also
+sweeps the earlier folder (`sweep_earlier_repository_scratch`) by the rules of its own: the folder must be a real directory of
+this user (a looser mode is tightened; a link or another account's folder is left alone and logged), entries older than
+`SCRATCH_STALE_AFTER` go, entries dated in the future and fresh ones stay, the folder itself stays, and nothing is made under the
+earlier name.
+A refusal of the earlier folder never fails the command that asked for scratch.
+The per-user scratch of the earlier release (`<state>/cli-git/scratch`) is not part of this pick and is still not swept.
 - The TypeScript packages the plan lists (`package/git-executable/core`
   and the others) were outside this audit of the crate.
 

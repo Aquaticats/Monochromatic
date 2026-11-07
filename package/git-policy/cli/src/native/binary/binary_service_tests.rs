@@ -26,6 +26,7 @@ use git_policy_cli::service_protocol::{
 use git_policy_cli::service_server::Bind;
 use std::ffi::OsStr;
 use std::io::{BufRead, BufReader, Write};
+use std::os::fd::FromRawFd;
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::net::{SocketAddr, UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
@@ -326,20 +327,28 @@ fn the_settle_command_changes_nothing_when_its_condition_cannot_be_written() {
     let instance: String = instance_of(repo.join(".git").as_path());
     let earlier: PathBuf = fixture.root.join("home/.local/state/cli-git/service").join(instance.as_str());
     let (open, finished) = leave_a_batch_open(&fixture, &repo, instance.as_str(), earlier.as_path(), "closed");
-    let mut command: Command = super::support::wrapped(&fixture);
-    command
-        .current_dir(&repo)
-        .args(["monochromatic-git-policy-cli", "service", "settle-earlier-batches"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped());
-    let mut child: Child = command.spawn().expect("the wrapper starts");
-    // The reader goes away at once, so the first write to standard error fails.
-    drop(child.stderr.take());
-    let status = child.wait().expect("the wrapper ends");
-    assert_ne!(status.code(), Some(0), "{status:?}");
-    assert!(open.exists(), "the batch is still open");
-    assert!(!finished.exists(), "and was not marked finished");
+    // Standard error is a pipe whose read end was closed before the wrapper starts, so every write it makes meets a broken pipe
+    //  (cross-vendor review of 2026-11-07: dropping the read end after `spawn` let the wrapper write and flush the condition first).
+    //  The command changes nothing, so the same state is tried again: each run must end without success and leave the batch open.
+    for attempt in 0..3 {
+        let [read_end, write_end] = super::support::close_on_exec_pipe();
+        // SAFETY: both descriptors were just made by `close_on_exec_pipe` and are owned here; each is used once.
+        let (read_owned, write_owned) = unsafe { (std::os::fd::OwnedFd::from_raw_fd(read_end), std::os::fd::OwnedFd::from_raw_fd(write_end)) };
+        drop(read_owned);
+        let mut command: Command = super::support::wrapped(&fixture);
+        command
+            .current_dir(&repo)
+            .args(["monochromatic-git-policy-cli", "service", "settle-earlier-batches"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::from(write_owned));
+        let mut child: Child = command.spawn().expect("the wrapper starts");
+        drop(command);
+        let status = child.wait().expect("the wrapper ends");
+        assert_ne!(status.code(), Some(0), "attempt {attempt}: {status:?}");
+        assert!(open.exists(), "attempt {attempt}: the batch is still open");
+        assert!(!finished.exists(), "attempt {attempt}: and was not marked finished");
+    }
     remove_settled(&fixture);
 }
 

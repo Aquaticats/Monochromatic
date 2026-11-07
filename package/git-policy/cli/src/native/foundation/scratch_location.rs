@@ -2,7 +2,8 @@
 //!  Where the wrapper keeps short-lived private files:
 //!  the per-user scratch directory (`<state>/monochromatic-git-policy-cli/scratch`) for work that has no repository
 //!       in hand,
-//!  and the repository scratch directory (`<common-dir>/cli-git-scratch`) for work inside one.
+//!  and the repository scratch directory (`<common-dir>/monochromatic-git-policy-cli-scratch`) for work inside one;
+//!  the folder an earlier release made under its own name (`cli-git-scratch`) is swept by the same rules.
 //!  Both are checked as private (a real directory of this user, mode `0700`) and swept of entries
 //!       older than a day each time they are prepared.
 //! Why:
@@ -30,6 +31,7 @@ use crate::private_storage::{create_private_directory, create_private_directory_
 #[cfg(unix)]
 use crate::private_storage::{PRIVATE_DIRECTORY_MODE, protect_path};
 /// OS strings, paths and time.
+use crate::wrapper_names_old_and_new::REPOSITORY_SCRATCH;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -38,7 +40,7 @@ use std::time::{Duration, SystemTime};
 const TAG: &str = "monochromatic-git-policy-cli";
 
 /// The entry in a Git common directory that holds repository scratch.
-pub const REPOSITORY_SCRATCH_NAME: &str = "monochromatic-git-policy-cli-scratch";
+pub const REPOSITORY_SCRATCH_NAME: &str = REPOSITORY_SCRATCH.current;
 
 /// How old an entry must be before a preparation removes it:
 ///  far longer than any command of the wrapper runs, so a live process never loses a file. Measured: the longest command in the
@@ -210,7 +212,40 @@ pub fn prepare_repository_scratch(common_dir: &Path) -> std::io::Result<PathBuf>
     }
     assert_private_directory(directory.as_path())?;
     sweep_stale(directory.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER);
+    sweep_earlier_repository_scratch(common_dir);
     return Ok(directory);
+}
+
+/// What:
+///  Sweep the repository scratch folder an earlier release made (`cli-git-scratch`) by the rules of this release's own: it must be a
+///  real directory of this user (a looser mode is tightened), entries older than `SCRATCH_STALE_AFTER` go, and everything else
+///  stays, including entries dated in the future and the folder itself. Nothing is made under the earlier name, and a folder
+///  that fails the check is left alone and logged, because the command that asked for scratch must not fail over a folder it
+///  does not use.
+/// Why:
+///   The folder is in the Git directory the repository scratch is in, the earlier release's commands wrote there and
+///  nothing else would ever collect what a killed one left (owner, 2026-11-07, "Pair the names": one set of rules, and nothing
+///  deleted that those rules would keep).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await sweepStale(await privateDirectoryOrNothing(join(commonDir, REPOSITORY_SCRATCH.earlier)), STALE_AFTER)
+/// ```
+fn sweep_earlier_repository_scratch(common_dir: &Path) {
+    let earlier: PathBuf = common_dir.join(REPOSITORY_SCRATCH.earlier);
+    match std::fs::symlink_metadata(&earlier) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+        Err(error) => {
+            debug(TAG, format!("could not inspect {}: {error}", earlier.display()).as_str());
+            return;
+        }
+    }
+    if let Err(error) = assert_private_directory(earlier.as_path()) {
+        debug(TAG, format!("will not sweep {}: {error}", earlier.display()).as_str());
+        return;
+    }
+    sweep_stale(earlier.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER);
 }
 
 /// What:
