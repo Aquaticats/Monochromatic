@@ -1,12 +1,24 @@
 //! What:
-//!  Move every entry of a folder an earlier release wrote (`cli-git`) into the folder under the current name, then remove the
-//!  emptied earlier folder. Where a folder exists in both, its entries are moved the same way, one level at a time. Where a
-//!  file or a link has the same name in both, the earlier one is kept beside the current one with a fixed suffix.
+//!  Move every entry of a folder an earlier release wrote (`cli-git`) into the folder under the current name,
+//! then remove the
+//!  emptied earlier folder.
+//! Where a folder exists in both,
+//! its entries are moved the same way,
+//! one level at a time.
+//! Where a
+//!  file or a link has the same name in both,
+//! the earlier one is kept beside the current one with a fixed suffix.
 //! Why:
-//!  The first release under the new name found the earlier folder alone and renamed it in place; when both exist the earlier
-//!  folder still holds saved copies, work records and notices that nothing reads, and the owner said "never discard user data".
-//!  Every step is one rename that never replaces, so a kill at any instruction leaves each entry under exactly one of the two
-//!  names, and the next run moves what is left. Nothing is copied and nothing is deleted but folders that are empty.
+//!  The first release under the new name found the earlier folder alone and renamed it in place;
+//! when both exist the earlier
+//!  folder still holds saved copies,
+//! work records and notices that nothing reads,
+//! and the owner said "never discard user data".
+//!  Every step is one rename that never replaces,
+//! so a kill at any instruction leaves each entry under exactly one of the two
+//!  names,
+//! and the next run moves what is left.
+//! Nothing is copied and nothing is deleted but folders that are empty.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,25 +38,32 @@ pub enum FolderFold {
     Nothing,
     /// Every entry moved and the earlier folder is gone.
     Folded {
-        /// How many entries moved by a rename (a folder that exists in both is not counted, its entries are).
+        /// How many entries moved by a rename (a folder that exists in both is not counted,
+        /// its entries are).
         moved: usize,
     },
-    /// The earlier folder is still there because entries stayed in it; each is listed.
+    /// The earlier folder is still there because entries stayed in it;
+    /// each is listed.
     Left {
-        /// The entries that stayed, for a message to the person.
+        /// The entries that stayed,
+        /// for a message to the person.
         kept: Vec<PathBuf>,
     },
-    /// Every entry moved, but the emptied earlier folder could not be removed (a read-only Git directory); the reason is the
+    /// Every entry moved,
+    /// but the emptied earlier folder could not be removed (a read-only Git directory);
+    /// the reason is the
     ///  operating system's.
     NotRemoved {
-        /// The operating system's error, as text.
+        /// The operating system's error,
+        /// as text.
         reason: String,
     },
     /// A control stopped the merge at the named step.
     Stopped(&'static str),
 }
 
-/// Whether a path is a real folder, not a link to one.
+/// Whether a path is a real folder,
+/// not a link to one.
 fn is_real_folder(path: &Path) -> bool {
     return std::fs::symlink_metadata(path).map(|found| return found.file_type().is_dir()).unwrap_or(false);
 }
@@ -59,9 +78,16 @@ fn kept_beside_name(name: &std::ffi::OsStr) -> std::ffi::OsString {
 /// What:
 ///  Merge the earlier folder of `name` in `parent` into the current one.
 /// Why:
-///   A work stack of pairs of folders walks the earlier folder and the folders that exist in both, so the depth is bounded by
-///  the stack, not the call stack. Folders that were emptied are removed last, deepest first; a folder that is not empty (an
-///  earlier program created an entry in it meanwhile, or an entry kept its place) stays, and the next run moves the rest.
+///   A work stack of pairs of folders walks the earlier folder and the folders that exist in both,
+/// so the depth is bounded by
+///  the stack,
+/// not the call stack.
+/// Folders that were emptied are removed last,
+/// deepest first;
+/// a folder that is not empty (an
+///  earlier program created an entry in it meanwhile,
+/// or an entry kept its place) stays,
+/// and the next run moves the rest.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

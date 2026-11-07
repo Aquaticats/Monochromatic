@@ -1,5 +1,7 @@
-//! Controls for the fold of every kept name that exists under both spellings, each in its own disposable folders and with a
-//!  process table of its own, so no control looks at this machine's processes or touches its Git directories.
+//! Controls for the fold of every kept name that exists under both spellings,
+//! each in its own disposable folders and with a
+//!  process table of its own,
+//! so no control looks at this machine's processes or touches its Git directories.
 
 use super::*;
 use crate::service_instance::instance_of;
@@ -18,7 +20,8 @@ const NAMES: [KeptName; 3] = [
     KeptName { name: COMMIT_TIMING_LOG, kind: KeptKind::Log { rotates: true } },
 ];
 
-/// A stop that ends the fold when it has been told of `limit` steps, as a kill at that instant would.
+/// A stop that ends the fold when it has been told of `limit` steps,
+/// as a kill at that instant would.
 struct StopAfter {
     /// How many steps may pass.
     limit: usize,
@@ -33,7 +36,8 @@ impl FoldSteps for StopAfter {
     }
 }
 
-/// A Git directory with every kept name under both spellings, and a process table with no process in it.
+/// A Git directory with every kept name under both spellings,
+/// and a process table with no process in it.
 struct World {
     /// The Git directory.
     git_dir: PathBuf,
@@ -41,7 +45,8 @@ struct World {
     surroundings: FoldSurroundings,
 }
 
-/// Plant both spellings of the three kinds, and an empty process table.
+/// Plant both spellings of the three kinds,
+/// and an empty process table.
 fn world(name: &str) -> World {
     let root: PathBuf = fixture(name);
     let git_dir: PathBuf = root.join("git");
@@ -83,7 +88,8 @@ fn assert_folded(world: &World) {
     assert_eq!(std::fs::read_to_string(git.join(COMMIT_TIMING_LOG.current)).expect("log"), "current-timing\nearlier-timing\n");
 }
 
-/// With no earlier program running, every name that exists twice is folded and nothing is held or reported.
+/// With no earlier program running,
+/// every name that exists twice is folded and nothing is held or reported.
 #[test]
 fn with_no_earlier_program_running_every_name_is_folded() {
     let world: World = world("folds");
@@ -97,8 +103,12 @@ fn with_no_earlier_program_running_every_name_is_folded() {
     std::fs::remove_dir_all(world.git_dir.parent().expect("root")).expect("remove only the fixture");
 }
 
-/// An earlier commit service of the worktree is running: nothing is folded, every byte stays, and the hold says why;
-///  once it stops, the next command folds.
+/// An earlier commit service of the worktree is running:
+/// nothing is folded,
+/// every byte stays,
+/// and the hold says why;
+///  once it stops,
+/// the next command folds.
 #[test]
 fn an_earlier_program_that_runs_holds_the_fold_until_it_stops() {
     let world: World = world("held");
@@ -119,7 +129,10 @@ fn an_earlier_program_that_runs_holds_the_fold_until_it_stops() {
     std::fs::remove_dir_all(world.git_dir.parent().expect("root")).expect("remove only the fixture");
 }
 
-/// A socket that listens for the earlier service, with no process behind it, does not hold the fold: such a socket stays for
+/// A socket that listens for the earlier service,
+/// with no process behind it,
+/// does not hold the fold:
+/// such a socket stays for
 ///  good and writes nothing.
 #[test]
 fn a_listening_socket_without_a_process_does_not_hold_the_fold() {
@@ -138,7 +151,9 @@ fn a_listening_socket_without_a_process_does_not_hold_the_fold() {
     std::fs::remove_dir_all(world.git_dir.parent().expect("root")).expect("remove only the fixture");
 }
 
-/// A kill at every step of the whole fold, then one more fold: everything ends up where a fold with no kill puts it.
+/// A kill at every step of the whole fold,
+/// then one more fold:
+/// everything ends up where a fold with no kill puts it.
 #[test]
 fn a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result() {
     let mut limit: usize = 0;
@@ -156,8 +171,12 @@ fn a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result
     }
 }
 
-/// An earlier program that still has a log open for writing: that name is left for a later command with no line to the person, and
-///  the later command, run once the program has written its last line and closed the log, folds the line too.
+/// An earlier program that still has a log open for writing:
+/// that name is left for a later command with no line to the person,
+/// and
+///  the later command,
+/// run once the program has written its last line and closed the log,
+/// folds the line too.
 #[test]
 fn a_log_that_an_earlier_program_still_writes_is_left_silently_and_folded_after_it_closes() {
     use std::io::Write;
@@ -175,7 +194,11 @@ fn a_log_that_an_earlier_program_still_writes_is_left_silently_and_folded_after_
     std::fs::remove_dir_all(world.git_dir.parent().expect("root")).expect("remove only the fixture");
 }
 
-/// A read-only Git directory: nothing is folded, nothing is lost, each name reports a failure, and the failure line is one line.
+/// A read-only Git directory:
+/// nothing is folded,
+/// nothing is lost,
+/// each name reports a failure,
+/// and the failure line is one line.
 #[cfg(unix)]
 #[test]
 fn a_read_only_git_directory_fails_every_name_and_loses_nothing() {
@@ -210,7 +233,8 @@ fn a_read_only_git_directory_fails_every_name_and_loses_nothing() {
     std::fs::remove_dir_all(git.parent().expect("root")).expect("remove only the fixture");
 }
 
-/// A kept name that exists once needs no fold, and the look at processes is never made for it.
+/// A kept name that exists once needs no fold,
+/// and the look at processes is never made for it.
 #[test]
 fn a_name_that_exists_once_costs_no_look() {
     let root: PathBuf = fixture("once");
@@ -223,7 +247,8 @@ fn a_name_that_exists_once_costs_no_look() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// The numbered older copies of an earlier rotating log go beside the current ones, and none replaces another.
+/// The numbered older copies of an earlier rotating log go beside the current ones,
+/// and none replaces another.
 #[test]
 fn numbered_copies_of_an_earlier_rotating_log_are_kept_beside_the_current_ones() {
     let world: World = world("numbered");

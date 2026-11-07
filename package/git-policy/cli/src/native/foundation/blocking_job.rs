@@ -1,9 +1,15 @@
 //! What:
 //!  Runs a blocking call on tokio's blocking pool and turns "the system gave no thread" into an error value.
 //! Why:
-//!  `tokio::task::spawn_blocking` (and so every `tokio::fs` call) panics, not errors, when the operating system refuses a thread
-//!  and no pool thread exists. The owner chose "Fail plainly" (`doc/planning/git-policy-cli-full-tokio.md`, choice 11): the
-//!  call fails with a plain message and never runs inline on the calling task, where no timer could end it.
+//!  `tokio::task::spawn_blocking` (and so every `tokio::fs` call) panics,
+//! not errors,
+//! when the operating system refuses a thread
+//!  and no pool thread exists.
+//! The owner chose "Fail plainly" (`doc/planning/git-policy-cli-full-tokio.md`,
+//! choice 11):
+//! the
+//!  call fails with a plain message and never runs inline on the calling task,
+//! where no timer could end it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,7 +20,8 @@
 /// Why a blocking job did not give its value.
 #[derive(Debug, Eq, PartialEq)]
 pub enum BlockingJobError {
-    /// The system refused a thread and the pool had none; the job did not run.
+    /// The system refused a thread and the pool had none;
+    /// the job did not run.
     NoThreadToStart,
     /// The job ran and panicked.
     Panicked,

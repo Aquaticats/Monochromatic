@@ -1,11 +1,22 @@
 //! What:
-//!  The process's one tokio runtime, built on the first need and never before, sized from the budget and the limits, built on a
-//!  helper thread under a deadline, and never dropped.
+//!  The process's one tokio runtime,
+//! built on the first need and never before,
+//! sized from the budget and the limits,
+//! built on a
+//!  helper thread under a deadline,
+//! and never dropped.
 //! Why:
-//!  The owner's rulings of 2026-11-07 (`doc/planning/git-policy-cli-full-tokio.md`, "The owner's answers"): "Full on tokio.
-//!  Multi-thread." with the worker count "sized to budget"; built "Lazily, on first need" so a forwarded command pays nothing
-//!  (measured +0.3 to +0.5 ms and about 125 minor page faults for an eager build); "Helper thread + deadline" so a build the
-//!  system refuses cannot hold a commit ("nothing should ever wait forever"); "Fail plainly" where no thread can start.
+//!  The owner's rulings of 2026-11-07 (`doc/planning/git-policy-cli-full-tokio.md`,
+//! "The owner's answers"):
+//! "Full on tokio.
+//!  Multi-thread."
+//! with the worker count "sized to budget";
+//! built "Lazily,
+//! on first need" so a forwarded command pays nothing
+//!  (measured +0.3 to +0.5 ms and about 125 minor page faults for an eager build);
+//! "Helper thread + deadline" so a build the
+//!  system refuses cannot hold a commit ("nothing should ever wait forever");
+//! "Fail plainly" where no thread can start.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,15 +39,19 @@ pub enum BuiltFlavor {
         /// Worker threads.
         workers: usize,
     },
-    /// The multi-thread build did not finish by the deadline; the current-thread runtime stands in.
+    /// The multi-thread build did not finish by the deadline;
+    /// the current-thread runtime stands in.
     CurrentThreadAfterDeadline,
-    /// The multi-thread build failed, panicked or could not get its helper thread; the current-thread runtime stands in.
+    /// The multi-thread build failed,
+    /// panicked or could not get its helper thread;
+    /// the current-thread runtime stands in.
     CurrentThreadAfterFailure,
 }
 
 /// A runtime and how it came to be.
 pub struct BuiltRuntime {
-    /// The runtime itself; it is never dropped.
+    /// The runtime itself;
+    /// it is never dropped.
     pub runtime: Runtime,
     /// How it was built.
     pub flavor: BuiltFlavor,
@@ -45,9 +60,11 @@ pub struct BuiltRuntime {
 /// Why a future could not be run on the runtime.
 #[derive(Debug)]
 pub enum RuntimeError {
-    /// Called from inside the runtime, where `block_on` would panic.
+    /// Called from inside the runtime,
+    /// where `block_on` would panic.
     Nested,
-    /// No runtime could be built, with the system's reason.
+    /// No runtime could be built,
+    /// with the system's reason.
     CouldNotStart(String),
 }
 
@@ -69,23 +86,36 @@ impl std::fmt::Display for RuntimeError {
     }
 }
 
-/// How long the build of the multi-thread runtime may take before the current-thread runtime stands in. A build takes well under
+/// How long the build of the multi-thread runtime may take before the current-thread runtime stands in.
+/// A build takes well under
 ///  a few milliseconds when it works (the probe of `doc/planning/git-policy-cli-full-tokio.md` measured +0.3 to +0.5 ms for the
-///  whole eager build with 28 workers); a build the system refuses can hang inside tokio's unwind with no end. One second is
-///  more than two hundred times the working build and a fifth of the owner's "should not take 5s longer" for a commit, so a hung
-///  build costs a commit part of its slack and never all of it. The coordinator's pick under the owner's choice 9
-///  ("Helper thread + deadline"), open to the owner's veto.
+///  whole eager build with 28 workers);
+/// a build the system refuses can hang inside tokio's unwind with no end.
+/// One second is
+///  more than two hundred times the working build and a fifth of the owner's "should not take 5s longer" for a commit,
+/// so a hung
+///  build costs a commit part of its slack and never all of it.
+/// The coordinator's pick under the owner's choice 9
+///  ("Helper thread + deadline"),
+/// open to the owner's veto.
 pub const BUILD_DEADLINE: Duration = Duration::from_secs(1);
 
-/// The most malloc arenas the process may create, set before the first worker starts. Each arena past the first reserves 64 MiB
-///  of address space per thread that uses it, and 28 workers with the default arenas hung the build under an address-space limit
+/// The most malloc arenas the process may create,
+/// set before the first worker starts.
+/// Each arena past the first reserves 64 MiB
+///  of address space per thread that uses it,
+/// and 28 workers with the default arenas hung the build under an address-space limit
 ///  of 900 to 1150 MiB where the same workers with one arena ran at 100 MiB (`doc/planning/git-policy-cli-full-tokio.md`,
-///  "Why the address space runs out"); the plan's per-thread figures assume this value. The owner's choice 3 ("Cap pools + read
-///  limits"). Allocation contention is measured in the same document's progress notes.
+///  "Why the address space runs out");
+/// the plan's per-thread figures assume this value.
+/// The owner's choice 3 ("Cap pools + read
+///  limits").
+/// Allocation contention is measured in the same document's progress notes.
 #[cfg(all(target_os = "linux", target_env = "gnu"))]
 const MALLOC_ARENA_LIMIT: libc::c_int = 1;
 
-/// Caps the malloc arenas of the process; a no-op where the allocator has no arenas.
+/// Caps the malloc arenas of the process;
+/// a no-op where the allocator has no arenas.
 fn cap_malloc_arenas() {
     #[cfg(all(target_os = "linux", target_env = "gnu"))]
     {
@@ -94,7 +124,9 @@ fn cap_malloc_arenas() {
     }
 }
 
-/// The current-thread runtime: no worker, the calling thread runs every task.
+/// The current-thread runtime:
+/// no worker,
+/// the calling thread runs every task.
 fn current_thread() -> std::io::Result<Runtime> {
     return tokio::runtime::Builder::new_current_thread().enable_all().build();
 }
@@ -111,12 +143,19 @@ fn multi_thread(workers: usize, blocking: usize) -> std::io::Result<Runtime> {
 }
 
 /// What:
-///  Builds the runtime `plan` names. The multi-thread runtime is built by `multi_thread` on a helper thread that the caller waits
-///  for until `deadline`; when the helper fails, panics, cannot be started or is late, the current-thread runtime stands in and
+///  Builds the runtime `plan` names.
+/// The multi-thread runtime is built by `multi_thread` on a helper thread that the caller waits
+///  for until `deadline`;
+/// when the helper fails,
+/// panics,
+/// cannot be started or is late,
+/// the current-thread runtime stands in and
 ///  the helper is left to finish or hang without the caller.
 /// Why:
-///  tokio's multi-thread build panics when the system refuses a thread and can hang inside the unwind, where no `catch_unwind`
-///  reaches; only a wait with a deadline from outside bounds it.
+///  tokio's multi-thread build panics when the system refuses a thread and can hang inside the unwind,
+/// where no `catch_unwind`
+///  reaches;
+/// only a wait with a deadline from outside bounds it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -158,7 +197,9 @@ where
     return Ok(BuiltRuntime { runtime: current_thread()?, flavor: flavor_when_replaced });
 }
 
-/// The process's runtime, built by the first call that needs it; the error is the reason no runtime could be built.
+/// The process's runtime,
+/// built by the first call that needs it;
+/// the error is the reason no runtime could be built.
 static RUNTIME: std::sync::OnceLock<Result<BuiltRuntime, String>> = std::sync::OnceLock::new();
 
 /// Plans from this process's budget and limits and builds.
@@ -171,12 +212,21 @@ fn build_for_this_process() -> Result<BuiltRuntime, String> {
 }
 
 /// What:
-///  Starts `future` as a task of the process's runtime, building the runtime on the first call, and returns nothing where that
-///  runtime has no worker thread of its own (the current-thread stand-in, or a build that failed).
+///  Starts `future` as a task of the process's runtime,
+/// building the runtime on the first call,
+/// and returns nothing where that
+///  runtime has no worker thread of its own (the current-thread stand-in,
+/// or a build that failed).
 /// Why:
-///  A watcher runs beside a thread that is blocked in a read or a wait, so it needs a worker that runs without a caller driving
-///  it; a current-thread runtime runs tasks only while some thread calls `block_on`, so a task spawned there would not run while
-///  the caller is blocked, and `None` tells the caller that nothing watches. Callable from any context, the runtime itself
+///  A watcher runs beside a thread that is blocked in a read or a wait,
+/// so it needs a worker that runs without a caller driving
+///  it;
+/// a current-thread runtime runs tasks only while some thread calls `block_on`,
+/// so a task spawned there would not run while
+///  the caller is blocked,
+/// and `None` tells the caller that nothing watches.
+/// Callable from any context,
+/// the runtime itself
 ///  included.
 ///
 /// In TS you'd write (pseudocode):
@@ -195,9 +245,13 @@ where
 }
 
 /// What:
-///  Runs `future` to its end on the process's runtime, building the runtime on the first call.
+///  Runs `future` to its end on the process's runtime,
+/// building the runtime on the first call.
 /// Why:
-///  One owner builds the only runtime, lazily, so a command that needs none never pays for one. A call from inside the runtime
+///  One owner builds the only runtime,
+/// lazily,
+/// so a command that needs none never pays for one.
+/// A call from inside the runtime
 ///  returns `RuntimeError::Nested` where `Runtime::block_on` would panic.
 ///
 /// In TS you'd write (pseudocode):
@@ -214,7 +268,8 @@ pub fn run_on_runtime<F: std::future::Future>(future: F) -> Result<F::Output, Ru
     };
 }
 
-/// How the process's runtime was built, or nothing before the first need.
+/// How the process's runtime was built,
+/// or nothing before the first need.
 pub fn built_flavor() -> Option<BuiltFlavor> {
     return RUNTIME.get().and_then(|built| { return built.as_ref().ok(); }).map(|built| { return built.flavor; });
 }

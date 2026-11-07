@@ -1,7 +1,10 @@
 //! What:
-//!  Lexical path normalization, the way Node's `path.resolve` does it.
+//!  Lexical path normalization,
+//! the way Node's `path.resolve` does it.
 //! Why:
-//!  `git monochromatic-git-policy-cli doctor` scans each hooks directory once, so one directory named two ways (`./hooks`, `hooks/`,
+//!  `git monochromatic-git-policy-cli doctor` scans each hooks directory once,
+//! so one directory named two ways (`./hooks`,
+//! `hooks/`,
 //!  `a/../hooks`) must compare equal without touching the file system.
 //!
 //! In TS you'd write (pseudocode):
@@ -13,9 +16,14 @@
 use std::path::{Component, Path, PathBuf};
 
 /// What:
-///  Normalize a path lexically: drop `.`, fold `..` into the component before it, never above the root.
+///  Normalize a path lexically:
+/// drop `.`,
+/// fold `..` into the component before it,
+/// never above the root.
 /// Why:
-///   `PathBuf::join` keeps `.` and `..`, and a `..` above the root stays at the root, as Node clamps it.
+///   `PathBuf::join` keeps `.` and `..`,
+/// and a `..` above the root stays at the root,
+/// as Node clamps it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

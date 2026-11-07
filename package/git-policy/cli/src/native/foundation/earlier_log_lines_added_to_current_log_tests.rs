@@ -1,4 +1,5 @@
-//! Controls for the fold of an earlier log into the current log, each in its own disposable folder.
+//! Controls for the fold of an earlier log into the current log,
+//! each in its own disposable folder.
 
 use super::*;
 use crate::wrapper_names_old_and_new::COMMIT_TIMING_LOG;
@@ -9,7 +10,8 @@ fn fixture(name: &str) -> PathBuf {
     return crate::test_support::fixture_with_prefix("native-log-fold", name);
 }
 
-/// A stop that ends the fold when it has been told of `limit` steps, as a kill at that instant would.
+/// A stop that ends the fold when it has been told of `limit` steps,
+/// as a kill at that instant would.
 struct StopAfter {
     /// How many steps may pass.
     limit: usize,
@@ -24,7 +26,8 @@ impl FoldSteps for StopAfter {
     }
 }
 
-/// A step observer that adds a line to the moved log after the first append, like a program that had the log open when it moved.
+/// A step observer that adds a line to the moved log after the first append,
+/// like a program that had the log open when it moved.
 struct StragglerWrites {
     /// The moved log.
     waiting: PathBuf,
@@ -46,7 +49,8 @@ impl FoldSteps for StragglerWrites {
 /// The lines of the earlier log.
 const EARLIER_LINES: &str = "{\"time\":\"2026-11-05T03:10:00.000Z\",\"from\":\"earlier\",\"n\":1}\n{\"time\":\"2026-11-05T03:11:00.000Z\",\"from\":\"earlier\",\"n\":2}\n";
 
-/// The lines of the current log, one of them also in the earlier log.
+/// The lines of the current log,
+/// one of them also in the earlier log.
 const CURRENT_LINES: &str = "{\"time\":\"2026-11-03T03:10:00.000Z\",\"from\":\"current\",\"n\":1}\n{\"time\":\"2026-11-05T03:10:00.000Z\",\"from\":\"earlier\",\"n\":1}\n";
 
 /// Plant both logs.
@@ -67,8 +71,11 @@ fn assert_clean(root: &Path) {
     }
 }
 
-/// The earlier log's bytes end the current log after the current log's own, nothing changes a byte,
-///  a line both logs hold stays twice, and the earlier log, the moved log and the journal are gone.
+/// The earlier log's bytes end the current log after the current log's own,
+/// nothing changes a byte,
+///  a line both logs hold stays twice,
+/// and the earlier log,
+/// the moved log and the journal are gone.
 #[test]
 fn the_earlier_logs_bytes_end_the_current_log_and_nothing_is_left() {
     let root: PathBuf = fixture("appends");
@@ -81,7 +88,9 @@ fn the_earlier_logs_bytes_end_the_current_log_and_nothing_is_left() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// A last line without a newline gets one, in the current log and in the added bytes, so no two lines run together.
+/// A last line without a newline gets one,
+/// in the current log and in the added bytes,
+/// so no two lines run together.
 #[test]
 fn a_last_line_without_a_newline_is_ended_before_the_next_begins() {
     let root: PathBuf = fixture("no-newline");
@@ -92,7 +101,9 @@ fn a_last_line_without_a_newline_is_ended_before_the_next_begins() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// A kill at every step, then one more fold: each line of both logs is in the current log exactly once.
+/// A kill at every step,
+/// then one more fold:
+/// each line of both logs is in the current log exactly once.
 #[test]
 fn a_kill_at_any_step_then_a_second_fold_loses_and_repeats_no_line() {
     let expected: String = format!("{CURRENT_LINES}{EARLIER_LINES}");
@@ -115,7 +126,9 @@ fn a_kill_at_any_step_then_a_second_fold_loses_and_repeats_no_line() {
     }
 }
 
-/// A program of this release appends to the current log between the kill and the restart: its line stays, and the restart adds
+/// A program of this release appends to the current log between the kill and the restart:
+/// its line stays,
+/// and the restart adds
 ///  the earlier bytes once.
 #[test]
 fn a_line_appended_between_the_kill_and_the_restart_stays() {
@@ -147,9 +160,11 @@ fn a_line_added_to_the_moved_log_after_the_move_is_folded_too() {
 }
 
 /// An earlier release's wrapper that opened the earlier log before the fold's rename and writes its line after the fold's last
-///  size check, the instant before the fold would remove the moved log.
+///  size check,
+/// the instant before the fold would remove the moved log.
 struct LateWriterWithTheLogOpen {
-    /// The descriptor opened by name before the fold started; a rename does not close it.
+    /// The descriptor opened by name before the fold started;
+    /// a rename does not close it.
     log: std::fs::File,
     /// The line written through the descriptor.
     line: &'static [u8],
@@ -170,8 +185,11 @@ impl FoldSteps for LateWriterWithTheLogOpen {
 /// The line the late writer adds.
 const LATE_LINE: &[u8] = b"{\"time\":\"2026-11-07T10:00:00.000Z\",\"from\":\"late writer\"}\n";
 
-/// A line that a program writes through a descriptor it opened before the move, after the fold's last size check, ends up in the
-///  current log once that program has closed the file: the fold never removes a log a writer still holds open.
+/// A line that a program writes through a descriptor it opened before the move,
+/// after the fold's last size check,
+/// ends up in the
+///  current log once that program has closed the file:
+/// the fold never removes a log a writer still holds open.
 #[test]
 fn a_line_written_after_the_last_size_check_by_a_writer_that_opened_before_the_move_is_not_lost() {
     let root: PathBuf = fixture("late-writer");
@@ -190,7 +208,9 @@ fn a_line_written_after_the_last_size_check_by_a_writer_that_opened_before_the_m
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// The next append of the current log rotated it after the kill: the added bytes are in the older copy, and the restart does not
+/// The next append of the current log rotated it after the kill:
+/// the added bytes are in the older copy,
+/// and the restart does not
 ///  add them again.
 #[test]
 fn bytes_already_added_and_rotated_into_an_older_copy_are_not_added_again() {
@@ -209,7 +229,8 @@ fn bytes_already_added_and_rotated_into_an_older_copy_are_not_added_again() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// Another process holds the journal's lock: this fold changes nothing.
+/// Another process holds the journal's lock:
+/// this fold changes nothing.
 #[cfg(unix)]
 #[test]
 fn a_fold_that_another_process_holds_is_left_alone() {
@@ -226,7 +247,8 @@ fn a_fold_that_another_process_holds_is_left_alone() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// A Git directory that cannot be written: the fold fails and the earlier log keeps every byte.
+/// A Git directory that cannot be written:
+/// the fold fails and the earlier log keeps every byte.
 #[cfg(unix)]
 #[test]
 fn a_read_only_directory_fails_the_fold_and_keeps_the_earlier_log() {
@@ -248,7 +270,9 @@ fn a_read_only_directory_fails_the_fold_and_keeps_the_earlier_log() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// A journal cut short records nothing, text that is not a record is not one, and the last complete record is the one that counts.
+/// A journal cut short records nothing,
+/// text that is not a record is not one,
+/// and the last complete record is the one that counts.
 #[test]
 fn only_a_whole_journal_line_records_a_round() {
     assert_eq!(parse_journal(journal_text(Round { offset: 3, from: 0, to: 9 }).as_str()), Some(Round { offset: 3, from: 0, to: 9 }));
@@ -259,7 +283,10 @@ fn only_a_whole_journal_line_records_a_round() {
     assert_eq!(parse_journal("1 0 5\nnot a record\n2 5 8\n3 8"), Some(Round { offset: 2, from: 5, to: 8 }), "the last whole record wins");
 }
 
-/// A journal only grows: a record is a new last line, a line a kill cut short is ended and stays unreadable, and the new line is
+/// A journal only grows:
+/// a record is a new last line,
+/// a line a kill cut short is ended and stays unreadable,
+/// and the new line is
 ///  the one a restart reads.
 #[cfg(unix)]
 #[test]
@@ -286,8 +313,11 @@ fn journal_path(root: &Path) -> PathBuf {
     return root.join(format!("{}{JOURNAL_SUFFIX}", COMMIT_TIMING_LOG.current));
 }
 
-/// A writer that opened the earlier log before the fold and still has it open when the fold ends: the fold leaves the moved log and
-///  the journal, the current log holds the lines it had once, and nothing is reported as folded.
+/// A writer that opened the earlier log before the fold and still has it open when the fold ends:
+/// the fold leaves the moved log and
+///  the journal,
+/// the current log holds the lines it had once,
+/// and nothing is reported as folded.
 #[test]
 fn a_writer_still_open_at_the_end_leaves_the_moved_log_and_the_journal_and_adds_the_lines_once() {
     let root: PathBuf = fixture("writer-stays-open");
@@ -311,8 +341,11 @@ fn a_writer_still_open_at_the_end_leaves_the_moved_log_and_the_journal_and_adds_
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// A writer that keeps the log open across several commands and adds lines between them: each command adds only the growth,
-///  so every line is in the current log once, in the order written, when the writer finally closes.
+/// A writer that keeps the log open across several commands and adds lines between them:
+/// each command adds only the growth,
+///  so every line is in the current log once,
+/// in the order written,
+/// when the writer finally closes.
 #[test]
 fn a_writer_that_adds_lines_between_commands_has_each_line_added_once() {
     let root: PathBuf = fixture("writer-between-commands");
@@ -334,8 +367,11 @@ fn a_writer_that_adds_lines_between_commands_has_each_line_added_once() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// A kill at every step of a fold that a writer keeps open, a late line from the writer, one more fold with the writer still open,
-///  then the writer's close and a last fold: each line is in the current log once.
+/// A kill at every step of a fold that a writer keeps open,
+/// a late line from the writer,
+/// one more fold with the writer still open,
+///  then the writer's close and a last fold:
+/// each line is in the current log once.
 #[test]
 fn a_kill_at_any_step_with_a_writer_open_then_later_folds_loses_and_repeats_no_line() {
     let expected: String = format!("{CURRENT_LINES}{EARLIER_LINES}{}", std::str::from_utf8(LATE_LINE).expect("text"));
@@ -373,11 +409,15 @@ fn a_reader_of_the_earlier_log_does_not_keep_the_fold_from_finishing() {
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// A program that adds a line after every round, so the moved log keeps growing: the rounds of one command stop at the bound,
-///  every line added so far is in the current log once, and the next command finishes the fold.
+/// A program that adds a line after every round,
+/// so the moved log keeps growing:
+/// the rounds of one command stop at the bound,
+///  every line added so far is in the current log once,
+/// and the next command finishes the fold.
 #[test]
 fn a_moved_log_that_keeps_growing_ends_the_command_at_the_round_bound_and_the_next_command_finishes() {
-    /// Adds a line to the moved log after every append, then closes it again.
+    /// Adds a line to the moved log after every append,
+    /// then closes it again.
     struct GrowsEveryRound {
         /// The moved log.
         waiting: PathBuf,
@@ -411,8 +451,11 @@ fn a_moved_log_that_keeps_growing_ends_the_command_at_the_round_bound_and_the_ne
     std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
-/// A journal left by a finished fold, then a new earlier log and a kill right after the move: the next command must not resume
-///  the old record against the new moved log, which would skip the bytes before it.
+/// A journal left by a finished fold,
+/// then a new earlier log and a kill right after the move:
+/// the next command must not resume
+///  the old record against the new moved log,
+/// which would skip the bytes before it.
 #[test]
 fn a_stale_journal_is_not_resumed_against_a_new_moved_log() {
     let root: PathBuf = fixture("stale-journal");
