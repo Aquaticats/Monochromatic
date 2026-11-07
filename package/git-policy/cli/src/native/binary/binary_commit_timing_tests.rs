@@ -255,6 +255,67 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     remove_settled(&fixture);
 }
 
+/// How long the stand-in Git sleeps before it runs the commit step, in seconds.
+const SLOW_STEP_SECONDS: u64 = 1;
+
+/// A directory with a stand-in `git` that sleeps `SLOW_STEP_SECONDS` before any run whose words include `commit`, then runs the
+///  real Git; every other step runs at once.
+fn slow_commit_git(fixture: &Fixture) -> PathBuf {
+    let directory: PathBuf = fixture.root.join("slow-commit-bin");
+    std::fs::create_dir_all(&directory).expect("directory of the stand-in");
+    let program: PathBuf = directory.join("git");
+    let source: String = format!(
+        "#!/bin/sh\nfor word in \"$@\"; do\n  if [ \"$word\" = commit ]; then sleep {SLOW_STEP_SECONDS}; break; fi\ndone\nexec /usr/bin/git \"$@\"\n"
+    );
+    std::fs::write(&program, source).expect("the stand-in");
+    std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    return directory;
+}
+
+/// The record names every Git step of the command with when it began and how long it took, so a slow build is attributed to
+///  the step that spent the time.
+/// Why:
+///  On 2026-11-07 a commit spent 241 s in its build phase and the record could not say in which step: the commit Git builds in
+///  the scratch repository ran with no notice and no entry of its own. The stand-in Git sleeps in that step, and the step's
+///  duration has to be in the record, with a name that carries no path, message or environment.
+#[test]
+fn a_slow_build_step_is_named_in_the_record_with_its_duration() {
+    let fixture: Fixture = fixture("timing-steps");
+    let repo: PathBuf = base_repository(&fixture);
+    // A configuration key the service does not embed (`commit.verbose`) makes Git build the commit, in the scratch repository.
+    git_text(&fixture, &repo, &["config", "commit.verbose", "false"]);
+    let name: String = format!("timing-steps-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let mut command: Command = commit_a_command(&fixture, &repo, runtime_for(name.as_str()).as_path());
+    let mut path: std::ffi::OsString = slow_commit_git(&fixture).into_os_string();
+    path.push(":");
+    path.push(super::support::wrapper_first_path(&fixture));
+    command.env("PATH", path);
+    let served = observe(&mut command, b"");
+    assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
+    let found: Vec<serde_json::Value> = records(&repo);
+    assert_eq!(found.len(), 1, "{found:?}");
+    let record: &serde_json::Value = &found[0];
+    let steps: &Vec<serde_json::Value> = record["steps"].as_array().unwrap_or_else(|| { panic!("the record has no steps list: {record}") });
+    let slow: u64 = SLOW_STEP_SECONDS * 1000;
+    let built: &serde_json::Value = steps.iter().find(|step| { return step["name"] == "git commit"; }).unwrap_or_else(|| { panic!("no git commit step: {record}") });
+    assert!(number(built, "durationMs") >= slow, "the sleeping step's duration is in the record: {built}");
+    assert!(number(built, "durationMs") <= number(record, "buildMs"), "the step lies inside the build phase: {record}");
+    assert!(number(built, "offsetMs") + number(built, "durationMs") <= number(record, "totalMs"), "{record}");
+    for step in steps {
+        let step_name: &str = step["name"].as_str().expect("a step name");
+        assert!(step_name.starts_with("git ") && !step_name.contains('/') && !step_name.contains(MESSAGE) && !step_name.contains('='), "a step name is the program and the subcommand: {step_name}");
+        assert!(step["offsetMs"].is_u64() && step["durationMs"].is_u64(), "{step}");
+    }
+    assert_eq!(record["stepsDropped"], 0, "{record}");
+    // Steps are listed in the order they began.
+    let offsets: Vec<u64> = steps.iter().map(|step| { return number(step, "offsetMs"); }).collect();
+    assert!(offsets.windows(2).all(|pair| { return pair[0] <= pair[1]; }), "{offsets:?}");
+    remove_settled(&fixture);
+}
+
 /// Whole milliseconds each term of a sum may fall short by, because every phase is cut to whole milliseconds on its own.
 const ROUNDING_MS: u64 = 12;
 
