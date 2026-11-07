@@ -3590,7 +3590,8 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   folders. Tried and refused at the same time by the five-agent limit, so they start at the next free slot:
   bounding `core-exec`'s half-hour `depends.unit.test.ts` (`fix/monorepo-task-core-exec-depends-test-time`), and the
   terminal and music-player Containerfiles taking Zig from the lock row instead of `ZIG_VERSION=0.15.2`
-  (`fix/containers-zig-from-lock`); both briefs are ready in the coordinator's session.
+  (`fix/containers-zig-from-lock`); both briefs are saved in
+  `~/temp/agent/coordinator-briefs/waiting-for-a-slot.md` (scratch, lost on reboot).
 - Left for later: the old `cli-git@` units of each worktree still run 0.5.34 until their three-hour idle exit (0.6.0 neither
   stops nor removes them, `package/git-policy/cli/README.md` lines 40 to 41); old `cargo/<crate>/<version>` install folders
   stay on disk; `toolchain:install:global` and `toolchain:list:global` disagree on 12 npm-routed tools (not investigated).
