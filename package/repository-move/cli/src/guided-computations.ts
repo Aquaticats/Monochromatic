@@ -88,6 +88,13 @@ async function freeBytes(path: string,): Promise<number> {
  @param text - the output; the last line is `Total Exclusive "Set shared" path`
  
  @returns bytes
+
+ @example
+ ```ts
+ import { footprintOf, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = footprintOf(text,);
+ ```
  */
 export function footprintOf(text: string,): number {
   /**
@@ -109,6 +116,13 @@ export function footprintOf(text: string,): number {
  @returns the lines to show, ending in `pre-flight passed`
  
  @throws Error with the REFUSED line when a rule fails
+
+ @example
+ ```ts
+ import { preflight, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await preflight(config,);
+ ```
  */
 export async function preflight(config: GuidedConfig,): Promise<string> {
   /**
@@ -185,6 +199,13 @@ export async function preflight(config: GuidedConfig,): Promise<string> {
  @returns the lines to show
  
  @throws Error when the override is above the derived maximum
+
+ @example
+ ```ts
+ import { windowMaximum, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await windowMaximum(config,);
+ ```
  */
 export async function windowMaximum(config: GuidedConfig,): Promise<string> {
   /**

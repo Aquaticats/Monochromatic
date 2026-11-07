@@ -1,25 +1,40 @@
 //! What:
-//!  An explicit `git push` that lost a race: the commits that landed on the remote since the local base are merged in
-//!       the object store, and the merge is published by the wrapper pushing it again through its own gates.
+//!  An explicit `git push` that lost a race:
+//! the commits that landed on the remote since the local base are merged in
+//!       the object store,
+//! and the merge is published by the wrapper pushing it again through its own gates.
 //! Why:
-//!  Several sessions push to one branch all day; a push rejected because the remote moved cannot succeed again,
-//!  and every caller would fetch, merge or rebase and retry by hand while racing the others.
-//!  The wrapper runs an eligible push as a child with the caller's streams, so Git's own output is unchanged.
-//!  Only a failed push is looked at again, and only a divergence of the destination is acted on;
-//!  an authentication, offline, hook or rule refusal keeps the exit status and the text Git gave.
-//!  The merge is pushed through the same push planning, run inside this process (`stacked_merge_push`) with
-//!  `STACKED_PUSH_MARKER` set in the planned environment, so the policies that gate any push read the integrated result
-//!  and the marker stops that push from stacking again. The wrapper never starts itself for this.
-//!  A push that carries the Git LFS upload also runs here, as a child, so this parent can explain a failed upload.
+//!  Several sessions push to one branch all day;
+//! a push rejected because the remote moved cannot succeed again,
+//!  and every caller would fetch,
+//! merge or rebase and retry by hand while racing the others.
+//!  The wrapper runs an eligible push as a child with the caller's streams,
+//! so Git's own output is unchanged.
+//!  Only a failed push is looked at again,
+//! and only a divergence of the destination is acted on;
+//!  an authentication,
+//! offline,
+//! hook or rule refusal keeps the exit status and the text Git gave.
+//!  The merge is pushed through the same push planning,
+//! run inside this process (`stacked_merge_push`) with
+//!  `STACKED_PUSH_MARKER` set in the planned environment,
+//! so the policies that gate any push read the integrated result
+//!  and the marker stops that push from stacking again.
+//! The wrapper never starts itself for this.
+//!  A push that carries the Git LFS upload also runs here,
+//! as a child,
+//! so this parent can explain a failed upload.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const code = await runPush(args); if (code !== 0) code = (await stackFailedPush({ args })) ?? code;
 //! ```
 
-/// The reconcile loop that auto-push shares, and what it needs.
+/// The reconcile loop that auto-push shares,
+/// and what it needs.
 use crate::auto_push_reconcile::{Destination, Integrated, MergePusher, Reconcile, integrate_and_push};
-/// The coordinator's Git, its read-only query runner and its error type.
+/// The coordinator's Git,
+/// its read-only query runner and its error type.
 use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query};
 /// The action data of a stacked push.
 use crate::action::PushForward;
@@ -29,9 +44,12 @@ use crate::child_environment::environment_with_overlay;
 use crate::command_push::stackable_option_tokens;
 /// The diagnostic log of the wrapper.
 use crate::diagnostic_log::debug;
-/// The check that the upload can start, what the upload sends, and its run.
+/// The check that the upload can start,
+/// what the upload sends,
+/// and its run.
 use crate::lfs_interactive::{InteractiveUpload, upload_first};
-/// The merge push, planned and run inside this process.
+/// The merge push,
+/// planned and run inside this process.
 use crate::stacked_merge_push::gated_merge_push;
 /// The destination and object names the push would send.
 use crate::manual_push_probe::probe_manual_push_updates;
@@ -48,7 +66,8 @@ const TAG: &str = "monochromatic-git-policy-cli";
 /// The environment variable the stacked push carries so that it is never stacked again.
 pub const STACKED_PUSH_MARKER: &str = "CLI_GIT_STACKED_PUSH";
 
-/// How the merge of an integrated push is published, returning the push's exit status.
+/// How the merge of an integrated push is published,
+/// returning the push's exit status.
 pub type MergePush<'a> =
     &'a dyn Fn(&PushGit, &[OsString], &[OsString], &[String]) -> Result<i32, SingleFlightError>;
 
@@ -63,17 +82,24 @@ pub struct StackRequest<'a> {
     pub git: &'a PushGit,
     /// The global options before `push`.
     pub global_prefix: &'a [OsString],
-    /// Pushes the merge: the coordinator's Git, the global options, the option tokens, then the remote and refspec.
-    ///  Production passes the in-process planner (`gated_merge_push`); controls pass plain Git.
+    /// Pushes the merge:
+    /// the coordinator's Git,
+    /// the global options,
+    /// the option tokens,
+    /// then the remote and refspec.
+    ///  Production passes the in-process planner (`gated_merge_push`);
+    /// controls pass plain Git.
     pub merge_push: MergePush<'a>,
     /// The arguments after `push`.
     pub region: &'a [OsString],
 }
 
 /// What:
-///  The branch HEAD names, or nothing for a detached HEAD.
+///  The branch HEAD names,
+/// or nothing for a detached HEAD.
 /// Why:
-///   The branch follows the published merge when it can; a detached HEAD stays where it is.
+///   The branch follows the published merge when it can;
+/// a detached HEAD stays where it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -96,12 +122,19 @@ fn checked_out_branch(git: &PushGit) -> Option<String> {
 }
 
 /// What:
-///  Integrate the remote's new commits after an explicit push failed, or say nothing when the failure was no divergence.
-///  `Option<i32>` is "the new exit status, or nothing to change".
+///  Integrate the remote's new commits after an explicit push failed,
+/// or say nothing when the failure was no divergence.
+///  `Option<i32>` is "the new exit status,
+/// or nothing to change".
 /// Why:
-///   The status is `0` when the merge was published, and the failing status when the run says why it was not
-///  (a conflict, a gate that refused the merge, a remote that kept moving); every other failure returns nothing
-///  and prints nothing, so the person sees only Git's own report.
+///   The status is `0` when the merge was published,
+/// and the failing status when the run says why it was not
+///  (a conflict,
+/// a gate that refused the merge,
+/// a remote that kept moving);
+/// every other failure returns nothing
+///  and prints nothing,
+/// so the person sees only Git's own report.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -167,9 +200,12 @@ pub fn stack_failed_push(
 }
 
 /// What:
-///  The push of a merge commit for a failed explicit push: the request's merge planner run with the person's push options.
+///  The push of a merge commit for a failed explicit push:
+/// the request's merge planner run with the person's push options.
 /// Why:
-///   The loop that integrates and pushes takes its push as a value; this one carries the request, the Git context and the option
+///   The loop that integrates and pushes takes its push as a value;
+/// this one carries the request,
+/// the Git context and the option
 ///  tokens of the push the person typed.
 ///
 /// In TS you'd write (pseudocode):
@@ -177,7 +213,8 @@ pub fn stack_failed_push(
 /// class StackedMergePush implements MergePusher { pushMerge(destination, mergeOid) { return { exitCode: request.mergePush(git, prefix, tokens, [remote, `${mergeOid}:${mergeRef}`]), output: '' }; } }
 /// ```
 struct StackedMergePush<'a> {
-    /// The failed push's request, which carries the merge planner.
+    /// The failed push's request,
+    /// which carries the merge planner.
     request: &'a StackRequest<'a>,
     /// The coordinator's Git.
     git: &'a PushGit,
@@ -201,9 +238,12 @@ impl MergePusher for StackedMergePush<'_> {
 }
 
 /// What:
-///  Run an eligible explicit push as a child with the caller's streams, then integrate it when it failed on a divergence.
+///  Run an eligible explicit push as a child with the caller's streams,
+/// then integrate it when it failed on a divergence.
 /// Why:
-///   The wrapper must outlive Git to look at its status; nothing is buffered, so Git's own output is what the person sees.
+///   The wrapper must outlive Git to look at its status;
+/// nothing is buffered,
+/// so Git's own output is what the person sees.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

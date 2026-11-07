@@ -13,7 +13,9 @@ fn varints_match_the_values_git_writes() {
     }
 }
 
-/// A varint cut off in the middle, and one too long for 64 bits, are not read.
+/// A varint cut off in the middle,
+/// and one too long for 64 bits,
+/// are not read.
 #[test]
 fn damaged_varints_are_not_read() {
     assert_eq!(decode_varint(&[0x80]), None);

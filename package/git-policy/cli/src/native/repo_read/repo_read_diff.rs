@@ -1,10 +1,16 @@
 //! What:
-//!  The difference between two sorted lists of tree-like entries (a flattened tree, an index), in Git's raw and
-//!  name-only spellings, and the pathspec forms and filters the wrapper's own queries use.
+//!  The difference between two sorted lists of tree-like entries (a flattened tree,
+//! an index),
+//! in Git's raw and
+//!  name-only spellings,
+//! and the pathspec forms and filters the wrapper's own queries use.
 //! Why:
-//!  `diff-index --cached`, `diff --cached` and `diff-tree` print exactly these lines for the plain cases;
-//!  every case where Git's output depends on more than the two lists (a file that became a directory, a gitlink,
-//!  a possible rename) returns `None`, so Git answers it.
+//!  `diff-index --cached`,
+//! `diff --cached` and `diff-tree` print exactly these lines for the plain cases;
+//!  every case where Git's output depends on more than the two lists (a file that became a directory,
+//! a gitlink,
+//!  a possible rename) returns `None`,
+//! so Git answers it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,15 +27,22 @@ use crate::repo_read_tree::{FlatEntry, MODE_GITLINK};
 pub struct Change {
     /// The path.
     pub path: Vec<u8>,
-    /// The old mode, 0 for an added path.
+    /// The old mode,
+    /// 0 for an added path.
     pub old_mode: u32,
-    /// The new mode, 0 for a deleted path.
+    /// The new mode,
+    /// 0 for a deleted path.
     pub new_mode: u32,
-    /// The old object name, empty for an added path.
+    /// The old object name,
+    /// empty for an added path.
     pub old_id: Vec<u8>,
-    /// The new object name, empty for a deleted path.
+    /// The new object name,
+    /// empty for a deleted path.
     pub new_id: Vec<u8>,
-    /// The status letter: `A`, `D`, `M` or `T`.
+    /// The status letter:
+    /// `A`,
+    /// `D`,
+    /// `M` or `T`.
     pub status: u8,
 }
 
@@ -59,7 +72,8 @@ fn has_entry_below(list: &[FlatEntry], path: &[u8]) -> bool {
 }
 
 /// What:
-///  The changes from `old` to `new`, both sorted by path;
+///  The changes from `old` to `new`,
+/// both sorted by path;
 ///  `None` when a path is a file on one side and a directory on the other or when a gitlink is involved.
 /// Why:
 ///   Those are the cases whose ordering or spelling Git decides by more than the lists.
@@ -114,11 +128,15 @@ pub fn diff_sorted(old: &[FlatEntry], new: &[FlatEntry]) -> Option<Vec<Change>> 
 }
 
 /// What:
-///  The pathspecs a query names: the plain relative form (at the top of the worktree only) or `:(top,literal)path`,
+///  The pathspecs a query names:
+/// the plain relative form (at the top of the worktree only) or `:(top,literal)path`,
 ///  or `:/` for everything.
 /// Why:
-///   A glob or any other magic changes what matches, so those return `None`; matching a plain name is
-///  "the path, or anything below it".
+///   A glob or any other magic changes what matches,
+/// so those return `None`;
+/// matching a plain name is
+///  "the path,
+/// or anything below it".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -126,12 +144,14 @@ pub fn diff_sorted(old: &[FlatEntry], new: &[FlatEntry]) -> Option<Vec<Change>> 
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PathFilter {
-    /// The names; empty means every path.
+    /// The names;
+    /// empty means every path.
     names: Vec<Vec<u8>>,
 }
 
 impl PathFilter {
-    /// Read the pathspec arguments; `at_top` says whether the command runs at the top of the worktree.
+    /// Read the pathspec arguments;
+    /// `at_top` says whether the command runs at the top of the worktree.
     pub fn parse(specs: &[&[u8]], at_top: bool) -> Option<PathFilter> {
         let mut names: Vec<Vec<u8>> = Vec::new();
         let mut everything: bool = false;
@@ -192,17 +212,25 @@ fn is_dot_part(part: &[u8]) -> bool {
     return part == b"." || part == b"..";
 }
 
-/// Whether `byte` is a wildcard or escape byte (`*`, `?`, `[`, `\` or NUL) that a literal pathspec cannot hold.
+/// Whether `byte` is a wildcard or escape byte (`*`,
+/// `?`,
+/// `[`,
+/// `\` or NUL) that a literal pathspec cannot hold.
 fn is_pattern_byte(byte: &u8) -> bool {
     return matches!(byte, b'*' | b'?' | b'[' | b'\\' | 0);
 }
 
-/// Whether `byte` is one of the status letters `A`, `D`, `M`, `T`.
+/// Whether `byte` is one of the status letters `A`,
+/// `D`,
+/// `M`,
+/// `T`.
 fn is_status_letter(byte: u8) -> bool {
     return matches!(byte, b'A' | b'D' | b'M' | b'T');
 }
 
-/// The statuses `--diff-filter` keeps; `None` keeps all. Only the upper-case letters `A D M T` are understood.
+/// The statuses `--diff-filter` keeps;
+/// `None` keeps all.
+/// Only the upper-case letters `A D M T` are understood.
 pub fn parse_diff_filter(text: &str) -> Option<Vec<u8>> {
     if text.is_empty() || !text.bytes().all(is_status_letter) {
         return None;
@@ -228,7 +256,8 @@ pub fn select(changes: Vec<Change>, filter: &PathFilter, statuses: Option<&[u8]>
     return selected;
 }
 
-/// The `-z` raw lines: `:<old mode> <new mode> <old id> <new id> <status>\0<path>\0`.
+/// The `-z` raw lines:
+/// `:<old mode> <new mode> <old id> <new id> <status>\0<path>\0`.
 pub fn raw_lines(changes: &[Change], zero_id: &str) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::new();
     for change in changes {
@@ -242,7 +271,8 @@ pub fn raw_lines(changes: &[Change], zero_id: &str) -> Vec<u8> {
     return out;
 }
 
-/// The `-z` name-only lines: `<path>\0`.
+/// The `-z` name-only lines:
+/// `<path>\0`.
 pub fn name_lines(changes: &[Change]) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::new();
     for change in changes {

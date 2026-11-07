@@ -1,5 +1,9 @@
-//! Controls for the subvolume destination of a `git worktree add`: creation on btrfs, the refusals that leave Git to
-//!  make its ordinary directory, Git filling and removing a created subvolume, and the cleanup after a failed Git.
+//! Controls for the subvolume destination of a `git worktree add`:
+//! creation on btrfs,
+//! the refusals that leave Git to
+//!  make its ordinary directory,
+//! Git filling and removing a created subvolume,
+//! and the cleanup after a failed Git.
 
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
@@ -8,12 +12,14 @@ use crate::test_support::{fixture, git, git_output, remove, repository};
 use std::os::unix::fs::MetadataExt;
 use std::process::Output;
 
-/// A plan for a destination, with an insertion point no control here reads.
+/// A plan for a destination,
+/// with an insertion point no control here reads.
 fn plan_for(destination: PathBuf) -> AddPlan {
     return AddPlan { destination, insert_at: 2, quiet: false };
 }
 
-/// A destination that does not exist on btrfs becomes an empty subvolume root, and settling removes it while it is
+/// A destination that does not exist on btrfs becomes an empty subvolume root,
+/// and settling removes it while it is
 ///  still empty.
 #[test]
 fn btrfs_a_missing_destination_becomes_an_empty_subvolume_and_settles_away() {
@@ -28,7 +34,10 @@ fn btrfs_a_missing_destination_becomes_an_empty_subvolume_and_settles_away() {
     remove(root.as_path());
 }
 
-/// A destination that exists, empty or not, is left to Git, and a destination whose parent is missing has no
+/// A destination that exists,
+/// empty or not,
+/// is left to Git,
+/// and a destination whose parent is missing has no
 ///  filesystem to ask.
 #[test]
 fn btrfs_an_existing_or_unplaceable_destination_is_left_to_git() {
@@ -46,7 +55,8 @@ fn btrfs_an_existing_or_unplaceable_destination_is_left_to_git() {
     remove(root.as_path());
 }
 
-/// A subvolume that holds anything is Git's result and stays; this is the guard against removing a worktree.
+/// A subvolume that holds anything is Git's result and stays;
+/// this is the guard against removing a worktree.
 #[test]
 fn btrfs_a_filled_destination_is_not_removed() {
     let Some(root) = btrfs_fixture("worktree-subvolume-filled") else { return };
@@ -62,8 +72,11 @@ fn btrfs_a_filled_destination_is_not_removed() {
     remove(root.as_path());
 }
 
-/// Wherever the fixture root is, creation happens exactly when the parent is on btrfs; this is the control that runs
-///  on the gate's overlay, where the answer is nothing.
+/// Wherever the fixture root is,
+/// creation happens exactly when the parent is on btrfs;
+/// this is the control that runs
+///  on the gate's overlay,
+/// where the answer is nothing.
 #[test]
 fn creation_happens_exactly_when_the_parent_is_on_btrfs() {
     let root: PathBuf = fixture("worktree-subvolume-kind");
@@ -77,7 +90,9 @@ fn creation_happens_exactly_when_the_parent_is_on_btrfs() {
     remove(root.as_path());
 }
 
-/// Real Git 2.56.0 fills the empty subvolume as a worktree, the subvolume stays a subvolume root, and
+/// Real Git 2.56.0 fills the empty subvolume as a worktree,
+/// the subvolume stays a subvolume root,
+/// and
 ///  `git worktree remove` removes it again.
 #[test]
 fn btrfs_real_git_fills_the_subvolume_and_removes_it() {
@@ -97,8 +112,11 @@ fn btrfs_real_git_fills_the_subvolume_and_removes_it() {
     remove(root.as_path());
 }
 
-/// A Git that fails before it starts to fill the destination (a branch that exists) leaves the empty subvolume, and
-///  settling removes it; without the settle the leftover would stay, which this control shows first.
+/// A Git that fails before it starts to fill the destination (a branch that exists) leaves the empty subvolume,
+/// and
+///  settling removes it;
+/// without the settle the leftover would stay,
+/// which this control shows first.
 #[test]
 fn btrfs_a_failed_git_leaves_nothing_after_settling() {
     let Some(root) = btrfs_fixture("worktree-subvolume-failed") else { return };
@@ -114,7 +132,8 @@ fn btrfs_a_failed_git_leaves_nothing_after_settling() {
     remove(root.as_path());
 }
 
-/// A destination that was moved away and replaced by another empty subvolume is not the one this process created, and its
+/// A destination that was moved away and replaced by another empty subvolume is not the one this process created,
+/// and its
 ///  settlement leaves the replacement alone.
 #[test]
 fn btrfs_a_replacement_subvolume_is_not_settled_away() {

@@ -1,11 +1,23 @@
 //! What:
-//!  Guard for the lock inventory of the service and its support modules: a lock primitive (a mutex, a read-write lock, a
-//!  condition variable, a `flock`) may stand in these sources only on the inventory below, and only with its reason written in
+//!  Guard for the lock inventory of the service and its support modules:
+//! a lock primitive (a mutex,
+//! a read-write lock,
+//! a
+//!  condition variable,
+//! a `flock`) may stand in these sources only on the inventory below,
+//! and only with its reason written in
 //!  the comment block directly above its declaration (the first line that uses it).
 //! Why:
-//!  The owner's rule is lock-free first: atomic rename, exclusive creation, one owner per item, and an unavoidable lock that
-//!  covers the smallest unit with its reason beside it (`AGENTS.md`, "Concurrency is lock-free first"). A lock added to one of
-//!  these modules later must therefore be a decision recorded here and explained in the code, never a reflex.
+//!  The owner's rule is lock-free first:
+//! atomic rename,
+//! exclusive creation,
+//! one owner per item,
+//! and an unavoidable lock that
+//!  covers the smallest unit with its reason beside it (`AGENTS.md`,
+//! "Concurrency is lock-free first").
+//! A lock added to one of
+//!  these modules later must therefore be a decision recorded here and explained in the code,
+//! never a reflex.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,7 +26,12 @@
 
 use std::path::{Path, PathBuf};
 
-/// The sources this guard covers, by the start of the file name: the service, the work queue, the discarded store, the index
+/// The sources this guard covers,
+/// by the start of the file name:
+/// the service,
+/// the work queue,
+/// the discarded store,
+/// the index
 /// lock handling and the support modules they use.
 const COVERED_PREFIXES: &[&str] = &[
     "service_",
@@ -33,10 +50,14 @@ const COVERED_PREFIXES: &[&str] = &[
 /// Words that name a lock primitive in code.
 const LOCK_WORDS: &[&str] = &["Mutex", "RwLock", "Condvar", "flock(", "LOCK_EX", "LOCK_SH"];
 
-/// The words a comment block above a kept lock must contain, which is where its reason is written.
+/// The words a comment block above a kept lock must contain,
+/// which is where its reason is written.
 const REASON_MARKER: &str = "Lock kept:";
 
-/// The locks that stay, by file: what each protects is in the comment block above it, and in `SPEC.md`.
+/// The locks that stay,
+/// by file:
+/// what each protects is in the comment block above it,
+/// and in `SPEC.md`.
 const INVENTORY: &[&str] = &["service/journald_native.rs"];
 
 /// Every `.rs` file below `root`,
@@ -83,7 +104,9 @@ fn covered_sources() -> Vec<(String, String)> {
     return found;
 }
 
-/// The lines of `source` that use a lock primitive in code: not comments, not imports.
+/// The lines of `source` that use a lock primitive in code:
+/// not comments,
+/// not imports.
 fn lock_lines(source: &str) -> Vec<usize> {
     return source
         .lines()
@@ -124,7 +147,8 @@ fn a_lock_stands_only_in_a_file_on_the_inventory() {
     assert!(strays.is_empty(), "locks outside the inventory (remove them, or keep them with the reason and list the file): {strays:?}");
 }
 
-/// Every lock on the inventory has its reason in the comment block above its declaration, and no file stays on the inventory once it has no lock.
+/// Every lock on the inventory has its reason in the comment block above its declaration,
+/// and no file stays on the inventory once it has no lock.
 #[test]
 fn every_kept_lock_has_its_reason_beside_it_and_the_inventory_has_no_stale_entry() {
     let sources: Vec<(String, String)> = covered_sources();
@@ -149,7 +173,8 @@ fn every_covered_prefix_reaches_a_source_in_some_folder() {
     }
 }
 
-/// The guard sees locks: the positive control that a scan which finds nothing would fail.
+/// The guard sees locks:
+/// the positive control that a scan which finds nothing would fail.
 #[test]
 fn the_scan_finds_a_lock_in_text_that_has_one() {
     let sample: &str = "// Mutex in a comment\nuse std::sync::Mutex;\nstruct A {\n    held: Mutex<u8>,\n}\n";

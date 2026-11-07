@@ -1,4 +1,5 @@
-//! Controls for entry rendering. The expected lines are built from the same fields the entry is.
+//! Controls for entry rendering.
+//! The expected lines are built from the same fields the entry is.
 
 use super::*;
 
@@ -18,7 +19,8 @@ fn sample(top: &str, truncated: bool) -> ReviewEntry {
     };
 }
 
-/// The entry's lines come in the script's order, each field printed once at its indent.
+/// The entry's lines come in the script's order,
+/// each field printed once at its indent.
 #[test]
 fn review_entry_lines_follow_the_log_layout() {
     let entry: ReviewEntry = sample("no", false);
@@ -48,7 +50,9 @@ fn review_entry_lines_follow_the_log_layout() {
     assert_eq!(lines, expected.iter().map(String::as_str).collect::<Vec<&str>>());
 }
 
-/// A truncated patch says so with the cap, `partial` prints its two-line gesture, and other choices print `unjudged`.
+/// A truncated patch says so with the cap,
+/// `partial` prints its two-line gesture,
+/// and other choices print `unjudged`.
 #[test]
 fn truncation_and_the_judged_line_vary() {
     let capped: String = render_review(&sample("yes", true));
@@ -61,7 +65,8 @@ fn truncation_and_the_judged_line_vary() {
     }
 }
 
-/// A subject or finding with line breaks cannot add lines to the entry, so it cannot start a forged entry.
+/// A subject or finding with line breaks cannot add lines to the entry,
+/// so it cannot start a forged entry.
 #[test]
 fn hostile_text_cannot_add_lines() {
     let clean: ReviewEntry = sample("no", false);

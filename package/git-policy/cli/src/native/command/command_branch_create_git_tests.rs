@@ -130,7 +130,8 @@ fn branch_fixture(name: &str) -> (PathBuf, PathBuf) {
     return (directory, root);
 }
 
-/// The space of one worker: its own scratch directory and an empty tally.
+/// The space of one worker:
+/// its own scratch directory and an empty tally.
 fn lane(directory: &Path, pristine: &Path, number: usize) -> Lane {
     let scratch: PathBuf = directory.join(format!("lane-{number}"));
     std::fs::create_dir_all(scratch.as_path()).expect("lane directory");
@@ -226,7 +227,9 @@ fn merged(lanes: Vec<Lane>) -> Tally {
     return total;
 }
 
-/// Positive control: the comparison reached creation, refusal and neither.
+/// Positive control:
+/// the comparison reached creation,
+/// refusal and neither.
 fn assert_reached_every_outcome(tally: &Tally) {
     assert!(tally.created > 0, "no case created a branch");
     assert!(tally.refused > 0, "no case was refused");

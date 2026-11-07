@@ -53,7 +53,8 @@ fn text_arguments(values: &[&str]) -> Vec<OsString> {
 }
 
 /// `git --version` through a `git`-named link prints real Git 2.56.0's line,
-///  then exactly one banner line naming the wrapper, its version and the Git it shadows.
+///  then exactly one banner line naming the wrapper,
+/// its version and the Git it shadows.
 #[test]
 fn version_is_gits_line_followed_by_the_banner() {
     let fixture: Fixture = fixture("version");
@@ -80,7 +81,9 @@ fn version_is_gits_line_followed_by_the_banner() {
 }
 
 /// The queries that are not announced stay byte-identical to real Git:
-///  stdout, stderr and exit code, with and without global options before them.
+///  stdout,
+/// stderr and exit code,
+/// with and without global options before them.
 #[test]
 fn path_queries_are_identical_to_native_git() {
     let fixture: Fixture = fixture("path-queries");

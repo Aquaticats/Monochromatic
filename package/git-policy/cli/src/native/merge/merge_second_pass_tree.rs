@@ -1,14 +1,27 @@
 //! What:
-//!  The word-level second pass for a merge computed from objects: given the tree `git merge-tree` wrote and the stages of
-//!  its conflicted paths, the tree the merge would have if every conflicted file resolves by word, or nothing.
-//!  It also names the attribute tree those merges read, so the `union` line of `.gitattributes` applies without a worktree.
+//!  The word-level second pass for a merge computed from objects:
+//! given the tree `git merge-tree` wrote and the stages of
+//!  its conflicted paths,
+//! the tree the merge would have if every conflicted file resolves by word,
+//! or nothing.
+//!  It also names the attribute tree those merges read,
+//! so the `union` line of `.gitattributes` applies without a worktree.
 //! Why:
-//!  The isolated merge, the auto-push reconcile merge and the commit replay merge never touch a worktree. They publish or
-//!  commit a merge only when it is whole, so a tree is returned only when every conflicted path resolved; one path left over
-//!  keeps the conflict as Git reported it, and nothing is written for it except the unreferenced objects.
+//!  The isolated merge,
+//! the auto-push reconcile merge and the commit replay merge never touch a worktree.
+//! They publish or
+//!  commit a merge only when it is whole,
+//! so a tree is returned only when every conflicted path resolved;
+//! one path left over
+//!  keeps the conflict as Git reported it,
+//! and nothing is written for it except the unreferenced objects.
 //!  Without a worktree Git finds no `.gitattributes` unless it is told where to read them (`GIT_ATTR_SOURCE`,
-//!  `git --attr-source`, `attr.tree`; `doc/planning/cli-git-merge-auto-resolution.md`, "Does git merge-tree honour a merge
-//!  driver"). The tree of the first side's tip is the one the person's own checkout of that branch reads.
+//!  `git --attr-source`,
+//! `attr.tree`;
+//! `doc/planning/cli-git-merge-auto-resolution.md`,
+//! "Does git merge-tree honour a merge
+//!  driver").
+//! The tree of the first side's tip is the one the person's own checkout of that branch reads.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -39,20 +52,27 @@ const ATTRIBUTE_TREE_KEY: &str = "attr.tree";
 pub struct AttributeProbe<'a> {
     /// The worktree (or a directory inside the repository) the merge belongs to.
     pub directory: &'a Path,
-    /// The invocation's global options, among which `--attr-source` may be.
+    /// The invocation's global options,
+    /// among which `--attr-source` may be.
     pub global_prefix: &'a [OsString],
-    /// The complete environment the Git children get: the process's own and the overlay.
+    /// The complete environment the Git children get:
+    /// the process's own and the overlay.
     pub variables: &'a [(OsString, OsString)],
-    /// How to start Git, to resolve a configured `attr.tree`.
+    /// How to start Git,
+    /// to resolve a configured `attr.tree`.
     pub runner: &'a dyn GitRunner,
 }
 
 /// What:
-///  The value of `attr.tree`, read in process when the readers take the repository and from Git when they decline it; `None` when
-///  neither can say, and `Some(None)` when it is not configured.
+///  The value of `attr.tree`,
+/// read in process when the readers take the repository and from Git when they decline it;
+/// `None` when
+///  neither can say,
+/// and `Some(None)` when it is not configured.
 /// Why:
 ///   The in-process reader declines an environment that holds a `GIT_*` variable it does not know (`GIT_EDITOR` is one many
-///  people set), and a declined repository must not silently lose the person's attribute tree.
+///  people set),
+/// and a declined repository must not silently lose the person's attribute tree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -93,14 +113,26 @@ fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String
 }
 
 /// What:
-///  The variable pair that makes a merge from objects read the attributes of `tip`, only where Git itself would read no
+///  The variable pair that makes a merge from objects read the attributes of `tip`,
+/// only where Git itself would read no
 ///  attribute tree.
 /// Why:
-///   Git takes the attribute tree from `--attr-source`, else from `GIT_ATTR_SOURCE`, else from the configuration `attr.tree`
-///  (`attr.c`, `compute_default_attr_source`, lines 1202 to 1231); a value of the configuration that does not resolve to a tree
-///  is ignored, as Git ignores it, while one of the other two that does not resolve is an error of Git's own. So the first
-///  side's tip is named only when none of the three applies: the person's choice is never overridden. A layout or a
-///  configuration the in-process readers decline counts as a person's choice that cannot be seen, and nothing is named.
+///   Git takes the attribute tree from `--attr-source`,
+/// else from `GIT_ATTR_SOURCE`,
+/// else from the configuration `attr.tree`
+///  (`attr.c`,
+/// `compute_default_attr_source`,
+/// lines 1202 to 1231);
+/// a value of the configuration that does not resolve to a tree
+///  is ignored,
+/// as Git ignores it,
+/// while one of the other two that does not resolve is an error of Git's own.
+/// So the first
+///  side's tip is named only when none of the three applies:
+/// the person's choice is never overridden.
+/// A layout or a
+///  configuration the in-process readers decline counts as a person's choice that cannot be seen,
+/// and nothing is named.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -142,14 +174,17 @@ pub fn attribute_tree_variables(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(O
 pub struct Resolved {
     /// The tree with the merged files in place of the conflicted ones.
     pub tree: String,
-    /// The files that were merged, with their parts.
+    /// The files that were merged,
+    /// with their parts.
     pub merged: Vec<Merged>,
 }
 
 /// What:
-///  The tree of a merge whose conflicted files all resolve by word, or `None` when any does not or Git fails.
+///  The tree of a merge whose conflicted files all resolve by word,
+/// or `None` when any does not or Git fails.
 /// Why:
-///   See the module comment. Every reason for `None` goes to the diagnostic log with the path it concerns.
+///   See the module comment.
+/// Every reason for `None` goes to the diagnostic log with the path it concerns.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -220,7 +255,8 @@ pub fn resolve_tree(runner: &dyn GitRunner, common_dir: &Path, tree: &str, confl
     };
 }
 
-/// Why a path was left, in words for the diagnostic log.
+/// Why a path was left,
+/// in words for the diagnostic log.
 fn left_words(why: &Left) -> String {
     return match why {
         Left::MissingStage => String::from("a stage is missing"),
@@ -232,7 +268,8 @@ fn left_words(why: &Left) -> String {
     };
 }
 
-/// The lines that list the parts of the merged files, without sending anything.
+/// The lines that list the parts of the merged files,
+/// without sending anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -249,7 +286,8 @@ pub fn report(prefix: &str, merged: &[Merged]) -> Vec<String> {
 /// What:
 ///  Send the journal entries for the merged files and return the lines that list their parts.
 /// Why:
-///   The entries are sent only when the merge is used, so the journal never says a merge happened that was discarded.
+///   The entries are sent only when the merge is used,
+/// so the journal never says a merge happened that was discarded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

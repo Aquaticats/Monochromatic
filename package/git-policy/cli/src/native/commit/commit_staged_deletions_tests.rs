@@ -1,10 +1,13 @@
-//! Controls for the staged-deletion finding: which selected paths it names and what the message offers.
+//! Controls for the staged-deletion finding:
+//! which selected paths it names and what the message offers.
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use std::path::PathBuf;
 
-/// A repository with `a.txt`, `b.txt` and `dir/c.txt` committed, and the real index path.
+/// A repository with `a.txt`,
+/// `b.txt` and `dir/c.txt` committed,
+/// and the real index path.
 fn committed_repository(name: &str) -> (PathBuf, PathBuf, String) {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
@@ -18,7 +21,8 @@ fn committed_repository(name: &str) -> (PathBuf, PathBuf, String) {
     return (root, repo, base);
 }
 
-/// The selected paths with a staged deletion and a worktree entry, for the given pathspecs.
+/// The selected paths with a staged deletion and a worktree entry,
+/// for the given pathspecs.
 fn present(repo: &Path, base: &str, pathspecs: &[&str]) -> Vec<String> {
     let specs: Vec<OsString> = pathspecs.iter().map(OsString::from).collect();
     return staged_deletions_present_on_disk(
@@ -44,7 +48,8 @@ fn a_staged_deletion_whose_path_stays_on_disk_is_named() {
     remove(root.as_path());
 }
 
-/// A deletion whose file is gone from the disk is an ordinary explicit-path commit, so nothing is named.
+/// A deletion whose file is gone from the disk is an ordinary explicit-path commit,
+/// so nothing is named.
 #[test]
 fn a_staged_deletion_whose_path_is_gone_is_not_named() {
     let (root, repo, base) = committed_repository("staged-deletion-gone");
@@ -53,7 +58,8 @@ fn a_staged_deletion_whose_path_is_gone_is_not_named() {
     remove(root.as_path());
 }
 
-/// Only the selected paths are examined: another path's staged deletion is not this commit's concern.
+/// Only the selected paths are examined:
+/// another path's staged deletion is not this commit's concern.
 #[test]
 fn a_staged_deletion_outside_the_pathspecs_is_not_named() {
     let (root, repo, base) = committed_repository("staged-deletion-unselected");
@@ -63,7 +69,8 @@ fn a_staged_deletion_outside_the_pathspecs_is_not_named() {
     remove(root.as_path());
 }
 
-/// A directory pathspec selects the deletions below it, and a deletion that was ignored since is still named.
+/// A directory pathspec selects the deletions below it,
+/// and a deletion that was ignored since is still named.
 #[test]
 fn a_directory_pathspec_names_the_deletions_below_it_even_when_ignored() {
     let (root, repo, base) = committed_repository("staged-deletion-ignored-parent");
@@ -74,7 +81,8 @@ fn a_directory_pathspec_names_the_deletions_below_it_even_when_ignored() {
     remove(root.as_path());
 }
 
-/// No pathspec means no explicit-path selection, so no read is made and nothing is named.
+/// No pathspec means no explicit-path selection,
+/// so no read is made and nothing is named.
 #[test]
 fn no_pathspecs_name_nothing() {
     let (root, repo, base) = committed_repository("staged-deletion-no-pathspec");
@@ -83,7 +91,9 @@ fn no_pathspecs_name_nothing() {
     remove(root.as_path());
 }
 
-/// A modification, which is not a deletion, is never named.
+/// A modification,
+/// which is not a deletion,
+/// is never named.
 #[test]
 fn a_staged_modification_is_not_named() {
     let (root, repo, base) = committed_repository("staged-deletion-modification");
@@ -93,7 +103,9 @@ fn a_staged_modification_is_not_named() {
     remove(root.as_path());
 }
 
-/// The message lists the paths and offers both intents: commit the removal, or stage the file again.
+/// The message lists the paths and offers both intents:
+/// commit the removal,
+/// or stage the file again.
 #[test]
 fn the_message_names_the_paths_and_both_ways_forward() {
     let message: String = staged_deletion_message(&[b"a.txt".to_vec(), b"dir/c.txt".to_vec()]);

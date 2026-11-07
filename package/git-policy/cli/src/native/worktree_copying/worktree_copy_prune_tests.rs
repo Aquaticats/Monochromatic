@@ -1,14 +1,20 @@
-//! The main checkout's leave-out rule: each marker family, the root `.cache` exception, and the run-record toggle.
+//! The main checkout's leave-out rule:
+//! each marker family,
+//! the root `.cache` exception,
+//! and the run-record toggle.
 
 use super::*;
 
-/// The rule with run records skipped, which is what the crate ships.
+/// The rule with run records skipped,
+/// which is what the crate ships.
 const SKIPPING: Prune = Prune::MainCheckout { run_records: false };
 
-/// The rule with run records copied, which the toggle allows.
+/// The rule with run records copied,
+/// which the toggle allows.
 const COPYING: Prune = Prune::MainCheckout { run_records: true };
 
-/// The shipped toggle skips run records, and the shipped rule is built from it.
+/// The shipped toggle skips run records,
+/// and the shipped rule is built from it.
 #[test]
 fn shipped_rule_follows_the_toggle() {
     assert_eq!(Prune::main_checkout(), Prune::MainCheckout { run_records: COPY_RUN_RECORDS });
@@ -16,7 +22,8 @@ fn shipped_rule_follows_the_toggle() {
     assert!(Prune::main_checkout().skips_path("node_modules/.monochromatic/2026-11-01/log.jsonl"));
 }
 
-/// Dependencies and builds are never left out, whichever setting applies.
+/// Dependencies and builds are never left out,
+/// whichever setting applies.
 #[test]
 fn dependencies_and_builds_are_kept() {
     for prune in [SKIPPING, COPYING] {
@@ -41,7 +48,8 @@ fn dependencies_and_builds_are_kept() {
     }
 }
 
-/// Caches are left out under both settings, and the repository root's own `.cache` is the one exception.
+/// Caches are left out under both settings,
+/// and the repository root's own `.cache` is the one exception.
 #[test]
 fn caches_are_left_out_except_the_root_cache() {
     for prune in [SKIPPING, COPYING] {
@@ -67,7 +75,9 @@ fn caches_are_left_out_except_the_root_cache() {
     }
 }
 
-/// Zig's build outputs are not caches: only its project cache is, and the installed artifacts are the build a worktree needs.
+/// Zig's build outputs are not caches:
+/// only its project cache is,
+/// and the installed artifacts are the build a worktree needs.
 #[test]
 fn zig_outputs_are_kept() {
     assert!(!SKIPPING.skips_path("package/x/zig-out"));
@@ -103,7 +113,9 @@ fn run_records_follow_the_toggle() {
     }
 }
 
-/// A `.monochromatic` outside a dependency tree, a `verification` not directly under `target`, and a `cache` not under
+/// A `.monochromatic` outside a dependency tree,
+/// a `verification` not directly under `target`,
+/// and a `cache` not under
 /// `.serena` are ordinary names.
 #[test]
 fn record_names_need_their_parents() {
@@ -120,7 +132,10 @@ fn no_rule_leaves_out_nothing() {
     assert!(!Prune::Never.skips_checkout(&[String::from(".git")]));
 }
 
-/// A directory holding `.git`, as a file or as a directory, is another checkout; a lookalike name is not.
+/// A directory holding `.git`,
+/// as a file or as a directory,
+/// is another checkout;
+/// a lookalike name is not.
 #[test]
 fn a_directory_holding_dot_git_is_another_checkout() {
     assert!(SKIPPING.skips_checkout(&[String::from("src"), String::from(".git")]));

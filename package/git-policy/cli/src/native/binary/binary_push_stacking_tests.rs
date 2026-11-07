@@ -1,16 +1,23 @@
 //! Binary-level controls for an explicit `git push` that lost a race to another session:
-//!  the built executable merges what landed on the remote, publishes the merge through its own push, and leaves every
+//!  the built executable merges what landed on the remote,
+//! publishes the merge through its own push,
+//! and leaves every
 //!  other failure exactly as Git reported it.
-//! A recording `pre-receive` hook in the bare origin (a server-side hook, which a local-path remote runs itself) shows
+//! A recording `pre-receive` hook in the bare origin (a server-side hook,
+//! which a local-path remote runs itself) shows
 //!  which pushes reached the origin and whether each carried the marker of a stacked push.
-//! No hook of the pushing repository is used: the wrapper runs no configured hook.
+//! No hook of the pushing repository is used:
+//! the wrapper runs no configured hook.
 
 use super::support::{Fixture, git, remove, fixture, repository, run_wrapped, stderr_of};
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-/// A repository, its bare origin, a second clone that wins races, and the hook's record.
+/// A repository,
+/// its bare origin,
+/// a second clone that wins races,
+/// and the hook's record.
 struct Race {
     /// The pushing repository.
     repo: PathBuf,
@@ -22,7 +29,8 @@ struct Race {
     record: PathBuf,
 }
 
-/// Install a `pre-receive` hook in the bare origin that records the marker and every received object, and exits with
+/// Install a `pre-receive` hook in the bare origin that records the marker and every received object,
+/// and exits with
 ///  `exit_when_stacked` when it runs inside a stacked push and `0` otherwise.
 fn install_hook(origin: &Path, record: &Path, exit_when_stacked: i32) {
     let hooks: PathBuf = origin.join("hooks");
@@ -40,14 +48,18 @@ fn install_hook(origin: &Path, record: &Path, exit_when_stacked: i32) {
     std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).expect("hook mode");
 }
 
-/// Commit `text` to `name` with real Git, so no auto-push runs.
+/// Commit `text` to `name` with real Git,
+/// so no auto-push runs.
 fn commit(fixture: &Fixture, repo: &Path, name: &str, text: &str) {
     std::fs::write(repo.join(name), text).expect("fixture file");
     git(fixture, repo, &["add", "--", name]);
     git(fixture, repo, &["commit", "--quiet", &format!("--message={name}"), "--", name]);
 }
 
-/// Build the fixture: `main` on the origin, one clone that wins races, and the pushing repository one commit ahead
+/// Build the fixture:
+/// `main` on the origin,
+/// one clone that wins races,
+/// and the pushing repository one commit ahead
 ///  of an origin that has since moved.
 fn race(fixture: &Fixture, hook_exit_when_stacked: i32) -> Race {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
@@ -95,7 +107,8 @@ fn reachable(fixture: &Fixture, race: &Race, ancestor: &str, descendant: &str) -
         .success();
 }
 
-/// The hook's record, one entry per line.
+/// The hook's record,
+/// one entry per line.
 fn record_lines(race: &Race) -> Vec<String> {
     return std::fs::read_to_string(&race.record)
         .unwrap_or_default()
@@ -104,7 +117,8 @@ fn record_lines(race: &Race) -> Vec<String> {
         .collect();
 }
 
-/// How many times the hook ran, one `marker=` line each.
+/// How many times the hook ran,
+/// one `marker=` line each.
 fn hook_runs(race: &Race) -> usize {
     return record_lines(race)
         .iter()
@@ -121,7 +135,8 @@ fn stacked_push_ran(race: &Race) -> bool {
     });
 }
 
-/// A push that lost a race is published as a merge, and Git's own report of the loss is still on standard error.
+/// A push that lost a race is published as a merge,
+/// and Git's own report of the loss is still on standard error.
 #[test]
 fn a_push_that_lost_a_race_is_published_as_a_merge_through_the_gates() {
     let fixture = fixture("stack-lost-race");
@@ -144,7 +159,8 @@ fn a_push_that_lost_a_race_is_published_as_a_merge_through_the_gates() {
     remove(&fixture);
 }
 
-/// A gate that refuses the merge stops the stacking: the origin is untouched and the refusal's status stands.
+/// A gate that refuses the merge stops the stacking:
+/// the origin is untouched and the refusal's status stands.
 #[test]
 fn a_gate_that_refuses_the_merge_stops_the_stacking() {
     let fixture = fixture("stack-gate-refuses");
@@ -163,7 +179,8 @@ fn a_gate_that_refuses_the_merge_stops_the_stacking() {
     remove(&fixture);
 }
 
-/// A dry run is forwarded as it is: nothing is published and no stacked push runs.
+/// A dry run is forwarded as it is:
+/// nothing is published and no stacked push runs.
 #[test]
 fn a_dry_run_runs_no_stacked_push() {
     let fixture = fixture("stack-ineligible");

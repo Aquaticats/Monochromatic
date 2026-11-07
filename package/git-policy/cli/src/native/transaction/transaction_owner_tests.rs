@@ -141,7 +141,8 @@ fn a_refused_probe_is_an_error() {
     }
 }
 
-/// A record written by an owner that names its namespace round-trips with the field last; one without it parses to none.
+/// A record written by an owner that names its namespace round-trips with the field last;
+/// one without it parses to none.
 #[test]
 fn the_namespace_is_an_optional_last_field() {
     let mut named: TransactionOwner = incumbent_owner();
@@ -207,7 +208,9 @@ fn an_owner_of_another_namespace_is_alive_until_its_record_expires() {
     assert!(text.contains("pid:[1]") && text.contains(old.to_string_lossy().as_ref()), "{text}");
 }
 
-/// A record of this namespace, or of none, is still judged by its PID.
+/// A record of this namespace,
+/// or of none,
+/// is still judged by its PID.
 #[cfg(target_os = "linux")]
 #[test]
 fn an_owner_of_this_namespace_or_none_is_judged_by_its_pid() {

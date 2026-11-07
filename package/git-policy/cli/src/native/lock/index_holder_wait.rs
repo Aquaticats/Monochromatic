@@ -1,18 +1,39 @@
 //! What:
-//!  The wait of a command that is about to change the checkout for any program's hold on Git's `index.lock`: the commit
-//!  service's, a foreign `git`'s, or a lock nothing proves held. Event-driven, with a notice that names what is waited for
-//!  and the holder, and over as soon as the lock is gone. A holder proven alive and an owner that cannot be proven alive are
-//!  both waited for with no bound, because the person's own `git commit` with its editor open holds the lock with no proof;
-//!  the line for the second says what is known and how to remove the lock if no program uses the repository. A PID file naming
+//!  The wait of a command that is about to change the checkout for any program's hold on Git's `index.lock`:
+//! the commit
+//!  service's,
+//! a foreign `git`'s,
+//! or a lock nothing proves held.
+//! Event-driven,
+//! with a notice that names what is waited for
+//!  and the holder,
+//! and over as soon as the lock is gone.
+//! A holder proven alive and an owner that cannot be proven alive are
+//!  both waited for with no bound,
+//! because the person's own `git commit` with its editor open holds the lock with no proof;
+//!  the line for the second says what is known and how to remove the lock if no program uses the repository.
+//! A PID file naming
 //!  a process that is gone ends the wait at once with a diagnostic.
 //! Why:
-//!  Native Git never waits for `index.lock`: a merge that finds it held dies (`Unable to create ... index.lock` or, from the
-//!  stash that every merge commit takes first, `could not write index` and `stash failed`). Other sessions commit into a
-//!  shared checkout all the time, so a held lock is ordinary and passes by itself. This wait is the sibling of the wait for
-//!  the commit service's own hold (`service_index_wait.rs`), which returns at once for a foreign holder because a plain
-//!  forwarded writer keeps the behavior of native Git; a merge is held to the owner's rule that merges never fail
-//!  (`SPEC.md`, "Merges and commits never fail"). The wait blocks on an inotify watch set before the first look, so a
-//!  release between the look and the wait is not missed; where no watch can be set it looks again after a short pause.
+//!  Native Git never waits for `index.lock`:
+//! a merge that finds it held dies (`Unable to create ... index.lock` or,
+//! from the
+//!  stash that every merge commit takes first,
+//! `could not write index` and `stash failed`).
+//! Other sessions commit into a
+//!  shared checkout all the time,
+//! so a held lock is ordinary and passes by itself.
+//! This wait is the sibling of the wait for
+//!  the commit service's own hold (`service_index_wait.rs`),
+//! which returns at once for a foreign holder because a plain
+//!  forwarded writer keeps the behavior of native Git;
+//! a merge is held to the owner's rule that merges never fail
+//!  (`SPEC.md`,
+//! "Merges and commits never fail").
+//! The wait blocks on an inotify watch set before the first look,
+//! so a
+//!  release between the look and the wait is not missed;
+//! where no watch can be set it looks again after a short pause.
 //!  It never removes a lock.
 //!
 //! In TS you'd write (pseudocode):
@@ -52,13 +73,17 @@ pub enum IndexWait {
         /// How long the wait lasted.
         Duration,
     ),
-    /// The lock's PID file names a process that no longer runs, so nothing will release it; the diagnostic was written,
+    /// The lock's PID file names a process that no longer runs,
+    /// so nothing will release it;
+    /// the diagnostic was written,
     ///  nothing was changed and the lock was left in place.
     OwnerGone(
         /// How long the wait lasted.
         Duration,
     ),
-    /// The lock was still held at the ceiling; the line naming the blocker was written, nothing was changed and the lock was left
+    /// The lock was still held at the ceiling;
+    /// the line naming the blocker was written,
+    /// nothing was changed and the lock was left
     ///  in place.
     GaveUp(
         /// How long the wait lasted.
@@ -88,12 +113,16 @@ fn look_at(real_index: &Path, gather: &dyn Fn(&Path) -> std::io::Result<Option<E
     };
 }
 
-/// The evidence of the host: the Git lock PID file and the bounded scan of open descriptors.
+/// The evidence of the host:
+/// the Git lock PID file and the bounded scan of open descriptors.
 fn gather_here(real_index: &Path) -> std::io::Result<Option<Evidence>> {
     return gather_with(real_index, resolve_process_start, scan_platform_holders_bounded);
 }
 
-/// The notice: what the command waits for, why it is safe to wait, then the holder.
+/// The notice:
+/// what the command waits for,
+/// why it is safe to wait,
+/// then the holder.
 fn notice(command: &str, real_index: &Path, waited: Duration, proof: &Proof, first: bool) -> String {
     let tail: String = match proof {
         Proof::Alive(evidence, pid, by_descriptor, holder_command) => {
@@ -114,11 +143,16 @@ fn notice(command: &str, real_index: &Path, waited: Duration, proof: &Proof, fir
 }
 
 /// What:
-///  Wait while any program holds `index.lock` of `real_index`, telling `out` what is waited for.
+///  Wait while any program holds `index.lock` of `real_index`,
+/// telling `out` what is waited for.
 /// Why:
-///   Returns after one metadata read when nothing holds the lock. The first line comes at once for a holder that is already
-///  known when the wait begins and then every notice interval, so a queued command can be told from a hung one. A holder
-///  proven alive and an owner nothing proves alive are waited for with no bound; a dead owner ends the wait at once.
+///   Returns after one metadata read when nothing holds the lock.
+/// The first line comes at once for a holder that is already
+///  known when the wait begins and then every notice interval,
+/// so a queued command can be told from a hung one.
+/// A holder
+///  proven alive and an owner nothing proves alive are waited for with no bound;
+/// a dead owner ends the wait at once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,14 +167,18 @@ pub fn wait_for_index_release_within(real_index: &Path, command: &str, ceiling: 
     return wait_with_watches(real_index, command, ceiling, cadence, out, &Watch::on);
 }
 
-/// Write `bytes` to `out`, then flush it only if the write succeeded; the callers ignore the result, because a closed terminal
+/// Write `bytes` to `out`,
+/// then flush it only if the write succeeded;
+/// the callers ignore the result,
+/// because a closed terminal
 ///  is not a reason to stop the command the person asked for.
 fn write_then_flush(out: &mut dyn Write, bytes: &[u8]) -> std::io::Result<()> {
     out.write_all(bytes)?;
     return out.flush();
 }
 
-/// `wait_for_index_release` with the function that sets a watch on the lock's directory, so a control can hand it none.
+/// `wait_for_index_release` with the function that sets a watch on the lock's directory,
+/// so a control can hand it none.
 fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> IndexWait {
     let lock = lock_path_of(real_index);
     // The watch comes before the first look: a release between the look and the wait is then seen as an event.
@@ -200,7 +238,8 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
     }
 }
 
-/// `wait_for_index_release` with the notice cadence this process runs under, on standard error.
+/// `wait_for_index_release` with the notice cadence this process runs under,
+/// on standard error.
 pub fn wait_for_index_release_here(real_index: &Path, command: &str) -> IndexWait {
     return wait_for_index_release(real_index, command, Cadence::from_environment(), &mut std::io::stderr());
 }

@@ -2,7 +2,8 @@
 //!  Controls for the forbidden-strings policy's rule that content already in a parent commit's tree is not
 //!       scanned again:
 //!  a pure rename or a copy of an existing blob is allowed,
-//!  any changed byte, any new file and any
+//!  any changed byte,
+//! any new file and any
 //!       root commit is scanned,
 //!  and a merge or push is judged against the parents that were already published.
 //! Why:
@@ -178,7 +179,8 @@ fn known_staged(work: &Path) {
     );
 }
 
-/// A repository with no commit has no parent tree, and a root commit has no parent:
+/// A repository with no commit has no parent tree,
+/// and a root commit has no parent:
 ///  both scan every candidate.
 #[test]
 fn a_root_commit_and_an_unborn_branch_are_scanned() {
@@ -214,7 +216,8 @@ fn known_root(work: &Path) {
 
 /// A merge whose result holds a file that only one parent has is allowed;
 ///  new content brought by the merge commit itself is not;
-///  a push judges a commit against the parents that were already published, not against its pushed ancestors.
+///  a push judges a commit against the parents that were already published,
+/// not against its pushed ancestors.
 #[test]
 fn a_merge_is_judged_against_every_parent_and_a_push_against_the_published_ones() {
     run_isolated(

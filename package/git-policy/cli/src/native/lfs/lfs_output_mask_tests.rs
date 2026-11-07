@@ -1,4 +1,5 @@
-//! Controls for hiding URL credentials in relayed `git-lfs` text, with URLs written to break the boundary of the userinfo.
+//! Controls for hiding URL credentials in relayed `git-lfs` text,
+//! with URLs written to break the boundary of the userinfo.
 
 use super::*;
 
@@ -7,7 +8,11 @@ fn masked(text: &str) -> String {
     return mask_userinfo_text(text);
 }
 
-/// The batch error of the incident: the user and the token are gone, the scheme, host, path and status stay.
+/// The batch error of the incident:
+/// the user and the token are gone,
+/// the scheme,
+/// host,
+/// path and status stay.
 #[test]
 fn the_incident_line_loses_its_user_and_token() {
     assert_eq!(
@@ -16,7 +21,9 @@ fn the_incident_line_loses_its_user_and_token() {
     );
 }
 
-/// A URL with a user and no password, a token as the user, and a bare `@` host are all userinfo.
+/// A URL with a user and no password,
+/// a token as the user,
+/// and a bare `@` host are all userinfo.
 #[test]
 fn a_user_alone_and_a_token_alone_are_masked() {
     for userinfo in ["git", "ghp_token", "user:", ":pass", "us.er:p-a_s~s"] {
@@ -24,7 +31,10 @@ fn a_user_alone_and_a_token_alone_are_masked() {
     }
 }
 
-/// An `@` after the first `/`, `?` or `#` belongs to the path, query or fragment, and a URL without userinfo is unchanged.
+/// An `@` after the first `/`,
+/// `?` or `#` belongs to the path,
+/// query or fragment,
+/// and a URL without userinfo is unchanged.
 #[test]
 fn an_at_sign_outside_the_authority_is_left_alone() {
     for text in [
@@ -43,7 +53,8 @@ fn an_at_sign_outside_the_authority_is_left_alone() {
     }
 }
 
-/// The userinfo ends at the last `@` of the authority, so an `@` inside a password cannot leave a tail behind.
+/// The userinfo ends at the last `@` of the authority,
+/// so an `@` inside a password cannot leave a tail behind.
 #[test]
 fn the_userinfo_ends_at_the_last_at_sign_of_the_authority() {
     assert_eq!(masked("https://user:p@ss@host/x"), format!("https://{CREDENTIALS_MASK}@host/x"));
@@ -51,7 +62,10 @@ fn the_userinfo_ends_at_the_last_at_sign_of_the_authority() {
     assert_eq!(masked("https://user:p@ss@host/path@tail"), format!("https://{CREDENTIALS_MASK}@host/path@tail"));
 }
 
-/// Percent-encoded userinfo, including an encoded `@` and `:`, is masked whole, and encoded text in the path stays.
+/// Percent-encoded userinfo,
+/// including an encoded `@` and `:`,
+/// is masked whole,
+/// and encoded text in the path stays.
 #[test]
 fn percent_encoded_userinfo_is_masked_whole_and_the_path_keeps_its_encoding() {
     assert_eq!(
@@ -61,7 +75,9 @@ fn percent_encoded_userinfo_is_masked_whole_and_the_path_keeps_its_encoding() {
     assert_eq!(masked("https://%75ser:%73ecret@host/"), format!("https://{CREDENTIALS_MASK}@host/"));
 }
 
-/// An IPv6 host in brackets keeps its colons and port; the userinfo before it is masked, and without userinfo nothing is.
+/// An IPv6 host in brackets keeps its colons and port;
+/// the userinfo before it is masked,
+/// and without userinfo nothing is.
 #[test]
 fn bracketed_ipv6_hosts_are_kept_and_their_userinfo_is_masked() {
     assert_eq!(masked("https://user:secret@[::1]:8080/objects"), format!("https://{CREDENTIALS_MASK}@[::1]:8080/objects"));
@@ -69,7 +85,10 @@ fn bracketed_ipv6_hosts_are_kept_and_their_userinfo_is_masked() {
     assert_eq!(masked("https://[fe80::1%25eth0]:9/x@y"), "https://[fe80::1%25eth0]:9/x@y");
 }
 
-/// Every URL on a line is handled on its own, with text, quotes, brackets and punctuation between them.
+/// Every URL on a line is handled on its own,
+/// with text,
+/// quotes,
+/// brackets and punctuation between them.
 #[test]
 fn several_urls_on_one_line_are_masked_one_by_one() {
     assert_eq!(
@@ -89,7 +108,9 @@ fn several_urls_on_one_line_are_masked_one_by_one() {
     );
 }
 
-/// A URL whose authority ends at a quote, a bracket, a backtick or the end of the text still hides its userinfo.
+/// A URL whose authority ends at a quote,
+/// a bracket,
+/// a backtick or the end of the text still hides its userinfo.
 #[test]
 fn the_authority_may_end_at_a_quote_a_bracket_or_the_end_of_the_text() {
     for (before, after) in [("'", "'"), ("`", "`"), ("<", ">"), ("\"", "\""), ("", "")] {
@@ -101,7 +122,10 @@ fn the_authority_may_end_at_a_quote_a_bracket_or_the_end_of_the_text() {
     }
 }
 
-/// Schemes with digits, plus signs, dots and hyphens count; a separator with no scheme before it does not start a URL.
+/// Schemes with digits,
+/// plus signs,
+/// dots and hyphens count;
+/// a separator with no scheme before it does not start a URL.
 #[test]
 fn any_scheme_counts_and_a_bare_separator_does_not() {
     assert_eq!(masked("git+ssh://u:p@host/r"), format!("git+ssh://{CREDENTIALS_MASK}@host/r"));
@@ -111,7 +135,8 @@ fn any_scheme_counts_and_a_bare_separator_does_not() {
     assert_eq!(masked("://u:p@host"), "://u:p@host");
 }
 
-/// Text that is not a URL passes through byte for byte, including bytes that are not UTF-8 and the empty text.
+/// Text that is not a URL passes through byte for byte,
+/// including bytes that are not UTF-8 and the empty text.
 #[test]
 fn other_text_and_other_bytes_pass_through_unchanged() {
     assert_eq!(masked(""), "");
@@ -121,7 +146,8 @@ fn other_text_and_other_bytes_pass_through_unchanged() {
     assert_eq!(mask_userinfo(raw.as_slice()), expected);
 }
 
-/// A very long line of separators and `@` signs is masked in one pass: a quadratic scan would not finish.
+/// A very long line of separators and `@` signs is masked in one pass:
+/// a quadratic scan would not finish.
 #[test]
 fn a_long_line_is_masked_in_linear_time() {
     let line: String = "https://a@h ".repeat(200_000);

@@ -1,18 +1,41 @@
 //! What:
-//!  The bound on `<common git dir>/monochromatic-git-policy-cli/discarded/`: copies older than a number of days are removed, and the folder is
-//!  kept under a size by removing the oldest copies first, never one younger than a day and never the copy just written.
-//!  Each removed copy leaves one line in the audit file, and `git monochromatic-git-policy-cli doctor` reports the folder.
+//!  The bound on `<common git dir>/monochromatic-git-policy-cli/discarded/`:
+//! copies older than a number of days are removed,
+//! and the folder is
+//!  kept under a size by removing the oldest copies first,
+//! never one younger than a day and never the copy just written.
+//!  Each removed copy leaves one line in the audit file,
+//! and `git monochromatic-git-policy-cli doctor` reports the folder.
 //! Why:
-//!  The copies of conflicted files were never removed, so the folder grew for as long as the repository lived. They are the
-//!  only remaining content of a file a command replaced, so the bound errs toward keeping: both limits are settings of
-//!  `monochromatic-git-policy-cli.config.jsonc` (`discardedCopies.maxAgeDays`, `discardedCopies.maxSize`, read by `config_discarded.rs`), a copy
-//!  younger than a day is out of reach of both, and the pass runs only after a new copy is complete and durable (so a kill while copying costs the older copies
-//!  nothing), and touches only directories named like the wrapper's own (`2026-11-02T14-01-07`, with an optional
-//!  `-<number>`). The folder is opened once without following a link and everything is read and removed through that
-//!  descriptor (`discarded_store.rs`). No lock is taken: passes may overlap, and a file is counted and audited by the one pass
-//!  whose removal of it succeeded, so overlapping passes split a directory's files between their audit lines and every copy
-//!  is audited once. A directory another pass removed first is not a problem. No commit waits on a pass. What a pass cannot do
-//!  is kept and said, never skipped silently.
+//!  The copies of conflicted files were never removed,
+//! so the folder grew for as long as the repository lived.
+//! They are the
+//!  only remaining content of a file a command replaced,
+//! so the bound errs toward keeping:
+//! both limits are settings of
+//!  `monochromatic-git-policy-cli.config.jsonc` (`discardedCopies.maxAgeDays`,
+//! `discardedCopies.maxSize`,
+//! read by `config_discarded.rs`),
+//! a copy
+//!  younger than a day is out of reach of both,
+//! and the pass runs only after a new copy is complete and durable (so a kill while copying costs the older copies
+//!  nothing),
+//! and touches only directories named like the wrapper's own (`2026-11-02T14-01-07`,
+//! with an optional
+//!  `-<number>`).
+//! The folder is opened once without following a link and everything is read and removed through that
+//!  descriptor (`discarded_store.rs`).
+//! No lock is taken:
+//! passes may overlap,
+//! and a file is counted and audited by the one pass
+//!  whose removal of it succeeded,
+//! so overlapping passes split a directory's files between their audit lines and every copy
+//!  is audited once.
+//! A directory another pass removed first is not a problem.
+//! No commit waits on a pass.
+//! What a pass cannot do
+//!  is kept and said,
+//! never skipped silently.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -39,19 +62,27 @@ const TAG: &str = "discardedPrune";
 /// What a pass did.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct PruneOutcome {
-    /// The directories removed, in order.
+    /// The directories removed,
+    /// in order.
     pub removed: Vec<Removed>,
     /// What could not be done.
     pub problems: Vec<Problem>,
 }
 
 /// What:
-///  Every directory of the folder that is named like the wrapper's own, oldest first, with its size and what it was when
-///  listed, and what could not be read.
+///  Every directory of the folder that is named like the wrapper's own,
+/// oldest first,
+/// with its size and what it was when
+///  listed,
+/// and what could not be read.
 /// Why:
-///   The folder is opened without following a link and each directory is opened through it, so the sizes are those of the
-///  directories that a later removal will meet by identity. A directory that cannot be read has no size to judge by, so it
-///  is left out of the entries and named in the problems; a folder that is absent is simply empty.
+///   The folder is opened without following a link and each directory is opened through it,
+/// so the sizes are those of the
+///  directories that a later removal will meet by identity.
+/// A directory that cannot be read has no size to judge by,
+/// so it
+///  is left out of the entries and named in the problems;
+/// a folder that is absent is simply empty.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,7 +105,8 @@ fn unusable(saved_root: &Path, failure: &OpenFailure) -> Problem {
     return Problem { path: saved_root.to_path_buf(), kind: ProblemKind::StoreUnusable, detail };
 }
 
-/// The text of an input or output error, for the places that carry an error as words.
+/// The text of an input or output error,
+/// for the places that carry an error as words.
 fn io_text<T>(result: std::io::Result<T>) -> Result<T, String> {
     return match result {
         Ok(value) => Ok(value),
@@ -82,17 +114,21 @@ fn io_text<T>(result: std::io::Result<T>) -> Result<T, String> {
     };
 }
 
-/// Order two listed directories by the time in their names, a tie broken by name. `sort_by` takes this function by path.
+/// Order two listed directories by the time in their names,
+/// a tie broken by name.
+/// `sort_by` takes this function by path.
 fn compare_by_time_then_name(left: &Stamped, right: &Stamped) -> std::cmp::Ordering {
     return left.millis.cmp(&right.millis).then(left.name.cmp(&right.name));
 }
 
-/// A problem with the directory at `path`, of the given kind.
+/// A problem with the directory at `path`,
+/// of the given kind.
 fn problem_at(path: &Path, kind: ProblemKind, detail: String) -> Problem {
     return Problem { path: path.to_path_buf(), kind, detail };
 }
 
-/// Whether every file now in a directory was in the pass's listing of it. A directory the listing does not know has none.
+/// Whether every file now in a directory was in the pass's listing of it.
+/// A directory the listing does not know has none.
 fn all_were_listed(context: &Removal<'_>, directory_name: &str, now: &[String]) -> bool {
     let listed = context.listed_files.get(directory_name);
     for file in now {
@@ -109,10 +145,15 @@ fn all_were_listed(context: &Removal<'_>, directory_name: &str, now: &[String]) 
 
 /// What:
 ///  Something told for each chosen directory after the listing and before its removal.
-///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+///  A `trait` is a named set of methods that different types can each supply,
+/// like a TypeScript `interface`.
 /// Why:
-///   The controls change the folder at the moment a pass is most exposed, and the shipped pass changes nothing; a value stands
-///  where a callback stood, and a closure of the right shape is one too, so a control passes one.
+///   The controls change the folder at the moment a pass is most exposed,
+/// and the shipped pass changes nothing;
+/// a value stands
+///  where a callback stood,
+/// and a closure of the right shape is one too,
+/// so a control passes one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -123,21 +164,24 @@ pub trait BeforeRemoval {
     fn before(&mut self, candidate: &Path);
 }
 
-/// Every function-like value with the right shape is such a step: `before` just calls it.
+/// Every function-like value with the right shape is such a step:
+/// `before` just calls it.
 impl<Step: FnMut(&Path)> BeforeRemoval for Step {
     fn before(&mut self, candidate: &Path) {
         self(candidate);
     }
 }
 
-/// The step of the shipped pass, which does nothing.
+/// The step of the shipped pass,
+/// which does nothing.
 struct NothingBeforeRemoval;
 
 impl BeforeRemoval for NothingBeforeRemoval {
     fn before(&mut self, _candidate: &Path) {}
 }
 
-/// The listing of an opened folder; `saved_root` is the path the problems and the removal records show.
+/// The listing of an opened folder;
+/// `saved_root` is the path the problems and the removal records show.
 fn list_in(store: &Store, saved_root: &Path) -> Listing {
     let mut listing: Listing = Listing::default();
     let names = match store.names() {
@@ -165,7 +209,9 @@ fn list_in(store: &Store, saved_root: &Path) -> Listing {
     return listing;
 }
 
-/// The identity and contents of the directory `name`, nothing when `name` is not a directory (a link or a file), or the
+/// The identity and contents of the directory `name`,
+/// nothing when `name` is not a directory (a link or a file),
+/// or the
 /// reason it cannot be read.
 fn survey_entry(store: &Store, name: &OsStr) -> Result<Option<(Identity, Tally)>, String> {
     let Some(seen) = io_text(store.directory_identity(name))? else {
@@ -187,11 +233,20 @@ fn survey_entry(store: &Store, name: &OsStr) -> Result<Option<(Identity, Tally)>
 }
 
 /// What:
-///  Removes what `plan` chooses from the folder, one directory at a time, and writes one audit line after each removal.
+///  Removes what `plan` chooses from the folder,
+/// one directory at a time,
+/// and writes one audit line after each removal.
 /// Why:
-///   A line per directory, written once it is gone, means a kill between two removals leaves a line for each directory that
-///  went and a whole directory for each that did not; a directory that cannot be removed is left, said as a debug line, and
-///  has no line. No lock is taken and no commit waits on this; a directory that another pass removes first is that pass's.
+///   A line per directory,
+/// written once it is gone,
+/// means a kill between two removals leaves a line for each directory that
+///  went and a whole directory for each that did not;
+/// a directory that cannot be removed is left,
+/// said as a debug line,
+/// and
+///  has no line.
+/// No lock is taken and no commit waits on this;
+/// a directory that another pass removes first is that pass's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -201,8 +256,10 @@ pub fn prune(common_dir: &Path, now_millis: i64, limits: Limits, keep: Option<&s
     return prune_with(common_dir, now_millis, limits, keep, &mut NothingBeforeRemoval);
 }
 
-/// `prune` with a step run for each chosen directory after the listing and before its removal: the controls use it to
-/// change the folder at the moment a pass is most exposed; `prune` passes a step that does nothing.
+/// `prune` with a step run for each chosen directory after the listing and before its removal:
+/// the controls use it to
+/// change the folder at the moment a pass is most exposed;
+/// `prune` passes a step that does nothing.
 pub fn prune_with(common_dir: &Path, now_millis: i64, limits: Limits, keep: Option<&str>, before_removal: &mut dyn BeforeRemoval) -> PruneOutcome {
     let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
     let mut outcome: PruneOutcome = PruneOutcome::default();
@@ -240,7 +297,10 @@ pub fn prune_with(common_dir: &Path, now_millis: i64, limits: Limits, keep: Opti
     return outcome;
 }
 
-/// What a removal needs besides the entry: the folder, where the audit goes, the limits and the numbers its line states.
+/// What a removal needs besides the entry:
+/// the folder,
+/// where the audit goes,
+/// the limits and the numbers its line states.
 struct Removal<'pass> {
     /// The folder this pass opened.
     store: &'pass Store,
@@ -256,7 +316,8 @@ struct Removal<'pass> {
     listed_files: &'pass std::collections::HashMap<String, std::collections::HashSet<String>>,
 }
 
-/// Writes the audit line of a directory of which `tally` went; said as a problem when the line cannot be written.
+/// Writes the audit line of a directory of which `tally` went;
+/// said as a problem when the line cannot be written.
 fn write_audit(context: &Removal, outcome_word: &str, removed: &Removed, tally: &Tally, outcome: &mut PruneOutcome) {
     let line: String = audit_line(outcome_word, removed, tally.names.as_slice(), context.limits, context.folder_bytes, context.now_millis);
     if let Err(error) = append_line(context.audit_path, line.as_bytes()) {
@@ -266,12 +327,20 @@ fn write_audit(context: &Removal, outcome_word: &str, removed: &Removed, tally: 
 }
 
 /// What:
-///  Removes one chosen directory through the open folder: opens it by name without following a link, checks that it is the
-///  directory the listing saw, removes its files and subdirectories through its descriptor, then the empty directory, and
+///  Removes one chosen directory through the open folder:
+/// opens it by name without following a link,
+/// checks that it is the
+///  directory the listing saw,
+/// removes its files and subdirectories through its descriptor,
+/// then the empty directory,
+/// and
 ///  audits what went.
 /// Why:
-///   The directory that was judged is the only thing removed: a name that now stands for another directory is kept and said,
-///  a link is never entered, and a failure part way is audited as partial and reported, never counted as a removal.
+///   The directory that was judged is the only thing removed:
+/// a name that now stands for another directory is kept and said,
+///  a link is never entered,
+/// and a failure part way is audited as partial and reported,
+/// never counted as a removal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -351,13 +420,15 @@ fn remove_entry(context: &mut Removal, entry: &Stamped, path: PathBuf, reason: R
     outcome.removed.push(gone);
 }
 
-/// The name of the directory under the folder that holds a copy, or nothing for a path outside the folder.
+/// The name of the directory under the folder that holds a copy,
+/// or nothing for a path outside the folder.
 pub fn directory_name_of(saved_root: &Path, copy: &Path) -> Option<String> {
     let first = copy.strip_prefix(saved_root).ok()?.components().next()?;
     return Some(first.as_os_str().to_string_lossy().into_owned());
 }
 
-/// What the folder holds, for `git monochromatic-git-policy-cli doctor`.
+/// What the folder holds,
+/// for `git monochromatic-git-policy-cli doctor`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Report {
     /// Bytes of every copy.
@@ -366,13 +437,16 @@ pub struct Report {
     pub copies: usize,
     /// How many saves (directories) they came from.
     pub saves: usize,
-    /// The name of the oldest save, empty when no save could be read.
+    /// The name of the oldest save,
+    /// empty when no save could be read.
     pub oldest: String,
     /// What could not be read.
     pub problems: Vec<Problem>,
 }
 
-/// The folder's size, copy count and oldest save and what could not be read, or nothing when it holds no copy and nothing
+/// The folder's size,
+/// copy count and oldest save and what could not be read,
+/// or nothing when it holds no copy and nothing
 /// went wrong.
 pub fn report(common_dir: &Path) -> Option<Report> {
     let listing: Listing = list_stamped(common_dir);
@@ -395,8 +469,12 @@ pub fn report(common_dir: &Path) -> Option<Report> {
     });
 }
 
-/// The doctor's text for the folder: empty when it holds no copy and nothing went wrong, otherwise one block with the size,
-/// the count, the oldest save and the limits that apply, then a sentence for each thing that could not be read.
+/// The doctor's text for the folder:
+/// empty when it holds no copy and nothing went wrong,
+/// otherwise one block with the size,
+/// the count,
+/// the oldest save and the limits that apply,
+/// then a sentence for each thing that could not be read.
 pub fn doctor_section(common_dir: &Path, limits: Limits) -> String {
     let Some(found) = report(common_dir) else {
         return String::new();

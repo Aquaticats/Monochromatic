@@ -1,10 +1,19 @@
 //! What:
-//!  The parser of `git push --dry-run --porcelain` output, which tells the manual-push probe what a push would send.
+//!  The parser of `git push --dry-run --porcelain` output,
+//! which tells the manual-push probe what a push would send.
 //! Why:
-//!  The probe used to learn the update lines from a recording hook written as shell text. Git's own dry-run report
-//!  carries the same facts without any program of ours: for each destination a `To <url>` line, then one tab-separated
-//!  line per ref (`<flag>\t<from>:<to>\t<summary>`), then `Done`. With `core.abbrev=no` the summary of an update holds
-//!  the full old and new object names (`old..new`, or `old...new` when forced); a new ref, a deletion and a refusal
+//!  The probe used to learn the update lines from a recording hook written as shell text.
+//! Git's own dry-run report
+//!  carries the same facts without any program of ours:
+//! for each destination a `To <url>` line,
+//! then one tab-separated
+//!  line per ref (`<flag>\t<from>:<to>\t<summary>`),
+//! then `Done`.
+//! With `core.abbrev=no` the summary of an update holds
+//!  the full old and new object names (`old..new`,
+//! or `old...new` when forced);
+//! a new ref,
+//! a deletion and a refusal
 //!  hold a bracketed word instead.
 //!
 //! In TS you'd write (pseudocode):
@@ -12,7 +21,8 @@
 //! const blocks = parsePorcelain(stdout); // [{ shownLocation, updates: [{ from, to, before, after }] }]
 //! ```
 
-/// What the remote held for a ref before the push, as far as the report says.
+/// What the remote held for a ref before the push,
+/// as far as the report says.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -20,11 +30,15 @@
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RemoteBefore {
-    /// A new branch or tag: the remote has no such ref.
+    /// A new branch or tag:
+    /// the remote has no such ref.
     Absent,
-    /// An update: the remote held this object name.
+    /// An update:
+    /// the remote held this object name.
     Known(String),
-    /// A deletion or a refusal: the report does not say, so the confirmation asks the remote.
+    /// A deletion or a refusal:
+    /// the report does not say,
+    /// so the confirmation asks the remote.
     Unknown,
 }
 
@@ -36,13 +50,15 @@ pub enum RemoteBefore {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PorcelainUpdate {
-    /// The local ref or expression pushed from; empty for a deletion.
+    /// The local ref or expression pushed from;
+    /// empty for a deletion.
     pub from: String,
     /// The remote ref updated.
     pub to: String,
     /// What the remote held before.
     pub before: RemoteBefore,
-    /// The object the update sends, when the report names it.
+    /// The object the update sends,
+    /// when the report names it.
     pub after: Option<String>,
 }
 
@@ -54,9 +70,11 @@ pub struct PorcelainUpdate {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PorcelainBlock {
-    /// The location Git printed after `To`, with any credentials removed.
+    /// The location Git printed after `To`,
+    /// with any credentials removed.
     pub shown: String,
-    /// The reported updates of this destination, up-to-date refs left out.
+    /// The reported updates of this destination,
+    /// up-to-date refs left out.
     pub updates: Vec<PorcelainUpdate>,
 }
 
@@ -66,8 +84,11 @@ const SET_UPSTREAM_PREFIX: &str = "Would set upstream of ";
 /// What:
 ///  Split an update's summary into what the remote held and what is sent.
 /// Why:
-///   `old..new` and `old...new` name both; `[new branch]` and `[new tag]` mean the remote has nothing; any other
-///  bracketed word (a deletion, a refusal) leaves the remote's value to the confirmation.
+///   `old..new` and `old...new` name both;
+/// `[new branch]` and `[new tag]` mean the remote has nothing;
+/// any other
+///  bracketed word (a deletion,
+/// a refusal) leaves the remote's value to the confirmation.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -94,7 +115,8 @@ fn parse_summary(summary: &str) -> (RemoteBefore, Option<String>) {
 ///  Parse the standard output of a porcelain dry-run push into one block per destination.
 ///  An error names the line that is not part of the format.
 /// Why:
-///   An unrecognised line is a probe failure, never a guess about what would be pushed.
+///   An unrecognised line is a probe failure,
+/// never a guess about what would be pushed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

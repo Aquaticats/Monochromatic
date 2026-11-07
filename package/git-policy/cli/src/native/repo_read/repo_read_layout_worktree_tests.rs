@@ -1,20 +1,28 @@
 //! Differential controls for the per-worktree configuration (`extensions.worktreeConfig` and `config.worktree`):
-//!  whenever the reader answers, `git rev-parse` prints the same five lines, and every spelling the reader cannot
+//!  whenever the reader answers,
+//! `git rev-parse` prints the same five lines,
+//! and every spelling the reader cannot
 //!  interpret exactly is declined.
 //! The rules come from `Documentation/config/extensions.adoc` (the extension is respected at every repository format
-//!  version; `config.worktree` overrides the other files) and from `setup.c` `read_and_verify_repository_format` of
-//!  Git 2.56.0 (the file is read from the worktree's own Git directory; with the extension on, the common
-//!  configuration's `core.bare` and `core.worktree` apply to linked worktrees too, and the per-worktree file overrides).
+//!  version;
+//! `config.worktree` overrides the other files) and from `setup.c` `read_and_verify_repository_format` of
+//!  Git 2.56.0 (the file is read from the worktree's own Git directory;
+//! with the extension on,
+//! the common
+//!  configuration's `core.bare` and `core.worktree` apply to linked worktrees too,
+//! and the per-worktree file overrides).
 
 use super::tests::{answered_equal, declined, git_lines, read_here, spelled};
 use crate::test_support::{fixture, git, remove, repository};
 use std::path::{Path, PathBuf};
 
-/// One repository with its linked worktree, and the Git directory of each.
+/// One repository with its linked worktree,
+/// and the Git directory of each.
 struct Pair {
     /// The main worktree.
     main: PathBuf,
-    /// The Git directory of the main worktree, which is the common directory.
+    /// The Git directory of the main worktree,
+    /// which is the common directory.
     main_git: PathBuf,
     /// The linked worktree.
     linked: PathBuf,
@@ -23,7 +31,8 @@ struct Pair {
 }
 
 impl Pair {
-    /// The start directory (a nested one, so the prefix is exercised) and the Git directory of one side.
+    /// The start directory (a nested one,
+    /// so the prefix is exercised) and the Git directory of one side.
     fn side(&self, linked: bool) -> (PathBuf, &Path) {
         if linked {
             return (self.linked.join("sub"), self.linked_git.as_path());
@@ -32,7 +41,8 @@ impl Pair {
     }
 }
 
-/// A repository and a linked worktree whose common configuration got `common_extra` appended, at format version 0 or 1.
+/// A repository and a linked worktree whose common configuration got `common_extra` appended,
+/// at format version 0 or 1.
 fn pair(root: &Path, name: &str, version_one: bool, common_extra: &str) -> Pair {
     let main = repository(root, name);
     let linked = root.join(format!("{name}-linked"));
@@ -51,10 +61,12 @@ fn pair(root: &Path, name: &str, version_one: bool, common_extra: &str) -> Pair 
     return Pair { main_git: main.join(".git"), main, linked, linked_git };
 }
 
-/// The extension switched on, spelled as a boolean Git reads as true.
+/// The extension switched on,
+/// spelled as a boolean Git reads as true.
 const ENABLED: &str = "[extensions]\n\tworktreeConfig = true\n";
 
-/// Whether the reader must answer, or must decline.
+/// Whether the reader must answer,
+/// or must decline.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Expect {
     /// The reader answers and equals Git.
@@ -88,7 +100,9 @@ fn check_file(root: &Path, pairs: &[&Pair], label: &str, text: &str, files: &[(&
     }
 }
 
-/// The extension on, without any `config.worktree`, is read at both format versions for the main and the linked worktree.
+/// The extension on,
+/// without any `config.worktree`,
+/// is read at both format versions for the main and the linked worktree.
 #[test]
 fn an_enabled_extension_without_a_file_is_read() {
     let root = fixture("repo-read-wt-enabled");
@@ -110,7 +124,8 @@ fn an_enabled_extension_without_a_file_is_read() {
     remove(root.as_path());
 }
 
-/// A disabled or absent extension means Git never reads `config.worktree`, so a file that would break a read is ignored.
+/// A disabled or absent extension means Git never reads `config.worktree`,
+/// so a file that would break a read is ignored.
 #[test]
 fn a_file_is_ignored_when_the_extension_is_off() {
     let root = fixture("repo-read-wt-off");
@@ -122,7 +137,8 @@ fn a_file_is_ignored_when_the_extension_is_off() {
     remove(root.as_path());
 }
 
-/// An extension value that is not a boolean is declined, whatever Git makes of it.
+/// An extension value that is not a boolean is declined,
+/// whatever Git makes of it.
 #[test]
 fn a_non_boolean_extension_value_is_declined() {
     let root = fixture("repo-read-wt-nonbool");
@@ -135,7 +151,8 @@ fn a_non_boolean_extension_value_is_declined() {
     remove(root.as_path());
 }
 
-/// A `config.worktree` that sets only values the layout does not depend on is read, for every format version and side,
+/// A `config.worktree` that sets only values the layout does not depend on is read,
+/// for every format version and side,
 ///  and the values it sets really are in force for Git (so the reader answered about the file Git reads).
 #[test]
 fn values_only_the_worktree_file_sets_are_read() {
@@ -154,7 +171,9 @@ fn values_only_the_worktree_file_sets_are_read() {
     remove(root.as_path());
 }
 
-/// A bad typed value in the per-worktree file fails every Git command, so the reader declines; so it does for the
+/// A bad typed value in the per-worktree file fails every Git command,
+/// so the reader declines;
+/// so it does for the
 ///  common file when the worktree file has a good value for the same key (Git types every entry).
 #[test]
 fn typed_values_in_both_files_are_checked() {
@@ -171,7 +190,10 @@ fn typed_values_in_both_files_are_checked() {
     remove(root.as_path());
 }
 
-/// `core.bare` and `core.worktree`: the per-worktree file overrides the common one, the last entry wins, and any
+/// `core.bare` and `core.worktree`:
+/// the per-worktree file overrides the common one,
+/// the last entry wins,
+/// and any
 ///  state that makes the repository bare or moves the worktree is declined.
 #[test]
 fn bare_and_worktree_settings_follow_the_precedence_git_applies() {
@@ -214,8 +236,13 @@ fn the_last_core_bare_wins_without_the_extension_too() {
     remove(root.as_path());
 }
 
-/// Quotes, escapes, comments, continuation lines, odd capitalisation and a cut-off value are read as Git reads them:
-///  an answer equals Git, and a spelling that sets `core.bare` or `core.worktree` to anything but false is declined.
+/// Quotes,
+/// escapes,
+/// comments,
+/// continuation lines,
+/// odd capitalisation and a cut-off value are read as Git reads them:
+///  an answer equals Git,
+/// and a spelling that sets `core.bare` or `core.worktree` to anything but false is declined.
 #[test]
 fn adversarial_spellings_are_read_as_git_reads_them() {
     let root = fixture("repo-read-wt-spelling");
@@ -248,8 +275,12 @@ fn adversarial_spellings_are_read_as_git_reads_them() {
     remove(root.as_path());
 }
 
-/// Includes in `config.worktree` are not interpreted, only scanned: a file that mentions `core.bare` or `core.worktree`
-///  makes the reader decline whatever its condition says, an include without them is read, and anything the scan
+/// Includes in `config.worktree` are not interpreted,
+/// only scanned:
+/// a file that mentions `core.bare` or `core.worktree`
+///  makes the reader decline whatever its condition says,
+/// an include without them is read,
+/// and anything the scan
 ///  cannot follow is declined.
 #[test]
 fn includes_in_the_worktree_file_are_scanned_and_never_interpreted() {
@@ -290,7 +321,8 @@ fn includes_in_the_worktree_file_are_scanned_and_never_interpreted() {
     remove(root.as_path());
 }
 
-/// A `config.worktree` that is a directory is declined, and a dangling link is declined or equal to Git.
+/// A `config.worktree` that is a directory is declined,
+/// and a dangling link is declined or equal to Git.
 #[test]
 fn an_unreadable_worktree_file_is_declined_or_equal_git() {
     let root = fixture("repo-read-wt-unreadable");
@@ -311,8 +343,11 @@ fn an_unreadable_worktree_file_is_declined_or_equal_git() {
 }
 
 /// Git clears the repository format when `core.repositoryformatversion` is absent (`read_repository_format` in
-///  `setup.c`), so `extensions.worktreeConfig` switches nothing on and `config.worktree` is never read: a file that
-///  would make the repository bare or break a typed value is ignored, and the reader must answer as Git does.
+///  `setup.c`),
+/// so `extensions.worktreeConfig` switches nothing on and `config.worktree` is never read:
+/// a file that
+///  would make the repository bare or break a typed value is ignored,
+/// and the reader must answer as Git does.
 #[test]
 fn an_absent_format_version_never_turns_the_worktree_file_on() {
     let root = fixture("repo-read-wt-no-version");

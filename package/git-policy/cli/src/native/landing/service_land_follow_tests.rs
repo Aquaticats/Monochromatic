@@ -1,5 +1,8 @@
-//! Controls for the landing's follow-up with real Git: the index entries of a commit Git built, whatever its names and
-//!  however many, and the conclusion state removal.
+//! Controls for the landing's follow-up with real Git:
+//! the index entries of a commit Git built,
+//! whatever its names and
+//!  however many,
+//! and the conclusion state removal.
 
 use super::*;
 use crate::recording_git::{recorded_starts, recording_context};
@@ -32,7 +35,9 @@ fn differs(repo: &Path, commit: &str) -> bool {
     return !git_output(repo, &["diff", "--cached", "--quiet", commit]).status.success();
 }
 
-/// The paths that differ between the old branch and the commit are updated, as bytes, whatever their number.
+/// The paths that differ between the old branch and the commit are updated,
+/// as bytes,
+/// whatever their number.
 #[test]
 fn derived_paths_cover_names_that_are_not_text_and_lists_past_the_request_limit() {
     let mut files: Vec<Vec<u8>> = vec![b"not-utf8-\xff\xfe.txt".to_vec(), b"back\\slash \"quoted\".txt".to_vec(), b"line\nbreak.txt".to_vec()];
@@ -44,7 +49,8 @@ fn derived_paths_cover_names_that_are_not_text_and_lists_past_the_request_limit(
     remove(root.as_path());
 }
 
-/// A branch that did not exist has an all-zero old value, and the commit's whole tree is what the index takes.
+/// A branch that did not exist has an all-zero old value,
+/// and the commit's whole tree is what the index takes.
 #[test]
 fn a_root_commit_is_updated_from_the_all_zero_old_value() {
     let (root, repo, first, _second) = index_behind("service-follow-root", &[b"new.txt".to_vec()]);
@@ -55,7 +61,8 @@ fn a_root_commit_is_updated_from_the_all_zero_old_value() {
     remove(root.as_path());
 }
 
-/// An empty list changes nothing, because `reset` with no path would reset the whole index.
+/// An empty list changes nothing,
+/// because `reset` with no path would reset the whole index.
 #[test]
 fn an_empty_list_leaves_the_index_alone() {
     let (root, repo, first, second) = index_behind("service-follow-empty", &[b"new.txt".to_vec()]);
@@ -66,8 +73,10 @@ fn an_empty_list_leaves_the_index_alone() {
     remove(root.as_path());
 }
 
-/// A holder proven alive that keeps the lock for longer than every try of the old five put together is waited for: the index is
-///  updated once it lets go, and nothing failed.
+/// A holder proven alive that keeps the lock for longer than every try of the old five put together is waited for:
+/// the index is
+///  updated once it lets go,
+/// and nothing failed.
 #[test]
 fn a_holder_proven_alive_is_waited_for_past_all_the_tries() {
     let (root, repo, _first, second) = index_behind("service-follow-proven-holder", &[b"new.txt".to_vec()]);
@@ -89,7 +98,9 @@ fn a_holder_proven_alive_is_waited_for_past_all_the_tries() {
     remove(root.as_path());
 }
 
-/// A lock nothing proves anyone holds is waited for like one proven alive: the index is updated once the lock goes, however much
+/// A lock nothing proves anyone holds is waited for like one proven alive:
+/// the index is updated once the lock goes,
+/// however much
 ///  longer than the old backoff that is.
 #[test]
 fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
@@ -121,10 +132,16 @@ fn a_cleanup_without_its_scratch_directory_is_done() {
 }
 
 /// What:
-///  Every start of the index update, in each form it takes, as the service makes it.
+///  Every start of the index update,
+/// in each form it takes,
+/// as the service makes it.
 /// Why:
-///   The owner's rule is that no Git start of the service gets `--quiet` or `-q`: the three forms of the update (a listed
-///  path, a named path as bytes, a path derived from the old branch) each start `reset`, and each is looked at.
+///   The owner's rule is that no Git start of the service gets `--quiet` or `-q`:
+/// the three forms of the update (a listed
+///  path,
+/// a named path as bytes,
+/// a path derived from the old branch) each start `reset`,
+/// and each is looked at.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -168,7 +185,9 @@ fn what_reset_says_is_kept_in_the_journal() {
     remove(root.as_path());
 }
 
-/// The landing's index update starts no Git `reset` and no Git `diff-tree`, whichever way the paths are given, and the index it
+/// The landing's index update starts no Git `reset` and no Git `diff-tree`,
+/// whichever way the paths are given,
+/// and the index it
 /// builds equals the commit for those paths.
 #[test]
 fn the_follow_up_starts_no_git_reset_and_no_git_diff_tree() {
@@ -202,8 +221,12 @@ fn staged_against(repo: &Path, commit: &str) -> Vec<String> {
     return git_text(repo, &["diff", "--cached", "--name-only", commit]).lines().map(str::to_string).collect();
 }
 
-/// A change another session staged before the lock was taken, to a path the commit does not name, survives the in-process
-/// build and its installation; a stage attempted after the lock was taken is refused until the installation; and no Git starts.
+/// A change another session staged before the lock was taken,
+/// to a path the commit does not name,
+/// survives the in-process
+/// build and its installation;
+/// a stage attempted after the lock was taken is refused until the installation;
+/// and no Git starts.
 #[test]
 fn what_was_staged_before_the_lock_survives_and_a_stage_after_it_is_refused() {
     use crate::service_index_lock::{lock_path_of, try_acquire};
@@ -230,7 +253,8 @@ fn what_was_staged_before_the_lock_survives_and_a_stage_after_it_is_refused() {
     remove(root.as_path());
 }
 
-/// An installation that cannot be made leaves the old index and removes the lock; a lock another program replaced keeps the
+/// An installation that cannot be made leaves the old index and removes the lock;
+/// a lock another program replaced keeps the
 /// index and stays with that program.
 #[test]
 fn a_failed_installation_keeps_the_index_and_a_replaced_lock_is_left_alone() {
@@ -263,7 +287,9 @@ fn a_failed_installation_keeps_the_index_and_a_replaced_lock_is_left_alone() {
 }
 
 /// An entry that is racily clean for the lock's copy (its modification time is not before the copy's) sends the follow-up to
-/// Git's own `reset --no-refresh` on the private copy, which gives the same result: the committed paths at the commit and the
+/// Git's own `reset --no-refresh` on the private copy,
+/// which gives the same result:
+/// the committed paths at the commit and the
 /// racily clean path still staged.
 #[test]
 fn a_racily_clean_entry_sends_the_follow_up_to_git_with_the_same_result() {
@@ -289,8 +315,10 @@ fn a_racily_clean_entry_sends_the_follow_up_to_git_with_the_same_result() {
     remove(root.as_path());
 }
 
-/// The record of the installed index is made after the index is installed and while the lock is still held; a record that cannot
-/// be made keeps the lock in place (the restart reclaims it) and the installed index, and the error is returned.
+/// The record of the installed index is made after the index is installed and while the lock is still held;
+/// a record that cannot
+/// be made keeps the lock in place (the restart reclaims it) and the installed index,
+/// and the error is returned.
 #[test]
 fn the_record_is_made_between_the_installation_and_the_unlock_and_a_failed_record_keeps_the_lock() {
     use crate::service_index_lock::{lock_path_of, try_acquire};
@@ -322,8 +350,11 @@ fn the_record_is_made_between_the_installation_and_the_unlock_and_a_failed_recor
     remove(root.as_path());
 }
 
-/// The landing's private copy is a file of its own: when the live index is itself named like a private copy (a client's
-/// `GIT_INDEX_FILE`), the live index is neither removed nor taken for the copy, and nothing staged in it is lost.
+/// The landing's private copy is a file of its own:
+/// when the live index is itself named like a private copy (a client's
+/// `GIT_INDEX_FILE`),
+/// the live index is neither removed nor taken for the copy,
+/// and nothing staged in it is lost.
 #[test]
 fn a_live_index_named_like_a_private_copy_is_not_taken_for_one() {
     use crate::service_index_lock::try_acquire;
@@ -367,7 +398,8 @@ fn another_clients_file_with_the_private_name_is_left_alone() {
     remove(root.as_path());
 }
 
-/// The live index of a repository whose index is behind, and a lock on it.
+/// The live index of a repository whose index is behind,
+/// and a lock on it.
 fn locked_index(name: &str) -> (PathBuf, PathBuf, PathBuf, crate::service_index_lock::IndexLock) {
     let (root, repo, _first, _second) = index_behind(name, &[b"top.txt".to_vec()]);
     let index: PathBuf = repo.join(".git").join("index");
@@ -375,8 +407,11 @@ fn locked_index(name: &str) -> (PathBuf, PathBuf, PathBuf, crate::service_index_
     return (root, repo, index, held);
 }
 
-/// The private copy's name does not grow with the live index's: the longest index name the lock accepts (the lock's own staging
-/// name overflows a file name first, at `service_index_staging.rs`, long before the 246 bytes the review named) still gets a copy.
+/// The private copy's name does not grow with the live index's:
+/// the longest index name the lock accepts (the lock's own staging
+/// name overflows a file name first,
+/// at `service_index_staging.rs`,
+/// long before the 246 bytes the review named) still gets a copy.
 #[test]
 fn a_long_index_name_still_gets_a_private_copy() {
     let (root, repo, _first, _second) = index_behind("service-follow-long-name", &[b"top.txt".to_vec()]);
@@ -397,7 +432,8 @@ fn a_long_index_name_still_gets_a_private_copy() {
     remove(root.as_path());
 }
 
-/// Copies other programs left under any name the landing once used never use up its names, and none of them is touched.
+/// Copies other programs left under any name the landing once used never use up its names,
+/// and none of them is touched.
 #[test]
 fn leftovers_under_the_old_names_do_not_exhaust_the_private_copies() {
     let (root, repo, _index, held) = locked_index("service-follow-exhausted");
@@ -417,10 +453,19 @@ fn leftovers_under_the_old_names_do_not_exhaust_the_private_copies() {
     remove(root.as_path());
 }
 
-/// A private copy left by a service that died is removed by the next landing, identified by the directory name, its owner and
-/// the death of whoever held it: a directory with the name pattern that is not ours, one a live owner holds, and a plain file with
-/// the name are not touched. A marker names a process number, which a living process may have taken over since, and a service
-/// that died before it wrote a marker left none; neither decides anything.
+/// A private copy left by a service that died is removed by the next landing,
+/// identified by the directory name,
+/// its owner and
+/// the death of whoever held it:
+/// a directory with the name pattern that is not ours,
+/// one a live owner holds,
+/// and a plain file with
+/// the name are not touched.
+/// A marker names a process number,
+/// which a living process may have taken over since,
+/// and a service
+/// that died before it wrote a marker left none;
+/// neither decides anything.
 #[test]
 fn only_a_dead_services_leftover_is_removed() {
     use std::os::unix::fs::PermissionsExt as _;
@@ -461,8 +506,10 @@ fn only_a_dead_services_leftover_is_removed() {
     remove(root.as_path());
 }
 
-/// Another client's lock at the name a private copy used to have does not stop a landing whose live index is absent: the copy
-/// is in a directory of its own, so no name beside the index is shared.
+/// Another client's lock at the name a private copy used to have does not stop a landing whose live index is absent:
+/// the copy
+/// is in a directory of its own,
+/// so no name beside the index is shared.
 #[test]
 fn a_foreign_lock_at_the_old_copy_name_does_not_stop_a_landing_without_an_index() {
     use crate::service_index_lock::try_acquire;
@@ -483,8 +530,10 @@ fn a_foreign_lock_at_the_old_copy_name_does_not_stop_a_landing_without_an_index(
     remove(root.as_path());
 }
 
-/// The private copy is made where only its owner can open it, and the index it installs when nothing changed has the mode the
-/// live index has, whatever the process mask is.
+/// The private copy is made where only its owner can open it,
+/// and the index it installs when nothing changed has the mode the
+/// live index has,
+/// whatever the process mask is.
 #[test]
 fn the_private_copy_is_owner_only_and_a_no_change_keeps_the_live_mode() {
     if crate::umask_child_test_support::ran_in_child(module_path!(), "the_private_copy_is_owner_only_and_a_no_change_keeps_the_live_mode", 0o000) {

@@ -1,14 +1,30 @@
 //! What:
-//!  The leave-out step of a snapshot of the main checkout: set aside the nested worktrees that are ordinary directories,
-//!  the other checkouts, the caches and the run records that the main-checkout rule leaves out, into a trash directory inside
-//!  the new subvolume, and write down what was made and moved; and, once the worktree is in place, hand the trash to the
+//!  The leave-out step of a snapshot of the main checkout:
+//! set aside the nested worktrees that are ordinary directories,
+//!  the other checkouts,
+//! the caches and the run records that the main-checkout rule leaves out,
+//! into a trash directory inside
+//!  the new subvolume,
+//! and write down what was made and moved;
+//! and,
+//! once the worktree is in place,
+//! hand the trash to the
 //!  commit service as a work item that empties it (`worktree_trash_dispose.rs`).
 //! Why:
-//!  A snapshot carries everything, so the leave-out is a removal. Unlinking about 495 thousand entries takes 14 s, which the
-//!  person should not wait for; renaming 480 directories into one trash directory takes 1.6 s, 1.2 s of which is the walk.
-//!  The rename keeps the new worktree final at once. The `.git` pointer of a nested worktree that was copied names another
-//!  worktree's administrative directory, so it is unlinked before anything else and before the add returns. Nothing the
-//!  main checkout tracks is ever moved, and every move and removal names one plain entry below a held directory handle.
+//!  A snapshot carries everything,
+//! so the leave-out is a removal.
+//! Unlinking about 495 thousand entries takes 14 s,
+//! which the
+//!  person should not wait for;
+//! renaming 480 directories into one trash directory takes 1.6 s,
+//! 1.2 s of which is the walk.
+//!  The rename keeps the new worktree final at once.
+//! The `.git` pointer of a nested worktree that was copied names another
+//!  worktree's administrative directory,
+//! so it is unlinked before anything else and before the add returns.
+//! Nothing the
+//!  main checkout tracks is ever moved,
+//! and every move and removal names one plain entry below a held directory handle.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -37,12 +53,20 @@ use std::path::{Path, PathBuf};
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeTrash";
 
-/// The directory, relative to a worktree root, inside which each snapshot's trash directory is made.
-/// It sits below `.claude/`, which the repository ignores, so a trash that has not been emptied yet is no untracked file.
+/// The directory,
+/// relative to a worktree root,
+/// inside which each snapshot's trash directory is made.
+/// It sits below `.claude/`,
+/// which the repository ignores,
+/// so a trash that has not been emptied yet is no untracked file.
 pub const TRASH_PARENT: &str = ".claude/cli-git-trash";
 
-/// The line a snapshot of the main checkout adds to what Git prints, unless `--quiet` was given.
-/// Why: a snapshot carries the whole ignored state itself, so no copy summary appears; this says what happened instead.
+/// The line a snapshot of the main checkout adds to what Git prints,
+/// unless `--quiet` was given.
+/// Why:
+/// a snapshot carries the whole ignored state itself,
+/// so no copy summary appears;
+/// this says what happened instead.
 pub const MAIN_SNAPSHOT_NOTE: &str = "monochromatic-git-policy-cli: made the worktree as a snapshot of the main checkout; nested worktrees, caches and run records were left out.\n";
 
 /// The mode bits that say an index entry is a directory (a tree) or a gitlink.
@@ -54,7 +78,8 @@ const TYPE_MASK: u32 = 0o170_000;
 /// What:
 ///  Whether Git ignores the place the trash would be made at in this worktree.
 /// Why:
-///   A trash directory Git does not ignore would list as untracked until emptied, so the leave-out removes in the foreground
+///   A trash directory Git does not ignore would list as untracked until emptied,
+/// so the leave-out removes in the foreground
 ///  instead when the answer is no or unknown.
 ///
 /// In TS you'd write (pseudocode):
@@ -74,8 +99,11 @@ pub fn trash_location_is_ignored(context: &GitContext, root: &Path) -> bool {
     };
 }
 
-/// A name for one trash directory: forty hexadecimal digits, which is also the object name the work item carries.
-/// One random identifier for the name of a trash directory; the reason is the error.
+/// A name for one trash directory:
+/// forty hexadecimal digits,
+/// which is also the object name the work item carries.
+/// One random identifier for the name of a trash directory;
+/// the reason is the error.
 fn fresh_uuid() -> Result<String, String> {
     return match random_uuid() {
         Ok(made) => Ok(made),
@@ -90,43 +118,57 @@ fn new_trash_name() -> Result<String, String> {
     return Ok(digits.chars().take(40).collect::<String>().to_ascii_lowercase());
 }
 
-/// What the leave-out made and moved, and how many directories it set aside.
+/// What the leave-out made and moved,
+/// and how many directories it set aside.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Pruned {
-    /// How many directories were set aside, moved into the trash or removed in place.
+    /// How many directories were set aside,
+    /// moved into the trash or removed in place.
     pub count: usize,
-    /// The trash directory with the identity of every directory moved into it; absent when nothing was moved into a trash.
+    /// The trash directory with the identity of every directory moved into it;
+    /// absent when nothing was moved into a trash.
     pub trash: Option<TrashManifest>,
 }
 
 /// The trash directory the leave-out made and holds open.
 struct Trash {
-    /// The trash directory, held open so every move names an entry of this object.
+    /// The trash directory,
+    /// held open so every move names an entry of this object.
     dir: File,
     /// Its name below the trash parent.
     name: String,
-    /// Its identity, taken when it was made.
+    /// Its identity,
+    /// taken when it was made.
     id: ObjectId,
-    /// The directory that holds it, for removing it again when nothing is moved into it.
+    /// The directory that holds it,
+    /// for removing it again when nothing is moved into it.
     parent: File,
 }
 
-/// Where left-out directories go: into one trash directory when there is one, else they are removed in place.
+/// Where left-out directories go:
+/// into one trash directory when there is one,
+/// else they are removed in place.
 struct Aside {
-    /// The snapshot, held open; every directory moved or removed is reached from it by plain names.
+    /// The snapshot,
+    /// held open;
+    /// every directory moved or removed is reached from it by plain names.
     root: File,
-    /// The path of the snapshot, for messages.
+    /// The path of the snapshot,
+    /// for messages.
     stage: PathBuf,
-    /// The trash directory, absent when the leave-out removes in the foreground.
+    /// The trash directory,
+    /// absent when the leave-out removes in the foreground.
     trash: Option<Trash>,
-    /// The identity of each directory moved into the trash, in the order moved.
+    /// The identity of each directory moved into the trash,
+    /// in the order moved.
     entries: Vec<ObjectId>,
     /// How many directories were set aside.
     count: usize,
 }
 
 impl Aside {
-    /// The held directory that contains `relative`, and the entry's name in it.
+    /// The held directory that contains `relative`,
+    /// and the entry's name in it.
     fn holder(&self, relative: &Path) -> Result<(File, OsString), String> {
         let names: Vec<OsString> = path_failure(plain_components(relative), relative, "is not a plain path inside the snapshot")?;
         let Some((name, parents)) = names.split_last() else { return Err(format!("{} names the snapshot itself", relative.display())) };
@@ -134,7 +176,9 @@ impl Aside {
         return Ok((parent, name.clone()));
     }
 
-    /// Set one directory aside by renaming it into the trash, or remove it when there is no trash; `relative` is its path
+    /// Set one directory aside by renaming it into the trash,
+    /// or remove it when there is no trash;
+    /// `relative` is its path
     ///  below the snapshot.
     fn put(&mut self, relative: &Path) -> Result<(), String> {
         let (parent, name): (File, OsString) = self.holder(relative)?;
@@ -159,7 +203,9 @@ impl Aside {
     }
 }
 
-/// Make the trash directory below the trash parent in the snapshot, one plain name at a time; the reason is the error.
+/// Make the trash directory below the trash parent in the snapshot,
+/// one plain name at a time;
+/// the reason is the error.
 fn make_trash(root: &File) -> Result<Trash, String> {
     let names: Vec<OsString> = match plain_components(Path::new(TRASH_PARENT)) {
         Ok(found) => found,
@@ -181,11 +227,17 @@ fn make_trash(root: &File) -> Result<Trash, String> {
 }
 
 /// What:
-///  The paths of the snapshot that are never left out, as repository paths: every directory above a tracked file, and every
+///  The paths of the snapshot that are never left out,
+/// as repository paths:
+/// every directory above a tracked file,
+/// and every
 ///  tracked entry that is itself a directory (a gitlink).
 /// Why:
-///   Whatever the name of such a path, it holds or is tracked content. A gitlink is a directory in the snapshot with no
-///  tracked file below it, so only its own path protects it.
+///   Whatever the name of such a path,
+/// it holds or is tracked content.
+/// A gitlink is a directory in the snapshot with no
+///  tracked file below it,
+/// so only its own path protects it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -211,13 +263,16 @@ fn tracked_paths(source: &SnapshotSource) -> Result<HashSet<Vec<u8>>, String> {
     return Ok(directories);
 }
 
-/// A tracked path at or below `directory`, to name in a refusal.
+/// A tracked path at or below `directory`,
+/// to name in a refusal.
 /// Whether a byte is a slash.
 fn is_slash_byte(byte: &u8) -> bool {
     return *byte == b'/';
 }
 
-/// Whether the path is a directory itself, not a link to one; a path that cannot be examined is not.
+/// Whether the path is a directory itself,
+/// not a link to one;
+/// a path that cannot be examined is not.
 fn is_directory_itself(path: &Path) -> bool {
     return match std::fs::symlink_metadata(path) {
         Ok(metadata) => metadata.is_dir(),
@@ -236,14 +291,28 @@ fn tracked_below(source: &SnapshotSource, directory: &[u8]) -> Option<String> {
 }
 
 /// What:
-///  Set aside, inside a fresh snapshot of the main checkout, everything the main-checkout rule leaves out; return how many
+///  Set aside,
+/// inside a fresh snapshot of the main checkout,
+/// everything the main-checkout rule leaves out;
+/// return how many
 ///  directories were set aside and what was made and moved.
 /// Why:
-///   The order matters: what the index tracks is worked out first, and a registered nested worktree that holds or is tracked
-///  content refuses the whole leave-out before anything is touched; then the `.git` pointer of every copied nested worktree
-///  and of every other checkout goes, because a Git command run inside such a copy would read and write another worktree's
-///  administrative directory; then the directories move into the trash. A directory above a tracked file, or a tracked
-///  gitlink, is never moved, whatever its name. Names are kept as bytes, so a name that is not text is never taken for another.
+///   The order matters:
+/// what the index tracks is worked out first,
+/// and a registered nested worktree that holds or is tracked
+///  content refuses the whole leave-out before anything is touched;
+/// then the `.git` pointer of every copied nested worktree
+///  and of every other checkout goes,
+/// because a Git command run inside such a copy would read and write another worktree's
+///  administrative directory;
+/// then the directories move into the trash.
+/// A directory above a tracked file,
+/// or a tracked
+///  gitlink,
+/// is never moved,
+/// whatever its name.
+/// Names are kept as bytes,
+/// so a name that is not text is never taken for another.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -344,7 +413,9 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
     return Ok(Pruned { count, trash: manifest });
 }
 
-/// Unlink the `.git` file of a copied directory, when it is a file; a `.git` directory is a repository of its own and stays.
+/// Unlink the `.git` file of a copied directory,
+/// when it is a file;
+/// a `.git` directory is a repository of its own and stays.
 fn unlink_pointer(directory: &Path) -> Result<(), String> {
     let pointer: PathBuf = directory.join(".git");
     match std::fs::symlink_metadata(&pointer) {

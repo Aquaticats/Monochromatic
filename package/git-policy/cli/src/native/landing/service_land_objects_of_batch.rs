@@ -1,8 +1,12 @@
 //! What:
-//!  The objects a batch lands: the commit Git built, checked for its parents and its objects, or the commits `fast-import` makes
+//!  The objects a batch lands:
+//! the commit Git built,
+//! checked for its parents and its objects,
+//! or the commits `fast-import` makes
 //!  from the changes of the requests.
 //! Why:
-//!  It is the step of a landing that creates objects and the largest part of `land_batch_body`; a file of its own keeps that
+//!  It is the step of a landing that creates objects and the largest part of `land_batch_body`;
+//! a file of its own keeps that
 //!  function short.
 //!
 //! In TS you'd write (pseudocode):
@@ -19,10 +23,13 @@ use std::path::{Path, PathBuf};
 use crate::service_land_git_steps_and_import_stream::{commits_from_marks, import_stream, run};
 
 /// What:
-///  Makes the commits a batch lands: checks the commit Git built (its parents and its objects) or imports the changes of the
-///  requests as new commits, and returns the commits made with the new tip.
+///  Makes the commits a batch lands:
+/// checks the commit Git built (its parents and its objects) or imports the changes of the
+///  requests as new commits,
+/// and returns the commits made with the new tip.
 /// Why:
-///  This is the one step of a landing that creates objects, and the intent that records the batch names what it returns.
+///  This is the one step of a landing that creates objects,
+/// and the intent that records the batch names what it returns.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

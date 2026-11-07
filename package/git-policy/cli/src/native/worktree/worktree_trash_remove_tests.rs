@@ -1,17 +1,24 @@
-//! Removal beneath a held parent handle: what is removed, what is refused, and that no link is ever followed.
+//! Removal beneath a held parent handle:
+//! what is removed,
+//! what is refused,
+//! and that no link is ever followed.
 
 use super::*;
 use crate::fs_beneath::{identity_at, open_root};
 use crate::test_support::{fixture, remove};
 
-/// Write a file, making its directories.
+/// Write a file,
+/// making its directories.
 fn put(root: &Path, path: &str, bytes: &[u8]) {
     let full: PathBuf = root.join(path);
     std::fs::create_dir_all(full.parent().expect("parent")).expect("directories");
     std::fs::write(full, bytes).expect("file");
 }
 
-/// A tree with files, a read-only directory holding a file, and a link to a directory outside it is removed whole; the
+/// A tree with files,
+/// a read-only directory holding a file,
+/// and a link to a directory outside it is removed whole;
+/// the
 ///  link is unlinked and what it points at is untouched.
 #[test]
 fn a_tree_with_a_read_only_directory_and_a_link_is_removed_without_touching_the_link_target() {
@@ -30,7 +37,8 @@ fn a_tree_with_a_read_only_directory_and_a_link_is_removed_without_touching_the_
     remove(root.as_path());
 }
 
-/// A name with nothing at it is absent, not an error.
+/// A name with nothing at it is absent,
+/// not an error.
 #[test]
 fn a_name_with_nothing_at_it_is_absent() {
     let root: PathBuf = fixture("trash-remove-absent");
@@ -39,7 +47,8 @@ fn a_name_with_nothing_at_it_is_absent() {
     remove(root.as_path());
 }
 
-/// A link at the name is refused and its target is untouched, whether or not an identity is expected.
+/// A link at the name is refused and its target is untouched,
+/// whether or not an identity is expected.
 #[test]
 fn a_link_at_the_name_is_refused_and_not_followed() {
     let root: PathBuf = fixture("trash-remove-link");
@@ -67,7 +76,8 @@ fn a_directory_that_is_not_the_expected_object_is_left_alone() {
     remove(root.as_path());
 }
 
-/// Depth costs no recursion: a chain of directories far deeper than a thread's stack could recurse through is removed.
+/// Depth costs no recursion:
+/// a chain of directories far deeper than a thread's stack could recurse through is removed.
 #[test]
 fn a_very_deep_chain_of_directories_is_removed() {
     let root: PathBuf = fixture("trash-remove-deep");

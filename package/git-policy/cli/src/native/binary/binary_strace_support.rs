@@ -1,14 +1,22 @@
 //! What:
-//!  Finding `strace`, which the budget, fault and child-bound controls run a wrapped command under.
+//!  Finding `strace`,
+//! which the budget,
+//! fault and child-bound controls run a wrapped command under.
 //! Why:
-//!  A traced command runs with the fixture's restricted `PATH`, which lacks the directory of `strace`, so a bare name would
-//!  fail to start there even where the tool is installed; a host without it reports that and checks nothing.
+//!  A traced command runs with the fixture's restricted `PATH`,
+//! which lacks the directory of `strace`,
+//! so a bare name would
+//!  fail to start there even where the tool is installed;
+//! a host without it reports that and checks nothing.
 
 use std::path::PathBuf;
 use std::process::Command;
 
-/// The absolute path of `strace` on the test process's own `PATH`, or nothing when it is not installed.
-///  A traced command runs with the fixture's restricted `PATH`, which lacks the directory of `strace`, so a bare name
+/// The absolute path of `strace` on the test process's own `PATH`,
+/// or nothing when it is not installed.
+///  A traced command runs with the fixture's restricted `PATH`,
+/// which lacks the directory of `strace`,
+/// so a bare name
 ///  would fail to start there even where the tool is installed.
 pub(super) fn strace_program() -> Option<PathBuf> {
     let search = std::env::var_os("PATH")?;

@@ -1,20 +1,33 @@
 //! What:
 //!  Carrying back what Git's apply of a merge's autostash left in the commit's scratch repository when the apply conflicted:
-//!  the stash entry with its `autostash` reflog line, and the unmerged index entries of the files it conflicted in.
+//!  the stash entry with its `autostash` reflog line,
+//! and the unmerged index entries of the files it conflicted in.
 //! Why:
-//!  The commit that concludes a merge is built by real Git in a scratch repository, and Git's `apply_autostash` runs inside it
-//!  (`builtin/commit.c` line 1982). A stash that applies cleanly leaves nothing behind; one that conflicts is stored by `git stash
-//!  store` in the scratch repository's own `refs/stash`, and its conflict stages stay in the commit's private index. Both were
-//!  thrown away with the scratch directory, so Git's promise ("Your changes are safe in the stash") was false in the real
-//!  repository. The objects need no copying: the scratch repository writes into the real object store. The stash entry is stored
-//!  in the real repository with Git's own words, and the stages are put into the index the landing installs, under the lock it holds.
+//!  The commit that concludes a merge is built by real Git in a scratch repository,
+//! and Git's `apply_autostash` runs inside it
+//!  (`builtin/commit.c` line 1982).
+//! A stash that applies cleanly leaves nothing behind;
+//! one that conflicts is stored by `git stash
+//!  store` in the scratch repository's own `refs/stash`,
+//! and its conflict stages stay in the commit's private index.
+//! Both were
+//!  thrown away with the scratch directory,
+//! so Git's promise ("Your changes are safe in the stash") was false in the real
+//!  repository.
+//! The objects need no copying:
+//! the scratch repository writes into the real object store.
+//! The stash entry is stored
+//!  in the real repository with Git's own words,
+//! and the stages are put into the index the landing installs,
+//! under the lock it holds.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! if (await scratchStash(cleanup) === copiedAutostash(cleanup)) { await storeStash(repository, oid); stages = await unmergedStages(cleanup); }
 //! ```
 
-/// The fail-closed recovery failure, for the listing that cannot be read.
+/// The fail-closed recovery failure,
+/// for the listing that cannot be read.
 use crate::recovery_files::read_optional;
 /// Scratch repository commands.
 use crate::shadow_git::shadow_request;
@@ -30,14 +43,18 @@ use std::path::{Path, PathBuf};
 /// The file of the conclusion state a merge's autostash is recorded in.
 const AUTOSTASH_FILE: &str = "MERGE_AUTOSTASH";
 
-/// The words Git's own `apply_autostash` gives the stash entry it stores (`sequencer.c`, `git stash store -m autostash`).
+/// The words Git's own `apply_autostash` gives the stash entry it stores (`sequencer.c`,
+/// `git stash store -m autostash`).
 const STASH_MESSAGE: &str = "autostash";
 
 /// What:
-///  The stash a conflicted apply left in the scratch repository, when the commit consumed a merge's autostash.
+///  The stash a conflicted apply left in the scratch repository,
+/// when the commit consumed a merge's autostash.
 /// Why:
-///   The copy of `MERGE_AUTOSTASH` made when the commit was prepared names the stash; the scratch repository's `refs/stash` names
-///  it only when Git's apply failed and stored it. Both naming the same object is the one case worth carrying.
+///   The copy of `MERGE_AUTOSTASH` made when the commit was prepared names the stash;
+/// the scratch repository's `refs/stash` names
+///  it only when Git's apply failed and stored it.
+/// Both naming the same object is the one case worth carrying.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -58,7 +75,9 @@ fn conflicted_autostash(git: &GitContext, cleanup: &Cleanup) -> Option<String> {
     return Some(recorded);
 }
 
-/// Whether the text of `git stash list --format=%H` has a line equal to `stash`. The first match settles it, as `any` did.
+/// Whether the text of `git stash list --format=%H` has a line equal to `stash`.
+/// The first match settles it,
+/// as `any` did.
 fn lists_stash(listing: &str, stash: &str) -> bool {
     for line in listing.lines() {
         if line == stash {
@@ -68,25 +87,31 @@ fn lists_stash(listing: &str, stash: &str) -> bool {
     return false;
 }
 
-/// Whether one byte is the NUL byte that ends each entry of a `-z` listing. `&u8` borrows the byte, as `split` hands it over.
+/// Whether one byte is the NUL byte that ends each entry of a `-z` listing.
+/// `&u8` borrows the byte,
+/// as `split` hands it over.
 fn is_nul_byte(byte: &u8) -> bool {
     return *byte == 0;
 }
 
-/// Whether one byte is the space that separates the mode from the object name in an entry. `&u8` borrows the byte.
+/// Whether one byte is the space that separates the mode from the object name in an entry.
+/// `&u8` borrows the byte.
 fn is_space_byte(byte: &u8) -> bool {
     return *byte == b' ';
 }
 
-/// Whether one byte is the tab that separates the stage columns from the path in an entry. `&u8` borrows the byte.
+/// Whether one byte is the tab that separates the stage columns from the path in an entry.
+/// `&u8` borrows the byte.
 fn is_tab_byte(byte: &u8) -> bool {
     return *byte == b'\t';
 }
 
 /// What:
-///  Store the conflicted autostash of the commit in the real repository's stash list, once.
+///  Store the conflicted autostash of the commit in the real repository's stash list,
+/// once.
 /// Why:
-///   The landing's cleanup may run again after a restart; a stash already in the list is not stored a second time.
+///   The landing's cleanup may run again after a restart;
+/// a stash already in the list is not stored a second time.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -114,10 +139,15 @@ pub fn carry_stash(git: &GitContext, repository: &Path, cleanup: &Cleanup) -> bo
 }
 
 /// What:
-///  Put the conflict stages the apply left in the commit's private index into `built`, the index the landing is about to install.
+///  Put the conflict stages the apply left in the commit's private index into `built`,
+/// the index the landing is about to install.
 /// Why:
-///   The files the stash conflicted in must be unmerged in the real index as they are after Git's own apply. A path is removed
-///  first, because a stage entry does not replace a merged one; the stages come as `git ls-files --unmerged` prints them, which
+///   The files the stash conflicted in must be unmerged in the real index as they are after Git's own apply.
+/// A path is removed
+///  first,
+/// because a stage entry does not replace a merged one;
+/// the stages come as `git ls-files --unmerged` prints them,
+/// which
 ///  is what `update-index --index-info` reads.
 ///
 /// In TS you'd write (pseudocode):

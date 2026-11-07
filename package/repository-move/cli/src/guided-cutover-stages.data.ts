@@ -27,6 +27,13 @@ import { externalNames, } from './guided-holders.ts';
  @param stamp - the timestamp that names the aside folders of the swap
  
  @returns the stages in order
+
+ @example
+ ```ts
+ import { cutoverStages, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = await cutoverStages({ c, stamp, },);
+ ```
  */
 export async function cutoverStages(
   {
@@ -197,7 +204,7 @@ compgen -G '${c.repo}/.git/cli-git-transactions/*.pending' || echo 'no pending t
       id: 'c05-fresh-inventory',
       title: 'Fresh inventory and freeze list',
       says: "R0 again, because worktrees come and go since the first inventory. The copy tool's print mode then reconciles it with Git and prints the freeze lines it will run.",
-      command: `sudo btrfs subvolume list -u /var/home > ${finalInventory}
+      command: `sudo btrfs subvolume list -u -q /var/home > ${finalInventory}
 ${copy} --pass=freeze ${args} > ${c.wiz}/freeze-print.txt
 ${copy} --pass=final ${args} > ${c.wiz}/final-pass-print.txt
 echo "subvolumes to freeze: $(grep --count '^btrfs property set -ts ' ${c.wiz}/freeze-print.txt)"`,

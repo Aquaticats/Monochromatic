@@ -568,8 +568,10 @@ fn direct_candidates_are_every_selected_worktree_file() {
     remove(root.as_path());
 }
 
-/// `StagedAtBase` marks additions against the recorded base, not against a `HEAD` another landing moved;
-///  an unborn base marks every entry added, and no pathspec means no candidate.
+/// `StagedAtBase` marks additions against the recorded base,
+/// not against a `HEAD` another landing moved;
+///  an unborn base marks every entry added,
+/// and no pathspec means no candidate.
 #[test]
 fn staged_at_base_compares_with_the_recorded_base_and_not_the_moved_head() {
     let root: PathBuf = fixture("predict-staged-at-base");
@@ -617,7 +619,9 @@ fn staged_at_base_compares_with_the_recorded_base_and_not_the_moved_head() {
     remove(root.as_path());
 }
 
-/// A chunk of paths, and a chunk of object names of the longest hash, stay under half of the operating system's argument limit,
+/// A chunk of paths,
+/// and a chunk of object names of the longest hash,
+/// stay under half of the operating system's argument limit,
 ///  so the chunk size is far from the limit it exists to avoid.
 #[test]
 fn a_chunk_of_arguments_stays_under_half_the_argument_limit() {
@@ -633,7 +637,8 @@ fn a_chunk_of_arguments_stays_under_half_the_argument_limit() {
     assert!(names <= half, "{names} bytes of names must fit under {half}");
 }
 
-/// The three chunk sizes that split argument lists are one value, so a change is made once.
+/// The three chunk sizes that split argument lists are one value,
+/// so a change is made once.
 #[test]
 fn the_argument_chunk_sizes_are_one_value() {
     assert_eq!(crate::candidate_attribute::ATTRIBUTE_CHUNK_SIZE, crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE);

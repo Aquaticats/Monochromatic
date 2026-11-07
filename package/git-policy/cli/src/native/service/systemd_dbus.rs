@@ -1,14 +1,33 @@
 //! What:
-//!  A minimal D-Bus client for the user session bus: authenticate as the current user, say `Hello`, and call methods of
-//!  `org.freedesktop.systemd1.Manager` with string arguments, each bounded by one deadline for the whole exchange.
+//!  A minimal D-Bus client for the user session bus:
+//! authenticate as the current user,
+//! say `Hello`,
+//! and call methods of
+//!  `org.freedesktop.systemd1.Manager` with string arguments,
+//! each bounded by one deadline for the whole exchange.
 //! Why:
-//!  The wrapper provisions socket activation itself, and may start no program to do it (`systemctl` would be one). The
-//!  supported surface of the user manager is its D-Bus API (`org.freedesktop.systemd1(5)`), reached through the session
-//!  bus; the manager's own private socket is documented as private to systemd. Only `Reload`, `ResetFailedUnit`,
-//!  `StartUnit`, `StopUnit` and the state query (`GetUnit`, then a property read) are needed, all with at most two string
-//!  arguments, so the writer and the reader below cover exactly the types those calls and the bus's replies use (`s`, `o`,
-//!  `g`, `u`, and a variant holding `s`) and stop at anything else. The reader is total over arbitrary bytes (a
-//!  fuzz target holds it to that). The comparison with a D-Bus crate is in `doc/planning/cli-git-resident-service.md`,
+//!  The wrapper provisions socket activation itself,
+//! and may start no program to do it (`systemctl` would be one).
+//! The
+//!  supported surface of the user manager is its D-Bus API (`org.freedesktop.systemd1(5)`),
+//! reached through the session
+//!  bus;
+//! the manager's own private socket is documented as private to systemd.
+//! Only `Reload`,
+//! `ResetFailedUnit`,
+//!  `StartUnit`,
+//! `StopUnit` and the state query (`GetUnit`,
+//! then a property read) are needed,
+//! all with at most two string
+//!  arguments,
+//! so the writer and the reader below cover exactly the types those calls and the bus's replies use (`s`,
+//! `o`,
+//!  `g`,
+//! `u`,
+//! and a variant holding `s`) and stop at anything else.
+//! The reader is total over arbitrary bytes (a
+//!  fuzz target holds it to that).
+//! The comparison with a D-Bus crate is in `doc/planning/cli-git-resident-service.md`,
 //!  "Provisioning".
 //!
 //! In TS you'd write (pseudocode):
@@ -29,11 +48,17 @@ pub const MANAGER_PATH: &str = "/org/freedesktop/systemd1";
 /// The manager's interface.
 pub const MANAGER_INTERFACE: &str = "org.freedesktop.systemd1.Manager";
 
-/// How long the whole exchange (connect, authenticate, say hello, make the calls) may take; a stuck bus never holds a
+/// How long the whole exchange (connect,
+/// authenticate,
+/// say hello,
+/// make the calls) may take;
+/// a stuck bus never holds a
 ///  commit longer.
 pub const EXCHANGE_WAIT: Duration = Duration::from_secs(20);
 
-/// The bus daemon's name, object and interface, for `Hello`.
+/// The bus daemon's name,
+/// object and interface,
+/// for `Hello`.
 const BUS_NAME: &str = "org.freedesktop.DBus";
 const BUS_PATH: &str = "/org/freedesktop/DBus";
 
@@ -43,7 +68,8 @@ pub const MANAGER_NAME: &str = "org.freedesktop.systemd1";
 /// The most bytes of one reply this client accepts.
 const MAX_REPLY_BYTES: usize = 1 << 20;
 
-/// `Hello` on the bus daemon, the first call of every connection.
+/// `Hello` on the bus daemon,
+/// the first call of every connection.
 pub const HELLO: Target<'static> = Target { destination: BUS_NAME, path: BUS_PATH, interface: BUS_NAME, member: "Hello" };
 
 /// `Reload` on the user manager.
@@ -59,10 +85,12 @@ pub const STOP_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path:
 pub const RESET_FAILED_UNIT: Target<'static> =
     Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "ResetFailedUnit" };
 
-/// `GetUnit` on the user manager: the object path of a loaded unit.
+/// `GetUnit` on the user manager:
+/// the object path of a loaded unit.
 pub const GET_UNIT: Target<'static> = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "GetUnit" };
 
-/// The job mode that applies a stop to the named unit only, leaving the units that require it running.
+/// The job mode that applies a stop to the named unit only,
+/// leaving the units that require it running.
 pub const STOP_ALONE_MODE: &str = "ignore-dependencies";
 
 /// The interface whose `Get` reads one property of an object.
@@ -71,7 +99,8 @@ const PROPERTIES_INTERFACE: &str = "org.freedesktop.DBus.Properties";
 /// The interface that holds a unit's `ActiveState`.
 const UNIT_INTERFACE: &str = "org.freedesktop.systemd1.Unit";
 
-/// The error name of a unit the manager does not hold (never loaded, or unloaded after it stopped).
+/// The error name of a unit the manager does not hold (never loaded,
+/// or unloaded after it stopped).
 pub const NO_SUCH_UNIT: &str = "org.freedesktop.systemd1.NoSuchUnit";
 
 /// The error name of an object that is gone by the time a property is read.
@@ -91,7 +120,8 @@ fn hex_of_byte(byte: u8) -> String {
 }
 
 /// What:
-///  A failure to set a socket timeout or to connect or write, as the call's connection error.
+///  A failure to set a socket timeout or to connect or write,
+/// as the call's connection error.
 /// Why:
 ///  Every such failure is reported with the operating system's own words.
 ///
@@ -104,9 +134,11 @@ fn connection_failure(error: std::io::Error) -> CallError {
 }
 
 /// What:
-///  A failure to write during the authentication exchange, as the call's authentication error.
+///  A failure to write during the authentication exchange,
+/// as the call's authentication error.
 /// Why:
-///  The exchange reports the operating system's words, with no timeout meaning.
+///  The exchange reports the operating system's words,
+/// with no timeout meaning.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -117,9 +149,12 @@ fn authentication_failure(error: std::io::Error) -> CallError {
 }
 
 /// What:
-///  A read failure during the authentication exchange: running out of time stays a timeout, anything else is an authentication error.
+///  A read failure during the authentication exchange:
+/// running out of time stays a timeout,
+/// anything else is an authentication error.
 /// Why:
-///  `read_line` waits within the call's deadline, and a timeout must be told apart from a refusal.
+///  `read_line` waits within the call's deadline,
+/// and a timeout must be told apart from a refusal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,9 +168,11 @@ fn authentication_read_failure(error: std::io::Error) -> CallError {
 }
 
 /// What:
-///  A socket failure taken by value, as the call's error.
+///  A socket failure taken by value,
+/// as the call's error.
 /// Why:
-///  `map_err` hands over the error itself, and `socket_failure` borrows it.
+///  `map_err` hands over the error itself,
+/// and `socket_failure` borrows it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -145,20 +182,24 @@ fn socket_failure_of(error: std::io::Error) -> CallError {
     return socket_failure(&error);
 }
 
-/// The user id as the ASCII digits the `EXTERNAL` mechanism sends, written in hexadecimal.
+/// The user id as the ASCII digits the `EXTERNAL` mechanism sends,
+/// written in hexadecimal.
 fn external_identity() -> String {
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     let user: u32 = unsafe { libc::geteuid() };
     return user.to_string().bytes().map(hex_of_byte).collect();
 }
 
-/// The time left of the exchange, or an error when it ran out.
+/// The time left of the exchange,
+/// or an error when it ran out.
 fn remaining(deadline: Instant) -> Result<Duration, CallError> {
     let left: Duration = deadline.saturating_duration_since(Instant::now());
     return if left.is_zero() { Err(CallError::TimedOut) } else { Ok(left) };
 }
 
-/// A socket failure as the call's error: running out of the read or write time is a timeout, anything else a broken connection.
+/// A socket failure as the call's error:
+/// running out of the read or write time is a timeout,
+/// anything else a broken connection.
 fn socket_failure(error: &std::io::Error) -> CallError {
     return match error.kind() {
         std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => CallError::TimedOut,
@@ -199,7 +240,8 @@ fn read_message(stream: &mut UnixStream, deadline: Instant) -> Result<Vec<u8>, C
 }
 
 /// What:
-///  The default session bus socket inside a runtime directory: `bus` there.
+///  The default session bus socket inside a runtime directory:
+/// `bus` there.
 /// Why:
 ///  `session_bus_path` falls back to it when the address variable names no usable path.
 ///
@@ -211,7 +253,9 @@ fn bus_in_directory(directory: &Path) -> std::path::PathBuf {
     return directory.join("bus");
 }
 
-/// The path of the session bus socket: the `unix:path=` entry of the address variable, else `$XDG_RUNTIME_DIR/bus`.
+/// The path of the session bus socket:
+/// the `unix:path=` entry of the address variable,
+/// else `$XDG_RUNTIME_DIR/bus`.
 pub fn session_bus_path(address: Option<&str>, runtime_dir: Option<&Path>) -> Option<std::path::PathBuf> {
     // The first `unix:` entry that names a usable `path=` option wins; an entry that does not is skipped.
     let mut from_address: Option<std::path::PathBuf> = None;
@@ -244,7 +288,8 @@ pub fn session_bus_path(address: Option<&str>, runtime_dir: Option<&Path>) -> Op
     return runtime_dir.map(bus_in_directory);
 }
 
-/// An authenticated connection to the session bus, past `Hello`.
+/// An authenticated connection to the session bus,
+/// past `Hello`.
 pub struct Bus {
     stream: UnixStream,
     deadline: Instant,
@@ -254,9 +299,12 @@ pub struct Bus {
 /// Methods over a connection.
 impl Bus {
     /// What:
-    ///  Connects to the bus socket, authenticates as the current user and says `Hello`, all within `wait`.
+    ///  Connects to the bus socket,
+    /// authenticates as the current user and says `Hello`,
+    /// all within `wait`.
     /// Why:
-    ///   The deadline of the whole exchange starts here, so every later call shares what is left of it.
+    ///   The deadline of the whole exchange starts here,
+    /// so every later call shares what is left of it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -280,10 +328,14 @@ impl Bus {
     }
 
     /// What:
-    ///  Gives the calls that follow `wait` from now, replacing what was left of the time the connection was given.
+    ///  Gives the calls that follow `wait` from now,
+    /// replacing what was left of the time the connection was given.
     /// Why:
-    ///   The time of the connection bounds a stuck bus, but a caller that spends time between calls (waiting for a service to
-    ///  stop) must bound each phase by its own budget: a slow phase must not make the next one fail, and a query must not run
+    ///   The time of the connection bounds a stuck bus,
+    /// but a caller that spends time between calls (waiting for a service to
+    ///  stop) must bound each phase by its own budget:
+    /// a slow phase must not make the next one fail,
+    /// and a query must not run
     ///  past the phase it belongs to.
     ///
     /// In TS you'd write (pseudocode):
@@ -295,9 +347,11 @@ impl Bus {
     }
 
     /// What:
-    ///  Makes one method call and waits for the reply that answers it, skipping the signals the bus sends meanwhile.
+    ///  Makes one method call and waits for the reply that answers it,
+    /// skipping the signals the bus sends meanwhile.
     /// Why:
-    ///   A return is the receiver's confirmation (a reload returns after the units are read); an error reply comes back
+    ///   A return is the receiver's confirmation (a reload returns after the units are read);
+    /// an error reply comes back
     ///  with its name and text so the caller can say what to do.
     ///
     /// In TS you'd write (pseudocode):
@@ -326,12 +380,14 @@ impl Bus {
         return self.call(&RELOAD, &[]).map(drop);
     }
 
-    /// Clears a unit's failed state and its start-rate counter, so a start is not refused as "repeated too quickly".
+    /// Clears a unit's failed state and its start-rate counter,
+    /// so a start is not refused as "repeated too quickly".
     pub fn reset_failed(&mut self, name: &str) -> Result<(), CallError> {
         return self.call(&RESET_FAILED_UNIT, &[name]).map(drop);
     }
 
-    /// Stops a unit, replacing a queued job for it.
+    /// Stops a unit,
+    /// replacing a queued job for it.
     pub fn stop_unit(&mut self, name: &str) -> Result<(), CallError> {
         return self.call(&STOP_UNIT, &[name, "replace"]).map(drop);
     }
@@ -340,7 +396,10 @@ impl Bus {
     ///  Stops one unit and nothing that depends on it (job mode `ignore-dependencies`).
     /// Why:
     ///   A service that `Requires=` a socket is stopped by the manager when that socket is stopped in the `replace` mode
-    ///  (`systemd.unit(5)`, `Requires=`), which would cut the batch of a helper that is running. This mode applies the job to
+    ///  (`systemd.unit(5)`,
+    /// `Requires=`),
+    /// which would cut the batch of a helper that is running.
+    /// This mode applies the job to
     ///  the named unit only.
     ///
     /// In TS you'd write (pseudocode):
@@ -352,12 +411,22 @@ impl Bus {
     }
 
     /// What:
-    ///  The unit's `ActiveState` (`active`, `activating`, `deactivating`, `inactive`, `failed`), or nothing when the manager
+    ///  The unit's `ActiveState` (`active`,
+    /// `activating`,
+    /// `deactivating`,
+    /// `inactive`,
+    /// `failed`),
+    /// or nothing when the manager
     ///  does not hold the unit.
     /// Why:
-    ///   A stop call returns when the job is queued, so only this state says the unit and its processes are gone. `GetUnit`
-    ///  answers the unit's object path and the property read answers a variant holding the state text. A unit that is not
-    ///  loaded, or that unloads between the two calls, is not running.
+    ///   A stop call returns when the job is queued,
+    /// so only this state says the unit and its processes are gone.
+    /// `GetUnit`
+    ///  answers the unit's object path and the property read answers a variant holding the state text.
+    /// A unit that is not
+    ///  loaded,
+    /// or that unloads between the two calls,
+    /// is not running.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -383,7 +452,8 @@ impl Bus {
         };
     }
 
-    /// Starts a unit, replacing a queued job for it.
+    /// Starts a unit,
+    /// replacing a queued job for it.
     pub fn start_unit(&mut self, name: &str) -> Result<(), CallError> {
         return self.call(&START_UNIT, &[name, "replace"]).map(drop);
     }

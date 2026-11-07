@@ -113,7 +113,8 @@ pub fn uv_cache_dir(environment: &[(OsString, OsString)], home: Option<&Path>) -
 ///       `Option<PathBuf>` is "an owned path or nothing".
 /// Why:
 ///   mise keeps each tool plugin as a Git clone under `plugins/` there and updates it with a
-///       forced checkout, which the main-worktree rule would reject.
+///       forced checkout,
+/// which the main-worktree rule would reject.
 ///  The home directory is injected so
 ///       tests never read the real one.
 ///

@@ -1,9 +1,14 @@
 //! What:
 //!  The few text behaviors of the standards-review log that JavaScript defines and Rust does not share:
-//!  UTF-16 lengths and prefixes, `Number` to text, `toFixed(1)` of a duration, and Git's `%s` subject.
+//!  UTF-16 lengths and prefixes,
+//! `Number` to text,
+//! `toFixed(1)` of a duration,
+//! and Git's `%s` subject.
 //! Why:
 //!  The root `mise.toml` task `shadow-review` measures and cuts text in UTF-16 code units and prints numbers the way
-//!  ECMAScript does, and its log is compared entry by entry with this port's, so the same text must give the same
+//!  ECMAScript does,
+//! and its log is compared entry by entry with this port's,
+//! so the same text must give the same
 //!  counts and the same bytes.
 //!
 //! In TS you'd write (pseudocode):
@@ -12,10 +17,13 @@
 //! ```
 
 /// What:
-///  The length of `text` in UTF-16 code units, which is what JavaScript's `.length` counts.
-///  `usize` is the unsigned size every length uses (siblings `u32`, `u64`).
+///  The length of `text` in UTF-16 code units,
+/// which is what JavaScript's `.length` counts.
+///  `usize` is the unsigned size every length uses (siblings `u32`,
+/// `u64`).
 /// Why:
-///   The log prints `luna input N chars` with that count, and a Rust `.len()` would count UTF-8 bytes instead.
+///   The log prints `luna input N chars` with that count,
+/// and a Rust `.len()` would count UTF-8 bytes instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -26,11 +34,15 @@ pub fn utf16_length(text: &str) -> usize {
 }
 
 /// What:
-///  The first `limit` UTF-16 code units of `text`, as JavaScript's `text.slice(0, limit)` keeps them.
-///  A cut that falls inside a surrogate pair drops the first half, because a Rust `String` cannot hold half a pair.
+///  The first `limit` UTF-16 code units of `text`,
+/// as JavaScript's `text.slice(0, limit)` keeps them.
+///  A cut that falls inside a surrogate pair drops the first half,
+/// because a Rust `String` cannot hold half a pair.
 /// Why:
-///   The model input and the failure excerpt are cut by code units; a character that a cut would split is the only
-///   place where the result differs from the script's, and the script would send a lone surrogate there.
+///   The model input and the failure excerpt are cut by code units;
+/// a character that a cut would split is the only
+///   place where the result differs from the script's,
+/// and the script would send a lone surrogate there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -51,10 +63,14 @@ pub fn utf16_prefix(text: &str, limit: usize) -> String {
 }
 
 /// What:
-///  `value` as ECMAScript's `String(value)` prints a finite number: shortest digits, no exponent between 1e-6 and
-///  1e21, otherwise `1e-7` or `1.5e+21` style.
+///  `value` as ECMAScript's `String(value)` prints a finite number:
+/// shortest digits,
+/// no exponent between 1e-6 and
+///  1e21,
+/// otherwise `1e-7` or `1.5e+21` style.
 /// Why:
-///   Rust prints `0.0000001` where JavaScript prints `1e-7`, and the log carries the gateway's probabilities as
+///   Rust prints `0.0000001` where JavaScript prints `1e-7`,
+/// and the log carries the gateway's probabilities as
 ///   `Number` text.
 ///
 /// In TS you'd write (pseudocode):
@@ -96,10 +112,14 @@ pub fn js_number_text(value: f64) -> String {
 }
 
 /// What:
-///  `(milliseconds / 1000).toFixed(1)`: seconds with one decimal, a tie rounded up as JavaScript rounds it.
+///  `(milliseconds / 1000).toFixed(1)`:
+/// seconds with one decimal,
+/// a tie rounded up as JavaScript rounds it.
 /// Why:
-///   The log prints the review's wall-clock cost that way. Only a value that is exactly a quarter second ties
-///   (250 ms past a half second), and Rust rounds a tie to even where JavaScript takes the larger neighbor.
+///   The log prints the review's wall-clock cost that way.
+/// Only a value that is exactly a quarter second ties
+///   (250 ms past a half second),
+/// and Rust rounds a tie to even where JavaScript takes the larger neighbor.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -118,10 +138,15 @@ pub fn seconds_with_tenth(milliseconds: u64) -> String {
 }
 
 /// What:
-///  The subject Git's `%s` prints for a commit message, trimmed as the script trims it: blank lines skipped, the
-///  first paragraph's lines joined by one space, each line without trailing whitespace.
+///  The subject Git's `%s` prints for a commit message,
+/// trimmed as the script trims it:
+/// blank lines skipped,
+/// the
+///  first paragraph's lines joined by one space,
+/// each line without trailing whitespace.
 /// Why:
-///   The landing holds the commit message, so the subject needs no `git log` start.
+///   The landing holds the commit message,
+/// so the subject needs no `git log` start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -143,11 +168,19 @@ pub fn commit_subject(message: &str) -> String {
 }
 
 /// What:
-///  `text` on one line: every control character and Unicode line or paragraph separator becomes a visible escape
-///  (`\n`, `\r`, `\t`, otherwise `\u{hex}`), and a backslash stays itself.
+///  `text` on one line:
+/// every control character and Unicode line or paragraph separator becomes a visible escape
+///  (`\n`,
+/// `\r`,
+/// `\t`,
+/// otherwise `\u{hex}`),
+/// and a backslash stays itself.
 /// Why:
-///   The log is line-structured and a reader parses it by lines. A response body, a transport error or a model answer
-///   that carried a line break could otherwise start a fake entry. The script wrote such text unchanged.
+///   The log is line-structured and a reader parses it by lines.
+/// A response body,
+/// a transport error or a model answer
+///   that carried a line break could otherwise start a fake entry.
+/// The script wrote such text unchanged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

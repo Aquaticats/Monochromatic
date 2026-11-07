@@ -1,11 +1,26 @@
 //! What:
 //!  Hide the credentials inside URLs in the text the wrapper relays from `git-lfs`.
 //! Why:
-//!  `git-lfs` names the LFS server in its errors, and an `lfs.url` written as `https://user:token@host/...` carries the
-//!  token into every one of them. The wrapper relays that text to the caller's terminal and, for the auto-push, records
-//!  it in files, so the userinfo of every URL is replaced at the one place where the text leaves the wrapper. The
-//!  authority of a URL ends at the first `/`, `?`, `#`, `\`, quote, angle bracket, backtick or white space, and its
-//!  userinfo ends at the last `@` before that, so an `@` in a path, a query or a bracketed IPv6 host is left alone.
+//!  `git-lfs` names the LFS server in its errors,
+//! and an `lfs.url` written as `https://user:token@host/...` carries the
+//!  token into every one of them.
+//! The wrapper relays that text to the caller's terminal and,
+//! for the auto-push,
+//! records
+//!  it in files,
+//! so the userinfo of every URL is replaced at the one place where the text leaves the wrapper.
+//! The
+//!  authority of a URL ends at the first `/`,
+//! `?`,
+//! `#`,
+//! `\`,
+//! quote,
+//! angle bracket,
+//! backtick or white space,
+//! and its
+//!  userinfo ends at the last `@` before that,
+//! so an `@` in a path,
+//! a query or a bracketed IPv6 host is left alone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,7 +33,8 @@ pub const CREDENTIALS_MASK: &str = "<credentials>";
 /// The separator between a URL's scheme and its authority.
 const SCHEME_SEPARATOR: &[u8] = b"://";
 
-/// Whether a byte can end a scheme, so that the separator after it starts a URL's authority.
+/// Whether a byte can end a scheme,
+/// so that the separator after it starts a URL's authority.
 fn ends_scheme(byte: u8) -> bool {
     return byte.is_ascii_alphanumeric() || byte == b'+' || byte == b'-' || byte == b'.';
 }
@@ -30,7 +46,9 @@ fn ends_authority(byte: u8) -> bool {
         || matches!(byte, b'/' | b'?' | b'#' | b'\\' | b'"' | b'\'' | b'<' | b'>' | b'`');
 }
 
-/// Whether a byte is the `@` that ends the userinfo of a URL. `&u8` borrows the byte, as `rposition` hands it over.
+/// Whether a byte is the `@` that ends the userinfo of a URL.
+/// `&u8` borrows the byte,
+/// as `rposition` hands it over.
 fn is_at_sign(byte: &u8) -> bool {
     return *byte == b'@';
 }
@@ -48,8 +66,12 @@ fn next_separator(text: &[u8], from: usize) -> Option<usize> {
 /// What:
 ///  The text with the userinfo of every `scheme://userinfo@host` URL replaced by [`CREDENTIALS_MASK`].
 /// Why:
-///   One pass over the bytes: each search starts where the previous authority ended, so the work is linear however many
-///  URLs a line holds. Bytes outside the userinfo are copied unchanged, whatever their encoding.
+///   One pass over the bytes:
+/// each search starts where the previous authority ended,
+/// so the work is linear however many
+///  URLs a line holds.
+/// Bytes outside the userinfo are copied unchanged,
+/// whatever their encoding.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -89,7 +111,8 @@ pub fn mask_userinfo(text: &[u8]) -> Vec<u8> {
     return masked;
 }
 
-/// The same for text: bytes that are not UTF-8 stay as they were and the result is read back lossily.
+/// The same for text:
+/// bytes that are not UTF-8 stay as they were and the result is read back lossily.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

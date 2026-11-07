@@ -95,7 +95,8 @@ fn require_root_reads_the_directory_git_works_in() {
     remove(&fixture);
 }
 
-/// linked-worktree-only stops destructive commands in the main worktree, and in a linked worktree while it holds
+/// linked-worktree-only stops destructive commands in the main worktree,
+/// and in a linked worktree while it holds
 ///  uncommitted state.
 #[test]
 fn destructive_commands_run_only_in_a_linked_worktree() {

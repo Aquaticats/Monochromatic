@@ -49,8 +49,9 @@ pub(crate) fn run_stdin(
             message: format!("Cannot read standard input: {error}."),
         });
     }
-    let run: SourceRun = lint_source_bytes(store, filename, bytes, options.fix, options.debug)?;
-    if options.fix {
+    let run: SourceRun =
+        lint_source_bytes(store, filename, bytes, options.fixing(), options.debug)?;
+    if options.fixing() {
         return finish(
             options,
             run.findings.as_slice(),

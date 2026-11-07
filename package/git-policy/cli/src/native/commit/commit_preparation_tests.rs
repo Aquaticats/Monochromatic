@@ -1,4 +1,8 @@
-//! Controls for native preparation: real state unchanged, the shadow's shape, no hook of any kind run, and no shadow
+//! Controls for native preparation:
+//! real state unchanged,
+//! the shadow's shape,
+//! no hook of any kind run,
+//! and no shadow
 //!  left behind.
 
 use super::*;
@@ -38,13 +42,16 @@ struct Fixture {
     shadow: PathBuf,
     /// Invocation capture.
     capture: InvocationCapture,
-    /// Private commit index, staged for `a.txt` only.
+    /// Private commit index,
+    /// staged for `a.txt` only.
     commit_index: PathBuf,
     /// Intended tree of the private index.
     intended_tree: String,
 }
 
-/// A repository with `a.txt` committed, the change to `a.txt` staged privately, and a shadow ready to prepare.
+/// A repository with `a.txt` committed,
+/// the change to `a.txt` staged privately,
+/// and a shadow ready to prepare.
 fn prepared_fixture(root: &Path) -> Fixture {
     let repo: PathBuf = repository(root, "repo");
     std::fs::write(repo.join("a.txt"), "a\n").expect("a");
@@ -123,7 +130,8 @@ fn prepare(fixture: &Fixture, commit_args: &[&str]) -> Result<PreparedCommit, Pr
     return read_prepared_commit(&git_context(), fixture.shadow.as_path()).map_err(PreparationError::Git);
 }
 
-/// Preparation leaves the real refs, the real index and the worktree bytes unchanged,
+/// Preparation leaves the real refs,
+/// the real index and the worktree bytes unchanged,
 ///  and the prepared commit lives in the shadow.
 #[test]
 fn preparation_leaves_real_refs_index_and_worktree_unchanged() {
@@ -146,7 +154,8 @@ fn preparation_leaves_real_refs_index_and_worktree_unchanged() {
     remove(root.as_path());
 }
 
-/// The native command names the shadow and turns traditional hooks off, and names no work tree.
+/// The native command names the shadow and turns traditional hooks off,
+/// and names no work tree.
 #[test]
 fn native_commit_arguments_name_the_shadow_and_turn_traditional_hooks_off() {
     let capture_root: PathBuf = fixture("commit-preparation-arguments");
@@ -180,7 +189,8 @@ fn native_commit_arguments_name_the_shadow_and_turn_traditional_hooks_off() {
     remove(capture_root.as_path());
 }
 
-/// The prepared commit's signature is read from its header block only, not from the message.
+/// The prepared commit's signature is read from its header block only,
+/// not from the message.
 #[test]
 fn signature_is_read_from_the_header_block_only() {
     let root: PathBuf = fixture("commit-preparation-signed");
@@ -198,12 +208,14 @@ fn signature_is_read_from_the_header_block_only() {
     remove(root.as_path());
 }
 
-/// The shadow object store of a fixture, where the commit path writes its corrected blobs.
+/// The shadow object store of a fixture,
+/// where the commit path writes its corrected blobs.
 fn shadow_objects(fixture: &Fixture) -> PathBuf {
     return fixture.shadow.join("objects");
 }
 
-/// The exact bytes the prepared commit's tree holds for a path, read from the shadow repository.
+/// The exact bytes the prepared commit's tree holds for a path,
+/// read from the shadow repository.
 fn shadow_text(fixture: &Fixture, commit: &str, path: &str) -> String {
     let shadow: String = fixture.shadow.display().to_string();
     let output: std::process::Output = git(
@@ -281,8 +293,12 @@ fn the_final_newline_correction_reaches_the_prepared_commit() {
     remove(root.as_path());
 }
 
-/// The wait for the guard ends with the first success, passes over only the "already active" failure, and gives up
-///  after the limit with the failure itself. Every closure panics past its call cap, so a mutated guard that retries
+/// The wait for the guard ends with the first success,
+/// passes over only the "already active" failure,
+/// and gives up
+///  after the limit with the failure itself.
+/// Every closure panics past its call cap,
+/// so a mutated guard that retries
 ///  too often fails the test at once instead of looping.
 #[test]
 fn the_guard_wait_retries_only_while_another_holder_is_active() {
@@ -338,7 +354,8 @@ fn the_guard_wait_retries_only_while_another_holder_is_active() {
     assert_eq!(zero_calls, 1);
 }
 
-/// Both signature header spellings mark the prepared commit as signed, and a signature-looking message line does not.
+/// Both signature header spellings mark the prepared commit as signed,
+/// and a signature-looking message line does not.
 #[test]
 fn either_signature_header_marks_the_commit_signed() {
     let root: PathBuf = fixture("commit-preparation-headers");
@@ -387,7 +404,8 @@ fn each_preparation_failure_displays_its_own_words() {
     assert_eq!(PreparationError::Git(GitFailure(String::from("git words"))).to_string(), "git words");
 }
 
-/// The wait recognizes the occupied guard by its type: an error that only repeats the wording is final (issue 1346).
+/// The wait recognizes the occupied guard by its type:
+/// an error that only repeats the wording is final (issue 1346).
 #[test]
 fn an_error_with_the_guard_wording_but_not_its_type_is_not_retried() {
     let mut calls: u32 = 0;
@@ -404,7 +422,11 @@ fn an_error_with_the_guard_wording_but_not_its_type_is_not_retried() {
     assert_eq!(calls, 1);
 }
 
-/// The shadow shows what a policy and a commit need: `HEAD` at the base, the upstream, the `onbranch:` include, and its
+/// The shadow shows what a policy and a commit need:
+/// `HEAD` at the base,
+/// the upstream,
+/// the `onbranch:` include,
+/// and its
 ///  own Git directory.
 #[test]
 fn the_shadow_shows_head_upstream_include_and_git_dir() {
@@ -424,8 +446,12 @@ fn the_shadow_shows_head_upstream_include_and_git_dir() {
     remove(root.as_path());
 }
 
-/// A configured hook for every hook event, whatever its name, does not run in the native commit, and the commit
-///  succeeds: the shadow's own config switches every event off.
+/// A configured hook for every hook event,
+/// whatever its name,
+/// does not run in the native commit,
+/// and the commit
+///  succeeds:
+/// the shadow's own config switches every event off.
 #[cfg(unix)]
 #[test]
 fn a_configured_hook_for_every_event_does_not_run_in_the_native_commit() {

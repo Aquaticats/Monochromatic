@@ -363,8 +363,10 @@ fn the_proven_holder_line_names_its_proof() {
     assert!(file.contains("(proven by its Git lock PID file)"));
 }
 
-/// The change time is whole milliseconds since the epoch, with the nanosecond part rounded down.
-///  Permission changes move the change time, and the test retries until the millisecond part is not zero.
+/// The change time is whole milliseconds since the epoch,
+/// with the nanosecond part rounded down.
+///  Permission changes move the change time,
+/// and the test retries until the millisecond part is not zero.
 #[test]
 #[cfg(unix)]
 fn the_change_time_rounds_nanoseconds_down_to_milliseconds() {

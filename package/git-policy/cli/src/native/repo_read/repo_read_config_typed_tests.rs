@@ -1,7 +1,11 @@
 //! Differential controls for the typed-value proof:
-//!  a value Git rejects or warns about makes the readers decline, whichever key and command carries it;
-//!  every spelling the proof accepts is one real Git runs silently with; and every key Git documents, set to each
-//!  kind of malformed value, either makes the readers decline or leaves them equal to Git on all eleven query shapes.
+//!  a value Git rejects or warns about makes the readers decline,
+//! whichever key and command carries it;
+//!  every spelling the proof accepts is one real Git runs silently with;
+//! and every key Git documents,
+//! set to each
+//!  kind of malformed value,
+//! either makes the readers decline or leaves them equal to Git on all eleven query shapes.
 
 use super::*;
 use crate::repo_read_layout::read_layout_with;
@@ -12,17 +16,27 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::Stdio;
 
-/// The malformed spellings the sweep tries for every documented key: a word no type reads, a bare name, an empty value,
-/// a negative number, a small number, an overflowing number and a `~user` path of a user that does not exist.
+/// The malformed spellings the sweep tries for every documented key:
+/// a word no type reads,
+/// a bare name,
+/// an empty value,
+/// a negative number,
+/// a small number,
+/// an overflowing number and a `~user` path of a user that does not exist.
 const MALFORMED_VARIANTS: [Option<&str>; 7] = [Some("maybe"), None, Some(""), Some("-1"), Some("3"), Some("99999999999999999999"), Some("~no-such-user-here/x")];
 
-/// Sections whose text values name remotes, branches and rewrites that the query readers interpret.
+/// Sections whose text values name remotes,
+/// branches and rewrites that the query readers interpret.
 const SEMANTIC_SECTIONS: [&str; 3] = ["branch", "remote", "url"];
 
-/// How many keys one sweep batch holds; a batch that shows a difference is split until the key is found.
+/// How many keys one sweep batch holds;
+/// a batch that shows a difference is split until the key is found.
 const BATCH_SIZE: usize = 24;
 
-/// A repository the eleven query shapes answer on: one commit, a staged file, a remote and an upstream.
+/// A repository the eleven query shapes answer on:
+/// one commit,
+/// a staged file,
+/// a remote and an upstream.
 fn query_repository(root: &Path) -> PathBuf {
     let repo = repository(root, "typed");
     std::fs::write(repo.join("a.txt"), "one\n").expect("a");
@@ -34,10 +48,12 @@ fn query_repository(root: &Path) -> PathBuf {
     return repo;
 }
 
-/// One query shape: the arguments and the standard input.
+/// One query shape:
+/// the arguments and the standard input.
 type Shape = (Vec<String>, Option<Vec<u8>>);
 
-/// The eleven shapes the readers answer, with `head` as the object name the shapes that take one use.
+/// The eleven shapes the readers answer,
+/// with `head` as the object name the shapes that take one use.
 fn shapes(head: &str) -> Vec<Shape> {
     let plain = |arguments: &[&str]| -> Shape { return (arguments.iter().map(|argument| { return (*argument).to_string(); }).collect(), None); };
     return vec![
@@ -86,7 +102,8 @@ fn ours(root: &Path, repo: &Path, shape: &Shape) -> Option<Answer> {
     return answer_with(&Query { arguments: given.as_slice(), directory: Some(repo), variables: &[], input: shape.1.as_deref() }, Vec::new(), &scope(root));
 }
 
-/// The `[section "subsection"]` header and the line for one key and value, in Git's configuration syntax.
+/// The `[section "subsection"]` header and the line for one key and value,
+/// in Git's configuration syntax.
 fn config_text(key: &str, value: Option<&str>) -> String {
     let (section, rest) = key.split_once('.').expect("a dotted key");
     let (header, name) = match rest.rsplit_once('.') {
@@ -107,7 +124,8 @@ struct Trial {
     repo: PathBuf,
     /// The configuration file text before any trial.
     base: String,
-    /// The shapes, built once from the repository's head.
+    /// The shapes,
+    /// built once from the repository's head.
     shapes: Vec<Shape>,
 }
 
@@ -131,7 +149,8 @@ impl Trial {
         return read_layout_with(self.repo.as_path(), &[], &scope(self.root.as_path())).is_some();
     }
 
-    /// The shapes on which the readers answered and differ from Git, plus the location when it differs.
+    /// The shapes on which the readers answered and differ from Git,
+    /// plus the location when it differs.
     fn disagreements(&self) -> Vec<String> {
         let mut found: Vec<String> = Vec::new();
         if !self.answers_location() {
@@ -177,7 +196,10 @@ impl Trial {
     }
 }
 
-/// Every pair in `pairs` that, set alone, makes the readers answer where Git differs; the batch is split to find them.
+/// Every pair in `pairs` that,
+/// set alone,
+/// makes the readers answer where Git differs;
+/// the batch is split to find them.
 fn culprits(trial: &Trial, pairs: &[(String, Option<String>)]) -> Vec<String> {
     let text: String = pairs.iter().map(|(key, value)| { return config_text(key.as_str(), value.as_deref()); }).collect();
     trial.configure(text.as_str());
@@ -195,7 +217,8 @@ fn culprits(trial: &Trial, pairs: &[(String, Option<String>)]) -> Vec<String> {
     return found;
 }
 
-/// The names `git help --config` lists, with a placeholder such as `<name>` filled in and the patterns dropped.
+/// The names `git help --config` lists,
+/// with a placeholder such as `<name>` filled in and the patterns dropped.
 fn documented_keys() -> Vec<String> {
     let listing = git_output(Path::new("/"), &["help", "--config"]);
     assert!(listing.status.success(), "git help --config");
@@ -221,8 +244,10 @@ fn documented_keys() -> Vec<String> {
     return keys;
 }
 
-/// Keys of each kind that real Git 2.56.0 rejected when probed, with the malformed value that it rejected.
-///  Each must make the readers decline (the location included), and Git must indeed differ from the base.
+/// Keys of each kind that real Git 2.56.0 rejected when probed,
+/// with the malformed value that it rejected.
+///  Each must make the readers decline (the location included),
+/// and Git must indeed differ from the base.
 #[test]
 fn malformed_values_git_rejects_make_the_readers_decline() {
     let trial = Trial::new("repo-read-typed-rejected");
@@ -281,7 +306,8 @@ fn malformed_values_git_rejects_make_the_readers_decline() {
     trial.finish();
 }
 
-/// Every word and number the proof accepts is one real Git runs silently with on every shape, and the readers keep answering.
+/// Every word and number the proof accepts is one real Git runs silently with on every shape,
+/// and the readers keep answering.
 #[test]
 fn accepted_spellings_are_silent_in_git_and_keep_the_readers_answering() {
     let trial = Trial::new("repo-read-typed-accepted");
@@ -350,7 +376,9 @@ fn accepted_spellings_are_silent_in_git_and_keep_the_readers_answering() {
     trial.finish();
 }
 
-/// Every documented key, set to each malformed spelling, either makes the readers decline or leaves them equal to Git.
+/// Every documented key,
+/// set to each malformed spelling,
+/// either makes the readers decline or leaves them equal to Git.
 #[test]
 fn every_documented_key_with_a_malformed_value_is_declined_or_equals_git() {
     let trial = Trial::new("repo-read-typed-sweep");
@@ -368,7 +396,11 @@ fn every_documented_key_with_a_malformed_value_is_declined_or_equals_git() {
     trial.finish();
 }
 
-/// The number reader refuses what Git reads differently: octal, hexadecimal, overflow, and a missing digit.
+/// The number reader refuses what Git reads differently:
+/// octal,
+/// hexadecimal,
+/// overflow,
+/// and a missing digit.
 #[test]
 fn numbers_are_read_only_when_decimal_and_small() {
     assert_eq!(number_of("12"), Some(12));

@@ -7,7 +7,8 @@ fn words(list: &[&str]) -> Vec<std::ffi::OsString> {
     return list.iter().map(|word: &&str| { return std::ffi::OsString::from(*word); }).collect();
 }
 
-/// Options and named worktrees parse; the modes exclude each other and a target is required.
+/// Options and named worktrees parse;
+/// the modes exclude each other and a target is required.
 #[test]
 fn options_paths_and_refusals_parse() {
     let all: ConvertArguments = parse_convert_arguments(&words(&["--all", "--dry-run"])).expect("all");
@@ -21,7 +22,8 @@ fn options_paths_and_refusals_parse() {
     assert!(parse_convert_arguments(&words(&["--help"])).expect("help").help);
 }
 
-/// The help states the risk the person accepts, and the notice names the same thing in one line.
+/// The help states the risk the person accepts,
+/// and the notice names the same thing in one line.
 #[test]
 fn the_help_and_the_notice_state_the_risk() {
     assert!(CONVERT_HELP.contains("Risk, accepted by running the command"));
@@ -30,8 +32,12 @@ fn the_help_and_the_notice_state_the_risk() {
     assert!(RISK_NOTICE.contains("that risk is yours"));
 }
 
-/// An attribute source chosen before the command is found: `--attr-source` in both spellings, `-c attr.tree`, and the
-///  environment-supplied form; other global options are not.
+/// An attribute source chosen before the command is found:
+/// `--attr-source` in both spellings,
+/// `-c attr.tree`,
+/// and the
+///  environment-supplied form;
+/// other global options are not.
 #[test]
 fn a_command_line_attribute_source_is_found() {
     assert!(selects_attribute_source(&words(&["--attr-source=HEAD"])));
@@ -44,7 +50,8 @@ fn a_command_line_attribute_source_is_found() {
     assert!(!selects_attribute_source(&[]));
 }
 
-/// `--jobs` takes a count in both spellings, and a count that is not a positive number is refused with the word it refused.
+/// `--jobs` takes a count in both spellings,
+/// and a count that is not a positive number is refused with the word it refused.
 #[test]
 fn jobs_takes_a_positive_count() {
     assert_eq!(parse_convert_arguments(&words(&["--all", "--jobs", "3"])).expect("spaced").jobs, Some(3));
@@ -57,7 +64,8 @@ fn jobs_takes_a_positive_count() {
     }
 }
 
-/// The help names `--jobs` and says worktrees are converted side by side, and that output stays in order.
+/// The help names `--jobs` and says worktrees are converted side by side,
+/// and that output stays in order.
 #[test]
 fn the_help_describes_jobs_and_the_order_of_the_report() {
     assert!(CONVERT_HELP.contains("--jobs"));

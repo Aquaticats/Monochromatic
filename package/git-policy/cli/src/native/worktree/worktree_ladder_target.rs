@@ -1,10 +1,18 @@
 //! What:
 //!  What both rungs that fill a worktree themselves need to know about the target of a `git worktree add` once real Git
-//!  ran without a checkout: the administrative directory, Git's pointer, the commit and tree `HEAD` names, whether the
-//!  tree differs from the source's, the line Git's checkout would print, and the step that applies the difference.
+//!  ran without a checkout:
+//! the administrative directory,
+//! Git's pointer,
+//! the commit and tree `HEAD` names,
+//! whether the
+//!  tree differs from the source's,
+//! the line Git's checkout would print,
+//! and the step that applies the difference.
 //! Why:
-//!  The snapshot and clone rungs differ in how the source's files reach the destination and agree on everything else, so
-//!  the shared reading of Git's result and the single `git read-tree -m -u` step live in one place. The first version keeps
+//!  The snapshot and clone rungs differ in how the source's files reach the destination and agree on everything else,
+//! so
+//!  the shared reading of Git's result and the single `git read-tree -m -u` step live in one place.
+//! The first version keeps
 //!  Git for the two-tree update because it owns the conversion filters (`doc/planning/cli-git-btrfs-worktree.md`).
 //!
 //! In TS you'd write (pseudocode):
@@ -44,7 +52,8 @@ pub struct Target {
     pub admin: PathBuf,
     /// The bytes of the `.git` file Git wrote in the destination.
     pub pointer: Vec<u8>,
-    /// The commit the new `HEAD` names, as hexadecimal.
+    /// The commit the new `HEAD` names,
+    /// as hexadecimal.
     pub commit: String,
     /// Whether the tree of that commit differs from the source's.
     pub differs: bool,
@@ -55,7 +64,8 @@ pub struct Target {
 /// What:
 ///  The `.gitattributes` files of a tree as path and object name.
 /// Why:
-///   Unchanged paths keep the source's bytes, so the conversion rules of the two trees must agree for them.
+///   Unchanged paths keep the source's bytes,
+/// so the conversion rules of the two trees must agree for them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,7 +84,8 @@ fn attribute_files(tree: &[FlatEntry]) -> Vec<(&[u8], &[u8])> {
 /// What:
 ///  Whether the two trees carry the same `.gitattributes` files.
 /// Why:
-///   A different rule could change how a path both trees share is written, which only Git's checkout gets right.
+///   A different rule could change how a path both trees share is written,
+/// which only Git's checkout gets right.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -85,7 +96,9 @@ fn attributes_agree(database: &ObjectDatabase, from: &[u8], to: &[u8], format: O
     return if attribute_files(old.as_slice()) == attribute_files(new.as_slice()) { Ok(()) } else { Err(String::from("the .gitattributes files differ between the source and the new HEAD")) };
 }
 
-/// The configuration keys, besides the `filter.` section, that change how a file is written to or read from a worktree.
+/// The configuration keys,
+/// besides the `filter.` section,
+/// that change how a file is written to or read from a worktree.
 const CONVERSION_KEYS: &[&str] = &[
     "core.autocrlf",
     "core.eol",
@@ -103,11 +116,18 @@ const CONVERSION_KEYS: &[&str] = &[
 ];
 
 /// What:
-///  The settings of a configuration listing that decide how files are converted: `filter.*`, `extensions.*` and the
-///  conversion keys, in the order the listing gives them, duplicates kept.
+///  The settings of a configuration listing that decide how files are converted:
+/// `filter.*`,
+/// `extensions.*` and the
+///  conversion keys,
+/// in the order the listing gives them,
+/// duplicates kept.
 /// Why:
-///   For most keys the last value wins, so the order is part of the meaning; two listings with the same values in another
-///  order are different configurations, and a set would call them equal.
+///   For most keys the last value wins,
+/// so the order is part of the meaning;
+/// two listings with the same values in another
+///  order are different configurations,
+/// and a set would call them equal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -124,13 +144,22 @@ fn conversion_settings(entries: &[ConfigEntry]) -> Vec<(String, Option<Vec<u8>>)
 }
 
 /// What:
-///  Check that the new worktree sees the same conversion settings as the source, in the same order, read in the new
+///  Check that the new worktree sees the same conversion settings as the source,
+/// in the same order,
+/// read in the new
 ///  worktree's own context.
 /// Why:
-///   A conditional include (`onbranch`, `gitdir`, `hasconfig`) can give the new branch other filters than the source's,
-///  and then the source's bytes are not what Git's checkout would write. Git evaluates the conditions for the new
-///  worktree, so comparing its listing with the source's covers every conditional without parsing one; the sequence, not
-///  the set, is compared because the last value of a key wins.
+///   A conditional include (`onbranch`,
+/// `gitdir`,
+/// `hasconfig`) can give the new branch other filters than the source's,
+///  and then the source's bytes are not what Git's checkout would write.
+/// Git evaluates the conditions for the new
+///  worktree,
+/// so comparing its listing with the source's covers every conditional without parsing one;
+/// the sequence,
+/// not
+///  the set,
+/// is compared because the last value of a key wins.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -160,7 +189,8 @@ fn conversion_agrees(source: &[ConfigEntry], target: &[ConfigEntry]) -> Result<(
     return Err(format!("the conversion setting {key} differs between the source and the new worktree, or comes in another order"));
 }
 
-/// The attribute names a line of an attributes file applies as a filter, one per `filter=<name>` token.
+/// The attribute names a line of an attributes file applies as a filter,
+/// one per `filter=<name>` token.
 fn filters_named(text: &str) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
     for line in text.lines() {
@@ -176,7 +206,8 @@ fn filters_named(text: &str) -> Vec<String> {
     return names;
 }
 
-/// The standard definition of the Git LFS filter, which converts a file by its content alone.
+/// The standard definition of the Git LFS filter,
+/// which converts a file by its content alone.
 const LFS_FILTER: [(&str, &str); 4] = [
     ("filter.lfs.clean", "git-lfs clean -- %f"),
     ("filter.lfs.smudge", "git-lfs smudge -- %f"),
@@ -185,7 +216,8 @@ const LFS_FILTER: [(&str, &str); 4] = [
 ];
 
 /// What:
-///  Bytes as text, with anything that is not UTF-8 replaced.
+///  Bytes as text,
+/// with anything that is not UTF-8 replaced.
 /// Why:
 ///   Configuration values are compared as text.
 ///
@@ -198,21 +230,32 @@ fn lossy_text(bytes: &[u8]) -> String {
 }
 
 /// What:
-///  Refuse a conversion that equal settings do not prove equal: an attribute that selects a filter other than the standard
-///  Git LFS one, an attributes file named by a relative path, or LFS configured beyond its standard definition.
+///  Refuse a conversion that equal settings do not prove equal:
+/// an attribute that selects a filter other than the standard
+///  Git LFS one,
+/// an attributes file named by a relative path,
+/// or LFS configured beyond its standard definition.
 /// Why:
-///   A filter command may behave by branch, directory or environment, `core.attributesFile` may mean another file in
-///  another worktree, and LFS extensions change the pointer a clean produces; none of that is visible in equal strings.
-///  The standard LFS filter is a function of the file's content and the same program, so it is allowed.
+///   A filter command may behave by branch,
+/// directory or environment,
+/// `core.attributesFile` may mean another file in
+///  another worktree,
+/// and LFS extensions change the pointer a clean produces;
+/// none of that is visible in equal strings.
+///  The standard LFS filter is a function of the file's content and the same program,
+/// so it is allowed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function externalConversionRefusal(settings: ConfigEntry[], attributeTexts: string[]): string | undefined;
 /// ```
 /// What:
-///  The last value the configuration gives `key`, as text, if any entry has the key.
+///  The last value the configuration gives `key`,
+/// as text,
+/// if any entry has the key.
 /// Why:
-///   Git reads later entries over earlier ones, so the search runs from the end.
+///   Git reads later entries over earlier ones,
+/// so the search runs from the end.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -228,7 +271,8 @@ fn last_value_of(entries: &[ConfigEntry], key: &str) -> Option<String> {
 }
 
 /// What:
-///  Whether the configuration holds the four settings of the standard Git LFS filter, each with its standard value.
+///  Whether the configuration holds the four settings of the standard Git LFS filter,
+/// each with its standard value.
 /// Why:
 ///   Only the standard definition is proven to give the same result in both worktrees.
 ///
@@ -248,7 +292,8 @@ fn lfs_filter_is_standard(entries: &[ConfigEntry]) -> bool {
 /// What:
 ///  Whether the configuration has any `lfs.extension.*` entry.
 /// Why:
-///   Extensions change what the LFS filter does, so they are not proven equal in both worktrees.
+///   Extensions change what the LFS filter does,
+/// so they are not proven equal in both worktrees.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -292,8 +337,10 @@ fn external_conversion_refusal(entries: &[ConfigEntry], attribute_texts: &[Strin
     return None;
 }
 
-/// The text of every attributes file that applies to both worktrees besides the tracked ones: the repository's
-///  `info/attributes`, the file `core.attributesFile` names and the default global file.
+/// The text of every attributes file that applies to both worktrees besides the tracked ones:
+/// the repository's
+///  `info/attributes`,
+/// the file `core.attributesFile` names and the default global file.
 fn untracked_attribute_texts(source: &SnapshotSource, entries: &[ConfigEntry]) -> Vec<String> {
     let mut paths: Vec<PathBuf> = vec![source.common_dir.join("info/attributes")];
     // The last entry that names an attributes file decides, even when its value is empty; the loop stops there.
@@ -337,7 +384,8 @@ pub(crate) fn run_step(run_git: &mut dyn GitRunner, arguments: &[OsString], envi
 }
 
 /// What:
-///  The environment Git gives the commands of its own checkout: its git directory and work tree.
+///  The environment Git gives the commands of its own checkout:
+/// its git directory and work tree.
 /// Why:
 ///   The ladder's runs name the same two so that they see the new worktree whatever the caller's directory.
 ///
@@ -350,11 +398,17 @@ pub(crate) fn checkout_environment(git_dir: &Path, work_tree: &Path) -> Vec<(OsS
 }
 
 /// What:
-///  Read the result of the `--no-checkout` run: the pointer, the administrative directory, the new `HEAD` and the line.
+///  Read the result of the `--no-checkout` run:
+/// the pointer,
+/// the administrative directory,
+/// the new `HEAD` and the line.
 ///  The error is the reason the rungs cannot serve the command.
 /// Why:
-///   A destination that holds more than Git's pointer, a `HEAD` the readers cannot resolve, a commit whose subject needs
-///  Git to print, or `.gitattributes` files that differ between the two trees leave the checkout to Git.
+///   A destination that holds more than Git's pointer,
+/// a `HEAD` the readers cannot resolve,
+/// a commit whose subject needs
+///  Git to print,
+/// or `.gitattributes` files that differ between the two trees leave the checkout to Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -426,10 +480,13 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
 }
 
 /// What:
-///  Apply the difference between the source's tree and the new `HEAD` to `work_tree`, whose index is the source's:
-///  nothing when the trees are equal, else one `git read-tree -m -u`.
+///  Apply the difference between the source's tree and the new `HEAD` to `work_tree`,
+/// whose index is the source's:
+///  nothing when the trees are equal,
+/// else one `git read-tree -m -u`.
 /// Why:
-///   Git owns the conversion filters, so the paths that differ are written by Git and the unchanged ones keep the bytes
+///   Git owns the conversion filters,
+/// so the paths that differ are written by Git and the unchanged ones keep the bytes
 ///  the source had.
 ///
 /// In TS you'd write (pseudocode):

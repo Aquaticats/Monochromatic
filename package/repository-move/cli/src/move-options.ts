@@ -193,6 +193,13 @@ function isPass(value: string,): value is MovePass {
  @returns the options; `--print` after `--run` wins, so print mode can always be forced
  
  @throws MoveStopError when a required flag is missing or a value is malformed
+
+ @example
+ ```ts
+ import { parseMoveOptions, } from '\@monochromatic-dev/repository-move-cli';
+ 
+ const result = parseMoveOptions(argv,);
+ ```
  */
 export function parseMoveOptions(argv: readonly string[],): MoveOptions {
   /**

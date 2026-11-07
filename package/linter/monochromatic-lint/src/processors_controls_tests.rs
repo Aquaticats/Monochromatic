@@ -10,7 +10,7 @@
 //! ```
 
 /// Import the real consumer seam and immutable fixture helpers.
-use super::{Edit, Fix, ProcessorLanguage, finding, fixed, inputs};
+use super::{Edit, Fix, FixClass, ProcessorLanguage, finding, fixed, inputs};
 /// Application guards apply to original hosts,
 ///  not just extracted strings.
 use crate::edits::apply_fixes;
@@ -24,6 +24,7 @@ fn processors_refuse_delimiter_injection_and_synthetic_fix_ranges() {
     let at: usize = rust.source().find("let value").expect("authored");
     assert!(
         rust.project_fix(&Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start: at,
                 end: at,
@@ -35,6 +36,7 @@ fn processors_refuse_delimiter_injection_and_synthetic_fix_ranges() {
     let generated: usize = rust.source().find("fn main").expect("generated");
     assert!(
         rust.project_fix(&Fix {
+            class: FixClass::Content,
             edits: vec![
                 Edit {
                     start: generated,
@@ -87,7 +89,13 @@ fn processors_refuse_invalid_byte_spans_and_atomic_group_overlap() {
             replacement: String::new(),
         }],
     ] {
-        assert!(doc.project_fix(&Fix { edits }).is_err());
+        assert!(
+            doc.project_fix(&Fix {
+                class: FixClass::Content,
+                edits
+            })
+            .is_err()
+        );
     }
     let mut invalid = finding(doc, 0, 0);
     invalid.labels[0].span.offset = 1;
@@ -115,6 +123,7 @@ fn processors_handle_malformed_host_delimiters_without_guessing() {
     assert!(
         empty[0]
             .project_fix(&Fix {
+                class: FixClass::Content,
                 edits: vec![Edit {
                     start: 0,
                     end: 0,
@@ -165,6 +174,7 @@ fn processors_prepare_main_and_hidden_escape_controls() {
             eof,
             &unterminated[0],
             Fix {
+                class: FixClass::Content,
                 edits: vec![Edit {
                     start: at,
                     end: at + 1,
@@ -205,6 +215,7 @@ fn processors_bounded_fuzz_roundtrips_preserve_untouched_host_bytes() {
                     host.as_str(),
                     rust,
                     Fix {
+                        class: FixClass::Content,
                         edits: vec![Edit {
                             start: at,
                             end: at + 1,
@@ -240,6 +251,7 @@ fn processors_keep_original_host_nonempty_guard() {
     let virtuals = inputs(source, ProcessorLanguage::Rust);
     let projected: Fix = virtuals[0]
         .project_fix(&Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start: 0,
                 end: virtuals[0].source().len(),

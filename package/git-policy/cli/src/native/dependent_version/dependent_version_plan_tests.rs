@@ -1,13 +1,18 @@
-//! What: The plan over in-memory workspaces, with the cases of
+//! What:
+//! The plan over in-memory workspaces,
+//! with the cases of
 //!       `bump-dependents-worktree.unit.test.ts` as the content they read.
-//! Why: The plan is what both entry points apply; its bytes are the patch.
+//! Why:
+//! The plan is what both entry points apply;
+//! its bytes are the patch.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // const plan = await planWorkspaceBumps(reader); expect(plan.bumps.map(b => `${b.name}@${b.to}`)).toEqual([...]);
 //! ```
 
-/// The plan, its outcome types and the in-memory workspace.
+/// The plan,
+/// its outcome types and the in-memory workspace.
 use super::{ManifestBump, PlanOutcome, WorkspaceBumpPlan, plan_workspace_bumps};
 use crate::dependent_version_content::{ContentUnavailable, PlanError, PolicyIncomplete};
 use crate::dependent_version_manifest::shape;
@@ -16,7 +21,8 @@ use crate::dependent_version_test_support::{
     MemoryFile, MemoryWorkspace, Read, changed, config, manifest_text, unchanged, workspace,
 };
 
-/// The incumbent worktree test's baseline, with `@s/base` raised to `1.1.0`.
+/// The incumbent worktree test's baseline,
+/// with `@s/base` raised to `1.1.0`.
 fn raised_baseline() -> Vec<MemoryFile> {
     return vec![
         unchanged(
@@ -58,7 +64,9 @@ fn planned(memory: &mut MemoryWorkspace) -> WorkspaceBumpPlan {
     return plan;
 }
 
-/// Ported: runtime and bundled dependents of a raised package are bumped, bytes exact.
+/// Ported:
+/// runtime and bundled dependents of a raised package are bumped,
+/// bytes exact.
 #[test]
 fn bumps_runtime_and_bundled_dependents() {
     let mut memory: MemoryWorkspace = workspace(raised_baseline());
@@ -81,7 +89,10 @@ fn bumps_runtime_and_bundled_dependents() {
     );
 }
 
-/// Ported: nothing is planned, and the configuration is not read, when nothing was raised.
+/// Ported:
+/// nothing is planned,
+/// and the configuration is not read,
+/// when nothing was raised.
 #[test]
 fn plans_nothing_without_a_raised_version() {
     let mut files: Vec<MemoryFile> = raised_baseline();
@@ -125,7 +136,8 @@ fn refuses_a_configuration_that_is_not_utf8() {
     );
 }
 
-/// Two manifests with one name stop a plan that needs the graph, and only such a plan.
+/// Two manifests with one name stop a plan that needs the graph,
+/// and only such a plan.
 #[test]
 fn refuses_duplicate_names_once_the_graph_is_needed() {
     let mut files: Vec<MemoryFile> = raised_baseline();

@@ -1,5 +1,9 @@
-//! Controls for the worktree's head around a landing: a head that cannot be read is no answer, a head attached since the last
-//!  look is not replaced, the late switch settles every obligation of the batch, and a restart reads the head under its lock.
+//! Controls for the worktree's head around a landing:
+//! a head that cannot be read is no answer,
+//! a head attached since the last
+//!  look is not replaced,
+//! the late switch settles every obligation of the batch,
+//! and a restart reads the head under its lock.
 
 use super::tests::{World, built_request, git_with_index, land_with_failed_index, request, world};
 use super::*;
@@ -7,14 +11,16 @@ use crate::service_fault::hooks;
 use crate::service_journal::{DONE_EXTENSION, OPEN_EXTENSION, batch_path, parse_intent};
 use crate::test_support::{fixture, git, git_context, git_text, remove};
 
-/// A context whose Git is pointed at a Git directory that does not exist, so every question it is asked ends with status 128.
+/// A context whose Git is pointed at a Git directory that does not exist,
+/// so every question it is asked ends with status 128.
 pub(super) fn blind_context(root: &Path) -> GitContext {
     let mut context: GitContext = git_context();
     context.overlay.push((std::ffi::OsString::from("GIT_DIR"), root.join("no-such-git-dir").into_os_string()));
     return context;
 }
 
-/// A Git that cannot read the repository gives no answer about the head, so a caller never takes its failure for a detached head
+/// A Git that cannot read the repository gives no answer about the head,
+/// so a caller never takes its failure for a detached head
 ///  or for another branch.
 #[test]
 fn a_git_that_cannot_read_the_repository_is_no_answer_about_the_head() {
@@ -29,8 +35,11 @@ fn a_git_that_cannot_read_the_repository_is_no_answer_about_the_head() {
     remove(root.as_path());
 }
 
-/// A detached head that was attached to a branch at the same commit after the last look is not replaced by a detached head: the
-///  commit goes to the branch the head names, as it does for native Git's commit, and the index is updated for it.
+/// A detached head that was attached to a branch at the same commit after the last look is not replaced by a detached head:
+/// the
+///  commit goes to the branch the head names,
+/// as it does for native Git's commit,
+/// and the index is updated for it.
 #[test]
 fn a_head_attached_after_the_last_look_stays_attached() {
     let world: World = world("service-head-attached");
@@ -52,7 +61,8 @@ fn a_head_attached_after_the_last_look_stays_attached() {
 }
 
 /// A switch after the last look leaves the worktree's default index to its new branch but still finishes an alternate index
-///  (`GIT_INDEX_FILE`), which belongs to no branch.
+///  (`GIT_INDEX_FILE`),
+/// which belongs to no branch.
 #[test]
 fn a_late_switch_still_finishes_an_alternate_index() {
     let world: World = world("service-head-late-alternate");
@@ -71,7 +81,9 @@ fn a_late_switch_still_finishes_an_alternate_index() {
     remove(world.root.as_path());
 }
 
-/// A switch after the last look does not finish the batch while its conclusion state is still there: the batch stays open, so a
+/// A switch after the last look does not finish the batch while its conclusion state is still there:
+/// the batch stays open,
+/// so a
 ///  restart removes the state.
 #[test]
 fn a_late_switch_keeps_the_batch_open_while_its_cleanup_is_pending() {
@@ -90,7 +102,8 @@ fn a_late_switch_keeps_the_batch_open_while_its_cleanup_is_pending() {
     remove(world.root.as_path());
 }
 
-/// A restart reads the head again under the lock it takes: a worktree that left the branch between its first look and the lock
+/// A restart reads the head again under the lock it takes:
+/// a worktree that left the branch between its first look and the lock
 ///  keeps the index of the branch it is on.
 #[test]
 fn a_restart_reads_the_head_under_its_lock() {
@@ -107,7 +120,8 @@ fn a_restart_reads_the_head_under_its_lock() {
     remove(world.root.as_path());
 }
 
-/// A head that cannot be read stops a restart before it touches anything: the batch stays open and the index is as it was.
+/// A head that cannot be read stops a restart before it touches anything:
+/// the batch stays open and the index is as it was.
 #[test]
 fn a_restart_that_cannot_read_the_head_leaves_the_batch_open() {
     let world: World = world("service-head-unreadable");

@@ -1,4 +1,6 @@
-//! Controls for what the release of the index lock installs: a copy that is complete on the disk, never an unchanged one.
+//! Controls for what the release of the index lock installs:
+//! a copy that is complete on the disk,
+//! never an unchanged one.
 
 use super::*;
 use crate::service_fault::hooks;
@@ -6,14 +8,16 @@ use crate::service_index_lock::try_acquire;
 use crate::service_land_start::witness_of;
 use crate::test_support::{fixture, remove};
 
-/// A function-like value with the right shape is a record in tests: the shipped callers write a small struct that holds the state.
+/// A function-like value with the right shape is a record in tests:
+/// the shipped callers write a small struct that holds the state.
 impl<Make: Fn() -> Result<(), std::io::Error>> Record for Make {
     fn record(&self) -> std::io::Result<()> {
         return self();
     }
 }
 
-/// An index file of `body` followed by a checksum tail of `tail`, in a fresh fixture directory.
+/// An index file of `body` followed by a checksum tail of `tail`,
+/// in a fresh fixture directory.
 fn index_with(name: &str, body: &[u8], tail: &[u8]) -> (PathBuf, PathBuf) {
     let root: PathBuf = fixture(name);
     let index: PathBuf = root.join("index");
@@ -23,8 +27,13 @@ fn index_with(name: &str, body: &[u8], tail: &[u8]) -> (PathBuf, PathBuf) {
     return (root, index);
 }
 
-/// A copy that holds the live index's own bytes is not installed: the live file stays the same file, so its access list, which a
-///  copy made in another directory does not inherit, is never replaced, and no rename is spent on a no-op.
+/// A copy that holds the live index's own bytes is not installed:
+/// the live file stays the same file,
+/// so its access list,
+/// which a
+///  copy made in another directory does not inherit,
+/// is never replaced,
+/// and no rename is spent on a no-op.
 #[test]
 fn an_unchanged_copy_leaves_the_live_file_in_place() {
     let (root, index) = index_with("hold-unchanged", b"entries of the index", &[7; 20]);
@@ -40,7 +49,8 @@ fn an_unchanged_copy_leaves_the_live_file_in_place() {
     remove(root.as_path());
 }
 
-/// A copy that differs only before a skipped checksum (all zero bytes) is another index: equal tails prove nothing then.
+/// A copy that differs only before a skipped checksum (all zero bytes) is another index:
+/// equal tails prove nothing then.
 #[test]
 fn a_copy_with_a_skipped_checksum_is_compared_in_full() {
     let (root, index) = index_with("hold-skipped-checksum", b"entries of the index", &[0; 32]);
@@ -52,7 +62,9 @@ fn a_copy_with_a_skipped_checksum_is_compared_in_full() {
     remove(root.as_path());
 }
 
-/// A changed copy is flushed to the disk before it becomes the index, whichever way it was made, and the directory and the
+/// A changed copy is flushed to the disk before it becomes the index,
+/// whichever way it was made,
+/// and the directory and the
 ///  completion record follow.
 #[test]
 fn a_changed_copy_is_synced_before_it_is_installed() {
@@ -69,7 +81,8 @@ fn a_changed_copy_is_synced_before_it_is_installed() {
     remove(root.as_path());
 }
 
-/// A flush of the copy that fails installs nothing and records nothing: the live index is as it was and the lock is given up.
+/// A flush of the copy that fails installs nothing and records nothing:
+/// the live index is as it was and the lock is given up.
 #[test]
 fn a_failed_sync_of_the_copy_installs_nothing() {
     let (root, index) = index_with("hold-sync-fails", b"entries of the index", &[7; 20]);
@@ -89,7 +102,9 @@ fn a_failed_sync_of_the_copy_installs_nothing() {
 }
 
 /// The bytes of a POSIX ACL (`system.posix_acl_access`) that gives user 4242 read access beside the owner's read and write and
-///  the group's read; the same layout `subvolume_sync_tests.rs` uses, set through the extended attribute so the gate image needs
+///  the group's read;
+/// the same layout `subvolume_sync_tests.rs` uses,
+/// set through the extended attribute so the gate image needs
 ///  no `setfacl`.
 fn acl_with_named_user() -> Vec<u8> {
     let mut bytes: Vec<u8> = 2u32.to_le_bytes().to_vec();
@@ -101,7 +116,8 @@ fn acl_with_named_user() -> Vec<u8> {
     return bytes;
 }
 
-/// Sets the access ACL of `path`; false where the file system refuses extended attributes.
+/// Sets the access ACL of `path`;
+/// false where the file system refuses extended attributes.
 fn set_access_list(path: &Path, value: &[u8]) -> bool {
     let (path_text, name) = (std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("path"), std::ffi::CString::new("system.posix_acl_access").expect("name"));
     // SAFETY: both strings are NUL-terminated and the value is readable for its length.
@@ -112,7 +128,8 @@ fn set_access_list(path: &Path, value: &[u8]) -> bool {
     return set == 0;
 }
 
-/// The access ACL bytes of `path`, or nothing when it has none.
+/// The access ACL bytes of `path`,
+/// or nothing when it has none.
 fn access_list(path: &Path) -> Option<Vec<u8>> {
     let (path_text, name) = (std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("path"), std::ffi::CString::new("system.posix_acl_access").expect("name"));
     let mut value: Vec<u8> = vec![0; 512];
@@ -125,9 +142,15 @@ fn access_list(path: &Path) -> Option<Vec<u8>> {
     return Some(value);
 }
 
-/// A live index whose access list names another user, replaced by a copy made in a private directory, would get the list the
-///  directory gives its files. An unchanged copy replaces nothing, so the list the live file has is the list it keeps. The file
-///  system that refuses the attribute skips the control with a loud line, as the extended attribute control of the copy does.
+/// A live index whose access list names another user,
+/// replaced by a copy made in a private directory,
+/// would get the list the
+///  directory gives its files.
+/// An unchanged copy replaces nothing,
+/// so the list the live file has is the list it keeps.
+/// The file
+///  system that refuses the attribute skips the control with a loud line,
+/// as the extended attribute control of the copy does.
 #[test]
 fn an_unchanged_copy_keeps_the_access_list_of_the_live_file() {
     let (root, index) = index_with("hold-acl", b"entries of the index", &[7; 20]);

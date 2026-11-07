@@ -1,10 +1,17 @@
 //! What:
-//!  A read-only comparison of the old tree of a conversion with the installed one: the first entry of the old tree that the
-//!  installed tree does not hold in the same form, or that this command does not delete.
+//!  A read-only comparison of the old tree of a conversion with the installed one:
+//! the first entry of the old tree that the
+//!  installed tree does not hold in the same form,
+//! or that this command does not delete.
 //! Why:
-//!  The old tree is deleted only after the installed copy is known to hold everything in it. The comparison changes neither
-//!  tree and copies nothing: a difference keeps the old tree and says which entry differs, and whoever knows which version is
-//!  wanted settles it. An entry on another device (a nested subvolume or a mount point) is reported the same way, because
+//!  The old tree is deleted only after the installed copy is known to hold everything in it.
+//! The comparison changes neither
+//!  tree and copies nothing:
+//! a difference keeps the old tree and says which entry differs,
+//! and whoever knows which version is
+//!  wanted settles it.
+//! An entry on another device (a nested subvolume or a mount point) is reported the same way,
+//! because
 //!  deleting it is not this command's to do.
 //!
 //! In TS you'd write (pseudocode):
@@ -16,10 +23,15 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// What:
-///  The first way the old tree at `old` is not held by the installed tree at `installed`, or nothing when it is held whole.
+///  The first way the old tree at `old` is not held by the installed tree at `installed`,
+/// or nothing when it is held whole.
 /// Why:
-///   See the module description. A file is the same when its type, size and modification time are, a link when its target is;
-///  the installed tree may hold more than the old one, because it has been in use since the exchange.
+///   See the module description.
+/// A file is the same when its type,
+/// size and modification time are,
+/// a link when its target is;
+///  the installed tree may hold more than the old one,
+/// because it has been in use since the exchange.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

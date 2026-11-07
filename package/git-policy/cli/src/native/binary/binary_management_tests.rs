@@ -34,7 +34,8 @@ fn stderr_text(observed: &Observed) -> String {
     return String::from_utf8_lossy(&observed.stderr).into_owned();
 }
 
-/// Standard error without the doctor's filesystem section, which depends on the host the controls run on.
+/// Standard error without the doctor's filesystem section,
+/// which depends on the host the controls run on.
 fn before_filesystem_section(text: &str) -> &str {
     return text.split(git_policy_cli::doctor_filesystem::SECTION_MARKER).next().unwrap_or("");
 }
@@ -421,8 +422,11 @@ fn namespace_word_elsewhere_is_an_ordinary_argument() {
     remove(&fixture);
 }
 
-/// `git monochromatic-git-policy-cli doctor` lists the traditional hooks of the default and the configured hooks directory, one path per
-///  line, and exits 1 when it finds any and 0 when it finds none; samples are ignored.
+/// `git monochromatic-git-policy-cli doctor` lists the traditional hooks of the default and the configured hooks directory,
+/// one path per
+///  line,
+/// and exits 1 when it finds any and 0 when it finds none;
+/// samples are ignored.
 #[test]
 fn doctor_lists_traditional_hooks_and_exits_by_what_it_finds() {
     let fixture: Fixture = fixture("management-doctor");

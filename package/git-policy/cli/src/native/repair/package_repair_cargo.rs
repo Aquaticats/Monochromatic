@@ -1,14 +1,29 @@
 //! What:
-//!  The Cargo repair: for each Cargo workspace of a new worktree, clone the source workspace's build state when Cargo keeps
-//!  it outside the worktree, then `cargo clean --package <member>` for every member so only the worktree's own crates
+//!  The Cargo repair:
+//! for each Cargo workspace of a new worktree,
+//! clone the source workspace's build state when Cargo keeps
+//!  it outside the worktree,
+//! then `cargo clean --package <member>` for every member so only the worktree's own crates
 //!  rebuild.
 //! Why:
-//!  Cargo bakes absolute paths into what it builds (`CARGO_MANIFEST_DIR`, build script output), so build state copied from
-//!  another location is wrong for the worktree's own crates, but registry and git dependencies hold nothing path-specific
-//!  and can be reused. The owner chose this on 2026-11-03: "Reuse deps, rebuild own", done with "Run cargo clean -p".
+//!  Cargo bakes absolute paths into what it builds (`CARGO_MANIFEST_DIR`,
+//! build script output),
+//! so build state copied from
+//!  another location is wrong for the worktree's own crates,
+//! but registry and git dependencies hold nothing path-specific
+//!  and can be reused.
+//! The owner chose this on 2026-11-03:
+//! "Reuse deps,
+//! rebuild own",
+//! done with "Run cargo clean -p".
 //!  Where `build-dir` is outside the worktree (the person's `~/.cargo/config.toml` keys it by workspace path) a copy of
-//!  ignored files does not carry it, so it is cloned; under Cargo's default layout it is inside `target/`, which is already
-//!  copied. `cargo metadata` names both directories, so no configuration is read by the wrapper.
+//!  ignored files does not carry it,
+//! so it is cloned;
+//! under Cargo's default layout it is inside `target/`,
+//! which is already
+//!  copied.
+//! `cargo metadata` names both directories,
+//! so no configuration is read by the wrapper.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -46,15 +61,20 @@ const PROGRAM: &str = "cargo";
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BuildStatePlan {
-    /// Nothing is cloned or cleaned; the text says why, for the log.
+    /// Nothing is cloned or cleaned;
+    /// the text says why,
+    /// for the log.
     Nothing(String),
-    /// The state is already in the worktree (copied with `target/`): only the members are cleaned.
+    /// The state is already in the worktree (copied with `target/`):
+    /// only the members are cleaned.
     CleanOnly,
-    /// The source's external build directory is cloned to the worktree's, then the members are cleaned.
+    /// The source's external build directory is cloned to the worktree's,
+    /// then the members are cleaned.
     CloneThenClean {
         /// The source workspace's build directory.
         from: PathBuf,
-        /// The worktree's build directory, which does not exist yet.
+        /// The worktree's build directory,
+        /// which does not exist yet.
         to: PathBuf,
     },
 }
@@ -62,7 +82,8 @@ pub enum BuildStatePlan {
 /// What:
 ///  Facts about the disk that decide a plan.
 /// Why:
-///   They are read once, so the planner stays pure.
+///   They are read once,
+/// so the planner stays pure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -70,7 +91,8 @@ pub enum BuildStatePlan {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StateFacts {
-    /// The build directory of the source's counterpart workspace; none when the source has no such workspace.
+    /// The build directory of the source's counterpart workspace;
+    /// none when the source has no such workspace.
     pub source_build: Option<PathBuf>,
     /// Whether that directory exists.
     pub source_build_exists: bool,
@@ -83,7 +105,9 @@ pub struct StateFacts {
 /// What:
 ///  Decide what the worktree's build state needs.
 /// Why:
-///   Reusing state that is shared with the source, or cleaning where there is none, would do harm or nothing.
+///   Reusing state that is shared with the source,
+/// or cleaning where there is none,
+/// would do harm or nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -115,9 +139,13 @@ pub fn plan_build_state(destination: &Workspace, destination_root: &Path, facts:
 /// What:
 ///  The arguments of the clean that removes exactly the members' own artifacts.
 /// Why:
-///   `--offline` keeps the clean from reaching the network; one `--package` per member keeps registry and git dependencies.
-///  `--locked` is not used: a committed `Cargo.lock` that no longer matches its manifest (several do here) would make the clean
-///  fail, and the person's own clean would not; the file is put back as checked out instead (`restore_lock`).
+///   `--offline` keeps the clean from reaching the network;
+/// one `--package` per member keeps registry and git dependencies.
+///  `--locked` is not used:
+/// a committed `Cargo.lock` that no longer matches its manifest (several do here) would make the clean
+///  fail,
+/// and the person's own clean would not;
+/// the file is put back as checked out instead (`restore_lock`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -135,7 +163,8 @@ pub fn clean_arguments(members: &[String]) -> Vec<OsString> {
 /// What:
 ///  The command a person runs in a workspace to do what the repair could not.
 /// Why:
-///   A printed line must work as pasted, so the directory change is part of it.
+///   A printed line must work as pasted,
+/// so the directory change is part of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -151,9 +180,11 @@ fn manual_command(root: &Path, members: &[String]) -> String {
 
 /// What a repair of one workspace did.
 enum Done {
-    /// Nothing was needed; the text says why.
+    /// Nothing was needed;
+    /// the text says why.
     Skipped,
-    /// The members were cleaned, and the build directory was cloned first when `cloned` is set.
+    /// The members were cleaned,
+    /// and the build directory was cloned first when `cloned` is set.
     Cleaned {
         /// Whether a build directory was cloned.
         cloned: bool,
@@ -165,9 +196,13 @@ enum Done {
 }
 
 /// What:
-///  Repair one workspace: plan, clone, clean.
+///  Repair one workspace:
+/// plan,
+/// clone,
+/// clean.
 /// Why:
-///   Each workspace's state is in a directory of its own, so workspaces never touch each other's.
+///   Each workspace's state is in a directory of its own,
+/// so workspaces never touch each other's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -231,10 +266,14 @@ fn repair_workspace(cargo: &Path, workspace: &Workspace, destination_root: &Path
 }
 
 /// What:
-///  The words that say how many entries of the cloned build state could not be read, or nothing when all could.
+///  The words that say how many entries of the cloned build state could not be read,
+/// or nothing when all could.
 /// Why:
-///   The person is told what the clone left out: the entries are the source's, unreadable to everyone but a chmod the repair
-///  never performs, and Cargo rebuilds whatever of them it needs.
+///   The person is told what the clone left out:
+/// the entries are the source's,
+/// unreadable to everyone but a chmod the repair
+///  never performs,
+/// and Cargo rebuilds whatever of them it needs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -249,9 +288,12 @@ fn left_out_words(left_out: usize) -> String {
 }
 
 /// What:
-///  The finding of a workspace whose repair failed: the reason, and the command the person can run instead.
+///  The finding of a workspace whose repair failed:
+/// the reason,
+/// and the command the person can run instead.
 /// Why:
-///   Every failing step of `repair_workspace` ends the same way, and a named function stands where a closure that
+///   Every failing step of `repair_workspace` ends the same way,
+/// and a named function stands where a closure that
 ///  built this result stood.
 ///
 /// In TS you'd write (pseudocode):
@@ -263,9 +305,11 @@ fn workspace_failed(manual: &str, reason: String) -> Done {
 }
 
 /// What:
-///  Read one workspace with `cargo metadata`, timed as the step `name`.
+///  Read one workspace with `cargo metadata`,
+/// timed as the step `name`.
 /// Why:
-///   The add timing record sums the work of worker threads by name; the call runs in place between `begin_work` and `end_work`.
+///   The add timing record sums the work of worker threads by name;
+/// the call runs in place between `begin_work` and `end_work`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -283,7 +327,8 @@ fn timed_read_workspace(name: &str, cargo: &Path, directory: &Path, limits: Tool
 /// What:
 ///  Clone a build directory with the timing record's step `cargoCloneTree`.
 /// Why:
-///   Same as `timed_read_workspace`: the call runs in place between `begin_work` and `end_work`.
+///   Same as `timed_read_workspace`:
+/// the call runs in place between `begin_work` and `end_work`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -301,7 +346,8 @@ fn timed_clone_tree(from: &Path, to: &Path, clone_workers: usize) -> Result<crat
 /// What:
 ///  Run `cargo clean` with the timing record's step `cargoClean`.
 /// Why:
-///   Same as `timed_read_workspace`: the call runs in place between `begin_work` and `end_work`.
+///   Same as `timed_read_workspace`:
+/// the call runs in place between `begin_work` and `end_work`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -316,7 +362,8 @@ fn timed_clean(cargo: &Path, command: &ToolCommand, limits: ToolLimits) -> ToolR
     return run;
 }
 
-/// The label of a metadata read whose worker panicked: the directory it was reading.
+/// The label of a metadata read whose worker panicked:
+/// the directory it was reading.
 struct ReadingLabel;
 
 impl ItemLabel<PathBuf> for ReadingLabel {
@@ -325,7 +372,8 @@ impl ItemLabel<PathBuf> for ReadingLabel {
     }
 }
 
-/// The label of a workspace repair whose worker panicked: the workspace it was repairing.
+/// The label of a workspace repair whose worker panicked:
+/// the workspace it was repairing.
 struct RepairLabel;
 
 impl ItemLabel<Workspace> for RepairLabel {
@@ -335,10 +383,13 @@ impl ItemLabel<Workspace> for RepairLabel {
 }
 
 /// What:
-///  The job of reading the Cargo workspace of one directory, timed as the step `cargoMetadataWorktree`.
+///  The job of reading the Cargo workspace of one directory,
+/// timed as the step `cargoMetadataWorktree`.
 /// Why:
-///   The concurrent runner takes its job as a value with a `run` method, and the state the job needs (the Cargo program and
-///  the request) is two borrowed fields, so a struct stands where a closure that captured them stood.
+///   The concurrent runner takes its job as a value with a `run` method,
+/// and the state the job needs (the Cargo program and
+///  the request) is two borrowed fields,
+/// so a struct stands where a closure that captured them stood.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -358,9 +409,11 @@ impl ConcurrentWork<PathBuf, Result<Workspace, String>> for ReadWorkspaceJob<'_>
 }
 
 /// What:
-///  The job of repairing one Cargo workspace, timed as the step `cargoRepairWorkspace`.
+///  The job of repairing one Cargo workspace,
+/// timed as the step `cargoRepairWorkspace`.
 /// Why:
-///   Same as `ReadWorkspaceJob`: four borrowed fields and a count stand where a closure that captured them stood.
+///   Same as `ReadWorkspaceJob`:
+/// four borrowed fields and a count stand where a closure that captured them stood.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -371,7 +424,8 @@ struct RepairWorkspaceJob<'a> {
     cargo: &'a Path,
     /// The real path of the new worktree.
     destination_root: &'a Path,
-    /// The request whose source, Git and environment the repair reads.
+    /// The request whose source,
+    /// Git and environment the repair reads.
     request: &'a RepairRequest<'a>,
     /// How many threads one build-state clone may use.
     clone_workers: usize,
@@ -383,7 +437,8 @@ impl ConcurrentWork<Workspace, Done> for RepairWorkspaceJob<'_> {
     }
 }
 
-/// Repair one workspace with the timing record's step `cargoRepairWorkspace`; the call runs in place between `begin_work` and `end_work`.
+/// Repair one workspace with the timing record's step `cargoRepairWorkspace`;
+/// the call runs in place between `begin_work` and `end_work`.
 fn timed_repair_workspace(job: &RepairWorkspaceJob<'_>, workspace: &Workspace) -> Done {
     let began: Instant = begin_work();
     let done: Done = repair_workspace(job.cargo, workspace, job.destination_root, job.request, job.clone_workers);
@@ -394,7 +449,8 @@ fn timed_repair_workspace(job: &RepairWorkspaceJob<'_>, workspace: &Workspace) -
 /// What:
 ///  Repair every Cargo workspace of the new worktree.
 /// Why:
-///   Workspaces are independent (each has its own build directory), so they are repaired side by side.
+///   Workspaces are independent (each has its own build directory),
+/// so they are repaired side by side.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

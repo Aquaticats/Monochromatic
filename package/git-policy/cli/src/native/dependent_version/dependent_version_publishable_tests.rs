@@ -1,6 +1,9 @@
-//! What: Publishable-name reading, with every `readPublishableNames` case of
+//! What:
+//! Publishable-name reading,
+//! with every `readPublishableNames` case of
 //!       `dependent-version-bump-policy.unit.test.ts` and JavaScript's trim set.
-//! Why: A name missing from the list is never bumped.
+//! Why:
+//! A name missing from the list is never bumped.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,7 +18,8 @@ fn read(text: &str) -> Vec<String> {
     return read_publishable_names(text);
 }
 
-/// Ported: the list is read up to the first line that is not an item.
+/// Ported:
+/// the list is read up to the first line that is not an item.
 #[test]
 fn reads_the_list_and_stops_at_the_first_non_item_line() {
     assert_eq!(
@@ -27,7 +31,8 @@ fn reads_the_list_and_stops_at_the_first_non_item_line() {
     assert!(read("packages:\n  - ''\n").is_empty());
 }
 
-/// Only the first key line opens the list; an item needs both quotes and a name.
+/// Only the first key line opens the list;
+/// an item needs both quotes and a name.
 #[test]
 fn reads_items_after_the_first_key_only() {
     assert!(read("packages:\n  x\npackages:\n  - 'a'\n").is_empty());
@@ -38,7 +43,10 @@ fn reads_items_after_the_first_key_only() {
     assert!(read("packages: x\n  - 'a'\n").is_empty());
 }
 
-/// Lines are trimmed with JavaScript's set: CR, BOM and wide spaces go, NEL stays.
+/// Lines are trimmed with JavaScript's set:
+/// CR,
+/// BOM and wide spaces go,
+/// NEL stays.
 #[test]
 fn trims_as_javascript_does() {
     assert_eq!(read("packages:\r\n  - 'a'\r\n"), ["a"]);

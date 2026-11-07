@@ -1,13 +1,20 @@
 //! What:
-//!  The external hooks a repository configures (`hook.<name>.event` with `hook.<name>.command`), read from the
-//!  configuration snapshot, and the loud report that none of them runs.
+//!  The external hooks a repository configures (`hook.<name>.event` with `hook.<name>.command`),
+//! read from the
+//!  configuration snapshot,
+//! and the loud report that none of them runs.
 //! Why:
-//!  The wrapper supports no external hook program at all: every real-Git start of the wrapper switches every hook
-//!  event off (`hooks_off.rs`), and the behaviors a hook used to provide are declared natively in
+//!  The wrapper supports no external hook program at all:
+//! every real-Git start of the wrapper switches every hook
+//!  event off (`hooks_off.rs`),
+//! and the behaviors a hook used to provide are declared natively in
 //!  `monochromatic-git-policy-cli.config.jsonc`.
-//!  A configured hook that silently never ran would look like a broken check, so a commit prints one
-//!  `configuration-warning` event naming the keys and the events, decided from the snapshot the commit already holds
-//!  (no process start), and `git monochromatic-git-policy-cli doctor` lists the same hooks.
+//!  A configured hook that silently never ran would look like a broken check,
+//! so a commit prints one
+//!  `configuration-warning` event naming the keys and the events,
+//! decided from the snapshot the commit already holds
+//!  (no process start),
+//! and `git monochromatic-git-policy-cli doctor` lists the same hooks.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,7 +23,8 @@
 
 /// Debug logging of a stream that refused the warning.
 use crate::diagnostic_log::debug;
-/// The warning's JSONL rendering, shared with the other configuration warnings.
+/// The warning's JSONL rendering,
+/// shared with the other configuration warnings.
 use crate::diagnostics::render_configuration_warning;
 /// The configuration the command read once.
 use crate::config_snapshot::{ConfigSnapshot, Lookup};
@@ -29,13 +37,16 @@ pub const EXTERNAL_HOOKS_UNSUPPORTED_CODE: &str = "external-hooks-unsupported";
 /// Module tag for diagnostics.
 const TAG: &str = "externalHooks";
 
-/// The key parts around a hook name: `hook.<name>.event` and `hook.<name>.command`.
+/// The key parts around a hook name:
+/// `hook.<name>.event` and `hook.<name>.command`.
 const HOOK_PREFIX: &str = "hook.";
 
 /// What:
 ///  One configured hook.
 /// Why:
-///   The report names the hook, its events and whether it has a command, so the author knows which keys to remove.
+///   The report names the hook,
+/// its events and whether it has a command,
+/// so the author knows which keys to remove.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -45,16 +56,21 @@ const HOOK_PREFIX: &str = "hook.";
 pub struct ConfiguredHook {
     /// The hook's friendly name (the subsection of the keys).
     pub name: String,
-    /// The events it asks for, in the order Git reads them; an empty value resets the list, as Git does.
+    /// The events it asks for,
+    /// in the order Git reads them;
+    /// an empty value resets the list,
+    /// as Git does.
     pub events: Vec<String>,
     /// Whether `hook.<name>.command` is set.
     pub has_command: bool,
 }
 
 /// What:
-///  The text of a value as UTF-8, lossily.
+///  The text of a value as UTF-8,
+/// lossily.
 /// Why:
-///   Event names and hook names are ASCII in every real configuration, and the report only names them.
+///   Event names and hook names are ASCII in every real configuration,
+/// and the report only names them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -68,10 +84,13 @@ fn lossy(value: Option<&Vec<u8>>) -> String {
 }
 
 /// What:
-///  Every configured hook that is not switched off by its own `hook.<name>.enabled`, in the order the snapshot lists
+///  Every configured hook that is not switched off by its own `hook.<name>.enabled`,
+/// in the order the snapshot lists
 ///  them.
 /// Why:
-///   The hooks Git would have run: a name with an event or a command, minus the ones the author already disabled.
+///   The hooks Git would have run:
+/// a name with an event or a command,
+/// minus the ones the author already disabled.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,7 +148,8 @@ pub fn configured_hooks(snapshot: &ConfigSnapshot) -> Vec<ConfiguredHook> {
 }
 
 /// What:
-///  The hook as one phrase: `hook.<name> (events: a, b)`.
+///  The hook as one phrase:
+/// `hook.<name> (events: a, b)`.
 /// Why:
 ///   The report lists each hook by the key prefix the author would unset.
 ///
@@ -147,7 +167,8 @@ pub fn describe_hook(hook: &ConfiguredHook) -> String {
 /// What:
 ///  The sentence that explains what to do about configured hooks.
 /// Why:
-///   The explanation is shared by the commit warning and `git monochromatic-git-policy-cli doctor`, so both say the same ways forward.
+///   The explanation is shared by the commit warning and `git monochromatic-git-policy-cli doctor`,
+/// so both say the same ways forward.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -168,9 +189,11 @@ pub fn explain_external_hooks(hooks: &[ConfiguredHook]) -> String {
 }
 
 /// What:
-///  The warning line for configured external hooks, or nothing when the snapshot defines none.
+///  The warning line for configured external hooks,
+/// or nothing when the snapshot defines none.
 /// Why:
-///   The answer comes from the snapshot alone, so a repository without hooks pays no process start and no file
+///   The answer comes from the snapshot alone,
+/// so a repository without hooks pays no process start and no file
 ///  system call.
 ///
 /// In TS you'd write (pseudocode):
@@ -195,9 +218,12 @@ pub fn external_hooks_warning(snapshot: Option<&ConfigSnapshot>) -> Option<Strin
 }
 
 /// What:
-///  Write the warning, when there is one, to `stream`.
+///  Write the warning,
+/// when there is one,
+/// to `stream`.
 /// Why:
-///   The command's exit status already carries its result, so a stream that refuses the line is logged and the
+///   The command's exit status already carries its result,
+/// so a stream that refuses the line is logged and the
 ///  command goes on.
 ///
 /// In TS you'd write (pseudocode):

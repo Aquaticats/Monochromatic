@@ -1,14 +1,29 @@
 //! What:
-//!  The processes below one process: found before it is stopped, and signalled afterwards, each only while it is still
+//!  The processes below one process:
+//! found before it is stopped,
+//! and signalled afterwards,
+//! each only while it is still
 //!  the process that was found.
 //! Why:
-//!  Stopping a process does not stop what it started. A `git push` that is sent `SIGTERM` or `SIGKILL` leaves its
-//!  transport helper (`git-remote-http`, `ssh`) and the hooks it ran (`git-lfs`) alive, orphaned to the init process,
-//!  holding their connection until their own timeout ends them (measured: a helper stayed 60 seconds, a `git-lfs`
-//!  that never exits stayed for good). The tree has to be read before the root dies, because a child's link to its
-//!  parent is gone once the parent has exited. A process number can be reused, so each process is identified by the
-//!  start time the kernel recorded for it, and a number whose start time changed is not signalled.
-//!  The list comes from `/proc`, so only Linux finds any; elsewhere the tree is empty and only the root is stopped.
+//!  Stopping a process does not stop what it started.
+//! A `git push` that is sent `SIGTERM` or `SIGKILL` leaves its
+//!  transport helper (`git-remote-http`,
+//! `ssh`) and the hooks it ran (`git-lfs`) alive,
+//! orphaned to the init process,
+//!  holding their connection until their own timeout ends them (measured:
+//! a helper stayed 60 seconds,
+//! a `git-lfs`
+//!  that never exits stayed for good).
+//! The tree has to be read before the root dies,
+//! because a child's link to its
+//!  parent is gone once the parent has exited.
+//! A process number can be reused,
+//! so each process is identified by the
+//!  start time the kernel recorded for it,
+//! and a number whose start time changed is not signalled.
+//!  The list comes from `/proc`,
+//! so only Linux finds any;
+//! elsewhere the tree is empty and only the root is stopped.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,14 +35,19 @@
 pub struct TreeMember {
     /// The process number.
     pub pid: i32,
-    /// The start time the kernel recorded, in clock ticks since boot (`/proc/<pid>/stat`, field 22).
+    /// The start time the kernel recorded,
+    /// in clock ticks since boot (`/proc/<pid>/stat`,
+    /// field 22).
     pub started: u64,
 }
 
 /// What:
-///  The pid, parent and start time of the process a `stat` file describes, and whether it is a zombie.
+///  The pid,
+/// parent and start time of the process a `stat` file describes,
+/// and whether it is a zombie.
 /// Why:
-///   The command name sits in parentheses and may hold spaces and parentheses, so the fields are read after the last
+///   The command name sits in parentheses and may hold spaces and parentheses,
+/// so the fields are read after the last
 ///  closing parenthesis.
 ///
 /// In TS you'd write (pseudocode):
@@ -46,9 +66,13 @@ fn parse_stat(text: &str) -> Option<(i32, u64, bool)> {
 }
 
 /// What:
-///  Every living process below `root`, children before grandchildren, with their start times.
+///  Every living process below `root`,
+/// children before grandchildren,
+/// with their start times.
 /// Why:
-///   Read once, before the root is signalled, from one pass over `/proc`.
+///   Read once,
+/// before the root is signalled,
+/// from one pass over `/proc`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -90,7 +114,8 @@ pub fn descendants_of(root: i32) -> Vec<TreeMember> {
     return found;
 }
 
-/// Only Linux lists processes; elsewhere no descendant is found and only the root is stopped.
+/// Only Linux lists processes;
+/// elsewhere no descendant is found and only the root is stopped.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(target_os = "linux"))]
 pub fn descendants_of(_root: i32) -> Vec<TreeMember> {
@@ -98,10 +123,14 @@ pub fn descendants_of(_root: i32) -> Vec<TreeMember> {
 }
 
 /// What:
-///  The root of a tree as a member: its pid and the start time that proves later that it is still that process.
+///  The root of a tree as a member:
+/// its pid and the start time that proves later that it is still that process.
 /// Why:
-///   `descendants_of` lists only what is below a process, and a stop must wait for the process itself too.
-///  A process that has ended, or is a zombie, is no member.
+///   `descendants_of` lists only what is below a process,
+/// and a stop must wait for the process itself too.
+///  A process that has ended,
+/// or is a zombie,
+/// is no member.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -117,14 +146,18 @@ pub fn member_of(pid: i32) -> Option<TreeMember> {
     return Some(TreeMember { pid, started });
 }
 
-/// Only Linux reads a process's start time; elsewhere no member is found.
+/// Only Linux reads a process's start time;
+/// elsewhere no member is found.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(target_os = "linux"))]
 pub fn member_of(_pid: i32) -> Option<TreeMember> {
     return None;
 }
 
-/// Whether the process is still the one that was found: it exists, is not a zombie, and has the recorded start time.
+/// Whether the process is still the one that was found:
+/// it exists,
+/// is not a zombie,
+/// and has the recorded start time.
 #[cfg(target_os = "linux")]
 pub fn still_running(member: &TreeMember) -> bool {
     let Ok(text) = std::fs::read_to_string(format!("/proc/{}/stat", member.pid)) else {
@@ -136,7 +169,8 @@ pub fn still_running(member: &TreeMember) -> bool {
     return started == member.started && !zombie;
 }
 
-/// Nothing is found elsewhere, so nothing is still running.
+/// Nothing is found elsewhere,
+/// so nothing is still running.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(target_os = "linux"))]
 pub fn still_running(_member: &TreeMember) -> bool {
@@ -144,7 +178,8 @@ pub fn still_running(_member: &TreeMember) -> bool {
 }
 
 /// What:
-///  Send `signal` to each member that is still the process that was found; the others are left alone.
+///  Send `signal` to each member that is still the process that was found;
+/// the others are left alone.
 /// Why:
 ///   A number that was reused by an unrelated process must never be signalled.
 ///
@@ -167,7 +202,8 @@ pub fn signal_members(members: &[TreeMember], signal: i32) {
 #[cfg(not(unix))]
 pub fn signal_members(_members: &[TreeMember], _signal: i32) {}
 
-/// Ask each member that is still the process that was found to end, with `SIGTERM`.
+/// Ask each member that is still the process that was found to end,
+/// with `SIGTERM`.
 #[cfg(unix)]
 pub fn terminate_members(members: &[TreeMember]) {
     signal_members(members, libc::SIGTERM);
@@ -178,7 +214,8 @@ pub fn terminate_members(members: &[TreeMember]) {
 #[cfg(not(unix))]
 pub fn terminate_members(_members: &[TreeMember]) {}
 
-/// End each member that is still the process that was found, with `SIGKILL`.
+/// End each member that is still the process that was found,
+/// with `SIGKILL`.
 #[cfg(unix)]
 pub fn kill_members(members: &[TreeMember]) {
     signal_members(members, libc::SIGKILL);
@@ -194,7 +231,8 @@ pub fn kill_members(_members: &[TreeMember]) {}
 #[path = "process_tree_tests.rs"]
 mod tests;
 
-/// Controls for platforms without `/proc`, whose branches the Linux build does not compile.
+/// Controls for platforms without `/proc`,
+/// whose branches the Linux build does not compile.
 #[cfg(all(test, not(target_os = "linux")))]
 #[path = "process_tree_other_tests.rs"]
 mod other_tests;

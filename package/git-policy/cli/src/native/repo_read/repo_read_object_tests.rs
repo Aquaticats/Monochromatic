@@ -1,13 +1,16 @@
 //! Controls for the loose object and pack entry inflater:
 //!  a stream with bytes after its end is Git's `garbage at end of loose object` and is left to Git,
-//!  and no damaged stream (a byte changed at every position, a stream cut at every length) panics the reader.
+//!  and no damaged stream (a byte changed at every position,
+//! a stream cut at every length) panics the reader.
 
 use super::*;
 use crate::test_support::{fixture, git, git_output, remove, repository};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-/// The loose object files of a repository with a commit, a tree and several blobs, big enough to hold a
+/// The loose object files of a repository with a commit,
+/// a tree and several blobs,
+/// big enough to hold a
 ///  dynamic-Huffman block as well as stored and fixed ones.
 fn loose_files(root: &Path) -> (PathBuf, Vec<PathBuf>) {
     let repo = repository(root, "objects");
@@ -32,7 +35,8 @@ fn loose_files(root: &Path) -> (PathBuf, Vec<PathBuf>) {
     return (repo, files);
 }
 
-/// Bytes after the end of a loose stream are an error in Git, so the reader must not answer from the stream before them.
+/// Bytes after the end of a loose stream are an error in Git,
+/// so the reader must not answer from the stream before them.
 #[test]
 fn bytes_after_a_loose_stream_are_left_to_git() {
     let root = fixture("repo-read-object-garbage");
@@ -54,7 +58,10 @@ fn bytes_after_a_loose_stream_are_left_to_git() {
     remove(root.as_path());
 }
 
-/// A stream with one byte changed at any position, or cut at any length, is read or refused, never a panic.
+/// A stream with one byte changed at any position,
+/// or cut at any length,
+/// is read or refused,
+/// never a panic.
 #[test]
 fn damaged_streams_never_panic() {
     let root = fixture("repo-read-object-damage");
@@ -79,7 +86,8 @@ fn damaged_streams_never_panic() {
     remove(root.as_path());
 }
 
-/// A zlib stream that stores `content` in blocks of at most 65535 bytes, which decodes in time proportional to its length.
+/// A zlib stream that stores `content` in blocks of at most 65535 bytes,
+/// which decodes in time proportional to its length.
 fn stored_stream(content: &[u8]) -> Vec<u8> {
     let mut bytes: Vec<u8> = vec![0x78, 0x01];
     let mut chunks = content.chunks(65535).peekable();
@@ -100,8 +108,13 @@ fn stored_stream(content: &[u8]) -> Vec<u8> {
 }
 
 /// The decoder's cost for a stream that rebuilds its tables for every block without producing output grows with the
-///  stream's length, not its output (upstream issue 198 of the decoder crate), so a stream longer than the bound is left to
-///  Git; one under it, of the same kind, is read.
+///  stream's length,
+/// not its output (upstream issue 198 of the decoder crate),
+/// so a stream longer than the bound is left to
+///  Git;
+/// one under it,
+/// of the same kind,
+/// is read.
 #[test]
 fn a_stream_longer_than_the_bound_is_left_to_git() {
     let under: Vec<u8> = (0..INFLATE_INPUT_LIMIT / 2).map(|index| { return (index % 251) as u8; }).collect();

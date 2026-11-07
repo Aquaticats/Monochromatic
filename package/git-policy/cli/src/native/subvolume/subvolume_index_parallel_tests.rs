@@ -1,5 +1,9 @@
-//! The rewrite of every index of a checkout side by side: the rewrites overlap, the report keeps the order of the checkout's
-//!  index first and then each linked worktree's, one index that cannot be rewritten leaves the others rewritten, and the host
+//! The rewrite of every index of a checkout side by side:
+//! the rewrites overlap,
+//! the report keeps the order of the checkout's
+//!  index first and then each linked worktree's,
+//! one index that cannot be rewritten leaves the others rewritten,
+//! and the host
 //!  budget bounds the overlap.
 
 use super::*;
@@ -10,13 +14,17 @@ use crate::subvolume_test_support::make_checkout;
 use crate::test_support::{fixture, git, remove};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// How many linked worktrees the checkout of these controls has; the checkout's own index makes one more.
+/// How many linked worktrees the checkout of these controls has;
+/// the checkout's own index makes one more.
 const LINKED: usize = 3;
 
 /// A host large enough that neither the CPUs nor the memory bound a run over `LINKED + 1` indexes.
 const LARGE_HOST: HostResources = HostResources { parallelism: (LINKED + 1) * 8, memory_available: None };
 
-/// A checkout with `LINKED` linked worktrees `w0`, `w1`, ... inside it, each with an index.
+/// A checkout with `LINKED` linked worktrees `w0`,
+/// `w1`,
+/// ... inside it,
+/// each with an index.
 fn checkout_with_linked(name: &str) -> (PathBuf, PathBuf) {
     let parent: PathBuf = fixture(name);
     let root: PathBuf = make_checkout(parent.as_path(), "checkout");
@@ -33,7 +41,8 @@ fn refresh_with(root: &Path, host: &HostResources, rewrite: &RewriteOne<'_>) -> 
     return (count, lines);
 }
 
-/// The rewrites of all the indexes start before any has finished: a point that needs all of them at once is passed only by
+/// The rewrites of all the indexes start before any has finished:
+/// a point that needs all of them at once is passed only by
 ///  parallel work.
 #[test]
 fn the_indexes_are_rewritten_side_by_side() {
@@ -51,7 +60,8 @@ fn the_indexes_are_rewritten_side_by_side() {
     remove(parent.as_path());
 }
 
-/// The checkout's index is reported first and then each worktree's by path, though the checkout's index finishes last.
+/// The checkout's index is reported first and then each worktree's by path,
+/// though the checkout's index finishes last.
 #[test]
 fn the_report_keeps_the_order_of_the_checkout_then_its_worktrees() {
     let (parent, root) = checkout_with_linked("index-parallel-order");
@@ -75,7 +85,8 @@ fn the_report_keeps_the_order_of_the_checkout_then_its_worktrees() {
     remove(parent.as_path());
 }
 
-/// An index whose lock a Git command holds is skipped and said so; every other index is rewritten.
+/// An index whose lock a Git command holds is skipped and said so;
+/// every other index is rewritten.
 #[test]
 fn an_index_that_cannot_be_rewritten_leaves_the_others_rewritten() {
     let (parent, root) = checkout_with_linked("index-parallel-skip");
@@ -87,7 +98,8 @@ fn an_index_that_cannot_be_rewritten_leaves_the_others_rewritten() {
     remove(parent.as_path());
 }
 
-/// The host's budget bounds the overlap: on a host that may run few threads the overlap reaches that many and no more.
+/// The host's budget bounds the overlap:
+/// on a host that may run few threads the overlap reaches that many and no more.
 #[test]
 fn the_budget_of_the_host_bounds_the_overlap() {
     let (parent, root) = checkout_with_linked("index-parallel-budget");

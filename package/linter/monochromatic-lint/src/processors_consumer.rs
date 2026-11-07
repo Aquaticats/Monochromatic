@@ -12,7 +12,7 @@
 /// Explicit virtual semantic failures must be visible to ordinary library consumers.
 use monochromatic_lint::diagnostic::Severity;
 /// Apply projected fixes through the same owning edit engine.
-use monochromatic_lint::edits::{Edit, Fix, apply_fixes};
+use monochromatic_lint::edits::{Edit, Fix, FixClass, apply_fixes};
 /// Import the actual library artifact's processor and edit exports.
 use monochromatic_lint::processors::{ProcessorLanguage, VirtualSource, extract};
 /// Check real selected rule behavior from the consumer.
@@ -36,6 +36,7 @@ fn verify_original_failure_anchor() {
     let at: usize = rust.source().find("let value").expect("authored insertion");
     let error = rust
         .project_fix(&Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start: at,
                 end: at,
@@ -69,6 +70,7 @@ fn main() {
     let at: usize = rust.source().find("= 1").expect("authored literal") + 2;
     let projected: Fix = rust
         .project_fix(&Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start: at,
                 end: at + 1,

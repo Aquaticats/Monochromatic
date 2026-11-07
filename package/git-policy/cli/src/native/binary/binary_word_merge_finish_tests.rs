@@ -1,10 +1,21 @@
 //! What:
-//!  The finish after the word-level second pass, through the built executable: when every conflicted file of a merge, rebase,
-//!  cherry-pick, revert or pull resolves, the operation ends the way Git ends it after a clean run, and the options that stop a
-//!  clean run (`--no-commit`, `--squash`, `--edit`) stop it here too.
+//!  The finish after the word-level second pass,
+//! through the built executable:
+//! when every conflicted file of a merge,
+//! rebase,
+//!  cherry-pick,
+//! revert or pull resolves,
+//! the operation ends the way Git ends it after a clean run,
+//! and the options that stop a
+//!  clean run (`--no-commit`,
+//! `--squash`,
+//! `--edit`) stop it here too.
 //! Why:
-//!  The owner answered on 2026-11-03: "Finish like a clean merge (Recommended)". The continuing step goes through the wrapper's
-//!  own command path, so a later pick of a rebase gets the second pass and the commit gets the policies and the hooks.
+//!  The owner answered on 2026-11-03:
+//! "Finish like a clean merge (Recommended)".
+//! The continuing step goes through the wrapper's
+//!  own command path,
+//! so a later pick of a rebase gets the second pass and the commit gets the policies and the hooks.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,7 +28,9 @@ use super::word_merge::{ADJACENT, Stop, STOPS, arguments_of, corpus, expected_af
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-/// The corpus input whose two sides edit a list item and add an item after it: Git conflicts, the word pass resolves.
+/// The corpus input whose two sides edit a list item and add an item after it:
+/// Git conflicts,
+/// the word pass resolves.
 const SECOND_ADJACENT: &str = "md1c";
 
 /// The state files and directories an unfinished operation leaves in the Git directory.
@@ -28,17 +41,21 @@ fn state_left(repo: &Path) -> Vec<&'static str> {
     return STATE.iter().copied().filter(|name| { return repo.join(".git").join(name).exists(); }).collect();
 }
 
-/// A query against the repository, as trimmed text.
+/// A query against the repository,
+/// as trimmed text.
 fn text(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> String {
     return String::from_utf8_lossy(&git(fixture, repo, arguments).stdout).trim().to_owned();
 }
 
-/// The porcelain status, which is empty when nothing is staged, modified or untracked.
+/// The porcelain status,
+/// which is empty when nothing is staged,
+/// modified or untracked.
 fn status(fixture: &Fixture, repo: &Path) -> String {
     return text(fixture, repo, &["status", "--porcelain=v1", "--untracked-files=all"]);
 }
 
-/// An editor that appends a line, so the message it was handed shows in the commit.
+/// An editor that appends a line,
+/// so the message it was handed shows in the commit.
 fn appending_editor(fixture: &Fixture) -> PathBuf {
     let path: PathBuf = fixture.root.join("appending-editor");
     executable(path.as_path(), b"#!/bin/sh\nprintf 'edited by the editor\\n' >> \"$1\"\n");
@@ -50,7 +67,11 @@ fn run_with_editor(fixture: &Fixture, repo: &Path, editor: &Path, arguments: &[&
     return observe(wrapped(fixture).env("GIT_EDITOR", editor).current_dir(repo).args(arguments), b"");
 }
 
-/// Each of the four operations ends like a clean run: status 0, the commit, nothing left unmerged or unfinished, and the part line.
+/// Each of the four operations ends like a clean run:
+/// status 0,
+/// the commit,
+/// nothing left unmerged or unfinished,
+/// and the part line.
 #[test]
 fn each_operation_is_finished_like_a_clean_run() {
     for stop in STOPS {
@@ -82,8 +103,11 @@ fn each_operation_is_finished_like_a_clean_run() {
     }
 }
 
-/// A file that does not resolve keeps today's stop: nothing is committed and Git's status stays. (A revert has no such input in the
-///  corpus: its later state is the resolved text of the input.)
+/// A file that does not resolve keeps today's stop:
+/// nothing is committed and Git's status stays.
+/// (A revert has no such input in the
+///  corpus:
+/// its later state is the resolved text of the input.)
 #[test]
 fn a_part_that_does_not_resolve_keeps_the_stop_for_every_operation() {
     for stop in STOPS.into_iter().filter(|stop| { return !matches!(stop, Stop::Revert); }) {
@@ -103,7 +127,11 @@ fn a_part_that_does_not_resolve_keeps_the_stop_for_every_operation() {
     }
 }
 
-/// `git merge --no-commit` stops as a clean one does: status 0, Git's line, the merge state kept, nothing committed.
+/// `git merge --no-commit` stops as a clean one does:
+/// status 0,
+/// Git's line,
+/// the merge state kept,
+/// nothing committed.
 #[test]
 fn merge_no_commit_stops_after_the_resolution() {
     let fixture: Fixture = fixture("finish-merge-no-commit");
@@ -122,7 +150,12 @@ fn merge_no_commit_stops_after_the_resolution() {
     remove(&fixture);
 }
 
-/// `git merge --squash` stops as a clean one does: status 0, Git's line, no merge state, no commit, the result staged.
+/// `git merge --squash` stops as a clean one does:
+/// status 0,
+/// Git's line,
+/// no merge state,
+/// no commit,
+/// the result staged.
 #[test]
 fn merge_squash_stops_after_the_resolution() {
     let fixture: Fixture = fixture("finish-merge-squash");
@@ -139,7 +172,8 @@ fn merge_squash_stops_after_the_resolution() {
     remove(&fixture);
 }
 
-/// `--edit` hands the prepared message to the editor and commits what it leaves; `-m` is the message of a merge with no editor.
+/// `--edit` hands the prepared message to the editor and commits what it leaves;
+/// `-m` is the message of a merge with no editor.
 #[test]
 fn merge_edit_runs_the_editor_and_merge_message_is_kept() {
     let first: Fixture = fixture("finish-merge-edit");
@@ -160,7 +194,9 @@ fn merge_edit_runs_the_editor_and_merge_message_is_kept() {
     remove(&second);
 }
 
-/// A rebase whose second pick also conflicts: the continuing step runs through the wrapper, so the later pick gets the pass too.
+/// A rebase whose second pick also conflicts:
+/// the continuing step runs through the wrapper,
+/// so the later pick gets the pass too.
 #[test]
 fn a_rebase_with_two_conflicting_picks_is_resolved_and_finished() {
     let fixture: Fixture = fixture("finish-rebase-two");
@@ -196,7 +232,11 @@ fn a_rebase_with_two_conflicting_picks_is_resolved_and_finished() {
     remove(&fixture);
 }
 
-/// `git cherry-pick --no-commit` stops as a clean one does: status 0, the result staged, no commit, no pick state.
+/// `git cherry-pick --no-commit` stops as a clean one does:
+/// status 0,
+/// the result staged,
+/// no commit,
+/// no pick state.
 #[test]
 fn cherry_pick_no_commit_stops_after_the_resolution() {
     let fixture: Fixture = fixture("finish-pick-no-commit");
@@ -227,7 +267,9 @@ fn cherry_pick_and_revert_edit_run_the_editor() {
     }
 }
 
-/// A range whose first pick conflicts: the first is committed and the rest of the sequence is picked, so both land.
+/// A range whose first pick conflicts:
+/// the first is committed and the rest of the sequence is picked,
+/// so both land.
 #[test]
 fn a_cherry_pick_range_is_resolved_and_continued() {
     let fixture: Fixture = fixture("finish-pick-range");
@@ -246,7 +288,9 @@ fn a_cherry_pick_range_is_resolved_and_continued() {
     remove(&fixture);
 }
 
-/// A pull's merge, its merge with `--no-commit`, and its rebase end like the plain commands do.
+/// A pull's merge,
+/// its merge with `--no-commit`,
+/// and its rebase end like the plain commands do.
 #[test]
 fn a_pull_is_finished_like_a_clean_one() {
     for (label, option, expect_commit) in [("merge", "--no-rebase", true), ("no-commit", "--no-commit", false), ("rebase", "--rebase", true)] {
@@ -273,7 +317,9 @@ fn a_pull_is_finished_like_a_clean_one() {
     }
 }
 
-/// The commit that ends the merge goes through the wrapper's command path: a policy of the repository judges it, and a rejected
+/// The commit that ends the merge goes through the wrapper's command path:
+/// a policy of the repository judges it,
+/// and a rejected
 ///  commit leaves the merge in progress with the files staged.
 #[test]
 fn the_ending_commit_is_judged_by_the_repositorys_policies() {
@@ -297,7 +343,9 @@ fn the_ending_commit_is_judged_by_the_repositorys_policies() {
     remove(&fixture);
 }
 
-/// A tracked file with an unstaged change, committed on the branch that is checked out: the work an autostash carries.
+/// A tracked file with an unstaged change,
+/// committed on the branch that is checked out:
+/// the work an autostash carries.
 fn with_unstaged_work(fixture: &Fixture, repo: &Path) -> &'static str {
     std::fs::write(repo.join("dirty.txt"), b"committed\n").expect("the file");
     git(fixture, repo, &["add", "--", "dirty.txt"]);
@@ -306,7 +354,8 @@ fn with_unstaged_work(fixture: &Fixture, repo: &Path) -> &'static str {
     return "unstaged work\n";
 }
 
-/// Whether the stash list and the merge autostash reference are empty: the stash was applied and dropped.
+/// Whether the stash list and the merge autostash reference are empty:
+/// the stash was applied and dropped.
 fn autostash_is_gone(fixture: &Fixture, repo: &Path) -> bool {
     let listed: String = text(fixture, repo, &["stash", "list"]);
     let reference: Option<i32> = run_direct(fixture, repo, &["rev-parse", "--verify", "--quiet", "MERGE_AUTOSTASH"]).code;
@@ -315,8 +364,12 @@ fn autostash_is_gone(fixture: &Fixture, repo: &Path) -> bool {
     return true;
 }
 
-/// A merge told `--autostash`, or set to it by `merge.autoStash`, is finished by `git commit`, which applies the stash after it
-///  concludes the merge (`builtin/commit.c` line 1982); the unstaged work comes back and nothing is left in the stash.
+/// A merge told `--autostash`,
+/// or set to it by `merge.autoStash`,
+/// is finished by `git commit`,
+/// which applies the stash after it
+///  concludes the merge (`builtin/commit.c` line 1982);
+/// the unstaged work comes back and nothing is left in the stash.
 #[test]
 fn a_merge_autostash_is_applied_by_the_ending_commit() {
     for (label, arguments, setting) in [("flag", vec!["merge", "--autostash", "--no-edit", "topic"], false), ("config", vec!["merge", "--no-edit", "topic"], true)] {
@@ -337,7 +390,8 @@ fn a_merge_autostash_is_applied_by_the_ending_commit() {
     }
 }
 
-/// Unstaged work on the very line the word pass keeps, so that applying the autostash after the merge conflicts.
+/// Unstaged work on the very line the word pass keeps,
+/// so that applying the autostash after the merge conflicts.
 fn with_overlapping_work(fixture: &Fixture, repo: &Path) -> &'static str {
     let edited: &str = "Flags are optional, edited by hand.\n";
     let original: String = String::from_utf8(corpus(ADJACENT, "ours")).expect("UTF-8");
@@ -348,7 +402,10 @@ fn with_overlapping_work(fixture: &Fixture, repo: &Path) -> &'static str {
     return edited;
 }
 
-/// What a person keeps after a merge with `--autostash` ends: the stash list, the porcelain status, the merged file and the file
+/// What a person keeps after a merge with `--autostash` ends:
+/// the stash list,
+/// the porcelain status,
+/// the merged file and the file
 ///  the unsaved work touches.
 type End = (String, String, String, String);
 
@@ -362,7 +419,9 @@ fn after_autostash(fixture: &Fixture, repo: &Path) -> End {
     );
 }
 
-/// How a control asks for the merge: the command, and whether it is a pull from a remote that holds the topic as its `main`.
+/// How a control asks for the merge:
+/// the command,
+/// and whether it is a pull from a remote that holds the topic as its `main`.
 #[derive(Clone, Copy)]
 enum Ask {
     /// `git merge --autostash --no-edit topic`.
@@ -381,8 +440,12 @@ impl Ask {
     }
 }
 
-/// A repository whose merge conflicts for Git and resolves by word, carrying unstaged work the stash will conflict with when it
-///  is applied after the merge: a change on the line the merge keeps and, when `with_dirty_file` is set, a change of a second file.
+/// A repository whose merge conflicts for Git and resolves by word,
+/// carrying unstaged work the stash will conflict with when it
+///  is applied after the merge:
+/// a change on the line the merge keeps and,
+/// when `with_dirty_file` is set,
+/// a change of a second file.
 fn conflicted_autostash_repo(fixture: &Fixture, ask: Ask, with_dirty_file: bool) -> PathBuf {
     let repo: PathBuf = prepared(fixture, Stop::Merge, &[ADJACENT]);
     if matches!(ask, Ask::Pull) {
@@ -399,9 +462,16 @@ fn conflicted_autostash_repo(fixture: &Fixture, ask: Ask, with_dirty_file: bool)
     return repo;
 }
 
-/// What real Git ends with when the merge stops, the person resolves it as the word pass does, and `git commit` concludes it: the
-///  status of that commit, the end state, and whether `MERGE_AUTOSTASH` is gone. `unsaved_after_stop` writes the second file again
-///  before the commit, so the apply meets unsaved changes to a file the stash touches.
+/// What real Git ends with when the merge stops,
+/// the person resolves it as the word pass does,
+/// and `git commit` concludes it:
+/// the
+///  status of that commit,
+/// the end state,
+/// and whether `MERGE_AUTOSTASH` is gone.
+/// `unsaved_after_stop` writes the second file again
+///  before the commit,
+/// so the apply meets unsaved changes to a file the stash touches.
 fn git_twin(label: &str, ask: Ask, with_dirty_file: bool, unsaved_after_stop: bool) -> (Option<i32>, End) {
     let twin: Fixture = fixture(format!("autostash-twin-{label}").as_str());
     let repo: PathBuf = conflicted_autostash_repo(&twin, ask, with_dirty_file);
@@ -419,8 +489,15 @@ fn git_twin(label: &str, ask: Ask, with_dirty_file: bool, unsaved_after_stop: bo
     return (concluded.code, end);
 }
 
-/// The wrapper's merge with `--autostash`, whose stash conflicts when it is applied after the merge, ends as Git ends: the merge
-///  commit is made, the apply conflicts, `stash@{0}: autostash` is kept, the file is unmerged, and the status is the commit's.
+/// The wrapper's merge with `--autostash`,
+/// whose stash conflicts when it is applied after the merge,
+/// ends as Git ends:
+/// the merge
+///  commit is made,
+/// the apply conflicts,
+/// `stash@{0}: autostash` is kept,
+/// the file is unmerged,
+/// and the status is the commit's.
 #[test]
 fn a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it() {
     let (git_code, git_end): (Option<i32>, End) = git_twin("merge", Ask::Merge, false, false);
@@ -436,7 +513,8 @@ fn a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it() {
     remove(&fixture);
 }
 
-/// The same through a pull, which hands `--autostash` to its merge.
+/// The same through a pull,
+/// which hands `--autostash` to its merge.
 #[test]
 fn a_pull_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it() {
     let (git_code, git_end): (Option<i32>, End) = git_twin("pull", Ask::Pull, false, false);
@@ -450,9 +528,14 @@ fn a_pull_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it() {
     remove(&fixture);
 }
 
-/// The person's own `git commit` after `git merge --autostash` stopped, with a stash that conflicts on apply, ends as Git's does:
-///  `stash@{0}: autostash` kept and the file unmerged. `unsaved` adds a second file the stash touches that the person edited again
-///  after the merge stopped, so Git's apply refuses it; the wrapper's commit must end the same way.
+/// The person's own `git commit` after `git merge --autostash` stopped,
+/// with a stash that conflicts on apply,
+/// ends as Git's does:
+///  `stash@{0}: autostash` kept and the file unmerged.
+/// `unsaved` adds a second file the stash touches that the person edited again
+///  after the merge stopped,
+/// so Git's apply refuses it;
+/// the wrapper's commit must end the same way.
 fn commit_after_a_stopped_merge_ends_as_git_does(label: &str, unsaved: bool) {
     let (git_code, git_end): (Option<i32>, End) = git_twin(label, Ask::Merge, unsaved, unsaved);
     let fixture: Fixture = fixture(format!("commit-autostash-conflict-{label}").as_str());
@@ -481,14 +564,19 @@ fn a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it
     commit_after_a_stopped_merge_ends_as_git_does("conflict", false);
 }
 
-/// The case the finish's dry run never modelled: unsaved changes in the worktree to a file the stash touches. Git's apply refuses
-///  them and keeps the whole stash; the wrapper's commit ends the same way.
+/// The case the finish's dry run never modelled:
+/// unsaved changes in the worktree to a file the stash touches.
+/// Git's apply refuses
+///  them and keeps the whole stash;
+/// the wrapper's commit ends the same way.
 #[test]
 fn a_commit_over_unsaved_changes_to_a_stash_file_keeps_the_stash_as_git_keeps_it() {
     commit_after_a_stopped_merge_ends_as_git_does("unsaved", true);
 }
 
-/// A rebase told `--autostash`, or set to it by `rebase.autoStash`, applies the stash when `rebase --continue` ends it
+/// A rebase told `--autostash`,
+/// or set to it by `rebase.autoStash`,
+/// applies the stash when `rebase --continue` ends it
 ///  (`sequencer.c` lines 4980 and 5330).
 #[test]
 fn a_rebase_autostash_is_applied_when_the_rebase_ends() {
@@ -509,7 +597,8 @@ fn a_rebase_autostash_is_applied_when_the_rebase_ends() {
     }
 }
 
-/// A pull told `--autostash` hands it to its merge, and the ending commit applies the stash.
+/// A pull told `--autostash` hands it to its merge,
+/// and the ending commit applies the stash.
 #[test]
 fn a_pull_autostash_is_applied_by_the_ending_commit() {
     let fixture: Fixture = fixture("finish-pull-autostash");
@@ -529,8 +618,11 @@ fn a_pull_autostash_is_applied_by_the_ending_commit() {
     remove(&fixture);
 }
 
-/// A `branch.<name>.mergeOptions` setting is applied as Git applies it, before the command line: `--no-commit` there stops the
-///  merge as a clean run stops, and a quoted `-m` there is the merge message.
+/// A `branch.<name>.mergeOptions` setting is applied as Git applies it,
+/// before the command line:
+/// `--no-commit` there stops the
+///  merge as a clean run stops,
+/// and a quoted `-m` there is the merge message.
 #[test]
 fn a_merge_options_setting_is_applied_to_the_finish() {
     let first: Fixture = fixture("finish-merge-options-stop");
@@ -553,7 +645,9 @@ fn a_merge_options_setting_is_applied_to_the_finish() {
     remove(&second);
 }
 
-/// The events a user's hook files and configured hooks see: a recorder for each, appending its event name to one file.
+/// The events a user's hook files and configured hooks see:
+/// a recorder for each,
+/// appending its event name to one file.
 fn record_hooks(fixture: &Fixture, repo: &Path) -> PathBuf {
     let log: PathBuf = fixture.root.join("hooks-seen");
     let events: [&str; 10] = ["pre-merge-commit", "prepare-commit-msg", "commit-msg", "post-merge", "pre-commit", "post-commit", "post-checkout", "post-rewrite", "pre-rebase", "reference-transaction"];
@@ -569,7 +663,9 @@ fn record_hooks(fixture: &Fixture, repo: &Path) -> PathBuf {
     return log;
 }
 
-/// The sorted, distinct events a log holds; empty when nothing was written.
+/// The sorted,
+/// distinct events a log holds;
+/// empty when nothing was written.
 fn events_in(log: &Path) -> Vec<String> {
     let mut seen: Vec<String> = std::fs::read_to_string(log).unwrap_or_default().lines().map(String::from).collect();
     seen.sort();
@@ -577,11 +673,26 @@ fn events_in(log: &Path) -> Vec<String> {
     return seen;
 }
 
-/// A user's hooks see the same on a finished run as on a clean one. The wrapper supports no external hook program (every Git it
-///  starts has every hook event switched off), so both see nothing; the positive control is that real Git, run directly, does
-///  fire them, so the recorder can tell. If hooks were ever supported, the clean merge would run `pre-merge-commit`,
-///  `prepare-commit-msg`, `commit-msg` and `post-merge` (`builtin/merge.c` lines 931, 966, 975 and 537) and a concluding `git commit`
-///  `pre-commit`, `prepare-commit-msg`, `commit-msg` and `post-commit` (`builtin/commit.c` lines 780, 1116, 1133 and 1966).
+/// A user's hooks see the same on a finished run as on a clean one.
+/// The wrapper supports no external hook program (every Git it
+///  starts has every hook event switched off),
+/// so both see nothing;
+/// the positive control is that real Git,
+/// run directly,
+/// does
+///  fire them,
+/// so the recorder can tell.
+/// If hooks were ever supported,
+/// the clean merge would run `pre-merge-commit`,
+///  `prepare-commit-msg`,
+/// `commit-msg` and `post-merge` (`builtin/merge.c` lines 931,
+/// 966,
+/// 975 and 537) and a concluding `git commit`
+///  `pre-commit`,
+/// `prepare-commit-msg`,
+/// `commit-msg` and `post-commit` (`builtin/commit.c` lines 780,
+/// 1116,
+/// 1133 and 1966).
 #[test]
 fn user_hooks_see_the_same_on_a_finished_run_as_on_a_clean_run() {
     for stop in STOPS {

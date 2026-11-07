@@ -1,9 +1,15 @@
 //! What:
 //!  Plans of the four announced queries and of the queries that stay an exact process replacement.
 //! Why:
-//!  `--version`, `-v`, `--help` and `-h` run Git as a child and add text after its answer;
-//!  `--exec-path`, `--html-path`, `--man-path`, `--info-path` and `--list-cmds=...` must still
-//!      become Git, so a script that parses their output sees only Git's bytes.
+//!  `--version`,
+//! `-v`,
+//! `--help` and `-h` run Git as a child and add text after its answer;
+//!  `--exec-path`,
+//! `--html-path`,
+//! `--man-path`,
+//! `--info-path` and `--list-cmds=...` must still
+//!      become Git,
+//! so a script that parses their output sees only Git's bytes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,11 +26,14 @@ use crate::test_support::{REAL_GIT, fixture, remove};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-/// The crate version, read where the test is compiled.
+/// The crate version,
+/// read where the test is compiled.
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The announced plan for these fixtures:
-///  real Git as a child, the same overlay as a plain forward, and this text after Git's answer.
+///  real Git as a child,
+/// the same overlay as a plain forward,
+/// and this text after Git's answer.
 fn announced(arguments: Vec<OsString>, announcement: String) -> Action {
     let Action::Forward {
         real_git,
@@ -44,12 +53,14 @@ fn announced(arguments: Vec<OsString>, announcement: String) -> Action {
     };
 }
 
-/// The line `--version` and `-v` add, written out in full.
+/// The line `--version` and `-v` add,
+/// written out in full.
 fn banner() -> String {
     return format!("monochromatic-git-policy-cli {VERSION}, shadowing git at {REAL_GIT}\n");
 }
 
-/// The section `--help` and `-h` add, written out in full.
+/// The section `--help` and `-h` add,
+/// written out in full.
 fn help_section() -> String {
     return format!(
         "\nmonochromatic-git-policy-cli {VERSION} sits in front of this git\n\

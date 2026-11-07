@@ -1,9 +1,13 @@
 //! What:
-//!  Which Git steps may be run again after the system refused a process, and which may be ended at a ceiling:
-//!  the allow-lists, the parse of a step's words into options and paths, and the proven forms.
+//!  Which Git steps may be run again after the system refused a process,
+//! and which may be ended at a ceiling:
+//!  the allow-lists,
+//! the parse of a step's words into options and paths,
+//! and the proven forms.
 //! Why:
 //!  The runner (`transaction_git.rs`) asks these questions of a `GitRequest` before it reruns or ends a step,
-//!  and the step bounds (`transaction_git_step_bounds.rs`) ask the second; they depend only on the request type.
+//!  and the step bounds (`transaction_git_step_bounds.rs`) ask the second;
+//! they depend only on the request type.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,12 +16,18 @@
 
 /// The request whose command line is judged.
 use crate::transaction_git_request_and_reply_types::GitRequest;
-/// `OsString` is owned operating-system text, the type of a command-line argument.
+/// `OsString` is owned operating-system text,
+/// the type of a command-line argument.
 use std::ffi::OsString;
 
-/// Commands whose second run after a refusal is harmless: they read, or they write content-addressed objects,
-///  or they set the same value again. `symbolic-ref` is not here: only the forms the wrapper runs may be run again (`may_be_rerun`).
-///  `init` is not run again in place at all: its one form is ended at a ceiling and restarted in a fresh directory (`may_be_ended`).
+/// Commands whose second run after a refusal is harmless:
+/// they read,
+/// or they write content-addressed objects,
+///  or they set the same value again.
+/// `symbolic-ref` is not here:
+/// only the forms the wrapper runs may be run again (`may_be_rerun`).
+///  `init` is not run again in place at all:
+/// its one form is ended at a ceiling and restarted in a fresh directory (`may_be_ended`).
 const RERUNNABLE: [&str; 15] = [
     "rev-parse",
     "for-each-ref",
@@ -38,9 +48,12 @@ const RERUNNABLE: [&str; 15] = [
 
 /// What:
 ///  The subcommand a request runs and where it sits among the arguments,
-///  past the global options (`-c <pair>`, `-C <directory>` and the `--option` forms).
+///  past the global options (`-c <pair>`,
+/// `-C <directory>` and the `--option` forms).
 /// Why:
-///   The rerun allow-list is decided by the subcommand and, for a few, by its options.
+///   The rerun allow-list is decided by the subcommand and,
+/// for a few,
+/// by its options.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -64,9 +77,11 @@ pub(crate) fn subcommand_of(arguments: &[OsString]) -> Option<(usize, String)> {
 }
 
 /// What:
-///  Whether an `--object-format=<name>` option names a hash the wrapper creates shadows with: `sha1` or `sha256`.
+///  Whether an `--object-format=<name>` option names a hash the wrapper creates shadows with:
+/// `sha1` or `sha256`.
 /// Why:
-///  `is_shadow_creation` accepts nothing but the one `init` form the wrapper runs, and the format is the one word in it that varies.
+///  `is_shadow_creation` accepts nothing but the one `init` form the wrapper runs,
+/// and the format is the one word in it that varies.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -79,8 +94,12 @@ fn object_format_is_known(option: &str) -> bool {
     };
 }
 
-/// Whether `words` are the one `init` the wrapper runs (`shadow_create.rs`): `--bare --template= --object-format=<format>
-///  --ref-format=reftable <path>`, and nothing else, so no `--separate-git-dir`, template or relocation can stand in it.
+/// Whether `words` are the one `init` the wrapper runs (`shadow_create.rs`):
+/// `--bare --template= --object-format=<format>
+///  --ref-format=reftable <path>`,
+/// and nothing else,
+/// so no `--separate-git-dir`,
+/// template or relocation can stand in it.
 fn is_shadow_creation(words: &[String]) -> bool {
     return match words {
         [bare, template, format, refs, path] => {
@@ -95,11 +114,19 @@ fn is_shadow_creation(words: &[String]) -> bool {
 }
 
 /// What:
-///  Whether a `symbolic-ref` is a form the wrapper runs that may be run again: a read (`--quiet`, `--short`, `--no-recurse`, one name),
-///  or, in a shadow repository the wrapper made for one transaction, the write of one name to one target without any option.
+///  Whether a `symbolic-ref` is a form the wrapper runs that may be run again:
+/// a read (`--quiet`,
+/// `--short`,
+/// `--no-recurse`,
+/// one name),
+///  or,
+/// in a shadow repository the wrapper made for one transaction,
+/// the write of one name to one target without any option.
 /// Why:
-///   The write forms the wrapper runs are in `shadow_refs.rs` and only on a shadow (`without_prefix`); a write in the person's
-///  repository, a delete and a message (it appends a reflog entry) are branch writes or have effects the experiment did not run.
+///   The write forms the wrapper runs are in `shadow_refs.rs` and only on a shadow (`without_prefix`);
+/// a write in the person's
+///  repository,
+/// a delete and a message (it appends a reflog entry) are branch writes or have effects the experiment did not run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -115,9 +142,11 @@ fn symbolic_ref_may_be_rerun(words: &Words<'_>, shadow: bool) -> bool {
 }
 
 /// What:
-///  The arguments after the subcommand, as text.
+///  The arguments after the subcommand,
+/// as text.
 /// Why:
-///  The rerun and ending rules judge the words of a step, and arguments that are not valid text are read lossily so a
+///  The rerun and ending rules judge the words of a step,
+/// and arguments that are not valid text are read lossily so a
 ///  odd byte never makes a rule panic.
 ///
 /// In TS you'd write (pseudocode):
@@ -133,9 +162,14 @@ fn words_after(request: &GitRequest, position: usize) -> Vec<String> {
 }
 
 /// What:
-///  Whether a `config` option is one that only reads: `--get`, `--get-all`, `--get-regexp`, `--list` or `-l`.
+///  Whether a `config` option is one that only reads:
+/// `--get`,
+/// `--get-all`,
+/// `--get-regexp`,
+/// `--list` or `-l`.
 /// Why:
-///  `may_be_rerun` allows a `config` that reads and no other, because a second read changes nothing.
+///  `may_be_rerun` allows a `config` that reads and no other,
+/// because a second read changes nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -149,9 +183,12 @@ fn is_read_option(option: &str) -> bool {
 ///  Whether running the request a second time after the system refused it is harmless.
 /// Why:
 ///   Git reports a refused process or thread as a failure after it started,
-///  so only commands that read, write content-addressed objects, or change a private index the same way twice
+///  so only commands that read,
+/// write content-addressed objects,
+/// or change a private index the same way twice
 ///  may be run again;
-///  reference updates, commits and every other writer are not,
+///  reference updates,
+/// commits and every other writer are not,
 ///  and recovery already completes or rolls those back.
 ///
 /// In TS you'd write (pseudocode):
@@ -172,12 +209,24 @@ pub(crate) fn may_be_rerun(request: &GitRequest) -> bool {
     }
 }
 
-/// Steps that change nothing, or that write only objects nothing refers to, and that `RERUNNABLE` does not name. A second run of an
-///  object writer writes the same bytes and a partial result is a loose object or a temporary pack that no reference names, so
-///  ending one costs nothing. Only the name is judged: none of these steps writes a reference, the index, the worktree or the
-///  configuration whatever its options. `fast-import` is not among them (sol-1 round 2): its input can update branches and
-///  checkpoint them, and the cut experiment ran the wrapper's own stream and found a marks lock file a cut left behind that the
-///  second run could not pass, so it is never ended.
+/// Steps that change nothing,
+/// or that write only objects nothing refers to,
+/// and that `RERUNNABLE` does not name.
+/// A second run of an
+///  object writer writes the same bytes and a partial result is a loose object or a temporary pack that no reference names,
+/// so
+///  ending one costs nothing.
+/// Only the name is judged:
+/// none of these steps writes a reference,
+/// the index,
+/// the worktree or the
+///  configuration whatever its options.
+/// `fast-import` is not among them (sol-1 round 2):
+/// its input can update branches and
+///  checkpoint them,
+/// and the cut experiment ran the wrapper's own stream and found a marks lock file a cut left behind that the
+///  second run could not pass,
+/// so it is never ended.
 const READS_AND_OBJECT_WRITERS: [&str; 15] = [
     "rev-list",
     "merge-base",
@@ -196,15 +245,22 @@ const READS_AND_OBJECT_WRITERS: [&str; 15] = [
     "mktree",
 ];
 
-/// The words of a request after its subcommand, sorted into the options before a `--`, the other words before it, and the words
-///  after it. Only options that a proven form lists are accepted, so no option here takes a value the next word could be mistaken
+/// The words of a request after its subcommand,
+/// sorted into the options before a `--`,
+/// the other words before it,
+/// and the words
+///  after it.
+/// Only options that a proven form lists are accepted,
+/// so no option here takes a value the next word could be mistaken
 ///  for.
 struct Words<'a> {
-    /// The words that start with a hyphen, before any `--`.
+    /// The words that start with a hyphen,
+    /// before any `--`.
     options: Vec<&'a str>,
     /// The other words before any `--`.
     before: Vec<&'a str>,
-    /// The words after a `--`, when there was one.
+    /// The words after a `--`,
+    /// when there was one.
     after: Option<Vec<&'a str>>,
 }
 
@@ -258,14 +314,26 @@ impl<'a> Words<'a> {
     }
 }
 
-/// The setting the wrapper puts on the command line of every write of a side ref, with `--no-deref`: a side ref is not created with a
-///  reflog and is not followed through a symbolic ref. It is hygiene and not a proof: the write is never ended at a ceiling, whatever
-///  its argv says, because a reflog that another Git creates between any check and the write is appended to twice by a cut write and
-///  its rerun, and nothing the wrapper holds excludes an ordinary Git (cross-vendor review of round 4, P1 B).
+/// The setting the wrapper puts on the command line of every write of a side ref,
+/// with `--no-deref`:
+/// a side ref is not created with a
+///  reflog and is not followed through a symbolic ref.
+/// It is hygiene and not a proof:
+/// the write is never ended at a ceiling,
+/// whatever
+///  its argv says,
+/// because a reflog that another Git creates between any check and the write is appended to twice by a cut write and
+///  its rerun,
+/// and nothing the wrapper holds excludes an ordinary Git (cross-vendor review of round 4,
+/// P1 B).
 pub(crate) const NO_REFLOG_SETTING: &str = "core.logAllRefUpdates=false";
 
 /// What:
-///  Whether a `restore` option is one the cut experiment ran: `--staged`, `--worktree`, `--quiet`, `-q` or `--source=<tree>`.
+///  Whether a `restore` option is one the cut experiment ran:
+/// `--staged`,
+/// `--worktree`,
+/// `--quiet`,
+/// `-q` or `--source=<tree>`.
 /// Why:
 ///  `is_proven_to_run_twice` accepts a `restore` only when every option is one of these.
 ///
@@ -278,21 +346,53 @@ fn is_restore_option(option: &&str) -> bool {
 }
 
 /// What:
-///  Whether the request's step is one the cut experiment ran twice to the same state, in the exact form it ran.
+///  Whether the request's step is one the cut experiment ran twice to the same state,
+/// in the exact form it ran.
 /// Why:
-///   The owner's criterion (2026-11-04, "Never cut a branch write (Recommended)"): "Steps that can safely run twice keep their
-///  ceilings". Decided by experiment and not by reading (`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"): each
-///  form was ended with SIGKILL and with SIGTERM at every mutating system call of its run on a throwaway repository, the lock
-///  files a killed Git leaves were removed as the wrapper's sweep removes them, the step was run again, and the refs, reflogs,
-///  index, worktree, stash list, configuration and every file of the Git directory were compared with an uncut run's.
-///  This is a whitelist of those forms, parsed by their options and words (sol-1: a rule by the name of the step ended
-///  `config --add`, `stash -m list` and `update-ref --create-reflog`, which are not the forms that were run): `stash list --format=%H`,
-///  `clean --force -d`, `read-tree --reset -u <tree>`, `update-index`
-///  with `--refresh`, with `--index-info` (and `-z`) or with `--add --cacheinfo <triple>`, `add --update` or `add --all` with
-///  optional pathspecs, `checkout-index --all --force`, `restore` with `--staged`, `--worktree`, `--source=` and paths after `--`,
-///  `reset [--quiet] <commit> -- <paths>`, and `config [--local] <key> <value>`. The experiment ran these on Git 2.56.0 with
-///  `core.fsync=none`, the files ref backend, no hooks and no concurrent writer.
-///  Any other form of any of them, and any other step, is not proven and has no ceiling.
+///   The owner's criterion (2026-11-04,
+/// "Never cut a branch write (Recommended)"):
+/// "Steps that can safely run twice keep their
+///  ceilings".
+/// Decided by experiment and not by reading (`doc/planning/cli-git-no-unbounded-waits.md`,
+/// "The cut experiment"):
+/// each
+///  form was ended with SIGKILL and with SIGTERM at every mutating system call of its run on a throwaway repository,
+/// the lock
+///  files a killed Git leaves were removed as the wrapper's sweep removes them,
+/// the step was run again,
+/// and the refs,
+/// reflogs,
+///  index,
+/// worktree,
+/// stash list,
+/// configuration and every file of the Git directory were compared with an uncut run's.
+///  This is a whitelist of those forms,
+/// parsed by their options and words (sol-1:
+/// a rule by the name of the step ended
+///  `config --add`,
+/// `stash -m list` and `update-ref --create-reflog`,
+/// which are not the forms that were run):
+/// `stash list --format=%H`,
+///  `clean --force -d`,
+/// `read-tree --reset -u <tree>`,
+/// `update-index`
+///  with `--refresh`,
+/// with `--index-info` (and `-z`) or with `--add --cacheinfo <triple>`,
+/// `add --update` or `add --all` with
+///  optional pathspecs,
+/// `checkout-index --all --force`,
+/// `restore` with `--staged`,
+/// `--worktree`,
+/// `--source=` and paths after `--`,
+///  `reset [--quiet] <commit> -- <paths>`,
+/// and `config [--local] <key> <value>`.
+/// The experiment ran these on Git 2.56.0 with
+///  `core.fsync=none`,
+/// the files ref backend,
+/// no hooks and no concurrent writer.
+///  Any other form of any of them,
+/// and any other step,
+/// is not proven and has no ceiling.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -327,11 +427,18 @@ fn is_proven_to_run_twice(name: &str, rest: &[String]) -> bool {
 }
 
 /// What:
-///  Whether the request's step may be ended at a ceiling: it can be run twice, by the allow-list `may_be_rerun`, or it only reads
-///  or writes unreferenced objects, or it is a proven form.
+///  Whether the request's step may be ended at a ceiling:
+/// it can be run twice,
+/// by the allow-list `may_be_rerun`,
+/// or it only reads
+///  or writes unreferenced objects,
+/// or it is a proven form.
 /// Why:
-///   Anything else has no ceiling, because data is lost by guessing wrong and a wait is not (the coordinator's reading of the owner's
-///  criterion): the commit service's landing thread waits for it, and any other command stops waiting and leaves it running.
+///   Anything else has no ceiling,
+/// because data is lost by guessing wrong and a wait is not (the coordinator's reading of the owner's
+///  criterion):
+/// the commit service's landing thread waits for it,
+/// and any other command stops waiting and leaves it running.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -357,8 +464,11 @@ pub(crate) fn may_be_ended(request: &GitRequest) -> bool {
     return is_proven_to_run_twice(name.as_str(), rest.as_slice());
 }
 
-/// Whether the request is an `update-ref` of one of the wrapper's own side refs, `refs/cli-git/kept/<number>` or
-///  `refs/worktree/cli-git-service/<number>`, with at most `-d` and `--no-deref` and no input: what `keep_unlanded` and the scratch
+/// Whether the request is an `update-ref` of one of the wrapper's own side refs,
+/// `refs/cli-git/kept/<number>` or
+///  `refs/worktree/cli-git-service/<number>`,
+/// with at most `-d` and `--no-deref` and no input:
+/// what `keep_unlanded` and the scratch
 ///  deletions of `service_land.rs` run.
 pub(crate) fn is_side_ref_write(request: &GitRequest) -> bool {
     let Some((position, name)) = subcommand_of(request.arguments.as_slice()) else { return false };
@@ -374,9 +484,11 @@ pub(crate) fn is_side_ref_write(request: &GitRequest) -> bool {
 }
 
 /// What:
-///  Whether a word is one of the wrapper's own side refs: `refs/cli-git/kept/<number>` or `refs/worktree/cli-git-service/<number>`.
+///  Whether a word is one of the wrapper's own side refs:
+/// `refs/cli-git/kept/<number>` or `refs/worktree/cli-git-service/<number>`.
 /// Why:
-///  `is_side_ref_write` accepts an `update-ref` only for these names, and the number is all digits.
+///  `is_side_ref_write` accepts an `update-ref` only for these names,
+/// and the number is all digits.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

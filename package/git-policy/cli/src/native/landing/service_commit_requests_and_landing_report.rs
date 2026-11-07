@@ -1,8 +1,13 @@
 //! What:
-//!  The pieces of a service commit that need no loop: the request for a commit Git built, the request for a commit the service
-//!  built from the embedded message, and what a landed commit leaves for the person.
+//!  The pieces of a service commit that need no loop:
+//! the request for a commit Git built,
+//! the request for a commit the service
+//!  built from the embedded message,
+//! and what a landed commit leaves for the person.
 //! Why:
-//!  `service_commit.rs` holds the retry loop; these steps take what the loop knows as parameters and use nothing from it, so
+//!  `service_commit.rs` holds the retry loop;
+//! these steps take what the loop knows as parameters and use nothing from it,
+//! so
 //!  they are a file the loop uses.
 //!
 //! In TS you'd write (pseudocode):
@@ -10,7 +15,8 @@
 //! requestForGitBuilt(...); requestForEmbedded(...); reportLanding(...)
 //! ```
 
-/// The marker lines a committed file still holds, and the line about an operation left open.
+/// The marker lines a committed file still holds,
+/// and the line about an operation left open.
 use crate::conflict_markers::{open_operation_line, paths_with_markers};
 /// The kind of operation a commit concludes.
 use crate::transaction_journal::Conclusion;
@@ -24,9 +30,11 @@ use std::path::PathBuf;
 use crate::service_commit_input_notes_and_embedded_commit::{Embedded, print_note, print_summary};
 
 /// What:
-///  The request for a commit that Git built in the shadow: the built commit is named whole and the service lands it.
+///  The request for a commit that Git built in the shadow:
+/// the built commit is named whole and the service lands it.
 /// Why:
-///  The service moves the branch to a commit it did not make, so the request carries no changes and no message.
+///  The service moves the branch to a commit it did not make,
+/// so the request carries no changes and no message.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -58,7 +66,9 @@ pub(crate) fn request_for_git_built(invocation: &CommitInvocation<'_>, ready: &R
 /// What:
 ///  The request for a commit the service builds from the changes and the message embedded in the command line.
 /// Why:
-///  The service builds the commit itself, so the request carries the changes, the message and the identities.
+///  The service builds the commit itself,
+/// so the request carries the changes,
+/// the message and the identities.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,11 +96,17 @@ pub(crate) fn request_for_embedded(ready: &Ready, native_inputs: &NativeInputs, 
 }
 
 /// What:
-///  What a landed commit leaves for the person: the saved message file removed, the summary line of a commit the service built,
-///  the note about builds that did not land, the warnings about conflict markers that were committed, the line about an open
-///  merge or cherry-pick, and the files a policy added in the worktree.
+///  What a landed commit leaves for the person:
+/// the saved message file removed,
+/// the summary line of a commit the service built,
+///  the note about builds that did not land,
+/// the warnings about conflict markers that were committed,
+/// the line about an open
+///  merge or cherry-pick,
+/// and the files a policy added in the worktree.
 /// Why:
-///  They follow the landing and change nothing the landing decided, so the commit loop hands them to one function.
+///  They follow the landing and change nothing the landing decided,
+/// so the commit loop hands them to one function.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -176,9 +192,11 @@ pub(crate) fn message_stop(error: crate::recovery_error::RecoveryError) -> Trans
 }
 
 /// What:
-///  The name Git gives a commit in this repository as it is now, as short as Git writes it.
+///  The name Git gives a commit in this repository as it is now,
+/// as short as Git writes it.
 /// Why:
-///  The notes after a landing name commits by their short names, asked of Git once per name.
+///  The notes after a landing name commits by their short names,
+/// asked of Git once per name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

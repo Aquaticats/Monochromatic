@@ -1,15 +1,30 @@
 //! What:
-//!  What the Git LFS upload before a push sends: the destinations `git lfs push` takes and the refs whose objects it
-//!  uploads, with `--all` wherever a remote-tracking ref of this clone may not describe the destination, so that it
-//!  cannot hide an object the destination lacks, and in git-lfs's bounded form (no `--all`) everywhere else.
+//!  What the Git LFS upload before a push sends:
+//! the destinations `git lfs push` takes and the refs whose objects it
+//!  uploads,
+//! with `--all` wherever a remote-tracking ref of this clone may not describe the destination,
+//! so that it
+//!  cannot hide an object the destination lacks,
+//! and in git-lfs's bounded form (no `--all`) everywhere else.
 //! Why:
-//!  `git lfs push` takes refs and no ref-update lines, so the plan is read from the push's own arguments with the same
-//!  option table as the rest of the wrapper, and from the configuration Git itself would read for the parts the
-//!  arguments leave out (the default remote, `remote.<name>.push`, `remote.<name>.mirror`, the push URLs,
-//!  `push.default`). The configuration comes from the snapshot the caller already holds, or from one query.
+//!  `git lfs push` takes refs and no ref-update lines,
+//! so the plan is read from the push's own arguments with the same
+//!  option table as the rest of the wrapper,
+//! and from the configuration Git itself would read for the parts the
+//!  arguments leave out (the default remote,
+//! `remote.<name>.push`,
+//! `remote.<name>.mirror`,
+//! the push URLs,
+//!  `push.default`).
+//! The configuration comes from the snapshot the caller already holds,
+//! or from one query.
 //!  Refs that Git expands from a pattern are listed with `git for-each-ref` and matched here with a refspec's own rule
-//!  (`*` crosses `/`). The plan fails closed: a query that fails is an error the caller turns into a refusal, never
-//!  into "nothing to upload". Only a mirror push uploads every ref.
+//!  (`*` crosses `/`).
+//! The plan fails closed:
+//! a query that fails is an error the caller turns into a refusal,
+//! never
+//!  into "nothing to upload".
+//! Only a mirror push uploads every ref.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -36,28 +51,41 @@ use std::path::Path;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UploadPlan {
-    /// The destinations `git lfs push` is run for, one run each: the remote name, or one URL per push URL when the
+    /// The destinations `git lfs push` is run for,
+    /// one run each:
+    /// the remote name,
+    /// or one URL per push URL when the
     ///  remote has several (each may keep its objects in its own place).
     pub remotes: Vec<OsString>,
-    /// The refs whose objects are uploaded; empty with `everything`.
+    /// The refs whose objects are uploaded;
+    /// empty with `everything`.
     pub refs: Vec<OsString>,
     /// Upload everything reachable from every local ref.
     pub everything: bool,
-    /// The push also pushes submodules, whose objects this upload does not cover.
+    /// The push also pushes submodules,
+    /// whose objects this upload does not cover.
     pub submodules: bool,
     /// Scan every object reachable from the refs (`--all`) instead of the ones the remote's tracking refs do not cover.
-    ///  Set for every destination whose tracking refs cannot be trusted to describe it, and for a mirror push.
+    ///  Set for every destination whose tracking refs cannot be trusted to describe it,
+    /// and for a mirror push.
     pub full_scan: bool,
-    /// The exact objects to upload (`git-lfs push --object-id`), when the wrapper found them itself; `None` leaves the
+    /// The exact objects to upload (`git-lfs push --object-id`),
+    /// when the wrapper found them itself;
+    /// `None` leaves the
     ///  scan to `git-lfs` with the refs.
     pub objects: Option<Vec<String>>,
 }
 
-/// How many object names one `git-lfs push --object-id` run takes, so the argument list stays far under the system limit.
+/// How many object names one `git-lfs push --object-id` run takes,
+/// so the argument list stays far under the system limit.
 pub const OBJECTS_PER_RUN: usize = 500;
 
 impl UploadPlan {
-    /// The argument lists of the runs for one destination: one run that scans the refs, or, with named objects, one
+    /// The argument lists of the runs for one destination:
+    /// one run that scans the refs,
+    /// or,
+    /// with named objects,
+    /// one
     ///  `push --object-id <destination> <oid>...` run per [`OBJECTS_PER_RUN`] objects.
     pub fn runs(&self, remote: &OsStr) -> Vec<Vec<OsString>> {
         let Some(objects) = self.objects.as_ref() else {
@@ -72,9 +100,16 @@ impl UploadPlan {
         return runs;
     }
 
-    /// The arguments of one `git-lfs` run: `push`, with `--all` for a full scan, the destination, then the refs.
-    ///  `--all` with refs uploads every object reachable from them, so objects that remote-tracking refs of this clone
-    ///  mention are not skipped; without it `git-lfs` skips them, and a push that adds no object sends no batch request.
+    /// The arguments of one `git-lfs` run:
+    /// `push`,
+    /// with `--all` for a full scan,
+    /// the destination,
+    /// then the refs.
+    ///  `--all` with refs uploads every object reachable from them,
+    /// so objects that remote-tracking refs of this clone
+    ///  mention are not skipped;
+    /// without it `git-lfs` skips them,
+    /// and a push that adds no object sends no batch request.
     pub fn arguments(&self, remote: &OsStr) -> Vec<OsString> {
         let mut arguments: Vec<OsString> = vec![OsString::from("push")];
         if self.full_scan {
@@ -88,14 +123,21 @@ impl UploadPlan {
     }
 }
 
-/// What the source side of a refspec is: nothing for a deletion (`:dst`), the matching marker for `:`, else the part
-///  before the last colon (Git splits at the last one, so a source such as `:/message` survives); a leading `+` is dropped.
+/// What the source side of a refspec is:
+/// nothing for a deletion (`:dst`),
+/// the matching marker for `:`,
+/// else the part
+///  before the last colon (Git splits at the last one,
+/// so a source such as `:/message` survives);
+/// a leading `+` is dropped.
 enum Source {
     /// The refspec only deletes.
     Deletion,
-    /// The refspec `:` (or `+:`): every branch that exists on both sides.
+    /// The refspec `:` (or `+:`):
+    /// every branch that exists on both sides.
     Matching,
-    /// A ref, a revision expression or a pattern.
+    /// A ref,
+    /// a revision expression or a pattern.
     Named(OsString),
 }
 
@@ -116,14 +158,21 @@ fn refspec_source(spec: &OsStr) -> Source {
     return Source::Named(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(source.to_vec()));
 }
 
-/// Whether one byte is the colon that separates the source of a refspec from its destination, or the host of an
-///  scp-like remote from its path. `&u8` borrows the byte, as `position` hands it over.
+/// Whether one byte is the colon that separates the source of a refspec from its destination,
+/// or the host of an
+///  scp-like remote from its path.
+/// `&u8` borrows the byte,
+/// as `position` hands it over.
 fn is_colon_byte(byte: &u8) -> bool {
     return *byte == b':';
 }
 
-/// The refs under a prefix, listed by one `for-each-ref`; with a `(front, back)` pattern, only the full names that
-///  start with `front` and end with `back` without the two overlapping, and with `None` every name.
+/// The refs under a prefix,
+/// listed by one `for-each-ref`;
+/// with a `(front, back)` pattern,
+/// only the full names that
+///  start with `front` and end with `back` without the two overlapping,
+/// and with `None` every name.
 fn list(query: Query<'_>, prefix: &str, pattern: Option<(&str, &str)>) -> Result<Vec<OsString>, PlanError> {
     let listing: String = match query.ask(&["for-each-ref", "--format=%(refname)", prefix]) {
         Ok(text) => text,
@@ -144,8 +193,13 @@ fn list(query: Query<'_>, prefix: &str, pattern: Option<(&str, &str)>) -> Result
     return Ok(names);
 }
 
-/// The refs a source with a `*` stands for, by a refspec's own rule: the text before the star, the text after it, and
-///  anything between, `/` included (which a `for-each-ref` pattern does not do).
+/// The refs a source with a `*` stands for,
+/// by a refspec's own rule:
+/// the text before the star,
+/// the text after it,
+/// and
+///  anything between,
+/// `/` included (which a `for-each-ref` pattern does not do).
 fn expand_pattern(query: Query<'_>, pattern: &str) -> Result<Vec<OsString>, PlanError> {
     let (front, back) = pattern.split_once('*').unwrap_or((pattern, ""));
     let directory: &str = match front.rsplit_once('/') {
@@ -155,7 +209,8 @@ fn expand_pattern(query: Query<'_>, pattern: &str) -> Result<Vec<OsString>, Plan
     return list(query, directory, Some((front, back)));
 }
 
-/// `file://` and percent-encoding for a path, where `git-lfs` accepts only a remote name or an URL.
+/// `file://` and percent-encoding for a path,
+/// where `git-lfs` accepts only a remote name or an URL.
 fn file_url(absolute: &Path) -> OsString {
     let mut url: Vec<u8> = b"file://".to_vec();
     for byte in absolute.as_os_str().as_encoded_bytes() {
@@ -169,11 +224,16 @@ fn file_url(absolute: &Path) -> OsString {
 }
 
 /// What:
-///  Turn a destination typed in place of a remote name into what `git lfs push` accepts. A remote name and an URL stay as
-///  they are; a path (it starts with `/`, `./` or `../`, or names an existing file or directory relative to `directory`
+///  Turn a destination typed in place of a remote name into what `git lfs push` accepts.
+/// A remote name and an URL stay as
+///  they are;
+/// a path (it starts with `/`,
+/// `./` or `../`,
+/// or names an existing file or directory relative to `directory`
 ///  and is not a configured remote) becomes a percent-encoded `file://` URL.
 /// Why:
-///   Git pushes to a path directly, and the old hook flow handed `git-lfs` the URL Git had made of it.
+///   Git pushes to a path directly,
+/// and the old hook flow handed `git-lfs` the URL Git had made of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -223,7 +283,8 @@ fn configured_remotes(all: &[(String, String)]) -> Vec<&str> {
     return names;
 }
 
-/// Whether any `url.<base>.pushInsteadOf` rewrite is configured, which can send the push elsewhere than the fetch.
+/// Whether any `url.<base>.pushInsteadOf` rewrite is configured,
+/// which can send the push elsewhere than the fetch.
 fn has_push_rewrite(all: &[(String, String)]) -> bool {
     for (key, _) in all {
         if key.starts_with("url.") && key.ends_with(".pushinsteadof") {
@@ -234,14 +295,30 @@ fn has_push_rewrite(all: &[(String, String)]) -> bool {
 }
 
 /// What:
-///  What to upload for a push, or nothing when the push uploads nothing, or why the plan cannot be worked out.
+///  What to upload for a push,
+/// or nothing when the push uploads nothing,
+/// or why the plan cannot be worked out.
 /// Why:
-///   A push that bypasses the upload (`--no-verify`, `GIT_LFS_SKIP_PUSH`, the caller's switch), sends nothing (a dry run,
-///  only deletions) uploads nothing. A push that names refs uploads those, with patterns, `--all`, `--tags`, the matching
-///  refspec `:` and the configured `remote.<name>.push` expanded to the refs they stand for; a bare push uploads what the
-///  remote's configuration names, else the branch Git would send (`HEAD` when it is not a branch); a mirror push uploads
-///  everything. A remote with several push URLs is uploaded to once per URL. `directory` is where relative paths are
-///  resolved; `settings` is the configuration the plan reads.
+///   A push that bypasses the upload (`--no-verify`,
+/// `GIT_LFS_SKIP_PUSH`,
+/// the caller's switch),
+/// sends nothing (a dry run,
+///  only deletions) uploads nothing.
+/// A push that names refs uploads those,
+/// with patterns,
+/// `--all`,
+/// `--tags`,
+/// the matching
+///  refspec `:` and the configured `remote.<name>.push` expanded to the refs they stand for;
+/// a bare push uploads what the
+///  remote's configuration names,
+/// else the branch Git would send (`HEAD` when it is not a branch);
+/// a mirror push uploads
+///  everything.
+/// A remote with several push URLs is uploaded to once per URL.
+/// `directory` is where relative paths are
+///  resolved;
+/// `settings` is the configuration the plan reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

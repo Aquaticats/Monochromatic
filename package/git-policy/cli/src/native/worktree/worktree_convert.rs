@@ -1,14 +1,27 @@
 //! What:
 //!  Convert one registered linked worktree that is an ordinary directory into a btrfs subvolume at the same path,
-//!  resumably: quiesce it, copy it with cloned data into `<path>.cli-git-converting`, prove the copy equals the original,
-//!  swap the two with one atomic exchange, refresh the index stat fields, and remove the old tree only after the swap is
+//!  resumably:
+//! quiesce it,
+//! copy it with cloned data into `<path>.cli-git-converting`,
+//! prove the copy equals the original,
+//!  swap the two with one atomic exchange,
+//! refresh the index stat fields,
+//! and remove the old tree only after the swap is
 //!  verified.
 //! Why:
-//!  A snapshot of the main checkout shows a nested worktree that is a subvolume as an empty directory, and one that is an
-//!  ordinary directory as a full copy that must then be removed (0.5 s each). Converting each ordinary worktree once makes
-//!  every later snapshot skip it for nothing. The registration is untouched: the path and the bytes of the `.git` file do
-//!  not change, so the administrative directory's back-pointer stays valid. A journal in the administrative directory
-//!  records the phase, so a rerun completes the conversion in place; nothing is deleted that the journal does not prove
+//!  A snapshot of the main checkout shows a nested worktree that is a subvolume as an empty directory,
+//! and one that is an
+//!  ordinary directory as a full copy that must then be removed (0.5 s each).
+//! Converting each ordinary worktree once makes
+//!  every later snapshot skip it for nothing.
+//! The registration is untouched:
+//! the path and the bytes of the `.git` file do
+//!  not change,
+//! so the administrative directory's back-pointer stays valid.
+//! A journal in the administrative directory
+//!  records the phase,
+//! so a rerun completes the conversion in place;
+//! nothing is deleted that the journal does not prove
 //!  this command created.
 //!
 //! In TS you'd write (pseudocode):
@@ -50,7 +63,8 @@ pub enum Verdict {
     AlreadySubvolume,
     /// An unfinished conversion was undone before its swap.
     Abandoned,
-    /// Something stands in the way; each reason is a sentence.
+    /// Something stands in the way;
+    /// each reason is a sentence.
     Skipped(Vec<String>),
 }
 
@@ -69,12 +83,15 @@ pub struct ConvertOptions {
     pub dry_run: bool,
     /// Undo an unfinished conversion that has not reached its swap.
     pub abandon: bool,
-    /// The invocation chose an attribute source on the command line (`--attr-source`, `-c attr.tree`), which the worktree
+    /// The invocation chose an attribute source on the command line (`--attr-source`,
+    /// `-c attr.tree`),
+    /// which the worktree
     ///  files read here do not model.
     pub command_line_attributes: bool,
 }
 
-/// A token unique to this run, written to the index lock so that only this command removes it.
+/// A token unique to this run,
+/// written to the index lock so that only this command removes it.
 fn new_token() -> String {
     let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(elapsed) => elapsed.as_nanos(),
@@ -83,9 +100,13 @@ fn new_token() -> String {
     return format!("monochromatic-git-policy-cli convert-worktree-to-subvolume pid={} at={nanos}", std::process::id());
 }
 
-/// Undo an unfinished conversion that has not reached its swap: destroy the subvolume this command created (the one whose
-///  identity the journal recorded; anything else at the name is left where it is), release the lock and drop the journal.
-///  Past the swap there is nothing to undo, and the command says to run it again.
+/// Undo an unfinished conversion that has not reached its swap:
+/// destroy the subvolume this command created (the one whose
+///  identity the journal recorded;
+/// anything else at the name is left where it is),
+/// release the lock and drop the journal.
+///  Past the swap there is nothing to undo,
+/// and the command says to run it again.
 fn abandon(platform: &dyn Platform, candidate: &Candidate, journal: Journal, say: &mut dyn LineSink) -> Result<Verdict, MigrateError> {
     let converting: PathBuf = converting_path(candidate.path.as_path());
     if journal.phase >= Phase::Exchanged {
@@ -108,10 +129,15 @@ fn abandon(platform: &dyn Platform, candidate: &Candidate, journal: Journal, say
 }
 
 /// What:
-///  Convert, resume, abandon or preview one worktree.
+///  Convert,
+/// resume,
+/// abandon or preview one worktree.
 /// Why:
-///   One function holds the phase order, so the controls exercise the real sequence; the platform and the interrupt are
-///  injected so the controls run it on any filesystem and kill it at every phase. A real run holds the conversion lock from
+///   One function holds the phase order,
+/// so the controls exercise the real sequence;
+/// the platform and the interrupt are
+///  injected so the controls run it on any filesystem and kill it at every phase.
+/// A real run holds the conversion lock from
 ///  before it reads the journal until it ends.
 ///
 /// In TS you'd write (pseudocode):
@@ -261,7 +287,11 @@ mod content_tests;
 #[path = "worktree_convert_ownership_tests.rs"]
 mod ownership_tests;
 
-/// The controls for what keeps a foreign or late change from being lost: identities, the lock, the journal's files, the pinned
+/// The controls for what keeps a foreign or late change from being lost:
+/// identities,
+/// the lock,
+/// the journal's files,
+/// the pinned
 ///  removal and the refusals by kind.
 #[cfg(test)]
 #[path = "worktree_convert_safety_tests.rs"]

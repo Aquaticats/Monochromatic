@@ -27,7 +27,9 @@ fn handoff(root: &std::path::Path, activation: Activation) -> ServiceHandoff {
     };
 }
 
-/// A handoff writes one pending record per handed-over kind, named for the kind and the commit, before it wakes anyone;
+/// A handoff writes one pending record per handed-over kind,
+/// named for the kind and the commit,
+/// before it wakes anyone;
 ///  with no way to start a service it says so plainly and leaves the records for the next wake.
 #[test]
 fn the_records_are_written_before_the_wake_and_survive_a_failed_one() {
@@ -45,7 +47,8 @@ fn the_records_are_written_before_the_wake_and_survive_a_failed_one() {
     remove(root.as_path());
 }
 
-/// A second handoff of the same commit adds nothing (the record names are derived), so a retry cannot duplicate work.
+/// A second handoff of the same commit adds nothing (the record names are derived),
+/// so a retry cannot duplicate work.
 #[test]
 fn a_repeated_handoff_adds_no_second_record() {
     let root: std::path::PathBuf = fixture("handoff-repeat");
@@ -58,7 +61,8 @@ fn a_repeated_handoff_adds_no_second_record() {
     remove(root.as_path());
 }
 
-/// A review record is left only where the worktree keeps a shadow log; elsewhere the handed-over kinds are all there is.
+/// A review record is left only where the worktree keeps a shadow log;
+/// elsewhere the handed-over kinds are all there is.
 #[test]
 fn a_review_record_is_left_only_where_the_repository_keeps_a_shadow_log() {
     let root: std::path::PathBuf = fixture("handoff-review");
@@ -76,7 +80,8 @@ fn a_review_record_is_left_only_where_the_repository_keeps_a_shadow_log() {
     remove(root.as_path());
 }
 
-/// Every file under a directory, recursively.
+/// Every file under a directory,
+/// recursively.
 fn files_under(directory: &std::path::Path) -> Vec<std::path::PathBuf> {
     let mut found: Vec<std::path::PathBuf> = Vec::new();
     if let Ok(listing) = std::fs::read_dir(directory) {
@@ -97,8 +102,11 @@ fn contains_bytes(bytes: &[u8], needle: &[u8]) -> bool {
     return bytes.windows(needle.len()).any(|window| { return window == needle; });
 }
 
-/// The credential never reaches a file: every byte under the worktree and the Git directory is scanned, after records
-/// were written, and a positive control shows the scan reads the records.
+/// The credential never reaches a file:
+/// every byte under the worktree and the Git directory is scanned,
+/// after records
+/// were written,
+/// and a positive control shows the scan reads the records.
 #[test]
 fn the_on_disk_work_items_never_hold_the_key() {
     const SECRET: &str = "test-key-not-a-secret-on-disk";
@@ -121,7 +129,8 @@ fn the_on_disk_work_items_never_hold_the_key() {
     remove(root.as_path());
 }
 
-/// The wake message that reaches the service carries the key, and carries none when there is none.
+/// The wake message that reaches the service carries the key,
+/// and carries none when there is none.
 #[test]
 fn the_wake_message_carries_the_key_to_the_service() {
     const SECRET: &str = "test-key-not-a-secret-on-the-wire";

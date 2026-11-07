@@ -12,11 +12,13 @@
 //!  so there is no program to find on a search path,
 //!  no configuration file to write and no stream contract to parse.
 //!  The child process used to be the wrapper's kill boundary;
-//!  `markdown_linter_guard.rs` replaces it with a thread, a quiet window and panic containment,
+//!  `markdown_linter_guard.rs` replaces it with a thread,
+//! a quiet window and panic containment,
 //!  which is a hang and panic boundary and not a crash boundary:
 //!  a stack overflow or an abort in the linter ends the wrapper.
 //!  The size of a finished result is checked against the former child's output bounds
-//!  (`markdown_linter_output.rs`), after the linter has produced it.
+//!  (`markdown_linter_output.rs`),
+//! after the linter has produced it.
 //!  The configuration is rebuilt from the policy's options for each candidate,
 //!  which costs a small JSONC document,
 //!  so no state outlives the options it was built from.
@@ -50,12 +52,26 @@ use std::time::Duration;
 /// What:
 ///  How long the linter of one candidate may show no sign of work before the wrapper stops waiting for it.
 /// Why:
-///   A linter that works is waited for however long it takes (owner, 2026-11-03: "Stop only on no progress"; pick 9 of
-///  `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the owner's delegation and open to the owner's
-///  veto), and one that shows nothing is a hang.
-///  Citation: none, and **unmeasured as a quiet window**. Measured on the host with the former child process, one run takes
-///  about 11 milliseconds warm and 227 cold, and the host has run at load averages of 40 to 90; those are whole times, and a
-///  whole time is an upper bound of a quiet gap, not the gap. The longest quiet gap of every run is now kept in the ledger
+///   A linter that works is waited for however long it takes (owner,
+/// 2026-11-03:
+/// "Stop only on no progress";
+/// pick 9 of
+///  `doc/planning/cli-git-shipped-limits-audit.md`,
+/// the coordinator's under the owner's delegation and open to the owner's
+///  veto),
+/// and one that shows nothing is a hang.
+///  Citation:
+/// none,
+/// and **unmeasured as a quiet window**.
+/// Measured on the host with the former child process,
+/// one run takes
+///  about 11 milliseconds warm and 227 cold,
+/// and the host has run at load averages of 40 to 90;
+/// those are whole times,
+/// and a
+///  whole time is an upper bound of a quiet gap,
+/// not the gap.
+/// The longest quiet gap of every run is now kept in the ledger
 ///  (`quiet_ledger.rs`) and the number waits for it.
 ///
 /// In TS you'd write (pseudocode):
@@ -69,7 +85,8 @@ pub const LINT_QUIET_WINDOW: Duration = Duration::from_secs(60);
 ///  the linter library's entry in production,
 ///  a planted function in the controls of the guard.
 /// Why:
-///  A plain function pointer is `Send`, so it moves onto the guarded thread without capturing anything.
+///  A plain function pointer is `Send`,
+/// so it moves onto the guarded thread without capturing anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -94,7 +111,9 @@ pub struct EmbeddedLinter {
     fix: FixFunction,
     /// How long one candidate may show no sign of work.
     window: Duration,
-    /// The longest one candidate is waited for, whatever it shows (`wait_ceilings.rs`, `LINT_CEILING`).
+    /// The longest one candidate is waited for,
+    /// whatever it shows (`wait_ceilings.rs`,
+    /// `LINT_CEILING`).
     ceiling: Duration,
     /// When a run that takes long prints its notices.
     cadence: Cadence,
@@ -106,7 +125,9 @@ pub struct EmbeddedLinter {
 
 /// What:
 ///  The linter of the running executable:
-///  the linked linter, `LINT_QUIET_WINDOW`, and notices on standard error.
+///  the linked linter,
+/// `LINT_QUIET_WINDOW`,
+/// and notices on standard error.
 /// Why:
 ///   Checks built before an environment is known get one too;
 ///  making it touches nothing,
@@ -130,7 +151,8 @@ pub fn embedded_linter() -> EmbeddedLinter {
 /// What:
 ///  A linter over `fix` with this quiet window.
 /// Why:
-///   Controls plant a fix that panics or never returns, with a short window.
+///   Controls plant a fix that panics or never returns,
+/// with a short window.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -151,7 +173,8 @@ pub fn embedded_linter_with(fix: FixFunction, window: Duration) -> EmbeddedLinte
 ///  The reason every candidate after an abandoned one gets.
 /// Why:
 ///   An abandoned thread cannot be stopped and may still be working or holding memory;
-///  starting another beside it for each later candidate could pile them up, so the rest of the command
+///  starting another beside it for each later candidate could pile them up,
+/// so the rest of the command
 ///  leaves its Markdown candidates unchecked and says why.
 ///
 /// In TS you'd write (pseudocode):
@@ -282,7 +305,8 @@ impl MarkdownLinter for EmbeddedLinter {
 }
 
 impl EmbeddedLinter {
-    /// The same linter with another ceiling; controls plant a fix that keeps working with a short one.
+    /// The same linter with another ceiling;
+    /// controls plant a fix that keeps working with a short one.
     pub fn with_ceiling(mut self, ceiling: Duration) -> Self {
         self.ceiling = ceiling;
         return self;
@@ -297,7 +321,8 @@ impl EmbeddedLinter {
     }
 }
 
-/// Guard, reason and contract controls stay out of the release executable.
+/// Guard,
+/// reason and contract controls stay out of the release executable.
 #[cfg(test)]
 #[path = "markdown_linter_tests.rs"]
 mod tests;

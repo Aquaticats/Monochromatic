@@ -1,4 +1,8 @@
-//! Controls for the plan on disk: a plan is read back whole, a newer plan of a branch replaces the older, a removed plan is gone, and a
+//! Controls for the plan on disk:
+//! a plan is read back whole,
+//! a newer plan of a branch replaces the older,
+//! a removed plan is gone,
+//! and a
 //! file that holds no plan is removed instead of being said at every start.
 
 use super::*;
@@ -28,7 +32,8 @@ fn plan(branch: &str, oid: &str, attempt: u32) -> StoredPlan {
     };
 }
 
-/// A plan comes back as it went in, one per branch.
+/// A plan comes back as it went in,
+/// one per branch.
 #[test]
 fn a_saved_plan_is_read_back_whole() {
     let root: PathBuf = fixture("retry-store-roundtrip");
@@ -42,7 +47,8 @@ fn a_saved_plan_is_read_back_whole() {
     remove_fixture(root.as_path());
 }
 
-/// A plan saved for a branch replaces the earlier plan of that branch, with another try number or another commit.
+/// A plan saved for a branch replaces the earlier plan of that branch,
+/// with another try number or another commit.
 #[test]
 fn a_newer_plan_of_a_branch_replaces_the_older() {
     let root: PathBuf = fixture("retry-store-replace");
@@ -55,7 +61,8 @@ fn a_newer_plan_of_a_branch_replaces_the_older() {
     remove_fixture(root.as_path());
 }
 
-/// A removed plan is gone, and the plan of another branch is not touched.
+/// A removed plan is gone,
+/// and the plan of another branch is not touched.
 #[test]
 fn a_removed_plan_is_gone_and_another_branch_stays() {
     let root: PathBuf = fixture("retry-store-remove");
@@ -67,7 +74,8 @@ fn a_removed_plan_is_gone_and_another_branch_stays() {
     remove_fixture(root.as_path());
 }
 
-/// A file that holds no plan is not a plan, and is removed so that it is not said again.
+/// A file that holds no plan is not a plan,
+/// and is removed so that it is not said again.
 #[test]
 fn a_file_that_holds_no_plan_is_removed() {
     let root: PathBuf = fixture("retry-store-garbage");

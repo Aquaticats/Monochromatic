@@ -1,8 +1,14 @@
 //! What:
-//!  Lands one group of queued requests as a batch and answers each client: settles open batches first, answers repeats and
-//!  requests landed before, numbers the batch, lands it, and logs every answer with its timings.
+//!  Lands one group of queued requests as a batch and answers each client:
+//! settles open batches first,
+//! answers repeats and
+//!  requests landed before,
+//! numbers the batch,
+//! lands it,
+//! and logs every answer with its timings.
 //! Why:
-//!  The landing thread of `service_server.rs` calls it once per group; it is the largest step of the service and has its own
+//!  The landing thread of `service_server.rs` calls it once per group;
+//! it is the largest step of the service and has its own
 //!  file so the loop that feeds it stays short.
 //!
 //! In TS you'd write (pseudocode):
@@ -23,7 +29,9 @@ use crate::service_protocol::{
 };
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-/// Finishes the open batches this instance owns: those of its worktree when it serves one, all of them in a development run.
+/// Finishes the open batches this instance owns:
+/// those of its worktree when it serves one,
+/// all of them in a development run.
 pub(crate) fn settle_open_batches(context: &LandContext, instance: Option<&str>) -> Vec<crate::service_land::RecoveryReport> {
     let reports: Vec<crate::service_land::RecoveryReport> = match instance {
         Some(mine) => recover_instance(context, mine),
@@ -107,14 +115,16 @@ pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &
 /// What:
 ///  Tells every client of a batch what the landing waits for.
 /// Why:
-///   The landing takes its announcer as a value; the streams of the batch are the state each announcement is sent through.
+///   The landing takes its announcer as a value;
+/// the streams of the batch are the state each announcement is sent through.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class AnnounceToStreams implements Announcer { announce(note) { for (const stream of streams) stream.send(note); } }
 /// ```
 struct AnnounceToStreams<'a> {
-    /// The requests of the batch, each with the stream its client listens on.
+    /// The requests of the batch,
+    /// each with the stream its client listens on.
     fresh: &'a [Queued],
 }
 
@@ -129,7 +139,8 @@ impl Announcer for AnnounceToStreams<'_> {
     }
 }
 
-/// Lands one group of jobs that share a branch, and answers each client.
+/// Lands one group of jobs that share a branch,
+/// and answers each client.
 pub(crate) fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, group: Vec<Queued>, landed: &mut HashMap<String, String>, captures: &mut CaptureMemory) {
     let group_began: Instant = Instant::now();
     // Requests this service already landed are answered from memory; the rest are still to land.

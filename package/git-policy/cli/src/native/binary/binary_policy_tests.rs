@@ -69,7 +69,8 @@ fn run_counted(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> (Observed,
     return (observed, logged);
 }
 
-/// A read-only command finds where it runs from the file system, so the forwarded command is the only Git start,
+/// A read-only command finds where it runs from the file system,
+/// so the forwarded command is the only Git start,
 ///  except when the repository is one the reader leaves to Git (then one question precedes it);
 ///  and it never reads configuration.
 #[test]
@@ -573,7 +574,8 @@ fn forbidden_strings_escape_skips_the_policy_for_one_command() {
 ///  reports only its summary,
 ///  and never changes the
 /// index;
-///  a listed dependent-version policy plans nothing for this worktree, so the fix proceeds.
+///  a listed dependent-version policy plans nothing for this worktree,
+/// so the fix proceeds.
 #[test]
 fn direct_fix_corrects_only_worktree_files() {
     let fixture: Fixture = fixture("direct-fix");

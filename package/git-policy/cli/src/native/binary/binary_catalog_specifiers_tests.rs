@@ -176,15 +176,19 @@ fn a_direct_check_of_the_policy_follows_its_severity() {
     remove_settled(&fixture);
 }
 
-/// This repository's own settings file (found by the wrapper's lookup, current name then earlier),
+/// This repository's own settings file (found by the wrapper's lookup,
+/// current name then earlier),
 /// read by the built executable:
 /// it loads,
 /// the older optional
 ///  policies it lists run (a clean check of one exits 0),
 /// and selecting the catalog policy does what the file says about it:
-/// listed, it runs and refuses the literal specifier (exit 1);
-/// not listed, it exits 2.
-/// The expectation is read from the file, so turning the policy on or off in the repository changes no test.
+/// listed,
+/// it runs and refuses the literal specifier (exit 1);
+/// not listed,
+/// it exits 2.
+/// The expectation is read from the file,
+/// so turning the policy on or off in the repository changes no test.
 #[test]
 fn the_repository_configuration_loads_and_the_catalog_policy_follows_it() {
     let fixture: Fixture = fixture("catalog-real-configuration");

@@ -1,5 +1,7 @@
 //! What:
-//!  The proof, from files alone, that no configuration scope Git reads for repository discovery sets `core.bare` or
+//!  The proof,
+//! from files alone,
+//! that no configuration scope Git reads for repository discovery sets `core.bare` or
 //!  `core.worktree`.
 //! Why:
 //!  `git rev-parse` classifies a repository from the discovered directory plus those two keys of any scope;
@@ -22,7 +24,9 @@ const INCLUDE_DEPTH_LIMIT: usize = 10;
 /// The keys whose presence in any file makes the location reader decline.
 const DISCOVERY_KEYS: [&str; 2] = ["core.bare", "core.worktree"];
 
-/// The keys whose presence in any file makes the content readers decline (listings, cached diffs, `show`).
+/// The keys whose presence in any file makes the content readers decline (listings,
+/// cached diffs,
+/// `show`).
 const CONTENT_KEYS: [&str; 11] = [
     "diff.relative",
     "core.ignorecase",
@@ -38,9 +42,13 @@ const CONTENT_KEYS: [&str; 11] = [
 ];
 
 /// What:
-///  The text of a configuration file, following links, or `Some(None)` when the file does not exist.
+///  The text of a configuration file,
+/// following links,
+/// or `Some(None)` when the file does not exist.
 /// Why:
-///   Dotfile managers link `~/.gitconfig`; Git follows the link, so does this read.
+///   Dotfile managers link `~/.gitconfig`;
+/// Git follows the link,
+/// so does this read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -58,7 +66,10 @@ pub fn read_following(path: &Path) -> Option<Option<Vec<u8>>> {
     return std::fs::read(path).ok().map(Some);
 }
 
-/// The path an include value names: `~/x` below `home`, an absolute path as is, a relative path beside the including file.
+/// The path an include value names:
+/// `~/x` below `home`,
+/// an absolute path as is,
+/// a relative path beside the including file.
 pub fn include_target(value: &[u8], including: &Path, home: Option<&Path>) -> Option<PathBuf> {
     let text: &str = std::str::from_utf8(value).ok()?;
     if let Some(rest) = text.strip_prefix("~/") {
@@ -84,16 +95,21 @@ pub fn discovery_key(key: &str) -> bool {
     return DISCOVERY_KEYS.contains(&key);
 }
 
-/// Whether a key can change what the content queries (listings, cached diffs, `show`) print.
+/// Whether a key can change what the content queries (listings,
+/// cached diffs,
+/// `show`) print.
 pub fn content_key(key: &str) -> bool {
     return CONTENT_KEYS.contains(&key) || (key.starts_with("submodule.") && key.ends_with(".ignore"));
 }
 
 /// What:
-///  Whether the file at `path`, and every file it includes, avoids every key `declines` names;
+///  Whether the file at `path`,
+/// and every file it includes,
+/// avoids every key `declines` names;
 ///  `None` when any file cannot be read or parsed.
 /// Why:
-///   A missing file is an empty file to Git, so it passes.
+///   A missing file is an empty file to Git,
+/// so it passes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -140,8 +156,11 @@ pub fn file_avoids_discovery_keys(path: &Path, home: Option<&Path>, depth: usize
 /// What:
 ///  The environment facts that decide which system and global configuration files Git reads.
 /// Why:
-///   `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_SYSTEM` and `GIT_CONFIG_GLOBAL` move or remove the files, and the XDG file is
-///  read next to `~/.gitconfig` unless `GIT_CONFIG_GLOBAL` replaces both; a value type lets a control inject them.
+///   `GIT_CONFIG_NOSYSTEM`,
+/// `GIT_CONFIG_SYSTEM` and `GIT_CONFIG_GLOBAL` move or remove the files,
+/// and the XDG file is
+///  read next to `~/.gitconfig` unless `GIT_CONFIG_GLOBAL` replaces both;
+/// a value type lets a control inject them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -149,25 +168,36 @@ pub fn file_avoids_discovery_keys(path: &Path, home: Option<&Path>, depth: usize
 /// ```
 #[derive(Clone, Debug, Default)]
 pub struct ScopeEnvironment {
-    /// `HOME`, when set and not empty.
+    /// `HOME`,
+    /// when set and not empty.
     pub home: Option<PathBuf>,
-    /// `XDG_CONFIG_HOME`, when set and not empty.
+    /// `XDG_CONFIG_HOME`,
+    /// when set and not empty.
     pub xdg: Option<PathBuf>,
     /// Whether `GIT_CONFIG_NOSYSTEM` is set.
     pub no_system: bool,
     /// `GIT_CONFIG_SYSTEM`.
     pub system: Option<PathBuf>,
-    /// The path the real Git compiles in, read when `GIT_CONFIG_SYSTEM` is not set; learned from that Git
-    ///  (`git_system_config`), and `None` when it is not known, which makes the scope unresolvable.
+    /// The path the real Git compiles in,
+    /// read when `GIT_CONFIG_SYSTEM` is not set;
+    /// learned from that Git
+    ///  (`git_system_config`),
+    /// and `None` when it is not known,
+    /// which makes the scope unresolvable.
     pub system_default: Option<PathBuf>,
     /// `GIT_CONFIG_GLOBAL`.
     pub global: Option<PathBuf>,
-    /// Whether some fact cannot be settled from the variables alone: a relative path (Git resolves it against the
-    /// directory it runs in) or a `GIT_CONFIG_NOSYSTEM` that is not a boolean. Readers that need the files decline.
+    /// Whether some fact cannot be settled from the variables alone:
+    /// a relative path (Git resolves it against the
+    /// directory it runs in) or a `GIT_CONFIG_NOSYSTEM` that is not a boolean.
+    /// Readers that need the files decline.
     pub unresolvable: bool,
 }
 
-/// The value of the last variable named `name`, or nothing; later entries override earlier ones, as in a child's environment.
+/// The value of the last variable named `name`,
+/// or nothing;
+/// later entries override earlier ones,
+/// as in a child's environment.
 pub fn last_variable(variables: &[(OsString, OsString)], name: &str) -> Option<OsString> {
     for (candidate, value) in variables.iter().rev() {
         if candidate == name {
@@ -177,7 +207,8 @@ pub fn last_variable(variables: &[(OsString, OsString)], name: &str) -> Option<O
     return None;
 }
 
-/// The last variable named `name` as a path, or nothing when it is unset.
+/// The last variable named `name` as a path,
+/// or nothing when it is unset.
 fn path_variable(variables: &[(OsString, OsString)], name: &str) -> Option<PathBuf> {
     if let Some(value) = last_variable(variables, name) {
         return Some(PathBuf::from(value));
@@ -185,7 +216,8 @@ fn path_variable(variables: &[(OsString, OsString)], name: &str) -> Option<PathB
     return None;
 }
 
-/// The last variable named `name` as a path, or nothing when it is unset or empty.
+/// The last variable named `name` as a path,
+/// or nothing when it is unset or empty.
 fn nonempty_variable(variables: &[(OsString, OsString)], name: &str) -> Option<PathBuf> {
     if let Some(value) = last_variable(variables, name)
         && !value.is_empty()
@@ -196,8 +228,12 @@ fn nonempty_variable(variables: &[(OsString, OsString)], name: &str) -> Option<P
 }
 
 impl ScopeEnvironment {
-    /// The facts of an environment as a child would see it: the process variables with a run's additions over them, which
-    ///  include the forward-target variable naming the real Git; the wrapper's own environment does not carry it, so there is
+    /// The facts of an environment as a child would see it:
+    /// the process variables with a run's additions over them,
+    /// which
+    ///  include the forward-target variable naming the real Git;
+    /// the wrapper's own environment does not carry it,
+    /// so there is
     ///  deliberately no constructor that reads the process environment alone.
     pub fn from_variables(variables: &[(OsString, OsString)]) -> ScopeEnvironment {
         // `GIT_CONFIG_NOSYSTEM` is a boolean: absent or false reads the system file, an empty value is false.
@@ -235,7 +271,8 @@ impl ScopeEnvironment {
         return scope;
     }
 
-    /// The files with the scope name `config --show-scope` gives each, in Git's order.
+    /// The files with the scope name `config --show-scope` gives each,
+    /// in Git's order.
     pub fn labelled_files(&self) -> Vec<(&'static str, PathBuf)> {
         let mut labelled: Vec<(&'static str, PathBuf)> = Vec::new();
         let mut files: Vec<PathBuf> = self.files();
@@ -248,7 +285,8 @@ impl ScopeEnvironment {
         return labelled;
     }
 
-    /// The system and global files Git reads in this environment, in its order.
+    /// The system and global files Git reads in this environment,
+    /// in its order.
     pub fn files(&self) -> Vec<PathBuf> {
         let mut files: Vec<PathBuf> = Vec::new();
         if !self.no_system {
@@ -275,9 +313,12 @@ impl ScopeEnvironment {
 }
 
 /// What:
-///  Whether the system and global configuration files, with everything they include, avoid the discovery keys.
+///  Whether the system and global configuration files,
+/// with everything they include,
+/// avoid the discovery keys.
 /// Why:
-///   The repository-level files are checked by the layout reader; these are the scopes beyond the repository.
+///   The repository-level files are checked by the layout reader;
+/// these are the scopes beyond the repository.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

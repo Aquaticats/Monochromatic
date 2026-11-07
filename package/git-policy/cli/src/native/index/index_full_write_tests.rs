@@ -1,4 +1,6 @@
-//! Controls for the index writer: the version rules, name compression and the checksum.
+//! Controls for the index writer:
+//! the version rules,
+//! name compression and the checksum.
 
 use super::*;
 use crate::index_full::{ASSUME_VALID, FullEntry, parse_full_index};
@@ -20,7 +22,8 @@ fn checksum(data: &[u8]) -> Vec<u8> {
     return sha1(data).to_vec();
 }
 
-/// Version 3 without an extended flag is written as version 2, and version 2 with one as version 3.
+/// Version 3 without an extended flag is written as version 2,
+/// and version 2 with one as version 3.
 #[test]
 fn the_version_follows_the_extended_flags() {
     let plain: Vec<u8> = write_full_index(&index(3, vec![entry("a", 0)]), &checksum).expect("written");
@@ -31,7 +34,8 @@ fn the_version_follows_the_extended_flags() {
     assert_eq!(four[4..8], [0, 0, 0, 4]);
 }
 
-/// Names are padded to eight bytes in versions 2 and 3, and prefix-compressed against the entry before in version 4.
+/// Names are padded to eight bytes in versions 2 and 3,
+/// and prefix-compressed against the entry before in version 4.
 #[test]
 fn names_are_padded_or_compressed_by_version() {
     let entries: Vec<FullEntry> = vec![entry("dir/alpha", 0), entry("dir/beta", 0)];
@@ -46,7 +50,8 @@ fn names_are_padded_or_compressed_by_version() {
     }
 }
 
-/// The checksum is the hash of everything before it, and the stat data and assume-valid bit are written as held.
+/// The checksum is the hash of everything before it,
+/// and the stat data and assume-valid bit are written as held.
 #[test]
 fn the_checksum_covers_the_file_and_fields_are_kept() {
     let mut held: FullEntry = entry("a", 0);
@@ -58,7 +63,8 @@ fn the_checksum_covers_the_file_and_fields_are_kept() {
     assert_eq!(parse_full_index(bytes.as_slice(), 20).expect("read").entries, vec![held]);
 }
 
-/// The fsmonitor bitmap lists the entries not marked valid, by position.
+/// The fsmonitor bitmap lists the entries not marked valid,
+/// by position.
 #[test]
 fn the_monitor_bitmap_lists_entries_that_are_not_valid() {
     let mut first: FullEntry = entry("a", 0);

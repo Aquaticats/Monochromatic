@@ -57,7 +57,8 @@ pub struct ProcessUser {
 ///  The processes found using a target and the reasons the scan could not see everything.
 /// Why:
 ///   A caller that cannot rely on a scan with no process table refuses when `unavailable` is set;
-///  `unreadable` lists single processes the scan could not see into, which a caller may or may not tolerate.
+///  `unreadable` lists single processes the scan could not see into,
+/// which a caller may or may not tolerate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -69,14 +70,16 @@ pub struct UseScan {
     pub users: Vec<ProcessUser>,
     /// Reasons some process of the scanning account could not be read.
     pub unreadable: Vec<String>,
-    /// Why the process table itself could not be listed, so that no process was scanned.
+    /// Why the process table itself could not be listed,
+    /// so that no process was scanned.
     pub unavailable: Option<String>,
 }
 
 /// What:
 ///  Whether an error means the process exited during the scan.
 /// Why:
-///   `ENOENT` and `ESRCH` are expected races, never unreadable evidence.
+///   `ENOENT` and `ESRCH` are expected races,
+/// never unreadable evidence.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -112,7 +115,8 @@ fn effective_user() -> u32 {
 /// ```
 #[cfg(unix)]
 fn belongs_to_this_account(path: &Path) -> bool {
-    /// The Unix metadata accessors, for the owning account.
+    /// The Unix metadata accessors,
+    /// for the owning account.
     use std::os::unix::fs::MetadataExt;
     let Ok(metadata) = std::fs::metadata(path) else {
         return false;
@@ -121,7 +125,8 @@ fn belongs_to_this_account(path: &Path) -> bool {
 }
 
 /// What:
-///  Without accounts, no process is reported as unreadable evidence.
+///  Without accounts,
+/// no process is reported as unreadable evidence.
 /// Why:
 ///   Without `/proc` the scan has already reported that it could not read the process table.
 ///
@@ -138,7 +143,8 @@ fn belongs_to_this_account(_path: &Path) -> bool {
 /// What:
 ///  Whether a descriptor link resolves to the file with this device and inode.
 /// Why:
-///   A lock has more than one name, so only the identity of the open file says whether it is the lock.
+///   A lock has more than one name,
+/// so only the identity of the open file says whether it is the lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,16 +152,19 @@ fn belongs_to_this_account(_path: &Path) -> bool {
 /// ```
 #[cfg(unix)]
 fn same_file(link: &Path, device: u64, inode: u64) -> std::io::Result<bool> {
-    /// The Unix metadata accessors, for the device and inode.
+    /// The Unix metadata accessors,
+    /// for the device and inode.
     use std::os::unix::fs::MetadataExt;
     let metadata: std::fs::Metadata = std::fs::metadata(link)?;
     return Ok(metadata.dev() == device && metadata.ino() == inode);
 }
 
 /// What:
-///  Without device and inode numbers, no descriptor is recognized as the file.
+///  Without device and inode numbers,
+/// no descriptor is recognized as the file.
 /// Why:
-///   The caller then finds no user and relies on its other proofs; the crate does not build for Windows.
+///   The caller then finds no user and relies on its other proofs;
+/// the crate does not build for Windows.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -228,7 +237,8 @@ fn scan_process(proc_root: &Path, pid: &str, target: &UseTarget<'_>) -> (bool, O
 }
 
 /// What:
-///  Every process other than `self_pid` that uses the target, through a proc root.
+///  Every process other than `self_pid` that uses the target,
+/// through a proc root.
 /// Why:
 ///   Recovery runs this only after a record is missing or a lock is unproven,
 ///  so the scan costs nothing on a commit that finds its state whole.

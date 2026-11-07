@@ -1,12 +1,24 @@
 //! What:
-//!  The two questions the landing asks about a commit that Git built (a signed commit), answered from the object store without
-//!  starting Git: which parents the commit has, and whether every object it adds to the branch is present.
+//!  The two questions the landing asks about a commit that Git built (a signed commit),
+//! answered from the object store without
+//!  starting Git:
+//! which parents the commit has,
+//! and whether every object it adds to the branch is present.
 //! Why:
-//!  Each question was a `git rev-list` start (about five milliseconds warm, more when the host has evicted the Git executable)
-//!  on the wait of every signed commit. A commit that has the branch tip as its only parent adds only the objects that differ
-//!  from the tip's tree, which a walk of the two trees finds by reading the directories that changed. Only a proof is taken from
-//!  here: whatever the walk cannot show (a repository with replacement objects, grafts or a shallow history, a commit with
-//!  another header, an object that looks missing) is left to the `rev-list` the landing always ran, so a refusal is Git's.
+//!  Each question was a `git rev-list` start (about five milliseconds warm,
+//! more when the host has evicted the Git executable)
+//!  on the wait of every signed commit.
+//! A commit that has the branch tip as its only parent adds only the objects that differ
+//!  from the tip's tree,
+//! which a walk of the two trees finds by reading the directories that changed.
+//! Only a proof is taken from
+//!  here:
+//! whatever the walk cannot show (a repository with replacement objects,
+//! grafts or a shallow history,
+//! a commit with
+//!  another header,
+//! an object that looks missing) is left to the `rev-list` the landing always ran,
+//! so a refusal is Git's.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,15 +36,20 @@ use std::collections::HashMap;
 use std::path::Path;
 
 /// How many tree entries one proof may examine before it gives up and leaves the question to Git.
-///  Exempt from a citation under `LQM` (class: reader fallback): a walk past this bound makes the landing run the `rev-list`
-///  it always ran, so a Git start is added and no result changes.
+///  Exempt from a citation under `LQM` (class:
+/// reader fallback):
+/// a walk past this bound makes the landing run the `rev-list`
+///  it always ran,
+/// so a Git start is added and no result changes.
 const ENTRY_BUDGET: usize = 1_000_000;
 
-/// The deepest tree nesting one proof follows, as the readers of `repo_read_tree.rs` follow it.
+/// The deepest tree nesting one proof follows,
+/// as the readers of `repo_read_tree.rs` follow it.
 const TREE_DEPTH_LIMIT: usize = 256;
 
 thread_local! {
-    /// How many name comparisons the proofs of this thread have made, which a control reads to show the work grows with the
+    /// How many name comparisons the proofs of this thread have made,
+    /// which a control reads to show the work grows with the
     ///  directory and not with its square.
     static NAME_STEPS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
@@ -46,20 +63,27 @@ pub(crate) fn name_steps() -> u64 {
 /// The commit's header facts the landing needs.
 #[derive(Debug, Eq, PartialEq)]
 pub struct BuiltCommit {
-    /// The commit's own name, as a binary name, which the proof looks up again when it runs.
+    /// The commit's own name,
+    /// as a binary name,
+    /// which the proof looks up again when it runs.
     name: Vec<u8>,
-    /// The parents, in order, as hexadecimal names.
+    /// The parents,
+    /// in order,
+    /// as hexadecimal names.
     pub parents: Vec<String>,
-    /// The root tree, as a binary name.
+    /// The root tree,
+    /// as a binary name.
     tree: Vec<u8>,
 }
 
-/// The format of the names, from their length.
+/// The format of the names,
+/// from their length.
 fn format_of(hex: &str) -> ObjectFormat {
     return if hex.len() == ObjectFormat::Sha256.hex_length() { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
 }
 
-/// The environment variables that change which history, which replacements or which object store Git reads.
+/// The environment variables that change which history,
+/// which replacements or which object store Git reads.
 const HISTORY_VARIABLES: [&str; 6] = [
     "GIT_SHALLOW_FILE",
     "GIT_GRAFT_FILE",
@@ -69,7 +93,8 @@ const HISTORY_VARIABLES: [&str; 6] = [
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
 ];
 
-/// Whether the repository has anything that makes `rev-list` show another history than the commit objects say, at the places
+/// Whether the repository has anything that makes `rev-list` show another history than the commit objects say,
+/// at the places
 ///  Git looks by default.
 fn history_is_rewritten(common_dir: &Path) -> bool {
     return common_dir.join("shallow").exists() || common_dir.join("info").join("grafts").exists();
@@ -96,7 +121,8 @@ fn overlay_sets(git: &GitContext, name: &str) -> bool {
 /// What:
 ///  Whether a global option of the invocation switches replacement objects off or changes where they are read.
 /// Why:
-///  `history_is_plain` refuses a prefix with `--no-replace-objects`, `--replace-refs` or `core.useReplaceRefs`.
+///  `history_is_plain` refuses a prefix with `--no-replace-objects`,
+/// `--replace-refs` or `core.useReplaceRefs`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -125,14 +151,26 @@ fn hex_of_parents(parents: &[Vec<u8>]) -> Vec<String> {
 }
 
 /// What:
-///  Whether Git, started the way the landing starts it, shows the history the commit objects say.
+///  Whether Git,
+/// started the way the landing starts it,
+/// shows the history the commit objects say.
 /// Why:
-///   The checks of a commit Git built are answered from the object store only then. Git reads its history from the files at the
-///  default places unless a variable names others (`GIT_SHALLOW_FILE`, `GIT_GRAFT_FILE`), shows replacements from a namespace a
-///  variable names (`GIT_REPLACE_REF_BASE`) unless they are switched off (`GIT_NO_REPLACE_OBJECTS`, `--no-replace-objects`,
-///  `core.useReplaceRefs`), and reads another object store when told (`GIT_OBJECT_DIRECTORY`, `GIT_ALTERNATE_OBJECT_DIRECTORIES`). The
-///  environment is the service's own and the overlay of the landing's Git context; the configuration is the snapshot the landing
-///  read. A configuration that could not be read, a setting of any of these and a file at a default place all say "not plain".
+///   The checks of a commit Git built are answered from the object store only then.
+/// Git reads its history from the files at the
+///  default places unless a variable names others (`GIT_SHALLOW_FILE`,
+/// `GIT_GRAFT_FILE`),
+/// shows replacements from a namespace a
+///  variable names (`GIT_REPLACE_REF_BASE`) unless they are switched off (`GIT_NO_REPLACE_OBJECTS`,
+/// `--no-replace-objects`,
+///  `core.useReplaceRefs`),
+/// and reads another object store when told (`GIT_OBJECT_DIRECTORY`,
+/// `GIT_ALTERNATE_OBJECT_DIRECTORIES`).
+/// The
+///  environment is the service's own and the overlay of the landing's Git context;
+/// the configuration is the snapshot the landing
+///  read.
+/// A configuration that could not be read,
+/// a setting of any of these and a file at a default place all say "not plain".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -162,8 +200,11 @@ pub fn history_is_plain(common_dir: &Path, git: &GitContext, snapshot: Option<&C
 }
 
 /// What:
-///  The parents of the commit `built`; `None` when Git is to say (the object is not a plain commit, or the repository's
-///  history is rewritten by grafts, a shallow file or replacement objects).
+///  The parents of the commit `built`;
+/// `None` when Git is to say (the object is not a plain commit,
+/// or the repository's
+///  history is rewritten by grafts,
+/// a shallow file or replacement objects).
 /// Why:
 ///   `git rev-list --parents --max-count=1 <commit>` prints the commit and these parents.
 ///
@@ -190,11 +231,14 @@ pub fn read_commit(common_dir: &Path, built: &str) -> Option<BuiltCommit> {
 enum Found {
     /// Every object is present.
     Present,
-    /// Something is absent or cannot be read here; Git decides.
+    /// Something is absent or cannot be read here;
+    /// Git decides.
     Unproven,
 }
 
-/// One walk: where objects are read, and how much it may still examine.
+/// One walk:
+/// where objects are read,
+/// and how much it may still examine.
 struct Proof<'a> {
     /// The object store.
     database: &'a ObjectDatabase,
@@ -205,7 +249,9 @@ struct Proof<'a> {
 }
 
 impl Proof<'_> {
-    /// The entries of the tree `name`, or `None` when it is absent, not a tree or unreadable.
+    /// The entries of the tree `name`,
+    /// or `None` when it is absent,
+    /// not a tree or unreadable.
     fn entries(&self, name: &[u8]) -> Option<Vec<TreeEntry>> {
         let object = self.database.read(name)?;
         if object.kind != ObjectKind::Tree {
@@ -214,8 +260,12 @@ impl Proof<'_> {
         return parse_tree(object.bytes.as_slice(), name_length(self.format));
     }
 
-    /// Check the tree `new` against `old` (the tree the branch tip has at the same place, when it has one): an entry equal on both
-    ///  sides is reachable from the tip, every other blob must exist, and every other tree is read and checked the same way.
+    /// Check the tree `new` against `old` (the tree the branch tip has at the same place,
+    /// when it has one):
+    /// an entry equal on both
+    ///  sides is reachable from the tip,
+    /// every other blob must exist,
+    /// and every other tree is read and checked the same way.
     fn tree(&mut self, new: &[u8], old: Option<&[u8]>, depth: usize) -> Found {
         if old == Some(new) {
             return Found::Present;
@@ -265,13 +315,21 @@ impl Proof<'_> {
 }
 
 /// What:
-///  Whether every object that the commit `built` adds to a branch at `tip` is present: the commit's tree and every tree and blob
+///  Whether every object that the commit `built` adds to a branch at `tip` is present:
+/// the commit's tree and every tree and blob
 ///  below it that the tip's tree does not have the same.
 /// Why:
-///   `git rev-list --objects <built> --not <tip>` fails when an object it would list is missing, and Git moves a branch to a
-///  commit without looking, so a prune that took an object after the commit was made must be seen before the branch moves. This
-///  answers `true` only for a commit whose one parent is the tip, where the objects to check are those that differ from the tip's
-///  tree; any other commit, and any object that looks absent, answers `false` so that Git decides.
+///   `git rev-list --objects <built> --not <tip>` fails when an object it would list is missing,
+/// and Git moves a branch to a
+///  commit without looking,
+/// so a prune that took an object after the commit was made must be seen before the branch moves.
+/// This
+///  answers `true` only for a commit whose one parent is the tip,
+/// where the objects to check are those that differ from the tip's
+///  tree;
+/// any other commit,
+/// and any object that looks absent,
+/// answers `false` so that Git decides.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

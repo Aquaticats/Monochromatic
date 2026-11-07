@@ -1,4 +1,7 @@
-//! Controls for the hooks-off option: where it goes, which commands go without it, and what real Git does with it.
+//! Controls for the hooks-off option:
+//! where it goes,
+//! which commands go without it,
+//! and what real Git does with it.
 
 use super::*;
 use crate::test_support::{REAL_GIT, executable, fixture, git, isolated_overlay, remove, repository};
@@ -9,7 +12,9 @@ fn tokens(command: &Command) -> Vec<String> {
     return command.get_args().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
 }
 
-/// The options as they are spelled on the command line: the hooks path, then one switch per event.
+/// The options as they are spelled on the command line:
+/// the hooks path,
+/// then one switch per event.
 fn prefix() -> Vec<String> {
     let mut tokens: Vec<String> = vec![String::from("-c"), format!("core.hooksPath={NO_HOOKS_DIRECTORY}")];
     for event in switched_off_events() {
@@ -19,7 +24,10 @@ fn prefix() -> Vec<String> {
     return tokens;
 }
 
-/// The expected tokens: the caller's global options, then the prefix, then the subcommand and its arguments.
+/// The expected tokens:
+/// the caller's global options,
+/// then the prefix,
+/// then the subcommand and its arguments.
 fn with_prefix(globals: &[&str], rest: &[&str]) -> Vec<String> {
     let mut tokens: Vec<String> = globals.iter().map(|token| { return String::from(*token); }).collect();
     tokens.extend(prefix());
@@ -35,7 +43,8 @@ fn built(arguments: &[&str]) -> Command {
     return command;
 }
 
-/// Without the switch the command carries nothing extra, which keeps the other unit controls exact.
+/// Without the switch the command carries nothing extra,
+/// which keeps the other unit controls exact.
 #[test]
 fn the_option_is_added_only_after_the_process_switched_it_on() {
     let owned: Vec<OsString> = vec![OsString::from("status")];
@@ -44,8 +53,10 @@ fn the_option_is_added_only_after_the_process_switched_it_on() {
     assert_eq!(tokens(&command), vec!["status"]);
 }
 
-/// The options follow every global option of the caller and precede the subcommand, so nothing the caller writes among
-///  its global options (`-c`, `--config-env`) can switch a hook or the hooks path back on.
+/// The options follow every global option of the caller and precede the subcommand,
+/// so nothing the caller writes among
+///  its global options (`-c`,
+/// `--config-env`) can switch a hook or the hooks path back on.
 #[test]
 fn the_options_follow_the_global_options_of_the_caller() {
     assert_eq!(tokens(&built(&["status"])), with_prefix(&[], &["status"]));
@@ -57,7 +68,8 @@ fn the_options_follow_the_global_options_of_the_caller() {
     assert_eq!(tokens(&built(&["--version"])), with_prefix(&[], &["--version"]));
 }
 
-/// A configuration query reports what the repository configures, so it goes without the option.
+/// A configuration query reports what the repository configures,
+/// so it goes without the option.
 #[test]
 fn a_configuration_query_goes_without_the_option() {
     assert_eq!(tokens(&built(&["config", "--get", "core.hooksPath"])), vec!["config", "--get", "core.hooksPath"]);
@@ -73,7 +85,8 @@ fn a_configuration_query_goes_without_the_option() {
     assert_eq!(tokens(&built(&["config", "--", "-e"])), vec!["config", "--", "-e"]);
 }
 
-/// The directory is below a device, so it can never exist.
+/// The directory is below a device,
+/// so it can never exist.
 #[test]
 fn the_directory_can_never_exist() {
     assert!(!Path::new(NO_HOOKS_DIRECTORY).exists());
@@ -89,7 +102,9 @@ fn run(directory: &Path, arguments: &[&str]) -> std::process::Output {
     return command.current_dir(directory).output().expect("git starts");
 }
 
-/// A repository with a failing `pre-commit` hook file, a marker-writing configured hook, and a staged change.
+/// A repository with a failing `pre-commit` hook file,
+/// a marker-writing configured hook,
+/// and a staged change.
 fn hooked_repository(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
     let repo: PathBuf = repository(root, "repo");
     let file_marker: PathBuf = root.join("file-hook-ran");
@@ -109,7 +124,8 @@ fn hooked_repository(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
     return (repo, file_marker, config_marker);
 }
 
-/// Neither a hook file nor a configured hook runs with the options; the same repository runs both without them.
+/// Neither a hook file nor a configured hook runs with the options;
+/// the same repository runs both without them.
 #[test]
 fn real_git_runs_no_hook_file_and_no_configured_hook() {
     let root: PathBuf = fixture("hooks-off-real");
@@ -127,7 +143,8 @@ fn real_git_runs_no_hook_file_and_no_configured_hook() {
     remove(root.as_path());
 }
 
-/// A `-c core.hooksPath` or `-c hook.<event>.enabled=true` of the caller cannot bring a hook back: the options follow it.
+/// A `-c core.hooksPath` or `-c hook.<event>.enabled=true` of the caller cannot bring a hook back:
+/// the options follow it.
 #[test]
 fn the_callers_own_options_cannot_switch_a_hook_back_on() {
     let root: PathBuf = fixture("hooks-off-caller");
@@ -144,7 +161,8 @@ fn the_callers_own_options_cannot_switch_a_hook_back_on() {
     remove(root.as_path());
 }
 
-/// The repository's own `core.hooksPath` is shadowed for a run, and a configuration query still reports it.
+/// The repository's own `core.hooksPath` is shadowed for a run,
+/// and a configuration query still reports it.
 #[test]
 fn a_configuration_query_still_reports_the_repositorys_hooks_path() {
     let root: PathBuf = fixture("hooks-off-query");
@@ -157,7 +175,8 @@ fn a_configuration_query_still_reports_the_repositorys_hooks_path() {
     remove(root.as_path());
 }
 
-/// Every listed name is a hook event real Git knows: `git hook list` refuses an unknown event name.
+/// Every listed name is a hook event real Git knows:
+/// `git hook list` refuses an unknown event name.
 #[test]
 fn every_listed_event_is_a_hook_event_of_real_git() {
     let root: PathBuf = fixture("hooks-off-events");
@@ -176,8 +195,10 @@ fn every_listed_event_is_a_hook_event_of_real_git() {
     remove(root.as_path());
 }
 
-/// A configured hook for each switched-off event is listed by Git as disabled when the options are given, and as enabled
-///  without them (the positive control), event by event.
+/// A configured hook for each switched-off event is listed by Git as disabled when the options are given,
+/// and as enabled
+///  without them (the positive control),
+/// event by event.
 #[test]
 fn a_configured_hook_for_each_switched_off_event_does_not_run() {
     let root: PathBuf = fixture("hooks-off-each-event");
@@ -198,7 +219,9 @@ fn a_configured_hook_for_each_switched_off_event_does_not_run() {
     remove(root.as_path());
 }
 
-/// Whether `name` is spelled like a hook event: lowercase letters, digits and hyphens.
+/// Whether `name` is spelled like a hook event:
+/// lowercase letters,
+/// digits and hyphens.
 fn is_event_spelling(name: &str) -> bool {
     return !name.is_empty()
         && name.chars().all(|character| {
@@ -206,7 +229,9 @@ fn is_event_spelling(name: &str) -> bool {
         });
 }
 
-/// The events the rendered manual page lists: each is a heading indented by three spaces. `None` when `man` cannot
+/// The events the rendered manual page lists:
+/// each is a heading indented by three spaces.
+/// `None` when `man` cannot
 ///  render the page.
 fn events_from_manual() -> Option<Vec<String>> {
     let output = Command::new("man")
@@ -228,7 +253,8 @@ fn events_from_manual() -> Option<Vec<String>> {
     );
 }
 
-/// The events the AsciiDoc source of the page lists: each is a line of event spelling followed by a line of tildes.
+/// The events the AsciiDoc source of the page lists:
+/// each is a line of event spelling followed by a line of tildes.
 ///  `None` when no installed copy of the source exists.
 fn events_from_source() -> Option<Vec<String>> {
     // A host's own documentation source. The gate image installs the distribution's Git, which ships the rendered page
@@ -249,11 +275,17 @@ fn events_from_source() -> Option<Vec<String>> {
     );
 }
 
-/// The hook events the host Git documents in `githooks(5)`, from the installed AsciiDoc source or the rendered page.
-///  The binary lists its hook names in generated tables whose layout is not a contract, and `git hook list` can only
-///  confirm a name it is given, never find a missing one, so the documentation is the independent source.
-///  The test fails when neither copy is installed, because a guard that skips on a host that lacks its source checks
-///  nothing there; install Git's documentation (the `git-doc` or `git-man` package) on such a host.
+/// The hook events the host Git documents in `githooks(5)`,
+/// from the installed AsciiDoc source or the rendered page.
+///  The binary lists its hook names in generated tables whose layout is not a contract,
+/// and `git hook list` can only
+///  confirm a name it is given,
+/// never find a missing one,
+/// so the documentation is the independent source.
+///  The test fails when neither copy is installed,
+/// because a guard that skips on a host that lacks its source checks
+///  nothing there;
+/// install Git's documentation (the `git-doc` or `git-man` package) on such a host.
 fn documented_events() -> Vec<String> {
     let found: Option<Vec<String>> = events_from_source().or_else(events_from_manual);
     return found.expect(
@@ -262,7 +294,8 @@ fn documented_events() -> Vec<String> {
     );
 }
 
-/// Every hook event the host Git documents is in `HOOK_EVENTS`, so a configured hook for it is switched off.
+/// Every hook event the host Git documents is in `HOOK_EVENTS`,
+/// so a configured hook for it is switched off.
 ///  The positive control is a name every manual lists.
 #[test]
 fn every_documented_hook_event_is_listed() {
@@ -272,7 +305,8 @@ fn every_documented_hook_event_is_listed() {
     assert!(missing.is_empty(), "documented by this Git but not switched off: {missing:?}");
 }
 
-/// Both sources agree on the events, so a layout change in one is caught by the other.
+/// Both sources agree on the events,
+/// so a layout change in one is caught by the other.
 #[test]
 fn the_source_and_the_rendered_page_list_the_same_events() {
     let (Some(source), Some(manual)) = (events_from_source(), events_from_manual()) else {

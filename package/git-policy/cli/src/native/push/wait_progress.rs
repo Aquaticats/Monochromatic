@@ -4,7 +4,9 @@
 //!  how often it repeats,
 //!  and the place in line a queued commit holds.
 //! Why:
-//!  A commit that queues behind other commits, a lock, a reservation or a child process must say so,
+//!  A commit that queues behind other commits,
+//! a lock,
+//! a reservation or a child process must say so,
 //!  and say it again at a steady interval,
 //!  or the caller cannot tell a queued commit from a hung one (issue 1811).
 //!  Each wait loop feeds its elapsed time to a `Ticker` and prints a line when the ticker says one is due,
@@ -26,24 +28,41 @@ use std::io::Write;
 /// Time spans and the monotonic clock.
 use std::time::{Duration, Instant};
 
-/// Environment variable that sets, in whole seconds, how often a waiting command repeats its notice.
+/// Environment variable that sets,
+/// in whole seconds,
+/// how often a waiting command repeats its notice.
 pub const NOTICE_INTERVAL_VARIABLE: &str = "CLI_GIT_WAIT_NOTICE_SECONDS";
 
 /// How often a waiting command repeats its notice when the variable is absent or unusable.
-///  Exempt from a citation under `LQM` (class: notice pacing): it times a line the person reads or a log threshold, and
-///  nothing waits on it beyond the wait that already exists. Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
+///  Exempt from a citation under `LQM` (class:
+/// notice pacing):
+/// it times a line the person reads or a log threshold,
+/// and
+///  nothing waits on it beyond the wait that already exists.
+/// Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 pub const DEFAULT_NOTICE_INTERVAL: Duration = Duration::from_secs(10);
 
 /// How long a wait stays silent before its first notice:
 ///  a landing that holds the lock normally ends within this,
 ///  so brief contention between healthy commits prints nothing.
-///  Exempt from a citation under `LQM` (class: notice pacing): it times a line the person reads or a log threshold, and
-///  nothing waits on it beyond the wait that already exists. Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
+///  Exempt from a citation under `LQM` (class:
+/// notice pacing):
+/// it times a line the person reads or a log threshold,
+/// and
+///  nothing waits on it beyond the wait that already exists.
+/// Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
 pub const NOTICE_GRACE: Duration = Duration::from_secs(1);
 
-/// The shortest interval a ticker divides by, so a zero interval cannot divide by zero.
+/// The shortest interval a ticker divides by,
+/// so a zero interval cannot divide by zero.
 const SHORTEST_INTERVAL: Duration = Duration::from_millis(1);
 
 /// What:
@@ -67,7 +86,8 @@ pub struct Cadence {
 
 impl Cadence {
     /// The cadence for an interval:
-    ///  the standard grace, but never longer than the interval itself.
+    ///  the standard grace,
+    /// but never longer than the interval itself.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -86,7 +106,8 @@ impl Cadence {
     }
 
     /// The cadence for a value of the variable;
-    ///  a missing, zero or malformed value falls back to the standard one.
+    ///  a missing,
+    /// zero or malformed value falls back to the standard one.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -103,14 +124,16 @@ impl Cadence {
     }
 
     /// The cadence this process runs under:
-    ///  the variable in its environment, or the standard one.
+    ///  the variable in its environment,
+    /// or the standard one.
     pub fn from_environment() -> Self {
         return Self::from_value(std::env::var_os(NOTICE_INTERVAL_VARIABLE).as_deref());
     }
 }
 
 /// What:
-///  Decides, from elapsed time alone,
+///  Decides,
+/// from elapsed time alone,
 ///  whether a notice is due,
 ///  and when the next one will be.
 /// Why:
@@ -196,7 +219,9 @@ impl Ticker {
 ///  What one notice of a wait for a child process says.
 /// Why:
 ///   A child whose output goes to a file or a pipe is silent while it runs,
-///  so the wait names what it waits for, the child's process, how long it has lasted and where it stops the child.
+///  so the wait names what it waits for,
+/// the child's process,
+/// how long it has lasted and where it stops the child.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -204,26 +229,32 @@ impl Ticker {
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct ChildWaitFacts<'facts> {
-    /// What the wait is for, in words ("monochromatic-lint to check a.md").
+    /// What the wait is for,
+    /// in words ("monochromatic-lint to check a.md").
     pub waiting_for: &'facts str,
     /// The child's process.
     pub pid: u32,
     /// How long the wait has lasted.
     pub waited: Duration,
-    /// How long the child may show no sign of work before it is ended, when it may be ended.
+    /// How long the child may show no sign of work before it is ended,
+    /// when it may be ended.
     pub limit: Duration,
-    /// Where the person changes the limit, spelled to follow "seconds", or empty when nothing changes it.
+    /// Where the person changes the limit,
+    /// spelled to follow "seconds",
+    /// or empty when nothing changes it.
     pub limit_note: &'facts str,
     /// Whether an earlier notice of this wait already printed the hint.
     pub repeat: bool,
-    /// Whether a child with no sign of work for the limit is ended; a step that may not be run twice is only waited for.
+    /// Whether a child with no sign of work for the limit is ended;
+    /// a step that may not be run twice is only waited for.
     pub ends_when_quiet: bool,
 }
 
 /// What:
 ///  The notice of a wait for a child process.
 /// Why:
-///   The first notice of a wait adds what to do if the child is stuck, and the repeats stay short.
+///   The first notice of a wait adds what to do if the child is stuck,
+/// and the repeats stay short.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -259,8 +290,12 @@ pub fn child_wait_line(facts: &ChildWaitFacts<'_>) -> String {
 /// What:
 ///  What the caller needs to build the line of a notice that is due.
 /// Why:
-///   The line is built by the caller, from its own variables, only when a notice is due, so a poll that is not due costs a
-///  clock read and nothing else, and no closure has to carry the caller's variables into the reporter.
+///   The line is built by the caller,
+/// from its own variables,
+/// only when a notice is due,
+/// so a poll that is not due costs a
+///  clock read and nothing else,
+/// and no closure has to carry the caller's variables into the reporter.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -277,7 +312,8 @@ pub struct DueNotice {
 /// What:
 ///  Prints a wait's notices to a sink at the pace of its ticker.
 /// Why:
-///   Wait loops that poll (reservations, child processes) share one printing rule:
+///   Wait loops that poll (reservations,
+/// child processes) share one printing rule:
 ///  the caller builds the line only when `notice_due` says it is due,
 ///  so a poll that is not due costs a clock read and nothing else.
 ///
@@ -308,9 +344,12 @@ impl<'sink> WaitReporter<'sink> {
         };
     }
 
-    /// Say whether a notice is due now, and how long the wait has lasted and whether an earlier notice of this wait was
-    ///  printed, which is what the caller needs to build the line.
-    ///  A due notice is answered once; the caller then hands the line to `print_notice`.
+    /// Say whether a notice is due now,
+    /// and how long the wait has lasted and whether an earlier notice of this wait was
+    ///  printed,
+    /// which is what the caller needs to build the line.
+    ///  A due notice is answered once;
+    /// the caller then hands the line to `print_notice`.
     pub fn notice_due(&mut self) -> Option<DueNotice> {
         let waited: Duration = self.started.elapsed();
         if !self.ticker.due(waited) {
@@ -319,7 +358,8 @@ impl<'sink> WaitReporter<'sink> {
         return Some(DueNotice { waited, repeat: self.printed > 0 });
     }
 
-    /// Print the line the caller built for the notice that `notice_due` reported, and count it.
+    /// Print the line the caller built for the notice that `notice_due` reported,
+    /// and count it.
     pub fn print_notice(&mut self, text: &str) {
         self.printed += 1;
         // Terminal output error: a notice is advisory; a failed write must not stop the wait.
@@ -327,7 +367,8 @@ impl<'sink> WaitReporter<'sink> {
     }
 }
 
-/// Cadence, ticker and line controls stay out of the release executable.
+/// Cadence,
+/// ticker and line controls stay out of the release executable.
 #[cfg(test)]
 #[path = "wait_progress_tests.rs"]
 mod tests;

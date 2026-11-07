@@ -1,17 +1,33 @@
-//! The strict walk of a source tree: every `.rs` file under a root, or an error saying why the walk cannot be trusted.
-//! A listing that skips an unreadable entry, a link, or a whole empty tree would let a scan pass over sources it never
-//! read, so each of those is an error here instead.
+//! The strict walk of a source tree:
+//! every `.rs` file under a root,
+//! or an error saying why the walk cannot be trusted.
+//! A listing that skips an unreadable entry,
+//! a link,
+//! or a whole empty tree would let a scan pass over sources it never
+//! read,
+//! so each of those is an error here instead.
 
 use std::path::{Path, PathBuf};
 
 /// What:
 ///  `fn relative_name(root: &Path, path: &Path) -> Result<String, String>` turns an absolute `path` under `root` into
-///  the `/`-separated text every scan uses as the identity of a source file. `Path` is Rust's operating-system path
-///  type (sibling: `PathBuf`, the owned form); `String` is an owned text buffer (sibling: `&str`, a borrowed view);
-///  `Result<String, String>` is "success text or failure text" (sibling: `Option<String>`, which cannot say why).
+///  the `/`-separated text every scan uses as the identity of a source file.
+/// `Path` is Rust's operating-system path
+///  type (sibling:
+/// `PathBuf`,
+/// the owned form);
+/// `String` is an owned text buffer (sibling:
+/// `&str`,
+/// a borrowed view);
+///  `Result<String, String>` is "success text or failure text" (sibling:
+/// `Option<String>`,
+/// which cannot say why).
 /// Why:
-///  A path joined with `/` reads the same on every host, and spells the identity an exception names, so a nested file
-///  never collides with a file of the same name elsewhere. `String` and not `&str` because the caller keeps the text
+///  A path joined with `/` reads the same on every host,
+/// and spells the identity an exception names,
+/// so a nested file
+///  never collides with a file of the same name elsewhere.
+/// `String` and not `&str` because the caller keeps the text
 ///  after this function returns.
 ///
 /// In TS you'd write (pseudocode):
@@ -78,12 +94,22 @@ fn relative_name(root: &Path, path: &Path) -> Result<String, String> {
 
 /// What:
 ///  `pub(crate) fn discover(root: &Path) -> Result<Vec<String>, String>` lists every `.rs` file under `root`,
-///  sorted, as `/`-separated names relative to `root`. `pub(crate)` means other modules of this crate may call it,
-///  outside code may not (TS: an export that is not in the package's public entry).
+///  sorted,
+/// as `/`-separated names relative to `root`.
+/// `pub(crate)` means other modules of this crate may call it,
+///  outside code may not (TS:
+/// an export that is not in the package's public entry).
 /// Why:
-///  Every scan needs the same complete listing. It fails, instead of returning less, when a directory cannot be
-///  listed, an entry cannot be inspected, any entry is a symbolic link (its target may be outside the tree, or
-///  absent), or no source file is found at all.
+///  Every scan needs the same complete listing.
+/// It fails,
+/// instead of returning less,
+/// when a directory cannot be
+///  listed,
+/// an entry cannot be inspected,
+/// any entry is a symbolic link (its target may be outside the tree,
+/// or
+///  absent),
+/// or no source file is found at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

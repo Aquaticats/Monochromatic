@@ -1,4 +1,7 @@
-//! Controls for the `git worktree add` plan: the accepted forms, every refusal, and a real Git 2.56.0 run of each
+//! Controls for the `git worktree add` plan:
+//! the accepted forms,
+//! every refusal,
+//! and a real Git 2.56.0 run of each
 //!  accepted form that registers the destination the plan names.
 
 use super::*;
@@ -6,7 +9,10 @@ use crate::command_test_support::os_arguments;
 use crate::test_support::{fixture, git, remove, repository};
 use std::process::Output;
 
-/// The arguments of an invocation as the plan reads them: the global prefix, `worktree`, `add` and the rest.
+/// The arguments of an invocation as the plan reads them:
+/// the global prefix,
+/// `worktree`,
+/// `add` and the rest.
 fn plan_of(values: &[&str], subcommand_index: usize, start: &Path) -> Option<AddPlan> {
     return parse_add_plan(os_arguments(values).as_slice(), subcommand_index, start);
 }
@@ -36,8 +42,12 @@ fn an_accepted_form_names_its_destination_and_the_insertion_point() {
     remove(root.as_path());
 }
 
-/// Every form outside the table is a plain Git run: unknown and bundled options, the options that change the
-///  checkout, a wrong operand count, and a word other than `add`.
+/// Every form outside the table is a plain Git run:
+/// unknown and bundled options,
+/// the options that change the
+///  checkout,
+/// a wrong operand count,
+/// and a word other than `add`.
 #[test]
 fn a_form_outside_the_table_is_declined() {
     let root: PathBuf = fixture("add-plan-declined");
@@ -96,7 +106,8 @@ fn the_global_prefix_decides_the_start_directory() {
     remove(root.as_path());
 }
 
-/// The destination of a symbolic link parent is the link's target, as Git records it.
+/// The destination of a symbolic link parent is the link's target,
+/// as Git records it.
 #[test]
 fn a_symbolic_link_parent_is_resolved_like_git_does() {
     let root: PathBuf = fixture("add-plan-link");
@@ -107,8 +118,10 @@ fn a_symbolic_link_parent_is_resolved_like_git_does() {
     remove(root.as_path());
 }
 
-/// Positive control of the table against real Git 2.56.0: each accepted form creates a worktree at the planned
-///  destination, and `worktree list` records the path the plan computed.
+/// Positive control of the table against real Git 2.56.0:
+/// each accepted form creates a worktree at the planned
+///  destination,
+/// and `worktree list` records the path the plan computed.
 #[test]
 fn real_git_registers_the_planned_destination_for_each_accepted_form() {
     let root: PathBuf = fixture("add-plan-real-git");
@@ -138,8 +151,10 @@ fn real_git_registers_the_planned_destination_for_each_accepted_form() {
     remove(root.as_path());
 }
 
-/// A destination that already is a symbolic link is declined, because Git records the path the link resolves to while the
-///  snapshot rung would swap the link itself; a name that does not exist yet is served.
+/// A destination that already is a symbolic link is declined,
+/// because Git records the path the link resolves to while the
+///  snapshot rung would swap the link itself;
+/// a name that does not exist yet is served.
 #[test]
 fn a_destination_that_is_a_link_is_declined() {
     let root: PathBuf = fixture("add-plan-final-link");
@@ -152,8 +167,11 @@ fn a_destination_that_is_a_link_is_declined() {
     remove(root.as_path());
 }
 
-/// The destination of a copy is read from every documented form of `git worktree add`, with its options anywhere before or
-/// after the operands, bundled, attached or in the next token.
+/// The destination of a copy is read from every documented form of `git worktree add`,
+/// with its options anywhere before or
+/// after the operands,
+/// bundled,
+/// attached or in the next token.
 #[test]
 fn the_copy_destination_is_read_from_every_documented_form() {
     let root: PathBuf = fixture("copy-destination-forms");
@@ -192,8 +210,16 @@ fn the_copy_destination_is_read_from_every_documented_form() {
     remove(root.as_path());
 }
 
-/// A form Git rejects, or the reading does not know, leaves the destination unknown: an ambiguous or unknown option, a value
-/// on a flag, a missing value, a wrong operand count, another word, and an option between `worktree` and `add`.
+/// A form Git rejects,
+/// or the reading does not know,
+/// leaves the destination unknown:
+/// an ambiguous or unknown option,
+/// a value
+/// on a flag,
+/// a missing value,
+/// a wrong operand count,
+/// another word,
+/// and an option between `worktree` and `add`.
 #[test]
 fn a_copy_destination_that_is_not_read_stays_unknown() {
     let root: PathBuf = fixture("copy-destination-unknown");
@@ -225,8 +251,11 @@ fn a_copy_destination_that_is_not_read_stays_unknown() {
     remove(root.as_path());
 }
 
-/// The directory a destination is read against moves with `-C` and with nothing else; `--git-dir` and `--work-tree` leave it
-/// where it is, as Git does, and an option the reading does not know leaves it unknown.
+/// The directory a destination is read against moves with `-C` and with nothing else;
+/// `--git-dir` and `--work-tree` leave it
+/// where it is,
+/// as Git does,
+/// and an option the reading does not know leaves it unknown.
 #[test]
 fn only_dash_c_capital_moves_the_start_of_a_copy_destination() {
     let start: &Path = Path::new("/work");
@@ -240,7 +269,8 @@ fn only_dash_c_capital_moves_the_start_of_a_copy_destination() {
     }
 }
 
-/// Real Git 2.56.0 registers the destination the copy reading names for each form, so the reading and Git agree.
+/// Real Git 2.56.0 registers the destination the copy reading names for each form,
+/// so the reading and Git agree.
 #[test]
 fn real_git_registers_the_destination_the_copy_reading_names() {
     let root: PathBuf = fixture("copy-destination-real");
@@ -261,8 +291,12 @@ fn real_git_registers_the_destination_the_copy_reading_names() {
     remove(root.as_path());
 }
 
-/// Long options resolve as Git's `parse_long_opt` does: an exact name wins over longer names, a unique prefix is the option,
-/// the `--no-` form negates, and two candidates, a prefix of `no-` and a double negation resolve to nothing.
+/// Long options resolve as Git's `parse_long_opt` does:
+/// an exact name wins over longer names,
+/// a unique prefix is the option,
+/// the `--no-` form negates,
+/// and two candidates,
+/// a prefix of `no-` and a double negation resolve to nothing.
 #[test]
 fn a_long_option_resolves_the_way_gits_parser_does() {
     let name = |text: &str| -> Option<(&'static str, bool, Option<String>)> {
@@ -291,7 +325,9 @@ fn a_long_option_resolves_the_way_gits_parser_does() {
     assert_eq!(name("c"), Some(("checkout", false, None)));
 }
 
-/// A value on a flag or on a negated option, and a missing value, are errors in Git and leave the operands unread.
+/// A value on a flag or on a negated option,
+/// and a missing value,
+/// are errors in Git and leave the operands unread.
 #[test]
 fn values_are_taken_as_gits_parser_takes_them() {
     let region = |values: &[&str]| -> Option<usize> { return copy_add_operands(os_arguments(values).as_slice()).map(|operands| { return operands.len(); }); };
@@ -308,7 +344,9 @@ fn values_are_taken_as_gits_parser_takes_them() {
 }
 
 /// A destination whose parent directories do not exist yet is the real path of the nearest existing ancestor and the rest as
-/// written; a link, a `..` below the missing part and a bare `.` are declined.
+/// written;
+/// a link,
+/// a `..` below the missing part and a bare `.` are declined.
 #[test]
 fn a_destination_below_missing_directories_is_read_without_them() {
     let root: PathBuf = fixture("copy-destination-missing");
@@ -328,8 +366,12 @@ fn a_destination_below_missing_directories_is_read_without_them() {
     remove(root.as_path());
 }
 
-/// The table of options is the list `git worktree add -h` prints, so it cannot drift from Git: every option Git lists is in
-/// the table with the same letter, name and value, and the table lists nothing Git does not.
+/// The table of options is the list `git worktree add -h` prints,
+/// so it cannot drift from Git:
+/// every option Git lists is in
+/// the table with the same letter,
+/// name and value,
+/// and the table lists nothing Git does not.
 #[test]
 fn the_option_table_matches_what_git_prints_for_dash_h() {
     // `git worktree` sets up a repository before it reads `-h`, so it runs inside a fixture repository: outside one, as in
@@ -382,8 +424,11 @@ fn the_option_table_matches_what_git_prints_for_dash_h() {
     }
 }
 
-/// An exact name wins over a longer name it is a prefix of, even when the longer name comes first; the real table has no such
-/// pair, so a table that has one shows the rule.
+/// An exact name wins over a longer name it is a prefix of,
+/// even when the longer name comes first;
+/// the real table has no such
+/// pair,
+/// so a table that has one shows the rule.
 #[test]
 fn an_exact_name_wins_over_the_names_it_is_a_prefix_of() {
     static TABLE: &[AddOption] = &[

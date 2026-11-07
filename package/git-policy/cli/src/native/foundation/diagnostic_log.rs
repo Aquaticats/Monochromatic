@@ -18,7 +18,8 @@
 
 /// The current time in `toISOString` form.
 use crate::iso_time::now_iso;
-/// Replaces the userinfo of every URL in a message, as the relays of Git's and `git-lfs` words do.
+/// Replaces the userinfo of every URL in a message,
+/// as the relays of Git's and `git-lfs` words do.
 use crate::lfs_output_mask::mask_userinfo_text;
 /// The trait that gives output streams `.write_all(..)`.
 use std::io::Write;
@@ -89,9 +90,13 @@ fn is_false(value: std::ffi::OsString) -> bool {
 /// Why:
 ///   The incumbent's tagged loggers print `[warn] [2026-10-06T21:40:39.524Z] [monochromatic-git-policy-cli] ...`;
 ///       one line per record keeps standard error parseable beside JSONL events.
-///  Debug and warning lines carry Git's words (a failed fetch names its remote), and a remote written as
-///       `https://user:token@host` would put its token on the terminal; every caller passes through here,
-///  so the userinfo is hidden once, before the control characters go, so that no character inside the userinfo
+///  Debug and warning lines carry Git's words (a failed fetch names its remote),
+/// and a remote written as
+///       `https://user:token@host` would put its token on the terminal;
+/// every caller passes through here,
+///  so the userinfo is hidden once,
+/// before the control characters go,
+/// so that no character inside the userinfo
 ///       decides where the hiding ends.
 ///
 /// In TS you'd write (pseudocode):

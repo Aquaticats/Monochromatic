@@ -1,12 +1,20 @@
 //! What:
-//!  The plan for one `git worktree add` the cheap-worktree ladder may serve: where the new worktree goes and where in
-//!  the argument list a rung inserts `--no-checkout`, or nothing when the invocation uses a form the ladder does not
+//!  The plan for one `git worktree add` the cheap-worktree ladder may serve:
+//! where the new worktree goes and where in
+//!  the argument list a rung inserts `--no-checkout`,
+//! or nothing when the invocation uses a form the ladder does not
 //!  know.
 //! Why:
-//!  The ladder runs real Git once with the person's arguments, so it only needs the destination path and a promise that
-//!  every other word means what the table says. An option the table does not list, a bundled short flag, a global
-//!  option that changes how Git reads configuration, or a destination whose parent does not exist makes the whole
-//!  invocation a plain Git run, which is always correct.
+//!  The ladder runs real Git once with the person's arguments,
+//! so it only needs the destination path and a promise that
+//!  every other word means what the table says.
+//! An option the table does not list,
+//! a bundled short flag,
+//! a global
+//!  option that changes how Git reads configuration,
+//! or a destination whose parent does not exist makes the whole
+//!  invocation a plain Git run,
+//! which is always correct.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,9 +27,11 @@ use std::path::{Path, PathBuf};
 
 /// What:
 ///  The facts of a `git worktree add` the ladder serves.
-///  `usize` is an unsigned size or index; `PathBuf` is an owned file-system path.
+///  `usize` is an unsigned size or index;
+/// `PathBuf` is an owned file-system path.
 /// Why:
-///   The destination decides the subvolume to create and the worktree to settle; the insertion index decides where
+///   The destination decides the subvolume to create and the worktree to settle;
+/// the insertion index decides where
 ///  `--no-checkout` goes in the arguments real Git receives.
 ///
 /// In TS you'd write (pseudocode):
@@ -30,11 +40,14 @@ use std::path::{Path, PathBuf};
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AddPlan {
-    /// The destination as Git records it: the real path of its parent joined with its last component.
+    /// The destination as Git records it:
+    /// the real path of its parent joined with its last component.
     pub destination: PathBuf,
-    /// The index in the full argument list where options of `add` may be inserted: directly after the word `add`.
+    /// The index in the full argument list where options of `add` may be inserted:
+    /// directly after the word `add`.
     pub insert_at: usize,
-    /// Whether the person passed `--quiet`, which silences the line Git's checkout prints.
+    /// Whether the person passed `--quiet`,
+    /// which silences the line Git's checkout prints.
     pub quiet: bool,
 }
 
@@ -48,11 +61,16 @@ const VALUE_OPTIONS: &[&[u8]] = &[b"-b", b"--reason"];
 const HARMLESS_GLOBALS: &[&[u8]] = &[b"--no-pager", b"-P", b"--paginate", b"-p", b"--no-advice", b"--no-lazy-fetch"];
 
 /// What:
-///  The directory a command starts in: the process directory moved by every `-C <dir>` of the global prefix, or nothing
+///  The directory a command starts in:
+/// the process directory moved by every `-C <dir>` of the global prefix,
+/// or nothing
 ///  when the prefix holds an option the ladder does not serve.
 /// Why:
-///   Git changes directory at each `-C` in turn, and a relative destination is relative to the result. A `..`
-///  component in a `-C` value is declined, because following it lexically differs from Git's directory changes
+///   Git changes directory at each `-C` in turn,
+/// and a relative destination is relative to the result.
+/// A `..`
+///  component in a `-C` value is declined,
+/// because following it lexically differs from Git's directory changes
 ///  through a symbolic link.
 ///
 /// In TS you'd write (pseudocode):
@@ -80,9 +98,11 @@ pub fn start_directory(global_prefix: &[OsString], current: &Path) -> Option<Pat
 }
 
 /// What:
-///  Whether a global option word is a valued global in its attached form, `<name>=<value>`.
+///  Whether a global option word is a valued global in its attached form,
+/// `<name>=<value>`.
 /// Why:
-///   Such a word carries its value, so the word after it is not a value.
+///   Such a word carries its value,
+/// so the word after it is not a value.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -100,7 +120,8 @@ fn is_valued_global_with_equals(word: &[u8]) -> bool {
 }
 
 /// What:
-///  The option of the table whose one-letter spelling is `letter`, if any.
+///  The option of the table whose one-letter spelling is `letter`,
+/// if any.
 /// Why:
 ///   Bundled short options are read letter by letter.
 ///
@@ -118,11 +139,17 @@ fn option_for_short_letter(letter: u8) -> Option<&'static AddOption> {
 }
 
 /// What:
-///  The real path of a destination as Git records it: the canonical parent joined with the last component.
+///  The real path of a destination as Git records it:
+/// the canonical parent joined with the last component.
 /// Why:
-///   Git stores `strbuf_add_real_path` of the new worktree after creating its parent directories; the ladder serves
-///  only a parent that exists, so no directory has to be guessed. A last component of `.` or `..`, or one that is already
-///  a symbolic link, is declined.
+///   Git stores `strbuf_add_real_path` of the new worktree after creating its parent directories;
+/// the ladder serves
+///  only a parent that exists,
+/// so no directory has to be guessed.
+/// A last component of `.` or `..`,
+/// or one that is already
+///  a symbolic link,
+/// is declined.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -150,10 +177,13 @@ fn recorded_destination(start: &Path, operand: &OsStr) -> Option<PathBuf> {
 }
 
 /// What:
-///  Read the arguments after `add`: the operands and whether `--quiet` was given, or nothing when any option is outside
+///  Read the arguments after `add`:
+/// the operands and whether `--quiet` was given,
+/// or nothing when any option is outside
 ///  the table.
 /// Why:
-///   `--` ends the options. An operand count other than one or two is a usage error that Git words itself.
+///   `--` ends the options.
+/// An operand count other than one or two is a usage error that Git words itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -182,10 +212,14 @@ fn add_operands(region: &[OsString]) -> Option<(Vec<&OsString>, bool)> {
 }
 
 /// What:
-///  Plan one invocation: `arguments` is the whole argument list, `subcommand_index` the index of `worktree` in it, and
+///  Plan one invocation:
+/// `arguments` is the whole argument list,
+/// `subcommand_index` the index of `worktree` in it,
+/// and
 ///  `start` the directory the command starts in.
 /// Why:
-///   The word directly after `worktree` must be `add` itself, because Git reads the subcommand there and never
+///   The word directly after `worktree` must be `add` itself,
+/// because Git reads the subcommand there and never
 ///  abbreviates it.
 ///
 /// In TS you'd write (pseudocode):
@@ -206,28 +240,45 @@ pub fn parse_add_plan(arguments: &[OsString], subcommand_index: usize, start: &P
 }
 
 
-/// How an option of `git worktree add` takes its value, as `parse-options.c` of Git 2.56.0 does (`do_get_value`, line 136).
+/// How an option of `git worktree add` takes its value,
+/// as `parse-options.c` of Git 2.56.0 does (`do_get_value`,
+/// line 136).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Takes {
-    /// No value: `--name=x` is Git's error, and so is a value on the negated form.
+    /// No value:
+    /// `--name=x` is Git's error,
+    /// and so is a value on the negated form.
     Nothing,
-    /// A value in the rest of the token, after `=`, or in the next token; the negated form takes none.
+    /// A value in the rest of the token,
+    /// after `=`,
+    /// or in the next token;
+    /// the negated form takes none.
     Required,
 }
 
-/// One option of `git worktree add`: its short letter, its long name, and how it takes a value.
+/// One option of `git worktree add`:
+/// its short letter,
+/// its long name,
+/// and how it takes a value.
 struct AddOption {
-    /// The letter of the short form, when there is one.
+    /// The letter of the short form,
+    /// when there is one.
     short: Option<u8>,
-    /// The long name, when there is one; every long option also has a `--no-` form.
+    /// The long name,
+    /// when there is one;
+    /// every long option also has a `--no-` form.
     long: Option<&'static str>,
     /// How the option takes its value.
     takes: Takes,
 }
 
-/// The options of `git worktree add` in the order of `add` in `builtin/worktree.c` (Git 2.56.0, lines 821 to 862), the one
+/// The options of `git worktree add` in the order of `add` in `builtin/worktree.c` (Git 2.56.0,
+/// lines 821 to 862),
+/// the one
 /// table every reading of the command line uses.
-/// `git worktree add -h` lists these, and a control compares the two, so the table cannot drift from Git unnoticed.
+/// `git worktree add -h` lists these,
+/// and a control compares the two,
+/// so the table cannot drift from Git unnoticed.
 const ADD_OPTIONS: &[AddOption] = &[
     AddOption { short: Some(b'f'), long: Some("force"), takes: Takes::Nothing },
     AddOption { short: Some(b'b'), long: None, takes: Takes::Required },
@@ -250,21 +301,35 @@ const COPY_NEUTRAL_GLOBALS: &[&[u8]] = &[
     b"--icase-pathspecs", b"--bare",
 ];
 
-/// The global options that take a value in the next token or after `=`, and change nothing about where a relative
-/// destination lies (`git.c` of Git 2.56.0, `handle_options`: `--git-dir`, `--work-tree`, `--namespace`, `--config-env`,
-/// `--attr-source`). A relative destination lies against the working directory whatever they say: Git changes into the work
-/// tree and prefixes the operand when the working directory is inside it, and leaves it alone when it is outside
-/// (`setup.c`, lines 1222 to 1231).
+/// The global options that take a value in the next token or after `=`,
+/// and change nothing about where a relative
+/// destination lies (`git.c` of Git 2.56.0,
+/// `handle_options`:
+/// `--git-dir`,
+/// `--work-tree`,
+/// `--namespace`,
+/// `--config-env`,
+/// `--attr-source`).
+/// A relative destination lies against the working directory whatever they say:
+/// Git changes into the work
+/// tree and prefixes the operand when the working directory is inside it,
+/// and leaves it alone when it is outside
+/// (`setup.c`,
+/// lines 1222 to 1231).
 const COPY_VALUED_GLOBALS: &[&[u8]] = &[b"--git-dir", b"--work-tree", b"--namespace", b"--config-env", b"--attr-source"];
 
 /// The global options that take a value in the next token only.
 const COPY_SEPARATE_VALUE_GLOBALS: &[&[u8]] = &[b"-c", b"--shallow-file"];
 
 /// What:
-///  The directory a command's relative destination is resolved against, after the global options.
+///  The directory a command's relative destination is resolved against,
+/// after the global options.
 /// Why:
-///   Only `-C` moves it; the others change nothing about it. An option this reading does not know leaves the destination
-///  unknown, and the copy then says it did not run.
+///   Only `-C` moves it;
+/// the others change nothing about it.
+/// An option this reading does not know leaves the destination
+///  unknown,
+/// and the copy then says it did not run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -292,24 +357,38 @@ pub fn copy_start_directory(global_prefix: &[OsString], current: &Path) -> Optio
     return Some(start);
 }
 
-/// The option a long argument names and how, resolved exactly as `parse_long_opt` of Git 2.56.0 does (`parse-options.c`, lines
+/// The option a long argument names and how,
+/// resolved exactly as `parse_long_opt` of Git 2.56.0 does (`parse-options.c`,
+/// lines
 /// 520 to 593).
 struct LongOption<'a> {
-    /// The option the text names, by its full name or by a unique prefix.
+    /// The option the text names,
+    /// by its full name or by a unique prefix.
     option: &'static AddOption,
     /// Whether the `--no-` form was written.
     unset: bool,
-    /// The text after `=`, when there is one.
+    /// The text after `=`,
+    /// when there is one.
     attached: Option<&'a str>,
 }
 
 /// What:
-///  Resolves the text after `--` to one option, or to nothing where Git has none: an exact name wins at once, whatever
-///  prefixes were seen before; otherwise one unique prefix is the option; two prefixes are Git's "ambiguous option" error.
+///  Resolves the text after `--` to one option,
+/// or to nothing where Git has none:
+/// an exact name wins at once,
+/// whatever
+///  prefixes were seen before;
+/// otherwise one unique prefix is the option;
+/// two prefixes are Git's "ambiguous option" error.
 /// Why:
-///   The ignored-state copy needs the operands of an add, and an abbreviated option decides which tokens are operands.
-///  `--no-` negates and `--no-no-` is accepted by no option here. Git also reads an argument that is a prefix of `no-` as an
-///  abbreviation of every option's negation; here that changes nothing, because no option begins with `n`, and the text
+///   The ignored-state copy needs the operands of an add,
+/// and an abbreviated option decides which tokens are operands.
+///  `--no-` negates and `--no-no-` is accepted by no option here.
+/// Git also reads an argument that is a prefix of `no-` as an
+///  abbreviation of every option's negation;
+/// here that changes nothing,
+/// because no option begins with `n`,
+/// and the text
 ///  `no-` itself already fits every option.
 ///
 /// In TS you'd write (pseudocode):
@@ -323,7 +402,8 @@ fn resolve_long(arg: &str) -> Option<LongOption<'_>> {
 /// What:
 ///  `resolve_long` over a given table of options.
 /// Why:
-///   The real table has no option whose name is a prefix of another's, so the rule that an exact name wins can only be
+///   The real table has no option whose name is a prefix of another's,
+/// so the rule that an exact name wins can only be
 ///  shown with a table that has one.
 ///
 /// In TS you'd write (pseudocode):
@@ -373,10 +453,14 @@ fn resolve_in<'a>(table: &'static [AddOption], arg: &'a str) -> Option<LongOptio
 }
 
 /// What:
-///  Whether Git accepts the value an option was given, and takes the next token when the option wants it there.
+///  Whether Git accepts the value an option was given,
+/// and takes the next token when the option wants it there.
 /// Why:
-///   `do_get_value` (`parse-options.c`, line 136) refuses a value on a negated form and on a flag, and an option that needs a
-///  value and has none; refusing here keeps Git's error the only word on a form Git rejects.
+///   `do_get_value` (`parse-options.c`,
+/// line 136) refuses a value on a negated form and on a flag,
+/// and an option that needs a
+///  value and has none;
+/// refusing here keeps Git's error the only word on a form Git rejects.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -398,12 +482,21 @@ fn take_value<'a>(option: &AddOption, unset: bool, attached: Option<&str>, token
 }
 
 /// What:
-///  The operands of a `git worktree add`: the path and the optional commit-ish, with every option skipped the way Git's
+///  The operands of a `git worktree add`:
+/// the path and the optional commit-ish,
+/// with every option skipped the way Git's
 ///  `parse_options` skips it.
 /// Why:
-///   The destination of a copy must be known from the command line. Long options are resolved by `resolve_long`, short
-///  options bundle (`-fq`, `-bfeature`, `-b feature`), `--` and `--end-of-options` end the options, and everything Git
-///  rejects makes the reading refuse, so the copy never guesses an operand.
+///   The destination of a copy must be known from the command line.
+/// Long options are resolved by `resolve_long`,
+/// short
+///  options bundle (`-fq`,
+/// `-bfeature`,
+/// `-b feature`),
+/// `--` and `--end-of-options` end the options,
+/// and everything Git
+///  rejects makes the reading refuse,
+/// so the copy never guesses an operand.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -439,11 +532,16 @@ fn copy_add_operands(region: &[OsString]) -> Option<Vec<&OsString>> {
 }
 
 /// What:
-///  The destination of a path operand in the form Git records it, whether or not its parent directories exist yet.
+///  The destination of a path operand in the form Git records it,
+/// whether or not its parent directories exist yet.
 /// Why:
-///   Git creates the leading directories of the destination, so `.claude/worktrees/topic` names a destination before
-///  `.claude/worktrees` does; the nearest existing ancestor is resolved to its real path and the rest is appended as written.
-///  A destination that is a link is declined, as in the ladder's reading, and a `..` in the part that does not exist yet is
+///   Git creates the leading directories of the destination,
+/// so `.claude/worktrees/topic` names a destination before
+///  `.claude/worktrees` does;
+/// the nearest existing ancestor is resolved to its real path and the rest is appended as written.
+///  A destination that is a link is declined,
+/// as in the ladder's reading,
+/// and a `..` in the part that does not exist yet is
 ///  declined because it cannot be resolved without the directories.
 ///
 /// In TS you'd write (pseudocode):
@@ -477,10 +575,14 @@ fn creating_destination(start: &Path, operand: &OsStr) -> Option<PathBuf> {
 }
 
 /// What:
-///  The destination a `git worktree add` names, in the form Git records it, for every form Git's option parser accepts.
+///  The destination a `git worktree add` names,
+/// in the form Git records it,
+/// for every form Git's option parser accepts.
 /// Why:
-///   The ignored-state copy goes to the worktree this command created, found from the command line instead of by comparing
-///  the repository's registrations before and after, which another add running at the same time would disturb.
+///   The ignored-state copy goes to the worktree this command created,
+/// found from the command line instead of by comparing
+///  the repository's registrations before and after,
+/// which another add running at the same time would disturb.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -498,7 +600,9 @@ pub fn parse_copy_destination(arguments: &[OsString], subcommand_index: usize, s
     return creating_destination(start, operands[0]);
 }
 
-/// Plan controls, with a real Git control, stay out of the release executable.
+/// Plan controls,
+/// with a real Git control,
+/// stay out of the release executable.
 #[cfg(test)]
 #[path = "worktree_add_plan_tests.rs"]
 mod tests;

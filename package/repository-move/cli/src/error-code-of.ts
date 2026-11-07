@@ -31,5 +31,5 @@ export function errorCodeOf(error: unknown,): string {
    The code, which a system error holds as text.
    */
   const { code, } = error;
-  return (typeof code) === 'string' ? String(code,) : '';
+  return (typeof code) === 'string' ? code : '';
 }

@@ -1,11 +1,21 @@
 //! What:
-//!  A commit with named paths while a revert, a cherry-pick or a merge is in progress, through the built wrapper and the
-//!  resident service, compared with real Git on an identically prepared repository.
+//!  A commit with named paths while a revert,
+//! a cherry-pick or a merge is in progress,
+//! through the built wrapper and the
+//!  resident service,
+//! compared with real Git on an identically prepared repository.
 //! Why:
-//!  The wrapper must accept what real Git accepts and refuse what it refuses, with the same status, the same words and the
-//!  same repository afterwards. A commit that concludes a sequencer state is built by real Git in a scratch repository; the
-//!  options the wrapper adds there must never follow the `--` the person typed, where Git reads every token as a path.
-//!  The paths include names that look like options (`-dash.txt`, `--quiet`, `-o`) and a pathspec file.
+//!  The wrapper must accept what real Git accepts and refuse what it refuses,
+//! with the same status,
+//! the same words and the
+//!  same repository afterwards.
+//! A commit that concludes a sequencer state is built by real Git in a scratch repository;
+//! the
+//!  options the wrapper adds there must never follow the `--` the person typed,
+//! where Git reads every token as a path.
+//!  The paths include names that look like options (`-dash.txt`,
+//! `--quiet`,
+//! `-o`) and a pathspec file.
 
 use super::commit::{git_text, remove_settled};
 use super::service_commit::{Running, start, through_service};
@@ -14,15 +24,18 @@ use git_policy_cli::service_journal::DONE_EXTENSION;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
-/// The tracked files every state changes; three of them are named like options.
+/// The tracked files every state changes;
+/// three of them are named like options.
 pub(super) const TRACKED: [&str; 4] = ["a.txt", "-dash.txt", "--quiet", "-o"];
 
-/// A raw real-Git run that may fail, in the fixture's hermetic environment.
+/// A raw real-Git run that may fail,
+/// in the fixture's hermetic environment.
 fn try_git(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Output {
     return direct(fixture).current_dir(repo).args(arguments).output().expect("real Git runs");
 }
 
-/// Replaces every tracked file with `text` and stages the lot, naming each after `--` so an option-like name is a path.
+/// Replaces every tracked file with `text` and stages the lot,
+/// naming each after `--` so an option-like name is a path.
 fn write_all(fixture: &Fixture, repo: &Path, text: &str) {
     for name in TRACKED {
         std::fs::write(repo.join(name), text).expect("write tracked file");
@@ -39,9 +52,11 @@ pub(super) enum State {
     Revert,
     /// `git cherry-pick --no-commit` of a clean change.
     CherryPick,
-    /// A revert that conflicted in `a.txt`, resolved and staged.
+    /// A revert that conflicted in `a.txt`,
+    /// resolved and staged.
     ConflictedRevert,
-    /// A cherry-pick that conflicted in `a.txt`, resolved and staged.
+    /// A cherry-pick that conflicted in `a.txt`,
+    /// resolved and staged.
     ConflictedCherryPick,
     /// `git merge --no-commit --no-ff` of a clean change.
     Merge,
@@ -60,7 +75,8 @@ impl State {
         };
     }
 
-    /// A short tag for the service's socket path, which must fit in a few dozen characters.
+    /// A short tag for the service's socket path,
+    /// which must fit in a few dozen characters.
     fn tag(self) -> &'static str {
         return match self {
             State::Revert => "rv",
@@ -71,12 +87,16 @@ impl State {
         };
     }
 
-    /// Whether real Git 2.56.0 takes a partial commit in this state (measured; each control also checks it against real Git).
+    /// Whether real Git 2.56.0 takes a partial commit in this state (measured;
+    /// each control also checks it against real Git).
     fn git_takes_paths(self) -> bool {
         return matches!(self, State::Revert | State::CherryPick | State::ConflictedRevert);
     }
 
-    /// A repository in this state: a base commit of the tracked files, a change to all of them on `other`, and the state made.
+    /// A repository in this state:
+    /// a base commit of the tracked files,
+    /// a change to all of them on `other`,
+    /// and the state made.
     pub(super) fn prepare(self, fixture: &Fixture, name: &str) -> PathBuf {
         let repo: PathBuf = super::support::repository(fixture, std::ffi::OsStr::new(name));
         git(fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
@@ -123,7 +143,8 @@ impl State {
     }
 }
 
-/// What a finished commit shows the person and leaves behind, with the parts that differ between two runs masked.
+/// What a finished commit shows the person and leaves behind,
+/// with the parts that differ between two runs masked.
 #[derive(Debug, Eq, PartialEq)]
 struct Outcome {
     code: Option<i32>,
@@ -136,7 +157,8 @@ struct Outcome {
     markers: String,
 }
 
-/// Masks the commit name in Git's `[branch name] subject` line and the date line, which differ between two runs.
+/// Masks the commit name in Git's `[branch name] subject` line and the date line,
+/// which differ between two runs.
 fn masked(text: &str) -> String {
     let mut lines: Vec<String> = Vec::new();
     for line in text.lines() {
@@ -176,7 +198,8 @@ fn outcome(fixture: &Fixture, repo: &Path, run: &Output) -> Outcome {
     };
 }
 
-/// The number of batches the service finished, one for each commit it landed.
+/// The number of batches the service finished,
+/// one for each commit it landed.
 fn landed(fixture: &Fixture) -> usize {
     return std::fs::read_dir(fixture.root.join("journal")).map_or(0, |entries| {
         return entries
@@ -186,7 +209,8 @@ fn landed(fixture: &Fixture) -> usize {
     });
 }
 
-/// Every command line a control puts to the wrapper and to real Git, beyond `commit --message=undo`.
+/// Every command line a control puts to the wrapper and to real Git,
+/// beyond `commit --message=undo`.
 fn command_lines(fixture: &Fixture) -> Vec<(&'static str, Vec<String>)> {
     let list_of = |name: &str, text: &str| -> String {
         let file: PathBuf = fixture.root.join(name);
@@ -210,8 +234,11 @@ fn command_lines(fixture: &Fixture) -> Vec<(&'static str, Vec<String>)> {
     ];
 }
 
-/// One state, every command line: the wrapper through the service and real Git agree on everything the person can see and
-///  everything left behind, and a commit real Git takes lands through the service.
+/// One state,
+/// every command line:
+/// the wrapper through the service and real Git agree on everything the person can see and
+///  everything left behind,
+/// and a commit real Git takes lands through the service.
 fn agrees_with_git(state: State) {
     let label: String = format!("sequencer-{}", state.label());
     let fixture: Fixture = fixture(label.as_str());
@@ -264,9 +291,14 @@ fn a_pathspec_commit_after_a_conflicted_revert_is_what_git_makes() {
     agrees_with_git(State::ConflictedRevert);
 }
 
-/// One state that real Git refuses named paths in, every command line: real Git refuses, and the wrapper through the service
+/// One state that real Git refuses named paths in,
+/// every command line:
+/// real Git refuses,
+/// and the wrapper through the service
 ///  lands an ordinary commit of the named paths on `HEAD` and carries the state forward (the owner's rule that commits never
-///  fail, `SPEC.md` "Merges and commits never fail"). `marker` is the file that names the state in the Git directory.
+///  fail,
+/// `SPEC.md` "Merges and commits never fail").
+/// `marker` is the file that names the state in the Git directory.
 fn lands_beside_the_state(state: State, marker: &str) {
     let label: String = format!("sequencer-carry-{}", state.label());
     let fixture: Fixture = fixture(label.as_str());
@@ -303,13 +335,17 @@ fn lands_beside_the_state(state: State, marker: &str) {
     assert!(differences.is_empty(), "{}", differences.join("\n"));
 }
 
-/// Named paths after a conflicted cherry-pick was resolved: Git refuses; the wrapper lands them and the pick is carried on.
+/// Named paths after a conflicted cherry-pick was resolved:
+/// Git refuses;
+/// the wrapper lands them and the pick is carried on.
 #[test]
 fn a_pathspec_commit_after_a_conflicted_cherry_pick_lands_and_carries_the_pick() {
     lands_beside_the_state(State::ConflictedCherryPick, "CHERRY_PICK_HEAD");
 }
 
-/// Named paths during a merge: Git refuses; the wrapper lands them and the merge is carried on.
+/// Named paths during a merge:
+/// Git refuses;
+/// the wrapper lands them and the merge is carried on.
 #[test]
 fn a_pathspec_commit_during_a_merge_lands_and_carries_the_merge() {
     lands_beside_the_state(State::Merge, "MERGE_HEAD");

@@ -180,6 +180,13 @@ async function reportDeletions(
  @param runner - the runner
  
  @throws MoveStopError when a source or destination folder is missing, a name is unsafe, or a command fails
+
+ @example
+ ```ts
+ import { runExternalPass, } from './external-pass.ts';
+ 
+ await runExternalPass({ options, runner, },);
+ ```
  */
 export async function runExternalPass(
   {

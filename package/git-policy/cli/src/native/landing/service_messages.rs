@@ -1,11 +1,18 @@
 //! What:
-//!  Everything the wrapper tells the user when it cannot get a commit landed by the resident service, and the notices
+//!  Everything the wrapper tells the user when it cannot get a commit landed by the resident service,
+//! and the notices
 //!  it prints while it waits.
 //! Why:
-//!  A failure the system can resolve is resolved without the user; the rest ends the command with plain words, the
-//!  affected input named, every remedy given, and no implementation term (`doc/planning/cli-git-resident-service.md`,
-//!  "Failures the client can meet"). The texts live here as constants so a test can check each against a list of terms
-//!  that must never reach a user, and so the text a client prints cannot drift from the text the tests read.
+//!  A failure the system can resolve is resolved without the user;
+//! the rest ends the command with plain words,
+//! the
+//!  affected input named,
+//! every remedy given,
+//! and no implementation term (`doc/planning/cli-git-resident-service.md`,
+//!  "Failures the client can meet").
+//! The texts live here as constants so a test can check each against a list of terms
+//!  that must never reach a user,
+//! and so the text a client prints cannot drift from the text the tests read.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,7 +27,8 @@ pub const LOG_COMMAND: &str = "journalctl --user --unit 'monochromatic-git-polic
 /// The command that turns on user services for an account that is not logged in (Linux with systemd).
 pub const LINGER_COMMAND: &str = "loginctl enable-linger";
 
-/// The command that restarts the commit service, so the manager starts the one the installed units name (Linux with systemd).
+/// The command that restarts the commit service,
+/// so the manager starts the one the installed units name (Linux with systemd).
 pub const RESTART_COMMAND: &str = "systemctl --user restart 'monochromatic-git-policy-cli@*.service'";
 
 /// The commands that show whether the commit was made.
@@ -29,7 +37,8 @@ pub const CHECK_COMMANDS: [&str; 2] = ["git log -1", "git status"];
 /// Printed once when the service takes longer than the grace to answer.
 pub const STARTING_NOTICE: &str = "Starting the commit service...";
 
-/// Printed each time the service goes silent while a commit waits, before the same request is sent to it again.
+/// Printed each time the service goes silent while a commit waits,
+/// before the same request is sent to it again.
 pub const SILENT_NOTICE: &str = "The commit service stopped answering; asking it again with the same commit, which cannot land twice.";
 
 /// Printed once when the service is being replaced by a newer one.
@@ -38,7 +47,8 @@ pub const UPDATING_NOTICE: &str = "Updating the commit service...";
 /// What:
 ///  Where the client cannot get a service from the operating system.
 /// Why:
-///   Each platform has its own remedy, and none has a second way to commit.
+///   Each platform has its own remedy,
+/// and none has a second way to commit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -46,20 +56,25 @@ pub const UPDATING_NOTICE: &str = "Updating the commit service...";
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Platform {
-    /// Windows, where activation is designed but not built.
+    /// Windows,
+    /// where activation is designed but not built.
     Windows,
     /// A BSD system.
     Bsd,
-    /// Linux with no user service manager (minimal containers, WSL 1, other init systems).
+    /// Linux with no user service manager (minimal containers,
+    /// WSL 1,
+    /// other init systems).
     LinuxWithoutUserServices,
     /// Any other system.
     Other,
 }
 
 /// What:
-///  Every failure that reaches the user, with the facts its text names.
+///  Every failure that reaches the user,
+/// with the facts its text names.
 /// Why:
-///   The set is closed, so a test renders all of them.
+///   The set is closed,
+/// so a test renders all of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -75,7 +90,8 @@ pub enum ClientFailure {
     OtherAccount,
     /// The service stopped before it confirmed the commit.
     MayNotHaveLanded,
-    /// The installed service speaks no protocol this wrapper speaks, after a replacement attempt.
+    /// The installed service speaks no protocol this wrapper speaks,
+    /// after a replacement attempt.
     NoCommonVersion,
     /// A service started from another release of the wrapper is still running after it was asked to exit.
     OtherRelease,
@@ -83,23 +99,35 @@ pub enum ClientFailure {
     RepositoryFull(String),
     /// The repository cannot be written.
     RepositoryReadOnly(String),
-    /// The branch changed while the commit was prepared, `times` times.
+    /// The branch changed while the commit was prepared,
+    /// `times` times.
     BranchKeepsChanging { branch: String, times: usize },
-    /// The branch was no longer where the amended commit was prepared, so the amend was not made.
+    /// The branch was no longer where the amended commit was prepared,
+    /// so the amend was not made.
     BranchMoved { branch: String },
-    /// The branch moved while the person wrote a message; the message is saved in `file` for them to reuse.
+    /// The branch moved while the person wrote a message;
+    /// the message is saved in `file` for them to reuse.
     BranchMovedMessageSaved { branch: String, file: String, amend: bool },
-    /// The worktree switched from `branch` to `now` while the commit was prepared; the message the person wrote, if any, is
+    /// The worktree switched from `branch` to `now` while the commit was prepared;
+    /// the message the person wrote,
+    /// if any,
+    /// is
     ///  saved in `file`.
     BranchSwitched { branch: String, now: String, file: Option<String> },
-    /// The service sent nothing for longer than it ever stays silent while it works, on every try to ask it again.
+    /// The service sent nothing for longer than it ever stays silent while it works,
+    /// on every try to ask it again.
     ServiceSilent,
-    /// The service kept the request for `minutes` minutes without answering, and the client withdrew it: it will not land.
+    /// The service kept the request for `minutes` minutes without answering,
+    /// and the client withdrew it:
+    /// it will not land.
     StillWithService { minutes: u64, blocker: Option<String> },
-    /// The client stopped waiting and could not confirm the service withdrew the request; `blocker` is what the service last said it
-    ///  was stuck in, such as a branch write that has not returned.
+    /// The client stopped waiting and could not confirm the service withdrew the request;
+    /// `blocker` is what the service last said it
+    ///  was stuck in,
+    /// such as a branch write that has not returned.
     WithdrawalUnconfirmed { blocker: Option<String> },
-    /// A Git step of the landing ran longer than the wrapper allows and was ended; the commit was withdrawn and kept.
+    /// A Git step of the landing ran longer than the wrapper allows and was ended;
+    /// the commit was withdrawn and kept.
     StepTooSlow,
     /// The request was refused as malformed or unsafe.
     Refused,
@@ -115,7 +143,8 @@ pub enum ClientFailure {
     UnitInTheWay(String),
     /// The commit is saved but the backup push and upkeep could not be handed over.
     WorkNotHandedOver(String),
-    /// The content prepared for the commit was removed from the repository before the commit landed, twice.
+    /// The content prepared for the commit was removed from the repository before the commit landed,
+    /// twice.
     ContentPruned,
 }
 
@@ -125,7 +154,10 @@ pub const NOTHING_CHANGED: &str = "Nothing in the repository changed.";
 /// What:
 ///  The text for a failure.
 /// Why:
-///   Plain words, the input named, every remedy; nothing about how the service works.
+///   Plain words,
+/// the input named,
+/// every remedy;
+/// nothing about how the service works.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -265,7 +297,8 @@ pub fn render(failure: &ClientFailure) -> String {
 /// What:
 ///  The remedy sentence for a platform.
 /// Why:
-///   Windows and the BSD systems have no activation yet; Linux without user services can turn them on.
+///   Windows and the BSD systems have no activation yet;
+/// Linux without user services can turn them on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -295,7 +328,8 @@ pub fn platform_remedy(platform: Platform) -> String {
 /// What:
 ///  The notice for a commit that waits behind others.
 /// Why:
-///   The position is the one fact the person needs: how many commits go first.
+///   The position is the one fact the person needs:
+/// how many commits go first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -311,7 +345,8 @@ pub fn position_notice(number: usize, of: usize) -> String {
     };
 }
 
-/// The texts that must never reach a user: implementation terms the system should have resolved itself.
+/// The texts that must never reach a user:
+/// implementation terms the system should have resolved itself.
 ///  Matched case-insensitively against whole words after the quoted commands are removed.
 pub const DENYLIST: [&str; 22] = [
     "protocol", "journal", "request id", "daemon", "socket", "errno", "epipe", "econnrefused", "eagain", "flock",
@@ -319,7 +354,8 @@ pub const DENYLIST: [&str; 22] = [
     "uid", "os error",
 ];
 
-/// The repository path a failure names, as text.
+/// The repository path a failure names,
+/// as text.
 pub fn path_text(path: &Path) -> String {
     return path.display().to_string();
 }

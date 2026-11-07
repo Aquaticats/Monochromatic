@@ -8,21 +8,32 @@
 //! // health/index.ts: one `export * from './file'` per module below.
 //! ```
 
-/// What `git monochromatic-git-policy-cli doctor` reports from the configuration: configured hooks and the retired `hooks` key.
+/// What `git monochromatic-git-policy-cli doctor` reports from the configuration:
+/// configured hooks and the retired `hooks` key.
 pub mod doctor_config;
 
-/// What `git monochromatic-git-policy-cli doctor` says about Git's own fsmonitor: off by the owner's decision, or the setting that turns it on.
+/// What `git monochromatic-git-policy-cli doctor` says about Git's own fsmonitor:
+/// off by the owner's decision,
+/// or the setting that turns it on.
 pub mod doctor_fsmonitor;
 
-/// The configured external hooks, read from the snapshot, and the loud report that none runs.
+/// The configured external hooks,
+/// read from the snapshot,
+/// and the loud report that none runs.
 pub mod external_hooks;
 
-/// The non-blocking warning for a configured `core.hooksPath`, decided from the configuration snapshot alone.
+/// The non-blocking warning for a configured `core.hooksPath`,
+/// decided from the configuration snapshot alone.
 pub mod traditional_hook_warning;
 
-/// `git monochromatic-git-policy-cli doctor`: the traditional hooks a repository holds, which are unsupported.
+/// `git monochromatic-git-policy-cli doctor`:
+/// the traditional hooks a repository holds,
+/// which are unsupported.
 pub mod doctor;
 
-/// The filesystem section of `git monochromatic-git-policy-cli doctor`: btrfs subvolume, overlayfs, the removal mount option and its commands.
+/// The filesystem section of `git monochromatic-git-policy-cli doctor`:
+/// btrfs subvolume,
+/// overlayfs,
+/// the removal mount option and its commands.
 #[cfg(target_os = "linux")]
 pub mod doctor_filesystem;

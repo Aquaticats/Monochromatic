@@ -1,7 +1,10 @@
 //! What:
-//!  Controls on this repository's own settings file (found by the loader's lookup, so the file's name is free to change), read through the real loader.
+//!  Controls on this repository's own settings file (found by the loader's lookup,
+//! so the file's name is free to change),
+//! read through the real loader.
 //! Why:
-//!  The native wrapper runs the four optional policies only when the file lists them, and reads the private rules
+//!  The native wrapper runs the four optional policies only when the file lists them,
+//! and reads the private rules
 //!      file only when `rulesFile` names it.
 //!  A line dropped from the file would silently stop a policy the incumbent enforced,
 //!  so the file the repository
@@ -126,9 +129,11 @@ fn the_repository_configuration_keeps_the_markdown_options() {
     );
 }
 
-/// The repository activates `mono/catalog-specifiers` at `error`, listed explicitly
+/// The repository activates `mono/catalog-specifiers` at `error`,
+/// listed explicitly
 ///  (activated deliberately in d0d1a8bc35 together with the always-run workflow).
-///  Changing that is its own change, and the change that makes it flips this control.
+///  Changing that is its own change,
+/// and the change that makes it flips this control.
 #[test]
 fn the_repository_configuration_activates_the_catalog_policy_at_error() {
     let loaded: LoadedConfig = load_shipped();
@@ -143,9 +148,12 @@ fn the_repository_configuration_activates_the_catalog_policy_at_error() {
     );
 }
 
-/// A configuration written before the catalog policy shipped still loads, behaves as it did, and leaves the new
+/// A configuration written before the catalog policy shipped still loads,
+/// behaves as it did,
+/// and leaves the new
 ///  policy off:
-///  the four listed policies keep their severities, and so do an empty file and no file.
+///  the four listed policies keep their severities,
+/// and so do an empty file and no file.
 #[test]
 fn a_configuration_that_does_not_name_the_catalog_policy_behaves_as_before() {
     let root: PathBuf = fixture("config-before-catalog");

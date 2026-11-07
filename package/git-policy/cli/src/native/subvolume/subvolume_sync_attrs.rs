@@ -1,16 +1,37 @@
 //! What:
-//!  Copying the attributes of one directory entry onto its copy: owner, permission bits, access and modification
-//!  times to the nanosecond, and extended attributes (user attributes and POSIX ACLs included); and recreating a
+//!  Copying the attributes of one directory entry onto its copy:
+//! owner,
+//! permission bits,
+//! access and modification
+//!  times to the nanosecond,
+//! and extended attributes (user attributes and POSIX ACLs included);
+//! and recreating a
 //!  named pipe.
 //! Why:
-//!  `cp --archive` and `rsync --archive --xattrs` did this in the migration script. The index stat rewrite trusts
-//!  that sizes and modification times survive the copy, and Git compares the mode and owner of each entry, so the
-//!  copy must carry them. Failures that an unprivileged user must expect are tolerated and counted, never silent: an
-//!  owner other than the caller's cannot be set (`EPERM`), and a security label (`security.selinux`) is set by the
-//!  policy for a new file, not by the caller. A failure that no unprivileged user should meet (a permission change or
-//!  a time change refused for lack of space, say) is an error, because the copy would be recorded as faithful when it
-//!  is not. The attributes are applied through the descriptor of the copy, so a path swapped for a link while the
-//!  pass runs cannot redirect them; only a symbolic link, which cannot be opened, is addressed by its path.
+//!  `cp --archive` and `rsync --archive --xattrs` did this in the migration script.
+//! The index stat rewrite trusts
+//!  that sizes and modification times survive the copy,
+//! and Git compares the mode and owner of each entry,
+//! so the
+//!  copy must carry them.
+//! Failures that an unprivileged user must expect are tolerated and counted,
+//! never silent:
+//! an
+//!  owner other than the caller's cannot be set (`EPERM`),
+//! and a security label (`security.selinux`) is set by the
+//!  policy for a new file,
+//! not by the caller.
+//! A failure that no unprivileged user should meet (a permission change or
+//!  a time change refused for lack of space,
+//! say) is an error,
+//! because the copy would be recorded as faithful when it
+//!  is not.
+//! The attributes are applied through the descriptor of the copy,
+//! so a path swapped for a link while the
+//!  pass runs cannot redirect them;
+//! only a symbolic link,
+//! which cannot be opened,
+//! is addressed by its path.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,9 +47,11 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
 /// What:
-///  How many attribute operations could not be applied, by kind.
+///  How many attribute operations could not be applied,
+/// by kind.
 /// Why:
-///   The report says so, so a person knows what the copy does not carry.
+///   The report says so,
+/// so a person knows what the copy does not carry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -57,16 +80,21 @@ pub struct AttributeLosses {
 /// ```
 #[derive(Debug)]
 pub struct AttributeFailure {
-    /// What was being set, in words for `cannot <action> <path>`.
+    /// What was being set,
+    /// in words for `cannot <action> <path>`.
     pub action: &'static str,
     /// The operating system's refusal.
     pub error: std::io::Error,
 }
 
 /// What:
-///  Where an attribute operation lands: an open file or directory, or a symbolic link addressed by its path.
+///  Where an attribute operation lands:
+/// an open file or directory,
+/// or a symbolic link addressed by its path.
 /// Why:
-///   The `f` calls work on a descriptor and cannot be redirected; a symbolic link cannot be opened for them, so the
+///   The `f` calls work on a descriptor and cannot be redirected;
+/// a symbolic link cannot be opened for them,
+/// so the
 ///  `l` calls take its path and never follow it.
 ///
 /// In TS you'd write (pseudocode):
@@ -75,19 +103,22 @@ pub struct AttributeFailure {
 /// ```
 #[derive(Clone, Copy)]
 enum Handle<'a> {
-    /// An open file, directory or named pipe.
+    /// An open file,
+    /// directory or named pipe.
     Descriptor(&'a File),
     /// A symbolic link.
     Link(&'a CStr),
 }
 
-/// Whether an attribute is one the copy carries and the equality check compares: user attributes and POSIX ACLs.
+/// Whether an attribute is one the copy carries and the equality check compares:
+/// user attributes and POSIX ACLs.
 ///  The security label and the other namespaces belong to the policy and to privileged users.
 fn is_carried(name: &[u8]) -> bool {
     return name.starts_with(b"user.") || name == b"system.posix_acl_access" || name == b"system.posix_acl_default";
 }
 
-/// The names of the extended attributes of a handle, or nothing when it has none or the filesystem refuses.
+/// The names of the extended attributes of a handle,
+/// or nothing when it has none or the filesystem refuses.
 fn attribute_names(handle: Handle<'_>) -> Vec<Vec<u8>> {
     // SAFETY: a null buffer with size 0 asks for the length of the list.
     let length: isize = unsafe {
@@ -120,12 +151,14 @@ fn attribute_names(handle: Handle<'_>) -> Vec<Vec<u8>> {
     return found;
 }
 
-/// Whether `byte` is zero, the separator between attribute names.
+/// Whether `byte` is zero,
+/// the separator between attribute names.
 fn is_zero_byte(byte: &u8) -> bool {
     return *byte == 0;
 }
 
-/// The value of one extended attribute, or nothing when it cannot be read.
+/// The value of one extended attribute,
+/// or nothing when it cannot be read.
 fn attribute_value(handle: Handle<'_>, name: &CStr) -> Option<Vec<u8>> {
     // SAFETY: a null buffer with size 0 asks for the length of the value.
     let size: isize = unsafe {
@@ -152,7 +185,8 @@ fn attribute_value(handle: Handle<'_>, name: &CStr) -> Option<Vec<u8>> {
     return Some(value);
 }
 
-/// Set one extended attribute; true when the operating system accepted it.
+/// Set one extended attribute;
+/// true when the operating system accepted it.
 fn set_attribute(handle: Handle<'_>, name: &CStr, value: &[u8]) -> bool {
     // SAFETY: `value` holds `value.len()` initialised bytes; the names are NUL-terminated strings.
     let result: libc::c_int = unsafe {
@@ -164,7 +198,8 @@ fn set_attribute(handle: Handle<'_>, name: &CStr, value: &[u8]) -> bool {
     return result == 0;
 }
 
-/// Remove one extended attribute; true when it is gone.
+/// Remove one extended attribute;
+/// true when it is gone.
 fn remove_attribute(handle: Handle<'_>, name: &CStr) -> bool {
     // SAFETY: the names are NUL-terminated strings.
     let result: libc::c_int = unsafe {
@@ -177,11 +212,17 @@ fn remove_attribute(handle: Handle<'_>, name: &CStr) -> bool {
 }
 
 /// What:
-///  Copy every extended attribute of `source` onto the handle, then remove the carried ones the source lacks.
+///  Copy every extended attribute of `source` onto the handle,
+/// then remove the carried ones the source lacks.
 /// Why:
-///   User attributes and ACLs belong to the file. An attribute the source no longer has must not survive on the copy
-///  (a removed ACL entry would keep granting access); only the carried namespaces are removed, because the security
-///  label is the policy's. A refused attribute is counted, because the caller is not the privileged user that may set
+///   User attributes and ACLs belong to the file.
+/// An attribute the source no longer has must not survive on the copy
+///  (a removed ACL entry would keep granting access);
+/// only the carried namespaces are removed,
+/// because the security
+///  label is the policy's.
+/// A refused attribute is counted,
+/// because the caller is not the privileged user that may set
 ///  every namespace.
 ///
 /// In TS you'd write (pseudocode):
@@ -214,7 +255,9 @@ fn copy_extended_attributes(source: &CStr, destination: Handle<'_>, remove_extra
     }
 }
 
-/// The carried extended attributes of a path (a link's own, not its target's), by name.
+/// The carried extended attributes of a path (a link's own,
+/// not its target's),
+/// by name.
 fn carried_attributes(path: &CStr) -> BTreeMap<Vec<u8>, Vec<u8>> {
     let mut found: BTreeMap<Vec<u8>, Vec<u8>> = BTreeMap::new();
     for name in attribute_names(Handle::Link(path)) {
@@ -232,8 +275,11 @@ fn carried_attributes(path: &CStr) -> BTreeMap<Vec<u8>, Vec<u8>> {
 /// What:
 ///  Whether two paths carry the same user attributes and ACLs.
 /// Why:
-///   Size, time and mode do not change when only an attribute does, so the equality of a copy and its original has to
-///  look at them too, or a later pass would call a file with an outdated ACL unchanged.
+///   Size,
+/// time and mode do not change when only an attribute does,
+/// so the equality of a copy and its original has to
+///  look at them too,
+/// or a later pass would call a file with an outdated ACL unchanged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -244,16 +290,22 @@ pub fn carried_attributes_equal(source: &Path, destination: &Path) -> bool {
     return carried_attributes(from.as_c_str()) == carried_attributes(to.as_c_str());
 }
 
-/// A failed owner, permission or time change that only a missing privilege explains.
+/// A failed owner,
+/// permission or time change that only a missing privilege explains.
 fn is_missing_privilege(error: &std::io::Error) -> bool {
     return matches!(error.raw_os_error(), Some(libc::EPERM | libc::EACCES));
 }
 
 /// What:
-///  Decide what a failed permission or time change means: a missing privilege is counted, anything else is an error.
+///  Decide what a failed permission or time change means:
+/// a missing privilege is counted,
+/// anything else is an error.
 /// Why:
-///   An entry owned by someone else cannot be changed by this user, and the report says how many; a refusal for another
-///  reason (no space for the metadata, a read-only filesystem) leaves a copy that is not what it is recorded to be.
+///   An entry owned by someone else cannot be changed by this user,
+/// and the report says how many;
+/// a refusal for another
+///  reason (no space for the metadata,
+/// a read-only filesystem) leaves a copy that is not what it is recorded to be.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -269,9 +321,13 @@ fn settle(outcome: std::io::Result<()>, action: &'static str, refused: &mut u64)
 }
 
 /// What:
-///  Whether the copy already has the original's owner and group, each given as (user, group).
+///  Whether the copy already has the original's owner and group,
+/// each given as (user,
+/// group).
 /// Why:
-///   Both must agree before the change is skipped: a copy that differs in only one of them still needs it, and the pure
+///   Both must agree before the change is skipped:
+/// a copy that differs in only one of them still needs it,
+/// and the pure
 ///  comparison is tested on every combination without needing the privilege to make files of other owners.
 ///
 /// In TS you'd write (pseudocode):
@@ -286,7 +342,10 @@ fn same_owner(source: (u32, u32), current: (u32, u32)) -> bool {
 ///  Set the owner and group of the copy to those of the original when they differ from what the copy has now.
 /// Why:
 ///   The copy's owner comes from its creator and its group from the creator's group or the parent's setgid
-///  directory, so the destination, not the caller, is what must be compared with the original.
+///  directory,
+/// so the destination,
+/// not the caller,
+/// is what must be compared with the original.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -309,8 +368,11 @@ fn set_owner(destination: Handle<'_>, current: &Metadata, source: &Metadata, los
 }
 
 /// What:
-///  Set the access and modification times of the copy, to the nanosecond.
-///  `futimens` acts on the descriptor; `utimensat` with `AT_SYMLINK_NOFOLLOW` acts on a symbolic link, not its target.
+///  Set the access and modification times of the copy,
+/// to the nanosecond.
+///  `futimens` acts on the descriptor;
+/// `utimensat` with `AT_SYMLINK_NOFOLLOW` acts on a symbolic link,
+/// not its target.
 /// Why:
 ///   The index stat rewrite and Git's own stat check compare modification times.
 ///
@@ -360,13 +422,22 @@ fn apply(
 }
 
 /// What:
-///  Make the open copy carry the attributes of `source`: extended attributes, owner, permission bits and times, in this
+///  Make the open copy carry the attributes of `source`:
+/// extended attributes,
+/// owner,
+/// permission bits and times,
+/// in this
 ///  order.
 ///  `remove_extras` also removes the carried attributes the source lacks.
 /// Why:
-///   Setting the owner clears the set-user-ID bits, so the permission bits come after it; the times come last,
-///  because the earlier calls change the change time but not the modification time, and writing the file's content
-///  must already be finished. The descriptor may be a regular file, a directory or a named pipe.
+///   Setting the owner clears the set-user-ID bits,
+/// so the permission bits come after it;
+/// the times come last,
+///  because the earlier calls change the change time but not the modification time,
+/// and writing the file's content
+///  must already be finished.
+/// The descriptor may be a regular file,
+/// a directory or a named pipe.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -389,7 +460,8 @@ pub fn preserve_on_descriptor(
 /// What:
 ///  Make the symbolic link at `destination` carry the owner and times of the original link.
 /// Why:
-///   A link has no permission bits of its own and cannot be opened, so only the `l` calls on its path apply.
+///   A link has no permission bits of its own and cannot be opened,
+/// so only the `l` calls on its path apply.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -408,9 +480,11 @@ pub fn preserve_on_link(source: &Path, destination: &Path, metadata: &Metadata, 
 }
 
 /// What:
-///  Open a named pipe without blocking, so attribute calls can use its descriptor.
+///  Open a named pipe without blocking,
+/// so attribute calls can use its descriptor.
 /// Why:
-///   Opening a pipe read-only with `O_NONBLOCK` succeeds at once whether or not a writer exists, and `O_NOFOLLOW`
+///   Opening a pipe read-only with `O_NONBLOCK` succeeds at once whether or not a writer exists,
+/// and `O_NOFOLLOW`
 ///  refuses a link put in its place.
 ///
 /// In TS you'd write (pseudocode):
@@ -423,9 +497,12 @@ pub fn open_fifo(path: &Path) -> std::io::Result<File> {
 
 /// What:
 ///  Create a named pipe (FIFO) with the permission bits of the original.
-///  `mkfifo(3)` is the call; the umask applies, and `preserve_on_descriptor` sets the exact bits afterwards.
+///  `mkfifo(3)` is the call;
+/// the umask applies,
+/// and `preserve_on_descriptor` sets the exact bits afterwards.
 /// Why:
-///   A FIFO is part of the tree; sockets and device nodes are not recreated (the report lists them).
+///   A FIFO is part of the tree;
+/// sockets and device nodes are not recreated (the report lists them).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

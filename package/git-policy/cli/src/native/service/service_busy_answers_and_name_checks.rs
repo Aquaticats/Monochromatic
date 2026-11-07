@@ -1,9 +1,17 @@
 //! What:
-//!  The shapes the landing board answers with (an early answer, a group admission, a naming, a decision) and the checks and
-//!  readers of the names it keeps: which identities may name a file, the withdrawal token of a decision, which entries are
+//!  The shapes the landing board answers with (an early answer,
+//! a group admission,
+//! a naming,
+//! a decision) and the checks and
+//!  readers of the names it keeps:
+//! which identities may name a file,
+//! the withdrawal token of a decision,
+//! which entries are
 //!  confirmations.
 //! Why:
-//!  `service_busy.rs` holds the board itself; these need no board, so they are a file it uses.
+//!  `service_busy.rs` holds the board itself;
+//! these need no board,
+//! so they are a file it uses.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,27 +21,44 @@
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-/// What the decision file says when a withdrawal took the request: this word, a colon and the token of the withdrawer that made it.
+/// What the decision file says when a withdrawal took the request:
+/// this word,
+/// a colon and the token of the withdrawer that made it.
 pub(crate) const WITHDRAWN: &str = "withdrawn";
 
-/// The extension of the file that confirms a withdrawal, named `<id>.<token>.cancelled` with the token the decision carries: the
-///  withdrawer that won the decision made it after it asked the journal a second time and found no batch naming the request. A
-///  decision without its confirmation is provisional: nobody but its creator may rely on it. The token ties the confirmation to
-///  that one decision, so a confirmation that outlives its decision (the retention removes the pair in two steps) confirms nothing
+/// The extension of the file that confirms a withdrawal,
+/// named `<id>.<token>.cancelled` with the token the decision carries:
+/// the
+///  withdrawer that won the decision made it after it asked the journal a second time and found no batch naming the request.
+/// A
+///  decision without its confirmation is provisional:
+/// nobody but its creator may rely on it.
+/// The token ties the confirmation to
+///  that one decision,
+/// so a confirmation that outlives its decision (the retention removes the pair in two steps) confirms nothing
 ///  of the decision that replaces it.
 pub(crate) const CANCELLED_EXTENSION: &str = "cancelled";
 
-/// The longest request identity the record keeps a decision for; a longer one, or one with a character outside letters, digits and
-///  hyphens, gets no early answer, because its name could not be made into a file name that is only a name.
+/// The longest request identity the record keeps a decision for;
+/// a longer one,
+/// or one with a character outside letters,
+/// digits and
+///  hyphens,
+/// gets no early answer,
+/// because its name could not be made into a file name that is only a name.
 pub(crate) const LONGEST_ID: usize = 80;
 
 /// How a withdrawal asked of a connection thread is answered.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EarlyAnswer {
-    /// The landing thread is not stuck, or the request is the landing thread's, or nothing could be established: the withdrawal goes
+    /// The landing thread is not stuck,
+    /// or the request is the landing thread's,
+    /// or nothing could be established:
+    /// the withdrawal goes
     ///  to the landing thread as before.
     Queued,
-    /// The request had landed: the commit is the answer.
+    /// The request had landed:
+    /// the commit is the answer.
     Landed(String),
     /// The request has not begun to land and never will.
     Withdrawn(String),
@@ -42,22 +67,29 @@ pub enum EarlyAnswer {
 /// What the landing thread learns about the requests of a group before it lands them.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct GroupAdmission {
-    /// The requests a withdrawal took: dropped, and answered to nobody, because their clients were told already.
+    /// The requests a withdrawal took:
+    /// dropped,
+    /// and answered to nobody,
+    /// because their clients were told already.
     pub dropped: Vec<String>,
-    /// The requests whose admission could not be established: answered with a failure and not landed.
+    /// The requests whose admission could not be established:
+    /// answered with a failure and not landed.
     pub unavailable: Vec<String>,
 }
 
 /// What the journal says about a request.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Naming {
-    /// A finished batch names the request, with the commit it became.
+    /// A finished batch names the request,
+    /// with the commit it became.
     Landed(String),
-    /// A batch still open names it: its commit may be on the branch.
+    /// A batch still open names it:
+    /// its commit may be on the branch.
     Open,
     /// No batch names it.
     No,
-    /// The journal could not be read whole, so nothing is known.
+    /// The journal could not be read whole,
+    /// so nothing is known.
     Unknown,
 }
 
@@ -65,7 +97,8 @@ pub(crate) enum Naming {
 pub(crate) enum Decision {
     /// This side made the decision.
     Won,
-    /// The other side made it first, and wrote this.
+    /// The other side made it first,
+    /// and wrote this.
     Lost(String),
 }
 
@@ -75,9 +108,12 @@ pub(crate) fn is_plain(id: &str) -> bool {
 }
 
 /// What:
-///  Whether a character may appear in an identity that names a file: an ASCII letter or digit, or a hyphen.
+///  Whether a character may appear in an identity that names a file:
+/// an ASCII letter or digit,
+/// or a hyphen.
 /// Why:
-///  `is_plain` checks every character of an identity with it, so no identity can name a path.
+///  `is_plain` checks every character of an identity with it,
+/// so no identity can name a path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -88,7 +124,8 @@ pub(crate) fn is_plain_character(character: char) -> bool {
 }
 
 /// What:
-///  Whether a directory entry is the confirmation of a withdrawal: a file with the cancelled extension.
+///  Whether a directory entry is the confirmation of a withdrawal:
+/// a file with the cancelled extension.
 /// Why:
 ///  The count and the pruning of confirmed withdrawals both filter the directory listing with it.
 ///
@@ -101,9 +138,12 @@ pub(crate) fn is_confirmation(entry: &std::fs::DirEntry) -> bool {
 }
 
 /// What:
-///  The modification time and the path of a directory entry, nothing when either cannot be read.
+///  The modification time and the path of a directory entry,
+/// nothing when either cannot be read.
 /// Why:
-///  `prune_withdrawals` sorts the confirmations by age, oldest first, and entries that cannot be measured are left alone.
+///  `prune_withdrawals` sorts the confirmations by age,
+/// oldest first,
+/// and entries that cannot be measured are left alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -113,7 +153,8 @@ pub(crate) fn modified_and_path(entry: std::fs::DirEntry) -> Option<(SystemTime,
     return Some((entry.metadata().ok()?.modified().ok()?, entry.path()));
 }
 
-/// The token a `withdrawn` decision carries, when `content` is one.
+/// The token a `withdrawn` decision carries,
+/// when `content` is one.
 pub(crate) fn withdrawal_token(content: &str) -> Option<&str> {
     // The word, a colon, and a token that is not empty; anything else is no withdrawal.
     let rest: &str = content.strip_prefix(WITHDRAWN)?;

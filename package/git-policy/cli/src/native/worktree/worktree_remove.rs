@@ -1,22 +1,46 @@
 //! What:
-//!  The removal of a clean linked worktree that is a btrfs subvolume, by one subvolume destroy call and the
-//!  deletion of its administrative directory, in place of Git's file-by-file removal.
+//!  The removal of a clean linked worktree that is a btrfs subvolume,
+//! by one subvolume destroy call and the
+//!  deletion of its administrative directory,
+//! in place of Git's file-by-file removal.
 //! Why:
-//!  Git unlinks every file of the worktree (0.7 s without ignored state, 3.6 s with a large ignored tree in the
-//!  measurements of `doc/planning/cli-git-btrfs-worktree.md`), and the subvolume call takes milliseconds. The call
-//!  cannot be undone, so the wrapper takes it only when the same conditions hold that make Git remove without
-//!  `--force`: the worktree is registered in the repository the command runs in, under the name Git would pick, is not
-//!  locked, is clean (`worktree_clean.rs`), and holds no submodule. The mount must also allow the call to an
-//!  unprivileged user (`user_subvol_rm_allowed`). Every other case, and every call that the kernel refuses, is left to
-//!  Git, which then words the refusal itself.
+//!  Git unlinks every file of the worktree (0.7 s without ignored state,
+//! 3.6 s with a large ignored tree in the
+//!  measurements of `doc/planning/cli-git-btrfs-worktree.md`),
+//! and the subvolume call takes milliseconds.
+//! The call
+//!  cannot be undone,
+//! so the wrapper takes it only when the same conditions hold that make Git remove without
+//!  `--force`:
+//! the worktree is registered in the repository the command runs in,
+//! under the name Git would pick,
+//! is not
+//!  locked,
+//! is clean (`worktree_clean.rs`),
+//! and holds no submodule.
+//! The mount must also allow the call to an
+//!  unprivileged user (`user_subvol_rm_allowed`).
+//! Every other case,
+//! and every call that the kernel refuses,
+//! is left to
+//!  Git,
+//! which then words the refusal itself.
 //!
-//!  The check and the destroy are not one step, as Git's check and its deletion are not. Three things keep the
-//!  window small and its worst case no worse than Git's: the directories are held open from before the proof of
-//!  cleanliness to the destroy and the destroy names the subvolume by id (or by name below the held parent), the lock,
+//!  The check and the destroy are not one step,
+//!  as Git's check and its deletion are not.
+//!  Three things keep the
+//!  window small and its worst case no worse than Git's:
+//!  the directories are held open from before the proof of
+//!  cleanliness to the destroy and the destroy names the subvolume by id (or by name below the held parent),
+//!  the lock,
 //!  the identity of the worktree directory and of the registration are looked at again immediately before the destroy,
-//!  and the registration is emptied through its held descriptor, never by a path that could name another directory by
-//!  then. What remains is a write or a lock made by another process in the milliseconds between the last look and the
-//!  destroy; Git has the same window for its whole deletion, which takes seconds (`SPEC.md`).
+//!  and the registration is emptied through its held descriptor,
+//!  never by a path that could name another directory by
+//!  then.
+//!  What remains is a write or a lock made by another process in the milliseconds between the last look and the
+//!  destroy;
+//!  Git has the same window for its whole deletion,
+//!  which takes seconds (`SPEC.md`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -51,8 +75,11 @@ pub const DESTROY_NOTICE: &str = "monochromatic-git-policy-cli: destroyed the bt
 /// What:
 ///  Whether the administrative directory holds a `locked` entry.
 /// Why:
-///   A lock is a promise to keep the worktree. Only an entry that is certainly absent (`NotFound`) means unlocked; any
-///  other failure to look it up leaves the lock unknown, and an unknown lock is not a reason to destroy.
+///   A lock is a promise to keep the worktree.
+/// Only an entry that is certainly absent (`NotFound`) means unlocked;
+/// any
+///  other failure to look it up leaves the lock unknown,
+/// and an unknown lock is not a reason to destroy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -70,8 +97,12 @@ fn lock_state(admin: &Path) -> Result<bool, String> {
 /// What:
 ///  How one attempt to remove a worktree with a subvolume destroy ended.
 /// Why:
-///   Three endings need three different next steps: Git removes it (nothing changed), the work is done, or the files
-///  are gone and the registration is not, which only the person can finish and which must never reach Git.
+///   Three endings need three different next steps:
+/// Git removes it (nothing changed),
+/// the work is done,
+/// or the files
+///  are gone and the registration is not,
+/// which only the person can finish and which must never reach Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -79,18 +110,21 @@ fn lock_state(admin: &Path) -> Result<bool, String> {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RemoveOutcome {
-    /// Nothing was changed; real Git removes the worktree or states its refusal.
+    /// Nothing was changed;
+    /// real Git removes the worktree or states its refusal.
     LeftToGit,
     /// The subvolume and the administrative directory are gone.
     Removed,
-    /// The subvolume was destroyed but the registration could not be removed; the report is for standard error.
+    /// The subvolume was destroyed but the registration could not be removed;
+    /// the report is for standard error.
     Incomplete(String),
 }
 
 /// What:
 ///  What one removal is asked to do and in which repository.
 /// Why:
-///   The repository that was invoked decides which registrations count; the worktree's own pointers never do.
+///   The repository that was invoked decides which registrations count;
+/// the worktree's own pointers never do.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,10 +141,13 @@ pub struct RemoveRequest<'a> {
 }
 
 /// What:
-///  The directories one removal holds open from before the proof of cleanliness to the destroy, and the identities they
+///  The directories one removal holds open from before the proof of cleanliness to the destroy,
+/// and the identities they
 ///  had when they were looked at.
 /// Why:
-///   A descriptor names the object it was opened on, whatever happens to the path afterwards; the identities let the
+///   A descriptor names the object it was opened on,
+/// whatever happens to the path afterwards;
+/// the identities let the
 ///  last look before the destroy tell a swapped name from the held object.
 ///
 /// In TS you'd write (pseudocode):
@@ -121,7 +158,8 @@ pub struct RemoveRequest<'a> {
 pub struct Held {
     /// The directory that holds the worktree directory.
     pub parent: File,
-    /// The canonical path of `parent`, for messages and for the check that the path still names it.
+    /// The canonical path of `parent`,
+    /// for messages and for the check that the path still names it.
     pub parent_path: PathBuf,
     /// The name of the worktree directory in `parent`.
     pub name: OsString,
@@ -140,12 +178,16 @@ pub struct Held {
 }
 
 /// What:
-///  The operations of one removal that touch the kernel or start Git, behind one trait.
-///  `&self` borrows the implementation read-only; `dyn RemoveOperations` is how a caller holds "any implementation"
+///  The operations of one removal that touch the kernel or start Git,
+/// behind one trait.
+///  `&self` borrows the implementation read-only;
+/// `dyn RemoveOperations` is how a caller holds "any implementation"
 ///  (a TS interface).
 /// Why:
-///   The ordering of the checks is the same on any filesystem; a stand-in lets the controls run it on a plain
-///  directory tree, and swap objects between two steps to prove the identity checks.
+///   The ordering of the checks is the same on any filesystem;
+/// a stand-in lets the controls run it on a plain
+///  directory tree,
+/// and swap objects between two steps to prove the identity checks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -156,17 +198,21 @@ pub trait RemoveOperations {
     fn is_subvolume_root(&self, path: &Path) -> bool;
     /// Whether an unprivileged destroy is allowed on the mount holding `path`.
     fn removal_allowed(&self, path: &Path) -> bool;
-    /// The proof that the worktree is clean, or the reason it is not proven.
+    /// The proof that the worktree is clean,
+    /// or the reason it is not proven.
     fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, common_dir: &Path) -> Result<(), String>;
-    /// Destroy the subvolume that `held` holds, and nothing else.
+    /// Destroy the subvolume that `held` holds,
+    /// and nothing else.
     fn destroy(&self, held: &Held) -> Result<(), String>;
 }
 
-/// The kernel and Git, as they are.
+/// The kernel and Git,
+/// as they are.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LinuxOperations;
 
-/// Whether an errno from the destroy by id means this kernel lacks the call, so that the destroy by name below the held
+/// Whether an errno from the destroy by id means this kernel lacks the call,
+/// so that the destroy by name below the held
 ///  parent is the way left.
 fn by_id_unavailable(errno: i32) -> bool {
     return errno == libc::ENOTTY || errno == libc::EOPNOTSUPP || errno == libc::EINVAL;
@@ -216,9 +262,13 @@ impl RemoveOperations for LinuxOperations {
 }
 
 /// What:
-///  Open the worktree directory, its parent, and its registration, and record what each one is.
+///  Open the worktree directory,
+/// its parent,
+/// and its registration,
+/// and record what each one is.
 /// Why:
-///   Everything after this point is about these objects, not about the paths that name them.
+///   Everything after this point is about these objects,
+/// not about the paths that name them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -268,10 +318,16 @@ fn hold(target: &Path, registration: &Registration) -> Result<Held, String> {
 }
 
 /// What:
-///  The last look before the destroy: the lock, and that the names still lead to the objects that were held and proven.
+///  The last look before the destroy:
+/// the lock,
+/// and that the names still lead to the objects that were held and proven.
 /// Why:
-///   The proof of cleanliness takes time (it starts Git); a lock taken, a directory moved away and another put in its
-///  place, an ancestor replaced by a link, or a registration replaced in that time must stop the destroy.
+///   The proof of cleanliness takes time (it starts Git);
+/// a lock taken,
+/// a directory moved away and another put in its
+///  place,
+/// an ancestor replaced by a link,
+/// or a registration replaced in that time must stop the destroy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -309,7 +365,8 @@ fn read_held_file(held: &Held, name: &str) -> std::io::Result<Vec<u8>> {
     return Ok(bytes);
 }
 
-/// The command that forgets a registration whose directory is gone, aimed at the repository of `common_dir`.
+/// The command that forgets a registration whose directory is gone,
+/// aimed at the repository of `common_dir`.
 fn prune_command(common_dir: &Path) -> String {
     let main_checkout: Option<&str> = match common_dir.to_str() {
         Some(text) => text.strip_suffix("/.git"),
@@ -322,11 +379,16 @@ fn prune_command(common_dir: &Path) -> String {
 }
 
 /// What:
-///  The report of a removal that destroyed the files but left the registration: what is gone, what is left and where, why,
+///  The report of a removal that destroyed the files but left the registration:
+/// what is gone,
+/// what is left and where,
+/// why,
 ///  and each way to finish.
 /// Why:
-///   Git would now answer that the path is not a working tree, so the person needs the leftover's name and the command
-///  that removes it, and must not be told that the removal succeeded.
+///   Git would now answer that the path is not a working tree,
+/// so the person needs the leftover's name and the command
+///  that removes it,
+/// and must not be told that the removal succeeded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -350,16 +412,21 @@ fn incomplete_report(target: &Path, registration: &Registration, common_dir: &Pa
 }
 
 /// What:
-///  After the destroy, remove the registration through the descriptors that were held, and report how that ended.
+///  After the destroy,
+/// remove the registration through the descriptors that were held,
+/// and report how that ended.
 /// Why:
-///   The registration is emptied through its held descriptor and removed from the held `worktrees` directory by name, which
-///  succeeds only for an empty directory; a registration that another process replaced is therefore never touched.
+///   The registration is emptied through its held descriptor and removed from the held `worktrees` directory by name,
+/// which
+///  succeeds only for an empty directory;
+/// a registration that another process replaced is therefore never touched.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function finish(held: Held, registration: Registration, request: RemoveRequest): Promise<RemoveOutcome>;
 /// ```
-/// The outcome of a removal whose subvolume is gone but whose registration could not be cleared: the report is also logged.
+/// The outcome of a removal whose subvolume is gone but whose registration could not be cleared:
+/// the report is also logged.
 fn incomplete(registration: &Registration, request: &RemoveRequest<'_>, reason: String) -> RemoveOutcome {
     let report: String = incomplete_report(request.plan.target.as_path(), registration, request.common_dir, reason.as_str());
     warn(TAG, report.as_str());
@@ -398,7 +465,8 @@ fn finish(held: &Held, registration: &Registration, request: &RemoveRequest<'_>)
 }
 
 /// What:
-///  Remove the worktree if every condition holds, with the kernel and Git as they are.
+///  Remove the worktree if every condition holds,
+/// with the kernel and Git as they are.
 /// Why:
 ///   See `remove_with`.
 ///
@@ -411,9 +479,11 @@ pub fn remove_subvolume_worktree(request: &RemoveRequest<'_>) -> RemoveOutcome {
 }
 
 /// What:
-///  Remove the worktree if every condition holds; report how it ended.
+///  Remove the worktree if every condition holds;
+/// report how it ended.
 /// Why:
-///   `LeftToGit` means Git has to do the removal, and nothing was changed.
+///   `LeftToGit` means Git has to do the removal,
+/// and nothing was changed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

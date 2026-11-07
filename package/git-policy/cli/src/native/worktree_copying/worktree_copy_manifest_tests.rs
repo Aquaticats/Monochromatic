@@ -12,7 +12,9 @@ fn entry(kind: EntryKind, mode: u32, relative_path: &str) -> WorktreeCopyEntry {
     };
 }
 
-/// A tree with nested directories, a symbolic link and files, under one selected root.
+/// A tree with nested directories,
+/// a symbolic link and files,
+/// under one selected root.
 fn tree(root: &Path) {
     std::fs::create_dir_all(root.join("cache/deep")).expect("deep");
     std::fs::write(root.join("cache/deep/file"), b"x").expect("file");
@@ -22,7 +24,9 @@ fn tree(root: &Path) {
     std::os::unix::fs::symlink("../elsewhere", root.join("cache/link")).expect("symlink");
 }
 
-/// Parents come before children, names follow JavaScript order, and symbolic links are recorded without being followed.
+/// Parents come before children,
+/// names follow JavaScript order,
+/// and symbolic links are recorded without being followed.
 #[cfg(unix)]
 #[test]
 fn manifest_is_parent_first_in_javascript_order_without_following_links() {
@@ -50,7 +54,8 @@ fn manifest_is_parent_first_in_javascript_order_without_following_links() {
     remove(root.as_path());
 }
 
-/// Excluded roots are skipped with all their descendants, and an unselected path is never read.
+/// Excluded roots are skipped with all their descendants,
+/// and an unselected path is never read.
 #[test]
 fn excluded_roots_are_omitted_with_descendants() {
     let root: PathBuf = fixture("manifest-excluded");
@@ -75,7 +80,8 @@ fn excluded_roots_are_omitted_with_descendants() {
     remove(root.as_path());
 }
 
-/// A selected file is one entry, and a missing selected path is a copy failure with its cause.
+/// A selected file is one entry,
+/// and a missing selected path is a copy failure with its cause.
 #[test]
 fn single_file_and_missing_selection() {
     let root: PathBuf = fixture("manifest-single");
@@ -97,7 +103,8 @@ fn single_file_and_missing_selection() {
     remove(root.as_path());
 }
 
-/// Sockets, FIFOs and device nodes stop the walk with the unsupported-type diagnostic and are never opened.
+/// Sockets,
+/// FIFOs and device nodes stop the walk with the unsupported-type diagnostic and are never opened.
 #[cfg(unix)]
 #[test]
 fn fifo_is_refused_without_being_opened() {
@@ -114,7 +121,8 @@ fn fifo_is_refused_without_being_opened() {
     remove(root.as_path());
 }
 
-/// The retained mode is the entry's own permission bits; file-type bits never appear in it.
+/// The retained mode is the entry's own permission bits;
+/// file-type bits never appear in it.
 #[cfg(unix)]
 #[test]
 fn retained_mode_keeps_only_permission_bits() {
@@ -129,7 +137,8 @@ fn retained_mode_keeps_only_permission_bits() {
     remove(root.as_path());
 }
 
-/// Applying modes sets every file and directory to its recorded mode, deepest directories last.
+/// Applying modes sets every file and directory to its recorded mode,
+/// deepest directories last.
 #[cfg(unix)]
 #[test]
 fn applied_modes_match_the_manifest() {
@@ -156,7 +165,8 @@ fn applied_modes_match_the_manifest() {
     remove(root.as_path());
 }
 
-/// The mode of one path, as the manifest reads it.
+/// The mode of one path,
+/// as the manifest reads it.
 fn retained_mode_of(path: &Path) -> u32 {
     let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).expect("metadata");
     return retained_mode(&metadata);

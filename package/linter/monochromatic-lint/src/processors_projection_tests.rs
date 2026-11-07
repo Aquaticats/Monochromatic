@@ -11,7 +11,7 @@
 //! ```
 
 /// Import consumer helpers and the actual edit interface.
-use super::{Edit, Fix, ProcessorLanguage, fixed, inputs};
+use super::{Edit, Fix, FixClass, ProcessorLanguage, fixed, inputs};
 /// Conflict selection belongs to the existing host edit engine.
 use crate::edits::apply_fixes;
 
@@ -28,6 +28,7 @@ fn processors_project_rustdoc_newlines_with_prefixes_and_untouched_bytes() {
         source,
         doc,
         Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start: at,
                 end: at + 1,
@@ -57,6 +58,7 @@ fn processors_project_whole_doc_line_deletion_without_prefix_concatenation() {
         source,
         doc,
         Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start,
                 end: start + "Removed.\n".len(),
@@ -76,6 +78,7 @@ fn processors_project_partial_cross_line_deletion_and_atomic_multi_edits() {
         source,
         &virtuals[0],
         Fix {
+            class: FixClass::Content,
             edits: vec![
                 Edit {
                     start: 0,
@@ -107,6 +110,7 @@ fn processors_project_hidden_nested_doctest_fixes_to_original_host() {
         source,
         rust,
         Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start: at,
                 end: at + 1,
@@ -132,6 +136,7 @@ fn processors_project_inserted_hidden_lines_with_all_container_prefixes() {
         source,
         rust,
         Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start: at,
                 end: at,
@@ -151,6 +156,7 @@ fn processors_project_nonempty_virtual_doc_to_empty_without_emptying_host() {
         source,
         &virtuals[0],
         Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start: 0,
                 end: virtuals[0].source().len(),
@@ -168,6 +174,7 @@ fn processors_preserve_atomic_groups_when_host_fixes_overlap() {
     let virtuals = inputs(source, ProcessorLanguage::Rust);
     let first: Fix = virtuals[0]
         .project_fix(&Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start: 0,
                 end: 5,
@@ -177,6 +184,7 @@ fn processors_preserve_atomic_groups_when_host_fixes_overlap() {
         .expect("first group");
     let later: Fix = virtuals[0]
         .project_fix(&Fix {
+            class: FixClass::Content,
             edits: vec![
                 Edit {
                     start: 1,
@@ -207,6 +215,7 @@ fn processors_project_block_doc_insertions_and_refuse_closing_delimiters() {
         source,
         &virtuals[0],
         Fix {
+            class: FixClass::Content,
             edits: vec![Edit {
                 start: at,
                 end: at + 1,
@@ -221,6 +230,7 @@ fn processors_project_block_doc_insertions_and_refuse_closing_delimiters() {
     assert!(
         virtuals[0]
             .project_fix(&Fix {
+                class: FixClass::Content,
                 edits: vec![Edit {
                     start: at,
                     end: at,

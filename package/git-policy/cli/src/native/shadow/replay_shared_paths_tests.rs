@@ -1,5 +1,7 @@
 //! Controls for shared-path listing:
-//!  raw record parsing, the regular-file predicates, and the listing against real repositories.
+//!  raw record parsing,
+//! the regular-file predicates,
+//! and the listing against real repositories.
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
@@ -29,7 +31,9 @@ fn raw_records_parse_with_absent_sides() {
     assert_eq!(changes[2].to, entry("100755", "4444"));
 }
 
-/// A header without its path, or without five fields, fails.
+/// A header without its path,
+/// or without five fields,
+/// fails.
 #[test]
 fn malformed_raw_records_fail() {
     assert!(parse_raw_changes(":100644 100644 a b M").is_err());
@@ -37,7 +41,8 @@ fn malformed_raw_records_fail() {
     assert!(parse_raw_changes("").expect("empty").is_empty());
 }
 
-/// Only `100644` and `100755` are regular files; a symbolic link or a gitlink never is.
+/// Only `100644` and `100755` are regular files;
+/// a symbolic link or a gitlink never is.
 #[test]
 fn regular_file_modes_are_the_only_regular_files() {
     assert!(is_regular_mode("100644"));
@@ -46,7 +51,8 @@ fn regular_file_modes_are_the_only_regular_files() {
     assert!(!is_regular_mode("160000"));
 }
 
-/// Regular triples need all three present; a text candidate needs landed and prepared present and regular,
+/// Regular triples need all three present;
+/// a text candidate needs landed and prepared present and regular,
 ///  and the base regular or absent.
 #[test]
 fn the_predicates_follow_the_entries() {
@@ -85,8 +91,11 @@ fn the_predicates_follow_the_entries() {
     assert!(!same_entry(&None, &regular("a")));
 }
 
-/// Listing a repository: the landed listing's order, the paths both sides changed,
-///  and each side's entry, with deletions and absent base entries.
+/// Listing a repository:
+/// the landed listing's order,
+/// the paths both sides changed,
+///  and each side's entry,
+/// with deletions and absent base entries.
 #[test]
 fn shared_paths_list_the_paths_both_sides_changed() {
     let root: PathBuf = fixture("replay-shared-paths");

@@ -4,7 +4,8 @@
 //! Why:
 //!  A path is subsumed when the landed change applies in reverse to the prepared bytes with full context,
 //!       or when the prepared change of every landed region is the landed change extended on one side.
-//!       Hunks come from index-named single-level trees, so no patch header carries a user path,
+//!       Hunks come from index-named single-level trees,
+//! so no patch header carries a user path,
 //!       and binary detection is Git's content rule (a NUL byte in the first 8000 bytes of any of the three blobs).
 //!
 //! In TS you'd write (pseudocode):
@@ -29,14 +30,18 @@ use std::path::Path;
 /// Bytes Git inspects for a NUL when deciding that a blob is binary (`FIRST_FEW_BYTES`).
 const BINARY_PROBE_BYTES: usize = 8_000;
 
-/// Context lines of the strict reverse check, Git's default.
+/// Context lines of the strict reverse check,
+/// Git's default.
 const STRICT_CONTEXT: u32 = 3;
 
 /// What:
 ///  The text check's failure:
-///       a Git command failed, a blob could not be read, or a patch had an unexpected shape.
+///       a Git command failed,
+/// a blob could not be read,
+/// or a patch had an unexpected shape.
 /// Why:
-///   Replay reports each as `transaction-failed`, never as a silent "not subsumed".
+///   Replay reports each as `transaction-failed`,
+/// never as a silent "not subsumed".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -56,7 +61,8 @@ pub enum TextSubsumptionError {
 ///  Whether a blob is binary by Git's rule:
 ///       a NUL byte among its first 8000 bytes.
 /// Why:
-///   Attributes never decide binary-ness here, so a `text` attribute cannot make a binary blob a text candidate.
+///   Attributes never decide binary-ness here,
+/// so a `text` attribute cannot make a binary blob a text candidate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -67,10 +73,12 @@ fn is_binary(bytes: &[u8]) -> bool {
 }
 
 /// What:
-///  Writes the empty blob when an addition on both sides needs an empty base; returns its ID,
+///  Writes the empty blob when an addition on both sides needs an empty base;
+/// returns its ID,
 ///       or an empty string when no candidate needs it.
 /// Why:
-///   An addition on both sides is read against an empty base, so the empty blob is the base entry.
+///   An addition on both sides is read against an empty base,
+/// so the empty blob is the base entry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,7 +115,8 @@ fn empty_blob_for(
 
 /// What:
 ///  The object ID a side contributes to the index-named trees:
-///       its blob, or the empty blob for an absent base.
+///       its blob,
+/// or the empty blob for an absent base.
 /// Why:
 ///   Index-named trees need one blob per candidate per side.
 ///
@@ -125,7 +134,8 @@ fn side_oid(entry: &Option<TreeEntry>, empty_blob: &str) -> String {
 /// What:
 ///  Writes a single-level tree of regular-file entries named by their position.
 /// Why:
-///   Named by index, the tree's paths never carry a user path into the patch headers.
+///   Named by index,
+/// the tree's paths never carry a user path into the patch headers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -148,9 +158,11 @@ fn indexed_tree(
 }
 
 /// What:
-///  Hunks per entry name between two index-named trees, with the given context lines.
+///  Hunks per entry name between two index-named trees,
+/// with the given context lines.
 /// Why:
-///   Full-context hunks feed the strict check; zero-context hunks feed the containment check.
+///   Full-context hunks feed the strict check;
+/// zero-context hunks feed the containment check.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -194,7 +206,9 @@ fn indexed_hunks(
     };
 }
 
-/// The bytes of a tree entry's blob in the batch; nothing for an absent entry, and empty bytes for a blob the batch did not return.
+/// The bytes of a tree entry's blob in the batch;
+/// nothing for an absent entry,
+/// and empty bytes for a blob the batch did not return.
 fn blob_of(blobs: &HashMap<String, Vec<u8>>, entry: &Option<TreeEntry>) -> Option<Vec<u8>> {
     let present: &TreeEntry = entry.as_ref()?;
     return Some(blobs.get(&present.oid).cloned().unwrap_or_default());
@@ -215,7 +229,9 @@ fn prepared_side(shared: &SharedPath) -> &Option<TreeEntry> {
     return &shared.prepared;
 }
 
-/// The object IDs of one side of every shared path, in order, with the empty blob standing for an absent side.
+/// The object IDs of one side of every shared path,
+/// in order,
+/// with the empty blob standing for an absent side.
 fn side_oids(owned: &[SharedPath], empty_blob: &str, side: fn(&SharedPath) -> &Option<TreeEntry>) -> Vec<String> {
     let mut oids: Vec<String> = Vec::new();
     for shared in owned {
@@ -228,7 +244,8 @@ fn side_oids(owned: &[SharedPath], empty_blob: &str, side: fn(&SharedPath) -> &O
 ///  Decides the text candidates:
 ///       the paths whose prepared bytes already contain the landed change.
 /// Why:
-///   Only candidates whose three blobs are all text reach this check; the caller has already removed identical entries.
+///   Only candidates whose three blobs are all text reach this check;
+/// the caller has already removed identical entries.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

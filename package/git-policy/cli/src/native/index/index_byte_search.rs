@@ -1,9 +1,14 @@
 //! What:
-//!  Byte searches over a slice that the index readers share: where a byte first appears, how long a run of one byte is,
+//!  Byte searches over a slice that the index readers share:
+//! where a byte first appears,
+//! how long a run of one byte is,
 //!  and whether any byte is not zero.
 //! Why:
-//!  The index formats are NUL-terminated names, `/`-separated paths and zero-filled hashes. A closure per search was
-//!  reported by `rust/avoidable-closure`; one named loop per question reads the same everywhere and breaks the same way.
+//!  The index formats are NUL-terminated names,
+//! `/`-separated paths and zero-filled hashes.
+//! A closure per search was
+//!  reported by `rust/avoidable-closure`;
+//! one named loop per question reads the same everywhere and breaks the same way.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,7 +16,8 @@
 //! const hasData = bytes.some((b) => b !== 0); // hasNonzeroByte(bytes)
 //! ```
 
-/// Whether `byte` is the path separator `/`; the shape `split` and `all` want.
+/// Whether `byte` is the path separator `/`;
+/// the shape `split` and `all` want.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -21,7 +27,8 @@ pub fn is_slash(byte: &u8) -> bool {
     return *byte == b'/';
 }
 
-/// The position of the first byte of `bytes` equal to `wanted`, or `None` when no byte is.
+/// The position of the first byte of `bytes` equal to `wanted`,
+/// or `None` when no byte is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -65,7 +72,8 @@ pub fn leading_digit_count(bytes: &[u8]) -> usize {
     return length;
 }
 
-/// Whether any byte of `bytes` is not zero; an empty slice has none.
+/// Whether any byte of `bytes` is not zero;
+/// an empty slice has none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

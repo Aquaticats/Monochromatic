@@ -4,7 +4,9 @@ use super::*;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use std::path::PathBuf;
 
-/// The batch parser reads by size, reports a missing name as absent, and rejects malformed output.
+/// The batch parser reads by size,
+/// reports a missing name as absent,
+/// and rejects malformed output.
 #[test]
 fn batch_output_is_read_by_size_with_missing_names_absent() {
     let names: Vec<String> = vec![String::from("a.ts"), String::from("gone.ts"), String::from("b.rs")];
@@ -19,7 +21,8 @@ fn batch_output_is_read_by_size_with_missing_names_absent() {
     assert!(parse_batch(b"oid1 blob x\nabc\n", &names[..1]).is_err());
 }
 
-/// A commit that changes, adds and deletes code files reads its own patch and the surviving files' texts.
+/// A commit that changes,
+/// adds and deletes code files reads its own patch and the surviving files' texts.
 #[test]
 fn a_landed_commit_is_read_in_two_starts_worth_of_data() {
     let parent: PathBuf = fixture("source-read");
@@ -55,7 +58,9 @@ fn an_unknown_commit_fails_with_the_command_named() {
     remove(parent.as_path());
 }
 
-/// The names are the raw changed paths (not quoted, even with spaces and non-ASCII), and the message folds to the subject.
+/// The names are the raw changed paths (not quoted,
+/// even with spaces and non-ASCII),
+/// and the message folds to the subject.
 #[test]
 fn names_and_message_are_read_raw() {
     let parent: PathBuf = fixture("source-names");

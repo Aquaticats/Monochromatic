@@ -1,10 +1,17 @@
 //! What:
-//!  The commits real Git builds for the service (an editor, a signature, a configuration or an option the service does
-//!  not embed), compared field by field with the commit the transaction makes of the same input, and the cases where
+//!  The commits real Git builds for the service (an editor,
+//! a signature,
+//! a configuration or an option the service does
+//!  not embed),
+//! compared field by field with the commit the transaction makes of the same input,
+//! and the cases where
 //!  nothing may land.
 //! Why:
 //!  The service lands a commit Git built by moving the branch to it only while the branch is still where the commit was
-//!  made. A difference in a stored field, in what is left behind, or a landing after an abort or a lost race would be a
+//!  made.
+//! A difference in a stored field,
+//! in what is left behind,
+//! or a landing after an abort or a lost race would be a
 //!  silent change of what an editor or a signature means.
 
 use super::commit::{git_text, remove_settled};
@@ -24,8 +31,17 @@ fn finished(fixture: &Fixture) -> usize {
     });
 }
 
-/// The stored fields that must agree: tree, whole message, author, author date, committer, parents, and whether the
-///  commit is signed. A signature's bytes are not compared, because a signer may put its own time in them.
+/// The stored fields that must agree:
+/// tree,
+/// whole message,
+/// author,
+/// author date,
+/// committer,
+/// parents,
+/// and whether the
+///  commit is signed.
+/// A signature's bytes are not compared,
+/// because a signer may put its own time in them.
 fn stored(fixture: &Fixture, repo: &Path) -> Vec<String> {
     let formats: [&str; 6] = ["%T", "%B", "%an <%ae>", "%ad", "%cn <%ce>", "%P"];
     let mut fields: Vec<String> =
@@ -34,7 +50,9 @@ fn stored(fixture: &Fixture, repo: &Path) -> Vec<String> {
     return fields;
 }
 
-/// What a commit left behind: the status, the staged difference from the commit and how many commits the branch has.
+/// What a commit left behind:
+/// the status,
+/// the staged difference from the commit and how many commits the branch has.
 fn left_behind(fixture: &Fixture, repo: &Path) -> Vec<String> {
     return vec![
         git_text(fixture, repo, &["status", "--short"]),
@@ -47,8 +65,10 @@ fn write(repo: &Path, name: &str, text: &str) {
     std::fs::write(repo.join(name), text).expect("write");
 }
 
-/// A repository with two tracked files and an editor that puts `edited: ` in front of the first line of the message, a
-///  signer that makes a placeholder signature, and a worktree edit of one file ready to commit.
+/// A repository with two tracked files and an editor that puts `edited: ` in front of the first line of the message,
+/// a
+///  signer that makes a placeholder signature,
+/// and a worktree edit of one file ready to commit.
 fn repository_with_programs(fixture: &Fixture) -> (PathBuf, String) {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     write(&repo, "a.txt", "base\n");
@@ -91,7 +111,9 @@ fn edit_a_and_clean_up_by_configuration(repo: &Path) {
     assert!(output.status.success());
 }
 
-/// One command line, the state it starts from, and whether the author date is a field the line keeps.
+/// One command line,
+/// the state it starts from,
+/// and whether the author date is a field the line keeps.
 struct Case {
     name: &'static str,
     command: &'static [&'static str],
@@ -103,8 +125,10 @@ fn case(name: &'static str, command: &'static [&'static str], prepare: fn(&Path)
     return Case { name, command, prepare, date_kept: false };
 }
 
-/// Every line real Git builds for the service gives the commit the transaction gives, leaves the repository as it leaves
-///  it, and the service (not the transaction) landed it.
+/// Every line real Git builds for the service gives the commit the transaction gives,
+/// leaves the repository as it leaves
+///  it,
+/// and the service (not the transaction) landed it.
 #[test]
 fn commits_git_builds_for_the_service_equal_the_transaction_commit() {
     let fixture: Fixture = fixture("service-native");
@@ -159,13 +183,20 @@ fn commits_git_builds_for_the_service_equal_the_transaction_commit() {
     remove_settled(&fixture);
 }
 
-/// The signature's verdict as Git reports it: the status letter, the signing key and the signer.
+/// The signature's verdict as Git reports it:
+/// the status letter,
+/// the signing key and the signer.
 fn verdict(fixture: &Fixture, repo: &Path) -> Vec<String> {
     return ["%G?", "%GK", "%GS"].map(|format| { return git_text(fixture, repo, &["log", "-1", format!("--format={format}").as_str()]); }).to_vec();
 }
 
-/// The way this machine signs: SSH signing with a key file and an allowed-signers file, set by `commit.gpgsign` alone. A
-///  throwaway key made in the fixture signs a commit that Git builds, the service lands, and `git verify-commit` accepts,
+/// The way this machine signs:
+/// SSH signing with a key file and an allowed-signers file,
+/// set by `commit.gpgsign` alone.
+/// A
+///  throwaway key made in the fixture signs a commit that Git builds,
+/// the service lands,
+/// and `git verify-commit` accepts,
 ///  with the same verdict and the same stored fields as the transaction's signed commit.
 #[test]
 fn an_ssh_signed_commit_lands_through_the_service_and_verifies() {
@@ -226,8 +257,10 @@ fn an_ssh_signed_commit_lands_through_the_service_and_verifies() {
     remove_settled(&fixture);
 }
 
-/// Turns on SSH signing for every commit of `repo` with a throwaway key made in the fixture, and sends the signer through a
-///  stand-in for `ssh-keygen` that first lets `race` happen. It counts its own calls in the returned file.
+/// Turns on SSH signing for every commit of `repo` with a throwaway key made in the fixture,
+/// and sends the signer through a
+///  stand-in for `ssh-keygen` that first lets `race` happen.
+/// It counts its own calls in the returned file.
 fn ssh_signing_through(fixture: &Fixture, repo: &Path, race: &str) -> PathBuf {
     let key: PathBuf = fixture.root.join("signing-key");
     let made = std::process::Command::new("ssh-keygen")
@@ -255,8 +288,12 @@ fn ssh_signing_through(fixture: &Fixture, repo: &Path, race: &str) -> PathBuf {
     return calls;
 }
 
-/// The shell line that makes another commit on the branch, unless the signer was started by that very commit, and, when a
-///  marker is given, only the first time.
+/// The shell line that makes another commit on the branch,
+/// unless the signer was started by that very commit,
+/// and,
+/// when a
+///  marker is given,
+/// only the first time.
 fn racing_commit(repo: &Path, only_once_marker: Option<&Path>) -> String {
     let guard: String = match only_once_marker {
         Some(marker) => format!("[ -z \"$RACING\" ] && [ ! -e '{0}' ] && : > '{0}' && ", marker.display()),
@@ -274,8 +311,13 @@ fn lines_in(path: &Path) -> usize {
     return std::fs::read_to_string(path).map_or(0, |text| { return text.lines().count(); });
 }
 
-/// A signed commit with no editor is built again, and signed again, on the new tip when another commit lands on the branch
-///  while it is being signed: the person sees success, the commit sits on the other commit, and it is signed.
+/// A signed commit with no editor is built again,
+/// and signed again,
+/// on the new tip when another commit lands on the branch
+///  while it is being signed:
+/// the person sees success,
+/// the commit sits on the other commit,
+/// and it is signed.
 #[test]
 fn a_signed_commit_is_built_again_on_the_new_tip_when_the_branch_moves() {
     let fixture: Fixture = fixture("service-native-rebuild");
@@ -307,16 +349,28 @@ fn summary_name(line: &str) -> String {
     return line.split_whitespace().nth(1).expect("a name after the branch").trim_end_matches(']').to_string();
 }
 
-/// The note the wrapper adds, on standard error, after a commit Git built was built again because the branch moved: it names the
-///  builds that did not land and the one that did, by the names Git's own summary lines carry.
+/// The note the wrapper adds,
+/// on standard error,
+/// after a commit Git built was built again because the branch moved:
+/// it names the
+///  builds that did not land and the one that did,
+/// by the names Git's own summary lines carry.
 fn rebuilt_note(unlanded: &[String], landed: &str) -> String {
     return format!("monochromatic-git-policy-cli: the branch moved during the commit, so it was built again; {} did not land, {landed} did.", unlanded.join(" and "));
 }
 
-/// A commit Git builds again because the branch moved prints Git's summary for each build, as Git prints them (the owner's
-///  decision: the wrapper adds no `--quiet`, "Letting native git emit whatever it wants to is expected."), and the last one
-///  names the commit that landed. The first names a build that never landed, and the wrapper adds one note on standard error that
-///  names both (owner decision: "Add a wrapper note (Recommended)"); Git's own output is not touched.
+/// A commit Git builds again because the branch moved prints Git's summary for each build,
+/// as Git prints them (the owner's
+///  decision:
+/// the wrapper adds no `--quiet`,
+/// "Letting native git emit whatever it wants to is expected."),
+/// and the last one
+///  names the commit that landed.
+/// The first names a build that never landed,
+/// and the wrapper adds one note on standard error that
+///  names both (owner decision:
+/// "Add a wrapper note (Recommended)");
+/// Git's own output is not touched.
 #[test]
 fn a_commit_built_again_prints_gits_summary_for_each_build_and_the_last_names_the_landed_commit() {
     let fixture: Fixture = fixture("service-native-one-summary");
@@ -344,7 +398,8 @@ fn a_commit_built_again_prints_gits_summary_for_each_build_and_the_last_names_th
     remove_settled(&fixture);
 }
 
-/// A branch that moves every time ends in the plain failure after the named number of builds, and nothing lands.
+/// A branch that moves every time ends in the plain failure after the named number of builds,
+/// and nothing lands.
 #[test]
 fn a_branch_that_keeps_moving_stops_the_rebuilds_at_the_bound() {
     let fixture: Fixture = fixture("service-native-rebuild-bound");
@@ -367,7 +422,9 @@ fn a_branch_that_keeps_moving_stops_the_rebuilds_at_the_bound() {
     remove_settled(&fixture);
 }
 
-/// An amend is never built again on a new tip, signed or not: the person asked to replace the commit they saw.
+/// An amend is never built again on a new tip,
+/// signed or not:
+/// the person asked to replace the commit they saw.
 #[test]
 fn a_signed_amend_is_not_built_again_when_the_branch_moves() {
     let fixture: Fixture = fixture("service-native-rebuild-amend");
@@ -388,7 +445,12 @@ fn a_signed_amend_is_not_built_again_when_the_branch_moves() {
     remove_settled(&fixture);
 }
 
-/// An editor that leaves an empty message, or fails, ends the commit with Git's status; nothing lands, nothing moves, and
+/// An editor that leaves an empty message,
+/// or fails,
+/// ends the commit with Git's status;
+/// nothing lands,
+/// nothing moves,
+/// and
 ///  the commit's scratch directory is gone.
 #[test]
 fn an_abandoned_editor_lands_nothing_and_leaves_no_scratch_behind() {
@@ -422,8 +484,12 @@ fn an_abandoned_editor_lands_nothing_and_leaves_no_scratch_behind() {
     remove_settled(&fixture);
 }
 
-/// After the editor has run the message is fixed: when another commit lands on the branch while the editor is open, Git builds the
-///  commit again on the new tip from `-F <the typed message>`, with no editor and no person, and it lands on top of the other commit.
+/// After the editor has run the message is fixed:
+/// when another commit lands on the branch while the editor is open,
+/// Git builds the
+///  commit again on the new tip from `-F <the typed message>`,
+/// with no editor and no person,
+/// and it lands on top of the other commit.
 #[test]
 fn a_branch_that_moves_while_the_editor_is_open_is_built_again_from_the_typed_message() {
     let fixture: Fixture = fixture("service-native-moved");
@@ -465,8 +531,11 @@ fn a_branch_that_moves_while_the_editor_is_open_is_built_again_from_the_typed_me
     remove_settled(&fixture);
 }
 
-/// The rebuilds from the typed message stop at the bound: while the editor's message is fixed, a branch that moves on every
-///  build ends in the plain failure that names the file the message was saved in, and `git commit -F <file>` makes the commit
+/// The rebuilds from the typed message stop at the bound:
+/// while the editor's message is fixed,
+/// a branch that moves on every
+///  build ends in the plain failure that names the file the message was saved in,
+/// and `git commit -F <file>` makes the commit
 ///  afterwards.
 #[test]
 fn a_typed_message_is_saved_only_when_the_branch_never_stops_moving() {
@@ -500,8 +569,11 @@ fn a_typed_message_is_saved_only_when_the_branch_never_stops_moving() {
     remove_settled(&fixture);
 }
 
-/// A policy that rewrites a file keeps its preparation in the wrapper, which installs the rewrite into the worktree after
-///  the landing: the service lands the commit, and it carries the editor's message.
+/// A policy that rewrites a file keeps its preparation in the wrapper,
+/// which installs the rewrite into the worktree after
+///  the landing:
+/// the service lands the commit,
+/// and it carries the editor's message.
 #[test]
 fn a_policy_that_rewrites_a_file_lands_the_editor_commit_through_the_service_and_installs_the_rewrite() {
     let fixture: Fixture = fixture("service-native-rewrite");
@@ -520,8 +592,11 @@ fn a_policy_that_rewrites_a_file_lands_the_editor_commit_through_the_service_and
     remove_settled(&fixture);
 }
 
-/// A worktree that switches to another branch while the editor is open fails the commit the way native Git does, with nothing
-///  changed on either branch, and the typed message is kept in a file: the commit is never built again on the branch it
+/// A worktree that switches to another branch while the editor is open fails the commit the way native Git does,
+/// with nothing
+///  changed on either branch,
+/// and the typed message is kept in a file:
+/// the commit is never built again on the branch it
 ///  switched to.
 #[test]
 fn a_switch_to_another_branch_while_the_editor_is_open_fails_the_commit_and_keeps_the_message() {

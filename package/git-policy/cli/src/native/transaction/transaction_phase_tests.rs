@@ -3,7 +3,8 @@
 use super::*;
 use crate::test_support::{fixture, remove};
 
-/// The phases are named in the order a command reaches them, and none of the retired landing's phases is among them.
+/// The phases are named in the order a command reaches them,
+/// and none of the retired landing's phases is among them.
 #[test]
 fn phases_are_named_in_transaction_order() {
     let names: Vec<&str> = TRANSACTION_TEST_PHASES.iter().map(|phase| { return phase.name(); }).collect();
@@ -39,15 +40,20 @@ fn kill_and_pause_with_absolute_directory_parse() {
     assert_eq!(pause_signal.action, PhaseAction::Pause);
 }
 
-/// An empty directory after the action is no directory, as the incumbent's parser reads it.
+/// An empty directory after the action is no directory,
+/// as the incumbent's parser reads it.
 #[test]
 fn kill_with_empty_directory_is_no_directory() {
     let signal = parse_phase_signal("merge-applied:kill:").expect("accepted by the incumbent");
     assert_eq!(signal.directory, None);
 }
 
-/// Every malformed value is refused: unknown phase, unknown action, pause without directory,
-/// relative directory, missing phase.
+/// Every malformed value is refused:
+/// unknown phase,
+/// unknown action,
+/// pause without directory,
+/// relative directory,
+/// missing phase.
 #[test]
 fn malformed_values_are_refused() {
     for value in [
@@ -65,7 +71,8 @@ fn malformed_values_are_refused() {
     }
 }
 
-/// The refusal names the variable, the JSON-quoted value and the accepted forms.
+/// The refusal names the variable,
+/// the JSON-quoted value and the accepted forms.
 #[test]
 fn refusal_message_names_the_value_and_the_forms() {
     let error = parse_phase_signal("bogus:kill").expect_err("unknown phase");
@@ -85,7 +92,8 @@ fn absent_variable_reaches_silently() {
     remove(&root);
 }
 
-/// A marker for another phase writes nothing, but a malformed marker fails at every phase.
+/// A marker for another phase writes nothing,
+/// but a malformed marker fails at every phase.
 #[test]
 fn other_phases_are_ignored_and_malformed_markers_fail_everywhere() {
     let root: PathBuf = fixture("phase-other");
@@ -109,7 +117,8 @@ fn reach_bounded(value: String, phase: Phase, occurrence: Option<u64>) -> Result
         .expect("the phase was reached instead of waiting for ever");
 }
 
-/// A pause writes the reached marker with the process ID, then waits for the release file:
+/// A pause writes the reached marker with the process ID,
+/// then waits for the release file:
 ///  it does not return before the file exists.
 #[test]
 fn pause_waits_for_the_release_file() {
@@ -134,8 +143,10 @@ fn pause_waits_for_the_release_file() {
     remove(&root);
 }
 
-/// A pause whose directory is gone has nobody left to release it, so it ends with an error instead of waiting for ever.
-///  The directory is removed once the reached marker shows the pause is waiting, so no timing is involved.
+/// A pause whose directory is gone has nobody left to release it,
+/// so it ends with an error instead of waiting for ever.
+///  The directory is removed once the reached marker shows the pause is waiting,
+/// so no timing is involved.
 #[test]
 fn a_pause_ends_with_an_error_when_its_directory_is_gone() {
     let root: PathBuf = fixture("phase-pause-orphaned");
@@ -165,7 +176,8 @@ fn repeatable_phase_numbers_its_files() {
     remove(&root);
 }
 
-/// Killing the process at a marker ends it with SIGKILL, after its reached marker is written.
+/// Killing the process at a marker ends it with SIGKILL,
+/// after its reached marker is written.
 /// The child is this test binary running the ignored helper below.
 #[cfg(unix)]
 #[test]
@@ -183,7 +195,8 @@ fn kill_marker_sigkills_the_process_after_writing_its_marker() {
     remove(&root);
 }
 
-/// Helper run only by the kill control above, in its own process.
+/// Helper run only by the kill control above,
+/// in its own process.
 #[test]
 #[ignore = "child process of kill_marker_sigkills_the_process_after_writing_its_marker"]
 fn child_reaches_service_staged() {
@@ -191,7 +204,8 @@ fn child_reaches_service_staged() {
     panic!("the kill marker did not end the process");
 }
 
-/// A pause that nothing releases ends with an error at its patience, though its directory still exists.
+/// A pause that nothing releases ends with an error at its patience,
+/// though its directory still exists.
 #[test]
 fn a_pause_nothing_releases_ends_at_its_patience() {
     let root: PathBuf = fixture("phase-patience");

@@ -1,8 +1,13 @@
-//! What: Read the publishable package names from the generated registry configuration
+//! What:
+//! Read the publishable package names from the generated registry configuration
 //!       (`package/config/pnpr/config.yaml`).
-//! Why: Only published packages receive a dependent bump. The generator writes each name as
-//!      a single-quoted YAML list item on its own line under `packages:`, so a line scan
-//!      reads exactly what it wrote, as the incumbent does (`publishable-names.ts:38-81`).
+//! Why:
+//! Only published packages receive a dependent bump.
+//! The generator writes each name as
+//!      a single-quoted YAML list item on its own line under `packages:`,
+//! so a line scan
+//!      reads exactly what it wrote,
+//! as the incumbent does (`publishable-names.ts:38-81`).
 //!      Lines are trimmed with JavaScript's `String.prototype.trim` set of characters.
 //!
 //! In TS you'd write (pseudocode):
@@ -10,8 +15,10 @@
 //! // readPublishableNames(configText);
 //! ```
 
-/// What: The key line that opens the package list.
-/// Why:  The first line that trims to exactly this starts the list.
+/// What:
+/// The key line that opens the package list.
+/// Why:
+///  The first line that trims to exactly this starts the list.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -19,8 +26,11 @@
 /// ```
 const PACKAGES_KEY: &str = "packages:";
 
-/// What: The start of one single-quoted list item.
-/// Why:  An item is `- '<name>'`; the name is what lies between the quotes.
+/// What:
+/// The start of one single-quoted list item.
+/// Why:
+///  An item is `- '<name>'`;
+/// the name is what lies between the quotes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -28,10 +38,15 @@ const PACKAGES_KEY: &str = "packages:";
 /// ```
 const ITEM_PREFIX: &str = "- '";
 
-/// What: Whether a character is one `String.prototype.trim` removes: ECMAScript
-///       `WhiteSpace` and `LineTerminator`. `matches!` tests a value against patterns;
+/// What:
+/// Whether a character is one `String.prototype.trim` removes:
+/// ECMAScript
+///       `WhiteSpace` and `LineTerminator`.
+/// `matches!` tests a value against patterns;
 ///       `..=` is an inclusive range.
-/// Why:  Rust's `str::trim` differs: it keeps U+FEFF and removes U+0085.
+/// Why:
+///  Rust's `str::trim` differs:
+/// it keeps U+FEFF and removes U+0085.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -54,9 +69,12 @@ fn is_js_whitespace(character: char) -> bool {
     );
 }
 
-/// What: The list item's name, or nothing when the line is not an item.
+/// What:
+/// The list item's name,
+/// or nothing when the line is not an item.
 ///       `.strip_prefix`/`.strip_suffix` remove a known start or end.
-/// Why:  The first line that is not a non-empty quoted item ends the list.
+/// Why:
+///  The first line that is not a non-empty quoted item ends the list.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -71,10 +89,16 @@ fn item_name(trimmed: &str) -> Option<&str> {
     return Some(name);
 }
 
-/// What: The names in the `packages:` list, in configuration order; nothing when the list
-///       is absent. `.split('\n')` keeps a carriage return on each line, which the trim
+/// What:
+/// The names in the `packages:` list,
+/// in configuration order;
+/// nothing when the list
+///       is absent.
+/// `.split('\n')` keeps a carriage return on each line,
+/// which the trim
 ///       removes.
-/// Why:  The generator's output is the publish set.
+/// Why:
+///  The generator's output is the publish set.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -104,7 +128,8 @@ pub fn read_publishable_names(config_text: &str) -> Vec<String> {
     return names;
 }
 
-/// Publishable-name reading, including every case of the incumbent's unit tests.
+/// Publishable-name reading,
+/// including every case of the incumbent's unit tests.
 #[cfg(test)]
 #[path = "dependent_version_publishable_tests.rs"]
 mod tests;

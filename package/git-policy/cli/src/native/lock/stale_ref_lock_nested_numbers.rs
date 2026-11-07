@@ -1,11 +1,19 @@
 //! What:
 //!  Which processes of the table carry a given process number inside a PID namespace nested in the reader's.
 //! Why:
-//!  A pid file holds the number its writer had in the writer's own PID namespace; Git records no namespace. A reader in
-//!  the initial namespace sees every process of the machine, but a writer in a nested namespace is listed under a number
-//!  of the reader's namespace, and the number in the pid file is a different one. "No process has this number" therefore
+//!  A pid file holds the number its writer had in the writer's own PID namespace;
+//! Git records no namespace.
+//! A reader in
+//!  the initial namespace sees every process of the machine,
+//! but a writer in a nested namespace is listed under a number
+//!  of the reader's namespace,
+//! and the number in the pid file is a different one.
+//! "No process has this number" therefore
 //!  proves the writer gone only when no process of the table also has the number as its number inside a nested
-//!  namespace. The kernel lists every number a process has, outermost first, on the `NSpid` line of
+//!  namespace.
+//! The kernel lists every number a process has,
+//! outermost first,
+//! on the `NSpid` line of
 //!  `/proc/<pid>/status` (`proc_pid_status(5)`).
 //!
 //! In TS you'd write (pseudocode):
@@ -15,10 +23,14 @@
 
 use std::path::Path;
 
-/// The name of the line of `status` that lists a process's numbers, one per PID namespace, outermost first.
+/// The name of the line of `status` that lists a process's numbers,
+/// one per PID namespace,
+/// outermost first.
 const NAMESPACE_PID_LINE: &str = "NSpid:";
 
-/// The numbers a process has in the namespaces it is in, outermost first, from the text of its `status` file.
+/// The numbers a process has in the namespaces it is in,
+/// outermost first,
+/// from the text of its `status` file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,8 +55,11 @@ fn numbers_of(status: &str) -> Option<Vec<i64>> {
 /// What:
 ///  The processes of the table that have `number` as their number inside a namespace nested in the reader's.
 /// Why:
-///   Such a process may be the writer of a pid file that names `number`, whatever the reader's own table says about
-///  that number. An error means the table could not be read completely, so the question is open.
+///   Such a process may be the writer of a pid file that names `number`,
+/// whatever the reader's own table says about
+///  that number.
+/// An error means the table could not be read completely,
+/// so the question is open.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

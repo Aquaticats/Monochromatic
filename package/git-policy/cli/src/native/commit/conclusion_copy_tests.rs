@@ -4,7 +4,8 @@ use super::*;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use std::path::PathBuf;
 
-/// A bare shadow repository in the fixture, with the given ref backend.
+/// A bare shadow repository in the fixture,
+/// with the given ref backend.
 fn bare_shadow(root: &Path, name: &str, ref_format: &str) -> PathBuf {
     let shadow: PathBuf = root.join(name);
     let format_argument: String = format!("--ref-format={ref_format}");

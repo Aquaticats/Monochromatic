@@ -1,12 +1,21 @@
 //! What:
 //!  The commit service killed at each step of taking `index.lock` on a filesystem that makes neither a rename without replacing
-//!  nor a hard link (`link`, `linkat` and `renameat2` answer `EOPNOTSUPP` under `strace --inject`), and at each later instant of
+//!  nor a hard link (`link`,
+//! `linkat` and `renameat2` answer `EOPNOTSUPP` under `strace --inject`),
+//! and at each later instant of
 //!  a batch.
 //! Why:
-//!  There the service takes the lock as Git does, by exclusive creation and then the marker, so a kill between the two leaves a
-//!  lock without its marker, which plain Git leaves too. That lock is never removed unless its holder is proven gone: a wrapped
-//!  `git add` meets it as Git does and leaves it, and after the person removes it the next commit lands with nothing lost.
-//!  A kill at any other instant leaves a lock with the whole marker, which the next landing proves stale and removes.
+//!  There the service takes the lock as Git does,
+//! by exclusive creation and then the marker,
+//! so a kill between the two leaves a
+//!  lock without its marker,
+//! which plain Git leaves too.
+//! That lock is never removed unless its holder is proven gone:
+//! a wrapped
+//!  `git add` meets it as Git does and leaves it,
+//! and after the person removes it the next commit lands with nothing lost.
+//!  A kill at any other instant leaves a lock with the whole marker,
+//! which the next landing proves stale and removes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,18 +36,23 @@ use std::process::Output;
 /// The calls a filesystem that places no file whole refuses.
 const REFUSED_CALLS: &str = "link,linkat,renameat2";
 
-/// How long a commit is given to start its service and meet the lock before the control looks at the lock again: the service
-///  answers a held lock at once by waiting for it, so a removal by the service would have happened within this time.
+/// How long a commit is given to start its service and meet the lock before the control looks at the lock again:
+/// the service
+///  answers a held lock at once by waiting for it,
+/// so a removal by the service would have happened within this time.
 const SERVICE_MEETS_THE_LOCK: std::time::Duration = std::time::Duration::from_secs(3);
 
-/// The instants a kill is tested at: the two steps of taking the lock by exclusive creation, then every point of a batch.
+/// The instants a kill is tested at:
+/// the two steps of taking the lock by exclusive creation,
+/// then every point of a batch.
 fn kill_points() -> Vec<&'static str> {
     let mut points: Vec<&'static str> = vec![LOCK_CREATED_UNMARKED, LOCK_MARKED_UNSYNCED];
     points.extend(FAULT_POINTS);
     return points;
 }
 
-/// One commit through a service that is killed at `point` while the filesystem refuses the calls, then the recovery the person
+/// One commit through a service that is killed at `point` while the filesystem refuses the calls,
+/// then the recovery the person
 ///  or the next landing makes.
 fn kill_case(point: &str) -> Result<(), String> {
     let label: String = format!("lockless-kill-{point}");
@@ -97,8 +111,10 @@ fn kill_case(point: &str) -> Result<(), String> {
     return verdict;
 }
 
-/// The service killed holding or taking the lock on such a filesystem leaves a repository that recovers: a lock without its marker
-/// stays until the person removes it and then the commit lands; a lock with its whole marker is removed by the next landing.
+/// The service killed holding or taking the lock on such a filesystem leaves a repository that recovers:
+/// a lock without its marker
+/// stays until the person removes it and then the commit lands;
+/// a lock with its whole marker is removed by the next landing.
 #[test]
 fn a_service_killed_at_each_step_of_taking_the_lock_without_links_leaves_a_recoverable_repository() {
     if !strace_available() {

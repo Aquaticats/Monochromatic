@@ -1,7 +1,10 @@
 //! Binary-level controls for the environment every push-related Git child receives:
-//!  the coordination queries, the auto-push after a landed commit, and the manual-push probe.
+//!  the coordination queries,
+//! the auto-push after a landed commit,
+//! and the manual-push probe.
 //! Every control runs the built executable on a disposable repository whose `origin` is an `ext::` transport
-//!  that runs a recording shim in the Git child's environment, then forwards to a local bare repository.
+//!  that runs a recording shim in the Git child's environment,
+//! then forwards to a local bare repository.
 
 use super::support::{
     Fixture, Observed, REAL_GIT, bounded_for, executable, fixture, git, observe, remove, repository, stderr_of,
@@ -11,19 +14,24 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// The bound of one wrapped command under host load, in seconds.
+/// The bound of one wrapped command under host load,
+/// in seconds.
 const PUSH_BOUND_SECONDS: &str = "120";
 
-/// The variable only the control sets in the wrapper's environment, so only inheritance can deliver it.
+/// The variable only the control sets in the wrapper's environment,
+/// so only inheritance can deliver it.
 const MARKER_NAME: &str = "CLI_GIT_PUSH_ENVIRONMENT_MARKER";
 
 /// The marker's value.
 const MARKER_VALUE: &str = "carried-by-the-invocation";
 
-/// The per-user scratch directory relative to `HOME`, where the manual-push probe makes its private directory.
+/// The per-user scratch directory relative to `HOME`,
+/// where the manual-push probe makes its private directory.
 const SCRATCH_RELATIVE: &str = ".local/state/monochromatic-git-policy-cli/scratch";
 
-/// One repository, its bare origin, and the shim's record.
+/// One repository,
+/// its bare origin,
+/// and the shim's record.
 struct PushWorld {
     /// The working repository.
     repo: PathBuf,
@@ -38,18 +46,26 @@ struct PushWorld {
 struct Start {
     /// `git-upload-pack` or `git-receive-pack`.
     service: String,
-    /// The marker variable's value, or `unset`.
+    /// The marker variable's value,
+    /// or `unset`.
     marker: String,
-    /// `HOME`, or `unset`.
+    /// `HOME`,
+    /// or `unset`.
     home: String,
-    /// `PATH`, or `unset`.
+    /// `PATH`,
+    /// or `unset`.
     path: String,
-    /// The entry names in the invocation's per-user scratch directory at the moment of the start, comma-terminated.
+    /// The entry names in the invocation's per-user scratch directory at the moment of the start,
+    /// comma-terminated.
     scratch: String,
 }
 
-/// The shim: records the child's environment, refuses without the marker, then serves the bare repository.
-///  Absolute paths only, because the defect under test leaves the child without `PATH`.
+/// The shim:
+/// records the child's environment,
+/// refuses without the marker,
+/// then serves the bare repository.
+///  Absolute paths only,
+/// because the defect under test leaves the child without `PATH`.
 fn shim_source(record: &Path) -> String {
     return format!(
         "#!/bin/sh\n\
@@ -63,7 +79,9 @@ fn shim_source(record: &Path) -> String {
     );
 }
 
-/// A repository with one committed file, an `origin` that goes through the shim, and an edit to that file.
+/// A repository with one committed file,
+/// an `origin` that goes through the shim,
+/// and an edit to that file.
 fn push_world(fixture: &Fixture) -> PushWorld {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     let bare: PathBuf = fixture.root.join("origin.git");
@@ -97,7 +115,8 @@ fn wrapped_with_marker(fixture: &Fixture, directory: &Path, arguments: &[&str]) 
     return command;
 }
 
-/// Every transport start the shim recorded, in order.
+/// Every transport start the shim recorded,
+/// in order.
 fn starts(world: &PushWorld) -> Vec<Start> {
     let text: String = std::fs::read_to_string(world.record.as_path()).unwrap_or_default();
     return text
@@ -121,7 +140,8 @@ fn starts(world: &PushWorld) -> Vec<Start> {
         .collect();
 }
 
-/// What the child of a push-related Git must have: the invocation's own variables and the wrapper's additions.
+/// What the child of a push-related Git must have:
+/// the invocation's own variables and the wrapper's additions.
 fn assert_inherited(fixture: &Fixture, started: &[Start]) {
     let expected_path: String = wrapper_first_path(fixture).to_string_lossy().into_owned();
     let expected_home: String = fixture.root.join("home").to_string_lossy().into_owned();
@@ -156,8 +176,11 @@ fn an_auto_push_after_a_landed_commit_runs_git_with_the_invocation_environment()
     remove(&fixture);
 }
 
-/// The auto-push after a landed commit needs no system temporary directory: with `TMPDIR` naming a path that does not
-/// exist the commit lands, the push and its queries still run, and the per-user scratch directory is left empty.
+/// The auto-push after a landed commit needs no system temporary directory:
+/// with `TMPDIR` naming a path that does not
+/// exist the commit lands,
+/// the push and its queries still run,
+/// and the per-user scratch directory is left empty.
 #[test]
 fn an_auto_push_needs_no_system_temporary_directory() {
     let fixture: Fixture = fixture("push-env-auto-tmpdir");
@@ -182,7 +205,10 @@ fn an_auto_push_needs_no_system_temporary_directory() {
     remove(&fixture);
 }
 
-/// A manual push probes its updates, confirms them against the remote, and pushes, all with the invocation's environment.
+/// A manual push probes its updates,
+/// confirms them against the remote,
+/// and pushes,
+/// all with the invocation's environment.
 #[test]
 fn a_manual_push_probes_and_pushes_with_the_invocation_environment() {
     let fixture: Fixture = fixture("push-env-manual");
@@ -208,8 +234,11 @@ fn a_manual_push_probes_and_pushes_with_the_invocation_environment() {
     remove(&fixture);
 }
 
-/// A manual push needs no system temporary directory: with `TMPDIR` naming a path that does not exist it still
-/// pushes, and the probe is a dry-run report from Git, so it creates no private directory at all while it is in flight.
+/// A manual push needs no system temporary directory:
+/// with `TMPDIR` naming a path that does not exist it still
+/// pushes,
+/// and the probe is a dry-run report from Git,
+/// so it creates no private directory at all while it is in flight.
 #[test]
 fn a_manual_push_needs_no_system_temporary_directory_and_its_probe_creates_no_scratch() {
     let fixture: Fixture = fixture("push-scratch-location");
@@ -246,7 +275,8 @@ fn git_head(fixture: &Fixture, repo: &Path) -> String {
     return git_head_of(fixture, repo, "HEAD");
 }
 
-/// The object a reference names in a repository, or an empty text when it names none.
+/// The object a reference names in a repository,
+/// or an empty text when it names none.
 fn git_head_of(fixture: &Fixture, repo: &Path, reference: &str) -> String {
     let output = super::support::direct(fixture)
         .current_dir(repo)
@@ -256,8 +286,10 @@ fn git_head_of(fixture: &Fixture, repo: &Path, reference: &str) -> String {
     return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
 }
 
-/// A transport that never answers must not hold the commit: the auto-push is stopped at its deadline,
-///  the commit stays saved with the wrapper's own exit status, and the stop is named on the terminal.
+/// A transport that never answers must not hold the commit:
+/// the auto-push is stopped at its deadline,
+///  the commit stays saved with the wrapper's own exit status,
+/// and the stop is named on the terminal.
 #[test]
 fn a_stalled_auto_push_is_stopped_and_the_commit_stays_saved() {
     let fixture: Fixture = fixture("push-stalled");

@@ -3,7 +3,9 @@
 use super::*;
 use std::process::Command;
 
-/// What a child writes to both streams is read back whole, in order, and reading twice gives the same bytes.
+/// What a child writes to both streams is read back whole,
+/// in order,
+/// and reading twice gives the same bytes.
 #[test]
 fn what_a_child_writes_to_both_streams_is_read_back_whole() {
     let capture: Capture = Capture::new().expect("the files");
@@ -44,9 +46,13 @@ fn output_past_the_limit_keeps_the_tail_and_says_what_was_left_out() {
     assert!(shown.notes[0].contains(left_out.as_str()) && shown.notes[0].contains("the last 100 bytes"), "{}", shown.notes[0]);
 }
 
-/// What is appended after the snapshot began is not chased (sol-1 round 3: the earlier control passed under a reader that reads to the
-/// end of the file). The control appends to the file after every chunk the reader takes, so a reader that follows the end never gets
-/// there; the snapshot has the length it found and the control has a count to stop a chasing reader with a failure.
+/// What is appended after the snapshot began is not chased (sol-1 round 3:
+/// the earlier control passed under a reader that reads to the
+/// end of the file).
+/// The control appends to the file after every chunk the reader takes,
+/// so a reader that follows the end never gets
+/// there;
+/// the snapshot has the length it found and the control has a count to stop a chasing reader with a failure.
 #[test]
 fn the_snapshot_reads_the_length_it_found_and_no_more() {
     let capture: Capture = Capture::new().expect("the files");
@@ -68,7 +74,9 @@ fn the_snapshot_reads_the_length_it_found_and_no_more() {
     assert!(notes.is_empty(), "{notes:?}");
 }
 
-/// A read that fails is not the end of the output: the note says so, and the bytes read so far are shown as what they are.
+/// A read that fails is not the end of the output:
+/// the note says so,
+/// and the bytes read so far are shown as what they are.
 #[test]
 fn a_read_that_fails_is_reported_and_not_taken_for_the_end() {
     let directory: std::path::PathBuf = crate::test_support::fixture("output-capture-unreadable");
