@@ -15,7 +15,7 @@
 
 use super::super::commit::remove_settled;
 use super::super::fault::{COMMIT_ARGUMENTS, Effect, Injection, When, staged_repository};
-use super::super::fault_run::{end_the_pressure, in_batches, run_unsettled, run_watched, unbounded_wrapper};
+use super::super::fault_run::{end_the_pressure, in_batches, run_unsettled, run_watched, spawn_watched, unbounded_wrapper};
 use super::super::strace::strace_available;
 use super::super::support::{Fixture, ServiceLaunch, fixture};
 use super::{recovers_after_service_death, took_effect, tracer};
@@ -26,6 +26,10 @@ use std::process::Output;
 
 /// The calls a filesystem that places no file whole refuses.
 const REFUSED_CALLS: &str = "link,linkat,renameat2";
+
+/// How long a commit is given to start its service and meet the lock before the control looks at the lock again: the service
+///  answers a held lock at once by waiting for it, so a removal by the service would have happened within this time.
+const SERVICE_MEETS_THE_LOCK: std::time::Duration = std::time::Duration::from_secs(3);
 
 /// The instants a kill is tested at: the two steps of taking the lock by exclusive creation, then every point of a batch.
 fn kill_points() -> Vec<&'static str> {
@@ -69,6 +73,20 @@ fn kill_case(point: &str) -> Result<(), String> {
         if !matches!(std::fs::read(&lock), Ok(still) if still.is_empty()) {
             return Err(format!("{label}: nothing but the person may remove a lock without its marker"));
         }
+        // A commit through a new service meets the lock too (the service settles the open batch and waits for the lock); it
+        //  removes nothing, whatever the lock is without.
+        let commit = spawn_watched(&fixture, &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS));
+        std::thread::sleep(SERVICE_MEETS_THE_LOCK);
+        let after_the_service: std::io::Result<Vec<u8>> = std::fs::read(&lock);
+        if !matches!(&after_the_service, Ok(still) if still.is_empty()) {
+            return Err(format!("{label}: a service must leave a lock without its marker where it is, found {after_the_service:?}"));
+        }
+        // SAFETY: `kill` takes no pointers; the group is the commit's own, led by the wrapper that `spawn_watched` started.
+        unsafe {
+            libc::kill(-commit.id(), libc::SIGKILL);
+        }
+        let _ended = commit.finish_after_stragglers();
+        end_the_pressure(&fixture);
         // The person's fix, as Git's own message says it.
         std::fs::remove_file(&lock).map_err(|error| { return format!("{label}: {error}"); })?;
         // The file the refused `git add` left untracked is the control's own, not the person's.

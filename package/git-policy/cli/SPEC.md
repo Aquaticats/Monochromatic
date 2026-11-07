@@ -3697,6 +3697,9 @@ The claim chain cannot be used for it either, because a claim must be placed who
 The claim chain stays on the whole-file placement alone (`place_marked`); only the index lock has the fallback (`place_lock`).
 The kill controls are `binary/binary_fault_trace_lock_without_links_tests.rs`
 (kills at `lock-created-unmarked`, `lock-marked-unsynced` and each batch point under `strace --inject` of `EOPNOTSUPP` on `link`, `linkat` and `renameat2`);
+the kill controls recover on a working filesystem after the kill (the injection ends with the faulted service),
+so the `Unguarded` case above is covered by the unit control `a_stale_marked_lock_stays_where_no_claim_can_be_placed` and not end to end;
+a commit through a new service during the kill control also proves the service removes no lock without its marker;
 the end-to-end control with real Git as the control is `a_filesystem_with_neither_no_replace_rename_nor_links_does_not_stop_a_commit`.
 A process that cannot read its own birth identity writes no marker and takes no lock,
 for the same reason:
