@@ -1,11 +1,9 @@
 # One release of each published crate: execution plan for the 2026-11 batch
 
 Status:
-plan only;
-nothing in it has been dispatched,
-published,
-yanked,
-tagged or pushed.
+the batch is running (first publish 2026-11-07T11:43:35Z);
+the release record in the runbook lists what was dispatched and published (nothing is yanked).
+Written before that as a plan only.
 Written 2026-11-07T04:36:34-05:00 and checked against `main` at `7956f6c4c9` (the checks ran while `main` moved from
 `17eff86b35` through `d62451d591`;
 a diff of every `Cargo.toml`,
@@ -1142,6 +1140,21 @@ and the seven locked tools (`monochromatic-lint`,
 `monochromatic-file-enforcer-cli`,
 `monochromatic-nested-wayland-session`) once the lock no longer names their old
 versions.
+
+### Release record
+
+One entry per crate, as run through `crate-release.yml`;
+the dry run of `monochromatic-nested-wayland-session` 0.6.2 to 0.6.3
+(`https://github.com/Aquaticats/Monochromatic/actions/runs/42368894213`, `success`, 2026-11-07)
+proved the Wayland library step.
+
+- `monochromatic-jsonc-edit` 0.1.2 to 0.1.3:
+  release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369224009`,
+  bump commit `33d20fa630`,
+  publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42369300426`,
+  crates.io `2026-11-07T11:43:35.824945Z`, `yanked` false.
+  The first dispatch pushed without a refusal.
+  `release:wait` ended with the expected library line `PUBLISH CHECK FAILED: missing release assets`.
 
 ## Evidence log
 
