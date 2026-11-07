@@ -191,6 +191,7 @@ pub enum PeakKind {
     Sampled,
 }
 
+/// The reads of a decision that callers need without matching its three tags.
 impl Decision {
     /// What:
     ///      `pub fn peak_kind(&self) -> PeakKind`.
@@ -217,6 +218,7 @@ impl Decision {
     }
 }
 
+/// The unit tests of the decision tags and the peak kind each one reports.
 #[cfg(test)]
 #[path = "decision_tests.rs"]
 mod tests;
