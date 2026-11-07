@@ -257,7 +257,8 @@ fn an_unheld_lock_has_no_holders() {
 }
 
 /// Only ASCII digit names are process identifiers,
-///  so the proc scan skips `self`, empty names and names with other bytes.
+///  so the proc scan skips `self`,
+/// empty names and names with other bytes.
 #[test]
 #[cfg(unix)]
 fn only_digit_names_are_process_identifiers() {

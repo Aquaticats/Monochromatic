@@ -1,9 +1,17 @@
 //! What:
 //!  Controls for the clearing of reference locks that a killed Git left behind.
 //! Why:
-//!  The clearing deletes files in a repository, so each condition that lets a lock go is pinned on both sides: the lock of a
-//!  Git killed with `SIGKILL` goes, and the lock of a Git that runs, of a process that holds it open, of a holder that has
-//!  not been shown gone, and a lock that is too new, stays. The locks come from real Git in disposable repositories.
+//!  The clearing deletes files in a repository,
+//! so each condition that lets a lock go is pinned on both sides:
+//! the lock of a
+//!  Git killed with `SIGKILL` goes,
+//! and the lock of a Git that runs,
+//! of a process that holds it open,
+//! of a holder that has
+//!  not been shown gone,
+//! and a lock that is too new,
+//! stays.
+//! The locks come from real Git in disposable repositories.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,12 +31,15 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, SystemTime};
 
-/// A judge that sees the processes of this kernel completely, takes any lock as old enough, and trusts local disks.
+/// A judge that sees the processes of this kernel completely,
+/// takes any lock as old enough,
+/// and trusts local disks.
 fn judge() -> Judge {
     return Judge { margin: Duration::ZERO, pid_view_complete: true, boot: None, ..Judge::here() };
 }
 
-/// A process number that no running process has: one that has just ended.
+/// A process number that no running process has:
+/// one that has just ended.
 fn ended_pid() -> i64 {
     let mut child: Child = Command::new("true").spawn().expect("start true");
     let pid: i64 = i64::from(child.id());
@@ -41,7 +52,9 @@ fn sleeper() -> Helper {
     return Helper(Command::new("sleep").arg("120").stdin(Stdio::null()).spawn().expect("start sleep"));
 }
 
-/// Write an empty lock and, when `pid` is given, the pid file Git would have written beside it after the lock.
+/// Write an empty lock and,
+/// when `pid` is given,
+/// the pid file Git would have written beside it after the lock.
 fn plant_lock(stage: &Stage, reference: &str, pid: Option<i64>) {
     killed::write_file(stage.lock_of(reference).as_path(), "");
     if let Some(number) = pid {
@@ -53,7 +66,8 @@ fn plant_lock(stage: &Stage, reference: &str, pid: Option<i64>) {
 /// The reference the planted locks belong to.
 const PLANTED_REF: &str = "refs/heads/planted";
 
-/// Every file below the Git directory whose name ends in `.lock` or is the packed staging file, sorted.
+/// Every file below the Git directory whose name ends in `.lock` or is the packed staging file,
+/// sorted.
 fn leftovers(stage: &Stage) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![stage.git_dir.clone()];
@@ -71,19 +85,24 @@ fn leftovers(stage: &Stage) -> Vec<PathBuf> {
     return found;
 }
 
-/// The verdict a pass gave one lock, wherever it landed.
+/// The verdict a pass gave one lock,
+/// wherever it landed.
 fn verdict_of(outcome: &Outcome, lock: &Path) -> Option<Verdict> {
     return outcome.cleared.iter().chain(outcome.left.iter()).find(|found| { return found.lock == lock; }).map(|found| { return found.verdict.clone(); });
 }
 
-/// The fetch that failed in practice runs again, with the hook gone.
+/// The fetch that failed in practice runs again,
+/// with the hook gone.
 fn fetch_works(stage: &Stage) {
     let _removed = std::fs::remove_file(stage.git_dir.join("hooks").join("reference-transaction"));
     let fetched = git_output(stage.repo.as_path(), &["fetch", "--prune", "--quiet", "origin"]);
     assert!(fetched.status.success(), "the following fetch failed: {}", String::from_utf8_lossy(&fetched.stderr));
 }
 
-/// Locks that a fetch killed with `SIGKILL` left, with the pid files that name it, go with their staging file; the next fetch works.
+/// Locks that a fetch killed with `SIGKILL` left,
+/// with the pid files that name it,
+/// go with their staging file;
+/// the next fetch works.
 #[test]
 fn locks_left_by_a_killed_fetch_are_cleared_and_the_next_fetch_works() {
     let stage: Stage = killed::stage("stale-refs-killed-fetch", true);
@@ -99,7 +118,9 @@ fn locks_left_by_a_killed_fetch_are_cleared_and_the_next_fetch_works() {
     stage.finish();
 }
 
-/// Without `core.lockfilePid` nothing names the holder: the locks stay and are reported, never removed.
+/// Without `core.lockfilePid` nothing names the holder:
+/// the locks stay and are reported,
+/// never removed.
 #[test]
 fn locks_of_a_killed_fetch_with_no_pid_file_stay() {
     let stage: Stage = killed::stage("stale-refs-no-pid-file", false);
@@ -113,7 +134,8 @@ fn locks_of_a_killed_fetch_with_no_pid_file_stay() {
     stage.finish();
 }
 
-/// A Git that runs holds locks with no descriptor open; a pid file that names it keeps every one of them.
+/// A Git that runs holds locks with no descriptor open;
+/// a pid file that names it keeps every one of them.
 #[test]
 fn locks_of_a_running_git_stay_though_no_descriptor_holds_them() {
     let stage: Stage = killed::stage("stale-refs-running", true);
@@ -141,7 +163,8 @@ fn locks_of_a_running_git_with_no_pid_file_stay() {
     stage.finish();
 }
 
-/// A process that has the lock open is its holder, whatever the pid file says.
+/// A process that has the lock open is its holder,
+/// whatever the pid file says.
 #[test]
 fn a_lock_that_a_process_holds_open_stays_though_its_pid_file_names_a_gone_process() {
     let stage: Stage = killed::stage("stale-refs-open", true);
@@ -163,7 +186,8 @@ fn a_lock_that_a_process_holds_open_stays_though_its_pid_file_names_a_gone_proce
     stage.finish();
 }
 
-/// A lock younger than the margin is not judged: a live Git may have just made it.
+/// A lock younger than the margin is not judged:
+/// a live Git may have just made it.
 #[test]
 fn a_lock_inside_the_margin_stays_and_goes_once_it_is_older() {
     let stage: Stage = killed::stage("stale-refs-margin", true);
@@ -179,7 +203,8 @@ fn a_lock_inside_the_margin_stays_and_goes_once_it_is_older() {
     stage.finish();
 }
 
-/// A pid file born before the lock was written by an earlier holder; it does not name this lock's holder.
+/// A pid file born before the lock was written by an earlier holder;
+/// it does not name this lock's holder.
 #[test]
 fn a_pid_file_born_before_the_lock_is_not_evidence() {
     let stage: Stage = killed::stage("stale-refs-older-pid-file", true);
@@ -193,7 +218,10 @@ fn a_pid_file_born_before_the_lock_is_not_evidence() {
     stage.finish();
 }
 
-/// A number that a program other than Git now has, having started after the lock was made, is not the holder, which ended.
+/// A number that a program other than Git now has,
+/// having started after the lock was made,
+/// is not the holder,
+/// which ended.
 #[test]
 fn a_process_number_now_held_by_another_program_proves_the_holder_gone() {
     let stage: Stage = killed::stage("stale-refs-reused", true);
@@ -209,9 +237,16 @@ fn a_process_number_now_held_by_another_program_proves_the_holder_gone() {
     stage.finish();
 }
 
-/// The wrapper's one executable is also the commit service, and a process of that name is not Git: a number it now holds, with
-///  a start after the lock was made, is a reused number like any other program's. The service's former name, a different file,
-///  was not Git's either, so merging the two executables changes no verdict.
+/// The wrapper's one executable is also the commit service,
+/// and a process of that name is not Git:
+/// a number it now holds,
+/// with
+///  a start after the lock was made,
+/// is a reused number like any other program's.
+/// The service's former name,
+/// a different file,
+///  was not Git's either,
+/// so merging the two executables changes no verdict.
 #[test]
 fn a_process_named_like_the_one_executable_is_not_git() {
     // The executable's current name and the name an older install gave it: neither starts with Git's.
@@ -239,7 +274,8 @@ fn a_process_named_like_this_program_is_not_git(program: &str) {
     stage.finish();
 }
 
-/// A running program that is not named Git but started before the lock was made may be a Git under another name: it is
+/// A running program that is not named Git but started before the lock was made may be a Git under another name:
+/// it is
 /// taken for the holder.
 #[test]
 fn a_process_that_started_before_the_lock_is_the_holder_whatever_its_name() {
@@ -269,8 +305,11 @@ fn a_running_git_named_by_the_pid_file_is_the_holder() {
     stage.finish();
 }
 
-/// A lock whose times are earlier than the boot is no proof of a gone holder, whichever way the times fell: a correction of the
-/// clock makes a live holder's lock look the same. The notice still says what the times suggest.
+/// A lock whose times are earlier than the boot is no proof of a gone holder,
+/// whichever way the times fell:
+/// a correction of the
+/// clock makes a live holder's lock look the same.
+/// The notice still says what the times suggest.
 #[test]
 fn a_lock_older_than_the_boot_is_left_and_said_to_be_unproven() {
     let stage: Stage = killed::stage("stale-refs-boot", false);
@@ -288,7 +327,8 @@ fn a_lock_older_than_the_boot_is_left_and_said_to_be_unproven() {
     stage.finish();
 }
 
-/// A running Git named by a pid file keeps its lock, whatever the boot time says.
+/// A running Git named by a pid file keeps its lock,
+/// whatever the boot time says.
 #[test]
 fn the_boot_time_does_not_override_a_pid_file_that_names_a_running_git() {
     let stage: Stage = killed::stage("stale-refs-boot-vs-pid", true);
@@ -325,7 +365,8 @@ fn a_file_system_off_the_local_list_proves_nothing() {
     stage.finish();
 }
 
-/// A process table that cannot be listed shows no holder, which is not the same as none.
+/// A process table that cannot be listed shows no holder,
+/// which is not the same as none.
 #[test]
 fn an_unreadable_process_table_proves_nothing() {
     let stage: Stage = killed::stage("stale-refs-no-proc", true);
@@ -337,7 +378,10 @@ fn an_unreadable_process_table_proves_nothing() {
     stage.finish();
 }
 
-/// Locks of other protocols, and pid files alone, are never touched, whatever else is proven.
+/// Locks of other protocols,
+/// and pid files alone,
+/// are never touched,
+/// whatever else is proven.
 #[test]
 fn locks_of_other_protocols_are_never_candidates() {
     let stage: Stage = killed::stage("stale-refs-other-locks", false);
@@ -375,7 +419,8 @@ fn a_reference_with_shell_and_path_characters_is_cleared_literally() {
     stage.finish();
 }
 
-/// A symbolic link is never followed and never removed, whether it stands for a directory or for a lock.
+/// A symbolic link is never followed and never removed,
+/// whether it stands for a directory or for a lock.
 #[test]
 fn symbolic_links_are_neither_followed_nor_removed() {
     let stage: Stage = killed::stage("stale-refs-symlinks", true);
@@ -393,7 +438,8 @@ fn symbolic_links_are_neither_followed_nor_removed() {
     remove(stage.root.as_path());
 }
 
-/// A lock that cannot be set aside is left and reported, not retried and not an error.
+/// A lock that cannot be set aside is left and reported,
+/// not retried and not an error.
 #[test]
 fn a_lock_in_a_directory_that_cannot_be_written_is_left() {
     use std::os::unix::fs::PermissionsExt as _;
@@ -409,7 +455,8 @@ fn a_lock_in_a_directory_that_cannot_be_written_is_left() {
     stage.finish();
 }
 
-/// A path that a live Git took again after the judgement is put back whole, never removed.
+/// A path that a live Git took again after the judgement is put back whole,
+/// never removed.
 #[test]
 fn a_lock_taken_again_after_the_judgement_is_put_back() {
     let stage: Stage = killed::stage("stale-refs-retaken", true);
@@ -426,7 +473,9 @@ fn a_lock_taken_again_after_the_judgement_is_put_back() {
     stage.finish();
 }
 
-/// A file that is not the judged one when it is taken is put back whole, nothing stays under the private name, and a lock
+/// A file that is not the judged one when it is taken is put back whole,
+/// nothing stays under the private name,
+/// and a lock
 /// that is there again by then is never written over.
 #[test]
 fn a_lock_that_differs_from_the_judged_one_when_taken_is_put_back_whole() {
@@ -451,7 +500,9 @@ fn a_lock_that_differs_from_the_judged_one_when_taken_is_put_back_whole() {
     stage.finish();
 }
 
-/// The judged file itself, taken the same way, is removed.
+/// The judged file itself,
+/// taken the same way,
+/// is removed.
 #[test]
 fn the_judged_lock_is_removed_when_taken() {
     let stage: Stage = killed::stage("stale-refs-taken-judged", true);
@@ -481,7 +532,8 @@ fn a_pid_file_that_a_live_writer_made_after_the_judgement_is_not_removed_with_th
     stage.finish();
 }
 
-/// The Git directories of a command come from its working directory, without starting Git.
+/// The Git directories of a command come from its working directory,
+/// without starting Git.
 #[test]
 fn the_roots_of_a_command_are_found_without_git() {
     let stage: Stage = killed::stage("stale-refs-roots", false);
@@ -491,7 +543,8 @@ fn the_roots_of_a_command_are_found_without_git() {
     stage.finish();
 }
 
-/// A process table with one process of this account whose descriptors cannot be read, as `systemd --user` is on a host.
+/// A process table with one process of this account whose descriptors cannot be read,
+/// as `systemd --user` is on a host.
 fn table_with_unreadable(stage: &Stage, command: &str) -> PathBuf {
     use std::os::unix::fs::PermissionsExt as _;
     let table: PathBuf = stage.root.join("proc");
@@ -522,7 +575,8 @@ fn an_unreadable_process_that_is_not_git_does_not_stop_a_proof() {
     stage.finish();
 }
 
-/// A Git process of this account that cannot be looked into may hold the lock, so nothing is proven.
+/// A Git process of this account that cannot be looked into may hold the lock,
+/// so nothing is proven.
 #[test]
 fn an_unreadable_git_process_stops_a_proof() {
     let stage: Stage = killed::stage("stale-refs-unreadable-git", true);
@@ -537,7 +591,9 @@ fn an_unreadable_git_process_stops_a_proof() {
     stage.finish();
 }
 
-/// The staging file of a killed packed-references update stays when its lock was removed by hand; it goes, and the next
+/// The staging file of a killed packed-references update stays when its lock was removed by hand;
+/// it goes,
+/// and the next
 /// packed-references update works.
 #[test]
 fn a_staging_file_with_no_lock_beside_it_is_cleared() {
@@ -555,7 +611,8 @@ fn a_staging_file_with_no_lock_beside_it_is_cleared() {
     stage.finish();
 }
 
-/// While the lock is there, the staging file is part of a live or killed update that the lock's own judgement decides.
+/// While the lock is there,
+/// the staging file is part of a live or killed update that the lock's own judgement decides.
 #[test]
 fn a_staging_file_with_its_lock_beside_it_is_left_to_the_lock() {
     let stage: Stage = killed::stage("stale-refs-live-staging", true);
@@ -568,7 +625,8 @@ fn a_staging_file_with_its_lock_beside_it_is_left_to_the_lock() {
     stage.finish();
 }
 
-/// A staging file younger than the margin may be a live update's whose lock a hand removed a moment ago: it stays.
+/// A staging file younger than the margin may be a live update's whose lock a hand removed a moment ago:
+/// it stays.
 #[test]
 fn a_staging_file_inside_the_margin_stays() {
     let stage: Stage = killed::stage("stale-refs-young-staging", true);
@@ -580,7 +638,9 @@ fn a_staging_file_inside_the_margin_stays() {
     stage.finish();
 }
 
-/// A Git program started after the lock was made, named by the pid file, is taken for the holder by its name alone.
+/// A Git program started after the lock was made,
+/// named by the pid file,
+/// is taken for the holder by its name alone.
 #[test]
 fn a_git_that_started_after_the_lock_is_still_taken_for_the_holder() {
     let stage: Stage = killed::stage("stale-refs-later-git", true);
@@ -596,7 +656,8 @@ fn a_git_that_started_after_the_lock_is_still_taken_for_the_holder() {
     stage.finish();
 }
 
-/// A staging file that a process has open is in use, though no lock is beside it.
+/// A staging file that a process has open is in use,
+/// though no lock is beside it.
 #[test]
 fn a_staging_file_that_a_process_holds_open_stays() {
     let stage: Stage = killed::stage("stale-refs-open-staging", true);
@@ -619,11 +680,15 @@ fn a_staging_file_that_a_process_holds_open_stays() {
 
 //region Evidence that is not proof (cross-vendor review of 2026-11-03T11:33:50-05:00, finding S-2)
 
-/// A day, far over the hour a clock correction is usually made of.
+/// A day,
+/// far over the hour a clock correction is usually made of.
 const A_DAY: Duration = Duration::from_secs(86_400);
 
-/// A forward correction of the wall clock during the boot moves `btime`, so a lock a live Git made before it looks older
-///  than the boot. The time of the file is then no evidence, and with nothing else the lock stays and is reported.
+/// A forward correction of the wall clock during the boot moves `btime`,
+/// so a lock a live Git made before it looks older
+///  than the boot.
+/// The time of the file is then no evidence,
+/// and with nothing else the lock stays and is reported.
 #[test]
 fn a_lock_that_a_clock_step_puts_before_the_boot_is_not_judged_stale() {
     let stage: Stage = killed::stage("stale-refs-clock-step", false);
@@ -636,7 +701,9 @@ fn a_lock_that_a_clock_step_puts_before_the_boot_is_not_judged_stale() {
     stage.finish();
 }
 
-/// A process table with one process of a nested PID namespace: the table numbers it `outer`, and it numbers itself `inner`.
+/// A process table with one process of a nested PID namespace:
+/// the table numbers it `outer`,
+/// and it numbers itself `inner`.
 fn table_with_nested_process(stage: &Stage, outer: i64, inner: i64) -> PathBuf {
     let table: PathBuf = stage.root.join("proc-nested");
     let process: PathBuf = table.join(outer.to_string());
@@ -646,8 +713,11 @@ fn table_with_nested_process(stage: &Stage, outer: i64, inner: i64) -> PathBuf {
     return table;
 }
 
-/// A pid file written inside a nested PID namespace holds the number that namespace gave the writer. No process of the
-///  initial namespace has that number, yet the writer runs, so the number being absent proves nothing.
+/// A pid file written inside a nested PID namespace holds the number that namespace gave the writer.
+/// No process of the
+///  initial namespace has that number,
+/// yet the writer runs,
+/// so the number being absent proves nothing.
 #[test]
 fn a_pid_number_that_a_nested_namespace_gave_its_writer_is_not_judged_gone() {
     let stage: Stage = killed::stage("stale-refs-nested-number", true);
@@ -662,7 +732,9 @@ fn a_pid_number_that_a_nested_namespace_gave_its_writer_is_not_judged_gone() {
     stage.finish();
 }
 
-/// The same, with a real nested namespace: a process whose number in its namespace was set high enough to be free on this host.
+/// The same,
+/// with a real nested namespace:
+/// a process whose number in its namespace was set high enough to be free on this host.
 #[test]
 #[cfg(target_os = "linux")]
 fn a_writer_in_a_real_nested_namespace_is_not_judged_gone() {
@@ -682,13 +754,16 @@ fn a_writer_in_a_real_nested_namespace_is_not_judged_gone() {
     stage.finish();
 }
 
-/// The number the next process of the nested namespace gets, set high so that this host has no process with it.
+/// The number the next process of the nested namespace gets,
+/// set high so that this host has no process with it.
 const FREE_LOCAL_NUMBER: i64 = 3_000_000;
 
-/// A process in a PID namespace of its own, and the number that namespace gave it.
+/// A process in a PID namespace of its own,
+/// and the number that namespace gave it.
 #[cfg(target_os = "linux")]
 struct NestedProcess {
-    /// The `unshare` process; its standard input is what keeps the namespace's init waiting.
+    /// The `unshare` process;
+    /// its standard input is what keeps the namespace's init waiting.
     child: Child,
     /// The number the namespace gave the sleeping process.
     local: i64,
@@ -696,7 +771,8 @@ struct NestedProcess {
 
 #[cfg(target_os = "linux")]
 impl NestedProcess {
-    /// Start `sleep` as process number `first + 1` of a new PID namespace; nothing when the host refuses the namespace.
+    /// Start `sleep` as process number `first + 1` of a new PID namespace;
+    /// nothing when the host refuses the namespace.
     fn start(first: i64) -> Option<Self> {
         use std::io::BufRead as _;
         let script: String = format!("echo {first} > /proc/sys/kernel/ns_last_pid; sleep 120 & echo $!; read _; kill $!");
@@ -715,7 +791,9 @@ impl NestedProcess {
     }
 }
 
-/// Whatever the control did, closing the input ends the namespace's init, which ends the sleeper with it.
+/// Whatever the control did,
+/// closing the input ends the namespace's init,
+/// which ends the sleeper with it.
 #[cfg(target_os = "linux")]
 impl Drop for NestedProcess {
     fn drop(&mut self) {
