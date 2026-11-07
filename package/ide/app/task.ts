@@ -12,7 +12,9 @@ export default {
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
 const { execFileSync } = await import('node:child_process')
-execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', 'localhost/monochromatic/ide', '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image: 'localhost/monochromatic/ide', containerfile: 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: ['localhost/monochromatic/terminal'], force: true })
 ` },
   },
   "image:release": {
@@ -21,7 +23,9 @@ execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--buil
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
 const { execFileSync } = await import('node:child_process')
-execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', 'localhost/monochromatic/ide-release', '--file', 'Containerfile.release', '.'], { stdio: 'inherit' })
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image: 'localhost/monochromatic/ide-release', containerfile: 'Containerfile.release', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: ['localhost/monochromatic/terminal-release'], force: true })
 ` },
   },
   "fetch": {
@@ -34,10 +38,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -70,10 +73,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -171,10 +173,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -242,10 +243,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -287,10 +287,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -352,10 +351,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -389,10 +387,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -478,10 +475,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -516,10 +512,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -553,10 +548,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -591,10 +585,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -643,10 +636,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -679,10 +671,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -715,10 +706,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -752,10 +742,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -789,10 +778,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -833,10 +821,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -873,10 +860,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -910,10 +896,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -947,10 +932,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -984,10 +968,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -1070,10 +1053,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -1106,10 +1088,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -1143,10 +1124,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -1179,10 +1159,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -1324,10 +1303,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -1398,10 +1376,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -1442,10 +1419,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -1479,10 +1455,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -1517,10 +1492,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -1554,10 +1528,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -1591,10 +1564,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -1628,10 +1600,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -1665,10 +1636,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -1748,10 +1718,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
@@ -1945,10 +1914,9 @@ console.error(containerLimits.summary)
 // IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
 const release = process.env.IDE_RELEASE === '1'
 const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
-const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
-if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim(), '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
-}
+// containerImageBuild builds the image when it is missing or was built from other build arguments than these (the digest rides on the image as a label and also covers the local images in baseImages), so an image never outlives the lock row it was built from; force builds regardless, boundingFlags limit the build without entering the digest.
+const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
+containerImageBuild({ image, containerfile: release ? 'Containerfile.release' : 'Containerfile', buildArguments: ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-tool-build-arguments.ts'), 'cargo-about'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()], boundingFlags: containerLimits.imageBuildArguments, baseImages: [release ? 'localhost/monochromatic/terminal-release' : 'localhost/monochromatic/terminal'] })
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
 // empty clippy.toml in the package directory on the host. Host clippy finds the file in an ancestor directory.
