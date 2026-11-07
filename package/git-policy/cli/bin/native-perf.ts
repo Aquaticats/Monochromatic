@@ -15,7 +15,6 @@
  */
 import {
   access,
-  appendFile,
   mkdir,
   writeFile,
 } from 'node:fs/promises';
@@ -31,7 +30,7 @@ import { enableSshSigning } from './native-perf-git.ts';
 import { makeRoot } from './native-perf-root.ts';
 import {
   makeFixture,
-  trackedTextFiles,
+  sampleEditsOf,
 } from './native-perf-shape.ts';
 import {
   assertServiceAnswers,
@@ -95,10 +94,7 @@ const { values } = parseArgs({
     // Drop each repository's pack, index and packed-refs pages from the page cache before every sample, on both sides.
     cold: { type: 'boolean' },
     // How many tracked text files every commit sample edits and commits by name (the size of the commit), default one.
-    files: {
-      type: 'string',
-      default: '1',
-    },
+    files: { type: 'string', },
     // Milliseconds to wait after each round, so the work a commit leaves running after its answer is over before the next one.
     pause: { type: 'string' },
   },
@@ -200,20 +196,6 @@ function fixture(name: string): Promise<string> {
 }
 
 /**
- The tracked file every commit sample edits: one of the thirty generated files, or the root `README.md` that the shaped
- fixtures track (`DPL` keeps one at the root of this repository).
- */
-const editedFile = values.shape === undefined ? 'file-0.txt' : 'README.md';
-
-/**
- How many tracked files each commit sample edits, validated as a positive integer.
- */
-const fileCount = Number(values.files);
-if ((!Number.isInteger(fileCount)) || (fileCount < 1)) {
-  throw new Error('--files must be a positive integer');
-}
-
-/**
  Fixture repository that the direct samples run in.
  */
 const directRepository = await fixture('direct-repo');
@@ -223,15 +205,13 @@ const directRepository = await fixture('direct-repo');
 const wrappedRepository = await fixture('wrapped-repo');
 
 /**
- The tracked files every commit sample edits: the one file of the default run, or the first `--files` tracked text files of
- the repository (the two fixtures are copies of each other, so the names hold in both).
+ The tracked files every commit sample edits: the one file of the default run, or the first `--files` tracked text files.
  */
-const editedFiles: readonly string[] = fileCount === 1
-  ? [editedFile]
-  : await trackedTextFiles({
-    directory: directRepository,
-    count: fileCount,
-  });
+const edits = await sampleEditsOf({
+  ...(values.files === undefined ? {} : { files: values.files, }),
+  shaped: values.shape !== undefined,
+  directory: directRepository,
+});
 
 /**
  Throwaway SSH signing key of this run, made in the scratch root; never the person's key.
@@ -352,27 +332,14 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
   })) {
     yield measure({
       name: wantedArm.name,
-      async prepare({
-        directory,
-        sample,
-      }) {
-        for (const name of editedFiles) {
-          await appendFile(
-            join(
-              directory,
-              name,
-            ),
-            `edit ${String(sample)} ${String(Math.random())}\n`,
-          );
-        }
-      },
+      prepare: edits.prepare,
       command({ sample }) {
         return [
           'commit',
           '--quiet',
           `--message=perf ${String(sample)}`,
           '--',
-          ...editedFiles,
+          ...edits.names,
         ];
       },
       kind: 'commit',

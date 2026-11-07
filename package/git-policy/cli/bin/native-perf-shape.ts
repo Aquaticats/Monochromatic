@@ -5,12 +5,11 @@
  repository with tens of thousands of tracked files, a multi-megabyte index and a pack of hundreds of thousands of objects,
  with the hooks and the refreshed index such a worktree has.
  */
-import { execFile } from 'node:child_process';
 import {
+  appendFile,
   copyFile,
   readdir,
 } from 'node:fs/promises';
-import { promisify } from 'node:util';
 import { join } from 'node:path';
 
 import {
@@ -276,64 +275,105 @@ export function makeFixture({
 }
 
 /**
- Runs a command without a shell and resolves with its standard output.
+ The files every commit sample edits and how it edits them: the repository-relative paths the commit of a sample names, and a
+ `prepare` step that appends one line to each of them in a repository, so the next commit of those files is a real change.
  */
-const run = promisify(execFile);
+export type SampleEdits = {
+  readonly names: readonly string[];
+  readonly prepare: (target: {
+    readonly directory: string;
+    readonly sample: number;
+  }) => Promise<void>;
+};
 
 /**
- The first tracked text files of a repository, the files a commit of a chosen size edits.
+ The tracked files every commit sample edits: the one file of the default run, or the first tracked text files of the
+ repository, so a commit has the size the run was asked to measure.
 
- Only Markdown, TypeScript and Rust sources count: they are text, so an appended line is an ordinary change, and a
- repository holds many of them.
+ Only Markdown, TypeScript, Rust and text sources count: they are text, so an appended line is an ordinary change, and a
+ repository holds many of them. The two fixtures of a run are copies of each other, so the names hold in both.
+
+ @param files - the `--files` text, how many files a sample edits; absent means one
+
+ @param shaped - whether the fixtures are copies of a prepared repository, which tracks `README.md` at its root (`DPL`), instead of
+   the thirty generated files
 
  @param directory - repository whose index names the files
 
- @param count - how many files to return
+ @returns the names and the edit
 
- @returns repository-relative paths in index order
-
- @throws Error when the repository tracks fewer such files than asked for
+ @throws Error when the count is not a positive integer or the repository tracks fewer text files than asked for
 
  @example
  ```ts
- const names = await trackedTextFiles({ directory, count: 50 });
+ const edits = await sampleEditsOf({ files: '50', shaped: true, directory });
  ```
  */
-export async function trackedTextFiles({
+export async function sampleEditsOf({
+  files,
+  shaped,
   directory,
-  count,
 }: {
+  readonly files?: string;
+  readonly shaped: boolean;
   readonly directory: string;
-  readonly count: number;
-}): Promise<readonly string[]> {
+}): Promise<SampleEdits> {
   /**
-   Names the index holds that end in a text-source extension, NUL separated.
+   How many files a sample edits.
    */
-  const { stdout, } = await run(
-    REAL_GIT,
-    [
-      '-C',
-      directory,
-      'ls-files',
-      '-z',
-      '--',
-      '*.md',
-      '*.ts',
-      '*.rs',
-      '*.txt',
-    ],
-    { maxBuffer: 256 * 1024 * 1024, },
-  );
+  const count = Number(files ?? '1');
+  if ((!Number.isInteger(count)) || (count < 1)) {
+    throw new Error('--files must be a positive integer');
+  }
   /**
-   Every such name.
+   Names the index holds that end in a text-source extension, NUL separated; only asked for when more than one file is wanted.
    */
-  const names = stdout.split('\0')
-    .filter(Boolean);
+  const listed = count === 1
+    ? ''
+    : (await runCommand({
+      command: REAL_GIT,
+      args: [
+        '-C',
+        directory,
+        'ls-files',
+        '-z',
+        '--',
+        '*.md',
+        '*.ts',
+        '*.rs',
+        '*.txt',
+      ],
+      capture: true,
+    })).stdout;
+  /**
+   The files of a sample.
+   */
+  const names = count === 1
+    ? [shaped ? 'README.md' : 'file-0.txt']
+    : listed.split('\0')
+      .filter(Boolean)
+      .slice(
+      0,
+      count,
+      );
   if (names.length < count) {
     throw new Error(`the repository tracks ${String(names.length)} text files, fewer than the ${String(count)} asked for`);
   }
-  return names.slice(
-    0,
-    count,
-  );
+  return {
+    names,
+    async prepare({
+      directory: target,
+      sample,
+    }) {
+      await Promise.all(names.map(function edit(name) {
+        return appendFile(
+          join(
+            target,
+            name,
+          ),
+          `edit ${String(sample)} ${String(Math.random())}\n`,
+        );
+      }));
+    },
+  };
 }

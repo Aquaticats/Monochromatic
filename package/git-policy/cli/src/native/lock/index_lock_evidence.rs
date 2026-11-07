@@ -495,7 +495,7 @@ fn program_of(pid: i64) -> Option<String> {
 /// function holderWayOut({ pid, command }): string; // 'The holder is PID 5 (git), started 2026-11-07T18:04:20.000Z; ...'
 /// ```
 pub fn holder_way_out(pid: i64, command: Option<&str>) -> String {
-    let program: String = match command.map(str::to_string).or_else(|| program_of(pid)) {
+    let program: String = match command.map(str::to_string).or_else(|| { return program_of(pid); }) {
         Some(name) => name,
         None => String::from("program unknown"),
     };
