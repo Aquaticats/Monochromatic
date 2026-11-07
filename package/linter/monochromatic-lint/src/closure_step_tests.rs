@@ -291,6 +291,43 @@ fn a_missing_dylint_skips_everything() {
     assert_eq!(kinds(&stub), vec!["dylint-version"]);
 }
 
+/// A `cargo` that starts and then exits 126 or 127 is a broken link or launcher (its real program is gone),
+/// not a machine without cargo-dylint:
+/// the run fails with what cargo printed instead of skipping the rule with exit 0.
+#[test]
+fn a_cargo_that_cannot_start_its_program_fails_the_run_instead_of_skipping() {
+    for status in ["126", "127"] {
+        let fixture: Fixture = fixture();
+        let launcher_words: &str = "mpm-shadow: could not start /gone/cargo-shadow: No such file or directory (os error 2)\nmpm-shadow: cargo:demo is locked at 0.1.4 in this tree and its `current` link names 0.1.5, but no program named cargo-shadow was found under `current` or at the recorded path; run `mpm install` in /tree to make this tree's links again\n";
+        let stub = scenario(&[
+            ("dylint-version.status", status),
+            ("dylint-version.stderr", launcher_words),
+        ]);
+        let outcome = run(&fixture, &stub);
+        assert!(
+            outcome.messages.is_empty(),
+            "no skip message hides the failure: {:?}",
+            outcome.messages
+        );
+        assert_eq!(outcome.findings.len(), 1, "{:?}", outcome.findings);
+        let message: &str = outcome.findings[0].message.as_str();
+        assert!(
+            message.contains(&format!("exited with {status}")),
+            "{message}"
+        );
+        assert!(
+            message.contains("could not start /gone/cargo-shadow"),
+            "cargo's own words are quoted: {message}"
+        );
+        assert!(
+            message.contains("`mpm install` in /tree"),
+            "the launcher's remedy is kept: {message}"
+        );
+        assert!(message.contains("instead of skipping"), "{message}");
+        assert_eq!(kinds(&stub), vec!["dylint-version"], "no package ran");
+    }
+}
+
 /// `--fix` runs nothing.
 #[test]
 fn fix_mode_runs_nothing() {

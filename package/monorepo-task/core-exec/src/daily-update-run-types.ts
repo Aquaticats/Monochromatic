@@ -60,6 +60,10 @@ export type DailyUpdateEffects = {
     readonly paths: readonly string[]
   },) => Promise<void>;
   /**
+   Commit `HEAD` names now, as a full object name.
+   */
+  readonly headCommit: () => Promise<string>;
+  /**
    Tells the owner something, on the desktop and in the journal.
    */
   readonly notify: (request: {
@@ -92,6 +96,10 @@ export type GroupReport = {
    Repository-relative paths committed, empty unless the outcome is `landed`.
    */
   readonly committed: readonly string[];
+  /**
+   The commit the group made, empty unless the outcome is `landed`.
+   */
+  readonly commit: string;
   /**
    Plain-language problems the owner is told about, empty when nothing went wrong.
    */
