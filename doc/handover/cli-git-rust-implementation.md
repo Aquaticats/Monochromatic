@@ -3581,10 +3581,15 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `changeset:version` starts the program by its own name, `earlierExecutables` is gone; details and the names kept on
   purpose are in the rename plan's "Step 3 as built". In main, `command -v git` gives the new link and the
   settings-file notice no longer prints; the six "both exist" notices wait on the fold branch.
-- Open incident, separate from the rename: main's `.cache/cli-git-bin`, `mpm-shadow-bin` and `cargo-shadow-bin` were
-  found empty (folder times 08:42) before step 3 installed anything, so `git` in main fell through to the global
-  `~/.local/bin/git` (also wrapper 0.6.0) until 09:00:59. The fold worktree's link folders were filled at 08:42:49,
-  which makes an install in one checkout removing links in another the first suspect; not yet shown.
+- Emptied link folders in main: cause shown and fixed in `mpm-shadow` (merge `4d8fb908ac`; root cause in
+  `doc/troubleshooting/mpm-shadow-record-copied-into-a-new-worktree-retires-the-source-links.md`). A `git worktree add`
+  from main copies `.cache/toolchain-launchers/.postinstall-links.json` into the new worktree; the add's repair runs
+  `mpm-shadow install` there, which treated main's recorded links as its own undeclared ones and removed them (08:42 for
+  the fold worktree, 09:08:16 for the masking worktree). Main was reinstalled at 09:19:48 (`mise run toolchain:install`,
+  all four links back). Until the fixed `mpm-shadow` is released and installed, every copy-route worktree add empties
+  main's links again: make new worktrees with `git worktree add --no-worktree-copy` plus `mise run toolchain:install`,
+  or reinstall main afterwards. A release agent is releasing and installing it (it first checks that the installed 0.2.6
+  can pick up an `-alpha.N` release through `@latest`; if not, it stops for a bootstrap decision).
 - Also running since about 09:10 (-05:00): the masking of Git output in `diagnostic_log::debug` under
   `MONOCHROMATIC_VERBOSE=true` (`fix/git-policy-cli-mask-verbose-git-output`), and the diagnosis of the emptied link
   folders. Tried and refused at the same time by the five-agent limit, so they start at the next free slot:
