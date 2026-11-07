@@ -3621,10 +3621,12 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 - Cause and probe: `doc/troubleshooting/git-askpass-dialog-despite-terminal-prompt-off.md`.
   The dialogs the owner saw came from the LFS agent's test with `/usr/bin/git`, not from the wrapper.
 - Owner: "Never prompt (Recommended)" for the wrapper's background Git, and "Neither, rule pkg-local." for agents.
-- An agent builds it on `fix/git-policy-cli-background-git-never-prompts` (red test with a recorder as `SSH_ASKPASS`,
-  one shared place for background spawns, foreground forwarded commands unchanged, unclear spawn sites reported, not decided,
-  tagged rule in `package/git-policy/cli/README.md`, container gate).
-  Merge it, then send the batch agent "go wrapper" so 0.6.0 carries it.
+- Built on `fix/git-policy-cli-background-git-never-prompts` (tip `6b01de5bf0`, gate 5078/5078, Clippy clean):
+  `never_prompt_overlay()` in `child_environment.rs` covers the service's Git and git-lfs runs; forwarded commands
+  are unchanged; package rule `NDG` in `package/git-policy/cli/README.md`. Merged to main; "go wrapper" sent, so
+  0.6.0 carries it. The push-record leak needed no fix: its writer was deleted in `69d275d92b` (2026-11-01), the
+  3 records holding a credential predate that, and a guard test now checks no wrapper file keeps one.
+  Open, minor: `diagnostic_log::debug` writes local Git output to stderr unmasked under `MONOCHROMATIC_VERBOSE=true`.
 - `package/config/lfs-r2-worker` gets the same package-local rule after "unpause lfs".
 - Second fix on the same branch (sent by 2026-11-07T07:11:35-05:00 by the coordinator after the LFS report):
   push records (`.git/monochromatic-git-policy-cli/push/*.last-pushed.json`) store failed push output with URL userinfo
