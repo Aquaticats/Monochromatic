@@ -182,7 +182,8 @@ mod service;
 /// What:
 ///      `mod peak_cache;` declares the peek and invalidate JNI entries (`peak_cache.rs`).
 /// Why:
-///       Keeps the per-track peak reads out of the service module, which is near its line budget.
+///       Keeps the per-track peak reads out of the service module,
+/// which is near its line budget.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1569,7 +1570,8 @@ pub extern "system" fn Java_dev_monochromatic_musicplayer_NativeBridge_nativeEng
 /// What:
 ///      JNI entry declaration taking the engine `handle: jlong` and returning a
 ///           `jboolean` (a Rust `bool` since jni 0.22;
-///  the JVM sees one byte, 0 or 1).
+///  the JVM sees one byte,
+/// 0 or 1).
 /// Why:
 ///       Kotlin reads this to know if audio is actually coming out right now.
 ///

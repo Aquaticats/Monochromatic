@@ -78,7 +78,8 @@ use jni::sys::{jfloat, jint, jlong};
 
 /// What:
 ///      `use jni::EnvUnowned;`.
-///  The per-call JVM argument (the former `EnvUnowned`, renamed in jni 0.22).
+///  The per-call JVM argument (the former `EnvUnowned`,
+/// renamed in jni 0.22).
 /// Why:
 ///       The create entry reads its `JString` through `run_with_env`.
 ///
@@ -269,7 +270,8 @@ struct Write {
     decision: Decision,
     /// What:
     ///      `applied: Option<oneshot::Sender<()>>`.
-    ///  Sent once the upsert has run, when the caller waits for it.
+    ///  Sent once the upsert has run,
+    /// when the caller waits for it.
     /// Why:
     ///       A warm must not return before its decision is readable by the peak read.
     ///
@@ -319,7 +321,8 @@ struct Forget {
 
 /// What:
 ///      `enum Mutation { Write(Write), Forget(Forget) }`.
-///  Everything that changes the cache, in the order it was sent.
+///  Everything that changes the cache,
+/// in the order it was sent.
 /// Why:
 ///       One FIFO channel keeps a removal behind any earlier upsert for the same track.
 ///
