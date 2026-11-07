@@ -566,6 +566,50 @@ await describe({
       },
     },),
     it({
+      name: 'installs the git policy CLI from the archive row of the lock, which is a GitHub release and never crates.io',
+      fn: async function installsPolicyCli() {
+        await using fixture = await createStepFixture();
+        /**
+         The release archive the lock row names, with the program inside one top folder as a release has it.
+         */
+        const archive = await fixture.makeArchive({
+          name: 'policy-cli-x64.tar.gz',
+          top: 'monochromatic-git-policy-cli-0.6.1-x86_64-unknown-linux-gnu',
+          members: { 'monochromatic-git-policy-cli': releaseProgramSource(), },
+        },);
+        await fixture.writeLock({
+          tools: {
+            'cargo:monochromatic-git-policy-cli': {
+              version: '0.6.1',
+              artifacts: {
+                'linux-x64': { url: 'https://example.invalid/policy-cli-x64.tar.gz', sha256: archive.sha256, },
+              },
+            },
+          },
+        },);
+        await fixture.answerCurl([
+          { urlIncludes: 'https://example.invalid/policy-cli-x64.tar.gz', status: 200, bodyFile: archive.path, },
+        ],);
+        const run = await runSetup({ fixture, tools: 'git-policy-cli', platform: 'Linux-X64', },);
+        expect(run.status,).toBe(0,);
+        expect(run.stdout,).toContain('monochromatic-git-policy-cli 1.2.3-fake\n',);
+        expect(await readdir(join(fixture.runnerTemp, 'repo-tools-bin',),),).toEqual(['monochromatic-git-policy-cli',],);
+        expect(run.githubPath,).toBe(`${join(fixture.runnerTemp, 'repo-tools-bin',)}\n`,);
+      },
+    },),
+    it({
+      name: 'names the lock row and the fix when the lock has no archive row of this platform for the git policy CLI',
+      fn: async function policyCliRowMissing() {
+        await using fixture = await createStepFixture();
+        await fixture.writeLock({ tools: { 'cargo:monochromatic-git-policy-cli': { version: '0.6.1', artifacts: {}, }, }, },);
+        const run = await runSetup({ fixture, tools: 'git-policy-cli', platform: 'Linux-X64', },);
+        expect(run.status,).toBe(1,);
+        expect(run.stderr,).toBe(
+          `::error::repo-tools-setup: toolchain.lock.json has no cargo:monochromatic-git-policy-cli archive row for linux-x64; run 'mpm-shadow update'\n`,
+        );
+      },
+    },),
+    it({
       name: 'keeps the secret out of every output and file, and off every command line',
       fn: async function keepsSecret() {
         await using fixture = await createStepFixture();
