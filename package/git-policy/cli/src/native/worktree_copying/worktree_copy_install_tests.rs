@@ -177,18 +177,28 @@ fn installation_copies_every_entry_and_applies_modes() {
     remove(root.as_path());
 }
 
+/// Full batches of files that the batching control installs, plus one file more so the last batch is a short one.
+const FULL_BATCHES_OF_FILES: usize = 2;
+
 /// Selected paths are claimed and settled in batches of at most the batch size, so the record count grows by batch, not by entry.
+///  The tree holds more entries than the batch size several times over: a tree that fits in one batch cannot tell batching from
+///  its absence, which is how this control once stopped noticing the removal of the split after the batch size grew.
 #[cfg(unix)]
 #[test]
 fn records_grow_by_batch_not_by_entry() {
     let root: PathBuf = fixture("install-batches");
     let stage: PathBuf = root.join("stage");
     std::fs::create_dir_all(stage.join("many")).expect("many");
-    for index in 0..1_100 {
-        std::fs::write(stage.join(format!("many/file-{index:04}")), b"x").expect("file");
+    let file_count: usize = INSTALL_BATCH_ENTRIES * FULL_BATCHES_OF_FILES + 1;
+    for index in 0..file_count {
+        std::fs::write(stage.join(format!("many/file-{index:05}")), b"x").expect("file");
     }
     let entries: Vec<WorktreeCopyEntry> =
         collect_entry_manifest(stage.as_path(), &[String::from("many")], &[]).expect("manifest");
+    assert!(
+        entries.len() > INSTALL_BATCH_ENTRIES * FULL_BATCHES_OF_FILES,
+        "the tree must span several batches or the control cannot see a missing split"
+    );
     let destination: PathBuf = root.join("destination");
     std::fs::create_dir(destination.as_path()).expect("destination");
     let mut recorder: CountingRecorder = CountingRecorder::default();
@@ -209,12 +219,13 @@ fn records_grow_by_batch_not_by_entry() {
         expected.push(batch);
         remaining -= batch;
     }
+    assert!(expected.len() > FULL_BATCHES_OF_FILES, "several batches: {expected:?}");
     assert_eq!(recorder.intents, expected);
     assert_eq!(recorder.creations, expected);
     // The batch is past the parallel threshold, so several workers created its files; every one arrived, intact.
-    for index in 0..1_100 {
+    for index in 0..file_count {
         assert_eq!(
-            std::fs::read(destination.join(format!("many/file-{index:04}"))).expect("installed file"),
+            std::fs::read(destination.join(format!("many/file-{index:05}"))).expect("installed file"),
             b"x"
         );
     }

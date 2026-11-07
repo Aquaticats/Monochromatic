@@ -7,10 +7,24 @@
 //!  or a kill) sits in the earlier folder, where nothing of this release looks. Left there, the person's index would show the
 //!  landed commit as reverted. The owner's rule is "never discard user data", so the new service finishes those batches
 //!  with the recovery it already has, in place and before it accepts a connection: nothing is moved or copied, and a batch
-//!  that landed stays remembered where it is. It does so only when no process is running the service of that worktree, because
-//!  a running service finishes its own batches and two services must never settle one batch. The proof is a look at the
-//!  running processes (`/proc`); a look that cannot be made counts as "may be running", the adoption is tried again at the
-//!  next start, and nothing waits.
+//!  that landed stays remembered where it is. It does so only when the earlier helper can neither be running nor start, because
+//!  a running service finishes its own batches and two services must never settle one batch. The earlier helper takes no lock
+//!  on its journal (tag `monochromatic-git-policy-cli-v0.5.34`, `service_main.rs`: it creates the folder, binds, recovers and
+//!  serves), so there is no exclusion this program could also take, and the adoption defers instead. The proof is a look
+//!  (`earlier_service_process_look.rs`): no socket of the earlier units listens (a connection to one starts the helper at any
+//!  moment, so a look at the processes alone cannot prove that none will run), and no process has the start arguments of the
+//!  worktree's service. A look that cannot be made counts as "may run".
+//! What deferring means:
+//!  Nothing is discarded and nothing waits. The intents and records stay on disk where the earlier helper wrote them, and the
+//!  adoption is tried again at each start of this service (it exits when idle, and its socket starts it again). Such a batch
+//!  is settled by the first of: the earlier helper itself (its start recovers the shared journal, and it recovers its own
+//!  journal before each batch it lands), or this service at the first start after the earlier socket stops listening, for
+//!  example when the earlier units are stopped or removed, or after a reboot, since the earlier units live in the runtime
+//!  directory. While an earlier unit stays active and no earlier client ever connects, a batch it left open stays open; the
+//!  index shows the landed commit as reverted until then.
+//! Still open: a wrapper of the earlier release that runs in the same worktree writes its units again and starts the socket,
+//!  which can start the earlier helper between the look and the end of the adoption; nothing the earlier release left behind
+//!  stops that, and the recovery's checks of the branch and the index make the second settling a repeat of the same step.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -130,7 +144,7 @@ pub fn adopt_open_batches(context: &LandContext, instance: &str, proc_root: &Pat
         ceiling: PROCESS_LOOK_CEILING,
     };
     if service_of_instance_may_run(look, proc_root) {
-        crate::service_log!("the earlier service's journals {} and {} are left for now: a service of this worktree may be running, or the processes cannot be looked at", earlier.per_instance.display(), earlier.shared.display());
+        crate::service_log!("the earlier service's journals {} and {} are left for now: a service of this worktree may be running or may start (its socket listens), or the sockets and processes cannot be looked at; the next start of this service tries again", earlier.per_instance.display(), earlier.shared.display());
         return reports;
     }
     for journal in [earlier.per_instance, earlier.shared] {

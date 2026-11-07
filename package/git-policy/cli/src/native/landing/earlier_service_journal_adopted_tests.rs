@@ -44,10 +44,11 @@ fn world_with_earlier_journal(name: &str, state_name: &str) -> (World, PathBuf) 
     return (world, state);
 }
 
-/// A proc root that lists no process.
+/// A proc root that lists no process and no socket.
 fn empty_proc(world: &World) -> PathBuf {
     let proc_root: PathBuf = world.root.join("proc-empty");
     std::fs::create_dir_all(proc_root.as_path()).expect("proc root");
+    write_unix_table(proc_root.as_path(), &[]);
     return proc_root;
 }
 
@@ -96,12 +97,19 @@ fn a_service_of_the_worktree_is_found_among_the_processes_and_nothing_else_is() 
     let world: World = world("adopt-proc");
     let proc_root: PathBuf = empty_proc(&world);
     let own: u32 = 4242;
+    // Journals other than the worktree's earlier ones exist as folders: a journal that cannot be resolved counts as "may be running".
+    let other_journal_folder: PathBuf = world.root.join("other-journal");
+    let other_instance_journal_folder: PathBuf = world.root.join("shared-of-other/other");
+    std::fs::create_dir_all(other_journal_folder.as_path()).expect("another journal");
+    std::fs::create_dir_all(other_instance_journal_folder.as_path()).expect("another instance's journal");
+    let other_journal: String = other_journal_folder.to_string_lossy().into_owned();
+    let other_instance_journal: String = other_instance_journal_folder.to_string_lossy().into_owned();
     assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "no process");
     fake_process(proc_root.as_path(), 10, &["/bin/sh", "-c", "service run --instance abc"]);
     assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "one word, not separate words");
-    fake_process(proc_root.as_path(), 11, &["/p/cli-git-native", "cli-git", "service", "run", "--journal", "/j", "--instance", "other"]);
+    fake_process(proc_root.as_path(), 11, &["/p/cli-git-native", "cli-git", "service", "run", "--journal", other_journal.as_str(), "--instance", "other"]);
     assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "another worktree's service");
-    fake_process(proc_root.as_path(), 14, &["/p/cli-git-native", "--journal", "/s/other", "--git", "/usr/bin/git", "--instance", "other"]);
+    fake_process(proc_root.as_path(), 14, &["/p/cli-git-native", "--journal", other_instance_journal.as_str(), "--git", "/usr/bin/git", "--instance", "other"]);
     assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "another worktree's service of the earlier unit shape");
     fake_process(proc_root.as_path(), 15, &["/p/cli-git-native", "/s/abc", "--journal"]);
     assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "the journal is the word after the option");
@@ -327,6 +335,7 @@ fn the_single_service_of_the_first_releases_is_found_by_the_shared_journal() {
 #[test]
 fn a_process_with_another_journal_and_another_instance_does_not_hold_the_adoption() {
     let taken: bool = adoption_takes_the_batch("adopt-other-journal", |proc_root, world, _instance| {
+        std::fs::create_dir_all(world.root.join("elsewhere")).expect("another journal");
         let other: String = world.root.join("elsewhere").to_string_lossy().into_owned();
         fake_process(proc_root, 23, &["/p/cli-git-native", "--journal", other.as_str(), "--git", "/usr/bin/git", "--instance", "other"]);
     });
@@ -411,5 +420,141 @@ fn the_adoption_says_what_it_did_with_each_batch() {
     fake_process(proc_root.as_path(), 61, &["/p/cli-git-native", "cli-git", "service", "run", "--instance", instance.as_str()]);
     let skipped = crate::service_timing::capture::entries_of(|| { let _reports = adopt_open_batches(&context, instance.as_str(), proc_root.as_path()); });
     assert!(skipped.iter().any(|entry| { return entry.message.contains(world.context.journal.to_string_lossy().as_ref()); }), "the skip names the per-instance journal: {skipped:?}");
+    remove(world.root.as_path());
+}
+
+/// The flags column of `/proc/net/unix` for a socket that listens (`SO_ACCEPTCON`), as the kernel prints it.
+const LISTENING_FLAGS: &str = "00010000";
+
+/// The flags column of `/proc/net/unix` for a socket that does not listen.
+const CONNECTED_FLAGS: &str = "00000000";
+
+/// The first line of `/proc/net/unix`.
+const UNIX_TABLE_HEADER: &str = "Num       RefCount Protocol Flags    Type St Inode Path\n";
+
+/// A user's runtime directory, as the sockets of the units name it.
+const RUNTIME_DIRECTORY: &str = "/run/user/1000";
+
+/// The name of the socket the single service of the first releases listened on, below the earlier program folder.
+const SHARED_SOCKET_NAME: &str = "service.sock";
+
+/// One line of `/proc/net/unix` for a socket bound at `<runtime>/<folder>/<file>`, in the columns the kernel prints.
+fn unix_table_line(flags: &str, folder: &str, file: &str) -> String {
+    return format!("000000002982a48d: 00000002 00000000 {flags} 0001 01 2269401 {RUNTIME_DIRECTORY}/{folder}/{file}\n");
+}
+
+/// Writes the unix socket table of a fake proc root.
+fn write_unix_table(proc_root: &Path, lines: &[String]) {
+    let table: PathBuf = proc_root.join("net/unix");
+    std::fs::create_dir_all(table.parent().expect("net folder")).expect("net folder");
+    std::fs::write(table, format!("{UNIX_TABLE_HEADER}{}", lines.concat())).expect("unix table");
+}
+
+/// Whether the adoption takes an open batch when the fake unix socket table holds `lines` (`None`: no table at all).
+fn adoption_takes_the_batch_with_sockets(name: &str, lines: impl FnOnce(&str) -> Option<Vec<String>>) -> bool {
+    return adoption_takes_the_batch(name, |proc_root, _world, instance| {
+        match lines(instance) {
+            Some(listed) => write_unix_table(proc_root, listed.as_slice()),
+            None => {
+                let _absent = std::fs::remove_file(proc_root.join("net/unix"));
+            }
+        }
+    });
+}
+
+/// The earlier socket unit of a worktree listens on `<runtime>/cli-git/<instance>.sock`, and a connection to it starts the
+///  earlier helper at any moment, with no process to be seen before. The old helper holds no lock on its journal that this
+///  program could also take, so the adoption waits while that socket listens, whoever holds it. The first releases' single
+///  service listened on `<runtime>/cli-git/service.sock`; it serves the worktree's batches in the shared journal.
+#[test]
+fn an_earlier_socket_that_listens_keeps_the_adoption_away() {
+    assert!(!adoption_takes_the_batch_with_sockets("adopt-socket-instance", |instance| {
+        return Some(vec![unix_table_line(LISTENING_FLAGS, DATA_FOLDER.earlier, format!("{instance}.sock").as_str())]);
+    }), "the socket of the worktree's earlier unit");
+    assert!(!adoption_takes_the_batch_with_sockets("adopt-socket-shared", |_instance| {
+        return Some(vec![unix_table_line(LISTENING_FLAGS, DATA_FOLDER.earlier, SHARED_SOCKET_NAME)]);
+    }), "the socket of the first releases' single service");
+}
+
+/// Control: what is not a way for the earlier helper to start does not hold the adoption: the socket of another worktree, a
+///  socket that does not listen, a socket of another program, and a table with no socket at all.
+#[test]
+fn a_socket_that_cannot_start_the_earlier_helper_does_not_hold_the_adoption() {
+    let other_instance: String = "f".repeat(crate::service_instance::INSTANCE_LENGTH);
+    assert!(adoption_takes_the_batch_with_sockets("adopt-socket-other-instance", |_instance| {
+        return Some(vec![unix_table_line(LISTENING_FLAGS, DATA_FOLDER.earlier, format!("{other_instance}.sock").as_str())]);
+    }), "another worktree's socket");
+    assert!(adoption_takes_the_batch_with_sockets("adopt-socket-not-listening", |instance| {
+        return Some(vec![unix_table_line(CONNECTED_FLAGS, DATA_FOLDER.earlier, format!("{instance}.sock").as_str())]);
+    }), "a socket that does not listen");
+    assert!(adoption_takes_the_batch_with_sockets("adopt-socket-other-program", |instance| {
+        return Some(vec![unix_table_line(LISTENING_FLAGS, DATA_FOLDER.current, format!("{instance}.sock").as_str())]);
+    }), "the socket of this release's unit");
+    assert!(adoption_takes_the_batch_with_sockets("adopt-socket-none", |_instance| { return Some(Vec::new()); }), "no socket");
+}
+
+/// A table of sockets that cannot be read proves nothing about the earlier unit, so the adoption waits.
+#[test]
+fn an_unreadable_table_of_sockets_counts_as_may_be_running() {
+    assert!(!adoption_takes_the_batch_with_sockets("adopt-socket-table-missing", |_instance| { return None; }));
+}
+
+/// A journal the earlier helper was started with, spelled through a symbolic link (on this machine `/home` is a link to
+///  `/var/home`), is the same folder as the one the service derives, and a relative spelling is the folder the process's own
+///  working directory gives it. A spelling that names another existing folder is not the journal; one that cannot be resolved
+///  proves nothing, so it counts as "may be running".
+#[test]
+fn a_journal_is_compared_by_the_folder_it_names_not_by_its_spelling() {
+    use std::os::unix::fs::symlink;
+    let world: World = world("adopt-proc-identity");
+    let proc_root: PathBuf = empty_proc(&world);
+    let own: u32 = 4242;
+    let real: PathBuf = world.root.join("real");
+    std::fs::create_dir_all(real.join("abc")).expect("the journal");
+    std::fs::create_dir_all(world.root.join("other")).expect("another folder");
+    symlink(real.as_path(), world.root.join("alias")).expect("a link to the folder above the journal");
+    let look: ServiceLook = ServiceLook { journals: vec![real.join("abc"), real.clone()], ..look_for(own) };
+    let older_shape = |journal: &str| -> Vec<String> { return vec![String::from("/p/cli-git-native"), String::from("--journal"), journal.to_string(), String::from("--git"), String::from("/usr/bin/git")]; };
+    let say = |pid: u32, journal: &str| {
+        let words: Vec<String> = older_shape(journal);
+        fake_process(proc_root.as_path(), pid, words.iter().map(String::as_str).collect::<Vec<_>>().as_slice());
+    };
+    say(70, world.root.join("other").to_string_lossy().as_ref());
+    assert!(!service_of_instance_may_run(look.clone(), proc_root.as_path()), "another existing folder");
+    say(71, world.root.join("alias/abc").to_string_lossy().as_ref());
+    assert!(service_of_instance_may_run(look.clone(), proc_root.as_path()), "the journal through a link");
+    std::fs::remove_dir_all(proc_root.join("71")).expect("ended");
+    say(72, "real/abc");
+    symlink(world.root.as_path(), proc_root.join("72/cwd")).expect("the working directory of the process");
+    assert!(service_of_instance_may_run(look.clone(), proc_root.as_path()), "the journal relative to the working directory of the process");
+    std::fs::remove_dir_all(proc_root.join("72")).expect("ended");
+    say(73, "other");
+    symlink(world.root.as_path(), proc_root.join("73/cwd")).expect("the working directory of the process");
+    assert!(!service_of_instance_may_run(look.clone(), proc_root.as_path()), "a relative spelling of another existing folder");
+    std::fs::remove_dir_all(proc_root.join("73")).expect("ended");
+    say(74, world.root.join("no-such-folder").to_string_lossy().as_ref());
+    assert!(service_of_instance_may_run(look.clone(), proc_root.as_path()), "a journal that cannot be resolved");
+    std::fs::remove_dir_all(proc_root.join("74")).expect("ended");
+    say(75, "real/abc");
+    assert!(service_of_instance_may_run(look, proc_root.as_path()), "a relative spelling of a process whose working directory cannot be read");
+    remove(world.root.as_path());
+}
+
+/// Only the first bytes of a command line are read, and a line that fills that limit has more words that were not looked at: an
+///  earlier helper started with a very long program name has its service words past the limit. Such a line counts as "may be
+///  running", and a line that ends exactly at the limit was read whole.
+#[test]
+fn a_command_line_longer_than_the_bytes_read_counts_as_may_be_running() {
+    let limit: usize = usize::try_from(crate::earlier_service_process_look::COMMAND_LINE_BYTES).expect("the limit fits");
+    let world: World = world("adopt-proc-long");
+    let proc_root: PathBuf = empty_proc(&world);
+    let long_program: String = "p".repeat(limit + limit / 2);
+    fake_process(proc_root.as_path(), 80, &[long_program.as_str(), "cli-git", "service", "run", "--journal", "/j", "--instance", "abc"]);
+    assert!(service_of_instance_may_run(look_for(4242), proc_root.as_path()), "the service words are past the limit");
+    std::fs::remove_dir_all(proc_root.join("80")).expect("ended");
+    // The program name and its NUL fill the limit exactly: nothing was left unread.
+    let exact_program: String = "p".repeat(limit - 1);
+    fake_process(proc_root.as_path(), 81, &[exact_program.as_str()]);
+    assert!(!service_of_instance_may_run(look_for(4242), proc_root.as_path()), "a command line that ends at the limit was read whole");
     remove(world.root.as_path());
 }
