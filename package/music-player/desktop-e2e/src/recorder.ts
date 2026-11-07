@@ -40,6 +40,23 @@ import type { UiState, } from './ui-state.ts';
 export type EvidenceState = Pick<UiState, 'focus' | 'reason' | 'route' | 'seq' | 'unfolded' | 'zone'>;
 
 /**
+ Writes a state as one line of a failure file.
+
+ @param state - the state
+
+ @returns the sequence number and the fields that say where the keyboard and the page were
+
+ @example
+ ```ts
+ describeState({ seq: 1, reason: 'key', zone: 'surface', focus: '', route: 'Player', unfolded: true, },);
+ ```
+ */
+function describeState(state: EvidenceState,): string {
+  return `seq=${state.seq} reason=${state.reason} zone=${state.zone} focus=${state.focus} `
+    + `route=${state.route} unfolded=${state.unfolded}`;
+}
+
+/**
  The session whose states a failing check keeps.
  */
 export type EvidenceSource = {
@@ -58,6 +75,12 @@ export type EvidenceSource = {
  timeout (the Search answer race on 2026-11-07 needed the last three) and stays readable in a terminal.
  */
 export const EVIDENCE_STATES = 10;
+
+/**
+ The reason of the state lines a playing track writes on every position change. They carry nothing a failure needs and a
+ playing track writes them without pause, so a file of the last states would hold only them.
+ */
+const POSITION_REASON = 'position';
 
 /**
  Suffix of a failure file's name.
@@ -207,17 +230,27 @@ export function createRecorder(
         const states = await source.readStates();
 
         /**
+         The states other than position ticks.
+         */
+        const changes = states.filter(function isChange(state,): boolean {
+          return state.reason !== POSITION_REASON;
+        },);
+
+        /**
          The latest of them.
          */
-        const kept = states.slice(-EVIDENCE_STATES,);
+        const kept = changes.slice(-EVIDENCE_STATES,);
+
+        /**
+         The state the session was in last, whatever its reason.
+         */
+        const final = states.at(-1,);
         stateLines.push(
           `session: ${source.label}`,
-          `last ${kept.length} of ${states.length} ui_state lines, oldest first:`,
-          ...kept
-            .map(function describeState(state,): string {
-              return `seq=${state.seq} reason=${state.reason} zone=${state.zone} focus=${state.focus} `
-                + `route=${state.route} unfolded=${state.unfolded}`;
-            },),
+          `last ${kept.length} of ${changes.length} ui_state changes, oldest first `
+            + `(${states.length - changes.length} position ticks skipped):`,
+          ...kept.map(describeState,),
+          ...final === undefined ? ['no ui_state line was read',] : [`the final state, ${describeState(final,)}`,],
         );
       }
       catch (error: unknown) {
