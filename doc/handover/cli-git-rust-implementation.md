@@ -630,9 +630,10 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   Seventh cross-vendor run (`sol-review-settle-7/review.txt`, 2026-11-07): three defects in the settle command, fixed on
   `fix/git-policy-cli-settle-command-review-fixes` (condition write failure refuses; unexamined batches are named and exit 1;
   the hold keeps which socket or helper caused it and the remedy fits; plan doc, "Changes after the seventh review").
-  Open question found on the way: `LEGACY_SOCKET_RELATIVE` in `service_instance.rs` reads `monochromatic-git-policy-cli/service.sock`
-  where the first releases wrote `cli-git/service.sock` (tag line 26), so the retirement of the single service looks for the wrong
-  socket file.
+  The rename audit (plan doc, "Earlier names after the rename audit") fixed three names that had been renamed along with the
+  program but name the earlier program's artifacts: `LEGACY_SOCKET_RELATIVE` (the single service's socket), the first lines of
+  the earlier push records, and the first line of the earlier claim files. Open for the owner: the earlier `cli-git-scratch`
+  folders in Git directories are not moved or swept.
   After the one release, every later release carries `-alpha.N` and skips crates.io, but this machine installs our
   seven tools through crates.io (`cargo-binstall`); until they install from GitHub releases (the `archive` route
   `mpm-shadow` uses, task #167), no later fix can be installed here. The owner has not yet said whether that route

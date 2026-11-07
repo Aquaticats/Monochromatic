@@ -99,10 +99,10 @@ fn way_on(because: Hold, instance: &str) -> String {
             "To go on, either stop it with {own_units} when no commit by the earlier release is running here, or wait: nothing listens that could start it again, and it exits by itself when idle, three hours after its last client. {again}"
         ),
         Hold::SharedSocketListens => format!(
-            "That service serves every worktree of this account, so stopping it ends it for all of them. The next commit made with this release, in any worktree, retires it by itself: it asks the service to finish its batch and exit, then stops its units. Or stop it now with {shared_units} when no commit by the earlier release is running in any worktree. {again}"
+            "That service serves every worktree of this account, so stopping it ends it for all of them. The next commit made with this release, in any worktree, retires it by itself: it asks the service to finish its batch and exit, then stops its units (if the service is still working after ten seconds, that commit stops and says so). Or stop it now with {shared_units} when no commit by the earlier release is running in any worktree. {again}"
         ),
         Hold::SharedHelperRuns => format!(
-            "That service serves every worktree of this account. The next commit made with this release, in any worktree, retires it by itself: it asks the service to finish its batch and exit, then stops its units. Or stop it now with {shared_units} when no commit by the earlier release is running in any worktree, or wait: nothing listens that could start it again, and it exits by itself when idle, three hours after its last client. {again}"
+            "That service serves every worktree of this account. The next commit made with this release, in any worktree, retires it by itself: it asks the service to finish its batch and exit, then stops its units (if the service is still working after ten seconds, that commit stops and says so). Or stop it now with {shared_units} when no commit by the earlier release is running in any worktree, or wait: nothing listens that could start it again, and it exits by itself when idle, three hours after its last client. {again}"
         ),
         Hold::HelperUnsure => format!(
             "It is not known which one, so to go on, stop this worktree's earlier units with {own_units} and the single service of the first releases with {shared_units} (that one serves every worktree), when no commit by the earlier release is running. {again}"
